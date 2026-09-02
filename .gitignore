@@ -1,0 +1,51 @@
+## .NET / MAUI
+bin/
+obj/
+[Bb]uild/
+[Ll]og/
+[Ll]ogs/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.dbmdl
+*.jfm
+*.pfx
+*.publishsettings
+project.lock.json
+project.fragment.lock.nuget.json
+artifacts/
+TestResults/
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+## IDE
+.vs/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*~
+
+## OS
+.DS_Store
+Thumbs.db
+
+## MAUI / platform
+*.apk
+*.ap_
+*.aab
+*.ipa
+*.dsym.zip
+*.app
+**/Platforms/**/bin/
+**/Platforms/**/obj/
+
+## Secrets / local env
+*.local.json
+appsettings.*.local.json
+.env
+.env.*

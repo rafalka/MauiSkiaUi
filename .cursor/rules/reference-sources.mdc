@@ -1,0 +1,16 @@
+---
+description: Local reference checkouts for SkiaUi architecture and implementation
+alwaysApply: true
+---
+
+# Reference sources
+
+When designing or implementing SkiaUi (layout, input, XAML, rendering), consult these local trees. Prefer patterns that fit `SkUiContentView` → `ISkUiView`; do not copy frameworks wholesale. Details live in `Requirements.md`.
+
+| Framework | Path |
+| --- | --- |
+| .NET MAUI | `/Users/rkukla/devel/maui/maui` |
+| Flutter | `/Users/rkukla/devel/flutter` |
+| Avalonia | `/Users/rkukla/devel/Avalonia` |
+| Uno Platform | `/Users/rkukla/devel/uno` |
+| DrawnUi (MAUI) | `/Users/rkukla/devel/maui/drawnui` |

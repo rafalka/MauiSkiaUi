@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="MauiSkiaUi/MauiSkiaUi.csproj" />
+  <Project Path="MauiSkiaUiDemo/MauiSkiaUiDemo.csproj" />
+</Solution>
