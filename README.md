@@ -55,7 +55,7 @@ dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -f net10.0-android
 ## Documentation
 
 - **README.md** (this file) — what exists today and how to build it.
-- **[Requirements.md](Requirements.md)** — goals, architecture, XAML model, backlog, and local reference checkouts (MAUI, Flutter, Avalonia, Uno, DrawnUi).
+- **[Requirements.md](Requirements.md)** — goals, architecture, XAML model, backlog, and local reference checkouts (MAUI, Open-Maui, Flutter, Avalonia, Uno, DrawnUi).
 
 ## License
 

@@ -62,6 +62,20 @@ Every SkiaUi control and layout implements `ISkUiView`. Proposed surface (names 
 
 Layouts are `ISkUiView` implementations that own child `ISkUiView` instances and participate in the same measure / layout / paint / touch pipeline. Controls do **not** inherit MAUI `View`; they are pure SkiaUi nodes hosted under `SkUiContentView`.
 
+Measure, Layout, and Paint must be **selective**: parents (especially layouts) invoke children only when necessary and reuse cached measure sizes and cached painted bitmaps for unchanged children (see NFR-2 / FR-3).
+
+### Layout model (Flutter-like)
+
+SkiaUi’s measure / layout pipeline must follow **Flutter’s box-constraint model** (constraints down, sizes up), not MAUI/WPF-style multi-pass Measure + Arrange with repeated child measurement:
+
+- **Constraints down:** a parent passes min/max width and height (tight, loose, or unbounded) to each child during Measure.
+- **Sizes up:** the child returns a size that satisfies those constraints; the parent uses child sizes to decide its own size.
+- **Position separately:** Layout places children (and applies alignment) without re-running Measure unless constraints or the node are dirty.
+- Prefer a **single layout pass** over algorithms that measure the same child multiple times (e.g. classic star-Grid remeasure loops), unless a layout explicitly needs a second pass and documents why.
+- Support **relayout isolation** (Flutter `RelayoutBoundary` equivalent): a dirty subtree must not force unrelated siblings to remeasure when their constraints are unchanged (see NFR-2 / FR-3).
+
+Public API may keep Measure / Layout names for familiarity; the semantics are Flutter-like constraints, not MAUI `MeasureOverride` / `ArrangeOverride` semantics. Primary reference: Flutter `RenderBox` / `BoxConstraints` under the local Flutter checkout.
+
 ### XAML object model
 
 - Concrete control/layout types (e.g. `SkUiGrid`, `SkUiLabel`) are instantiable from XAML (public parameterless constructors, bindable or settable properties as needed).
@@ -97,6 +111,15 @@ Layouts are `ISkUiView` implementations that own child `ISkUiView` instances and
 
 - [ ] At least one layout `ISkUiView` suitable for XAML nesting (e.g. `SkUiGrid` or stack) that measures / arranges children and paints / hit-tests them in z-order.
 - [ ] Clear invalidation rules: property or structure changes request redraw (and remeasure when needed).
+- [ ] Layouts dirty-track children so only the affected subset is re-measured, re-laid out, or re-painted; unchanged siblings keep cached measure results and cached painted bitmaps (see NFR-2).
+
+### FR-3a — Flutter-like layout system
+
+- [ ] Measure accepts **box constraints** (min/max width and height), not only a single available size; returned size must satisfy the constraints.
+- [ ] Layout positions children from measured sizes; changing a child’s offset alone must not require that child to remeasure or repaint when its size and visual content are unchanged.
+- [ ] Built-in layouts (stack, grid, etc.) implement the Flutter-like one-pass constraints-down / sizes-up model described under *Layout model (Flutter-like)*.
+- [ ] Document constraint kinds used by layouts (tight / loose / unbounded) and how they map to common XAML ideas (stretch, wrap, scroll/intrinsic).
+- [ ] Do **not** adopt MAUI/Avalonia/WPF multi-measure Grid algorithms as the default; if a layout needs extra passes, keep them local and justified.
 
 ### FR-4 — Base controls
 
@@ -114,6 +137,13 @@ Layouts are `ISkUiView` implementations that own child `ISkUiView` instances and
 - [ ] Stable root namespace (`MauiSkiaUi` or agreed name).
 - [ ] NuGet metadata when publishing is required.
 
+### FR-7 — Animation
+
+- [ ] Support property / transform / opacity (and similar) animations on `ISkUiView` nodes, driven so that active animations can sustain **butter-smooth ~60 fps** on target devices with GPU-backed `SKGLView`.
+- [ ] Animation clock / ticker integrates with the bridge invalidation model (continuous frames while any animation is active; idle when none are).
+- [ ] Animated nodes mark themselves dirty each frame as needed; layouts and the paint path still honor selective Measure / Layout / Paint and cached bitmaps for **non-animated** siblings (NFR-2 / FR-3).
+- [ ] Demo or gallery sample shows at least one continuous animation under `SkUiContentView`.
+
 ## Non-functional requirements
 
 ### NFR-1 — Platforms
@@ -124,8 +154,11 @@ Layouts are `ISkUiView` implementations that own child `ISkUiView` instances and
 ### NFR-2 — Performance
 
 - Hot paint / touch paths minimize allocations.
-- Redraw only when invalidated; optional `HasRenderLoop` only for continuous animation scenarios.
+- Redraw only when invalidated; use a continuous render loop (`HasRenderLoop` or equivalent) only while animations (or other continuous scenarios) are active — see FR-7 and open decisions.
 - Layout passes should be avoidable when constraints and tree are unchanged.
+- **Selective Measure / Layout / Paint:** call into a child `ISkUiView` only when that child (or its constraints / arranged bounds) actually needs work. Unchanged children must not be re-entered on every parent pass.
+- **Layouts especially:** when a layout owns multiple `Children`, re-measure, re-layout, and re-paint only the dirty subset. Siblings that did not change reuse **cached measure** results and **cached drawn bitmaps** (or equivalent retained paint output) instead of running Measure / Layout / Paint again.
+- Invalidation must be granular enough to support this (per-node dirty flags for size, arrangement, and visual content), not only a full-tree redraw.
 
 ### NFR-3 — Quality
 
@@ -147,7 +180,8 @@ Use these local checkouts when designing or implementing SkiaUi (layout, input, 
 | Framework | Local path | Typical relevance |
 | --- | --- | --- |
 | .NET MAUI | `/Users/rkukla/devel/maui/maui` | Host integration, XAML/`ContentProperty`, gesture/handler patterns |
-| Flutter | `/Users/rkukla/devel/flutter` | Render-object style measure/layout/paint, hit-testing |
+| Open-Maui | `/Users/rkukla/devel/maui-linux` | MAUI-compatible stack / Linux and alternate host patterns |
+| Flutter | `/Users/rkukla/devel/flutter` | **Primary layout model:** `RenderBox` / `BoxConstraints` (constraints down, sizes up), paint, hit-testing |
 | Avalonia | `/Users/rkukla/devel/Avalonia` | Visual tree, layout, XAML controls outside MAUI |
 | Uno Platform | `/Users/rkukla/devel/uno` | Cross-platform control/layout and composition approaches |
 | DrawnUi (MAUI) | `/Users/rkukla/devel/maui/drawnui` | Skia-drawn MAUI controls; closest prior art for a drawn UI layer |
@@ -156,7 +190,7 @@ When borrowing an idea, note the source briefly in design discussion or code com
 
 ## Open decisions
 
-- Exact method signatures and types for Measure / Layout / Paint / Touch (Skia vs custom size/rect/touch args)
+- Exact method signatures and types for Measure / Layout / Paint / Touch (Skia vs custom size/rect/touch args); Measure must take Flutter-like box constraints (FR-3a) — concrete type names (`SkUiBoxConstraints`, etc.) TBD
 - Coordinate system: DIPs vs physical pixels, and how density is applied in `SkUiContentView`
 - Hit-test / touch routing (capture, bubbling, multi-touch)
 - Naming: `SkUi*` vs `MauiSkiaUi*` for public types (markup examples use `SkUi*`)
@@ -164,6 +198,7 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - BindableProperty usage on SkiaUi nodes vs plain CLR properties for XAML/bindings
 - Visual style tokens / theming
 - NuGet publish now vs in-repo only
+- **Animation render loop:** Should `SkUiContentView` set `HasRenderLoop = true` whenever any descendant has an active animation? If yes, how do we avoid re-measuring / re-painting **non-animated** children on every frame (rely on dirty flags + cached bitmaps only; clip/partial surface update; separate animation layers; or another approach)? When the last animation ends, must `HasRenderLoop` turn back off automatically?
 
 ## Tracking
 
