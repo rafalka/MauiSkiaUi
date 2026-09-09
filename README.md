@@ -2,14 +2,15 @@
 
 .NET MAUI library of **base controls and layouts drawn entirely with SkiaSharp**, using GPU acceleration via `SKGLView` when available.
 
-MAUI hosts a single bridge control (`SkUiContentView`); all SkiaUi UI lives in an `ISkUiView` tree that receives measure, layout, paint, and touch from that bridge. The SkiaUi tree is intended to be fully authorable in XAML (e.g. `SkUiContentView` → `SkUiGrid` → `SkUiLabel`). See [Requirements.md](Requirements.md) for the full architecture.
+MAUI hosts a single accelerated surface; all SkiaUi visuals live in an `ISkUiView` tree (`SkUiView` / `SkUiContentView` / `SkUiLayout`) that receives measure, arrange, paint, and touch from the root host. The SkiaUi tree is intended to be fully authorable in XAML (e.g. `SkUiContentView` → `SkUiGrid` → `SkUiLabel`). See [Requirements.md](Requirements.md) for the full architecture.
+
 
 ## Solution structure
 
 | Project | Type | Description |
 | --- | --- | --- |
-| `MauiSkiaUi` | .NET MAUI class library (`net10.0-*`) | SkiaSharp-based UI controls for consumption by MAUI apps |
-| `MauiSkiaUiDemo` | .NET MAUI application (`net10.0-*`) | Sample host used to develop and verify controls |
+| `MauiSkiaUi` | .NET MAUI class library (`net10.0-*`) | SkiaSharp-based UI controls (`SkUi*` types); intended for **NuGet** publish |
+| `MauiSkiaUiDemo` | .NET MAUI application (`net10.0-*`) | Sample host used to develop and verify controls; **in-repo only** (not published) |
 
 Solution file: `SkiaUi.slnx`
 
@@ -55,7 +56,10 @@ dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -f net10.0-android
 ## Documentation
 
 - **README.md** (this file) — what exists today and how to build it.
-- **[Requirements.md](Requirements.md)** — goals, architecture, XAML model, backlog, and local reference checkouts (MAUI, Open-Maui, Flutter, Avalonia, Uno, DrawnUi).
+- **[Requirements.md](Requirements.md)** — goals, architecture, XAML model, backlog, and local reference checkouts (MAUI, Open-Maui, Flutter, Avalonia, Uno, DrawnUi, SkiaSharp).
+- **[LayoutSystem.md](LayoutSystem.md)** — MAUI-based measure/arrange, hosted vs standalone modes, layout-manager reuse, and implementation checklist (FR-3 / FR-3a / FR-13).
+- **[DrawingMechanism.md](DrawingMechanism.md)** — paint pipeline, Background/Content/Overlay layers, clip/mask, transparency-aware caching, and implementation checklist (FR-8 / FR-9 / FR-11).
+- **[EventMechanism.md](EventMechanism.md)** — SkiaUi-owned gesture / event design (tap, double tap, long press, swipe), participation rules, and implementation checklist (FR-15).
 
 ## License
 
