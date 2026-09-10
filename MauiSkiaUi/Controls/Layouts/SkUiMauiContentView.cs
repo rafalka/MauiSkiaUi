@@ -11,11 +11,13 @@ namespace MauiSkiaUi;
 /// never consumes hits over this region.
 /// </summary>
 /// <remarks>
-/// v1 computes the overlay's root-relative position by summing ancestor <see cref="IView.Frame"/> offsets
-/// (see <see cref="ComputeRootRelativeFrame"/>); it does not account for rotation/scale/opacity on ancestors
-/// between this node and the standalone root, or snapshot-during-scroll. Overlay attach/detach only has an
-/// effect on Android/iOS/Mac Catalyst/Windows builds; on the headless <c>net10.0</c> target used for tests,
-/// the platform hooks are simply absent (no-ops), so Measure/Arrange/Touch remain exercisable without a device.
+/// v1 computes the overlay's root-relative position from this node's and each ancestor's <see cref="IView.Frame"/>
+/// plus <see cref="VisualElement.TranslationX"/>/<see cref="VisualElement.TranslationY"/> (see
+/// <see cref="ComputeRootRelativeFrame"/>); it does <b>not</b> account for <c>Rotation</c>, <c>Scale</c>, or
+/// <c>Opacity</c> on this node or its ancestors between here and the standalone root, or snapshot-during-scroll.
+/// Overlay attach/detach only has an effect on Android/iOS/Mac Catalyst/Windows builds; on the headless
+/// <c>net10.0</c> target used for tests, the platform hooks are simply absent (no-ops), so Measure/Arrange/Touch
+/// remain exercisable without a device.
 /// </remarks>
 [ContentProperty(nameof(Content))]
 public partial class SkUiMauiContentView : SkUiView
@@ -74,16 +76,17 @@ public partial class SkUiMauiContentView : SkUiView
     internal void NotifyRootDetached() => DetachOverlay();
 
     /// <summary>
-    /// Root-relative arranged bounds: this node's <see cref="IView.Frame"/> plus every ancestor's Frame
-    /// offset up to (excluding) the standalone root. See the type-level remarks for the translation-only limit.
+    /// Root-relative arranged bounds: this node's <see cref="IView.Frame"/> plus every ancestor's Frame and
+    /// translation offsets up to (excluding) the standalone root. See the type-level remarks for the
+    /// rotation/scale/opacity limit.
     /// </summary>
     internal Rect ComputeRootRelativeFrame()
     {
-        double x = Frame.X, y = Frame.Y;
+        double x = Frame.X + TranslationX, y = Frame.Y + TranslationY;
         for (var ancestor = Parent as SkUiView; ancestor is not null && ancestor.Handler is null; ancestor = ancestor.Parent as SkUiView)
         {
-            x += ancestor.Frame.X;
-            y += ancestor.Frame.Y;
+            x += ancestor.Frame.X + ancestor.TranslationX;
+            y += ancestor.Frame.Y + ancestor.TranslationY;
         }
         return new Rect(x, y, Frame.Width, Frame.Height);
     }

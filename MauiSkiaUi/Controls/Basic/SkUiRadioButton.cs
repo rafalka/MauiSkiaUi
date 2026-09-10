@@ -31,6 +31,14 @@ public class SkUiRadioButton : SkUiToggleControl
     /// <summary>Sets the group name without bindable write-back.</summary>
     public SkUiRadioButton SetGroupName(string? value) { groupName = value; return this; }
 
+    /// <summary>Unlike the shared toggle base, a tap only selects (matching MAUI's RadioButton); it never unchecks.</summary>
+    protected override void OnTapped(SkUiTappedEventArgs args)
+    {
+        RaiseTapped(args);
+        ExecuteTappedCommand();
+        SetIsChecked(true);
+    }
+
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => new(24, 24);
 

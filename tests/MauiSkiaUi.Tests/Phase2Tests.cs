@@ -2,11 +2,73 @@ using Microsoft.Maui;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
 using Xunit;
+using SkiaSharp;
 
 namespace MauiSkiaUi.Tests;
 
 public class Phase2Tests
 {
+    private static void Arrange(IView view, double width, double height)
+    {
+        view.Measure(width, height);
+        view.Arrange(new Rect(0, 0, width, height));
+    }
+
+    [Fact]
+    public void RadioButtonOnlySelectsAndNeverUnchecksOnRetap()
+    {
+        var radio = new SkUiRadioButton();
+        Arrange(radio, 24, 24);
+        radio.Touch(new(1, SkUiTouchAction.Pressed, new Point(12, 12)));
+        radio.Touch(new(1, SkUiTouchAction.Released, new Point(12, 12)));
+        Assert.True(radio.IsChecked);
+        radio.Touch(new(1, SkUiTouchAction.Pressed, new Point(12, 12)));
+        radio.Touch(new(1, SkUiTouchAction.Released, new Point(12, 12)));
+        Assert.True(radio.IsChecked);
+    }
+
+    [Fact]
+    public void BorderPaintsBackgroundColorWhenBackgroundBrushIsUnset()
+    {
+        var border = new SkUiBorder { BackgroundColor = Colors.Red, CornerRadius = 0, Content = new SkUiBox { Color = Colors.Red } };
+        Arrange(border, 40, 40);
+        using var bitmap = new SKBitmap(40, 40);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        border.Paint(canvas);
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(1, 1));
+    }
+
+    [Fact]
+    public void ActivityIndicatorStopsClockWhenRemovedFromTree()
+    {
+        var layout = new SkUiLayout();
+        var indicator = new SkUiActivityIndicator();
+        layout.Children.Add(indicator);
+        indicator.IsRunning = true;
+        var clock = layout.AnimationClock;
+        Assert.True(clock.IsRunning);
+        layout.Children.Remove(indicator);
+        Assert.False(indicator.IsRunning);
+        Assert.False(clock.IsRunning);
+    }
+
+    [Fact]
+    public void MauiContentViewRootRelativeFrameIncludesAncestorAndOwnTranslation()
+    {
+        var overlay = new SkUiMauiContentView
+        {
+            Content = new Editor(), WidthRequest = 20, HeightRequest = 20, TranslationX = 5, TranslationY = 3,
+            HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Start
+        };
+        var layout = new SkUiLayout { TranslationX = 100, TranslationY = 50 };
+        layout.Children.Add(overlay);
+        var root = new SkUiContentView { Content = layout };
+        Arrange(root, 200, 200);
+        // root(0,0) -> layout Frame(0,0) + Translation(100,50) -> overlay Frame(0,0) + Translation(5,3).
+        Assert.Equal(new Rect(105, 53, 20, 20), overlay.ComputeRootRelativeFrame());
+    }
+
     [Fact]
     public void MauiContentViewMeasuresArrangesContentAndNeverConsumesTouch()
     {

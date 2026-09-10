@@ -59,4 +59,11 @@ public class SkUiActivityIndicator : SkUiView
         base.OnPropertyChanged(propertyName);
         if (propertyName == nameof(IsVisible) && !IsVisible) SetIsRunning(false);
     }
+
+    /// <summary>Stops the animation clock when removed from its tree, so a detached spinner cannot keep ticking.</summary>
+    protected override void OnParentSet()
+    {
+        base.OnParentSet();
+        if (Parent is null) SetIsRunning(false);
+    }
 }
