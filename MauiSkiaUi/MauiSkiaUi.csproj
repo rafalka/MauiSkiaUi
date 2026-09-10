@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net10.0-android</TargetFrameworks>
+		<TargetFrameworks>net10.0;net10.0-android</TargetFrameworks>
 		<TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
 		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
@@ -9,6 +9,7 @@
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 
 		<!-- Enable XAML source generation for faster build times and improved performance.
 		     This generates C# code from XAML at compile time instead of runtime inflation.
@@ -23,11 +24,37 @@
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+
+		<!-- NuGet -->
+		<IsPackable>true</IsPackable>
+		<PackageId>MauiSkiaUi</PackageId>
+		<Version>1.0.0-Prelease01</Version>
+		<Authors>Rafal Kukla</Authors>
+		<Company>Rafal Kukla</Company>
+		<Copyright>Copyright © Rafal Kukla</Copyright>
+		<Description>SkiaSharp-drawn .NET MAUI controls and layouts (SkUi*) with GPU-accelerated hosting, XAML composition, and optional native MAUI overlay hosting for Entry, Editor, WebView, and similar.</Description>
+		<PackageTags>maui;skiasharp;skia;ui;controls;layouts;gpu;xaml</PackageTags>
+		<PackageProjectUrl>https://github.com/rafalka/MauiSkiaUi</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/rafalka/MauiSkiaUi</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
 	</PropertyGroup>
 
 	<ItemGroup>
+		<None Include="..\README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="MauiSkiaUi.Tests" />
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
-		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="4.151.1" />
+		<PackageReference Include="SkiaSharp" Version="4.151.1" />
+		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="4.151.1" Condition="'$(TargetFramework)' != 'net10.0'" />
 	</ItemGroup>
 
 </Project>

@@ -49,3 +49,6 @@ Thumbs.db
 appsettings.*.local.json
 .env
 .env.*
+
+## Local scratch
+tmp/

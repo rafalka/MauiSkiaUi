@@ -370,7 +370,7 @@ Record answers here when decided; keep Requirements “Open decisions” in sync
 - [Requirements.md](Requirements.md) — FR-8, FR-9, FR-11, FR-13, FR-14, NFR-2, Decided (drawing layers, clip vs hit-test, coordinates, HW acceleration).
 - [LayoutSystem.md](LayoutSystem.md) — arranged bounds and DIP frames that paint consumes.
 - [EventMechanism.md](EventMechanism.md) — hit-test uses arranged bounds; clip is paint-only by default.
-- **DrawnUi** (`/Users/rkukla/devel/maui/drawnui`) — closest analogue: default `SkiaCacheType.None`; opt-in Picture/Image/GPU/composite; warns on GPU reuse and composite invalidation churn.
+- **DrawnUi** ([taublast/drawnui](https://github.com/taublast/drawnui)) — closest analogue: default `SkiaCacheType.None`; opt-in Picture/Image/GPU/composite; warns on GPU reuse and composite invalidation churn.
 - **Flutter** — `RepaintBoundary` / `OffsetLayer`: cache only for asymmetric dirty; selective record + full composite; not a second layout model.
 - **Avalonia** — record/replay draw lists; optional `BitmapCache`; dirty rects when frame retained; chrome via parent `Render` order, not nested chrome visuals.
 - **SkiaSharp** — `SKGLView` / `SKCanvasView` present; treat GL backbuffer as cleared each frame; retain via app-owned `SKPicture` / `SKImage` if needed.
