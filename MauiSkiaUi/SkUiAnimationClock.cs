@@ -49,6 +49,7 @@ public sealed class SkUiAnimationClock
     }
 
     /// <summary>Cancels every animation, releasing callbacks and stopping continuous frames.</summary>
+    /// <remarks>Preserves the last frame time. Subsequent animations start on the same monotonic timeline; do not restart Tick timestamps at zero.</remarks>
     public void StopAll()
     {
         if (!IsRunning)

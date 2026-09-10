@@ -61,15 +61,19 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 - `HwAccelerated` is a CLR property set **before handler creation**; changing it after attachment throws. Content hosts/layouts default to GPU; leaves default to software. Hosted values are ignored. The SkiaSharp GPU backend is platform-dependent (Metal on Mac Catalyst). There is no automatic GPU recovery: set `HwAccelerated="False"` before attachment on unsupported devices.
 - All tree geometry, paint, and input use DIPs. Only the handler scales to surface pixels. `Paint` receives a local canvas; parents translate to child frames, and input routers undo the same render transform.
 - Tree mutations and animation callbacks run on the UI thread. Each requested frame records the full tree into a scoped `SKPicture`; the surface replays the snapshot under a lock. This bridges Android's GL render thread safely, not a retained per-node cache. GPU `HasRenderLoop` drives animation; software schedules the next invalidation after paint. No fixed-rate timer is used.
+- The handler shares an internal, headless-tested `SkUiFrameRenderer` for recording, replay, density mapping, and cleanup. Invalidation raised during painting queues one follow-up frame even when animation is idle; animation changes applied before painting are included in the current frame.
 - Animation callbacks should change paint/transform properties. Dispose their handles on page disappearance; handler unload/disconnect also stops the root clock. Start animations after attaching nodes to their intended root.
+- `StopAll()` preserves the clock's monotonic timeline. After restarting an animation on the same clock, continue supplying elapsed timestamps rather than resetting them to zero.
+- Hit regions are rectangular arranged bounds, including the visually empty corners of ellipses and the area beside a line. Render transforms are inverted before testing these bounds; shape-aware hits are deferred. Disabled nodes block hits without firing, and `IsVisible="False"` collapses nodes and excludes them from paint/input.
 - Backgrounds support solid brushes/colors only. Custom masks, gradients, commands, double tap, long press, swipe, multi-touch, native overlays, and retained per-node caching are deferred. Hosted implementations must also be MAUI `Element` instances for logical ownership.
 - Skia primitives are not individual native accessibility elements yet; native status/buttons remain available. Full drawn-tree accessibility and measured frame-rate targets are not claimed in Phase 0.
 
 ### Verification status
 
-- 19 automated tests cover paint pixels/layers/alpha, layout/cache behavior, ownership, hit-testing/capture, invalidation, and deterministic animation.
+- 36 automated tests cover paint pixels/layers/alpha, layout/cache behavior, ownership, nested transformed capture, explicit NaN maximum constraints, deterministic animation, and the handler's shared frame pipeline (record/replay, in-paint invalidation, density mapping, and disposal).
 - Diagnostic builds succeeded for Android, iOS simulator, and Mac Catalyst on 2026-09-10.
 - **Device exit gate remains open:** manual Mac launch was reported, but automated visual-tree, screenshot, native input, and contrast checks were blocked by the installed MAUI extension's DevFlow injection target (`MSB4099` in `MauiDevFlow.targets`). No visual or GPU-performance success is inferred from compilation. Re-run device checks after fixing/updating that extension.
+- Review fixes were sent successfully by Hot Reload to the running Android debug session. DevFlow still had no registered agent and reported a missing broker tunnel, so native rendering and contrast were not reverified. Headless frame tests do not replace native lifecycle/GPU checks.
 
 ### Tooling
 

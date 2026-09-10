@@ -8,7 +8,9 @@ Aligns with [Requirements.md](Requirements.md) (especially NFR-2 correctness-fir
 
 Run `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj`. The library's plain `net10.0` target shares the actual node/layout/paint/input/clock sources with the device targets; only the native handler and builder registration are platform-conditional. Tests use real MAUI views without handlers and CPU Skia bitmaps, not replacement view mocks.
 
-The 19 cases cover primitive pixels, transparent regions, layer order, alpha/z-order composition, transform-aware hits, MAUI margins/alignment, selective measure/arrange, binding context and ownership, batching, passive/transparent/disabled hit rules, capture cancellation/removal, and animation progress/repeat/cancellation/idle behavior. Clock tests never sleep. Interior pixels are exact; antialiased edge baselines and font goldens remain later work.
+The 36 cases cover primitive pixels, transparent regions, layer order, alpha/z-order composition, transform-aware hits, MAUI margins/alignment, selective measure/arrange, binding context and ownership, batching, passive/transparent/disabled hit rules, capture cancellation/removal, and animation progress/repeat/cancellation/idle behavior. Review regressions add margined/transformed intermediate-layout capture, explicit NaN maximum constraints, and clock restart on the same timeline. Clock tests never sleep. Interior pixels are exact; antialiased edge baselines and font goldens remain later work.
+
+The native handler delegates frame work to the internal `SkUiFrameRenderer`, tested with a deterministic dispatcher queue and real Skia pictures/bitmaps. Tests cover follow-up invalidation during paint without an animation, pre-paint update coalescing, replay and pixel-to-DIP input at 1x/2x/3x density, canvas-state preservation, recovery after zero-sized layout, hosted-root rejection, and disposal stopping animations and cancelling queued work. Native event subscription teardown and GPU presentation remain device-only checks.
 
 Device verification checklist for the Phase 0 demo:
 
@@ -19,6 +21,8 @@ Device verification checklist for the Phase 0 demo:
 - Inspect rendered native label/button colors and a screenshot, including a compact viewport.
 
 On 2026-09-10 all 19 headless tests and Android/iOS/Mac Catalyst diagnostic builds passed. Automated device inspection is currently blocked by `MSB4099` in the installed MAUI extension's DevFlow injection targets; no screenshot, contrast, or GPU frame-rate result is claimed. The Phase 0 device exit gate remains open.
+
+After review fixes on the same date, all 36 headless tests passed and Android Hot Reload succeeded. The running app still had no DevFlow agent; diagnostics also reported a missing Android broker tunnel. Native rendering/contrast verification remains open.
 
 ## Goals
 

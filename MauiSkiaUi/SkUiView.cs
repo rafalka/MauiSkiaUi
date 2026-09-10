@@ -56,13 +56,15 @@ public class SkUiView : View, ISkUiView
         IView view = this;
         var width = Math.Max(0, widthConstraint - Margin.HorizontalThickness);
         var height = Math.Max(0, heightConstraint - Margin.VerticalThickness);
+        var maximumWidth = double.IsNaN(view.MaximumWidth) ? double.PositiveInfinity : view.MaximumWidth;
+        var maximumHeight = double.IsNaN(view.MaximumHeight) ? double.PositiveInfinity : view.MaximumHeight;
         var content = MeasureContent(
-            Math.Min(width, double.IsNaN(view.Width) ? view.MaximumWidth : view.Width),
-            Math.Min(height, double.IsNaN(view.Height) ? view.MaximumHeight : view.Height));
+            Math.Min(width, double.IsNaN(view.Width) ? maximumWidth : view.Width),
+            Math.Min(height, double.IsNaN(view.Height) ? maximumHeight : view.Height));
         measuredSize = IsVisible
             ? new Size(
-                LayoutManager.ResolveConstraints(width, view.Width, content.Width, view.MinimumWidth, view.MaximumWidth) + Margin.HorizontalThickness,
-                LayoutManager.ResolveConstraints(height, view.Height, content.Height, view.MinimumHeight, view.MaximumHeight) + Margin.VerticalThickness)
+                LayoutManager.ResolveConstraints(width, view.Width, content.Width, view.MinimumWidth, maximumWidth) + Margin.HorizontalThickness,
+                LayoutManager.ResolveConstraints(height, view.Height, content.Height, view.MinimumHeight, maximumHeight) + Margin.VerticalThickness)
             : Size.Zero;
         lastConstraint = constraint;
         measureDirty = false;

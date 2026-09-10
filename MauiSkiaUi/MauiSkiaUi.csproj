@@ -27,6 +27,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<InternalsVisibleTo Include="MauiSkiaUi.Tests" />
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="SkiaSharp" Version="4.151.1" />
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="4.151.1" Condition="'$(TargetFramework)' != 'net10.0'" />

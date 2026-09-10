@@ -21,17 +21,10 @@ namespace MauiSkiaUi;
 /// <summary>Owns one Skia surface and marshals tree updates onto the UI thread.</summary>
 public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 {
-    private readonly object pictureLock = new();
     private readonly Stopwatch animationTime = new();
     private View? surface;
-    private SKPicture? picture;
-    private Size pictureSize;
+    private SkUiFrameRenderer? renderer;
     private TimeSpan clockOffset;
-    private int frameQueued;
-    private bool connected;
-    private bool recording;
-    private float pixelWidth;
-    private float pixelHeight;
 
     private static readonly IPropertyMapper<SkUiView, SkUiViewHandler> SkiaMapper = CreateMapper();
 
@@ -54,8 +47,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     /// <inheritdoc />
     protected override PlatformView CreatePlatformView()
     {
-        if (VirtualView.SkiaParent is not null)
-            throw new InvalidOperationException("Hosted SkiaUi nodes must not create platform handlers.");
+        SkUiFrameRenderer.EnsureStandalone(VirtualView);
         if (VirtualView.HwAccelerated)
         {
             var gpu = new SKGLView { EnableTouchEvents = true, IgnorePixelScaling = false };
@@ -78,8 +70,8 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     protected override void ConnectHandler(PlatformView platformView)
     {
         base.ConnectHandler(platformView);
-        connected = true;
-        VirtualView.PaintInvalidated += OnInvalidated;
+        renderer = new SkUiFrameRenderer(VirtualView,
+            action => VirtualView.Dispatcher.Dispatch(action), InvalidateSurface, TickAnimation);
         VirtualView.AnimationClock.RunningChanged += OnRunningChanged;
         VirtualView.Loaded += OnLoaded;
         VirtualView.Unloaded += OnUnloaded;
@@ -90,12 +82,11 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     /// <inheritdoc />
     protected override void DisconnectHandler(PlatformView platformView)
     {
-        connected = false;
-        VirtualView.PaintInvalidated -= OnInvalidated;
         VirtualView.AnimationClock.RunningChanged -= OnRunningChanged;
         VirtualView.Loaded -= OnLoaded;
         VirtualView.Unloaded -= OnUnloaded;
-        VirtualView.AnimationClock.StopAll();
+        renderer?.Dispose();
+        renderer = null;
         animationTime.Reset();
         if (surface is SKGLView gpu)
         {
@@ -112,23 +103,12 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         if (surface is not null)
             surface.Parent = null;
         surface = null;
-        lock (pictureLock)
-        {
-            picture?.Dispose();
-            picture = null;
-        }
         base.DisconnectHandler(platformView);
     }
 
     private void OnLoaded(object? sender, EventArgs args) => QueueFrame();
 
     private void OnUnloaded(object? sender, EventArgs args) => VirtualView.AnimationClock.StopAll();
-
-    private void OnInvalidated(object? sender, EventArgs args)
-    {
-        if (!recording)
-            QueueFrame();
-    }
 
     private void OnRunningChanged(object? sender, EventArgs args)
     {
@@ -147,42 +127,21 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         QueueFrame();
     }
 
-    private void QueueFrame()
+    private void QueueFrame() => renderer?.RequestFrame();
+
+    private void TickAnimation()
     {
-        if (!connected || Interlocked.Exchange(ref frameQueued, 1) != 0)
-            return;
-        VirtualView.Dispatcher.Dispatch(() =>
-        {
-            Interlocked.Exchange(ref frameQueued, 0);
-            if (!connected || VirtualView.Width <= 0 || VirtualView.Height <= 0)
-                return;
-            recording = true;
-            try
-            {
-                var clock = VirtualView.AnimationClock;
-                if (clock.IsRunning)
-                    clock.Tick(clockOffset + animationTime.Elapsed);
-                using var recorder = new SKPictureRecorder();
-                var size = new Size(VirtualView.Width, VirtualView.Height);
-                var canvas = recorder.BeginRecording(new SKRect(0, 0, (float)size.Width, (float)size.Height));
-                VirtualView.Paint(canvas);
-                var nextPicture = recorder.EndRecording();
-                lock (pictureLock)
-                {
-                    picture?.Dispose();
-                    picture = nextPicture;
-                    pictureSize = size;
-                }
-            }
-            finally
-            {
-                recording = false;
-            }
-            if (surface is SKGLView gpu)
-                gpu.InvalidateSurface();
-            else if (surface is SKCanvasView software)
-                software.InvalidateSurface();
-        });
+        var clock = VirtualView.AnimationClock;
+        if (clock.IsRunning)
+            clock.Tick(clockOffset + animationTime.Elapsed);
+    }
+
+    private void InvalidateSurface()
+    {
+        if (surface is SKGLView gpu)
+            gpu.InvalidateSurface();
+        else if (surface is SKCanvasView software)
+            software.InvalidateSurface();
     }
 
     private void OnGpuPaint(object? sender, SKPaintGLSurfaceEventArgs args) => PaintSurface(args.Surface.Canvas, args.Info);
@@ -191,27 +150,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
     private void PaintSurface(SKCanvas canvas, SKImageInfo info)
     {
-        pixelWidth = info.Width;
-        pixelHeight = info.Height;
-        canvas.Clear(SKColors.Transparent);
-        lock (pictureLock)
-        {
-            if (picture is not null)
-            {
-                var saveCount = canvas.Save();
-                canvas.Scale((float)(info.Width / pictureSize.Width), (float)(info.Height / pictureSize.Height));
-                canvas.DrawPicture(picture);
-                canvas.RestoreToCount(saveCount);
-            }
-        }
+        renderer?.Replay(canvas, info);
         if (animationTime.IsRunning)
             QueueFrame();
     }
 
     private void OnTouch(object? sender, SKTouchEventArgs args)
     {
-        if (pixelWidth <= 0 || pixelHeight <= 0)
-            return;
         SkUiTouchAction? action = args.ActionType switch
         {
             SKTouchAction.Pressed => SkUiTouchAction.Pressed,
@@ -222,11 +167,8 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         };
         if (action is null)
             return;
-        var point = new Point(
-            args.Location.X * VirtualView.Width / pixelWidth + VirtualView.Frame.X,
-            args.Location.Y * VirtualView.Height / pixelHeight + VirtualView.Frame.Y);
-        if (SkUiView.MapPoint(VirtualView, point, out var local))
-            args.Handled = VirtualView.Touch(new(args.Id, action.Value, local));
+        args.Handled = renderer?.TouchPixels(new(args.Id, action.Value,
+            new Point(args.Location.X, args.Location.Y))) == true;
     }
 }
 #endif

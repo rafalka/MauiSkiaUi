@@ -9,6 +9,264 @@ namespace MauiSkiaUi.Tests;
 public class PipelineTests
 {
     [Fact]
+    public void InvalidationDuringRecordingSchedulesOneFollowupWithoutAnimation()
+    {
+        var root = new InvalidatingPaintProbe { Color = Colors.Red };
+        Arrange(root, 40, 40);
+        var queue = new Queue<Action>();
+        var presents = 0;
+        using var renderer = new SkUiFrameRenderer(root, queue.Enqueue, () => presents++, () => { });
+        renderer.RequestFrame();
+        renderer.RequestFrame();
+        Assert.Single(queue);
+        queue.Dequeue()();
+        Assert.Single(queue);
+        Assert.Equal(1, presents);
+        using var bitmap = new SKBitmap(40, 40);
+        using var canvas = new SKCanvas(bitmap);
+        renderer.Replay(canvas, bitmap.Info);
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(20, 20));
+
+        queue.Dequeue()();
+        renderer.Replay(canvas, bitmap.Info);
+        Assert.Equal(SKColors.Blue, bitmap.GetPixel(20, 20));
+        Assert.Equal(2, presents);
+        Assert.Empty(queue);
+        Assert.False(root.AnimationClock.IsRunning);
+    }
+
+    [Fact]
+    public void ChangesBeforePaintingAreIncludedWithoutRedundantFrame()
+    {
+        var root = new SkUiBox { Color = Colors.Red };
+        Arrange(root, 40, 40);
+        var queue = new Queue<Action>();
+        using var renderer = new SkUiFrameRenderer(root, queue.Enqueue, () => { }, () => root.Color = Colors.Blue);
+        renderer.RequestFrame();
+        queue.Dequeue()();
+        Assert.Empty(queue);
+        using var bitmap = new SKBitmap(40, 40);
+        using var canvas = new SKCanvas(bitmap);
+        renderer.Replay(canvas, bitmap.Info);
+        Assert.Equal(SKColors.Blue, bitmap.GetPixel(20, 20));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void FrameReplayAndPixelTouchAgreeAtDifferentDensities(int density)
+    {
+        var root = new SkUiBox
+        {
+            Color = Colors.Red, AnchorX = 0, AnchorY = 0,
+            TranslationX = 10, TranslationY = 5, Scale = 0.5
+        };
+        ((IView)root).Measure(100, 80);
+        ((IView)root).Arrange(new Rect(30, 40, 100, 80));
+        var queue = new Queue<Action>();
+        using var renderer = new SkUiFrameRenderer(root, queue.Enqueue, () => { }, () => { });
+        renderer.RequestFrame();
+        queue.Dequeue()();
+        using var bitmap = new SKBitmap(100 * density, 80 * density);
+        using var canvas = new SKCanvas(bitmap);
+        var matrix = canvas.TotalMatrix;
+        var saves = canvas.SaveCount;
+        renderer.Replay(canvas, bitmap.Info);
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(20 * density, 15 * density));
+        Assert.Equal(0, bitmap.GetPixel(5 * density, 5 * density).Alpha);
+        Assert.Equal(matrix, canvas.TotalMatrix);
+        Assert.Equal(saves, canvas.SaveCount);
+        Point? tappedAt = null;
+        root.Tapped += (_, args) => tappedAt = args.Position;
+        var pixelPosition = new Point(20 * density, 15 * density);
+        Assert.True(renderer.TouchPixels(new(1, SkUiTouchAction.Pressed, pixelPosition)));
+        Assert.True(renderer.TouchPixels(new(1, SkUiTouchAction.Released, pixelPosition)));
+        Assert.Equal(new Point(20, 20), tappedAt);
+    }
+
+    [Fact]
+    public void DisposingRendererStopsClockReleasesPictureAndIgnoresQueuedWork()
+    {
+        var root = new SkUiBox();
+        Arrange(root, 40, 40);
+        var queue = new Queue<Action>();
+        var presents = 0;
+        var renderer = new SkUiFrameRenderer(root, queue.Enqueue, () => presents++, () => { });
+        renderer.RequestFrame();
+        queue.Dequeue()();
+        root.AnimationClock.Start(_ => { }, TimeSpan.FromSeconds(1));
+        root.InvalidatePaint();
+        Assert.Single(queue);
+        renderer.Dispose();
+        renderer.Dispose();
+        Assert.False(root.AnimationClock.IsRunning);
+        queue.Dequeue()();
+        root.InvalidatePaint();
+        Assert.Empty(queue);
+        Assert.Equal(1, presents);
+        using var bitmap = new SKBitmap(40, 40);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Red);
+        renderer.Replay(canvas, bitmap.Info);
+        Assert.Equal(0, bitmap.GetPixel(20, 20).Alpha);
+        Assert.False(renderer.TouchPixels(new(1, SkUiTouchAction.Pressed, new Point(20, 20))));
+    }
+
+    [Fact]
+    public void FrameRendererRejectsHostedRoots()
+    {
+        var child = new SkUiBox();
+        var host = new SkUiContentView { Content = child };
+        Assert.Throws<InvalidOperationException>(() => new SkUiFrameRenderer(child, _ => { }, () => { }, () => { }));
+        Assert.Same(host, child.Parent);
+    }
+
+    [Fact]
+    public void ZeroSizedRootCanRenderAfterLayoutInvalidation()
+    {
+        var root = new SkUiBox();
+        var queue = new Queue<Action>();
+        var presents = 0;
+        using var renderer = new SkUiFrameRenderer(root, queue.Enqueue, () => presents++, () => { });
+        renderer.RequestFrame();
+        queue.Dequeue()();
+        Assert.Equal(0, presents);
+        Assert.Empty(queue);
+        Arrange(root, 40, 40);
+        Assert.Single(queue);
+        queue.Dequeue()();
+        Assert.Equal(1, presents);
+    }
+
+    private sealed class InvalidatingPaintProbe : SkUiBox
+    {
+        protected override void OnPaintOverlay(SKCanvas canvas)
+        {
+            if (Color == Colors.Red)
+            {
+                Color = Colors.Blue;
+                InvalidatePaint();
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(2, 1)]
+    [InlineData(20, 0)]
+    public void NestedMarginedTransformedLayoutRemapsCapturedPointer(double movement, int expectedTaps)
+    {
+        var child = new SkUiBox
+        {
+            WidthRequest = 40, HeightRequest = 40, Margin = new Thickness(10, 15, 0, 0),
+            HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Start
+        };
+        var layout = new SkUiLayout
+        {
+            WidthRequest = 120, HeightRequest = 100, Margin = new Thickness(30, 40, 0, 0),
+            HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Start,
+            AnchorX = 0, AnchorY = 0, TranslationX = 100, TranslationY = 10, Scale = 2, Rotation = 90
+        };
+        layout.Children.Add(child);
+        var host = new SkUiContentView { Content = layout };
+        Arrange(host, 400, 400);
+        Assert.Equal(new Rect(30, 40, 120, 100), layout.Frame);
+        Assert.Equal(new Rect(10, 15, 40, 40), child.Frame);
+        var taps = new List<Point>();
+        child.Tapped += (_, args) => taps.Add(args.Position);
+
+        Assert.True(host.Touch(new(7, SkUiTouchAction.Pressed, new Point(60, 110))));
+        Assert.True(host.Touch(new(7, SkUiTouchAction.Moved, new Point(60, 110 + 2 * movement))));
+        Assert.True(host.Touch(new(7, SkUiTouchAction.Released, new Point(60, 110))));
+
+        Assert.Equal(expectedTaps, taps.Count);
+        if (expectedTaps > 0)
+        {
+            Assert.Equal(20, taps[0].X, 3);
+            Assert.Equal(20, taps[0].Y, 3);
+        }
+    }
+
+    [Fact]
+    public void InvisibleNodeIsCollapsedAndPassesInputToVisibleSibling()
+    {
+        var bottom = new SkUiBox { Color = Colors.Red };
+        var top = new SkUiBox { Color = Colors.Blue, IsVisible = false };
+        var layout = new SkUiLayout();
+        layout.Children.Add(bottom);
+        layout.Children.Add(top);
+        var taps = 0;
+        bottom.Tapped += (_, _) => taps++;
+        top.Tapped += (_, _) => throw new InvalidOperationException("Invisible node received a tap.");
+        Arrange(layout, 100, 100);
+        Assert.Equal(Visibility.Collapsed, ((IView)top).Visibility);
+        using var bitmap = new SKBitmap(100, 100);
+        using var canvas = new SKCanvas(bitmap);
+        layout.Paint(canvas);
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(10, 10));
+        Tap(layout, new Point(10, 10));
+        Assert.Equal(1, taps);
+    }
+
+    [Fact]
+    public void DefaultMaximumSizesAreUnboundedAndMeasureFiniteContent()
+    {
+        IView node = new SkUiBox();
+        Assert.Equal(double.PositiveInfinity, node.MaximumWidth);
+        Assert.Equal(double.PositiveInfinity, node.MaximumHeight);
+        Assert.Equal(new Size(48, 48), node.Measure(double.PositiveInfinity, double.PositiveInfinity));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void ExplicitNaNMaximumDoesNotReachContentMeasure(bool unsetWidth, bool unsetHeight)
+    {
+        var node = new LayoutProbe
+        {
+            MaximumWidthRequest = unsetWidth ? double.NaN : 80,
+            MaximumHeightRequest = unsetHeight ? double.NaN : 90
+        };
+        Assert.Equal(new Size(48, 48), ((IView)node).Measure(100, 120));
+        Assert.Equal(new Size(unsetWidth ? 100 : 80, unsetHeight ? 120 : 90), node.LastConstraint);
+    }
+
+    [Fact]
+    public void EllipseCornerUsesArrangedBoundsForTaps()
+    {
+        var ellipse = new SkUiEllipse();
+        var host = new SkUiContentView { Content = ellipse };
+        Arrange(host, 100, 100);
+        var taps = 0;
+        ellipse.Tapped += (_, _) => taps++;
+        using var bitmap = new SKBitmap(100, 100);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        host.Paint(canvas);
+        Assert.Equal(0, bitmap.GetPixel(1, 1).Alpha);
+        Tap(host, new Point(1, 1));
+        Assert.Equal(1, taps);
+    }
+
+    [Fact]
+    public void RestartAfterStopAllUsesExistingMonotonicTimeline()
+    {
+        var clock = new SkUiAnimationClock();
+        clock.Start(_ => { }, TimeSpan.FromSeconds(10));
+        clock.Tick(TimeSpan.FromSeconds(5));
+        clock.StopAll();
+        var value = -1d;
+        using var animation = clock.Start(progress => value = progress, TimeSpan.FromSeconds(2));
+        Assert.Equal(0, value);
+        clock.Tick(TimeSpan.FromSeconds(6));
+        Assert.Equal(0.5, value);
+        clock.Tick(TimeSpan.FromSeconds(7));
+        Assert.Equal(1, value);
+        Assert.False(clock.IsRunning);
+    }
+
+    [Fact]
     public void PrimitivesPaintEllipseAndLineGeometry()
     {
         var ellipse = new SkUiEllipse { Color = Colors.Blue, WidthRequest = 40, HeightRequest = 40 };
@@ -276,10 +534,12 @@ public class PipelineTests
     {
         public int Measures { get; private set; }
         public int Arranges { get; private set; }
+        public Size LastConstraint { get; private set; }
 
         protected override Size MeasureContent(double widthConstraint, double heightConstraint)
         {
             Measures++;
+            LastConstraint = new Size(widthConstraint, heightConstraint);
             return base.MeasureContent(widthConstraint, heightConstraint);
         }
 
