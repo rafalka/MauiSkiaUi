@@ -163,12 +163,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             SKTouchAction.Moved => SkUiTouchAction.Moved,
             SKTouchAction.Released => SkUiTouchAction.Released,
             SKTouchAction.Cancelled => SkUiTouchAction.Cancelled,
+            SKTouchAction.WheelChanged => SkUiTouchAction.Wheel,
             _ => null
         };
         if (action is null)
             return;
         args.Handled = renderer?.TouchPixels(new(args.Id, action.Value,
-            new Point(args.Location.X, args.Location.Y))) == true;
+            new Point(args.Location.X, args.Location.Y), null, args.WheelDelta)) == true;
     }
 }
 #endif

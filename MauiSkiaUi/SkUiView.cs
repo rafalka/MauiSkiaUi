@@ -3,6 +3,7 @@ using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Layouts;
 using SkiaSharp;
+using System.Windows.Input;
 
 namespace MauiSkiaUi;
 
@@ -22,6 +23,42 @@ public class SkUiView : View, ISkUiView
     private Point pressPosition;
     private bool tapCancelled;
     private SkUiAnimationClock? animationClock;
+    private ICommand? tappedCommand;
+    private object? tappedCommandParameter;
+
+    /// <summary>Bindable opt-in tap command.</summary>
+    public static readonly BindableProperty TappedCommandProperty = BindableProperty.Create(
+        nameof(TappedCommand), typeof(ICommand), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).SetTappedCommand((ICommand?)value));
+    /// <summary>Bindable tap command parameter.</summary>
+    public static readonly BindableProperty TappedCommandParameterProperty = BindableProperty.Create(
+        nameof(TappedCommandParameter), typeof(object), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).SetTappedCommandParameter(value));
+    /// <summary>Optional command; passive nodes participate when it can execute.</summary>
+    public ICommand? TappedCommand { get => tappedCommand; set => SetValue(TappedCommandProperty, value); }
+    /// <summary>Parameter supplied to the tap command.</summary>
+    public object? TappedCommandParameter { get => tappedCommandParameter; set => SetValue(TappedCommandParameterProperty, value); }
+    /// <summary>Sets the tap command without bindable write-back.</summary>
+    public SkUiView SetTappedCommand(ICommand? value) { tappedCommand = value; return this; }
+    /// <summary>Sets the tap parameter without bindable write-back.</summary>
+    public SkUiView SetTappedCommandParameter(object? value) { tappedCommandParameter = value; return this; }
+    /// <summary>Whether an eligible captured pointer is currently pressed inside this node.</summary>
+    public bool IsPressed { get; private set; }
+
+    private void SetPressed(bool value)
+    {
+        if (IsPressed == value) return;
+        IsPressed = value;
+        OnPropertyChanged(nameof(IsPressed));
+        OnPressedChanged();
+        InvalidatePaint();
+    }
+
+    /// <summary>Updates intrinsic control feedback when the shared pointer state changes.</summary>
+    protected virtual void OnPressedChanged() { }
+
+    /// <summary>Whether an intrinsic tap action is currently enabled.</summary>
+    protected virtual bool CanReceiveTap => true;
 
     /// <summary>Raised when this node or a descendant needs another surface frame.</summary>
     public event EventHandler? PaintInvalidated;
@@ -147,6 +184,13 @@ public class SkUiView : View, ISkUiView
     protected override void OnPropertyChanged(string? propertyName = null)
     {
         base.OnPropertyChanged(propertyName);
+        if ((propertyName == nameof(IsEnabled) && !IsEnabled)
+            || (propertyName == nameof(IsVisible) && !IsVisible)
+            || (propertyName == nameof(InputTransparent) && InputTransparent))
+        {
+            pressedPointer = null;
+            SetPressed(false);
+        }
         switch (propertyName)
         {
             case nameof(WidthRequest):
@@ -187,6 +231,8 @@ public class SkUiView : View, ISkUiView
         try
         {
             canvas.Concat(RenderMatrix);
+            if (canvas.QuickReject(new SKRect(0, 0, (float)Width, (float)Height)))
+                return;
             canvas.ClipRect(new SKRect(0, 0, (float)Width, (float)Height));
             if (Opacity < 1)
             {
@@ -298,13 +344,14 @@ public class SkUiView : View, ISkUiView
         {
             if (pressedPointer is not null || InputTransparent || !IsVisible)
                 return false;
-            if (!IsEnabled)
+            if (!IsEnabled || !CanReceiveTap)
                 return true;
-            if (Tapped is null && !HandlesTap)
+            if (Tapped is null && !HandlesTap && !(tappedCommand?.CanExecute(tappedCommandParameter) ?? false))
                 return false;
             pressedPointer = touch.Id;
             pressPosition = touch.Position;
             tapCancelled = false;
+            SetPressed(true);
             return true;
         }
         if (pressedPointer != touch.Id)
@@ -313,10 +360,12 @@ public class SkUiView : View, ISkUiView
         var deltaX = touch.Position.X - pressPosition.X;
         var deltaY = touch.Position.Y - pressPosition.Y;
         tapCancelled |= deltaX * deltaX + deltaY * deltaY > 100;
+        SetPressed(!tapCancelled && new Rect(0, 0, Width, Height).Contains(touch.Position));
         if (touch.Action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
         {
             pressedPointer = null;
-            if (touch.Action == SkUiTouchAction.Released && !tapCancelled && IsEnabled && IsVisible && !InputTransparent
+            SetPressed(false);
+            if (touch.Action == SkUiTouchAction.Released && !tapCancelled && IsEnabled && CanReceiveTap && IsVisible && !InputTransparent
                 && new Rect(0, 0, Width, Height).Contains(touch.Position))
                 OnTapped(new SkUiTappedEventArgs(touch.Position));
         }
@@ -327,7 +376,12 @@ public class SkUiView : View, ISkUiView
     protected virtual bool HandlesTap => false;
 
     /// <summary>Raises a classified single tap.</summary>
-    protected virtual void OnTapped(SkUiTappedEventArgs args) => Tapped?.Invoke(this, args);
+    protected virtual void OnTapped(SkUiTappedEventArgs args)
+    {
+        Tapped?.Invoke(this, args);
+        if (tappedCommand?.CanExecute(tappedCommandParameter) == true)
+            tappedCommand.Execute(tappedCommandParameter);
+    }
 }
 
 /// <summary>A classified tap in local DIPs.</summary>

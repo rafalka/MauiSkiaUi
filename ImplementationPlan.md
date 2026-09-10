@@ -65,8 +65,10 @@ FR-1, FR-7 (minimal), FR-13/14 (minimal), NFR-1/2/3 (smoke), paint path in [Draw
 ### Exit criteria
 
 - [ ] Phase 1 controls usable from XAML under `SkUiContentView` / `SkUiLayout`.
-- [ ] Functional demo + ~1000-control performance page exist; major bottlenecks addressed after measurement.
-- [ ] Tests green for Phase 1 surface; README *Current implementation* updated.
+- [x] Functional demo + ~1000-control performance page exist; major bottlenecks addressed after measurement.
+- [x] Tests green for Phase 1 surface; README *Current implementation* updated.
+
+**Implementation status (2026-09-10):** Grid (MAUI manager), Label, Button, Image, padded hosts/layouts, and ScrollView are implemented with bindable/direct setters, styles/visual states, taps, clamped pan/fling, wheel input, and async scroll APIs. The functional XAML page and 1,000-button stress page compile on Android/iOS/Mac Catalyst. All 49 headless cases pass. Measured 1,000-label warm recording improved from 8.106 ms / 568,384 B per frame to 0.635 ms / 9,488 B after conservative paint culling and cached Z-order. Native device acceptance remains open: Copilot launch still fails in the installed DevFlow targets (`MSB4099`), with no agent available for tree/screenshot/input/contrast verification. XAML compilation is verified, runtime usability is not. See README for text/image limitations and deferred nested-scroll, native accessibility, virtualization, and overlays.
 
 ### Maps to requirements (partial)
 
@@ -146,6 +148,6 @@ Further extensions are added here as they are decided.
 | Phase | Status |
 | --- | --- |
 | 0 — Proof of concept | **Implemented; device verification blocked by MAUI extension** |
-| 1 — Initial implementation | Not started |
+| 1 — Initial implementation | **Implemented and headless-tested; device acceptance blocked by MAUI extension** |
 | 2 — Actual implementation | Not started |
 | 3 — Extensions | Not started (backlog: Label + round-rect border) |

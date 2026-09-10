@@ -24,8 +24,10 @@ public enum SkUiTouchAction
     /// <summary>A pointer was released.</summary>
     Released,
     /// <summary>The platform cancelled the interaction.</summary>
-    Cancelled
+    Cancelled,
+    /// <summary>A desktop wheel delta, positive towards the start of the scroll axis.</summary>
+    Wheel
 }
 
 /// <summary>A pointer sample with a stable id and a local position in DIPs.</summary>
-public readonly record struct SkUiTouchEvent(long Id, SkUiTouchAction Action, Point Position);
+public readonly record struct SkUiTouchEvent(long Id, SkUiTouchAction Action, Point Position, TimeSpan? Timestamp = null, double WheelDelta = 0);

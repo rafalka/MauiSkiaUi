@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+             xmlns:local="clr-namespace:MauiSkiaUiDemo"
+             x:Class="MauiSkiaUiDemo.ControlsPage" x:DataType="local:ControlsPage"
+             Title="SkiaUi / Controls" Background="#F4F6F6">
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Stress test" Clicked="OnStressClicked" />
+        <ToolbarItem Text="Primitives" Clicked="OnPrimitivesClicked" />
+    </ContentPage.ToolbarItems>
+    <ContentPage.Resources>
+        <Style x:Key="Body" TargetType="sk:SkUiLabel">
+            <Setter Property="TextColor" Value="#202A2C" />
+            <Setter Property="FontSize" Value="17" />
+            <Setter Property="Padding" Value="0,8" />
+        </Style>
+        <Style x:Key="Action" TargetType="sk:SkUiButton">
+            <Setter Property="FillColor" Value="#087F83" />
+            <Setter Property="TextColor" Value="White" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+    </ContentPage.Resources>
+    <Grid RowDefinitions="Auto,*,Auto" Padding="20" RowSpacing="12">
+        <Label Text="Core controls" FontFamily="OpenSansSemibold" FontSize="26" TextColor="#202A2C" />
+        <sk:SkUiContentView Grid.Row="1" AutomationId="ControlsHost" Background="White">
+            <sk:SkUiScrollView x:Name="Scroller" AutomationId="ControlsScroller" Padding="20">
+                <sk:SkUiGrid RowDefinitions="Auto,240,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="16">
+                    <sk:SkUiLabel Text="Blue Marble" FontSize="24" FontAttributes="Bold" TextColor="#202A2C" />
+                    <sk:SkUiImage x:Name="EarthImage" Grid.Row="1" Source="earth.jpg" Aspect="AspectFit" AutomationId="EarthImage" Background="#111111" />
+                    <sk:SkUiLabel Grid.Row="2" Text="Earth, western hemisphere. NASA / Visible Earth." FontSize="14" TextColor="#526164" />
+                    <sk:SkUiLabel Grid.Row="3" Style="{StaticResource Body}" Text="Oceans cover about 71 percent of Earth's surface. The Blue Marble combines satellite observations into a view of our home planet." />
+                    <sk:SkUiGrid Grid.Row="4" ColumnDefinitions="*,*" ColumnSpacing="12" RowDefinitions="Auto,Auto" RowSpacing="8">
+                        <sk:SkUiLabel Text="Diameter" FontSize="14" TextColor="#526164" />
+                        <sk:SkUiLabel Grid.Column="1" Text="Distance from Sun" FontSize="14" TextColor="#526164" />
+                        <sk:SkUiLabel Grid.Row="1" Text="12,742 km" FontSize="20" TextColor="#202A2C" />
+                        <sk:SkUiLabel Grid.Row="1" Grid.Column="1" Text="149.6M km" FontSize="20" TextColor="#202A2C" />
+                    </sk:SkUiGrid>
+                    <sk:SkUiButton Grid.Row="5" Text="Add observation" Command="{Binding AddObservationCommand}" Style="{StaticResource Action}" AutomationId="AddObservation">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup Name="CommonStates">
+                                <VisualState Name="Normal" />
+                                <VisualState Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Property="FillColor" Value="#075B5E" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState Name="Disabled" />
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </sk:SkUiButton>
+                    <sk:SkUiLabel Grid.Row="6" Text="{Binding ObservationStatus}" Style="{StaticResource Body}" AutomationId="ObservationCount" />
+                    <sk:SkUiButton Grid.Row="7" Text="Archive locked" IsEnabled="False" Style="{StaticResource Action}" />
+                    <sk:SkUiLabel Grid.Row="8" Text="Reset observations" TextColor="#08666A" Padding="0,14" TappedCommand="{Binding ResetCommand}" AutomationId="ResetObservations" />
+                    <sk:SkUiButton Grid.Row="9" Text="Back to top" Clicked="OnTopClicked" Style="{StaticResource Action}" />
+                </sk:SkUiGrid>
+            </sk:SkUiScrollView>
+        </sk:SkUiContentView>
+        <Label x:Name="ScrollStatus" Grid.Row="2" Text="Offset 0" FontSize="13" TextColor="#526164" />
+    </Grid>
+</ContentPage>

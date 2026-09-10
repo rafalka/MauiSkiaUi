@@ -1,0 +1,30 @@
+using System.Windows.Input;
+
+namespace MauiSkiaUiDemo;
+
+public partial class ControlsPage : ContentPage
+{
+    private int observations;
+    public ICommand AddObservationCommand { get; }
+    public ICommand ResetCommand { get; }
+    public string ObservationStatus => $"Observations: {observations}";
+
+    public ControlsPage()
+    {
+        AddObservationCommand = new Command(() => { observations++; OnPropertyChanged(nameof(ObservationStatus)); });
+        ResetCommand = new Command(() => { observations = 0; OnPropertyChanged(nameof(ObservationStatus)); });
+        InitializeComponent();
+        BindingContext = this;
+        Scroller.Scrolled += (_, args) => ScrollStatus.Text = $"Offset {args.ScrollY:F0}";
+    }
+
+    private async void OnStressClicked(object? sender, EventArgs args) => await Shell.Current.GoToAsync("stress");
+    private async void OnPrimitivesClicked(object? sender, EventArgs args) => await Shell.Current.GoToAsync("primitives");
+    private void OnTopClicked(object? sender, EventArgs args) => Scroller.AnimateScrollTo(0, 0, TimeSpan.FromMilliseconds(350));
+
+    protected override void OnDisappearing()
+    {
+        Scroller.ScrollTo(Scroller.ScrollX, Scroller.ScrollY);
+        base.OnDisappearing();
+    }
+}

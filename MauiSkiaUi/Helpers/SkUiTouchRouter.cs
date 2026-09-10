@@ -10,13 +10,14 @@ internal sealed class SkUiTouchRouter
 
     internal bool TryPress(ISkUiView child, SkUiTouchEvent touch)
     {
-        if (captured is not null || touch.Action != SkUiTouchAction.Pressed
+        if (captured is not null || touch.Action is not (SkUiTouchAction.Pressed or SkUiTouchAction.Wheel)
             || child.InputTransparent || child.Visibility != Visibility.Visible
             || !SkUiView.MapPoint(child, touch.Position, out var local)
             || !new Rect(Point.Zero, child.Frame.Size).Contains(local))
             return false;
         if (!child.Touch(touch with { Position = local }))
             return false;
+        if (touch.Action == SkUiTouchAction.Wheel) return true;
         captured = child;
         pointerId = touch.Id;
         return true;

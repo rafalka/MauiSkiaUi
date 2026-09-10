@@ -173,13 +173,13 @@ Phase 0 code is implemented; platform compilation is checked, but device-level v
 ### FR-2 — XAML composition
 
 - [x] Entire SkiaUi subtree under `SkUiContentView` can be authored in XAML (nested layouts and controls).
-- [ ] Layouts use a content-property child collection so markup like `<SkUiGrid><SkUiLabel .../></SkUiGrid>` works.
+- [x] Layouts use a content-property child collection so markup like `<SkUiGrid><SkUiLabel .../></SkUiGrid>` works.
 - [x] Demo (or sample page) shows the target markup pattern with MAUI parents outside and SkiaUi inside the bridge.
 - [x] Document the `xmlns` to use for `MauiSkiaUi` types.
 
 ### FR-3 — Base layout primitives
 
-- [ ] Implement at least one concrete **`SkUiLayout`** subclass suitable for XAML nesting (e.g. `SkUiGrid` or stack) that measures / arranges `Children` and paints / hit-tests them in z-order.
+- [x] Implement at least one concrete **`SkUiLayout`** subclass suitable for XAML nesting (e.g. `SkUiGrid` or stack) that measures / arranges `Children` and paints / hit-tests them in z-order.
 - [x] Clear invalidation rules: property or structure changes request redraw (and remeasure when needed).
 - [ ] Layouts dirty-track children so only the affected subset is re-measured, re-laid out, or re-painted; unchanged siblings keep cached measure results and cached painted bitmaps (see NFR-2).
 
@@ -190,19 +190,26 @@ Design and checklist: [LayoutSystem.md](LayoutSystem.md).
 - [ ] Measure / arrange semantics match **MAUI’s layout system** (available size in, desired size out; arrange assigns final bounds) so SkiaUi layouts can reuse MAUI layout-manager concepts and stay near drop-in compatible.
 - [ ] Built-in layouts (stack, grid, etc.) follow MAUI layout behavior (including multi-pass measure where MAUI does, e.g. star rows/columns), optimized with dirty tracking and caching (NFR-2 / FR-3) rather than a Flutter box-constraint pipeline.
 - [ ] Changing a child’s offset alone must not require that child to remeasure or repaint when its size and visual content are unchanged.
-- [ ] Document how SkiaUi layouts map to MAUI layout managers / attached properties (Grid row/column, stack orientation, etc.).
-- [ ] Do **not** use Flutter `BoxConstraints` / constraints-down–sizes-up as the layout contract; Flutter refs are optional for paint/compositor patterns only.
+- [x] Document how SkiaUi layouts map to MAUI layout managers / attached properties (Grid row/column, stack orientation, etc.).
+- [x] Do **not** use Flutter `BoxConstraints` / constraints-down–sizes-up as the layout contract; Flutter refs are optional for paint/compositor patterns only.
 - [x] **`SkUiView.MeasureOverride` / `ArrangeOverride`** work with **`Handler == null`** (hosted mode); do not rely on `ComputeDesiredSize`’s handler path. Invalidation propagates without a platform handler (see LayoutSystem.md).
 
 ### FR-4 — Base controls
 
-- [ ] Initial **Skia-drawn** control set (no nested MAUI visuals for these types), including at least `SkUiLabel` (or equivalent text control).
+- [x] Initial **Skia-drawn** control set (no nested MAUI visuals for these types), including at least `SkUiLabel` (or equivalent text control).
 - [ ] Do **not** implement custom Skia `SkUiEntry`, `SkUiEditor`, or `SkUiWebView` — use **`SkUiMauiContentView`** hosting instead (FR-16).
 - [ ] Each Skia-drawn control derives from **`SkUiView`** (implements `ISkUiView`), is XAML-constructible, works under `SkUiContentView` / `SkUiLayout`, and can be used standalone in the MAUI tree (FR-13).
 
 ### FR-5 — Demo gallery
 
-- [ ] Demo hosts `SkUiContentView` with sample trees defined primarily in XAML.
+- [x] Demo hosts `SkUiContentView` with sample trees defined primarily in XAML.
+- [ ] Every concrete UI component we create (controls, primitives, composition hosts, and layouts) has its own navigable demo page in `MauiSkiaUiDemo`; adding a component includes adding its page in the same change.
+- [ ] Each component page provides interactive editors for its meaningful properties, common visibility/enabled/size/opacity settings, and a reset to known defaults. Changes apply immediately without rebuilding the app.
+- [ ] MAUI control reimplementations show the SkUi component and its native MAUI counterpart with equivalent content, constraints, and shared property values. Previews are side-by-side on wide screens and stacked on narrow screens, remaining usable after resizing or rotation.
+- [ ] Each page exposes observable behavior (such as independent click counts, scroll offsets, image loading/error status, and arranged bounds) and an explicit property-check action. Property checks are not a substitute for native interaction and visual verification.
+- [ ] SkUi-only components have a dedicated standalone demo without a misleading native-equivalence claim. Unsupported parity features are documented; comparisons allow platform-native appearance differences.
+- [x] Components are organized into four groups — **Basic controls** (leaf, non-layout, non-shape controls such as `SkUiView`, `SkUiLabel`, `SkUiButton`, `SkUiImage`), **Layouts** (composition hosts and multi/single-child layouts such as `SkUiContentView`, `SkUiLayout`, `SkUiGrid`), **Graphics** (drawn shape primitives such as `SkUiBox`, `SkUiEllipse`, `SkUiLine`), and **Scrolling & collections** (`SkUiScrollView` and, later, virtualizing collection view controls). The `MauiSkiaUi` library's source files are organized under `Controls/Basic/`, `Controls/Layouts/`, `Controls/Graphics/`, and `Controls/Scrolling/`; cross-cutting infrastructure lives in root-level `Extensions/` (builder extensions) and `Helpers/` (touch routing, animation clock, frame renderer) folders, with the core contract/base class (`ISkUiView`, `SkUiView`, `SkUiViewHandler`) at the project root (namespace stays `MauiSkiaUi`). The demo gallery lists components under matching section headers in the same order.
+- [ ] Gallery navigation, property changes, reset, and responsive comparisons are covered by automated tests where possible and device checks on Android and Apple. Preview and editor state must not leak between pages.
 - [ ] Gallery pages for layouts, Skia-drawn controls, and **hosted** Entry / Editor / WebView via `SkUiMauiContentView` (FR-16).
 - [ ] Verified on Android and at least one Apple target (iOS or Mac Catalyst).
 
@@ -336,12 +343,14 @@ Design details and checklist: [ScrollingAndCollectionViews.md](ScrollingAndColle
 
 **Decision:** implement **SkiaUi-owned** scroll and (later) virtualized lists on the shared surface. Do **not** treat MAUI `ScrollView` / `CollectionView` as the primary host for scrollable SkiaUi trees.
 
-- [ ] Implement **`SkUiScrollView`** with `Content` (`ISkUiView`), orientation, viewport clip, offset, pan/fling (FR-15 capture + FR-7 fling animation), and scroll APIs/events.
-- [ ] Measure content for full extent on the scroll axis; offset-only changes must not force content remeasure (FR-3a / NFR-2).
+- [x] Implement **`SkUiScrollView`** with `Content` (`ISkUiView`), orientation, viewport clip, offset, pan/fling (FR-15 capture + FR-7 fling animation), and scroll APIs/events.
+- [x] Measure content for full extent on the scroll axis; offset-only changes must not force content remeasure (FR-3a / NFR-2).
 - [ ] Sync **`SkUiMauiContentView`** overlays while scrolling; on Android/Windows apply FR-16 snapshot freeze (Apple live sync); honor opt-out.
 - [ ] Demo gallery: long content under `SkUiScrollView` (Skia-drawn + hosted Entry).
 - [ ] **Later:** virtualizing **`SkUiCollectionView`** (or equivalent) with `ItemsSource` / `ItemTemplate` and recycle pool on the shared surface — not MAUI `CollectionView` recycling.
-- [ ] Document MAUI `ScrollView`/`CollectionView` nesting as **compat only** (standalone cells keep `HwAccelerated = false` per FR-14).
+- [x] Document MAUI `ScrollView`/`CollectionView` nesting as **compat only** (standalone cells keep `HwAccelerated = false` per FR-14).
+
+Phase 1 code and headless tests are delivered. Device interaction/rendering/contrast acceptance remains blocked by the installed MAUI extension; checked implementation items do not imply native platform verification. See README for the precise v1 API limits.
 
 ## Non-functional requirements
 

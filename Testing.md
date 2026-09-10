@@ -24,6 +24,28 @@ On 2026-09-10 all 19 headless tests and Android/iOS/Mac Catalyst diagnostic buil
 
 After review fixes on the same date, all 36 headless tests passed and Android Hot Reload succeeded. The running app still had no DevFlow agent; diagnostics also reported a missing Android broker tunnel. Native rendering/contrast verification remains open.
 
+## Phase 1 implementation
+
+The same test command now runs **49 cases**. Phase 1 adds MAUI Grid Auto/star/span and mutation checks; Label wrapping/direct setters; Button press, commands, rounded pixels, style/default restoration and visual states; asynchronous image decode/error/stale-result checks; scroll extent/clamping/no-remeasure, tap-to-pan takeover, deterministic fling, async completion/cancellation; full-pixel scroll-composition goldens at 1x and 2x; and transformed clipping/Z-order cache mutation regressions. The small scroll goldens encode expected solid-color pixels directly in the test, avoiding platform-dependent font/antialias baselines.
+
+Reproduce the non-gating measurement:
+
+```bash
+dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj --filter FullyQualifiedName~ThousandLabel --logger 'console;verbosity=detailed'
+```
+
+It constructs 1,000 labels, measures/arranges a 400x600-DIP viewport, warms one picture recording, then records 30 frames. Before clip rejection/cached Z-order: 8.106 ms and 568,384 managed bytes/frame. After: 0.635 ms and 9,488 bytes/frame on the same Mac, Debug, .NET 10. These are indicative CPU measurements, not GPU FPS; no timing assertion is used. Remaining allocations include visible labels' font/paint resources, and native allocations are excluded. Use the device stress page's **Record** action for CPU recording of 1,000 buttons, and a native profiler for actual presentation timing.
+
+Phase 1 native acceptance checklist (still open):
+
+- Launch Controls at compact phone and tablet/desktop sizes; inspect `ControlsHost`, `ControlsScroller`, `EarthImage`, and `AddObservation` bounds. Verify one native surface and handlerless descendants.
+- Confirm offline Earth image, text wrapping, Grid columns, style colors, pressed/disabled feedback, observation count binding and reset command.
+- Pan from a button: no click after threshold; fling settles; new press interrupts. Tap after scrolling must hit the translated control. Exercise Back to top and desktop wheel input.
+- Navigate to Stress, scroll to the last of 1,000 buttons, tap it, run Record/Scroll/Top, and navigate back. No stale animations or extra surfaces should survive navigation.
+- Query actual runtime foreground/background colors and inspect screenshots. Drawn-tree native accessibility/keyboard support is not implemented.
+
+Android, iOS simulator, and Mac Catalyst diagnostic builds pass, including new source-generated XAML. The attempted device launch is blocked by `MSB4099` in the installed DevFlow targets, with zero registered agents. No native screenshot, visual-tree, color-contrast, GPU, or input result is claimed for Phase 1. Windows compilation and pinned-font image goldens are not verified.
+
 ## Goals
 
 1. **Gate correctness before performance work** (NFR-2): simple implementations ship with tests; optimizations must not change observable behavior.

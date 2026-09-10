@@ -7,8 +7,8 @@
     Title="MauiSkiaUiDemo">
 
     <ShellContent
-        Title="Home"
-        ContentTemplate="{DataTemplate local:MainPage}"
-        Route="MainPage" />
+        Title="Components"
+        ContentTemplate="{DataTemplate local:ComponentGalleryPage}"
+        Route="Components" />
 
 </Shell>

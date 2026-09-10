@@ -20,25 +20,29 @@ Solution file: `SkiaUi.slnx`
 ### Library (`MauiSkiaUi`)
 
 - Targets Android, iOS, and Mac Catalyst (Windows TFM included when building on Windows).
-- `ISkUiView : IView`, `SkUiView`, `SkUiContentView`, and a minimal overlay `SkUiLayout` implement the Phase 0 pipeline.
+- `ISkUiView : IView`, `SkUiView`, padded `SkUiContentView`, and overlay `SkUiLayout` implement the shared-surface pipeline.
+- Phase 1 adds `SkUiGrid` using MAUI's `GridLayoutManager`, `SkUiLabel`, `SkUiButton`, asynchronous `SkUiImage`, and `SkUiScrollView`.
 - `SkUiBox`, `SkUiEllipse`, and `SkUiLine` expose bindable colors and sizing and paint with SkiaSharp 4.151.1.
 - Hosted children have logical MAUI parents and inherited binding contexts, but no handlers or native surfaces. Duplicate ownership and tree cycles are rejected.
 - Handler-independent measure/arrange uses MAUI constraint and frame helpers, including margins, requests, alignment, and cached unchanged passes.
 - Paint walks Background / Content / Overlay phases, with local rectangular clipping, opacity, translation, rotation, scale, and stable ZIndex ordering.
-- `Tapped` uses child-first hit-testing, inverse transforms, single-pointer capture, a 10-DIP movement threshold, and cancellation. Passive and input-transparent nodes pass through; disabled nodes block without firing.
+- `Tapped` / `TappedCommand` use child-first hit-testing, inverse transforms, single-pointer capture, a 10-DIP movement threshold, and cancellation. Buttons participate intrinsically with `Clicked`, `Command`, `CommandParameter`, `IsPressed`, and Normal/Pressed/Disabled visual states. Passive and input-transparent nodes pass through; disabled nodes block without firing.
 - `SkUiAnimationClock` accepts deterministic frame times and stops rendering when the last animation finishes. Transform animations do not invalidate measure.
 - `StartUpdating` / `EndUpdating` batch layout and paint notifications. Native resources and subscriptions are released when the handler disconnects.
 - `UseSkiaUi()` registers SkiaSharp and the custom standalone handler. Public library APIs include XML documentation.
 
 ### Demo (`MauiSkiaUiDemo`)
 
+- The first screen is a XAML control sample with Grid, wrapping Label, an offline NASA image, command-bound Buttons, MAUI styles/visual states, and scrollable content.
+- **Stress test** opens 1,000 hosted buttons under one scroll surface. **Scroll** animates through the content, **Top** resets it, and **Record** reports CPU picture-recording time and managed allocations (not GPU FPS).
+- **Primitives** opens the original Phase 0 page:
 - XAML-authored composition with a box, ellipse, and line under one GPU-default `SkUiContentView`.
 - Four-second transform animation starts on load and can be replayed; a native status label reports animation/idle state.
 - Tapping a filled primitive changes its color and increments a native tap counter.
 - A standalone software-rendered box demonstrates the leaf-control default.
 - Conditional MauiDevFlow initialization and Mac Catalyst server entitlement are wired for runtime inspection.
 
-### Phase 0 usage and limits
+### Usage and limits
 
 Register `builder.UseSkiaUi()` in `MauiProgram`, then compose in XAML:
 
@@ -57,7 +61,7 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 </sk:SkUiContentView>
 ```
 
-- `SkUiLayout` is deliberately an **overlay**, not Grid/Stack parity: every child receives the same local slot; margins and alignment position it. Grid/Stack managers remain later-phase work.
+- `SkUiLayout` is deliberately an **overlay**: every child receives the same padded slot. `SkUiGrid` delegates measurement and arrangement to MAUI's `GridLayoutManager`, including Auto/star/absolute definitions, spans, spacing, padding, and standard `Grid.Row`, `Grid.Column`, `Grid.RowSpan`, and `Grid.ColumnSpan`. Runtime definition/attached-property changes invalidate layout. Other layout packs remain later work.
 - `HwAccelerated` is a CLR property set **before handler creation**; changing it after attachment throws. Content hosts/layouts default to GPU; leaves default to software. Hosted values are ignored. The SkiaSharp GPU backend is platform-dependent (Metal on Mac Catalyst). There is no automatic GPU recovery: set `HwAccelerated="False"` before attachment on unsupported devices.
 - All tree geometry, paint, and input use DIPs. Only the handler scales to surface pixels. `Paint` receives a local canvas; parents translate to child frames, and input routers undo the same render transform.
 - Tree mutations and animation callbacks run on the UI thread. Each requested frame records the full tree into a scoped `SKPicture`; the surface replays the snapshot under a lock. This bridges Android's GL render thread safely, not a retained per-node cache. GPU `HasRenderLoop` drives animation; software schedules the next invalidation after paint. No fixed-rate timer is used.
@@ -65,15 +69,43 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 - Animation callbacks should change paint/transform properties. Dispose their handles on page disappearance; handler unload/disconnect also stops the root clock. Start animations after attaching nodes to their intended root.
 - `StopAll()` preserves the clock's monotonic timeline. After restarting an animation on the same clock, continue supplying elapsed timestamps rather than resetting them to zero.
 - Hit regions are rectangular arranged bounds, including the visually empty corners of ellipses and the area beside a line. Render transforms are inverted before testing these bounds; shape-aware hits are deferred. Disabled nodes block hits without firing, and `IsVisible="False"` collapses nodes and excludes them from paint/input.
-- Backgrounds support solid brushes/colors only. Custom masks, gradients, commands, double tap, long press, swipe, multi-touch, native overlays, and retained per-node caching are deferred. Hosted implementations must also be MAUI `Element` instances for logical ownership.
-- Skia primitives are not individual native accessibility elements yet; native status/buttons remain available. Full drawn-tree accessibility and measured frame-rate targets are not claimed in Phase 0.
+- Backgrounds support solid brushes/colors only. Custom masks, gradients, double tap, long press, swipe, multi-touch, native overlays, and retained per-node caching are deferred. Hosted implementations must also be MAUI `Element` instances for logical ownership.
+- Drawn controls are not individual native accessibility elements and do not yet provide keyboard activation. Native status/navigation controls remain available. Full drawn-tree accessibility and device frame-rate targets are not claimed.
+
+### Phase 1 APIs
+
+```xml
+<sk:SkUiContentView Background="White">
+	<sk:SkUiScrollView Padding="16">
+		<sk:SkUiGrid RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
+			<sk:SkUiLabel Text="Observations" FontSize="24" />
+			<sk:SkUiImage Grid.Row="1" Source="earth.jpg" HeightRequest="200" />
+			<sk:SkUiButton Grid.Row="2" Text="Add observation" Command="{Binding AddCommand}" />
+		</sk:SkUiGrid>
+	</sk:SkUiScrollView>
+</sk:SkUiContentView>
+```
+
+- New control-owned bindable properties delegate to fluent direct setters (`SetText`, `SetSource`, `SetContent`, `SetPadding`, etc.). **Direct setters do not write back to the bindable store or bindings.** CLR getters return applied state; `GetValue` may still return the old value. Setting a bindable value to its already-stored value may not invoke its callback, so do not mix both update paths for one property. Both paths honor `StartUpdating` / `EndUpdating`; these batch invalidation, not rollback or asynchronous loading.
+- Label supports plain left-to-right text, grapheme-safe word/character wrapping, head/middle/tail truncation, font size, system family names, bold/italic, alignment, and padding. MAUI registered font aliases, rich text, bidi/complex-script shaping, selection, and native font scaling are not implemented.
+- Button adds intrinsic taps, command eligibility, rounded fill/border chrome, and visual states through MAUI `VisualStateManager`. `FillColor` controls its default fill; a solid `Background` overrides it. Hit bounds remain rectangular.
+- Image accepts `FileImageSource` (absolute file or **Resources/Raw** package asset), `StreamImageSource`, and HTTPS `UriImageSource`. Generated `MauiImage` resource lookup and `FontImageSource` are not implemented. `AspectFit`, `AspectFill`, and `Fill` control painting; intrinsic size is decoded pixels as DIPs. No shared download cache, EXIF rotation, or animated image playback is provided.
+- Image loading exposes `IsLoading`, `LoadError`, `ImageSize`, and awaitable `LoadingTask`; errors leave a blank image. Replacement cancels old work and rejects stale results. Encoded data is limited to 32 MiB and decoded size to 16 megapixels. Source streams are owned/disposed by the loader. Use setters and `Dispose()` on the UI thread; dispose images when permanently removing them.
+- ScrollView measures its single content unconstrained on the enabled axes (`Vertical`, `Horizontal`, `Both`, `Neither`). `ContentSize` includes padding. `ScrollX`/`ScrollY` are read-only, clamped DIPs. Offset changes reposition content without remeasuring it. `ScrollTo`, `ScrollToAsync`, `AnimateScrollTo`, and `Scrolled` provide programmatic access; gesture/unload/disable interrupts animation and cancels pending async scrolls.
+- Pan takes over after 10 DIPs and cancels the child's pending tap. A bounded decelerating fling uses the shared root clock, stops at bounds/rest, and is interrupted by a new press. Desktop wheel events use the vertical axis, or horizontal axis for horizontal-only scroll. Nested-scroll arbitration, bounce, snapping, scrollbars, native overlays, and virtualization remain deferred. Native MAUI scroller nesting is compatibility-only; prefer one SkiaUi scroll surface.
+- Painting conservatively rejects nodes outside the transformed canvas clip and caches stable Z-order until collection/ZIndex changes. All controls remain retained; this is paint culling, not item virtualization.
 
 ### Verification status
 
-- 36 automated tests cover paint pixels/layers/alpha, layout/cache behavior, ownership, nested transformed capture, explicit NaN maximum constraints, deterministic animation, and the handler's shared frame pipeline (record/replay, in-paint invalidation, density mapping, and disposal).
-- Diagnostic builds succeeded for Android, iOS simulator, and Mac Catalyst on 2026-09-10.
+- **49 automated tests pass**, including the 36 Phase 0/review cases, Phase 1 controls, styles/visual-state restoration, image replacement/errors, scroll pan/fling/cancellation, full-pixel composition goldens at 1x/2x, and culling/order-cache regressions.
+- Phase 1 diagnostic builds, including source-generated XAML, succeeded for Android, iOS simulator, and Mac Catalyst on 2026-09-10. Windows has not been built here.
+- A 1,000-label, 400x600-DIP headless Debug measurement improved warm CPU recording from **8.106 ms / 568,384 managed bytes per frame** to **0.635 ms / 9,488 bytes** after clip rejection and cached ordering (30 frames, same Mac). These are indicative single-run measurements, not device FPS or release performance guarantees. Native allocations and initial layout costs are not included in the per-frame allocation figure; near-zero allocation remains future work.
 - **Device exit gate remains open:** manual Mac launch was reported, but automated visual-tree, screenshot, native input, and contrast checks were blocked by the installed MAUI extension's DevFlow injection target (`MSB4099` in `MauiDevFlow.targets`). No visual or GPU-performance success is inferred from compilation. Re-run device checks after fixing/updating that extension.
-- Review fixes were sent successfully by Hot Reload to the running Android debug session. DevFlow still had no registered agent and reported a missing broker tunnel, so native rendering and contrast were not reverified. Headless frame tests do not replace native lifecycle/GPU checks.
+- Latest Phase 1 attempt: no active debug session; Copilot launch again failed on the installed injection target and diagnostics reported zero agents. The extension was not modified. Functional navigation, image presentation, native pan/wheel/fling, compact layouts, GPU behavior, and rendered color contrast remain unverified. Headless tests do not replace these checks.
+
+### Demo asset
+
+The bundled `earth.jpg` is NASA's Blue Marble western hemisphere image, downloaded from [NASA Visible Earth](https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57723/globe_west_2048.jpg). Credit: NASA / Visible Earth. It is packaged under `Resources/Raw` so the demo works offline.
 
 ### Tooling
 
@@ -96,7 +128,7 @@ dotnet build SkiaUi.slnx
 dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
 ```
 
-In VS Code, select **.NET MAUI: Select Startup Project > MauiSkiaUiDemo**, choose an Android or Apple target, and start debugging. Apply changes with Hot Reload while debugging. Copilot-triggered launches inject MauiDevFlow; ordinary builds/F5 may not.
+In VS Code, select **.NET MAUI: Select Startup Project > MauiSkiaUiDemo**, choose an Android or Apple target, and start debugging. Apply changes with Hot Reload while debugging. The demo includes MauiDevFlow by default in **Debug**, including ordinary builds/F5: the project references the agent and defines `MAUI_DEVFLOW` to activate the existing startup registration. **Release** excludes both the agent package and registration. No extension injection is needed for ordinary Debug builds; Copilot-triggered launch remains subject to the installed extension's injection-target error described above.
 
 ## Documentation
 
