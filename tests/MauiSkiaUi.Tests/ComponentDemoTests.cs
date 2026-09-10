@@ -33,7 +33,7 @@ public class ComponentDemoTests
         {
             var page = demo.Create();
             Assert.Equal(demo.PageType, page.GetType());
-            Assert.Equal(demo.ComponentType, page.SkiaControl.GetType());
+            Assert.True(ContainsInstanceOf(page.SkiaControl, demo.ComponentType), $"{demo.PageType.Name}'s preview does not contain a {demo.ComponentType.Name}.");
             Assert.Empty(page.CheckProperties());
             foreach (var slider in Descendants(page.Editors).OfType<Slider>()) slider.Value = (slider.Minimum + slider.Maximum) / 2;
             foreach (var toggle in Descendants(page.Editors).OfType<Switch>()) toggle.IsToggled = !toggle.IsToggled;
@@ -44,6 +44,12 @@ public class ComponentDemoTests
             Assert.Null(page.SkiaControl.Handler);
             if (page.SkiaControl is SkUiImage image) image.Dispose();
         }
+    }
+
+    private static bool ContainsInstanceOf(ISkUiView view, Type type)
+    {
+        if (type.IsInstanceOfType(view)) return true;
+        return view is SkUiView node && node.SkiaChildren.Any(child => ContainsInstanceOf(child, type));
     }
 
     [Fact]

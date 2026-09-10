@@ -22,6 +22,7 @@ Solution file: `SkiaUi.slnx`
 - Targets Android, iOS, and Mac Catalyst (Windows TFM included when building on Windows).
 - `ISkUiView : IView`, `SkUiView`, padded `SkUiContentView`, and overlay `SkUiLayout` implement the shared-surface pipeline.
 - Phase 1 adds `SkUiGrid` using MAUI's `GridLayoutManager`, `SkUiLabel`, `SkUiButton`, asynchronous `SkUiImage`, and `SkUiScrollView`.
+- Phase 2 adds native hosting (`SkUiMauiContentView`, FR-16), `SkUiBorder`, `SkUiActivityIndicator`, `SkUiImageButton`, `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton`, `SkUiVerticalStackLayout`, `SkUiHorizontalStackLayout`, and `SkUiAbsoluteLayout`. See "Phase 2 APIs" below for specifics and limits.
 - `SkUiBox`, `SkUiEllipse`, and `SkUiLine` expose bindable colors and sizing and paint with SkiaSharp 4.151.1.
 - Hosted children have logical MAUI parents and inherited binding contexts, but no handlers or native surfaces. Duplicate ownership and tree cycles are rejected.
 - Handler-independent measure/arrange uses MAUI constraint and frame helpers, including margins, requests, alignment, and cached unchanged passes.
@@ -90,14 +91,33 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 - Pan takes over after 10 DIPs and cancels the child's pending tap. A bounded decelerating fling uses the shared root clock, stops at bounds/rest, and is interrupted by a new press. A desktop wheel scrolls the vertical axis whenever it is enabled (`Vertical` or `Both`), and only scrolls horizontally when `Horizontal` is the sole enabled axis — `SkUiTouchEvent` carries a single `WheelDelta` with no axis indicator, so `Both` cannot yet distinguish a horizontal-wheel gesture (e.g. shift+wheel) from a vertical one. Nested-scroll arbitration, bounce, snapping, scrollbars, native overlays, and virtualization remain deferred. Native MAUI scroller nesting is compatibility-only; prefer one SkiaUi scroll surface.
 - Painting conservatively rejects nodes outside the transformed canvas clip and caches stable Z-order until collection/ZIndex changes. All controls remain retained; this is paint culling, not item virtualization.
 
+### Phase 2 APIs
+
+```xml
+<sk:SkUiGrid RowDefinitions="Auto,Auto" RowSpacing="12">
+	<sk:SkUiBorder Stroke="#087F83" StrokeThickness="2" CornerRadius="10">
+		<sk:SkUiLabel Text="Bordered content" />
+	</sk:SkUiBorder>
+	<sk:SkUiMauiContentView Grid.Row="1" HeightRequest="160">
+		<Editor Placeholder="Native Editor hosted natively" />
+	</sk:SkUiMauiContentView>
+</sk:SkUiGrid>
+```
+
+- **`SkUiMauiContentView`** (FR-16) hosts a real MAUI `VisualElement` (e.g. `Entry`, `Editor`, `WebView`) as a native overlay instead of a Skia reimplementation. Internally, the standalone root's handler now wraps its Skia surface in a small per-platform native container (`SkUiOverlayContainer`) so overlay views can be added as absolutely positioned siblings (Android `View.Layout`, iOS/Mac Catalyst `UIView.Frame`, Windows `Canvas`). Positioning uses `ComputeRootRelativeFrame()`, which sums ancestor `Frame` offsets up to the standalone root. **v1 limits:** this is translation-only (no rotation/scale/opacity composition through ancestors), there is no snapshot-during-scroll (the overlay stays live-synced while scrolling), and `Touch` always returns `false` so SkiaUi's router never consumes hits meant for the native control. See `MauiContentViewDemoPage` in the gallery for a working Editor/WebView example.
+- **`SkUiBorder`** draws a rounded-rectangle fill/border/clip around one child, sharing `SkUiChrome` geometry with Button. Only rounded rectangles are supported (no arbitrary `IShape` strokes like MAUI's full `Border.StrokeShape`).
+- **`SkUiActivityIndicator`** is a drawn indeterminate spinner driven by the shared `AnimationClock`; animates only while `IsRunning`.
+- **`SkUiImageButton`** extends `SkUiImage` with intrinsic taps, `Command`/`CommandParameter`/`Clicked`, and a pressed/disabled tint overlay (optionally clipped to `CornerRadius`).
+- **`SkUiSwitch`**, **`SkUiCheckBox`**, **`SkUiRadioButton`** share a small `SkUiToggleControl` base (`IsChecked`, `CheckedChanged`, intrinsic tap-to-toggle). `SkUiRadioButton.GroupName` is exposed for app bookkeeping only — **unlike MAUI's `RadioButton`, it does not automatically uncheck siblings**; apps must clear other radio buttons themselves (e.g. in `CheckedChanged`).
+- **`SkUiVerticalStackLayout`** / **`SkUiHorizontalStackLayout`** reuse MAUI's `VerticalStackLayoutManager`/`HorizontalStackLayoutManager` (just a `Spacing` property beyond the shared `SkUiLayout` padding/Children). **`SkUiAbsoluteLayout`** reuses `AbsoluteLayoutManager` and delegates to MAUI's `AbsoluteLayout.GetLayoutBounds`/`SetLayoutBounds`/`GetLayoutFlags`/`SetLayoutFlags` attached properties (same delegation pattern `SkUiGrid` uses for `Grid.Row`/`Column`). **`SkUiFlexLayout` is not implemented** (deferred for scope).
+
 ### Verification status
 
-- **62 automated tests pass**, including the 36 Phase 0/review cases, Phase 1 controls, styles/visual-state restoration, image replacement/errors, scroll pan/fling/cancellation, full-pixel composition goldens at 1x/2x, culling/order-cache regressions, custom-font registry/rendering, and the 2026-09-10 Phase 1 review fixes (button single-command execution, rounded-clip geometry, documented per-orientation wheel behavior).
+- **66 automated tests pass**: the 62 Phase 0/Phase 1/review cases plus new `Phase2Tests` covering `SkUiMauiContentView`'s Measure/Arrange/Touch contract, content-ownership validation, and `ComputeRootRelativeFrame()` through nested hosted layouts. The nine new Basic/Layout controls are covered via `ComponentDemoTests`' one-page-per-component contract (editors, reset, property checks, no handlers) rather than dedicated pixel goldens yet.
+- **Phase 2 (2026-09-10):** implemented FR-16 native hosting (`SkUiMauiContentView` + per-platform overlay container) and nine new controls/layouts (`SkUiBorder`, `SkUiActivityIndicator`, `SkUiImageButton`, `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton`, `SkUiVerticalStackLayout`, `SkUiHorizontalStackLayout`, `SkUiAbsoluteLayout`), each with a gallery demo page (native side-by-side where MAUI has a direct counterpart). Android/iOS/Mac Catalyst diagnostic builds pass with 0 warnings. `SkUiFlexLayout` and per-control markdown docs (NFR-5) are not done this pass.
 - A follow-up review on 2026-09-10 fixed a High-severity issue (SkUiImage's decode completion could mutate state off the UI thread) and three Medium issues (Button could run both `Command` and `TappedCommand` on one tap; Button text was not clipped to its rounded background, so glyphs could bleed past the corners; Grid row/column/span invalidation matched MAUI's attached-property names as literal strings). See `tmp/review.md` for the full findings; fixes are covered by new regression tests.
-- Phase 1 diagnostic builds, including source-generated XAML, succeeded for Android, iOS simulator, and Mac Catalyst on 2026-09-10. Windows has not been built here.
 - A 1,000-label, 400x600-DIP headless Debug measurement improved warm CPU recording from **8.106 ms / 568,384 managed bytes per frame** to **0.635 ms / 9,488 bytes** after clip rejection and cached ordering (30 frames, same Mac). These are indicative single-run measurements, not device FPS or release performance guarantees. Native allocations and initial layout costs are not included in the per-frame allocation figure; near-zero allocation remains future work.
-- **Device exit gate remains open:** manual Mac launch was reported, but automated visual-tree, screenshot, native input, and contrast checks were blocked by the installed MAUI extension's DevFlow injection target (`MSB4099` in `MauiDevFlow.targets`). No visual or GPU-performance success is inferred from compilation. Re-run device checks after fixing/updating that extension.
-- Latest Phase 1 attempt: no active debug session; Copilot launch again failed on the installed injection target and diagnostics reported zero agents. The extension was not modified. Functional navigation, image presentation, native pan/wheel/fling, compact layouts, GPU behavior, and rendered color contrast remain unverified. Headless tests do not replace these checks.
+- **Device exit gate remains open:** the installed MAUI extension's DevFlow injection target still fails with `MSB4099`, blocking Copilot-triggered launch; the extension was not modified. Native overlay attachment/positioning (`SkUiMauiContentView`), rendered colors/contrast of the new controls, and all other on-device behavior remain unverified. No visual or GPU-performance success is inferred from compilation. Headless tests do not replace these checks.
 
 ### Demo asset
 

@@ -24,7 +24,7 @@ public abstract class ComponentDemoPage : ContentPage
     internal bool IsWide { get; private set; }
     internal Grid Editors => editors;
 
-    protected ComponentDemoPage(string name, SkUiView skia, View? native = null)
+    protected ComponentDemoPage(string name, SkUiView skia, View? native = null, (double Min, double Max, double Initial)? widthRange = null, (double Min, double Max, double Initial)? heightRange = null)
     {
         Title = name;
         Background = Color.FromArgb("#F4F6F6");
@@ -62,8 +62,8 @@ public abstract class ComponentDemoPage : ContentPage
         UpdateComparisonLayout(0);
         skia.SizeChanged += (_, _) => UpdateBounds();
         if (native is not null) native.SizeChanged += (_, _) => UpdateBounds();
-        Number("Width", 60, 260, 220, value => SetBoth(View.WidthRequestProperty, value), () => skia.WidthRequest, native is null ? null : () => native.WidthRequest);
-        Number("Height", 40, 160, 120, value => SetBoth(View.HeightRequestProperty, value), () => skia.HeightRequest, native is null ? null : () => native.HeightRequest);
+        Number("Width", widthRange?.Min ?? 60, widthRange?.Max ?? 260, widthRange?.Initial ?? 220, value => SetBoth(View.WidthRequestProperty, value), () => skia.WidthRequest, native is null ? null : () => native.WidthRequest);
+        Number("Height", heightRange?.Min ?? 40, heightRange?.Max ?? 160, heightRange?.Initial ?? 120, value => SetBoth(View.HeightRequestProperty, value), () => skia.HeightRequest, native is null ? null : () => native.HeightRequest);
         Number("Opacity", 0, 1, 1, value => SetBoth(VisualElement.OpacityProperty, value), () => skia.Opacity, native is null ? null : () => native.Opacity);
         Toggle("Enabled", true, value => SetBoth(VisualElement.IsEnabledProperty, value), () => skia.IsEnabled, native is null ? null : () => native.IsEnabled);
         Toggle("Visible", true, value => SetBoth(VisualElement.IsVisibleProperty, value), () => skia.IsVisible, native is null ? null : () => native.IsVisible);

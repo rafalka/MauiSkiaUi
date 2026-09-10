@@ -46,6 +46,21 @@ Phase 1 native acceptance checklist (still open):
 
 Android, iOS simulator, and Mac Catalyst diagnostic builds pass, including new source-generated XAML. The attempted device launch is blocked by `MSB4099` in the installed DevFlow targets, with zero registered agents. No native screenshot, visual-tree, color-contrast, GPU, or input result is claimed for Phase 1. Windows compilation and pinned-font image goldens are not verified.
 
+## Phase 2 implementation
+
+The same test command now runs **66 cases**, adding `Phase2Tests` for `SkUiMauiContentView`: a hosted `Editor`'s Measure/Arrange contract (documenting that a handlerless `VisualElement` measures as `Size.Zero`, a MAUI platform limitation not a SkiaUi one), rejecting content that is already parented/has a handler, `ComputeRootRelativeFrame()` summing ancestor offsets through nested hosted layouts (Grid inside an overlay layout inside a ContentView), and confirming `Touch` always returns `false` so SkiaUi's router never consumes hits meant for the native overlay. `NotifyRootAttached`/`NotifyRootDetached` are exercised as safe no-ops without a platform root (the partial-method platform hooks are simply absent on the headless `net10.0` target).
+
+`SkUiBorder`, `SkUiActivityIndicator`, `SkUiImageButton`, `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton`, `SkUiVerticalStackLayout`, `SkUiHorizontalStackLayout`, and `SkUiAbsoluteLayout` are covered indirectly through `ComponentDemoTests` (one demo page per concrete type, editor/reset/property-check contract, no handlers required) rather than dedicated pixel goldens — this mirrors how Phase 1's Grid/Label/Button/Image/ScrollView coverage started before adding pixel-level cases, and dedicated goldens can follow if a regression surfaces.
+
+Phase 2 native acceptance checklist (still open, in addition to the Phase 1 checklist above):
+
+- Confirm the native `Editor`/`WebView` overlay actually renders and receives input on `MauiContentViewDemoPage`, positioned correctly over its Skia host, including after scrolling/resizing the page (v1 does not snapshot during scroll, so any positioning drift while scrolling would be visible here first). The page now composes both overlays plus `SkUiLabel`/`SkUiButton` in one `SkUiGrid`, with the Editor's HTML text live-updating the WebView (and a Refresh button as a manual fallback) — verify both the live-typing update and the button, and that the surrounding SkUi labels/button render/position correctly alongside the two native overlays in the same grid.
+- Confirm the overlay repositions correctly when nested inside other layouts (Grid/StackLayout/AbsoluteLayout), not just a single ContentView, since `ComputeRootRelativeFrame()`'s translation-only accumulation is unverified on a real native container.
+- Inspect the new Basic controls' rendered colors/contrast (Switch/CheckBox/RadioButton especially, since their default palette was chosen without a device check) and the Border's rounded-clip content.
+- Verify Stack/Absolute layouts' native-vs-drawn spacing and positions visually match at a few sizes/orientations.
+
+Android, iOS, and Mac Catalyst diagnostic builds pass (0 warnings) for the full Phase 2 surface, including the new native container/overlay plumbing. Copilot-triggered device launch is still blocked by the same pre-existing `MSB4099` DevFlow injection issue; no native overlay, contrast, or input result is claimed for Phase 2. Windows compilation is not verified (no Windows host available here).
+
 ## Goals
 
 1. **Gate correctness before performance work** (NFR-2): simple implementations ship with tests; optimizations must not change observable behavior.

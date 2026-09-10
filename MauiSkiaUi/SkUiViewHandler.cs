@@ -25,6 +25,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     private View? surface;
     private SkUiFrameRenderer? renderer;
     private TimeSpan clockOffset;
+    private SkUiOverlayContainer? container;
 
     private static readonly IPropertyMapper<SkUiView, SkUiViewHandler> SkiaMapper = CreateMapper();
 
@@ -63,7 +64,18 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             surface = software;
         }
         surface.Parent = VirtualView;
-        return surface.ToPlatform(MauiContext!);
+        var surfaceNative = surface.ToPlatform(MauiContext!);
+#if ANDROID
+        container = new SkUiOverlayContainer(MauiContext!.Context!);
+        container.AddView(surfaceNative);
+#elif IOS || MACCATALYST
+        container = new SkUiOverlayContainer();
+        container.AddSubview(surfaceNative);
+#elif WINDOWS
+        container = new SkUiOverlayContainer();
+        container.Children.Add(surfaceNative);
+#endif
+        return container;
     }
 
     /// <inheritdoc />
@@ -77,11 +89,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         VirtualView.Unloaded += OnUnloaded;
         OnRunningChanged(this, EventArgs.Empty);
         QueueFrame();
+        NotifyRootAttached(VirtualView);
     }
 
     /// <inheritdoc />
     protected override void DisconnectHandler(PlatformView platformView)
     {
+        NotifyRootDetached(VirtualView);
         VirtualView.AnimationClock.RunningChanged -= OnRunningChanged;
         VirtualView.Loaded -= OnLoaded;
         VirtualView.Unloaded -= OnUnloaded;
@@ -103,7 +117,73 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         if (surface is not null)
             surface.Parent = null;
         surface = null;
+        container = null;
         base.DisconnectHandler(platformView);
+    }
+
+    // Hosted SkUiMauiContentView nodes attach/detach their native overlay when the standalone root's own
+    // handler (dis)connects, since that is the only time a MauiContext/native container is available.
+    private static void NotifyRootAttached(SkUiView node)
+    {
+        if (node is SkUiMauiContentView overlay) overlay.NotifyRootAttached();
+        foreach (var child in node.SkiaChildren)
+            if (child is SkUiView view) NotifyRootAttached(view);
+    }
+
+    private static void NotifyRootDetached(SkUiView node)
+    {
+        if (node is SkUiMauiContentView overlay) overlay.NotifyRootDetached();
+        foreach (var child in node.SkiaChildren)
+            if (child is SkUiView view) NotifyRootDetached(view);
+    }
+
+    /// <summary>Finds the nearest ancestor whose handler is a standalone <see cref="SkUiViewHandler"/>, if any.</summary>
+    internal static SkUiViewHandler? FindRoot(Element node)
+    {
+        for (IElement? ancestor = node.Parent; ancestor is not null; ancestor = ancestor.Parent)
+            if (ancestor is Element element && element.Handler is SkUiViewHandler root)
+                return root;
+        return null;
+    }
+
+    /// <summary>Adds a native overlay view above the Skia surface.</summary>
+    internal void AttachOverlay(PlatformView child)
+    {
+#if ANDROID
+        container?.AddView(child);
+#elif IOS || MACCATALYST
+        container?.AddSubview(child);
+#elif WINDOWS
+        container?.Children.Add(child);
+#endif
+    }
+
+    /// <summary>Removes a previously attached native overlay view.</summary>
+    internal void DetachOverlay(PlatformView child)
+    {
+        container?.ForgetOverlay(child);
+#if ANDROID
+        container?.RemoveView(child);
+#elif IOS || MACCATALYST
+        child.RemoveFromSuperview();
+#elif WINDOWS
+        container?.Children.Remove(child);
+#endif
+    }
+
+    /// <summary>Positions a native overlay view at the given root-relative DIP bounds.</summary>
+    internal void UpdateOverlayBounds(PlatformView child, Rect dipBounds)
+    {
+#if ANDROID
+        var context = MauiContext!.Context!;
+        container?.SetOverlayBounds(child,
+            (int)context.ToPixels(dipBounds.X), (int)context.ToPixels(dipBounds.Y),
+            (int)context.ToPixels(dipBounds.Right), (int)context.ToPixels(dipBounds.Bottom));
+#elif IOS || MACCATALYST
+        container?.SetOverlayBounds(child, new CoreGraphics.CGRect(dipBounds.X, dipBounds.Y, dipBounds.Width, dipBounds.Height));
+#elif WINDOWS
+        container?.SetOverlayBounds(child, dipBounds.X, dipBounds.Y, dipBounds.Width, dipBounds.Height);
+#endif
     }
 
     private void OnLoaded(object? sender, EventArgs args) => QueueFrame();
@@ -172,4 +252,84 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             new Point(args.Location.X, args.Location.Y), null, args.WheelDelta)) == true;
     }
 }
+
+/// <summary>
+/// A native container that hosts the Skia surface (filling the container) plus zero or more absolutely
+/// positioned native overlay views for <see cref="SkUiMauiContentView"/>. Positions are applied directly in
+/// each platform's own layout pass rather than through normal layout params, since overlays are placed at
+/// arbitrary DIP-derived coordinates unrelated to the container's own layout system.
+/// </summary>
+#if ANDROID
+internal sealed class SkUiOverlayContainer(Android.Content.Context context) : Android.Widget.FrameLayout(context)
+{
+    private readonly Dictionary<Android.Views.View, Android.Graphics.Rect> bounds = [];
+
+    public void SetOverlayBounds(Android.Views.View child, int left, int top, int right, int bottom)
+    {
+        bounds[child] = new Android.Graphics.Rect(left, top, right, bottom);
+        RequestLayout();
+    }
+
+    public void ForgetOverlay(Android.Views.View child) => bounds.Remove(child);
+
+    protected override void OnLayout(bool changed, int left, int top, int right, int bottom)
+    {
+        for (var index = 0; index < ChildCount; index++)
+        {
+            var child = GetChildAt(index)!;
+            if (bounds.TryGetValue(child, out var rect))
+                child.Layout(rect.Left, rect.Top, rect.Right, rect.Bottom);
+            else
+                child.Layout(0, 0, right - left, bottom - top);
+        }
+    }
+}
+#elif IOS || MACCATALYST
+internal sealed class SkUiOverlayContainer : UIKit.UIView
+{
+    private readonly Dictionary<UIKit.UIView, CoreGraphics.CGRect> bounds = [];
+
+    public void SetOverlayBounds(UIKit.UIView child, CoreGraphics.CGRect frame)
+    {
+        bounds[child] = frame;
+        SetNeedsLayout();
+    }
+
+    public void ForgetOverlay(UIKit.UIView child) => bounds.Remove(child);
+
+    public override void LayoutSubviews()
+    {
+        base.LayoutSubviews();
+        foreach (var view in Subviews)
+            view.Frame = bounds.TryGetValue(view, out var frame) ? frame : Bounds;
+    }
+}
+#elif WINDOWS
+internal sealed class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.Canvas
+{
+    public SkUiOverlayContainer() => SizeChanged += OnSizeChanged;
+
+    private void OnSizeChanged(object sender, Microsoft.UI.Xaml.SizeChangedEventArgs args)
+    {
+        if (Children.Count > 0 && Children[0] is Microsoft.UI.Xaml.FrameworkElement surface && !bounds.ContainsKey(surface))
+        {
+            surface.Width = args.NewSize.Width;
+            surface.Height = args.NewSize.Height;
+        }
+    }
+
+    private readonly Dictionary<Microsoft.UI.Xaml.FrameworkElement, bool> bounds = [];
+
+    public void SetOverlayBounds(Microsoft.UI.Xaml.FrameworkElement child, double left, double top, double width, double height)
+    {
+        bounds[child] = true;
+        SetLeft(child, left);
+        SetTop(child, top);
+        child.Width = width;
+        child.Height = height;
+    }
+
+    public void ForgetOverlay(Microsoft.UI.Xaml.FrameworkElement child) => bounds.Remove(child);
+}
+#endif
 #endif

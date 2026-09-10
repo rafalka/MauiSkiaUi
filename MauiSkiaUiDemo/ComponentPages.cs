@@ -1,6 +1,7 @@
 using MauiSkiaUi;
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Graphics;
+using Microsoft.Maui.Layouts;
 using Microsoft.Maui.Storage;
 using NativeShapes = Microsoft.Maui.Controls.Shapes;
 
@@ -87,6 +88,39 @@ public sealed class GridDemoPage : ComponentDemoPage
     }
 }
 
+public sealed class MauiContentViewDemoPage : ComponentDemoPage
+{
+    private readonly Editor editor = new() { AutoSize = EditorAutoSizeOption.TextChanges, BackgroundColor = Colors.White, TextColor = Ink, FontFamily = "RobotoMono" };
+    private readonly WebView webView = new();
+
+    public MauiContentViewDemoPage() : base("SkUiMauiContentView", new SkUiGrid { RowSpacing = 8, Padding = 12 },
+        widthRange: (220, 420, 320), heightRange: (300, 560, 440))
+    {
+        editor.Text = "<h3>Live HTML</h3>\n<p>Edit this HTML \u2014 the WebView below updates as you type.</p>";
+        var grid = (SkUiGrid)SkiaControl;
+        grid.RowDefinitions = [new(GridLength.Auto), new(new GridLength(140)), new(GridLength.Auto), new(GridLength.Auto), new(new GridLength(220))];
+        var sourceLabel = new SkUiLabel { Text = "HTML source (edit me)", FontAttributes = FontAttributes.Bold, TextColor = Ink };
+        var editorHost = new SkUiMauiContentView { Content = editor };
+        var refresh = new SkUiButton { Text = "Refresh preview", FillColor = Accent, FontSize = 14 };
+        var previewLabel = new SkUiLabel { Text = "Live preview", FontAttributes = FontAttributes.Bold, TextColor = Ink };
+        var webHost = new SkUiMauiContentView { Content = webView };
+        Grid.SetRow(editorHost, 1);
+        Grid.SetRow(refresh, 2);
+        Grid.SetRow(previewLabel, 3);
+        Grid.SetRow(webHost, 4);
+        grid.Children.Add(sourceLabel);
+        grid.Children.Add(editorHost);
+        grid.Children.Add(refresh);
+        grid.Children.Add(previewLabel);
+        grid.Children.Add(webHost);
+
+        void Apply() => webView.Source = new HtmlWebViewSource { Html = editor.Text };
+        Apply();
+        editor.TextChanged += (_, _) => Apply();
+        refresh.Clicked += (_, _) => Apply();
+    }
+}
+
 public sealed class ContentViewDemoPage : ComponentDemoPage
 {
     public ContentViewDemoPage() : base("SkUiContentView", new SkUiContentView(), new ContentView())
@@ -102,6 +136,147 @@ public sealed class ContentViewDemoPage : ComponentDemoPage
         ColorEditor("Background", Color.FromArgb("#DCE8EA"), value => { skia.Background = value; native.Background = value; },
             () => ((SolidColorBrush)skia.Background).Color, () => ((SolidColorBrush)native.Background).Color);
         Toggle("HasContent", true, value => { skia.Content = value ? drawn : null; native.Content = value ? standard : null; }, () => skia.Content is not null, () => native.Content is not null);
+    }
+}
+
+public sealed class BorderDemoPage : ComponentDemoPage
+{
+    public BorderDemoPage() : base("SkUiBorder", new SkUiBorder(), new Border())
+    {
+        var skia = (SkUiBorder)SkiaControl;
+        var native = (Border)NativeControl!;
+        var drawn = new SkUiLabel { Text = "Bordered", Background = Colors.White, TextColor = Ink, HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center };
+        var standard = new Label { Text = "Bordered", Background = Colors.White, TextColor = Ink, HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center };
+        skia.Content = drawn;
+        native.Content = standard;
+        native.Stroke = Accent;
+        native.StrokeThickness = 2;
+        native.StrokeShape = new NativeShapes.RoundRectangle { CornerRadius = 10 };
+        ColorEditor("Stroke", Accent, value => { skia.Stroke = value; native.Stroke = new SolidColorBrush(value); }, () => skia.Stroke!, () => ((SolidColorBrush)native.Stroke).Color);
+        Number("StrokeThickness", 0, 8, 2, value => { skia.StrokeThickness = value; native.StrokeThickness = value; }, () => skia.StrokeThickness, () => native.StrokeThickness);
+        Number("CornerRadius", 0, 30, 10, value => { skia.CornerRadius = value; native.StrokeShape = new NativeShapes.RoundRectangle { CornerRadius = value }; }, () => skia.CornerRadius);
+    }
+}
+
+public sealed class ActivityIndicatorDemoPage : ComponentDemoPage
+{
+    public ActivityIndicatorDemoPage() : base("SkUiActivityIndicator", new SkUiActivityIndicator(), new ActivityIndicator())
+    {
+        var skia = (SkUiActivityIndicator)SkiaControl;
+        var native = (ActivityIndicator)NativeControl!;
+        Toggle("IsRunning", true, value => { skia.IsRunning = value; native.IsRunning = value; }, () => skia.IsRunning, () => native.IsRunning);
+        ColorEditor("Color", Accent, value => { skia.Color = value; native.Color = value; }, () => skia.Color, () => native.Color);
+    }
+}
+
+public sealed class ImageButtonDemoPage : ComponentDemoPage
+{
+    public ImageButtonDemoPage() : base("SkUiImageButton", new SkUiImageButton(), new ImageButton())
+    {
+        var skia = (SkUiImageButton)SkiaControl;
+        var native = (ImageButton)NativeControl!;
+        var skiaClicks = 0;
+        var nativeClicks = 0;
+        void Source()
+        {
+            skia.Source = ImageSource.FromFile("earth.jpg");
+            native.Source = ImageSource.FromFile("earth.jpg");
+        }
+        Source();
+        native.BackgroundColor = Colors.Transparent;
+        void Counts() => Feedback($"Clicks: {skiaClicks}", $"Clicks: {nativeClicks}");
+        skia.Clicked += (_, _) => { skiaClicks++; Counts(); };
+        native.Clicked += (_, _) => { nativeClicks++; Counts(); };
+        Number("CornerRadius", 0, 30, 8, value => { skia.CornerRadius = value; native.CornerRadius = (int)Math.Round(value); }, () => skia.CornerRadius);
+        Toggle("Enabled", true, value => { skia.IsEnabled = value; native.IsEnabled = value; }, () => skia.IsEnabled, () => native.IsEnabled);
+        OnReset(() => { skiaClicks = nativeClicks = 0; Counts(); });
+    }
+}
+
+public sealed class SwitchDemoPage : ComponentDemoPage
+{
+    public SwitchDemoPage() : base("SkUiSwitch", new SkUiSwitch(), new Switch())
+    {
+        var skia = (SkUiSwitch)SkiaControl;
+        var native = (Switch)NativeControl!;
+        Toggle("IsChecked", false, value => { skia.IsChecked = value; native.IsToggled = value; }, () => skia.IsChecked, () => native.IsToggled);
+        ColorEditor("OnColor", Accent, value => { skia.OnColor = value; native.OnColor = value; }, () => skia.OnColor, () => native.OnColor);
+    }
+}
+
+public sealed class CheckBoxDemoPage : ComponentDemoPage
+{
+    public CheckBoxDemoPage() : base("SkUiCheckBox", new SkUiCheckBox(), new CheckBox())
+    {
+        var skia = (SkUiCheckBox)SkiaControl;
+        var native = (CheckBox)NativeControl!;
+        Toggle("IsChecked", false, value => { skia.IsChecked = value; native.IsChecked = value; }, () => skia.IsChecked, () => native.IsChecked);
+        ColorEditor("Color", Accent, value => { skia.Color = value; native.Color = value; }, () => skia.Color, () => native.Color);
+    }
+}
+
+public sealed class RadioButtonDemoPage : ComponentDemoPage
+{
+    public RadioButtonDemoPage() : base("SkUiRadioButton", new SkUiRadioButton(), new RadioButton())
+    {
+        var skia = (SkUiRadioButton)SkiaControl;
+        var native = (RadioButton)NativeControl!;
+        native.Content = "Option";
+        Toggle("IsChecked", false, value => { skia.IsChecked = value; native.IsChecked = value; }, () => skia.IsChecked, () => native.IsChecked);
+        ColorEditor("Color", Accent, value => skia.Color = value, () => skia.Color);
+    }
+}
+
+public sealed class VerticalStackLayoutDemoPage : ComponentDemoPage
+{
+    public VerticalStackLayoutDemoPage() : base("SkUiVerticalStackLayout", new SkUiVerticalStackLayout(), new VerticalStackLayout())
+    {
+        var skia = (SkUiVerticalStackLayout)SkiaControl;
+        var native = (VerticalStackLayout)NativeControl!;
+        for (var index = 0; index < 3; index++)
+        {
+            var color = index == 0 ? Accent : index == 1 ? Color.FromArgb("#A12842") : Color.FromArgb("#285C9C");
+            skia.Children.Add(new SkUiBox { Color = color, HeightRequest = 24 });
+            native.Add(new BoxView { Color = color, HeightRequest = 24 });
+        }
+        Number("Spacing", 0, 24, 6, value => { skia.Spacing = value; native.Spacing = value; }, () => skia.Spacing, () => native.Spacing);
+    }
+}
+
+public sealed class HorizontalStackLayoutDemoPage : ComponentDemoPage
+{
+    public HorizontalStackLayoutDemoPage() : base("SkUiHorizontalStackLayout", new SkUiHorizontalStackLayout(), new HorizontalStackLayout())
+    {
+        var skia = (SkUiHorizontalStackLayout)SkiaControl;
+        var native = (HorizontalStackLayout)NativeControl!;
+        for (var index = 0; index < 3; index++)
+        {
+            var color = index == 0 ? Accent : index == 1 ? Color.FromArgb("#A12842") : Color.FromArgb("#285C9C");
+            skia.Children.Add(new SkUiBox { Color = color, WidthRequest = 24 });
+            native.Add(new BoxView { Color = color, WidthRequest = 24 });
+        }
+        Number("Spacing", 0, 24, 6, value => { skia.Spacing = value; native.Spacing = value; }, () => skia.Spacing, () => native.Spacing);
+    }
+}
+
+public sealed class AbsoluteLayoutDemoPage : ComponentDemoPage
+{
+    public AbsoluteLayoutDemoPage() : base("SkUiAbsoluteLayout", new SkUiAbsoluteLayout(), new AbsoluteLayout())
+    {
+        var skia = (SkUiAbsoluteLayout)SkiaControl;
+        var native = (AbsoluteLayout)NativeControl!;
+        var drawn = new SkUiBox { Color = Accent };
+        var standard = new BoxView { Color = Accent };
+        SkUiAbsoluteLayout.SetLayoutBounds(drawn, new Rect(0.1, 0.1, 60, 40));
+        AbsoluteLayout.SetLayoutBounds(standard, new Rect(0.1, 0.1, 60, 40));
+        AbsoluteLayout.SetLayoutFlags(standard, AbsoluteLayoutFlags.PositionProportional);
+        SkUiAbsoluteLayout.SetLayoutFlags(drawn, AbsoluteLayoutFlags.PositionProportional);
+        skia.Children.Add(drawn);
+        native.Add(standard);
+        Number("X", 0, 1, 0.1, value => { SkUiAbsoluteLayout.SetLayoutBounds(drawn, new Rect(value, SkUiAbsoluteLayout.GetLayoutBounds(drawn).Y, 60, 40)); AbsoluteLayout.SetLayoutBounds(standard, new Rect(value, AbsoluteLayout.GetLayoutBounds(standard).Y, 60, 40)); },
+            () => SkUiAbsoluteLayout.GetLayoutBounds(drawn).X, () => AbsoluteLayout.GetLayoutBounds(standard).X);
+        Number("Y", 0, 1, 0.1, value => { SkUiAbsoluteLayout.SetLayoutBounds(drawn, new Rect(SkUiAbsoluteLayout.GetLayoutBounds(drawn).X, value, 60, 40)); AbsoluteLayout.SetLayoutBounds(standard, new Rect(AbsoluteLayout.GetLayoutBounds(standard).X, value, 60, 40)); },
+            () => SkUiAbsoluteLayout.GetLayoutBounds(drawn).Y, () => AbsoluteLayout.GetLayoutBounds(standard).Y);
     }
 }
 
@@ -313,9 +488,19 @@ public static class ComponentDemos
         new(typeof(SkUiLabel), typeof(LabelDemoPage), "Label", ComponentCategory.BasicControls, () => new LabelDemoPage()),
         new(typeof(SkUiButton), typeof(ButtonDemoPage), "Button", ComponentCategory.BasicControls, () => new ButtonDemoPage()),
         new(typeof(SkUiImage), typeof(ImageDemoPage), "Image", ComponentCategory.BasicControls, () => new ImageDemoPage()),
+        new(typeof(SkUiImageButton), typeof(ImageButtonDemoPage), "ImageButton", ComponentCategory.BasicControls, () => new ImageButtonDemoPage()),
+        new(typeof(SkUiActivityIndicator), typeof(ActivityIndicatorDemoPage), "ActivityIndicator", ComponentCategory.BasicControls, () => new ActivityIndicatorDemoPage()),
+        new(typeof(SkUiSwitch), typeof(SwitchDemoPage), "Switch", ComponentCategory.BasicControls, () => new SwitchDemoPage()),
+        new(typeof(SkUiCheckBox), typeof(CheckBoxDemoPage), "CheckBox", ComponentCategory.BasicControls, () => new CheckBoxDemoPage()),
+        new(typeof(SkUiRadioButton), typeof(RadioButtonDemoPage), "RadioButton", ComponentCategory.BasicControls, () => new RadioButtonDemoPage()),
         new(typeof(SkUiContentView), typeof(ContentViewDemoPage), "ContentView", ComponentCategory.Layouts, () => new ContentViewDemoPage()),
+        new(typeof(SkUiMauiContentView), typeof(MauiContentViewDemoPage), "Editor / WebView (hosted natively)", ComponentCategory.Layouts, () => new MauiContentViewDemoPage()),
+        new(typeof(SkUiBorder), typeof(BorderDemoPage), "Border", ComponentCategory.Layouts, () => new BorderDemoPage()),
         new(typeof(SkUiLayout), typeof(LayoutDemoPage), "SkUi only", ComponentCategory.Layouts, () => new LayoutDemoPage()),
         new(typeof(SkUiGrid), typeof(GridDemoPage), "Grid", ComponentCategory.Layouts, () => new GridDemoPage()),
+        new(typeof(SkUiVerticalStackLayout), typeof(VerticalStackLayoutDemoPage), "VerticalStackLayout", ComponentCategory.Layouts, () => new VerticalStackLayoutDemoPage()),
+        new(typeof(SkUiHorizontalStackLayout), typeof(HorizontalStackLayoutDemoPage), "HorizontalStackLayout", ComponentCategory.Layouts, () => new HorizontalStackLayoutDemoPage()),
+        new(typeof(SkUiAbsoluteLayout), typeof(AbsoluteLayoutDemoPage), "AbsoluteLayout", ComponentCategory.Layouts, () => new AbsoluteLayoutDemoPage()),
         new(typeof(SkUiBox), typeof(BoxDemoPage), "BoxView", ComponentCategory.Graphics, () => new BoxDemoPage()),
         new(typeof(SkUiEllipse), typeof(EllipseDemoPage), "Ellipse", ComponentCategory.Graphics, () => new EllipseDemoPage()),
         new(typeof(SkUiLine), typeof(LineDemoPage), "Line", ComponentCategory.Graphics, () => new LineDemoPage()),

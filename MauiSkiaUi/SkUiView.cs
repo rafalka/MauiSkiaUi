@@ -71,6 +71,12 @@ public class SkUiView : View, ISkUiView
 
     internal SkUiView? SkiaParent => Parent as SkUiView;
 
+    /// <summary>
+    /// Hosted <see cref="ISkUiView"/> children, if any. Used to walk the tree when the standalone root's
+    /// handler (dis)connects, e.g. to attach/detach <see cref="SkUiMauiContentView"/> native overlays.
+    /// </summary>
+    internal virtual IEnumerable<ISkUiView> SkiaChildren => [];
+
     /// <summary>Selects GPU rendering for a standalone node. Set before attaching a handler.</summary>
     public bool HwAccelerated
     {

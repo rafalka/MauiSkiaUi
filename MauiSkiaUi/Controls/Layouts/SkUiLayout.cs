@@ -57,12 +57,14 @@ public class SkUiLayout : SkUiView, ILayout
     private void OnChildPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName == nameof(ZIndex)) paintOrder = null;
-        // Children carry standard MAUI Grid.Row/Column/RowSpan/ColumnSpan attached values (see SkUiGrid), but
-        // Grid's own propertyChanged callback never fires our invalidation because Parent is SkUiGrid, not
-        // Microsoft.Maui.Controls.Grid. Compare against the BindableProperty's own PropertyName (not a literal
-        // string) so this keeps working if MAUI ever renames those attached properties.
+        // Children carry standard MAUI Grid.Row/Column/RowSpan/ColumnSpan and AbsoluteLayout.LayoutBounds/
+        // LayoutFlags attached values (see SkUiGrid/SkUiAbsoluteLayout), but MAUI's own propertyChanged
+        // callbacks never fire our invalidation because Parent is our layout, not Microsoft.Maui.Controls.Grid
+        // or AbsoluteLayout. Compare against each BindableProperty's own PropertyName (not a literal string) so
+        // this keeps working if MAUI ever renames those attached properties.
         if (args.PropertyName == Grid.RowProperty.PropertyName || args.PropertyName == Grid.ColumnProperty.PropertyName
-            || args.PropertyName == Grid.RowSpanProperty.PropertyName || args.PropertyName == Grid.ColumnSpanProperty.PropertyName)
+            || args.PropertyName == Grid.RowSpanProperty.PropertyName || args.PropertyName == Grid.ColumnSpanProperty.PropertyName
+            || args.PropertyName == AbsoluteLayout.LayoutBoundsProperty.PropertyName || args.PropertyName == AbsoluteLayout.LayoutFlagsProperty.PropertyName)
             InvalidateMeasureOverride();
     }
 
@@ -75,6 +77,9 @@ public class SkUiLayout : SkUiView, ILayout
 
     /// <summary>Children in insertion order; ZIndex determines paint and hit-test order.</summary>
     public IList<ISkUiView> Children { get; }
+
+    /// <inheritdoc />
+    internal override IEnumerable<ISkUiView> SkiaChildren => Children;
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)

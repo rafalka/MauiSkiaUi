@@ -60,6 +60,9 @@ public class SkUiContentView : SkUiView
     /// <summary>Called after replacing the hosted child.</summary>
     protected virtual void OnContentChanged() { }
 
+    /// <inheritdoc />
+    internal override IEnumerable<ISkUiView> SkiaChildren { get { if (content is not null) yield return content; } }
+
     /// <summary>Cancels any active pointer capture in the hosted subtree.</summary>
     protected void CancelContentTouch() => touchRouter.Cancel();
 
