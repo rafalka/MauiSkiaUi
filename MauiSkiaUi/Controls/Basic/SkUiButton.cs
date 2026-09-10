@@ -120,7 +120,7 @@ public class SkUiButton : SkUiLabel
     /// <inheritdoc />
     protected override void OnPaintBackground(SKCanvas canvas)
     {
-        var color = (Background as SolidColorBrush)?.Color ?? _fillColor;
+        var color = ResolveSolidBackgroundColor() ?? _fillColor;
         if (!IsEnabled || !CanReceiveTap) color = SkUiColors.Disabled;
         else if (IsPressed) color = color.MultiplyAlpha(0.75f);
         SkUiChrome.DrawRoundedBox(canvas, new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius,

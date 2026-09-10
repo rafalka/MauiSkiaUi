@@ -30,7 +30,13 @@ public class SkUiCheckBox : SkUiToggleControl
         if (!IsEnabled) { fillColor = fillColor.MultiplyAlpha(0.5f); borderColor = borderColor.MultiplyAlpha(0.5f); }
         SkUiChrome.DrawRoundedBox(canvas, bounds, size * 0.2f, ToSkColor(fillColor), ToSkColor(borderColor), 1.5f);
         if (!IsChecked) return;
-        using var check = new SKPaint { Color = SKColors.White, Style = SKPaintStyle.Stroke, StrokeWidth = size * 0.12f, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round, IsAntialias = true };
+        using var check = new SKPaint();
+        check.Color = SKColors.White;
+        check.Style = SKPaintStyle.Stroke;
+        check.StrokeWidth = size * 0.12f;
+        check.StrokeCap = SKStrokeCap.Round;
+        check.StrokeJoin = SKStrokeJoin.Round;
+        check.IsAntialias = true;
         using var builder = new SKPathBuilder();
         builder.MoveTo(size * 0.22f, size * 0.55f);
         builder.LineTo(size * 0.42f, size * 0.75f);

@@ -252,10 +252,23 @@ public class SkUiView : View, ISkUiView
         }
     }
 
+    /// <summary>
+    /// Resolves a solid fill from <see cref="VisualElement.Background"/> or <see cref="VisualElement.BackgroundColor"/>.
+    /// MAUI's default <see cref="Brush"/> is an empty <see cref="SolidColorBrush"/> with a null color; that empty
+    /// brush must not hide a set <see cref="VisualElement.BackgroundColor"/> (same rule as <see cref="IView.Background"/>).
+    /// Non-solid brushes are ignored in v1 and fall through to <see cref="VisualElement.BackgroundColor"/>.
+    /// </summary>
+    protected Color? ResolveSolidBackgroundColor()
+    {
+        if (Background is SolidColorBrush brush && brush.Color is not null)
+            return brush.Color;
+        return BackgroundColor;
+    }
+
     /// <summary>Paints a solid MAUI background before content. Other brush types are deferred.</summary>
     protected virtual void OnPaintBackground(SKCanvas canvas)
     {
-        var color = Background is SolidColorBrush brush ? brush.Color : BackgroundColor;
+        var color = ResolveSolidBackgroundColor();
         if (color is null)
             return;
         using var paint = new SKPaint { Color = ToSkColor(color) };

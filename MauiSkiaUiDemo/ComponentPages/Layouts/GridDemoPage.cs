@@ -13,6 +13,8 @@ public sealed class GridDemoPage : ComponentDemoPage
         native.RowDefinitions = [new(GridLength.Star), new(GridLength.Star)];
         skia.ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star)];
         native.ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star)];
+        skia.BackgroundColor = Colors.LightGray;
+        native.BackgroundColor = Colors.LightGray;
         for (var index = 0; index < 3; index++)
         {
             var color = index == 0 ? Accent : index == 1 ? DemoColors.SampleA : DemoColors.SampleB;

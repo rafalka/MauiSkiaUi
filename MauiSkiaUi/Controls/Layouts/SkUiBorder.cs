@@ -37,7 +37,7 @@ public class SkUiBorder : SkUiContentView
     /// <inheritdoc />
     protected override void OnPaintBackground(SKCanvas canvas)
     {
-        var fill = (Background as SolidColorBrush)?.Color ?? BackgroundColor ?? Colors.Transparent;
+        var fill = ResolveSolidBackgroundColor() ?? Colors.Transparent;
         SkUiChrome.DrawRoundedBox(canvas, new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius,
             ToSkColor(fill), ToSkColor(_stroke ?? Colors.Transparent), (float)(_stroke is null ? 0 : _strokeThickness));
     }
