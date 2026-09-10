@@ -124,7 +124,12 @@ public abstract class ComponentDemoPage : ContentPage
         row.Add(valueLabel, 1);
         slider.ValueChanged += (_, args) => { apply(args.NewValue); valueLabel.Text = args.NewValue.ToString("0.##"); };
         AddEditor(name, row);
-        _resets.Add(() => { slider.Value = initial; apply(initial); });
+        _resets.Add(() =>
+        {
+            // Assigning the same Value does not raise ValueChanged; only then apply explicitly.
+            if (Math.Abs(slider.Value - initial) < 0.001) apply(initial);
+            else slider.Value = initial;
+        });
         _checks.Add((name, () => Math.Abs(skia() - slider.Value) < 0.001 && (native is null || Math.Abs(native() - slider.Value) < 0.001)));
         apply(initial);
     }
@@ -134,7 +139,11 @@ public abstract class ComponentDemoPage : ContentPage
         var toggle = new Switch { IsToggled = initial, OnColor = Accent, HorizontalOptions = LayoutOptions.Start, AutomationId = "Edit" + name };
         toggle.Toggled += (_, args) => apply(args.Value);
         AddEditor(name, toggle);
-        _resets.Add(() => { toggle.IsToggled = initial; apply(initial); });
+        _resets.Add(() =>
+        {
+            if (toggle.IsToggled == initial) apply(initial);
+            else toggle.IsToggled = initial;
+        });
         _checks.Add((name, () => skia() == toggle.IsToggled && (native is null || native() == toggle.IsToggled)));
         apply(initial);
     }
@@ -144,7 +153,11 @@ public abstract class ComponentDemoPage : ContentPage
         var entry = new Entry { Text = initial, Background = Colors.White, TextColor = Ink, PlaceholderColor = DemoColors.Caption, AutomationId = "Edit" + name };
         entry.TextChanged += (_, args) => apply(args.NewTextValue ?? string.Empty);
         AddEditor(name, entry);
-        _resets.Add(() => { entry.Text = initial; apply(initial); });
+        _resets.Add(() =>
+        {
+            if (entry.Text == initial) apply(initial);
+            else entry.Text = initial;
+        });
         _checks.Add((name, () => skia() == entry.Text && (native is null || native() == entry.Text)));
         apply(initial);
     }
@@ -159,7 +172,11 @@ public abstract class ComponentDemoPage : ContentPage
         };
         editor.TextChanged += (_, args) => apply(args.NewTextValue ?? string.Empty);
         AddEditor(name, editor);
-        _resets.Add(() => { editor.Text = initial; apply(initial); });
+        _resets.Add(() =>
+        {
+            if (editor.Text == initial) apply(initial);
+            else editor.Text = initial;
+        });
         _checks.Add((name, () => skia() == editor.Text && (native is null || native() == editor.Text)));
         apply(initial);
     }
@@ -171,7 +188,12 @@ public abstract class ComponentDemoPage : ContentPage
         picker.SelectedIndex = Array.IndexOf(values, initial);
         picker.SelectedIndexChanged += (_, _) => { if (picker.SelectedIndex >= 0) apply(values[picker.SelectedIndex]); };
         AddEditor(name, picker);
-        _resets.Add(() => { picker.SelectedIndex = Array.IndexOf(values, initial); apply(initial); });
+        var initialIndex = Array.IndexOf(values, initial);
+        _resets.Add(() =>
+        {
+            if (picker.SelectedIndex == initialIndex) apply(initial);
+            else picker.SelectedIndex = initialIndex;
+        });
         _checks.Add((name, () => picker.SelectedIndex >= 0 && EqualityComparer<T>.Default.Equals(skia(), values[picker.SelectedIndex])
             && (native is null || EqualityComparer<T>.Default.Equals(native(), values[picker.SelectedIndex]))));
         apply(initial);

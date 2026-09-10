@@ -89,7 +89,7 @@ public class SkUiScrollView : SkUiContentView
     {
         ScrollTo(ScrollX, ScrollY);
         if (!animated) { SetOffset(horizontalOffset, verticalOffset); return Task.CompletedTask; }
-        if (!double.IsFinite(horizontalOffset) || !double.IsFinite(verticalOffset)) throw new ArgumentOutOfRangeException(nameof(horizontalOffset));
+        EnsureFiniteOffsets(horizontalOffset, verticalOffset);
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _scrollCompletion = completion;
         var startX = ScrollX;
@@ -104,7 +104,7 @@ public class SkUiScrollView : SkUiContentView
 
     private void SetOffset(double horizontalOffset, double verticalOffset)
     {
-        if (!double.IsFinite(horizontalOffset) || !double.IsFinite(verticalOffset)) throw new ArgumentOutOfRangeException(nameof(horizontalOffset));
+        EnsureFiniteOffsets(horizontalOffset, verticalOffset);
         var nextX = Horizontal ? Math.Clamp(horizontalOffset, 0, Math.Max(0, _extent.Width - _viewport.Width)) : 0;
         var nextY = Vertical ? Math.Clamp(verticalOffset, 0, Math.Max(0, _extent.Height - _viewport.Height)) : 0;
         if (nextX == ScrollX && nextY == ScrollY) return;
@@ -115,6 +115,15 @@ public class SkUiScrollView : SkUiContentView
         OnPropertyChanged(nameof(ScrollY));
         InvalidatePaint();
         Scrolled?.Invoke(this, new ScrolledEventArgs(ScrollX, ScrollY));
+    }
+
+    /// <summary>Throws with the name of the first non-finite offset so call sites can see which argument failed.</summary>
+    private static void EnsureFiniteOffsets(double horizontalOffset, double verticalOffset)
+    {
+        if (!double.IsFinite(horizontalOffset))
+            throw new ArgumentOutOfRangeException(nameof(horizontalOffset));
+        if (!double.IsFinite(verticalOffset))
+            throw new ArgumentOutOfRangeException(nameof(verticalOffset));
     }
 
     private void StopMotion()

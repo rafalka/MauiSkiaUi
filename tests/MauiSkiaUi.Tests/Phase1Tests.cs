@@ -125,6 +125,20 @@ public class Phase1Tests(ITestOutputHelper output)
     }
 
     [Theory]
+    [InlineData(double.NaN, 0, "horizontalOffset")]
+    [InlineData(0, double.PositiveInfinity, "verticalOffset")]
+    [InlineData(double.NegativeInfinity, double.NaN, "horizontalOffset")]
+    public void ScrollOffsetValidationNamesTheInvalidArgument(double x, double y, string paramName)
+    {
+        var scroll = new SkUiScrollView { Content = new SkUiBox { WidthRequest = 400, HeightRequest = 400 } };
+        Arrange(scroll, 100, 100);
+        var sync = Assert.Throws<ArgumentOutOfRangeException>(() => scroll.ScrollTo(x, y));
+        Assert.Equal(paramName, sync.ParamName);
+        var async = Assert.Throws<ArgumentOutOfRangeException>(() => { _ = scroll.ScrollToAsync(x, y); });
+        Assert.Equal(paramName, async.ParamName);
+    }
+
+    [Theory]
     [InlineData(1)]
     [InlineData(2)]
     public void ScrolledCompositionMatchesFullPixelGolden(int density)
