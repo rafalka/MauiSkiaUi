@@ -118,7 +118,7 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 - A same-day Phase 2 review found and fixed a High-severity issue (`SkUiRadioButton` unchecked itself on a second tap instead of only selecting, unlike MAUI's `RadioButton`) and two Medium issues (`SkUiBorder` ignored `BackgroundColor` when `Background` wasn't an explicit brush; `SkUiActivityIndicator` could keep its animation clock running after being removed from its tree). `ComputeRootRelativeFrame()` was also extended to include `TranslationX`/`TranslationY` (previously Frame-offset only), correcting the documented v1 overlay-position limit. See `tmp/review.md` for the full findings; fixes are covered by new regression tests.
 - A follow-up review on 2026-09-10 fixed a High-severity issue (SkUiImage's decode completion could mutate state off the UI thread) and three Medium issues (Button could run both `Command` and `TappedCommand` on one tap; Button text was not clipped to its rounded background, so glyphs could bleed past the corners; Grid row/column/span invalidation matched MAUI's attached-property names as literal strings). See `tmp/review.md` for the full findings; fixes are covered by new regression tests.
 - A 1,000-label, 400x600-DIP headless Debug measurement improved warm CPU recording from **8.106 ms / 568,384 managed bytes per frame** to **0.635 ms / 9,488 bytes** after clip rejection and cached ordering (30 frames, same Mac). These are indicative single-run measurements, not device FPS or release performance guarantees. Native allocations and initial layout costs are not included in the per-frame allocation figure; near-zero allocation remains future work.
-- **Device exit gate remains open:** the installed MAUI extension's DevFlow injection target still fails with `MSB4099`, blocking Copilot-triggered launch; the extension was not modified. Native overlay attachment/positioning (`SkUiMauiContentView`), rendered colors/contrast of the new controls, and all other on-device behavior remain unverified. No visual or GPU-performance success is inferred from compilation. Headless tests do not replace these checks.
+- **Device exit gate remains open:** the installed MAUI extension's DevFlow injection target still fails with `MSB4099`, blocking Copilot-triggered launch; the extension was not modified. Native overlay attachment/positioning (`SkUiMauiContentView`), rendered colors/contrast of the new controls, and all other on-device behavior remain unverified. No visual or GPU-performance success is inferred from compilation. Headless tests do not replace these checks. See [Testing.md](Testing.md#how-to-verify-device-rendering--live-update-behavior) for the exact step-by-step verification procedure and a list of the current known DevFlow agent issues (build injection failure, CLI/agent version mismatch, Android tunnel setup, and agent reachability dropping after registration).
 
 ### Demo asset
 
@@ -143,9 +143,13 @@ dotnet build SkiaUi.slnx
 
 # Run headless mechanism tests
 dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
+
+# On-device verification outside VS Code (pick simulator/emulator/device, launch demo, print checklist)
+./scripts/device_verify.sh -l
+./scripts/device_verify.sh -p android --phase overlay
 ```
 
-In VS Code, select **.NET MAUI: Select Startup Project > MauiSkiaUiDemo**, choose an Android or Apple target, and start debugging. Apply changes with Hot Reload while debugging. The demo includes MauiDevFlow by default in **Debug**, including ordinary builds/F5: the project references the agent and defines `MAUI_DEVFLOW` to activate the existing startup registration. **Release** excludes both the agent package and registration. No extension injection is needed for ordinary Debug builds; Copilot-triggered launch remains subject to the installed extension's injection-target error described above.
+In VS Code, select **.NET MAUI: Select Startup Project > MauiSkiaUiDemo**, choose an Android or Apple target, and start debugging. Apply changes with Hot Reload while debugging. The demo includes MauiDevFlow by default in **Debug**, including ordinary builds/F5: the project references the agent and defines `MAUI_DEVFLOW` to activate the existing startup registration. **Release** excludes both the agent package and registration. No extension injection is needed for ordinary Debug builds; Copilot-triggered launch remains subject to the installed extension's injection-target error described above. For checklist-driven manual runs without DevFlow MCP, prefer [`scripts/device_verify.sh`](scripts/device_verify.sh) (see [Testing.md](Testing.md#cli-path-no-vs-code--devflow-mcp)).
 
 ## Documentation
 
@@ -157,7 +161,7 @@ In VS Code, select **.NET MAUI: Select Startup Project > MauiSkiaUiDemo**, choos
 - **[EventMechanism.md](EventMechanism.md)** — SkiaUi-owned gesture / event design (tap, double tap, long press, swipe), participation rules, and implementation checklist (FR-15).
 - **[AnimationMechanism.md](AnimationMechanism.md)** — vsync-driven ~60 fps clock, paint / render-transform / optional layout animation tiers, and implementation checklist (FR-7).
 - **[ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md)** — custom `SkUiScrollView` / virtualizing collection design (vs MAUI ScrollView/CollectionView), and implementation checklist.
-- **[Testing.md](Testing.md)** — unit / mechanism / golden / device test strategy; automation and AI-assisted visual review; how peer frameworks test painting and layout.
+- **[Testing.md](Testing.md)** — unit / mechanism / golden / device test strategy; CLI on-device verification via `scripts/device_verify.sh`; automation and AI-assisted visual review.
 - **Per-control docs (NFR-5):** each public `SkUi*` control/layout gets its own `.md` (how it works / how to use). For MAUI reimplementations, link to official MAUI docs and document only SkiaUi differences and extensions. (Folder layout TBD as controls land.)
 
 ## License

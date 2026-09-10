@@ -61,6 +61,82 @@ Phase 2 native acceptance checklist (still open, in addition to the Phase 1 chec
 
 Android, iOS, and Mac Catalyst diagnostic builds pass (0 warnings) for the full Phase 2 surface, including the new native container/overlay plumbing. Copilot-triggered device launch is still blocked by the same pre-existing `MSB4099` DevFlow injection issue; no native overlay, contrast, or input result is claimed for Phase 2. Windows compilation is not verified (no Windows host available here).
 
+## How to verify device rendering / live-update behavior
+
+This walks through actually proving the things the checklists above only *ask* for — using `MauiContentViewDemoPage`'s Editor→WebView live-update as the running example, since it is the hardest case (two native overlays plus SkUi controls in one grid). The same steps apply to any other checklist item; swap the `AutomationId`s.
+
+### CLI path (no VS Code / DevFlow MCP)
+
+Use [`scripts/device_verify.sh`](scripts/device_verify.sh) to select a simulator, emulator, physical device, or Mac Catalyst target, build/launch `MauiSkiaUiDemo` with plain `dotnet build -t:Run` (no VS Code DevFlow injection), optionally capture a screenshot, print the Phase 0–2 checklists, and stream logs:
+
+```bash
+./scripts/device_verify.sh -l                          # list targets
+./scripts/device_verify.sh -p android                   # prompt / pick Android
+./scripts/device_verify.sh -p ios "iPhone 16"           # iOS Simulator by name
+./scripts/device_verify.sh -p maccatalyst --phase overlay
+./scripts/device_verify.sh --checklist-only --phase 2   # print checklist only
+./scripts/device_verify.sh -p android --screenshot      # launch + save PNG under tmp/screenshots
+```
+
+Device selection mirrors `runsim.sh` / ThinkTime `build_and_upload.sh` (numbered list, substring match on name/serial/UDID/AVD). After launch, work through the printed checklist by hand — this path does **not** connect a DevFlow agent. Prefer it whenever VS Code DevFlow is blocked (`MSB4099`, empty agents, missing `adb reverse`, etc.); see step 6 below.
+
+### 1. Get a connected DevFlow agent (VS Code)
+
+1. Select a startup project/device (**.NET MAUI: Select Startup Project**, or the `{ }` status bar item) if none is selected.
+2. Launch via the MAUI debug tools, not a plain terminal `dotnet run`: `dotnet_maui_debugProject`. If a session is already active, save your files and use `dotnet_maui_runHotReload` instead — do not rebuild from the terminal while debugging.
+3. Confirm an agent is actually reachable — a successful launch/Hot Reload does **not** by itself prove this: call `mcp_maui_maui_list_agents`. If it returns an empty list, do **not** assume the app is broken; see "Known DevFlow agent issues" below before retrying.
+4. Once at least one agent is listed, `mcp_maui_maui_wait` (blocks until the agent is ready) then `mcp_maui_maui_capabilities` to see what the connected agent supports.
+
+### 2. Navigate to the page under test
+
+```
+mcp_maui_maui_navigate  route: "demo-SkUiMauiContentView"
+```
+
+If that fails ("route may not exist"), the app is probably still on the gallery's home route — use `mcp_maui_maui_query` with `automationId: "OpenSkUiMauiContentView"` to get a fresh element id, then `mcp_maui_maui_tap` with that id. Element ids from a previous `maui_tree`/`maui_query` call are not stable across navigations — always re-query right before tapping.
+
+### 3. Prove the Editor and WebView actually rendered as native overlays
+
+```
+mcp_maui_maui_tree  depth: 15
+```
+
+Look for `Editor` and `WebView` (or their platform types, e.g. `UIKit.UITextView`, `Android.Webkit.WebView`) with **non-zero bounds** positioned inside the `SkUiGrid` preview area, not stacked at `(0,0)` — that would indicate `ComputeRootRelativeFrame()` positioned them incorrectly. Then:
+
+```
+mcp_maui_maui_screenshot
+```
+
+Visually confirm both overlays are visible, correctly sized, and not overlapping the surrounding `SkUiLabel`/`SkUiButton` text.
+
+### 4. Prove the live HTML update actually works
+
+```
+mcp_maui_maui_fill   automationId or elementId of the Editor, text: "<h1 style='color:red'>Changed</h1>"
+```
+
+(If `maui_fill` isn't supported for a native `Editor` on the connected agent's platform, use `maui_focus` + `maui_key` to type instead — check `maui_capabilities` first.) Then re-run `mcp_maui_maui_screenshot` and confirm the WebView now shows the red "Changed" heading **without** tapping "Refresh preview" — this proves the `TextChanged` live-update path, not just the manual button. Then tap the "Refresh preview" `SkUiButton` (`mcp_maui_maui_query` for `automationId: "RefreshPreview"`, then `mcp_maui_maui_tap`) and confirm the WebView is unchanged (it was already up to date) — this proves the manual path doesn't regress the automatic one.
+
+### 5. Check contrast/colors for real, not from source
+
+Use `mcp_maui_maui_get_property` on the `SkUiLabel`s and native controls (`TextColor`, `BackgroundColor`) — never infer contrast from XAML/C# color literals, since platform-native controls can override them. Follow up with the screenshot from step 3 if a value looks off.
+
+### 6. If no agent ever connects
+
+Fall back to manual verification via [`scripts/device_verify.sh`](scripts/device_verify.sh) (preferred) or an equivalent plain `dotnet build -t:Run` / IDE Play button, then visually check the same things by hand (type in the Editor, watch the WebView, eyeball contrast). Record what you actually observed — do not report a checklist item as verified without either an agent-based check or an explicit manual one.
+
+## Known DevFlow agent issues (as of 2026-09-10)
+
+These affect every device-verification attempt in this repo so far, on every phase. Check `dotnet_maui_diagnoseDevFlow` first before repeating any step below more than once — it works independently of the MCP connection and reports which of these you're hitting.
+
+1. **Copilot-triggered launch fails to build (`MSB4099`).** The installed VS Code MAUI extension injects `Microsoft.Maui.DevFlow.Agent` via a `MauiDevFlow.targets` file added through `CustomAfterMicrosoftCommonTargets`. That file's top-level `PropertyGroup` condition references an item-list function (`@(PackageReference->WithMetadataValue(...))`), which MSBuild disallows outside a target, producing `MSB4099`. This blocks `dotnet_maui_debugProject`/Copilot-triggered launches entirely; it is **not** caused by anything in this repo, and no extension files have been modified to work around it. Plain `dotnet build`/`dotnet run` and [`scripts/device_verify.sh`](scripts/device_verify.sh) (no DevFlow injection) are unaffected — see the CLI path and "no agent ever connects" fallback above.
+2. **CLI/agent version mismatch.** `dotnet_maui_diagnoseDevFlow` has reported the extension's bundled CLI (`0.1.0-preview.12.26368.2`) not matching the demo's referenced agent package (`0.1.0-preview.12.26421.1`, pinned in `MauiSkiaUiDemo.csproj` for Debug builds — see the "enable DevFlow" request in project history; **do not** change this pin as a generic fix for #1). When `mismatchedAgentVersions` is non-empty, expect "agent not responding" style failures even when registration succeeds. Recovery: stop the debug session, `dotnet nuget locals http-cache --clear`, rebuild.
+3. **Android needs a manual `adb reverse` tunnel.** `broker_reverse_present: false` in the diagnostics above means the in-app agent cannot reach the host broker. Run the exact command the diagnostics suggest, e.g. `adb -s emulator-5554 reverse tcp:19223 tcp:19223`, then re-check with `dotnet_maui_diagnoseDevFlow`. A missing `agent_forwards` entry additionally means the host can't reach the in-app HTTP agent — that needs `adb forward tcp:<agent-port> tcp:<agent-port>` using the port the agent actually bound (from `appDebugOutput`, e.g. `9223`), not an assumed fixed port.
+4. **Agent registers, then becomes unreachable.** Observed on iOS after a successful Hot Reload: `maui_list_agents` briefly showed a connected agent, but `maui_capabilities`/`maui_tree` failed afterward, and a later diagnostics call showed `agentCount: 0`. Treat a one-time successful registration as a snapshot, not a guarantee the agent stays reachable for the rest of the session — re-check with `maui_list_agents` before every device-verification attempt, not just once at the start.
+5. **Android bundled DevFlow assemblies sometimes fail to load, but the agent starts anyway.** `appDebugOutput` has shown `open_from_bundles: failed to load bundled assembly Microsoft.Maui.DevFlow.Agent[.Core/.Abstractions].dll` immediately followed by `Agent started on port 9223` / `HTTP server started on port 9223`. The exact effect on functionality is unclear (not reproduced against a reachable agent yet); if Android verification behaves oddly even after fixing #3, check `appDebugOutput` for these lines and treat them as a possible contributing factor, not the settled cause.
+
+**Bottom line:** exhaust `dotnet_maui_diagnoseDevFlow` and the fixes above once each per issue; do not loop the same MCP call expecting a different result. If still blocked, report the exact diagnostic evidence and fall back to manual verification (step 6 above) rather than claiming device behavior that was never actually observed.
+
 ## Goals
 
 1. **Gate correctness before performance work** (NFR-2): simple implementations ship with tests; optimizations must not change observable behavior.

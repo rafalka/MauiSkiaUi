@@ -4,15 +4,15 @@ namespace MauiSkiaUiDemo;
 
 public partial class ControlsPage : ContentPage
 {
-    private int observations;
+    private int _observations;
     public ICommand AddObservationCommand { get; }
     public ICommand ResetCommand { get; }
-    public string ObservationStatus => $"Observations: {observations}";
+    public string ObservationStatus => $"Observations: {_observations}";
 
     public ControlsPage()
     {
-        AddObservationCommand = new Command(() => { observations++; OnPropertyChanged(nameof(ObservationStatus)); });
-        ResetCommand = new Command(() => { observations = 0; OnPropertyChanged(nameof(ObservationStatus)); });
+        AddObservationCommand = new Command(() => { _observations++; OnPropertyChanged(nameof(ObservationStatus)); });
+        ResetCommand = new Command(() => { _observations = 0; OnPropertyChanged(nameof(ObservationStatus)); });
         InitializeComponent();
         BindingContext = this;
         Scroller.Scrolled += (_, args) => ScrollStatus.Text = $"Offset {args.ScrollY:F0}";

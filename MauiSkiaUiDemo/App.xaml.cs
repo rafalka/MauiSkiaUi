@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-
-namespace MauiSkiaUiDemo;
+﻿namespace MauiSkiaUiDemo;
 
 public partial class App : Application
 {

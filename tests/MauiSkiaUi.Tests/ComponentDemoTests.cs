@@ -1,6 +1,4 @@
-using MauiSkiaUi;
 using MauiSkiaUiDemo;
-using Microsoft.Maui.Controls;
 using Xunit;
 
 namespace MauiSkiaUi.Tests;
@@ -75,10 +73,10 @@ public class ComponentDemoTests
     public void LabelFontFamilyChoiceUsesRegisteredAndSystemNames()
     {
         var page = new LabelDemoPage();
-        var picker = Descendants(page.Editors).OfType<Picker>().Single(picker => picker.Title == "FontFamily");
-        picker.SelectedIndex = picker.Items.IndexOf("Lobster");
-        Assert.Equal("Lobster", ((SkUiLabel)page.SkiaControl).FontFamily);
-        Assert.Equal("Lobster", ((Label)page.NativeControl!).FontFamily);
+        var picker = Descendants(page.Editors).OfType<Picker>().Single(picker => picker.Title == nameof(SkUiLabel.FontFamily));
+        picker.SelectedIndex = picker.Items.IndexOf(DemoFonts.Lobster);
+        Assert.Equal(DemoFonts.Lobster, ((SkUiLabel)page.SkiaControl).FontFamily);
+        Assert.Equal(DemoFonts.Lobster, ((Label)page.NativeControl!).FontFamily);
         Assert.Empty(page.CheckProperties());
         page.ResetProperties();
         Assert.Null(((SkUiLabel)page.SkiaControl).FontFamily);

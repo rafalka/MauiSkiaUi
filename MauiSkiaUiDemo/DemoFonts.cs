@@ -1,5 +1,4 @@
 using MauiSkiaUi;
-using Microsoft.Maui.Storage;
 
 namespace MauiSkiaUiDemo;
 
@@ -8,10 +7,19 @@ namespace MauiSkiaUiDemo;
 /// <see cref="SkUiLabel"/>/<see cref="SkUiButton"/> can draw the same glyphs as the native MAUI counterparts,
 /// which resolve these family names through <c>ConfigureFonts</c> aliases instead.
 /// </summary>
-internal static class DemoFonts
+public static class DemoFonts
 {
+    /// <summary>Alias for OpenSans-Regular.ttf.</summary>
+    public const string OpenSansRegular = "OpenSansRegular";
+    /// <summary>Alias for OpenSans-Semibold.ttf.</summary>
+    public const string OpenSansSemibold = "OpenSansSemibold";
+    /// <summary>Alias for Lobster-Regular.ttf.</summary>
+    public const string Lobster = "Lobster";
+    /// <summary>Alias for RobotoMono-Regular.ttf.</summary>
+    public const string RobotoMono = "RobotoMono";
+
     /// <summary>Family names registered here, matching the aliases passed to <c>fonts.AddFont</c> in MauiProgram.</summary>
-    public static readonly IReadOnlyList<string> RegisteredFamilies = ["OpenSansRegular", "OpenSansSemibold", "Lobster", "RobotoMono"];
+    public static readonly IReadOnlyList<string> RegisteredFamilies = [OpenSansRegular, OpenSansSemibold, Lobster, RobotoMono];
 
     public static async Task PreloadAsync()
     {
@@ -26,10 +34,10 @@ internal static class DemoFonts
     {
         var fileName = family switch
         {
-            "OpenSansRegular" => "OpenSans-Regular.ttf",
-            "OpenSansSemibold" => "OpenSans-Semibold.ttf",
-            "Lobster" => "Lobster-Regular.ttf",
-            "RobotoMono" => "RobotoMono-Regular.ttf",
+            OpenSansRegular => "OpenSans-Regular.ttf",
+            OpenSansSemibold => "OpenSans-Semibold.ttf",
+            Lobster => "Lobster-Regular.ttf",
+            RobotoMono => "RobotoMono-Regular.ttf",
             _ => throw new ArgumentOutOfRangeException(nameof(family))
         };
         using var stream = await FileSystem.Current.OpenAppPackageFileAsync($"Fonts/{fileName}");

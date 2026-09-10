@@ -16,10 +16,10 @@ public static class MauiProgram
 			.UseSkiaUi()
 			.ConfigureFonts(fonts =>
 			{
-				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
-				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
-				fonts.AddFont("Lobster-Regular.ttf", "Lobster");
-				fonts.AddFont("RobotoMono-Regular.ttf", "RobotoMono");
+				fonts.AddFont("OpenSans-Regular.ttf", DemoFonts.OpenSansRegular);
+				fonts.AddFont("OpenSans-Semibold.ttf", DemoFonts.OpenSansSemibold);
+				fonts.AddFont("Lobster-Regular.ttf", DemoFonts.Lobster);
+				fonts.AddFont("RobotoMono-Regular.ttf", DemoFonts.RobotoMono);
 			});
 
 #if MAUI_DEVFLOW

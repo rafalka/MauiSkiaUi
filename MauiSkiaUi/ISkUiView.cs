@@ -1,5 +1,3 @@
-using Microsoft.Maui;
-using Microsoft.Maui.Graphics;
 using SkiaSharp;
 
 namespace MauiSkiaUi;

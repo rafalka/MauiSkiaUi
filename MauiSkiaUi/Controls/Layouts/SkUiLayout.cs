@@ -1,9 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Collections;
 using System.ComponentModel;
-using Microsoft.Maui;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
 using SkiaSharp;
 using ILayout = Microsoft.Maui.ILayout;
 
@@ -13,10 +10,10 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(Children))]
 public class SkUiLayout : SkUiView, ILayout
 {
-    private readonly SkUiTouchRouter touchRouter = new();
-    private Thickness padding;
-    private ISkUiView[]? paintOrder;
-    private ISkUiView[] PaintOrder => paintOrder ??= Children.OrderBy(child => child.ZIndex).ToArray();
+    private readonly SkUiTouchRouter _touchRouter = new();
+    private Thickness _padding;
+    private ISkUiView[]? _paintOrder;
+    private ISkUiView[] PaintOrder => _paintOrder ??= Children.OrderBy(child => child.ZIndex).ToArray();
 
     /// <summary>Bindable space inside the layout.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(
@@ -24,13 +21,13 @@ public class SkUiLayout : SkUiView, ILayout
         propertyChanged: (view, _, value) => ((SkUiLayout)view).SetPadding((Thickness)value));
 
     /// <summary>Space inside the layout in DIPs.</summary>
-    public Thickness Padding { get => padding; set => SetValue(PaddingProperty, value); }
+    public Thickness Padding { get => _padding; set => SetValue(PaddingProperty, value); }
 
     /// <summary>Sets padding without writing back to the bindable property.</summary>
     public SkUiLayout SetPadding(Thickness value)
     {
-        if (padding == value) return this;
-        padding = value;
+        if (_padding == value) return this;
+        _padding = value;
         InvalidateMeasureOverride();
         return this;
     }
@@ -56,7 +53,7 @@ public class SkUiLayout : SkUiView, ILayout
 
     private void OnChildPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName == nameof(ZIndex)) paintOrder = null;
+        if (args.PropertyName == nameof(ZIndex)) _paintOrder = null;
         // Children carry standard MAUI Grid.Row/Column/RowSpan/ColumnSpan and AbsoluteLayout.LayoutBounds/
         // LayoutFlags attached values (see SkUiGrid/SkUiAbsoluteLayout), but MAUI's own propertyChanged
         // callbacks never fire our invalidation because Parent is our layout, not Microsoft.Maui.Controls.Grid
@@ -87,17 +84,17 @@ public class SkUiLayout : SkUiView, ILayout
         var desired = Size.Zero;
         foreach (var child in Children)
         {
-            var size = child.Measure(Math.Max(0, widthConstraint - padding.HorizontalThickness), Math.Max(0, heightConstraint - padding.VerticalThickness));
+            var size = child.Measure(Math.Max(0, widthConstraint - _padding.HorizontalThickness), Math.Max(0, heightConstraint - _padding.VerticalThickness));
             desired = new Size(Math.Max(desired.Width, size.Width), Math.Max(desired.Height, size.Height));
         }
-        return new Size(desired.Width + padding.HorizontalThickness, desired.Height + padding.VerticalThickness);
+        return new Size(desired.Width + _padding.HorizontalThickness, desired.Height + _padding.VerticalThickness);
     }
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
         foreach (var child in Children)
-            child.Arrange(new Rect(padding.Left, padding.Top, Math.Max(0, size.Width - padding.HorizontalThickness), Math.Max(0, size.Height - padding.VerticalThickness)));
+            child.Arrange(new Rect(_padding.Left, _padding.Top, Math.Max(0, size.Width - _padding.HorizontalThickness), Math.Max(0, size.Height - _padding.VerticalThickness)));
     }
 
     /// <inheritdoc />
@@ -112,14 +109,14 @@ public class SkUiLayout : SkUiView, ILayout
     {
         if (InputTransparent || !IsVisible || !IsEnabled)
         {
-            touchRouter.Cancel();
+            _touchRouter.Cancel();
             return IsVisible && !InputTransparent && !IsEnabled;
         }
-        if (touchRouter.DeliverCaptured(touch, out var handled))
+        if (_touchRouter.DeliverCaptured(touch, out var handled))
             return handled;
         var order = PaintOrder;
         for (var index = order.Length - 1; index >= 0; index--)
-            if (touchRouter.TryPress(order[index], touch))
+            if (_touchRouter.TryPress(order[index], touch))
                 return true;
         return base.Touch(touch);
     }
@@ -130,7 +127,7 @@ public class SkUiLayout : SkUiView, ILayout
         {
             owner.ValidateChild(item);
             base.InsertItem(index, item);
-            owner.paintOrder = null;
+            owner._paintOrder = null;
             ((Element)item).PropertyChanged += owner.OnChildPropertyChanged;
             owner.AttachChild(item);
         }
@@ -141,9 +138,9 @@ public class SkUiLayout : SkUiView, ILayout
                 return;
             owner.ValidateChild(item);
             var previous = this[index];
-            owner.touchRouter.Cancel();
+            owner._touchRouter.Cancel();
             base.SetItem(index, item);
-            owner.paintOrder = null;
+            owner._paintOrder = null;
             ((Element)previous).PropertyChanged -= owner.OnChildPropertyChanged;
             ((Element)item).PropertyChanged += owner.OnChildPropertyChanged;
             owner.DetachChild(previous);
@@ -153,19 +150,19 @@ public class SkUiLayout : SkUiView, ILayout
         protected override void RemoveItem(int index)
         {
             var previous = this[index];
-            owner.touchRouter.Cancel();
+            owner._touchRouter.Cancel();
             base.RemoveItem(index);
-            owner.paintOrder = null;
+            owner._paintOrder = null;
             ((Element)previous).PropertyChanged -= owner.OnChildPropertyChanged;
             owner.DetachChild(previous);
         }
 
         protected override void ClearItems()
         {
-            owner.touchRouter.Cancel();
+            owner._touchRouter.Cancel();
             var previous = this.ToArray();
             base.ClearItems();
-            owner.paintOrder = null;
+            owner._paintOrder = null;
             foreach (var child in previous)
             {
                 ((Element)child).PropertyChanged -= owner.OnChildPropertyChanged;

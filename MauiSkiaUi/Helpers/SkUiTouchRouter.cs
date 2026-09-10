@@ -1,16 +1,13 @@
-using Microsoft.Maui;
-using Microsoft.Maui.Graphics;
-
 namespace MauiSkiaUi;
 
 internal sealed class SkUiTouchRouter
 {
-    private ISkUiView? captured;
-    private long pointerId;
+    private ISkUiView? _captured;
+    private long _pointerId;
 
     internal bool TryPress(ISkUiView child, SkUiTouchEvent touch)
     {
-        if (captured is not null || touch.Action is not (SkUiTouchAction.Pressed or SkUiTouchAction.Wheel)
+        if (_captured is not null || touch.Action is not (SkUiTouchAction.Pressed or SkUiTouchAction.Wheel)
             || child.InputTransparent || child.Visibility != Visibility.Visible
             || !SkUiView.MapPoint(child, touch.Position, out var local)
             || !new Rect(Point.Zero, child.Frame.Size).Contains(local))
@@ -18,25 +15,25 @@ internal sealed class SkUiTouchRouter
         if (!child.Touch(touch with { Position = local }))
             return false;
         if (touch.Action == SkUiTouchAction.Wheel) return true;
-        captured = child;
-        pointerId = touch.Id;
+        _captured = child;
+        _pointerId = touch.Id;
         return true;
     }
 
     internal bool DeliverCaptured(SkUiTouchEvent touch, out bool handled)
     {
         handled = false;
-        if (captured is null)
+        if (_captured is null)
             return false;
-        if (touch.Id != pointerId || touch.Action == SkUiTouchAction.Pressed)
+        if (touch.Id != _pointerId || touch.Action == SkUiTouchAction.Pressed)
             return true;
-        var target = captured;
+        var target = _captured;
         if (touch.Action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
-            captured = null;
+            _captured = null;
         if (!SkUiView.MapPoint(target, touch.Position, out var local))
         {
-            target.Touch(new(pointerId, SkUiTouchAction.Cancelled, Point.Zero));
-            captured = null;
+            target.Touch(new(_pointerId, SkUiTouchAction.Cancelled, Point.Zero));
+            _captured = null;
         }
         else
         {
@@ -48,7 +45,7 @@ internal sealed class SkUiTouchRouter
 
     internal void Cancel()
     {
-        captured?.Touch(new(pointerId, SkUiTouchAction.Cancelled, Point.Zero));
-        captured = null;
+        _captured?.Touch(new(_pointerId, SkUiTouchAction.Cancelled, Point.Zero));
+        _captured = null;
     }
 }

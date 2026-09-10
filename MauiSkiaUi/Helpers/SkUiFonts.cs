@@ -9,8 +9,8 @@ namespace MauiSkiaUi;
 /// </summary>
 public static class SkUiFonts
 {
-    private static readonly Dictionary<string, Func<Stream>> factories = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, SKTypeface> cache = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, Func<Stream>> Factories = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, SKTypeface> Cache = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Registers a typeface loader for a font family name, e.g. the same alias passed to <c>fonts.AddFont(file, alias)</c>.
@@ -20,25 +20,25 @@ public static class SkUiFonts
     {
         ArgumentException.ThrowIfNullOrEmpty(familyName);
         ArgumentNullException.ThrowIfNull(openFont);
-        factories[familyName] = openFont;
-        if (cache.Remove(familyName, out var stale)) stale.Dispose();
+        Factories[familyName] = openFont;
+        if (Cache.Remove(familyName, out var stale)) stale.Dispose();
     }
 
     /// <summary>Removes a registration and disposes its cached typeface, if any.</summary>
     public static void Unregister(string familyName)
     {
-        factories.Remove(familyName);
-        if (cache.Remove(familyName, out var stale)) stale.Dispose();
+        Factories.Remove(familyName);
+        if (Cache.Remove(familyName, out var stale)) stale.Dispose();
     }
 
     /// <summary>Resolves a registered family name to a cached, registry-owned typeface, or null if not registered/loadable.</summary>
     internal static SKTypeface? TryResolve(string familyName)
     {
-        if (cache.TryGetValue(familyName, out var typeface)) return typeface;
-        if (!factories.TryGetValue(familyName, out var open)) return null;
+        if (Cache.TryGetValue(familyName, out var typeface)) return typeface;
+        if (!Factories.TryGetValue(familyName, out var open)) return null;
         using var stream = open();
         typeface = SKTypeface.FromStream(stream);
-        if (typeface is not null) cache[familyName] = typeface;
+        if (typeface is not null) Cache[familyName] = typeface;
         return typeface;
     }
 }

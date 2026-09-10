@@ -1,7 +1,4 @@
 using System.ComponentModel;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Dispatching;
-using Microsoft.Maui.Graphics;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -10,12 +7,12 @@ namespace MauiSkiaUi;
 public class SkUiImage : SkUiView, IDisposable
 {
     private static readonly HttpClient Http = new();
-    private ImageSource? source;
-    private Aspect aspect = Aspect.AspectFit;
-    private CancellationTokenSource? loading;
-    private SKImage? image;
-    private int generation;
-    private bool disposed;
+    private ImageSource? _source;
+    private Aspect _aspect = Aspect.AspectFit;
+    private CancellationTokenSource? _loading;
+    private SKImage? _image;
+    private int _generation;
+    private bool _disposed;
 
     /// <summary>Bindable MAUI image source. Relative files refer to Resources/Raw, not generated MauiImage assets.</summary>
     public static readonly BindableProperty SourceProperty = BindableProperty.Create(nameof(Source), typeof(ImageSource), typeof(SkUiImage), null,
@@ -24,9 +21,9 @@ public class SkUiImage : SkUiView, IDisposable
     public static readonly BindableProperty AspectProperty = BindableProperty.Create(nameof(Aspect), typeof(Aspect), typeof(SkUiImage), Aspect.AspectFit,
         propertyChanged: (view, _, value) => ((SkUiImage)view).SetAspect((Aspect)value));
     /// <summary>Image source; asynchronous loading starts when it changes.</summary>
-    public ImageSource? Source { get => source; set => SetValue(SourceProperty, value); }
+    public ImageSource? Source { get => _source; set => SetValue(SourceProperty, value); }
     /// <summary>Fit, fill, or stretch within the arranged bounds.</summary>
-    public Aspect Aspect { get => aspect; set => SetValue(AspectProperty, value); }
+    public Aspect Aspect { get => _aspect; set => SetValue(AspectProperty, value); }
     /// <summary>Current asynchronous load, including error-state publication.</summary>
     public Task LoadingTask { get; private set; } = Task.CompletedTask;
     /// <summary>Whether the current source is loading.</summary>
@@ -34,22 +31,22 @@ public class SkUiImage : SkUiView, IDisposable
     /// <summary>Last current-source error, or null on success.</summary>
     public Exception? LoadError { get; private set; }
     /// <summary>Decoded source dimensions; one source pixel maps to one intrinsic DIP.</summary>
-    public Size ImageSize => image is null ? Size.Zero : new Size(image.Width, image.Height);
+    public Size ImageSize => _image is null ? Size.Zero : new Size(_image.Width, _image.Height);
 
     /// <summary>Sets source without bindable write-back. Call on the UI thread; streams are owned and disposed by this control.</summary>
     public SkUiImage SetSource(ImageSource? value)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        if (ReferenceEquals(source, value)) return this;
-        if (source is not null) source.PropertyChanged -= OnSourceChanged;
-        source = value;
-        if (source is not null) source.PropertyChanged += OnSourceChanged;
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (ReferenceEquals(_source, value)) return this;
+        if (_source is not null) _source.PropertyChanged -= OnSourceChanged;
+        _source = value;
+        if (_source is not null) _source.PropertyChanged += OnSourceChanged;
         LoadingTask = ReloadAsync();
         return this;
     }
 
     /// <summary>Sets aspect without bindable write-back.</summary>
-    public SkUiImage SetAspect(Aspect value) { aspect = value; InvalidatePaint(); return this; }
+    public SkUiImage SetAspect(Aspect value) { _aspect = value; InvalidatePaint(); return this; }
     private void OnSourceChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName is nameof(FileImageSource.File) or nameof(StreamImageSource.Stream) or nameof(UriImageSource.Uri))
@@ -59,18 +56,18 @@ public class SkUiImage : SkUiView, IDisposable
     /// <summary>Reloads the current source; errors are exposed through LoadError, cancellation is not an error.</summary>
     public async Task ReloadAsync()
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
+        ObjectDisposedException.ThrowIf(_disposed, this);
         // Captured up front (synchronously, on the caller's thread) so the completion below can marshal back
         // even for hosted images, which never get a handler to resolve a dispatcher from.
         var dispatcher = Microsoft.Maui.Dispatching.Dispatcher.GetForCurrentThread();
-        var version = ++generation;
-        loading?.Cancel();
-        loading?.Dispose();
-        loading = new CancellationTokenSource();
-        var token = loading.Token;
-        var current = source;
-        image?.Dispose();
-        image = null;
+        var version = ++_generation;
+        _loading?.Cancel();
+        _loading?.Dispose();
+        _loading = new CancellationTokenSource();
+        var token = _loading.Token;
+        var current = _source;
+        _image?.Dispose();
+        _image = null;
         LoadError = null;
         IsLoading = current is not null;
         PublishState();
@@ -100,13 +97,13 @@ public class SkUiImage : SkUiView, IDisposable
         // MAUI expects layout invalidation to happen.
         await RunOnDispatcherAsync(dispatcher, () =>
         {
-            if (cancelled || version != generation || disposed)
+            if (cancelled || version != _generation || _disposed)
             {
                 decoded?.Dispose();
                 return;
             }
             if (failure is not null) LoadError = failure;
-            else image = decoded;
+            else _image = decoded;
             IsLoading = false;
             PublishState();
         });
@@ -157,26 +154,26 @@ public class SkUiImage : SkUiView, IDisposable
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        if (image is null) return;
-        var scale = aspect == Aspect.AspectFill ? Math.Max(Width / image.Width, Height / image.Height) : Math.Min(Width / image.Width, Height / image.Height);
-        var width = aspect == Aspect.Fill ? Width : image.Width * scale;
-        var height = aspect == Aspect.Fill ? Height : image.Height * scale;
+        if (_image is null) return;
+        var scale = _aspect == Aspect.AspectFill ? Math.Max(Width / _image.Width, Height / _image.Height) : Math.Min(Width / _image.Width, Height / _image.Height);
+        var width = _aspect == Aspect.Fill ? Width : _image.Width * scale;
+        var height = _aspect == Aspect.Fill ? Height : _image.Height * scale;
         var destination = SKRect.Create((float)((Width - width) / 2), (float)((Height - height) / 2), (float)width, (float)height);
-        canvas.DrawImage(image, destination, new SKSamplingOptions(SKFilterMode.Linear));
+        canvas.DrawImage(_image, destination, new SKSamplingOptions(SKFilterMode.Linear));
     }
 
     /// <summary>Cancels loading and releases decoded image resources; a disposed control cannot be reused.</summary>
     public void Dispose()
     {
-        if (disposed) return;
-        disposed = true;
-        generation++;
-        loading?.Cancel();
-        loading?.Dispose();
-        loading = null;
-        if (source is not null) source.PropertyChanged -= OnSourceChanged;
-        image?.Dispose();
-        image = null;
+        if (_disposed) return;
+        _disposed = true;
+        _generation++;
+        _loading?.Cancel();
+        _loading?.Dispose();
+        _loading = null;
+        if (_source is not null) _source.PropertyChanged -= OnSourceChanged;
+        _image?.Dispose();
+        _image = null;
         IsLoading = false;
         PublishState();
         GC.SuppressFinalize(this);

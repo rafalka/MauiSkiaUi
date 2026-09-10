@@ -1,5 +1,3 @@
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -7,10 +5,10 @@ namespace MauiSkiaUi;
 /// <summary>A drawn indeterminate spinner, similar to MAUI's ActivityIndicator.</summary>
 public class SkUiActivityIndicator : SkUiView
 {
-    private bool isRunning;
-    private Color color = Colors.Gray;
-    private IDisposable? spin;
-    private float sweepStart;
+    private bool _isRunning;
+    private Color _color = Colors.Gray;
+    private IDisposable? _spin;
+    private float _sweepStart;
 
     /// <summary>Bindable running state; animates only while true.</summary>
     public static readonly BindableProperty IsRunningProperty = BindableProperty.Create(nameof(IsRunning), typeof(bool), typeof(SkUiActivityIndicator), false,
@@ -20,22 +18,22 @@ public class SkUiActivityIndicator : SkUiView
         propertyChanged: (view, _, value) => ((SkUiActivityIndicator)view).SetColor((Color)value));
 
     /// <summary>Whether the spinner is animating.</summary>
-    public bool IsRunning { get => isRunning; set => SetValue(IsRunningProperty, value); }
+    public bool IsRunning { get => _isRunning; set => SetValue(IsRunningProperty, value); }
     /// <summary>Spinner stroke color.</summary>
-    public Color Color { get => color; set => SetValue(ColorProperty, value); }
+    public Color Color { get => _color; set => SetValue(ColorProperty, value); }
 
     /// <summary>Sets running state without bindable write-back.</summary>
     public SkUiActivityIndicator SetIsRunning(bool value)
     {
-        if (isRunning == value) return this;
-        isRunning = value;
-        spin?.Dispose();
-        spin = isRunning ? AnimationClock.Start(progress => { sweepStart = (float)(progress * 360); InvalidatePaint(); }, TimeSpan.FromSeconds(1), null, repeat: true) : null;
-        if (!isRunning) InvalidatePaint();
+        if (_isRunning == value) return this;
+        _isRunning = value;
+        _spin?.Dispose();
+        _spin = _isRunning ? AnimationClock.Start(progress => { _sweepStart = (float)(progress * 360); InvalidatePaint(); }, TimeSpan.FromSeconds(1), null, repeat: true) : null;
+        if (!_isRunning) InvalidatePaint();
         return this;
     }
     /// <summary>Sets color without bindable write-back.</summary>
-    public SkUiActivityIndicator SetColor(Color value) { ArgumentNullException.ThrowIfNull(value); color = value; InvalidatePaint(); return this; }
+    public SkUiActivityIndicator SetColor(Color value) { ArgumentNullException.ThrowIfNull(value); _color = value; InvalidatePaint(); return this; }
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => new(36, 36);
@@ -43,12 +41,12 @@ public class SkUiActivityIndicator : SkUiView
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        if (!isRunning || Width <= 0 || Height <= 0) return;
+        if (!_isRunning || Width <= 0 || Height <= 0) return;
         var strokeWidth = (float)Math.Max(2, Math.Min(Width, Height) * 0.1);
         var bounds = new SKRect(strokeWidth / 2, strokeWidth / 2, (float)Width - strokeWidth / 2, (float)Height - strokeWidth / 2);
-        using var paint = new SKPaint { Color = ToSkColor(color), Style = SKPaintStyle.Stroke, StrokeWidth = strokeWidth, StrokeCap = SKStrokeCap.Round, IsAntialias = true };
+        using var paint = new SKPaint { Color = ToSkColor(_color), Style = SKPaintStyle.Stroke, StrokeWidth = strokeWidth, StrokeCap = SKStrokeCap.Round, IsAntialias = true };
         using var builder = new SKPathBuilder();
-        builder.AddArc(bounds, sweepStart, 270);
+        builder.AddArc(bounds, _sweepStart, 270);
         using var path = builder.Detach();
         canvas.DrawPath(path, paint);
     }

@@ -1,38 +1,38 @@
 using MauiSkiaUi;
-using Microsoft.Maui;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
 
 namespace MauiSkiaUiDemo;
 
+/// <summary>Base page that hosts a SkiaUi preview, optional MAUI counterpart, and property editors.</summary>
 public abstract class ComponentDemoPage : ContentPage
 {
-    protected static readonly Color Ink = Color.FromArgb("#202A2C");
-    protected static readonly Color Accent = Color.FromArgb("#087F83");
-    private readonly Grid comparisons = new() { ColumnSpacing = 16, RowSpacing = 12 };
-    private readonly Grid editors = new() { RowSpacing = 10, Padding = new Thickness(0, 8, 0, 24) };
-    private readonly List<Action> resets = [];
-    private readonly List<(string Name, Func<bool> Check)> checks = [];
-    private readonly View? nativePanel;
-    private readonly Label result;
-    private readonly Label skiaStatus;
-    private readonly Label? nativeStatus;
-    private readonly SkUiContentView host;
+    /// <summary>Primary body text color for captions and editors.</summary>
+    protected static readonly Color Ink = DemoColors.Ink;
+    /// <summary>Interactive accent used by editors and sample fills.</summary>
+    protected static readonly Color Accent = DemoColors.Accent;
+    private readonly Grid _comparisons = new() { ColumnSpacing = 16, RowSpacing = 12 };
+    private readonly Grid _editors = new() { RowSpacing = 10, Padding = new Thickness(0, 8, 0, 24) };
+    private readonly List<Action> _resets = [];
+    private readonly List<(string Name, Func<bool> Check)> _checks = [];
+    private readonly View? _nativePanel;
+    private readonly Label _result;
+    private readonly Label _skiaStatus;
+    private readonly Label? _nativeStatus;
+    private readonly SkUiContentView _host;
 
     internal SkUiView SkiaControl { get; }
     internal View? NativeControl { get; }
     internal bool IsWide { get; private set; }
-    internal Grid Editors => editors;
+    internal Grid Editors => _editors;
 
     protected ComponentDemoPage(string name, SkUiView skia, View? native = null, (double Min, double Max, double Initial)? widthRange = null, (double Min, double Max, double Initial)? heightRange = null)
     {
         Title = name;
-        Background = Color.FromArgb("#F4F6F6");
+        Background = DemoColors.PageBackground;
         SkiaControl = skia;
         NativeControl = native;
         skia.AutomationId = "SkiaPreview";
         if (native is not null) native.AutomationId = "NativePreview";
-        host = new SkUiContentView { Content = skia, Background = Colors.White, AutomationId = "PreviewHost" };
+        _host = new SkUiContentView { Content = skia, Background = Colors.White, AutomationId = "PreviewHost" };
         skia.HorizontalOptions = LayoutOptions.Center;
         skia.VerticalOptions = LayoutOptions.Center;
         if (native is not null)
@@ -40,21 +40,21 @@ public abstract class ComponentDemoPage : ContentPage
             native.HorizontalOptions = LayoutOptions.Center;
             native.VerticalOptions = LayoutOptions.Center;
         }
-        var skiaPanel = MakePanel("SkUi", host, out skiaStatus);
-        comparisons.Add(skiaPanel);
+        var skiaPanel = MakePanel("SkUi", _host, out _skiaStatus);
+        _comparisons.Add(skiaPanel);
         if (native is not null)
         {
-            nativePanel = MakePanel("MAUI", native, out var status);
-            nativeStatus = status;
-            comparisons.Add(nativePanel);
+            _nativePanel = MakePanel("MAUI", native, out var status);
+            _nativeStatus = status;
+            _comparisons.Add(_nativePanel);
         }
-        result = Caption("", "PropertyCheckResult");
-        result.HeightRequest = 40;
-        var propertyArea = new ScrollView { Content = editors, AutomationId = "PropertyEditors" };
+        _result = Caption("", "PropertyCheckResult");
+        _result.HeightRequest = 40;
+        var propertyArea = new ScrollView { Content = _editors, AutomationId = "PropertyEditors" };
         var root = new Grid { Padding = 12, RowSpacing = 8, RowDefinitions = [new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto)] };
-        root.Add(comparisons);
+        root.Add(_comparisons);
         root.Add(propertyArea, 0, 1);
-        root.Add(result, 0, 2);
+        root.Add(_result, 0, 2);
         Content = root;
         ToolbarItems.Add(new ToolbarItem("Reset", null, ResetProperties));
         ToolbarItems.Add(new ToolbarItem("Check properties", null, () => CheckProperties()));
@@ -62,11 +62,11 @@ public abstract class ComponentDemoPage : ContentPage
         UpdateComparisonLayout(0);
         skia.SizeChanged += (_, _) => UpdateBounds();
         if (native is not null) native.SizeChanged += (_, _) => UpdateBounds();
-        Number("Width", widthRange?.Min ?? 60, widthRange?.Max ?? 260, widthRange?.Initial ?? 220, value => SetBoth(View.WidthRequestProperty, value), () => skia.WidthRequest, native is null ? null : () => native.WidthRequest);
-        Number("Height", heightRange?.Min ?? 40, heightRange?.Max ?? 160, heightRange?.Initial ?? 120, value => SetBoth(View.HeightRequestProperty, value), () => skia.HeightRequest, native is null ? null : () => native.HeightRequest);
-        Number("Opacity", 0, 1, 1, value => SetBoth(VisualElement.OpacityProperty, value), () => skia.Opacity, native is null ? null : () => native.Opacity);
-        Toggle("Enabled", true, value => SetBoth(VisualElement.IsEnabledProperty, value), () => skia.IsEnabled, native is null ? null : () => native.IsEnabled);
-        Toggle("Visible", true, value => SetBoth(VisualElement.IsVisibleProperty, value), () => skia.IsVisible, native is null ? null : () => native.IsVisible);
+        Number(nameof(View.WidthRequest), widthRange?.Min ?? 60, widthRange?.Max ?? 260, widthRange?.Initial ?? 220, value => SetBoth(View.WidthRequestProperty, value), () => skia.WidthRequest, native is null ? null : () => native.WidthRequest);
+        Number(nameof(View.HeightRequest), heightRange?.Min ?? 40, heightRange?.Max ?? 160, heightRange?.Initial ?? 120, value => SetBoth(View.HeightRequestProperty, value), () => skia.HeightRequest, native is null ? null : () => native.HeightRequest);
+        Number(nameof(VisualElement.Opacity), 0, 1, 1, value => SetBoth(VisualElement.OpacityProperty, value), () => skia.Opacity, native is null ? null : () => native.Opacity);
+        Toggle(nameof(VisualElement.IsEnabled), true, value => SetBoth(VisualElement.IsEnabledProperty, value), () => skia.IsEnabled, native is null ? null : () => native.IsEnabled);
+        Toggle(nameof(VisualElement.IsVisible), true, value => SetBoth(VisualElement.IsVisibleProperty, value), () => skia.IsVisible, native is null ? null : () => native.IsVisible);
     }
 
     private static Grid MakePanel(string title, View view, out Label status)
@@ -82,31 +82,31 @@ public abstract class ComponentDemoPage : ContentPage
 
     internal void UpdateComparisonLayout(double width)
     {
-        IsWide = width >= 720 && nativePanel is not null;
-        comparisons.ColumnDefinitions = IsWide ? [new(GridLength.Star), new(GridLength.Star)] : [new(GridLength.Star)];
-        comparisons.RowDefinitions = nativePanel is not null && !IsWide ? [new(GridLength.Star), new(GridLength.Star)] : [new(GridLength.Star)];
-        if (nativePanel is not null)
+        IsWide = width >= 720 && _nativePanel is not null;
+        _comparisons.ColumnDefinitions = IsWide ? [new(GridLength.Star), new(GridLength.Star)] : [new(GridLength.Star)];
+        _comparisons.RowDefinitions = _nativePanel is not null && !IsWide ? [new(GridLength.Star), new(GridLength.Star)] : [new(GridLength.Star)];
+        if (_nativePanel is not null)
         {
-            Grid.SetColumn(nativePanel, IsWide ? 1 : 0);
-            Grid.SetRow(nativePanel, IsWide ? 0 : 1);
+            Grid.SetColumn(_nativePanel, IsWide ? 1 : 0);
+            Grid.SetRow(_nativePanel, IsWide ? 0 : 1);
         }
-        comparisons.HeightRequest = nativePanel is not null && !IsWide ? 424 : 206;
+        _comparisons.HeightRequest = _nativePanel is not null && !IsWide ? 424 : 206;
     }
 
     protected static Label Caption(string text, string? automationId = null) => new()
     {
-        Text = text, TextColor = Ink, FontSize = 13, FontFamily = "OpenSansRegular",
+        Text = text, TextColor = Ink, FontSize = 13, FontFamily = DemoFonts.OpenSansRegular,
         AutomationId = automationId, VerticalTextAlignment = TextAlignment.Center
     };
 
     protected void AddEditor(string title, View editor)
     {
-        var row = editors.RowDefinitions.Count;
-        editors.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        var row = _editors.RowDefinitions.Count;
+        _editors.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         var field = new Grid { RowDefinitions = [new(GridLength.Auto), new(GridLength.Auto)], RowSpacing = 2 };
         field.Add(Caption(title));
         field.Add(editor, 0, 1);
-        editors.Add(field, 0, row);
+        _editors.Add(field, 0, row);
     }
 
     private void SetBoth(BindableProperty property, object value)
@@ -124,8 +124,8 @@ public abstract class ComponentDemoPage : ContentPage
         row.Add(valueLabel, 1);
         slider.ValueChanged += (_, args) => { apply(args.NewValue); valueLabel.Text = args.NewValue.ToString("0.##"); };
         AddEditor(name, row);
-        resets.Add(() => { slider.Value = initial; apply(initial); });
-        checks.Add((name, () => Math.Abs(skia() - slider.Value) < 0.001 && (native is null || Math.Abs(native() - slider.Value) < 0.001)));
+        _resets.Add(() => { slider.Value = initial; apply(initial); });
+        _checks.Add((name, () => Math.Abs(skia() - slider.Value) < 0.001 && (native is null || Math.Abs(native() - slider.Value) < 0.001)));
         apply(initial);
     }
 
@@ -134,18 +134,18 @@ public abstract class ComponentDemoPage : ContentPage
         var toggle = new Switch { IsToggled = initial, OnColor = Accent, HorizontalOptions = LayoutOptions.Start, AutomationId = "Edit" + name };
         toggle.Toggled += (_, args) => apply(args.Value);
         AddEditor(name, toggle);
-        resets.Add(() => { toggle.IsToggled = initial; apply(initial); });
-        checks.Add((name, () => skia() == toggle.IsToggled && (native is null || native() == toggle.IsToggled)));
+        _resets.Add(() => { toggle.IsToggled = initial; apply(initial); });
+        _checks.Add((name, () => skia() == toggle.IsToggled && (native is null || native() == toggle.IsToggled)));
         apply(initial);
     }
 
     protected void Text(string name, string initial, Action<string> apply, Func<string> skia, Func<string>? native = null)
     {
-        var entry = new Entry { Text = initial, Background = Colors.White, TextColor = Ink, PlaceholderColor = Color.FromArgb("#526164"), AutomationId = "Edit" + name };
+        var entry = new Entry { Text = initial, Background = Colors.White, TextColor = Ink, PlaceholderColor = DemoColors.Caption, AutomationId = "Edit" + name };
         entry.TextChanged += (_, args) => apply(args.NewTextValue ?? string.Empty);
         AddEditor(name, entry);
-        resets.Add(() => { entry.Text = initial; apply(initial); });
-        checks.Add((name, () => skia() == entry.Text && (native is null || native() == entry.Text)));
+        _resets.Add(() => { entry.Text = initial; apply(initial); });
+        _checks.Add((name, () => skia() == entry.Text && (native is null || native() == entry.Text)));
         apply(initial);
     }
 
@@ -154,25 +154,25 @@ public abstract class ComponentDemoPage : ContentPage
     {
         var editor = new Editor
         {
-            Text = initial, Background = Colors.White, TextColor = Ink, PlaceholderColor = Color.FromArgb("#526164"),
+            Text = initial, Background = Colors.White, TextColor = Ink, PlaceholderColor = DemoColors.Caption,
             AutoSize = EditorAutoSizeOption.TextChanges, HeightRequest = 90, AutomationId = "Edit" + name
         };
         editor.TextChanged += (_, args) => apply(args.NewTextValue ?? string.Empty);
         AddEditor(name, editor);
-        resets.Add(() => { editor.Text = initial; apply(initial); });
-        checks.Add((name, () => skia() == editor.Text && (native is null || native() == editor.Text)));
+        _resets.Add(() => { editor.Text = initial; apply(initial); });
+        _checks.Add((name, () => skia() == editor.Text && (native is null || native() == editor.Text)));
         apply(initial);
     }
 
     protected void Choice<T>(string name, T[] values, T initial, Action<T> apply, Func<T> skia, Func<T>? native = null) where T : notnull
     {
-        var picker = new Picker { Title = name, Background = Colors.White, TextColor = Ink, TitleColor = Color.FromArgb("#526164"), AutomationId = "Edit" + name };
+        var picker = new Picker { Title = name, Background = Colors.White, TextColor = Ink, TitleColor = DemoColors.Caption, AutomationId = "Edit" + name };
         foreach (var value in values) picker.Items.Add(value.ToString()!);
         picker.SelectedIndex = Array.IndexOf(values, initial);
         picker.SelectedIndexChanged += (_, _) => { if (picker.SelectedIndex >= 0) apply(values[picker.SelectedIndex]); };
         AddEditor(name, picker);
-        resets.Add(() => { picker.SelectedIndex = Array.IndexOf(values, initial); apply(initial); });
-        checks.Add((name, () => picker.SelectedIndex >= 0 && EqualityComparer<T>.Default.Equals(skia(), values[picker.SelectedIndex])
+        _resets.Add(() => { picker.SelectedIndex = Array.IndexOf(values, initial); apply(initial); });
+        _checks.Add((name, () => picker.SelectedIndex >= 0 && EqualityComparer<T>.Default.Equals(skia(), values[picker.SelectedIndex])
             && (native is null || EqualityComparer<T>.Default.Equals(native(), values[picker.SelectedIndex]))));
         apply(initial);
     }
@@ -181,7 +181,7 @@ public abstract class ComponentDemoPage : ContentPage
     {
         var selected = initial;
         var palette = new Grid { ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star), new(GridLength.Star), new(GridLength.Star)], ColumnSpacing = 8 };
-        var colors = new[] { initial, Color.FromArgb("#A12842"), Color.FromArgb("#285C9C"), Color.FromArgb("#202A2C") };
+        var colors = new[] { initial, DemoColors.SampleA, DemoColors.SampleB, DemoColors.Ink };
         for (var index = 0; index < colors.Length; index++)
         {
             var color = colors[index];
@@ -192,8 +192,8 @@ public abstract class ComponentDemoPage : ContentPage
             palette.Add(swatch, index);
         }
         AddEditor(name, palette);
-        resets.Add(() => { selected = initial; apply(initial); });
-        checks.Add((name, () => skia().Equals(selected) && (native is null || native().Equals(selected))));
+        _resets.Add(() => { selected = initial; apply(initial); });
+        _checks.Add((name, () => skia().Equals(selected) && (native is null || native().Equals(selected))));
         apply(initial);
     }
 
@@ -204,33 +204,33 @@ public abstract class ComponentDemoPage : ContentPage
         AddEditor(title, button);
     }
 
-    protected void OnReset(Action action) => resets.Add(action);
+    protected void OnReset(Action action) => _resets.Add(action);
     protected void Feedback(string skia, string? native = null)
     {
-        skiaStatus.Text = skia;
-        if (nativeStatus is not null) nativeStatus.Text = native ?? string.Empty;
+        _skiaStatus.Text = skia;
+        if (_nativeStatus is not null) _nativeStatus.Text = native ?? string.Empty;
     }
 
     private void UpdateBounds() => Feedback($"Bounds {SkiaControl.Width:F0} x {SkiaControl.Height:F0}", NativeControl is null ? null : $"Bounds {NativeControl.Width:F0} x {NativeControl.Height:F0}");
 
     internal string[] CheckProperties()
     {
-        var failures = checks.Where(check => !check.Check()).Select(check => check.Name).ToArray();
-        result.Text = failures.Length == 0 ? $"PASS: {checks.Count} property checks" : "FAIL: " + string.Join(", ", failures);
-        result.TextColor = failures.Length == 0 ? Color.FromArgb("#14633D") : Color.FromArgb("#A12842");
+        var failures = _checks.Where(check => !check.Check()).Select(check => check.Name).ToArray();
+        _result.Text = failures.Length == 0 ? $"PASS: {_checks.Count} property checks" : "FAIL: " + string.Join(", ", failures);
+        _result.TextColor = failures.Length == 0 ? DemoColors.Pass : DemoColors.Fail;
         return failures;
     }
 
     internal void ResetProperties()
     {
-        foreach (var reset in resets) reset();
-        result.Text = string.Empty;
+        foreach (var reset in _resets) reset();
+        _result.Text = string.Empty;
         UpdateBounds();
     }
 
     protected override void OnDisappearing()
     {
-        host.AnimationClock.StopAll();
+        _host.AnimationClock.StopAll();
         base.OnDisappearing();
     }
 }

@@ -1,24 +1,21 @@
 using System.Diagnostics;
-using Microsoft.Maui;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
 
 namespace MauiSkiaUi;
 
 /// <summary>A single-surface scroller with clamped offsets, tap cancellation, wheel input, and inertial fling.</summary>
 public class SkUiScrollView : SkUiContentView
 {
-    private ScrollOrientation orientation = ScrollOrientation.Vertical;
-    private Size extent;
-    private Size viewport;
-    private long? pointer;
-    private Point startPosition;
-    private Point lastPosition;
-    private TimeSpan lastTime;
-    private Point velocity;
-    private bool dragging;
-    private IDisposable? motion;
-    private TaskCompletionSource? scrollCompletion;
+    private ScrollOrientation _orientation = ScrollOrientation.Vertical;
+    private Size _extent;
+    private Size _viewport;
+    private long? _pointer;
+    private Point _startPosition;
+    private Point _lastPosition;
+    private TimeSpan _lastTime;
+    private Point _velocity;
+    private bool _dragging;
+    private IDisposable? _motion;
+    private TaskCompletionSource? _scrollCompletion;
 
     /// <summary>Creates a scroller whose motion stops when its surface unloads.</summary>
     public SkUiScrollView() => Unloaded += (_, _) => CancelInteraction();
@@ -27,13 +24,13 @@ public class SkUiScrollView : SkUiContentView
     public static readonly BindableProperty OrientationProperty = BindableProperty.Create(nameof(Orientation), typeof(ScrollOrientation), typeof(SkUiScrollView), ScrollOrientation.Vertical,
         propertyChanged: (view, _, value) => ((SkUiScrollView)view).SetOrientation((ScrollOrientation)value));
     /// <summary>Enabled axes; Neither disables scrolling.</summary>
-    public ScrollOrientation Orientation { get => orientation; set => SetValue(OrientationProperty, value); }
+    public ScrollOrientation Orientation { get => _orientation; set => SetValue(OrientationProperty, value); }
     /// <summary>Current horizontal offset in DIPs.</summary>
     public double ScrollX { get; private set; }
     /// <summary>Current vertical offset in DIPs.</summary>
     public double ScrollY { get; private set; }
     /// <summary>Measured scrollable content extent, including padding.</summary>
-    public Size ContentSize => extent;
+    public Size ContentSize => _extent;
     /// <summary>Raised after a clamped offset changes.</summary>
     public event EventHandler<ScrolledEventArgs>? Scrolled;
     /// <summary>Sets orientation without bindable write-back.</summary>
@@ -41,32 +38,32 @@ public class SkUiScrollView : SkUiContentView
     {
         if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
         CancelInteraction();
-        orientation = value;
+        _orientation = value;
         InvalidateMeasureOverride();
         return this;
     }
-    private bool Horizontal => orientation is ScrollOrientation.Horizontal or ScrollOrientation.Both;
-    private bool Vertical => orientation is ScrollOrientation.Vertical or ScrollOrientation.Both;
+    private bool Horizontal => _orientation is ScrollOrientation.Horizontal or ScrollOrientation.Both;
+    private bool Vertical => _orientation is ScrollOrientation.Vertical or ScrollOrientation.Both;
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        extent = base.MeasureContent(Horizontal ? double.PositiveInfinity : widthConstraint, Vertical ? double.PositiveInfinity : heightConstraint);
-        return new Size(Math.Min(widthConstraint, extent.Width), Math.Min(heightConstraint, extent.Height));
+        _extent = base.MeasureContent(Horizontal ? double.PositiveInfinity : widthConstraint, Vertical ? double.PositiveInfinity : heightConstraint);
+        return new Size(Math.Min(widthConstraint, _extent.Width), Math.Min(heightConstraint, _extent.Height));
     }
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
-        viewport = size;
+        _viewport = size;
         SetOffset(ScrollX, ScrollY);
         ArrangeScrolledContent();
     }
 
     private void ArrangeScrolledContent() => Content?.Arrange(new Rect(
         Padding.Left - ScrollX, Padding.Top - ScrollY,
-        Math.Max(0, Math.Max(extent.Width, viewport.Width) - Padding.HorizontalThickness),
-        Math.Max(0, Math.Max(extent.Height, viewport.Height) - Padding.VerticalThickness)));
+        Math.Max(0, Math.Max(_extent.Width, _viewport.Width) - Padding.HorizontalThickness),
+        Math.Max(0, Math.Max(_extent.Height, _viewport.Height) - Padding.VerticalThickness)));
 
     /// <summary>Clamps and sets an offset without remeasuring content or writing bindable properties.</summary>
     public SkUiScrollView ScrollTo(double horizontalOffset, double verticalOffset)
@@ -82,7 +79,7 @@ public class SkUiScrollView : SkUiContentView
         StopMotion();
         var startX = ScrollX;
         var startY = ScrollY;
-        return motion = AnimationClock.Start(progress => SetOffset(
+        return _motion = AnimationClock.Start(progress => SetOffset(
             startX + (horizontalOffset - startX) * progress,
             startY + (verticalOffset - startY) * progress), duration, Easing.CubicOut);
     }
@@ -94,13 +91,13 @@ public class SkUiScrollView : SkUiContentView
         if (!animated) { SetOffset(horizontalOffset, verticalOffset); return Task.CompletedTask; }
         if (!double.IsFinite(horizontalOffset) || !double.IsFinite(verticalOffset)) throw new ArgumentOutOfRangeException(nameof(horizontalOffset));
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        scrollCompletion = completion;
+        _scrollCompletion = completion;
         var startX = ScrollX;
         var startY = ScrollY;
-        motion = AnimationClock.Start(progress =>
+        _motion = AnimationClock.Start(progress =>
         {
             SetOffset(startX + (horizontalOffset - startX) * progress, startY + (verticalOffset - startY) * progress);
-            if (progress >= 1) { scrollCompletion = null; completion.TrySetResult(); }
+            if (progress >= 1) { _scrollCompletion = null; completion.TrySetResult(); }
         }, TimeSpan.FromMilliseconds(300), Easing.CubicOut);
         return completion.Task;
     }
@@ -108,8 +105,8 @@ public class SkUiScrollView : SkUiContentView
     private void SetOffset(double horizontalOffset, double verticalOffset)
     {
         if (!double.IsFinite(horizontalOffset) || !double.IsFinite(verticalOffset)) throw new ArgumentOutOfRangeException(nameof(horizontalOffset));
-        var nextX = Horizontal ? Math.Clamp(horizontalOffset, 0, Math.Max(0, extent.Width - viewport.Width)) : 0;
-        var nextY = Vertical ? Math.Clamp(verticalOffset, 0, Math.Max(0, extent.Height - viewport.Height)) : 0;
+        var nextX = Horizontal ? Math.Clamp(horizontalOffset, 0, Math.Max(0, _extent.Width - _viewport.Width)) : 0;
+        var nextY = Vertical ? Math.Clamp(verticalOffset, 0, Math.Max(0, _extent.Height - _viewport.Height)) : 0;
         if (nextX == ScrollX && nextY == ScrollY) return;
         ScrollX = nextX;
         ScrollY = nextY;
@@ -122,18 +119,18 @@ public class SkUiScrollView : SkUiContentView
 
     private void StopMotion()
     {
-        motion?.Dispose();
-        motion = null;
-        scrollCompletion?.TrySetCanceled();
-        scrollCompletion = null;
+        _motion?.Dispose();
+        _motion = null;
+        _scrollCompletion?.TrySetCanceled();
+        _scrollCompletion = null;
     }
 
     private void CancelInteraction()
     {
         StopMotion();
         CancelContentTouch();
-        pointer = null;
-        dragging = false;
+        _pointer = null;
+        _dragging = false;
     }
 
     /// <inheritdoc />
@@ -149,10 +146,10 @@ public class SkUiScrollView : SkUiContentView
     protected override void OnContentChanged()
     {
         StopMotion();
-        pointer = null;
-        dragging = false;
+        _pointer = null;
+        _dragging = false;
         ScrollX = ScrollY = 0;
-        extent = Size.Zero;
+        _extent = Size.Zero;
         base.OnContentChanged();
     }
 
@@ -169,11 +166,11 @@ public class SkUiScrollView : SkUiContentView
         if (!IsVisible || InputTransparent || !IsEnabled)
         {
             StopMotion();
-            pointer = null;
-            dragging = false;
+            _pointer = null;
+            _dragging = false;
             return base.Touch(touch);
         }
-        if (orientation == ScrollOrientation.Neither) return base.Touch(touch);
+        if (_orientation == ScrollOrientation.Neither) return base.Touch(touch);
         if (touch.Action == SkUiTouchAction.Wheel)
         {
             // SkUiTouchEvent carries a single WheelDelta with no axis indicator, so a plain wheel always
@@ -186,46 +183,46 @@ public class SkUiScrollView : SkUiContentView
         var now = touch.Timestamp ?? TimeSpan.FromSeconds((double)Stopwatch.GetTimestamp() / Stopwatch.Frequency);
         if (touch.Action == SkUiTouchAction.Pressed)
         {
-            if (pointer is not null || !new Rect(Point.Zero, viewport).Contains(touch.Position)) return false;
+            if (_pointer is not null || !new Rect(Point.Zero, _viewport).Contains(touch.Position)) return false;
             StopMotion();
-            pointer = touch.Id;
-            startPosition = lastPosition = touch.Position;
-            lastTime = now;
-            velocity = Point.Zero;
-            dragging = false;
+            _pointer = touch.Id;
+            _startPosition = _lastPosition = touch.Position;
+            _lastTime = now;
+            _velocity = Point.Zero;
+            _dragging = false;
             base.Touch(touch);
             return true;
         }
-        if (pointer != touch.Id) return false;
+        if (_pointer != touch.Id) return false;
         if (touch.Action == SkUiTouchAction.Moved)
         {
-            var distanceX = Horizontal ? touch.Position.X - startPosition.X : 0;
-            var distanceY = Vertical ? touch.Position.Y - startPosition.Y : 0;
-            if (!dragging && distanceX * distanceX + distanceY * distanceY > 100)
+            var distanceX = Horizontal ? touch.Position.X - _startPosition.X : 0;
+            var distanceY = Vertical ? touch.Position.Y - _startPosition.Y : 0;
+            if (!_dragging && distanceX * distanceX + distanceY * distanceY > 100)
             {
-                dragging = true;
+                _dragging = true;
                 base.Touch(touch with { Action = SkUiTouchAction.Cancelled });
             }
-            if (dragging)
+            if (_dragging)
             {
-                var deltaX = Horizontal ? lastPosition.X - touch.Position.X : 0;
-                var deltaY = Vertical ? lastPosition.Y - touch.Position.Y : 0;
-                var seconds = (now - lastTime).TotalSeconds;
-                if (seconds > 0) velocity = new Point(Math.Clamp(deltaX / seconds, -3000, 3000), Math.Clamp(deltaY / seconds, -3000, 3000));
+                var deltaX = Horizontal ? _lastPosition.X - touch.Position.X : 0;
+                var deltaY = Vertical ? _lastPosition.Y - touch.Position.Y : 0;
+                var seconds = (now - _lastTime).TotalSeconds;
+                if (seconds > 0) _velocity = new Point(Math.Clamp(deltaX / seconds, -3000, 3000), Math.Clamp(deltaY / seconds, -3000, 3000));
                 SetOffset(ScrollX + deltaX, ScrollY + deltaY);
             }
             else base.Touch(touch);
-            lastPosition = touch.Position;
-            lastTime = now;
+            _lastPosition = touch.Position;
+            _lastTime = now;
             return true;
         }
         if (touch.Action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
         {
-            pointer = null;
-            if (!dragging) base.Touch(touch);
-            else if (touch.Action == SkUiTouchAction.Released && (now - lastTime).TotalMilliseconds <= 100)
-                StartFling(velocity);
-            dragging = false;
+            _pointer = null;
+            if (!_dragging) base.Touch(touch);
+            else if (touch.Action == SkUiTouchAction.Released && (now - _lastTime).TotalMilliseconds <= 100)
+                StartFling(_velocity);
+            _dragging = false;
             return true;
         }
         return true;
@@ -238,7 +235,7 @@ public class SkUiScrollView : SkUiContentView
         var duration = Math.Min(1, magnitude / 3000);
         var startX = ScrollX;
         var startY = ScrollY;
-        motion = AnimationClock.Start(progress =>
+        _motion = AnimationClock.Start(progress =>
         {
             var time = duration * (progress - progress * progress / 2);
             var previous = new Point(ScrollX, ScrollY);

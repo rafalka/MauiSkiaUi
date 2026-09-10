@@ -1,13 +1,14 @@
 namespace MauiSkiaUiDemo;
 
+/// <summary>Gallery of every dedicated component demo, grouped by <see cref="ComponentCategory"/>.</summary>
 public sealed class ComponentGalleryPage : ContentPage
 {
-    private bool navigating;
+    private bool _navigating;
 
     public ComponentGalleryPage()
     {
         Title = "SkiaUi / Components";
-        Background = Color.FromArgb("#F4F6F6");
+        Background = DemoColors.PageBackground;
         var rows = new Grid { RowSpacing = 8, Padding = new Thickness(16, 8, 16, 24) };
         var groups = ComponentDemos.All.ToLookup(demo => demo.Category);
         foreach (var category in ComponentCategoryInfo.Order)
@@ -18,8 +19,8 @@ public sealed class ComponentGalleryPage : ContentPage
             rows.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             var header = new Label
             {
-                Text = ComponentCategoryInfo.Title(category), TextColor = Color.FromArgb("#202A2C"),
-                FontFamily = "OpenSansSemibold", FontSize = 15, Margin = new Thickness(0, headerRow == 0 ? 0 : 12, 0, 4),
+                Text = ComponentCategoryInfo.Title(category), TextColor = DemoColors.Ink,
+                FontFamily = DemoFonts.OpenSansSemibold, FontSize = 15, Margin = new Thickness(0, headerRow == 0 ? 0 : 12, 0, 4),
                 AutomationId = "Group" + category
             };
             rows.Add(header, 0, headerRow);
@@ -29,9 +30,9 @@ public sealed class ComponentGalleryPage : ContentPage
                 rows.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
                 var button = new Button
                 {
-                    Text = demo.Name, Background = Colors.White, TextColor = Color.FromArgb("#202A2C"),
-                    FontFamily = "OpenSansSemibold", HeightRequest = 52, CornerRadius = 4,
-                    BorderColor = Color.FromArgb("#C5D4D6"), BorderWidth = 1, AutomationId = "Open" + demo.Name
+                    Text = demo.Name, Background = Colors.White, TextColor = DemoColors.Ink,
+                    FontFamily = DemoFonts.OpenSansSemibold, HeightRequest = 52, CornerRadius = 4,
+                    BorderColor = DemoColors.Border, BorderWidth = 1, AutomationId = "Open" + demo.Name
                 };
                 button.Clicked += async (_, _) => await Navigate(demo.Route);
                 rows.Add(button, 0, row);
@@ -47,9 +48,9 @@ public sealed class ComponentGalleryPage : ContentPage
 
     private async Task Navigate(string route)
     {
-        if (navigating) return;
-        navigating = true;
+        if (_navigating) return;
+        _navigating = true;
         try { await Shell.Current.GoToAsync(route); }
-        finally { navigating = false; }
+        finally { _navigating = false; }
     }
 }

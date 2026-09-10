@@ -21,11 +21,11 @@ namespace MauiSkiaUi;
 /// <summary>Owns one Skia surface and marshals tree updates onto the UI thread.</summary>
 public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 {
-    private readonly Stopwatch animationTime = new();
-    private View? surface;
-    private SkUiFrameRenderer? renderer;
-    private TimeSpan clockOffset;
-    private SkUiOverlayContainer? container;
+    private readonly Stopwatch _animationTime = new();
+    private View? _surface;
+    private SkUiFrameRenderer? _renderer;
+    private TimeSpan _clockOffset;
+    private SkUiOverlayContainer? _container;
 
     private static readonly IPropertyMapper<SkUiView, SkUiViewHandler> SkiaMapper = CreateMapper();
 
@@ -54,35 +54,35 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             var gpu = new SKGLView { EnableTouchEvents = true, IgnorePixelScaling = false };
             gpu.PaintSurface += OnGpuPaint;
             gpu.Touch += OnTouch;
-            surface = gpu;
+            _surface = gpu;
         }
         else
         {
             var software = new SKCanvasView { EnableTouchEvents = true, IgnorePixelScaling = false };
             software.PaintSurface += OnSoftwarePaint;
             software.Touch += OnTouch;
-            surface = software;
+            _surface = software;
         }
-        surface.Parent = VirtualView;
-        var surfaceNative = surface.ToPlatform(MauiContext!);
+        _surface.Parent = VirtualView;
+        var surfaceNative = _surface.ToPlatform(MauiContext!);
 #if ANDROID
-        container = new SkUiOverlayContainer(MauiContext!.Context!);
-        container.AddView(surfaceNative);
+        _container = new SkUiOverlayContainer(MauiContext!.Context!);
+        _container.AddView(surfaceNative);
 #elif IOS || MACCATALYST
-        container = new SkUiOverlayContainer();
-        container.AddSubview(surfaceNative);
+        _container = new SkUiOverlayContainer();
+        _container.AddSubview(surfaceNative);
 #elif WINDOWS
         container = new SkUiOverlayContainer();
         container.Children.Add(surfaceNative);
 #endif
-        return container;
+        return _container;
     }
 
     /// <inheritdoc />
     protected override void ConnectHandler(PlatformView platformView)
     {
         base.ConnectHandler(platformView);
-        renderer = new SkUiFrameRenderer(VirtualView,
+        _renderer = new SkUiFrameRenderer(VirtualView,
             action => VirtualView.Dispatcher.Dispatch(action), InvalidateSurface, TickAnimation);
         VirtualView.AnimationClock.RunningChanged += OnRunningChanged;
         VirtualView.Loaded += OnLoaded;
@@ -99,25 +99,25 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         VirtualView.AnimationClock.RunningChanged -= OnRunningChanged;
         VirtualView.Loaded -= OnLoaded;
         VirtualView.Unloaded -= OnUnloaded;
-        renderer?.Dispose();
-        renderer = null;
-        animationTime.Reset();
-        if (surface is SKGLView gpu)
+        _renderer?.Dispose();
+        _renderer = null;
+        _animationTime.Reset();
+        if (_surface is SKGLView gpu)
         {
             gpu.HasRenderLoop = false;
             gpu.PaintSurface -= OnGpuPaint;
             gpu.Touch -= OnTouch;
         }
-        if (surface is SKCanvasView software)
+        if (_surface is SKCanvasView software)
         {
             software.PaintSurface -= OnSoftwarePaint;
             software.Touch -= OnTouch;
         }
-        surface?.Handler?.DisconnectHandler();
-        if (surface is not null)
-            surface.Parent = null;
-        surface = null;
-        container = null;
+        _surface?.Handler?.DisconnectHandler();
+        if (_surface is not null)
+            _surface.Parent = null;
+        _surface = null;
+        _container = null;
         base.DisconnectHandler(platformView);
     }
 
@@ -150,9 +150,9 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     internal void AttachOverlay(PlatformView child)
     {
 #if ANDROID
-        container?.AddView(child);
+        _container?.AddView(child);
 #elif IOS || MACCATALYST
-        container?.AddSubview(child);
+        _container?.AddSubview(child);
 #elif WINDOWS
         container?.Children.Add(child);
 #endif
@@ -161,9 +161,9 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     /// <summary>Removes a previously attached native overlay view.</summary>
     internal void DetachOverlay(PlatformView child)
     {
-        container?.ForgetOverlay(child);
+        _container?.ForgetOverlay(child);
 #if ANDROID
-        container?.RemoveView(child);
+        _container?.RemoveView(child);
 #elif IOS || MACCATALYST
         child.RemoveFromSuperview();
 #elif WINDOWS
@@ -176,11 +176,11 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     {
 #if ANDROID
         var context = MauiContext!.Context!;
-        container?.SetOverlayBounds(child,
+        _container?.SetOverlayBounds(child,
             (int)context.ToPixels(dipBounds.X), (int)context.ToPixels(dipBounds.Y),
             (int)context.ToPixels(dipBounds.Right), (int)context.ToPixels(dipBounds.Bottom));
 #elif IOS || MACCATALYST
-        container?.SetOverlayBounds(child, new CoreGraphics.CGRect(dipBounds.X, dipBounds.Y, dipBounds.Width, dipBounds.Height));
+        _container?.SetOverlayBounds(child, new CoreGraphics.CGRect(dipBounds.X, dipBounds.Y, dipBounds.Width, dipBounds.Height));
 #elif WINDOWS
         container?.SetOverlayBounds(child, dipBounds.X, dipBounds.Y, dipBounds.Width, dipBounds.Height);
 #endif
@@ -195,32 +195,32 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         var clock = VirtualView.AnimationClock;
         if (clock.IsRunning)
         {
-            clockOffset = clock.FrameTime;
-            animationTime.Restart();
+            _clockOffset = clock.FrameTime;
+            _animationTime.Restart();
         }
         else
         {
-            animationTime.Stop();
+            _animationTime.Stop();
         }
-        if (surface is SKGLView gpu)
+        if (_surface is SKGLView gpu)
             gpu.HasRenderLoop = clock.IsRunning;
         QueueFrame();
     }
 
-    private void QueueFrame() => renderer?.RequestFrame();
+    private void QueueFrame() => _renderer?.RequestFrame();
 
     private void TickAnimation()
     {
         var clock = VirtualView.AnimationClock;
         if (clock.IsRunning)
-            clock.Tick(clockOffset + animationTime.Elapsed);
+            clock.Tick(_clockOffset + _animationTime.Elapsed);
     }
 
     private void InvalidateSurface()
     {
-        if (surface is SKGLView gpu)
+        if (_surface is SKGLView gpu)
             gpu.InvalidateSurface();
-        else if (surface is SKCanvasView software)
+        else if (_surface is SKCanvasView software)
             software.InvalidateSurface();
     }
 
@@ -230,8 +230,8 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
     private void PaintSurface(SKCanvas canvas, SKImageInfo info)
     {
-        renderer?.Replay(canvas, info);
-        if (animationTime.IsRunning)
+        _renderer?.Replay(canvas, info);
+        if (_animationTime.IsRunning)
             QueueFrame();
     }
 
@@ -248,7 +248,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         };
         if (action is null)
             return;
-        args.Handled = renderer?.TouchPixels(new(args.Id, action.Value,
+        args.Handled = _renderer?.TouchPixels(new(args.Id, action.Value,
             new Point(args.Location.X, args.Location.Y), null, args.WheelDelta)) == true;
     }
 }
@@ -262,22 +262,22 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #if ANDROID
 internal sealed class SkUiOverlayContainer(Android.Content.Context context) : Android.Widget.FrameLayout(context)
 {
-    private readonly Dictionary<Android.Views.View, Android.Graphics.Rect> bounds = [];
+    private readonly Dictionary<Android.Views.View, Android.Graphics.Rect> _bounds = [];
 
     public void SetOverlayBounds(Android.Views.View child, int left, int top, int right, int bottom)
     {
-        bounds[child] = new Android.Graphics.Rect(left, top, right, bottom);
+        _bounds[child] = new Android.Graphics.Rect(left, top, right, bottom);
         RequestLayout();
     }
 
-    public void ForgetOverlay(Android.Views.View child) => bounds.Remove(child);
+    public void ForgetOverlay(Android.Views.View child) => _bounds.Remove(child);
 
     protected override void OnLayout(bool changed, int left, int top, int right, int bottom)
     {
         for (var index = 0; index < ChildCount; index++)
         {
             var child = GetChildAt(index)!;
-            if (bounds.TryGetValue(child, out var rect))
+            if (_bounds.TryGetValue(child, out var rect))
                 child.Layout(rect.Left, rect.Top, rect.Right, rect.Bottom);
             else
                 child.Layout(0, 0, right - left, bottom - top);
@@ -287,21 +287,21 @@ internal sealed class SkUiOverlayContainer(Android.Content.Context context) : An
 #elif IOS || MACCATALYST
 internal sealed class SkUiOverlayContainer : UIKit.UIView
 {
-    private readonly Dictionary<UIKit.UIView, CoreGraphics.CGRect> bounds = [];
+    private readonly Dictionary<UIKit.UIView, CoreGraphics.CGRect> _bounds = [];
 
     public void SetOverlayBounds(UIKit.UIView child, CoreGraphics.CGRect frame)
     {
-        bounds[child] = frame;
+        _bounds[child] = frame;
         SetNeedsLayout();
     }
 
-    public void ForgetOverlay(UIKit.UIView child) => bounds.Remove(child);
+    public void ForgetOverlay(UIKit.UIView child) => _bounds.Remove(child);
 
     public override void LayoutSubviews()
     {
         base.LayoutSubviews();
         foreach (var view in Subviews)
-            view.Frame = bounds.TryGetValue(view, out var frame) ? frame : Bounds;
+            view.Frame = _bounds.TryGetValue(view, out var frame) ? frame : Bounds;
     }
 }
 #elif WINDOWS

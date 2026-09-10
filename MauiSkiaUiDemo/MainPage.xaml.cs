@@ -4,8 +4,8 @@ namespace MauiSkiaUiDemo;
 
 public partial class MainPage : ContentPage
 {
-	private int tapCount;
-	private IDisposable? animation;
+	private int _tapCount;
+	private IDisposable? _animation;
 
 	public MainPage()
 	{
@@ -16,8 +16,8 @@ public partial class MainPage : ContentPage
 
 	protected override void OnDisappearing()
 	{
-		animation?.Dispose();
-		animation = null;
+		_animation?.Dispose();
+		_animation = null;
 		base.OnDisappearing();
 	}
 
@@ -27,8 +27,8 @@ public partial class MainPage : ContentPage
 
 	private void StartAnimation()
 	{
-		animation?.Dispose();
-		animation = Scene.AnimationClock.Start(progress =>
+		_animation?.Dispose();
+		_animation = Scene.AnimationClock.Start(progress =>
 		{
 			MovingEllipse.TranslationY = -48 * Math.Sin(progress * Math.PI * 4);
 			MovingEllipse.Scale = 1 + 0.12 * Math.Sin(progress * Math.PI * 4);
@@ -44,9 +44,9 @@ public partial class MainPage : ContentPage
 
 	private void OnPrimitiveTapped(object? sender, SkUiTappedEventArgs args)
 	{
-		tapCount++;
-		TapStatus.Text = $"Taps: {tapCount}";
+		_tapCount++;
+		TapStatus.Text = $"Taps: {_tapCount}";
 		if (sender is SkUiShape shape)
-			shape.Color = tapCount % 2 == 0 ? Color.FromArgb("#C54150") : Color.FromArgb("#087F83");
+			shape.Color = _tapCount % 2 == 0 ? DemoColors.TapAlternate : DemoColors.Accent;
 	}
 }

@@ -12,32 +12,32 @@ namespace MauiSkiaUi;
 
 public partial class SkUiMauiContentView
 {
-    private SkUiViewHandler? attachedRoot;
-    private PlatformView? nativeView;
+    private SkUiViewHandler? _attachedRoot;
+    private PlatformView? _nativeView;
 
     partial void AttachOverlayIfPossible()
     {
-        if (content is null || attachedRoot is not null) return;
+        if (_content is null || _attachedRoot is not null) return;
         if (SkUiViewHandler.FindRoot(this) is not { } root) return;
-        attachedRoot = root;
-        nativeView = content.ToPlatform(root.MauiContext!);
-        root.AttachOverlay(nativeView);
+        _attachedRoot = root;
+        _nativeView = _content.ToPlatform(root.MauiContext!);
+        root.AttachOverlay(_nativeView);
         SyncOverlayBounds();
     }
 
     partial void DetachOverlay()
     {
-        if (attachedRoot is null) return;
-        if (nativeView is not null) attachedRoot.DetachOverlay(nativeView);
-        content?.Handler?.DisconnectHandler();
-        nativeView = null;
-        attachedRoot = null;
+        if (_attachedRoot is null) return;
+        if (_nativeView is not null) _attachedRoot.DetachOverlay(_nativeView);
+        _content?.Handler?.DisconnectHandler();
+        _nativeView = null;
+        _attachedRoot = null;
     }
 
     partial void SyncOverlayBounds()
     {
-        if (attachedRoot is null || nativeView is null) return;
-        attachedRoot.UpdateOverlayBounds(nativeView, ComputeRootRelativeFrame());
+        if (_attachedRoot is null || _nativeView is null) return;
+        _attachedRoot.UpdateOverlayBounds(_nativeView, ComputeRootRelativeFrame());
     }
 }
 #endif

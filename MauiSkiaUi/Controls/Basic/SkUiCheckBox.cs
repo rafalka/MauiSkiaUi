@@ -1,5 +1,3 @@
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -7,17 +5,17 @@ namespace MauiSkiaUi;
 /// <summary>A drawn checkbox, similar to MAUI's CheckBox.</summary>
 public class SkUiCheckBox : SkUiToggleControl
 {
-    private Color color = Color.FromArgb("#087F83");
+    private Color _color = SkUiColors.Accent;
 
     /// <summary>Bindable checkmark/fill color while checked.</summary>
-    public static readonly BindableProperty ColorProperty = BindableProperty.Create(nameof(Color), typeof(Color), typeof(SkUiCheckBox), Color.FromArgb("#087F83"),
+    public static readonly BindableProperty ColorProperty = BindableProperty.Create(nameof(Color), typeof(Color), typeof(SkUiCheckBox), SkUiColors.Accent,
         propertyChanged: (view, _, value) => ((SkUiCheckBox)view).SetColor((Color)value));
 
     /// <summary>Fill/checkmark color while checked; unchecked always draws a neutral outline.</summary>
-    public Color Color { get => color; set => SetValue(ColorProperty, value); }
+    public Color Color { get => _color; set => SetValue(ColorProperty, value); }
 
     /// <summary>Sets the color without bindable write-back.</summary>
-    public SkUiCheckBox SetColor(Color value) { ArgumentNullException.ThrowIfNull(value); color = value; InvalidatePaint(); return this; }
+    public SkUiCheckBox SetColor(Color value) { ArgumentNullException.ThrowIfNull(value); _color = value; InvalidatePaint(); return this; }
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => new(24, 24);
@@ -27,8 +25,8 @@ public class SkUiCheckBox : SkUiToggleControl
     {
         var size = (float)Math.Min(Width, Height);
         var bounds = new SKRect(0, 0, size, size);
-        var fillColor = IsChecked ? color : Colors.White;
-        var borderColor = IsChecked ? color : Color.FromArgb("#8A9A9C");
+        var fillColor = IsChecked ? _color : Colors.White;
+        var borderColor = IsChecked ? _color : SkUiColors.Muted;
         if (!IsEnabled) { fillColor = fillColor.MultiplyAlpha(0.5f); borderColor = borderColor.MultiplyAlpha(0.5f); }
         SkUiChrome.DrawRoundedBox(canvas, bounds, size * 0.2f, ToSkColor(fillColor), ToSkColor(borderColor), 1.5f);
         if (!IsChecked) return;

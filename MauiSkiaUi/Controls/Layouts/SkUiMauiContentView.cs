@@ -1,7 +1,3 @@
-using Microsoft.Maui;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
-
 namespace MauiSkiaUi;
 
 /// <summary>
@@ -22,7 +18,7 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(Content))]
 public partial class SkUiMauiContentView : SkUiView
 {
-    private VisualElement? content;
+    private VisualElement? _content;
 
     /// <summary>Bindable hosted MAUI control.</summary>
     public static readonly BindableProperty ContentProperty = BindableProperty.Create(
@@ -30,18 +26,18 @@ public partial class SkUiMauiContentView : SkUiView
         propertyChanged: (view, _, value) => ((SkUiMauiContentView)view).SetContent((VisualElement?)value));
 
     /// <summary>The native MAUI control rendered over this node's arranged bounds.</summary>
-    public VisualElement? Content { get => content; set => SetValue(ContentProperty, value); }
+    public VisualElement? Content { get => _content; set => SetValue(ContentProperty, value); }
 
     /// <summary>Replaces the hosted control without bindable write-back.</summary>
     public SkUiMauiContentView SetContent(VisualElement? value)
     {
-        if (ReferenceEquals(content, value)) return this;
+        if (ReferenceEquals(_content, value)) return this;
         if (value is not null && (value.Parent is not null || value.Handler is not null))
             throw new InvalidOperationException("A hosted MAUI control must be unparented and have no handler.");
         DetachOverlay();
-        if (content is not null) RemoveLogicalChild(content);
-        content = value;
-        if (content is not null) AddLogicalChild(content);
+        if (_content is not null) RemoveLogicalChild(_content);
+        _content = value;
+        if (_content is not null) AddLogicalChild(_content);
         InvalidateMeasureOverride();
         AttachOverlayIfPossible();
         return this;
@@ -49,12 +45,12 @@ public partial class SkUiMauiContentView : SkUiView
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
-        content?.Measure(widthConstraint, heightConstraint) ?? Size.Zero;
+        _content?.Measure(widthConstraint, heightConstraint) ?? Size.Zero;
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
-        content?.Arrange(new Rect(Point.Zero, size));
+        _content?.Arrange(new Rect(Point.Zero, size));
         SyncOverlayBounds();
     }
 

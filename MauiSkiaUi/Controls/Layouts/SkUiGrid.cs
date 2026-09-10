@@ -1,6 +1,3 @@
-using Microsoft.Maui;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Layouts;
 
 namespace MauiSkiaUi;
@@ -8,13 +5,13 @@ namespace MauiSkiaUi;
 /// <summary>A drawn grid using MAUI's Auto, absolute, and star layout manager.</summary>
 public class SkUiGrid : SkUiLayout, IGridLayout
 {
-    private readonly GridLayoutManager manager;
-    private RowDefinitionCollection rows = new();
-    private ColumnDefinitionCollection columns = new();
-    private double rowSpacing;
-    private double columnSpacing;
-    private IGridRowDefinition[]? rowSnapshot;
-    private IGridColumnDefinition[]? columnSnapshot;
+    private readonly GridLayoutManager _manager;
+    private RowDefinitionCollection _rows = new();
+    private ColumnDefinitionCollection _columns = new();
+    private double _rowSpacing;
+    private double _columnSpacing;
+    private IGridRowDefinition[]? _rowSnapshot;
+    private IGridColumnDefinition[]? _columnSnapshot;
 
     /// <summary>Bindable row definitions, including XAML shorthand such as Auto,*.</summary>
     public static readonly BindableProperty RowDefinitionsProperty = BindableProperty.Create(
@@ -36,29 +33,29 @@ public class SkUiGrid : SkUiLayout, IGridLayout
     /// <summary>Creates a grid with MAUI layout management.</summary>
     public SkUiGrid()
     {
-        manager = new GridLayoutManager(this);
-        rows.ItemSizeChanged += OnDefinitionsChanged;
-        columns.ItemSizeChanged += OnDefinitionsChanged;
+        _manager = new GridLayoutManager(this);
+        _rows.ItemSizeChanged += OnDefinitionsChanged;
+        _columns.ItemSizeChanged += OnDefinitionsChanged;
     }
 
     /// <summary>Rows; an empty collection implies one star row.</summary>
     [System.ComponentModel.TypeConverter(typeof(RowDefinitionCollectionTypeConverter))]
-    public RowDefinitionCollection RowDefinitions { get => rows; set => SetValue(RowDefinitionsProperty, value); }
+    public RowDefinitionCollection RowDefinitions { get => _rows; set => SetValue(RowDefinitionsProperty, value); }
     /// <summary>Columns; an empty collection implies one star column.</summary>
     [System.ComponentModel.TypeConverter(typeof(ColumnDefinitionCollectionTypeConverter))]
-    public ColumnDefinitionCollection ColumnDefinitions { get => columns; set => SetValue(ColumnDefinitionsProperty, value); }
+    public ColumnDefinitionCollection ColumnDefinitions { get => _columns; set => SetValue(ColumnDefinitionsProperty, value); }
     /// <summary>Gap between rows in DIPs.</summary>
-    public double RowSpacing { get => rowSpacing; set => SetValue(RowSpacingProperty, value); }
+    public double RowSpacing { get => _rowSpacing; set => SetValue(RowSpacingProperty, value); }
     /// <summary>Gap between columns in DIPs.</summary>
-    public double ColumnSpacing { get => columnSpacing; set => SetValue(ColumnSpacingProperty, value); }
+    public double ColumnSpacing { get => _columnSpacing; set => SetValue(ColumnSpacingProperty, value); }
 
     /// <summary>Sets rows without bindable write-back.</summary>
     public SkUiGrid SetRowDefinitions(RowDefinitionCollection value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        rows.ItemSizeChanged -= OnDefinitionsChanged;
-        rows = value;
-        rows.ItemSizeChanged += OnDefinitionsChanged;
+        _rows.ItemSizeChanged -= OnDefinitionsChanged;
+        _rows = value;
+        _rows.ItemSizeChanged += OnDefinitionsChanged;
         OnDefinitionsChanged(this, EventArgs.Empty);
         return this;
     }
@@ -66,31 +63,31 @@ public class SkUiGrid : SkUiLayout, IGridLayout
     public SkUiGrid SetColumnDefinitions(ColumnDefinitionCollection value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        columns.ItemSizeChanged -= OnDefinitionsChanged;
-        columns = value;
-        columns.ItemSizeChanged += OnDefinitionsChanged;
+        _columns.ItemSizeChanged -= OnDefinitionsChanged;
+        _columns = value;
+        _columns.ItemSizeChanged += OnDefinitionsChanged;
         OnDefinitionsChanged(this, EventArgs.Empty);
         return this;
     }
     /// <summary>Sets row spacing without bindable write-back.</summary>
-    public SkUiGrid SetRowSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); rowSpacing = value; InvalidateMeasureOverride(); return this; }
+    public SkUiGrid SetRowSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _rowSpacing = value; InvalidateMeasureOverride(); return this; }
     /// <summary>Sets column spacing without bindable write-back.</summary>
-    public SkUiGrid SetColumnSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); columnSpacing = value; InvalidateMeasureOverride(); return this; }
+    public SkUiGrid SetColumnSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _columnSpacing = value; InvalidateMeasureOverride(); return this; }
 
-    IReadOnlyList<IGridRowDefinition> IGridLayout.RowDefinitions => rowSnapshot ??= rows.Cast<IGridRowDefinition>().ToArray();
-    IReadOnlyList<IGridColumnDefinition> IGridLayout.ColumnDefinitions => columnSnapshot ??= columns.Cast<IGridColumnDefinition>().ToArray();
+    IReadOnlyList<IGridRowDefinition> IGridLayout.RowDefinitions => _rowSnapshot ??= _rows.Cast<IGridRowDefinition>().ToArray();
+    IReadOnlyList<IGridColumnDefinition> IGridLayout.ColumnDefinitions => _columnSnapshot ??= _columns.Cast<IGridColumnDefinition>().ToArray();
     int IGridLayout.GetRow(IView view) => Grid.GetRow((BindableObject)view);
     int IGridLayout.GetColumn(IView view) => Grid.GetColumn((BindableObject)view);
     int IGridLayout.GetRowSpan(IView view) => Grid.GetRowSpan((BindableObject)view);
     int IGridLayout.GetColumnSpan(IView view) => Grid.GetColumnSpan((BindableObject)view);
     private void OnDefinitionsChanged(object? sender, EventArgs args)
     {
-        rowSnapshot = null;
-        columnSnapshot = null;
+        _rowSnapshot = null;
+        _columnSnapshot = null;
         InvalidateMeasureOverride();
     }
     /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => manager.Measure(widthConstraint, heightConstraint);
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => _manager.Measure(widthConstraint, heightConstraint);
     /// <inheritdoc />
-    protected override void ArrangeContent(Size size) => manager.ArrangeChildren(new Rect(Point.Zero, size));
+    protected override void ArrangeContent(Size size) => _manager.ArrangeChildren(new Rect(Point.Zero, size));
 }

@@ -1,6 +1,3 @@
-using Microsoft.Maui;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Layouts;
 using SkiaSharp;
 using System.Windows.Input;
@@ -10,21 +7,21 @@ namespace MauiSkiaUi;
 /// <summary>Base for Skia-drawn views, with layout that does not require a handler.</summary>
 public class SkUiView : View, ISkUiView
 {
-    private bool measureDirty = true;
-    private bool arrangeDirty = true;
-    private Rect lastArrangeBounds;
-    private Size lastConstraint;
-    private Size measuredSize;
-    private bool hwAccelerated;
-    private int updateDepth;
-    private bool paintPending;
-    private bool layoutPending;
-    private long? pressedPointer;
-    private Point pressPosition;
-    private bool tapCancelled;
-    private SkUiAnimationClock? animationClock;
-    private ICommand? tappedCommand;
-    private object? tappedCommandParameter;
+    private bool _measureDirty = true;
+    private bool _arrangeDirty = true;
+    private Rect _lastArrangeBounds;
+    private Size _lastConstraint;
+    private Size _measuredSize;
+    private bool _hwAccelerated;
+    private int _updateDepth;
+    private bool _paintPending;
+    private bool _layoutPending;
+    private long? _pressedPointer;
+    private Point _pressPosition;
+    private bool _tapCancelled;
+    private SkUiAnimationClock? _animationClock;
+    private ICommand? _tappedCommand;
+    private object? _tappedCommandParameter;
 
     /// <summary>Bindable opt-in tap command.</summary>
     public static readonly BindableProperty TappedCommandProperty = BindableProperty.Create(
@@ -35,13 +32,13 @@ public class SkUiView : View, ISkUiView
         nameof(TappedCommandParameter), typeof(object), typeof(SkUiView), null,
         propertyChanged: (view, _, value) => ((SkUiView)view).SetTappedCommandParameter(value));
     /// <summary>Optional command; passive nodes participate when it can execute.</summary>
-    public ICommand? TappedCommand { get => tappedCommand; set => SetValue(TappedCommandProperty, value); }
+    public ICommand? TappedCommand { get => _tappedCommand; set => SetValue(TappedCommandProperty, value); }
     /// <summary>Parameter supplied to the tap command.</summary>
-    public object? TappedCommandParameter { get => tappedCommandParameter; set => SetValue(TappedCommandParameterProperty, value); }
+    public object? TappedCommandParameter { get => _tappedCommandParameter; set => SetValue(TappedCommandParameterProperty, value); }
     /// <summary>Sets the tap command without bindable write-back.</summary>
-    public SkUiView SetTappedCommand(ICommand? value) { tappedCommand = value; return this; }
+    public SkUiView SetTappedCommand(ICommand? value) { _tappedCommand = value; return this; }
     /// <summary>Sets the tap parameter without bindable write-back.</summary>
-    public SkUiView SetTappedCommandParameter(object? value) { tappedCommandParameter = value; return this; }
+    public SkUiView SetTappedCommandParameter(object? value) { _tappedCommandParameter = value; return this; }
     /// <summary>Whether an eligible captured pointer is currently pressed inside this node.</summary>
     public bool IsPressed { get; private set; }
 
@@ -67,7 +64,7 @@ public class SkUiView : View, ISkUiView
     public event EventHandler<SkUiTappedEventArgs>? Tapped;
 
     /// <summary>The clock shared by this node and its surface-owning ancestor.</summary>
-    public SkUiAnimationClock AnimationClock => SkiaParent?.AnimationClock ?? (animationClock ??= new());
+    public SkUiAnimationClock AnimationClock => SkiaParent?.AnimationClock ?? (_animationClock ??= new());
 
     internal SkUiView? SkiaParent => Parent as SkUiView;
 
@@ -80,12 +77,12 @@ public class SkUiView : View, ISkUiView
     /// <summary>Selects GPU rendering for a standalone node. Set before attaching a handler.</summary>
     public bool HwAccelerated
     {
-        get => hwAccelerated;
+        get => _hwAccelerated;
         set
         {
-            if (Handler is not null && value != hwAccelerated)
+            if (Handler is not null && value != _hwAccelerated)
                 throw new InvalidOperationException("HwAccelerated must be set before handler creation.");
-            hwAccelerated = value;
+            _hwAccelerated = value;
         }
     }
 
@@ -93,8 +90,8 @@ public class SkUiView : View, ISkUiView
     protected override Size MeasureOverride(double widthConstraint, double heightConstraint)
     {
         var constraint = new Size(widthConstraint, heightConstraint);
-        if (!measureDirty && constraint == lastConstraint)
-            return measuredSize;
+        if (!_measureDirty && constraint == _lastConstraint)
+            return _measuredSize;
 
         IView view = this;
         var width = Math.Max(0, widthConstraint - Margin.HorizontalThickness);
@@ -104,15 +101,15 @@ public class SkUiView : View, ISkUiView
         var content = MeasureContent(
             Math.Min(width, double.IsNaN(view.Width) ? maximumWidth : view.Width),
             Math.Min(height, double.IsNaN(view.Height) ? maximumHeight : view.Height));
-        measuredSize = IsVisible
+        _measuredSize = IsVisible
             ? new Size(
                 LayoutManager.ResolveConstraints(width, view.Width, content.Width, view.MinimumWidth, maximumWidth) + Margin.HorizontalThickness,
                 LayoutManager.ResolveConstraints(height, view.Height, content.Height, view.MinimumHeight, maximumHeight) + Margin.VerticalThickness)
             : Size.Zero;
-        lastConstraint = constraint;
-        measureDirty = false;
-        arrangeDirty = true;
-        return measuredSize;
+        _lastConstraint = constraint;
+        _measureDirty = false;
+        _arrangeDirty = true;
+        return _measuredSize;
     }
 
     /// <summary>Measures intrinsic content without margins, in DIPs.</summary>
@@ -121,14 +118,14 @@ public class SkUiView : View, ISkUiView
     /// <inheritdoc />
     protected override Size ArrangeOverride(Rect bounds)
     {
-        if (!arrangeDirty && bounds == lastArrangeBounds)
+        if (!_arrangeDirty && bounds == _lastArrangeBounds)
             return Frame.Size;
         var previousSize = Frame.Size;
         Frame = this.ComputeFrame(bounds);
-        if (arrangeDirty || previousSize != Frame.Size)
+        if (_arrangeDirty || previousSize != Frame.Size)
             ArrangeContent(Frame.Size);
-        lastArrangeBounds = bounds;
-        arrangeDirty = false;
+        _lastArrangeBounds = bounds;
+        _arrangeDirty = false;
         Handler?.PlatformArrange(Frame);
         InvalidatePaint();
         return Frame.Size;
@@ -140,37 +137,37 @@ public class SkUiView : View, ISkUiView
     /// <inheritdoc />
     protected override void InvalidateMeasureOverride()
     {
-        measureDirty = true;
-        arrangeDirty = true;
-        layoutPending = true;
+        _measureDirty = true;
+        _arrangeDirty = true;
+        _layoutPending = true;
         InvalidatePaint();
     }
 
     /// <summary>Coalesces layout and paint notifications until the matching EndUpdating call.</summary>
-    public void StartUpdating() => updateDepth++;
+    public void StartUpdating() => _updateDepth++;
 
     /// <summary>Ends an update batch and propagates at most one invalidation.</summary>
     public void EndUpdating()
     {
-        if (updateDepth == 0)
+        if (_updateDepth == 0)
             throw new InvalidOperationException("No update batch is active.");
-        if (--updateDepth == 0)
+        if (--_updateDepth == 0)
             FlushInvalidation();
     }
 
     /// <summary>Requests a redraw without invalidating measured sizes.</summary>
     public void InvalidatePaint()
     {
-        paintPending = true;
-        if (updateDepth == 0)
+        _paintPending = true;
+        if (_updateDepth == 0)
             FlushInvalidation();
     }
 
     private void FlushInvalidation()
     {
-        var invalidateLayout = layoutPending;
-        var invalidatePaint = paintPending;
-        layoutPending = paintPending = false;
+        var invalidateLayout = _layoutPending;
+        var invalidatePaint = _paintPending;
+        _layoutPending = _paintPending = false;
         if (invalidateLayout)
         {
             if (SkiaParent is { } parent)
@@ -194,7 +191,7 @@ public class SkUiView : View, ISkUiView
             || (propertyName == nameof(IsVisible) && !IsVisible)
             || (propertyName == nameof(InputTransparent) && InputTransparent))
         {
-            pressedPointer = null;
+            _pressedPointer = null;
             SetPressed(false);
         }
         switch (propertyName)
@@ -348,30 +345,30 @@ public class SkUiView : View, ISkUiView
     {
         if (touch.Action == SkUiTouchAction.Pressed)
         {
-            if (pressedPointer is not null || InputTransparent || !IsVisible)
+            if (_pressedPointer is not null || InputTransparent || !IsVisible)
                 return false;
             if (!IsEnabled || !CanReceiveTap)
                 return true;
-            if (Tapped is null && !HandlesTap && !(tappedCommand?.CanExecute(tappedCommandParameter) ?? false))
+            if (Tapped is null && !HandlesTap && !(_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false))
                 return false;
-            pressedPointer = touch.Id;
-            pressPosition = touch.Position;
-            tapCancelled = false;
+            _pressedPointer = touch.Id;
+            _pressPosition = touch.Position;
+            _tapCancelled = false;
             SetPressed(true);
             return true;
         }
-        if (pressedPointer != touch.Id)
+        if (_pressedPointer != touch.Id)
             return false;
 
-        var deltaX = touch.Position.X - pressPosition.X;
-        var deltaY = touch.Position.Y - pressPosition.Y;
-        tapCancelled |= deltaX * deltaX + deltaY * deltaY > 100;
-        SetPressed(!tapCancelled && new Rect(0, 0, Width, Height).Contains(touch.Position));
+        var deltaX = touch.Position.X - _pressPosition.X;
+        var deltaY = touch.Position.Y - _pressPosition.Y;
+        _tapCancelled |= deltaX * deltaX + deltaY * deltaY > 100;
+        SetPressed(!_tapCancelled && new Rect(0, 0, Width, Height).Contains(touch.Position));
         if (touch.Action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
         {
-            pressedPointer = null;
+            _pressedPointer = null;
             SetPressed(false);
-            if (touch.Action == SkUiTouchAction.Released && !tapCancelled && IsEnabled && CanReceiveTap && IsVisible && !InputTransparent
+            if (touch.Action == SkUiTouchAction.Released && !_tapCancelled && IsEnabled && CanReceiveTap && IsVisible && !InputTransparent
                 && new Rect(0, 0, Width, Height).Contains(touch.Position))
                 OnTapped(new SkUiTappedEventArgs(touch.Position));
         }
@@ -398,8 +395,8 @@ public class SkUiView : View, ISkUiView
     /// </summary>
     protected void ExecuteTappedCommand()
     {
-        if (tappedCommand?.CanExecute(tappedCommandParameter) == true)
-            tappedCommand.Execute(tappedCommandParameter);
+        if (_tappedCommand?.CanExecute(_tappedCommandParameter) == true)
+            _tappedCommand.Execute(_tappedCommandParameter);
     }
 }
 

@@ -1,6 +1,3 @@
-using Microsoft.Maui;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
 using Xunit;
 using SkiaSharp;
 using System.Diagnostics;
@@ -109,7 +106,7 @@ public class Phase1Tests(ITestOutputHelper output)
         button.Touch(new(1, SkUiTouchAction.Pressed, new Point(20, 20)));
         Assert.Equal(Colors.Red, button.FillColor);
         button.Touch(new(1, SkUiTouchAction.Cancelled, new Point(20, 20)));
-        Assert.Equal(Color.FromArgb("#087F83"), button.FillColor);
+        Assert.Equal(SkUiColors.Accent, button.FillColor);
     }
 
     [Fact]

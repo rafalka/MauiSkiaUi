@@ -1,6 +1,4 @@
 using System.Windows.Input;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -8,9 +6,9 @@ namespace MauiSkiaUi;
 /// <summary>A drawn image with intrinsic taps, commands, and pressed/disabled tint, similar to MAUI's ImageButton.</summary>
 public class SkUiImageButton : SkUiImage
 {
-    private ICommand? command;
-    private object? commandParameter;
-    private double cornerRadius;
+    private ICommand? _command;
+    private object? _commandParameter;
+    private double _cornerRadius;
 
     /// <summary>Bindable command executed on a valid release.</summary>
     public static readonly BindableProperty CommandProperty = BindableProperty.Create(nameof(Command), typeof(ICommand), typeof(SkUiImageButton), null,
@@ -25,18 +23,18 @@ public class SkUiImageButton : SkUiImage
     /// <summary>Raised for a valid enabled tap, even without a command.</summary>
     public event EventHandler? Clicked;
     /// <summary>Command; CanExecute also controls tap eligibility and the disabled tint.</summary>
-    public ICommand? Command { get => command; set => SetValue(CommandProperty, value); }
+    public ICommand? Command { get => _command; set => SetValue(CommandProperty, value); }
     /// <summary>Command argument.</summary>
-    public object? CommandParameter { get => commandParameter; set => SetValue(CommandParameterProperty, value); }
+    public object? CommandParameter { get => _commandParameter; set => SetValue(CommandParameterProperty, value); }
     /// <summary>Corner radius in DIPs for the pressed/disabled tint clip; the image itself is not clipped.</summary>
-    public double CornerRadius { get => cornerRadius; set => SetValue(CornerRadiusProperty, value); }
+    public double CornerRadius { get => _cornerRadius; set => SetValue(CornerRadiusProperty, value); }
 
     /// <summary>Sets command without bindable write-back; command notifications use a weak target.</summary>
     public SkUiImageButton SetCommand(ICommand? value)
     {
-        if (command == value) return this;
-        if (command is not null && commandChanged is not null) command.CanExecuteChanged -= commandChanged;
-        command = value;
+        if (_command == value) return this;
+        if (_command is not null && _commandChanged is not null) _command.CanExecuteChanged -= _commandChanged;
+        _command = value;
         if (value is not null)
         {
             var weak = new WeakReference<SkUiImageButton>(this);
@@ -46,22 +44,22 @@ public class SkUiImageButton : SkUiImage
                 if (weak.TryGetTarget(out var button)) button.InvalidatePaint();
                 else if (sender is ICommand oldCommand) oldCommand.CanExecuteChanged -= listener;
             };
-            commandChanged = listener;
+            _commandChanged = listener;
             value.CanExecuteChanged += listener;
         }
         InvalidatePaint();
         return this;
     }
-    private EventHandler? commandChanged;
+    private EventHandler? _commandChanged;
     /// <summary>Sets command argument without bindable write-back.</summary>
-    public SkUiImageButton SetCommandParameter(object? value) { commandParameter = value; InvalidatePaint(); return this; }
+    public SkUiImageButton SetCommandParameter(object? value) { _commandParameter = value; InvalidatePaint(); return this; }
     /// <summary>Sets the tint clip corner radius without bindable write-back.</summary>
-    public SkUiImageButton SetCornerRadius(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); cornerRadius = value; InvalidatePaint(); return this; }
+    public SkUiImageButton SetCornerRadius(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _cornerRadius = value; InvalidatePaint(); return this; }
 
     /// <inheritdoc />
     protected override bool HandlesTap => true;
     /// <inheritdoc />
-    protected override bool CanReceiveTap => command?.CanExecute(commandParameter) ?? true;
+    protected override bool CanReceiveTap => _command?.CanExecute(_commandParameter) ?? true;
     /// <inheritdoc />
     protected override void OnPressedChanged() => InvalidatePaint();
 
@@ -70,7 +68,7 @@ public class SkUiImageButton : SkUiImage
     {
         RaiseTapped(args);
         Clicked?.Invoke(this, EventArgs.Empty);
-        if (command?.CanExecute(commandParameter) == true) command.Execute(commandParameter);
+        if (_command?.CanExecute(_commandParameter) == true) _command.Execute(_commandParameter);
     }
 
     /// <inheritdoc />
@@ -80,9 +78,9 @@ public class SkUiImageButton : SkUiImage
         if (IsEnabled && CanReceiveTap && !IsPressed) return;
         var tint = !IsEnabled || !CanReceiveTap ? new SKColor(0, 0, 0, 96) : new SKColor(0, 0, 0, 48);
         using var paint = new SKPaint { Color = tint };
-        if (cornerRadius > 0)
+        if (_cornerRadius > 0)
         {
-            using var clip = SkUiChrome.CreateRoundRectPath(new SKRect(0, 0, (float)Width, (float)Height), (float)cornerRadius);
+            using var clip = SkUiChrome.CreateRoundRectPath(new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius);
             canvas.DrawPath(clip, paint);
         }
         else

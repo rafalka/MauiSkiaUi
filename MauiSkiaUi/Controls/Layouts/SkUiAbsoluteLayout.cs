@@ -1,6 +1,3 @@
-using Microsoft.Maui;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
 using Microsoft.Maui.Layouts;
 
 namespace MauiSkiaUi;
@@ -8,10 +5,10 @@ namespace MauiSkiaUi;
 /// <summary>A drawn absolute layout using MAUI's <see cref="AbsoluteLayoutManager"/> and <c>AbsoluteLayout.LayoutBounds</c>/<c>LayoutFlags</c> attached properties.</summary>
 public class SkUiAbsoluteLayout : SkUiLayout, IAbsoluteLayout
 {
-    private readonly AbsoluteLayoutManager manager;
+    private readonly AbsoluteLayoutManager _manager;
 
     /// <summary>Creates an absolute layout with MAUI layout management.</summary>
-    public SkUiAbsoluteLayout() => manager = new AbsoluteLayoutManager(this);
+    public SkUiAbsoluteLayout() => _manager = new AbsoluteLayoutManager(this);
 
     /// <summary>Gets a child's proportional/absolute bounds, set via <c>AbsoluteLayout.SetLayoutBounds</c>.</summary>
     public static Rect GetLayoutBounds(BindableObject view) => AbsoluteLayout.GetLayoutBounds(view);
@@ -26,7 +23,7 @@ public class SkUiAbsoluteLayout : SkUiLayout, IAbsoluteLayout
     AbsoluteLayoutFlags IAbsoluteLayout.GetLayoutFlags(IView view) => AbsoluteLayout.GetLayoutFlags((BindableObject)view);
 
     /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => manager.Measure(widthConstraint, heightConstraint);
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => _manager.Measure(widthConstraint, heightConstraint);
     /// <inheritdoc />
-    protected override void ArrangeContent(Size size) => manager.ArrangeChildren(new Rect(Point.Zero, size));
+    protected override void ArrangeContent(Size size) => _manager.ArrangeChildren(new Rect(Point.Zero, size));
 }

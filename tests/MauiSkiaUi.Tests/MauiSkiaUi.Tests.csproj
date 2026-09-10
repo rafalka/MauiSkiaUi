@@ -8,7 +8,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../MauiSkiaUiDemo/ComponentDemoPage.cs" Link="Demo/ComponentDemoPage.cs" />
-    <Compile Include="../../MauiSkiaUiDemo/ComponentPages.cs" Link="Demo/ComponentPages.cs" />
+    <Compile Include="../../MauiSkiaUiDemo/DemoColors.cs" Link="Demo/DemoColors.cs" />
+    <Compile Include="../../MauiSkiaUiDemo/DemoAssets.cs" Link="Demo/DemoAssets.cs" />
+    <Compile Include="../../MauiSkiaUiDemo/DemoFonts.cs" Link="Demo/DemoFonts.cs" />
+    <Compile Include="../../MauiSkiaUiDemo/ComponentPages/**/*.cs" Link="Demo/ComponentPages/%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="../../MauiSkiaUiDemo/Resources/Fonts/RobotoMono-Regular.ttf" Link="Assets/RobotoMono-Regular.ttf" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />

@@ -1,6 +1,3 @@
-using Microsoft.Maui;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Graphics;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -9,17 +6,17 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(Content))]
 public class SkUiContentView : SkUiView
 {
-    private readonly SkUiTouchRouter touchRouter = new();
-    private ISkUiView? content;
-    private Thickness padding;
+    private readonly SkUiTouchRouter _touchRouter = new();
+    private ISkUiView? _content;
+    private Thickness _padding;
 
     /// <summary>Bindable inset around content.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiContentView), default(Thickness),
         propertyChanged: (view, _, value) => ((SkUiContentView)view).SetPadding((Thickness)value));
     /// <summary>Inset around the hosted content.</summary>
-    public Thickness Padding { get => padding; set => SetValue(PaddingProperty, value); }
+    public Thickness Padding { get => _padding; set => SetValue(PaddingProperty, value); }
     /// <summary>Sets padding without bindable write-back.</summary>
-    public SkUiContentView SetPadding(Thickness value) { padding = value; InvalidateMeasureOverride(); return this; }
+    public SkUiContentView SetPadding(Thickness value) { _padding = value; InvalidateMeasureOverride(); return this; }
 
     /// <summary>The bindable single-child content property.</summary>
     public static readonly BindableProperty ContentProperty = BindableProperty.Create(
@@ -38,18 +35,18 @@ public class SkUiContentView : SkUiView
     /// <summary>The handlerless child painted into this host's surface.</summary>
     public ISkUiView? Content
     {
-        get => content;
+        get => _content;
         set => SetValue(ContentProperty, value);
     }
 
     /// <summary>Replaces content without bindable write-back, cancelling the old capture.</summary>
     public SkUiContentView SetContent(ISkUiView? value)
     {
-        if (ReferenceEquals(content, value)) return this;
+        if (ReferenceEquals(_content, value)) return this;
         if (value is not null) ValidateChild(value);
-        touchRouter.Cancel();
-        var previous = content;
-        content = value;
+        _touchRouter.Cancel();
+        var previous = _content;
+        _content = value;
         if (previous is not null) DetachChild(previous);
         if (value is not null) AttachChild(value);
         OnContentChanged();
@@ -61,21 +58,21 @@ public class SkUiContentView : SkUiView
     protected virtual void OnContentChanged() { }
 
     /// <inheritdoc />
-    internal override IEnumerable<ISkUiView> SkiaChildren { get { if (content is not null) yield return content; } }
+    internal override IEnumerable<ISkUiView> SkiaChildren { get { if (_content is not null) yield return _content; } }
 
     /// <summary>Cancels any active pointer capture in the hosted subtree.</summary>
-    protected void CancelContentTouch() => touchRouter.Cancel();
+    protected void CancelContentTouch() => _touchRouter.Cancel();
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        var size = Content?.Measure(Math.Max(0, widthConstraint - padding.HorizontalThickness), Math.Max(0, heightConstraint - padding.VerticalThickness)) ?? Size.Zero;
-        return new Size(size.Width + padding.HorizontalThickness, size.Height + padding.VerticalThickness);
+        var size = Content?.Measure(Math.Max(0, widthConstraint - _padding.HorizontalThickness), Math.Max(0, heightConstraint - _padding.VerticalThickness)) ?? Size.Zero;
+        return new Size(size.Width + _padding.HorizontalThickness, size.Height + _padding.VerticalThickness);
     }
 
     /// <inheritdoc />
-    protected override void ArrangeContent(Size size) => Content?.Arrange(new Rect(padding.Left, padding.Top,
-        Math.Max(0, size.Width - padding.HorizontalThickness), Math.Max(0, size.Height - padding.VerticalThickness)));
+    protected override void ArrangeContent(Size size) => Content?.Arrange(new Rect(_padding.Left, _padding.Top,
+        Math.Max(0, size.Width - _padding.HorizontalThickness), Math.Max(0, size.Height - _padding.VerticalThickness)));
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
@@ -89,12 +86,12 @@ public class SkUiContentView : SkUiView
     {
         if (InputTransparent || !IsVisible || !IsEnabled)
         {
-            touchRouter.Cancel();
+            _touchRouter.Cancel();
             return IsVisible && !InputTransparent && !IsEnabled;
         }
-        if (touchRouter.DeliverCaptured(touch, out var handled))
+        if (_touchRouter.DeliverCaptured(touch, out var handled))
             return handled;
-        if (Content is { } child && touchRouter.TryPress(child, touch))
+        if (Content is { } child && _touchRouter.TryPress(child, touch))
             return true;
         return base.Touch(touch);
     }
