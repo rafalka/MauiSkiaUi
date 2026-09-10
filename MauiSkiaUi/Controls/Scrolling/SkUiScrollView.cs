@@ -176,6 +176,10 @@ public class SkUiScrollView : SkUiContentView
         if (orientation == ScrollOrientation.Neither) return base.Touch(touch);
         if (touch.Action == SkUiTouchAction.Wheel)
         {
+            // SkUiTouchEvent carries a single WheelDelta with no axis indicator, so a plain wheel always
+            // scrolls the vertical axis when it is enabled (Vertical or Both), and only scrolls horizontally
+            // when the horizontal axis is the sole enabled one. Both does not distinguish a horizontal-wheel
+            // gesture (e.g. shift+wheel) from a vertical one; that requires a richer wheel event and is deferred.
             ScrollTo(ScrollX - (Horizontal && !Vertical ? touch.WheelDelta : 0), ScrollY - (Vertical ? touch.WheelDelta : 0));
             return true;
         }

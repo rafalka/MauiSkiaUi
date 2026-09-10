@@ -26,7 +26,7 @@ After review fixes on the same date, all 36 headless tests passed and Android Ho
 
 ## Phase 1 implementation
 
-The same test command now runs **49 cases**. Phase 1 adds MAUI Grid Auto/star/span and mutation checks; Label wrapping/direct setters; Button press, commands, rounded pixels, style/default restoration and visual states; asynchronous image decode/error/stale-result checks; scroll extent/clamping/no-remeasure, tap-to-pan takeover, deterministic fling, async completion/cancellation; full-pixel scroll-composition goldens at 1x and 2x; and transformed clipping/Z-order cache mutation regressions. The small scroll goldens encode expected solid-color pixels directly in the test, avoiding platform-dependent font/antialias baselines.
+The same test command now runs **62 cases**. Phase 1 adds MAUI Grid Auto/star/span and mutation checks; Label wrapping/direct setters; Button press, commands, rounded pixels, style/default restoration and visual states; asynchronous image decode/error/stale-result checks; scroll extent/clamping/no-remeasure, tap-to-pan takeover, deterministic fling, async completion/cancellation; full-pixel scroll-composition goldens at 1x and 2x; transformed clipping/Z-order cache mutation regressions; custom-font registry resolution/caching; and 2026-09-10 review-fix regressions (Button single-command execution on tap, rounded-clip path geometry, and documented per-orientation wheel behavior). The small scroll goldens encode expected solid-color pixels directly in the test, avoiding platform-dependent font/antialias baselines.
 
 Reproduce the non-gating measurement:
 

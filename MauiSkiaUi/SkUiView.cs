@@ -375,10 +375,23 @@ public class SkUiView : View, ISkUiView
     /// <summary>Allows a control to participate in taps without an event subscriber.</summary>
     protected virtual bool HandlesTap => false;
 
-    /// <summary>Raises a classified single tap.</summary>
+    /// <summary>Raises a classified single tap: the shared <see cref="Tapped"/> event, then <see cref="TappedCommand"/> if eligible.</summary>
     protected virtual void OnTapped(SkUiTappedEventArgs args)
     {
-        Tapped?.Invoke(this, args);
+        RaiseTapped(args);
+        ExecuteTappedCommand();
+    }
+
+    /// <summary>Raises the shared <see cref="Tapped"/> event only, without executing <see cref="TappedCommand"/>.</summary>
+    protected void RaiseTapped(SkUiTappedEventArgs args) => Tapped?.Invoke(this, args);
+
+    /// <summary>
+    /// Executes <see cref="TappedCommand"/> if eligible. Separated from <see cref="RaiseTapped"/> so controls with their
+    /// own command (e.g. <see cref="SkUiButton"/>) can raise the shared event without also firing this generic command,
+    /// which would otherwise run alongside their dedicated command on the same tap.
+    /// </summary>
+    protected void ExecuteTappedCommand()
+    {
         if (tappedCommand?.CanExecute(tappedCommandParameter) == true)
             tappedCommand.Execute(tappedCommandParameter);
     }

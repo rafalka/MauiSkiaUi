@@ -50,6 +50,45 @@ public class Phase1Tests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void ButtonRunsOnlyItsOwnCommandNotInheritedTappedCommand()
+    {
+        var buttonClicks = 0;
+        var tappedCommandRuns = 0;
+        var tappedEvents = 0;
+        var button = new SkUiButton { Command = new Command(() => buttonClicks++) };
+        button.SetTappedCommand(new Command(() => tappedCommandRuns++));
+        button.Tapped += (_, _) => tappedEvents++;
+        Arrange(button, 100, 50);
+        button.Touch(new(1, SkUiTouchAction.Pressed, new Point(20, 20)));
+        button.Touch(new(1, SkUiTouchAction.Released, new Point(20, 20)));
+        Assert.Equal(1, buttonClicks);
+        Assert.Equal(0, tappedCommandRuns);
+        Assert.Equal(1, tappedEvents);
+    }
+
+    [Fact]
+    public void ButtonRoundedClipPathExcludesCornerWedgeButIncludesInterior()
+    {
+        using var path = SkUiChrome.CreateRoundRectPath(new SKRect(0, 0, 100, 60), 20);
+        Assert.False(path.Contains(2, 2));
+        Assert.True(path.Contains(50, 30));
+        Assert.True(path.Contains(20, 2));
+    }
+
+    [Theory]
+    [InlineData(ScrollOrientation.Vertical, 0, 40)]
+    [InlineData(ScrollOrientation.Horizontal, 40, 0)]
+    [InlineData(ScrollOrientation.Both, 0, 40)]
+    public void WheelScrollsDocumentedAxisPerOrientation(ScrollOrientation orientation, double expectedX, double expectedY)
+    {
+        var scroll = new SkUiScrollView { Content = new SkUiBox { WidthRequest = 400, HeightRequest = 400 }, Orientation = orientation };
+        Arrange(scroll, 100, 100);
+        scroll.Touch(new(1, SkUiTouchAction.Wheel, new Point(50, 50), WheelDelta: -40));
+        Assert.Equal(expectedX, scroll.ScrollX);
+        Assert.Equal(expectedY, scroll.ScrollY);
+    }
+
+    [Fact]
     public void ButtonDefaultsAllowStylesAndVisualStateRestoration()
     {
         var style = new Style(typeof(SkUiButton));

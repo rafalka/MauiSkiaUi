@@ -57,7 +57,12 @@ public class SkUiLayout : SkUiView, ILayout
     private void OnChildPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName == nameof(ZIndex)) paintOrder = null;
-        if (args.PropertyName is "Row" or "Column" or "RowSpan" or "ColumnSpan")
+        // Children carry standard MAUI Grid.Row/Column/RowSpan/ColumnSpan attached values (see SkUiGrid), but
+        // Grid's own propertyChanged callback never fires our invalidation because Parent is SkUiGrid, not
+        // Microsoft.Maui.Controls.Grid. Compare against the BindableProperty's own PropertyName (not a literal
+        // string) so this keeps working if MAUI ever renames those attached properties.
+        if (args.PropertyName == Grid.RowProperty.PropertyName || args.PropertyName == Grid.ColumnProperty.PropertyName
+            || args.PropertyName == Grid.RowSpanProperty.PropertyName || args.PropertyName == Grid.ColumnSpanProperty.PropertyName)
             InvalidateMeasureOverride();
     }
 

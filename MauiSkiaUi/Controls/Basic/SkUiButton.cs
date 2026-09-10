@@ -109,10 +109,13 @@ public class SkUiButton : SkUiLabel
         base.OnPropertyChanged(propertyName);
         if (propertyName == nameof(IsEnabled)) UpdateState();
     }
-    /// <inheritdoc />
+    /// <summary>
+    /// Raises the shared Tapped event and Clicked, then executes Command. TappedCommand (inherited from SkUiView)
+    /// is intentionally not executed here to avoid running two commands from a single tap; use Command instead.
+    /// </summary>
     protected override void OnTapped(SkUiTappedEventArgs args)
     {
-        base.OnTapped(args);
+        RaiseTapped(args);
         Clicked?.Invoke(this, EventArgs.Empty);
         if (command?.CanExecute(commandParameter) == true) command.Execute(commandParameter);
     }
@@ -125,19 +128,43 @@ public class SkUiButton : SkUiLabel
         SkUiChrome.DrawRoundedBox(canvas, new SKRect(0, 0, (float)Width, (float)Height), (float)cornerRadius,
             ToSkColor(color), ToSkColor(borderColor), (float)borderWidth);
     }
+
+    /// <summary>Clips text to the same rounded-rect geometry as the background fill so glyphs never bleed past the corners.</summary>
+    protected override void OnPaintContent(SKCanvas canvas)
+    {
+        var saveCount = canvas.Save();
+        try
+        {
+            using var clip = SkUiChrome.CreateRoundRectPath(new SKRect(0, 0, (float)Width, (float)Height), (float)cornerRadius);
+            canvas.ClipPath(clip, antialias: true);
+            base.OnPaintContent(canvas);
+        }
+        finally { canvas.RestoreToCount(saveCount); }
+    }
 }
 
 internal static class SkUiChrome
 {
+    /// <summary>Builds the rounded-rect path shared by the background fill/border and the content clip.</summary>
+    internal static SKPath CreateRoundRectPath(SKRect bounds, float radius)
+    {
+        using var roundRect = new SKRoundRect(bounds, radius, radius);
+        using var builder = new SKPathBuilder();
+        builder.AddRoundRect(roundRect);
+        return builder.Detach();
+    }
+
     internal static void DrawRoundedBox(SKCanvas canvas, SKRect bounds, float radius, SKColor fill, SKColor border, float width)
     {
         using var paint = new SKPaint { Color = fill, IsAntialias = true };
-        canvas.DrawRoundRect(bounds, radius, radius, paint);
+        using var path = CreateRoundRectPath(bounds, radius);
+        canvas.DrawPath(path, paint);
         if (width <= 0) return;
         bounds.Inflate(-width / 2, -width / 2);
         paint.Color = border;
         paint.Style = SKPaintStyle.Stroke;
         paint.StrokeWidth = width;
-        canvas.DrawRoundRect(bounds, Math.Max(0, radius - width / 2), Math.Max(0, radius - width / 2), paint);
+        using var strokePath = CreateRoundRectPath(bounds, Math.Max(0, radius - width / 2));
+        canvas.DrawPath(strokePath, paint);
     }
 }

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Dispatching;
 using Microsoft.Maui.Graphics;
 using SkiaSharp;
 
@@ -59,6 +60,9 @@ public class SkUiImage : SkUiView, IDisposable
     public async Task ReloadAsync()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+        // Captured up front (synchronously, on the caller's thread) so the completion below can marshal back
+        // even for hosted images, which never get a handler to resolve a dispatcher from.
+        var dispatcher = Microsoft.Maui.Dispatching.Dispatcher.GetForCurrentThread();
         var version = ++generation;
         loading?.Cancel();
         loading?.Dispose();
@@ -72,6 +76,8 @@ public class SkUiImage : SkUiView, IDisposable
         PublishState();
         if (current is null) return;
         SKImage? decoded = null;
+        Exception? failure = null;
+        var cancelled = false;
         try
         {
             using var stream = await OpenSourceAsync(current, token);
@@ -86,24 +92,34 @@ public class SkUiImage : SkUiView, IDisposable
             var data = bytes.ToArray();
             decoded = await Task.Run(() => Decode(data), token);
             token.ThrowIfCancellationRequested();
-            if (version != generation || disposed) return;
-            image = decoded;
-            decoded = null;
         }
-        catch (OperationCanceledException) { }
-        catch (Exception error)
+        catch (OperationCanceledException) { cancelled = true; }
+        catch (Exception error) { failure = error; }
+
+        // Task.Run's continuation may resume on a thread-pool thread; apply the resulting state where
+        // MAUI expects layout invalidation to happen.
+        await RunOnDispatcherAsync(dispatcher, () =>
         {
-            if (version == generation && !disposed) LoadError = error;
-        }
-        finally
-        {
-            decoded?.Dispose();
-            if (version == generation && !disposed)
+            if (cancelled || version != generation || disposed)
             {
-                IsLoading = false;
-                PublishState();
+                decoded?.Dispose();
+                return;
             }
+            if (failure is not null) LoadError = failure;
+            else image = decoded;
+            IsLoading = false;
+            PublishState();
+        });
+    }
+
+    private static Task RunOnDispatcherAsync(IDispatcher? dispatcher, Action action)
+    {
+        if (dispatcher is null || !dispatcher.IsDispatchRequired)
+        {
+            action();
+            return Task.CompletedTask;
         }
+        return dispatcher.DispatchAsync(action);
     }
 
     private static async Task<Stream> OpenSourceAsync(ImageSource value, CancellationToken token)
