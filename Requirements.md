@@ -4,11 +4,11 @@ Planned work for SkiaUi. Items here are **not yet implemented** unless moved int
 
 ## Goals
 
-Build a set of **base controls and layouts drawn entirely with SkiaSharp**, using **GPU / hardware acceleration** where the platform supports it (`SKGLView`).
+Build a set of **base controls and layouts drawn with SkiaSharp**, using **GPU / hardware acceleration** where the platform supports it (`SKGLView`), plus a path to **host real MAUI controls** (Entry, Editor, WebView, …) inside the SkiaUi tree when Skia cannot replace them.
 
-**Near drop-in replacement for standard MAUI UI:** a primary goal is to replace a slow MAUI visual tree with a fast SkiaUi tree by providing Skia-drawn copies of MAUI controls and layouts. Measure / layout must therefore follow the **MAUI layout system** so existing MAUI layout-manager concepts and algorithms can be reused (see *Layout model*).
+**Near drop-in replacement for standard MAUI UI:** a primary goal is to replace a slow MAUI visual tree with a fast SkiaUi tree by providing Skia-drawn copies of MAUI controls and layouts **where painting is enough**. Measure / layout must follow the **MAUI layout system** so existing MAUI layout-manager concepts and algorithms can be reused (see *Layout model*). Controls that require system widgets (text input IME, WebView) are **hosted**, not reimplemented in Skia (FR-16).
 
-MAUI hosts a single accelerated surface; all SkiaUi visuals live inside a custom view tree that does its own measure, layout, paint, and hit-testing.
+MAUI hosts a single accelerated surface for the SkiaUi tree; Skia-drawn nodes paint into that surface. Hosted MAUI controls are **native overlays** positioned to match their arranged slots in the tree (not painted into the Skia canvas).
 
 **XAML-first composition:** the entire SkiaUi tree inside the bridge must be writable in XAML the same way MAUI layouts nest children — no mandatory code-behind to assemble the tree.
 
@@ -18,8 +18,13 @@ Example target markup:
 <VerticalStackLayout>
   <SkUiContentView>
     <SkUiGrid>
-      <SkUiLabel Text="abcd" />
-      <SkUiLabel Text="bcdef" />
+      <SkUiLabel Text="Name" />
+      <SkUiMauiContentView Grid.Row="0" Grid.Column="1">
+        <Entry Placeholder="Type here" />
+      </SkUiMauiContentView>
+      <SkUiMauiContentView Grid.Row="1" Grid.ColumnSpan="2">
+        <WebView Source="https://example.com" />
+      </SkUiMauiContentView>
     </SkUiGrid>
   </SkUiContentView>
 </VerticalStackLayout>
@@ -30,10 +35,12 @@ Example target markup:
 ```
 MAUI visual tree
 └── SkUiContentView : SkUiView          ← typical composed-tree host (HwAccelerated default true)
+        ├── platform: Skia surface (GL/SW)
+        ├── platform: native overlays for SkUiMauiContentView children (siblings of surface)
         └── Content : ISkUiView
                 └── SkUiGrid : SkUiLayout : SkUiView
-                        ├── Children[0] : ISkUiView
-                        └── Children[1] : ISkUiView
+                        ├── Children[0] : SkUiLabel          ← painted into shared surface
+                        └── Children[1] : SkUiMauiContentView   ← placeholder in tree; real Entry/WebView overlaid
 ```
 
 ### Type hierarchy
@@ -46,6 +53,7 @@ MAUI visual tree
 | **`SkUiLayout`** | Derives from `SkUiView`; base for all layouts with **`Children`** (`IList<ISkUiView>`) |
 | Concrete layouts (e.g. `SkUiGrid`) | Derive from **`SkUiLayout`** |
 | Concrete controls (e.g. `SkUiLabel`) | Derive from **`SkUiView`** (or a control-specific base under `SkUiView`) |
+| **`SkUiMauiContentView`** | Derives from **`SkUiView`**; hosts a MAUI **`VisualElement`** (Entry, Editor, WebView, …) as a native overlay (FR-16) |
 
 ### `SkUiView`
 
@@ -97,9 +105,19 @@ Added by **`ISkUiView`** (exact signatures TBD during implementation):
 - **Paint** — draw into the provided `SKCanvas` (and related GL paint args as needed), including Background / Content / Overlay layers (FR-9).
 - **Touch** — handle pointer / touch; return whether the event was handled (for hit-test bubbling). Default hit-testing uses the control’s **arranged bounds** (FR-11); clip/mask affects paint, with shape-aware hits only as an opt-in. Higher-level gestures (tap, double tap, long press, swipe) are classified and delivered by SkiaUi’s own mechanism (FR-15), not MAUI `GestureRecognizers` — see [EventMechanism.md](EventMechanism.md).
 
-Layouts are `SkUiLayout` subclasses (hence `ISkUiView` / `IView`) that own **`Children`**. Single-child hosting uses **`SkUiContentView.Content`**. When nested under a SkiaUi parent, a child must **not** allocate a MAUI handler / platform view — only the outer root host owns the GL surface (FR-13).
+Layouts are `SkUiLayout` subclasses (hence `ISkUiView` / `IView`) that own **`Children`**. Single-child hosting uses **`SkUiContentView.Content`**. When nested under a SkiaUi parent, a Skia-drawn child must **not** allocate a MAUI handler / platform view — only the outer root host owns the GL/SW Skia surface (FR-13). **Exception:** `SkUiMauiContentView` creates a handler / platform view for its **wrapped** MAUI `VisualElement` and attaches it as an overlay on the standalone root’s platform container (FR-16) — the `SkUiMauiContentView` node itself still has no Skia surface.
 
 Measure, Arrange, and Paint must be **selective**: parents (especially layouts) invoke children only when necessary and reuse cached measure sizes and cached painted bitmaps for unchanged children (see NFR-2 / FR-3).
+
+### MAUI control hosting (`SkUiMauiContentView`)
+
+Some MAUI controls cannot be replaced by Skia drawing alone (system keyboard / IME for `Entry` / `Editor`; real browser engine for `WebView`). SkiaUi does **not** ship custom `SkUiEntry`, `SkUiEditor`, or `SkUiWebView`. Instead:
+
+- **`SkUiMauiContentView : SkUiView`** is an `ISkUiView` placeholder that participates in SkiaUi measure / arrange / z-order like any other child of `SkUiGrid` / `SkUiLayout` / `SkUiContentView`.
+- It exposes **`Content`** of type MAUI **`VisualElement`**, marked `[ContentProperty(nameof(Content))]` — e.g. `Entry`, `Editor`, `WebView`, `Picker`, `MediaElement`.
+- After arrange, the wrapper creates (if needed) the wrapped element’s **normal MAUI handler**, adds the platform view as a **sibling overlay** of the standalone root’s Skia surface, and syncs frame / transform / visibility / opacity / clip to the placeholder’s arranged bounds (DrawnUi `SkiaMauiElement` pattern).
+- **Paint:** the placeholder does not paint the live native control into `SKCanvas` while idle. On Android/Windows during scroll/fling, paints a **snapshot** bitmap instead (Apple: live overlay sync). Touches over a visible native overlay hit the **native** control; SkiaUi gestures (FR-15) do not own that input. See FR-16 / [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#overlays-while-scrolling-fr-16).
+- Apps compose mixed trees in XAML: Skia labels/buttons/layouts alongside hosted Entry / Editor / WebView.
 
 ### Layout model (MAUI-based)
 
@@ -122,6 +140,7 @@ Primary reference: .NET MAUI layout (`Layout`, layout managers, `IView.Measure` 
 - **Theming** uses standard **MAUI `Style` / `VisualState` / resource dictionaries** applied to those bindable properties (FR-12) — not a separate SkiaUi theme system.
 - Layout types derive from **`SkUiLayout`** and expose **`Children`** (`IList<ISkUiView>`) as `[ContentProperty]`.
 - **`SkUiContentView`** exposes single **`Content`** (`ISkUiView`) as `[ContentProperty]` for one-child hosting.
+- **`SkUiMauiContentView`** exposes **`Content`** (`VisualElement`) as `[ContentProperty(nameof(Content))]` so `<SkUiMauiContentView><Entry …/></SkUiMauiContentView>` works inside SkiaUi layouts (FR-16).
 - Attached layout properties (e.g. grid row/column) are supported where the layout requires them.
 - XML namespace mapping is documented for apps (clr-namespace / `xmlns`); optional `XmlnsDefinition` for a shorter xmlns.
 - Same trees must remain creatable from C# for parity.
@@ -131,7 +150,7 @@ Primary reference: .NET MAUI layout (`Layout`, layout managers, `IView.Measure` 
 - **`SkUiView` does not subclass `SKGLView`.** A dedicated SkiaUi MAUI **handler** chooses the platform view from **`HwAccelerated`**: GL (`SKGLView`-class) vs software (`SKCanvasView`-class). Value is fixed at handler creation (init-only semantics; settable CLR property for XAML, not C# `init`).
 - **Defaults:** `SkUiContentView` and `SkUiLayout` → `HwAccelerated = true`; other `SkUiView` controls (e.g. `SkUiLabel`, buttons) → `HwAccelerated = false`.
 - **Rationale:** standalone SkiaUi controls may appear many times on one page (e.g. inside `CollectionView`). Many simultaneous GL surfaces are costly; leaf controls default to software. Composition hosts (`SkUiContentView` / `SkUiLayout`) keep HW on by default so one accelerated surface can draw a whole subtree.
-- Hosted children never create their own surface regardless of `HwAccelerated` (FR-13).
+- Hosted Skia-drawn children never create their own Skia surface regardless of `HwAccelerated` (FR-13). `SkUiMauiContentView` creates a handler only for its wrapped MAUI control (FR-16).
 - Document fallback if GL is unavailable when `HwAccelerated` is true.
 
 ## Functional requirements
@@ -175,22 +194,25 @@ Design and checklist: [LayoutSystem.md](LayoutSystem.md).
 
 ### FR-4 — Base controls
 
-- [ ] Initial control set drawn entirely via Skia (no nested MAUI visuals inside the Skia tree), including at least `SkUiLabel` (or equivalent text control).
-- [ ] Each control derives from **`SkUiView`** (implements `ISkUiView`), is XAML-constructible, works under `SkUiContentView` / `SkUiLayout`, and can be used standalone in the MAUI tree (FR-13).
+- [ ] Initial **Skia-drawn** control set (no nested MAUI visuals for these types), including at least `SkUiLabel` (or equivalent text control).
+- [ ] Do **not** implement custom Skia `SkUiEntry`, `SkUiEditor`, or `SkUiWebView` — use **`SkUiMauiContentView`** hosting instead (FR-16).
+- [ ] Each Skia-drawn control derives from **`SkUiView`** (implements `ISkUiView`), is XAML-constructible, works under `SkUiContentView` / `SkUiLayout`, and can be used standalone in the MAUI tree (FR-13).
 
 ### FR-5 — Demo gallery
 
 - [ ] Demo hosts `SkUiContentView` with sample trees defined primarily in XAML.
-- [ ] Gallery pages for layouts and controls.
+- [ ] Gallery pages for layouts, Skia-drawn controls, and **hosted** Entry / Editor / WebView via `SkUiMauiContentView` (FR-16).
 - [ ] Verified on Android and at least one Apple target (iOS or Mac Catalyst).
 
 ### FR-6 — Packaging readiness
 
-- [ ] Public types use the **`SkUi*`** naming convention (e.g. `SkUiView`, `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, `SkUiLabel`); assembly / project / NuGet package id remains **`MauiSkiaUi`**.
+- [ ] Public types use the **`SkUi*`** naming convention (e.g. `SkUiView`, `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, `SkUiLabel`, `SkUiMauiContentView`); assembly / project / NuGet package id remains **`MauiSkiaUi`**.
 - [ ] Prepare **`MauiSkiaUi`** for NuGet publish (package id, versioning, metadata, symbols as needed).
 - [ ] **`MauiSkiaUiDemo`** stays **in-repo only** — not published as a NuGet package.
 
 ### FR-7 — Animation
+
+Design details and checklist: [AnimationMechanism.md](AnimationMechanism.md).
 
 - [ ] Support property / transform / opacity (and similar) animations on `ISkUiView` nodes, driven so that active animations can sustain **butter-smooth ~60 fps** on target devices with GPU-backed `SKGLView`.
 - [ ] Animation clock / ticker integrates with the bridge invalidation model (continuous frames while any animation is active; idle when none are).
@@ -217,7 +239,7 @@ Design and checklist: [DrawingMechanism.md](DrawingMechanism.md).
 - [ ] Support splitting a control’s drawing into ordered **layers** (Background / Content / Overlay, extensible as needed), e.g. text with background fill, glyphs, and badge/focus overlay.
 - [ ] Layers are paint (and optional cache) phases of the **same** `ISkUiView`, with direct access to that control’s layout and state — not a separate child layout tree per layer.
 - [ ] Layers participate in selective Paint when opt-in caches exist (NFR-2 / FR-8); v1 may repaint all phases on each node paint with no per-layer bitmap cache — see [DrawingMechanism.md](DrawingMechanism.md).
-- [ ] Favor **reusable drawing helpers / primitives** across controls (e.g. shared rounded-rectangle / border / fill used by many Background layers — not copy-pasted Skia paths per control). Reuse is via shared paint utilities or layer implementations, not by requiring every chrome piece to be its own `ISkUiView`.
+- [ ] Favor **reusable drawing helpers / primitives** across controls (e.g. shared rounded-rectangle / border / fill used by many Background layers — not copy-pasted Skia paths per control). Reuse is via shared paint utilities, interfaces, or layer implementations (NFR-4), not by requiring every chrome piece to be its own `ISkUiView`.
 - [ ] Hit-testing remains **view-level** (arranged bounds); overlays do not get separate hit geometry in v1 (FR-11 / [EventMechanism.md](EventMechanism.md)).
 - [ ] Apply this model consistently to built-in controls; keep Option B-style nesting for true **child content** in layouts only (`Children`), not for a control’s own chrome layers.
 
@@ -258,7 +280,8 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 
 - [ ] **`ISkUiView` derives from MAUI `IView`**; concrete types use **`SkUiView`** / **`SkUiContentView`** / **`SkUiLayout`** so the same type is an `IView` for MAUI and a Skia node in a hosted tree.
 - [ ] **Standalone:** the control participates in the MAUI layout / input pipeline via `IView` and our **custom handler**, which creates a SW or GL platform view from **`HwAccelerated`** (FR-14).
-- [ ] **Hosted in SkiaUi tree:** when the control is a child of another SkiaUi parent (`SkUiContentView.Content` or `SkUiLayout.Children`), do **not** allocate a MAUI handler or create a platform view for that child; measure / arrange use `IView`, paint / touch use `ISkUiView` on the parent’s shared surface.
+- [ ] **Hosted in SkiaUi tree:** when a **Skia-drawn** control is a child of another SkiaUi parent (`SkUiContentView.Content` or `SkUiLayout.Children`), do **not** allocate a MAUI handler or create a Skia platform view for that child; measure / arrange use `IView`, paint / touch use `ISkUiView` on the parent’s shared surface.
+- [ ] **`SkUiMauiContentView` exception:** when hosted, the wrapper still has no Skia surface of its own, but **must** create/manage the wrapped MAUI control’s handler and native overlay (FR-16).
 - [ ] Document how hosted vs standalone mode is detected and what that means for XAML nesting.
 
 ### FR-14 — `HwAccelerated` and custom handler
@@ -283,6 +306,40 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 - [ ] Standalone and hosted modes use the **same** gesture API and delivery rules; only the root host maps platform input into the tree.
 - [ ] Demo / gallery: passive label that becomes tappable via command/event; button that works without app handlers; `InputTransparent` pass-through sample.
 - [ ] Public XML docs describe opt-in vs intrinsic handling and that MAUI `GestureRecognizers` are not the SkiaUi gesture API.
+- [ ] Document that input over **`SkUiMauiContentView`** overlays is handled by the **native MAUI control**, not by FR-15 (hit-test / gestures skip or defer to the overlay region).
+
+### FR-16 — Host MAUI controls (`SkUiMauiContentView`)
+
+**Decision:** do **not** build custom Skia editors or a Skia WebView. Host real MAUI **`Entry`**, **`Editor`**, **`WebView`**, and other `VisualElement`s that need system components via a dedicated SkiaUi wrapper (DrawnUi `SkiaMauiElement` / Avalonia `NativeControlHost` / Flutter platform-view overlay pattern).
+
+**Rationale:** IME, accessibility, and browser engines are platform services; reimplementing them in Skia is high cost and lower quality. Overlay hosting keeps SkiaUi layouts fast while allowing drop-in use of existing MAUI controls inside `SkUiGrid` / other layouts.
+
+- [ ] Implement **`SkUiMauiContentView : SkUiView`** (`ISkUiView`) with **`Content`** (`VisualElement`) marked `[ContentProperty(nameof(Content))]`.
+- [ ] XAML works as a child of `SkUiLayout` / `SkUiContentView`, e.g. `<SkUiMauiContentView><Entry …/></SkUiMauiContentView>` and `<SkUiMauiContentView><WebView …/></SkUiMauiContentView>`; attached layout properties (`Grid.Row`, etc.) apply to the **`SkUiMauiContentView`**.
+- [ ] **Measure / arrange:** placeholder participates in the SkiaUi MAUI-based layout pipeline (FR-3a). Desired size comes from measuring the wrapped MAUI `IView` when a handler exists (and a documented fallback when not yet mapped).
+- [ ] **Native overlay:** create the wrapped element’s MAUI handler; add its platform view as a **sibling** of the standalone root’s Skia surface (same platform container). Sync position, size, transform, opacity, visibility, and clip to the placeholder’s arranged bounds (DIPs → platform pixels via the root).
+- [ ] **Lifecycle:** create / attach when the wrapper is in a tree with a standalone root that has a platform container; detach / dispose on removal or root teardown; update BindingContext from the wrapper to the wrapped element.
+- [ ] **Paint:** do not draw the live native control into `SKCanvas` while idle. **Snapshot-during-scroll (decided):** on **Android/Windows**, while an ancestor scroll/fling is active, capture a bitmap of the native view, hide it, and paint the snapshot on Skia until motion settles; on **Apple**, live-sync the overlay only (no snapshot). Provide a per-overlay **opt-out** for special cases (e.g. keep WebView live). Details: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#overlays-while-scrolling-fr-16).
+- [ ] **Input:** pointer / keyboard / IME go to the native control. SkiaUi hit-testing / FR-15 gestures must not steal those hits (treat overlay bounds as occupied by the native view).
+- [ ] **Z-order / clipping:** document and implement how overlays stack relative to later Skia siblings and how parent clips affect the native view (force clip where native WebView can paint outside bounds — Uno-style).
+- [ ] **Scope for v1 demos:** at least **`Entry`**, **`Editor`**, and **`WebView`** hosted under `SkUiGrid` (or equivalent) in the gallery; other `VisualElement`s (Picker, MediaElement, …) should work through the same API when handlers exist.
+- [ ] Explicitly **out of product scope:** `SkUiEntry`, `SkUiEditor`, `SkUiWebView` (and similar full Skia reimplementations of those controls).
+- [ ] Document cost: each hosted control is a real platform view; prefer few overlays, not one per collection cell, unless measured acceptable.
+- [ ] XML docs on `SkUiMauiContentView` describing overlay model, gesture boundary vs FR-15, and snapshot behavior.
+- [ ] Primary references: DrawnUi `SkiaMauiElement`; MAUI handlers for Entry / Editor / WebView; Flutter platform views / Avalonia `NativeControlHost` for composition tradeoffs.
+
+### FR-17 — Scrolling and collection views
+
+Design details and checklist: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md).
+
+**Decision:** implement **SkiaUi-owned** scroll and (later) virtualized lists on the shared surface. Do **not** treat MAUI `ScrollView` / `CollectionView` as the primary host for scrollable SkiaUi trees.
+
+- [ ] Implement **`SkUiScrollView`** with `Content` (`ISkUiView`), orientation, viewport clip, offset, pan/fling (FR-15 capture + FR-7 fling animation), and scroll APIs/events.
+- [ ] Measure content for full extent on the scroll axis; offset-only changes must not force content remeasure (FR-3a / NFR-2).
+- [ ] Sync **`SkUiMauiContentView`** overlays while scrolling; on Android/Windows apply FR-16 snapshot freeze (Apple live sync); honor opt-out.
+- [ ] Demo gallery: long content under `SkUiScrollView` (Skia-drawn + hosted Entry).
+- [ ] **Later:** virtualizing **`SkUiCollectionView`** (or equivalent) with `ItemsSource` / `ItemTemplate` and recycle pool on the shared surface — not MAUI `CollectionView` recycling.
+- [ ] Document MAUI `ScrollView`/`CollectionView` nesting as **compat only** (standalone cells keep `HwAccelerated = false` per FR-14).
 
 ## Non-functional requirements
 
@@ -293,7 +350,9 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 
 ### NFR-2 — Performance
 
-- Hot paint / touch paths minimize allocations.
+- Hot paint / touch / animation paths must be **as fast as possible**, especially while animating (~60 fps budget — FR-7 / [AnimationMechanism.md](AnimationMechanism.md)).
+- **Zero / near-zero allocation goal** on critical paths (measure, arrange, paint, touch, animator tick): avoid per-frame heap allocations (no LINQ/boxing/`string` work in the hot loop; reuse buffers; prefer structs / `span` / pooling).
+- Use **modern C# / .NET** techniques where they help throughput or GC pressure, including (when justified and safe) **`unsafe`**, pointers, `ref`/`ref struct`, `Span<T>` / `Memory<T>`, stackalloc, AggressiveInlining, and similar — constrained to well-reviewed hot paths.
 - Redraw only when invalidated; use a continuous render loop (`HasRenderLoop` or equivalent) only while animations (or other continuous scenarios) are active — see FR-7 and open decisions.
 - Layout passes should be avoidable when constraints and tree are unchanged.
 - **Selective Measure / Arrange:** call into a child `ISkUiView` only when that child (or its constraints / arranged bounds) actually needs work. Unchanged children must not be re-entered on every parent **layout** pass. Layouts re-measure / re-arrange only the dirty subset and reuse **cached measure** results.
@@ -301,16 +360,43 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 - Invalidation must be granular enough for selective **layout** (per-node dirty flags for size and arrangement). Paint invalidation coalesces to the root surface (FR-10).
 - **Transparency:** live paint walk must composite overlapping translucent nodes correctly (FR-8). “Expand dirty region / opaque cover blit” rules apply only if/when retained paint caches or partial-surface updates are introduced — not as a v1 prerequisite.
 
+**Implementation approach (correctness first, then max performance):**
+
+1. **Initial implementation** of a feature or critical path should use **simple, easy-to-understand** code so behavior is obvious and reviewable.
+2. Once **tests confirm** correctness, **optimize** that path toward **maximum performance** and **minimum memory allocation** (including `unsafe` / low-level techniques where profiling shows benefit).
+3. Do not ship clever/unsafe micro-optimizations before the simple version is covered by tests; keep optimized code as readable as practical and document non-obvious invariants.
+
 ### NFR-3 — Quality
 
 - Nullable reference types enabled.
-- Public API documented with XML comments.
+- Public API documented with XML comments (see also NFR-5).
 - Small, focused controls; composition via layouts rather than monolithic views.
+- Testing strategy (unit, mechanism, golden/visual, device): [Testing.md](Testing.md).
+
+### NFR-4 — Flexibility and reuse
+
+Design controls and shared infrastructure so they stay **easy to extend** and **hard to copy-paste**:
+
+- Prefer **virtual methods** (and protected overridable hooks) on `SkUiView` / layouts / layers so apps and derived controls can customize measure, arrange, paint phases, hit-testing, and similar without forking the type.
+- Prefer **interfaces** for pluggable behavior (e.g. background painters, animators, easing, layout managers, gesture participation) instead of sealing logic into concrete-only classes when multiple implementations are expected.
+- Extract **common parts** into reusable helpers or types — especially **background drawing** (rounded rect / border / fill), **animation** clock/animators (FR-7), layers (FR-9), clip helpers (FR-11), and similar chrome — so controls compose shared code rather than duplicating Skia paths and state machines.
+- Keep extension points documented (which methods/interfaces to override or implement) and stable enough for library consumers building custom `SkUi*` controls.
+- Balance with NFR-2: shared abstractions may start simple; after tests pass, optimize hot shared paths without removing the extension model.
+
+### NFR-5 — Documentation
+
+Ship **well-documented** library code and user-facing docs:
+
+- **Code:** XML comments on all public types and members. Add **inline comments for non-obvious** logic (invariants, performance tricks, `unsafe` blocks, hosted-vs-standalone quirks, intentional BindableProperty desync — FR-10). Do not comment the trivial.
+- **Per-control markdown:** each public control / layout (e.g. `SkUiLabel`, `SkUiGrid`, `SkUiScrollView`, `SkUiMauiContentView`) has its own **`.md`** file describing how it works and how to use it (XAML / C# samples, key properties, gestures, theming). Keep an index link from [README.md](README.md) (or a `docs/` / `docs/controls/` folder — choose one layout and stick to it).
+- **MAUI reimplementations:** when a `SkUi*` type is a near drop-in for a standard MAUI control or layout, **do not** restate the full MAUI feature encyclopedia. Prefer a short overview, then **link to the official MAUI documentation** for baseline behavior. **Must document SkiaUi differences and extensions** (API deltas, unsupported MAUI features, direct setters, layers, `HwAccelerated`, gesture model, performance notes, etc.).
+- **SkiaUi-specific / infrastructure types** (`SkUiView`, `SkUiContentView`, `SkUiLayout`, `SkUiMauiContentView`, mechanisms): fuller how-it-works docs are expected (may point at [LayoutSystem.md](LayoutSystem.md), [DrawingMechanism.md](DrawingMechanism.md), etc. for shared pipelines).
+- Keep control docs in sync when behavior or public API changes.
 
 ## Out of scope (for now)
 
-- Full design-system parity with native MAUI controls
-- Embedding MAUI views inside the SkiaUi tree
+- Full design-system parity with native MAUI controls for **Skia-drawn** copies (hosted MAUI Entry/Editor/WebView keep their native look via FR-16)
+- Custom Skia reimplementations of **Entry**, **Editor**, **WebView** (and similar IME/browser controls) — use `SkUiMauiContentView` instead (FR-16)
 - Blazor Hybrid / multi-project MAUI host
 - Software-only fallback host (unless needed when `HwAccelerated` is true but GL is unavailable — then fall back per Acceleration)
 - Using MAUI `GestureRecognizers` / `GesturePlatformManager` as the gesture system for SkiaUi trees (optional future compatibility bridge only — see [EventMechanism.md](EventMechanism.md))
@@ -326,7 +412,7 @@ Use these local checkouts when designing or implementing SkiaUi (layout, input, 
 | Flutter | `/Users/rkukla/devel/flutter` | Optional: paint / compositor `Layer` ideas only — **not** the SkiaUi layout contract |
 | Avalonia | `/Users/rkukla/devel/Avalonia` | Visual tree, `Border`/`ContentPresenter` composition, Composition visuals for opacity/transform layers |
 | Uno Platform | `/Users/rkukla/devel/uno` | Cross-platform control/layout; Border/ContentControl and ControlTemplate part patterns |
-| DrawnUi (MAUI) | `/Users/rkukla/devel/maui/drawnui` | Skia-drawn MAUI controls; `SkiaControl` child trees for composed drawn UI |
+| DrawnUi (MAUI) | `/Users/rkukla/devel/maui/drawnui` | Skia-drawn MAUI controls; **`SkiaMauiElement`** native overlay + snapshot pattern (FR-16); `SkiaControl` child trees |
 | SkiaSharp | `/Users/rkukla/devel/maui/SkiaSharp` | SkiaSharp / `SKGLView` APIs, MAUI views, paint surface, GPU hosting |
 
 When borrowing an idea, note the source briefly in design discussion or code comments where non-obvious.
@@ -334,8 +420,9 @@ When borrowing an idea, note the source briefly in design discussion or code com
 ## Open decisions
 
 - Exact method signatures for **`ISkUiView.Paint`** and **raw touch handling** (Skia canvas / paint args; touch event type and return value); Measure/Arrange remain MAUI `IView` APIs (FR-3a). Remaining paint/layer API naming: [DrawingMechanism.md](DrawingMechanism.md). High-level gestures are specified under FR-15 / [EventMechanism.md](EventMechanism.md); remaining open items there include bubbling vs tunneling, multi-touch, and exact public API names.
-- Hit-test / touch **capture** and multi-touch details beyond FR-15’s single-pointer gesture set (default hit region remains arranged bounds per FR-11).
-- **Animation render loop:** Should a HW-accelerated root host set `HasRenderLoop = true` whenever any descendant has an active animation? If yes, how do we avoid re-measuring **non-animated** children on every frame (layout dirty flags)? Paint may full-walk each animation frame in v1; sibling paint caches only if profiling requires. When the last animation ends, must `HasRenderLoop` turn back off automatically?
+- Hit-test / touch **capture** and multi-touch details beyond FR-15’s single-pointer gesture set (default hit region remains arranged bounds per FR-11). Scroll needs capture for pan — see [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md).
+- Exact public names for animation helpers / `ISkUiAnimator` (tier APIs sketched in [AnimationMechanism.md](AnimationMechanism.md)).
+- Scroll v1 details still open in [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md): overscroll (clamp vs bounce), both-axes in v1, nested scroll rules, collection-as-scroll vs outer `SkUiScrollView` extent provider; snapshot opt-out property name.
 
 ## Decided
 
@@ -346,13 +433,22 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - **Theming (FR-12):** use **MAUI styles** (`Style`, resource dictionaries, `VisualStateManager` as applicable) on `BindableProperty`s — no separate SkiaUi theme system.
 - **Properties — BindableProperty + direct setters (FR-10):** use `BindableProperty` for near drop-in MAUI / XAML / binding parity. Also expose fluent direct setters (e.g. `SetBackgroundColor`) that update control state; bindable property changed callbacks **call** those setters. Direct setters **do not** update the `BindableProperty` (intentional desync risk when bypassing bindings) — **must be stated clearly in documentation**. Both paths honor `StartUpdating()` / `EndUpdating()` semi-transactions: defer measure/draw invalidation until `EndUpdating()`.
 - **Coordinate system:** same as MAUI — `ISkUiView` sizes, positions, and touch coordinates use MAUI device-independent units (DIPs) and the same density semantics as the host; `SkUiContentView` maps to/from the Skia pixel surface as an implementation detail of the bridge.
-- **Public type naming:** `SkUi*` (e.g. `SkUiView`, `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, `SkUiLabel`, `ISkUiView`). Package / project name remains `MauiSkiaUi`.
+- **Public type naming:** `SkUi*` (e.g. `SkUiView`, `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, `SkUiLabel`, `SkUiMauiContentView`, `ISkUiView`). Package / project name remains `MauiSkiaUi`.
 - **NuGet:** publish **`MauiSkiaUi`** as a NuGet package; **`MauiSkiaUiDemo`** is in-repo only (not published).
 - **Drawing layers (FR-9) — Option A:** dedicated layer structure (Background / Content / Overlay paint phases on the control), not nested `ISkUiView` hosts for chrome. Layers need the owning control’s data (e.g. table/grid draws Background **lines** from its own row/column measurements). Nested hosting remains for layout `Children` only. Toolkit notes (Flutter composition vs engine `Layer` tree, Avalonia/Uno templates, DrawnUi child trees) stay relevant as reference for caching/reuse, not as the chosen chrome model. Concrete layer API names — still TBD during implementation. Paint pipeline, clip, and transparency: [DrawingMechanism.md](DrawingMechanism.md).
+- **Code performance (NFR-2):** critical paths (especially animation tick + paint) aim for **maximum speed** and **zero / near-zero allocations**, using modern C#/.NET techniques including **`unsafe`** where justified. **Correctness-first workflow:** ship simple, readable code first; after tests confirm behavior, optimize for max performance and min allocations.
+- **Flexibility and reuse (NFR-4):** extensible controls via **virtual hooks** and **interfaces**; shared building blocks for background drawing, animations, layers, and similar — avoid copy-paste chrome.
+- **Documentation (NFR-5):** XML + comments for non-obvious code; **one `.md` per control** (how it works / how to use). MAUI reimplementations: link to official MAUI docs for baseline behavior; document **differences and extensions** only (do not duplicate full MAUI manuals).
 - **Paint caching (NFR-2) — full-tree redraw in v1:** on surface invalidate, clear and **repaint the full hosted tree**. No default per-node retained bitmaps (memory cost; DrawnUi/Avalonia default cache off; SkiaSharp GL presents do not reliably retain pixels). Selective **measure/arrange** remains required. Opt-in `Picture` / `Image` cache later when profiling shows asymmetric dirty. Details: [DrawingMechanism.md](DrawingMechanism.md).
 - **Gestures (FR-15) — SkiaUi-owned:** do **not** use MAUI `GestureRecognizers` as the primary API for the drawn tree. Shared tap / double-tap / long-press / swipe classification and delivery live on **`SkUiView`** for all controls. Passive-by-default (e.g. label) vs intrinsic handlers (e.g. button); honor `InputTransparent`. Details: [EventMechanism.md](EventMechanism.md).
 - **Clip vs hit-test (FR-11):** clip/mask/rounded corners affect **paint** only by default. Hit-testing uses **arranged bounds** (iOS / Android / MAUI-like). Shape-aware hit-testing is optional/future opt-in, not v1 default.
+- **Animation (FR-7):** vsync-driven root registry (`HasRenderLoop` while active); **time-based** progress; v1 = paint + **render transforms** (no layout dirty); layout animation optional/later. Details: [AnimationMechanism.md](AnimationMechanism.md).
+- **MAUI control hosting (FR-16):** no custom Skia `SkUiEntry` / `SkUiEditor` / `SkUiWebView`. Host real MAUI `Entry`, `Editor`, `WebView`, and other `VisualElement`s via **`SkUiMauiContentView`**: `ISkUiView` placeholder in the SkiaUi tree; native platform view overlaid on the standalone root’s container and synced to arranged bounds (DrawnUi `SkiaMauiElement` pattern). Content property is **`Content`** (`VisualElement`, `[ContentProperty]`). Input stays with the native control; FR-15 does not own overlay hits.
+- **Snapshot-during-scroll (FR-16 / FR-17):** while an ancestor scroll/fling is active, **Android and Windows** use **snapshot freeze** by default (hide native overlay, paint bitmap on Skia until motion settles); **Apple** uses **live sync only**. Apps may **opt out** per overlay for special cases (e.g. keep WebView live). Details: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#overlays-while-scrolling-fr-16).
+- **Scrolling / collections (FR-17):** implement **`SkUiScrollView`** (and later a virtualizing collection) **inside** the SkiaUi tree on the shared surface. Do **not** use MAUI `ScrollView` / `CollectionView` as the primary composition model for scrollable SkiaUi UI. Nesting standalone `SkUi*` under MAUI scrollers remains a documented compat path only. Details: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md).
 
 ## Tracking
 
 When a requirement is completed, check it off here and summarize the delivered behavior in [README.md](README.md).
+
+Delivery order and phase exit criteria: **[ImplementationPlan.md](ImplementationPlan.md)** (Phase 0 PoC → Phase 1 initial controls → Phase 2 gallery/docs → Phase 3 extensions).
