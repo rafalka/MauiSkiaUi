@@ -125,9 +125,9 @@ FR-4–6, FR-5 gallery, FR-12, FR-16, NFR-5, remaining layout FR-3 / FR-3a cover
 | Extension | Notes |
 | --- | --- |
 | **`SkUiLabel` with rounded-rectangle border** | Prefer composing **`SkUiBorder`** + Label (or Border content); document vs MAUI Label (NFR-5) |
-| **`SkUiExpander`** | MCT-like header + collapsible content (~85 Expander uses in ThinkTime) |
-| **`SkUiStateContainer`** | MCT-like loading / empty / error / success switching (~91 StateContainer uses in ThinkTime) |
-| **`SkUiSwipeView`** | List-row swipe actions; needs FR-15 capture (~22 SwipeView uses in ThinkTime) |
+| **`SkUiExpander`** | MCT-like header + collapsible content |
+| **`SkUiStateContainer`** | MCT-like loading / empty / error / success switching |
+| **`SkUiSwipeView`** | List-row swipe actions; needs FR-15 capture |
 
 Further extensions are added here as they are decided.
 

@@ -24,7 +24,31 @@
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+
+		<!-- NuGet -->
+		<IsPackable>true</IsPackable>
+		<PackageId>MauiSkiaUi</PackageId>
+		<Version>1.0.0-Prelease01</Version>
+		<Authors>Rafal Kukla</Authors>
+		<Company>Rafal Kukla</Company>
+		<Copyright>Copyright © Rafal Kukla</Copyright>
+		<Description>SkiaSharp-drawn .NET MAUI controls and layouts (SkUi*) with GPU-accelerated hosting, XAML composition, and optional native MAUI overlay hosting for Entry, Editor, WebView, and similar.</Description>
+		<PackageTags>maui;skiasharp;skia;ui;controls;layouts;gpu;xaml</PackageTags>
+		<PackageProjectUrl>https://github.com/rafalka/MauiSkiaUi</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/rafalka/MauiSkiaUi</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<InternalsVisibleTo Include="MauiSkiaUi.Tests" />

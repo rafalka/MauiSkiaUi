@@ -131,7 +131,7 @@ SkiaUi’s measure / layout pipeline must follow the **.NET MAUI layout system**
 - Prefer reusing or porting MAUI layout-manager logic into SkiaUi layouts over reimplementing Flutter-style constraint solvers.
 - Selective invalidation still applies: a dirty subtree should not force unrelated siblings to remeasure when their available size and content are unchanged.
 
-Primary reference: .NET MAUI layout (`Layout`, layout managers, `IView.Measure` / arrange) under the local MAUI checkout. Flutter remains useful for paint/compositor ideas only — **not** for the layout contract.
+Primary reference: .NET MAUI layout (`Layout`, layout managers, `IView.Measure` / arrange) in [dotnet/maui](https://github.com/dotnet/maui). Flutter remains useful for paint/compositor ideas only — **not** for the layout contract.
 
 ### XAML object model
 
@@ -414,17 +414,17 @@ Ship **well-documented** library code and user-facing docs:
 
 ## Reference sources
 
-Use these local checkouts when designing or implementing SkiaUi (layout, input, XAML, rendering patterns). Prefer patterns that fit the `SkUiContentView` → `ISkUiView` model; do not copy frameworks wholesale.
+Use these public repositories when designing or implementing SkiaUi (layout, input, XAML, rendering patterns). Prefer patterns that fit the `SkUiContentView` → `ISkUiView` model; do not copy frameworks wholesale.
 
-| Framework | Local path | Typical relevance |
+| Framework | URL | Typical relevance |
 | --- | --- | --- |
-| .NET MAUI | `/Users/rkukla/devel/maui/maui` | **Primary layout model:** `IView` measure/arrange, layout managers, XAML/`ContentProperty`, gesture/handler patterns; control API parity |
-| Open-Maui | `/Users/rkukla/devel/maui-linux` | MAUI-compatible stack / Linux and alternate host patterns |
-| Flutter | `/Users/rkukla/devel/flutter` | Optional: paint / compositor `Layer` ideas only — **not** the SkiaUi layout contract |
-| Avalonia | `/Users/rkukla/devel/Avalonia` | Visual tree, `Border`/`ContentPresenter` composition, Composition visuals for opacity/transform layers |
-| Uno Platform | `/Users/rkukla/devel/uno` | Cross-platform control/layout; Border/ContentControl and ControlTemplate part patterns |
-| DrawnUi (MAUI) | `/Users/rkukla/devel/maui/drawnui` | Skia-drawn MAUI controls; **`SkiaMauiElement`** native overlay + snapshot pattern (FR-16); `SkiaControl` child trees |
-| SkiaSharp | `/Users/rkukla/devel/maui/SkiaSharp` | SkiaSharp / `SKGLView` APIs, MAUI views, paint surface, GPU hosting |
+| .NET MAUI | https://github.com/dotnet/maui | **Primary layout model:** `IView` measure/arrange, layout managers, XAML/`ContentProperty`, gesture/handler patterns; control API parity |
+| Open-Maui | https://github.com/open-maui/maui-linux | MAUI-compatible stack / Linux and alternate host patterns |
+| Flutter | https://github.com/flutter/flutter | Optional: paint / compositor `Layer` ideas only — **not** the SkiaUi layout contract |
+| Avalonia | https://github.com/AvaloniaUI/Avalonia | Visual tree, `Border`/`ContentPresenter` composition, Composition visuals for opacity/transform layers |
+| Uno Platform | https://github.com/unoplatform/uno | Cross-platform control/layout; Border/ContentControl and ControlTemplate part patterns |
+| DrawnUi (MAUI) | https://github.com/taublast/drawnui | Skia-drawn MAUI controls; **`SkiaMauiElement`** native overlay + snapshot pattern (FR-16); `SkiaControl` child trees |
+| SkiaSharp | https://github.com/mono/SkiaSharp | SkiaSharp / `SKGLView` APIs, MAUI views, paint surface, GPU hosting |
 
 When borrowing an idea, note the source briefly in design discussion or code comments where non-obvious.
 

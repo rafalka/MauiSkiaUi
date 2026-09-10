@@ -78,7 +78,7 @@ Use [`scripts/device_verify.sh`](scripts/device_verify.sh) to select a simulator
 ./scripts/device_verify.sh -p android --screenshot      # launch + save PNG under tmp/screenshots
 ```
 
-Device selection mirrors `runsim.sh` / ThinkTime `build_and_upload.sh` (numbered list, substring match on name/serial/UDID/AVD). After launch, work through the printed checklist by hand — this path does **not** connect a DevFlow agent. Prefer it whenever VS Code DevFlow is blocked (`MSB4099`, empty agents, missing `adb reverse`, etc.); see step 6 below.
+Device selection mirrors `runsim.sh`-style UX (numbered list, substring match on name/serial/UDID/AVD). After launch, work through the printed checklist by hand — this path does **not** connect a DevFlow agent. Prefer it whenever VS Code DevFlow is blocked (`MSB4099`, empty agents, missing `adb reverse`, etc.); see step 6 below.
 
 ### 1. Get a connected DevFlow agent (VS Code)
 
@@ -318,7 +318,7 @@ Keep this layer **small**; Skia tree correctness should mostly be proven offscre
 | **SkiaSharp** | In-process scenes across backends | Golden PNG matrix per renderer; tolerance; harvest unseeded goldens from CI | Same graphics stack we paint with — reuse comparison ideas |
 | **.NET MAUI** | Unit tests for non-UI; limited in-proc UI | Appium UITests + `VerifyScreenshot` baselines per platform | Use for **host app / overlays**, not primary Skia tree tests |
 | **Uno Platform** | RuntimeTests in-app; Uno.UITest out-of-proc | `TakeScreenshot` + `ImageAssert`; CI sample snapshot comparer (XOR diffs) | Gallery screenshot matrix is a good **semi-automated** pattern |
-| **DrawnUi** | Demo / manual gallery heavy | No first-class public golden harness analogous to Flutter/Avalonia (as of our reference checkout) | SkiaUi should **not** rely on demo-only verification |
+| **DrawnUi** | Demo / manual gallery heavy | No first-class public golden harness analogous to Flutter/Avalonia | SkiaUi should **not** rely on demo-only verification |
 
 **Takeaway:** frameworks that own a retained or immediate Skia/compositor tree almost always add **offscreen render + baseline images**. Frameworks that own platform views lean on **Appium screenshots**. SkiaUi should do **both**, with weight on the former.
 

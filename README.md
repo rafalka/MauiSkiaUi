@@ -154,7 +154,7 @@ In VS Code, select **.NET MAUI: Select Startup Project > MauiSkiaUiDemo**, choos
 ## Documentation
 
 - **README.md** (this file) — what exists today and how to build it.
-- **[Requirements.md](Requirements.md)** — goals, architecture, XAML model, backlog, and local reference checkouts (MAUI, Open-Maui, Flutter, Avalonia, Uno, DrawnUi, SkiaSharp).
+- **[Requirements.md](Requirements.md)** — goals, architecture, XAML model, backlog, and public reference repositories (MAUI, Open-Maui, Flutter, Avalonia, Uno, DrawnUi, SkiaSharp).
 - **[ImplementationPlan.md](ImplementationPlan.md)** — phased delivery (PoC → initial → full gallery/docs → extensions).
 - **[LayoutSystem.md](LayoutSystem.md)** — MAUI-based measure/arrange, hosted vs standalone modes, layout-manager reuse, and implementation checklist (FR-3 / FR-3a / FR-13).
 - **[DrawingMechanism.md](DrawingMechanism.md)** — paint pipeline, Background/Content/Overlay layers, clip/mask, transparency-aware caching, and implementation checklist (FR-8 / FR-9 / FR-11).
@@ -166,4 +166,4 @@ In VS Code, select **.NET MAUI: Select Startup Project > MauiSkiaUiDemo**, choos
 
 ## License
 
-Not specified yet.
+[MIT](LICENSE)

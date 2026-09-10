@@ -4,7 +4,7 @@
 # simulator/device, or Mac Catalyst — then print the Testing.md device checklist
 # for manual verification outside VS Code / DevFlow MCP.
 #
-# Device selection UX mirrors runsim.sh / ThinkTime build_and_upload.sh.
+# Device selection UX mirrors runsim.sh-style interactive pickers.
 #
 set -euo pipefail
 
