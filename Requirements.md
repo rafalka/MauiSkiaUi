@@ -157,28 +157,30 @@ Primary reference: .NET MAUI layout (`Layout`, layout managers, `IView.Measure` 
 
 ### FR-1 — Core bridge and contract
 
-- [ ] Define **`ISkUiView : IView`** adding **Paint** and **Touch** handling; Measure/Arrange come from `IView`.
-- [ ] Implement **`SkUiView`** as the base class implementing `ISkUiView` (shared invalidation, update batching, layers hooks); **not** derived from `SKGLView`.
-- [ ] Implement **`SkUiContentView : SkUiView`** with **`Content`** (`ISkUiView`) and `[ContentProperty(nameof(Content))]`; default **`HwAccelerated = true`**.
-- [ ] Implement **`SkUiLayout : SkUiView`** with **`Children`** (`IList<ISkUiView>`) and `[ContentProperty(nameof(Children))]`; all layouts derive from `SkUiLayout`; default **`HwAccelerated = true`**.
-- [ ] Other controls deriving from `SkUiView` default **`HwAccelerated = false`**.
-- [ ] Provide a **custom MAUI handler** for `SkUiView` that creates a GL or software Skia platform view based on `HwAccelerated`.
-- [ ] Wire standalone-host paint / touch / size changes to the tree via `IView` measure/arrange and `ISkUiView` paint/touch.
-- [ ] Register SkiaSharp / SkiaUi handlers from a library entry point; demo calls it from `MauiProgram`.
-- [ ] Remove template placeholders (`Class1`, platform stubs) once the public API exists.
-- [ ] XML docs on all public types and members.
+- [x] Define **`ISkUiView : IView`** adding **Paint** and **Touch** handling; Measure/Arrange come from `IView`.
+- [x] Implement **`SkUiView`** as the base class implementing `ISkUiView` (shared invalidation, update batching, layers hooks); **not** derived from `SKGLView`.
+- [x] Implement **`SkUiContentView : SkUiView`** with **`Content`** (`ISkUiView`) and `[ContentProperty(nameof(Content))]`; default **`HwAccelerated = true`**.
+- [x] Implement **`SkUiLayout : SkUiView`** with **`Children`** (`IList<ISkUiView>`) and `[ContentProperty(nameof(Children))]`; all layouts derive from `SkUiLayout`; default **`HwAccelerated = true`**.
+- [x] Other controls deriving from `SkUiView` default **`HwAccelerated = false`**.
+- [x] Provide a **custom MAUI handler** for `SkUiView` that creates a GL or software Skia platform view based on `HwAccelerated`.
+- [x] Wire standalone-host paint / touch / size changes to the tree via `IView` measure/arrange and `ISkUiView` paint/touch.
+- [x] Register SkiaSharp / SkiaUi handlers from a library entry point; demo calls it from `MauiProgram`.
+- [x] Remove template placeholders (`Class1`, platform stubs) once the public API exists.
+- [x] XML docs on all public types and members.
+
+Phase 0 code is implemented; platform compilation is checked, but device-level verification remains open (see README).
 
 ### FR-2 — XAML composition
 
-- [ ] Entire SkiaUi subtree under `SkUiContentView` can be authored in XAML (nested layouts and controls).
+- [x] Entire SkiaUi subtree under `SkUiContentView` can be authored in XAML (nested layouts and controls).
 - [ ] Layouts use a content-property child collection so markup like `<SkUiGrid><SkUiLabel .../></SkUiGrid>` works.
-- [ ] Demo (or sample page) shows the target markup pattern with MAUI parents outside and SkiaUi inside the bridge.
-- [ ] Document the `xmlns` to use for `MauiSkiaUi` types.
+- [x] Demo (or sample page) shows the target markup pattern with MAUI parents outside and SkiaUi inside the bridge.
+- [x] Document the `xmlns` to use for `MauiSkiaUi` types.
 
 ### FR-3 — Base layout primitives
 
 - [ ] Implement at least one concrete **`SkUiLayout`** subclass suitable for XAML nesting (e.g. `SkUiGrid` or stack) that measures / arranges `Children` and paints / hit-tests them in z-order.
-- [ ] Clear invalidation rules: property or structure changes request redraw (and remeasure when needed).
+- [x] Clear invalidation rules: property or structure changes request redraw (and remeasure when needed).
 - [ ] Layouts dirty-track children so only the affected subset is re-measured, re-laid out, or re-painted; unchanged siblings keep cached measure results and cached painted bitmaps (see NFR-2).
 
 ### FR-3a — MAUI-based layout system
@@ -190,7 +192,7 @@ Design and checklist: [LayoutSystem.md](LayoutSystem.md).
 - [ ] Changing a child’s offset alone must not require that child to remeasure or repaint when its size and visual content are unchanged.
 - [ ] Document how SkiaUi layouts map to MAUI layout managers / attached properties (Grid row/column, stack orientation, etc.).
 - [ ] Do **not** use Flutter `BoxConstraints` / constraints-down–sizes-up as the layout contract; Flutter refs are optional for paint/compositor patterns only.
-- [ ] **`SkUiView.MeasureOverride` / `ArrangeOverride`** work with **`Handler == null`** (hosted mode); do not rely on `ComputeDesiredSize`’s handler path. Invalidation propagates without a platform handler (see LayoutSystem.md).
+- [x] **`SkUiView.MeasureOverride` / `ArrangeOverride`** work with **`Handler == null`** (hosted mode); do not rely on `ComputeDesiredSize`’s handler path. Invalidation propagates without a platform handler (see LayoutSystem.md).
 
 ### FR-4 — Base controls
 

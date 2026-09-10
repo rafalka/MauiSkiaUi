@@ -30,8 +30,10 @@ Phased delivery plan for [Requirements.md](Requirements.md). Design details live
 ### Exit criteria
 
 - [ ] Demo page runs on at least one primary target (Android or Apple).
-- [ ] Automated tests cover paint, layout, events, and animation smoke paths.
+- [x] Automated tests cover paint, layout, events, and animation smoke paths.
 - [ ] Decision: core pipeline is viable → proceed to Phase 1 (or adjust architecture if not).
+
+**Implementation status (2026-09-10):** core contract, custom GPU/software handler, content host, minimal overlay layout, box/ellipse/line primitives, tap capture, frame-driven animation, and XAML demo are implemented. The 19 headless mechanism tests pass; Android/iOS/Mac Catalyst diagnostic builds pass. A manual Mac launch was reported, but automated device verification is blocked by the installed MAUI extension's `MauiDevFlow.targets` (`MSB4099` during package injection). Keep the device and viability gates open until the rendered surface, native taps, animation/idle transitions, and contrast are verified. See README for the exact Phase 0 limits.
 
 ### Maps to requirements (partial)
 
@@ -143,7 +145,7 @@ Further extensions are added here as they are decided.
 
 | Phase | Status |
 | --- | --- |
-| 0 — Proof of concept | **Not started** |
+| 0 — Proof of concept | **Implemented; device verification blocked by MAUI extension** |
 | 1 — Initial implementation | Not started |
 | 2 — Actual implementation | Not started |
 | 3 — Extensions | Not started (backlog: Label + round-rect border) |

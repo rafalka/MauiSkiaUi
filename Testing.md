@@ -4,6 +4,22 @@ How we plan to verify **unit behavior** and **core mechanisms** (layout, paint, 
 
 Aligns with [Requirements.md](Requirements.md) (especially NFR-2 correctness-first → optimize), [LayoutSystem.md](LayoutSystem.md), [DrawingMechanism.md](DrawingMechanism.md), [AnimationMechanism.md](AnimationMechanism.md), and [EventMechanism.md](EventMechanism.md).
 
+## Phase 0 implementation
+
+Run `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj`. The library's plain `net10.0` target shares the actual node/layout/paint/input/clock sources with the device targets; only the native handler and builder registration are platform-conditional. Tests use real MAUI views without handlers and CPU Skia bitmaps, not replacement view mocks.
+
+The 19 cases cover primitive pixels, transparent regions, layer order, alpha/z-order composition, transform-aware hits, MAUI margins/alignment, selective measure/arrange, binding context and ownership, batching, passive/transparent/disabled hit rules, capture cancellation/removal, and animation progress/repeat/cancellation/idle behavior. Clock tests never sleep. Interior pixels are exact; antialiased edge baselines and font goldens remain later work.
+
+Device verification checklist for the Phase 0 demo:
+
+- Launch on Android or Apple; confirm the box, ellipse, line, and software strip appear.
+- Inspect `Scene` and hosted descendants: non-zero bounds; only `Scene` and `SoftwareSample` own handlers.
+- Tap the box/ellipse through native input; verify `TapStatus` increments and the fill changes.
+- Replay animation; verify intermediate transforms change, then `AnimationStatus` returns to `Idle` and the root clock/render loop stops.
+- Inspect rendered native label/button colors and a screenshot, including a compact viewport.
+
+On 2026-09-10 all 19 headless tests and Android/iOS/Mac Catalyst diagnostic builds passed. Automated device inspection is currently blocked by `MSB4099` in the installed MAUI extension's DevFlow injection targets; no screenshot, contrast, or GPU frame-rate result is claimed. The Phase 0 device exit gate remains open.
+
 ## Goals
 
 1. **Gate correctness before performance work** (NFR-2): simple implementations ship with tests; optimizations must not change observable behavior.

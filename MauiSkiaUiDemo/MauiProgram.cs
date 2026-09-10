@@ -1,4 +1,8 @@
 ﻿using Microsoft.Extensions.Logging;
+using MauiSkiaUi;
+#if MAUI_DEVFLOW
+using Microsoft.Maui.DevFlow.Agent;
+#endif
 
 namespace MauiSkiaUiDemo;
 
@@ -9,11 +13,16 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
+			.UseSkiaUi()
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
 				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
 			});
+
+#if MAUI_DEVFLOW
+		builder.AddMauiDevFlowAgent();
+#endif
 
 #if DEBUG
 		builder.Logging.AddDebug();
