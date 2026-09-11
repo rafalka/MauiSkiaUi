@@ -16,6 +16,8 @@ public class SkUiView : View, ISkUiView
     private int _updateDepth;
     private bool _paintPending;
     private bool _layoutPending;
+    private int _diagnosticRecordFrameCount;
+    private double _diagnosticRecordFrameTotalMs;
     private long? _pressedPointer;
     private Point _pressPosition;
     private bool _tapCancelled;
@@ -84,6 +86,34 @@ public class SkUiView : View, ISkUiView
                 throw new InvalidOperationException("HwAccelerated must be set before handler creation.");
             _hwAccelerated = value;
         }
+    }
+
+    /// <summary>
+    /// Number of UI-thread <c>SKPicture</c> recordings since the last
+    /// <see cref="ResetDiagnosticRecordStats"/> call. Used by the stress harness.
+    /// </summary>
+    internal int DiagnosticRecordFrameCount => _diagnosticRecordFrameCount;
+
+    /// <summary>
+    /// Cumulative milliseconds spent in UI-thread picture recording since the last
+    /// <see cref="ResetDiagnosticRecordStats"/> call.
+    /// </summary>
+    internal double DiagnosticRecordFrameTotalMs => _diagnosticRecordFrameTotalMs;
+
+    /// <summary>Clears cumulative UI-thread record-frame diagnostics.</summary>
+    internal void ResetDiagnosticRecordStats()
+    {
+        _diagnosticRecordFrameCount = 0;
+        _diagnosticRecordFrameTotalMs = 0;
+    }
+
+    /// <summary>Records one UI-thread picture-recording sample for diagnostics.</summary>
+    internal void NoteDiagnosticRecordFrame(double milliseconds)
+    {
+        if (milliseconds < 0 || double.IsNaN(milliseconds) || double.IsInfinity(milliseconds))
+            return;
+        _diagnosticRecordFrameCount++;
+        _diagnosticRecordFrameTotalMs += milliseconds;
     }
 
     /// <inheritdoc />

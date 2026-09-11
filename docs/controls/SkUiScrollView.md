@@ -6,7 +6,7 @@ Single-surface scroller with pan, fling, wheel, and programmatic scroll APIs.
 
 ## How it works
 
-Extends [`SkUiContentView`](SkUiContentView.md). Measures content unconstrained on enabled axes. Offset changes rearrange content without remeasuring. Pan (>10 DIP) cancels child taps. Fling uses the shared animation clock.
+Extends [`SkUiContentView`](SkUiContentView.md). Measures content unconstrained on enabled axes. **Offset changes invalidate paint only** — content keeps a stable arranged frame and scroll is applied as a canvas/touch translation (so scrolling does not rearrange the hosted subtree every frame). Pan (>10 DIP) cancels child taps. Fling uses the shared animation clock.
 
 
 ## Shared conventions

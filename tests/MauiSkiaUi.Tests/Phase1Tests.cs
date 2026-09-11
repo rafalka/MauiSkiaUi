@@ -285,7 +285,8 @@ public class Phase1Tests(ITestOutputHelper output)
         scroll.ScrollTo(900, 900);
         Assert.Equal(300, scroll.ScrollX);
         Assert.Equal(450, scroll.ScrollY);
-        Assert.Equal(new Rect(-300, -450, 400, 600), child.Frame);
+        // Offset is applied in paint/touch only; arranged frame stays at the content origin.
+        Assert.Equal(new Rect(0, 0, 400, 600), child.Frame);
         Assert.Equal(count, child.Measures);
         scroll.ScrollTo(-1, -1);
         Assert.Equal(0, scroll.ScrollY);

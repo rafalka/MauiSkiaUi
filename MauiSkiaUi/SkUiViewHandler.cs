@@ -26,6 +26,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     private SkUiFrameRenderer? _renderer;
     private TimeSpan _clockOffset;
     private SkUiOverlayContainer? _container;
+    private int _animationVsyncQueued;
 
     private static readonly IPropertyMapper<SkUiView, SkUiViewHandler> SkiaMapper = CreateMapper();
 
@@ -83,7 +84,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     {
         base.ConnectHandler(platformView);
         _renderer = new SkUiFrameRenderer(VirtualView,
-            action => VirtualView.Dispatcher.Dispatch(action), InvalidateSurface, TickAnimation);
+            action => VirtualView.Dispatcher.Dispatch(action), InvalidateSurface, beforePaint: static () => { });
         VirtualView.AnimationClock.RunningChanged += OnRunningChanged;
         VirtualView.Loaded += OnLoaded;
         VirtualView.Unloaded += OnUnloaded;
@@ -197,14 +198,19 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         {
             _clockOffset = clock.FrameTime;
             _animationTime.Restart();
+            if (_surface is SKGLView gpu)
+                gpu.HasRenderLoop = true;
+            // Drive the first tick from the surface cadence; do not force a full RecordFrame here.
+            ScheduleAnimationVsync();
         }
         else
         {
             _animationTime.Stop();
+            if (_surface is SKGLView gpu)
+                gpu.HasRenderLoop = false;
+            // Final present after the last animator stops (e.g. settle on final scroll offset).
+            QueueFrame();
         }
-        if (_surface is SKGLView gpu)
-            gpu.HasRenderLoop = clock.IsRunning;
-        QueueFrame();
     }
 
     private void QueueFrame() => _renderer?.RequestFrame();
@@ -214,6 +220,30 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         var clock = VirtualView.AnimationClock;
         if (clock.IsRunning)
             clock.Tick(_clockOffset + _animationTime.Elapsed);
+    }
+
+    /// <summary>
+    /// Coalesces animation ticks onto the UI dispatcher. Tick may InvalidatePaint (record once);
+    /// we do not call <see cref="QueueFrame"/> after every present — that was saturating the UI thread
+    /// with full-tree records while <c>HasRenderLoop</c> fired.
+    /// </summary>
+    private void ScheduleAnimationVsync()
+    {
+        if (Interlocked.Exchange(ref _animationVsyncQueued, 1) == 1)
+            return;
+        VirtualView.Dispatcher.Dispatch(OnAnimationVsync);
+    }
+
+    private void OnAnimationVsync()
+    {
+        Interlocked.Exchange(ref _animationVsyncQueued, 0);
+        if (_renderer is null || !_animationTime.IsRunning)
+            return;
+        TickAnimation();
+        // Software surfaces have no HasRenderLoop; keep presenting so the next tick can run.
+        // GL continues via HasRenderLoop. Record happens only when Tick invalidates paint.
+        if (_animationTime.IsRunning && _surface is SKCanvasView)
+            InvalidateSurface();
     }
 
     private void InvalidateSurface()
@@ -232,7 +262,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     {
         _renderer?.Replay(canvas, info);
         if (_animationTime.IsRunning)
-            QueueFrame();
+            ScheduleAnimationVsync();
     }
 
     private void OnTouch(object? sender, SKTouchEventArgs args)

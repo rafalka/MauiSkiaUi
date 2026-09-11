@@ -73,8 +73,9 @@ public partial class SkUiMauiContentView : SkUiView
 
     /// <summary>
     /// Root-relative arranged bounds: this node's <see cref="IView.Frame"/> plus every ancestor's Frame and
-    /// translation offsets up to (excluding) the standalone root. See the type-level remarks for the
-    /// rotation/scale/opacity limit.
+    /// translation offsets up to (excluding) the standalone root. Scroll offsets on ancestor
+    /// <see cref="SkUiScrollView"/> nodes are subtracted so overlays track painted content. See the type-level
+    /// remarks for the rotation/scale/opacity limit.
     /// </summary>
     internal Rect ComputeRootRelativeFrame()
     {
@@ -83,9 +84,17 @@ public partial class SkUiMauiContentView : SkUiView
         {
             x += ancestor.Frame.X + ancestor.TranslationX;
             y += ancestor.Frame.Y + ancestor.TranslationY;
+            if (ancestor is SkUiScrollView scroll)
+            {
+                x -= scroll.ScrollX;
+                y -= scroll.ScrollY;
+            }
         }
         return new Rect(x, y, Frame.Width, Frame.Height);
     }
+
+    /// <summary>Repositions the native overlay after an ancestor scroll offset change (no local rearrange).</summary>
+    internal void NotifyAncestorScrollOffsetChanged() => SyncOverlayBounds();
 
     partial void AttachOverlayIfPossible();
     partial void DetachOverlay();

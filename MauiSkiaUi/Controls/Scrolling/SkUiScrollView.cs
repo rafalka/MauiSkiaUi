@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using SkiaSharp;
 
 namespace MauiSkiaUi;
 
@@ -56,16 +57,19 @@ public class SkUiScrollView : SkUiContentView
     protected override void ArrangeContent(Size size)
     {
         _viewport = size;
+        // Keep content arranged at its layout origin; scroll offset is applied in paint/touch only so
+        // SetOffset does not rearrange the hosted subtree on every frame.
+        ArrangeContentAtOrigin();
         SetOffset(ScrollX, ScrollY);
-        ArrangeScrolledContent();
     }
 
-    private void ArrangeScrolledContent() => Content?.Arrange(new Rect(
-        Padding.Left - ScrollX, Padding.Top - ScrollY,
+    /// <summary>Arranges content in the padded slot without baking scroll offset into <see cref="IView.Frame"/>.</summary>
+    private void ArrangeContentAtOrigin() => Content?.Arrange(new Rect(
+        Padding.Left, Padding.Top,
         Math.Max(0, Math.Max(_extent.Width, _viewport.Width) - Padding.HorizontalThickness),
         Math.Max(0, Math.Max(_extent.Height, _viewport.Height) - Padding.VerticalThickness)));
 
-    /// <summary>Clamps and sets an offset without remeasuring content or writing bindable properties.</summary>
+    /// <summary>Clamps and sets an offset without remeasuring or rearranging content.</summary>
     public SkUiScrollView ScrollTo(double horizontalOffset, double verticalOffset)
     {
         StopMotion();
@@ -110,11 +114,24 @@ public class SkUiScrollView : SkUiContentView
         if (nextX == ScrollX && nextY == ScrollY) return;
         ScrollX = nextX;
         ScrollY = nextY;
-        ArrangeScrolledContent();
         OnPropertyChanged(nameof(ScrollX));
         OnPropertyChanged(nameof(ScrollY));
         InvalidatePaint();
+        SyncOverlayDescendants(this);
         Scrolled?.Invoke(this, new ScrolledEventArgs(ScrollX, ScrollY));
+    }
+
+    /// <summary>
+    /// Native overlays are positioned from arranged frames; when scroll offset changes without rearrange,
+    /// push updated root-relative bounds to any hosted <see cref="SkUiMauiContentView"/> descendants.
+    /// </summary>
+    private static void SyncOverlayDescendants(SkUiView node)
+    {
+        if (node is SkUiMauiContentView overlay)
+            overlay.NotifyAncestorScrollOffsetChanged();
+        foreach (var child in node.SkiaChildren)
+            if (child is SkUiView view)
+                SyncOverlayDescendants(view);
     }
 
     /// <summary>Throws with the name of the first non-finite offset so call sites can see which argument failed.</summary>
@@ -170,6 +187,28 @@ public class SkUiScrollView : SkUiContentView
     }
 
     /// <inheritdoc />
+    protected override void OnPaintContent(SKCanvas canvas)
+    {
+        if (Content is not { } child)
+            return;
+        var save = canvas.Save();
+        try
+        {
+            canvas.ClipRect(new SKRect(0, 0, (float)_viewport.Width, (float)_viewport.Height));
+            canvas.Translate((float)-ScrollX, (float)-ScrollY);
+            PaintChild(child, canvas);
+        }
+        finally
+        {
+            canvas.RestoreToCount(save);
+        }
+    }
+
+    /// <summary>Maps a viewport-local point into content-local space including scroll offset.</summary>
+    private SkUiTouchEvent MapToContent(SkUiTouchEvent touch) =>
+        touch with { Position = new Point(touch.Position.X + ScrollX, touch.Position.Y + ScrollY) };
+
+    /// <inheritdoc />
     public override bool Touch(SkUiTouchEvent touch)
     {
         if (!IsVisible || InputTransparent || !IsEnabled)
@@ -179,7 +218,7 @@ public class SkUiScrollView : SkUiContentView
             _dragging = false;
             return base.Touch(touch);
         }
-        if (_orientation == ScrollOrientation.Neither) return base.Touch(touch);
+        if (_orientation == ScrollOrientation.Neither) return base.Touch(MapToContent(touch));
         if (touch.Action == SkUiTouchAction.Wheel)
         {
             // SkUiTouchEvent carries a single WheelDelta with no axis indicator, so a plain wheel always
@@ -199,7 +238,7 @@ public class SkUiScrollView : SkUiContentView
             _lastTime = now;
             _velocity = Point.Zero;
             _dragging = false;
-            base.Touch(touch);
+            base.Touch(MapToContent(touch));
             return true;
         }
         if (_pointer != touch.Id) return false;
@@ -210,7 +249,7 @@ public class SkUiScrollView : SkUiContentView
             if (!_dragging && distanceX * distanceX + distanceY * distanceY > 100)
             {
                 _dragging = true;
-                base.Touch(touch with { Action = SkUiTouchAction.Cancelled });
+                base.Touch(MapToContent(touch) with { Action = SkUiTouchAction.Cancelled });
             }
             if (_dragging)
             {
@@ -220,7 +259,7 @@ public class SkUiScrollView : SkUiContentView
                 if (seconds > 0) _velocity = new Point(Math.Clamp(deltaX / seconds, -3000, 3000), Math.Clamp(deltaY / seconds, -3000, 3000));
                 SetOffset(ScrollX + deltaX, ScrollY + deltaY);
             }
-            else base.Touch(touch);
+            else base.Touch(MapToContent(touch));
             _lastPosition = touch.Position;
             _lastTime = now;
             return true;
@@ -228,7 +267,7 @@ public class SkUiScrollView : SkUiContentView
         if (touch.Action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
         {
             _pointer = null;
-            if (!_dragging) base.Touch(touch);
+            if (!_dragging) base.Touch(MapToContent(touch));
             else if (touch.Action == SkUiTouchAction.Released && (now - _lastTime).TotalMilliseconds <= 100)
                 StartFling(_velocity);
             _dragging = false;

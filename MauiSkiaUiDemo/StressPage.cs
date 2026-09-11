@@ -13,6 +13,7 @@ public sealed class StressPage : ContentPage
     private const int DefaultChildCount = 1000;
     private const int MaxChildCount = 50_000;
     private const int RunDelayMilliseconds = 200;
+    private static readonly TimeSpan ScrollProbeDuration = TimeSpan.FromSeconds(12);
 
     private readonly Entry _countEntry;
     private readonly CheckBox _hwAcceleration;
@@ -22,6 +23,7 @@ public sealed class StressPage : ContentPage
     private readonly ContentView _stressHost;
     private SkUiScrollView? _scroller;
     private IDisposable? _motion;
+    private bool _scrollProbeRunning;
 
     /// <summary>Builds the configuration UI; the stress tree is created only when the user runs the test.</summary>
     public StressPage()
@@ -34,7 +36,7 @@ public sealed class StressPage : ContentPage
             Text =
                 "Builds a two-column SkUiButton grid under one SkUiScrollView, then measures generate, attach, " +
                 "first-layout/render, and overall time until the UI thread is idle. " +
-                "Record / Scroll / Top work after a run.",
+                "Record times CPU Paint; Scroll animates and reports average UI-thread RecordFrame ms (HW on vs off).",
             TextColor = DemoColors.Caption,
             FontFamily = DemoFonts.OpenSansRegular,
             FontSize = 12,
@@ -151,7 +153,7 @@ public sealed class StressPage : ContentPage
         Content = layout;
 
         ToolbarItems.Add(new ToolbarItem("Record", null, MeasureRecording));
-        ToolbarItems.Add(new ToolbarItem("Scroll", null, StartScroll));
+        ToolbarItems.Add(new ToolbarItem("Scroll", null, () => _ = MeasureScrollAsync()));
         ToolbarItems.Add(new ToolbarItem("Top", null, () => _scroller?.ScrollTo(0, 0)));
     }
 
@@ -163,8 +165,25 @@ public sealed class StressPage : ContentPage
         _scroller = null;
         _stressHost.Content = null;
         _selected.Text = "No selection";
-        _metrics.Text = $"Starting in {RunDelayMilliseconds} ms…";
-        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(RunDelayMilliseconds), () => _ = RunTestAsync());
+        _metrics.Text = $"GC… then starting in {RunDelayMilliseconds} ms…";
+
+        // Let the previous tree detach before collecting, then delay so the click/paint settle.
+        Dispatcher.Dispatch(async () =>
+        {
+            await FlushUiFrameAsync().ConfigureAwait(true);
+            CollectGarbage();
+            _metrics.Text = $"Starting in {RunDelayMilliseconds} ms…";
+            await Task.Delay(RunDelayMilliseconds).ConfigureAwait(true);
+            await RunTestAsync().ConfigureAwait(true);
+        });
+    }
+
+    /// <summary>Forces a full GC so prior stress trees do not inflate the next run's Generate timings.</summary>
+    private static void CollectGarbage()
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
     }
 
     private async Task RunTestAsync()
@@ -194,16 +213,19 @@ public sealed class StressPage : ContentPage
             await WhenUiThreadIdleAsync().ConfigureAwait(true);
             overall.Stop();
 
-            _metrics.Text =
+            var metrics =
                 $"Children: {childCount:N0}  |  HW accel: {(hwAccelerated ? "on" : "off")}\n" +
                 $"Generate UI: {generate.Elapsed.TotalMilliseconds:F1} ms\n" +
                 $"Add to page: {add.Elapsed.TotalMilliseconds:F1} ms\n" +
                 $"UI render (layout + first frame): {render.Elapsed.TotalMilliseconds:F1} ms\n" +
                 $"Overall (start → UI idle): {overall.Elapsed.TotalMilliseconds:F1} ms";
+            _metrics.Text = metrics;
+            Debug.WriteLine($"[Stress] {metrics.Replace("\n", " | ")}");
         }
         catch (Exception ex)
         {
             _metrics.Text = $"Test failed: {ex.Message}";
+            Debug.WriteLine($"[Stress] {_metrics.Text}");
         }
         finally
         {
@@ -303,13 +325,52 @@ public sealed class StressPage : ContentPage
         return tcs.Task;
     }
 
-    private void StartScroll()
+    /// <summary>
+    /// Animates a full scroll and reports average UI-thread <c>RecordFrame</c> cost.
+    /// This is the metric that should be compared for HW on vs off during scrolling.
+    /// </summary>
+    private async Task MeasureScrollAsync()
     {
-        if (_scroller is null)
+        if (_scroller is null || _scrollProbeRunning)
             return;
-        _motion?.Dispose();
-        _scroller.ScrollTo(0, 0);
-        _motion = _scroller.AnimateScrollTo(0, Math.Max(0, _scroller.ContentSize.Height - _scroller.Height), TimeSpan.FromSeconds(12));
+
+        _scrollProbeRunning = true;
+        try
+        {
+            _motion?.Dispose();
+            _motion = null;
+            _scroller.ScrollTo(0, 0);
+            await FlushUiFrameAsync().ConfigureAwait(true);
+            await WhenUiThreadIdleAsync().ConfigureAwait(true);
+
+            _scroller.ResetDiagnosticRecordStats();
+            var targetY = Math.Max(0, _scroller.ContentSize.Height - _scroller.Height);
+            var wall = Stopwatch.StartNew();
+            _motion = _scroller.AnimateScrollTo(0, targetY, ScrollProbeDuration);
+
+            var deadline = Environment.TickCount64 + (long)ScrollProbeDuration.TotalMilliseconds + 2000;
+            while (_scroller.AnimationClock.IsRunning && Environment.TickCount64 < deadline)
+                await Task.Delay(16).ConfigureAwait(true);
+
+            wall.Stop();
+            _motion?.Dispose();
+            _motion = null;
+
+            var frames = _scroller.DiagnosticRecordFrameCount;
+            var totalMs = _scroller.DiagnosticRecordFrameTotalMs;
+            var avgMs = frames > 0 ? totalMs / frames : 0;
+            var hw = _scroller.HwAccelerated ? "on" : "off";
+            var scrollMetrics =
+                $"Scroll probe ({ScrollProbeDuration.TotalSeconds:0}s): HW {hw}\n" +
+                $"RecordFrame: {frames} frames, avg {avgMs:F2} ms, total {totalMs:F1} ms\n" +
+                $"Wall clock: {wall.Elapsed.TotalMilliseconds:F0} ms  |  ~{(frames > 0 ? 1000.0 * frames / wall.Elapsed.TotalMilliseconds : 0):F1} record FPS";
+            _metrics.Text = $"{_metrics.Text}\n{scrollMetrics}";
+            Debug.WriteLine($"[Stress/Scroll] {scrollMetrics.Replace("\n", " | ")}");
+        }
+        finally
+        {
+            _scrollProbeRunning = false;
+        }
     }
 
     private void MeasureRecording()
@@ -332,8 +393,10 @@ public sealed class StressPage : ContentPage
             Record();
         timer.Stop();
         var bytes = (GC.GetAllocatedBytesForCurrentThread() - allocated) / 30;
-        _metrics.Text =
-            $"{_metrics.Text}\nCPU record: {timer.Elapsed.TotalMilliseconds / 30:F2} ms / {bytes:N0} B per frame";
+        var recordMetrics =
+            $"CPU Paint (direct): {timer.Elapsed.TotalMilliseconds / 30:F2} ms / {bytes:N0} B per frame";
+        _metrics.Text = $"{_metrics.Text}\n{recordMetrics}";
+        Debug.WriteLine($"[Stress/Record] {recordMetrics}");
     }
 
     /// <inheritdoc />
