@@ -88,23 +88,29 @@ public class SkUiView : View, ISkUiView
             _animationClock.StopAll();
             _animationClock = null;
         }
-        NotifyAnimationRootChanged();
+        // When this node is detached, descendants still have it as Parent — pass subtreeDetached so
+        // they stop clocks instead of rebinding onto an orphan mid-tree clock.
+        NotifyAnimationRootChanged(subtreeDetached: Parent is null);
     }
 
     /// <summary>
     /// Called when this node or an ancestor changes parenting such that <see cref="AnimationClock"/>
     /// may resolve to a different instance. Override to rebind repeating animations.
     /// </summary>
-    protected virtual void OnAnimationRootChanged() { }
+    /// <param name="subtreeDetached">
+    /// True when an ancestor (or this node) was removed from its parent; descendants should stop
+    /// rather than rebind, even though their own <see cref="Element.Parent"/> may still be set.
+    /// </param>
+    protected virtual void OnAnimationRootChanged(bool subtreeDetached = false) { }
 
     /// <summary>Notifies this node and every SkiaUi descendant that the shared clock may have moved.</summary>
-    private void NotifyAnimationRootChanged()
+    private void NotifyAnimationRootChanged(bool subtreeDetached)
     {
-        OnAnimationRootChanged();
+        OnAnimationRootChanged(subtreeDetached);
         foreach (var child in SkiaChildren)
         {
             if (child is SkUiView view)
-                view.NotifyAnimationRootChanged();
+                view.NotifyAnimationRootChanged(subtreeDetached);
         }
     }
 

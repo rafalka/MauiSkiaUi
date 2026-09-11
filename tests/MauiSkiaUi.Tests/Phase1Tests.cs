@@ -276,7 +276,7 @@ public class Phase1Tests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void ScrollTapDoesNotRebuildContentPicture()
+    public void ScrollTapDoesNotRebuildContentPictureForPressedChromeAlone()
     {
         var button = new SkUiButton { Text = "Go", WidthRequest = 80, HeightRequest = 40 };
         var clicks = 0;
@@ -293,7 +293,47 @@ public class Phase1Tests(ITestOutputHelper output)
         Assert.True(scroll.Touch(new(1, SkUiTouchAction.Released, new Point(20, 20), TimeSpan.FromMilliseconds(20))));
         scroll.Paint(canvas);
         Assert.Equal(1, clicks);
+        // Pressed chrome is suppressed; release may rebuild once for IsPressed=false. Must not leave a stale cache.
+        Assert.InRange(scroll.ContentPictureRebuilds, 1, 2);
+    }
+
+    [Fact]
+    public void ScrollTapCommandMutationRebuildsContentPicture()
+    {
+        var button = new SkUiButton { Text = "Go", WidthRequest = 80, HeightRequest = 40 };
+        button.Clicked += (_, _) => button.Text = "Done";
+        var scroll = new SkUiScrollView { Content = button };
+        Arrange(scroll, 100, 80);
+        using var bitmap = new SKBitmap(100, 80);
+        using var canvas = new SKCanvas(bitmap);
+
+        scroll.Paint(canvas);
         Assert.Equal(1, scroll.ContentPictureRebuilds);
+
+        Assert.True(scroll.Touch(new(1, SkUiTouchAction.Pressed, new Point(20, 20), TimeSpan.Zero)));
+        Assert.True(scroll.Touch(new(1, SkUiTouchAction.Released, new Point(20, 20), TimeSpan.FromMilliseconds(20))));
+        scroll.Paint(canvas);
+        Assert.Equal("Done", button.Text);
+        Assert.True(scroll.ContentPictureRebuilds >= 2);
+    }
+
+    [Fact]
+    public void AnimateScrollToClearsMotionSoContentPictureCanRebuild()
+    {
+        var box = new SkUiBox { Color = Colors.Red, HeightRequest = 200, WidthRequest = 40 };
+        var scroll = new SkUiScrollView { Content = box };
+        Arrange(scroll, 40, 50);
+        using var bitmap = new SKBitmap(40, 50);
+        using var canvas = new SKCanvas(bitmap);
+        scroll.Paint(canvas);
+        Assert.Equal(1, scroll.ContentPictureRebuilds);
+
+        scroll.AnimateScrollTo(0, 100, TimeSpan.FromMilliseconds(100));
+        scroll.AnimationClock.Tick(TimeSpan.FromMilliseconds(100));
+        box.Color = Colors.Blue;
+        scroll.Paint(canvas);
+        Assert.Equal(2, scroll.ContentPictureRebuilds);
+        Assert.Equal(SKColors.Blue, bitmap.GetPixel(20, 25));
     }
 
     [Fact]

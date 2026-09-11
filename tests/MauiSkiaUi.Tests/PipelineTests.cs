@@ -497,6 +497,23 @@ public class PipelineTests
     }
 
     [Fact]
+    public void AnimationTickDoesNotAdvanceAnimationsStartedDuringSameTick()
+    {
+        var clock = new SkUiAnimationClock();
+        var secondApplies = 0;
+        clock.Start(progress =>
+        {
+            if (progress >= 0.5 && secondApplies == 0)
+                clock.Start(_ => secondApplies++, TimeSpan.FromSeconds(1));
+        }, TimeSpan.FromSeconds(1));
+        clock.Tick(TimeSpan.FromMilliseconds(500));
+        // Start already invoked apply(0) once; the same Tick must not invoke it again.
+        Assert.Equal(1, secondApplies);
+        clock.Tick(TimeSpan.FromMilliseconds(750));
+        Assert.Equal(2, secondApplies);
+    }
+
+    [Fact]
     public void AnimationRepeatCancellationAndMonotonicTimeAreDeterministic()
     {
         var clock = new SkUiAnimationClock();

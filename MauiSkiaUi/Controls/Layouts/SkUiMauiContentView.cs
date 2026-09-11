@@ -19,6 +19,8 @@ namespace MauiSkiaUi;
 public partial class SkUiMauiContentView : SkUiView
 {
     private VisualElement? _content;
+    /// <summary>Ancestor scrollers this overlay registered with while parented (for O(1) detach cleanup).</summary>
+    private List<SkUiScrollView>? _registeredScrollers;
 
     /// <summary>Bindable hosted MAUI control.</summary>
     public static readonly BindableProperty ContentProperty = BindableProperty.Create(
@@ -60,9 +62,15 @@ public partial class SkUiMauiContentView : SkUiView
     /// <inheritdoc />
     protected override void OnParentSet()
     {
+        if (Parent is null)
+            UnregisterFromAncestorScrollers();
         base.OnParentSet();
         if (Parent is null) DetachOverlay();
-        else AttachOverlayIfPossible();
+        else
+        {
+            RegisterWithAncestorScrollers();
+            AttachOverlayIfPossible();
+        }
     }
 
     /// <summary>Called by the root handler when it connects/disconnects, to (re)try attaching the overlay.</summary>
@@ -95,6 +103,30 @@ public partial class SkUiMauiContentView : SkUiView
 
     /// <summary>Repositions the native overlay after an ancestor scroll offset change (no local rearrange).</summary>
     internal void NotifyAncestorScrollOffsetChanged() => SyncOverlayBounds();
+
+    /// <summary>Registers with every ancestor scroller so offset sync stays O(overlays) instead of O(tree).</summary>
+    private void RegisterWithAncestorScrollers()
+    {
+        UnregisterFromAncestorScrollers();
+        for (var ancestor = Parent as SkUiView; ancestor is not null; ancestor = ancestor.Parent as SkUiView)
+        {
+            if (ancestor is not SkUiScrollView scroll)
+                continue;
+            scroll.RegisterOverlayDescendant(this);
+            _registeredScrollers ??= [];
+            _registeredScrollers.Add(scroll);
+        }
+    }
+
+    /// <summary>Drops registrations from ancestor scrollers when this overlay leaves the tree.</summary>
+    private void UnregisterFromAncestorScrollers()
+    {
+        if (_registeredScrollers is null || _registeredScrollers.Count == 0)
+            return;
+        foreach (var scroll in _registeredScrollers)
+            scroll.UnregisterOverlayDescendant(this);
+        _registeredScrollers.Clear();
+    }
 
     partial void AttachOverlayIfPossible();
     partial void DetachOverlay();

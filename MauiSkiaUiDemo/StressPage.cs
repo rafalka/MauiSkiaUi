@@ -256,6 +256,9 @@ public sealed class StressPage : ContentPage
 
     private void OnRunClicked(object? sender, EventArgs e)
     {
+        if (_scrollProbeRunning)
+            return;
+
         _runButton.IsEnabled = false;
         _motion?.Dispose();
         _motion = null;
@@ -453,41 +456,46 @@ public sealed class StressPage : ContentPage
         if (_scroller is null || _scrollProbeRunning)
             return;
 
+        var scroller = _scroller;
         _scrollProbeRunning = true;
+        _runButton.IsEnabled = false;
         try
         {
             _motion?.Dispose();
             _motion = null;
-            _scroller.ScrollTo(0, 0);
+            scroller.ScrollTo(0, 0);
             await FlushUiFrameAsync().ConfigureAwait(true);
             await WhenUiThreadIdleAsync().ConfigureAwait(true);
 
 #if SKUI_DIAGNOSTICS
-            _scroller.ResetDiagnosticRecordStats();
+            scroller.ResetDiagnosticRecordStats();
 #endif
-            var targetY = Math.Max(0, _scroller.ContentSize.Height - _scroller.Height);
+            var targetY = Math.Max(0, scroller.ContentSize.Height - scroller.Height);
             var wall = Stopwatch.StartNew();
-            _motion = _scroller.AnimateScrollTo(0, targetY, ScrollProbeDuration);
+            // Bound the probe to the owned scroll duration — not AnimationClock.IsRunning, which stays
+            // true while activity indicators (Animate) keep the shared clock alive.
+            var motion = scroller.AnimateScrollTo(0, targetY, ScrollProbeDuration);
+            _motion = motion;
+            await Task.Delay(ScrollProbeDuration).ConfigureAwait(true);
 
-            var deadline = Environment.TickCount64 + (long)ScrollProbeDuration.TotalMilliseconds + 2000;
-            while (_scroller.AnimationClock.IsRunning && Environment.TickCount64 < deadline)
-                await Task.Delay(16).ConfigureAwait(true);
+            if (!ReferenceEquals(_scroller, scroller))
+                return;
 
-            wall.Stop();
-            _motion?.Dispose();
+            motion.Dispose();
             _motion = null;
+            wall.Stop();
 
 #if SKUI_DIAGNOSTICS
-            var frames = _scroller.DiagnosticRecordFrameCount;
-            var totalMs = _scroller.DiagnosticRecordFrameTotalMs;
+            var frames = scroller.DiagnosticRecordFrameCount;
+            var totalMs = scroller.DiagnosticRecordFrameTotalMs;
             var avgMs = frames > 0 ? totalMs / frames : 0;
-            var hw = _scroller.HwAccelerated ? "on" : "off";
+            var hw = scroller.HwAccelerated ? "on" : "off";
             var scrollMetrics =
                 $"Scroll probe ({ScrollProbeDuration.TotalSeconds:0}s): HW {hw}\n" +
                 $"RecordFrame: {frames} frames, avg {avgMs:F2} ms, total {totalMs:F1} ms\n" +
                 $"Wall clock: {wall.Elapsed.TotalMilliseconds:F0} ms  |  ~{(frames > 0 ? 1000.0 * frames / wall.Elapsed.TotalMilliseconds : 0):F1} record FPS";
 #else
-            var hw = _scroller.HwAccelerated ? "on" : "off";
+            var hw = scroller.HwAccelerated ? "on" : "off";
             var scrollMetrics =
                 $"Scroll probe ({ScrollProbeDuration.TotalSeconds:0}s): HW {hw}\n" +
                 $"Wall clock: {wall.Elapsed.TotalMilliseconds:F0} ms\n" +
@@ -499,6 +507,7 @@ public sealed class StressPage : ContentPage
         finally
         {
             _scrollProbeRunning = false;
+            _runButton.IsEnabled = true;
         }
     }
 

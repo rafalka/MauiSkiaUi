@@ -71,13 +71,13 @@ public class SkUiActivityIndicator : SkUiView
     }
 
     /// <summary>
-    /// Stops when detached; rebinds the spin callback onto the current
-    /// <see cref="SkUiView.AnimationClock"/> when the shared root changes (e.g. <c>IsRunning</c>
-    /// was set before the control joined its surface-owning ancestor).
+    /// Stops when this control or an ancestor subtree is detached; otherwise rebinds the spin
+    /// callback onto the current <see cref="SkUiView.AnimationClock"/> when the shared root changes
+    /// (e.g. <c>IsRunning</c> was set before the control joined its surface-owning ancestor).
     /// </summary>
-    protected override void OnAnimationRootChanged()
+    protected override void OnAnimationRootChanged(bool subtreeDetached = false)
     {
-        if (Parent is null)
+        if (Parent is null || subtreeDetached)
         {
             SetIsRunning(false);
             return;

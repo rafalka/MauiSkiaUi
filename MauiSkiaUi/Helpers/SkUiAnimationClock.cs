@@ -31,27 +31,30 @@ public sealed class SkUiAnimationClock
 
     /// <summary>
     /// Advances all active animations; tests may supply deterministic frame times.
-    /// Allocation-free: does not snapshot the animator list.
+    /// Allocation-free: does not snapshot the animator list. Only animations that existed when
+    /// the tick began are advanced (callbacks started mid-tick wait for the next frame).
     /// </summary>
     public void Tick(TimeSpan elapsed)
     {
         if (elapsed < _frameTime)
             throw new ArgumentOutOfRangeException(nameof(elapsed), "Frame time must be monotonic.");
         _frameTime = elapsed;
+        // Bound to the count at tick start so Start() from Apply does not double-invoke at progress 0.
+        var endExclusive = _animations.Count;
         var index = 0;
-        while (index < _animations.Count)
+        while (index < endExclusive)
         {
             var animation = _animations[index];
             var progress = (elapsed - animation.Started).TotalMilliseconds / animation.Duration.TotalMilliseconds;
             animation.Apply(animation.Easing.Ease(animation.Repeat ? progress % 1 : Math.Min(progress, 1)));
             if (!animation.Repeat && progress >= 1)
             {
-                // Dispose removes this entry; keep index to process the item that slid into place.
+                // Dispose removes this entry; keep index and shrink the original-prefix bound.
                 animation.Dispose();
+                endExclusive--;
                 continue;
             }
-            if (index < _animations.Count && ReferenceEquals(_animations[index], animation))
-                index++;
+            index++;
         }
     }
 

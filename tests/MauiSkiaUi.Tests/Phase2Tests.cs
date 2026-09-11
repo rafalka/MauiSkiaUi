@@ -145,6 +145,22 @@ public class Phase2Tests
     }
 
     [Fact]
+    public void ActivityIndicatorStopsWhenAncestorLayoutDetached()
+    {
+        var indicator = new SkUiActivityIndicator();
+        var inner = new SkUiLayout();
+        inner.Children.Add(indicator);
+        var root = new SkUiContentView { Content = inner };
+        indicator.IsRunning = true;
+        Assert.True(root.AnimationClock.IsRunning);
+
+        // Detach the layout; the indicator still has Parent=inner and must stop via subtreeDetached.
+        root.Content = null;
+        Assert.False(indicator.IsRunning);
+        Assert.False(root.AnimationClock.IsRunning);
+    }
+
+    [Fact]
     public void MauiContentViewRootRelativeFrameIncludesAncestorAndOwnTranslation()
     {
         var overlay = new SkUiMauiContentView
