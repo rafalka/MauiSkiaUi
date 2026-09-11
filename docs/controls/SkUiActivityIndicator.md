@@ -6,7 +6,7 @@ Indeterminate spinner driven by the shared animation clock.
 
 ## How it works
 
-While `IsRunning` is true, a repeating clock animation invalidates paint. Hiding (`IsVisible=false`) or removing the control from its parent stops the clock so detached nodes cannot keep ticking.
+While `IsRunning` is true, a repeating clock animation updates the sweep angle. The root handler issues **one** paint invalidation per tick (spinners do not each bubble `InvalidatePaint`). Hiding (`IsVisible=false`) or removing the control from its parent stops the clock so detached nodes cannot keep ticking. Setting `IsRunning` before the control joins its surface-owning ancestor still works: the spin callback rebinds onto the shared root clock when parenting changes. Stroke paint is cached and released on detach.
 
 
 ## Shared conventions

@@ -46,6 +46,15 @@
 		<EmbedUntrackedSources>true</EmbedUntrackedSources>
 	</PropertyGroup>
 
+	<!--
+	  Record-frame / scroll-cache probe APIs (ResetDiagnosticRecordStats, ContentPictureRebuilds, …).
+	  Off for Release NuGet packs. On in Debug, or when a consumer sets SKUI_ENABLE_DIAGNOSTICS=true
+	  (tests pass that via ProjectReference AdditionalProperties).
+	-->
+	<PropertyGroup Condition="'$(Configuration)' == 'Debug' Or '$(SKUI_ENABLE_DIAGNOSTICS)' == 'true'">
+		<DefineConstants>$(DefineConstants);SKUI_DIAGNOSTICS</DefineConstants>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<None Include="..\README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>

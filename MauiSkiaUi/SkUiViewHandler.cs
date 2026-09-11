@@ -218,8 +218,12 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     private void TickAnimation()
     {
         var clock = VirtualView.AnimationClock;
-        if (clock.IsRunning)
-            clock.Tick(_clockOffset + _animationTime.Elapsed);
+        if (!clock.IsRunning)
+            return;
+        clock.Tick(_clockOffset + _animationTime.Elapsed);
+        // Paint-only animators (e.g. ActivityIndicator) mutate fields in Apply without InvalidatePaint;
+        // one root invalidation per tick avoids N event bubbles and N content-cache dirties.
+        VirtualView.InvalidatePaint();
     }
 
     /// <summary>

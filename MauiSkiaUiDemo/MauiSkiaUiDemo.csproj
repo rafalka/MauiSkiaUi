@@ -48,7 +48,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-		<DefineConstants>$(DefineConstants);MAUI_DEVFLOW</DefineConstants>
+		<DefineConstants>$(DefineConstants);MAUI_DEVFLOW;SKUI_DIAGNOSTICS</DefineConstants>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -70,6 +70,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="CommunityToolkit.Maui" Version="13.0.0" />
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Maui.DevFlow.Agent" Version="0.1.0-preview.12.26421.1" Condition="'$(Configuration)' == 'Debug'" />

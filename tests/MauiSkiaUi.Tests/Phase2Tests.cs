@@ -115,6 +115,36 @@ public class Phase2Tests
     }
 
     [Fact]
+    public void ActivityIndicatorRebindsClockWhenIsRunningSetBeforeParenting()
+    {
+        var indicator = new SkUiActivityIndicator { IsRunning = true };
+        Assert.True(indicator.AnimationClock.IsRunning);
+
+        var layout = new SkUiLayout();
+        layout.Children.Add(indicator);
+
+        Assert.True(indicator.IsRunning);
+        Assert.Same(layout.AnimationClock, indicator.AnimationClock);
+        Assert.True(layout.AnimationClock.IsRunning);
+    }
+
+    [Fact]
+    public void ActivityIndicatorRebindsClockWhenSubtreeAttachesToSurfaceRoot()
+    {
+        // Mirrors StressPage: IsRunning before add, then layout under a content host.
+        var indicator = new SkUiActivityIndicator { IsRunning = true };
+        var layout = new SkUiLayout();
+        layout.Children.Add(indicator);
+        Assert.True(layout.AnimationClock.IsRunning);
+
+        var root = new SkUiContentView { Content = layout };
+        Assert.True(indicator.IsRunning);
+        Assert.Same(root.AnimationClock, indicator.AnimationClock);
+        Assert.Same(root.AnimationClock, layout.AnimationClock);
+        Assert.True(root.AnimationClock.IsRunning);
+    }
+
+    [Fact]
     public void MauiContentViewRootRelativeFrameIncludesAncestorAndOwnTranslation()
     {
         var overlay = new SkUiMauiContentView

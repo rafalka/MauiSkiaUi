@@ -29,20 +29,29 @@ public sealed class SkUiAnimationClock
         return animation;
     }
 
-    /// <summary>Advances all active animations; tests may supply deterministic frame times.</summary>
+    /// <summary>
+    /// Advances all active animations; tests may supply deterministic frame times.
+    /// Allocation-free: does not snapshot the animator list.
+    /// </summary>
     public void Tick(TimeSpan elapsed)
     {
         if (elapsed < _frameTime)
             throw new ArgumentOutOfRangeException(nameof(elapsed), "Frame time must be monotonic.");
         _frameTime = elapsed;
-        foreach (var animation in _animations.ToArray())
+        var index = 0;
+        while (index < _animations.Count)
         {
-            if (!_animations.Contains(animation))
-                continue;
+            var animation = _animations[index];
             var progress = (elapsed - animation.Started).TotalMilliseconds / animation.Duration.TotalMilliseconds;
             animation.Apply(animation.Easing.Ease(animation.Repeat ? progress % 1 : Math.Min(progress, 1)));
             if (!animation.Repeat && progress >= 1)
+            {
+                // Dispose removes this entry; keep index to process the item that slid into place.
                 animation.Dispose();
+                continue;
+            }
+            if (index < _animations.Count && ReferenceEquals(_animations[index], animation))
+                index++;
         }
     }
 

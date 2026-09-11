@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using CommunityToolkit.Maui.Views;
 using MauiSkiaUi;
 using SkiaSharp;
 
@@ -17,6 +18,7 @@ public sealed class StressPage : ContentPage
 
     private readonly Entry _countEntry;
     private readonly CheckBox _hwAcceleration;
+    private readonly CheckBox _animate;
     private readonly Button _runButton;
     private readonly Label _metrics;
     private readonly Label _selected;
@@ -36,6 +38,7 @@ public sealed class StressPage : ContentPage
             Text =
                 "Builds a two-column SkUiButton grid under one SkUiScrollView, then measures generate, attach, " +
                 "first-layout/render, and overall time until the UI thread is idle. " +
+                "With Animate checked, the second column uses running SkUiActivityIndicator views instead of buttons. " +
                 "Record times CPU Paint; Scroll animates and reports average UI-thread RecordFrame ms (HW on vs off).",
             TextColor = DemoColors.Caption,
             FontFamily = DemoFonts.OpenSansRegular,
@@ -64,6 +67,14 @@ public sealed class StressPage : ContentPage
             VerticalOptions = LayoutOptions.Center
         };
 
+        _animate = new CheckBox
+        {
+            IsChecked = false,
+            Color = DemoColors.Accent,
+            AutomationId = "StressAnimate",
+            VerticalOptions = LayoutOptions.Center
+        };
+
         _runButton = new Button
         {
             Text = "Run test",
@@ -76,31 +87,54 @@ public sealed class StressPage : ContentPage
         };
         _runButton.Clicked += OnRunClicked;
 
-        var controlsRow = new HorizontalStackLayout
+        var configurationContent = new VerticalStackLayout
         {
-            Spacing = 12,
-            VerticalOptions = LayoutOptions.Center,
+            Spacing = 8,
             Children =
             {
-                new Label
+                new HorizontalStackLayout
                 {
-                    Text = "Children",
-                    TextColor = DemoColors.Ink,
-                    FontFamily = DemoFonts.OpenSansSemibold,
-                    FontSize = 13,
-                    VerticalOptions = LayoutOptions.Center
+                    Spacing = 12,
+                    VerticalOptions = LayoutOptions.Center,
+                    Children =
+                    {
+                        new Label
+                        {
+                            Text = "Children",
+                            TextColor = DemoColors.Ink,
+                            FontFamily = DemoFonts.OpenSansSemibold,
+                            FontSize = 13,
+                            VerticalOptions = LayoutOptions.Center
+                        },
+                        _countEntry,
+                        _hwAcceleration,
+                        new Label
+                        {
+                            Text = "HW accel",
+                            TextColor = DemoColors.Ink,
+                            FontFamily = DemoFonts.OpenSansRegular,
+                            FontSize = 13,
+                            VerticalOptions = LayoutOptions.Center
+                        }
+                    }
                 },
-                _countEntry,
-                _hwAcceleration,
-                new Label
+                new HorizontalStackLayout
                 {
-                    Text = "HW accel",
-                    TextColor = DemoColors.Ink,
-                    FontFamily = DemoFonts.OpenSansRegular,
-                    FontSize = 13,
-                    VerticalOptions = LayoutOptions.Center
-                },
-                _runButton
+                    Spacing = 12,
+                    VerticalOptions = LayoutOptions.Center,
+                    Children =
+                    {
+                        _animate,
+                        new Label
+                        {
+                            Text = "Animate (2nd column = spinners)",
+                            TextColor = DemoColors.Ink,
+                            FontFamily = DemoFonts.OpenSansRegular,
+                            FontSize = 13,
+                            VerticalOptions = LayoutOptions.Center
+                        }
+                    }
+                }
             }
         };
 
@@ -125,14 +159,19 @@ public sealed class StressPage : ContentPage
 
         _stressHost = new ContentView { AutomationId = "StressHost" };
 
+        var descriptionExpander = CreateExpander("About this test", description, isExpanded: false);
+        var configurationExpander = CreateExpander("Test configuration", configurationContent, isExpanded: false);
+        var resultsExpander = CreateExpander("Test results", _metrics, isExpanded: true);
+
         var config = new VerticalStackLayout
         {
             Spacing = 6,
             Children =
             {
-                description,
-                controlsRow,
-                _metrics
+                descriptionExpander,
+                configurationExpander,
+                _runButton,
+                resultsExpander
             }
         };
 
@@ -156,6 +195,64 @@ public sealed class StressPage : ContentPage
         ToolbarItems.Add(new ToolbarItem("Scroll", null, () => _ = MeasureScrollAsync()));
         ToolbarItems.Add(new ToolbarItem("Top", null, () => _scroller?.ScrollTo(0, 0)));
     }
+
+    /// <summary>
+    /// Creates a Community Toolkit expander with a tinted header, title on the left, and a
+    /// right-aligned expand/collapse chevron that tracks <see cref="Expander.IsExpanded"/>.
+    /// </summary>
+    private static Expander CreateExpander(string headerText, View content, bool isExpanded)
+    {
+        var indicator = new Label
+        {
+            Text = ExpandIndicator(isExpanded),
+            TextColor = DemoColors.Caption,
+            FontFamily = DemoFonts.OpenSansSemibold,
+            FontSize = 14,
+            VerticalOptions = LayoutOptions.Center,
+            HorizontalOptions = LayoutOptions.End,
+            Margin = new Thickness(8, 0, 0, 0)
+        };
+
+        var title = new Label
+        {
+            Text = headerText,
+            TextColor = DemoColors.Ink,
+            FontFamily = DemoFonts.OpenSansSemibold,
+            FontSize = 13,
+            VerticalOptions = LayoutOptions.Center,
+            LineBreakMode = LineBreakMode.TailTruncation
+        };
+
+        var header = new Grid
+        {
+            BackgroundColor = DemoColors.SoftSurface,
+            Padding = new Thickness(10, 8),
+            ColumnSpacing = 8,
+            ColumnDefinitions =
+            [
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto)
+            ]
+        };
+        header.Add(title);
+        header.Add(indicator, 1, 0);
+
+        var expander = new Expander
+        {
+            IsExpanded = isExpanded,
+            Header = header,
+            Content = new ContentView
+            {
+                Padding = new Thickness(10, 8, 10, 4),
+                Content = content
+            }
+        };
+        expander.ExpandedChanged += (_, args) => indicator.Text = ExpandIndicator(args.IsExpanded);
+        return expander;
+    }
+
+    /// <summary>Chevron shown in an expander header for the current expanded state.</summary>
+    private static string ExpandIndicator(bool isExpanded) => isExpanded ? "▾" : "▸";
 
     private void OnRunClicked(object? sender, EventArgs e)
     {
@@ -193,11 +290,12 @@ public sealed class StressPage : ContentPage
             var childCount = ParseChildCount(_countEntry.Text);
             _countEntry.Text = childCount.ToString();
             var hwAccelerated = _hwAcceleration.IsChecked;
+            var animate = _animate.IsChecked;
 
             var overall = Stopwatch.StartNew();
 
             var generate = Stopwatch.StartNew();
-            var scroller = BuildStressTree(childCount, hwAccelerated);
+            var scroller = BuildStressTree(childCount, hwAccelerated, animate);
             generate.Stop();
 
             var add = Stopwatch.StartNew();
@@ -214,7 +312,7 @@ public sealed class StressPage : ContentPage
             overall.Stop();
 
             var metrics =
-                $"Children: {childCount:N0}  |  HW accel: {(hwAccelerated ? "on" : "off")}\n" +
+                $"Children: {childCount:N0}  |  HW accel: {(hwAccelerated ? "on" : "off")}  |  Animate: {(animate ? "on" : "off")}\n" +
                 $"Generate UI: {generate.Elapsed.TotalMilliseconds:F1} ms\n" +
                 $"Add to page: {add.Elapsed.TotalMilliseconds:F1} ms\n" +
                 $"UI render (layout + first frame): {render.Elapsed.TotalMilliseconds:F1} ms\n" +
@@ -233,8 +331,11 @@ public sealed class StressPage : ContentPage
         }
     }
 
-    /// <summary>Creates the scrollable grid of buttons without attaching it to the page.</summary>
-    private SkUiScrollView BuildStressTree(int childCount, bool hwAccelerated)
+    /// <summary>
+    /// Creates the scrollable two-column grid without attaching it to the page.
+    /// When <paramref name="animate"/> is true, column 1 hosts running activity indicators instead of buttons.
+    /// </summary>
+    private SkUiScrollView BuildStressTree(int childCount, bool hwAccelerated, bool animate)
     {
         var grid = new SkUiGrid { ColumnSpacing = 8, RowSpacing = 4, Padding = new Thickness(8) };
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -246,21 +347,39 @@ public sealed class StressPage : ContentPage
                 grid.RowDefinitions.Add(new RowDefinition(new GridLength(48)));
 
             var itemNumber = index + 1;
-            var button = new SkUiButton
+            var column = index % 2;
+            var row = index / 2;
+            ISkUiView cell;
+            if (animate && column == 1)
             {
-                Text = $"Item {itemNumber:0000}",
-                FontSize = 14,
-                Padding = new Thickness(6),
-                FillColor = index % 4 < 2 ? Colors.White : DemoColors.StressAlt,
-                TextColor = DemoColors.Ink,
-                BorderColor = DemoColors.Border,
-                BorderWidth = 1,
-                AutomationId = $"StressItem{itemNumber}",
-                Command = new Command(() => _selected.Text = $"Selected item {itemNumber:0000}")
-            };
-            Grid.SetRow(button, index / 2);
-            Grid.SetColumn(button, index % 2);
-            grid.Children.Add(button);
+                cell = new SkUiActivityIndicator
+                {
+                    IsRunning = true,
+                    Color = DemoColors.Accent,
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions = LayoutOptions.Center,
+                    AutomationId = $"StressSpinner{itemNumber}"
+                };
+            }
+            else
+            {
+                cell = new SkUiButton
+                {
+                    Text = $"Item {itemNumber:0000}",
+                    FontSize = 14,
+                    Padding = new Thickness(6),
+                    FillColor = index % 4 < 2 ? Colors.White : DemoColors.StressAlt,
+                    TextColor = DemoColors.Ink,
+                    BorderColor = DemoColors.Border,
+                    BorderWidth = 1,
+                    AutomationId = $"StressItem{itemNumber}",
+                    Command = new Command(() => _selected.Text = $"Selected item {itemNumber:0000}")
+                };
+            }
+
+            Grid.SetRow((BindableObject)cell, row);
+            Grid.SetColumn((BindableObject)cell, column);
+            grid.Children.Add(cell);
         }
 
         // HwAccelerated must be assigned before the view gets a handler (i.e. before it joins the MAUI tree).
@@ -343,7 +462,9 @@ public sealed class StressPage : ContentPage
             await FlushUiFrameAsync().ConfigureAwait(true);
             await WhenUiThreadIdleAsync().ConfigureAwait(true);
 
+#if SKUI_DIAGNOSTICS
             _scroller.ResetDiagnosticRecordStats();
+#endif
             var targetY = Math.Max(0, _scroller.ContentSize.Height - _scroller.Height);
             var wall = Stopwatch.StartNew();
             _motion = _scroller.AnimateScrollTo(0, targetY, ScrollProbeDuration);
@@ -356,6 +477,7 @@ public sealed class StressPage : ContentPage
             _motion?.Dispose();
             _motion = null;
 
+#if SKUI_DIAGNOSTICS
             var frames = _scroller.DiagnosticRecordFrameCount;
             var totalMs = _scroller.DiagnosticRecordFrameTotalMs;
             var avgMs = frames > 0 ? totalMs / frames : 0;
@@ -364,6 +486,13 @@ public sealed class StressPage : ContentPage
                 $"Scroll probe ({ScrollProbeDuration.TotalSeconds:0}s): HW {hw}\n" +
                 $"RecordFrame: {frames} frames, avg {avgMs:F2} ms, total {totalMs:F1} ms\n" +
                 $"Wall clock: {wall.Elapsed.TotalMilliseconds:F0} ms  |  ~{(frames > 0 ? 1000.0 * frames / wall.Elapsed.TotalMilliseconds : 0):F1} record FPS";
+#else
+            var hw = _scroller.HwAccelerated ? "on" : "off";
+            var scrollMetrics =
+                $"Scroll probe ({ScrollProbeDuration.TotalSeconds:0}s): HW {hw}\n" +
+                $"Wall clock: {wall.Elapsed.TotalMilliseconds:F0} ms\n" +
+                $"(RecordFrame stats require a SKUI_DIAGNOSTICS build)";
+#endif
             _metrics.Text = $"{_metrics.Text}\n{scrollMetrics}";
             Debug.WriteLine($"[Stress/Scroll] {scrollMetrics.Replace("\n", " | ")}");
         }

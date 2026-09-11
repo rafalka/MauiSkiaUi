@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using CommunityToolkit.Maui;
 using MauiSkiaUi;
 #if MAUI_DEVFLOW
 using Microsoft.Maui.DevFlow.Agent;
@@ -13,6 +14,7 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
+			.UseMauiCommunityToolkit()
 			.UseSkiaUi()
 			.ConfigureFonts(fonts =>
 			{

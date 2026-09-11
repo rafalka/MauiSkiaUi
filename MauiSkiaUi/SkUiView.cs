@@ -16,8 +16,10 @@ public class SkUiView : View, ISkUiView
     private int _updateDepth;
     private bool _paintPending;
     private bool _layoutPending;
+#if SKUI_DIAGNOSTICS
     private int _diagnosticRecordFrameCount;
     private double _diagnosticRecordFrameTotalMs;
+#endif
     private long? _pressedPointer;
     private Point _pressPosition;
     private bool _tapCancelled;
@@ -66,9 +68,45 @@ public class SkUiView : View, ISkUiView
     public event EventHandler<SkUiTappedEventArgs>? Tapped;
 
     /// <summary>The clock shared by this node and its surface-owning ancestor.</summary>
+    /// <remarks>
+    /// Resolves to the topmost SkiaUi ancestor's clock. Starting animations while this node is
+    /// disconnected (or only mid-tree) creates a local clock; when the subtree is later parented
+    /// under another SkiaUi host, <see cref="OnAnimationRootChanged"/> runs so clients can rebind.
+    /// </remarks>
     public SkUiAnimationClock AnimationClock => SkiaParent?.AnimationClock ?? (_animationClock ??= new());
 
     internal SkUiView? SkiaParent => Parent as SkUiView;
+
+    /// <inheritdoc />
+    protected override void OnParentSet()
+    {
+        base.OnParentSet();
+        // A local clock is only valid while this node is the top of its SkiaUi subtree. Once a
+        // Skia parent appears, abandon it so descendants re-register on the shared ancestor clock.
+        if (SkiaParent is not null && _animationClock is not null)
+        {
+            _animationClock.StopAll();
+            _animationClock = null;
+        }
+        NotifyAnimationRootChanged();
+    }
+
+    /// <summary>
+    /// Called when this node or an ancestor changes parenting such that <see cref="AnimationClock"/>
+    /// may resolve to a different instance. Override to rebind repeating animations.
+    /// </summary>
+    protected virtual void OnAnimationRootChanged() { }
+
+    /// <summary>Notifies this node and every SkiaUi descendant that the shared clock may have moved.</summary>
+    private void NotifyAnimationRootChanged()
+    {
+        OnAnimationRootChanged();
+        foreach (var child in SkiaChildren)
+        {
+            if (child is SkUiView view)
+                view.NotifyAnimationRootChanged();
+        }
+    }
 
     /// <summary>
     /// Hosted <see cref="ISkUiView"/> children, if any. Used to walk the tree when the standalone root's
@@ -88,6 +126,7 @@ public class SkUiView : View, ISkUiView
         }
     }
 
+#if SKUI_DIAGNOSTICS
     /// <summary>
     /// Number of UI-thread <c>SKPicture</c> recordings since the last
     /// <see cref="ResetDiagnosticRecordStats"/> call. Used by the stress harness.
@@ -115,6 +154,7 @@ public class SkUiView : View, ISkUiView
         _diagnosticRecordFrameCount++;
         _diagnosticRecordFrameTotalMs += milliseconds;
     }
+#endif
 
     /// <inheritdoc />
     protected override Size MeasureOverride(double widthConstraint, double heightConstraint)

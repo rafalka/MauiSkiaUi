@@ -5,8 +5,13 @@ namespace MauiSkiaUi;
 
 /// <summary>
 /// A single-surface scroller with clamped offsets, tap cancellation, wheel input, and inertial fling.
-/// Hosted content is recorded into an <see cref="SKPicture"/> when it changes; scroll offset only
-/// translates that cache so offset-only frames avoid re-recording the subtree.
+/// Hosted content is recorded into a full content-space <see cref="SKPicture"/> (sized to
+/// <c>max(measured extent, viewport)</c>); scroll offset only translates that cache.
+/// Paint invalidations during an active pointer/fling keep the previous picture until settle.
+/// While the content cache is dirty and the shared animation clock is running, the scroller
+/// live-paints the viewport instead of re-recording the full extent every frame.
+/// Child <see cref="SkUiTouchAction.Pressed"/> is withheld until a tap is confirmed; synthetic
+/// tap press/release does not invalidate the picture for pressed chrome.
 /// </summary>
 public class SkUiScrollView : SkUiContentView
 {
@@ -19,12 +24,24 @@ public class SkUiScrollView : SkUiContentView
     private TimeSpan _lastTime;
     private Point _velocity;
     private bool _dragging;
+    /// <summary>
+    /// True after <see cref="SkUiTouchAction.Pressed"/> until pan takeover or release.
+    /// Child press is withheld until a tap is confirmed so scroll does not invalidate the content picture.
+    /// </summary>
+    private bool _contentPressPending;
     private IDisposable? _motion;
     private TaskCompletionSource? _scrollCompletion;
     private SKPicture? _contentPicture;
     private bool _contentPictureDirty = true;
     private SkUiView? _contentPictureSource;
+#if SKUI_DIAGNOSTICS
     private int _contentPictureRebuilds;
+#endif
+    /// <summary>Ignores content <see cref="SkUiView.PaintInvalidated"/> while delivering a synthetic tap.</summary>
+    private bool _suppressContentPictureInvalidation;
+
+    /// <summary>True while a pointer is captured, a pan is active, or a fling/programmatic motion is running.</summary>
+    private bool IsScrollInteractionActive => _pointer is not null || _dragging || _motion is not null;
 
     /// <summary>Creates a scroller whose motion stops when its surface unloads.</summary>
     public SkUiScrollView() => Unloaded += (_, _) => CancelInteraction();
@@ -43,11 +60,13 @@ public class SkUiScrollView : SkUiContentView
     /// <summary>Raised after a clamped offset changes.</summary>
     public event EventHandler<ScrolledEventArgs>? Scrolled;
 
+#if SKUI_DIAGNOSTICS
     /// <summary>How many times the content <see cref="SKPicture"/> has been rebuilt (stress / tests).</summary>
     internal int ContentPictureRebuilds => _contentPictureRebuilds;
 
-    /// <summary>Whether a reusable content picture is currently held.</summary>
-    internal bool HasContentPicture => _contentPicture is not null && !_contentPictureDirty;
+    /// <summary>Whether a reusable content picture is currently held (may be briefly stale while a gesture defers rebuild).</summary>
+    internal bool HasContentPicture => _contentPicture is not null;
+#endif
 
     /// <summary>Sets orientation without bindable write-back.</summary>
     public SkUiScrollView SetOrientation(ScrollOrientation value)
@@ -81,7 +100,7 @@ public class SkUiScrollView : SkUiContentView
     /// <summary>Arranges content in the padded slot without baking scroll offset into <see cref="IView.Frame"/>.</summary>
     private void ArrangeContentAtOrigin()
     {
-        InvalidateContentPicture();
+        InvalidateContentPicture(disposeImmediately: true);
         Content?.Arrange(new Rect(
             Padding.Left, Padding.Top,
             Math.Max(0, Math.Max(_extent.Width, _viewport.Width) - Padding.HorizontalThickness),
@@ -163,20 +182,31 @@ public class SkUiScrollView : SkUiContentView
             throw new ArgumentOutOfRangeException(nameof(verticalOffset));
     }
 
-    private void StopMotion()
+    /// <param name="requestRebuild">
+    /// When true and a motion was running, schedules a deferred content-picture rebuild if paint went dirty
+    /// during the motion. Pass false when the caller will clear the whole interaction and decide itself.
+    /// </param>
+    private void StopMotion(bool requestRebuild = true)
     {
+        var hadMotion = _motion is not null;
         _motion?.Dispose();
         _motion = null;
         _scrollCompletion?.TrySetCanceled();
         _scrollCompletion = null;
+        if (hadMotion && requestRebuild)
+            RequestContentPictureRebuildIfDirty();
     }
 
     private void CancelInteraction()
     {
-        StopMotion();
-        CancelContentTouch();
+        StopMotion(requestRebuild: false);
+        if (!_contentPressPending)
+            CancelContentTouch();
         _pointer = null;
         _dragging = false;
+        _contentPressPending = false;
+        if (Parent is not null)
+            RequestContentPictureRebuildIfDirty();
     }
 
     /// <inheritdoc />
@@ -194,10 +224,11 @@ public class SkUiScrollView : SkUiContentView
         StopMotion();
         _pointer = null;
         _dragging = false;
+        _contentPressPending = false;
         ScrollX = ScrollY = 0;
         _extent = Size.Zero;
         DetachContentPictureSource();
-        InvalidateContentPicture();
+        InvalidateContentPicture(disposeImmediately: true);
         base.OnContentChanged();
         AttachContentPictureSource();
     }
@@ -208,7 +239,7 @@ public class SkUiScrollView : SkUiContentView
         if (Parent is null)
         {
             CancelInteraction();
-            InvalidateContentPicture();
+            InvalidateContentPicture(disposeImmediately: true);
         }
         base.OnParentSet();
     }
@@ -229,38 +260,84 @@ public class SkUiScrollView : SkUiContentView
         _contentPictureSource = null;
     }
 
-    private void OnContentPaintInvalidated(object? sender, EventArgs args) => InvalidateContentPicture();
+    private void OnContentPaintInvalidated(object? sender, EventArgs args)
+    {
+        if (_suppressContentPictureInvalidation)
+            return;
+        InvalidateContentPicture(disposeImmediately: false);
+    }
 
-    /// <summary>Drops the cached content picture so the next paint rebuilds it from the live subtree.</summary>
-    private void InvalidateContentPicture()
+    /// <summary>
+    /// Marks the content picture dirty. When <paramref name="disposeImmediately"/> is false, the previous
+    /// picture is kept for stale draws so press/cancel during a finger pan does not stall on a full rebuild.
+    /// </summary>
+    private void InvalidateContentPicture(bool disposeImmediately)
     {
         _contentPictureDirty = true;
+        if (!disposeImmediately)
+            return;
         _contentPicture?.Dispose();
         _contentPicture = null;
     }
 
+    /// <summary>After a gesture/motion ends, rebuild once if content paint changed during the interaction.</summary>
+    private void RequestContentPictureRebuildIfDirty()
+    {
+        if (_contentPictureDirty)
+            InvalidatePaint();
+    }
+
     /// <summary>
-    /// Ensures the content picture matches the arranged content. Recording uses the same
-    /// <see cref="SkUiView.PaintChild"/> path as a live paint so pixels stay identical.
+    /// Width/height of the content coordinate space used for arrange and picture recording.
+    /// Arrange expands to the viewport when measured extent is smaller; the cache must match that.
+    /// </summary>
+    private double ContentSpaceWidth => Math.Max(_extent.Width, _viewport.Width);
+    private double ContentSpaceHeight => Math.Max(_extent.Height, _viewport.Height);
+
+    /// <summary>
+    /// Ensures a reusable content picture exists for the arranged content space.
+    /// Offset-only frames draw this picture; rebuilds run on arrange/content change, or after a deferred
+    /// paint invalidation once scroll interaction ends.
+    /// While the content cache is dirty and the shared clock is running (e.g. many activity indicators),
+    /// skips full-extent rebuilds and leaves painting to the live viewport-clipped path — fling-only
+    /// motion keeps the picture clean so offset animation still reuses the cache.
     /// </summary>
     private void EnsureContentPicture()
     {
         if (!_contentPictureDirty && _contentPicture is not null)
             return;
-        _contentPicture?.Dispose();
-        _contentPicture = null;
-        if (Content is null || _extent.Width <= 0 || _extent.Height <= 0)
+
+        if (_contentPictureDirty && _contentPicture is not null && IsScrollInteractionActive)
+            return;
+
+        // Content-paint animations: do not re-record the entire extent every vsync.
+        if (_contentPictureDirty && AnimationClock.IsRunning)
         {
+            _contentPicture?.Dispose();
+            _contentPicture = null;
+            return;
+        }
+
+        var previous = _contentPicture;
+        _contentPicture = null;
+        var spaceW = ContentSpaceWidth;
+        var spaceH = ContentSpaceHeight;
+        if (Content is null || spaceW <= 0 || spaceH <= 0)
+        {
+            previous?.Dispose();
             _contentPictureDirty = false;
             return;
         }
 
         using var recorder = new SKPictureRecorder();
-        var canvas = recorder.BeginRecording(new SKRect(0, 0, (float)_extent.Width, (float)_extent.Height));
+        var canvas = recorder.BeginRecording(new SKRect(0, 0, (float)spaceW, (float)spaceH));
         PaintChild(Content, canvas);
         _contentPicture = recorder.EndRecording();
+        previous?.Dispose();
         _contentPictureDirty = false;
+#if SKUI_DIAGNOSTICS
         _contentPictureRebuilds++;
+#endif
     }
 
     /// <inheritdoc />
@@ -274,7 +351,8 @@ public class SkUiScrollView : SkUiContentView
         {
             canvas.ClipRect(new SKRect(0, 0, (float)_viewport.Width, (float)_viewport.Height));
             canvas.Translate((float)-ScrollX, (float)-ScrollY);
-            if (_contentPicture is not null)
+            // Prefer the cache only when it matches current content; otherwise live-paint (viewport-culled via QuickReject).
+            if (_contentPicture is not null && !_contentPictureDirty)
                 canvas.DrawPicture(_contentPicture);
             else
                 PaintChild(Content, canvas);
@@ -297,6 +375,7 @@ public class SkUiScrollView : SkUiContentView
             StopMotion();
             _pointer = null;
             _dragging = false;
+            _contentPressPending = false;
             return base.Touch(touch);
         }
         if (_orientation == ScrollOrientation.Neither) return base.Touch(MapToContent(touch));
@@ -319,7 +398,8 @@ public class SkUiScrollView : SkUiContentView
             _lastTime = now;
             _velocity = Point.Zero;
             _dragging = false;
-            base.Touch(MapToContent(touch));
+            // Defer child press until release (tap) or abandon it on pan — avoids content-picture rebuilds while scrolling.
+            _contentPressPending = true;
             return true;
         }
         if (_pointer != touch.Id) return false;
@@ -330,7 +410,7 @@ public class SkUiScrollView : SkUiContentView
             if (!_dragging && distanceX * distanceX + distanceY * distanceY > 100)
             {
                 _dragging = true;
-                base.Touch(MapToContent(touch) with { Action = SkUiTouchAction.Cancelled });
+                _contentPressPending = false;
             }
             if (_dragging)
             {
@@ -340,18 +420,37 @@ public class SkUiScrollView : SkUiContentView
                 if (seconds > 0) _velocity = new Point(Math.Clamp(deltaX / seconds, -3000, 3000), Math.Clamp(deltaY / seconds, -3000, 3000));
                 SetOffset(ScrollX + deltaX, ScrollY + deltaY);
             }
-            else base.Touch(MapToContent(touch));
             _lastPosition = touch.Position;
             _lastTime = now;
             return true;
         }
         if (touch.Action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
         {
+            var wasDragging = _dragging;
+            var pendingPress = _contentPressPending;
             _pointer = null;
-            if (!_dragging) base.Touch(MapToContent(touch));
-            else if (touch.Action == SkUiTouchAction.Released && (now - _lastTime).TotalMilliseconds <= 100)
-                StartFling(_velocity);
             _dragging = false;
+            _contentPressPending = false;
+            if (!wasDragging && pendingPress && touch.Action == SkUiTouchAction.Released)
+            {
+                // Confirmed tap: deliver press+release without invalidating the scroll picture for pressed chrome.
+                // Click handlers that mutate hosted content should invalidate paint themselves after this returns.
+                _suppressContentPictureInvalidation = true;
+                try
+                {
+                    var pressAt = MapToContent(touch with { Action = SkUiTouchAction.Pressed, Position = _startPosition });
+                    base.Touch(pressAt);
+                    base.Touch(MapToContent(touch));
+                }
+                finally
+                {
+                    _suppressContentPictureInvalidation = false;
+                }
+            }
+            else if (wasDragging && touch.Action == SkUiTouchAction.Released && (now - _lastTime).TotalMilliseconds <= 100)
+                StartFling(_velocity);
+            if (_motion is null)
+                RequestContentPictureRebuildIfDirty();
             return true;
         }
         return true;
