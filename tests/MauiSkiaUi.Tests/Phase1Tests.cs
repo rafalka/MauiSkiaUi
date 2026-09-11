@@ -161,6 +161,41 @@ public class Phase1Tests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void ScrollContentPictureCacheSurvivesOffsetOnlyInvalidation()
+    {
+        var grid = new SkUiGrid { RowDefinitions = [new(new GridLength(8)), new(new GridLength(8))] };
+        var red = new SkUiBox { Color = Colors.Red };
+        var blue = new SkUiBox { Color = Colors.Blue };
+        Grid.SetRow(blue, 1);
+        grid.Children.Add(red);
+        grid.Children.Add(blue);
+        var scroll = new SkUiScrollView { Content = grid };
+        Arrange(scroll, 8, 8);
+        using var bitmap = new SKBitmap(8, 8);
+        using var canvas = new SKCanvas(bitmap);
+
+        scroll.Paint(canvas);
+        Assert.Equal(1, scroll.ContentPictureRebuilds);
+        Assert.True(scroll.HasContentPicture);
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(4, 2));
+
+        scroll.ScrollTo(0, 4);
+        scroll.Paint(canvas);
+        Assert.Equal(1, scroll.ContentPictureRebuilds);
+        Assert.True(scroll.HasContentPicture);
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(4, 2));
+        Assert.Equal(SKColors.Blue, bitmap.GetPixel(4, 6));
+
+        red.Color = Colors.Lime;
+        scroll.Paint(canvas);
+        Assert.Equal(2, scroll.ContentPictureRebuilds);
+        scroll.ScrollTo(0, 0);
+        scroll.Paint(canvas);
+        Assert.Equal(2, scroll.ContentPictureRebuilds);
+        Assert.Equal(SKColors.Lime, bitmap.GetPixel(4, 2));
+    }
+
+    [Fact]
     public void CullingRespectsTransformsAndOrderCacheTracksMutations()
     {
         var layout = new SkUiLayout();

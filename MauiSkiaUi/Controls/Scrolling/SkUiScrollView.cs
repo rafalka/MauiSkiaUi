@@ -3,7 +3,11 @@ using SkiaSharp;
 
 namespace MauiSkiaUi;
 
-/// <summary>A single-surface scroller with clamped offsets, tap cancellation, wheel input, and inertial fling.</summary>
+/// <summary>
+/// A single-surface scroller with clamped offsets, tap cancellation, wheel input, and inertial fling.
+/// Hosted content is recorded into an <see cref="SKPicture"/> when it changes; scroll offset only
+/// translates that cache so offset-only frames avoid re-recording the subtree.
+/// </summary>
 public class SkUiScrollView : SkUiContentView
 {
     private ScrollOrientation _orientation = ScrollOrientation.Vertical;
@@ -17,6 +21,10 @@ public class SkUiScrollView : SkUiContentView
     private bool _dragging;
     private IDisposable? _motion;
     private TaskCompletionSource? _scrollCompletion;
+    private SKPicture? _contentPicture;
+    private bool _contentPictureDirty = true;
+    private SkUiView? _contentPictureSource;
+    private int _contentPictureRebuilds;
 
     /// <summary>Creates a scroller whose motion stops when its surface unloads.</summary>
     public SkUiScrollView() => Unloaded += (_, _) => CancelInteraction();
@@ -34,6 +42,13 @@ public class SkUiScrollView : SkUiContentView
     public Size ContentSize => _extent;
     /// <summary>Raised after a clamped offset changes.</summary>
     public event EventHandler<ScrolledEventArgs>? Scrolled;
+
+    /// <summary>How many times the content <see cref="SKPicture"/> has been rebuilt (stress / tests).</summary>
+    internal int ContentPictureRebuilds => _contentPictureRebuilds;
+
+    /// <summary>Whether a reusable content picture is currently held.</summary>
+    internal bool HasContentPicture => _contentPicture is not null && !_contentPictureDirty;
+
     /// <summary>Sets orientation without bindable write-back.</summary>
     public SkUiScrollView SetOrientation(ScrollOrientation value)
     {
@@ -64,10 +79,14 @@ public class SkUiScrollView : SkUiContentView
     }
 
     /// <summary>Arranges content in the padded slot without baking scroll offset into <see cref="IView.Frame"/>.</summary>
-    private void ArrangeContentAtOrigin() => Content?.Arrange(new Rect(
-        Padding.Left, Padding.Top,
-        Math.Max(0, Math.Max(_extent.Width, _viewport.Width) - Padding.HorizontalThickness),
-        Math.Max(0, Math.Max(_extent.Height, _viewport.Height) - Padding.VerticalThickness)));
+    private void ArrangeContentAtOrigin()
+    {
+        InvalidateContentPicture();
+        Content?.Arrange(new Rect(
+            Padding.Left, Padding.Top,
+            Math.Max(0, Math.Max(_extent.Width, _viewport.Width) - Padding.HorizontalThickness),
+            Math.Max(0, Math.Max(_extent.Height, _viewport.Height) - Padding.VerticalThickness)));
+    }
 
     /// <summary>Clamps and sets an offset without remeasuring or rearranging content.</summary>
     public SkUiScrollView ScrollTo(double horizontalOffset, double verticalOffset)
@@ -116,6 +135,7 @@ public class SkUiScrollView : SkUiContentView
         ScrollY = nextY;
         OnPropertyChanged(nameof(ScrollX));
         OnPropertyChanged(nameof(ScrollY));
+        // Offset-only: keep the content picture; root RecordFrame will DrawPicture + translate.
         InvalidatePaint();
         SyncOverlayDescendants(this);
         Scrolled?.Invoke(this, new ScrolledEventArgs(ScrollX, ScrollY));
@@ -176,27 +196,88 @@ public class SkUiScrollView : SkUiContentView
         _dragging = false;
         ScrollX = ScrollY = 0;
         _extent = Size.Zero;
+        DetachContentPictureSource();
+        InvalidateContentPicture();
         base.OnContentChanged();
+        AttachContentPictureSource();
     }
 
     /// <inheritdoc />
     protected override void OnParentSet()
     {
-        if (Parent is null) CancelInteraction();
+        if (Parent is null)
+        {
+            CancelInteraction();
+            InvalidateContentPicture();
+        }
         base.OnParentSet();
+    }
+
+    private void AttachContentPictureSource()
+    {
+        if (Content is not SkUiView view)
+            return;
+        _contentPictureSource = view;
+        view.PaintInvalidated += OnContentPaintInvalidated;
+    }
+
+    private void DetachContentPictureSource()
+    {
+        if (_contentPictureSource is null)
+            return;
+        _contentPictureSource.PaintInvalidated -= OnContentPaintInvalidated;
+        _contentPictureSource = null;
+    }
+
+    private void OnContentPaintInvalidated(object? sender, EventArgs args) => InvalidateContentPicture();
+
+    /// <summary>Drops the cached content picture so the next paint rebuilds it from the live subtree.</summary>
+    private void InvalidateContentPicture()
+    {
+        _contentPictureDirty = true;
+        _contentPicture?.Dispose();
+        _contentPicture = null;
+    }
+
+    /// <summary>
+    /// Ensures the content picture matches the arranged content. Recording uses the same
+    /// <see cref="SkUiView.PaintChild"/> path as a live paint so pixels stay identical.
+    /// </summary>
+    private void EnsureContentPicture()
+    {
+        if (!_contentPictureDirty && _contentPicture is not null)
+            return;
+        _contentPicture?.Dispose();
+        _contentPicture = null;
+        if (Content is null || _extent.Width <= 0 || _extent.Height <= 0)
+        {
+            _contentPictureDirty = false;
+            return;
+        }
+
+        using var recorder = new SKPictureRecorder();
+        var canvas = recorder.BeginRecording(new SKRect(0, 0, (float)_extent.Width, (float)_extent.Height));
+        PaintChild(Content, canvas);
+        _contentPicture = recorder.EndRecording();
+        _contentPictureDirty = false;
+        _contentPictureRebuilds++;
     }
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        if (Content is not { } child)
+        if (Content is null)
             return;
+        EnsureContentPicture();
         var save = canvas.Save();
         try
         {
             canvas.ClipRect(new SKRect(0, 0, (float)_viewport.Width, (float)_viewport.Height));
             canvas.Translate((float)-ScrollX, (float)-ScrollY);
-            PaintChild(child, canvas);
+            if (_contentPicture is not null)
+                canvas.DrawPicture(_contentPicture);
+            else
+                PaintChild(Content, canvas);
         }
         finally
         {
