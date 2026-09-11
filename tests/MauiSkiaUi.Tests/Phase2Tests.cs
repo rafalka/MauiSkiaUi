@@ -115,6 +115,52 @@ public class Phase2Tests
     }
 
     [Fact]
+    public void ActivityIndicatorRebindsClockWhenIsRunningSetBeforeParenting()
+    {
+        var indicator = new SkUiActivityIndicator { IsRunning = true };
+        Assert.True(indicator.AnimationClock.IsRunning);
+
+        var layout = new SkUiLayout();
+        layout.Children.Add(indicator);
+
+        Assert.True(indicator.IsRunning);
+        Assert.Same(layout.AnimationClock, indicator.AnimationClock);
+        Assert.True(layout.AnimationClock.IsRunning);
+    }
+
+    [Fact]
+    public void ActivityIndicatorRebindsClockWhenSubtreeAttachesToSurfaceRoot()
+    {
+        // Mirrors StressPage: IsRunning before add, then layout under a content host.
+        var indicator = new SkUiActivityIndicator { IsRunning = true };
+        var layout = new SkUiLayout();
+        layout.Children.Add(indicator);
+        Assert.True(layout.AnimationClock.IsRunning);
+
+        var root = new SkUiContentView { Content = layout };
+        Assert.True(indicator.IsRunning);
+        Assert.Same(root.AnimationClock, indicator.AnimationClock);
+        Assert.Same(root.AnimationClock, layout.AnimationClock);
+        Assert.True(root.AnimationClock.IsRunning);
+    }
+
+    [Fact]
+    public void ActivityIndicatorStopsWhenAncestorLayoutDetached()
+    {
+        var indicator = new SkUiActivityIndicator();
+        var inner = new SkUiLayout();
+        inner.Children.Add(indicator);
+        var root = new SkUiContentView { Content = inner };
+        indicator.IsRunning = true;
+        Assert.True(root.AnimationClock.IsRunning);
+
+        // Detach the layout; the indicator still has Parent=inner and must stop via subtreeDetached.
+        root.Content = null;
+        Assert.False(indicator.IsRunning);
+        Assert.False(root.AnimationClock.IsRunning);
+    }
+
+    [Fact]
     public void MauiContentViewRootRelativeFrameIncludesAncestorAndOwnTranslation()
     {
         var overlay = new SkUiMauiContentView

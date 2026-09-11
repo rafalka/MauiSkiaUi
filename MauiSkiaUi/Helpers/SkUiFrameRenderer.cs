@@ -1,3 +1,6 @@
+#if SKUI_DIAGNOSTICS
+using System.Diagnostics;
+#endif
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -54,6 +57,9 @@ internal sealed class SkUiFrameRenderer : IDisposable
         if (_disposed || _root.Width <= 0 || _root.Height <= 0)
             return;
         _recording = true;
+#if SKUI_DIAGNOSTICS
+        var recordWatch = Stopwatch.StartNew();
+#endif
         try
         {
             _beforePaint();
@@ -79,6 +85,11 @@ internal sealed class SkUiFrameRenderer : IDisposable
         }
         finally
         {
+#if SKUI_DIAGNOSTICS
+            recordWatch.Stop();
+            if (!_disposed)
+                _root.NoteDiagnosticRecordFrame(recordWatch.Elapsed.TotalMilliseconds);
+#endif
             _recording = false;
         }
         if (_disposed)

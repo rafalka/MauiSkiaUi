@@ -44,7 +44,7 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 | `IsPressed` | Shared press state for intrinsic controls |
 | `StartUpdating` / `EndUpdating` | Coalesce invalidation |
 | `InvalidatePaint` | Redraw without remeasure |
-| `AnimationClock` | Shared root clock |
+| `AnimationClock` | Shared clock of the topmost SkiaUi ancestor; local clocks are abandoned when the subtree is reparented (`OnAnimationRootChanged`) |
 | `Paint` / `Touch` | `ISkUiView` surface |
 
 ## Differences / extensions

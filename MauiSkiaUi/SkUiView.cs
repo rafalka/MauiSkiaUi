@@ -16,6 +16,10 @@ public class SkUiView : View, ISkUiView
     private int _updateDepth;
     private bool _paintPending;
     private bool _layoutPending;
+#if SKUI_DIAGNOSTICS
+    private int _diagnosticRecordFrameCount;
+    private double _diagnosticRecordFrameTotalMs;
+#endif
     private long? _pressedPointer;
     private Point _pressPosition;
     private bool _tapCancelled;
@@ -64,9 +68,51 @@ public class SkUiView : View, ISkUiView
     public event EventHandler<SkUiTappedEventArgs>? Tapped;
 
     /// <summary>The clock shared by this node and its surface-owning ancestor.</summary>
+    /// <remarks>
+    /// Resolves to the topmost SkiaUi ancestor's clock. Starting animations while this node is
+    /// disconnected (or only mid-tree) creates a local clock; when the subtree is later parented
+    /// under another SkiaUi host, <see cref="OnAnimationRootChanged"/> runs so clients can rebind.
+    /// </remarks>
     public SkUiAnimationClock AnimationClock => SkiaParent?.AnimationClock ?? (_animationClock ??= new());
 
     internal SkUiView? SkiaParent => Parent as SkUiView;
+
+    /// <inheritdoc />
+    protected override void OnParentSet()
+    {
+        base.OnParentSet();
+        // A local clock is only valid while this node is the top of its SkiaUi subtree. Once a
+        // Skia parent appears, abandon it so descendants re-register on the shared ancestor clock.
+        if (SkiaParent is not null && _animationClock is not null)
+        {
+            _animationClock.StopAll();
+            _animationClock = null;
+        }
+        // When this node is detached, descendants still have it as Parent — pass subtreeDetached so
+        // they stop clocks instead of rebinding onto an orphan mid-tree clock.
+        NotifyAnimationRootChanged(subtreeDetached: Parent is null);
+    }
+
+    /// <summary>
+    /// Called when this node or an ancestor changes parenting such that <see cref="AnimationClock"/>
+    /// may resolve to a different instance. Override to rebind repeating animations.
+    /// </summary>
+    /// <param name="subtreeDetached">
+    /// True when an ancestor (or this node) was removed from its parent; descendants should stop
+    /// rather than rebind, even though their own <see cref="Element.Parent"/> may still be set.
+    /// </param>
+    protected virtual void OnAnimationRootChanged(bool subtreeDetached = false) { }
+
+    /// <summary>Notifies this node and every SkiaUi descendant that the shared clock may have moved.</summary>
+    private void NotifyAnimationRootChanged(bool subtreeDetached)
+    {
+        OnAnimationRootChanged(subtreeDetached);
+        foreach (var child in SkiaChildren)
+        {
+            if (child is SkUiView view)
+                view.NotifyAnimationRootChanged(subtreeDetached);
+        }
+    }
 
     /// <summary>
     /// Hosted <see cref="ISkUiView"/> children, if any. Used to walk the tree when the standalone root's
@@ -85,6 +131,36 @@ public class SkUiView : View, ISkUiView
             _hwAccelerated = value;
         }
     }
+
+#if SKUI_DIAGNOSTICS
+    /// <summary>
+    /// Number of UI-thread <c>SKPicture</c> recordings since the last
+    /// <see cref="ResetDiagnosticRecordStats"/> call. Used by the stress harness.
+    /// </summary>
+    internal int DiagnosticRecordFrameCount => _diagnosticRecordFrameCount;
+
+    /// <summary>
+    /// Cumulative milliseconds spent in UI-thread picture recording since the last
+    /// <see cref="ResetDiagnosticRecordStats"/> call.
+    /// </summary>
+    internal double DiagnosticRecordFrameTotalMs => _diagnosticRecordFrameTotalMs;
+
+    /// <summary>Clears cumulative UI-thread record-frame diagnostics.</summary>
+    internal void ResetDiagnosticRecordStats()
+    {
+        _diagnosticRecordFrameCount = 0;
+        _diagnosticRecordFrameTotalMs = 0;
+    }
+
+    /// <summary>Records one UI-thread picture-recording sample for diagnostics.</summary>
+    internal void NoteDiagnosticRecordFrame(double milliseconds)
+    {
+        if (milliseconds < 0 || double.IsNaN(milliseconds) || double.IsInfinity(milliseconds))
+            return;
+        _diagnosticRecordFrameCount++;
+        _diagnosticRecordFrameTotalMs += milliseconds;
+    }
+#endif
 
     /// <inheritdoc />
     protected override Size MeasureOverride(double widthConstraint, double heightConstraint)

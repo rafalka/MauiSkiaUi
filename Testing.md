@@ -41,7 +41,7 @@ Phase 1 native acceptance checklist (still open):
 - Launch Controls at compact phone and tablet/desktop sizes; inspect `ControlsHost`, `ControlsScroller`, `EarthImage`, and `AddObservation` bounds. Verify one native surface and handlerless descendants.
 - Confirm offline Earth image, text wrapping, Grid columns, style colors, pressed/disabled feedback, observation count binding and reset command.
 - Pan from a button: no click after threshold; fling settles; new press interrupts. Tap after scrolling must hit the translated control. Exercise Back to top and desktop wheel input.
-- Navigate to Stress, scroll to the last of 1,000 buttons, tap it, run Record/Scroll/Top, and navigate back. No stale animations or extra surfaces should survive navigation.
+- Navigate to Stress, confirm config-only UI, Run test (default 1,000 children / HW on), note timings, scroll to the last button, tap it, run Record/Scroll/Top, and navigate back. No stale animations or extra surfaces should survive navigation.
 - Query actual runtime foreground/background colors and inspect screenshots. Drawn-tree native accessibility/keyboard support is not implemented.
 
 Android, iOS simulator, and Mac Catalyst diagnostic builds pass, including new source-generated XAML. The attempted device launch is blocked by `MSB4099` in the installed DevFlow targets, with zero registered agents. No native screenshot, visual-tree, color-contrast, GPU, or input result is claimed for Phase 1. Windows compilation and pinned-font image goldens are not verified.
