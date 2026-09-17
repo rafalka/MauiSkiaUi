@@ -5,7 +5,7 @@ namespace MauiSkiaUiDemo;
 /// <summary>Side-by-side property playground for <see cref="SkUiActivityIndicator"/>.</summary>
 public sealed class ActivityIndicatorDemoPage : ComponentDemoPage
 {
-    public ActivityIndicatorDemoPage() : base(nameof(SkUiActivityIndicator), new SkUiActivityIndicator(), new ActivityIndicator())
+    public ActivityIndicatorDemoPage() : base(nameof(SkUiActivityIndicator), new SkUiActivityIndicator() {HwAccelerated = true}, new ActivityIndicator())
     {
         var skia = (SkUiActivityIndicator)SkiaControl;
         var native = (ActivityIndicator)NativeControl!;

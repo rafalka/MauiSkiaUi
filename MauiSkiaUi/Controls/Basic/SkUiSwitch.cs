@@ -9,7 +9,8 @@ public class SkUiSwitch : SkUiToggleControl
     private Color _thumbColor = Colors.White;
 
     /// <summary>Bindable track color while toggled on.</summary>
-    public static readonly BindableProperty OnColorProperty = BindableProperty.Create(nameof(OnColor), typeof(Color), typeof(SkUiSwitch), SkUiColors.Accent,
+    public static readonly BindableProperty OnColorProperty = BindableProperty.Create(nameof(OnColor), typeof(Color), typeof(SkUiSwitch), null,
+        defaultValueCreator: _ => SkUiColors.Accent,
         propertyChanged: (view, _, value) => ((SkUiSwitch)view).SetOnColor((Color)value));
     /// <summary>Bindable thumb color.</summary>
     public static readonly BindableProperty ThumbColorProperty = BindableProperty.Create(nameof(ThumbColor), typeof(Color), typeof(SkUiSwitch), Colors.White,
@@ -26,18 +27,24 @@ public class SkUiSwitch : SkUiToggleControl
     public SkUiSwitch SetThumbColor(Color value) { ArgumentNullException.ThrowIfNull(value); _thumbColor = value; InvalidatePaint(); return this; }
 
     /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => new(51, 31);
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
+        SkUiLook.Current.MeasureSwitch(widthConstraint, heightConstraint);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
         var trackColor = IsChecked ? _onColor : SkUiColors.TrackOff;
-        if (!IsEnabled) trackColor = trackColor.MultiplyAlpha(0.5f);
-        var radius = (float)Height / 2;
-        SkUiChrome.DrawRoundedBox(canvas, new SKRect(0, 0, (float)Width, (float)Height), radius, ToSkColor(trackColor), SKColors.Transparent, 0);
-        var thumbRadius = radius - 2;
-        var thumbX = IsChecked ? (float)Width - radius : radius;
-        using var thumb = new SKPaint { Color = ToSkColor(IsEnabled ? _thumbColor : _thumbColor.MultiplyAlpha(0.7f)), IsAntialias = true };
-        canvas.DrawCircle(thumbX, radius, thumbRadius, thumb);
+        var thumbColor = _thumbColor;
+        if (!IsEnabled)
+        {
+            trackColor = trackColor.MultiplyAlpha(0.5f);
+            thumbColor = thumbColor.MultiplyAlpha(0.7f);
+        }
+        SkUiLook.Current.DrawSwitch(
+            canvas,
+            new SKRect(0, 0, (float)Width, (float)Height),
+            IsChecked,
+            ToSkColor(trackColor),
+            ToSkColor(thumbColor));
     }
 }

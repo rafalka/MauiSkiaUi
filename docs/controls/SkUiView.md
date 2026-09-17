@@ -6,7 +6,7 @@ Base class for every Skia-drawn SkiaUi node. Implements [`ISkUiView`](../../Maui
 
 ## How it works
 
-`SkUiView` owns handler-independent measure/arrange caching, Background → Content → Overlay paint phases, render transforms (translation/rotation/scale), opacity, rectangular clipping, tap participation, and access to the shared [`SkUiAnimationClock`](../../AnimationMechanism.md). A custom MAUI handler creates a Skia surface only when the view is **standalone** in the MAUI tree.
+`SkUiView` owns handler-independent measure/arrange caching, Background → Content → Overlay paint (`PaintBackground` / `PaintOverlay` delegates for chrome; virtual `OnPaintContent` for structure), render transforms (translation/rotation/scale), opacity, rectangular clipping, tap participation, and access to the shared [`SkUiAnimationClock`](../../AnimationMechanism.md). A custom MAUI handler creates a Skia surface only when the view is **standalone** in the MAUI tree.
 
 
 ## Shared conventions
@@ -44,6 +44,7 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 | `IsPressed` | Shared press state for intrinsic controls |
 | `StartUpdating` / `EndUpdating` | Coalesce invalidation |
 | `InvalidatePaint` | Redraw without remeasure |
+| `PaintBackground` / `PaintOverlay` | Chrome layer delegates (`SetPaintBackground` / `SetPaintOverlay`). Content is virtual `OnPaintContent` only. Control chrome painters (e.g. `PaintButtonBackground`) are `protected` for subclass reuse; `PaintDefaultBackground` is the solid MAUI fill fallback. |
 | `AnimationClock` | Shared clock of the topmost SkiaUi ancestor; local clocks are abandoned when the subtree is reparented (`OnAnimationRootChanged`) |
 | `Paint` / `Touch` | `ISkUiView` surface |
 

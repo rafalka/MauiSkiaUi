@@ -42,6 +42,7 @@ public sealed class ComponentGalleryPage : ContentPage
         root.Add(new ScrollView { Content = rows, AutomationId = "ComponentCatalog" });
         Content = root;
         ToolbarItems.Add(new ToolbarItem("Composition", null, async () => await Navigate("composition")));
+        ToolbarItems.Add(new ToolbarItem("Look & colors", null, async () => await Navigate("look")));
         ToolbarItems.Add(new ToolbarItem("Stress", null, async () => await Navigate("stress")));
         ToolbarItems.Add(new ToolbarItem("Primitives", null, async () => await Navigate("primitives")));
     }

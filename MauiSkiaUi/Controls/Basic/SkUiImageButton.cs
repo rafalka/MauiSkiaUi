@@ -56,6 +56,9 @@ public class SkUiImageButton : SkUiImage
     /// <summary>Sets the tint clip corner radius without bindable write-back.</summary>
     public SkUiImageButton SetCornerRadius(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _cornerRadius = value; InvalidatePaint(); return this; }
 
+    /// <summary>Creates an image button with a press/disabled tint overlay painter.</summary>
+    public SkUiImageButton() => SetPaintOverlay(PaintButtonOverlay);
+
     /// <inheritdoc />
     protected override bool HandlesTap => true;
     /// <inheritdoc />
@@ -71,21 +74,12 @@ public class SkUiImageButton : SkUiImage
         if (_command?.CanExecute(_commandParameter) == true) _command.Execute(_commandParameter);
     }
 
-    /// <inheritdoc />
-    protected override void OnPaintOverlay(SKCanvas canvas)
-    {
-        base.OnPaintOverlay(canvas);
-        if (IsEnabled && CanReceiveTap && !IsPressed) return;
-        var tint = !IsEnabled || !CanReceiveTap ? new SKColor(0, 0, 0, 96) : new SKColor(0, 0, 0, 48);
-        using var paint = new SKPaint { Color = tint };
-        if (_cornerRadius > 0)
-        {
-            using var clip = SkUiChrome.CreateRoundRectPath(new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius);
-            canvas.DrawPath(clip, paint);
-        }
-        else
-        {
-            canvas.DrawRect(0, 0, (float)Width, (float)Height, paint);
-        }
-    }
+    /// <summary>Draws pressed/disabled tint registered as <see cref="SkUiView.PaintOverlay"/>. Subclasses may call or re-register this painter.</summary>
+    protected void PaintButtonOverlay(SKCanvas canvas) =>
+        SkUiLook.Current.DrawPressTint(
+            canvas,
+            new SKRect(0, 0, (float)Width, (float)Height),
+            (float)_cornerRadius,
+            disabled: !IsEnabled || !CanReceiveTap,
+            pressed: IsPressed);
 }

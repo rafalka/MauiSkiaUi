@@ -8,7 +8,7 @@ public class SkUiButton : SkUiLabel
 {
     private ICommand? _command;
     private object? _commandParameter;
-    private double _cornerRadius = 6;
+    private double _cornerRadius = SkUiLook.Current.DefaultButtonCornerRadius;
     private Color _fillColor = SkUiColors.Accent;
     private Color _borderColor = Colors.Transparent;
     private double _borderWidth;
@@ -18,9 +18,13 @@ public class SkUiButton : SkUiLabel
     /// <summary>Bindable command argument.</summary>
     public static readonly BindableProperty CommandParameterProperty = BindableProperty.Create(nameof(CommandParameter), typeof(object), typeof(SkUiButton), null, propertyChanged: (view, _, value) => ((SkUiButton)view).SetCommandParameter(value));
     /// <summary>Bindable rounded corner radius.</summary>
-    public static readonly BindableProperty CornerRadiusProperty = BindableProperty.Create(nameof(CornerRadius), typeof(double), typeof(SkUiButton), 6d, propertyChanged: (view, _, value) => ((SkUiButton)view).SetCornerRadius((double)value));
+    public static readonly BindableProperty CornerRadiusProperty = BindableProperty.Create(nameof(CornerRadius), typeof(double), typeof(SkUiButton), 6d,
+        defaultValueCreator: _ => SkUiLook.Current.DefaultButtonCornerRadius,
+        propertyChanged: (view, _, value) => ((SkUiButton)view).SetCornerRadius((double)value));
     /// <summary>Bindable button fill.</summary>
-    public static readonly BindableProperty FillColorProperty = BindableProperty.Create(nameof(FillColor), typeof(Color), typeof(SkUiButton), SkUiColors.Accent, propertyChanged: (view, _, value) => ((SkUiButton)view).SetFillColor((Color)value));
+    public static readonly BindableProperty FillColorProperty = BindableProperty.Create(nameof(FillColor), typeof(Color), typeof(SkUiButton), null,
+        defaultValueCreator: _ => SkUiColors.Accent,
+        propertyChanged: (view, _, value) => ((SkUiButton)view).SetFillColor((Color)value));
     /// <summary>Bindable border color.</summary>
     public static readonly BindableProperty BorderColorProperty = BindableProperty.Create(nameof(BorderColor), typeof(Color), typeof(SkUiButton), Colors.Transparent, propertyChanged: (view, _, value) => ((SkUiButton)view).SetBorderColor((Color)value));
     /// <summary>Bindable border width.</summary>
@@ -33,7 +37,8 @@ public class SkUiButton : SkUiLabel
         SetPadding(new Thickness(18, 12));
         SetHorizontalTextAlignment(TextAlignment.Center);
         SetVerticalTextAlignment(TextAlignment.Center);
-        MinimumHeightRequest = 44;
+        MinimumHeightRequest = SkUiLook.Current.DefaultButtonMinimumHeight;
+        SetPaintBackground(PaintButtonBackground);
     }
 
     /// <inheritdoc />
@@ -117,13 +122,13 @@ public class SkUiButton : SkUiLabel
         Clicked?.Invoke(this, EventArgs.Empty);
         if (_command?.CanExecute(_commandParameter) == true) _command.Execute(_commandParameter);
     }
-    /// <inheritdoc />
-    protected override void OnPaintBackground(SKCanvas canvas)
+    /// <summary>Draws the rounded fill/border registered as <see cref="SkUiView.PaintBackground"/>. Subclasses may call or re-register this painter.</summary>
+    protected void PaintButtonBackground(SKCanvas canvas)
     {
         var color = ResolveSolidBackgroundColor() ?? _fillColor;
         if (!IsEnabled || !CanReceiveTap) color = SkUiColors.Disabled;
         else if (IsPressed) color = color.MultiplyAlpha(0.75f);
-        SkUiChrome.DrawRoundedBox(canvas, new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius,
+        SkUiLook.Current.DrawRoundedBox(canvas, new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius,
             ToSkColor(color), ToSkColor(_borderColor), (float)_borderWidth);
     }
 
@@ -133,7 +138,7 @@ public class SkUiButton : SkUiLabel
         var saveCount = canvas.Save();
         try
         {
-            using var clip = SkUiChrome.CreateRoundRectPath(new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius);
+            using var clip = SkUiLook.Current.CreateRoundRectPath(new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius);
             canvas.ClipPath(clip, antialias: true);
             base.OnPaintContent(canvas);
         }

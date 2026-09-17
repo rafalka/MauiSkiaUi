@@ -87,12 +87,12 @@ Do **not** invent a dirty-rect compositor in v1.
 ### Layer API (v1 — keep simple)
 
 ```csharp
-// Intent on SkUiView (names TBD)
-protected virtual void OnPaintBackground(SkUiPaintContext ctx) { }
-protected virtual void OnPaintContent(SkUiPaintContext ctx) { }      // chrome only
-protected virtual void OnPaintOverlay(SkUiPaintContext ctx) { }
+// SkUiView / SkUiCoreNode paint phases
+Action<SKCanvas>? PaintBackground;   // chrome; SkUiView defaults to solid MAUI Background when unset
+protected virtual void OnPaintContent(SKCanvas canvas) { }  // structure only (virtual)
+Action<SKCanvas>? PaintOverlay;      // chrome after content
 
-// SkUiLayout / SkUiContentView: after OnPaintContent chrome, paint Children / Content
+// SkUiLayout / SkUiContentView: OnPaintContent paints Children / Content
 ```
 
 - Children paint as a **sub-phase after Content chrome** (Avalonia-like: parent chrome under children; overlay after).
@@ -216,18 +216,23 @@ Layer paint code runs in the context of the owning control so it can read layout
 5. Paint **Overlay**.
 6. Restore canvas state.
 
-Exact API (virtual `OnPaintBackground` / delegates / sealed slot types) is **TBD** — see open items. Intent: one consistent override surface on `SkUiView` so controls do not each invent a paint protocol.
+Exact API: **Background / Overlay** use optional `PaintBackground` / `PaintOverlay` delegates (`Action<SKCanvas>?`); **Content** stays virtual `OnPaintContent` only (layouts and leaf content). When `PaintBackground` is unset on `SkUiView`, protected `PaintDefaultBackground` paints solid MAUI `Background`/`BackgroundColor`. Control chrome painters registered as delegates are `protected` so subclasses can call or re-register them. Same split on `SkUiCoreNode` (no default background).
 
 ### Reusable drawing helpers
 
-Favor shared primitives used by many Background/Content layers:
+Favor shared primitives used by many Background/Content layers (`Helpers/SkUiChrome.cs` today; **FR-18** / [ControlLook.md](ControlLook.md) promotes these into a public replaceable **control look**):
 
-- Rounded rectangle fill / stroke
-- Border / thickness insets
-- Simple shadow / focus ring (if in scope)
-- Text run helpers for labels
+- Rounded rectangle fill / stroke / clip path (`DrawRoundedBox`, `CreateRoundRectPath`) — Button, Border, ImageButton tint
+- Switch / CheckBox / RadioButton / ActivityIndicator / Image destination — one painter each for Core + MAUI-compatible controls
+- Pressed/disabled tint overlay (`DrawPressTint`)
+- Text run helpers for labels (still per-control; Core is single-line)
 
-Reuse is via **utilities or shared layer implementations**, not by making every chrome piece an `ISkUiView`.
+Reuse is via **utilities or shared look implementations**, not by making every chrome piece an `ISkUiView`. Apps customize shapes by swapping or subclassing the look (not by forking each control’s `OnPaintContent`).
+
+**Do not confuse** control look with:
+
+- **Color scheme** ([ColorScheme.md](ColorScheme.md) / FR-19) — default palette
+- **MAUI `Style` / VSM** ([FR-12](Requirements.md#fr-12--styles-and-visualstates-maui-per-control-property-appearance)) — per-control property overrides
 
 ### Layers vs hit-testing
 
@@ -318,10 +323,10 @@ Exact signatures TBD (Requirements open decisions); intent:
 
 ### Layers (FR-9)
 
-- [ ] Background / Content / Overlay **virtual paint phases** on `SkUiView` (no layer bitmap objects in v1).
+- [ ] Background / Overlay via **`PaintBackground` / `PaintOverlay` delegates**; Content via virtual **`OnPaintContent`** (**Decided**).
 - [ ] Default empty implementations; controls override as needed.
 - [ ] Layouts: paint **Children / Content after Content chrome**, then Overlay.
-- [ ] Shared drawing helpers for common chrome.
+- [ ] Shared drawing helpers for common chrome (**FR-18:** public control look; today `SkUiChrome`).
 - [ ] Apply model to built-in controls (`SkUiLabel`, button, grid lines example when grid exists).
 
 ### Clip / mask (FR-11)
@@ -359,7 +364,7 @@ Record answers here when decided; keep Requirements “Open decisions” in sync
 **Decided:** v1 full-tree paint; no default retained paint cache; opt-in `Picture`/`Image` later — see *Recommended solution* and Requirements *Decided*.
 
 1. **`ISkUiView.Paint` signature:** canvas-only vs paint-args object; density/scale; void return for v1.
-2. **Layer API names:** `OnPaintBackground` / `OnPaintContent` / `OnPaintOverlay` vs other.
+2. ~~**Layer API names:** …~~ **Decided:** Content = virtual `OnPaintContent`; Background/Overlay = `PaintBackground` / `PaintOverlay` delegates (fluent `SetPaint*`). No virtual `OnPaintBackground` / `OnPaintOverlay`.
 3. **Children vs Content:** **Decided** — paint Children / Content after Content chrome, before Overlay.
 4. **When to add `UseCache`:** after first gallery profiling, or stub the enum early with only `None` implemented?
 5. **Animation / `HasRenderLoop`:** full-tree paint per frame until measured otherwise (still open in Requirements).

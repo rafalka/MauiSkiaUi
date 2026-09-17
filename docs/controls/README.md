@@ -2,7 +2,16 @@
 
 Per-control guides for public `SkUi*` types. For MAUI reimplementations, baseline behavior lives in the linked Microsoft docs; each page focuses on **SkiaUi differences and extensions**.
 
-Shared pipelines: [LayoutSystem.md](../LayoutSystem.md) · [DrawingMechanism.md](../DrawingMechanism.md) · [EventMechanism.md](../EventMechanism.md) · [AnimationMechanism.md](../AnimationMechanism.md) · [ScrollingAndCollectionViews.md](../ScrollingAndCollectionViews.md)
+Shared pipelines: [LayoutSystem.md](../LayoutSystem.md) · [DrawingMechanism.md](../DrawingMechanism.md) · [ControlLook.md](../ControlLook.md) · [ColorScheme.md](../ColorScheme.md) · [EventMechanism.md](../EventMechanism.md) · [AnimationMechanism.md](../AnimationMechanism.md) · [ScrollingAndCollectionViews.md](../ScrollingAndCollectionViews.md)
+
+## Core layer (lightweight, no MAUI View)
+
+| Type | Doc | Notes |
+| --- | --- | --- |
+| `SkUiCoreNode` / `ISkUiCoreNode` | [SkUiCore.md](SkUiCore.md) | Public Core tree; fluent + INPC |
+| `SkUiCorePanel` / stacks / absolute / overlay | [SkUiCore.md](SkUiCore.md) | Core-only layouts (no Grid/ScrollView yet) |
+| `SkUiCoreLabel` / `Button` / toggles / Image / shapes / … | [SkUiCore.md](SkUiCore.md) | Core primitives & basic controls |
+| `SkUiCoreHost` | [SkUiCore.md](SkUiCore.md) | `SkUiView` bridge for Core roots |
 
 ## Basic controls
 

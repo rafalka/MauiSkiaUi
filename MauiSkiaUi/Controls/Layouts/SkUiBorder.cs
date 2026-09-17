@@ -34,11 +34,14 @@ public class SkUiBorder : SkUiContentView
     /// <summary>Sets the corner radius without bindable write-back.</summary>
     public SkUiBorder SetCornerRadius(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _cornerRadius = value; InvalidatePaint(); return this; }
 
-    /// <inheritdoc />
-    protected override void OnPaintBackground(SKCanvas canvas)
+    /// <summary>Creates a border that paints chrome via <see cref="SkUiView.PaintBackground"/>.</summary>
+    public SkUiBorder() => SetPaintBackground(PaintBorderBackground);
+
+    /// <summary>Draws the rounded fill/border registered as <see cref="SkUiView.PaintBackground"/>. Subclasses may call or re-register this painter.</summary>
+    protected void PaintBorderBackground(SKCanvas canvas)
     {
         var fill = ResolveSolidBackgroundColor() ?? Colors.Transparent;
-        SkUiChrome.DrawRoundedBox(canvas, new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius,
+        SkUiLook.Current.DrawRoundedBox(canvas, new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius,
             ToSkColor(fill), ToSkColor(_stroke ?? Colors.Transparent), (float)(_stroke is null ? 0 : _strokeThickness));
     }
 
@@ -48,7 +51,7 @@ public class SkUiBorder : SkUiContentView
         var saveCount = canvas.Save();
         try
         {
-            using var clip = SkUiChrome.CreateRoundRectPath(new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius);
+            using var clip = SkUiLook.Current.CreateRoundRectPath(new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius);
             canvas.ClipPath(clip, antialias: true);
             base.OnPaintContent(canvas);
         }

@@ -138,14 +138,15 @@ public class PipelineTests
 
     private sealed class InvalidatingPaintProbe : SkUiBox
     {
-        protected override void OnPaintOverlay(SKCanvas canvas)
-        {
-            if (Color == Colors.Red)
+        public InvalidatingPaintProbe() =>
+            SetPaintOverlay(_ =>
             {
-                Color = Colors.Blue;
-                InvalidatePaint();
-            }
-        }
+                if (Color == Colors.Red)
+                {
+                    Color = Colors.Blue;
+                    InvalidatePaint();
+                }
+            });
     }
 
     [Theory]
@@ -317,6 +318,20 @@ public class PipelineTests
         probe.IsVisible = false;
         probe.Paint(canvas);
         Assert.Empty(calls);
+    }
+
+    [Fact]
+    public void PaintDelegatesReplaceDefaultBackgroundAndOverlay()
+    {
+        var calls = new List<string>();
+        var probe = new PaintProbe(calls);
+        probe.SetPaintBackground(_ => calls.Add("delegate-background"));
+        probe.SetPaintOverlay(_ => calls.Add("delegate-overlay"));
+        Arrange(probe, 40, 40);
+        using var bitmap = new SKBitmap(40, 40);
+        using var canvas = new SKCanvas(bitmap);
+        probe.Paint(canvas);
+        Assert.Equal(["delegate-background", "content", "delegate-overlay"], calls);
     }
 
     [Fact]
@@ -560,11 +575,17 @@ public class PipelineTests
         protected override void ArrangeContent(Size size) => Arranges++;
     }
 
-    private sealed class PaintProbe(List<string> calls) : SkUiView
+    private sealed class PaintProbe : SkUiView
     {
-        protected override void OnPaintBackground(SKCanvas canvas) => calls.Add("background");
-        protected override void OnPaintContent(SKCanvas canvas) => calls.Add("content");
-        protected override void OnPaintOverlay(SKCanvas canvas) => calls.Add("overlay");
+        public PaintProbe(List<string> calls)
+        {
+            SetPaintBackground(_ => calls.Add("background"));
+            SetPaintOverlay(_ => calls.Add("overlay"));
+            _calls = calls;
+        }
+
+        private readonly List<string> _calls;
+        protected override void OnPaintContent(SKCanvas canvas) => _calls.Add("content");
     }
 
     [Fact]

@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using CommunityToolkit.Maui.Views;
 using MauiSkiaUi;
+using MauiSkiaUi.Core;
+using Microsoft.Maui.Layouts;
 using SkiaSharp;
 
 namespace MauiSkiaUiDemo;
@@ -19,6 +21,7 @@ public sealed class StressPage : ContentPage
     private readonly Entry _countEntry;
     private readonly CheckBox _hwAcceleration;
     private readonly CheckBox _animate;
+    private readonly CheckBox _useCore;
     private readonly Button _runButton;
     private readonly Label _metrics;
     private readonly Label _selected;
@@ -36,9 +39,11 @@ public sealed class StressPage : ContentPage
         var description = new Label
         {
             Text =
-                "Builds a two-column SkUiButton grid under one SkUiScrollView, then measures generate, attach, " +
+                "Builds a two-column absolute layout of buttons under one SkUiScrollView, then measures generate, attach, " +
                 "first-layout/render, and overall time until the UI thread is idle. " +
-                "With Animate checked, the second column uses running SkUiActivityIndicator views instead of buttons. " +
+                "Toggle Core layer to compare MAUI-compatible SkUi* controls vs lightweight MauiSkiaUi.Core nodes " +
+                "(SkUiCoreHost + SkUiCoreAbsoluteLayout + SkUiCoreButton / SkUiCoreActivityIndicator). " +
+                "With Animate checked, the second column uses running activity indicators on either layer. " +
                 "Record times CPU Paint; Scroll animates and reports average UI-thread RecordFrame ms (HW on vs off).",
             TextColor = DemoColors.Caption,
             FontFamily = DemoFonts.OpenSansRegular,
@@ -72,6 +77,14 @@ public sealed class StressPage : ContentPage
             IsChecked = false,
             Color = DemoColors.Accent,
             AutomationId = "StressAnimate",
+            VerticalOptions = LayoutOptions.Center
+        };
+
+        _useCore = new CheckBox
+        {
+            IsChecked = false,
+            Color = DemoColors.Accent,
+            AutomationId = "StressUseCore",
             VerticalOptions = LayoutOptions.Center
         };
 
@@ -128,6 +141,23 @@ public sealed class StressPage : ContentPage
                         new Label
                         {
                             Text = "Animate (2nd column = spinners)",
+                            TextColor = DemoColors.Ink,
+                            FontFamily = DemoFonts.OpenSansRegular,
+                            FontSize = 13,
+                            VerticalOptions = LayoutOptions.Center
+                        }
+                    }
+                },
+                new HorizontalStackLayout
+                {
+                    Spacing = 12,
+                    VerticalOptions = LayoutOptions.Center,
+                    Children =
+                    {
+                        _useCore,
+                        new Label
+                        {
+                            Text = "Core layer (no MAUI View per cell)",
                             TextColor = DemoColors.Ink,
                             FontFamily = DemoFonts.OpenSansRegular,
                             FontSize = 13,
@@ -294,11 +324,14 @@ public sealed class StressPage : ContentPage
             _countEntry.Text = childCount.ToString();
             var hwAccelerated = _hwAcceleration.IsChecked;
             var animate = _animate.IsChecked;
+            var useCore = _useCore.IsChecked;
 
             var overall = Stopwatch.StartNew();
 
             var generate = Stopwatch.StartNew();
-            var scroller = BuildStressTree(childCount, hwAccelerated, animate);
+            var scroller = useCore
+                ? BuildCoreStressTree(childCount, hwAccelerated, animate)
+                : BuildMauiStressTree(childCount, hwAccelerated, animate);
             generate.Stop();
 
             var add = Stopwatch.StartNew();
@@ -314,8 +347,9 @@ public sealed class StressPage : ContentPage
             await WhenUiThreadIdleAsync().ConfigureAwait(true);
             overall.Stop();
 
+            var layer = useCore ? "Core" : "MAUI";
             var metrics =
-                $"Children: {childCount:N0}  |  HW accel: {(hwAccelerated ? "on" : "off")}  |  Animate: {(animate ? "on" : "off")}\n" +
+                $"Layer: {layer}  |  Children: {childCount:N0}  |  HW accel: {(hwAccelerated ? "on" : "off")}  |  Animate: {(animate ? "on" : "off")}\n" +
                 $"Generate UI: {generate.Elapsed.TotalMilliseconds:F1} ms\n" +
                 $"Add to page: {add.Elapsed.TotalMilliseconds:F1} ms\n" +
                 $"UI render (layout + first frame): {render.Elapsed.TotalMilliseconds:F1} ms\n" +
@@ -334,28 +368,23 @@ public sealed class StressPage : ContentPage
         }
     }
 
-    /// <summary>
-    /// Creates the scrollable two-column grid without attaching it to the page.
-    /// When <paramref name="animate"/> is true, column 1 hosts running activity indicators instead of buttons.
-    /// Cell properties use fluent <c>Set*</c> setters (not bindable <c>SetValue</c>) and inserts run inside
-    /// <see cref="SkUiView.StartUpdating"/> / <see cref="SkUiView.EndUpdating"/> so one invalidate covers the batch.
-    /// Per-cell / scroller <c>AutomationId</c> is omitted to avoid bindable write cost in generate profiles.
-    /// </summary>
-    private SkUiScrollView BuildStressTree(int childCount, bool hwAccelerated, bool animate)
-    {
-        var grid = new SkUiGrid();
-        grid.SetColumnSpacing(8).SetRowSpacing(4).SetPadding(new Thickness(8));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+    private const double CellHeight = 48;
+    private const double RowStride = 52; // cell + 4px gap
 
-        grid.StartUpdating();
+    /// <summary>
+    /// MAUI-compatible path: <see cref="SkUiAbsoluteLayout"/> + <see cref="SkUiButton"/> cells.
+    /// Column placement uses proportional X/Width; rows use absolute Y/Height.
+    /// </summary>
+    private SkUiScrollView BuildMauiStressTree(int childCount, bool hwAccelerated, bool animate)
+    {
+        var layout = new SkUiAbsoluteLayout();
+        layout.SetPadding(new Thickness(8));
+
+        layout.StartUpdating();
         try
         {
             for (var index = 0; index < childCount; index++)
             {
-                if (index % 2 == 0)
-                    grid.RowDefinitions.Add(new RowDefinition(new GridLength(48)));
-
                 var itemNumber = index + 1;
                 var column = index % 2;
                 var row = index / 2;
@@ -382,24 +411,86 @@ public sealed class StressPage : ContentPage
                     cell = button;
                 }
 
-                Grid.SetRow((BindableObject)cell, row);
-                Grid.SetColumn((BindableObject)cell, column);
-                grid.Children.Add(cell);
+                // Two equal columns (0 / 0.5), fixed row height; padding comes from the layout.
+                AbsoluteLayout.SetLayoutBounds((BindableObject)cell, new Rect(column * 0.5, row * RowStride, 0.5, CellHeight));
+                AbsoluteLayout.SetLayoutFlags((BindableObject)cell, AbsoluteLayoutFlags.XProportional | AbsoluteLayoutFlags.WidthProportional);
+                layout.Children.Add(cell);
             }
         }
         finally
         {
-            grid.EndUpdating();
+            layout.EndUpdating();
         }
 
-        // HwAccelerated must be assigned before the view gets a handler (i.e. before it joins the MAUI tree).
-        // Skip AutomationId on stress cells/scroller — bindable SetValue showed up in generate profiles.
         var scroller = new SkUiScrollView
         {
             Background = Colors.White,
             HwAccelerated = hwAccelerated
         };
-        scroller.SetContent(grid);
+        scroller.SetContent(layout);
+        return scroller;
+    }
+
+    /// <summary>
+    /// Core path: one <see cref="SkUiCoreHost"/> wrapping <see cref="SkUiCoreAbsoluteLayout"/> of
+    /// <see cref="SkUiCoreButton"/> / <see cref="SkUiCoreActivityIndicator"/> cells.
+    /// Same absolute placement rules as the MAUI path for a fair generate/render comparison.
+    /// </summary>
+    private SkUiScrollView BuildCoreStressTree(int childCount, bool hwAccelerated, bool animate)
+    {
+        var absolute = new SkUiCoreAbsoluteLayout();
+        absolute.SetPadding(new Thickness(8));
+        absolute.StartUpdating();
+        try
+        {
+            for (var index = 0; index < childCount; index++)
+            {
+                var itemNumber = index + 1;
+                var column = index % 2;
+                var row = index / 2;
+                ISkUiCoreNode cell;
+                if (animate && column == 1)
+                {
+                    cell = new SkUiCoreActivityIndicator()
+                        .SetIsRunning(true)
+                        .SetColor(DemoColors.Accent)
+                        .SetHorizontalAlignment(LayoutAlignment.Center)
+                        .SetVerticalAlignment(LayoutAlignment.Center);
+                }
+                else
+                {
+                    var button = new SkUiCoreButton();
+                    button.SetText($"Item {itemNumber:0000}");
+                    button.SetFontSize(14);
+                    button.SetPadding(new Thickness(6));
+                    button.SetTextColor(DemoColors.Ink);
+                    button.SetFillColor(index % 4 < 2 ? Colors.White : DemoColors.StressAlt);
+                    button.SetBorderColor(DemoColors.Border);
+                    button.SetBorderWidth(1);
+                    button.SetClicked(() => _selected.Text = $"Selected item {itemNumber:0000}");
+                    cell = button;
+                }
+
+                absolute.Add(
+                    cell,
+                    new Rect(column * 0.5, row * RowStride, 0.5, CellHeight),
+                    SkUiCoreAbsoluteLayoutFlags.X | SkUiCoreAbsoluteLayoutFlags.Width);
+            }
+        }
+        finally
+        {
+            absolute.EndUpdating();
+        }
+
+        var host = new SkUiCoreHost();
+        host.SetContent(absolute);
+
+        var scroller = new SkUiScrollView
+        {
+            Background = Colors.White,
+            HwAccelerated = hwAccelerated
+        };
+        scroller.SetContent(host);
         return scroller;
     }
 

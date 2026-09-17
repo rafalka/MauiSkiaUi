@@ -6,6 +6,7 @@ public partial class AppShell : Shell
 	{
 		InitializeComponent();
 		Routing.RegisterRoute("stress", typeof(StressPage));
+		Routing.RegisterRoute("look", typeof(LookAndColorSchemePage));
 		Routing.RegisterRoute("primitives", typeof(MainPage));
 		Routing.RegisterRoute("composition", typeof(ControlsPage));
 		foreach (var demo in ComponentDemos.All)
