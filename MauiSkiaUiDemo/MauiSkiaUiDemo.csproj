@@ -47,6 +47,36 @@
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
 	</PropertyGroup>
 
+	<!--
+	  Profiling defaults (Android emulator / iOS simulator) per
+	  https://learn.microsoft.com/dotnet/maui/fundamentals/profiling
+	  Enabled by default; disable with -p:EnableProfiling=false for store/CI packages.
+	  Override any Diagnostic* on the CLI (e.g. DiagnosticSuspend=true for startup,
+	  DiagnosticAddress=127.0.0.1 for a physical Android device).
+	  Profile Release builds for realistic numbers.
+	-->
+	<PropertyGroup>
+		<EnableProfiling Condition="'$(EnableProfiling)' == ''">true</EnableProfiling>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(EnableProfiling)' == 'true'">
+		<DiagnosticPort Condition="'$(DiagnosticPort)' == ''">9000</DiagnosticPort>
+		<!-- false = runtime/memory profiling; true = suspend until profiler connects (startup). -->
+		<DiagnosticSuspend Condition="'$(DiagnosticSuspend)' == ''">false</DiagnosticSuspend>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(EnableProfiling)' == 'true' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+		<!-- Emulator reaches the host via 10.0.2.2; physical devices use 127.0.0.1 (+ adb reverse). -->
+		<DiagnosticAddress Condition="'$(DiagnosticAddress)' == ''">10.0.2.2</DiagnosticAddress>
+		<DiagnosticListenMode Condition="'$(DiagnosticListenMode)' == ''">connect</DiagnosticListenMode>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(EnableProfiling)' == 'true' and ($([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios' or $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst')">
+		<!-- Simulator and device both use loopback; app listens for dsrouter. -->
+		<DiagnosticAddress Condition="'$(DiagnosticAddress)' == ''">127.0.0.1</DiagnosticAddress>
+		<DiagnosticListenMode Condition="'$(DiagnosticListenMode)' == ''">listen</DiagnosticListenMode>
+	</PropertyGroup>
+
 	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
 		<DefineConstants>$(DefineConstants);MAUI_DEVFLOW;SKUI_DIAGNOSTICS</DefineConstants>
 	</PropertyGroup>

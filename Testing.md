@@ -36,6 +36,24 @@ dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj --filter FullyQualifi
 
 It constructs 1,000 labels, measures/arranges a 400x600-DIP viewport, warms one picture recording, then records 30 frames. Before clip rejection/cached Z-order: 8.106 ms and 568,384 managed bytes/frame. After: 0.635 ms and 9,488 bytes/frame on the same Mac, Debug, .NET 10. These are indicative CPU measurements, not GPU FPS; no timing assertion is used. Remaining allocations include visible labels' font/paint resources, and native allocations are excluded. Use the device stress page's **Record** action for CPU recording of 1,000 buttons, and a native profiler for actual presentation timing.
 
+## Device profiling (dotnet-trace)
+
+Always profile **Release** builds. The demo enables emulator/simulator diagnostic defaults from the [MAUI profiling guide](https://learn.microsoft.com/dotnet/maui/fundamentals/profiling) unless you pass `-p:EnableProfiling=false`: Android emulator `10.0.2.2` + `connect`, iOS simulator `127.0.0.1` + `listen`, port `9000`, `DiagnosticSuspend=false`.
+
+```bash
+# Android emulator (runtime profiling)
+dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -c Release -f net10.0-android
+
+# iOS simulator
+dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -c Release -f net10.0-ios
+
+# Startup profiling: -p:DiagnosticSuspend=true
+# Physical Android device: -p:DiagnosticAddress=127.0.0.1
+# Store/CI packages without diagnostic endpoints: -p:EnableProfiling=false
+```
+
+Collect with `dotnet-trace collect --dsrouter android-emu --format speedscope` (or `ios-sim` / `android` / `ios`). Do not ship packages built with profiling enabled.
+
 Phase 1 native acceptance checklist (still open):
 
 - Launch Controls at compact phone and tablet/desktop sizes; inspect `ControlsHost`, `ControlsScroller`, `EarthImage`, and `AddObservation` bounds. Verify one native surface and handlerless descendants.
