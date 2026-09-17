@@ -22,6 +22,28 @@ public class SkUiAbsoluteLayout : SkUiLayout, IAbsoluteLayout
     Rect IAbsoluteLayout.GetLayoutBounds(IView view) => AbsoluteLayout.GetLayoutBounds((BindableObject)view);
     AbsoluteLayoutFlags IAbsoluteLayout.GetLayoutFlags(IView view) => AbsoluteLayout.GetLayoutFlags((BindableObject)view);
 
+    /// <summary>
+    /// Adds many children inside one <see cref="SkUiView.StartUpdating"/> / <see cref="SkUiView.EndUpdating"/>
+    /// batch so measure, arrange, and paint invalidate once after all inserts.
+    /// Nested batches from an outer <see cref="SkUiView.StartUpdating"/> remain open until that outer end.
+    /// </summary>
+    /// <param name="views">SkiaUi children to append; each must be an <see cref="ISkUiView"/>.</param>
+    public void Add(IEnumerable<IView> views)
+    {
+        ArgumentNullException.ThrowIfNull(views);
+        StartUpdating();
+        try
+        {
+            var children = (ICollection<IView>)this;
+            foreach (var view in views)
+                children.Add(view);
+        }
+        finally
+        {
+            EndUpdating();
+        }
+    }
+
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => _manager.Measure(widthConstraint, heightConstraint);
     /// <inheritdoc />
