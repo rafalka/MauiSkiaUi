@@ -161,6 +161,57 @@ public class Phase2Tests
     }
 
     [Fact]
+    public void AbsoluteLayoutStartUpdatingDefersChildAddInvalidation()
+    {
+        var layout = new SkUiAbsoluteLayout();
+        var host = new SkUiContentView { Content = layout };
+        Arrange(host, 100, 100);
+        var invalidations = 0;
+        host.PaintInvalidated += (_, _) => invalidations++;
+
+        layout.StartUpdating();
+        for (var i = 0; i < 5; i++)
+        {
+            var box = new SkUiBox { WidthRequest = 10, HeightRequest = 10 };
+            SkUiAbsoluteLayout.SetLayoutBounds(box, new Rect(i * 10, 0, 10, 10));
+            layout.Children.Add(box);
+        }
+        Assert.Equal(0, invalidations);
+        Assert.Equal(5, layout.Children.Count);
+        layout.EndUpdating();
+        Assert.Equal(1, invalidations);
+    }
+
+    [Fact]
+    public void AbsoluteLayoutAddBatchInsertsOnceAndInvalidatesOnce()
+    {
+        var layout = new SkUiAbsoluteLayout();
+        var host = new SkUiContentView { Content = layout };
+        Arrange(host, 100, 100);
+        var invalidations = 0;
+        host.PaintInvalidated += (_, _) => invalidations++;
+
+        var children = Enumerable.Range(0, 8).Select(i =>
+        {
+            var box = new SkUiBox { WidthRequest = 8, HeightRequest = 8 };
+            SkUiAbsoluteLayout.SetLayoutBounds(box, new Rect(i * 8, 0, 8, 8));
+            return (IView)box;
+        }).ToArray();
+
+        layout.Add(children);
+        Assert.Equal(8, layout.Children.Count);
+        Assert.Equal(1, invalidations);
+
+        // Nested with an outer batch: Add's EndUpdating must not flush early.
+        invalidations = 0;
+        layout.StartUpdating();
+        layout.Add([(IView)new SkUiBox { WidthRequest = 4, HeightRequest = 4 }]);
+        Assert.Equal(0, invalidations);
+        layout.EndUpdating();
+        Assert.Equal(1, invalidations);
+    }
+
+    [Fact]
     public void MauiContentViewRootRelativeFrameIncludesAncestorAndOwnTranslation()
     {
         var overlay = new SkUiMauiContentView

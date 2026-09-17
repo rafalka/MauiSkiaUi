@@ -337,62 +337,69 @@ public sealed class StressPage : ContentPage
     /// <summary>
     /// Creates the scrollable two-column grid without attaching it to the page.
     /// When <paramref name="animate"/> is true, column 1 hosts running activity indicators instead of buttons.
+    /// Cell properties use fluent <c>Set*</c> setters (not bindable <c>SetValue</c>) and inserts run inside
+    /// <see cref="SkUiView.StartUpdating"/> / <see cref="SkUiView.EndUpdating"/> so one invalidate covers the batch.
+    /// Per-cell / scroller <c>AutomationId</c> is omitted to avoid bindable write cost in generate profiles.
     /// </summary>
     private SkUiScrollView BuildStressTree(int childCount, bool hwAccelerated, bool animate)
     {
-        var grid = new SkUiGrid { ColumnSpacing = 8, RowSpacing = 4, Padding = new Thickness(8) };
+        var grid = new SkUiGrid();
+        grid.SetColumnSpacing(8).SetRowSpacing(4).SetPadding(new Thickness(8));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
-        for (var index = 0; index < childCount; index++)
+        grid.StartUpdating();
+        try
         {
-            if (index % 2 == 0)
-                grid.RowDefinitions.Add(new RowDefinition(new GridLength(48)));
-
-            var itemNumber = index + 1;
-            var column = index % 2;
-            var row = index / 2;
-            ISkUiView cell;
-            if (animate && column == 1)
+            for (var index = 0; index < childCount; index++)
             {
-                cell = new SkUiActivityIndicator
-                {
-                    IsRunning = true,
-                    Color = DemoColors.Accent,
-                    HorizontalOptions = LayoutOptions.Center,
-                    VerticalOptions = LayoutOptions.Center,
-                    AutomationId = $"StressSpinner{itemNumber}"
-                };
-            }
-            else
-            {
-                cell = new SkUiButton
-                {
-                    Text = $"Item {itemNumber:0000}",
-                    FontSize = 14,
-                    Padding = new Thickness(6),
-                    FillColor = index % 4 < 2 ? Colors.White : DemoColors.StressAlt,
-                    TextColor = DemoColors.Ink,
-                    BorderColor = DemoColors.Border,
-                    BorderWidth = 1,
-                    AutomationId = $"StressItem{itemNumber}",
-                    Command = new Command(() => _selected.Text = $"Selected item {itemNumber:0000}")
-                };
-            }
+                if (index % 2 == 0)
+                    grid.RowDefinitions.Add(new RowDefinition(new GridLength(48)));
 
-            Grid.SetRow((BindableObject)cell, row);
-            Grid.SetColumn((BindableObject)cell, column);
-            grid.Children.Add(cell);
+                var itemNumber = index + 1;
+                var column = index % 2;
+                var row = index / 2;
+                ISkUiView cell;
+                if (animate && column == 1)
+                {
+                    var spinner = new SkUiActivityIndicator();
+                    spinner.SetIsRunning(true).SetColor(DemoColors.Accent);
+                    spinner.HorizontalOptions = LayoutOptions.Center;
+                    spinner.VerticalOptions = LayoutOptions.Center;
+                    cell = spinner;
+                }
+                else
+                {
+                    var button = new SkUiButton();
+                    button.SetText($"Item {itemNumber:0000}")
+                        .SetFontSize(14)
+                        .SetPadding(new Thickness(6))
+                        .SetTextColor(DemoColors.Ink);
+                    button.SetFillColor(index % 4 < 2 ? Colors.White : DemoColors.StressAlt)
+                        .SetBorderColor(DemoColors.Border)
+                        .SetBorderWidth(1)
+                        .SetCommand(new Command(() => _selected.Text = $"Selected item {itemNumber:0000}"));
+                    cell = button;
+                }
+
+                Grid.SetRow((BindableObject)cell, row);
+                Grid.SetColumn((BindableObject)cell, column);
+                grid.Children.Add(cell);
+            }
+        }
+        finally
+        {
+            grid.EndUpdating();
         }
 
         // HwAccelerated must be assigned before the view gets a handler (i.e. before it joins the MAUI tree).
+        // Skip AutomationId on stress cells/scroller — bindable SetValue showed up in generate profiles.
         var scroller = new SkUiScrollView
         {
-            AutomationId = "StressScroller",
             Background = Colors.White,
-            HwAccelerated = hwAccelerated,
-            Content = grid
+            HwAccelerated = hwAccelerated
         };
+        scroller.SetContent(grid);
         return scroller;
     }
 
