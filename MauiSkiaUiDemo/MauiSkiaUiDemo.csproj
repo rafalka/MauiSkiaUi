@@ -54,8 +54,11 @@
 	  Override any Diagnostic* on the CLI (e.g. DiagnosticSuspend=true for startup,
 	  DiagnosticAddress=127.0.0.1 for a physical Android device).
 	  Profile Release builds for realistic numbers.
+	  TODO: Profiling is enabled by default until production-ready — turn the default off
+	  (or gate to Debug only) before shipping store/release packages.
 	-->
 	<PropertyGroup>
+		<!-- TODO: default true only until production-ready; then require -p:EnableProfiling=true. -->
 		<EnableProfiling Condition="'$(EnableProfiling)' == ''">true</EnableProfiling>
 	</PropertyGroup>
 
