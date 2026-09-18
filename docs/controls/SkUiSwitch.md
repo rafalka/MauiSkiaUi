@@ -6,7 +6,7 @@ On/off pill toggle.
 
 ## How it works
 
-Extends [`SkUiToggleControl`](SkUiToggleControl.md). Tap toggles `IsChecked`. Intrinsic measure 51×31 DIPs. Track/thumb geometry is drawn via shared `SkUiChrome.DrawSwitch` (same path as `SkUiCoreSwitch`).
+Extends [`SkUiToggleControl`](SkUiToggleControl.md). Tap toggles `IsChecked`. Intrinsic measure 51×31 DIPs. Track/thumb geometry is drawn via `SkUiLook.Current.DrawSwitch` (same path as `SkUiCoreSwitch`).
 
 
 ## Shared conventions

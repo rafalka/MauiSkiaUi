@@ -6,7 +6,7 @@ Radio circle that selects on tap (does not toggle off).
 
 ## How it works
 
-Extends [`SkUiToggleControl`](SkUiToggleControl.md) but **overrides tap** to set `IsChecked = true` only (never unchecks on re-tap). `GroupName` is bookkeeping for apps — **siblings are not auto-unchecked**. Ring/dot drawn via shared `SkUiChrome.DrawRadioButton` (same path as `SkUiCoreRadioButton`).
+Extends [`SkUiToggleControl`](SkUiToggleControl.md) but **overrides tap** to set `IsChecked = true` only (never unchecks on re-tap). `GroupName` is bookkeeping for apps — **siblings are not auto-unchecked**. Ring/dot drawn via `SkUiLook.Current.DrawRadioButton` (same path as `SkUiCoreRadioButton`).
 
 
 ## Shared conventions

@@ -6,7 +6,7 @@ Square checkbox with check mark when selected.
 
 ## How it works
 
-Extends [`SkUiToggleControl`](SkUiToggleControl.md). Tap toggles `IsChecked`. Intrinsic measure 24×24 DIPs. Box/checkmark drawn via shared `SkUiChrome.DrawCheckBox` (same path as `SkUiCoreCheckBox`).
+Extends [`SkUiToggleControl`](SkUiToggleControl.md). Tap toggles `IsChecked`. Intrinsic measure 24×24 DIPs. Box/checkmark drawn via `SkUiLook.Current.DrawCheckBox` (same path as `SkUiCoreCheckBox`).
 
 
 ## Shared conventions

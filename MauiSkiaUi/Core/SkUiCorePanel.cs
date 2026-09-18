@@ -63,6 +63,8 @@ public abstract class SkUiCorePanel : SkUiCoreNode
             throw new ArgumentException("Core layouts accept SkUiCoreNode instances only.", nameof(child));
         if (_children.Contains(child))
             throw new InvalidOperationException("Child is already in this layout.");
+        if (WouldCreateParentCycle(child))
+            throw new InvalidOperationException("Child cannot create a parent cycle.");
         if (index < 0 || index > _children.Count)
             throw new ArgumentOutOfRangeException(nameof(index));
 

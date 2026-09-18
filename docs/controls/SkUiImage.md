@@ -6,7 +6,7 @@ Asynchronously decoded bitmap painted with aspect modes.
 
 ## How it works
 
-Changing `Source` starts `ReloadAsync`. Decode runs off the UI thread; completion is marshaled back to the starting dispatcher. Errors set `LoadError` and leave a blank image. Implements `IDisposable` for permanent teardown. Aspect destination rect is shared via `SkUiChrome.DrawImage` (same path as `SkUiCoreImage`).
+Changing `Source` starts `ReloadAsync`. Decode runs off the UI thread; completion is marshaled back to the starting dispatcher. Errors set `LoadError` and leave a blank image. Implements `IDisposable` for permanent teardown. Aspect destination rect is drawn via `SkUiLook.Current.DrawImage` (same path as `SkUiCoreImage`).
 
 
 ## Shared conventions

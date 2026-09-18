@@ -20,20 +20,30 @@ public class SkUiCoreHost : SkUiView
     public SkUiCoreHost SetContent(SkUiCoreNode? value)
     {
         if (ReferenceEquals(_content, value)) return this;
+
+        if (value is not null)
+        {
+            if (value.Parent is not null)
+                throw new InvalidOperationException("Core root must be unparented.");
+            if (value.HostOwner is not null && !ReferenceEquals(value.HostOwner, this))
+                throw new InvalidOperationException("Core root is already hosted by another SkUiCoreHost.");
+        }
+
         if (_content is not null)
         {
             _content.MeasureInvalidated -= OnContentMeasureInvalidated;
             _content.PaintInvalidated -= OnContentPaintInvalidated;
             _content.BindAnimationClock(null);
-            if (_content.Parent is not null)
-                throw new InvalidOperationException("Core root must be unparented.");
+            _content.HostOwner = null;
         }
 
+        _capturedPointer = null;
+        _capturedNode = null;
         _content = value;
+
         if (_content is not null)
         {
-            if (_content.Parent is not null)
-                throw new InvalidOperationException("Core root must be unparented.");
+            _content.HostOwner = this;
             _content.MeasureInvalidated += OnContentMeasureInvalidated;
             _content.PaintInvalidated += OnContentPaintInvalidated;
             _content.BindAnimationClock(AnimationClock);
@@ -70,8 +80,16 @@ public class SkUiCoreHost : SkUiView
     protected override void OnPaintContent(SKCanvas canvas)
     {
         if (_content is null) return;
-        canvas.Translate((float)_content.Frame.X, (float)_content.Frame.Y);
-        _content.Paint(canvas);
+        var save = canvas.Save();
+        try
+        {
+            canvas.Translate((float)_content.Frame.X, (float)_content.Frame.Y);
+            _content.Paint(canvas);
+        }
+        finally
+        {
+            canvas.RestoreToCount(save);
+        }
     }
 
     /// <inheritdoc />
@@ -82,6 +100,21 @@ public class SkUiCoreHost : SkUiView
 
         if (_capturedPointer == touch.Id && _capturedNode is not null)
         {
+            if (!IsUnderHostedRoot(_capturedNode))
+            {
+                try
+                {
+                    _capturedNode.Touch(new SkUiTouchEvent(
+                        touch.Id, SkUiTouchAction.Cancelled, Point.Zero, touch.Timestamp, touch.WheelDelta));
+                }
+                finally
+                {
+                    _capturedPointer = null;
+                    _capturedNode = null;
+                }
+                return false;
+            }
+
             if (!TryMapToNode(touch.Position, _capturedNode, out var local))
                 local = touch.Position;
             var delivered = _capturedNode.Touch(new SkUiTouchEvent(touch.Id, touch.Action, local, touch.Timestamp, touch.WheelDelta));
@@ -96,12 +129,32 @@ public class SkUiCoreHost : SkUiView
         if (touch.Action != SkUiTouchAction.Pressed)
             return false;
 
-        if (!HitTest(_content, touch.Position, out var target, out var targetLocal))
+        // Hit-test in the root's local space (root Frame may be nonzero after arrange).
+        var rootLocal = new Point(
+            touch.Position.X - _content.Frame.X,
+            touch.Position.Y - _content.Frame.Y);
+        if (!HitTest(_content, rootLocal, out var target, out var targetLocal))
             return false;
 
-        _capturedPointer = touch.Id;
-        _capturedNode = target;
-        return target.Touch(new SkUiTouchEvent(touch.Id, touch.Action, targetLocal, touch.Timestamp, touch.WheelDelta));
+        var handled = target.Touch(new SkUiTouchEvent(touch.Id, touch.Action, targetLocal, touch.Timestamp, touch.WheelDelta));
+        if (handled)
+        {
+            _capturedPointer = touch.Id;
+            _capturedNode = target;
+        }
+        return handled;
+    }
+
+    private bool IsUnderHostedRoot(ISkUiCoreNode node)
+    {
+        if (_content is null) return false;
+        if (ReferenceEquals(node, _content)) return true;
+        for (var current = node.Parent; current is not null; current = current.Parent)
+        {
+            if (ReferenceEquals(current, _content))
+                return true;
+        }
+        return false;
     }
 
     private static bool HitTest(ISkUiCoreNode root, Point position, out ISkUiCoreNode target, out Point local)

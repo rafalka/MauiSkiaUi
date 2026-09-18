@@ -335,6 +335,18 @@ public class PipelineTests
     }
 
     [Fact]
+    public void PaintVirtualBackgroundAndOverlayRunWhenDelegatesUnset()
+    {
+        var calls = new List<string>();
+        var probe = new VirtualPaintProbe(calls);
+        Arrange(probe, 40, 40);
+        using var bitmap = new SKBitmap(40, 40);
+        using var canvas = new SKCanvas(bitmap);
+        probe.Paint(canvas);
+        Assert.Equal(["virtual-background", "content", "virtual-overlay"], calls);
+    }
+
+    [Fact]
     public void DirtyChildRemeasuresWithoutRemeasuringCleanSibling()
     {
         var first = new LayoutProbe();
@@ -586,6 +598,15 @@ public class PipelineTests
 
         private readonly List<string> _calls;
         protected override void OnPaintContent(SKCanvas canvas) => _calls.Add("content");
+    }
+
+    private sealed class VirtualPaintProbe : SkUiView
+    {
+        public VirtualPaintProbe(List<string> calls) => _calls = calls;
+        private readonly List<string> _calls;
+        protected override void OnPaintBackground(SKCanvas canvas) => _calls.Add("virtual-background");
+        protected override void OnPaintContent(SKCanvas canvas) => _calls.Add("content");
+        protected override void OnPaintOverlay(SKCanvas canvas) => _calls.Add("virtual-overlay");
     }
 
     [Fact]

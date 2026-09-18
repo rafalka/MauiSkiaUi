@@ -480,8 +480,8 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - Hit-test / touch **capture** and multi-touch details beyond FR-15’s single-pointer gesture set (default hit region remains arranged bounds per FR-11). Scroll needs capture for pan — see [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md).
 - Exact public names for animation helpers / `ISkUiAnimator` (tier APIs sketched in [AnimationMechanism.md](AnimationMechanism.md)).
 - Scroll v1 details still open in [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md): overscroll (clamp vs bounce), both-axes in v1, nested scroll rules, collection-as-scroll vs outer `SkUiScrollView` extent provider; snapshot opt-out property name.
-- **Control look (FR-18)** API details still open in [ControlLook.md](ControlLook.md): final type names (`SkUiLook` vs alternatives), static `Current` vs DI, per-tree attachment, whether per-painter / per-size overrides are virtuals only or also replaceable delegates, full list of default size tokens the look owns.
-- **Color scheme (FR-19)** API details still open in [ColorScheme.md](ColorScheme.md): final type names, light/dark pack set, live-tracking vs construction-time snapshot of scheme defaults, full token list, sync helpers for OS light/dark (optional).
+- **Control look (FR-18)** remaining: per-tree look attachment (vs process-wide `Current`), and optional OS theme sync helpers. Type names, `Current`, virtual/delegate painters, and default size tokens are decided — see Decided and [ControlLook.md](ControlLook.md).
+- **Color scheme (FR-19)** remaining: optional OS light/dark synchronization helpers. Type names, light/dark packs, `Current`, and construction-snapshot vs paint-time token reads are decided — see Decided and [ColorScheme.md](ColorScheme.md).
 
 ## Decided
 

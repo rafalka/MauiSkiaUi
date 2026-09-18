@@ -69,8 +69,13 @@ public class SkUiCoreAbsoluteLayout : SkUiCorePanel
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        var slotWidth = double.IsInfinity(widthConstraint) ? 0 : widthConstraint;
-        var slotHeight = double.IsInfinity(heightConstraint) ? 0 : heightConstraint;
+        // Match arrange: proportional children use the padded content slot, not the outer constraint.
+        var slotWidth = double.IsInfinity(widthConstraint)
+            ? 0
+            : Math.Max(0, widthConstraint - Padding.HorizontalThickness);
+        var slotHeight = double.IsInfinity(heightConstraint)
+            ? 0
+            : Math.Max(0, heightConstraint - Padding.VerticalThickness);
         var contentWidth = 0.0;
         var contentHeight = 0.0;
 
@@ -119,12 +124,14 @@ public class SkUiCoreAbsoluteLayout : SkUiCorePanel
     private Size ResolveMeasureConstraints(ISkUiCoreNode child, double slotWidth, double slotHeight)
     {
         var (bounds, flags) = _placements[child];
+        // Non-proportional non-positive bounds mean "auto": measure unconstrained so ResolveDestination
+        // can fall back to the intrinsic DesiredSize (a zero constraint would also measure as zero).
         var width = flags.HasFlag(SkUiCoreAbsoluteLayoutFlags.Width)
             ? (slotWidth <= 0 ? double.PositiveInfinity : bounds.Width * slotWidth)
-            : bounds.Width;
+            : (bounds.Width <= 0 ? double.PositiveInfinity : bounds.Width);
         var height = flags.HasFlag(SkUiCoreAbsoluteLayoutFlags.Height)
             ? (slotHeight <= 0 ? double.PositiveInfinity : bounds.Height * slotHeight)
-            : bounds.Height;
+            : (bounds.Height <= 0 ? double.PositiveInfinity : bounds.Height);
         return new Size(Math.Max(0, width), Math.Max(0, height));
     }
 

@@ -172,6 +172,19 @@ public sealed class LookAndColorSchemePage : ContentPage
     }
 
     /// <inheritdoc />
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        // Re-arm restore so a second Disappearing (back-stack / lifecycle) still reverts globals.
+        if (_restored)
+        {
+            _savedScheme = SkUiColorScheme.Current;
+            _savedLook = SkUiLook.Current;
+            _restored = false;
+        }
+    }
+
+    /// <inheritdoc />
     protected override void OnDisappearing()
     {
         base.OnDisappearing();

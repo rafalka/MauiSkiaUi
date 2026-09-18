@@ -38,8 +38,8 @@ public class SkUiCoreContentView : SkUiCoreNode
         {
             if (value.Parent is not null && !ReferenceEquals(value.Parent, this))
                 throw new InvalidOperationException("Child already has a parent.");
-            if (ReferenceEquals(value, this))
-                throw new InvalidOperationException("Content cannot be the host itself.");
+            if (WouldCreateParentCycle(value))
+                throw new InvalidOperationException("Content cannot create a parent cycle.");
         }
 
         var previous = _content;

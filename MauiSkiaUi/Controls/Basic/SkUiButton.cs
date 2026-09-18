@@ -37,8 +37,20 @@ public class SkUiButton : SkUiLabel
         SetPadding(new Thickness(18, 12));
         SetHorizontalTextAlignment(TextAlignment.Center);
         SetVerticalTextAlignment(TextAlignment.Center);
-        MinimumHeightRequest = SkUiLook.Current.DefaultButtonMinimumHeight;
         SetPaintBackground(PaintButtonBackground);
+    }
+
+    /// <inheritdoc />
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint)
+    {
+        var size = base.MeasureContent(widthConstraint, heightConstraint);
+        // MinimumHeightRequest default is -1; only then resolve the active look's button minimum.
+        if (MinimumHeightRequest < 0)
+        {
+            var min = SkUiLook.Current.DefaultButtonMinimumHeight;
+            size = new Size(size.Width, Math.Max(size.Height, min));
+        }
+        return size;
     }
 
     /// <inheritdoc />

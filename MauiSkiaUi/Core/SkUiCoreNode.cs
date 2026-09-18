@@ -142,19 +142,40 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged
     }
 
     /// <summary>Called when the inherited animation root changes (host reparent / clock rebind).</summary>
-    protected virtual void OnAnimationRootChanged() { }
+    /// <param name="subtreeDetached">
+    /// <c>true</c> when this node (or an ancestor) left a host tree and no longer inherits a host clock.
+    /// </param>
+    protected virtual void OnAnimationRootChanged(bool subtreeDetached = false) { }
 
     /// <summary>Binds the host surface clock onto a Core tree root (cleared when the host detaches content).</summary>
     internal void BindAnimationClock(SkUiAnimationClock? clock)
     {
         if (ReferenceEquals(_rootClock, clock)) return;
         _rootClock = clock;
-        OnAnimationRootChanged();
-        PropagateAnimationRootChanged();
+        var detached = clock is null && !HasInheritedHostClock;
+        OnAnimationRootChanged(detached);
+        PropagateAnimationRootChanged(detached);
     }
 
+    /// <summary>Whether this node or an ancestor currently holds a host-bound animation clock.</summary>
+    internal bool HasInheritedHostClock
+    {
+        get
+        {
+            for (SkUiCoreNode? node = this; node is not null; node = node._parent as SkUiCoreNode)
+            {
+                if (node._rootClock is not null)
+                    return true;
+            }
+            return false;
+        }
+    }
+
+    /// <summary>Host that exclusively owns this node as a Core tree root, if any.</summary>
+    internal SkUiCoreHost? HostOwner { get; set; }
+
     /// <summary>Notifies descendants that <see cref="AnimationClock"/> may have changed.</summary>
-    private void PropagateAnimationRootChanged()
+    private void PropagateAnimationRootChanged(bool subtreeDetached)
     {
         if (this is SkUiCorePanel panel)
         {
@@ -162,16 +183,31 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged
             {
                 if (child is SkUiCoreNode coreChild)
                 {
-                    coreChild.OnAnimationRootChanged();
-                    coreChild.PropagateAnimationRootChanged();
+                    coreChild.OnAnimationRootChanged(subtreeDetached);
+                    coreChild.PropagateAnimationRootChanged(subtreeDetached);
                 }
             }
         }
         else if (this is SkUiCoreContentView { Content: SkUiCoreNode content })
         {
-            content.OnAnimationRootChanged();
-            content.PropagateAnimationRootChanged();
+            content.OnAnimationRootChanged(subtreeDetached);
+            content.PropagateAnimationRootChanged(subtreeDetached);
         }
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when attaching <paramref name="child"/> under this node would create a cycle
+    /// (child is this node or an ancestor of this node).
+    /// </summary>
+    internal bool WouldCreateParentCycle(ISkUiCoreNode child)
+    {
+        if (ReferenceEquals(child, this)) return true;
+        for (ISkUiCoreNode? ancestor = this; ancestor is not null; ancestor = ancestor.Parent)
+        {
+            if (ReferenceEquals(ancestor, child))
+                return true;
+        }
+        return false;
     }
 
     /// <summary>Attaches this node under <paramref name="parent"/>; the previous parent must be cleared first.</summary>
@@ -180,7 +216,9 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged
         if (_parent is not null && parent is not null && !ReferenceEquals(_parent, parent))
             throw new InvalidOperationException("A Core node already has a parent.");
         SetProperty(ref _parent, parent, nameof(Parent));
-        OnAnimationRootChanged();
+        var detached = parent is null && !HasInheritedHostClock;
+        OnAnimationRootChanged(detached);
+        PropagateAnimationRootChanged(detached);
     }
 
     /// <summary>Sets visibility; raises <see cref="System.ComponentModel.INotifyPropertyChanged"/> when changed.</summary>
@@ -221,7 +259,7 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged
     }
 
     /// <summary>Sets minimum height in DIPs.</summary>
-    public SkUiCoreNode SetMinimumHeight(double value)
+    public virtual SkUiCoreNode SetMinimumHeight(double value)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(value);
         if (!SetProperty(ref _minimumHeight, value, nameof(MinimumHeight))) return this;

@@ -169,6 +169,12 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
 
     private void ReplaceImage(SKImage? image, bool ownsImage)
     {
+        if (ReferenceEquals(_image, image))
+        {
+            _ownsImage = ownsImage;
+            return;
+        }
+
         if (_ownsImage)
             _image?.Dispose();
         _image = image;
@@ -194,7 +200,7 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
     }
 
     /// <summary>Cancels loading and releases owned image resources; a disposed node cannot be reused.</summary>
-    public void Dispose()
+    public virtual void Dispose()
     {
         if (_disposed) return;
         _disposed = true;

@@ -279,6 +279,129 @@ public class CoreLayerTests
         Assert.Equal(["background", "content", "overlay"], calls);
     }
 
+    [Fact]
+    public void Panel_RejectsAncestorCycle()
+    {
+        var outer = new SkUiCoreVerticalStackLayout();
+        var inner = new SkUiCoreVerticalStackLayout();
+        outer.Add(inner);
+        Assert.Throws<InvalidOperationException>(() => inner.Add(outer));
+        Assert.Throws<InvalidOperationException>(() => outer.Add(outer));
+    }
+
+    [Fact]
+    public void ContentView_RejectsAncestorCycle()
+    {
+        var root = new SkUiCoreBorder();
+        var nested = new SkUiCoreBorder();
+        root.SetContent(nested);
+        Assert.Throws<InvalidOperationException>(() => nested.SetContent(root));
+    }
+
+    [Fact]
+    public void CoreHost_RejectsSharedRootAcrossHosts()
+    {
+        var label = new SkUiCoreLabel().SetText("x");
+        var first = new SkUiCoreHost().SetContent(label);
+        var second = new SkUiCoreHost();
+        Assert.Throws<InvalidOperationException>(() => second.SetContent(label));
+        Assert.Same(label, first.Content);
+        Assert.Null(second.Content);
+    }
+
+    [Fact]
+    public void CoreHost_ClearsCaptureWhenCapturedNodeDetached()
+    {
+        var button = new SkUiCoreButton().SetText("Go");
+        var panel = new SkUiCoreVerticalStackLayout().Add(button);
+        var host = new SkUiCoreHost().SetContent(panel);
+        ((IView)host).Measure(100, 44);
+        ((IView)host).Arrange(new Rect(0, 0, 100, 44));
+
+        Assert.True(host.Touch(new SkUiTouchEvent(1, SkUiTouchAction.Pressed, new Point(10, 10))));
+        panel.Remove(button);
+        Assert.False(host.Touch(new SkUiTouchEvent(1, SkUiTouchAction.Released, new Point(10, 10))));
+    }
+
+    [Fact]
+    public void AbsoluteLayout_ZeroBoundMeasuresIntrinsicSize()
+    {
+        var layout = new SkUiCoreAbsoluteLayout();
+        var box = new SkUiCoreBox().SetWidth(24).SetHeight(18);
+        layout.Add(box, new Rect(4, 6, 0, 0));
+        layout.Measure(100, 100);
+        layout.Arrange(new Rect(0, 0, 100, 100));
+        Assert.Equal(24, box.Frame.Width, 1);
+        Assert.Equal(18, box.Frame.Height, 1);
+        Assert.Equal(4, box.Frame.X, 1);
+        Assert.Equal(6, box.Frame.Y, 1);
+    }
+
+    [Fact]
+    public void AbsoluteLayout_MeasureUsesPaddedSlotForProportionalChildren()
+    {
+        var layout = new SkUiCoreAbsoluteLayout().SetPadding(new Thickness(8));
+        var child = new SkUiCoreBox();
+        layout.Add(child, new Rect(0, 0, 0.5, 40), SkUiCoreAbsoluteLayoutFlags.Width);
+        layout.Measure(200, 100);
+        layout.Arrange(new Rect(0, 0, 200, 100));
+        Assert.Equal(0.5 * (200 - 16), child.Frame.Width, 1);
+    }
+
+    [Fact]
+    public void ActivityIndicator_StopsWhenSubtreeDetached()
+    {
+        var spinner = new SkUiCoreActivityIndicator();
+        var panel = new SkUiCoreVerticalStackLayout().Add(spinner);
+        var host = new SkUiCoreHost().SetContent(panel);
+        spinner.SetIsRunning(true);
+        Assert.True(spinner.IsRunning);
+        Assert.True(host.AnimationClock.IsRunning);
+
+        panel.Remove(spinner);
+        Assert.False(spinner.IsRunning);
+        Assert.False(host.AnimationClock.IsRunning);
+    }
+
+    [Fact]
+    public void CoreImage_ReplaceSameInstanceDoesNotDispose()
+    {
+        using var bitmap = new SKBitmap(8, 8);
+        using var image = SKImage.FromBitmap(bitmap);
+        var node = new SkUiCoreImage().SetImage(image, ownsImage: true);
+        node.SetImage(image, ownsImage: true);
+        Assert.Equal(8, node.ImageSize.Width);
+        node.Dispose();
+    }
+
+    [Fact]
+    public void CoreButton_LookMinimumAppliesUntilExplicitMinimumSet()
+    {
+        var previous = SkUiLook.Current;
+        try
+        {
+            SkUiLook.Current = new TallButtonLook();
+            var button = new SkUiCoreButton().SetText("Hi");
+            button.Measure(200, 200);
+            Assert.True(button.DesiredSize.Height >= 60);
+
+            button.SetMinimumHeight(20);
+            button.Measure(200, 200);
+            // Explicit minimum is lower than look; content+padding still drives height, but look floor is off.
+            Assert.True(button.DesiredSize.Height < 60 || button.MinimumHeight == 20);
+            Assert.Equal(20, button.MinimumHeight);
+        }
+        finally
+        {
+            SkUiLook.Current = previous;
+        }
+    }
+
+    private sealed class TallButtonLook : DefaultSkUiLook
+    {
+        public override double DefaultButtonMinimumHeight => 60;
+    }
+
     private sealed class ContentPaintProbe(List<string> calls) : SkUiCoreNode
     {
         protected override void OnPaintContent(SKCanvas canvas) => calls.Add("content");

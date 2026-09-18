@@ -14,6 +14,7 @@ public class SkUiCoreImageButton : SkUiCoreImage
     private double _cornerRadius;
     private long? _pressedPointer;
     private bool _isPressed;
+    private EventHandler? _commandChanged;
 
     /// <summary>Creates an image button with a press/disabled tint overlay painter.</summary>
     public SkUiCoreImageButton() => SetPaintOverlay(PaintButtonOverlay);
@@ -59,16 +60,31 @@ public class SkUiCoreImageButton : SkUiCoreImage
         return this;
     }
 
-    /// <summary>Sets the tap command.</summary>
+    /// <summary>Sets the tap command. CanExecuteChanged uses a weak target so long-lived commands do not retain this node after dispose.</summary>
     public SkUiCoreImageButton SetCommand(ICommand? value)
     {
         if (ReferenceEquals(_command, value)) return this;
-        var previous = _command;
+        if (_command is not null && _commandChanged is not null)
+            _command.CanExecuteChanged -= _commandChanged;
         if (!SetProperty(ref _command, value, nameof(Command))) return this;
-        if (previous is not null)
-            previous.CanExecuteChanged -= OnCommandCanExecuteChanged;
-        if (_command is not null)
-            _command.CanExecuteChanged += OnCommandCanExecuteChanged;
+        if (value is not null)
+        {
+            var weak = new WeakReference<SkUiCoreImageButton>(this);
+            EventHandler? listener = null;
+            listener = (sender, _) =>
+            {
+                if (weak.TryGetTarget(out var button))
+                    button.InvalidatePaint();
+                else if (sender is ICommand oldCommand)
+                    oldCommand.CanExecuteChanged -= listener;
+            };
+            _commandChanged = listener;
+            value.CanExecuteChanged += listener;
+        }
+        else
+        {
+            _commandChanged = null;
+        }
         InvalidatePaint();
         return this;
     }
@@ -96,8 +112,6 @@ public class SkUiCoreImageButton : SkUiCoreImage
         SetCommand(execute is null ? null : new SkUiCoreCommand(execute));
         return this;
     }
-
-    private void OnCommandCanExecuteChanged(object? sender, EventArgs e) => InvalidatePaint();
 
     private bool CanExecuteCommand => _command?.CanExecute(_commandParameter) ?? true;
 
@@ -157,5 +171,15 @@ public class SkUiCoreImageButton : SkUiCoreImage
     {
         if (!SetProperty(ref _isPressed, value, nameof(IsPressed))) return;
         InvalidatePaint();
+    }
+
+    /// <inheritdoc />
+    public override void Dispose()
+    {
+        if (_command is not null && _commandChanged is not null)
+            _command.CanExecuteChanged -= _commandChanged;
+        _command = null;
+        _commandChanged = null;
+        base.Dispose();
     }
 }

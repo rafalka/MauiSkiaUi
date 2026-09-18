@@ -196,10 +196,10 @@ Minimum public Core primitives (expand as MAUI wrappers gain delegates):
 | `SkUiCoreAbsoluteLayout` | Prototype |
 | `SkUiCoreLabel` | Prototype (extend: wrap, font attrs, alignment parity) |
 | `SkUiCoreButton` | Prototype |
-| `SkUiCoreBox` / shape primitives | Todo |
-| Stack layouts | Todo |
+| `SkUiCoreBox` / shape primitives | Prototype |
+| Stack layouts (`Vertical` / `Horizontal` / `Overlay`) | Prototype |
 | Grid | Todo |
-| Activity indicator / toggles | Todo as needed for composition |
+| Activity indicator / toggles / Image | Prototype |
 
 ### FR-C9 — Demo and proof
 

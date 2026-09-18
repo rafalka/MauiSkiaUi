@@ -2,7 +2,7 @@
 
 Per-control guides for public `SkUi*` types. For MAUI reimplementations, baseline behavior lives in the linked Microsoft docs; each page focuses on **SkiaUi differences and extensions**.
 
-Shared pipelines: [LayoutSystem.md](../LayoutSystem.md) · [DrawingMechanism.md](../DrawingMechanism.md) · [ControlLook.md](../ControlLook.md) · [ColorScheme.md](../ColorScheme.md) · [EventMechanism.md](../EventMechanism.md) · [AnimationMechanism.md](../AnimationMechanism.md) · [ScrollingAndCollectionViews.md](../ScrollingAndCollectionViews.md)
+Shared pipelines: [LayoutSystem.md](../../LayoutSystem.md) · [DrawingMechanism.md](../../DrawingMechanism.md) · [ControlLook.md](../../ControlLook.md) · [ColorScheme.md](../../ColorScheme.md) · [EventMechanism.md](../../EventMechanism.md) · [AnimationMechanism.md](../../AnimationMechanism.md) · [ScrollingAndCollectionViews.md](../../ScrollingAndCollectionViews.md)
 
 ## Core layer (lightweight, no MAUI View)
 

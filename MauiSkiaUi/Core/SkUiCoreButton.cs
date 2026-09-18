@@ -12,11 +12,14 @@ public class SkUiCoreButton : SkUiCoreLabel
     private Color _fillColor = SkUiColors.Accent;
     private Color _borderColor = Colors.Transparent;
     private double _borderWidth;
-    private double _cornerRadius = SkUiLook.Current.DefaultButtonCornerRadius;
+    private double _cornerRadius;
+    private bool _cornerRadiusExplicit;
+    private bool _minimumHeightExplicit;
     private long? _pressedPointer;
     private bool _isPressed;
     private ICommand? _command;
     private object? _commandParameter;
+    private EventHandler? _commandChanged;
 
     /// <summary>Creates a centered white-on-accent button.</summary>
     public SkUiCoreButton()
@@ -25,7 +28,6 @@ public class SkUiCoreButton : SkUiCoreLabel
         SetPadding(new Thickness(6));
         SetHorizontalTextAlignment(TextAlignment.Center);
         SetVerticalTextAlignment(TextAlignment.Center);
-        SetMinimumHeight(SkUiLook.Current.DefaultButtonMinimumHeight);
         SetPaintBackground(PaintButtonBackground);
     }
 
@@ -53,10 +55,12 @@ public class SkUiCoreButton : SkUiCoreLabel
         set => SetBorderWidth(value);
     }
 
-    /// <summary>Corner radius in DIPs.</summary>
+    /// <summary>
+    /// Corner radius in DIPs. When unset, resolves from <see cref="SkUiLook.Current"/> at paint time.
+    /// </summary>
     public double CornerRadius
     {
-        get => _cornerRadius;
+        get => EffectiveCornerRadius;
         set => SetCornerRadius(value);
     }
 
@@ -76,6 +80,9 @@ public class SkUiCoreButton : SkUiCoreLabel
 
     /// <summary>Whether an eligible pointer is currently pressed inside this button.</summary>
     public bool IsPressed => _isPressed;
+
+    private double EffectiveCornerRadius =>
+        _cornerRadiusExplicit ? _cornerRadius : SkUiLook.Current.DefaultButtonCornerRadius;
 
     /// <summary>Sets fill color.</summary>
     public SkUiCoreButton SetFillColor(Color value)
@@ -104,25 +111,48 @@ public class SkUiCoreButton : SkUiCoreLabel
         return this;
     }
 
-    /// <summary>Sets corner radius in DIPs.</summary>
+    /// <summary>Sets corner radius in DIPs (marks the value as app-explicit so look swaps do not replace it).</summary>
     public SkUiCoreButton SetCornerRadius(double value)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(value);
+        _cornerRadiusExplicit = true;
         if (!SetProperty(ref _cornerRadius, value, nameof(CornerRadius))) return this;
         InvalidatePaint();
         return this;
     }
 
-    /// <summary>Sets the tap command.</summary>
+    /// <inheritdoc />
+    public override SkUiCoreNode SetMinimumHeight(double value)
+    {
+        _minimumHeightExplicit = true;
+        return base.SetMinimumHeight(value);
+    }
+
+    /// <summary>Sets the tap command. CanExecuteChanged uses a weak target so long-lived commands do not retain this node.</summary>
     public SkUiCoreButton SetCommand(ICommand? value)
     {
         if (ReferenceEquals(_command, value)) return this;
-        var previous = _command;
+        if (_command is not null && _commandChanged is not null)
+            _command.CanExecuteChanged -= _commandChanged;
         if (!SetProperty(ref _command, value, nameof(Command))) return this;
-        if (previous is not null)
-            previous.CanExecuteChanged -= OnCommandCanExecuteChanged;
-        if (_command is not null)
-            _command.CanExecuteChanged += OnCommandCanExecuteChanged;
+        if (value is not null)
+        {
+            var weak = new WeakReference<SkUiCoreButton>(this);
+            EventHandler? listener = null;
+            listener = (sender, _) =>
+            {
+                if (weak.TryGetTarget(out var button))
+                    button.InvalidatePaint();
+                else if (sender is ICommand oldCommand)
+                    oldCommand.CanExecuteChanged -= listener;
+            };
+            _commandChanged = listener;
+            value.CanExecuteChanged += listener;
+        }
+        else
+        {
+            _commandChanged = null;
+        }
         InvalidatePaint();
         return this;
     }
@@ -145,19 +175,30 @@ public class SkUiCoreButton : SkUiCoreLabel
         return this;
     }
 
-    private void OnCommandCanExecuteChanged(object? sender, EventArgs e) => InvalidatePaint();
-
     private bool CanExecuteCommand => _command?.CanExecute(_commandParameter) ?? true;
+
+    /// <inheritdoc />
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint)
+    {
+        var size = base.MeasureContent(widthConstraint, heightConstraint);
+        if (!_minimumHeightExplicit)
+        {
+            var min = SkUiLook.Current.DefaultButtonMinimumHeight;
+            size = new Size(size.Width, Math.Max(size.Height, min));
+        }
+        return size;
+    }
 
     /// <summary>Draws the rounded fill/border registered as <see cref="SkUiCoreNode.PaintBackground"/>. Subclasses may call or re-register this painter.</summary>
     protected void PaintButtonBackground(SKCanvas canvas)
     {
         var color = !CanExecuteCommand ? SkUiColors.Disabled
             : _isPressed ? _fillColor.MultiplyAlpha(0.75f) : _fillColor;
+        var radius = (float)EffectiveCornerRadius;
         SkUiLook.Current.DrawRoundedBox(
             canvas,
             new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
-            (float)_cornerRadius,
+            radius,
             ToSkColor(color),
             ToSkColor(_borderColor),
             (float)_borderWidth);
@@ -171,7 +212,7 @@ public class SkUiCoreButton : SkUiCoreLabel
         {
             using var clip = SkUiLook.Current.CreateRoundRectPath(
                 new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
-                (float)_cornerRadius);
+                (float)EffectiveCornerRadius);
             canvas.ClipPath(clip, antialias: true);
             base.OnPaintContent(canvas);
         }

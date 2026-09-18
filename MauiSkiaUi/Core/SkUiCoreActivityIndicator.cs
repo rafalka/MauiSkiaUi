@@ -25,7 +25,7 @@ public class SkUiCoreActivityIndicator : SkUiCoreNode
         set => SetColor(value);
     }
 
-    /// <summary>Sets running state; animates only while <c>true</c>.</summary>
+    /// <summary>Sets running state; animates only while <c>true</c> and attached under a host clock.</summary>
     public SkUiCoreActivityIndicator SetIsRunning(bool value)
     {
         if (!SetProperty(ref _isRunning, value, nameof(IsRunning))) return this;
@@ -71,8 +71,21 @@ public class SkUiCoreActivityIndicator : SkUiCoreNode
     }
 
     /// <inheritdoc />
-    protected override void OnAnimationRootChanged()
+    protected override void OnAnimationRootChanged(bool subtreeDetached = false)
     {
+        if (subtreeDetached)
+        {
+            _spin?.Dispose();
+            _spin = null;
+            DisposeStrokePaint();
+            if (_isRunning)
+            {
+                _isRunning = false;
+                OnPropertyChanged(nameof(IsRunning));
+            }
+            return;
+        }
+
         if (_isRunning)
             BindSpin();
     }
@@ -81,7 +94,7 @@ public class SkUiCoreActivityIndicator : SkUiCoreNode
     {
         _spin?.Dispose();
         _spin = null;
-        if (!_isRunning || !IsVisible)
+        if (!_isRunning || !IsVisible || !HasInheritedHostClock)
             return;
         _spin = AnimationClock.Start(
             progress => _sweepStart = (float)(progress * 360),
@@ -89,5 +102,11 @@ public class SkUiCoreActivityIndicator : SkUiCoreNode
             repeat: true);
         // Mark ancestors dirty once so scroll content caches switch to live paint while the clock runs.
         InvalidatePaint();
+    }
+
+    private void DisposeStrokePaint()
+    {
+        _strokePaint?.Dispose();
+        _strokePaint = null;
     }
 }
