@@ -103,7 +103,7 @@ Tests: [MauiContentViewTests](../../tests/MauiSkiaUi.Tests/MauiContentViewTests.
 | Item | Notes |
 | --- | --- |
 | On-device acceptance | Native overlay position, contrast, input — [Testing.md](Testing.md) checklists |
-| NuGet readiness | FR-6 packaging / publish pipeline |
+| NuGet readiness | FR-6 packaging metadata exists; GitHub Actions pack/publish workflows under `.github/workflows/` |
 | Windows TFM verification | Compile/run on a Windows host when available |
 
 ---

@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Pin Microsoft.Maui.Controls and related package versions used via $(MauiVersion). -->
+    <MauiVersion>10.0.101</MauiVersion>
+  </PropertyGroup>
+</Project>

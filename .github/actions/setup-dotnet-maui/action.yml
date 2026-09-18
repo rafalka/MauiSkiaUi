@@ -1,0 +1,42 @@
+name: Setup .NET MAUI
+description: Install .NET SDK (from global.json), optional JDK, and MAUI workloads for CI
+
+inputs:
+  workloads:
+    description: Space-separated workload ids (e.g. maui-android or maui)
+    required: false
+    default: "maui-android"
+  java-version:
+    description: Temurin JDK major version (empty skips Java setup)
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        global-json-file: global.json
+
+    - name: Setup Java
+      if: inputs.java-version != ''
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: ${{ inputs.java-version }}
+
+    - name: Install MAUI workloads
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Prefer the SDK baseline manifests so install + GC stay in sync on Linux agents.
+        for wl in ${{ inputs.workloads }}; do
+          echo "Installing workload: $wl"
+          dotnet workload install "$wl" --skip-manifest-update
+        done
+        echo "MauiVersion (Directory.Build.props):"
+        # Surface the pin used by PackageReference Version="$(MauiVersion)"
+        grep -A1 '<MauiVersion>' Directory.Build.props || true
+        dotnet --info
+        dotnet workload list

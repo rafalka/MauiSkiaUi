@@ -202,7 +202,11 @@ public class CoreLayerTests
     [Fact]
     public void CoreHost_MeasuresAndPaintsContent()
     {
-        var label = new SkUiCoreLabel().SetText("Hello").SetFontSize(16);
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var label = new SkUiCoreLabel()
+            .SetText("Hello")
+            .SetFontSize(16)
+            .SetFontFamily(SkUiTestHelpers.BundledFontFamily);
         var host = new SkUiCoreHost();
         host.SetContent(label);
 

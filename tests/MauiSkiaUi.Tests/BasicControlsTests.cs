@@ -174,7 +174,13 @@ public class BasicControlsTests
     [Fact]
     public void LabelWrapsAndDirectSettersDoNotWriteBack()
     {
-        var label = new SkUiLabel { Text = "alpha beta gamma delta", FontSize = 20 };
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var label = new SkUiLabel
+        {
+            Text = "alpha beta gamma delta",
+            FontSize = 20,
+            FontFamily = SkUiTestHelpers.BundledFontFamily,
+        };
         var wide = ((IView)label).Measure(400, 300);
         var narrow = ((IView)label).Measure(70, 300);
         Assert.True(narrow.Height > wide.Height);

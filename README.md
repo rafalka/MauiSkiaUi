@@ -73,7 +73,7 @@ Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](
 
 ## Contributing / developing SkiaUi
 
-Build, test, architecture, and design docs: **[Development.md](Development.md)**.
+Build, test, CI, architecture, and design docs: **[Development.md](Development.md)**.
 
 ## License
 

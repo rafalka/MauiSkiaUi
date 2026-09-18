@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  build-test:
+    name: Build & test (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          # Headless tests target net10.0; maui-android registers MAUI packs used by UseMaui projects.
+          workloads: maui-android
+          java-version: "17"
+
+      - name: Restore
+        run: dotnet restore tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
+
+      - name: Build library (net10.0)
+        run: >
+          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
+          -c Release
+          -f net10.0
+          --no-restore
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Build tests
+        run: >
+          dotnet build tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
+          -c Release
+          --no-restore
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Run tests
+        run: >
+          dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
+          -c Release
+          --no-build
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory "${{ runner.temp }}/test-results"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ${{ runner.temp }}/test-results
+          if-no-files-found: ignore
+
+  build-apple:
+    name: Build library (macOS Apple TFMs)
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-ios maui-maccatalyst
+          java-version: ""
+
+      - name: Restore Apple TFMs only
+        # %3B = ';' so MSBuild does not treat the list as multiple -p switches.
+        run: >
+          dotnet restore MauiSkiaUi/MauiSkiaUi.csproj
+          -p:TargetFrameworks=net10.0-ios%3Bnet10.0-maccatalyst
+
+      - name: Build iOS TFM
+        run: >
+          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
+          -c Release
+          -f net10.0-ios
+          --no-restore
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Build Mac Catalyst TFM
+        run: >
+          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
+          -c Release
+          -f net10.0-maccatalyst
+          --no-restore
+          -p:ContinuousIntegrationBuild=true
+
+  build-windows:
+    name: Build library (Windows TFM)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-windows
+          java-version: ""
+
+      - name: Restore Windows TFM only
+        run: >
+          dotnet restore MauiSkiaUi/MauiSkiaUi.csproj
+          -p:TargetFrameworks=net10.0-windows10.0.19041.0
+
+      - name: Build Windows TFM
+        run: >
+          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
+          -c Release
+          -f net10.0-windows10.0.19041.0
+          --no-restore
+          -p:ContinuousIntegrationBuild=true

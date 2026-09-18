@@ -8,7 +8,11 @@ public class ComponentDemoTests
     [Fact]
     public void EveryConcreteComponentHasOneDedicatedDemo()
     {
-        var controls = typeof(SkUiView).Assembly.GetTypes().Where(type => type.IsPublic && !type.IsAbstract && typeof(SkUiView).IsAssignableFrom(type)).OrderBy(type => type.Name);
+        // SkUiCoreHost is the Core↔MAUI bridge (Stress / Look pages), not a gallery control.
+        var controls = typeof(SkUiView).Assembly.GetTypes()
+            .Where(type => type.IsPublic && !type.IsAbstract && typeof(SkUiView).IsAssignableFrom(type))
+            .Where(type => type != typeof(MauiSkiaUi.Core.SkUiCoreHost))
+            .OrderBy(type => type.Name);
         Assert.Equal(controls, ComponentDemos.All.Select(demo => demo.ComponentType).OrderBy(type => type.Name));
         Assert.Equal(ComponentDemos.All.Count, ComponentDemos.All.Select(demo => demo.PageType).Distinct().Count());
         Assert.Equal(ComponentDemos.All.Count, ComponentDemos.All.Select(demo => demo.Route).Distinct().Count());

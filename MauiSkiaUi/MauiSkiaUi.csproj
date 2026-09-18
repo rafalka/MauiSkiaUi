@@ -28,7 +28,7 @@
 		<!-- NuGet -->
 		<IsPackable>true</IsPackable>
 		<PackageId>MauiSkiaUi</PackageId>
-		<Version>1.0.0-Prelease01</Version>
+		<Version>1.0.0-Prerelease01</Version>
 		<Authors>Rafal Kukla</Authors>
 		<Company>Rafal Kukla</Company>
 		<Copyright>Copyright © Rafal Kukla</Copyright>
