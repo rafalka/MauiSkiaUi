@@ -44,7 +44,7 @@ Workflows live under [`.github/workflows/`](.github/workflows/). Shared setup: [
 | [ci.yml](.github/workflows/ci.yml) | Push / PR to `master` | Headless tests (Ubuntu `net10.0`); build iOS/Mac Catalyst (macOS) and Windows TFMs |
 | [nuget-pack.yml](.github/workflows/nuget-pack.yml) | Manual, or tag `v*` | `dotnet pack` on macOS + Windows; merge multi-TFM `.nupkg` / `.snupkg` artifacts |
 | [nuget-publish.yml](.github/workflows/nuget-publish.yml) | Manual (version + optional dry-run), or GitHub Release published | Same multi-TFM pack + push to [nuget.org](https://www.nuget.org/) via [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) (OIDC); Environment `nuget.org` |
-| [demo-publish.yml](.github/workflows/demo-publish.yml) | Manual (platform choice), or tag `demo-v*` | Publish demo Android APK (`android-arm64` + `android-x64`) and optionally Mac Catalyst as artifacts |
+| [demo-publish.yml](.github/workflows/demo-publish.yml) | Manual (platform choice), or tag `demo-v*` | Publish demo Android APK (`android-arm64`) and optionally Mac Catalyst as artifacts |
 
 ### Secrets and environments
 

@@ -87,16 +87,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/demo/android
-          # Host RID (linux-x64) must not leak into Mono restore — desktop Mono packs were
-          # removed in .NET 9+. Pin Android ABIs only (%3B = ';' for MSBuild -p parsing).
+          # Scope TFMs to Android so the multi-TFM library is not restored for net10.0 with an
+          # Android RID. Use a single Android RID (not the host linux-x64) — desktop Mono packs
+          # were removed in .NET 9+ and host RID leakage causes NU1102 Mono.linux-x64.
           ARGS=(
             MauiSkiaUiDemo/MauiSkiaUiDemo.csproj
             -f net10.0-android
             -c "$CONFIG"
+            -p:TargetFrameworks=net10.0-android
+            -p:RuntimeIdentifier=android-arm64
             -p:EnableProfiling=false
             -p:ContinuousIntegrationBuild=true
             -p:AndroidPackageFormats=apk
-            -p:RuntimeIdentifiers=android-arm64%3Bandroid-x64
             -o artifacts/demo/android
           )
           if [[ "${{ steps.keystore.outputs.signed }}" == "true" ]]; then
