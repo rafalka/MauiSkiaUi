@@ -40,21 +40,24 @@ jobs:
       github.event_name == 'push' ||
       inputs.platforms == 'android' ||
       inputs.platforms == 'android-and-maccatalyst'
-    runs-on: ubuntu-latest
+    # Pin until ubuntu-latest migrates to 26 (Oct 2026).
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET MAUI
         uses: ./.github/actions/setup-dotnet-maui
         with:
           workloads: maui-android
-          java-version: "17"
+          # .NET 10 Android supports JDK 21; prefer it over the older 17 default.
+          java-version: "21"
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
-          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          # net10.0-android defaults to API 36.
+          packages: platform-tools platforms;android-36 build-tools;36.0.0
 
       - name: Decode keystore (optional)
         id: keystore
@@ -84,6 +87,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/demo/android
+          # Host RID (linux-x64) must not leak into Mono restore — desktop Mono packs were
+          # removed in .NET 9+. Pin Android ABIs only (%3B = ';' for MSBuild -p parsing).
           ARGS=(
             MauiSkiaUiDemo/MauiSkiaUiDemo.csproj
             -f net10.0-android
@@ -91,6 +96,7 @@ jobs:
             -p:EnableProfiling=false
             -p:ContinuousIntegrationBuild=true
             -p:AndroidPackageFormats=apk
+            -p:RuntimeIdentifiers=android-arm64%3Bandroid-x64
             -o artifacts/demo/android
           )
           if [[ "${{ steps.keystore.outputs.signed }}" == "true" ]]; then
@@ -106,7 +112,7 @@ jobs:
           find artifacts/demo/android -type f \( -name '*.apk' -o -name '*.aab' \) -print
 
       - name: Upload Android artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: demo-android
           path: |
@@ -122,7 +128,7 @@ jobs:
     runs-on: macos-15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET MAUI
         uses: ./.github/actions/setup-dotnet-maui
@@ -148,7 +154,7 @@ jobs:
           ls -laR artifacts/demo/maccatalyst | head -80 || true
 
       - name: Upload Mac Catalyst artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: demo-maccatalyst
           path: artifacts/demo/maccatalyst
