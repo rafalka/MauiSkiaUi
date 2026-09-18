@@ -71,6 +71,8 @@ Docs: [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/tru
 
 Without Android signing secrets, the demo Android job still publishes an APK for sideload testing.
 
+Demo app icon/splash SVGs intentionally omit SVG `<filter>` elements: MAUI **10.0.101** Resizetizer regresses on filtered SVGs ([dotnet/maui#38319](https://github.com/dotnet/maui/issues/38319)).
+
 Version overrides: pack/publish accept an explicit version; `v1.2.3` tags strip the leading `v`. Without an override, pack uses `Version` from `MauiSkiaUi.csproj`.
 
 ## Design documentation
