@@ -73,10 +73,10 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         _container = new SkUiOverlayContainer();
         _container.AddSubview(surfaceNative);
 #elif WINDOWS
-        container = new SkUiOverlayContainer();
-        container.Children.Add(surfaceNative);
+        _container = new SkUiOverlayContainer();
+        _container.Children.Add(surfaceNative);
 #endif
-        return _container;
+        return _container!;
     }
 
     /// <inheritdoc />
@@ -155,7 +155,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #elif IOS || MACCATALYST
         _container?.AddSubview(child);
 #elif WINDOWS
-        container?.Children.Add(child);
+        _container?.Children.Add(child);
 #endif
     }
 
@@ -168,7 +168,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #elif IOS || MACCATALYST
         child.RemoveFromSuperview();
 #elif WINDOWS
-        container?.Children.Remove(child);
+        _container?.Children.Remove(child);
 #endif
     }
 
@@ -183,7 +183,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #elif IOS || MACCATALYST
         _container?.SetOverlayBounds(child, new CoreGraphics.CGRect(dipBounds.X, dipBounds.Y, dipBounds.Width, dipBounds.Height));
 #elif WINDOWS
-        container?.SetOverlayBounds(child, dipBounds.X, dipBounds.Y, dipBounds.Width, dipBounds.Height);
+        _container?.SetOverlayBounds(child, dipBounds.X, dipBounds.Y, dipBounds.Width, dipBounds.Height);
 #endif
     }
 

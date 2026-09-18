@@ -78,9 +78,10 @@ jobs:
           java-version: ""
 
       - name: Restore Apple TFMs only
+        # %3B = ';' so MSBuild does not treat the list as multiple -p switches.
         run: >
           dotnet restore MauiSkiaUi/MauiSkiaUi.csproj
-          -p:TargetFrameworks="net10.0-ios;net10.0-maccatalyst"
+          -p:TargetFrameworks=net10.0-ios%3Bnet10.0-maccatalyst
 
       - name: Build iOS TFM
         run: >
