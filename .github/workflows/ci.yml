@@ -26,19 +26,18 @@ jobs:
       - name: Setup .NET MAUI
         uses: ./.github/actions/setup-dotnet-maui
         with:
+          # Headless tests target net10.0; maui-android registers MAUI packs used by UseMaui projects.
           workloads: maui-android
           java-version: "17"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Restore
-        run: dotnet restore SkiaUi.slnx
+        run: dotnet restore tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
 
-      - name: Build library (net10.0 + Android)
+      - name: Build library (net10.0)
         run: >
           dotnet build MauiSkiaUi/MauiSkiaUi.csproj
           -c Release
+          -f net10.0
           --no-restore
           -p:ContinuousIntegrationBuild=true
 
@@ -75,15 +74,48 @@ jobs:
       - name: Setup .NET MAUI
         uses: ./.github/actions/setup-dotnet-maui
         with:
-          workloads: maui-android maui-ios maui-maccatalyst
-          java-version: "17"
+          workloads: maui-ios maui-maccatalyst
+          java-version: ""
 
       - name: Restore
         run: dotnet restore MauiSkiaUi/MauiSkiaUi.csproj
 
-      - name: Build library (includes iOS + Mac Catalyst)
+      - name: Build iOS TFM
         run: >
           dotnet build MauiSkiaUi/MauiSkiaUi.csproj
           -c Release
+          -f net10.0-ios
+          --no-restore
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Build Mac Catalyst TFM
+        run: >
+          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
+          -c Release
+          -f net10.0-maccatalyst
+          --no-restore
+          -p:ContinuousIntegrationBuild=true
+
+  build-windows:
+    name: Build library (Windows TFM)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-windows
+          java-version: ""
+
+      - name: Restore
+        run: dotnet restore MauiSkiaUi/MauiSkiaUi.csproj
+
+      - name: Build Windows TFM
+        run: >
+          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
+          -c Release
+          -f net10.0-windows10.0.19041.0
           --no-restore
           -p:ContinuousIntegrationBuild=true

@@ -1,7 +1,7 @@
 name: NuGet publish
 
-# Packs MauiSkiaUi and pushes to https://www.nuget.org/ via Trusted Publishing (OIDC).
-# No long-lived NuGet API key — see:
+# Packs MauiSkiaUi (macOS + Windows TFMs merged) and pushes to https://www.nuget.org/
+# via Trusted Publishing (OIDC):
 #   https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
 # Uses GitHub Environment "nuget.org" (match this name in the nuget.org trusted policy).
 
@@ -26,35 +26,53 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
-  publish:
-    name: Publish to nuget.org
-    runs-on: macos-15
-    environment: nuget.org
-    permissions:
-      contents: read
-      id-token: write # required for GitHub OIDC → nuget.org temporary API key
-
+  resolve-version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      push: ${{ steps.ver.outputs.push }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Resolve version
         id: ver
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            TAG="${{ github.event.release.tag_name }}"
-            VERSION="${TAG#v}"
+          if [[ "$EVENT_NAME" == "release" ]]; then
+            VERSION="${RELEASE_TAG#v}"
+            PUSH=true
           else
-            VERSION="${{ inputs.version }}"
+            VERSION="${INPUT_VERSION:-}"
+            if [[ "${DRY_RUN:-false}" == "true" ]]; then
+              PUSH=false
+            else
+              PUSH=true
+            fi
           fi
           if [[ -z "$VERSION" ]]; then
             echo "Version is required" >&2
             exit 1
           fi
+          if [[ ! "$VERSION" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+            echo "Invalid version: $VERSION" >&2
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Publishing Version=$VERSION"
+          echo "push=$PUSH" >> "$GITHUB_OUTPUT"
+          echo "Publishing Version=$VERSION (push=$PUSH)"
+
+  pack-apple:
+    name: Pack (macOS TFMs)
+    needs: resolve-version
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup .NET MAUI
         uses: ./.github/actions/setup-dotnet-maui
@@ -64,48 +82,169 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
 
       - name: Pack
+        env:
+          PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p artifacts/nuget
           dotnet pack MauiSkiaUi/MauiSkiaUi.csproj \
             -c Release \
             -o artifacts/nuget \
-            -p:Version="${{ steps.ver.outputs.version }}" \
+            -p:Version="${PACKAGE_VERSION}" \
             -p:ContinuousIntegrationBuild=true \
             -p:IncludeSymbols=true \
-            -p:SymbolPackageFormat=snupkg
+            -p:SymbolPackageFormat=snupkg \
+            -p:TargetFrameworks="net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst"
+
+      - name: Upload macOS package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-macos
+          path: |
+            artifacts/nuget/*.nupkg
+            artifacts/nuget/*.snupkg
+          if-no-files-found: error
+
+  pack-windows:
+    name: Pack (Windows TFM)
+    needs: resolve-version
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-windows maui-android
+          java-version: "17"
+
+      - name: Pack Windows TFM
+        env:
+          PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/nuget-win
+          dotnet pack MauiSkiaUi/MauiSkiaUi.csproj \
+            -c Release \
+            -o artifacts/nuget-win \
+            -p:Version="${PACKAGE_VERSION}" \
+            -p:ContinuousIntegrationBuild=true \
+            -p:IncludeSymbols=true \
+            -p:SymbolPackageFormat=snupkg \
+            -p:TargetFrameworks="net10.0-windows10.0.19041.0"
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-windows
+          path: |
+            artifacts/nuget-win/*.nupkg
+            artifacts/nuget-win/*.snupkg
+          if-no-files-found: error
+
+  publish:
+    name: Merge and publish
+    needs: [resolve-version, pack-apple, pack-windows]
+    runs-on: ubuntu-latest
+    environment: nuget.org
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Download macOS package
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-macos
+          path: incoming/macos
+
+      - name: Download Windows package
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-windows
+          path: incoming/windows
+
+      - name: Merge nupkg / snupkg
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/nuget
+          python3 <<'PY'
+          import pathlib, zipfile, shutil
+
+          def one_pkg(folder: pathlib.Path, suffix: str) -> pathlib.Path:
+              matches = sorted(folder.glob(f"*{suffix}"))
+              if len(matches) != 1:
+                  raise SystemExit(f"Expected one *{suffix} under {folder}, found {matches}")
+              return matches[0]
+
+          macos_dir = pathlib.Path("incoming/macos")
+          win_dir = pathlib.Path("incoming/windows")
+          out_dir = pathlib.Path("artifacts/nuget")
+          out_dir.mkdir(parents=True, exist_ok=True)
+
+          for suffix in (".nupkg", ".snupkg"):
+              base = one_pkg(macos_dir, suffix)
+              win = one_pkg(win_dir, suffix)
+              dest = out_dir / base.name
+              shutil.copy2(base, dest)
+              with zipfile.ZipFile(dest, "a") as zdst, zipfile.ZipFile(win, "r") as zsrc:
+                  existing = set(zdst.namelist())
+                  for info in zsrc.infolist():
+                      name = info.filename
+                      if name in existing:
+                          continue
+                      if name.startswith("lib/") or name.startswith("runtimes/") or name.startswith("ref/"):
+                          zdst.writestr(info, zsrc.read(name))
+                          print(f"merged {suffix}: {name}")
+              print(f"wrote {dest}")
+          PY
 
       - name: Upload NuGet packages
         uses: actions/upload-artifact@v4
         with:
-          name: nuget-packages-${{ steps.ver.outputs.version }}
+          name: nuget-packages-${{ needs.resolve-version.outputs.version }}
           path: |
             artifacts/nuget/*.nupkg
             artifacts/nuget/*.snupkg
 
-      # Obtain a short-lived API key via OIDC shortly before push (keys expire in ~1 hour).
       - name: NuGet login (OIDC → temporary API key)
-        if: github.event_name == 'release' || inputs.dry_run != true
+        if: needs.resolve-version.outputs.push == 'true'
         uses: NuGet/login@v1
         id: nuget-login
         with:
-          # nuget.org profile username (not email). Prefer a secret so it isn't hard-coded.
           user: ${{ secrets.NUGET_USER }}
 
       - name: Push to nuget.org
-        if: github.event_name == 'release' || inputs.dry_run != true
+        if: needs.resolve-version.outputs.push == 'true'
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
           set -euo pipefail
           shopt -s nullglob
           for pkg in artifacts/nuget/*.nupkg; do
             echo "Pushing $pkg"
             dotnet nuget push "$pkg" \
-              --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+              --api-key "$NUGET_API_KEY" \
               --source https://api.nuget.org/v3/index.json \
               --skip-duplicate
           done
 
       - name: Dry run notice
-        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
+        if: needs.resolve-version.outputs.push != 'true'
         run: echo "Dry run — packages were packed and uploaded as artifacts only."

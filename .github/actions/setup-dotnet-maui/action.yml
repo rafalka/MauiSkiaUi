@@ -1,11 +1,7 @@
 name: Setup .NET MAUI
-description: Install .NET SDK, optional JDK, and MAUI workloads for CI
+description: Install .NET SDK (from global.json), optional JDK, and MAUI workloads for CI
 
 inputs:
-  dotnet-version:
-    description: .NET SDK version range for actions/setup-dotnet
-    required: false
-    default: "10.0.x"
   workloads:
     description: Space-separated workload ids (e.g. maui-android or maui)
     required: false
@@ -21,7 +17,7 @@ runs:
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: ${{ inputs.dotnet-version }}
+        global-json-file: global.json
 
     - name: Setup Java
       if: inputs.java-version != ''
@@ -39,5 +35,8 @@ runs:
           echo "Installing workload: $wl"
           dotnet workload install "$wl" --skip-manifest-update
         done
+        echo "MauiVersion (Directory.Build.props):"
+        # Surface the pin used by PackageReference Version="$(MauiVersion)"
+        grep -A1 '<MauiVersion>' Directory.Build.props || true
         dotnet --info
         dotnet workload list

@@ -1,7 +1,8 @@
 name: NuGet pack
 
 # Produces MauiSkiaUi .nupkg / .snupkg artifacts (does not push to nuget.org).
-# Pack on macOS so net10.0-ios and net10.0-maccatalyst TFMs are included.
+# macOS packs net10.0 + Android + iOS + Mac Catalyst; Windows adds the Windows TFM;
+# a merge job combines both into one multi-TFM package.
 
 on:
   workflow_dispatch:
@@ -21,24 +22,32 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
-  pack:
-    name: Pack MauiSkiaUi
-    runs-on: macos-15
+  resolve-version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Resolve version
         id: ver
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -n "${{ inputs.version }}" ]]; then
-            VERSION="${{ inputs.version }}"
-          elif [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
-            VERSION="${GITHUB_REF_NAME#v}"
+          if [[ -n "${INPUT_VERSION:-}" ]]; then
+            VERSION="$INPUT_VERSION"
+          elif [[ "$REF_TYPE" == "tag" && "$REF_NAME" == v* ]]; then
+            VERSION="${REF_NAME#v}"
           else
             VERSION=""
+          fi
+          # Reject values that would break MSBuild -p:Version=...
+          if [[ -n "$VERSION" && ! "$VERSION" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+            echo "Invalid version: $VERSION" >&2
+            exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           if [[ -n "$VERSION" ]]; then
@@ -46,6 +55,14 @@ jobs:
           else
             echo "Packing with project Version (MauiSkiaUi.csproj)"
           fi
+
+  pack-apple:
+    name: Pack (macOS TFMs)
+    needs: resolve-version
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup .NET MAUI
         uses: ./.github/actions/setup-dotnet-maui
@@ -55,8 +72,12 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
 
       - name: Pack
+        env:
+          PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -69,13 +90,122 @@ jobs:
             -p:IncludeSymbols=true
             -p:SymbolPackageFormat=snupkg
           )
-          if [[ -n "${{ steps.ver.outputs.version }}" ]]; then
-            ARGS+=(-p:Version="${{ steps.ver.outputs.version }}")
+          if [[ -n "${PACKAGE_VERSION:-}" ]]; then
+            ARGS+=(-p:Version="${PACKAGE_VERSION}")
+          fi
+          # Explicit TFMs: avoid relying on OS conditions alone for the Apple pack.
+          ARGS+=(-p:TargetFrameworks="net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst")
+          dotnet pack "${ARGS[@]}"
+          ls -la artifacts/nuget
+
+      - name: Upload macOS package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-macos
+          path: |
+            artifacts/nuget/*.nupkg
+            artifacts/nuget/*.snupkg
+          if-no-files-found: error
+
+  pack-windows:
+    name: Pack (Windows TFM)
+    needs: resolve-version
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-windows maui-android
+          java-version: "17"
+
+      - name: Pack Windows TFM
+        env:
+          PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/nuget-win
+          ARGS=(
+            MauiSkiaUi/MauiSkiaUi.csproj
+            -c Release
+            -o artifacts/nuget-win
+            -p:ContinuousIntegrationBuild=true
+            -p:IncludeSymbols=true
+            -p:SymbolPackageFormat=snupkg
+            -p:TargetFrameworks="net10.0-windows10.0.19041.0"
+          )
+          if [[ -n "${PACKAGE_VERSION:-}" ]]; then
+            ARGS+=(-p:Version="${PACKAGE_VERSION}")
           fi
           dotnet pack "${ARGS[@]}"
+          ls -la artifacts/nuget-win
 
-      - name: List packages
-        run: ls -la artifacts/nuget
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-windows
+          path: |
+            artifacts/nuget-win/*.nupkg
+            artifacts/nuget-win/*.snupkg
+          if-no-files-found: error
+
+  merge:
+    name: Merge multi-TFM package
+    needs: [pack-apple, pack-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download macOS package
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-macos
+          path: incoming/macos
+
+      - name: Download Windows package
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-windows
+          path: incoming/windows
+
+      - name: Merge nupkg / snupkg
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/nuget
+          python3 <<'PY'
+          import pathlib, zipfile, shutil, sys
+
+          def one_pkg(folder: pathlib.Path, suffix: str) -> pathlib.Path:
+              matches = sorted(folder.glob(f"*{suffix}"))
+              if len(matches) != 1:
+                  raise SystemExit(f"Expected one *{suffix} under {folder}, found {matches}")
+              return matches[0]
+
+          macos_dir = pathlib.Path("incoming/macos")
+          win_dir = pathlib.Path("incoming/windows")
+          out_dir = pathlib.Path("artifacts/nuget")
+          out_dir.mkdir(parents=True, exist_ok=True)
+
+          for suffix in (".nupkg", ".snupkg"):
+              base = one_pkg(macos_dir, suffix)
+              win = one_pkg(win_dir, suffix)
+              dest = out_dir / base.name
+              shutil.copy2(base, dest)
+              with zipfile.ZipFile(dest, "a") as zdst, zipfile.ZipFile(win, "r") as zsrc:
+                  existing = set(zdst.namelist())
+                  for info in zsrc.infolist():
+                      name = info.filename
+                      # Prefer Windows TFM / related payload; skip metadata already present.
+                      if name in existing:
+                          continue
+                      if name.startswith("lib/") or name.startswith("runtimes/") or name.startswith("ref/"):
+                          zdst.writestr(info, zsrc.read(name))
+                          print(f"merged {suffix}: {name}")
+              print(f"wrote {dest}")
+          PY
+          ls -la artifacts/nuget
 
       - name: Upload NuGet packages
         uses: actions/upload-artifact@v4

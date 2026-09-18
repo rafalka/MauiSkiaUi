@@ -14,7 +14,8 @@ Solution file: `SkiaUi.slnx`
 
 ## Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download) **10.0.400** (see [global.json](global.json); `rollForward: latestPatch`)
+- MAUI Controls packages pinned to **10.0.101** via [Directory.Build.props](Directory.Build.props) (`MauiVersion`)
 - .NET MAUI workload (`dotnet workload install maui`)
 - Platform SDKs for the targets you build (Android SDK, Xcode for iOS/Mac Catalyst, etc.)
 
@@ -40,9 +41,9 @@ Workflows live under [`.github/workflows/`](.github/workflows/). Shared setup: [
 
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
-| [ci.yml](.github/workflows/ci.yml) | Push / PR to `master` | Restore, build library, run headless tests (Ubuntu); also build Apple TFMs on macOS |
-| [nuget-pack.yml](.github/workflows/nuget-pack.yml) | Manual, or tag `v*` | `dotnet pack` MauiSkiaUi on macOS; upload `.nupkg` / `.snupkg` artifacts |
-| [nuget-publish.yml](.github/workflows/nuget-publish.yml) | Manual (version + optional dry-run), or GitHub Release published | Pack + push to [nuget.org](https://www.nuget.org/) via [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) (OIDC); Environment `nuget.org` |
+| [ci.yml](.github/workflows/ci.yml) | Push / PR to `master` | Headless tests (Ubuntu `net10.0`); build iOS/Mac Catalyst (macOS) and Windows TFMs |
+| [nuget-pack.yml](.github/workflows/nuget-pack.yml) | Manual, or tag `v*` | `dotnet pack` on macOS + Windows; merge multi-TFM `.nupkg` / `.snupkg` artifacts |
+| [nuget-publish.yml](.github/workflows/nuget-publish.yml) | Manual (version + optional dry-run), or GitHub Release published | Same multi-TFM pack + push to [nuget.org](https://www.nuget.org/) via [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) (OIDC); Environment `nuget.org` |
 | [demo-publish.yml](.github/workflows/demo-publish.yml) | Manual (platform choice), or tag `demo-v*` | Publish demo Android APK (and optionally Mac Catalyst) as artifacts |
 
 ### Secrets and environments
