@@ -403,12 +403,12 @@ public sealed class StressPage : ContentPage
                 $"UI render (layout + first frame): {render.Elapsed.TotalMilliseconds:F1} ms\n" +
                 $"Overall (start → UI idle): {overall.Elapsed.TotalMilliseconds:F1} ms";
             _metrics.Text = metrics;
-            Debug.WriteLine($"[Stress] {metrics.Replace("\n", " | ")}");
+            Console.WriteLine($"[Stress] {metrics.Replace("\n", " | ")}");
         }
         catch (Exception ex)
         {
             _metrics.Text = $"Test failed: {ex.Message}";
-            Debug.WriteLine($"[Stress] {_metrics.Text}");
+            Console.WriteLine($"[Stress] {_metrics.Text}");
         }
         finally
         {
@@ -718,7 +718,7 @@ public sealed class StressPage : ContentPage
                 $"(RecordFrame stats require a SKUI_DIAGNOSTICS build)";
 #endif
             _metrics.Text = $"{_metrics.Text}\n{scrollMetrics}";
-            Debug.WriteLine($"[Stress/Scroll] {scrollMetrics.Replace("\n", " | ")}");
+            Console.WriteLine($"[Stress/Scroll] {scrollMetrics.Replace("\n", " | ")}");
         }
         finally
         {
@@ -752,7 +752,7 @@ public sealed class StressPage : ContentPage
                 $"Scroll probe (native MAUI animate): wall {wall.Elapsed.TotalMilliseconds:F0} ms\n" +
                 $"(RecordFrame N/A — not a SkUi surface)";
             _metrics.Text = $"{_metrics.Text}\n{scrollMetrics}";
-            Debug.WriteLine($"[Stress/Scroll] {scrollMetrics.Replace("\n", " | ")}");
+            Console.WriteLine($"[Stress/Scroll] {scrollMetrics.Replace("\n", " | ")}");
         }
         finally
         {
@@ -769,7 +769,7 @@ public sealed class StressPage : ContentPage
             {
                 var note = "CPU Paint N/A for native MAUI (no SkUi Paint path).";
                 _metrics.Text = $"{_metrics.Text}\n{note}";
-                Debug.WriteLine($"[Stress/Record] {note}");
+                Console.WriteLine($"[Stress/Record] {note}");
             }
             return;
         }
@@ -793,7 +793,7 @@ public sealed class StressPage : ContentPage
         var recordMetrics =
             $"CPU Paint (direct): {timer.Elapsed.TotalMilliseconds / 30:F2} ms / {bytes:N0} B per frame";
         _metrics.Text = $"{_metrics.Text}\n{recordMetrics}";
-        Debug.WriteLine($"[Stress/Record] {recordMetrics}");
+        Console.WriteLine($"[Stress/Record] {recordMetrics}");
     }
 
     /// <inheritdoc />

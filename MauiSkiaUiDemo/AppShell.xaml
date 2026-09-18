@@ -5,8 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:MauiSkiaUiDemo"
     Title="MauiSkiaUi Demo"
-    FlyoutBehavior="Flyout"
-    FlyoutBackgroundColor="#F4F6F6">
+    FlyoutBehavior="Flyout">
 
     <FlyoutItem Title="Components">
         <ShellContent

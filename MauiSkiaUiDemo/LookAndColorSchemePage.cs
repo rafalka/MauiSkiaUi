@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using MauiSkiaUi;
 using MauiSkiaUi.Core;
 
@@ -437,7 +436,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         if (row.HasWidth && width is null)
             return;
         var snippet = row.FormatCode(width, height);
-        Debug.WriteLine(snippet);
+        Console.WriteLine(snippet);
         await Clipboard.Default.SetTextAsync(snippet);
         _status.Text = $"Copied {row.PropertyName} setter to clipboard.";
     }
@@ -512,7 +511,7 @@ public sealed class LookAndColorSchemePage : ContentPage
 
         row.Write(_look, width, height);
         if (printSnippet)
-            Debug.WriteLine(row.FormatCode(width, height));
+            Console.WriteLine(row.FormatCode(width, height));
         RebuildPreview(row);
     }
 
