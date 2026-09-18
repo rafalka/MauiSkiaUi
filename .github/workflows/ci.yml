@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  build-test:
+    name: Build & test (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-android
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Restore
+        run: dotnet restore SkiaUi.slnx
+
+      - name: Build library (net10.0 + Android)
+        run: >
+          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
+          -c Release
+          --no-restore
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Build tests
+        run: >
+          dotnet build tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
+          -c Release
+          --no-restore
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Run tests
+        run: >
+          dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
+          -c Release
+          --no-build
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory "${{ runner.temp }}/test-results"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ${{ runner.temp }}/test-results
+          if-no-files-found: ignore
+
+  build-apple:
+    name: Build library (macOS Apple TFMs)
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-android maui-ios maui-maccatalyst
+          java-version: "17"
+
+      - name: Restore
+        run: dotnet restore MauiSkiaUi/MauiSkiaUi.csproj
+
+      - name: Build library (includes iOS + Mac Catalyst)
+        run: >
+          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
+          -c Release
+          --no-restore
+          -p:ContinuousIntegrationBuild=true

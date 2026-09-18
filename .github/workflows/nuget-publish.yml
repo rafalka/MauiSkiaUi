@@ -1,0 +1,111 @@
+name: NuGet publish
+
+# Packs MauiSkiaUi and pushes to https://www.nuget.org/ via Trusted Publishing (OIDC).
+# No long-lived NuGet API key — see:
+#   https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
+# Uses GitHub Environment "nuget.org" (match this name in the nuget.org trusted policy).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Package version to publish (required)
+        required: true
+        type: string
+      dry_run:
+        description: Pack only; do not push to nuget.org
+        required: false
+        type: boolean
+        default: false
+  release:
+    types: [published]
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  publish:
+    name: Publish to nuget.org
+    runs-on: macos-15
+    environment: nuget.org
+    permissions:
+      contents: read
+      id-token: write # required for GitHub OIDC → nuget.org temporary API key
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            TAG="${{ github.event.release.tag_name }}"
+            VERSION="${TAG#v}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          if [[ -z "$VERSION" ]]; then
+            echo "Version is required" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing Version=$VERSION"
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-android maui-ios maui-maccatalyst
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Pack
+        run: |
+          mkdir -p artifacts/nuget
+          dotnet pack MauiSkiaUi/MauiSkiaUi.csproj \
+            -c Release \
+            -o artifacts/nuget \
+            -p:Version="${{ steps.ver.outputs.version }}" \
+            -p:ContinuousIntegrationBuild=true \
+            -p:IncludeSymbols=true \
+            -p:SymbolPackageFormat=snupkg
+
+      - name: Upload NuGet packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages-${{ steps.ver.outputs.version }}
+          path: |
+            artifacts/nuget/*.nupkg
+            artifacts/nuget/*.snupkg
+
+      # Obtain a short-lived API key via OIDC shortly before push (keys expire in ~1 hour).
+      - name: NuGet login (OIDC → temporary API key)
+        if: github.event_name == 'release' || inputs.dry_run != true
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          # nuget.org profile username (not email). Prefer a secret so it isn't hard-coded.
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to nuget.org
+        if: github.event_name == 'release' || inputs.dry_run != true
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for pkg in artifacts/nuget/*.nupkg; do
+            echo "Pushing $pkg"
+            dotnet nuget push "$pkg" \
+              --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          done
+
+      - name: Dry run notice
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
+        run: echo "Dry run — packages were packed and uploaded as artifacts only."

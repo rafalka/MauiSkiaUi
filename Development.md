@@ -34,6 +34,44 @@ dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
 
 In VS Code, select **.NET MAUI: Select Startup Project > MauiSkiaUiDemo**, choose an Android or Apple target, and start debugging. Apply changes with Hot Reload while debugging. The demo includes MauiDevFlow by default in **Debug**, including ordinary builds/F5: the project references the agent and defines `MAUI_DEVFLOW` to activate the existing startup registration. **Release** excludes both the agent package and registration. No extension injection is needed for ordinary Debug builds; Copilot-triggered launch remains subject to the installed extension's injection-target error described under *Verification status*. For checklist-driven manual runs without DevFlow MCP, prefer [`scripts/device_verify.sh`](scripts/device_verify.sh) (see [Testing.md](docs/design/Testing.md#cli-path-no-vs-code--devflow-mcp)).
 
+## Continuous integration (GitHub Actions)
+
+Workflows live under [`.github/workflows/`](.github/workflows/). Shared setup: [`.github/actions/setup-dotnet-maui/`](.github/actions/setup-dotnet-maui/).
+
+| Workflow | Trigger | What it does |
+| --- | --- | --- |
+| [ci.yml](.github/workflows/ci.yml) | Push / PR to `master` | Restore, build library, run headless tests (Ubuntu); also build Apple TFMs on macOS |
+| [nuget-pack.yml](.github/workflows/nuget-pack.yml) | Manual, or tag `v*` | `dotnet pack` MauiSkiaUi on macOS; upload `.nupkg` / `.snupkg` artifacts |
+| [nuget-publish.yml](.github/workflows/nuget-publish.yml) | Manual (version + optional dry-run), or GitHub Release published | Pack + push to [nuget.org](https://www.nuget.org/) via [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) (OIDC); Environment `nuget.org` |
+| [demo-publish.yml](.github/workflows/demo-publish.yml) | Manual (platform choice), or tag `demo-v*` | Publish demo Android APK (and optionally Mac Catalyst) as artifacts |
+
+### Secrets and environments
+
+| Name | Used by | Purpose |
+| --- | --- | --- |
+| `NUGET_USER` | nuget-publish | Your [nuget.org](https://www.nuget.org/) **profile username** (not email) for `NuGet/login` |
+| `ANDROID_KEYSTORE_BASE64` | demo-publish (optional) | Base64-encoded `.jks` / `.keystore` for signed Release APKs |
+| `ANDROID_KEYSTORE_PASSWORD` | demo-publish (optional) | Keystore password |
+| `ANDROID_KEY_ALIAS` | demo-publish (optional) | Key alias |
+| `ANDROID_KEY_PASSWORD` | demo-publish (optional) | Key password |
+
+#### nuget.org Trusted Publishing (no long-lived API key)
+
+1. Create a GitHub Environment named **`nuget.org`** (Settings → Environments). Optional: require reviewers.
+2. Add repository or environment secret **`NUGET_USER`** = your nuget.org profile username.
+3. On nuget.org (account menu → **Trusted Publishing**) add a policy:
+   - **Repository Owner:** `rafalka`
+   - **Repository:** `MauiSkiaUi`
+   - **Workflow File:** `nuget-publish.yml` (file name only — no `.github/workflows/` path)
+   - **Environment:** `nuget.org` (must match the workflow `environment:`)
+4. Push this workflow to GitHub, then publish once within any temporary 7-day activation window so the policy becomes permanently active.
+
+Docs: [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing).
+
+Without Android signing secrets, the demo Android job still publishes an APK for sideload testing.
+
+Version overrides: pack/publish accept an explicit version; `v1.2.3` tags strip the leading `v`. Without an override, pack uses `Version` from `MauiSkiaUi.csproj`.
+
 ## Design documentation
 
 Architecture, requirements, and mechanism checklists live under **[docs/design/](docs/design/)**:

@@ -1,0 +1,152 @@
+name: Demo publish
+
+# Builds publishable MauiSkiaUiDemo packages and uploads them as artifacts.
+# Android APK is produced unsigned/debug-keystore style for sideload testing unless
+# ANDROID_KEYSTORE_* secrets are configured. Mac Catalyst requires a macOS runner.
+
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: Build configuration
+        required: true
+        type: choice
+        options:
+          - Release
+          - Debug
+        default: Release
+      platforms:
+        description: Which platforms to publish
+        required: true
+        type: choice
+        options:
+          - android
+          - maccatalyst
+          - android-and-maccatalyst
+        default: android
+  push:
+    tags:
+      - "demo-v*"
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  android:
+    name: Publish Android demo
+    if: >
+      github.event_name == 'push' ||
+      inputs.platforms == 'android' ||
+      inputs.platforms == 'android-and-maccatalyst'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-android
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Decode keystore (optional)
+        id: keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ANDROID_KEYSTORE_BASE64:-}" ]]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "No ANDROID_KEYSTORE_BASE64 secret — publishing unsigned/debug-signed APK."
+            exit 0
+          fi
+          KEYSTORE_PATH="${{ runner.temp }}/android-keystore.jks"
+          B64="$(printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '\r\n\t' | sed 's/ /+/g')"
+          printf '%s' "$B64" | base64 --decode > "$KEYSTORE_PATH"
+          echo "path=$KEYSTORE_PATH" >> "$GITHUB_OUTPUT"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Publish Android
+        env:
+          CONFIG: ${{ github.event_name == 'workflow_dispatch' && inputs.configuration || 'Release' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/demo/android
+          ARGS=(
+            MauiSkiaUiDemo/MauiSkiaUiDemo.csproj
+            -f net10.0-android
+            -c "$CONFIG"
+            -p:EnableProfiling=false
+            -p:ContinuousIntegrationBuild=true
+            -p:AndroidPackageFormats=apk
+            -o artifacts/demo/android
+          )
+          if [[ "${{ steps.keystore.outputs.signed }}" == "true" ]]; then
+            ARGS+=(
+              -p:AndroidKeyStore=true
+              -p:AndroidSigningKeyStore="${{ steps.keystore.outputs.path }}"
+              -p:AndroidSigningKeyAlias="$ANDROID_KEY_ALIAS"
+              -p:AndroidSigningKeyPass="$ANDROID_KEY_PASSWORD"
+              -p:AndroidSigningStorePass="$ANDROID_KEYSTORE_PASSWORD"
+            )
+          fi
+          dotnet publish "${ARGS[@]}"
+          find artifacts/demo/android -type f \( -name '*.apk' -o -name '*.aab' \) -print
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-android
+          path: |
+            artifacts/demo/android/**/*.apk
+            artifacts/demo/android/**/*.aab
+          if-no-files-found: error
+
+  maccatalyst:
+    name: Publish Mac Catalyst demo
+    if: >
+      (github.event_name == 'workflow_dispatch' &&
+        (inputs.platforms == 'maccatalyst' || inputs.platforms == 'android-and-maccatalyst'))
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-maccatalyst
+          java-version: ""
+
+      - name: Publish Mac Catalyst
+        env:
+          CONFIG: ${{ github.event_name == 'workflow_dispatch' && inputs.configuration || 'Release' }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/demo/maccatalyst
+          dotnet publish MauiSkiaUiDemo/MauiSkiaUiDemo.csproj \
+            -f net10.0-maccatalyst \
+            -c "$CONFIG" \
+            -p:EnableProfiling=false \
+            -p:ContinuousIntegrationBuild=true \
+            -p:CreatePackage=true \
+            -o artifacts/demo/maccatalyst
+          find artifacts/demo/maccatalyst -type f \( -name '*.pkg' -o -name '*.app' \) -print || true
+          ls -laR artifacts/demo/maccatalyst | head -80
+
+      - name: Upload Mac Catalyst artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-maccatalyst
+          path: artifacts/demo/maccatalyst
+          if-no-files-found: error

@@ -1,0 +1,87 @@
+name: NuGet pack
+
+# Produces MauiSkiaUi .nupkg / .snupkg artifacts (does not push to nuget.org).
+# Pack on macOS so net10.0-ios and net10.0-maccatalyst TFMs are included.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Package version (empty = Version from MauiSkiaUi.csproj)
+        required: false
+        type: string
+        default: ""
+  push:
+    tags:
+      - "v*"
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  pack:
+    name: Pack MauiSkiaUi
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=""
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ -n "$VERSION" ]]; then
+            echo "Packing with Version=$VERSION"
+          else
+            echo "Packing with project Version (MauiSkiaUi.csproj)"
+          fi
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-android maui-ios maui-maccatalyst
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/nuget
+          ARGS=(
+            MauiSkiaUi/MauiSkiaUi.csproj
+            -c Release
+            -o artifacts/nuget
+            -p:ContinuousIntegrationBuild=true
+            -p:IncludeSymbols=true
+            -p:SymbolPackageFormat=snupkg
+          )
+          if [[ -n "${{ steps.ver.outputs.version }}" ]]; then
+            ARGS+=(-p:Version="${{ steps.ver.outputs.version }}")
+          fi
+          dotnet pack "${ARGS[@]}"
+
+      - name: List packages
+        run: ls -la artifacts/nuget
+
+      - name: Upload NuGet packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: |
+            artifacts/nuget/*.nupkg
+            artifacts/nuget/*.snupkg
+          if-no-files-found: error
