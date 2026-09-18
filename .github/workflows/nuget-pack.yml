@@ -68,7 +68,7 @@ jobs:
         uses: ./.github/actions/setup-dotnet-maui
         with:
           workloads: maui-android maui-ios maui-maccatalyst
-          java-version: "17"
+          java-version: "21"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
@@ -93,9 +93,9 @@ jobs:
           if [[ -n "${PACKAGE_VERSION:-}" ]]; then
             ARGS+=(-p:Version="${PACKAGE_VERSION}")
           fi
-          # Explicit TFMs: avoid relying on OS conditions alone for the Apple pack.
-          # %3B = ';' so MSBuild does not treat the list as multiple -p switches.
-          ARGS+=(-p:TargetFrameworks=net10.0%3Bnet10.0-android%3Bnet10.0-ios%3Bnet10.0-maccatalyst)
+          # Do not pass -p:TargetFrameworks=… here: a semicolon-list via -p is misapplied as
+          # singular TargetFramework (NETSDK1046). On macOS the csproj already selects
+          # net10.0 + android + ios + maccatalyst via OS conditions.
           dotnet pack "${ARGS[@]}"
           ls -la artifacts/nuget
 
@@ -120,7 +120,7 @@ jobs:
         uses: ./.github/actions/setup-dotnet-maui
         with:
           workloads: maui-windows maui-android
-          java-version: "17"
+          java-version: "21"
 
       - name: Pack Windows TFM
         env:
