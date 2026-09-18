@@ -40,14 +40,17 @@ public class SkUiLook
     public virtual void DrawPressTint(…) { … }
     public virtual void DrawImage(…) { … }
 
-    // Default intrinsic sizes (DIPs) — override per look when platform packs differ.
-    public virtual Size MeasureSwitch(double widthConstraint, double heightConstraint) => new(51, 31);
-    public virtual Size MeasureCheckBox(double widthConstraint, double heightConstraint) => new(24, 24);
-    public virtual Size MeasureRadioButton(double widthConstraint, double heightConstraint) => new(24, 24);
-    public virtual Size MeasureActivityIndicator(double widthConstraint, double heightConstraint) => new(36, 36);
-    // Button minimum height, default corner radius, etc. as needed
+    // Default intrinsic sizes (DIPs) — public size tokens; Measure* reads these unless a size delegate is set.
+    public virtual Size DefaultSwitchSize => new(51, 31);
+    public virtual Size DefaultCheckBoxSize => new(24, 24);
+    public virtual Size DefaultRadioButtonSize => new(24, 24);
+    public virtual Size DefaultActivityIndicatorSize => new(36, 36);
     public virtual double DefaultButtonMinimumHeight => 44;
     public virtual double DefaultButtonCornerRadius => 6;
+
+    public Size MeasureSwitch(double widthConstraint, double heightConstraint) =>
+        SwitchMeasure?.Invoke(widthConstraint, heightConstraint) ?? DefaultSwitchSize;
+    // … same pattern for CheckBox / RadioButton / ActivityIndicator
 }
 
 // App-wide current look (exact static/DI API open).
@@ -57,7 +60,7 @@ SkUiLook.Current = new MaterialSkUiLook();
 sealed class AppLook : DefaultSkUiLook
 {
     public override void DrawRadioButton(…) { /* brand radio */ }
-    public override Size MeasureSwitch(double w, double h) => new(52, 32); // larger track
+    public override Size DefaultSwitchSize => new(52, 32); // larger track
 }
 
 // Or per-painter / per-size delegates on the look instance (open):

@@ -123,9 +123,27 @@ public class LookAndColorSchemeTests
         view.Arrange(new Rect(0, 0, width, height));
     }
 
+    [Fact]
+    public void DefaultSizePropertiesDriveMeasureWhenDelegatesUnset()
+    {
+        var look = new SizedLook();
+        Assert.Equal(new Size(70, 40), look.MeasureSwitch(0, 0));
+        Assert.Equal(new Size(30, 30), look.MeasureCheckBox(0, 0));
+        Assert.Equal(new Size(28, 28), look.MeasureRadioButton(0, 0));
+        Assert.Equal(new Size(50, 50), look.MeasureActivityIndicator(0, 0));
+    }
+
+    private sealed class SizedLook : DefaultSkUiLook
+    {
+        public override Size DefaultSwitchSize => new(70, 40);
+        public override Size DefaultCheckBoxSize => new(30, 30);
+        public override Size DefaultRadioButtonSize => new(28, 28);
+        public override Size DefaultActivityIndicatorSize => new(50, 50);
+    }
+
     private sealed class TinySwitchLook : DefaultSkUiLook
     {
-        protected override Size MeasureSwitchCore(double widthConstraint, double heightConstraint) => new(10, 10);
+        public override Size DefaultSwitchSize => new(10, 10);
 
         protected override void DrawSwitchCore(SKCanvas canvas, SKRect bounds, bool isChecked, SKColor track, SKColor thumb)
         {

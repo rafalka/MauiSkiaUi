@@ -18,8 +18,6 @@ public partial class ControlsPage : ContentPage
         Scroller.Scrolled += (_, args) => ScrollStatus.Text = $"Offset {args.ScrollY:F0}";
     }
 
-    private async void OnStressClicked(object? sender, EventArgs args) => await Shell.Current.GoToAsync("stress");
-    private async void OnPrimitivesClicked(object? sender, EventArgs args) => await Shell.Current.GoToAsync("primitives");
     private void OnTopClicked(object? sender, EventArgs args) => Scroller.AnimateScrollTo(0, 0, TimeSpan.FromMilliseconds(350));
 
     protected override void OnDisappearing()

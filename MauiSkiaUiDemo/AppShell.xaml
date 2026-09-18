@@ -4,11 +4,43 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:MauiSkiaUiDemo"
-    Title="MauiSkiaUiDemo">
+    Title="MauiSkiaUiDemo"
+    FlyoutBehavior="Flyout"
+    FlyoutBackgroundColor="#F4F6F6">
 
-    <ShellContent
-        Title="Components"
-        ContentTemplate="{DataTemplate local:ComponentGalleryPage}"
-        Route="Components" />
+    <FlyoutItem Title="Components">
+        <ShellContent
+            Title="Components"
+            ContentTemplate="{DataTemplate local:ComponentGalleryPage}"
+            Route="components" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Composition">
+        <ShellContent
+            Title="Composition"
+            ContentTemplate="{DataTemplate local:ControlsPage}"
+            Route="composition" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Look &amp; colors">
+        <ShellContent
+            Title="Look &amp; colors"
+            ContentTemplate="{DataTemplate local:LookAndColorSchemePage}"
+            Route="look" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Stress">
+        <ShellContent
+            Title="Stress"
+            ContentTemplate="{DataTemplate local:StressPage}"
+            Route="stress" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Primitives">
+        <ShellContent
+            Title="Primitives"
+            ContentTemplate="{DataTemplate local:MainPage}"
+            Route="primitives" />
+    </FlyoutItem>
 
 </Shell>

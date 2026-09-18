@@ -4,11 +4,7 @@
              xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
              xmlns:local="clr-namespace:MauiSkiaUiDemo"
              x:Class="MauiSkiaUiDemo.ControlsPage" x:DataType="local:ControlsPage"
-             Title="SkiaUi / Controls" Background="#F4F6F6">
-    <ContentPage.ToolbarItems>
-        <ToolbarItem Text="Stress test" Clicked="OnStressClicked" />
-        <ToolbarItem Text="Primitives" Clicked="OnPrimitivesClicked" />
-    </ContentPage.ToolbarItems>
+             Title="Composition" Background="#F4F6F6">
     <ContentPage.Resources>
         <Style x:Key="Body" TargetType="sk:SkUiLabel">
             <Setter Property="TextColor" Value="#202A2C" />

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MauiSkiaUi;
 using MauiSkiaUi.Core;
 
@@ -5,22 +6,27 @@ namespace MauiSkiaUiDemo;
 
 /// <summary>
 /// Live playground for FR-18 control look and FR-19 color scheme: swap light/dark/brand accents,
-/// alternate look packs, and scale default control sizes. Changes <see cref="SkUiLook.Current"/> and
+/// alternate look packs, and edit per-control default sizes. Changes <see cref="SkUiLook.Current"/> and
 /// <see cref="SkUiColorScheme.Current"/> for the process; restores defaults when the page disappears.
 /// </summary>
 public sealed class LookAndColorSchemePage : ContentPage
 {
-    private readonly ContentView _previewHost;
     private readonly Label _status;
-    private readonly Slider _sizeSlider;
     private readonly Picker _schemePicker;
     private readonly Picker _lookPicker;
     private readonly Picker _accentPicker;
+    private readonly Grid _sizeGrid;
+    private readonly DemoConfigurableLook _look = new();
+    private readonly List<SizeRow> _sizeRows = [];
+    private bool? _widePreviews;
 
+    /// <summary>Width at which MAUI and Core previews sit side by side (tablets / landscape phones).</summary>
+    private const double WidePreviewBreakpoint = 600;
     private SkUiColorScheme _savedScheme = LightSkUiColorScheme.Instance;
     private SkUiLook _savedLook = DefaultSkUiLook.Instance;
     private bool _applying;
     private bool _restored;
+    private bool _syncingSizes;
 
     private static readonly (string Name, Color Value)[] AccentPresets =
     [
@@ -31,7 +37,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         ("Orange", Color.FromArgb("#D97706"))
     ];
 
-    /// <summary>Builds editors and a Skia preview strip of stock controls.</summary>
+    /// <summary>Builds editors and a per-control size grid with live Skia previews.</summary>
     public LookAndColorSchemePage()
     {
         Title = "Look & colors";
@@ -45,7 +51,8 @@ public sealed class LookAndColorSchemePage : ContentPage
         {
             Text =
                 "Control look (shapes + default sizes) and color scheme (shared palette) are separate from MAUI Style. " +
-                "Changes apply app-wide via SkUiLook.Current / SkUiColorScheme.Current. " +
+                "Each row previews SkUi* and SkUiCore* (stacked on narrow screens, side by side when width ≥ 600). " +
+                "Tap the monospace property name under width/height to copy a SkUiLook override snippet. " +
                 "Leaving this page restores the previous look and scheme.",
             TextColor = DemoColors.Caption,
             FontFamily = DemoFonts.OpenSansRegular,
@@ -84,28 +91,11 @@ public sealed class LookAndColorSchemePage : ContentPage
             TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular
         };
-        _lookPicker.SelectedIndexChanged += (_, _) => Apply();
-
-        _sizeSlider = new Slider
+        _lookPicker.SelectedIndexChanged += (_, _) =>
         {
-            Minimum = 0.75,
-            Maximum = 1.5,
-            Value = 1,
-            AutomationId = "LookSizeScale",
-            MinimumTrackColor = DemoColors.Accent,
-            ThumbColor = DemoColors.Accent
+            _look.ClearSizeOverrides();
+            Apply();
         };
-        _sizeSlider.ValueChanged += (_, _) => Apply();
-
-        var sizeLabel = new Label
-        {
-            Text = "Size scale: 1.00",
-            AutomationId = "LookSizeLabel",
-            TextColor = DemoColors.Ink,
-            FontFamily = DemoFonts.OpenSansSemibold,
-            FontSize = 13
-        };
-        _sizeSlider.ValueChanged += (_, args) => sizeLabel.Text = $"Size scale: {args.NewValue:0.00}";
 
         var reset = new Button
         {
@@ -123,7 +113,8 @@ public sealed class LookAndColorSchemePage : ContentPage
             _schemePicker.SelectedIndex = 0;
             _accentPicker.SelectedIndex = 0;
             _lookPicker.SelectedIndex = 0;
-            _sizeSlider.Value = 1;
+            _look.Style = DemoLookStyle.Default;
+            _look.ClearSizeOverrides();
             _applying = false;
             Apply();
         };
@@ -137,12 +128,20 @@ public sealed class LookAndColorSchemePage : ContentPage
             AutomationId = "LookStatus"
         };
 
-        _previewHost = new ContentView
+        _sizeGrid = new Grid
         {
-            AutomationId = "LookPreviewHost",
-            HeightRequest = 320,
-            BackgroundColor = Colors.Transparent
+            ColumnDefinitions =
+            [
+                new ColumnDefinition(new GridLength(168)),
+                new ColumnDefinition(new GridLength(108)),
+                new ColumnDefinition(new GridLength(108))
+            ],
+            ColumnSpacing = 10,
+            RowSpacing = 14,
+            AutomationId = "LookSizeGrid"
         };
+
+        BuildSizeRows();
 
         var editors = new VerticalStackLayout
         {
@@ -157,12 +156,9 @@ public sealed class LookAndColorSchemePage : ContentPage
                 _accentPicker,
                 Section("Control look pack"),
                 _lookPicker,
-                Section("Default control size scale"),
-                sizeLabel,
-                _sizeSlider,
                 reset,
-                Section("Preview (SkUi* using Current look + scheme)"),
-                _previewHost,
+                Section("Default sizes (preview | width | height)"),
+                _sizeGrid,
                 _status
             }
         };
@@ -172,10 +168,17 @@ public sealed class LookAndColorSchemePage : ContentPage
     }
 
     /// <inheritdoc />
+    protected override void OnSizeAllocated(double width, double height)
+    {
+        base.OnSizeAllocated(width, height);
+        if (width <= 0) return;
+        UpdatePreviewOrientation(width >= WidePreviewBreakpoint);
+    }
+
+    /// <inheritdoc />
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        // Re-arm restore so a second Disappearing (back-stack / lifecycle) still reverts globals.
         if (_restored)
         {
             _savedScheme = SkUiColorScheme.Current;
@@ -190,9 +193,253 @@ public sealed class LookAndColorSchemePage : ContentPage
         base.OnDisappearing();
         if (_restored) return;
         _restored = true;
-        // Shell may call Disappearing more than once; never push null into Current.
         SkUiColorScheme.Current = _savedScheme ?? LightSkUiColorScheme.Instance;
         SkUiLook.Current = _savedLook ?? DefaultSkUiLook.Instance;
+    }
+
+    private void BuildSizeRows()
+    {
+        _sizeGrid.Children.Clear();
+        _sizeGrid.RowDefinitions.Clear();
+        _sizeRows.Clear();
+
+        AddHeaderRow();
+
+        AddSizeRow(new SizeRow(
+            MauiTypeName: "SkUiButton",
+            CoreTypeName: "SkUiCoreButton",
+            PropertyName: "DefaultButtonMinimumHeight",
+            HasWidth: false,
+            Read: look => (null, look.DefaultButtonMinimumHeight),
+            Write: (look, _, h) => look.OverrideButtonMinimumHeight = h,
+            FormatCode: (_, h) =>
+                $"public override double DefaultButtonMinimumHeight => {FormatDip(h)};",
+            BuildMaui: CreateMauiButton,
+            BuildCore: CreateCoreButton));
+
+        AddSizeRow(new SizeRow(
+            MauiTypeName: "SkUiSwitch",
+            CoreTypeName: "SkUiCoreSwitch",
+            PropertyName: "DefaultSwitchSize",
+            HasWidth: true,
+            Read: look =>
+            {
+                var size = look.DefaultSwitchSize;
+                return (size.Width, size.Height);
+            },
+            Write: (look, w, h) => look.OverrideSwitchSize = new Size(w!.Value, h),
+            FormatCode: (w, h) =>
+                $"public override Size DefaultSwitchSize => new({FormatDip(w!.Value)}, {FormatDip(h)});",
+            BuildMaui: CreateMauiSwitch,
+            BuildCore: CreateCoreSwitch));
+
+        AddSizeRow(new SizeRow(
+            MauiTypeName: "SkUiCheckBox",
+            CoreTypeName: "SkUiCoreCheckBox",
+            PropertyName: "DefaultCheckBoxSize",
+            HasWidth: true,
+            Read: look =>
+            {
+                var size = look.DefaultCheckBoxSize;
+                return (size.Width, size.Height);
+            },
+            Write: (look, w, h) => look.OverrideCheckBoxSize = new Size(w!.Value, h),
+            FormatCode: (w, h) =>
+                $"public override Size DefaultCheckBoxSize => new({FormatDip(w!.Value)}, {FormatDip(h)});",
+            BuildMaui: CreateMauiCheckBox,
+            BuildCore: CreateCoreCheckBox));
+
+        AddSizeRow(new SizeRow(
+            MauiTypeName: "SkUiRadioButton",
+            CoreTypeName: "SkUiCoreRadioButton",
+            PropertyName: "DefaultRadioButtonSize",
+            HasWidth: true,
+            Read: look =>
+            {
+                var size = look.DefaultRadioButtonSize;
+                return (size.Width, size.Height);
+            },
+            Write: (look, w, h) => look.OverrideRadioButtonSize = new Size(w!.Value, h),
+            FormatCode: (w, h) =>
+                $"public override Size DefaultRadioButtonSize => new({FormatDip(w!.Value)}, {FormatDip(h)});",
+            BuildMaui: CreateMauiRadio,
+            BuildCore: CreateCoreRadio));
+
+        AddSizeRow(new SizeRow(
+            MauiTypeName: "SkUiActivityIndicator",
+            CoreTypeName: "SkUiCoreActivityIndicator",
+            PropertyName: "DefaultActivityIndicatorSize",
+            HasWidth: true,
+            Read: look =>
+            {
+                var size = look.DefaultActivityIndicatorSize;
+                return (size.Width, size.Height);
+            },
+            Write: (look, w, h) => look.OverrideActivityIndicatorSize = new Size(w!.Value, h),
+            FormatCode: (w, h) =>
+                $"public override Size DefaultActivityIndicatorSize => new({FormatDip(w!.Value)}, {FormatDip(h)});",
+            BuildMaui: CreateMauiSpinner,
+            BuildCore: CreateCoreSpinner));
+    }
+
+    private void UpdatePreviewOrientation(bool wide)
+    {
+        if (_widePreviews == wide) return;
+        _widePreviews = wide;
+        _sizeGrid.ColumnDefinitions[0] = new ColumnDefinition(wide ? new GridLength(300) : new GridLength(160));
+        foreach (var row in _sizeRows)
+            LayoutPreviewPair(row, wide);
+    }
+
+    private static void LayoutPreviewPair(SizeRow row, bool wide)
+    {
+        var pair = row.PreviewPair;
+        pair.Children.Clear();
+        pair.RowDefinitions.Clear();
+        pair.ColumnDefinitions.Clear();
+        pair.RowSpacing = wide ? 0 : 10;
+        pair.ColumnSpacing = wide ? 12 : 0;
+
+        if (wide)
+        {
+            pair.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+            pair.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+            pair.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            pair.Add(row.MauiBlock, 0, 0);
+            pair.Add(row.CoreBlock, 1, 0);
+        }
+        else
+        {
+            pair.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+            pair.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            pair.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            pair.Add(row.MauiBlock, 0, 0);
+            pair.Add(row.CoreBlock, 0, 1);
+        }
+    }
+
+    private void AddHeaderRow()
+    {
+        _sizeGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        const int row = 0;
+        _sizeGrid.Add(Header("Preview"), 0, row);
+        _sizeGrid.Add(Header("Width"), 1, row);
+        _sizeGrid.Add(Header("Height"), 2, row);
+    }
+
+    private void AddSizeRow(SizeRow row)
+    {
+        var rowIndex = _sizeGrid.RowDefinitions.Count;
+        _sizeGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+        row.MauiPreviewHost = new ContentView { MinimumHeightRequest = 48 };
+        row.CorePreviewHost = new ContentView { MinimumHeightRequest = 48 };
+        row.MauiBlock = CreateNamedPreviewBlock(row.MauiTypeName, row.MauiPreviewHost);
+        row.CoreBlock = CreateNamedPreviewBlock(row.CoreTypeName, row.CorePreviewHost);
+        row.PreviewPair = new Grid { HorizontalOptions = LayoutOptions.Fill };
+        LayoutPreviewPair(row, _widePreviews ?? false);
+        _sizeGrid.Add(row.PreviewPair, 0, rowIndex);
+
+        if (row.HasWidth)
+        {
+            row.WidthEntry = CreateDipEntry($"Look{row.MauiTypeName}Width");
+            row.WidthEntry.Completed += (_, _) => CommitSizeRow(row);
+            row.WidthEntry.Unfocused += (_, _) => CommitSizeRow(row);
+        }
+
+        row.HeightEntry = CreateDipEntry($"Look{row.MauiTypeName}Height");
+        row.HeightEntry.Completed += (_, _) => CommitSizeRow(row);
+        row.HeightEntry.Unfocused += (_, _) => CommitSizeRow(row);
+
+        var editors = CreateSizeEditors(row);
+        _sizeGrid.Add(editors, 1, rowIndex);
+        Grid.SetColumnSpan(editors, 2);
+
+        _sizeRows.Add(row);
+    }
+
+    private View CreateSizeEditors(SizeRow row)
+    {
+        var editors = new Grid
+        {
+            ColumnDefinitions =
+            [
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Star)
+            ],
+            RowDefinitions =
+            [
+                new RowDefinition(GridLength.Auto),
+                new RowDefinition(GridLength.Auto)
+            ],
+            ColumnSpacing = 10,
+            RowSpacing = 4,
+            VerticalOptions = LayoutOptions.Center
+        };
+
+        if (row.WidthEntry is not null)
+            editors.Add(row.WidthEntry, 0, 0);
+        else
+        {
+            editors.Add(new Label
+            {
+                Text = "—",
+                TextColor = DemoColors.Caption,
+                FontFamily = DemoFonts.OpenSansRegular,
+                VerticalOptions = LayoutOptions.Center,
+                HorizontalTextAlignment = TextAlignment.Center
+            }, 0, 0);
+        }
+
+        editors.Add(row.HeightEntry, 1, 0);
+
+        var fieldLabel = new Label
+        {
+            Text = row.PropertyName,
+            FontFamily = DemoFonts.RobotoMono,
+            FontSize = 10,
+            TextColor = DemoColors.Accent,
+            LineBreakMode = LineBreakMode.TailTruncation,
+            HorizontalTextAlignment = TextAlignment.Start,
+            Margin = new Thickness(0, 2, 0, 0)
+        };
+        var tap = new TapGestureRecognizer();
+        tap.Tapped += async (_, _) => await CopySetterSnippetAsync(row);
+        fieldLabel.GestureRecognizers.Add(tap);
+        editors.Add(fieldLabel, 0, 1);
+        Grid.SetColumnSpan(fieldLabel, 2);
+
+        return editors;
+    }
+
+    private static VerticalStackLayout CreateNamedPreviewBlock(string typeName, ContentView host) => new()
+    {
+        Spacing = 2,
+        HorizontalOptions = LayoutOptions.Fill,
+        Children =
+        {
+            host,
+            new Label
+            {
+                Text = typeName,
+                FontFamily = DemoFonts.RobotoMono,
+                FontSize = 10,
+                TextColor = DemoColors.Ink,
+                HorizontalTextAlignment = TextAlignment.Center
+            }
+        }
+    };
+
+    private async Task CopySetterSnippetAsync(SizeRow row)
+    {
+        CommitSizeRow(row, printSnippet: false);
+        var (width, height) = row.Read(_look);
+        if (row.HasWidth && width is null)
+            return;
+        var snippet = row.FormatCode(width, height);
+        Debug.WriteLine(snippet);
+        await Clipboard.Default.SetTextAsync(snippet);
+        _status.Text = $"Copied {row.PropertyName} setter to clipboard.";
     }
 
     private void Apply()
@@ -207,118 +454,254 @@ public sealed class LookAndColorSchemePage : ContentPage
             _ => new LightSkUiColorScheme()
         };
 
-        var style = _lookPicker.SelectedIndex switch
+        _look.Style = _lookPicker.SelectedIndex switch
         {
             1 => DemoLookStyle.Chunky,
             2 => DemoLookStyle.Minimal,
             _ => DemoLookStyle.Default
         };
-        SkUiLook.Current = new DemoConfigurableLook
-        {
-            Style = style,
-            SizeScale = _sizeSlider.Value
-        };
+        SkUiLook.Current = _look;
 
-        RebuildPreview();
+        SyncSizeEntriesFromLook();
+        RebuildAllPreviews();
         _status.Text =
             $"Scheme: {SkUiColorScheme.Current.GetType().Name} · Accent {ToHex(SkUiColorScheme.Current.Accent)} · " +
-            $"Look: {style} × {_sizeSlider.Value:0.00} · Switch {SkUiLook.Current.MeasureSwitch(0, 0).Width:0}×{SkUiLook.Current.MeasureSwitch(0, 0).Height:0}";
+            $"Look: {_look.Style}";
     }
 
-    private void RebuildPreview()
+    private void SyncSizeEntriesFromLook()
+    {
+        _syncingSizes = true;
+        try
+        {
+            foreach (var row in _sizeRows)
+            {
+                var (width, height) = row.Read(_look);
+                if (row.WidthEntry is not null && width is not null)
+                    row.WidthEntry.Text = FormatDip(width.Value);
+                row.HeightEntry.Text = FormatDip(height);
+            }
+        }
+        finally
+        {
+            _syncingSizes = false;
+        }
+    }
+
+    private void CommitSizeRow(SizeRow row, bool printSnippet = false)
+    {
+        if (_syncingSizes || _applying) return;
+
+        var (currentWidth, _) = row.Read(_look);
+        double? width = currentWidth;
+        if (row.HasWidth)
+        {
+            if (!TryParseDip(row.WidthEntry!.Text, out var parsedWidth))
+            {
+                SyncSizeEntriesFromLook();
+                return;
+            }
+            width = parsedWidth;
+        }
+
+        if (!TryParseDip(row.HeightEntry.Text, out var height))
+        {
+            SyncSizeEntriesFromLook();
+            return;
+        }
+
+        row.Write(_look, width, height);
+        if (printSnippet)
+            Debug.WriteLine(row.FormatCode(width, height));
+        RebuildPreview(row);
+    }
+
+    private void RebuildAllPreviews()
+    {
+        foreach (var row in _sizeRows)
+            RebuildPreview(row);
+    }
+
+    private void RebuildPreview(SizeRow row)
     {
         var scheme = SkUiColorScheme.Current;
-        var look = SkUiLook.Current;
+        row.MauiPreviewHost.Content = CreateSkiaHost(scheme, row.BuildMaui(scheme, _look));
+        row.CorePreviewHost.Content = CreateCoreHost(scheme, row.BuildCore(scheme, _look));
+    }
 
-        var stack = new SkUiVerticalStackLayout { Padding = new Thickness(12) };
-        stack.SetSpacing(12);
+    private static SkUiContentView CreateSkiaHost(SkUiColorScheme scheme, SkUiView content)
+    {
+        var host = new SkUiContentView
+        {
+            HwAccelerated = false,
+            BackgroundColor = scheme.DefaultBackground,
+            HeightRequest = 56,
+            HorizontalOptions = LayoutOptions.Fill
+        };
+        host.SetContent(content);
+        return host;
+    }
 
-        stack.Children.Add(new SkUiLabel()
-            .SetText("Sample controls")
-            .SetFontSize(16)
-            .SetTextColor(scheme.DefaultForeground));
+    private static SkUiCoreHost CreateCoreHost(SkUiColorScheme scheme, SkUiCoreNode content)
+    {
+        var host = new SkUiCoreHost
+        {
+            HwAccelerated = false,
+            BackgroundColor = scheme.DefaultBackground,
+            HeightRequest = 56,
+            HorizontalOptions = LayoutOptions.Fill
+        };
+        host.SetContent(content);
+        return host;
+    }
 
-        var row = new SkUiHorizontalStackLayout();
-        row.SetSpacing(16);
-
+    private static SkUiView CreateMauiButton(SkUiColorScheme scheme, SkUiLook look)
+    {
         var button = new SkUiButton();
-        button.SetText("Button");
+        button.SetText("Go");
         button.SetFillColor(scheme.Accent);
         button.SetCornerRadius(look.DefaultButtonCornerRadius);
-        button.Clicked += (_, _) => { };
         button.MinimumHeightRequest = look.DefaultButtonMinimumHeight;
-        row.Children.Add(button);
+        button.HorizontalOptions = LayoutOptions.Center;
+        button.VerticalOptions = LayoutOptions.Center;
+        return button;
+    }
 
+    private static SkUiCoreNode CreateCoreButton(SkUiColorScheme scheme, SkUiLook look)
+    {
+        var button = new SkUiCoreButton();
+        button.SetText("Go");
+        button.SetFillColor(scheme.Accent);
+        button.SetCornerRadius(look.DefaultButtonCornerRadius);
+        button.SetMinimumHeight(look.DefaultButtonMinimumHeight);
+        button.SetHorizontalAlignment(LayoutAlignment.Center);
+        button.SetVerticalAlignment(LayoutAlignment.Center);
+        return button;
+    }
+
+    private static SkUiView CreateMauiSwitch(SkUiColorScheme scheme, SkUiLook look)
+    {
+        var size = look.DefaultSwitchSize;
         var sw = new SkUiSwitch();
         sw.SetIsChecked(true);
         sw.SetOnColor(scheme.Accent);
-        row.Children.Add(sw);
+        sw.WidthRequest = size.Width;
+        sw.HeightRequest = size.Height;
+        sw.HorizontalOptions = LayoutOptions.Center;
+        sw.VerticalOptions = LayoutOptions.Center;
+        return sw;
+    }
 
+    private static SkUiCoreNode CreateCoreSwitch(SkUiColorScheme scheme, SkUiLook look)
+    {
+        var size = look.DefaultSwitchSize;
+        var sw = new SkUiCoreSwitch();
+        sw.SetIsChecked(true);
+        sw.SetOnColor(scheme.Accent);
+        sw.SetWidth(size.Width);
+        sw.SetHeight(size.Height);
+        sw.SetHorizontalAlignment(LayoutAlignment.Center);
+        sw.SetVerticalAlignment(LayoutAlignment.Center);
+        return sw;
+    }
+
+    private static SkUiView CreateMauiCheckBox(SkUiColorScheme scheme, SkUiLook look)
+    {
+        var size = look.DefaultCheckBoxSize;
         var check = new SkUiCheckBox();
         check.SetIsChecked(true);
         check.SetColor(scheme.Accent);
-        row.Children.Add(check);
+        check.WidthRequest = size.Width;
+        check.HeightRequest = size.Height;
+        check.HorizontalOptions = LayoutOptions.Center;
+        check.VerticalOptions = LayoutOptions.Center;
+        return check;
+    }
 
+    private static SkUiCoreNode CreateCoreCheckBox(SkUiColorScheme scheme, SkUiLook look)
+    {
+        var size = look.DefaultCheckBoxSize;
+        var check = new SkUiCoreCheckBox();
+        check.SetIsChecked(true);
+        check.SetColor(scheme.Accent);
+        check.SetWidth(size.Width);
+        check.SetHeight(size.Height);
+        check.SetHorizontalAlignment(LayoutAlignment.Center);
+        check.SetVerticalAlignment(LayoutAlignment.Center);
+        return check;
+    }
+
+    private static SkUiView CreateMauiRadio(SkUiColorScheme scheme, SkUiLook look)
+    {
+        var size = look.DefaultRadioButtonSize;
         var radio = new SkUiRadioButton();
         radio.SetIsChecked(true);
         radio.SetColor(scheme.Accent);
-        row.Children.Add(radio);
-        stack.Children.Add(row);
+        radio.WidthRequest = size.Width;
+        radio.HeightRequest = size.Height;
+        radio.HorizontalOptions = LayoutOptions.Center;
+        radio.VerticalOptions = LayoutOptions.Center;
+        return radio;
+    }
 
-        var spinnerSize = look.MeasureActivityIndicator(0, 0);
+    private static SkUiCoreNode CreateCoreRadio(SkUiColorScheme scheme, SkUiLook look)
+    {
+        var size = look.DefaultRadioButtonSize;
+        var radio = new SkUiCoreRadioButton();
+        radio.SetIsChecked(true);
+        radio.SetColor(scheme.Accent);
+        radio.SetWidth(size.Width);
+        radio.SetHeight(size.Height);
+        radio.SetHorizontalAlignment(LayoutAlignment.Center);
+        radio.SetVerticalAlignment(LayoutAlignment.Center);
+        return radio;
+    }
+
+    private static SkUiView CreateMauiSpinner(SkUiColorScheme scheme, SkUiLook look)
+    {
+        var size = look.DefaultActivityIndicatorSize;
         var spinner = new SkUiActivityIndicator();
         spinner.SetIsRunning(true);
         spinner.SetColor(scheme.Muted);
-        spinner.WidthRequest = spinnerSize.Width;
-        spinner.HeightRequest = spinnerSize.Height;
-        stack.Children.Add(spinner);
-
-        stack.Children.Add(new SkUiLabel()
-            .SetText("Muted / track-off / disabled follow the scheme. Look paints Switch / CheckBox / Radio / spinner.")
-            .SetFontSize(12)
-            .SetTextColor(scheme.Muted));
-
-        var coreRow = new SkUiCoreHorizontalStackLayout();
-        coreRow.SetSpacing(16);
-        var coreButton = new SkUiCoreButton();
-        coreButton.SetText("Core");
-        coreButton.SetFillColor(scheme.Accent);
-        coreButton.SetCornerRadius(look.DefaultButtonCornerRadius);
-        coreButton.SetMinimumHeight(look.DefaultButtonMinimumHeight);
-        coreRow.Add(coreButton);
-        var coreSwitch = new SkUiCoreSwitch();
-        coreSwitch.SetIsChecked(true);
-        coreSwitch.SetOnColor(scheme.Accent);
-        coreRow.Add(coreSwitch);
-        var coreCheck = new SkUiCoreCheckBox();
-        coreCheck.SetIsChecked(true);
-        coreCheck.SetColor(scheme.Accent);
-        coreRow.Add(coreCheck);
-        var coreHost = new SkUiCoreHost();
-        coreHost.SetContent(coreRow);
-        stack.Children.Add(new SkUiLabel().SetText("Core layer").SetFontSize(13).SetTextColor(scheme.DefaultForeground));
-        stack.Children.Add(coreHost);
-
-        var root = new SkUiContentView
-        {
-            HwAccelerated = true,
-            BackgroundColor = scheme.DefaultBackground
-        };
-        root.SetContent(stack);
-        _previewHost.Content = root;
+        spinner.WidthRequest = size.Width;
+        spinner.HeightRequest = size.Height;
+        spinner.HorizontalOptions = LayoutOptions.Center;
+        spinner.VerticalOptions = LayoutOptions.Center;
+        return spinner;
     }
 
-    private static SkUiColorScheme CloneLight(Color accent)
+    private static SkUiCoreNode CreateCoreSpinner(SkUiColorScheme scheme, SkUiLook look)
     {
-        var scheme = new LightSkUiColorScheme { Accent = accent };
-        return scheme;
+        var size = look.DefaultActivityIndicatorSize;
+        var spinner = new SkUiCoreActivityIndicator();
+        spinner.SetIsRunning(true);
+        spinner.SetColor(scheme.Muted);
+        spinner.SetWidth(size.Width);
+        spinner.SetHeight(size.Height);
+        spinner.SetHorizontalAlignment(LayoutAlignment.Center);
+        spinner.SetVerticalAlignment(LayoutAlignment.Center);
+        return spinner;
     }
 
-    private static SkUiColorScheme CloneDark(Color accent)
+    private static Entry CreateDipEntry(string automationId) => new()
     {
-        var scheme = new DarkSkUiColorScheme { Accent = accent };
-        return scheme;
-    }
+        Keyboard = Keyboard.Numeric,
+        FontFamily = DemoFonts.OpenSansRegular,
+        FontSize = 13,
+        TextColor = DemoColors.Ink,
+        BackgroundColor = Colors.White,
+        AutomationId = automationId,
+        VerticalOptions = LayoutOptions.Center,
+        Placeholder = "DIPs"
+    };
+
+    private static Label Header(string text) => new()
+    {
+        Text = text,
+        FontFamily = DemoFonts.OpenSansSemibold,
+        FontSize = 12,
+        TextColor = DemoColors.Caption
+    };
 
     private static Label Section(string title) => new()
     {
@@ -329,6 +712,68 @@ public sealed class LookAndColorSchemePage : ContentPage
         Margin = new Thickness(0, 8, 0, 0)
     };
 
+    private static SkUiColorScheme CloneLight(Color accent) => new LightSkUiColorScheme { Accent = accent };
+
+    private static SkUiColorScheme CloneDark(Color accent) => new DarkSkUiColorScheme { Accent = accent };
+
     private static string ToHex(Color color) =>
         $"#{(int)(color.Red * 255):X2}{(int)(color.Green * 255):X2}{(int)(color.Blue * 255):X2}";
+
+    private static string FormatDip(double value) =>
+        Math.Abs(value - Math.Round(value)) < 0.01 ? ((int)Math.Round(value)).ToString() : value.ToString("0.##");
+
+    private static bool TryParseDip(string? text, out double value)
+    {
+        if (double.TryParse(text, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out value)
+            || double.TryParse(text, out value))
+        {
+            if (value > 0 && value < 1000)
+                return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    private sealed class SizeRow
+    {
+        public SizeRow(
+            string MauiTypeName,
+            string CoreTypeName,
+            string PropertyName,
+            bool HasWidth,
+            Func<DemoConfigurableLook, (double? Width, double Height)> Read,
+            Action<DemoConfigurableLook, double?, double> Write,
+            Func<double?, double, string> FormatCode,
+            Func<SkUiColorScheme, SkUiLook, SkUiView> BuildMaui,
+            Func<SkUiColorScheme, SkUiLook, SkUiCoreNode> BuildCore)
+        {
+            this.MauiTypeName = MauiTypeName;
+            this.CoreTypeName = CoreTypeName;
+            this.PropertyName = PropertyName;
+            this.HasWidth = HasWidth;
+            this.Read = Read;
+            this.Write = Write;
+            this.FormatCode = FormatCode;
+            this.BuildMaui = BuildMaui;
+            this.BuildCore = BuildCore;
+        }
+
+        public string MauiTypeName { get; }
+        public string CoreTypeName { get; }
+        public string PropertyName { get; }
+        public bool HasWidth { get; }
+        public Func<DemoConfigurableLook, (double? Width, double Height)> Read { get; }
+        public Action<DemoConfigurableLook, double?, double> Write { get; }
+        public Func<double?, double, string> FormatCode { get; }
+        public Func<SkUiColorScheme, SkUiLook, SkUiView> BuildMaui { get; }
+        public Func<SkUiColorScheme, SkUiLook, SkUiCoreNode> BuildCore { get; }
+        public Grid PreviewPair { get; set; } = null!;
+        public View MauiBlock { get; set; } = null!;
+        public View CoreBlock { get; set; } = null!;
+        public ContentView MauiPreviewHost { get; set; } = null!;
+        public ContentView CorePreviewHost { get; set; } = null!;
+        public Entry? WidthEntry { get; set; }
+        public Entry HeightEntry { get; set; } = null!;
+    }
 }

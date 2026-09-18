@@ -15,24 +15,47 @@ internal enum DemoLookStyle
 }
 
 /// <summary>
-/// Configurable look for the demo: style pack plus optional uniform size scale.
+/// Configurable look for the demo: style pack plus optional per-control size overrides.
 /// Drawing and measure are owned here so the page can swap <see cref="SkUiLook.Current"/> in one step.
 /// </summary>
 internal sealed class DemoConfigurableLook : DefaultSkUiLook
 {
     /// <summary>Which alternate geometry pack to use.</summary>
-    public DemoLookStyle Style { get; init; } = DemoLookStyle.Default;
+    public DemoLookStyle Style { get; set; } = DemoLookStyle.Default;
 
-    /// <summary>Multiplies intrinsic control sizes (1 = pack default).</summary>
-    public double SizeScale { get; init; } = 1;
+    /// <summary>When set, replaces the pack's <see cref="DefaultButtonMinimumHeight"/>.</summary>
+    public double? OverrideButtonMinimumHeight { get; set; }
+
+    /// <summary>When set, replaces the pack's <see cref="DefaultSwitchSize"/>.</summary>
+    public Size? OverrideSwitchSize { get; set; }
+
+    /// <summary>When set, replaces the pack's <see cref="DefaultCheckBoxSize"/>.</summary>
+    public Size? OverrideCheckBoxSize { get; set; }
+
+    /// <summary>When set, replaces the pack's <see cref="DefaultRadioButtonSize"/>.</summary>
+    public Size? OverrideRadioButtonSize { get; set; }
+
+    /// <summary>When set, replaces the pack's <see cref="DefaultActivityIndicatorSize"/>.</summary>
+    public Size? OverrideActivityIndicatorSize { get; set; }
+
+    /// <summary>Clears all size overrides so pack defaults apply again.</summary>
+    public void ClearSizeOverrides()
+    {
+        OverrideButtonMinimumHeight = null;
+        OverrideSwitchSize = null;
+        OverrideCheckBoxSize = null;
+        OverrideRadioButtonSize = null;
+        OverrideActivityIndicatorSize = null;
+    }
 
     /// <inheritdoc />
-    public override double DefaultButtonMinimumHeight => Style switch
-    {
-        DemoLookStyle.Chunky => 52 * SizeScale,
-        DemoLookStyle.Minimal => 40 * SizeScale,
-        _ => 44 * SizeScale
-    };
+    public override double DefaultButtonMinimumHeight =>
+        OverrideButtonMinimumHeight ?? Style switch
+        {
+            DemoLookStyle.Chunky => 52,
+            DemoLookStyle.Minimal => 40,
+            _ => 44
+        };
 
     /// <inheritdoc />
     public override double DefaultButtonCornerRadius => Style switch
@@ -43,28 +66,40 @@ internal sealed class DemoConfigurableLook : DefaultSkUiLook
     };
 
     /// <inheritdoc />
-    protected override Size MeasureSwitchCore(double widthConstraint, double heightConstraint)
-    {
-        var size = Style switch
+    public override Size DefaultSwitchSize =>
+        OverrideSwitchSize ?? Style switch
         {
             DemoLookStyle.Chunky => new Size(64, 36),
             DemoLookStyle.Minimal => new Size(42, 24),
             _ => new Size(51, 31)
         };
-        return Scale(size);
-    }
 
     /// <inheritdoc />
-    protected override Size MeasureCheckBoxCore(double widthConstraint, double heightConstraint) =>
-        Scale(Style == DemoLookStyle.Chunky ? new Size(32, 32) : Style == DemoLookStyle.Minimal ? new Size(20, 20) : new Size(24, 24));
+    public override Size DefaultCheckBoxSize =>
+        OverrideCheckBoxSize ?? Style switch
+        {
+            DemoLookStyle.Chunky => new Size(32, 32),
+            DemoLookStyle.Minimal => new Size(20, 20),
+            _ => new Size(24, 24)
+        };
 
     /// <inheritdoc />
-    protected override Size MeasureRadioButtonCore(double widthConstraint, double heightConstraint) =>
-        Scale(Style == DemoLookStyle.Chunky ? new Size(32, 32) : Style == DemoLookStyle.Minimal ? new Size(20, 20) : new Size(24, 24));
+    public override Size DefaultRadioButtonSize =>
+        OverrideRadioButtonSize ?? Style switch
+        {
+            DemoLookStyle.Chunky => new Size(32, 32),
+            DemoLookStyle.Minimal => new Size(20, 20),
+            _ => new Size(24, 24)
+        };
 
     /// <inheritdoc />
-    protected override Size MeasureActivityIndicatorCore(double widthConstraint, double heightConstraint) =>
-        Scale(Style == DemoLookStyle.Chunky ? new Size(48, 48) : Style == DemoLookStyle.Minimal ? new Size(28, 28) : new Size(36, 36));
+    public override Size DefaultActivityIndicatorSize =>
+        OverrideActivityIndicatorSize ?? Style switch
+        {
+            DemoLookStyle.Chunky => new Size(48, 48),
+            DemoLookStyle.Minimal => new Size(28, 28),
+            _ => new Size(36, 36)
+        };
 
     /// <inheritdoc />
     protected override void DrawSwitchCore(SKCanvas canvas, SKRect bounds, bool isChecked, SKColor track, SKColor thumb)
@@ -191,6 +226,4 @@ internal sealed class DemoConfigurableLook : DefaultSkUiLook
         var sweep = Style == DemoLookStyle.Minimal ? 220f : 300f;
         canvas.DrawArc(bounds, sweepStart, sweep, false, paint);
     }
-
-    private Size Scale(Size size) => new(size.Width * SizeScale, size.Height * SizeScale);
 }

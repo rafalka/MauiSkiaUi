@@ -73,7 +73,18 @@ public class SkUiCoreHost : SkUiView
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
-        _content?.Arrange(new Rect(0, 0, size.Width, size.Height));
+        if (_content is null) return;
+
+        var desired = _content.DesiredSize;
+        if (desired.Width <= 0 && desired.Height <= 0)
+            desired = _content.Measure(size.Width, size.Height);
+
+        var slot = new Rect(0, 0, size.Width, size.Height);
+        if (_content is SkUiCoreNode node)
+            slot = SkUiCoreAbsoluteLayout.AlignInSlot(
+                slot, desired, node.HorizontalAlignment, node.VerticalAlignment);
+
+        _content.Arrange(slot);
     }
 
     /// <inheritdoc />
