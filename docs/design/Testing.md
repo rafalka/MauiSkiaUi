@@ -4,29 +4,23 @@ How we plan to verify **unit behavior** and **core mechanisms** (layout, paint, 
 
 Aligns with [Requirements.md](Requirements.md) (especially NFR-2 correctness-first → optimize), [LayoutSystem.md](LayoutSystem.md), [DrawingMechanism.md](DrawingMechanism.md), [AnimationMechanism.md](AnimationMechanism.md), and [EventMechanism.md](EventMechanism.md).
 
-## Phase 0 implementation
+## Automated tests (by area)
 
 Run `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj`. The library's plain `net10.0` target shares the actual node/layout/paint/input/clock sources with the device targets; only the native handler and builder registration are platform-conditional. Tests use real MAUI views without handlers and CPU Skia bitmaps, not replacement view mocks.
 
-The 36 cases cover primitive pixels, transparent regions, layer order, alpha/z-order composition, transform-aware hits, MAUI margins/alignment, selective measure/arrange, binding context and ownership, batching, passive/transparent/disabled hit rules, capture cancellation/removal, and animation progress/repeat/cancellation/idle behavior. Review regressions add margined/transformed intermediate-layout capture, explicit NaN maximum constraints, and clock restart on the same timeline. Clock tests never sleep. Interior pixels are exact; antialiased edge baselines and font goldens remain later work.
+| Test class | Coverage |
+| --- | --- |
+| `PipelineTests` | Frame renderer, paint layers, measure/arrange, hit-testing, animation clock, ownership, Box/Ellipse/Line |
+| `BasicControlsTests` | Label, Button, Image, Border, ActivityIndicator, toggles/chrome |
+| `LayoutTests` | Grid, AbsoluteLayout batching, layout culling/Z-order, BackgroundColor semantics |
+| `ScrollViewTests` | Offsets, pan/fling, wheel, picture cache, scroll goldens |
+| `MauiContentViewTests` | Native overlay measure/arrange/touch contract, root-relative frames |
+| `PerformanceTests` | 1,000-label warm recording measurement (no timing assertion) |
+| `CoreLayerTests` | `MauiSkiaUi.Core` smoke/regression |
+| `LookAndColorSchemeTests` | FR-18 / FR-19 look and color scheme |
+| `ComponentDemoTests` | One demo page per concrete control (editors/reset contract) |
 
-The native handler delegates frame work to the internal `SkUiFrameRenderer`, tested with a deterministic dispatcher queue and real Skia pictures/bitmaps. Tests cover follow-up invalidation during paint without an animation, pre-paint update coalescing, replay and pixel-to-DIP input at 1x/2x/3x density, canvas-state preservation, recovery after zero-sized layout, hosted-root rejection, and disposal stopping animations and cancelling queued work. Native event subscription teardown and GPU presentation remain device-only checks.
-
-Device verification checklist for the Phase 0 demo:
-
-- Launch on Android or Apple; confirm the box, ellipse, line, and software strip appear.
-- Inspect `Scene` and hosted descendants: non-zero bounds; only `Scene` and `SoftwareSample` own handlers.
-- Tap the box/ellipse through native input; verify `TapStatus` increments and the fill changes.
-- Replay animation; verify intermediate transforms change, then `AnimationStatus` returns to `Idle` and the root clock/render loop stops.
-- Inspect rendered native label/button colors and a screenshot, including a compact viewport.
-
-On 2026-09-10 all 19 headless tests and Android/iOS/Mac Catalyst diagnostic builds passed. Automated device inspection is currently blocked by `MSB4099` in the installed MAUI extension's DevFlow injection targets; no screenshot, contrast, or GPU frame-rate result is claimed. The Phase 0 device exit gate remains open.
-
-After review fixes on the same date, all 36 headless tests passed and Android Hot Reload succeeded. The running app still had no DevFlow agent; diagnostics also reported a missing Android broker tunnel. Native rendering/contrast verification remains open.
-
-## Phase 1 implementation
-
-The same test command now runs **62 cases**. Phase 1 adds MAUI Grid Auto/star/span and mutation checks; Label wrapping/direct setters; Button press, commands, rounded pixels, style/default restoration and visual states; asynchronous image decode/error/stale-result checks; scroll extent/clamping/no-remeasure, tap-to-pan takeover, deterministic fling, async completion/cancellation; full-pixel scroll-composition goldens at 1x and 2x; transformed clipping/Z-order cache mutation regressions; custom-font registry resolution/caching; and 2026-09-10 review-fix regressions (Button single-command execution on tap, rounded-clip path geometry, and documented per-orientation wheel behavior). The small scroll goldens encode expected solid-color pixels directly in the test, avoiding platform-dependent font/antialias baselines.
+Clock tests never sleep. Interior pixels are exact; antialiased edge baselines and font goldens remain later work where not already covered by scroll solid-color goldens.
 
 Reproduce the non-gating measurement:
 
@@ -54,7 +48,19 @@ dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -c Release -f net10.0-i
 
 Collect with `dotnet-trace collect --dsrouter android-emu --format speedscope` (or `ios-sim` / `android` / `ios`). Do not ship packages built with profiling enabled.
 
-Phase 1 native acceptance checklist (still open):
+## Device acceptance checklists (still open)
+
+Automated device inspection is blocked by `MSB4099` in the installed MAUI extension's DevFlow injection targets on some machines; use [`scripts/device_verify.sh`](../../scripts/device_verify.sh) for plain CLI launches. No screenshot, contrast, or GPU frame-rate result is claimed until checked on-device.
+
+### Primitives
+
+- Launch on Android or Apple; confirm the box, ellipse, line, and software strip appear.
+- Inspect `Scene` and hosted descendants: non-zero bounds; only `Scene` and `SoftwareSample` own handlers.
+- Tap the box/ellipse through native input; verify `TapStatus` increments and the fill changes.
+- Replay animation; verify intermediate transforms change, then `AnimationStatus` returns to `Idle` and the root clock/render loop stops.
+- Inspect rendered native label/button colors and a screenshot, including a compact viewport.
+
+### Composition + Stress
 
 - Launch Controls at compact phone and tablet/desktop sizes; inspect `ControlsHost`, `ControlsScroller`, `EarthImage`, and `AddObservation` bounds. Verify one native surface and handlerless descendants.
 - Confirm offline Earth image, text wrapping, Grid columns, style colors, pressed/disabled feedback, observation count binding and reset command.
@@ -62,22 +68,14 @@ Phase 1 native acceptance checklist (still open):
 - Navigate to Stress, confirm config-only UI, Run test (default 1,000 children / HW on), note timings, scroll to the last button, tap it, run Record/Scroll/Top, and navigate back. No stale animations or extra surfaces should survive navigation.
 - Query actual runtime foreground/background colors and inspect screenshots. Drawn-tree native accessibility/keyboard support is not implemented.
 
-Android, iOS simulator, and Mac Catalyst diagnostic builds pass, including new source-generated XAML. The attempted device launch is blocked by `MSB4099` in the installed DevFlow targets, with zero registered agents. No native screenshot, visual-tree, color-contrast, GPU, or input result is claimed for Phase 1. Windows compilation and pinned-font image goldens are not verified.
-
-## Phase 2 implementation
-
-The same test command now runs **70 cases**, adding `Phase2Tests` for `SkUiMauiContentView`: a hosted `Editor`'s Measure/Arrange contract (documenting that a handlerless `VisualElement` measures as `Size.Zero`, a MAUI platform limitation not a SkiaUi one), rejecting content that is already parented/has a handler, `ComputeRootRelativeFrame()` summing ancestor offsets (including `TranslationX`/`TranslationY`) through nested hosted layouts (Grid inside an overlay layout inside a ContentView, and a separate case with ancestor + own translation), and confirming `Touch` always returns `false` so SkiaUi's router never consumes hits meant for the native overlay. `NotifyRootAttached`/`NotifyRootDetached` are exercised as safe no-ops without a platform root (the partial-method platform hooks are simply absent on the headless `net10.0` target). A same-day review added three more regressions: `SkUiRadioButton` only selects (never unchecks) on repeated taps; `SkUiBorder` falls back to `BackgroundColor` when `Background` isn't an explicit brush; and `SkUiActivityIndicator` stops its animation clock when removed from its tree (verified against the actual shared clock instance, not a freshly-resolved one post-detach).
-
-`SkUiBorder`, `SkUiActivityIndicator`, `SkUiImageButton`, `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton`, `SkUiVerticalStackLayout`, `SkUiHorizontalStackLayout`, and `SkUiAbsoluteLayout` are covered indirectly through `ComponentDemoTests` (one demo page per concrete type, editor/reset/property-check contract, no handlers required) rather than dedicated pixel goldens — this mirrors how Phase 1's Grid/Label/Button/Image/ScrollView coverage started before adding pixel-level cases, and dedicated goldens can follow if a regression surfaces.
-
-Phase 2 native acceptance checklist (still open, in addition to the Phase 1 checklist above):
+### Native overlay (`SkUiMauiContentView`)
 
 - Confirm the native `Editor`/`WebView` overlay actually renders and receives input on `MauiContentViewDemoPage`, positioned correctly over its Skia host, including after scrolling/resizing the page (v1 does not snapshot during scroll, so any positioning drift while scrolling would be visible here first). The page uses a responsive 2-column `SkUiGrid` (tablet: labels above Editor|WebView; phone: label|control per row) with a full-width Refresh button, and the Editor's HTML text live-updates the WebView — verify both the live-typing update and the button, and that labels/button stay aligned with the two native overlays when rotating or resizing across the 720 DIP breakpoint.
 - Confirm the overlay repositions correctly when nested inside other layouts (Grid/StackLayout/AbsoluteLayout), not just a single ContentView, and when an ancestor's `TranslationX`/`TranslationY` changes (e.g. during a transform animation), since `ComputeRootRelativeFrame()`'s accumulation is unverified on a real native container.
-- Inspect the new Basic controls' rendered colors/contrast (Switch/CheckBox/RadioButton especially, since their default palette was chosen without a device check) and the Border's rounded-clip content.
+- Inspect Basic controls' rendered colors/contrast (Switch/CheckBox/RadioButton especially) and the Border's rounded-clip content.
 - Verify Stack/Absolute layouts' native-vs-drawn spacing and positions visually match at a few sizes/orientations.
 
-Android, iOS, and Mac Catalyst diagnostic builds pass (0 warnings) for the full Phase 2 surface, including the new native container/overlay plumbing. Copilot-triggered device launch is still blocked by the same pre-existing `MSB4099` DevFlow injection issue; no native overlay, contrast, or input result is claimed for Phase 2. Windows compilation is not verified (no Windows host available here).
+Android, iOS simulator, and Mac Catalyst diagnostic builds pass for the completed surface. Windows compilation is not verified (no Windows host available here).
 
 ## How to verify device rendering / live-update behavior
 
@@ -85,14 +83,14 @@ This walks through actually proving the things the checklists above only *ask* f
 
 ### CLI path (no VS Code / DevFlow MCP)
 
-Use [`scripts/device_verify.sh`](scripts/device_verify.sh) to select a simulator, emulator, physical device, or Mac Catalyst target, build/launch `MauiSkiaUiDemo` with plain `dotnet build -t:Run` (no VS Code DevFlow injection), optionally capture a screenshot, print the Phase 0–2 checklists, and stream logs:
+Use [`scripts/device_verify.sh`](../../scripts/device_verify.sh) to select a simulator, emulator, physical device, or Mac Catalyst target, build/launch `MauiSkiaUiDemo` with plain `dotnet build -t:Run` (no VS Code DevFlow injection), optionally capture a screenshot, print the acceptance checklists, and stream logs:
 
 ```bash
 ./scripts/device_verify.sh -l                          # list targets
 ./scripts/device_verify.sh -p android                   # prompt / pick Android
 ./scripts/device_verify.sh -p ios "iPhone 16"           # iOS Simulator by name
-./scripts/device_verify.sh -p maccatalyst --phase overlay
-./scripts/device_verify.sh --checklist-only --phase 2   # print checklist only
+./scripts/device_verify.sh -p maccatalyst --checklist overlay
+./scripts/device_verify.sh --checklist-only --checklist composition
 ./scripts/device_verify.sh -p android --screenshot      # launch + save PNG under tmp/screenshots
 ```
 
@@ -141,13 +139,13 @@ Use `mcp_maui_maui_get_property` on the `SkUiLabel`s and native controls (`TextC
 
 ### 6. If no agent ever connects
 
-Fall back to manual verification via [`scripts/device_verify.sh`](scripts/device_verify.sh) (preferred) or an equivalent plain `dotnet build -t:Run` / IDE Play button, then visually check the same things by hand (type in the Editor, watch the WebView, eyeball contrast). Record what you actually observed — do not report a checklist item as verified without either an agent-based check or an explicit manual one.
+Fall back to manual verification via [`scripts/device_verify.sh`](../../scripts/device_verify.sh) (preferred) or an equivalent plain `dotnet build -t:Run` / IDE Play button, then visually check the same things by hand (type in the Editor, watch the WebView, eyeball contrast). Record what you actually observed — do not report a checklist item as verified without either an agent-based check or an explicit manual one.
 
 ## Known DevFlow agent issues (as of 2026-09-10)
 
-These affect every device-verification attempt in this repo so far, on every phase. Check `dotnet_maui_diagnoseDevFlow` first before repeating any step below more than once — it works independently of the MCP connection and reports which of these you're hitting.
+These affect every device-verification attempt in this repo so far. Check `dotnet_maui_diagnoseDevFlow` first before repeating any step below more than once — it works independently of the MCP connection and reports which of these you're hitting.
 
-1. **Copilot-triggered launch fails to build (`MSB4099`).** The installed VS Code MAUI extension injects `Microsoft.Maui.DevFlow.Agent` via a `MauiDevFlow.targets` file added through `CustomAfterMicrosoftCommonTargets`. That file's top-level `PropertyGroup` condition references an item-list function (`@(PackageReference->WithMetadataValue(...))`), which MSBuild disallows outside a target, producing `MSB4099`. This blocks `dotnet_maui_debugProject`/Copilot-triggered launches entirely; it is **not** caused by anything in this repo, and no extension files have been modified to work around it. Plain `dotnet build`/`dotnet run` and [`scripts/device_verify.sh`](scripts/device_verify.sh) (no DevFlow injection) are unaffected — see the CLI path and "no agent ever connects" fallback above.
+1. **Copilot-triggered launch fails to build (`MSB4099`).** The installed VS Code MAUI extension injects `Microsoft.Maui.DevFlow.Agent` via a `MauiDevFlow.targets` file added through `CustomAfterMicrosoftCommonTargets`. That file's top-level `PropertyGroup` condition references an item-list function (`@(PackageReference->WithMetadataValue(...))`), which MSBuild disallows outside a target, producing `MSB4099`. This blocks `dotnet_maui_debugProject`/Copilot-triggered launches entirely; it is **not** caused by anything in this repo, and no extension files have been modified to work around it. Plain `dotnet build`/`dotnet run` and [`scripts/device_verify.sh`](../../scripts/device_verify.sh) (no DevFlow injection) are unaffected — see the CLI path and "no agent ever connects" fallback above.
 2. **CLI/agent version mismatch.** `dotnet_maui_diagnoseDevFlow` has reported the extension's bundled CLI (`0.1.0-preview.12.26368.2`) not matching the demo's referenced agent package (`0.1.0-preview.12.26421.1`, pinned in `MauiSkiaUiDemo.csproj` for Debug builds — see the "enable DevFlow" request in project history; **do not** change this pin as a generic fix for #1). When `mismatchedAgentVersions` is non-empty, expect "agent not responding" style failures even when registration succeeds. Recovery: stop the debug session, `dotnet nuget locals http-cache --clear`, rebuild.
 3. **Android needs a manual `adb reverse` tunnel.** `broker_reverse_present: false` in the diagnostics above means the in-app agent cannot reach the host broker. Run the exact command the diagnostics suggest, e.g. `adb -s emulator-5554 reverse tcp:19223 tcp:19223`, then re-check with `dotnet_maui_diagnoseDevFlow`. A missing `agent_forwards` entry additionally means the host can't reach the in-app HTTP agent — that needs `adb forward tcp:<agent-port> tcp:<agent-port>` using the port the agent actually bound (from `appDebugOutput`, e.g. `9223`), not an assumed fixed port.
 4. **Agent registers, then becomes unreachable.** Observed on iOS after a successful Hot Reload: `maui_list_agents` briefly showed a connected agent, but `maui_capabilities`/`maui_tree` failed afterward, and a later diagnostics call showed `agentCount: 0`. Treat a one-time successful registration as a snapshot, not a guarantee the agent stays reachable for the rest of the session — re-check with `maui_list_agents` before every device-verification attempt, not just once at the start.
@@ -388,16 +386,16 @@ Document how to regenerate goldens (e.g. `dotnet test --filter Golden -- UpdateG
 
 ---
 
-## 8. Phased adoption
+## 8. Adoption roadmap
 
-| Phase | Deliverable |
+| Step | Deliverable |
 | --- | --- |
-| **P0** | Test project; unit tests for any pure logic as it lands; correctness-before-optimize discipline (NFR-2) |
-| **P1** | Mechanism harness: Measure/Arrange/Paint on SW surface; layout + dirty-tracking + gesture tests |
-| **P2** | Golden corpus (~5–15 scenes); CI on one pinned OS; diff artifacts on failure |
-| **P3** | Animation tests with fake clock + optional keyframe goldens |
-| **P4** | Thin Appium suite for `SkUiMauiContentView` + gallery smoke |
-| **P5** | Optional AI triage on golden failures / nightly gallery review |
+| **1** | Test project; unit tests for any pure logic as it lands; correctness-before-optimize discipline (NFR-2) |
+| **2** | Mechanism harness: Measure/Arrange/Paint on SW surface; layout + dirty-tracking + gesture tests |
+| **3** | Golden corpus (~5–15 scenes); CI on one pinned OS; diff artifacts on failure |
+| **4** | Animation tests with fake clock + optional keyframe goldens |
+| **5** | Thin Appium suite for `SkUiMauiContentView` + gallery smoke |
+| **6** | Optional AI triage on golden failures / nightly gallery review |
 
 ---
 

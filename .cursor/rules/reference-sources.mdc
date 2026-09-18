@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Reference sources
 
-When designing or implementing SkiaUi (layout, input, XAML, rendering), consult these public repositories. Prefer patterns that fit `SkUiContentView` → `ISkUiView`; do not copy frameworks wholesale. Details live in `Requirements.md`.
+When designing or implementing SkiaUi (layout, input, XAML, rendering), consult these public repositories. Prefer patterns that fit `SkUiContentView` → `ISkUiView`; do not copy frameworks wholesale. Details live in `docs/design/Requirements.md`.
 
 **Layout contract:** use **.NET MAUI** measure/arrange and layout managers (not Flutter box constraints) so SkiaUi can drop-in-replace MAUI controls/layouts.
 

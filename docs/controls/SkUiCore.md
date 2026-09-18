@@ -2,7 +2,7 @@
 
 Lightweight Skia nodes **without** MAUI `View` / `BindableObject` identity. Use them to compose complex controls or dense trees; place the tree in the MAUI-compatible surface via **`SkUiCoreHost`**.
 
-**Contract:** [CoreRequirements.md](../../CoreRequirements.md) (goals, FR-C*, fluent/INPC/MVVM Toolkit, Core-as-delegate sharing).
+**Contract:** [CoreRequirements.md](../design/CoreRequirements.md) (goals, FR-C*, fluent/INPC/MVVM Toolkit, Core-as-delegate sharing).
 
 MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `SkUiAbsoluteLayout`, …).
 
@@ -51,7 +51,7 @@ scroller.SetContent(host);
 
 ## Stress comparison
 
-Demo **Stress test** page: toggle **Core layer** to build the same two-column absolute button list with Core nodes vs MAUI-compatible `SkUiAbsoluteLayout` + `SkUiButton`. **Animate** puts running `SkUiCoreActivityIndicator` / `SkUiActivityIndicator` cells in the second column on either layer. Compare Generate / Add / Render timings (see measured gap in [CoreRequirements.md](../../CoreRequirements.md)).
+Demo **Stress test** page: toggle **Core layer** to build the same two-column absolute button list with Core nodes vs MAUI-compatible `SkUiAbsoluteLayout` + `SkUiButton`. **Animate** puts running `SkUiCoreActivityIndicator` / `SkUiActivityIndicator` cells in the second column on either layer. Compare Generate / Add / Render timings (see measured gap in [CoreRequirements.md](../design/CoreRequirements.md)).
 
 ## Roadmap (see CoreRequirements)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Build and launch MauiSkiaUiDemo on a connected Android device/emulator, iOS
-# simulator/device, or Mac Catalyst — then print the Testing.md device checklist
+# simulator/device, or Mac Catalyst — then print the docs/design/Testing.md device checklist
 # for manual verification outside VS Code / DevFlow MCP.
 #
 # Device selection UX mirrors runsim.sh-style interactive pickers.
@@ -55,7 +55,7 @@ usage() {
     cat <<'EOF'
 Usage: device_verify.sh [options] [DEVICE]
 
-Build and launch MauiSkiaUiDemo for on-device verification (Testing.md), without
+Build and launch MauiSkiaUiDemo for on-device verification (docs/design/Testing.md), without
 VS Code MAUI DevFlow MCP. Prints the manual acceptance checklist after launch.
 
 DEVICE may be:
@@ -77,7 +77,8 @@ Options:
   -U, --wipe          Uninstall the app from the target first
   -F, --full          Android: package/sign/install full APK (-t:Install)
                       instead of relying on -t:Run alone
-  --phase N           Checklist phase: 0, 1, 2, overlay, or all (default: all)
+  --checklist AREA    Checklist area: primitives, composition, overlay, or all
+                      (default: all; aliases: 0→primitives, 1→composition, 2→overlay)
   --checklist-only    Print the checklist and exit (no build/deploy)
   --run, --run-only   Launch the installed app only (no rebuild)
   --screenshot [DIR]  Capture a device screenshot after launch (default: tmp/screenshots)
@@ -91,12 +92,12 @@ Options:
 Examples:
   ./scripts/device_verify.sh -p android
   ./scripts/device_verify.sh -p ios "iPhone 16"
-  ./scripts/device_verify.sh -p maccatalyst --phase overlay
-  ./scripts/device_verify.sh --checklist-only --phase 2
+  ./scripts/device_verify.sh -p maccatalyst --checklist overlay
+  ./scripts/device_verify.sh --checklist-only --checklist composition
   ./scripts/device_verify.sh -l -p ios
 
-See Testing.md → "How to verify device rendering / live-update behavior" and
-the Phase 0–2 native acceptance checklists.
+See docs/design/Testing.md → "How to verify device rendering / live-update behavior" and
+the native acceptance checklists (primitives / composition / overlay).
 EOF
 }
 
@@ -166,16 +167,17 @@ parse_args() {
                 SCREENSHOT_DIR="${1#--screenshot=}"
                 shift
                 ;;
-            --phase)
+            --checklist|--phase)
+                # --phase kept as alias for --checklist
                 if [[ $# -lt 2 ]]; then
-                    echo "--phase requires 0, 1, 2, overlay, or all" >&2
+                    echo "--checklist requires primitives, composition, overlay, or all" >&2
                     exit 1
                 fi
                 PHASE="$2"
                 shift 2
                 ;;
-            --phase=*)
-                PHASE="${1#--phase=}"
+            --checklist=*|--phase=*)
+                PHASE="${1#*=}"
                 shift
                 ;;
             -p)
@@ -248,9 +250,12 @@ parse_args() {
     esac
 
     case "$(normalize_query "$PHASE")" in
-        0|1|2|overlay|all) ;;
+        0|primitives) PHASE="primitives" ;;
+        1|composition) PHASE="composition" ;;
+        2|overlay) PHASE="overlay" ;;
+        all) PHASE="all" ;;
         *)
-            echo "Unknown --phase: $PHASE (use 0, 1, 2, overlay, or all)" >&2
+            echo "Unknown --checklist: $PHASE (use primitives, composition, overlay, or all)" >&2
             exit 1
             ;;
     esac
@@ -897,7 +902,7 @@ append_extra_msbuild_props() {
     done
 }
 
-# --- Checklist (from Testing.md) ---
+# --- Checklist (from docs/design/Testing.md) ---
 
 print_checklist() {
     local phase
@@ -906,7 +911,7 @@ print_checklist() {
     cat <<EOF
 
 ══════════════════════════════════════════════════════════════════════════════
-  MauiSkiaUiDemo — device verification checklist (Testing.md)
+  MauiSkiaUiDemo — device verification checklist (docs/design/Testing.md)
   Record what you observe. Do not mark items verified without checking them.
 ══════════════════════════════════════════════════════════════════════════════
 
@@ -917,9 +922,9 @@ Navigation tips (gallery home):
 
 EOF
 
-    if [[ "$phase" == "all" || "$phase" == "0" ]]; then
+    if [[ "$phase" == "all" || "$phase" == "primitives" ]]; then
         cat <<'EOF'
-── Phase 0 (Primitives toolbar page) ─────────────────────────────────────────
+── Primitives (toolbar page) ─────────────────────────────────────────────────
   [ ] Launch; confirm box, ellipse, line, and software strip appear
   [ ] Scene / hosted descendants: non-zero bounds; only Scene + SoftwareSample
       own handlers
@@ -931,9 +936,9 @@ EOF
 EOF
     fi
 
-    if [[ "$phase" == "all" || "$phase" == "1" ]]; then
+    if [[ "$phase" == "all" || "$phase" == "composition" ]]; then
         cat <<'EOF'
-── Phase 1 (Composition + Stress) ────────────────────────────────────────────
+── Composition + Stress ──────────────────────────────────────────────────────
   [ ] Composition at phone and tablet/desktop sizes; inspect ControlsHost,
       ControlsScroller, EarthImage, AddObservation bounds — one native surface,
       handlerless descendants
@@ -949,9 +954,9 @@ EOF
 EOF
     fi
 
-    if [[ "$phase" == "all" || "$phase" == "2" || "$phase" == "overlay" ]]; then
+    if [[ "$phase" == "all" || "$phase" == "overlay" ]]; then
         cat <<'EOF'
-── Phase 2 / overlay (demo-SkUiMauiContentView) ──────────────────────────────
+── Native overlay (demo-SkUiMauiContentView) ─────────────────────────────────
   Open: Components → SkUiMauiContentView  (or route demo-SkUiMauiContentView)
 
   [ ] Native Editor + WebView overlays render and receive input, positioned
@@ -972,7 +977,7 @@ EOF
 Notes:
   • This script uses plain `dotnet build -t:Run` (no VS Code DevFlow injection).
   • DevFlow MCP agents (`maui_tree`, `maui_screenshot`, …) require the VS Code
-    MAUI extension path documented in Testing.md — not this script.
+    MAUI extension path documented in docs/design/Testing.md — not this script.
   • Android DevFlow broker (if you later attach an agent): 
       adb reverse tcp:19223 tcp:19223
 ══════════════════════════════════════════════════════════════════════════════

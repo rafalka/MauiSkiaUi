@@ -39,7 +39,7 @@ public class LookAndColorSchemeTests
             };
             SkUiLook.Current = look;
             var sw = new SkUiSwitch();
-            Arrange(sw, 200, 100);
+            SkUiTestHelpers.Arrange(sw, 200, 100);
             Assert.Equal(60, sw.DesiredSize.Width);
             Assert.Equal(40, sw.DesiredSize.Height);
         }
@@ -62,7 +62,7 @@ public class LookAndColorSchemeTests
             };
             SkUiLook.Current = look;
             var radio = new SkUiRadioButton { IsChecked = true };
-            Arrange(radio, 24, 24);
+            SkUiTestHelpers.Arrange(radio, 24, 24);
             using var bitmap = new SKBitmap(24, 24);
             using var canvas = new SKCanvas(bitmap);
             radio.Paint(canvas);
@@ -115,12 +115,6 @@ public class LookAndColorSchemeTests
         {
             SkUiLook.Current = previous;
         }
-    }
-
-    private static void Arrange(IView view, double width, double height)
-    {
-        view.Measure(width, height);
-        view.Arrange(new Rect(0, 0, width, height));
     }
 
     [Fact]

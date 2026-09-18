@@ -1,6 +1,6 @@
 # Requirements
 
-Planned work for SkiaUi. Items here are **not yet implemented** unless moved into [README.md](README.md) under *Current implementation*.
+Planned work for SkiaUi. Items here are **not yet implemented** unless moved into [Development.md](../../Development.md) under *Current implementation*.
 
 **Core layer (low-level, no MAUI Controls):** see **[CoreRequirements.md](CoreRequirements.md)** — composition substrate for complex controls / dense trees; fluent + INPC; shared paint/measure via Core delegates. This file remains the MAUI-compatible / XAML-first contract.
 
@@ -172,7 +172,7 @@ Primary reference: .NET MAUI layout (`Layout`, layout managers, `IView.Measure` 
 - [x] Remove template placeholders (`Class1`, platform stubs) once the public API exists.
 - [x] XML docs on all public types and members.
 
-Phase 0 code is implemented; platform compilation is checked, but device-level verification remains open (see README).
+Core pipeline code is implemented; platform compilation is checked, but device-level verification remains open (see [Development.md](../../Development.md)).
 
 ### FR-2 — XAML composition
 
@@ -396,7 +396,7 @@ Design details: [ColorScheme.md](ColorScheme.md).
 - [x] Document naming; tests cover swap light/dark + change Accent; Core and MAUI-compatible share scheme accessors.
 - [x] Gallery sample: swap light/dark + change Accent only (`LookAndColorSchemePage`).
 
-Phase 1 code and headless tests are delivered. Device interaction/rendering/contrast acceptance remains blocked by the installed MAUI extension; checked implementation items do not imply native platform verification. See README for the precise v1 API limits.
+Initial controls, layouts, and scroll are delivered with headless tests. Device interaction/rendering/contrast acceptance remains blocked by the installed MAUI extension; checked implementation items do not imply native platform verification. See [Development.md](../../Development.md) for the precise v1 API limits.
 
 ## Non-functional requirements
 
@@ -445,7 +445,7 @@ Design controls and shared infrastructure so they stay **easy to extend** and **
 Ship **well-documented** library code and user-facing docs:
 
 - **Code:** XML comments on all public types and members. Add **inline comments for non-obvious** logic (invariants, performance tricks, `unsafe` blocks, hosted-vs-standalone quirks, intentional BindableProperty desync — FR-10). Do not comment the trivial.
-- **Per-control markdown:** each public control / layout (e.g. `SkUiLabel`, `SkUiGrid`, `SkUiScrollView`, `SkUiMauiContentView`) has its own **`.md`** file describing how it works and how to use it (XAML / C# samples, key properties, gestures, theming). Index: [docs/controls/README.md](docs/controls/README.md) (linked from [README.md](README.md)).
+- **Per-control markdown:** each public control / layout (e.g. `SkUiLabel`, `SkUiGrid`, `SkUiScrollView`, `SkUiMauiContentView`) has its own **`.md`** file describing how it works and how to use it (XAML / C# samples, key properties, gestures, theming). Index: [docs/controls/README.md](../controls/README.md) (linked from [README.md](../../README.md)).
 - **MAUI reimplementations:** when a `SkUi*` type is a near drop-in for a standard MAUI control or layout, **do not** restate the full MAUI feature encyclopedia. Prefer a short overview, then **link to the official MAUI documentation** for baseline behavior. **Must document SkiaUi differences and extensions** (API deltas, unsupported MAUI features, direct setters, layers, `HwAccelerated`, gesture model, performance notes, etc.).
 - **SkiaUi-specific / infrastructure types** (`SkUiView`, `SkUiContentView`, `SkUiLayout`, `SkUiMauiContentView`, mechanisms): fuller how-it-works docs are expected (may point at [LayoutSystem.md](LayoutSystem.md), [DrawingMechanism.md](DrawingMechanism.md), etc. for shared pipelines).
 - Keep control docs in sync when behavior or public API changes.
@@ -511,6 +511,6 @@ When borrowing an idea, note the source briefly in design discussion or code com
 
 ## Tracking
 
-When a requirement is completed, check it off here and summarize the delivered behavior in [README.md](README.md).
+When a requirement is completed, check it off here and summarize the delivered behavior in [Development.md](../../Development.md).
 
-Delivery order and phase exit criteria: **[ImplementationPlan.md](ImplementationPlan.md)** (Phase 0 PoC → Phase 1 initial controls → Phase 2 gallery/docs → Phase 3 extensions).
+Delivery tracking: **[ImplementationPlan.md](ImplementationPlan.md)** (**Completed** vs **To be implemented**).

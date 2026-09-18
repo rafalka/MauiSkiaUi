@@ -9,7 +9,7 @@ public class PipelineTests
     public void InvalidationDuringRecordingSchedulesOneFollowupWithoutAnimation()
     {
         var root = new InvalidatingPaintProbe { Color = Colors.Red };
-        Arrange(root, 40, 40);
+        SkUiTestHelpers.Arrange(root, 40, 40);
         var queue = new Queue<Action>();
         var presents = 0;
         using var renderer = new SkUiFrameRenderer(root, queue.Enqueue, () => presents++, () => { });
@@ -36,7 +36,7 @@ public class PipelineTests
     public void ChangesBeforePaintingAreIncludedWithoutRedundantFrame()
     {
         var root = new SkUiBox { Color = Colors.Red };
-        Arrange(root, 40, 40);
+        SkUiTestHelpers.Arrange(root, 40, 40);
         var queue = new Queue<Action>();
         using var renderer = new SkUiFrameRenderer(root, queue.Enqueue, () => { }, () => root.Color = Colors.Blue);
         renderer.RequestFrame();
@@ -86,7 +86,7 @@ public class PipelineTests
     public void DisposingRendererStopsClockReleasesPictureAndIgnoresQueuedWork()
     {
         var root = new SkUiBox();
-        Arrange(root, 40, 40);
+        SkUiTestHelpers.Arrange(root, 40, 40);
         var queue = new Queue<Action>();
         var presents = 0;
         var renderer = new SkUiFrameRenderer(root, queue.Enqueue, () => presents++, () => { });
@@ -130,7 +130,7 @@ public class PipelineTests
         queue.Dequeue()();
         Assert.Equal(0, presents);
         Assert.Empty(queue);
-        Arrange(root, 40, 40);
+        SkUiTestHelpers.Arrange(root, 40, 40);
         Assert.Single(queue);
         queue.Dequeue()();
         Assert.Equal(1, presents);
@@ -167,7 +167,7 @@ public class PipelineTests
         };
         layout.Children.Add(child);
         var host = new SkUiContentView { Content = layout };
-        Arrange(host, 400, 400);
+        SkUiTestHelpers.Arrange(host, 400, 400);
         Assert.Equal(new Rect(30, 40, 120, 100), layout.Frame);
         Assert.Equal(new Rect(10, 15, 40, 40), child.Frame);
         var taps = new List<Point>();
@@ -196,7 +196,7 @@ public class PipelineTests
         var taps = 0;
         bottom.Tapped += (_, _) => taps++;
         top.Tapped += (_, _) => throw new InvalidOperationException("Invisible node received a tap.");
-        Arrange(layout, 100, 100);
+        SkUiTestHelpers.Arrange(layout, 100, 100);
         Assert.Equal(Visibility.Collapsed, ((IView)top).Visibility);
         using var bitmap = new SKBitmap(100, 100);
         using var canvas = new SKCanvas(bitmap);
@@ -235,7 +235,7 @@ public class PipelineTests
     {
         var ellipse = new SkUiEllipse();
         var host = new SkUiContentView { Content = ellipse };
-        Arrange(host, 100, 100);
+        SkUiTestHelpers.Arrange(host, 100, 100);
         var taps = 0;
         ellipse.Tapped += (_, _) => taps++;
         using var bitmap = new SKBitmap(100, 100);
@@ -268,7 +268,7 @@ public class PipelineTests
     public void PrimitivesPaintEllipseAndLineGeometry()
     {
         var ellipse = new SkUiEllipse { Color = Colors.Blue, WidthRequest = 40, HeightRequest = 40 };
-        Arrange(ellipse, 40, 40);
+        SkUiTestHelpers.Arrange(ellipse, 40, 40);
         using var bitmap = new SKBitmap(40, 40);
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.Transparent);
@@ -277,7 +277,7 @@ public class PipelineTests
         Assert.Equal(0, bitmap.GetPixel(0, 0).Alpha);
 
         var line = new SkUiLine { Color = Colors.Red, StrokeWidth = 4 };
-        Arrange(line, 40, 40);
+        SkUiTestHelpers.Arrange(line, 40, 40);
         canvas.Clear(SKColors.Transparent);
         line.Paint(canvas);
         Assert.Equal(SKColors.Red, bitmap.GetPixel(20, 20));
@@ -290,7 +290,7 @@ public class PipelineTests
         var layout = new SkUiLayout();
         layout.Children.Add(new SkUiBox { Color = Colors.Blue, Opacity = 0.5, ZIndex = 2 });
         layout.Children.Add(new SkUiBox { Color = Colors.Red });
-        Arrange(layout, 40, 40);
+        SkUiTestHelpers.Arrange(layout, 40, 40);
         using var bitmap = new SKBitmap(40, 40);
         using var canvas = new SKCanvas(bitmap);
         var matrix = canvas.TotalMatrix;
@@ -309,7 +309,7 @@ public class PipelineTests
     {
         var calls = new List<string>();
         var probe = new PaintProbe(calls);
-        Arrange(probe, 40, 40);
+        SkUiTestHelpers.Arrange(probe, 40, 40);
         using var bitmap = new SKBitmap(40, 40);
         using var canvas = new SKCanvas(bitmap);
         probe.Paint(canvas);
@@ -327,7 +327,7 @@ public class PipelineTests
         var probe = new PaintProbe(calls);
         probe.SetPaintBackground(_ => calls.Add("delegate-background"));
         probe.SetPaintOverlay(_ => calls.Add("delegate-overlay"));
-        Arrange(probe, 40, 40);
+        SkUiTestHelpers.Arrange(probe, 40, 40);
         using var bitmap = new SKBitmap(40, 40);
         using var canvas = new SKCanvas(bitmap);
         probe.Paint(canvas);
@@ -339,7 +339,7 @@ public class PipelineTests
     {
         var calls = new List<string>();
         var probe = new VirtualPaintProbe(calls);
-        Arrange(probe, 40, 40);
+        SkUiTestHelpers.Arrange(probe, 40, 40);
         using var bitmap = new SKBitmap(40, 40);
         using var canvas = new SKCanvas(bitmap);
         probe.Paint(canvas);
@@ -355,13 +355,13 @@ public class PipelineTests
         layout.Children.Add(first);
         layout.Children.Add(second);
         var host = new SkUiContentView { Content = layout };
-        Arrange(host, 100, 100);
-        Arrange(host, 100, 100);
+        SkUiTestHelpers.Arrange(host, 100, 100);
+        SkUiTestHelpers.Arrange(host, 100, 100);
         Assert.Equal(1, first.Measures);
         Assert.Equal(1, first.Arranges);
         Assert.Equal(1, second.Measures);
         first.WidthRequest = 30;
-        Arrange(host, 100, 100);
+        SkUiTestHelpers.Arrange(host, 100, 100);
         Assert.Equal(2, first.Measures);
         Assert.Equal(1, second.Measures);
         Assert.Equal(30, first.Width);
@@ -372,12 +372,12 @@ public class PipelineTests
     {
         var child = new LayoutProbe();
         var host = new SkUiContentView { Content = child };
-        Arrange(host, 100, 100);
+        SkUiTestHelpers.Arrange(host, 100, 100);
         var invalidations = 0;
         host.PaintInvalidated += (_, _) => invalidations++;
         using var animation = child.AnimationClock.Start(progress => child.TranslationX = 20 * progress, TimeSpan.FromSeconds(1));
         child.AnimationClock.Tick(TimeSpan.FromMilliseconds(500));
-        Arrange(host, 100, 100);
+        SkUiTestHelpers.Arrange(host, 100, 100);
         Assert.Equal(10, child.TranslationX);
         Assert.Equal(1, child.Measures);
         Assert.Equal(1, child.Arranges);
@@ -390,7 +390,7 @@ public class PipelineTests
     {
         var child = new SkUiBox();
         var host = new SkUiContentView { Content = child };
-        Arrange(host, 100, 100);
+        SkUiTestHelpers.Arrange(host, 100, 100);
         var invalidations = 0;
         host.PaintInvalidated += (_, _) => invalidations++;
         child.StartUpdating();
@@ -401,7 +401,7 @@ public class PipelineTests
         Assert.Equal(0, invalidations);
         child.EndUpdating();
         Assert.Equal(1, invalidations);
-        Arrange(host, 100, 100);
+        SkUiTestHelpers.Arrange(host, 100, 100);
         Assert.Equal(30, child.Width);
         Assert.Throws<InvalidOperationException>(child.EndUpdating);
     }
@@ -442,7 +442,7 @@ public class PipelineTests
         bottom.Tapped += (_, _) => taps++;
         if (!passive)
             top.Tapped += (_, _) => throw new InvalidOperationException("Top view must not receive a tap.");
-        Arrange(layout, 100, 100);
+        SkUiTestHelpers.Arrange(layout, 100, 100);
         Tap(layout, new Point(1, 1));
         Assert.Equal(expectedTaps, taps);
     }
@@ -457,7 +457,7 @@ public class PipelineTests
             TranslationX = 30, TranslationY = 20, Scale = 2, Rotation = 90
         };
         var host = new SkUiContentView { Content = box };
-        Arrange(host, 100, 100);
+        SkUiTestHelpers.Arrange(host, 100, 100);
         using var bitmap = new SKBitmap(100, 100);
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.Transparent);
@@ -479,7 +479,7 @@ public class PipelineTests
     {
         var child = new SkUiBox();
         var host = new SkUiContentView { Content = child };
-        Arrange(host, 100, 100);
+        SkUiTestHelpers.Arrange(host, 100, 100);
         var taps = 0;
         child.Tapped += (_, _) => taps++;
         Assert.True(host.Touch(new(1, SkUiTouchAction.Pressed, new Point(10, 10))));
@@ -497,7 +497,7 @@ public class PipelineTests
         var child = new SkUiBox();
         var layout = new SkUiLayout();
         layout.Children.Add(child);
-        Arrange(layout, 100, 100);
+        SkUiTestHelpers.Arrange(layout, 100, 100);
         var taps = 0;
         child.Tapped += (_, _) => taps++;
         layout.Touch(new(1, SkUiTouchAction.Pressed, new Point(10, 10)));
@@ -511,7 +511,7 @@ public class PipelineTests
     {
         var child = new SkUiBox();
         var host = new SkUiContentView { Content = child };
-        Arrange(host, 100, 100);
+        SkUiTestHelpers.Arrange(host, 100, 100);
         var taps = 0;
         child.Tapped += (_, _) => taps++;
         host.Touch(new(1, SkUiTouchAction.Pressed, new Point(10, 10)));
@@ -557,12 +557,6 @@ public class PipelineTests
         Assert.Equal(2, transitions);
         Assert.Throws<ArgumentOutOfRangeException>(() => clock.Tick(TimeSpan.Zero));
         Assert.Throws<ArgumentOutOfRangeException>(() => clock.Start(_ => { }, TimeSpan.Zero));
-    }
-
-    private static void Arrange(IView view, double width, double height)
-    {
-        view.Measure(width, height);
-        view.Arrange(new Rect(0, 0, width, height));
     }
 
     private static void Tap(ISkUiView view, Point point)

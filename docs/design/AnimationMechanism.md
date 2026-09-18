@@ -8,7 +8,7 @@ Sustain **butter-smooth ~60 fps** motion on GPU-backed roots (`HwAccelerated` �
 
 1. **Animated painting** — colors, opacity, strokes, and other paint-only properties.
 2. **In-area render transforms** — `TranslationX` / `TranslationY`, `Rotation`, `ScaleX` / `ScaleY` (and anchor) applied at paint time **without** remeasure/rearrange.
-3. **Optional layout animation** — animated size / margin / arranged bounds that *do* dirty measure/arrange (phase 2; not required for v1 demos).
+3. **Optional layout animation** — animated size / margin / arranged bounds that *do* dirty measure/arrange (later; not required for v1 demos).
 
 The clock must integrate with root invalidation: continuous frames **only while** any animation is active; idle when none are. Non-animated siblings must not be remeasured each frame (NFR-2 / FR-3).
 
@@ -156,7 +156,7 @@ Restore
 
 Children inherit the parent canvas transform naturally (drawn in parent space). Prefer animating the **moving node’s** transform rather than re-arranging children each frame.
 
-### Tier 3 — Animated layout (optional / phase 2)
+### Tier 3 — Animated layout (optional / later)
 
 **Properties:** `WidthRequest`, `HeightRequest`, `Margin`, padding, grid row height, stack spacing, or interpolated `Arrange` bounds.
 
@@ -291,4 +291,4 @@ Honor platform “reduce motion” when available (MAUI / OS setting): shorten o
 
 ## Tracking
 
-When implemented, check items above and summarize in [README.md](README.md) under *Current implementation*. Keep FR-7 checkboxes in [Requirements.md](Requirements.md) in sync.
+When implemented, check items above and summarize in [Development.md](../../Development.md) under *Current implementation*. Keep FR-7 checkboxes in [Requirements.md](Requirements.md) in sync.

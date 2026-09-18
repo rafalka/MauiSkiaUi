@@ -4,7 +4,7 @@ Requirements for the **SkiaUi Core** layer (`MauiSkiaUi.Core`): a separate, low-
 
 The MAUI-compatible surface (`SkUiLabel`, `SkUiGrid`, …) remains the primary drop-in API and is specified in [Requirements.md](Requirements.md). This document covers Core only.
 
-**Status:** Core layouts (Absolute, stacks, overlay, ContentView/Border) and basic controls (Label, Button, toggles, Image/ImageButton, ActivityIndicator, shapes) exist under `MauiSkiaUi/Core/` (same assembly today). Grid and ScrollView are deferred. Stress results below motivate promoting Core to a first-class, dependency-clean layer. Items are **not complete** unless checked and summarized in [README.md](README.md).
+**Status:** Core layouts (Absolute, stacks, overlay, ContentView/Border) and basic controls (Label, Button, toggles, Image/ImageButton, ActivityIndicator, shapes) exist under `MauiSkiaUi/Core/` (same assembly today). Grid and ScrollView are deferred. Stress results below motivate promoting Core to a first-class, dependency-clean layer. Items are **not complete** unless checked and summarized in [Development.md](../../Development.md).
 
 ## Motivation (measured)
 
@@ -123,7 +123,7 @@ Checklist:
 
 - [ ] Every stylable Core property exposes both CLR get/set and fluent `Set*` returning the concrete type (or a generic fluent interface).
 - [ ] `Set*` is the sole mutation/apply implementation; setters and any code-gen INPC helpers call it.
-- [ ] Document fluent vs property usage in [docs/controls/SkUiCore.md](docs/controls/SkUiCore.md).
+- [ ] Document fluent vs property usage in [docs/controls/SkUiCore.md](../controls/SkUiCore.md).
 
 ### FR-C5 — Property change notifications (MVVM Toolkit)
 
@@ -220,7 +220,7 @@ Minimum public Core primitives (expand as MAUI wrappers gain delegates):
 ### NFR-C2 — Quality & docs
 
 - XML docs on all public Core types.
-- [docs/controls/SkUiCore.md](docs/controls/SkUiCore.md) is the how-to; this file is the contract.
+- [docs/controls/SkUiCore.md](../controls/SkUiCore.md) is the how-to; this file is the contract.
 - Tests for layout math, INPC, host bridge, and MAUI↔Core measure/paint parity after FR-C6.
 
 ### NFR-C3 — Versioning
@@ -270,4 +270,4 @@ Minimum public Core primitives (expand as MAUI wrappers gain delegates):
 
 ## Tracking
 
-When a Core requirement ships, check it off here and note it under *Current implementation* in [README.md](README.md). Cross-link MAUI-compat work that adopts Core delegates (FR-C6) in per-control docs under [docs/controls/](docs/controls/README.md).
+When a Core requirement ships, check it off here and note it under *Current implementation* in [Development.md](../../Development.md). Cross-link MAUI-compat work that adopts Core delegates (FR-C6) in per-control docs under [docs/controls/](../controls/README.md).

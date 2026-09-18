@@ -4,7 +4,7 @@ Design notes and implementation checklist for **FR-17** (custom scroll and list/
 
 ## Goal
 
-**Phase 1 implementation:** `SkUiScrollView : SkUiContentView` now provides vertical/horizontal/both-axis clamped offsets, padded content extent, viewport clipping, tap-to-pan takeover at 10 DIPs, a bounded root-clock fling, wheel input, `ScrollTo`, `ScrollToAsync`, `AnimateScrollTo`, and `Scrolled`. Offset changes **invalidate paint only** (canvas/touch translation); content keeps a stable arranged frame and is not remeasured or rearranged per frame. A content **`SKPicture` cache** records the full arranged content space (`max(measured extent, viewport)`); offset-only frames replay that picture. When the cache is dirty and the shared animation clock is running (content paint animations), the scroller **live-paints the viewport** instead of re-recording the full extent every frame; fling-only motion leaves the picture clean so offset animation still reuses the cache. Child press is withheld until a tap is confirmed (movement under the pan threshold), so finger pans do not press buttons or force cache rebuilds; synthetic taps suppress press-chrome picture invalidation. Other paint invalidations during an active pointer/fling still **defer rebuild** until the gesture settles. Disabling, hiding, detaching, or unloading cancels interaction/motion; pending async scrolls cancel on interruption. Tests cover these mechanisms and full-pixel viewport composition. Nested scroll arbitration, overscroll/bounce, scrollbars, snapping, overlays, and virtualization remain future work. Device acceptance is still blocked; the remainder of this document describes the broader target design, including unimplemented types.
+**ScrollView (completed):** `SkUiScrollView : SkUiContentView` now provides vertical/horizontal/both-axis clamped offsets, padded content extent, viewport clipping, tap-to-pan takeover at 10 DIPs, a bounded root-clock fling, wheel input, `ScrollTo`, `ScrollToAsync`, `AnimateScrollTo`, and `Scrolled`. Offset changes **invalidate paint only** (canvas/touch translation); content keeps a stable arranged frame and is not remeasured or rearranged per frame. A content **`SKPicture` cache** records the full arranged content space (`max(measured extent, viewport)`); offset-only frames replay that picture. When the cache is dirty and the shared animation clock is running (content paint animations), the scroller **live-paints the viewport** instead of re-recording the full extent every frame; fling-only motion leaves the picture clean so offset animation still reuses the cache. Child press is withheld until a tap is confirmed (movement under the pan threshold), so finger pans do not press buttons or force cache rebuilds; synthetic taps suppress press-chrome picture invalidation. Other paint invalidations during an active pointer/fling still **defer rebuild** until the gesture settles. Disabling, hiding, detaching, or unloading cancels interaction/motion; pending async scrolls cancel on interruption. Tests cover these mechanisms and full-pixel viewport composition. Nested scroll arbitration, overscroll/bounce, scrollbars, snapping, overlays, and virtualization remain future work. Device acceptance is still blocked; the remainder of this document describes the broader target design, including unimplemented types.
 
 Provide **SkiaUi-owned** scrolling and (later) virtualized collections so large or scrollable UIs stay on **one shared Skia surface**, with pan/fling, viewport clipping, and optional item recycling — without relying on MAUI `ScrollView` / `CollectionView` as the primary composition model.
 
@@ -117,7 +117,7 @@ Content : ISkUiView (stack, grid, …)
 | **Orientation** | Vertical, Horizontal, or Both (Both is harder; v1 may ship Vertical + Horizontal only) |
 | **Chrome** | Optional scrollbar(s) as paint layers or child chrome (FR-9), not MAUI `ScrollBar` |
 
-### Collection / virtualization (phase 2)
+### Collection / virtualization (to be implemented)
 
 ```
 SkUiCollectionView (or SkUiLayout + ItemsSource)
@@ -130,16 +130,16 @@ Cell instances : ISkUiView (Handler == null; painted on shared surface)
 
 Virtualization is **not** MAUI `CollectionView` recycling. Cells are hosted SkiaUi nodes: no per-cell platform view unless a cell embeds `SkUiMauiContentView` (discourage many overlays in lists — FR-16 cost note).
 
-## Phasing
+## Delivery order
 
-| Phase | Deliverable | Scope |
+| Milestone | Deliverable | Scope |
 | --- | --- | --- |
-| **v1** | `SkUiScrollView` | Single `Content`; Vertical (then Horizontal); pan + fling; clip; `ScrollX`/`ScrollY` / `ScrollTo`; optional scrollbar paint |
-| **v1.x** | Polish | Nested scroll (outer vs inner), snap points, keyboard / focus bring-into-view, wheel (desktop) |
-| **v2** | Virtualizing collection | `ItemsSource` + `ItemTemplate`, recycle pool, scroll-to-index, variable-size rows (start with fixed/estimated height) |
+| **Completed** | `SkUiScrollView` | Single `Content`; Vertical/Horizontal/Both; pan + fling; clip; offsets / `ScrollTo`; picture cache |
+| **Next** | Polish | Nested scroll (outer vs inner), snap points, keyboard / focus bring-into-view; stronger wheel when Both |
+| **Later** | Virtualizing collection | `ItemsSource` + `ItemTemplate`, recycle pool, scroll-to-index, variable-size rows (start with fixed/estimated height) |
 | **Later** | Advanced lists | Grouping, grid items layout, sticky headers, horizontal carousels, infinite / windowed source |
 
-Do **not** block v1 demos on full collection virtualization. Non-virtualizing scroll covers forms, settings, and short content.
+Do **not** block demos on full collection virtualization. Non-virtualizing scroll covers forms, settings, and short content.
 
 ## `SkUiScrollView` — design details
 
@@ -232,7 +232,7 @@ DrawnUi’s `SkiaMauiElement` documents this explicitly:
 
 Velocity-threshold **hybrid** (snapshot only above a speed) is a possible later refinement; not required for v1.
 
-## Collection views — design details (phase 2)
+## Collection views — design details (to be implemented)
 
 ### API shape (MAUI-familiar)
 
@@ -307,7 +307,7 @@ Document explicitly in public docs:
 ### Docs / Requirements
 
 - [ ] Keep this file as the design source of truth; check off items as implemented.
-- [ ] Summarize delivered behavior in [README.md](README.md) when shipped.
+- [ ] Summarize delivered behavior in [Development.md](../../Development.md) when shipped.
 - [ ] Cross-link FR entries in [Requirements.md](Requirements.md).
 
 ## Open items
