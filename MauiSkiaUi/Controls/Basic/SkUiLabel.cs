@@ -7,7 +7,7 @@ namespace MauiSkiaUi;
 public class SkUiLabel : SkUiView
 {
     private string _text = string.Empty;
-    private Color _textColor = Colors.Black;
+    private Color _textColor = SkUiColors.DefaultForeground;
     private double _fontSize = 16;
     private string? _fontFamily;
     private FontAttributes _fontAttributes;
@@ -38,7 +38,7 @@ public class SkUiLabel : SkUiView
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiLabel), default(Thickness), defaultValueCreator: view => ((SkUiLabel)view).DefaultPadding, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetPadding((Thickness)value));
 
     /// <summary>Default foreground used by derived controls and bindable value clearing.</summary>
-    protected virtual Color DefaultTextColor => Colors.Black;
+    protected virtual Color DefaultTextColor => SkUiColors.DefaultForeground;
     /// <summary>Default alignment used by derived controls and bindable value clearing.</summary>
     protected virtual TextAlignment DefaultTextAlignment => TextAlignment.Start;
     /// <summary>Default inset used by derived controls and bindable value clearing.</summary>

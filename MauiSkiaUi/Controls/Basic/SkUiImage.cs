@@ -155,11 +155,7 @@ public class SkUiImage : SkUiView, IDisposable
     protected override void OnPaintContent(SKCanvas canvas)
     {
         if (_image is null) return;
-        var scale = _aspect == Aspect.AspectFill ? Math.Max(Width / _image.Width, Height / _image.Height) : Math.Min(Width / _image.Width, Height / _image.Height);
-        var width = _aspect == Aspect.Fill ? Width : _image.Width * scale;
-        var height = _aspect == Aspect.Fill ? Height : _image.Height * scale;
-        var destination = SKRect.Create((float)((Width - width) / 2), (float)((Height - height) / 2), (float)width, (float)height);
-        canvas.DrawImage(_image, destination, new SKSamplingOptions(SKFilterMode.Linear));
+        SkUiLook.Current.DrawImage(canvas, _image, (float)Width, (float)Height, _aspect);
     }
 
     /// <summary>Cancels loading and releases decoded image resources; a disposed control cannot be reused.</summary>

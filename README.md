@@ -35,7 +35,7 @@ Solution file: `SkiaUi.slnx`
 ### Demo (`MauiSkiaUiDemo`)
 
 - The Shell's home page is the **Components** gallery: every concrete `SkUi*` control/layout/primitive listed under **Basic controls**, **Layouts**, **Graphics**, and **Scrolling & collections** section headers, each opening its own demo page with property editors, a reset action, and (for MAUI reimplementations) a side-by-side/stacked native comparison.
-- The gallery's toolbar also opens: **Composition** (a XAML control sample with Grid, wrapping Label, an offline NASA image, command-bound Buttons, MAUI styles/visual states, and scrollable content), **Stress** (1,000 hosted buttons under one scroll surface — **Scroll** animates through it, **Top** resets it, **Record** reports CPU picture-recording time and managed allocations, not GPU FPS), and **Primitives** (the original Phase 0 page: box/ellipse/line under one GPU-default `SkUiContentView`, a four-second transform animation with a native status label, tap-to-recolor, and a standalone software-rendered box).
+- The gallery's toolbar also opens: **Composition** (a XAML control sample with Grid, wrapping Label, an offline NASA image, command-bound Buttons, MAUI styles/visual states, and scrollable content), **Look & colors** (FR-18/19 playground: light/dark/custom accent, Default/Chunky/Minimal look packs, size scale; preview includes SkUi* and Core), **Stress** (absolute two-column button list under one scroll surface — toggle **Core layer** to compare MAUI-compatible `SkUi*` vs `MauiSkiaUi.Core`; **Animate** uses spinners in the 2nd column on either layer; **Scroll** animates, **Top** resets, **Record** reports CPU picture-recording time), and **Primitives** (the original Phase 0 page: box/ellipse/line under one GPU-default `SkUiContentView`, a four-second transform animation with a native status label, tap-to-recolor, and a standalone software-rendered box).
 - Conditional MauiDevFlow initialization and Mac Catalyst server entitlement are wired for runtime inspection.
 
 ### Usage and limits
@@ -158,6 +158,8 @@ In VS Code, select **.NET MAUI: Select Startup Project > MauiSkiaUiDemo**, choos
 - **[ImplementationPlan.md](ImplementationPlan.md)** — phased delivery (PoC → initial → full gallery/docs → extensions).
 - **[LayoutSystem.md](LayoutSystem.md)** — MAUI-based measure/arrange, hosted vs standalone modes, layout-manager reuse, and implementation checklist (FR-3 / FR-3a / FR-13).
 - **[DrawingMechanism.md](DrawingMechanism.md)** — paint pipeline, Background/Content/Overlay layers, clip/mask, transparency-aware caching, and implementation checklist (FR-8 / FR-9 / FR-11).
+- **[ControlLook.md](ControlLook.md)** — control look (shape/chrome packs, default sizes, per-control painter overrides); distinct from color scheme and MAUI styles (FR-18).
+- **[ColorScheme.md](ColorScheme.md)** — color scheme (shared default palette; light/dark / per-token overrides); distinct from control look and MAUI styles (FR-19).
 - **[EventMechanism.md](EventMechanism.md)** — SkiaUi-owned gesture / event design (tap, double tap, long press, swipe), participation rules, and implementation checklist (FR-15).
 - **[AnimationMechanism.md](AnimationMechanism.md)** — vsync-driven ~60 fps clock, paint / render-transform / optional layout animation tiers, and implementation checklist (FR-7).
 - **[ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md)** — custom `SkUiScrollView` / virtualizing collection design (vs MAUI ScrollView/CollectionView), and implementation checklist.

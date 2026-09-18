@@ -1,17 +1,26 @@
 namespace MauiSkiaUi;
 
-/// <summary>Shared default palette used by SkiaUi controls for fills, tracks, and chrome.</summary>
+/// <summary>
+/// Convenience accessors for the active <see cref="SkUiColorScheme.Current"/> tokens.
+/// Prefer <see cref="SkUiColorScheme"/> when replacing packs or mutating individual colors.
+/// </summary>
 public static class SkUiColors
 {
-    /// <summary>Primary accent used for button fills, toggle on-state, and interactive chrome.</summary>
-    public static readonly Color Accent = Color.FromArgb("#087F83");
+    /// <summary>Primary accent from the current color scheme.</summary>
+    public static Color Accent => SkUiColorScheme.Current.Accent;
 
-    /// <summary>Neutral outline/ring when a toggle is unchecked.</summary>
-    public static readonly Color Muted = Color.FromArgb("#8A9A9C");
+    /// <summary>Default surface background from the current color scheme.</summary>
+    public static Color DefaultBackground => SkUiColorScheme.Current.DefaultBackground;
 
-    /// <summary>Switch track color while toggled off.</summary>
-    public static readonly Color TrackOff = Color.FromArgb("#C5D4D6");
+    /// <summary>Default text/icon foreground from the current color scheme.</summary>
+    public static Color DefaultForeground => SkUiColorScheme.Current.DefaultForeground;
 
-    /// <summary>Button fill when disabled or otherwise unable to receive a tap.</summary>
-    public static readonly Color Disabled = Color.FromArgb("#596467");
+    /// <summary>Neutral outline/ring from the current color scheme.</summary>
+    public static Color Muted => SkUiColorScheme.Current.Muted;
+
+    /// <summary>Switch track-off color from the current color scheme.</summary>
+    public static Color TrackOff => SkUiColorScheme.Current.TrackOff;
+
+    /// <summary>Disabled fill from the current color scheme.</summary>
+    public static Color Disabled => SkUiColorScheme.Current.Disabled;
 }

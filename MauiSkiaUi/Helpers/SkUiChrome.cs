@@ -2,29 +2,36 @@ using SkiaSharp;
 
 namespace MauiSkiaUi;
 
-/// <summary>Shared rounded-rectangle fill/border/clip geometry used by Button, Border, ImageButton, and similar chrome.</summary>
+/// <summary>
+/// Compatibility façade that forwards to <see cref="SkUiLook.Current"/>. Prefer calling the look
+/// API directly from new code.
+/// </summary>
 internal static class SkUiChrome
 {
-    /// <summary>Builds the rounded-rect path shared by a background fill/border and a matching content clip.</summary>
-    internal static SKPath CreateRoundRectPath(SKRect bounds, float radius)
-    {
-        using var roundRect = new SKRoundRect(bounds, radius, radius);
-        using var builder = new SKPathBuilder();
-        builder.AddRoundRect(roundRect);
-        return builder.Detach();
-    }
+    internal static SKPath CreateRoundRectPath(SKRect bounds, float radius) =>
+        SkUiLook.Current.CreateRoundRectPath(bounds, radius);
 
-    internal static void DrawRoundedBox(SKCanvas canvas, SKRect bounds, float radius, SKColor fill, SKColor border, float width)
-    {
-        using var paint = new SKPaint { Color = fill, IsAntialias = true };
-        using var path = CreateRoundRectPath(bounds, radius);
-        canvas.DrawPath(path, paint);
-        if (width <= 0) return;
-        bounds.Inflate(-width / 2, -width / 2);
-        paint.Color = border;
-        paint.Style = SKPaintStyle.Stroke;
-        paint.StrokeWidth = width;
-        using var strokePath = CreateRoundRectPath(bounds, Math.Max(0, radius - width / 2));
-        canvas.DrawPath(strokePath, paint);
-    }
+    internal static void DrawRoundedBox(SKCanvas canvas, SKRect bounds, float radius, SKColor fill, SKColor border, float width) =>
+        SkUiLook.Current.DrawRoundedBox(canvas, bounds, radius, fill, border, width);
+
+    internal static void DrawSwitch(SKCanvas canvas, SKRect bounds, bool isChecked, SKColor track, SKColor thumb) =>
+        SkUiLook.Current.DrawSwitch(canvas, bounds, isChecked, track, thumb);
+
+    internal static void DrawCheckBox(SKCanvas canvas, float size, bool isChecked, SKColor fill, SKColor border) =>
+        SkUiLook.Current.DrawCheckBox(canvas, size, isChecked, fill, border);
+
+    internal static void DrawRadioButton(SKCanvas canvas, float size, bool isChecked, SKColor ring, SKColor dot) =>
+        SkUiLook.Current.DrawRadioButton(canvas, size, isChecked, ring, dot);
+
+    internal static void DrawActivityIndicator(SKCanvas canvas, float width, float height, float sweepStart, SKPaint paint) =>
+        SkUiLook.Current.DrawActivityIndicator(canvas, width, height, sweepStart, paint);
+
+    internal static SKRect ComputeImageDestination(float viewWidth, float viewHeight, float imageWidth, float imageHeight, Aspect aspect) =>
+        SkUiLook.Current.ComputeImageDestination(viewWidth, viewHeight, imageWidth, imageHeight, aspect);
+
+    internal static void DrawImage(SKCanvas canvas, SKImage image, float viewWidth, float viewHeight, Aspect aspect) =>
+        SkUiLook.Current.DrawImage(canvas, image, viewWidth, viewHeight, aspect);
+
+    internal static void DrawPressTint(SKCanvas canvas, SKRect bounds, float cornerRadius, bool disabled, bool pressed) =>
+        SkUiLook.Current.DrawPressTint(canvas, bounds, cornerRadius, disabled, pressed);
 }

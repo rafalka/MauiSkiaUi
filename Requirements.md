@@ -2,6 +2,8 @@
 
 Planned work for SkiaUi. Items here are **not yet implemented** unless moved into [README.md](README.md) under *Current implementation*.
 
+**Core layer (low-level, no MAUI Controls):** see **[CoreRequirements.md](CoreRequirements.md)** — composition substrate for complex controls / dense trees; fluent + INPC; shared paint/measure via Core delegates. This file remains the MAUI-compatible / XAML-first contract.
+
 ## Goals
 
 Build a set of **base controls and layouts drawn with SkiaSharp**, using **GPU / hardware acceleration** where the platform supports it (`SKGLView`), plus a path to **host real MAUI controls** (Entry, Editor, WebView, …) inside the SkiaUi tree when Skia cannot replace them.
@@ -137,7 +139,9 @@ Primary reference: .NET MAUI layout (`Layout`, layout managers, `IView.Measure` 
 
 - Concrete control/layout types (e.g. `SkUiGrid`, `SkUiLabel`) are instantiable from XAML (public parameterless constructors).
 - Properties that mirror MAUI controls use **`BindableProperty`** for XAML and data-binding parity; performance-oriented **direct setters** are also available (see FR-10 / Decided).
-- **Theming** uses standard **MAUI `Style` / `VisualState` / resource dictionaries** applied to those bindable properties (FR-12) — not a separate SkiaUi theme system.
+- **Colors and property appearance (per control):** use standard **MAUI `Style` / `VisualState` / resource dictionaries** on bindable properties (**FR-12**) to override individual control values.
+- **Color scheme** (shared default palette — accent, backgrounds, muted/disabled, …) is a SkiaUi mechanism (**FR-19** / [ColorScheme.md](ColorScheme.md)) used as defaults for Core and MAUI-compatible controls. Distinct from FR-12 and from MAUI `AppTheme`.
+- **Control look** (default geometry / Skia drawing **and**, where applicable, default width/height) is a separate SkiaUi mechanism (**FR-18** / [ControlLook.md](ControlLook.md)). Do not call look or scheme “MAUI theming.”
 - Layout types derive from **`SkUiLayout`** and expose **`Children`** (`IList<ISkUiView>`) as `[ContentProperty]`.
 - **`SkUiContentView`** exposes single **`Content`** (`ISkUiView`) as `[ContentProperty]` for one-child hosting.
 - **`SkUiMauiContentView`** exposes **`Content`** (`VisualElement`) as `[ContentProperty(nameof(Content))]` so `<SkUiMauiContentView><Entry …/></SkUiMauiContentView>` works inside SkiaUi layouts (FR-16).
@@ -248,7 +252,7 @@ Design and checklist: [DrawingMechanism.md](DrawingMechanism.md).
 - [x] Support splitting a control’s drawing into ordered **layers** (Background / Content / Overlay, extensible as needed), e.g. text with background fill, glyphs, and badge/focus overlay.
 - [x] Layers are paint (and optional cache) phases of the **same** `ISkUiView`, with direct access to that control’s layout and state — not a separate child layout tree per layer.
 - [x] Layers participate in selective Paint when opt-in caches exist (NFR-2 / FR-8); v1 may repaint all phases on each node paint with no per-layer bitmap cache — see [DrawingMechanism.md](DrawingMechanism.md).
-- [x] Favor **reusable drawing helpers / primitives** across controls (e.g. shared rounded-rectangle / border / fill used by many Background layers — not copy-pasted Skia paths per control). Reuse is via shared paint utilities, interfaces, or layer implementations (NFR-4), not by requiring every chrome piece to be its own `ISkUiView`. `SkUiChrome` is shared by Button's fill/border and its content clip.
+- [x] Favor **reusable drawing helpers / primitives** across controls (e.g. shared rounded-rectangle / border / fill used by many Background layers — not copy-pasted Skia paths per control). Reuse is via shared paint utilities, interfaces, or layer implementations (NFR-4), not by requiring every chrome piece to be its own `ISkUiView`. Today’s helpers live in `SkUiChrome`; **FR-18** promotes them to a public, replaceable **control look** (`SkUiLook`) used by both Core and MAUI-compatible controls.
 - [x] Hit-testing remains **view-level** (arranged bounds); overlays do not get separate hit geometry in v1 (FR-11 / [EventMechanism.md](EventMechanism.md)).
 - [x] Apply this model consistently to built-in controls; keep Option B-style nesting for true **child content** in layouts only (`Children`), not for a control’s own chrome layers.
 
@@ -278,12 +282,15 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 - [ ] Clip changes participate in selective invalidation and transparency-aware redraw (NFR-2 / FR-8).
 - [ ] Demo or gallery sample: rounded control with visually clear corners that remain within the control’s rectangular hit target.
 
-### FR-12 — Theming via MAUI styles
+### FR-12 — Styles and VisualStates (MAUI per-control property appearance)
 
-- [x] Theme SkiaUi controls with standard **MAUI styles**: `Style` (implicit and explicit), `Setter`s on `BindableProperty`s, resource dictionaries, and `VisualStateManager` / visual states where applicable for control interaction (e.g. Pressed, Disabled).
-- [x] Do **not** invent a parallel SkiaUi-only theme/token system; apps style `SkUi*` types the same way they style MAUI controls.
+**Naming:** this is **MAUI styling** of individual controls. It is **not** control look (FR-18) and **not** the shared SkiaUi **color scheme** (FR-19).
+
+- [x] Style SkiaUi controls with standard **MAUI** mechanisms: `Style` (implicit and explicit), `Setter`s on `BindableProperty`s, resource dictionaries, and `VisualStateManager` / visual states where applicable for control interaction (e.g. Pressed, Disabled).
+- [x] Prefer FR-12 for **per-control** overrides (this button’s fill, that label’s font). Shared **default** palette across Core + MAUI controls is **FR-19** (color scheme); do not require apps to duplicate Accent/Background tokens only via MAUI resources for Core trees.
 - [x] Document sample `Style` resources for common controls in the demo or docs.
 - [x] Direct setters remain available (FR-10); styles and XAML setters go through bindable properties (and thus call direct setters). Document that applying styles does not replace the direct-setter desync note when setters are used afterward.
+- [x] Keep docs clear: **FR-12** = per-control MAUI Style/VSM; **FR-18** = shape / default sizes; **FR-19** = shared default colors.
 
 ### FR-13 — Dual-mode: `ISkUiView : IView`
 
@@ -350,6 +357,45 @@ Design details and checklist: [ScrollingAndCollectionViews.md](ScrollingAndColle
 - [ ] **Later:** virtualizing **`SkUiCollectionView`** (or equivalent) with `ItemsSource` / `ItemTemplate` and recycle pool on the shared surface — not MAUI `CollectionView` recycling.
 - [x] Document MAUI `ScrollView`/`CollectionView` nesting as **compat only** (standalone cells keep `HwAccelerated = false` per FR-14).
 
+### FR-18 — Control look (shape / chrome / default sizes; not MAUI styles)
+
+Design details: [ControlLook.md](ControlLook.md).
+
+**Problem:** Core and MAUI-compatible controls share drawing helpers (`SkUiChrome`), but the helpers are sealed/internal and cannot be swapped for platform-inspired or brand geometry. Default intrinsic sizes are hardcoded per control. Apps need Android-like / iOS-like / custom **shapes and default sizes** without forking every control, and without conflating that with **color scheme** (FR-19) or MAUI **styles** (FR-12).
+
+**Decision:** introduce a public, extensible **control look** API (`SkUiLook` / `DefaultSkUiLook` — exact names open). Prefer the word **look** over **theme** in public API and docs.
+
+- [x] Support **control look**: default Skia geometry and drawing for stock controls (Switch, CheckBox, RadioButton, ActivityIndicator, rounded button/border chrome, press tint, image destination, and similar shared painters).
+- [x] Where applicable, the look also owns **default control width/height** (intrinsic measure) and related defaults (e.g. button minimum height, default corner radius). Apps can override those defaults by replacing the look, subclassing measure/size members, or replacing a size delegate. Explicit per-control size requests still win.
+- [x] **Do not** fold this into FR-12 or FR-19. FR-12 = MAUI Style/VSM on individual controls; FR-19 = shared default **colors**; FR-18 = **how** chrome is drawn and **default sizes**.
+- [x] App can **replace the entire look** (e.g. set current look to an Android-like or iOS-like pack, or a custom subclass) — shapes and default sizes together when the pack defines both.
+- [x] App can **change drawing and/or default size for one control kind** without replacing the whole pack — by **overriding a virtual** on a look subclass **and/or** replacing a **per-painter or per-size delegate** on the look instance.
+- [x] Promote today’s `SkUiChrome` painters into the default look implementation; both `SkUi*` and `SkUiCore*` call the **active** look for paint **and** default measure so Core and MAUI-compatible stay aligned.
+- [ ] Optional resolution: control-local look → tree/host look → app current look → `DefaultSkUiLook` (global `Current` shipped; per-tree deferred).
+- [x] Changing the active look raises `CurrentChanged`; apps invalidate measure/paint (automatic tree walk deferred).
+- [x] Document naming clearly vs FR-12 / FR-19; tests cover swap full look + override a single painter and a single default size.
+- [ ] Built-in platform-inspired packs may ship later; FR-18 v1 requires the **extensibility model** + default look (including overridable default sizes), not full OS parity.
+- [x] Gallery sample page for look packs (`LookAndColorSchemePage`).
+
+### FR-19 — Color scheme (shared default palette; not MAUI styles / not look)
+
+Design details: [ColorScheme.md](ColorScheme.md).
+
+**Problem:** Core and MAUI-compatible controls hardcode shared defaults (`SkUiColors.Accent`, TrackOff, Disabled, …). Apps need light/dark (or brand) **palettes** and the ability to change one token (e.g. accent only) without MAUI styles alone (Core has no Style) and without changing control geometry (FR-18).
+
+**Decision:** introduce a public, extensible **color scheme** API (`SkUiColorScheme` / light & dark packs — exact names open). Prefer **“color scheme”** / **“palette”** over **“theme”** in public API and docs.
+
+- [x] Support **color scheme**: shared default colors used by Core and MAUI-compatible controls (at least accent, default background, default foreground/text, muted, track-off, disabled — extend as controls need).
+- [x] App can **replace the entire scheme** (e.g. light vs dark pack, or a custom subclass).
+- [x] App can **change particular colors** on the active scheme (e.g. only `Accent` or only `DefaultBackground`) without replacing the whole pack.
+- [x] Promote today’s `SkUiColors` into the default / light scheme; both `SkUi*` and `SkUiCore*` resolve **defaults** from the active scheme.
+- [x] Precedence: explicit control property / FR-12 Style wins over scheme defaults; construction snapshots `Current`; paint-time tokens via `SkUiColors` follow `Current` live.
+- [ ] Optional resolution: control-local scheme → tree/host scheme → app current scheme → built-in default (global `Current` shipped; per-tree deferred).
+- [x] Changing the active scheme (or a token on it) raises events; apps invalidate paint for scheme-following controls (automatic tree walk deferred).
+- [x] **Do not** conflate with FR-18 (look) or treat as a replacement for FR-12 (per-control MAUI Style).
+- [x] Document naming; tests cover swap light/dark + change Accent; Core and MAUI-compatible share scheme accessors.
+- [x] Gallery sample: swap light/dark + change Accent only (`LookAndColorSchemePage`).
+
 Phase 1 code and headless tests are delivered. Device interaction/rendering/contrast acceptance remains blocked by the installed MAUI extension; checked implementation items do not imply native platform verification. See README for the precise v1 API limits.
 
 ## Non-functional requirements
@@ -406,7 +452,7 @@ Ship **well-documented** library code and user-facing docs:
 
 ## Out of scope (for now)
 
-- Full design-system parity with native MAUI controls for **Skia-drawn** copies (hosted MAUI Entry/Editor/WebView keep their native look via FR-16)
+- Full design-system parity with native MAUI controls for **Skia-drawn** copies (hosted MAUI Entry/Editor/WebView keep their native look via FR-16). **Control look** (FR-18) enables approximate platform-inspired shapes; pixel-perfect OS clones are not required.
 - Custom Skia reimplementations of **Entry**, **Editor**, **WebView** (and similar IME/browser controls) — use `SkUiMauiContentView` instead (FR-16)
 - Blazor Hybrid / multi-project MAUI host
 - Software-only fallback host (unless needed when `HwAccelerated` is true but GL is unavailable — then fall back per Acceleration)
@@ -434,6 +480,8 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - Hit-test / touch **capture** and multi-touch details beyond FR-15’s single-pointer gesture set (default hit region remains arranged bounds per FR-11). Scroll needs capture for pan — see [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md).
 - Exact public names for animation helpers / `ISkUiAnimator` (tier APIs sketched in [AnimationMechanism.md](AnimationMechanism.md)).
 - Scroll v1 details still open in [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md): overscroll (clamp vs bounce), both-axes in v1, nested scroll rules, collection-as-scroll vs outer `SkUiScrollView` extent provider; snapshot opt-out property name.
+- **Control look (FR-18)** remaining: per-tree look attachment (vs process-wide `Current`), and optional OS theme sync helpers. Type names, `Current`, virtual/delegate painters, and default size tokens are decided — see Decided and [ControlLook.md](ControlLook.md).
+- **Color scheme (FR-19)** remaining: optional OS light/dark synchronization helpers. Type names, light/dark packs, `Current`, and construction-snapshot vs paint-time token reads are decided — see Decided and [ColorScheme.md](ColorScheme.md).
 
 ## Decided
 
@@ -441,12 +489,14 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - **Class hierarchy:** **`SkUiView`** is the base class (implements `ISkUiView`). **`SkUiContentView : SkUiView`** exposes **`Content`** (`ISkUiView`). **`SkUiLayout : SkUiView`** is the base for all layouts and exposes **`Children`** (`IList<ISkUiView>`). Both Content and multi-child layouts are supported via these two types (not mutually exclusive).
 - **`ISkUiView : IView` (FR-1 / FR-13):** `ISkUiView` derives from MAUI `IView`. Measure/Arrange come from `IView`; `ISkUiView` adds **Paint** and **Touch**. Standalone use in the MAUI tree uses our handler + `HwAccelerated`; when hosted under another SkiaUi parent, skip MAUI handler and platform-view allocation. Hosted-vs-standalone detection remains to document.
 - **Layout system (FR-3a) — MAUI-based:** measure/arrange follows the **MAUI layout system** (not Flutter box constraints) so SkiaUi can ship drop-in-ish copies of MAUI controls/layouts and **reuse MAUI layout managers**. Multi-pass measure where MAUI requires it is expected; optimize via caching/dirty flags. Flutter is not the layout contract. Hosted vs standalone measure/arrange: [LayoutSystem.md](LayoutSystem.md).
-- **Theming (FR-12):** use **MAUI styles** (`Style`, resource dictionaries, `VisualStateManager` as applicable) on `BindableProperty`s — no separate SkiaUi theme system.
+- **Styles / VisualStates (FR-12):** use **MAUI styles** (`Style`, resource dictionaries, `VisualStateManager` as applicable) on `BindableProperty`s for **per-control** property appearance. Shared default **colors** are **FR-19** (color scheme). Control **shape / default sizes** are **FR-18** (control look).
+- **Control look (FR-18):** public `SkUiLook` / `DefaultSkUiLook` with `Current`, virtual cores, and optional per-painter / per-measure delegates. Controls call the active look for paint and intrinsic sizes. Details: [ControlLook.md](ControlLook.md).
+- **Color scheme (FR-19):** public `SkUiColorScheme` with `LightSkUiColorScheme` / `DarkSkUiColorScheme`, `Current`, and mutable tokens. `SkUiColors` reads the active scheme. Construction snapshots accents; paint-time tokens follow `Current`. Details: [ColorScheme.md](ColorScheme.md).
 - **Properties — BindableProperty + direct setters (FR-10):** use `BindableProperty` for near drop-in MAUI / XAML / binding parity. Also expose fluent direct setters (e.g. `SetBackgroundColor`) that update control state; bindable property changed callbacks **call** those setters. Direct setters **do not** update the `BindableProperty` (intentional desync risk when bypassing bindings) — **must be stated clearly in documentation**. Both paths honor `StartUpdating()` / `EndUpdating()` semi-transactions: defer measure/draw invalidation until `EndUpdating()`.
 - **Coordinate system:** same as MAUI — `ISkUiView` sizes, positions, and touch coordinates use MAUI device-independent units (DIPs) and the same density semantics as the host; `SkUiContentView` maps to/from the Skia pixel surface as an implementation detail of the bridge.
 - **Public type naming:** `SkUi*` (e.g. `SkUiView`, `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, `SkUiLabel`, `SkUiMauiContentView`, `ISkUiView`). Package / project name remains `MauiSkiaUi`.
 - **NuGet:** publish **`MauiSkiaUi`** as a NuGet package; **`MauiSkiaUiDemo`** is in-repo only (not published).
-- **Drawing layers (FR-9) — Option A:** dedicated layer structure (Background / Content / Overlay paint phases on the control), not nested `ISkUiView` hosts for chrome. Layers need the owning control’s data (e.g. table/grid draws Background **lines** from its own row/column measurements). Nested hosting remains for layout `Children` only. Toolkit notes (Flutter composition vs engine `Layer` tree, Avalonia/Uno templates, DrawnUi child trees) stay relevant as reference for caching/reuse, not as the chosen chrome model. Concrete layer API names — still TBD during implementation. Paint pipeline, clip, and transparency: [DrawingMechanism.md](DrawingMechanism.md).
+- **Drawing layers (FR-9) — Option A:** dedicated layer structure (Background / Content / Overlay paint phases on the control), not nested `ISkUiView` hosts for chrome. Layers need the owning control’s data (e.g. table/grid draws Background **lines** from its own row/column measurements). Nested hosting remains for layout `Children` only. Toolkit notes (Flutter composition vs engine `Layer` tree, Avalonia/Uno templates, DrawnUi child trees) stay relevant as reference for caching/reuse, not as the chosen chrome model. **Customization:** Background/Overlay via `PaintBackground` / `PaintOverlay` delegates; Content remains virtual `OnPaintContent`. Same on Core. Details: [DrawingMechanism.md](DrawingMechanism.md).
 - **Code performance (NFR-2):** critical paths (especially animation tick + paint) aim for **maximum speed** and **zero / near-zero allocations**, using modern C#/.NET techniques including **`unsafe`** where justified. **Correctness-first workflow:** ship simple, readable code first; after tests confirm behavior, optimize for max performance and min allocations.
 - **Flexibility and reuse (NFR-4):** extensible controls via **virtual hooks** and **interfaces**; shared building blocks for background drawing, animations, layers, and similar — avoid copy-paste chrome.
 - **Documentation (NFR-5):** XML + comments for non-obvious code; **one `.md` per control** (how it works / how to use). MAUI reimplementations: link to official MAUI docs for baseline behavior; document **differences and extensions** only (do not duplicate full MAUI manuals).
@@ -457,6 +507,7 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - **MAUI control hosting (FR-16):** no custom Skia `SkUiEntry` / `SkUiEditor` / `SkUiWebView`. Host real MAUI `Entry`, `Editor`, `WebView`, and other `VisualElement`s via **`SkUiMauiContentView`**: `ISkUiView` placeholder in the SkiaUi tree; native platform view overlaid on the standalone root’s container and synced to arranged bounds (DrawnUi `SkiaMauiElement` pattern). Content property is **`Content`** (`VisualElement`, `[ContentProperty]`). Input stays with the native control; FR-15 does not own overlay hits.
 - **Snapshot-during-scroll (FR-16 / FR-17):** while an ancestor scroll/fling is active, **Android and Windows** use **snapshot freeze** by default (hide native overlay, paint bitmap on Skia until motion settles); **Apple** uses **live sync only**. Apps may **opt out** per overlay for special cases (e.g. keep WebView live). Details: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#overlays-while-scrolling-fr-16).
 - **Scrolling / collections (FR-17):** implement **`SkUiScrollView`** (and later a virtualizing collection) **inside** the SkiaUi tree on the shared surface. Do **not** use MAUI `ScrollView` / `CollectionView` as the primary composition model for scrollable SkiaUi UI. Nesting standalone `SkUi*` under MAUI scrollers remains a documented compat path only. Details: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md).
+- **Core layer:** low-level composition API without MAUI Controls / XAML — [CoreRequirements.md](CoreRequirements.md) (separate from this MAUI-compatible contract).
 
 ## Tracking
 

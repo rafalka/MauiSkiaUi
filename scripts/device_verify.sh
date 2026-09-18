@@ -828,7 +828,7 @@ read_application_id() {
         dotnet msbuild "$DEMO_PROJECT" -getProperty:ApplicationId -nologo -v:q 2>/dev/null | tr -d '\r\n'
     )"
     if [[ -z "$APPLICATION_ID" ]]; then
-        APPLICATION_ID="com.companyname.mauiskiauidemo"
+        APPLICATION_ID="com.rkdevel.mauiskiauidemo"
     fi
 }
 

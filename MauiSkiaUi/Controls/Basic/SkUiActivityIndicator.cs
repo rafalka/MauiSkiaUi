@@ -6,7 +6,7 @@ namespace MauiSkiaUi;
 public class SkUiActivityIndicator : SkUiView
 {
     private bool _isRunning;
-    private Color _color = Colors.Gray;
+    private Color _color = SkUiColors.Muted;
     private IDisposable? _spin;
     private float _sweepStart;
     private SKPaint? _strokePaint;
@@ -15,7 +15,8 @@ public class SkUiActivityIndicator : SkUiView
     public static readonly BindableProperty IsRunningProperty = BindableProperty.Create(nameof(IsRunning), typeof(bool), typeof(SkUiActivityIndicator), false,
         propertyChanged: (view, _, value) => ((SkUiActivityIndicator)view).SetIsRunning((bool)value));
     /// <summary>Bindable spinner color.</summary>
-    public static readonly BindableProperty ColorProperty = BindableProperty.Create(nameof(Color), typeof(Color), typeof(SkUiActivityIndicator), Colors.Gray,
+    public static readonly BindableProperty ColorProperty = BindableProperty.Create(nameof(Color), typeof(Color), typeof(SkUiActivityIndicator), null,
+        defaultValueCreator: _ => SkUiColors.Muted,
         propertyChanged: (view, _, value) => ((SkUiActivityIndicator)view).SetColor((Color)value));
 
     /// <summary>Whether the spinner is animating.</summary>
@@ -44,14 +45,13 @@ public class SkUiActivityIndicator : SkUiView
     }
 
     /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => new(36, 36);
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
+        SkUiLook.Current.MeasureActivityIndicator(widthConstraint, heightConstraint);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        if (!_isRunning || Width <= 0 || Height <= 0) return;
-        var strokeWidth = (float)Math.Max(2, Math.Min(Width, Height) * 0.1);
-        var bounds = new SKRect(strokeWidth / 2, strokeWidth / 2, (float)Width - strokeWidth / 2, (float)Height - strokeWidth / 2);
+        if (!_isRunning) return;
         var paint = _strokePaint ??= new SKPaint
         {
             Style = SKPaintStyle.Stroke,
@@ -59,8 +59,7 @@ public class SkUiActivityIndicator : SkUiView
             IsAntialias = true,
             Color = ToSkColor(_color)
         };
-        paint.StrokeWidth = strokeWidth;
-        canvas.DrawArc(bounds, _sweepStart, 270, false, paint);
+        SkUiLook.Current.DrawActivityIndicator(canvas, (float)Width, (float)Height, _sweepStart, paint);
     }
 
     /// <inheritdoc />

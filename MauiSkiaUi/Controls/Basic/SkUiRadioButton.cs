@@ -13,7 +13,8 @@ public class SkUiRadioButton : SkUiToggleControl
     private string? _groupName;
 
     /// <summary>Bindable dot/ring color while checked.</summary>
-    public static readonly BindableProperty ColorProperty = BindableProperty.Create(nameof(Color), typeof(Color), typeof(SkUiRadioButton), SkUiColors.Accent,
+    public static readonly BindableProperty ColorProperty = BindableProperty.Create(nameof(Color), typeof(Color), typeof(SkUiRadioButton), null,
+        defaultValueCreator: _ => SkUiColors.Accent,
         propertyChanged: (view, _, value) => ((SkUiRadioButton)view).SetColor((Color)value));
     /// <summary>Bindable group name for app-level mutual exclusion (see remarks).</summary>
     public static readonly BindableProperty GroupNameProperty = BindableProperty.Create(nameof(GroupName), typeof(string), typeof(SkUiRadioButton), null,
@@ -38,20 +39,20 @@ public class SkUiRadioButton : SkUiToggleControl
     }
 
     /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => new(24, 24);
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
+        SkUiLook.Current.MeasureRadioButton(widthConstraint, heightConstraint);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
         var size = (float)Math.Min(Width, Height);
-        var center = size / 2;
         var ringColor = IsChecked ? _color : SkUiColors.Muted;
-        if (!IsEnabled) ringColor = ringColor.MultiplyAlpha(0.5f);
-        using var ring = new SKPaint { Color = ToSkColor(ringColor), Style = SKPaintStyle.Stroke, StrokeWidth = size * 0.08f, IsAntialias = true };
-        canvas.DrawCircle(center, center, center - ring.StrokeWidth / 2, ring);
-        if (!IsChecked) return;
-        var dotColor = IsEnabled ? _color : _color.MultiplyAlpha(0.5f);
-        using var dot = new SKPaint { Color = ToSkColor(dotColor), IsAntialias = true };
-        canvas.DrawCircle(center, center, size * 0.28f, dot);
+        var dotColor = _color;
+        if (!IsEnabled)
+        {
+            ringColor = ringColor.MultiplyAlpha(0.5f);
+            dotColor = dotColor.MultiplyAlpha(0.5f);
+        }
+        SkUiLook.Current.DrawRadioButton(canvas, size, IsChecked, ToSkColor(ringColor), ToSkColor(dotColor));
     }
 }

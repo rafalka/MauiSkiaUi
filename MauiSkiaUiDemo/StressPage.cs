@@ -1,16 +1,28 @@
 using System.Diagnostics;
 using CommunityToolkit.Maui.Views;
 using MauiSkiaUi;
+using MauiSkiaUi.Core;
+using Microsoft.Maui.Layouts;
 using SkiaSharp;
 
 namespace MauiSkiaUiDemo;
 
 /// <summary>
-/// Stress harness for a large hosted SkiaUi tree. Starts with configuration only; the heavy UI is built
+/// Stress harness for a large hosted tree. Starts with configuration only; the heavy UI is built
 /// after a delayed UI-thread post so click/paint work is excluded from timings.
 /// </summary>
 public sealed class StressPage : ContentPage
 {
+    private enum StressLayer
+    {
+        /// <summary>MAUI-compatible SkiaUi controls (<see cref="SkUiButton"/>, etc.).</summary>
+        SkUi,
+        /// <summary>Lightweight Core nodes under <see cref="SkUiCoreHost"/>.</summary>
+        Core,
+        /// <summary>Stock MAUI controls (<see cref="Button"/>, <see cref="AbsoluteLayout"/>, <see cref="ScrollView"/>).</summary>
+        NativeMaui
+    }
+
     private const int DefaultChildCount = 1000;
     private const int MaxChildCount = 50_000;
     private const int RunDelayMilliseconds = 200;
@@ -19,11 +31,13 @@ public sealed class StressPage : ContentPage
     private readonly Entry _countEntry;
     private readonly CheckBox _hwAcceleration;
     private readonly CheckBox _animate;
+    private readonly Picker _layerPicker;
     private readonly Button _runButton;
     private readonly Label _metrics;
     private readonly Label _selected;
     private readonly ContentView _stressHost;
-    private SkUiScrollView? _scroller;
+    private SkUiScrollView? _skUiScroller;
+    private ScrollView? _nativeScroller;
     private IDisposable? _motion;
     private bool _scrollProbeRunning;
 
@@ -36,10 +50,12 @@ public sealed class StressPage : ContentPage
         var description = new Label
         {
             Text =
-                "Builds a two-column SkUiButton grid under one SkUiScrollView, then measures generate, attach, " +
+                "Builds a two-column absolute layout of buttons under one scroll view, then measures generate, attach, " +
                 "first-layout/render, and overall time until the UI thread is idle. " +
-                "With Animate checked, the second column uses running SkUiActivityIndicator views instead of buttons. " +
-                "Record times CPU Paint; Scroll animates and reports average UI-thread RecordFrame ms (HW on vs off).",
+                "Layer picks SkUi* (MAUI-compatible SkiaUi), Core (SkUiCoreHost + Core absolute + Core buttons/spinners), " +
+                "or Native MAUI (stock AbsoluteLayout / Button / ActivityIndicator / ScrollView). " +
+                "With Animate checked, the second column uses running activity indicators. " +
+                "HW accel applies to SkUi/Core surfaces only. Record times CPU Paint (SkUi/Core); Scroll reports scroll cost.",
             TextColor = DemoColors.Caption,
             FontFamily = DemoFonts.OpenSansRegular,
             FontSize = 12,
@@ -73,6 +89,27 @@ public sealed class StressPage : ContentPage
             Color = DemoColors.Accent,
             AutomationId = "StressAnimate",
             VerticalOptions = LayoutOptions.Center
+        };
+
+        _layerPicker = new Picker
+        {
+            Title = "Layer",
+            ItemsSource = new[]
+            {
+                "SkUi* (MAUI-compatible)",
+                "Core (no MAUI View per cell)",
+                "Native MAUI controls"
+            },
+            SelectedIndex = 0,
+            AutomationId = "StressLayerPicker",
+            FontFamily = DemoFonts.OpenSansRegular,
+            TextColor = DemoColors.Ink,
+            HorizontalOptions = LayoutOptions.Fill
+        };
+        _layerPicker.SelectedIndexChanged += (_, _) =>
+        {
+            var native = SelectedLayer == StressLayer.NativeMaui;
+            _hwAcceleration.IsEnabled = !native;
         };
 
         _runButton = new Button
@@ -134,7 +171,15 @@ public sealed class StressPage : ContentPage
                             VerticalOptions = LayoutOptions.Center
                         }
                     }
-                }
+                },
+                new Label
+                {
+                    Text = "Layer",
+                    TextColor = DemoColors.Ink,
+                    FontFamily = DemoFonts.OpenSansSemibold,
+                    FontSize = 13
+                },
+                _layerPicker
             }
         };
 
@@ -193,7 +238,20 @@ public sealed class StressPage : ContentPage
 
         ToolbarItems.Add(new ToolbarItem("Record", null, MeasureRecording));
         ToolbarItems.Add(new ToolbarItem("Scroll", null, () => _ = MeasureScrollAsync()));
-        ToolbarItems.Add(new ToolbarItem("Top", null, () => _scroller?.ScrollTo(0, 0)));
+        ToolbarItems.Add(new ToolbarItem("Top", null, ScrollToTop));
+    }
+
+    private StressLayer SelectedLayer => _layerPicker.SelectedIndex switch
+    {
+        1 => StressLayer.Core,
+        2 => StressLayer.NativeMaui,
+        _ => StressLayer.SkUi
+    };
+
+    private void ScrollToTop()
+    {
+        _skUiScroller?.ScrollTo(0, 0);
+        _ = _nativeScroller?.ScrollToAsync(0, 0, false);
     }
 
     /// <summary>
@@ -262,7 +320,8 @@ public sealed class StressPage : ContentPage
         _runButton.IsEnabled = false;
         _motion?.Dispose();
         _motion = null;
-        _scroller = null;
+        _skUiScroller = null;
+        _nativeScroller = null;
         _stressHost.Content = null;
         _selected.Text = "No selection";
         _metrics.Text = $"GC… then starting in {RunDelayMilliseconds} ms…";
@@ -294,28 +353,51 @@ public sealed class StressPage : ContentPage
             _countEntry.Text = childCount.ToString();
             var hwAccelerated = _hwAcceleration.IsChecked;
             var animate = _animate.IsChecked;
+            var layer = SelectedLayer;
 
             var overall = Stopwatch.StartNew();
 
             var generate = Stopwatch.StartNew();
-            var scroller = BuildStressTree(childCount, hwAccelerated, animate);
+            View tree = layer switch
+            {
+                StressLayer.Core => BuildCoreStressTree(childCount, hwAccelerated, animate),
+                StressLayer.NativeMaui => BuildNativeMauiStressTree(childCount, animate),
+                _ => BuildSkUiStressTree(childCount, hwAccelerated, animate)
+            };
             generate.Stop();
 
             var add = Stopwatch.StartNew();
-            _scroller = scroller;
-            _stressHost.Content = scroller;
+            switch (tree)
+            {
+                case SkUiScrollView skUi:
+                    _skUiScroller = skUi;
+                    _nativeScroller = null;
+                    break;
+                case ScrollView native:
+                    _nativeScroller = native;
+                    _skUiScroller = null;
+                    break;
+            }
+            _stressHost.Content = tree;
             add.Stop();
 
             var render = Stopwatch.StartNew();
-            await WaitForLaidOutAsync(scroller).ConfigureAwait(true);
+            await WaitForLaidOutAsync(tree).ConfigureAwait(true);
             await FlushUiFrameAsync().ConfigureAwait(true);
             render.Stop();
 
             await WhenUiThreadIdleAsync().ConfigureAwait(true);
             overall.Stop();
 
+            var layerLabel = layer switch
+            {
+                StressLayer.Core => "Core",
+                StressLayer.NativeMaui => "Native MAUI",
+                _ => "SkUi*"
+            };
+            var hwLabel = layer == StressLayer.NativeMaui ? "n/a" : (hwAccelerated ? "on" : "off");
             var metrics =
-                $"Children: {childCount:N0}  |  HW accel: {(hwAccelerated ? "on" : "off")}  |  Animate: {(animate ? "on" : "off")}\n" +
+                $"Layer: {layerLabel}  |  Children: {childCount:N0}  |  HW accel: {hwLabel}  |  Animate: {(animate ? "on" : "off")}\n" +
                 $"Generate UI: {generate.Elapsed.TotalMilliseconds:F1} ms\n" +
                 $"Add to page: {add.Elapsed.TotalMilliseconds:F1} ms\n" +
                 $"UI render (layout + first frame): {render.Elapsed.TotalMilliseconds:F1} ms\n" +
@@ -334,28 +416,23 @@ public sealed class StressPage : ContentPage
         }
     }
 
-    /// <summary>
-    /// Creates the scrollable two-column grid without attaching it to the page.
-    /// When <paramref name="animate"/> is true, column 1 hosts running activity indicators instead of buttons.
-    /// Cell properties use fluent <c>Set*</c> setters (not bindable <c>SetValue</c>) and inserts run inside
-    /// <see cref="SkUiView.StartUpdating"/> / <see cref="SkUiView.EndUpdating"/> so one invalidate covers the batch.
-    /// Per-cell / scroller <c>AutomationId</c> is omitted to avoid bindable write cost in generate profiles.
-    /// </summary>
-    private SkUiScrollView BuildStressTree(int childCount, bool hwAccelerated, bool animate)
-    {
-        var grid = new SkUiGrid();
-        grid.SetColumnSpacing(8).SetRowSpacing(4).SetPadding(new Thickness(8));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+    private const double CellHeight = 48;
+    private const double RowStride = 52; // cell + 4px gap
 
-        grid.StartUpdating();
+    /// <summary>
+    /// SkiaUi MAUI-compatible path: <see cref="SkUiAbsoluteLayout"/> + <see cref="SkUiButton"/> cells.
+    /// Column placement uses proportional X/Width; rows use absolute Y/Height.
+    /// </summary>
+    private SkUiScrollView BuildSkUiStressTree(int childCount, bool hwAccelerated, bool animate)
+    {
+        var layout = new SkUiAbsoluteLayout();
+        layout.SetPadding(new Thickness(8));
+
+        layout.StartUpdating();
         try
         {
             for (var index = 0; index < childCount; index++)
             {
-                if (index % 2 == 0)
-                    grid.RowDefinitions.Add(new RowDefinition(new GridLength(48)));
-
                 var itemNumber = index + 1;
                 var column = index % 2;
                 var row = index / 2;
@@ -382,25 +459,143 @@ public sealed class StressPage : ContentPage
                     cell = button;
                 }
 
-                Grid.SetRow((BindableObject)cell, row);
-                Grid.SetColumn((BindableObject)cell, column);
-                grid.Children.Add(cell);
+                // Two equal columns (0 / 0.5), fixed row height; padding comes from the layout.
+                AbsoluteLayout.SetLayoutBounds((BindableObject)cell, new Rect(column * 0.5, row * RowStride, 0.5, CellHeight));
+                AbsoluteLayout.SetLayoutFlags((BindableObject)cell, AbsoluteLayoutFlags.XProportional | AbsoluteLayoutFlags.WidthProportional);
+                layout.Children.Add(cell);
             }
         }
         finally
         {
-            grid.EndUpdating();
+            layout.EndUpdating();
         }
 
-        // HwAccelerated must be assigned before the view gets a handler (i.e. before it joins the MAUI tree).
-        // Skip AutomationId on stress cells/scroller — bindable SetValue showed up in generate profiles.
         var scroller = new SkUiScrollView
         {
             Background = Colors.White,
             HwAccelerated = hwAccelerated
         };
-        scroller.SetContent(grid);
+        scroller.SetContent(layout);
         return scroller;
+    }
+
+    /// <summary>
+    /// Core path: one <see cref="SkUiCoreHost"/> wrapping <see cref="SkUiCoreAbsoluteLayout"/> of
+    /// <see cref="SkUiCoreButton"/> / <see cref="SkUiCoreActivityIndicator"/> cells.
+    /// Same absolute placement rules as the MAUI path for a fair generate/render comparison.
+    /// </summary>
+    private SkUiScrollView BuildCoreStressTree(int childCount, bool hwAccelerated, bool animate)
+    {
+        var absolute = new SkUiCoreAbsoluteLayout();
+        absolute.SetPadding(new Thickness(8));
+        absolute.StartUpdating();
+        try
+        {
+            for (var index = 0; index < childCount; index++)
+            {
+                var itemNumber = index + 1;
+                var column = index % 2;
+                var row = index / 2;
+                ISkUiCoreNode cell;
+                if (animate && column == 1)
+                {
+                    cell = new SkUiCoreActivityIndicator()
+                        .SetIsRunning(true)
+                        .SetColor(DemoColors.Accent)
+                        .SetHorizontalAlignment(LayoutAlignment.Center)
+                        .SetVerticalAlignment(LayoutAlignment.Center);
+                }
+                else
+                {
+                    var button = new SkUiCoreButton();
+                    button.SetText($"Item {itemNumber:0000}");
+                    button.SetFontSize(14);
+                    button.SetPadding(new Thickness(6));
+                    button.SetTextColor(DemoColors.Ink);
+                    button.SetFillColor(index % 4 < 2 ? Colors.White : DemoColors.StressAlt);
+                    button.SetBorderColor(DemoColors.Border);
+                    button.SetBorderWidth(1);
+                    button.SetClicked(() => _selected.Text = $"Selected item {itemNumber:0000}");
+                    cell = button;
+                }
+
+                absolute.Add(
+                    cell,
+                    new Rect(column * 0.5, row * RowStride, 0.5, CellHeight),
+                    SkUiCoreAbsoluteLayoutFlags.X | SkUiCoreAbsoluteLayoutFlags.Width);
+            }
+        }
+        finally
+        {
+            absolute.EndUpdating();
+        }
+
+        var host = new SkUiCoreHost();
+        host.SetContent(absolute);
+
+        var scroller = new SkUiScrollView
+        {
+            Background = Colors.White,
+            HwAccelerated = hwAccelerated
+        };
+        scroller.SetContent(host);
+        return scroller;
+    }
+
+    /// <summary>
+    /// Native MAUI path: stock <see cref="AbsoluteLayout"/> + <see cref="Button"/> /
+    /// <see cref="ActivityIndicator"/> under a MAUI <see cref="ScrollView"/>.
+    /// Same two-column absolute placement as the SkUi/Core paths for a fair generate/layout comparison.
+    /// </summary>
+    private ScrollView BuildNativeMauiStressTree(int childCount, bool animate)
+    {
+        var layout = new AbsoluteLayout { Padding = new Thickness(8) };
+
+        for (var index = 0; index < childCount; index++)
+        {
+            var itemNumber = index + 1;
+            var column = index % 2;
+            var row = index / 2;
+            View cell;
+            if (animate && column == 1)
+            {
+                cell = new ActivityIndicator
+                {
+                    IsRunning = true,
+                    Color = DemoColors.Accent,
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions = LayoutOptions.Center
+                };
+            }
+            else
+            {
+                var button = new Button
+                {
+                    Text = $"Item {itemNumber:0000}",
+                    FontSize = 14,
+                    Padding = new Thickness(6),
+                    TextColor = DemoColors.Ink,
+                    BackgroundColor = index % 4 < 2 ? Colors.White : DemoColors.StressAlt,
+                    BorderColor = DemoColors.Border,
+                    BorderWidth = 1,
+                    CornerRadius = 6
+                };
+                var captured = itemNumber;
+                button.Clicked += (_, _) => _selected.Text = $"Selected item {captured:0000}";
+                cell = button;
+            }
+
+            AbsoluteLayout.SetLayoutBounds(cell, new Rect(column * 0.5, row * RowStride, 0.5, CellHeight));
+            AbsoluteLayout.SetLayoutFlags(cell, AbsoluteLayoutFlags.XProportional | AbsoluteLayoutFlags.WidthProportional);
+            layout.Children.Add(cell);
+        }
+
+        return new ScrollView
+        {
+            BackgroundColor = Colors.White,
+            Content = layout,
+            AutomationId = "StressNativeScroll"
+        };
     }
 
     private static int ParseChildCount(string? text)
@@ -455,15 +650,29 @@ public sealed class StressPage : ContentPage
     }
 
     /// <summary>
-    /// Animates a full scroll and reports average UI-thread <c>RecordFrame</c> cost.
-    /// This is the metric that should be compared for HW on vs off during scrolling.
+    /// Animates a full scroll and reports average UI-thread cost.
+    /// SkUi/Core use <c>RecordFrame</c> diagnostics when available; native MAUI reports wall-clock scroll only.
     /// </summary>
     private async Task MeasureScrollAsync()
     {
-        if (_scroller is null || _scrollProbeRunning)
+        if (_scrollProbeRunning)
             return;
 
-        var scroller = _scroller;
+        if (_skUiScroller is not null)
+        {
+            await MeasureSkUiScrollAsync(_skUiScroller).ConfigureAwait(true);
+            return;
+        }
+
+        if (_nativeScroller is not null)
+        {
+            await MeasureNativeScrollAsync(_nativeScroller).ConfigureAwait(true);
+            return;
+        }
+    }
+
+    private async Task MeasureSkUiScrollAsync(SkUiScrollView scroller)
+    {
         _scrollProbeRunning = true;
         _runButton.IsEnabled = false;
         try
@@ -485,7 +694,7 @@ public sealed class StressPage : ContentPage
             _motion = motion;
             await Task.Delay(ScrollProbeDuration).ConfigureAwait(true);
 
-            if (!ReferenceEquals(_scroller, scroller))
+            if (!ReferenceEquals(_skUiScroller, scroller))
                 return;
 
             motion.Dispose();
@@ -518,16 +727,59 @@ public sealed class StressPage : ContentPage
         }
     }
 
+    private async Task MeasureNativeScrollAsync(ScrollView scroller)
+    {
+        _scrollProbeRunning = true;
+        _runButton.IsEnabled = false;
+        try
+        {
+            await scroller.ScrollToAsync(0, 0, false).ConfigureAwait(true);
+            await FlushUiFrameAsync().ConfigureAwait(true);
+            await WhenUiThreadIdleAsync().ConfigureAwait(true);
+
+            var contentHeight = scroller.Content is VisualElement content
+                ? content.Height
+                : 0;
+            var targetY = Math.Max(0, contentHeight - scroller.Height);
+            var wall = Stopwatch.StartNew();
+            await scroller.ScrollToAsync(0, targetY, true).ConfigureAwait(true);
+            wall.Stop();
+
+            if (!ReferenceEquals(_nativeScroller, scroller))
+                return;
+
+            var scrollMetrics =
+                $"Scroll probe (native MAUI animate): wall {wall.Elapsed.TotalMilliseconds:F0} ms\n" +
+                $"(RecordFrame N/A — not a SkUi surface)";
+            _metrics.Text = $"{_metrics.Text}\n{scrollMetrics}";
+            Debug.WriteLine($"[Stress/Scroll] {scrollMetrics.Replace("\n", " | ")}");
+        }
+        finally
+        {
+            _scrollProbeRunning = false;
+            _runButton.IsEnabled = true;
+        }
+    }
+
     private void MeasureRecording()
     {
-        if (_scroller is null || _scroller.Width <= 0 || _scroller.Height <= 0)
+        if (_skUiScroller is null || _skUiScroller.Width <= 0 || _skUiScroller.Height <= 0)
+        {
+            if (_nativeScroller is not null)
+            {
+                var note = "CPU Paint N/A for native MAUI (no SkUi Paint path).";
+                _metrics.Text = $"{_metrics.Text}\n{note}";
+                Debug.WriteLine($"[Stress/Record] {note}");
+            }
             return;
+        }
 
+        var scroller = _skUiScroller;
         using var recorder = new SKPictureRecorder();
         void Record()
         {
-            var canvas = recorder.BeginRecording(new SKRect(0, 0, (float)_scroller.Width, (float)_scroller.Height));
-            _scroller.Paint(canvas);
+            var canvas = recorder.BeginRecording(new SKRect(0, 0, (float)scroller.Width, (float)scroller.Height));
+            scroller.Paint(canvas);
             using var picture = recorder.EndRecording();
         }
 
@@ -548,7 +800,7 @@ public sealed class StressPage : ContentPage
     protected override void OnDisappearing()
     {
         _motion?.Dispose();
-        _scroller?.ScrollTo(_scroller.ScrollX, _scroller.ScrollY);
+        _skUiScroller?.ScrollTo(_skUiScroller.ScrollX, _skUiScroller.ScrollY);
         base.OnDisappearing();
     }
 }

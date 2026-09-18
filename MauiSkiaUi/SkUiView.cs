@@ -318,14 +318,63 @@ public class SkUiView : View, ISkUiView
                 using var alpha = new SKPaint { Color = SKColors.White.WithAlpha((byte)(255 * Opacity)) };
                 canvas.SaveLayer(alpha);
             }
-            OnPaintBackground(canvas);
+            if (_paintBackground is { } paintBackground)
+                paintBackground(canvas);
+            else
+                OnPaintBackground(canvas);
             OnPaintContent(canvas);
-            OnPaintOverlay(canvas);
+            if (_paintOverlay is { } paintOverlay)
+                paintOverlay(canvas);
+            else
+                OnPaintOverlay(canvas);
         }
         finally
         {
             canvas.RestoreToCount(saveCount);
         }
+    }
+
+    private Action<SKCanvas>? _paintBackground;
+    private Action<SKCanvas>? _paintOverlay;
+
+    /// <summary>
+    /// Background-layer painter. When set, replaces the default solid <see cref="VisualElement.Background"/> /
+    /// <see cref="VisualElement.BackgroundColor"/> fill. Clear to restore that default.
+    /// Prefer this over subclassing for chrome customization.
+    /// </summary>
+    public Action<SKCanvas>? PaintBackground
+    {
+        get => _paintBackground;
+        set => SetPaintBackground(value);
+    }
+
+    /// <summary>
+    /// Overlay-layer painter drawn after <see cref="OnPaintContent"/>. <c>null</c> means no overlay
+    /// unless a subclass overrides <see cref="OnPaintOverlay"/>.
+    /// Prefer this over subclassing for badges, press tints, and similar chrome.
+    /// </summary>
+    public Action<SKCanvas>? PaintOverlay
+    {
+        get => _paintOverlay;
+        set => SetPaintOverlay(value);
+    }
+
+    /// <summary>Sets the Background painter; <c>null</c> restores the default solid fill via <see cref="OnPaintBackground"/>.</summary>
+    public SkUiView SetPaintBackground(Action<SKCanvas>? value)
+    {
+        if (ReferenceEquals(_paintBackground, value)) return this;
+        _paintBackground = value;
+        InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets the Overlay painter; <c>null</c> falls back to <see cref="OnPaintOverlay"/>.</summary>
+    public SkUiView SetPaintOverlay(Action<SKCanvas>? value)
+    {
+        if (ReferenceEquals(_paintOverlay, value)) return this;
+        _paintOverlay = value;
+        InvalidatePaint();
+        return this;
     }
 
     /// <summary>
@@ -341,8 +390,11 @@ public class SkUiView : View, ISkUiView
         return BackgroundColor;
     }
 
-    /// <summary>Paints a solid MAUI background before content. Other brush types are deferred.</summary>
-    protected virtual void OnPaintBackground(SKCanvas canvas)
+    /// <summary>
+    /// Default Background when <see cref="PaintBackground"/> is unset. Solid MAUI fill only; other brush types are deferred.
+    /// Subclasses may call this from a custom <see cref="PaintBackground"/> painter.
+    /// </summary>
+    protected void PaintDefaultBackground(SKCanvas canvas)
     {
         var color = ResolveSolidBackgroundColor();
         if (color is null)
@@ -351,10 +403,19 @@ public class SkUiView : View, ISkUiView
         canvas.DrawRect(0, 0, (float)Width, (float)Height, paint);
     }
 
-    /// <summary>Paints this node's content and, for containers, its hosted children.</summary>
+    /// <summary>
+    /// Background paint phase when <see cref="PaintBackground"/> is unset.
+    /// Prefer <see cref="PaintBackground"/> for new code; override this for subclass chrome that must stay virtual.
+    /// </summary>
+    protected virtual void OnPaintBackground(SKCanvas canvas) => PaintDefaultBackground(canvas);
+
+    /// <summary>Content paint phase (structural: glyphs, children, hosted content). Always virtual — not replaceable by a delegate.</summary>
     protected virtual void OnPaintContent(SKCanvas canvas) { }
 
-    /// <summary>Paints chrome above content and children.</summary>
+    /// <summary>
+    /// Overlay paint phase when <see cref="PaintOverlay"/> is unset (no-op by default).
+    /// Prefer <see cref="PaintOverlay"/> for new code; override this for subclass chrome that must stay virtual.
+    /// </summary>
     protected virtual void OnPaintOverlay(SKCanvas canvas) { }
 
     /// <summary>Converts a MAUI color to its Skia RGBA representation.</summary>

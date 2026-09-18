@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="80%">
+      <stop offset="0%" stop-color="#13244B"/>
+      <stop offset="55%" stop-color="#0B1220"/>
+      <stop offset="100%" stop-color="#060B16"/>
+    </radialGradient>
+    <linearGradient id="ink" x1="300" y1="360" x2="760" y2="690" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#14B8A6"/>
+    </linearGradient>
+    <linearGradient id="pill" x1="614" y1="506" x2="738" y2="562" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#67E8F9" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#5EEAD4" stop-opacity="0.8"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+    <filter id="softGlow" x="-120%" y="-120%" width="340%" height="340%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <g id="letters">
+      <g fill="none" stroke="url(#ink)" stroke-width="90" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M 290 420 C 265 375 172 380 168 438 C 165 482 212 494 238 505 C 270 517 302 532 296 582 C 289 640 182 642 158 596"/>
+        <path d="M 398 415 L 398 630"/>
+        <path d="M 480 468 L 404 546 L 480 628"/>
+        <path d="M 596 415 L 596 554 A 76 76 0 0 0 748 554 L 748 415"/>
+        <path d="M 858 505 L 858 630"/>
+      </g>
+      <circle cx="858" cy="394" r="47" fill="url(#ink)"/>
+      <!-- toggle switch nested in the U -->
+      <rect x="614" y="506" width="124" height="56" rx="28" fill="url(#pill)"/>
+      <circle cx="710" cy="534" r="30" fill="#A5F3FC" filter="url(#softGlow)"/>
+      <circle cx="710" cy="534" r="23" fill="#ECFEFF"/>
+    </g>
+    <clipPath id="disc">
+      <circle cx="512" cy="512" r="512"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#disc)">
+    <rect width="1024" height="1024" fill="url(#bg)"/>
+  </g>
+  <circle cx="512" cy="512" r="500" fill="none" stroke="#14B8A6" stroke-opacity="0.35" stroke-width="8"/>
+
+  <!-- glow layer -->
+  <g transform="translate(512 512) scale(0.72) translate(-510 -500)">
+    <use xlink:href="#letters" href="#letters" filter="url(#glow)" opacity="0.55"/>
+    <!-- crisp layer -->
+    <use xlink:href="#letters" href="#letters"/>
+  </g>
+</svg>

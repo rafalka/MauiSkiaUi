@@ -6,7 +6,7 @@ Indeterminate spinner driven by the shared animation clock.
 
 ## How it works
 
-While `IsRunning` is true, a repeating clock animation updates the sweep angle. The root handler issues **one** paint invalidation per tick (spinners do not each bubble `InvalidatePaint`). Hiding (`IsVisible=false`) or removing the control—or an **ancestor** layout—from its parent stops the clock so detached subtrees cannot keep ticking. Setting `IsRunning` before the control joins its surface-owning ancestor still works: the spin callback rebinds onto the shared root clock when parenting changes. Stroke paint is cached and released on detach.
+While `IsRunning` is true, a repeating clock animation updates the sweep angle. The root handler issues **one** paint invalidation per tick (spinners do not each bubble `InvalidatePaint`). Hiding (`IsVisible=false`) or removing the control—or an **ancestor** layout—from its parent stops the clock so detached subtrees cannot keep ticking. Setting `IsRunning` before the control joins its surface-owning ancestor still works: the spin callback rebinds onto the shared root clock when parenting changes. Stroke paint is cached and released on detach. Intrinsic measure comes from `SkUiLook.Current.DefaultActivityIndicatorSize` (default 36×36 DIPs). Arc geometry uses `SkUiLook.Current.DrawActivityIndicator` (same path as `SkUiCoreActivityIndicator`).
 
 
 ## Shared conventions

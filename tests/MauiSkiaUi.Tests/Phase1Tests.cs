@@ -72,6 +72,33 @@ public class Phase1Tests(ITestOutputHelper output)
         Assert.True(path.Contains(20, 2));
     }
 
+    [Fact]
+    public void SharedChromeSwitchAndCheckBoxPaintersProduceOpaquePixels()
+    {
+        using var bitmap = new SKBitmap(51, 31);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        SkUiChrome.DrawSwitch(canvas, new SKRect(0, 0, 51, 31), isChecked: true, SKColors.Teal, SKColors.White);
+        Assert.Contains(bitmap.Pixels, pixel => pixel.Alpha > 0);
+
+        using var checkBitmap = new SKBitmap(24, 24);
+        using var checkCanvas = new SKCanvas(checkBitmap);
+        checkCanvas.Clear(SKColors.Transparent);
+        SkUiChrome.DrawCheckBox(checkCanvas, 24, isChecked: true, SKColors.Teal, SKColors.Teal);
+        Assert.Contains(checkBitmap.Pixels, pixel => pixel.Alpha > 0);
+    }
+
+    [Theory]
+    [InlineData(Aspect.AspectFit, 100, 50)]
+    [InlineData(Aspect.AspectFill, 200, 100)]
+    [InlineData(Aspect.Fill, 100, 100)]
+    public void SharedChromeImageDestinationRespectsAspect(Aspect aspect, float expectedWidth, float expectedHeight)
+    {
+        var dest = SkUiChrome.ComputeImageDestination(100, 100, 200, 100, aspect);
+        Assert.Equal(expectedWidth, dest.Width, precision: 2);
+        Assert.Equal(expectedHeight, dest.Height, precision: 2);
+    }
+
     [Theory]
     [InlineData(ScrollOrientation.Vertical, 0, 40)]
     [InlineData(ScrollOrientation.Horizontal, 40, 0)]
