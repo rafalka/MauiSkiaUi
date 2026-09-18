@@ -33,12 +33,20 @@
       <circle cx="710" cy="534" r="30" fill="#A5F3FC" filter="url(#softGlow)"/>
       <circle cx="710" cy="534" r="23" fill="#ECFEFF"/>
     </g>
+    <clipPath id="disc">
+      <circle cx="512" cy="512" r="512"/>
+    </clipPath>
   </defs>
 
-  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g clip-path="url(#disc)">
+    <rect width="1024" height="1024" fill="url(#bg)"/>
+  </g>
+  <circle cx="512" cy="512" r="500" fill="none" stroke="#14B8A6" stroke-opacity="0.35" stroke-width="8"/>
 
   <!-- glow layer -->
-  <use xlink:href="#letters" href="#letters" filter="url(#glow)" opacity="0.55"/>
-  <!-- crisp layer -->
-  <use xlink:href="#letters" href="#letters"/>
+  <g transform="translate(512 512) scale(0.72) translate(-510 -500)">
+    <use xlink:href="#letters" href="#letters" filter="url(#glow)" opacity="0.55"/>
+    <!-- crisp layer -->
+    <use xlink:href="#letters" href="#letters"/>
+  </g>
 </svg>

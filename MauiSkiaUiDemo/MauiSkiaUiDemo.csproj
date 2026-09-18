@@ -28,14 +28,23 @@
 		<MauiXamlInflator>SourceGen</MauiXamlInflator>
 
 		<!-- Display name -->
-		<ApplicationTitle>MauiSkiaUiDemo</ApplicationTitle>
+		<ApplicationTitle>MauiSkiaUi Demo</ApplicationTitle>
 
 		<!-- App Identifier -->
-		<ApplicationId>com.companyname.mauiskiauidemo</ApplicationId>
+		<ApplicationId>com.rkdevel.mauiskiauidemo</ApplicationId>
 
 		<!-- Versions -->
-		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+		<ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
+
+		<!-- Metadata (aligned with MauiSkiaUi package) -->
+		<Authors>Rafal Kukla</Authors>
+		<Company>Rafal Kukla</Company>
+		<Copyright>Copyright © Rafal Kukla</Copyright>
+		<Description>Demo app for MauiSkiaUi — SkiaSharp-drawn .NET MAUI controls, Core layer, look/color scheme playground, and stress harness.</Description>
+		<PackageProjectUrl>https://github.com/rafalka/MauiSkiaUi</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/rafalka/MauiSkiaUi</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
 
 		<!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
 		<WindowsPackageType>None</WindowsPackageType>
@@ -85,11 +94,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<!-- App Icon -->
-		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+		<!-- App Icon (full mark from Resources/skui-icon.svg) -->
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" />
 
 		<!-- Splash Screen -->
-		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#0B1220" BaseSize="128,128" />
 
 		<!-- Images -->
 		<MauiImage Include="Resources\Images\*" />
