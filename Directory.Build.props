@@ -2,5 +2,14 @@
   <PropertyGroup>
     <!-- Pin Microsoft.Maui.Controls and related package versions used via $(MauiVersion). -->
     <MauiVersion>10.0.101</MauiVersion>
+
+    <!--
+      Shared product version for SkiaUi.Maui NuGet (PackageVersion/Version) and the demo app
+      (ApplicationDisplayVersion). Override on the CLI with -p:Version=… (pack/publish workflows).
+    -->
+    <Version>1.0.0-Prerelease01</Version>
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <!-- Android versionCode / iOS CFBundleVersion (integer); bump when shipping store builds. -->
+    <ApplicationVersion>1</ApplicationVersion>
   </PropertyGroup>
 </Project>

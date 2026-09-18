@@ -1,6 +1,6 @@
 name: NuGet pack
 
-# Produces MauiSkiaUi .nupkg / .snupkg artifacts (does not push to nuget.org).
+# Produces SkiaUi.Maui .nupkg / .snupkg artifacts (does not push to nuget.org).
 # macOS packs net10.0 + Android + iOS + Mac Catalyst; Windows adds the Windows TFM;
 # a merge job combines both into one multi-TFM package.
 
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Package version (empty = Version from MauiSkiaUi.csproj)
+        description: Package version (empty = Version from Directory.Build.props)
         required: false
         type: string
         default: ""
@@ -53,7 +53,7 @@ jobs:
           if [[ -n "$VERSION" ]]; then
             echo "Packing with Version=$VERSION"
           else
-            echo "Packing with project Version (MauiSkiaUi.csproj)"
+            echo "Packing with project Version (Directory.Build.props)"
           fi
 
   pack-apple:

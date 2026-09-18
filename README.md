@@ -33,7 +33,7 @@ MAUI page
 ## Install
 
 ```bash
-dotnet add package MauiSkiaUi
+dotnet add package SkiaUi.Maui
 ```
 
 Register in `MauiProgram`:

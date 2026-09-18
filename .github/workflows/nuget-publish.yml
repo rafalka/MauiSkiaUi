@@ -1,6 +1,6 @@
 name: NuGet publish
 
-# Packs MauiSkiaUi (macOS + Windows TFMs merged) and pushes to https://www.nuget.org/
+# Packs SkiaUi.Maui (macOS + Windows TFMs merged) and pushes to https://www.nuget.org/
 # via Trusted Publishing (OIDC):
 #   https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
 # Uses GitHub Environment "nuget.org" (match this name in the nuget.org trusted policy).

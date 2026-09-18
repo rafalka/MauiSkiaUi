@@ -264,7 +264,7 @@ Minimum public Core primitives (expand as MAUI wrappers gain delegates):
 - **Paint layers:** Background/Overlay = `PaintBackground` / `PaintOverlay` delegates; Content = virtual `OnPaintContent` only. Same on `SkUiView` and `SkUiCoreNode`.
 - **DIP types:** allow `Microsoft.Maui.Graphics` in Core; forbid `Microsoft.Maui.Controls`.
 - **Delegate shape (FR-C6):** MAUI control owns a public Core control instance (e.g. `SkUiCoreLabel`).
-- **NuGet (v1):** ship Core inside the main `MauiSkiaUi` package; separate Core assembly in-repo is fine.
+- **NuGet (v1):** ship Core inside the main **`SkiaUi.Maui`** package; separate Core assembly in-repo is fine.
 
 ---
 

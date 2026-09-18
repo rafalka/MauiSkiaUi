@@ -6,7 +6,7 @@ Internal guide for working **on** SkiaUi (library + demo + tests). Library **use
 
 | Project | Type | Description |
 | --- | --- | --- |
-| `MauiSkiaUi` | .NET MAUI class library (`net10.0-*`, plus `net10.0` for tests) | SkiaSharp-based UI controls (`SkUi*` types); intended for **NuGet** publish |
+| `MauiSkiaUi` | .NET MAUI class library (`net10.0-*`, plus `net10.0` for tests) | SkiaSharp-based UI controls (`SkUi*` types); NuGet package id **`SkiaUi.Maui`** |
 | `MauiSkiaUiDemo` | .NET MAUI application (`net10.0-*`) | Sample host used to develop and verify controls; **in-repo only** (not published) |
 | `tests/MauiSkiaUi.Tests` | Headless xUnit tests (`net10.0`) | Real MAUI nodes and offscreen Skia painting; no device required |
 
@@ -16,6 +16,7 @@ Solution file: `SkiaUi.slnx`
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) **10.0.400** (see [global.json](global.json); `rollForward: latestPatch`)
 - MAUI Controls packages pinned to **10.0.101** via [Directory.Build.props](Directory.Build.props) (`MauiVersion`)
+- Product version **`1.0.0-Prerelease01`** (and demo `ApplicationVersion`) via the same file (`Version` / `ApplicationDisplayVersion` / `ApplicationVersion`)
 - .NET MAUI workload (`dotnet workload install maui`)
 - Platform SDKs for the targets you build (Android SDK, Xcode for iOS/Mac Catalyst, etc.)
 
@@ -73,7 +74,7 @@ Without Android signing secrets, the demo Android job still publishes an APK for
 
 Demo app icon/splash SVGs intentionally omit SVG `<filter>` elements: MAUI **10.0.101** Resizetizer regresses on filtered SVGs ([dotnet/maui#38319](https://github.com/dotnet/maui/issues/38319)).
 
-Version overrides: pack/publish accept an explicit version; `v1.2.3` tags strip the leading `v`. Without an override, pack uses `Version` from `MauiSkiaUi.csproj`.
+Version overrides: pack/publish accept an explicit version; `v1.2.3` tags strip the leading `v`. Without an override, pack uses `Version` from [Directory.Build.props](Directory.Build.props) (shared with the demo app).
 
 ## Design documentation
 

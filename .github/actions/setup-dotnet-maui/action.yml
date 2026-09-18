@@ -35,8 +35,8 @@ runs:
           echo "Installing workload: $wl"
           dotnet workload install "$wl" --skip-manifest-update
         done
-        echo "MauiVersion (Directory.Build.props):"
-        # Surface the pin used by PackageReference Version="$(MauiVersion)"
-        grep -A1 '<MauiVersion>' Directory.Build.props || true
+        echo "MauiVersion / Version (Directory.Build.props):"
+        # Surface pins used by PackageReference Version="$(MauiVersion)" and product Version.
+        grep -E '<MauiVersion>|<Version>' Directory.Build.props || true
         dotnet --info
         dotnet workload list

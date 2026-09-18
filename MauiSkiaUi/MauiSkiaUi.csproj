@@ -25,10 +25,9 @@
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
 
-		<!-- NuGet -->
+		<!-- NuGet (Version / ApplicationDisplayVersion come from Directory.Build.props) -->
 		<IsPackable>true</IsPackable>
-		<PackageId>MauiSkiaUi</PackageId>
-		<Version>1.0.0-Prerelease01</Version>
+		<PackageId>SkiaUi.Maui</PackageId>
 		<Authors>Rafal Kukla</Authors>
 		<Company>Rafal Kukla</Company>
 		<Copyright>Copyright © Rafal Kukla</Copyright>

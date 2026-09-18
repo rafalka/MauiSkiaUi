@@ -219,8 +219,8 @@ Design and checklist: [LayoutSystem.md](LayoutSystem.md).
 
 ### FR-6 — Packaging readiness
 
-- [ ] Public types use the **`SkUi*`** naming convention (e.g. `SkUiView`, `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, `SkUiLabel`, `SkUiMauiContentView`); assembly / project / NuGet package id remains **`MauiSkiaUi`**.
-- [ ] Prepare **`MauiSkiaUi`** for NuGet publish (package id, versioning, metadata, symbols as needed).
+- [ ] Public types use the **`SkUi*`** naming convention (e.g. `SkUiView`, `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, `SkUiLabel`, `SkUiMauiContentView`); project/assembly name remains **`MauiSkiaUi`**; NuGet package id is **`SkiaUi.Maui`**.
+- [ ] Prepare **`SkiaUi.Maui`** for NuGet publish (package id, versioning, metadata, symbols as needed).
 - [ ] **`MauiSkiaUiDemo`** stays **in-repo only** — not published as a NuGet package.
 
 ### FR-7 — Animation
@@ -494,8 +494,8 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - **Color scheme (FR-19):** public `SkUiColorScheme` with `LightSkUiColorScheme` / `DarkSkUiColorScheme`, `Current`, and mutable tokens. `SkUiColors` reads the active scheme. Construction snapshots accents; paint-time tokens follow `Current`. Details: [ColorScheme.md](ColorScheme.md).
 - **Properties — BindableProperty + direct setters (FR-10):** use `BindableProperty` for near drop-in MAUI / XAML / binding parity. Also expose fluent direct setters (e.g. `SetBackgroundColor`) that update control state; bindable property changed callbacks **call** those setters. Direct setters **do not** update the `BindableProperty` (intentional desync risk when bypassing bindings) — **must be stated clearly in documentation**. Both paths honor `StartUpdating()` / `EndUpdating()` semi-transactions: defer measure/draw invalidation until `EndUpdating()`.
 - **Coordinate system:** same as MAUI — `ISkUiView` sizes, positions, and touch coordinates use MAUI device-independent units (DIPs) and the same density semantics as the host; `SkUiContentView` maps to/from the Skia pixel surface as an implementation detail of the bridge.
-- **Public type naming:** `SkUi*` (e.g. `SkUiView`, `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, `SkUiLabel`, `SkUiMauiContentView`, `ISkUiView`). Package / project name remains `MauiSkiaUi`.
-- **NuGet:** publish **`MauiSkiaUi`** as a NuGet package; **`MauiSkiaUiDemo`** is in-repo only (not published).
+- **Public type naming:** `SkUi*` (e.g. `SkUiView`, `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, `SkUiLabel`, `SkUiMauiContentView`, `ISkUiView`). Project/assembly name remains `MauiSkiaUi`; NuGet package id is **`SkiaUi.Maui`**.
+- **NuGet:** publish **`SkiaUi.Maui`** as a NuGet package; **`MauiSkiaUiDemo`** is in-repo only (not published).
 - **Drawing layers (FR-9) — Option A:** dedicated layer structure (Background / Content / Overlay paint phases on the control), not nested `ISkUiView` hosts for chrome. Layers need the owning control’s data (e.g. table/grid draws Background **lines** from its own row/column measurements). Nested hosting remains for layout `Children` only. Toolkit notes (Flutter composition vs engine `Layer` tree, Avalonia/Uno templates, DrawnUi child trees) stay relevant as reference for caching/reuse, not as the chosen chrome model. **Customization:** Background/Overlay via `PaintBackground` / `PaintOverlay` delegates; Content remains virtual `OnPaintContent`. Same on Core. Details: [DrawingMechanism.md](DrawingMechanism.md).
 - **Code performance (NFR-2):** critical paths (especially animation tick + paint) aim for **maximum speed** and **zero / near-zero allocations**, using modern C#/.NET techniques including **`unsafe`** where justified. **Correctness-first workflow:** ship simple, readable code first; after tests confirm behavior, optimize for max performance and min allocations.
 - **Flexibility and reuse (NFR-4):** extensible controls via **virtual hooks** and **interfaces**; shared building blocks for background drawing, animations, layers, and similar — avoid copy-paste chrome.
