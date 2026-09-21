@@ -9,9 +9,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Package version to publish (required)
-        required: true
+        description: Package version (empty = Version from Directory.Build.props)
+        required: false
         type: string
+        default: ""
       dry_run:
         description: Pack only; do not push to nuget.org
         required: false
@@ -33,6 +34,9 @@ jobs:
       version: ${{ steps.ver.outputs.version }}
       push: ${{ steps.ver.outputs.push }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
       - name: Resolve version
         id: ver
         env:
@@ -48,6 +52,9 @@ jobs:
             PUSH=true
           else
             VERSION="${INPUT_VERSION:-}"
+            if [[ -z "$VERSION" ]]; then
+              VERSION="$(sed -n 's/^[[:space:]]*<Version>\([^<]*\)<\/Version>/\1/p' Directory.Build.props | head -1)"
+            fi
             if [[ "${DRY_RUN:-false}" == "true" ]]; then
               PUSH=false
             else
@@ -55,7 +62,7 @@ jobs:
             fi
           fi
           if [[ -z "$VERSION" ]]; then
-            echo "Version is required" >&2
+            echo "Version is empty (provide an input or set <Version> in Directory.Build.props)" >&2
             exit 1
           fi
           if [[ ! "$VERSION" =~ ^[A-Za-z0-9._+-]+$ ]]; then
