@@ -280,6 +280,32 @@ public class CoreGridLayoutTests
     }
 
     [Fact]
+    public void SpanDeficit_PrefersRemainingAutoRoomOverStar()
+    {
+        // Two Auto columns (first capped) + Star: a wide spanned cell must give leftover
+        // to the second Auto after the first hits Max — not dump it on the Star track.
+        var grid = new SkUiCoreGrid()
+            .SetPadding(new Thickness(0))
+            .SetColumnSpacing(0)
+            .SetColumnDefinitions([
+                new SkUiCoreColumnDefinition(SkUiCoreGridLength.Auto).SetMaxWidth(20),
+                new SkUiCoreColumnDefinition(SkUiCoreGridLength.Auto),
+                new SkUiCoreColumnDefinition(SkUiCoreGridLength.Star)
+            ])
+            .SetRowDefinitions([new SkUiCoreRowDefinition(new SkUiCoreGridLength(20))]);
+
+        var spanned = FixedBox(100, 10);
+        grid.Add(spanned, 0, 0, columnSpan: 3);
+
+        grid.Measure(200, 20);
+        grid.Arrange(new Rect(0, 0, 200, 20));
+
+        Assert.Equal(20, grid.GetColumnWidth(0), 1);
+        Assert.Equal(80, grid.GetColumnWidth(1), 1);
+        Assert.Equal(100, grid.GetColumnWidth(2), 1);
+    }
+
+    [Fact]
     public void SpotParity_WithMauiGrid_AbsoluteAutoStar()
     {
         var core = new SkUiCoreGrid()

@@ -471,27 +471,41 @@ internal sealed class SkUiCoreGridStructure
     private static double DistributeDeficit(Definition[] defs, int start, int endExclusiveSpan, double deficit, bool preferAuto)
     {
         var end = start + endExclusiveSpan;
-        var candidates = 0;
-        for (var i = start; i < end; i++)
-        {
-            var def = defs[i];
-            var match = preferAuto ? def.IsAuto : def.IsStar;
-            if (match && def.Size < def.UserMax - 0.0001)
-                candidates++;
-        }
-
-        if (candidates == 0) return deficit;
-        var share = deficit / candidates;
         var remaining = deficit;
-        for (var i = start; i < end; i++)
+        // Repeat until the residual is gone or every preferred track is at Max — a one-pass
+        // equal split leaves leftover on capped tracks that sibling Autos could still absorb
+        // (before Stars are considered).
+        while (remaining > 0.001)
         {
-            var def = defs[i];
-            var match = preferAuto ? def.IsAuto : def.IsStar;
-            if (!match || def.Size >= def.UserMax - 0.0001) continue;
-            var room = def.UserMax - def.Size;
-            var add = Math.Min(share, room);
-            def.Update(def.Size + add);
-            remaining -= add;
+            var candidates = 0;
+            for (var i = start; i < end; i++)
+            {
+                var def = defs[i];
+                var match = preferAuto ? def.IsAuto : def.IsStar;
+                if (match && def.Size < def.UserMax - 0.0001)
+                    candidates++;
+            }
+
+            if (candidates == 0)
+                break;
+
+            var share = remaining / candidates;
+            var progressed = false;
+            for (var i = start; i < end; i++)
+            {
+                var def = defs[i];
+                var match = preferAuto ? def.IsAuto : def.IsStar;
+                if (!match || def.Size >= def.UserMax - 0.0001) continue;
+                var room = def.UserMax - def.Size;
+                var add = Math.Min(share, room);
+                if (add <= 0.0001) continue;
+                def.Update(def.Size + add);
+                remaining -= add;
+                progressed = true;
+            }
+
+            if (!progressed)
+                break;
         }
 
         return Math.Max(0, remaining);

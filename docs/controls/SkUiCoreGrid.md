@@ -46,7 +46,8 @@ var host = new SkUiCoreHost().SetContent(grid);
 
 | API | Role |
 | --- | --- |
-| `RowDefinitions` / `ColumnDefinitions` | Track sizes (`SkUiCoreGridLength` Auto / absolute / star) |
+| `RowDefinitions` / `ColumnDefinitions` | Read-only track list; mutate with `Set*Definitions` / `Add*Definition` |
+| `SetRowDefinitions` / `SetColumnDefinitions` / `AddRowDefinition` / `AddColumnDefinition` | Structural definition changes (subscribe + invalidate) |
 | `RowSpacing` / `ColumnSpacing` / `Padding` | Gaps and inset |
 | `Add` / `SetPlacement` / `SetRow` / … | Cell indices and spans |
 | `GetRowOffset` / `GetColumnOffset` / `GetRowHeight` / `GetColumnWidth` / `GetCellBounds` | Metrics after measure/arrange (for subclasses / tests) |

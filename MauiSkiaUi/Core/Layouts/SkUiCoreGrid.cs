@@ -14,11 +14,17 @@ public class SkUiCoreGrid : SkUiCorePanel
     private double _columnSpacing;
     private SkUiCoreGridStructure? _structure;
 
-    /// <summary>Row definitions; empty implies one star row.</summary>
-    public IList<SkUiCoreRowDefinition> RowDefinitions => _rows;
+    /// <summary>
+    /// Row definitions (read-only). Empty implies one star row.
+    /// Mutate via <see cref="SetRowDefinitions"/> or <see cref="AddRowDefinition"/>.
+    /// </summary>
+    public IReadOnlyList<SkUiCoreRowDefinition> RowDefinitions => _rows;
 
-    /// <summary>Column definitions; empty implies one star column.</summary>
-    public IList<SkUiCoreColumnDefinition> ColumnDefinitions => _columns;
+    /// <summary>
+    /// Column definitions (read-only). Empty implies one star column.
+    /// Mutate via <see cref="SetColumnDefinitions"/> or <see cref="AddColumnDefinition"/>.
+    /// </summary>
+    public IReadOnlyList<SkUiCoreColumnDefinition> ColumnDefinitions => _columns;
 
     /// <summary>Gap between rows in DIPs.</summary>
     public double RowSpacing
