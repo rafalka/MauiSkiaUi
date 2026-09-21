@@ -16,7 +16,7 @@ Solution file: `SkiaUi.slnx`
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) **10.0.400** (see [global.json](global.json); `rollForward: latestPatch`)
 - MAUI Controls packages pinned to **10.0.101** via [Directory.Build.props](Directory.Build.props) (`MauiVersion`)
-- Product version **`1.0.0-Prerelease01`** (and demo `ApplicationVersion`) via the same file (`Version` / `ApplicationDisplayVersion` / `ApplicationVersion`)
+- Product version (and demo `ApplicationDisplayVersion`) via the same file (`Version` / `ApplicationVersion`). Per-version notes: [CHANGELOG.md](CHANGELOG.md)
 - .NET MAUI workload (`dotnet workload install maui`)
 - Platform SDKs for the targets you build (Android SDK, Xcode for iOS/Mac Catalyst, etc.)
 
@@ -75,6 +75,8 @@ Without Android signing secrets, the demo Android job still publishes an APK for
 Demo app icon/splash SVGs intentionally omit SVG `<filter>` elements: MAUI **10.0.101** Resizetizer regresses on filtered SVGs ([dotnet/maui#38319](https://github.com/dotnet/maui/issues/38319)).
 
 Version overrides: pack/publish accept an explicit version; `v1.2.3` tags strip the leading `v`. Without an override, pack uses `Version` from [Directory.Build.props](Directory.Build.props) (shared with the demo app).
+
+Release notes: add a `## <version>` section to [CHANGELOG.md](CHANGELOG.md) before packing that version. Workflows run [`scripts/extract-release-notes.py`](scripts/extract-release-notes.py) and the library packs the section as `PackageReleaseNotes` (shown on nuget.org), with a link back to the changelog.
 
 ## Design documentation
 

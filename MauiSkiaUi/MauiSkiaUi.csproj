@@ -43,6 +43,9 @@
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<!-- Filled by scripts/extract-release-notes.py before pack (see nuget-pack / nuget-publish). -->
+		<_ChangelogNotes>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../artifacts/release-notes.txt'))</_ChangelogNotes>
+		<PackageReleaseNotes Condition="Exists('$(_ChangelogNotes)')">$([System.IO.File]::ReadAllText('$(_ChangelogNotes)'))</PackageReleaseNotes>
 		<EmbedUntrackedSources>true</EmbedUntrackedSources>
 	</PropertyGroup>
 
