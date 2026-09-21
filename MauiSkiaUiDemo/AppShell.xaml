@@ -14,6 +14,13 @@
             Route="components" />
     </FlyoutItem>
 
+    <FlyoutItem Title="Core">
+        <ShellContent
+            Title="Core"
+            ContentTemplate="{DataTemplate local:CoreGalleryPage}"
+            Route="core" />
+    </FlyoutItem>
+
     <FlyoutItem Title="Composition">
         <ShellContent
             Title="Composition"

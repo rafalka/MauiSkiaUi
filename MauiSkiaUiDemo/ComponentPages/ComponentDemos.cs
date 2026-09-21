@@ -1,4 +1,5 @@
 using MauiSkiaUi;
+using MauiSkiaUi.Core;
 
 namespace MauiSkiaUiDemo;
 
@@ -28,6 +29,16 @@ public static class ComponentDemos
         new(typeof(SkUiBox), typeof(BoxDemoPage), nameof(BoxView), ComponentCategory.Graphics, () => new BoxDemoPage()),
         new(typeof(SkUiEllipse), typeof(EllipseDemoPage), nameof(Microsoft.Maui.Controls.Shapes.Ellipse), ComponentCategory.Graphics, () => new EllipseDemoPage()),
         new(typeof(SkUiLine), typeof(LineDemoPage), nameof(Microsoft.Maui.Controls.Shapes.Line), ComponentCategory.Graphics, () => new LineDemoPage()),
-        new(typeof(SkUiScrollView), typeof(ScrollViewDemoPage), nameof(ScrollView), ComponentCategory.ScrollingAndCollections, () => new ScrollViewDemoPage())
+        new(typeof(SkUiScrollView), typeof(ScrollViewDemoPage), nameof(ScrollView), ComponentCategory.ScrollingAndCollections, () => new ScrollViewDemoPage()),
+        new(typeof(SkUiCoreGrid), typeof(CoreGridDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreGridDemoPage()),
+        new(typeof(SkUiCoreTable), typeof(CoreTableDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreTableDemoPage())
     ];
+
+    /// <summary>MAUI-compatible <c>SkUi*</c> demos shown on the Components flyout.</summary>
+    public static IEnumerable<ComponentDemo> MauiCompatible =>
+        All.Where(demo => demo.Category != ComponentCategory.Core);
+
+    /// <summary>Core-layer demos shown on the Core flyout.</summary>
+    public static IEnumerable<ComponentDemo> Core =>
+        All.Where(demo => demo.Category == ComponentCategory.Core);
 }

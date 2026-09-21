@@ -75,6 +75,18 @@ jobs:
         with:
           packages: platform-tools platforms;android-36 build-tools;36.0.0
 
+      - name: Extract release notes
+        env:
+          PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${PACKAGE_VERSION:-}"
+          if [[ -z "$VERSION" ]]; then
+            VERSION="$(sed -n 's/^[[:space:]]*<Version>\([^<]*\)<\/Version>/\1/p' Directory.Build.props | head -1)"
+          fi
+          python3 scripts/extract-release-notes.py "$VERSION" CHANGELOG.md artifacts/release-notes.txt
+
       - name: Pack
         env:
           PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
@@ -121,6 +133,18 @@ jobs:
         with:
           workloads: maui-windows maui-android
           java-version: "21"
+
+      - name: Extract release notes
+        env:
+          PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${PACKAGE_VERSION:-}"
+          if [[ -z "$VERSION" ]]; then
+            VERSION="$(sed -n 's/^[[:space:]]*<Version>\([^<]*\)<\/Version>/\1/p' Directory.Build.props | head -1)"
+          fi
+          python3 scripts/extract-release-notes.py "$VERSION" CHANGELOG.md artifacts/release-notes.txt
 
       - name: Pack Windows TFM
         env:

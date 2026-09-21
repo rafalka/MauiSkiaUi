@@ -1,3 +1,4 @@
+using MauiSkiaUi.Core;
 using MauiSkiaUiDemo;
 using Xunit;
 
@@ -6,16 +7,28 @@ namespace MauiSkiaUi.Tests;
 public class ComponentDemoTests
 {
     [Fact]
-    public void EveryConcreteComponentHasOneDedicatedDemo()
+    public void EveryConcreteMauiCompatibleComponentHasOneDedicatedDemo()
     {
-        // SkUiCoreHost is the Core↔MAUI bridge (Stress / Look pages), not a gallery control.
+        // SkUiCoreHost is the Core↔MAUI bridge (Stress / Look / Core demos), not a gallery control.
         var controls = typeof(SkUiView).Assembly.GetTypes()
             .Where(type => type.IsPublic && !type.IsAbstract && typeof(SkUiView).IsAssignableFrom(type))
-            .Where(type => type != typeof(MauiSkiaUi.Core.SkUiCoreHost))
+            .Where(type => type != typeof(SkUiCoreHost))
             .OrderBy(type => type.Name);
-        Assert.Equal(controls, ComponentDemos.All.Select(demo => demo.ComponentType).OrderBy(type => type.Name));
+        Assert.Equal(controls, ComponentDemos.MauiCompatible.Select(demo => demo.ComponentType).OrderBy(type => type.Name));
         Assert.Equal(ComponentDemos.All.Count, ComponentDemos.All.Select(demo => demo.PageType).Distinct().Count());
         Assert.Equal(ComponentDemos.All.Count, ComponentDemos.All.Select(demo => demo.Route).Distinct().Count());
+    }
+
+    [Fact]
+    public void CoreDemosTargetCoreNodeTypes()
+    {
+        Assert.NotEmpty(ComponentDemos.Core);
+        foreach (var demo in ComponentDemos.Core)
+        {
+            Assert.Equal(ComponentCategory.Core, demo.Category);
+            Assert.True(typeof(ISkUiCoreNode).IsAssignableFrom(demo.ComponentType),
+                $"{demo.Name} should target an ISkUiCoreNode.");
+        }
     }
 
     [Fact]
@@ -23,7 +36,6 @@ public class ComponentDemoTests
     {
         foreach (var demo in ComponentDemos.All)
             Assert.Contains(demo.Category, ComponentCategoryInfo.Order);
-        // Every declared category must have at least one demo, or its gallery section would be dead weight.
         foreach (var category in ComponentCategoryInfo.Order)
             Assert.Contains(ComponentDemos.All, demo => demo.Category == category);
     }
@@ -35,7 +47,8 @@ public class ComponentDemoTests
         {
             var page = demo.Create();
             Assert.Equal(demo.PageType, page.GetType());
-            Assert.True(ContainsInstanceOf(page.SkiaControl, demo.ComponentType), $"{demo.PageType.Name}'s preview does not contain a {demo.ComponentType.Name}.");
+            Assert.True(ContainsComponent(page, demo.ComponentType),
+                $"{demo.PageType.Name}'s preview does not contain a {demo.ComponentType.Name}.");
             Assert.Empty(page.CheckProperties());
             foreach (var slider in Descendants(page.Editors).OfType<Slider>()) slider.Value = (slider.Minimum + slider.Maximum) / 2;
             foreach (var toggle in Descendants(page.Editors).OfType<Switch>()) toggle.IsToggled = !toggle.IsToggled;
@@ -48,10 +61,37 @@ public class ComponentDemoTests
         }
     }
 
+    private static bool ContainsComponent(ComponentDemoPage page, Type type)
+    {
+        if (ContainsInstanceOf(page.SkiaControl, type)) return true;
+        if (page.SkiaControl is SkUiCoreHost { Content: { } root })
+            return ContainsCoreInstance(root, type);
+        return false;
+    }
+
     private static bool ContainsInstanceOf(ISkUiView view, Type type)
     {
         if (type.IsInstanceOfType(view)) return true;
         return view is SkUiView node && node.SkiaChildren.Any(child => ContainsInstanceOf(child, type));
+    }
+
+    private static bool ContainsCoreInstance(ISkUiCoreNode node, Type type)
+    {
+        if (type.IsInstanceOfType(node)) return true;
+        if (node is SkUiCorePanel panel)
+        {
+            foreach (var child in panel.Children)
+            {
+                if (ContainsCoreInstance(child, type))
+                    return true;
+            }
+        }
+        else if (node is SkUiCoreContentView { Content: { } content })
+        {
+            return ContainsCoreInstance(content, type);
+        }
+
+        return false;
     }
 
     [Fact]

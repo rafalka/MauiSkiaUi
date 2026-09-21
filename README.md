@@ -2,6 +2,16 @@
 
 .NET MAUI library of **SkiaSharp-drawn UI** with two layers you can mix in one tree: a **MAUI-compatible `SkUi*` surface** for replacing native controls, and a **lightweight Core** for building custom controls and dense UI without MAUI `View` overhead. GPU acceleration when available; **`SkUiMauiContentView`** hosts Entry, Editor, WebView, and similar as native overlays.
 
+## Why SkiaUi
+
+.NET MAUI is a strong piece of engineering. On a complex screen its cost shows up in two places.
+
+**Speed.** Each visual update crosses from .NET into the native UI runtime. That boundary is fine for a handful of controls and becomes significant when a screen holds a large tree.
+
+**Memory.** Every MAUI control owns a handler and a platform view, and every platform view has a native object on the other side. Leak tracking is difficult because it is often unclear whether the platform view is held by the native object, or the native object is held by the platform view.
+
+SkiaUi draws most of the tree on one Skia surface, so those controls do not each allocate a handler and a platform view. Native views stay only where the platform must own them (text input, WebView, and similar).
+
 ## Two layers
 
 | Layer | What it is | When to use it |
@@ -122,6 +132,10 @@ On this device, overall idle time was about **13×** faster for SkUi* and **52×
 ## Contributing / developing SkiaUi
 
 Build, test, CI, architecture, and design docs: **[Development.md](Development.md)**.
+
+## Changes
+
+[CHANGELOG.md](https://github.com/rafalka/MauiSkiaUi/blob/master/CHANGELOG.md) — the same notes nuget.org shows for each `SkiaUi.Maui` version.
 
 ## License
 

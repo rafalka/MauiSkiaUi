@@ -23,6 +23,8 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreAbsoluteLayoutFlags` | Same idea as MAUI `AbsoluteLayoutFlags` |
 | `SkUiCoreVerticalStackLayout` / `SkUiCoreHorizontalStackLayout` | Stack layouts (owned algorithms; no MAUI managers) |
 | `SkUiCoreOverlayLayout` | Children share one slot (like `SkUiLayout`) |
+| `SkUiCoreGrid` | Auto / absolute / star grid + per-track min/max; see [SkUiCoreGrid.md](SkUiCoreGrid.md) |
+| `SkUiCoreTable` | Grid + row/column/cell backgrounds and span-aware separators; see [SkUiCoreTable.md](SkUiCoreTable.md) |
 | `SkUiCoreContentView` / `SkUiCoreBorder` | Single-child host; border adds rounded chrome |
 | `SkUiCoreLabel` / `SkUiCoreButton` | Text and rounded tap button (`ICommand`) |
 | `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Boolean toggles |
@@ -31,7 +33,7 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreActivityIndicator` | Indeterminate spinner on the host animation clock |
 | `SkUiCoreHost` | `SkUiView` bridge that hosts one Core root |
 
-**Not in Core yet:** `Grid`, `ScrollView` (use MAUI-compatible wrappers + `SkUiCoreHost` for scrolled Core trees).
+**Not in Core yet:** `ScrollView` (use MAUI-compatible wrappers + `SkUiCoreHost` for scrolled Core trees).
 
 Core types intentionally do **not** implement `IView` and are **not** accepted by `SkUiLayout.Children`. Mixing requires `SkUiCoreHost`.
 
@@ -51,7 +53,7 @@ scroller.SetContent(host);
 
 ## Stress comparison
 
-Demo **Stress test** page: toggle **Core layer** to build the same two-column absolute button list with Core nodes vs MAUI-compatible `SkUiAbsoluteLayout` + `SkUiButton`. **Animate** puts running `SkUiCoreActivityIndicator` / `SkUiActivityIndicator` cells in the second column on either layer. Compare Generate / Add / Render timings (see measured gap in [CoreRequirements.md](../design/CoreRequirements.md)).
+Demo **Stress test** page: toggle **Core layer** to build the same two-column grid of buttons with Core nodes vs MAUI-compatible `SkUiGrid` + `SkUiButton`. **Animate** puts running `SkUiCoreActivityIndicator` / `SkUiActivityIndicator` cells in the second column on either layer. Compare Generate / Add / Render timings (see measured gap in [CoreRequirements.md](../design/CoreRequirements.md)).
 
 ## Roadmap (see CoreRequirements)
 
@@ -62,4 +64,4 @@ Demo **Stress test** page: toggle **Core layer** to build the same two-column ab
 - Shared palette via public **`SkUiColorScheme`** (light/dark) and **`SkUiColors`** accessors; **FR-19**
 - Neither look nor scheme is MAUI Style/VSM (FR-12)
 - `SkUiLabel` / `SkUiButton` eventually delegate measure & paint to Core (still separate types; chrome already shared)
-- Core **Grid** / **ScrollView** (deferred)
+- Core **ScrollView** (deferred; Grid/Table shipped)
