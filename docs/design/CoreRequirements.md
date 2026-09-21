@@ -4,7 +4,7 @@ Requirements for the **SkiaUi Core** layer (`MauiSkiaUi.Core`): a separate, low-
 
 The MAUI-compatible surface (`SkUiLabel`, `SkUiGrid`, …) remains the primary drop-in API and is specified in [Requirements.md](Requirements.md). This document covers Core only.
 
-**Status:** Core layouts (Absolute, stacks, overlay, ContentView/Border) and basic controls (Label, Button, toggles, Image/ImageButton, ActivityIndicator, shapes) exist under `MauiSkiaUi/Core/` (same assembly today). Grid and ScrollView are deferred. Stress results below motivate promoting Core to a first-class, dependency-clean layer. Items are **not complete** unless checked and summarized in [Development.md](../../Development.md).
+**Status:** Core layouts (Absolute, stacks, overlay, ContentView/Border, **Grid**, **Table**) and basic controls (Label, Button, toggles, Image/ImageButton, ActivityIndicator, shapes) exist under `MauiSkiaUi/Core/` (same assembly today). ScrollView is deferred. Stress results below motivate promoting Core to a first-class, dependency-clean layer. Items are **not complete** unless checked and summarized in [Development.md](../../Development.md).
 
 ## Motivation (measured)
 
@@ -94,12 +94,13 @@ Target packaging: prefer a **separate project/assembly** (`MauiSkiaUi.Core`) ref
 - [ ] Implement Core layouts **without** MAUI layout managers:
   - [x] Absolute (+ proportional flags) — prototype
   - [x] Vertical / horizontal stack (+ overlay)
-  - [ ] Grid (Auto / absolute / `*`) — port algorithm or simplify; do not call `GridLayoutManager`
+  - [x] Grid (Auto / absolute / `*`) — owned `SkUiCoreGridStructure`; per-track min/max; do not call `GridLayoutManager`
+  - [x] Table chrome on `SkUiCoreTable` (row/column backgrounds + span-aware separators)
   - [ ] ScrollView — deferred (host Core under MAUI-compatible `SkUiScrollView` for now)
 - [x] Invalidation: per-node dirty flags; `StartUpdating` / `EndUpdating` batching (mirror FR-10 batching, no bindables).
 - [x] Layers: Background/Overlay via painters (`PaintBackground` / `PaintOverlay`); Content via virtual `OnPaintContent` (FR-9 / DrawingMechanism).
 - [x] Gestures: Core-owned pointer delivery (hit-test arranged bounds); bridge maps host `SkUiTouchEvent` ↔ Core. No MAUI `GestureRecognizers`.
-- [x] Primitives + basic controls (Label, Button, Border, ContentView, toggles, Image/ImageButton, ActivityIndicator, shapes). Grid/ScrollView excluded for now.
+- [x] Primitives + basic controls (Label, Button, Border, ContentView, toggles, Image/ImageButton, ActivityIndicator, shapes). ScrollView excluded for now.
 
 ### FR-C4 — Fluent API + CLR properties (single apply path)
 
@@ -198,12 +199,12 @@ Minimum public Core primitives (expand as MAUI wrappers gain delegates):
 | `SkUiCoreButton` | Prototype |
 | `SkUiCoreBox` / shape primitives | Prototype |
 | Stack layouts (`Vertical` / `Horizontal` / `Overlay`) | Prototype |
-| Grid | Todo |
+| Grid (`SkUiCoreGrid`) + Table (`SkUiCoreTable`) | Prototype |
 | Activity indicator / toggles / Image | Prototype |
 
 ### FR-C9 — Demo and proof
 
-- [x] Stress page toggle: MAUI AbsoluteLayout + `SkUiButton` vs Core AbsoluteLayout + `SkUiCoreButton`.
+- [x] Stress page toggle: MAUI `SkUiGrid` + `SkUiButton` vs Core `SkUiCoreGrid` + `SkUiCoreButton` (native MAUI `Grid` is the third layer).
 - [ ] Keep stress comparison as a regression gate when sharing paint/measure (FR-C6) so Generate cost does not regress toward MAUI levels for the Core path.
 - [ ] Gallery snippet or docs sample: custom control built from Core primitives, hosted via `SkUiCoreHost` or wrapped as `SkUiView`.
 

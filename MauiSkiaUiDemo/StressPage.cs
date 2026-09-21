@@ -2,7 +2,6 @@ using System.Diagnostics;
 using CommunityToolkit.Maui.Views;
 using MauiSkiaUi;
 using MauiSkiaUi.Core;
-using Microsoft.Maui.Layouts;
 using SkiaSharp;
 
 namespace MauiSkiaUiDemo;
@@ -19,7 +18,7 @@ public sealed class StressPage : ContentPage
         SkUi,
         /// <summary>Lightweight Core nodes under <see cref="SkUiCoreHost"/>.</summary>
         Core,
-        /// <summary>Stock MAUI controls (<see cref="Button"/>, <see cref="AbsoluteLayout"/>, <see cref="ScrollView"/>).</summary>
+        /// <summary>Stock MAUI controls (<see cref="Button"/>, <see cref="Grid"/>, <see cref="ScrollView"/>).</summary>
         NativeMaui
     }
 
@@ -50,10 +49,10 @@ public sealed class StressPage : ContentPage
         var description = new Label
         {
             Text =
-                "Builds a two-column absolute layout of buttons under one scroll view, then measures generate, attach, " +
+                "Builds a two-column grid of buttons under one scroll view, then measures generate, attach, " +
                 "first-layout/render, and overall time until the UI thread is idle. " +
-                "Layer picks SkUi* (MAUI-compatible SkiaUi), Core (SkUiCoreHost + Core absolute + Core buttons/spinners), " +
-                "or Native MAUI (stock AbsoluteLayout / Button / ActivityIndicator / ScrollView). " +
+                "Layer picks SkUi* (MAUI-compatible SkiaUi), Core (SkUiCoreHost + Core grid + Core buttons/spinners), " +
+                "or Native MAUI (stock Grid / Button / ActivityIndicator / ScrollView). " +
                 "With Animate checked, the second column uses running activity indicators. " +
                 "HW accel applies to SkUi/Core surfaces only. Record times CPU Paint (SkUi/Core); Scroll reports scroll cost.",
             TextColor = DemoColors.Caption,
@@ -322,26 +321,118 @@ public sealed class StressPage : ContentPage
         _motion = null;
         _skUiScroller = null;
         _nativeScroller = null;
-        _stressHost.Content = null;
-        _selected.Text = "No selection";
-        _metrics.Text = $"GC… then starting in {RunDelayMilliseconds} ms…";
 
-        // Let the previous tree detach before collecting, then delay so the click/paint settle.
+        // Keep the old tree alive until native handlers are disconnected. Forcing
+        // WaitForPendingFinalizers while UIViews still tear down races CALayer KVO
+        // (__NSObject_Disposer → UIView dealloc → removeFromSuperview).
+        var previous = _stressHost.Content;
+        if (previous is not null)
+        {
+            // Disconnect while the subtree is still intact so every platform view is released
+            // on the UI thread (Clear would orphan children from a DisconnectHandlers walk).
+            previous.DisconnectHandlers();
+            ClearStressTreeContents(previous);
+        }
+        _stressHost.Content = null;
+
+        _selected.Text = "No selection";
+        _metrics.Text = "Releasing previous tree…";
+
         Dispatcher.Dispatch(async () =>
         {
-            await FlushUiFrameAsync().ConfigureAwait(true);
-            CollectGarbage();
-            _metrics.Text = $"Starting in {RunDelayMilliseconds} ms…";
-            await Task.Delay(RunDelayMilliseconds).ConfigureAwait(true);
-            await RunTestAsync().ConfigureAwait(true);
+            try
+            {
+                await SettleAfterDetachAsync().ConfigureAwait(true);
+                // Drop the last strong ref on the UI thread before collecting.
+                previous = null;
+                await CollectGarbageAsync().ConfigureAwait(true);
+                _metrics.Text = $"Starting in {RunDelayMilliseconds} ms…";
+                await Task.Delay(RunDelayMilliseconds).ConfigureAwait(true);
+                await RunTestAsync().ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _metrics.Text = $"Test failed: {ex.Message}";
+                Console.WriteLine($"[Stress] {_metrics.Text}");
+                _runButton.IsEnabled = true;
+            }
         });
     }
 
-    /// <summary>Forces a full GC so prior stress trees do not inflate the next run's Generate timings.</summary>
-    private static void CollectGarbage()
+    /// <summary>
+    /// Lets the visual tree finish removeFromSuperview after handlers were disconnected.
+    /// </summary>
+    private async Task SettleAfterDetachAsync()
+    {
+        await FlushUiFrameAsync().ConfigureAwait(true);
+        await WhenUiThreadIdleAsync().ConfigureAwait(true);
+        if (OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst())
+        {
+            // Several run-loop turns so CALayer transactions from DisconnectHandlers complete.
+            await Task.Delay(100).ConfigureAwait(true);
+            await FlushUiFrameAsync().ConfigureAwait(true);
+            await WhenUiThreadIdleAsync().ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>
+    /// Clears children / nested content while the tree is still strongly referenced so teardown
+    /// happens on the UI thread instead of during NSObject disposer finalization.
+    /// </summary>
+    private static void ClearStressTreeContents(View tree)
+    {
+        switch (tree)
+        {
+            case SkUiScrollView skUi:
+                switch (skUi.Content)
+                {
+                    case SkUiLayout layout:
+                        layout.StartUpdating();
+                        try { layout.Children.Clear(); }
+                        finally { layout.EndUpdating(); }
+                        break;
+                    case SkUiCoreHost host:
+                        if (host.Content is SkUiCorePanel panel)
+                        {
+                            panel.StartUpdating();
+                            try { panel.Clear(); }
+                            finally { panel.EndUpdating(); }
+                        }
+                        host.SetContent(null);
+                        break;
+                }
+                skUi.SetContent(null);
+                break;
+            case ScrollView native:
+                if (native.Content is Layout mauiLayout)
+                    mauiLayout.Children.Clear();
+                native.Content = null;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Collects managed memory so prior stress trees do not inflate the next Generate timing.
+    /// On Apple platforms this deliberately skips <see cref="GC.WaitForPendingFinalizers"/> —
+    /// that call drains <c>__NSObject_Disposer</c> and intermittently SIGSEGVs inside
+    /// UIView/CALayer KVO when a large stress tree was just torn down.
+    /// </summary>
+    private async Task CollectGarbageAsync()
     {
         GC.Collect();
+        await FlushUiFrameAsync().ConfigureAwait(true);
+
+        if (OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst())
+        {
+            await Task.Delay(100).ConfigureAwait(true);
+            await FlushUiFrameAsync().ConfigureAwait(true);
+            await WhenUiThreadIdleAsync().ConfigureAwait(true);
+            GC.Collect();
+            return;
+        }
+
         GC.WaitForPendingFinalizers();
+        await FlushUiFrameAsync().ConfigureAwait(true);
         GC.Collect();
     }
 
@@ -417,16 +508,19 @@ public sealed class StressPage : ContentPage
     }
 
     private const double CellHeight = 48;
-    private const double RowStride = 52; // cell + 4px gap
+    private const double CellSpacing = 4;
 
     /// <summary>
-    /// SkiaUi MAUI-compatible path: <see cref="SkUiAbsoluteLayout"/> + <see cref="SkUiButton"/> cells.
-    /// Column placement uses proportional X/Width; rows use absolute Y/Height.
+    /// SkiaUi MAUI-compatible path: <see cref="SkUiGrid"/> + <see cref="SkUiButton"/> cells.
+    /// Two star columns and one absolute-height row per pair of children.
     /// </summary>
     private SkUiScrollView BuildSkUiStressTree(int childCount, bool hwAccelerated, bool animate)
     {
-        var layout = new SkUiAbsoluteLayout();
+        var layout = new SkUiGrid();
         layout.SetPadding(new Thickness(8));
+        layout.SetRowSpacing(CellSpacing).SetColumnSpacing(CellSpacing);
+        layout.SetColumnDefinitions(StarColumns());
+        layout.SetRowDefinitions(AbsoluteRows(childCount));
 
         layout.StartUpdating();
         try
@@ -459,9 +553,8 @@ public sealed class StressPage : ContentPage
                     cell = button;
                 }
 
-                // Two equal columns (0 / 0.5), fixed row height; padding comes from the layout.
-                AbsoluteLayout.SetLayoutBounds((BindableObject)cell, new Rect(column * 0.5, row * RowStride, 0.5, CellHeight));
-                AbsoluteLayout.SetLayoutFlags((BindableObject)cell, AbsoluteLayoutFlags.XProportional | AbsoluteLayoutFlags.WidthProportional);
+                Grid.SetColumn((BindableObject)cell, column);
+                Grid.SetRow((BindableObject)cell, row);
                 layout.Children.Add(cell);
             }
         }
@@ -480,15 +573,28 @@ public sealed class StressPage : ContentPage
     }
 
     /// <summary>
-    /// Core path: one <see cref="SkUiCoreHost"/> wrapping <see cref="SkUiCoreAbsoluteLayout"/> of
+    /// Core path: one <see cref="SkUiCoreHost"/> wrapping <see cref="SkUiCoreGrid"/> of
     /// <see cref="SkUiCoreButton"/> / <see cref="SkUiCoreActivityIndicator"/> cells.
-    /// Same absolute placement rules as the MAUI path for a fair generate/render comparison.
+    /// Same two-column grid as the MAUI path for a fair generate/render comparison.
     /// </summary>
     private SkUiScrollView BuildCoreStressTree(int childCount, bool hwAccelerated, bool animate)
     {
-        var absolute = new SkUiCoreAbsoluteLayout();
-        absolute.SetPadding(new Thickness(8));
-        absolute.StartUpdating();
+        var rowCount = RowCount(childCount);
+        var rows = new SkUiCoreRowDefinition[rowCount];
+        for (var r = 0; r < rowCount; r++)
+            rows[r] = new SkUiCoreRowDefinition(new SkUiCoreGridLength(CellHeight));
+
+        var grid = new SkUiCoreGrid()
+            .SetPadding(new Thickness(8))
+            .SetRowSpacing(CellSpacing)
+            .SetColumnSpacing(CellSpacing)
+            .SetColumnDefinitions([
+                new SkUiCoreColumnDefinition(SkUiCoreGridLength.Star),
+                new SkUiCoreColumnDefinition(SkUiCoreGridLength.Star)
+            ])
+            .SetRowDefinitions(rows);
+
+        grid.StartUpdating();
         try
         {
             for (var index = 0; index < childCount; index++)
@@ -519,19 +625,16 @@ public sealed class StressPage : ContentPage
                     cell = button;
                 }
 
-                absolute.Add(
-                    cell,
-                    new Rect(column * 0.5, row * RowStride, 0.5, CellHeight),
-                    SkUiCoreAbsoluteLayoutFlags.X | SkUiCoreAbsoluteLayoutFlags.Width);
+                grid.Add(cell, row, column);
             }
         }
         finally
         {
-            absolute.EndUpdating();
+            grid.EndUpdating();
         }
 
         var host = new SkUiCoreHost();
-        host.SetContent(absolute);
+        host.SetContent(grid);
 
         var scroller = new SkUiScrollView
         {
@@ -543,13 +646,27 @@ public sealed class StressPage : ContentPage
     }
 
     /// <summary>
-    /// Native MAUI path: stock <see cref="AbsoluteLayout"/> + <see cref="Button"/> /
+    /// Native MAUI path: stock <see cref="Grid"/> + <see cref="Button"/> /
     /// <see cref="ActivityIndicator"/> under a MAUI <see cref="ScrollView"/>.
-    /// Same two-column absolute placement as the SkUi/Core paths for a fair generate/layout comparison.
+    /// Same two-column grid as the SkUi/Core paths for a fair generate/layout comparison.
     /// </summary>
     private ScrollView BuildNativeMauiStressTree(int childCount, bool animate)
     {
-        var layout = new AbsoluteLayout { Padding = new Thickness(8) };
+        var layout = new Grid
+        {
+            Padding = new Thickness(8),
+            RowSpacing = CellSpacing,
+            ColumnSpacing = CellSpacing,
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Star)
+            }
+        };
+
+        var rowCount = RowCount(childCount);
+        for (var r = 0; r < rowCount; r++)
+            layout.RowDefinitions.Add(new RowDefinition(new GridLength(CellHeight)));
 
         for (var index = 0; index < childCount; index++)
         {
@@ -585,9 +702,7 @@ public sealed class StressPage : ContentPage
                 cell = button;
             }
 
-            AbsoluteLayout.SetLayoutBounds(cell, new Rect(column * 0.5, row * RowStride, 0.5, CellHeight));
-            AbsoluteLayout.SetLayoutFlags(cell, AbsoluteLayoutFlags.XProportional | AbsoluteLayoutFlags.WidthProportional);
-            layout.Children.Add(cell);
+            layout.Add(cell, column, row);
         }
 
         return new ScrollView
@@ -596,6 +711,23 @@ public sealed class StressPage : ContentPage
             Content = layout,
             AutomationId = "StressNativeScroll"
         };
+    }
+
+    private static int RowCount(int childCount) => (childCount + 1) / 2;
+
+    private static ColumnDefinitionCollection StarColumns() =>
+    [
+        new ColumnDefinition(GridLength.Star),
+        new ColumnDefinition(GridLength.Star)
+    ];
+
+    private static RowDefinitionCollection AbsoluteRows(int childCount)
+    {
+        var rows = new RowDefinitionCollection();
+        var rowCount = RowCount(childCount);
+        for (var r = 0; r < rowCount; r++)
+            rows.Add(new RowDefinition(new GridLength(CellHeight)));
+        return rows;
     }
 
     private static int ParseChildCount(string? text)

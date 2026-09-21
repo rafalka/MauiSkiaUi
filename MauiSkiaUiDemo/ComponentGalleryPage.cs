@@ -11,7 +11,7 @@ public sealed class ComponentGalleryPage : ContentPage
         Background = DemoColors.PageBackground;
         var rows = new Grid { RowSpacing = 8, Padding = new Thickness(16, 8, 16, 24) };
         var groups = ComponentDemos.All.ToLookup(demo => demo.Category);
-        foreach (var category in ComponentCategoryInfo.Order)
+        foreach (var category in ComponentCategoryInfo.MauiCompatibleOrder)
         {
             var demos = groups[category];
             if (!demos.Any()) continue;

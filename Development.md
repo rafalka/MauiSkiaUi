@@ -107,9 +107,10 @@ When a requirement ships, check it off in the relevant design doc and summarize 
 - Targets Android, iOS, and Mac Catalyst (Windows TFM included when building on Windows).
 - `ISkUiView : IView`, `SkUiView`, padded `SkUiContentView`, and overlay `SkUiLayout` implement the shared-surface pipeline.
 - Layouts: `SkUiGrid` (MAUI `GridLayoutManager`), stacks, `SkUiAbsoluteLayout`, `SkUiScrollView`, `SkUiBorder`. `SkUiFlexLayout` is not implemented.
+- Core layouts: absolute, stacks, overlay, **`SkUiCoreGrid`** (owned Auto/absolute/star + per-track min/max), **`SkUiCoreTable`** (row/column backgrounds + span-aware separators). Host via `SkUiCoreHost`.
 - Basic controls: `SkUiLabel`, `SkUiButton`, asynchronous `SkUiImage` / `SkUiImageButton`, `SkUiActivityIndicator`, `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton`.
 - Native hosting: `SkUiMauiContentView` (FR-16). See API notes below for specifics and limits.
-- `SkUiBox`, `SkUiEllipse`, and `SkUiLine` expose bindable colors and sizing and paint with SkiaSharp 4.151.1.
+- `SkUiBox`, `SkUiEllipse`, and `SkUiLine` expose bindable colors and sizing and paint with SkiaSharp 4.152.1.
 - Hosted children have logical MAUI parents and inherited binding contexts, but no handlers or native surfaces. Duplicate ownership and tree cycles are rejected.
 - Handler-independent measure/arrange uses MAUI constraint and frame helpers, including margins, requests, alignment, and cached unchanged passes.
 - Paint walks Background / Content / Overlay phases, with local rectangular clipping, opacity, translation, rotation, scale, and stable ZIndex ordering.
@@ -120,8 +121,8 @@ When a requirement ships, check it off in the relevant design doc and summarize 
 
 ### Demo (`MauiSkiaUiDemo`)
 
-- The Shell's home page is the **Components** gallery: every concrete `SkUi*` control/layout/primitive listed under **Basic controls**, **Layouts**, **Graphics**, and **Scrolling & collections** section headers, each opening its own demo page with property editors, a reset action, and (for MAUI reimplementations) a side-by-side/stacked native comparison.
-- The gallery's toolbar also opens: **Composition** (a XAML control sample with Grid, wrapping Label, an offline NASA image, command-bound Buttons, MAUI styles/visual states, and scrollable content), **Look & colors** (FR-18/19 playground: light/dark/custom accent, Default/Chunky/Minimal look packs, size scale; preview includes SkUi* and Core), **Stress** (absolute two-column button list under one scroll surface — toggle **Core layer** to compare MAUI-compatible `SkUi*` vs `MauiSkiaUi.Core`; **Animate** uses spinners in the 2nd column on either layer; **Scroll** animates, **Top** resets, **Record** reports CPU picture-recording time), and **Primitives** (box/ellipse/line under one GPU-default `SkUiContentView`, a four-second transform animation with a native status label, tap-to-recolor, and a standalone software-rendered box).
+- The Shell flyout opens **Components** (MAUI-compatible `SkUi*` demos under Basic controls / Layouts / Graphics / Scrolling), **Core** (`SkUiCoreGrid`, `SkUiCoreTable`, … hosted in `SkUiCoreHost`), plus toolbar destinations: **Composition**, **Look & colors**, **Stress**, and **Primitives**.
+- The gallery's toolbar also opens: **Composition** (a XAML control sample with Grid, wrapping Label, an offline NASA image, command-bound Buttons, MAUI styles/visual states, and scrollable content), **Look & colors** (FR-18/19 playground: light/dark/custom accent, Default/Chunky/Minimal look packs, size scale; preview includes SkUi* and Core), **Stress** (two-column grid of buttons under one scroll surface — toggle **Core layer** to compare MAUI-compatible `SkUiGrid` vs `SkUiCoreGrid`; **Animate** uses spinners in the 2nd column on either layer; **Scroll** animates, **Top** resets, **Record** reports CPU picture-recording time), and **Primitives** (box/ellipse/line under one GPU-default `SkUiContentView`, a four-second transform animation with a native status label, tap-to-recolor, and a standalone software-rendered box).
 - Conditional MauiDevFlow initialization and Mac Catalyst server entitlement are wired for runtime inspection.
 
 ### Usage and limits
@@ -184,7 +185,7 @@ Register `builder.UseSkiaUi()` in `MauiProgram`, then compose in XAML (see [READ
 
 ### Verification status
 
-- Headless suite is grouped by functionality (`PipelineTests`, `BasicControlsTests`, `LayoutTests`, `ScrollViewTests`, `MauiContentViewTests`, `PerformanceTests`, plus Core / look / demo contract tests). Run `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj`.
+- Headless suite is grouped by functionality (`PipelineTests`, `BasicControlsTests`, `LayoutTests`, `ScrollViewTests`, `MauiContentViewTests`, `PerformanceTests`, `CoreGridLayoutTests`, `CoreTableLayoutTests`, plus Core / look / demo contract tests). Run `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj`.
 - Completed surface includes FR-16 native hosting (`SkUiMauiContentView` + per-platform overlay container) and the layouts/controls listed above, each with a gallery demo page (native side-by-side where MAUI has a direct counterpart). Android/iOS/Mac Catalyst diagnostic builds pass with 0 warnings. Per-control markdown docs (NFR-5) are under [docs/controls/](docs/controls/README.md). See [ImplementationPlan.md](docs/design/ImplementationPlan.md) for completed vs backlog.
 - Review regressions (covered by tests): `SkUiRadioButton` select-only tap; `SkUiBorder` `BackgroundColor` fallback; `SkUiActivityIndicator` stops clock on detach; `ComputeRootRelativeFrame()` includes translations; SkUiImage decode completion on UI thread; Button single-command execution and rounded text clip; Grid attached-property invalidation. See `tmp/review.md` for historical findings.
 - A 1,000-label, 400x600-DIP headless Debug measurement improved warm CPU recording from **8.106 ms / 568,384 managed bytes per frame** to **0.635 ms / 9,488 bytes** after clip rejection and cached ordering (30 frames, same Mac). These are indicative single-run measurements, not device FPS or release performance guarantees. Native allocations and initial layout costs are not included in the per-frame allocation figure; near-zero allocation remains future work.

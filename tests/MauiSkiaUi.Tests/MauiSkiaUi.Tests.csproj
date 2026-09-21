@@ -15,10 +15,10 @@
     <Compile Include="../../MauiSkiaUiDemo/DemoFonts.cs" Link="Demo/DemoFonts.cs" />
     <Compile Include="../../MauiSkiaUiDemo/ComponentPages/**/*.cs" Link="Demo/ComponentPages/%(RecursiveDir)%(Filename)%(Extension)" />
     <None Include="../../MauiSkiaUiDemo/Resources/Fonts/RobotoMono-Regular.ttf" Link="Assets/RobotoMono-Regular.ttf" CopyToOutputDirectory="PreserveNewest" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" PrivateAssets="all" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.151.1" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" PrivateAssets="all" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.152.1" />
     <ProjectReference Include="../../MauiSkiaUi/MauiSkiaUi.csproj" AdditionalProperties="SKUI_ENABLE_DIAGNOSTICS=true" />
   </ItemGroup>
 </Project>
