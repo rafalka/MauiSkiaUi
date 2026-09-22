@@ -5,30 +5,45 @@ using SkiaSharp;
 
 namespace MauiSkiaUi;
 
+/// <summary>
+/// Coalesces paint invalidation onto the UI thread and presents the root tree into the platform Skia surface.
+/// </summary>
+/// <remarks>
+/// On iOS HW, painting the tree directly onto the <c>SKGLView</c> canvas can leave WidthRequest
+/// ghost strokes. <see cref="UseOpaquePresentBlit"/> paints into a CPU back-buffer then Src-blits
+/// the complete frame onto the platform canvas.
+/// </remarks>
 internal sealed class SkUiFrameRenderer : IDisposable
 {
     private readonly SkUiView _root;
     private readonly Action<Action> _dispatch;
     private readonly Action _invalidateSurface;
     private readonly Action _beforePaint;
-    private readonly object _pictureLock = new();
-    private SKPicture? _picture;
-    private Size _pictureSize;
+    private readonly object _paintLock = new();
+    private SKBitmap? _presentBuffer;
+    private SKCanvas? _presentCanvas;
     private SKSizeI _pixelSize;
+    private Size _dipSize;
     private int _frameQueued;
     private int _repaintPending;
-    private volatile bool _recording;
+    private int _gate;
     private volatile bool _disposed;
 
     internal SkUiFrameRenderer(SkUiView root, Action<Action> dispatch, Action invalidateSurface, Action beforePaint)
     {
         EnsureStandalone(root);
-        this._root = root;
-        this._dispatch = dispatch;
-        this._invalidateSurface = invalidateSurface;
-        this._beforePaint = beforePaint;
+        _root = root;
+        _dispatch = dispatch;
+        _invalidateSurface = invalidateSurface;
+        _beforePaint = beforePaint;
         root.PaintInvalidated += OnInvalidated;
     }
+
+    /// <summary>
+    /// When true, compose the frame into a CPU bitmap and Src-blit it onto the platform canvas.
+    /// Required on iOS <c>SKGLView</c> to avoid retained prior-frame strokes after shrink.
+    /// </summary>
+    internal bool UseOpaquePresentBlit { get; set; }
 
     internal static void EnsureStandalone(SkUiView root)
     {
@@ -42,96 +57,208 @@ internal sealed class SkUiFrameRenderer : IDisposable
     {
         if (_disposed)
             return;
-        if (_recording)
+        if (_gate > 0)
         {
             Interlocked.Exchange(ref _repaintPending, 1);
             return;
         }
         if (Interlocked.Exchange(ref _frameQueued, 1) == 0)
-            _dispatch(RecordFrame);
+            _dispatch(PresentFrame);
     }
 
-    private void RecordFrame()
+    private void PresentFrame()
     {
         Interlocked.Exchange(ref _frameQueued, 0);
-        if (_disposed || _root.Width <= 0 || _root.Height <= 0)
+        if (_disposed)
             return;
-        _recording = true;
-#if SKUI_DIAGNOSTICS
-        var recordWatch = Stopwatch.StartNew();
-#endif
+
+        _gate++;
         try
         {
             _beforePaint();
             Interlocked.Exchange(ref _repaintPending, 0);
             if (_disposed)
                 return;
-            using var recorder = new SKPictureRecorder();
-            var size = new Size(_root.Width, _root.Height);
-            var canvas = recorder.BeginRecording(new SKRect(0, 0, (float)size.Width, (float)size.Height));
-            _root.Paint(canvas);
-            var nextPicture = recorder.EndRecording();
-            lock (_pictureLock)
-            {
-                if (_disposed)
-                {
-                    nextPicture.Dispose();
-                    return;
-                }
-                _picture?.Dispose();
-                _picture = nextPicture;
-                _pictureSize = size;
-            }
+            if (_root.Width <= 0 || _root.Height <= 0)
+                return;
+            _invalidateSurface();
         }
         finally
         {
-#if SKUI_DIAGNOSTICS
-            recordWatch.Stop();
-            if (!_disposed)
-                _root.NoteDiagnosticRecordFrame(recordWatch.Elapsed.TotalMilliseconds);
-#endif
-            _recording = false;
+            _gate--;
         }
-        if (_disposed)
-            return;
-        _invalidateSurface();
-        if (Interlocked.Exchange(ref _repaintPending, 0) != 0)
+
+        if (!_disposed && Interlocked.Exchange(ref _repaintPending, 0) != 0)
             RequestFrame();
     }
 
+    /// <summary>
+    /// Paints the current tree into the platform canvas. Called from the surface's PaintSurface handler.
+    /// </summary>
     internal void Replay(SKCanvas canvas, SKImageInfo info)
     {
-        canvas.Clear(SKColors.Transparent);
-        lock (_pictureLock)
+        var clear = _disposed ? SKColors.White : _root.SurfaceClearColor;
+        var skipContent = _disposed
+            || _root.Width <= 0 || _root.Height <= 0 || info.Width <= 0 || info.Height <= 0;
+
+        if (UseOpaquePresentBlit && info.Width > 0 && info.Height > 0)
         {
-            if (_disposed)
-                return;
+            ReplayViaOpaqueBlit(canvas, info, clear, skipContent);
+            return;
+        }
+
+        ResetPlatformCanvas(canvas);
+        FillOpaque(canvas, info, clear);
+
+        if (skipContent)
+        {
+            lock (_paintLock)
+                _pixelSize = info.Size;
+            return;
+        }
+
+        PaintTree(canvas, info);
+    }
+
+    private void ReplayViaOpaqueBlit(SKCanvas canvas, SKImageInfo info, SKColor clear, bool skipContent)
+    {
+        EnsurePresentBuffer(info);
+        var buffer = _presentBuffer!;
+        var back = _presentCanvas!;
+
+        back.Clear(clear);
+        if (!skipContent)
+        {
+            _gate++;
+#if SKUI_DIAGNOSTICS
+            var paintWatch = Stopwatch.StartNew();
+#endif
+            try
+            {
+                var save = back.Save();
+                try
+                {
+                    back.Scale(info.Width / (float)_root.Width, info.Height / (float)_root.Height);
+                    _root.Paint(back);
+                }
+                finally
+                {
+                    back.RestoreToCount(save);
+                }
+            }
+            finally
+            {
+#if SKUI_DIAGNOSTICS
+                paintWatch.Stop();
+                if (!_disposed)
+                    _root.NoteDiagnosticRecordFrame(paintWatch.Elapsed.TotalMilliseconds);
+#endif
+                _gate--;
+            }
+        }
+
+        ResetPlatformCanvas(canvas);
+        using (var blit = new SKPaint { BlendMode = SKBlendMode.Src, IsAntialias = false })
+            canvas.DrawBitmap(
+                buffer,
+                SKRect.Create(info.Width, info.Height),
+                new SKSamplingOptions(SKFilterMode.Nearest),
+                blit);
+
+        lock (_paintLock)
+        {
             _pixelSize = info.Size;
-            if (_picture is null || info.Width <= 0 || info.Height <= 0)
-                return;
+            if (!skipContent)
+                _dipSize = new Size(_root.Width, _root.Height);
+        }
+
+        if (_gate == 0 && !_disposed && Interlocked.Exchange(ref _repaintPending, 0) != 0)
+            RequestFrame();
+    }
+
+    private void PaintTree(SKCanvas canvas, SKImageInfo info)
+    {
+        _gate++;
+#if SKUI_DIAGNOSTICS
+        var paintWatch = Stopwatch.StartNew();
+#endif
+        try
+        {
             var saveCount = canvas.Save();
             try
             {
-                canvas.Scale((float)(info.Width / _pictureSize.Width), (float)(info.Height / _pictureSize.Height));
-                canvas.DrawPicture(_picture);
+                canvas.Scale(info.Width / (float)_root.Width, info.Height / (float)_root.Height);
+                _root.Paint(canvas);
             }
             finally
             {
                 canvas.RestoreToCount(saveCount);
             }
+            lock (_paintLock)
+            {
+                _pixelSize = info.Size;
+                _dipSize = new Size(_root.Width, _root.Height);
+            }
         }
+        finally
+        {
+#if SKUI_DIAGNOSTICS
+            paintWatch.Stop();
+            if (!_disposed)
+                _root.NoteDiagnosticRecordFrame(paintWatch.Elapsed.TotalMilliseconds);
+#endif
+            _gate--;
+        }
+
+        if (_gate == 0 && !_disposed && Interlocked.Exchange(ref _repaintPending, 0) != 0)
+            RequestFrame();
+    }
+
+    private void EnsurePresentBuffer(SKImageInfo info)
+    {
+        if (_presentBuffer is { } existing
+            && existing.Width == info.Width
+            && existing.Height == info.Height)
+            return;
+
+        _presentCanvas?.Dispose();
+        _presentBuffer?.Dispose();
+        _presentBuffer = new SKBitmap(info.Width, info.Height, info.ColorType, info.AlphaType);
+        if (_presentBuffer.ColorType == SKColorType.Unknown)
+        {
+            _presentBuffer.Dispose();
+            _presentBuffer = new SKBitmap(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        }
+        _presentCanvas = new SKCanvas(_presentBuffer);
+    }
+
+    private static void ResetPlatformCanvas(SKCanvas canvas)
+    {
+        while (canvas.SaveCount > 1)
+            canvas.Restore();
+        canvas.ResetMatrix();
+    }
+
+    private static void FillOpaque(SKCanvas canvas, SKImageInfo info, SKColor clear)
+    {
+        using var fill = new SKPaint { Color = clear, BlendMode = SKBlendMode.Src };
+        canvas.DrawRect(SKRect.Create(info.Width, info.Height), fill);
     }
 
     internal bool TouchPixels(SkUiTouchEvent touch)
     {
         SKSizeI pixels;
-        lock (_pictureLock)
+        Size dips;
+        lock (_paintLock)
+        {
             pixels = _pixelSize;
-        if (_disposed || pixels.Width <= 0 || pixels.Height <= 0)
+            dips = _dipSize;
+        }
+        if (_disposed || pixels.Width <= 0 || pixels.Height <= 0 || dips.Width <= 0 || dips.Height <= 0)
             return false;
         var position = new Point(
-            touch.Position.X * _root.Width / pixels.Width + _root.Frame.X,
-            touch.Position.Y * _root.Height / pixels.Height + _root.Frame.Y);
+            touch.Position.X * dips.Width / pixels.Width + _root.Frame.X,
+            touch.Position.Y * dips.Height / pixels.Height + _root.Frame.Y);
         return SkUiView.MapPoint(_root, position, out var local)
             && _root.Touch(touch with { Position = local });
     }
@@ -143,11 +270,14 @@ internal sealed class SkUiFrameRenderer : IDisposable
         _disposed = true;
         _root.PaintInvalidated -= OnInvalidated;
         _root.AnimationClock.StopAll();
-        lock (_pictureLock)
+        _presentCanvas?.Dispose();
+        _presentCanvas = null;
+        _presentBuffer?.Dispose();
+        _presentBuffer = null;
+        lock (_paintLock)
         {
-            _picture?.Dispose();
-            _picture = null;
             _pixelSize = default;
+            _dipSize = default;
         }
     }
 }

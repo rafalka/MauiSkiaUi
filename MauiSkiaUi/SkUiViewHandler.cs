@@ -85,6 +85,12 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         base.ConnectHandler(platformView);
         _renderer = new SkUiFrameRenderer(VirtualView,
             action => VirtualView.Dispatcher.Dispatch(action), InvalidateSurface, beforePaint: static () => { });
+#if IOS
+        // iOS SKGLView retains prior-frame AA strokes when painting the tree directly onto the
+        // drawable; CPU compose + Src blit matches the clean clear-only probe path.
+        if (VirtualView.HwAccelerated)
+            _renderer.UseOpaquePresentBlit = true;
+#endif
         VirtualView.AnimationClock.RunningChanged += OnRunningChanged;
         VirtualView.Loaded += OnLoaded;
         VirtualView.Unloaded += OnUnloaded;
@@ -273,7 +279,18 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             software.InvalidateSurface();
     }
 
-    private void OnGpuPaint(object? sender, SKPaintGLSurfaceEventArgs args) => PaintSurface(args.Surface.Canvas, args.Info);
+    private void OnGpuPaint(object? sender, SKPaintGLSurfaceEventArgs args)
+    {
+        PaintSurface(args.Surface.Canvas, args.Info);
+#if IOS
+        // Temporary: force Skia → Metal command submission before the drawable is presented.
+        // Mac Catalyst (Metal) does not show ghost trails; iOS HW does — flush may be part of the gap.
+        args.Surface.Canvas.Flush();
+        args.Surface.Flush();
+        if (_surface is SKGLView gpu)
+            gpu.GRContext?.Flush();
+#endif
+    }
 
     private void OnSoftwarePaint(object? sender, SKPaintSurfaceEventArgs args) => PaintSurface(args.Surface.Canvas, args.Info);
 

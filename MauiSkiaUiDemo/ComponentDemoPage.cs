@@ -274,9 +274,13 @@ public abstract class ComponentDemoPage : ContentPage
         if (_nativeStatus is not null) _nativeStatus.Text = native ?? string.Empty;
     }
 
-    private void UpdateBounds() => Feedback(
-        $"Bounds {SkiaControl.Width:F0} x {SkiaControl.Height:F0}  ·  HW {(_hwAccelerated ? "on" : "off")}",
-        NativeControl is null ? null : $"Bounds {NativeControl.Width:F0} x {NativeControl.Height:F0}");
+    private void UpdateBounds()
+    {
+        var hw = _hwAccelerated ? "on" : "off";
+        Feedback(
+            $"Bounds {SkiaControl.Width:F0} x {SkiaControl.Height:F0}  ·  HW {hw}",
+            NativeControl is null ? null : $"Bounds {NativeControl.Width:F0} x {NativeControl.Height:F0}");
+    }
 
     internal string[] CheckProperties()
     {

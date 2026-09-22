@@ -24,7 +24,7 @@ Apps and built-in controls should be able to:
 | Hosted paint | Parent walks tree → `ISkUiView.Paint` on shared `SKCanvas` |
 | Coordinates | Paint args use **MAUI DIPs**; DIP ↔ pixel mapping only at the root surface |
 | Clip vs hit-test | Clip/mask affect **paint**; default hit-test uses **arranged bounds** (FR-11) |
-| Caching (v1) | **Default: no retained paint cache** — on invalidate, clear root surface and **repaint the full hosted tree**. Opt-in cache later (see *Recommended solution*). |
+| Caching (v1) | **Default: live paint** on each present. **iOS HW:** compose into a CPU back-buffer then **Src-blit** the full frame onto `SKGLView` (direct tree paint left shrink ghosts). |
 | Caching (later) | Opt-in per node (`None` / `Picture` / `Image`); **not** per-layer bitmaps by default; no opaque-coverage dirty-rect compositor in v1 |
 
 ## Recommended solution (from references)
@@ -222,7 +222,7 @@ Exact API: **Background / Overlay** use optional `PaintBackground` / `PaintOverl
 
 Favor shared primitives used by many Background/Content layers (`Helpers/SkUiChrome.cs` today; **FR-18** / [ControlLook.md](ControlLook.md) promotes these into a public replaceable **control look**):
 
-- Rounded rectangle fill / stroke / clip path (`DrawRoundedBox`, `CreateRoundRectPath`) — Button, Border, ImageButton tint
+- Rounded rectangle fill / stroke / clip path (`DrawRoundedBox`, `CreateRoundRectPath`) — uniform radius (Button, ImageButton tint) or per-corner `CornerRadius` (Border)
 - Switch / CheckBox / RadioButton / ActivityIndicator / Image destination — one painter each for Core + MAUI-compatible controls
 - Pressed/disabled tint overlay (`DrawPressTint`)
 - Text run helpers for labels (still per-control; Core is single-line)

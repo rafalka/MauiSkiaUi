@@ -6,7 +6,7 @@ namespace MauiSkiaUi.Tests;
 public class PipelineTests
 {
     [Fact]
-    public void InvalidationDuringRecordingSchedulesOneFollowupWithoutAnimation()
+    public void InvalidationDuringPresentSchedulesOneFollowupWithoutAnimation()
     {
         var root = new InvalidatingPaintProbe { Color = Colors.Red };
         SkUiTestHelpers.Arrange(root, 40, 40);
@@ -17,17 +17,18 @@ public class PipelineTests
         renderer.RequestFrame();
         Assert.Single(queue);
         queue.Dequeue()();
-        Assert.Single(queue);
         Assert.Equal(1, presents);
+        Assert.Empty(queue);
         using var bitmap = new SKBitmap(40, 40);
         using var canvas = new SKCanvas(bitmap);
         renderer.Replay(canvas, bitmap.Info);
+        // Content painted red; overlay then flipped color and requested another frame.
         Assert.Equal(SKColors.Red, bitmap.GetPixel(20, 20));
-
+        Assert.Single(queue);
         queue.Dequeue()();
+        Assert.Equal(2, presents);
         renderer.Replay(canvas, bitmap.Info);
         Assert.Equal(SKColors.Blue, bitmap.GetPixel(20, 20));
-        Assert.Equal(2, presents);
         Assert.Empty(queue);
         Assert.False(root.AnimationClock.IsRunning);
     }
@@ -71,7 +72,8 @@ public class PipelineTests
         var saves = canvas.SaveCount;
         renderer.Replay(canvas, bitmap.Info);
         Assert.Equal(SKColors.Red, bitmap.GetPixel(20 * density, 15 * density));
-        Assert.Equal(0, bitmap.GetPixel(5 * density, 5 * density).Alpha);
+        // Outside the transformed box the surface clear / recording fill is opaque white (not transparent).
+        Assert.Equal(SKColors.White, bitmap.GetPixel(5 * density, 5 * density));
         Assert.Equal(matrix, canvas.TotalMatrix);
         Assert.Equal(saves, canvas.SaveCount);
         Point? tappedAt = null;
@@ -106,7 +108,8 @@ public class PipelineTests
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.Red);
         renderer.Replay(canvas, bitmap.Info);
-        Assert.Equal(0, bitmap.GetPixel(20, 20).Alpha);
+        // Disposed renderer still paints an opaque clear and skips the tree.
+        Assert.Equal(SKColors.White, bitmap.GetPixel(20, 20));
         Assert.False(renderer.TouchPixels(new(1, SkUiTouchAction.Pressed, new Point(20, 20))));
     }
 
@@ -117,6 +120,108 @@ public class PipelineTests
         var host = new SkUiContentView { Content = child };
         Assert.Throws<InvalidOperationException>(() => new SkUiFrameRenderer(child, _ => { }, () => { }, () => { }));
         Assert.Same(host, child.Parent);
+    }
+
+    [Fact]
+    public void OpaquePresentBlitClearsPriorStrokeGhosts()
+    {
+        var border = new SkUiBorder
+        {
+            BackgroundColor = Colors.White,
+            Stroke = Colors.Red,
+            StrokeThickness = 4,
+            CornerRadius = 0,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center,
+            WidthRequest = 120,
+            HeightRequest = 40,
+        };
+        var host = new SkUiContentView { Background = Colors.White, Content = border };
+        var queue = new Queue<Action>();
+        using var renderer = new SkUiFrameRenderer(host, queue.Enqueue, () => { }, () => { })
+        {
+            UseOpaquePresentBlit = true,
+        };
+
+        void DrainAndPaint(SKCanvas canvas, SKImageInfo info)
+        {
+            while (queue.Count > 0)
+                queue.Dequeue()();
+            renderer.Replay(canvas, info);
+        }
+
+        SkUiTestHelpers.Arrange(host, 200, 80);
+        using var bitmap = new SKBitmap(200, 80);
+        using var canvas = new SKCanvas(bitmap);
+        DrainAndPaint(canvas, bitmap.Info);
+
+        border.WidthRequest = 60;
+        SkUiTestHelpers.Arrange(host, 200, 80);
+        DrainAndPaint(canvas, bitmap.Info);
+
+        Assert.Equal(SKColors.White, bitmap.GetPixel(20, 40));
+        Assert.Equal(SKColors.White, bitmap.GetPixel(180, 40));
+        var edge = bitmap.GetPixel(70, 40);
+        Assert.True(edge.Red > 200 && edge.Green < 80 && edge.Blue < 80, $"Expected red stroke near content, got {edge}");
+    }
+
+    [Fact]
+    public void HostedWidthShrinkDoesNotLeaveStrokeGhosts()
+    {
+        var border = new SkUiBorder
+        {
+            BackgroundColor = Colors.White,
+            Stroke = Colors.Red,
+            StrokeThickness = 4,
+            CornerRadius = 0,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center,
+            WidthRequest = 120,
+            HeightRequest = 40,
+        };
+        var host = new SkUiContentView
+        {
+            Background = Colors.White,
+            Content = border,
+        };
+        var queue = new Queue<Action>();
+        using var renderer = new SkUiFrameRenderer(host, queue.Enqueue, () => { }, () => { });
+
+        void Drain()
+        {
+            while (queue.Count > 0)
+                queue.Dequeue()();
+        }
+
+        SkUiTestHelpers.Arrange(host, 200, 80);
+        Drain();
+
+        border.WidthRequest = 60;
+        SkUiTestHelpers.Arrange(host, 200, 80);
+        Drain();
+
+        using var bitmap = new SKBitmap(200, 80);
+        using var canvas = new SKCanvas(bitmap);
+        renderer.Replay(canvas, bitmap.Info);
+
+        // Far from the shrunk border (previously covered by the 120-wide stroke) must be host white, not red.
+        Assert.Equal(SKColors.White, bitmap.GetPixel(20, 40));
+        Assert.Equal(SKColors.White, bitmap.GetPixel(180, 40));
+        // Stroke still visible near the current left edge of the centered 60-wide border.
+        var edge = bitmap.GetPixel(70, 40);
+        Assert.True(edge.Red > 200 && edge.Green < 80 && edge.Blue < 80, $"Expected red stroke near content, got {edge}");
+    }
+
+    [Fact]
+    public void ChildWidthRequestBubblesPaintEvenWhenLayoutAlsoDirties()
+    {
+        var child = new SkUiBox { Color = Colors.Red, WidthRequest = 80, HeightRequest = 40 };
+        var host = new SkUiContentView { Background = Colors.White, Content = child };
+        SkUiTestHelpers.Arrange(host, 200, 80);
+        var paints = 0;
+        host.PaintInvalidated += (_, _) => paints++;
+        child.WidthRequest = 40;
+        Assert.True(paints >= 1);
     }
 
     [Fact]

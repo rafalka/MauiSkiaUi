@@ -254,6 +254,7 @@ public class SkUiView : View, ISkUiView
         if (invalidatePaint)
         {
             PaintInvalidated?.Invoke(this, EventArgs.Empty);
+            // Layout invalidation already paints the Skia parent via InvalidateMeasureOverride → InvalidatePaint.
             if (!invalidateLayout)
                 SkiaParent?.InvalidatePaint();
         }
@@ -389,6 +390,13 @@ public class SkUiView : View, ISkUiView
             return brush.Color;
         return BackgroundColor;
     }
+
+    /// <summary>
+    /// Opaque color used to clear the platform surface before painting a frame.
+    /// GL/Metal presents do not reliably discard prior pixels when clearing to transparent.
+    /// </summary>
+    internal SKColor SurfaceClearColor =>
+        ResolveSolidBackgroundColor() is { } color ? ToSkColor(color) : SKColors.White;
 
     /// <summary>
     /// Default Background when <see cref="PaintBackground"/> is unset. Solid MAUI fill only; other brush types are deferred.
