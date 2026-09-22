@@ -11,8 +11,14 @@ internal static class SkUiChrome
     internal static SKPath CreateRoundRectPath(SKRect bounds, float radius) =>
         SkUiLook.Current.CreateRoundRectPath(bounds, radius);
 
+    internal static SKPath CreateRoundRectPath(SKRect bounds, CornerRadius radii) =>
+        SkUiLook.Current.CreateRoundRectPath(bounds, radii);
+
     internal static void DrawRoundedBox(SKCanvas canvas, SKRect bounds, float radius, SKColor fill, SKColor border, float width) =>
         SkUiLook.Current.DrawRoundedBox(canvas, bounds, radius, fill, border, width);
+
+    internal static void DrawRoundedBox(SKCanvas canvas, SKRect bounds, CornerRadius radii, SKColor fill, SKColor border, float width) =>
+        SkUiLook.Current.DrawRoundedBox(canvas, bounds, radii, fill, border, width);
 
     internal static void DrawSwitch(SKCanvas canvas, SKRect bounds, bool isChecked, SKColor track, SKColor thumb) =>
         SkUiLook.Current.DrawSwitch(canvas, bounds, isChecked, track, thumb);

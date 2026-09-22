@@ -140,6 +140,25 @@ public class CoreLayerTests
     }
 
     [Fact]
+    public void Border_AcceptsPerCornerRadii()
+    {
+        var border = new SkUiCoreBorder()
+            .SetCornerRadius(new CornerRadius(12, 0, 4, 8))
+            .SetStroke(Colors.Black)
+            .SetBackgroundColor(Colors.White);
+        Assert.Equal(12, border.CornerRadius.TopLeft);
+        Assert.Equal(0, border.CornerRadius.TopRight);
+        Assert.Equal(4, border.CornerRadius.BottomLeft);
+        Assert.Equal(8, border.CornerRadius.BottomRight);
+
+        border.Measure(80, 40);
+        border.Arrange(new Rect(0, 0, 80, 40));
+        using var bitmap = new SKBitmap(80, 40);
+        using var canvas = new SKCanvas(bitmap);
+        border.Paint(canvas);
+    }
+
+    [Fact]
     public void ToggleControls_ChangeStateOnTap()
     {
         var check = new SkUiCoreCheckBox();

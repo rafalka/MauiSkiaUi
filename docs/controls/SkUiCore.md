@@ -25,7 +25,7 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreOverlayLayout` | Children share one slot (like `SkUiLayout`) |
 | `SkUiCoreGrid` | Auto / absolute / star grid + per-track min/max; see [SkUiCoreGrid.md](SkUiCoreGrid.md) |
 | `SkUiCoreTable` | Grid + row/column/cell backgrounds and span-aware separators; see [SkUiCoreTable.md](SkUiCoreTable.md) |
-| `SkUiCoreContentView` / `SkUiCoreBorder` | Single-child host; border adds rounded chrome |
+| `SkUiCoreContentView` / `SkUiCoreBorder` | Single-child host; border adds rounded chrome with per-corner `CornerRadius` |
 | `SkUiCoreLabel` / `SkUiCoreButton` | Text (wrap/truncate via `LineBreakMode` or custom `LineBreaker`) and rounded tap button (`ICommand`) |
 | `SkUiCoreTextLineBreaker` / `SkUiCoreTextLineBreakers` | Line-break delegate + stock MAUI-mode breakers for Core labels |
 | `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Boolean toggles |

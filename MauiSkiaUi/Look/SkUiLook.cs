@@ -40,19 +40,40 @@ public class SkUiLook
 
     #region Shared geometry
 
-    /// <summary>Optional rounded-box painter.</summary>
+    /// <summary>Optional uniform rounded-box painter (single radius for all corners).</summary>
     public Action<SKCanvas, SKRect, float, SKColor, SKColor, float>? RoundedBoxPainter { get; set; }
 
-    /// <summary>Builds a rounded-rect path for fill/border/clip.</summary>
-    public virtual SKPath CreateRoundRectPath(SKRect bounds, float radius)
+    /// <summary>Optional per-corner rounded-box painter.</summary>
+    public Action<SKCanvas, SKRect, CornerRadius, SKColor, SKColor, float>? RoundedBoxCornersPainter { get; set; }
+
+    /// <summary>Builds a rounded-rect path with a uniform corner radius for fill/border/clip.</summary>
+    public virtual SKPath CreateRoundRectPath(SKRect bounds, float radius) =>
+        CreateRoundRectPath(bounds, new CornerRadius(radius));
+
+    /// <summary>Builds a rounded-rect path with independent corner radii for fill/border/clip.</summary>
+    /// <remarks>
+    /// Corner order matches MAUI <see cref="CornerRadius"/>: top-left, top-right, bottom-left, bottom-right.
+    /// Skia’s rect-radii order is TL, TR, BR, BL; this method remaps accordingly.
+    /// </remarks>
+    public virtual SKPath CreateRoundRectPath(SKRect bounds, CornerRadius radii)
     {
-        using var roundRect = new SKRoundRect(bounds, radius, radius);
+        var tl = (float)Math.Max(0, radii.TopLeft);
+        var tr = (float)Math.Max(0, radii.TopRight);
+        var bl = (float)Math.Max(0, radii.BottomLeft);
+        var br = (float)Math.Max(0, radii.BottomRight);
+        using var roundRect = new SKRoundRect();
+        roundRect.SetRectRadii(bounds, [
+            new SKPoint(tl, tl),
+            new SKPoint(tr, tr),
+            new SKPoint(br, br),
+            new SKPoint(bl, bl),
+        ]);
         using var builder = new SKPathBuilder();
         builder.AddRoundRect(roundRect);
         return builder.Detach();
     }
 
-    /// <summary>Fills/strokes a rounded rectangle.</summary>
+    /// <summary>Fills/strokes a rounded rectangle with a uniform corner radius.</summary>
     public void DrawRoundedBox(SKCanvas canvas, SKRect bounds, float radius, SKColor fill, SKColor border, float width)
     {
         if (RoundedBoxPainter is { } painter)
@@ -60,11 +81,45 @@ public class SkUiLook
             painter(canvas, bounds, radius, fill, border, width);
             return;
         }
-        DrawRoundedBoxCore(canvas, bounds, radius, fill, border, width);
+        DrawRoundedBox(canvas, bounds, new CornerRadius(radius), fill, border, width);
     }
 
-    /// <summary>Default rounded-box geometry.</summary>
-    protected virtual void DrawRoundedBoxCore(SKCanvas canvas, SKRect bounds, float radius, SKColor fill, SKColor border, float width) { }
+    /// <summary>Fills/strokes a rounded rectangle with independent corner radii.</summary>
+    public void DrawRoundedBox(SKCanvas canvas, SKRect bounds, CornerRadius radii, SKColor fill, SKColor border, float width)
+    {
+        if (RoundedBoxCornersPainter is { } painter)
+        {
+            painter(canvas, bounds, radii, fill, border, width);
+            return;
+        }
+        if (IsUniformCornerRadius(radii) && RoundedBoxPainter is { } uniformPainter)
+        {
+            uniformPainter(canvas, bounds, (float)radii.TopLeft, fill, border, width);
+            return;
+        }
+        DrawRoundedBoxCore(canvas, bounds, radii, fill, border, width);
+    }
+
+    /// <summary>Default rounded-box geometry (uniform radius).</summary>
+    protected virtual void DrawRoundedBoxCore(SKCanvas canvas, SKRect bounds, float radius, SKColor fill, SKColor border, float width) =>
+        DrawRoundedBoxCore(canvas, bounds, new CornerRadius(radius), fill, border, width);
+
+    /// <summary>Default rounded-box geometry (per-corner radii).</summary>
+    protected virtual void DrawRoundedBoxCore(SKCanvas canvas, SKRect bounds, CornerRadius radii, SKColor fill, SKColor border, float width) { }
+
+    /// <summary>True when all four corner radii are equal.</summary>
+    protected static bool IsUniformCornerRadius(CornerRadius radii) =>
+        radii.TopLeft == radii.TopRight
+        && radii.TopLeft == radii.BottomLeft
+        && radii.TopLeft == radii.BottomRight;
+
+    /// <summary>Reduces each corner radius by <paramref name="inset"/> (clamped at zero), for stroked inset paths.</summary>
+    protected static CornerRadius ShrinkCornerRadius(CornerRadius radii, float inset) =>
+        new(
+            Math.Max(0, radii.TopLeft - inset),
+            Math.Max(0, radii.TopRight - inset),
+            Math.Max(0, radii.BottomLeft - inset),
+            Math.Max(0, radii.BottomRight - inset));
 
     #endregion
 

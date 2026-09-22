@@ -12,17 +12,17 @@ public class DefaultSkUiLook : SkUiLook
     public static DefaultSkUiLook Instance { get; } = new();
 
     /// <inheritdoc />
-    protected override void DrawRoundedBoxCore(SKCanvas canvas, SKRect bounds, float radius, SKColor fill, SKColor border, float width)
+    protected override void DrawRoundedBoxCore(SKCanvas canvas, SKRect bounds, CornerRadius radii, SKColor fill, SKColor border, float width)
     {
         using var paint = new SKPaint { Color = fill, IsAntialias = true };
-        using var path = CreateRoundRectPath(bounds, radius);
+        using var path = CreateRoundRectPath(bounds, radii);
         canvas.DrawPath(path, paint);
         if (width <= 0) return;
         bounds.Inflate(-width / 2, -width / 2);
         paint.Color = border;
         paint.Style = SKPaintStyle.Stroke;
         paint.StrokeWidth = width;
-        using var strokePath = CreateRoundRectPath(bounds, Math.Max(0, radius - width / 2));
+        using var strokePath = CreateRoundRectPath(bounds, ShrinkCornerRadius(radii, width / 2));
         canvas.DrawPath(strokePath, paint);
     }
 

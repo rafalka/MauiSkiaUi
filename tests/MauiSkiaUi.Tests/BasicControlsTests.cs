@@ -251,6 +251,46 @@ public class BasicControlsTests
     }
 
     [Fact]
+    public void BorderAcceptsPerCornerRadii()
+    {
+        var border = new SkUiBorder
+        {
+            BackgroundColor = Colors.Red,
+            CornerRadius = new CornerRadius(16, 0, 0, 16),
+            Stroke = Colors.Black,
+            StrokeThickness = 2,
+        };
+        Assert.Equal(16, border.CornerRadius.TopLeft);
+        Assert.Equal(0, border.CornerRadius.TopRight);
+        SkUiTestHelpers.Arrange(border, 60, 40);
+        using var bitmap = new SKBitmap(60, 40);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        border.Paint(canvas);
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(30, 20));
+    }
+
+    [Fact]
+    public void BorderStrokeIsPaintedAboveOpaqueContent()
+    {
+        var border = new SkUiBorder
+        {
+            BackgroundColor = Colors.White,
+            Stroke = Colors.Red,
+            StrokeThickness = 4,
+            CornerRadius = 0,
+            Content = new SkUiBox { Color = Colors.White },
+        };
+        SkUiTestHelpers.Arrange(border, 40, 40);
+        using var bitmap = new SKBitmap(40, 40);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        border.Paint(canvas);
+        var edge = bitmap.GetPixel(1, 20);
+        Assert.True(edge.Red > 200 && edge.Green < 80 && edge.Blue < 80, $"Expected red stroke at edge, got {edge}");
+    }
+
+    [Fact]
     public void ActivityIndicatorStopsClockWhenRemovedFromTree()
     {
         var layout = new SkUiLayout();
