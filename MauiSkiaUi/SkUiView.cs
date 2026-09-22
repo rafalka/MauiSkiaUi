@@ -392,11 +392,14 @@ public class SkUiView : View, ISkUiView
     }
 
     /// <summary>
-    /// Opaque color used to clear the platform surface before painting a frame.
-    /// GL/Metal presents do not reliably discard prior pixels when clearing to transparent.
+    /// Color used to clear the platform/backing surface before painting a frame.
+    /// Uses the root solid background when set; otherwise transparent so rounded or
+    /// translucent roots can show host content underneath (FR-8 / FR-11).
+    /// iOS HW replaces the drawable via a full-frame <c>Src</c> blit, so transparent
+    /// clear still erases prior-frame ghosts without forcing an opaque white backing.
     /// </summary>
     internal SKColor SurfaceClearColor =>
-        ResolveSolidBackgroundColor() is { } color ? ToSkColor(color) : SKColors.White;
+        ResolveSolidBackgroundColor() is { } color ? ToSkColor(color) : SKColors.Transparent;
 
     /// <summary>
     /// Default Background when <see cref="PaintBackground"/> is unset. Solid MAUI fill only; other brush types are deferred.

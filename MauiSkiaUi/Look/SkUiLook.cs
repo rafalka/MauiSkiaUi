@@ -81,7 +81,7 @@ public class SkUiLook
             painter(canvas, bounds, radius, fill, border, width);
             return;
         }
-        DrawRoundedBox(canvas, bounds, new CornerRadius(radius), fill, border, width);
+        DrawRoundedBoxCore(canvas, bounds, radius, fill, border, width);
     }
 
     /// <summary>Fills/strokes a rounded rectangle with independent corner radii.</summary>
@@ -92,15 +92,25 @@ public class SkUiLook
             painter(canvas, bounds, radii, fill, border, width);
             return;
         }
-        if (IsUniformCornerRadius(radii) && RoundedBoxPainter is { } uniformPainter)
+        if (IsUniformCornerRadius(radii))
         {
-            uniformPainter(canvas, bounds, (float)radii.TopLeft, fill, border, width);
+            if (RoundedBoxPainter is { } uniformPainter)
+            {
+                uniformPainter(canvas, bounds, (float)radii.TopLeft, fill, border, width);
+                return;
+            }
+            DrawRoundedBoxCore(canvas, bounds, (float)radii.TopLeft, fill, border, width);
             return;
         }
         DrawRoundedBoxCore(canvas, bounds, radii, fill, border, width);
     }
 
     /// <summary>Default rounded-box geometry (uniform radius).</summary>
+    /// <remarks>
+    /// Base implementation forwards to the per-corner virtual so subclasses that only override
+    /// <see cref="DrawRoundedBoxCore(SKCanvas, SKRect, CornerRadius, SKColor, SKColor, float)"/> still run.
+    /// Prefer overriding this float hook when customizing uniformly rounded chrome.
+    /// </remarks>
     protected virtual void DrawRoundedBoxCore(SKCanvas canvas, SKRect bounds, float radius, SKColor fill, SKColor border, float width) =>
         DrawRoundedBoxCore(canvas, bounds, new CornerRadius(radius), fill, border, width);
 

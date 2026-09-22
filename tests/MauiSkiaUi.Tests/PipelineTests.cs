@@ -72,8 +72,8 @@ public class PipelineTests
         var saves = canvas.SaveCount;
         renderer.Replay(canvas, bitmap.Info);
         Assert.Equal(SKColors.Red, bitmap.GetPixel(20 * density, 15 * density));
-        // Outside the transformed box the surface clear / recording fill is opaque white (not transparent).
-        Assert.Equal(SKColors.White, bitmap.GetPixel(5 * density, 5 * density));
+        // Root has no solid background: surface clear stays fully transparent so host content can show through.
+        Assert.Equal(0, bitmap.GetPixel(5 * density, 5 * density).Alpha);
         Assert.Equal(matrix, canvas.TotalMatrix);
         Assert.Equal(saves, canvas.SaveCount);
         Point? tappedAt = null;

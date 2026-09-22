@@ -118,6 +118,41 @@ public class LookAndColorSchemeTests
     }
 
     [Fact]
+    public void UniformRoundedBoxDispatchesThroughFloatCoreHook()
+    {
+        var look = new CountingUniformBoxLook();
+        using (var bitmap = new SKBitmap(20, 20))
+        using (var canvas = new SKCanvas(bitmap))
+            look.DrawRoundedBox(canvas, new SKRect(0, 0, 20, 20), 4f, SKColors.Red, SKColors.Blue, 1);
+        Assert.Equal(1, look.FloatCoreCalls);
+        Assert.Equal(0, look.CornerCoreCalls);
+
+        using (var bitmap = new SKBitmap(20, 20))
+        using (var canvas = new SKCanvas(bitmap))
+            look.DrawRoundedBox(canvas, new SKRect(0, 0, 20, 20), new CornerRadius(4), SKColors.Red, SKColors.Blue, 1);
+        Assert.Equal(2, look.FloatCoreCalls);
+        Assert.Equal(0, look.CornerCoreCalls);
+
+        using (var bitmap = new SKBitmap(20, 20))
+        using (var canvas = new SKCanvas(bitmap))
+            look.DrawRoundedBox(canvas, new SKRect(0, 0, 20, 20), new CornerRadius(2, 4, 6, 8), SKColors.Red, SKColors.Blue, 1);
+        Assert.Equal(2, look.FloatCoreCalls);
+        Assert.Equal(1, look.CornerCoreCalls);
+    }
+
+    [Fact]
+    public void UniformPathUsesFloatCreateRoundRectPathOverride()
+    {
+        var look = new FloatPathLook();
+        using var path = look.CreateRoundRectPath(new SKRect(0, 0, 40, 20), 5f);
+        Assert.Equal(1, look.FloatPathCalls);
+        using (var bitmap = new SKBitmap(40, 20))
+        using (var canvas = new SKCanvas(bitmap))
+            look.DrawRoundedBox(canvas, new SKRect(0, 0, 40, 20), new CornerRadius(5), SKColors.Black, SKColors.Transparent, 0);
+        Assert.True(look.FloatPathCalls >= 2);
+    }
+
+    [Fact]
     public void DefaultSizePropertiesDriveMeasureWhenDelegatesUnset()
     {
         var look = new SizedLook();
@@ -143,6 +178,36 @@ public class LookAndColorSchemeTests
         {
             using var paint = new SKPaint { Color = track, IsAntialias = true };
             canvas.DrawRect(bounds, paint);
+        }
+    }
+
+    private sealed class CountingUniformBoxLook : DefaultSkUiLook
+    {
+        public int FloatCoreCalls { get; private set; }
+        public int CornerCoreCalls { get; private set; }
+
+        protected override void DrawRoundedBoxCore(SKCanvas canvas, SKRect bounds, float radius, SKColor fill, SKColor border, float width)
+        {
+            FloatCoreCalls++;
+            base.DrawRoundedBoxCore(canvas, bounds, radius, fill, border, width);
+        }
+
+        protected override void DrawRoundedBoxCore(SKCanvas canvas, SKRect bounds, CornerRadius radii, SKColor fill, SKColor border, float width)
+        {
+            if (!IsUniformCornerRadius(radii))
+                CornerCoreCalls++;
+            base.DrawRoundedBoxCore(canvas, bounds, radii, fill, border, width);
+        }
+    }
+
+    private sealed class FloatPathLook : DefaultSkUiLook
+    {
+        public int FloatPathCalls { get; private set; }
+
+        public override SKPath CreateRoundRectPath(SKRect bounds, float radius)
+        {
+            FloatPathCalls++;
+            return base.CreateRoundRectPath(bounds, radius);
         }
     }
 }

@@ -13,7 +13,8 @@ namespace MauiSkiaUi;
 /// ghost strokes. <see cref="UseOpaquePresentBlit"/> composes into a retained offscreen surface
 /// (GPU when a <see cref="GRContext"/> is available, otherwise CPU) then Src-blits the complete
 /// frame onto the platform canvas — same present contract as Uno's retained layer / DrawnUI's
-/// Metal texture copy.
+/// Metal texture copy. The offscreen clear uses <see cref="SkUiView.SurfaceClearColor"/>
+/// (transparent when the root has no solid background).
 /// </remarks>
 internal sealed class SkUiFrameRenderer : IDisposable
 {
