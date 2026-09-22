@@ -87,7 +87,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             action => VirtualView.Dispatcher.Dispatch(action), InvalidateSurface, beforePaint: static () => { });
 #if IOS
         // iOS SKGLView retains prior-frame AA strokes when painting the tree directly onto the
-        // drawable; CPU compose + Src blit matches the clean clear-only probe path.
+        // drawable; offscreen compose + Src blit (GPU retained surface when GRContext is live).
         if (VirtualView.HwAccelerated)
             _renderer.UseOpaquePresentBlit = true;
 #endif
@@ -281,22 +281,22 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
     private void OnGpuPaint(object? sender, SKPaintGLSurfaceEventArgs args)
     {
-        PaintSurface(args.Surface.Canvas, args.Info);
+        var grContext = _surface is SKGLView gpu ? gpu.GRContext : null;
+        PaintSurface(args.Surface.Canvas, args.Info, grContext);
 #if IOS
-        // Temporary: force Skia → Metal command submission before the drawable is presented.
-        // Mac Catalyst (Metal) does not show ghost trails; iOS HW does — flush may be part of the gap.
+        // Ensure Skia → Metal commands land before the drawable is presented.
         args.Surface.Canvas.Flush();
         args.Surface.Flush();
-        if (_surface is SKGLView gpu)
-            gpu.GRContext?.Flush();
+        grContext?.Flush();
 #endif
     }
 
-    private void OnSoftwarePaint(object? sender, SKPaintSurfaceEventArgs args) => PaintSurface(args.Surface.Canvas, args.Info);
+    private void OnSoftwarePaint(object? sender, SKPaintSurfaceEventArgs args) =>
+        PaintSurface(args.Surface.Canvas, args.Info, grContext: null);
 
-    private void PaintSurface(SKCanvas canvas, SKImageInfo info)
+    private void PaintSurface(SKCanvas canvas, SKImageInfo info, GRContext? grContext)
     {
-        _renderer?.Replay(canvas, info);
+        _renderer?.Replay(canvas, info, grContext);
         if (_animationTime.IsRunning)
             ScheduleAnimationVsync();
     }

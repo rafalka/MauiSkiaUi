@@ -125,6 +125,8 @@ public class PipelineTests
     [Fact]
     public void OpaquePresentBlitClearsPriorStrokeGhosts()
     {
+        // Unit tests have no GRContext, so this exercises the CPU-bitmap fallback of UseOpaquePresentBlit.
+        // Device iOS HW uses the GPU retained surface path with the same Src present contract.
         var border = new SkUiBorder
         {
             BackgroundColor = Colors.White,

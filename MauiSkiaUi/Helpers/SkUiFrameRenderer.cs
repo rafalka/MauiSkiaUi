@@ -10,8 +10,10 @@ namespace MauiSkiaUi;
 /// </summary>
 /// <remarks>
 /// On iOS HW, painting the tree directly onto the <c>SKGLView</c> canvas can leave WidthRequest
-/// ghost strokes. <see cref="UseOpaquePresentBlit"/> paints into a CPU back-buffer then Src-blits
-/// the complete frame onto the platform canvas.
+/// ghost strokes. <see cref="UseOpaquePresentBlit"/> composes into a retained offscreen surface
+/// (GPU when a <see cref="GRContext"/> is available, otherwise CPU) then Src-blits the complete
+/// frame onto the platform canvas — same present contract as Uno's retained layer / DrawnUI's
+/// Metal texture copy.
 /// </remarks>
 internal sealed class SkUiFrameRenderer : IDisposable
 {
@@ -20,8 +22,12 @@ internal sealed class SkUiFrameRenderer : IDisposable
     private readonly Action _invalidateSurface;
     private readonly Action _beforePaint;
     private readonly object _paintLock = new();
-    private SKBitmap? _presentBuffer;
-    private SKCanvas? _presentCanvas;
+    private readonly SKPaint _srcBlitPaint = new() { BlendMode = SKBlendMode.Src, IsAntialias = false };
+    private SKSurface? _gpuPresentSurface;
+    private GRContext? _gpuPresentContext;
+    private SKBitmap? _cpuPresentBuffer;
+    private SKCanvas? _cpuPresentCanvas;
+    private SKSizeI _presentPixelSize;
     private SKSizeI _pixelSize;
     private Size _dipSize;
     private int _frameQueued;
@@ -40,8 +46,9 @@ internal sealed class SkUiFrameRenderer : IDisposable
     }
 
     /// <summary>
-    /// When true, compose the frame into a CPU bitmap and Src-blit it onto the platform canvas.
+    /// When true, compose the frame offscreen and Src-blit it onto the platform canvas.
     /// Required on iOS <c>SKGLView</c> to avoid retained prior-frame strokes after shrink.
+    /// Prefers a GPU-budgeted surface when <see cref="Replay"/> receives a <see cref="GRContext"/>.
     /// </summary>
     internal bool UseOpaquePresentBlit { get; set; }
 
@@ -95,7 +102,13 @@ internal sealed class SkUiFrameRenderer : IDisposable
     /// <summary>
     /// Paints the current tree into the platform canvas. Called from the surface's PaintSurface handler.
     /// </summary>
-    internal void Replay(SKCanvas canvas, SKImageInfo info)
+    /// <param name="canvas">Platform drawable canvas (swapchain / SKGLView surface).</param>
+    /// <param name="info">Pixel size and color type of <paramref name="canvas"/>.</param>
+    /// <param name="grContext">
+    /// Optional GPU context from the hosting <c>SKGLView</c>. When <see cref="UseOpaquePresentBlit"/>
+    /// is set, a non-null context enables GPU-retained compose; otherwise a CPU bitmap is used.
+    /// </param>
+    internal void Replay(SKCanvas canvas, SKImageInfo info, GRContext? grContext = null)
     {
         var clear = _disposed ? SKColors.White : _root.SurfaceClearColor;
         var skipContent = _disposed
@@ -103,7 +116,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
 
         if (UseOpaquePresentBlit && info.Width > 0 && info.Height > 0)
         {
-            ReplayViaOpaqueBlit(canvas, info, clear, skipContent);
+            ReplayViaOpaqueBlit(canvas, info, clear, skipContent, grContext);
             return;
         }
 
@@ -120,50 +133,27 @@ internal sealed class SkUiFrameRenderer : IDisposable
         PaintTree(canvas, info);
     }
 
-    private void ReplayViaOpaqueBlit(SKCanvas canvas, SKImageInfo info, SKColor clear, bool skipContent)
+    private void ReplayViaOpaqueBlit(SKCanvas canvas, SKImageInfo info, SKColor clear, bool skipContent, GRContext? grContext)
     {
-        EnsurePresentBuffer(info);
-        var buffer = _presentBuffer!;
-        var back = _presentCanvas!;
-
+        var back = AcquirePresentCanvas(info, grContext);
         back.Clear(clear);
         if (!skipContent)
-        {
-            _gate++;
-#if SKUI_DIAGNOSTICS
-            var paintWatch = Stopwatch.StartNew();
-#endif
-            try
-            {
-                var save = back.Save();
-                try
-                {
-                    back.Scale(info.Width / (float)_root.Width, info.Height / (float)_root.Height);
-                    _root.Paint(back);
-                }
-                finally
-                {
-                    back.RestoreToCount(save);
-                }
-            }
-            finally
-            {
-#if SKUI_DIAGNOSTICS
-                paintWatch.Stop();
-                if (!_disposed)
-                    _root.NoteDiagnosticRecordFrame(paintWatch.Elapsed.TotalMilliseconds);
-#endif
-                _gate--;
-            }
-        }
+            PaintTreeOnto(back, info);
 
         ResetPlatformCanvas(canvas);
-        using (var blit = new SKPaint { BlendMode = SKBlendMode.Src, IsAntialias = false })
+        if (_gpuPresentSurface is { } gpu)
+        {
+            gpu.Canvas.Flush();
+            gpu.Draw(canvas, 0, 0, _srcBlitPaint);
+        }
+        else
+        {
             canvas.DrawBitmap(
-                buffer,
+                _cpuPresentBuffer!,
                 SKRect.Create(info.Width, info.Height),
                 new SKSamplingOptions(SKFilterMode.Nearest),
-                blit);
+                _srcBlitPaint);
+        }
 
         lock (_paintLock)
         {
@@ -176,7 +166,61 @@ internal sealed class SkUiFrameRenderer : IDisposable
             RequestFrame();
     }
 
-    private void PaintTree(SKCanvas canvas, SKImageInfo info)
+    private SKCanvas AcquirePresentCanvas(SKImageInfo info, GRContext? grContext)
+    {
+        if (grContext is not null && TryEnsureGpuPresentSurface(grContext, info) is { } gpuCanvas)
+            return gpuCanvas;
+        EnsureCpuPresentBuffer(info);
+        return _cpuPresentCanvas!;
+    }
+
+    private SKCanvas? TryEnsureGpuPresentSurface(GRContext context, SKImageInfo info)
+    {
+        if (_gpuPresentSurface is not null
+            && ReferenceEquals(_gpuPresentContext, context)
+            && _presentPixelSize.Width == info.Width
+            && _presentPixelSize.Height == info.Height)
+            return _gpuPresentSurface.Canvas;
+
+        DisposeGpuPresentSurface();
+        DisposeCpuPresentBuffer();
+
+        var colorType = info.ColorType == SKColorType.Unknown ? SKColorType.Rgba8888 : info.ColorType;
+        var alphaType = info.AlphaType == SKAlphaType.Unknown ? SKAlphaType.Premul : info.AlphaType;
+        var surfaceInfo = new SKImageInfo(info.Width, info.Height, colorType, alphaType);
+        var surface = SKSurface.Create(context, budgeted: true, surfaceInfo);
+        if (surface is null && colorType != SKColorType.Rgba8888)
+            surface = SKSurface.Create(context, budgeted: true,
+                new SKImageInfo(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        if (surface is null)
+            return null;
+
+        _gpuPresentSurface = surface;
+        _gpuPresentContext = context;
+        _presentPixelSize = info.Size;
+        return surface.Canvas;
+    }
+
+    private void EnsureCpuPresentBuffer(SKImageInfo info)
+    {
+        if (_cpuPresentBuffer is { } existing
+            && existing.Width == info.Width
+            && existing.Height == info.Height)
+            return;
+
+        DisposeGpuPresentSurface();
+        DisposeCpuPresentBuffer();
+        _cpuPresentBuffer = new SKBitmap(info.Width, info.Height, info.ColorType, info.AlphaType);
+        if (_cpuPresentBuffer.ColorType == SKColorType.Unknown)
+        {
+            _cpuPresentBuffer.Dispose();
+            _cpuPresentBuffer = new SKBitmap(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+        }
+        _cpuPresentCanvas = new SKCanvas(_cpuPresentBuffer);
+        _presentPixelSize = info.Size;
+    }
+
+    private void PaintTreeOnto(SKCanvas canvas, SKImageInfo info)
     {
         _gate++;
 #if SKUI_DIAGNOSTICS
@@ -184,7 +228,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
 #endif
         try
         {
-            var saveCount = canvas.Save();
+            var save = canvas.Save();
             try
             {
                 canvas.Scale(info.Width / (float)_root.Width, info.Height / (float)_root.Height);
@@ -192,12 +236,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
             }
             finally
             {
-                canvas.RestoreToCount(saveCount);
-            }
-            lock (_paintLock)
-            {
-                _pixelSize = info.Size;
-                _dipSize = new Size(_root.Width, _root.Height);
+                canvas.RestoreToCount(save);
             }
         }
         finally
@@ -209,27 +248,19 @@ internal sealed class SkUiFrameRenderer : IDisposable
 #endif
             _gate--;
         }
+    }
+
+    private void PaintTree(SKCanvas canvas, SKImageInfo info)
+    {
+        PaintTreeOnto(canvas, info);
+        lock (_paintLock)
+        {
+            _pixelSize = info.Size;
+            _dipSize = new Size(_root.Width, _root.Height);
+        }
 
         if (_gate == 0 && !_disposed && Interlocked.Exchange(ref _repaintPending, 0) != 0)
             RequestFrame();
-    }
-
-    private void EnsurePresentBuffer(SKImageInfo info)
-    {
-        if (_presentBuffer is { } existing
-            && existing.Width == info.Width
-            && existing.Height == info.Height)
-            return;
-
-        _presentCanvas?.Dispose();
-        _presentBuffer?.Dispose();
-        _presentBuffer = new SKBitmap(info.Width, info.Height, info.ColorType, info.AlphaType);
-        if (_presentBuffer.ColorType == SKColorType.Unknown)
-        {
-            _presentBuffer.Dispose();
-            _presentBuffer = new SKBitmap(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        }
-        _presentCanvas = new SKCanvas(_presentBuffer);
     }
 
     private static void ResetPlatformCanvas(SKCanvas canvas)
@@ -263,6 +294,21 @@ internal sealed class SkUiFrameRenderer : IDisposable
             && _root.Touch(touch with { Position = local });
     }
 
+    private void DisposeGpuPresentSurface()
+    {
+        _gpuPresentSurface?.Dispose();
+        _gpuPresentSurface = null;
+        _gpuPresentContext = null;
+    }
+
+    private void DisposeCpuPresentBuffer()
+    {
+        _cpuPresentCanvas?.Dispose();
+        _cpuPresentCanvas = null;
+        _cpuPresentBuffer?.Dispose();
+        _cpuPresentBuffer = null;
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -270,10 +316,9 @@ internal sealed class SkUiFrameRenderer : IDisposable
         _disposed = true;
         _root.PaintInvalidated -= OnInvalidated;
         _root.AnimationClock.StopAll();
-        _presentCanvas?.Dispose();
-        _presentCanvas = null;
-        _presentBuffer?.Dispose();
-        _presentBuffer = null;
+        DisposeGpuPresentSurface();
+        DisposeCpuPresentBuffer();
+        _srcBlitPaint.Dispose();
         lock (_paintLock)
         {
             _pixelSize = default;

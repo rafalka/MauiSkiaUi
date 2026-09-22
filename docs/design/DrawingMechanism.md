@@ -24,7 +24,7 @@ Apps and built-in controls should be able to:
 | Hosted paint | Parent walks tree → `ISkUiView.Paint` on shared `SKCanvas` |
 | Coordinates | Paint args use **MAUI DIPs**; DIP ↔ pixel mapping only at the root surface |
 | Clip vs hit-test | Clip/mask affect **paint**; default hit-test uses **arranged bounds** (FR-11) |
-| Caching (v1) | **Default: live paint** on each present. **iOS HW:** compose into a CPU back-buffer then **Src-blit** the full frame onto `SKGLView` (direct tree paint left shrink ghosts). |
+| Caching (v1) | **Default: live paint** on each present. **iOS HW:** compose into a **GPU retained surface** (CPU bitmap fallback) then **Src-blit** the full frame onto `SKGLView` (direct tree paint left shrink ghosts; same present contract as Uno/DrawnUI). |
 | Caching (later) | Opt-in per node (`None` / `Picture` / `Image`); **not** per-layer bitmaps by default; no opaque-coverage dirty-rect compositor in v1 |
 
 ## Recommended solution (from references)
