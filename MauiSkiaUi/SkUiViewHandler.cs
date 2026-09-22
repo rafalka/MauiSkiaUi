@@ -100,9 +100,12 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         VirtualView.AnimationClock.RunningChanged -= OnRunningChanged;
         VirtualView.Loaded -= OnLoaded;
         VirtualView.Unloaded -= OnUnloaded;
-        _renderer?.Dispose();
-        _renderer = null;
+        // Stop animators before killing the surface so HasRenderLoop / Metal are paused while
+        // the platform view is still connected (avoids CADisplayLink / MTKView drawing into a dying tree).
+        VirtualView.AnimationClock.StopAll();
         _animationTime.Reset();
+        Interlocked.Exchange(ref _animationVsyncQueued, 0);
+
         if (_surface is SKGLView gpu)
         {
             gpu.HasRenderLoop = false;
@@ -114,6 +117,18 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             software.PaintSurface -= OnSoftwarePaint;
             software.Touch -= OnTouch;
         }
+
+        _renderer?.Dispose();
+        _renderer = null;
+
+#if IOS || MACCATALYST
+        // Detach the Skia platform view from the overlay container on the UI thread before
+        // DisconnectHandler/GC so removeFromSuperview is not deferred into NSObject disposer
+        // while CALayer KVO (MAUI Loaded observers) is still live.
+        if (_surface?.Handler?.PlatformView is UIKit.UIView surfaceNative)
+            surfaceNative.RemoveFromSuperview();
+#endif
+
         _surface?.Handler?.DisconnectHandler();
         if (_surface is not null)
             _surface.Parent = null;
