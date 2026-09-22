@@ -2,6 +2,8 @@
 
 .NET MAUI library of **SkiaSharp-drawn UI** with two layers you can mix in one tree: a **MAUI-compatible `SkUi*` surface** for replacing native controls, and a **lightweight Core** for building custom controls and dense UI without MAUI `View` overhead. GPU acceleration when available; **`SkUiMauiContentView`** hosts Entry, Editor, WebView, and similar as native overlays.
 
+> **Preview.** SkiaUi is still in a prerelease state. It may contain bugs, and public APIs may change without a stable compatibility guarantee. **It is not recommended for production use** yet.
+
 ## Why SkiaUi
 
 .NET MAUI is a strong piece of engineering. On a complex screen its cost shows up in two places.
@@ -41,6 +43,8 @@ MAUI page
 - **Same gesture model** — SkiaUi tap / commands on drawn nodes; overlays keep platform input.
 
 ## Install
+
+Package on nuget.org: **[SkiaUi.Maui](https://www.nuget.org/packages/SkiaUi.Maui/)**.
 
 ```bash
 dotnet add package SkiaUi.Maui
@@ -98,7 +102,7 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 | Area | Types |
 | --- | --- |
 | Bridge | `SkUiCoreHost` |
-| Layouts | `SkUiCoreAbsoluteLayout`, stacks, overlay, `SkUiCoreContentView` / `SkUiCoreBorder` |
+| Layouts | `SkUiCoreAbsoluteLayout`, stacks, overlay, `SkUiCoreGrid` / `SkUiCoreTable`, `SkUiCoreContentView` / `SkUiCoreBorder` |
 | Controls | `SkUiCoreLabel`, `SkUiCoreButton`, toggles, image / image button, activity indicator, shapes |
 
 Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](docs/controls/README.md)** · Core overview: **[docs/controls/SkUiCore.md](docs/controls/SkUiCore.md)**.

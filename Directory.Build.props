@@ -7,7 +7,7 @@
       Shared product version for SkiaUi.Maui NuGet (PackageVersion/Version) and the demo app
       (ApplicationDisplayVersion). Override on the CLI with -p:Version=… (pack/publish workflows).
     -->
-    <Version>1.0.0-Prerelease02</Version>
+    <Version>1.0.0-Prerelease03</Version>
     <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
     <!-- Android versionCode / iOS CFBundleVersion (integer); bump when shipping store builds. -->
     <ApplicationVersion>1</ApplicationVersion>
