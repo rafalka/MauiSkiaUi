@@ -128,6 +128,7 @@ public sealed class CoreGridDemoPage : ComponentDemoPage
             .SetTextColor(DemoColors.Ink)
             .SetFontSize(14)
             .SetPadding(new Thickness(8))
+            .SetLineBreakMode(LineBreakMode.WordWrap)
             .SetHorizontalTextAlignment(TextAlignment.Center)
             .SetVerticalTextAlignment(TextAlignment.Center);
 

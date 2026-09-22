@@ -253,6 +253,70 @@ public class CoreLayerTests
     }
 
     [Fact]
+    public void CoreLabel_WordWrapIncreasesMeasuredHeight()
+    {
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var label = new SkUiCoreLabel()
+            .SetText("AAAA BBBB CCCC DDDD")
+            .SetFontSize(16)
+            .SetFontFamily(SkUiTestHelpers.BundledFontFamily)
+            .SetLineBreakMode(LineBreakMode.WordWrap);
+
+        var wrapped = label.Measure(70, double.PositiveInfinity);
+        var unconstrained = label.Measure(double.PositiveInfinity, double.PositiveInfinity);
+        Assert.True(wrapped.Height > unconstrained.Height);
+        Assert.True(wrapped.Width <= 70 + 0.5);
+    }
+
+    [Fact]
+    public void CoreLabel_TailTruncationStaysSingleLine()
+    {
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var label = new SkUiCoreLabel()
+            .SetText("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+            .SetFontSize(16)
+            .SetFontFamily(SkUiTestHelpers.BundledFontFamily)
+            .SetLineBreakMode(LineBreakMode.TailTruncation);
+
+        var size = label.Measure(80, double.PositiveInfinity);
+        var full = label.Measure(double.PositiveInfinity, double.PositiveInfinity);
+        Assert.Equal(full.Height, size.Height, 0.5);
+        Assert.True(size.Width < full.Width);
+    }
+
+    [Fact]
+    public void CoreLabel_CustomLineBreakerIsUsedAndClearsMode()
+    {
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var calls = 0;
+        var label = new SkUiCoreLabel()
+            .SetText("one two three")
+            .SetFontSize(16)
+            .SetFontFamily(SkUiTestHelpers.BundledFontFamily)
+            .SetLineBreaker((text, _, _) =>
+            {
+                calls++;
+                return text.Split(' ');
+            });
+
+        Assert.Null(label.LineBreakMode);
+        var size = label.Measure(400, double.PositiveInfinity);
+        Assert.True(calls >= 1);
+        Assert.True(size.Height > 16);
+
+        label.SetLineBreakMode(LineBreakMode.NoWrap);
+        Assert.Equal(LineBreakMode.NoWrap, label.LineBreakMode);
+        Assert.Same(SkUiCoreTextLineBreakers.NoWrap, label.LineBreaker);
+    }
+
+    [Fact]
+    public void CoreTextLineBreakers_ForReturnsStableInstances()
+    {
+        Assert.Same(SkUiCoreTextLineBreakers.WordWrap, SkUiCoreTextLineBreakers.For(LineBreakMode.WordWrap));
+        Assert.Same(SkUiCoreTextLineBreakers.TailTruncation, SkUiCoreTextLineBreakers.For(LineBreakMode.TailTruncation));
+    }
+
+    [Fact]
     public void CoreButton_ExecutesCommand()
     {
         var executed = 0;

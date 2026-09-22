@@ -26,7 +26,8 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreGrid` | Auto / absolute / star grid + per-track min/max; see [SkUiCoreGrid.md](SkUiCoreGrid.md) |
 | `SkUiCoreTable` | Grid + row/column/cell backgrounds and span-aware separators; see [SkUiCoreTable.md](SkUiCoreTable.md) |
 | `SkUiCoreContentView` / `SkUiCoreBorder` | Single-child host; border adds rounded chrome |
-| `SkUiCoreLabel` / `SkUiCoreButton` | Text and rounded tap button (`ICommand`) |
+| `SkUiCoreLabel` / `SkUiCoreButton` | Text (wrap/truncate via `LineBreakMode` or custom `LineBreaker`) and rounded tap button (`ICommand`) |
+| `SkUiCoreTextLineBreaker` / `SkUiCoreTextLineBreakers` | Line-break delegate + stock MAUI-mode breakers for Core labels |
 | `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Boolean toggles |
 | `SkUiCoreShape` / `Box` / `Ellipse` / `Line` | Drawing primitives |
 | `SkUiCoreImage` / `SkUiCoreImageButton` | Decoded image (+ tap/tint); no MAUI `ImageSource` |
@@ -44,12 +45,23 @@ var root = new SkUiCoreVerticalStackLayout()
     .SetSpacing(8)
     .SetPadding(new Thickness(12));
 root.Add(new SkUiCoreLabel().SetText("Title").SetFontSize(18));
+root.Add(new SkUiCoreLabel()
+    .SetText("Long cell copy that wraps or truncates.")
+    .SetLineBreakMode(LineBreakMode.TailTruncation));
 root.Add(new SkUiCoreButton().SetText("OK").SetClicked(() => { }));
 root.Add(new SkUiCoreSwitch().SetIsChecked(true));
 
 var host = new SkUiCoreHost().SetContent(root);
 scroller.SetContent(host);
 ```
+
+### Core label line breaking
+
+`SkUiCoreLabel` measures and paints through `LineBreaker` (`SkUiCoreTextLineBreaker`).
+
+- `SetLineBreakMode(LineBreakMode)` installs a stock breaker from `SkUiCoreTextLineBreakers` (same modes as `SkUiLabel`).
+- `SetLineBreaker(...)` installs a custom policy and sets `LineBreakMode` to `null`.
+- Default is `WordWrap`.
 
 ## Stress comparison
 
