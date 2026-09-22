@@ -36,7 +36,8 @@ public class SkUiLook
     public virtual void DrawCheckBox(SKCanvas canvas, float size, bool isChecked, SKColor fill, SKColor border) { … }
     public virtual void DrawRadioButton(SKCanvas canvas, float size, bool isChecked, SKColor ring, SKColor dot) { … }
     public virtual void DrawActivityIndicator(SKCanvas canvas, float width, float height, float sweepStart, SKPaint paint) { … }
-    public virtual void DrawRoundedBox(…) { … }
+    public virtual void DrawRoundedBox(…) { … } // float radius and CornerRadius overloads
+    public virtual SKPath CreateRoundRectPath(…) { … } // uniform or per-corner
     public virtual void DrawPressTint(…) { … }
     public virtual void DrawImage(…) { … }
 

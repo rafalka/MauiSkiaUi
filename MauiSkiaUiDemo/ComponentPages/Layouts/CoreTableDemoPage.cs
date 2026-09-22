@@ -131,7 +131,8 @@ public sealed class CoreTableDemoPage : ComponentDemoPage
         var label = new SkUiCoreLabel()
             .SetText(text)
             .SetTextColor(color)
-            .SetFontSize(12);
+            .SetFontSize(12)
+            .SetLineBreakMode(LineBreakMode.WordWrap);
         label.Margin = new Thickness(6);
         label.HorizontalAlignment = LayoutAlignment.Center;
         label.VerticalAlignment = LayoutAlignment.Center;

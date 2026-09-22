@@ -53,6 +53,12 @@ public class SkUiCoreActivityIndicator : SkUiCoreNode
     protected override void OnPaintContent(SKCanvas canvas)
     {
         if (!_isRunning) return;
+        if (!AnimationClock.IsRunning)
+        {
+            BindSpin();
+            if (!AnimationClock.IsRunning)
+                return;
+        }
         var paint = _strokePaint ??= new SKPaint
         {
             Style = SKPaintStyle.Stroke,
@@ -71,6 +77,10 @@ public class SkUiCoreActivityIndicator : SkUiCoreNode
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Detach unbinds the spin callback but keeps <see cref="IsRunning"/> so a temporary rehost
+    /// (e.g. swapping the surface-owning host) can resume without the app re-setting the flag.
+    /// </remarks>
     protected override void OnAnimationRootChanged(bool subtreeDetached = false)
     {
         if (subtreeDetached)
@@ -78,11 +88,6 @@ public class SkUiCoreActivityIndicator : SkUiCoreNode
             _spin?.Dispose();
             _spin = null;
             DisposeStrokePaint();
-            if (_isRunning)
-            {
-                _isRunning = false;
-                OnPropertyChanged(nameof(IsRunning));
-            }
             return;
         }
 

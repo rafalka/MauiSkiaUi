@@ -195,7 +195,7 @@ Minimum public Core primitives (expand as MAUI wrappers gain delegates):
 | --- | --- |
 | `SkUiCoreNode` / `ISkUiCoreNode` | Prototype |
 | `SkUiCoreAbsoluteLayout` | Prototype |
-| `SkUiCoreLabel` | Prototype (extend: wrap, font attrs, alignment parity) |
+| `SkUiCoreLabel` | Prototype (wrap/truncate via `LineBreaker` + `SetLineBreakMode`; still missing font attrs parity) |
 | `SkUiCoreButton` | Prototype |
 | `SkUiCoreBox` / shape primitives | Prototype |
 | Stack layouts (`Vertical` / `Horizontal` / `Overlay`) | Prototype |

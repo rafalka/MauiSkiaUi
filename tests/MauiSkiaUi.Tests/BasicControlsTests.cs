@@ -251,6 +251,46 @@ public class BasicControlsTests
     }
 
     [Fact]
+    public void BorderAcceptsPerCornerRadii()
+    {
+        var border = new SkUiBorder
+        {
+            BackgroundColor = Colors.Red,
+            CornerRadius = new CornerRadius(16, 0, 0, 16),
+            Stroke = Colors.Black,
+            StrokeThickness = 2,
+        };
+        Assert.Equal(16, border.CornerRadius.TopLeft);
+        Assert.Equal(0, border.CornerRadius.TopRight);
+        SkUiTestHelpers.Arrange(border, 60, 40);
+        using var bitmap = new SKBitmap(60, 40);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        border.Paint(canvas);
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(30, 20));
+    }
+
+    [Fact]
+    public void BorderStrokeIsPaintedAboveOpaqueContent()
+    {
+        var border = new SkUiBorder
+        {
+            BackgroundColor = Colors.White,
+            Stroke = Colors.Red,
+            StrokeThickness = 4,
+            CornerRadius = 0,
+            Content = new SkUiBox { Color = Colors.White },
+        };
+        SkUiTestHelpers.Arrange(border, 40, 40);
+        using var bitmap = new SKBitmap(40, 40);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        border.Paint(canvas);
+        var edge = bitmap.GetPixel(1, 20);
+        Assert.True(edge.Red > 200 && edge.Green < 80 && edge.Blue < 80, $"Expected red stroke at edge, got {edge}");
+    }
+
+    [Fact]
     public void ActivityIndicatorStopsClockWhenRemovedFromTree()
     {
         var layout = new SkUiLayout();
@@ -260,7 +300,8 @@ public class BasicControlsTests
         var clock = layout.AnimationClock;
         Assert.True(clock.IsRunning);
         layout.Children.Remove(indicator);
-        Assert.False(indicator.IsRunning);
+        // Intent stays true; only the clock registration is cleared while detached.
+        Assert.True(indicator.IsRunning);
         Assert.False(clock.IsRunning);
     }
 
@@ -304,9 +345,28 @@ public class BasicControlsTests
         indicator.IsRunning = true;
         Assert.True(root.AnimationClock.IsRunning);
 
-        // Detach the layout; the indicator still has Parent=inner and must stop via subtreeDetached.
+        // Detach the layout; the indicator still has Parent=inner and must unbind via subtreeDetached.
         root.Content = null;
-        Assert.False(indicator.IsRunning);
+        Assert.True(indicator.IsRunning);
         Assert.False(root.AnimationClock.IsRunning);
+    }
+
+    [Fact]
+    public void ActivityIndicatorResumesWhenRehostedOnNewRoot()
+    {
+        // Mirrors ComponentDemoPage HwAccelerated toggle: recreate surface host, keep same content.
+        var indicator = new SkUiActivityIndicator { IsRunning = true };
+        var host1 = new SkUiContentView { Content = indicator };
+        Assert.True(host1.AnimationClock.IsRunning);
+
+        host1.Content = null;
+        host1.AnimationClock.StopAll();
+        Assert.True(indicator.IsRunning);
+        Assert.False(host1.AnimationClock.IsRunning);
+
+        var host2 = new SkUiContentView { HwAccelerated = false, Content = indicator };
+        Assert.True(indicator.IsRunning);
+        Assert.Same(host2.AnimationClock, indicator.AnimationClock);
+        Assert.True(host2.AnimationClock.IsRunning);
     }
 }

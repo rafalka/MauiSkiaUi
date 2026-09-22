@@ -11,6 +11,8 @@ using SkiaSharp.Views.Maui.Controls;
 #if ANDROID
 using PlatformView = Android.Views.View;
 #elif IOS || MACCATALYST
+using CoreAnimation;
+using Foundation;
 using PlatformView = UIKit.UIView;
 #elif WINDOWS
 using PlatformView = Microsoft.UI.Xaml.FrameworkElement;
@@ -27,6 +29,9 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     private TimeSpan _clockOffset;
     private SkUiOverlayContainer? _container;
     private int _animationVsyncQueued;
+#if IOS || MACCATALYST
+    private CADisplayLink? _iosAnimationLink;
+#endif
 
     private static readonly IPropertyMapper<SkUiView, SkUiViewHandler> SkiaMapper = CreateMapper();
 
@@ -85,9 +90,14 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         base.ConnectHandler(platformView);
         _renderer = new SkUiFrameRenderer(VirtualView,
             action => VirtualView.Dispatcher.Dispatch(action), InvalidateSurface, beforePaint: static () => { });
+#if IOS
+        // iOS SKGLView retains prior-frame AA strokes when painting the tree directly onto the
+        // drawable; offscreen compose + Src blit (GPU retained surface when GRContext is live).
+        if (VirtualView.HwAccelerated)
+            _renderer.UseOpaquePresentBlit = true;
+#endif
         VirtualView.AnimationClock.RunningChanged += OnRunningChanged;
         VirtualView.Loaded += OnLoaded;
-        VirtualView.Unloaded += OnUnloaded;
         OnRunningChanged(this, EventArgs.Empty);
         QueueFrame();
         NotifyRootAttached(VirtualView);
@@ -99,10 +109,15 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         NotifyRootDetached(VirtualView);
         VirtualView.AnimationClock.RunningChanged -= OnRunningChanged;
         VirtualView.Loaded -= OnLoaded;
-        VirtualView.Unloaded -= OnUnloaded;
-        _renderer?.Dispose();
-        _renderer = null;
+        // Stop animators before killing the surface so HasRenderLoop / Metal are paused while
+        // the platform view is still connected (avoids CADisplayLink / MTKView drawing into a dying tree).
+        VirtualView.AnimationClock.StopAll();
         _animationTime.Reset();
+        Interlocked.Exchange(ref _animationVsyncQueued, 0);
+#if IOS || MACCATALYST
+        StopIosAnimationDisplayLink();
+#endif
+
         if (_surface is SKGLView gpu)
         {
             gpu.HasRenderLoop = false;
@@ -114,6 +129,18 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             software.PaintSurface -= OnSoftwarePaint;
             software.Touch -= OnTouch;
         }
+
+        _renderer?.Dispose();
+        _renderer = null;
+
+#if IOS || MACCATALYST
+        // Detach the Skia platform view from the overlay container on the UI thread before
+        // DisconnectHandler/GC so removeFromSuperview is not deferred into NSObject disposer
+        // while CALayer KVO (MAUI Loaded observers) is still live.
+        if (_surface?.Handler?.PlatformView is UIKit.UIView surfaceNative)
+            surfaceNative.RemoveFromSuperview();
+#endif
+
         _surface?.Handler?.DisconnectHandler();
         if (_surface is not null)
             _surface.Parent = null;
@@ -187,9 +214,11 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #endif
     }
 
-    private void OnLoaded(object? sender, EventArgs args) => QueueFrame();
-
-    private void OnUnloaded(object? sender, EventArgs args) => VirtualView.AnimationClock.StopAll();
+    private void OnLoaded(object? sender, EventArgs args)
+    {
+        QueueFrame();
+        OnRunningChanged(this, EventArgs.Empty);
+    }
 
     private void OnRunningChanged(object? sender, EventArgs args)
     {
@@ -199,43 +228,92 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             _clockOffset = clock.FrameTime;
             _animationTime.Restart();
             if (_surface is SKGLView gpu)
+            {
+#if IOS || MACCATALYST
+                // SKGLView HasRenderLoop uses a default-mode CADisplayLink that does not fire while
+                // a sibling UIScrollView is tracking. Drive presents from our own CommonModes link.
+                gpu.HasRenderLoop = false;
+                StartIosAnimationDisplayLink();
+#else
                 gpu.HasRenderLoop = true;
-            // Drive the first tick from the surface cadence; do not force a full RecordFrame here.
-            ScheduleAnimationVsync();
+                InvalidateSurface();
+#endif
+            }
+            else
+            {
+                ScheduleAnimationVsync();
+            }
         }
         else
         {
             _animationTime.Stop();
+#if IOS || MACCATALYST
+            StopIosAnimationDisplayLink();
+#endif
             if (_surface is SKGLView gpu)
                 gpu.HasRenderLoop = false;
-            // Final present after the last animator stops (e.g. settle on final scroll offset).
+            Interlocked.Exchange(ref _animationVsyncQueued, 0);
             QueueFrame();
         }
     }
 
     private void QueueFrame() => _renderer?.RequestFrame();
 
-    private void TickAnimation()
+    private void TickAnimation(bool requestPaint)
     {
         var clock = VirtualView.AnimationClock;
         if (!clock.IsRunning)
             return;
         clock.Tick(_clockOffset + _animationTime.Elapsed);
-        // Paint-only animators (e.g. ActivityIndicator) mutate fields in Apply without InvalidatePaint;
-        // one root invalidation per tick avoids N event bubbles and N content-cache dirties.
-        VirtualView.InvalidatePaint();
+        // When ticking from inside PaintSurface / display-link, the frame is already being drawn —
+        // do not InvalidatePaint (that would re-enter present under a render loop).
+        if (requestPaint)
+            VirtualView.InvalidatePaint();
     }
 
+#if IOS || MACCATALYST
+    private void StartIosAnimationDisplayLink()
+    {
+        if (_iosAnimationLink is not null)
+            return;
+        _iosAnimationLink = CADisplayLink.Create(OnIosAnimationDisplayLink);
+        // CommonModes includes UITrackingRunLoopMode (ScrollView / mouse-drag on simulator).
+        _iosAnimationLink.AddToRunLoop(NSRunLoop.Main, NSRunLoopMode.Common);
+    }
+
+    private void StopIosAnimationDisplayLink()
+    {
+        if (_iosAnimationLink is null)
+            return;
+        _iosAnimationLink.Invalidate();
+        _iosAnimationLink = null;
+    }
+
+    private void OnIosAnimationDisplayLink()
+    {
+        if (_renderer is null || !VirtualView.AnimationClock.IsRunning)
+            return;
+        if (!_animationTime.IsRunning)
+        {
+            _clockOffset = VirtualView.AnimationClock.FrameTime;
+            _animationTime.Restart();
+        }
+        TickAnimation(requestPaint: false);
+        InvalidateSurface();
+    }
+#endif
+
     /// <summary>
-    /// Coalesces animation ticks onto the UI dispatcher. Tick may InvalidatePaint (record once);
-    /// we do not call <see cref="QueueFrame"/> after every present — that was saturating the UI thread
-    /// with full-tree records while <c>HasRenderLoop</c> fired.
+    /// Software-only animation pump. iOS/Catalyst HW uses <see cref="StartIosAnimationDisplayLink"/>;
+    /// other GPUs tick inside <see cref="PaintSurface"/> under <c>HasRenderLoop</c>.
     /// </summary>
     private void ScheduleAnimationVsync()
     {
+        if (_surface is not SKCanvasView)
+            return;
         if (Interlocked.Exchange(ref _animationVsyncQueued, 1) == 1)
             return;
-        VirtualView.Dispatcher.Dispatch(OnAnimationVsync);
+        VirtualView.Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(16), OnAnimationVsync);
     }
 
     private void OnAnimationVsync()
@@ -243,11 +321,11 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         Interlocked.Exchange(ref _animationVsyncQueued, 0);
         if (_renderer is null || !_animationTime.IsRunning)
             return;
-        TickAnimation();
-        // Software surfaces have no HasRenderLoop; keep presenting so the next tick can run.
-        // GL continues via HasRenderLoop. Record happens only when Tick invalidates paint.
-        if (_animationTime.IsRunning && _surface is SKCanvasView)
-            InvalidateSurface();
+        TickAnimation(requestPaint: true);
+        if (!_animationTime.IsRunning)
+            return;
+        InvalidateSurface();
+        ScheduleAnimationVsync();
     }
 
     private void InvalidateSurface()
@@ -258,15 +336,45 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             software.InvalidateSurface();
     }
 
-    private void OnGpuPaint(object? sender, SKPaintGLSurfaceEventArgs args) => PaintSurface(args.Surface.Canvas, args.Info);
-
-    private void OnSoftwarePaint(object? sender, SKPaintSurfaceEventArgs args) => PaintSurface(args.Surface.Canvas, args.Info);
-
-    private void PaintSurface(SKCanvas canvas, SKImageInfo info)
+    private void OnGpuPaint(object? sender, SKPaintGLSurfaceEventArgs args)
     {
-        _renderer?.Replay(canvas, info);
-        if (_animationTime.IsRunning)
+        var grContext = _surface is SKGLView gpu ? gpu.GRContext : null;
+        PaintSurface(args.Surface.Canvas, args.Info, grContext);
+#if IOS
+        args.Surface.Canvas.Flush();
+        args.Surface.Flush();
+        grContext?.Flush();
+#endif
+    }
+
+    private void OnSoftwarePaint(object? sender, SKPaintSurfaceEventArgs args) =>
+        PaintSurface(args.Surface.Canvas, args.Info, grContext: null);
+
+    private void PaintSurface(SKCanvas canvas, SKImageInfo info, GRContext? grContext)
+    {
+        var clockRunning = VirtualView.AnimationClock.IsRunning;
+        if (clockRunning)
+        {
+            if (!_animationTime.IsRunning)
+            {
+                _clockOffset = VirtualView.AnimationClock.FrameTime;
+                _animationTime.Restart();
+            }
+#if !(IOS || MACCATALYST)
+            // Non-Apple GPUs: tick on present under HasRenderLoop.
+            // iOS/Catalyst: CADisplayLink (CommonModes) owns ticks so ScrollView tracking cannot stall them.
+            if (_surface is SKGLView)
+                TickAnimation(requestPaint: false);
+#endif
+        }
+
+        _renderer?.Replay(canvas, info, grContext);
+
+        if (_surface is SKCanvasView && (_animationTime.IsRunning || clockRunning))
+        {
+            Interlocked.Exchange(ref _animationVsyncQueued, 0);
             ScheduleAnimationVsync();
+        }
     }
 
     private void OnTouch(object? sender, SKTouchEventArgs args)
