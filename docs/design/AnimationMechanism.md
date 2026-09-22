@@ -47,9 +47,12 @@ The clock must integrate with root invalidation: continuous frames **only while*
 Use a **root-owned, vsync-driven animator clock** that:
 
 1. Registers running animators on the **standalone** surface owner (`SkUiContentView` / standalone `SkUiLayout` / standalone `SkUiView`).
-2. Sets **`HasRenderLoop = true`** (GL) or continuous invalidate (SW) when the active count goes from 0 → 1.
+2. Sets continuous presents when the active count goes from 0 → 1:
+   - **Most platforms (GL):** `HasRenderLoop = true`.
+   - **iOS / Mac Catalyst (GL):** a root-owned `CADisplayLink` on **`NSRunLoopCommonModes`** ticks and `InvalidateSurface`s — `SKGLView`'s own `HasRenderLoop` link is default-mode only and stalls while a sibling `UIScrollView` is tracking.
+   - **Software:** delayed dispatcher pump (~16 ms) + `InvalidateSurface`.
 3. Each frame: **tick all animators with frame time** → apply values → **one full-tree paint** (v1 paint model in DrawingMechanism.md).
-4. When the last animator finishes: **`HasRenderLoop = false`** and stop continuous presents.
+4. When the last animator finishes: stop the continuous present path (`HasRenderLoop = false` / invalidate the iOS display link / stop the SW pump).
 
 **Do not** implement a separate fixed-rate 60 Hz timer that calls `InvalidateSurface`. SkiaSharp and platform docs consistently show that timers drift, fight vsync, and under-deliver on touch/load; GL already presents on the display cadence when the render loop is on.
 

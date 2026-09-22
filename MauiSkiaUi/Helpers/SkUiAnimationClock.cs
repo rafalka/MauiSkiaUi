@@ -64,8 +64,9 @@ public sealed class SkUiAnimationClock
     {
         if (!IsRunning)
             return;
-        _animations.Clear();
-        RunningChanged?.Invoke(this, EventArgs.Empty);
+        // Dispose each handle so callers holding Start() disposables can rebind cleanly.
+        while (_animations.Count > 0)
+            _animations[^1].Dispose();
     }
 
     private sealed class RunningAnimation(

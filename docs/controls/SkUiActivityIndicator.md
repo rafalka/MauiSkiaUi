@@ -6,7 +6,7 @@ Indeterminate spinner driven by the shared animation clock.
 
 ## How it works
 
-While `IsRunning` is true, a repeating clock animation updates the sweep angle. The root handler issues **one** paint invalidation per tick (spinners do not each bubble `InvalidatePaint`). Hiding (`IsVisible=false`) or removing the control—or an **ancestor** layout—from its parent stops the clock so detached subtrees cannot keep ticking. Setting `IsRunning` before the control joins its surface-owning ancestor still works: the spin callback rebinds onto the shared root clock when parenting changes. Stroke paint is cached and released on detach. Intrinsic measure comes from `SkUiLook.Current.DefaultActivityIndicatorSize` (default 36×36 DIPs). Arc geometry uses `SkUiLook.Current.DrawActivityIndicator` (same path as `SkUiCoreActivityIndicator`).
+While `IsRunning` is true, a repeating clock animation updates the sweep angle. The root handler issues **one** paint invalidation per tick (spinners do not each bubble `InvalidatePaint`). Hiding (`IsVisible=false`) clears `IsRunning`. Detaching the control—or an **ancestor**—from its parent **unbinds** the spin callback so detached subtrees cannot keep ticking, but **keeps** `IsRunning` so a temporary rehost (e.g. recreating the surface host for `HwAccelerated`) resumes automatically. Setting `IsRunning` before the control joins its surface-owning ancestor still works: the spin callback rebinds onto the shared root clock when parenting changes. Stroke paint is cached and released on detach. Intrinsic measure comes from `SkUiLook.Current.DefaultActivityIndicatorSize` (default 36×36 DIPs). Arc geometry uses `SkUiLook.Current.DrawActivityIndicator` (same path as `SkUiCoreActivityIndicator`).
 
 
 ## Shared conventions
@@ -35,7 +35,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | Topic | SkiaUi |
 | --- | --- |
 | Appearance | Drawn arc on Skia (not platform spinner) |
-| Lifecycle | Auto-stops on hide/detach |
+| Lifecycle | Unbinds on hide/detach; `IsRunning` resumes after rehost |
 | Size | Fixed intrinsic size unless constrained by layout |
 
 ## Related

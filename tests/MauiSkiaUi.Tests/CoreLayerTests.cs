@@ -446,8 +446,26 @@ public class CoreLayerTests
         Assert.True(host.AnimationClock.IsRunning);
 
         panel.Remove(spinner);
-        Assert.False(spinner.IsRunning);
+        // Intent stays true; only the clock registration is cleared while detached.
+        Assert.True(spinner.IsRunning);
         Assert.False(host.AnimationClock.IsRunning);
+    }
+
+    [Fact]
+    public void ActivityIndicator_ResumesWhenRehostedOnNewHost()
+    {
+        var spinner = new SkUiCoreActivityIndicator().SetIsRunning(true);
+        var host1 = new SkUiCoreHost().SetContent(spinner);
+        Assert.True(host1.AnimationClock.IsRunning);
+
+        host1.SetContent(null);
+        Assert.True(spinner.IsRunning);
+        Assert.False(host1.AnimationClock.IsRunning);
+
+        var host2 = new SkUiCoreHost().SetContent(spinner);
+        Assert.True(spinner.IsRunning);
+        Assert.Same(host2.AnimationClock, spinner.AnimationClock);
+        Assert.True(host2.AnimationClock.IsRunning);
     }
 
     [Fact]

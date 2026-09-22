@@ -52,6 +52,14 @@ public class SkUiActivityIndicator : SkUiView
     protected override void OnPaintContent(SKCanvas canvas)
     {
         if (!_isRunning) return;
+        // Recover when StopAll cleared clock registrations but IsRunning stayed true (e.g. older
+        // Unloaded handlers, or host recreate that stopped the clock without clearing intent).
+        if (!AnimationClock.IsRunning)
+        {
+            BindSpin();
+            if (!AnimationClock.IsRunning)
+                return;
+        }
         var paint = _strokePaint ??= new SKPaint
         {
             Style = SKPaintStyle.Stroke,
@@ -70,15 +78,17 @@ public class SkUiActivityIndicator : SkUiView
     }
 
     /// <summary>
-    /// Stops when this control or an ancestor subtree is detached; otherwise rebinds the spin
-    /// callback onto the current <see cref="SkUiView.AnimationClock"/> when the shared root changes
-    /// (e.g. <c>IsRunning</c> was set before the control joined its surface-owning ancestor).
+    /// Unbinds the spin callback when this control or an ancestor subtree is detached; keeps
+    /// <see cref="IsRunning"/> so a temporary rehost (e.g. HwAccelerated host recreate) can resume.
+    /// Rebinds onto the current <see cref="SkUiView.AnimationClock"/> when the shared root changes
+    /// while still running (e.g. <c>IsRunning</c> was set before the control joined its surface-owning ancestor).
     /// </summary>
     protected override void OnAnimationRootChanged(bool subtreeDetached = false)
     {
         if (Parent is null || subtreeDetached)
         {
-            SetIsRunning(false);
+            _spin?.Dispose();
+            _spin = null;
             return;
         }
         if (_isRunning)
