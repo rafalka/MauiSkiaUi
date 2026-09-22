@@ -14,15 +14,20 @@ public abstract class ComponentDemoPage : ContentPage
     private readonly List<Action> _resets = [];
     private readonly List<(string Name, Func<bool> Check)> _checks = [];
     private readonly View? _nativePanel;
+    private readonly Grid _skiaPanel;
     private readonly Label _result;
     private readonly Label _skiaStatus;
     private readonly Label? _nativeStatus;
-    private readonly SkUiContentView _host;
+    private SkUiContentView _host;
+    private bool _hwAccelerated = true;
 
     internal SkUiView SkiaControl { get; }
     internal View? NativeControl { get; }
     internal bool IsWide { get; private set; }
     internal Grid Editors => _editors;
+
+    /// <summary>Whether the preview host uses a GPU Skia surface (<see cref="SkUiView.HwAccelerated"/>).</summary>
+    protected bool HwAccelerated => _hwAccelerated;
 
     protected ComponentDemoPage(string name, SkUiView skia, View? native = null, (double Min, double Max, double Initial)? widthRange = null, (double Min, double Max, double Initial)? heightRange = null)
     {
@@ -32,7 +37,7 @@ public abstract class ComponentDemoPage : ContentPage
         NativeControl = native;
         skia.AutomationId = "SkiaPreview";
         if (native is not null) native.AutomationId = "NativePreview";
-        _host = new SkUiContentView { Content = skia, Background = Colors.White, AutomationId = "PreviewHost" };
+        _host = CreatePreviewHost(skia, hwAccelerated: true);
         skia.HorizontalOptions = LayoutOptions.Center;
         skia.VerticalOptions = LayoutOptions.Center;
         if (native is not null)
@@ -40,8 +45,8 @@ public abstract class ComponentDemoPage : ContentPage
             native.HorizontalOptions = LayoutOptions.Center;
             native.VerticalOptions = LayoutOptions.Center;
         }
-        var skiaPanel = MakePanel("SkUi", _host, out _skiaStatus);
-        _comparisons.Add(skiaPanel);
+        _skiaPanel = MakePanel("SkUi", _host, out _skiaStatus);
+        _comparisons.Add(_skiaPanel);
         if (native is not null)
         {
             _nativePanel = MakePanel("MAUI", native, out var status);
@@ -62,11 +67,47 @@ public abstract class ComponentDemoPage : ContentPage
         UpdateComparisonLayout(0);
         skia.SizeChanged += (_, _) => UpdateBounds();
         if (native is not null) native.SizeChanged += (_, _) => UpdateBounds();
+        Toggle("HwAccelerated", true, ApplyHwAcceleration, () => _hwAccelerated);
         Number(nameof(View.WidthRequest), widthRange?.Min ?? 60, widthRange?.Max ?? 260, widthRange?.Initial ?? 220, value => SetBoth(View.WidthRequestProperty, value), () => skia.WidthRequest, native is null ? null : () => native.WidthRequest);
         Number(nameof(View.HeightRequest), heightRange?.Min ?? 40, heightRange?.Max ?? 160, heightRange?.Initial ?? 120, value => SetBoth(View.HeightRequestProperty, value), () => skia.HeightRequest, native is null ? null : () => native.HeightRequest);
         Number(nameof(VisualElement.Opacity), 0, 1, 1, value => SetBoth(VisualElement.OpacityProperty, value), () => skia.Opacity, native is null ? null : () => native.Opacity);
         Toggle(nameof(VisualElement.IsEnabled), true, value => SetBoth(VisualElement.IsEnabledProperty, value), () => skia.IsEnabled, native is null ? null : () => native.IsEnabled);
         Toggle(nameof(VisualElement.IsVisible), true, value => SetBoth(VisualElement.IsVisibleProperty, value), () => skia.IsVisible, native is null ? null : () => native.IsVisible);
+    }
+
+    private static SkUiContentView CreatePreviewHost(ISkUiView? content, bool hwAccelerated)
+    {
+        // Ctor defaults HwAccelerated=true; set before the host joins the visual tree / gets a handler.
+        var host = new SkUiContentView
+        {
+            Background = Colors.White,
+            BackgroundColor = Colors.White,
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Fill,
+            AutomationId = "PreviewHost",
+        };
+        host.HwAccelerated = hwAccelerated;
+        host.Content = content;
+        return host;
+    }
+
+    /// <summary>
+    /// Recreates the preview <see cref="SkUiContentView"/> host with the given acceleration mode
+    /// (required because <see cref="SkUiView.HwAccelerated"/> is frozen at handler creation).
+    /// </summary>
+    private void ApplyHwAcceleration(bool enabled)
+    {
+        if (_hwAccelerated == enabled && _host.HwAccelerated == enabled)
+            return;
+
+        _hwAccelerated = enabled;
+        var content = _host.Content;
+        _host.Content = null;
+        _host.AnimationClock.StopAll();
+        _skiaPanel.Remove(_host);
+        _host = CreatePreviewHost(content, enabled);
+        _skiaPanel.Add(_host, 0, 1);
+        UpdateBounds();
     }
 
     private static Grid MakePanel(string title, View view, out Label status)
@@ -233,7 +274,9 @@ public abstract class ComponentDemoPage : ContentPage
         if (_nativeStatus is not null) _nativeStatus.Text = native ?? string.Empty;
     }
 
-    private void UpdateBounds() => Feedback($"Bounds {SkiaControl.Width:F0} x {SkiaControl.Height:F0}", NativeControl is null ? null : $"Bounds {NativeControl.Width:F0} x {NativeControl.Height:F0}");
+    private void UpdateBounds() => Feedback(
+        $"Bounds {SkiaControl.Width:F0} x {SkiaControl.Height:F0}  ·  HW {(_hwAccelerated ? "on" : "off")}",
+        NativeControl is null ? null : $"Bounds {NativeControl.Width:F0} x {NativeControl.Height:F0}");
 
     internal string[] CheckProperties()
     {
