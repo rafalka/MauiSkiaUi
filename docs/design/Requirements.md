@@ -396,6 +396,18 @@ Design details: [ColorScheme.md](ColorScheme.md).
 - [x] Document naming; tests cover swap light/dark + change Accent; Core and MAUI-compatible share scheme accessors.
 - [x] Gallery sample: swap light/dark + change Accent only (`LookAndColorSchemePage`).
 
+### FR-20 — Shadows (future)
+
+**Status:** planned, not implemented. Architectural work must not preclude it (see [ArchitectureReview.md](ArchitectureReview.md)).
+
+- [ ] Drop shadows on any Skia-drawn node (Core and `SkUi*`): color, offset, blur radius, opacity; MAUI `VisualElement.Shadow` (`IShadow`) parity on `SkUi*`.
+- [ ] Shadow follows the node's shape (rounded rect / path / ellipse / text alpha), not only its rectangle.
+- [ ] Shadow paints **outside** the node's arranged bounds: nodes expose **visual (ink) bounds** distinct from layout bounds; culling, dirty regions, and retained caches use visual bounds.
+- [ ] Clip-to-bounds is **opt-in** per node, so a child's shadow is not cut by its own clip; a parent's opt-in clip still applies.
+- [ ] Shadow does not affect layout or hit-testing.
+- [ ] Shadow blur is expensive: rasterized shadow output is cacheable independently of content (keyed by shape, size, radius, density) and survives offset/opacity/transform animation without re-blur.
+- [ ] Shadow properties are animatable on the render thread like opacity/transform.
+
 Initial controls, layouts, and scroll are delivered with headless tests. Device interaction/rendering/contrast acceptance remains blocked by the installed MAUI extension; checked implementation items do not imply native platform verification. See [Development.md](../../Development.md) for the precise v1 API limits.
 
 ## Non-functional requirements
