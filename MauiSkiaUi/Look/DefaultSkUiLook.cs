@@ -106,13 +106,18 @@ public class DefaultSkUiLook : SkUiLook
     protected override void DrawActivityIndicatorCore(SKCanvas canvas, float width, float height, float sweepStart, SKPaint paint)
     {
         if (width <= 0 || height <= 0) return;
-        var strokeWidth = (float)Math.Max(2, Math.Min(width, height) * 0.1);
+        // A circle centered in the slot (MAUI-like), so rotating the recorded arc about the center on the
+        // render thread is equivalent to advancing sweepStart.
+        var diameter = Math.Min(width, height);
+        var strokeWidth = (float)Math.Max(2, diameter * 0.1);
         paint.StrokeWidth = strokeWidth;
+        var left = (width - diameter) / 2;
+        var top = (height - diameter) / 2;
         var bounds = new SKRect(
-            strokeWidth / 2,
-            strokeWidth / 2,
-            width - strokeWidth / 2,
-            height - strokeWidth / 2);
+            left + strokeWidth / 2,
+            top + strokeWidth / 2,
+            left + diameter - strokeWidth / 2,
+            top + diameter - strokeWidth / 2);
         canvas.DrawArc(bounds, sweepStart, 270, false, paint);
     }
 

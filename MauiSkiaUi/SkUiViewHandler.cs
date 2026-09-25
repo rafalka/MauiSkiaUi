@@ -9,10 +9,10 @@ using SkiaSharp;
 using SkiaSharp.Views.Maui;
 using SkiaSharp.Views.Maui.Controls;
 #if ANDROID
+using MauiSkiaUi.Surfaces;
 using PlatformView = Android.Views.View;
 #elif IOS || MACCATALYST
-using CoreAnimation;
-using Foundation;
+using MauiSkiaUi.Surfaces;
 using PlatformView = UIKit.UIView;
 #elif WINDOWS
 using PlatformView = Microsoft.UI.Xaml.FrameworkElement;
@@ -20,17 +20,29 @@ using PlatformView = Microsoft.UI.Xaml.FrameworkElement;
 
 namespace MauiSkiaUi;
 
-/// <summary>Owns one Skia surface and marshals tree updates onto the UI thread.</summary>
+/// <summary>
+/// Owns one drawn surface for a standalone <see cref="SkUiView"/> root.
+/// <para>
+/// Threading: the UI thread only records dirty nodes and commits them (<see cref="SkUiFrameRenderer"/>).
+/// With <see cref="SkUiView.HwAccelerated"/>, compositing, rasterization and composite-time animations run
+/// on a render thread — a shared Metal render thread on iOS / Mac Catalyst, the GL thread of a
+/// <c>GLTextureView</c> on Android — so they keep going while the UI thread is busy. Software surfaces
+/// (and Windows) composite on the UI thread.
+/// </para>
+/// </summary>
 public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 {
-    private readonly Stopwatch _animationTime = new();
-    private View? _surface;
-    private SkUiFrameRenderer? _renderer;
+    private readonly Stopwatch _clockTime = new();
     private TimeSpan _clockOffset;
+    private SkUiFrameRenderer? _renderer;
     private SkUiOverlayContainer? _container;
-    private int _animationVsyncQueued;
-#if IOS || MACCATALYST
-    private CADisplayLink? _iosAnimationLink;
+    private SkUiUiTicker? _ticker;
+    private View? _mauiSurface;
+    private int _invalidateQueued;
+#if ANDROID
+    private SkUiGlTextureView? _gpu;
+#elif IOS || MACCATALYST
+    private SkUiMetalView? _gpu;
 #endif
 
     private static readonly IPropertyMapper<SkUiView, SkUiViewHandler> SkiaMapper = CreateMapper();
@@ -41,36 +53,55 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     private static IPropertyMapper<SkUiView, SkUiViewHandler> CreateMapper()
     {
         var mapper = new PropertyMapper<SkUiView, SkUiViewHandler>(ViewMapper);
+        // Background / opacity / transforms of the root are drawn inside the surface by the compositor,
+        // not applied to the native container. The view already requests a frame when they change.
         foreach (var property in new[]
         {
             nameof(IView.Background), nameof(IView.Opacity), nameof(IView.TranslationX), nameof(IView.TranslationY),
             nameof(IView.Rotation), nameof(IView.Scale), nameof(IView.ScaleX), nameof(IView.ScaleY),
             nameof(IView.AnchorX), nameof(IView.AnchorY)
         })
-            mapper[property] = (handler, _) => handler.QueueFrame();
+            mapper[property] = static (handler, _) => handler.QueueFrame();
         return mapper;
+    }
+
+    /// <summary>True when compositing runs on a dedicated render thread (GPU surface on Apple / Android).</summary>
+    internal bool RendersOffUiThread
+    {
+        get
+        {
+#if ANDROID || IOS || MACCATALYST
+            return _gpu is not null;
+#else
+            return false;
+#endif
+        }
     }
 
     /// <inheritdoc />
     protected override PlatformView CreatePlatformView()
     {
         SkUiFrameRenderer.EnsureStandalone(VirtualView);
+        PlatformView surfaceNative;
+#if ANDROID
         if (VirtualView.HwAccelerated)
         {
-            var gpu = new SKGLView { EnableTouchEvents = true, IgnorePixelScaling = false };
-            gpu.PaintSurface += OnGpuPaint;
-            gpu.Touch += OnTouch;
-            _surface = gpu;
+            _gpu = new SkUiGlTextureView(MauiContext!.Context!) { TouchHandler = OnSurfaceTouch };
+            surfaceNative = _gpu;
         }
         else
+            surfaceNative = CreateMauiSurface(gpu: false);
+#elif IOS || MACCATALYST
+        if (VirtualView.HwAccelerated)
         {
-            var software = new SKCanvasView { EnableTouchEvents = true, IgnorePixelScaling = false };
-            software.PaintSurface += OnSoftwarePaint;
-            software.Touch += OnTouch;
-            _surface = software;
+            _gpu = new SkUiMetalView { TouchHandler = OnSurfaceTouch };
+            surfaceNative = _gpu;
         }
-        _surface.Parent = VirtualView;
-        var surfaceNative = _surface.ToPlatform(MauiContext!);
+        else
+            surfaceNative = CreateMauiSurface(gpu: false);
+#else
+        surfaceNative = CreateMauiSurface(gpu: VirtualView.HwAccelerated);
+#endif
 #if ANDROID
         _container = new SkUiOverlayContainer(MauiContext!.Context!);
         _container.AddView(surfaceNative);
@@ -84,15 +115,42 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         return _container!;
     }
 
+    /// <summary>MAUI SkiaSharp view composited on the UI thread (software, and Windows GPU).</summary>
+    private PlatformView CreateMauiSurface(bool gpu)
+    {
+        if (gpu)
+        {
+            var view = new SKGLView { EnableTouchEvents = true, IgnorePixelScaling = false };
+            view.PaintSurface += OnMauiGpuPaint;
+            view.Touch += OnMauiTouch;
+            _mauiSurface = view;
+        }
+        else
+        {
+            var view = new SKCanvasView { EnableTouchEvents = true, IgnorePixelScaling = false };
+            view.PaintSurface += OnMauiSoftwarePaint;
+            view.Touch += OnMauiTouch;
+            _mauiSurface = view;
+        }
+        _mauiSurface.Parent = VirtualView;
+        return _mauiSurface.ToPlatform(MauiContext!);
+    }
+
     /// <inheritdoc />
     protected override void ConnectHandler(PlatformView platformView)
     {
         base.ConnectHandler(platformView);
         _renderer = new SkUiFrameRenderer(VirtualView,
-            action => VirtualView.Dispatcher.Dispatch(action), InvalidateSurface, beforeFrame: static () => { });
-        VirtualView.AnimationClock.RunningChanged += OnRunningChanged;
+            action => VirtualView.Dispatcher.Dispatch(action), RequestRender, beforeFrame: static () => { });
+#if ANDROID
+        if (_gpu is not null) _gpu.FrameRenderer = _renderer;
+#elif IOS || MACCATALYST
+        if (_gpu is not null) _gpu.Surface.Renderer = _renderer;
+#endif
+        _ticker = new SkUiUiTicker(VirtualView.Dispatcher, OnUiTick);
+        VirtualView.AnimationClock.RunningChanged += OnClockRunningChanged;
         VirtualView.Loaded += OnLoaded;
-        OnRunningChanged(this, EventArgs.Empty);
+        OnClockRunningChanged(this, EventArgs.Empty);
         QueueFrame();
         NotifyRootAttached(VirtualView);
     }
@@ -101,44 +159,54 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     protected override void DisconnectHandler(PlatformView platformView)
     {
         NotifyRootDetached(VirtualView);
-        VirtualView.AnimationClock.RunningChanged -= OnRunningChanged;
+        VirtualView.AnimationClock.RunningChanged -= OnClockRunningChanged;
         VirtualView.Loaded -= OnLoaded;
-        // Stop animators before killing the surface so HasRenderLoop / Metal are paused while
-        // the platform view is still connected (avoids CADisplayLink / MTKView drawing into a dying tree).
         VirtualView.AnimationClock.StopAll();
-        _animationTime.Reset();
-        Interlocked.Exchange(ref _animationVsyncQueued, 0);
-#if IOS || MACCATALYST
-        StopIosAnimationDisplayLink();
+        _ticker?.Dispose();
+        _ticker = null;
+        _clockTime.Reset();
+
+#if ANDROID
+        if (_gpu is not null)
+        {
+            _gpu.FrameRenderer = null;
+            _gpu.TouchHandler = null;
+        }
+#elif IOS || MACCATALYST
+        if (_gpu is not null)
+        {
+            _gpu.Surface.Renderer = null;
+            _gpu.TouchHandler = null;
+            _gpu.RemoveFromSuperview();
+        }
 #endif
-
-        if (_surface is SKGLView gpu)
-        {
-            gpu.HasRenderLoop = false;
-            gpu.PaintSurface -= OnGpuPaint;
-            gpu.Touch -= OnTouch;
-        }
-        if (_surface is SKCanvasView software)
-        {
-            software.PaintSurface -= OnSoftwarePaint;
-            software.Touch -= OnTouch;
-        }
-
+        // Waits for an in-flight render-thread frame before releasing retained pictures.
         _renderer?.Dispose();
         _renderer = null;
 
+        if (_mauiSurface is SKGLView gl)
+        {
+            gl.PaintSurface -= OnMauiGpuPaint;
+            gl.Touch -= OnMauiTouch;
+        }
+        if (_mauiSurface is SKCanvasView canvas)
+        {
+            canvas.PaintSurface -= OnMauiSoftwarePaint;
+            canvas.Touch -= OnMauiTouch;
+        }
 #if IOS || MACCATALYST
-        // Detach the Skia platform view from the overlay container on the UI thread before
-        // DisconnectHandler/GC so removeFromSuperview is not deferred into NSObject disposer
-        // while CALayer KVO (MAUI Loaded observers) is still live.
-        if (_surface?.Handler?.PlatformView is UIKit.UIView surfaceNative)
+        // Detach before GC so removeFromSuperview is not deferred into the NSObject disposer.
+        if (_mauiSurface?.Handler?.PlatformView is UIKit.UIView surfaceNative)
             surfaceNative.RemoveFromSuperview();
 #endif
-
-        _surface?.Handler?.DisconnectHandler();
-        if (_surface is not null)
-            _surface.Parent = null;
-        _surface = null;
+        _mauiSurface?.Handler?.DisconnectHandler();
+        if (_mauiSurface is not null)
+            _mauiSurface.Parent = null;
+        _mauiSurface = null;
+#if ANDROID || IOS || MACCATALYST
+        _gpu?.Dispose();
+        _gpu = null;
+#endif
         _container = null;
         base.DisconnectHandler(platformView);
     }
@@ -211,168 +279,79 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     private void OnLoaded(object? sender, EventArgs args)
     {
         QueueFrame();
-        OnRunningChanged(this, EventArgs.Empty);
-    }
-
-    private void OnRunningChanged(object? sender, EventArgs args)
-    {
-        var clock = VirtualView.AnimationClock;
-        if (clock.IsRunning)
-        {
-            _clockOffset = clock.FrameTime;
-            _animationTime.Restart();
-            if (_surface is SKGLView gpu)
-            {
-#if IOS || MACCATALYST
-                // SKGLView HasRenderLoop uses a default-mode CADisplayLink that does not fire while
-                // a sibling UIScrollView is tracking. Drive presents from our own CommonModes link.
-                gpu.HasRenderLoop = false;
-                StartIosAnimationDisplayLink();
-#else
-                gpu.HasRenderLoop = true;
-                InvalidateSurface();
-#endif
-            }
-            else
-            {
-                ScheduleAnimationVsync();
-            }
-        }
-        else
-        {
-            _animationTime.Stop();
-#if IOS || MACCATALYST
-            StopIosAnimationDisplayLink();
-#endif
-            if (_surface is SKGLView gpu)
-                gpu.HasRenderLoop = false;
-            Interlocked.Exchange(ref _animationVsyncQueued, 0);
-            QueueFrame();
-        }
+        OnClockRunningChanged(this, EventArgs.Empty);
     }
 
     private void QueueFrame() => _renderer?.RequestFrame();
 
-    private void TickAnimation(bool requestPaint)
+    /// <summary>Called by the frame renderer after a commit (UI thread) to get the new frame presented.</summary>
+    private void RequestRender()
+    {
+#if ANDROID
+        if (_gpu is not null) { _gpu.RequestRender(); return; }
+#elif IOS || MACCATALYST
+        if (_gpu is not null) { _gpu.Surface.RequestRender(); return; }
+#endif
+        InvalidateMauiSurface();
+    }
+
+    private void InvalidateMauiSurface()
+    {
+        if (Interlocked.Exchange(ref _invalidateQueued, 1) == 1)
+            return;
+        VirtualView.Dispatcher.Dispatch(() =>
+        {
+            Interlocked.Exchange(ref _invalidateQueued, 0);
+            if (_mauiSurface is SKGLView gl) gl.InvalidateSurface();
+            else if (_mauiSurface is SKCanvasView canvas) canvas.InvalidateSurface();
+        });
+    }
+
+    private void OnClockRunningChanged(object? sender, EventArgs args)
+    {
+        var clock = VirtualView.AnimationClock;
+        if (clock.IsRunning)
+        {
+            if (!_clockTime.IsRunning)
+            {
+                _clockOffset = clock.FrameTime;
+                _clockTime.Restart();
+            }
+            _ticker?.Start();
+        }
+        else
+        {
+            _clockTime.Stop();
+            _ticker?.Stop();
+            QueueFrame();
+        }
+    }
+
+    /// <summary>UI vsync while UI-clock animations run: tick them, then record + commit immediately.</summary>
+    private void OnUiTick()
     {
         var clock = VirtualView.AnimationClock;
         if (!clock.IsRunning)
             return;
-        clock.Tick(_clockOffset + _animationTime.Elapsed);
-        // When ticking from inside PaintSurface / display-link, the frame is already being drawn —
-        // do not InvalidatePaint (that would re-enter present under a render loop).
-        if (requestPaint)
-            VirtualView.InvalidatePaint();
+        clock.Tick(_clockOffset + _clockTime.Elapsed);
+        _renderer?.PresentFrame();
     }
 
-#if IOS || MACCATALYST
-    private void StartIosAnimationDisplayLink()
+    private void OnMauiGpuPaint(object? sender, SKPaintGLSurfaceEventArgs args) =>
+        PaintMauiSurface(args.Surface.Canvas, args.Info);
+
+    private void OnMauiSoftwarePaint(object? sender, SKPaintSurfaceEventArgs args) =>
+        PaintMauiSurface(args.Surface.Canvas, args.Info);
+
+    private void PaintMauiSurface(SKCanvas canvas, SKImageInfo info)
     {
-        if (_iosAnimationLink is not null)
-            return;
-        _iosAnimationLink = CADisplayLink.Create(OnIosAnimationDisplayLink);
-        // CommonModes includes UITrackingRunLoopMode (ScrollView / mouse-drag on simulator).
-        _iosAnimationLink.AddToRunLoop(NSRunLoop.Main, NSRunLoopMode.Common);
-    }
-
-    private void StopIosAnimationDisplayLink()
-    {
-        if (_iosAnimationLink is null)
-            return;
-        _iosAnimationLink.Invalidate();
-        _iosAnimationLink = null;
-    }
-
-    private void OnIosAnimationDisplayLink()
-    {
-        if (_renderer is null || !VirtualView.AnimationClock.IsRunning)
-            return;
-        if (!_animationTime.IsRunning)
-        {
-            _clockOffset = VirtualView.AnimationClock.FrameTime;
-            _animationTime.Restart();
-        }
-        TickAnimation(requestPaint: false);
-        InvalidateSurface();
-    }
-#endif
-
-    /// <summary>
-    /// Software-only animation pump. iOS/Catalyst HW uses <see cref="StartIosAnimationDisplayLink"/>;
-    /// other GPUs tick inside <see cref="PaintSurface"/> under <c>HasRenderLoop</c>.
-    /// </summary>
-    private void ScheduleAnimationVsync()
-    {
-        if (_surface is not SKCanvasView)
-            return;
-        if (Interlocked.Exchange(ref _animationVsyncQueued, 1) == 1)
-            return;
-        VirtualView.Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(16), OnAnimationVsync);
-    }
-
-    private void OnAnimationVsync()
-    {
-        Interlocked.Exchange(ref _animationVsyncQueued, 0);
-        if (_renderer is null || !_animationTime.IsRunning)
-            return;
-        TickAnimation(requestPaint: true);
-        if (!_animationTime.IsRunning)
-            return;
-        InvalidateSurface();
-        ScheduleAnimationVsync();
-    }
-
-    private void InvalidateSurface()
-    {
-        if (_surface is SKGLView gpu)
-            gpu.InvalidateSurface();
-        else if (_surface is SKCanvasView software)
-            software.InvalidateSurface();
-    }
-
-    private void OnGpuPaint(object? sender, SKPaintGLSurfaceEventArgs args)
-    {
-        var grContext = _surface is SKGLView gpu ? gpu.GRContext : null;
-        PaintSurface(args.Surface.Canvas, args.Info, grContext);
-#if IOS
-        args.Surface.Canvas.Flush();
-        args.Surface.Flush();
-        grContext?.Flush();
-#endif
-    }
-
-    private void OnSoftwarePaint(object? sender, SKPaintSurfaceEventArgs args) =>
-        PaintSurface(args.Surface.Canvas, args.Info, grContext: null);
-
-    private void PaintSurface(SKCanvas canvas, SKImageInfo info, GRContext? grContext)
-    {
-        var clockRunning = VirtualView.AnimationClock.IsRunning;
-        if (clockRunning)
-        {
-            if (!_animationTime.IsRunning)
-            {
-                _clockOffset = VirtualView.AnimationClock.FrameTime;
-                _animationTime.Restart();
-            }
-#if !(IOS || MACCATALYST)
-            // Non-Apple GPUs: tick on present under HasRenderLoop.
-            // iOS/Catalyst: CADisplayLink (CommonModes) owns ticks so ScrollView tracking cannot stall them.
-            if (_surface is SKGLView)
-                TickAnimation(requestPaint: false);
-#endif
-        }
-
         if (_renderer?.Render(canvas, info) == true)
-            VirtualView.Dispatcher.Dispatch(InvalidateSurface);
-
-        if (_surface is SKCanvasView && (_animationTime.IsRunning || clockRunning))
-        {
-            Interlocked.Exchange(ref _animationVsyncQueued, 0);
-            ScheduleAnimationVsync();
-        }
+            InvalidateMauiSurface();
     }
 
-    private void OnTouch(object? sender, SKTouchEventArgs args)
+    private bool OnSurfaceTouch(SkUiTouchEvent touch) => _renderer?.TouchDips(touch) == true;
+
+    private void OnMauiTouch(object? sender, SKTouchEventArgs args)
     {
         SkUiTouchAction? action = args.ActionType switch
         {
