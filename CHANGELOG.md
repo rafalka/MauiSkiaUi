@@ -4,6 +4,18 @@ Release notes for the NuGet package **SkiaUi.Maui**.
 
 Pack and publish workflows copy the body under `## <version>` into the package `PackageReleaseNotes` field. nuget.org shows that text on the package page. The heading must match `Version` in [Directory.Build.props](Directory.Build.props) exactly (newest section first). A link back to this file is appended when the notes are extracted.
 
+## Unreleased
+
+- **Retained compositor with a render thread** ([RenderingPipeline.md](docs/design/RenderingPipeline.md)): the UI thread records only the nodes whose content changed; GPU surfaces composite on a render thread. Offset, transform, opacity, clip and scroll offset are composite-time properties (no re-record).
+- **Metal on iOS / Mac Catalyst** replaces the deprecated GLKView-based `SKGLView`; Android GPU surfaces render on their own GL thread.
+- **Render-thread animation:** new `AnimateAsync` on `SkUiView` and Core nodes (opacity, translation, rotation, scale); `SkUiScrollView` fling / `ScrollToAsync` / `AnimateScrollTo` and activity indicators keep running while the UI thread is busy.
+- **Breaking:** `ClipToBounds` is on for leaf controls but off for layouts / content hosts (MAUI parity); containers no longer paint children inside `OnPaintContent` (the engine composites them); `SkUiView.PaintChild` / `SkUiCoreNode.PaintChild` and `SkUiScrollView` picture-cache diagnostics were removed; `PaintInvalidated` fires on the invalidated node and once per frame on the root.
+- Core nodes gain `Opacity`, `TranslationX/Y`, `Rotation`, `Scale`, `ClipToBounds` with transform-aware hit testing; Core arrange cache fixed.
+- Text: one shared engine for `SkUiLabel` / `SkUiCoreLabel` with cached typefaces / fonts and linear wrapping.
+- Images decode downsampled to `SkUiImageDecoder.MaxDecodeDimension` (layout keeps source size); `SkUiFonts` picks up MAUI `ConfigureFonts` fonts and is thread-safe.
+- Multi-pointer native touch and wheel / trackpad scroll on GPU surfaces.
+- Requirements: FR-20 (shadows, future) and NFR-6 (threading).
+
 ## 1.0.0-Prerelease03
 
 - Borders (`SkUiBorder` / `SkUiCoreBorder`) support MAUI-style per-corner `CornerRadius`; fill paints in Background and stroke in Overlay so content cannot cover the border.

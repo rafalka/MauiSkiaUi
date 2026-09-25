@@ -1,5 +1,24 @@
 # SkiaUi architecture review (2026-09-25)
 
+## Implementation status (same day)
+
+| Review item | Status |
+| --- | --- |
+| 1.1 Android paint off the UI thread | **Fixed by design**: UI thread records; the GL thread only composites retained pictures ([RenderingPipeline.md](RenderingPipeline.md)) |
+| 1.2 iOS on OpenGL ES | **Done**: Metal render thread (`SkUiMetalView` / `SkUiMetalRenderLoop`); offscreen blit removed |
+| 1.3 O(N × depth) invalidation | **Done**: marks stop at the first marked ancestor; arrange marks props only |
+| 1.4 Core arrange cache | **Fixed** |
+| 1.5 Text | **Done** except shaping: shared `SkUiTextLayout`, cached typefaces / fonts / line widths, linear wrap. HarfBuzz / RTL still open |
+| 1.6 Paint allocations | **Done** for view background / opacity / look chrome (and recording now happens only on content change) |
+| 1.7 Clip on every node | **Done**: `ClipToBounds` opt-in for layouts |
+| 1.8 Images / fonts / Core transforms | **Done**: downsampled decode, `ConfigureFonts` fallback, thread-safe font registry, Core opacity / transforms. Multi-pointer native touch done; gesture arena open |
+| 2.1 Core as engine | **Partial**: one render pipeline (`ISkUiRenderable`) and one text engine for both layers; full `SkUi*`-over-Core facades still open |
+| 2.2 Surfaces + threading | **Done** (NFR-6) |
+| 2.3 Phased pipeline | **Partial**: coalesced record/commit + render phases; relayout boundaries / layout pass cap open |
+| 2.4 Retained paint | **Done**: per-node pictures, composite-time props; raster cache of stable subtrees open |
+| 2.5–2.9 | Text caching done; gesture arena, virtualization, overlay masks, IVisualTreeElement open |
+
+
 Review of the PRDs in this folder and the `MauiSkiaUi` implementation, compared against local checkouts of .NET MAUI, DrawnUi, Flutter, Avalonia, Uno Platform, and Open-Maui (see [`.cursor/rules/reference-sources.mdc`](../../.cursor/rules/reference-sources.mdc)). Goal: the fastest and most flexible Skia-drawn UI for MAUI.
 
 **Summary.** The foundation is sound. The strongest design decisions are the two layers (MAUI-compatible `SkUi*` plus the lightweight Core layer), keeping MAUI's layout rules, and hosting native controls as overlays. To be the fastest option, three things are missing:

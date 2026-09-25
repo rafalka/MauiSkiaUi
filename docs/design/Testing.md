@@ -13,7 +13,9 @@ Run `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj`. The library's 
 | `PipelineTests` | Frame renderer, paint layers, measure/arrange, hit-testing, animation clock, ownership, Box/Ellipse/Line |
 | `BasicControlsTests` | Label, Button, Image, Border, ActivityIndicator, toggles/chrome |
 | `LayoutTests` | Grid, AbsoluteLayout batching, layout culling/Z-order, BackgroundColor semantics |
-| `ScrollViewTests` | Offsets, pan/fling, wheel, picture cache, scroll goldens |
+| `ScrollViewTests` | Offsets, pan, render-thread fling / animated scroll, wheel, no re-record on offset, scroll goldens |
+| `RenderingTests` | Retained compositor: render-thread animation with a stalled UI, selective re-record, one root signal per frame, clip defaults, reparenting, immediate vs composited parity |
+| `TextAndImageTests` | Linear wrap, grapheme-safe breaks, truncation, paint-only label changes, downsampled decode |
 | `MauiContentViewTests` | Native overlay measure/arrange/touch contract, root-relative frames |
 | `PerformanceTests` | 1,000-label warm recording measurement (no timing assertion) |
 | `CoreLayerTests` | `MauiSkiaUi.Core` smoke/regression |
@@ -240,7 +242,7 @@ This mirrors how Avalonia headless tests and Flutter widget tests work: **full p
 | Layer order (Background → Content → Overlay) | Test doubles that record paint order; or sample known pixels |
 | Clip: corners transparent outside round-rect | Read pixels outside clip; expect clear / background |
 | Transparency compositing | Overlapping translucent fills → expected blended color (± tolerance) |
-| Full-tree redraw on invalidate (v1) | Invalidate one node → root paint walk still visits tree (counters) |
+| Selective re-record | Change one node → `RecordedPictures` grows by one; offset/transform changes record nothing |
 
 **Automation:** yes. Pixel reads from `SKBitmap`/`SKPixmap` are deterministic on CPU Skia when fonts and sizes are fixed.
 
@@ -251,7 +253,7 @@ This mirrors how Avalonia headless tests and Flutter widget tests work: **full p
 | Progress at t = 0, mid, end | Fake clock; assert property values after tick |
 | Render-transform anim does **not** dirty measure | Counters on Measure/Arrange stay 0 across ticks |
 | Layout anim **does** dirty measure (when implemented) | Counters increment |
-| Render loop on only while animators active | Spy on `HasRenderLoop` / continuous-invalidate flag |
+| Render loop on only while animators active | `SkUiCompositor.NeedsFrame` via `SkUiTestSurface` |
 | Idle after last animator completes | Registry empty → loop off |
 
 **Automation:** yes, if the clock is injectable. Avoid “sleep 16 ms and hope” in CI.

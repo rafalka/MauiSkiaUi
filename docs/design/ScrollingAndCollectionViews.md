@@ -1,5 +1,7 @@
 # SkiaUi scrolling and collection views
 
+> **Update (2026-09):** the ScrollView content-picture cache described below was replaced by the retained compositor: the offset is a composite-time children translation (no re-record, off-screen children culled) and fling / animated scroll run on the render thread with offsets reported back. See [RenderingPipeline.md](RenderingPipeline.md) and [SkUiScrollView.md](../controls/SkUiScrollView.md).
+
 Design notes and implementation checklist for **FR-17** (custom scroll and list/collection controls) in [Requirements.md](Requirements.md). Aligns with [LayoutSystem.md](LayoutSystem.md), [DrawingMechanism.md](DrawingMechanism.md), [EventMechanism.md](EventMechanism.md), [AnimationMechanism.md](AnimationMechanism.md), and FR-16 (`SkUiMauiContentView` overlays / scroll snapshots).
 
 ## Goal

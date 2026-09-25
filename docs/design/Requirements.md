@@ -425,7 +425,7 @@ Initial controls, layouts, and scroll are delivered with headless tests. Device 
 - Redraw only when invalidated; use a continuous render loop (`HasRenderLoop` or equivalent) only while animations (or other continuous scenarios) are active — see FR-7 and open decisions.
 - Layout passes should be avoidable when constraints and tree are unchanged.
 - **Selective Measure / Arrange:** call into a child `ISkUiView` only when that child (or its constraints / arranged bounds) actually needs work. Unchanged children must not be re-entered on every parent **layout** pass. Layouts re-measure / re-arrange only the dirty subset and reuse **cached measure** results.
-- **Paint (v1 — see [DrawingMechanism.md](DrawingMechanism.md)):** on surface invalidate, **clear and repaint the full hosted tree**. Do **not** require per-node retained bitmaps in v1 (memory cost; DrawnUi defaults cache off). Opt-in `SKPicture` / `SKImage` cache may follow when profiling shows need. Selective paint via blit/replay applies only where an opt-in cache exists.
+- **Paint ([RenderingPipeline.md](RenderingPipeline.md)):** retained compositor. Each node keeps recorded Content / Overlay `SKPicture`s (vector, low memory — not per-node bitmaps); only nodes whose content changed are re-recorded; offset / transform / opacity / clip / scroll offset are composite-time. Raster caching of stable subtrees is a later optimization.
 - Invalidation must be granular enough for selective **layout** (per-node dirty flags for size and arrangement). Paint invalidation coalesces to the root surface (FR-10).
 - **Transparency:** live paint walk must composite overlapping translucent nodes correctly (FR-8). “Expand dirty region / opaque cover blit” rules apply only if/when retained paint caches or partial-surface updates are introduced — not as a v1 prerequisite.
 
@@ -434,6 +434,18 @@ Initial controls, layouts, and scroll are delivered with headless tests. Device 
 1. **Initial implementation** of a feature or critical path should use **simple, easy-to-understand** code so behavior is obvious and reviewable.
 2. Once **tests confirm** correctness, **optimize** that path toward **maximum performance** and **minimum memory allocation** (including `unsafe` / low-level techniques where profiling shows benefit).
 3. Do not ship clever/unsafe micro-optimizations before the simple version is covered by tests; keep optimized code as readable as practical and document non-obvious invariants.
+
+### NFR-6 — Threading (UI thread offload)
+
+The MAUI UI thread is often overloaded; SkiaUi must keep motion smooth when it stalls. Design: [RenderingPipeline.md](RenderingPipeline.md).
+
+- [x] UI thread does only what must read MAUI objects: layout, recording dirty nodes, committing a batch.
+- [x] GPU surfaces composite and rasterize on a render thread: shared Metal render thread on iOS / Mac Catalyst (no GLKView / OpenGL ES), `GLTextureView` GL thread on Android.
+- [x] Composite-time animations (opacity, transforms, scroll offset, fling, animated scroll, spinners) run on the render thread and report values back; the UI's explicit value wins over a running animation.
+- [x] Nothing on the render thread touches MAUI / `BindableObject` state.
+- [ ] Record Core-only subtrees off the UI thread.
+- [ ] Raster cache of stable subtrees with a per-frame budget.
+- [ ] Hit-test against render-thread transforms while animations run.
 
 ### NFR-3 — Quality
 
@@ -512,10 +524,12 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - **Code performance (NFR-2):** critical paths (especially animation tick + paint) aim for **maximum speed** and **zero / near-zero allocations**, using modern C#/.NET techniques including **`unsafe`** where justified. **Correctness-first workflow:** ship simple, readable code first; after tests confirm behavior, optimize for max performance and min allocations.
 - **Flexibility and reuse (NFR-4):** extensible controls via **virtual hooks** and **interfaces**; shared building blocks for background drawing, animations, layers, and similar — avoid copy-paste chrome.
 - **Documentation (NFR-5):** XML + comments for non-obvious code; **one `.md` per control** (how it works / how to use). MAUI reimplementations: link to official MAUI docs for baseline behavior; document **differences and extensions** only (do not duplicate full MAUI manuals).
-- **Paint caching (NFR-2) — full-tree redraw in v1:** on surface invalidate, clear and **repaint the full hosted tree**. No default per-node retained bitmaps (memory cost; DrawnUi/Avalonia default cache off; SkiaSharp GL presents do not reliably retain pixels). Selective **measure/arrange** remains required. Opt-in `Picture` / `Image` cache later when profiling shows asymmetric dirty. Details: [DrawingMechanism.md](DrawingMechanism.md).
+- **Paint caching (NFR-2) — retained compositor (supersedes v1 full-tree redraw):** per-node `SKPicture`s re-recorded only on content change; composite-time properties never re-record; the full frame is cleared and composited each present (no dependence on retained GPU backbuffers). No per-node bitmaps by default. Details: [RenderingPipeline.md](RenderingPipeline.md).
+- **Threading (NFR-6):** record on the UI thread, composite + animate on a render thread (Metal on Apple, GL thread on Android). Details: [RenderingPipeline.md](RenderingPipeline.md).
+- **Clip default:** `ClipToBounds` is on for leaf controls and off for layouts / content hosts (MAUI `Layout.IsClippedToBounds` parity) so children and future shadows (FR-20) can overflow.
 - **Gestures (FR-15) — SkiaUi-owned:** do **not** use MAUI `GestureRecognizers` as the primary API for the drawn tree. Shared tap / double-tap / long-press / swipe classification and delivery live on **`SkUiView`** for all controls. Passive-by-default (e.g. label) vs intrinsic handlers (e.g. button); honor `InputTransparent`. Details: [EventMechanism.md](EventMechanism.md).
 - **Clip vs hit-test (FR-11):** clip/mask/rounded corners affect **paint** only by default. Hit-testing uses **arranged bounds** (iOS / Android / MAUI-like). Shape-aware hit-testing is optional/future opt-in, not v1 default.
-- **Animation (FR-7):** vsync-driven root registry (`HasRenderLoop` while active); **time-based** progress; v1 = paint + **render transforms** (no layout dirty); layout animation optional/later. Details: [AnimationMechanism.md](AnimationMechanism.md).
+- **Animation (FR-7):** two tiers — render-thread composite animations (`AnimateAsync`, fling, animated scroll, spin; preferred) and the UI-thread `SkUiAnimationClock` ticked by a UI vsync ticker for arbitrary property callbacks; **time-based** progress; no layout dirty. Details: [AnimationMechanism.md](AnimationMechanism.md), [RenderingPipeline.md](RenderingPipeline.md).
 - **MAUI control hosting (FR-16):** no custom Skia `SkUiEntry` / `SkUiEditor` / `SkUiWebView`. Host real MAUI `Entry`, `Editor`, `WebView`, and other `VisualElement`s via **`SkUiMauiContentView`**: `ISkUiView` placeholder in the SkiaUi tree; native platform view overlaid on the standalone root’s container and synced to arranged bounds (DrawnUi `SkiaMauiElement` pattern). Content property is **`Content`** (`VisualElement`, `[ContentProperty]`). Input stays with the native control; FR-15 does not own overlay hits.
 - **Snapshot-during-scroll (FR-16 / FR-17):** while an ancestor scroll/fling is active, **Android and Windows** use **snapshot freeze** by default (hide native overlay, paint bitmap on Skia until motion settles); **Apple** uses **live sync only**. Apps may **opt out** per overlay for special cases (e.g. keep WebView live). Details: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#overlays-while-scrolling-fr-16).
 - **Scrolling / collections (FR-17):** implement **`SkUiScrollView`** (and later a virtualizing collection) **inside** the SkiaUi tree on the shared surface. Do **not** use MAUI `ScrollView` / `CollectionView` as the primary composition model for scrollable SkiaUi UI. Nesting standalone `SkUi*` under MAUI scrollers remains a documented compat path only. Details: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md).

@@ -6,7 +6,7 @@ Base class for every Skia-drawn SkiaUi node. Implements [`ISkUiView`](../../Maui
 
 ## How it works
 
-`SkUiView` owns handler-independent measure/arrange caching, Background → Content → Overlay paint (`PaintBackground` / `PaintOverlay` delegates for chrome; virtual `OnPaintContent` for structure), render transforms (translation/rotation/scale), opacity, rectangular clipping, tap participation, and access to the shared [`SkUiAnimationClock`](../design/AnimationMechanism.md). A custom MAUI handler creates a Skia surface only when the view is **standalone** in the MAUI tree.
+`SkUiView` owns handler-independent measure/arrange caching, Background → Content → Overlay paint (`PaintBackground` / `PaintOverlay` delegates for chrome; virtual `OnPaintContent` for structure), render transforms (translation/rotation/scale), opacity, opt-in clipping (`ClipToBounds`: on for leaves, off for layouts / content hosts, as in MAUI), tap participation, render-thread `AnimateAsync`, and access to the shared UI-thread [`SkUiAnimationClock`](../design/AnimationMechanism.md). Surfaces composite retained per-node pictures ([RenderingPipeline.md](../design/RenderingPipeline.md)). A custom MAUI handler creates a Skia surface only when the view is **standalone** in the MAUI tree.
 
 
 ## Shared conventions
@@ -43,14 +43,16 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 | `Tapped` / `TappedCommand` | Opt-in single tap |
 | `IsPressed` | Shared press state for intrinsic controls |
 | `StartUpdating` / `EndUpdating` | Coalesce invalidation |
-| `InvalidatePaint` | Redraw without remeasure |
+| `InvalidatePaint` | Re-record this node's content (not its children) without remeasure. Transform / opacity / offset changes need no call: they are composite-time |
+| `ClipToBounds` | Clip content, children and overlay to the arranged rect. Defaults: `true` for leaves, `false` for `SkUiLayout` / `SkUiContentView` / `SkUiCoreHost` |
+| `AnimateAsync(property, to, length, easing)` | Animates `Opacity`, translation, `Rotation` or scale **on the render thread**; the bindable is updated to the final value. Setting the property meanwhile cancels it |
 | `PaintBackground` / `PaintOverlay` | Chrome layer delegates (`SetPaintBackground` / `SetPaintOverlay`). Content is virtual `OnPaintContent` only. Control chrome painters (e.g. `PaintButtonBackground`) are `protected` for subclass reuse; `PaintDefaultBackground` is the solid MAUI fill fallback. |
 | `AnimationClock` | Shared clock of the topmost SkiaUi ancestor; local clocks are abandoned when the subtree is reparented (`OnAnimationRootChanged`) |
 | `Paint` / `Touch` | `ISkUiView` surface |
 
 ## Differences / extensions
 
-- Not a MAUI `SKGLView` subclass; surface comes from `SkUiViewHandler`.
+- Not a MAUI `SKGLView` subclass; surface comes from `SkUiViewHandler` (Metal on Apple, GL thread on Android, `SKCanvasView` for software).
 - Defaults: leaf controls `HwAccelerated = false`; hosts/layouts default `true`.
 - Hit-testing uses **arranged bounds** (shape-aware hits deferred).
 - Solid `Background` / `BackgroundColor` only in v1. Prefer either path; empty MAUI default brushes do not block `BackgroundColor`.

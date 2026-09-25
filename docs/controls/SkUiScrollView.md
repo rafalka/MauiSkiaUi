@@ -6,7 +6,13 @@ Single-surface scroller with pan, fling, wheel, and programmatic scroll APIs.
 
 ## How it works
 
-Extends [`SkUiContentView`](SkUiContentView.md). Measures content unconstrained on enabled axes. **Offset changes invalidate paint only** — content keeps a stable arranged frame and scroll is applied as a canvas/touch translation. The hosted subtree is recorded into a **full content-space `SKPicture`** (sized to `max(measured extent, viewport)` so arrange-expanded content is not clipped); offset-only frames replay that picture. While that cache is **dirty and the shared animation clock is running** (content paint animations such as activity indicators), the scroller **live-paints the viewport** instead of re-recording the full extent every frame; fling-only motion leaves the picture clean so offset animation still reuses the cache. During an active pointer/fling, a dirty cache **keeps replaying the retained picture** until settle. Child press is **withheld until a tap is confirmed**; only synthetic **pressed** chrome is suppressed so tap/command mutations still dirty the picture. Other paint invalidations during an active pointer/fling **keep the previous picture** until settle. Native overlays register with ancestor scrollers for O(overlays) offset sync. Fling uses the shared animation clock.
+Extends [`SkUiContentView`](SkUiContentView.md). Measures content unconstrained on enabled axes; content keeps a stable arranged frame (`max(measured extent, viewport)`).
+
+**The scroll offset is a composite-time children translation.** Scrolling never re-records content. Each child keeps its own retained picture, so an animating child re-records only itself, and off-screen children are culled by the compositor.
+
+**Fling, `ScrollToAsync` and `AnimateScrollTo` run on the render thread** (GPU surfaces), so they stay smooth while the UI thread is busy. The render thread reports offsets back every frame, which keeps `ScrollX` / `ScrollY`, `Scrolled`, hit-testing and native overlays in sync. A new touch stops the motion at the last shown offset.
+
+Child press is **withheld until a tap is confirmed** (movement under 10 DIPs), so pans never press buttons. Native overlays register with ancestor scrollers for O(overlays) offset sync. See [RenderingPipeline.md](../design/RenderingPipeline.md).
 
 
 ## Shared conventions

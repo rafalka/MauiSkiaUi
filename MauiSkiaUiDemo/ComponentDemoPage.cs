@@ -63,6 +63,9 @@ public abstract class ComponentDemoPage : ContentPage
         Content = root;
         ToolbarItems.Add(new ToolbarItem("Reset", null, ResetProperties));
         ToolbarItems.Add(new ToolbarItem("Check properties", null, () => CheckProperties()));
+        // Blocks the UI thread to demonstrate that HW surfaces keep compositing, spinning and flinging on the
+        // render thread (start a fling or watch a spinner, then tap this).
+        ToolbarItems.Add(new ToolbarItem("Stall UI 2s", null, () => Thread.Sleep(2000)) { AutomationId = "StallUi", Order = ToolbarItemOrder.Secondary });
         SizeChanged += (_, _) => UpdateComparisonLayout(Width);
         UpdateComparisonLayout(0);
         skia.SizeChanged += (_, _) => UpdateBounds();
