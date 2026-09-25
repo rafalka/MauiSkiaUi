@@ -65,7 +65,9 @@ public abstract class ComponentDemoPage : ContentPage
         ToolbarItems.Add(new ToolbarItem("Check properties", null, () => CheckProperties()));
         // Blocks the UI thread to demonstrate that HW surfaces keep compositing, spinning and flinging on the
         // render thread (start a fling or watch a spinner, then tap this).
-        ToolbarItems.Add(new ToolbarItem("Stall UI 2s", null, () => Thread.Sleep(2000)) { AutomationId = "StallUi", Order = ToolbarItemOrder.Secondary });
+        // Primary order: iOS Shell turns Secondary items into UIMenu actions that require an icon
+        // (a null IconImageSource crashes in UIImage.FromBundle).
+        ToolbarItems.Add(new ToolbarItem("Stall 2s", null, () => Thread.Sleep(2000)) { AutomationId = "StallUi" });
         SizeChanged += (_, _) => UpdateComparisonLayout(Width);
         UpdateComparisonLayout(0);
         skia.SizeChanged += (_, _) => UpdateBounds();
