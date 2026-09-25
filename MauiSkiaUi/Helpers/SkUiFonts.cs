@@ -4,7 +4,7 @@ namespace MauiSkiaUi;
 
 /// <summary>
 /// Registers Skia typefaces for font family names that <see cref="SKTypeface.FromFamilyName(string, SKFontStyleWeight, SKFontStyleWidth, SKFontStyleSlant)"/>
-/// cannot resolve as an installed system font — most notably app-embedded MAUI fonts registered via <c>ConfigureFonts</c>.
+/// cannot resolve as an installed system font. Fonts registered with MAUI <c>ConfigureFonts</c> are also picked up automatically.
 /// <see cref="SkUiLabel"/> and its subclasses consult this registry before falling back to system font lookup.
 /// </summary>
 public static class SkUiFonts
@@ -12,6 +12,7 @@ public static class SkUiFonts
     private static readonly object Gate = new();
     private static readonly Dictionary<string, Func<Stream>> Factories = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, SKTypeface> Cache = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> Misses = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Registers a typeface loader for a font family name, e.g. the same alias passed to <c>fonts.AddFont(file, alias)</c>.
@@ -24,6 +25,7 @@ public static class SkUiFonts
         lock (Gate)
         {
             Factories[familyName] = openFont;
+            Misses.Remove(familyName);
             // Not disposed: retained pictures on the render thread may still reference the old typeface.
             Cache.Remove(familyName);
         }
@@ -45,11 +47,46 @@ public static class SkUiFonts
         lock (Gate)
         {
             if (Cache.TryGetValue(familyName, out var typeface)) return typeface;
-            if (!Factories.TryGetValue(familyName, out var open)) return null;
-            using var stream = open();
-            typeface = SKTypeface.FromStream(stream);
+            if (Misses.Contains(familyName)) return null;
+            if (Factories.TryGetValue(familyName, out var open))
+            {
+                using var stream = open();
+                typeface = SKTypeface.FromStream(stream);
+            }
+            else
+            {
+                typeface = ResolveMauiFont(familyName);
+            }
             if (typeface is not null) Cache[familyName] = typeface;
+            else if (!Factories.ContainsKey(familyName)) Misses.Add(familyName);
             return typeface;
         }
+    }
+
+    /// <summary>
+    /// Falls back to fonts registered with MAUI <c>ConfigureFonts</c> (via <see cref="Microsoft.Maui.IFontRegistrar"/>),
+    /// so app-embedded fonts work without an explicit <see cref="Register"/> call. The registrar returns a file path
+    /// (Android / Windows) or a registered family / PostScript name (Apple).
+    /// </summary>
+    private static SKTypeface? ResolveMauiFont(string alias)
+    {
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+        try
+        {
+            var registrar = IPlatformApplication.Current?.Services.GetService(typeof(Microsoft.Maui.IFontRegistrar)) as Microsoft.Maui.IFontRegistrar;
+            if (registrar?.GetFont(alias) is not { Length: > 0 } font)
+                return null;
+            if (File.Exists(font))
+                return SKTypeface.FromFile(font);
+            var byName = SKFontManager.Default.MatchFamily(font);
+            return byName;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+#else
+        return null;
+#endif
     }
 }

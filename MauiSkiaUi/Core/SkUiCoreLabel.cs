@@ -19,8 +19,8 @@ public class SkUiCoreLabel : SkUiCoreNode
     private TextAlignment _vertical = TextAlignment.Start;
     private Microsoft.Maui.LineBreakMode? _lineBreakMode = Microsoft.Maui.LineBreakMode.WordWrap;
     private SkUiCoreTextLineBreaker _lineBreaker = SkUiCoreTextLineBreakers.WordWrap;
-    private string[] _lines = [];
-    private double _cachedLineWidth = double.NaN;
+    private readonly SkUiTextLayout _layout = new();
+    private SKPaint? _textPaint;
 
     /// <summary>Displayed text.</summary>
     public string Text
@@ -178,83 +178,22 @@ public class SkUiCoreLabel : SkUiCoreNode
     }
 
     /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint)
-    {
-        var (typeface, owned) = ResolveTypeface();
-        try
-        {
-            using var font = new SKFont(typeface, (float)_fontSize);
-            var contentWidth = double.IsInfinity(widthConstraint)
-                ? double.PositiveInfinity
-                : Math.Max(0, widthConstraint - _padding.HorizontalThickness);
-            EnsureLines(contentWidth, font);
-            var width = 0f;
-            foreach (var line in _lines)
-                width = Math.Max(width, font.MeasureText(line));
-            return new Size(width + _padding.HorizontalThickness, _lines.Length * font.Spacing + _padding.VerticalThickness);
-        }
-        finally
-        {
-            if (owned) typeface.Dispose();
-        }
-    }
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
+        _layout.Measure(_text, SkUiTypefaces.Resolve(_fontFamily), _fontSize, _padding, widthConstraint, _lineBreaker);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
         if (_text.Length == 0) return;
-        var (typeface, owned) = ResolveTypeface();
-        try
-        {
-            using var font = new SKFont(typeface, (float)_fontSize);
-            using var paint = new SKPaint { Color = ToSkColor(_textColor), IsAntialias = true };
-            var availableWidth = Math.Max(0, Frame.Width - _padding.HorizontalThickness);
-            EnsureLines(availableWidth, font);
-            var height = _lines.Length * font.Spacing;
-            var offset = _vertical == TextAlignment.Center ? (Frame.Height - _padding.VerticalThickness - height) / 2
-                : _vertical == TextAlignment.End ? Frame.Height - _padding.VerticalThickness - height : 0;
-            var baseline = (float)(_padding.Top + Math.Max(0, offset)) - font.Metrics.Ascent;
-            foreach (var line in _lines)
-            {
-                var lineSize = font.MeasureText(line);
-                var left = _padding.Left + (_horizontal == TextAlignment.Center ? (availableWidth - lineSize) / 2
-                    : _horizontal == TextAlignment.End ? availableWidth - lineSize : 0);
-                canvas.DrawText(line, (float)left, baseline, SKTextAlign.Left, font, paint);
-                baseline += font.Spacing;
-            }
-        }
-        finally
-        {
-            if (owned) typeface.Dispose();
-        }
+        var paint = _textPaint ??= new SKPaint { IsAntialias = true };
+        paint.Color = ToSkColor(_textColor);
+        _layout.Draw(canvas, _text, SkUiTypefaces.Resolve(_fontFamily), _fontSize, _padding, Frame.Width, Frame.Height,
+            _horizontal, _vertical, paint, _lineBreaker);
     }
 
     private void InvalidateText()
     {
-        _cachedLineWidth = double.NaN;
+        _layout.Invalidate();
         InvalidateMeasure();
-    }
-
-    private void EnsureLines(double width, SKFont font)
-    {
-        width = Math.Max(0, width);
-        if (width == _cachedLineWidth) return;
-        _cachedLineWidth = width;
-        if (_text.Length == 0)
-        {
-            _lines = [];
-            return;
-        }
-
-        var broken = _lineBreaker(_text, width, font);
-        _lines = broken as string[] ?? broken.ToArray();
-    }
-
-    private (SKTypeface Typeface, bool Owned) ResolveTypeface()
-    {
-        if (_fontFamily is not null && SkUiFonts.TryResolve(_fontFamily) is { } registered)
-            return (registered, false);
-        var typeface = SKTypeface.FromFamilyName(_fontFamily ?? string.Empty);
-        return (typeface, true);
     }
 }

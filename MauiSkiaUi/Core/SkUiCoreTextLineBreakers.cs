@@ -75,33 +75,58 @@ public static class SkUiCoreTextLineBreakers
             return BreakNoWrap(text, availableWidth, font);
 
         availableWidth = Math.Max(0, availableWidth);
+        var maxWidth = (float)availableWidth;
         return SplitParagraphs(text, paragraph =>
         {
+            // Linear: each line is fitted with one BreakText pass, then snapped to a grapheme boundary.
             var lines = new List<string>();
-            var remaining = paragraph;
-            while (remaining.Length > 0 && font.MeasureText(remaining) > availableWidth)
+            if (paragraph.Length == 0)
             {
-                var boundaries = StringInfo.ParseCombiningCharacters(remaining);
-                var count = 1;
-                while (count < boundaries.Length && font.MeasureText(remaining[..boundaries[count]]) <= availableWidth)
-                    count++;
-                var end = count == 1
-                    ? (boundaries.Length > 1 ? boundaries[1] : remaining.Length)
-                    : boundaries[count - 1];
-                if (preferWordBreak)
-                {
-                    var space = remaining.LastIndexOf(' ', Math.Max(0, end - 1), end);
-                    if (space > 0) end = space;
-                }
-
-                lines.Add(remaining[..end]);
-                remaining = remaining[end..].TrimStart(' ');
+                lines.Add(paragraph);
+                return lines;
             }
-
-            if (remaining.Length > 0 || paragraph.Length == 0)
-                lines.Add(remaining);
+            int[]? boundaries = null;
+            var start = 0;
+            while (start < paragraph.Length)
+            {
+                var rest = paragraph.AsSpan(start);
+                var fit = font.BreakText(rest, maxWidth);
+                if (fit >= rest.Length)
+                {
+                    lines.Add(paragraph[start..]);
+                    break;
+                }
+                boundaries ??= StringInfo.ParseCombiningCharacters(paragraph);
+                var end = SnapToGrapheme(boundaries, start + fit);
+                if (end <= start)
+                    end = NextGrapheme(boundaries, start, paragraph.Length);
+                else if (preferWordBreak)
+                {
+                    var space = paragraph.LastIndexOf(' ', end - 1, end - start);
+                    if (space > start) end = space;
+                }
+                lines.Add(paragraph[start..end]);
+                start = end;
+                while (start < paragraph.Length && paragraph[start] == ' ')
+                    start++;
+            }
             return lines;
         });
+    }
+
+    /// <summary>Largest grapheme start ≤ <paramref name="index"/>.</summary>
+    private static int SnapToGrapheme(int[] boundaries, int index)
+    {
+        var position = Array.BinarySearch(boundaries, index);
+        return position >= 0 ? boundaries[position] : boundaries[Math.Max(0, ~position - 1)];
+    }
+
+    /// <summary>First grapheme start after <paramref name="index"/> (at least one grapheme per line).</summary>
+    private static int NextGrapheme(int[] boundaries, int index, int length)
+    {
+        var position = Array.BinarySearch(boundaries, index);
+        var next = position >= 0 ? position + 1 : ~position;
+        return next < boundaries.Length ? boundaries[next] : length;
     }
 
     private static IReadOnlyList<string> TruncateEachParagraph(
@@ -119,6 +144,18 @@ public static class SkUiCoreTextLineBreakers
             return string.Empty;
 
         var boundaries = StringInfo.ParseCombiningCharacters(value);
+        if (kind == TruncationKind.Tail)
+        {
+            // Linear fast path: fit the prefix once, then back off graphemes only if rounding overshoots.
+            var prefix = SnapToGrapheme(boundaries, font.BreakText(value, (float)(availableWidth - font.MeasureText(ellipsis))));
+            for (var end = prefix; end >= 0; end = end == 0 ? -1 : SnapToGrapheme(boundaries, end - 1))
+            {
+                var candidate = value[..end] + ellipsis;
+                if (font.MeasureText(candidate) <= availableWidth)
+                    return candidate;
+            }
+            return ellipsis;
+        }
         for (var count = boundaries.Length - 1; count >= 0; count--)
         {
             var prefixCount = kind switch

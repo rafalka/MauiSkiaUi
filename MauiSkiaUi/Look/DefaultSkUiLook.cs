@@ -18,17 +18,52 @@ public class DefaultSkUiLook : SkUiLook
     /// </remarks>
     protected override void DrawRoundedBoxCore(SKCanvas canvas, SKRect bounds, float radius, SKColor fill, SKColor border, float width)
     {
-        using var paint = new SKPaint { Color = fill, IsAntialias = true };
+        var paint = Paint(fill);
+        var strokeRadius = Math.Max(0, radius - width / 2);
+        if (!OverridesUniformPath)
+        {
+            // Fast path: no path allocation when the rounded-rect geometry hook is not customized.
+            if (fill.Alpha != 0)
+                canvas.DrawRoundRect(bounds, radius, radius, paint);
+            if (width <= 0 || border.Alpha == 0) return;
+            bounds.Inflate(-width / 2, -width / 2);
+            Stroke(paint, border, width);
+            canvas.DrawRoundRect(bounds, strokeRadius, strokeRadius, paint);
+            return;
+        }
         using var path = CreateRoundRectPath(bounds, radius);
         canvas.DrawPath(path, paint);
         if (width <= 0) return;
         bounds.Inflate(-width / 2, -width / 2);
-        paint.Color = border;
-        paint.Style = SKPaintStyle.Stroke;
-        paint.StrokeWidth = width;
-        using var strokePath = CreateRoundRectPath(bounds, Math.Max(0, radius - width / 2));
+        Stroke(paint, border, width);
+        using var strokePath = CreateRoundRectPath(bounds, strokeRadius);
         canvas.DrawPath(strokePath, paint);
     }
+
+    [ThreadStatic] private static SKPaint? t_paint;
+
+    /// <summary>Per-thread reusable fill paint (recording is single-threaded per surface; pictures copy paint state).</summary>
+    private static SKPaint Paint(SKColor color)
+    {
+        var paint = t_paint ??= new SKPaint();
+        paint.Reset();
+        paint.IsAntialias = true;
+        paint.Color = color;
+        return paint;
+    }
+
+    private static void Stroke(SKPaint paint, SKColor color, float width)
+    {
+        paint.Color = color;
+        paint.Style = SKPaintStyle.Stroke;
+        paint.StrokeWidth = width;
+    }
+
+    private bool? _overridesUniformPath;
+
+    /// <summary>Whether this look type customizes the uniform-radius <c>CreateRoundRectPath</c> hook.</summary>
+    private bool OverridesUniformPath => _overridesUniformPath ??=
+        GetType().GetMethod(nameof(CreateRoundRectPath), [typeof(SKRect), typeof(float)])?.DeclaringType != typeof(SkUiLook);
 
     /// <inheritdoc />
     protected override void DrawRoundedBoxCore(SKCanvas canvas, SKRect bounds, CornerRadius radii, SKColor fill, SKColor border, float width)
@@ -39,14 +74,12 @@ public class DefaultSkUiLook : SkUiLook
             return;
         }
 
-        using var paint = new SKPaint { Color = fill, IsAntialias = true };
+        var paint = Paint(fill);
         using var path = CreateRoundRectPath(bounds, radii);
         canvas.DrawPath(path, paint);
         if (width <= 0) return;
         bounds.Inflate(-width / 2, -width / 2);
-        paint.Color = border;
-        paint.Style = SKPaintStyle.Stroke;
-        paint.StrokeWidth = width;
+        Stroke(paint, border, width);
         using var strokePath = CreateRoundRectPath(bounds, ShrinkCornerRadius(radii, width / 2));
         canvas.DrawPath(strokePath, paint);
     }
@@ -58,8 +91,7 @@ public class DefaultSkUiLook : SkUiLook
         DrawRoundedBox(canvas, bounds, radius, track, SKColors.Transparent, 0);
         var thumbRadius = radius - 2;
         var thumbX = isChecked ? bounds.Right - radius : bounds.Left + radius;
-        using var paint = new SKPaint { Color = thumb, IsAntialias = true };
-        canvas.DrawCircle(thumbX, bounds.Top + radius, thumbRadius, paint);
+        canvas.DrawCircle(thumbX, bounds.Top + radius, thumbRadius, Paint(thumb));
     }
 
     /// <inheritdoc />
@@ -98,8 +130,7 @@ public class DefaultSkUiLook : SkUiLook
         };
         canvas.DrawCircle(center, center, center - ringPaint.StrokeWidth / 2, ringPaint);
         if (!isChecked) return;
-        using var dotPaint = new SKPaint { Color = dot, IsAntialias = true };
-        canvas.DrawCircle(center, center, size * 0.28f, dotPaint);
+        canvas.DrawCircle(center, center, size * 0.28f, Paint(dot));
     }
 
     /// <inheritdoc />
