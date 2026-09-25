@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections;
 using System.ComponentModel;
-using SkiaSharp;
+using MauiSkiaUi.Rendering;
 using ILayout = Microsoft.Maui.ILayout;
 
 namespace MauiSkiaUi;
@@ -53,7 +53,7 @@ public class SkUiLayout : SkUiView, ILayout
 
     private void OnChildPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName == nameof(ZIndex)) _paintOrder = null;
+        if (args.PropertyName == nameof(ZIndex)) { _paintOrder = null; InvalidateRender(SkUiRenderDirty.Children); }
         // Children carry standard MAUI Grid.Row/Column/RowSpan/ColumnSpan and AbsoluteLayout.LayoutBounds/
         // LayoutFlags attached values (see SkUiGrid/SkUiAbsoluteLayout), but MAUI's own propertyChanged
         // callbacks never fire our invalidation because Parent is our layout, not Microsoft.Maui.Controls.Grid
@@ -98,10 +98,11 @@ public class SkUiLayout : SkUiView, ILayout
     }
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas)
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
     {
         foreach (var child in PaintOrder)
-            PaintChild(child, canvas);
+            if (child is ISkUiRenderable renderable)
+                children.Add(renderable);
     }
 
     /// <inheritdoc />

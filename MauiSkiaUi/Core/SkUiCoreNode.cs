@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using MauiSkiaUi.Rendering;
 using SkiaSharp;
 
 namespace MauiSkiaUi.Core;
@@ -9,13 +10,22 @@ namespace MauiSkiaUi.Core;
 /// Implements <see cref="INotifyPropertyChanged"/>; fluent <c>Set*</c> methods are the single apply path
 /// and raise notifications via <see cref="SetProperty{T}"/>.
 /// </summary>
-public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged
+public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderable
 {
     private bool _measureDirty = true;
     private bool _arrangeDirty = true;
     private Size _lastConstraint;
     private Size _desiredSize;
     private Rect _frame;
+    private Rect _lastArrangeBounds;
+    private double _opacity = 1;
+    private double _translationX;
+    private double _translationY;
+    private double _rotation;
+    private double _scale = 1;
+    private bool _clipToBounds = true;
+    private SkUiRenderDirty _renderPending;
+    private SkUiRenderState? _renderState;
     private ISkUiCoreNode? _parent;
     private bool _isVisible = true;
     private double _width = double.NaN;
@@ -118,8 +128,116 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged
         set => SetVerticalAlignment(value);
     }
 
-    /// <summary>Raised when this node or a descendant needs another surface frame.</summary>
+    /// <summary>Raised when this node's own content must be re-recorded, and on a render root once per frame.</summary>
     public event EventHandler? PaintInvalidated;
+
+    /// <summary>Opacity in [0, 1], applied at composite time (no re-record).</summary>
+    public double Opacity { get => _opacity; set => SetOpacity(value); }
+
+    /// <summary>Render-time horizontal translation in DIPs (no layout).</summary>
+    public double TranslationX { get => _translationX; set => SetTranslationX(value); }
+
+    /// <summary>Render-time vertical translation in DIPs (no layout).</summary>
+    public double TranslationY { get => _translationY; set => SetTranslationY(value); }
+
+    /// <summary>Render-time rotation in degrees about the center.</summary>
+    public double Rotation { get => _rotation; set => SetRotation(value); }
+
+    /// <summary>Render-time uniform scale about the center.</summary>
+    public double Scale { get => _scale; set => SetScale(value); }
+
+    /// <summary>
+    /// Clips own content and children to the arranged rectangle. Defaults to <c>true</c> for leaves and
+    /// <c>false</c> for panels / content views, so children may overflow (shadows, press scale).
+    /// </summary>
+    public bool ClipToBounds { get => _clipToBounds; set => SetClipToBounds(value); }
+
+    /// <summary>Sets <see cref="Opacity"/>.</summary>
+    public SkUiCoreNode SetOpacity(double value)
+    {
+        value = double.IsNaN(value) ? 1 : Math.Clamp(value, 0, 1);
+        if (SetProperty(ref _opacity, value, nameof(Opacity))) InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="TranslationX"/>.</summary>
+    public SkUiCoreNode SetTranslationX(double value)
+    {
+        if (SetProperty(ref _translationX, value, nameof(TranslationX))) InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="TranslationY"/>.</summary>
+    public SkUiCoreNode SetTranslationY(double value)
+    {
+        if (SetProperty(ref _translationY, value, nameof(TranslationY))) InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="Rotation"/>.</summary>
+    public SkUiCoreNode SetRotation(double value)
+    {
+        if (SetProperty(ref _rotation, value, nameof(Rotation))) InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="Scale"/>.</summary>
+    public SkUiCoreNode SetScale(double value)
+    {
+        if (SetProperty(ref _scale, value, nameof(Scale))) InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="ClipToBounds"/>.</summary>
+    public SkUiCoreNode SetClipToBounds(bool value)
+    {
+        if (SetProperty(ref _clipToBounds, value, nameof(ClipToBounds))) InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
+    /// <summary>
+    /// Animates <see cref="Opacity"/>, translation, <see cref="Rotation"/> or <see cref="Scale"/> on the render thread;
+    /// the property is updated to the final (or last shown, if cancelled) value when it ends.
+    /// </summary>
+    public Task<bool> AnimateAsync(SkUiAnimatableProperty property, double to, uint length = 250, Easing? easing = null)
+    {
+        if (!double.IsFinite(to)) throw new ArgumentOutOfRangeException(nameof(to));
+        SkUiRenderProperty[] properties = property switch
+        {
+            SkUiAnimatableProperty.Opacity => [SkUiRenderProperty.Opacity],
+            SkUiAnimatableProperty.TranslationX => [SkUiRenderProperty.TranslationX],
+            SkUiAnimatableProperty.TranslationY => [SkUiRenderProperty.TranslationY],
+            SkUiAnimatableProperty.Rotation => [SkUiRenderProperty.Rotation],
+            SkUiAnimatableProperty.Scale => [SkUiRenderProperty.ScaleX, SkUiRenderProperty.ScaleY],
+            _ => throw new ArgumentOutOfRangeException(nameof(property), "Core nodes support uniform Scale only.")
+        };
+        var target = (float)(property == SkUiAnimatableProperty.Opacity ? Math.Clamp(to, 0, 1) : to);
+        var targets = properties.Length == 2 ? new[] { target, target } : new[] { target };
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tween = new SkUiRenderTween(properties, targets, TimeSpan.FromMilliseconds(Math.Max(1, length)), easing)
+        {
+            Finished = (animation, completed) =>
+            {
+                RenderState.ActiveAnimations?.Remove(animation);
+                if (!animation.SupersededByUi && ((SkUiRenderTween)animation).LastValues is { } values)
+                {
+                    for (var index = 0; index < values.Length; index++)
+                        RenderState.Acknowledge(properties[index], values[index]);
+                    switch (property)
+                    {
+                        case SkUiAnimatableProperty.Opacity: SetOpacity(values[0]); break;
+                        case SkUiAnimatableProperty.TranslationX: SetTranslationX(values[0]); break;
+                        case SkUiAnimatableProperty.TranslationY: SetTranslationY(values[0]); break;
+                        case SkUiAnimatableProperty.Rotation: SetRotation(values[0]); break;
+                        case SkUiAnimatableProperty.Scale: SetScale(values[0]); break;
+                    }
+                }
+                completion.TrySetResult(completed);
+            }
+        };
+        SkUiRenderInvalidation.Enqueue(this, tween);
+        return completion.Task;
+    }
 
     /// <summary>Raised when measure/arrange must run again for this subtree.</summary>
     public event EventHandler? MeasureInvalidated;
@@ -216,6 +334,8 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged
         if (_parent is not null && parent is not null && !ReferenceEquals(_parent, parent))
             throw new InvalidOperationException("A Core node already has a parent.");
         SetProperty(ref _parent, parent, nameof(Parent));
+        if (parent is null && _renderState is not null)
+            SkUiRenderInvalidation.ResetSubtree(this);
         var detached = parent is null && !HasInheritedHostClock;
         OnAnimationRootChanged(detached);
         PropagateAnimationRootChanged(detached);
@@ -338,21 +458,34 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged
             FlushInvalidation();
     }
 
+    /// <summary>Marks composite-time state (props / children) dirty, honoring update batches.</summary>
+    internal void InvalidateRender(SkUiRenderDirty flags)
+    {
+        _renderPending |= flags;
+        if (_updateDepth == 0)
+            FlushInvalidation();
+    }
+
     private void FlushInvalidation()
     {
         var layout = _layoutPending;
         var paint = _paintPending;
+        var render = _renderPending;
         _layoutPending = _paintPending = false;
-        if (_parent is SkUiCoreNode coreParent)
+        _renderPending = SkUiRenderDirty.None;
+        if (layout)
         {
-            if (layout) coreParent.InvalidateMeasure();
-            else if (paint) coreParent.InvalidatePaint();
-            return;
+            if (_parent is SkUiCoreNode coreParent)
+                coreParent.InvalidateMeasure();
+            else
+                MeasureInvalidated?.Invoke(this, EventArgs.Empty);
         }
-
-        // Root of a Core tree (typically owned by SkUiCoreHost).
-        if (layout) MeasureInvalidated?.Invoke(this, EventArgs.Empty);
-        if (paint) PaintInvalidated?.Invoke(this, EventArgs.Empty);
+        if (paint)
+            render |= SkUiRenderDirty.Content;
+        if (render != SkUiRenderDirty.None)
+            SkUiRenderInvalidation.Mark(this, render);
+        if (paint)
+            PaintInvalidated?.Invoke(this, EventArgs.Empty);
     }
 
     /// <inheritdoc />
@@ -403,8 +536,10 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged
     /// <inheritdoc />
     public void Arrange(Rect bounds)
     {
-        if (!_arrangeDirty && bounds == _frame)
+        // Compare against the incoming slot (not the margin-deflated frame) so clean nodes skip re-arrange.
+        if (!_arrangeDirty && bounds == _lastArrangeBounds)
             return;
+        _lastArrangeBounds = bounds;
 
         var x = bounds.X + _margin.Left;
         var y = bounds.Y + _margin.Top;
@@ -417,33 +552,104 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged
         {
             _frame = frame;
             OnPropertyChanged(nameof(Frame));
+            // Offset-only changes are composite-time; the recorder re-records content only on size change.
+            InvalidateRender(SkUiRenderDirty.Props);
         }
         ArrangeContent(_frame.Size);
         _arrangeDirty = false;
-        InvalidatePaint();
     }
 
     /// <summary>Arranges hosted content in this node's local coordinate system.</summary>
     protected virtual void ArrangeContent(Size size) { }
 
     /// <inheritdoc />
-    public void Paint(SKCanvas canvas)
+    /// <remarks>Immediate-mode paint of this subtree in local coordinates; surfaces use the retained compositor.</remarks>
+    public void Paint(SKCanvas canvas) => SkUiImmediatePainter.Paint(this, canvas, applyOffset: false);
+
+    internal SkUiRenderState RenderState => _renderState ??= new SkUiRenderState();
+
+    SkUiRenderState ISkUiRenderable.RenderState => RenderState;
+
+    ISkUiRenderable? ISkUiRenderable.RenderParent => (ISkUiRenderable?)(_parent as SkUiCoreNode) ?? HostOwner;
+
+    void ISkUiRenderable.GetRenderProps(ref SkUiRenderProps props)
     {
-        if (!_isVisible || _frame.Width <= 0 || _frame.Height <= 0)
-            return;
-        var save = canvas.Save();
-        try
+        props.X = (float)_frame.X;
+        props.Y = (float)_frame.Y;
+        props.Width = (float)_frame.Width;
+        props.Height = (float)_frame.Height;
+        props.TranslationX = (float)_translationX;
+        props.TranslationY = (float)_translationY;
+        props.Rotation = (float)_rotation;
+        props.ScaleX = props.ScaleY = (float)_scale;
+        props.Opacity = (float)_opacity;
+        props.IsVisible = _isVisible;
+        props.ClipToBounds = _clipToBounds;
+        OnGetRenderProps(ref props);
+    }
+
+    /// <summary>Sets the <see cref="ClipToBounds"/> default without notifications (constructors only).</summary>
+    internal void InitClipToBounds(bool value) => _clipToBounds = value;
+
+    /// <summary>Lets containers add children clip / offset, spinning content, or ink overflow.</summary>
+    internal virtual void OnGetRenderProps(ref SkUiRenderProps props) { }
+
+    void ISkUiRenderable.RecordContent(SKCanvas canvas)
+    {
+        _paintBackground?.Invoke(canvas);
+        OnPaintContent(canvas);
+    }
+
+    bool ISkUiRenderable.HasOverlay => _paintOverlay is not null;
+
+    void ISkUiRenderable.RecordOverlay(SKCanvas canvas) => _paintOverlay?.Invoke(canvas);
+
+    void ISkUiRenderable.GetRenderChildren(List<ISkUiRenderable> children) => AddRenderChildren(children);
+
+    /// <summary>Appends drawn children in paint order.</summary>
+    internal virtual void AddRenderChildren(List<ISkUiRenderable> children) { }
+
+    void ISkUiRenderable.OnRenderRootDirty(bool fromDescendant)
+    {
+        if (fromDescendant)
+            PaintInvalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Render transform (translation, rotation, scale about the center) excluding the frame offset.</summary>
+    internal SKMatrix RenderMatrix
+    {
+        get
         {
-            canvas.ClipRect(new SKRect(0, 0, (float)_frame.Width, (float)_frame.Height));
-            if (_paintBackground is { } paintBackground)
-                paintBackground(canvas);
-            OnPaintContent(canvas);
-            _paintOverlay?.Invoke(canvas);
+            if (_translationX == 0 && _translationY == 0 && _rotation == 0 && _scale == 1)
+                return SKMatrix.Identity;
+            var anchorX = (float)(_frame.Width / 2);
+            var anchorY = (float)(_frame.Height / 2);
+            return SKMatrix.CreateTranslation((float)_translationX + anchorX, (float)_translationY + anchorY)
+                .PreConcat(SKMatrix.CreateRotationDegrees((float)_rotation))
+                .PreConcat(SKMatrix.CreateScale((float)_scale, (float)_scale))
+                .PreConcat(SKMatrix.CreateTranslation(-anchorX, -anchorY));
         }
-        finally
+    }
+
+    /// <summary>Maps a point in the parent's children space into this node's local space (inverse transform).</summary>
+    internal static bool TryMapFromParent(ISkUiCoreNode node, Point parentPoint, out Point local)
+    {
+        var point = new SKPoint((float)(parentPoint.X - node.Frame.X), (float)(parentPoint.Y - node.Frame.Y));
+        if (node is SkUiCoreNode core)
         {
-            canvas.RestoreToCount(save);
+            var matrix = core.RenderMatrix;
+            if (!matrix.IsIdentity)
+            {
+                if (!matrix.TryInvert(out var inverse))
+                {
+                    local = default;
+                    return false;
+                }
+                point = inverse.MapPoint(point);
+            }
         }
+        local = new Point(point.X, point.Y);
+        return true;
     }
 
     private Action<SKCanvas>? _paintBackground;
@@ -489,21 +695,6 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged
 
     /// <inheritdoc />
     public virtual bool Touch(SkUiTouchEvent touch) => false;
-
-    /// <summary>Paints a child translated to its <see cref="Frame"/> origin.</summary>
-    protected static void PaintChild(ISkUiCoreNode child, SKCanvas canvas)
-    {
-        var save = canvas.Save();
-        try
-        {
-            canvas.Translate((float)child.Frame.X, (float)child.Frame.Y);
-            child.Paint(canvas);
-        }
-        finally
-        {
-            canvas.RestoreToCount(save);
-        }
-    }
 
     /// <summary>Converts a MAUI graphics color to Skia.</summary>
     protected static SKColor ToSkColor(Color color) => new(

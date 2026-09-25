@@ -1,14 +1,17 @@
+using MauiSkiaUi.Rendering;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
 
-/// <summary>A drawn indeterminate spinner, similar to MAUI's ActivityIndicator.</summary>
+/// <summary>
+/// A drawn indeterminate spinner, similar to MAUI's ActivityIndicator. The arc is recorded once and rotated
+/// by the compositor on the render thread (one revolution per second), so it keeps spinning while the UI
+/// thread is busy and costs no re-recording per frame.
+/// </summary>
 public class SkUiActivityIndicator : SkUiView
 {
     private bool _isRunning;
     private Color _color = SkUiColors.Muted;
-    private IDisposable? _spin;
-    private float _sweepStart;
     private SKPaint? _strokePaint;
 
     /// <summary>Bindable running state; animates only while true.</summary>
@@ -29,8 +32,7 @@ public class SkUiActivityIndicator : SkUiView
     {
         if (_isRunning == value) return this;
         _isRunning = value;
-        BindSpin();
-        if (!_isRunning) InvalidatePaint();
+        InvalidatePaint();
         return this;
     }
     /// <summary>Sets color without bindable write-back.</summary>
@@ -52,14 +54,6 @@ public class SkUiActivityIndicator : SkUiView
     protected override void OnPaintContent(SKCanvas canvas)
     {
         if (!_isRunning) return;
-        // Recover when StopAll cleared clock registrations but IsRunning stayed true (e.g. older
-        // Unloaded handlers, or host recreate that stopped the clock without clearing intent).
-        if (!AnimationClock.IsRunning)
-        {
-            BindSpin();
-            if (!AnimationClock.IsRunning)
-                return;
-        }
         var paint = _strokePaint ??= new SKPaint
         {
             Style = SKPaintStyle.Stroke,
@@ -67,62 +61,17 @@ public class SkUiActivityIndicator : SkUiView
             IsAntialias = true,
             Color = ToSkColor(_color)
         };
-        SkUiLook.Current.DrawActivityIndicator(canvas, (float)Width, (float)Height, _sweepStart, paint);
+        SkUiLook.Current.DrawActivityIndicator(canvas, (float)Width, (float)Height, 0, paint);
     }
+
+    /// <inheritdoc />
+    internal override void OnGetRenderProps(ref SkUiRenderProps props) =>
+        props.ContentSpinPeriod = _isRunning ? 1 : 0;
 
     /// <inheritdoc />
     protected override void OnPropertyChanged(string? propertyName = null)
     {
         base.OnPropertyChanged(propertyName);
         if (propertyName == nameof(IsVisible) && !IsVisible) SetIsRunning(false);
-    }
-
-    /// <summary>
-    /// Unbinds the spin callback when this control or an ancestor subtree is detached; keeps
-    /// <see cref="IsRunning"/> so a temporary rehost (e.g. HwAccelerated host recreate) can resume.
-    /// Rebinds onto the current <see cref="SkUiView.AnimationClock"/> when the shared root changes
-    /// while still running (e.g. <c>IsRunning</c> was set before the control joined its surface-owning ancestor).
-    /// </summary>
-    protected override void OnAnimationRootChanged(bool subtreeDetached = false)
-    {
-        if (Parent is null || subtreeDetached)
-        {
-            _spin?.Dispose();
-            _spin = null;
-            return;
-        }
-        if (_isRunning)
-            BindSpin();
-    }
-
-    /// <summary>Releases the cached stroke paint when removed from the tree.</summary>
-    protected override void OnParentSet()
-    {
-        base.OnParentSet();
-        if (Parent is null)
-        {
-            _strokePaint?.Dispose();
-            _strokePaint = null;
-        }
-    }
-
-    /// <summary>
-    /// Registers or clears the repeating clock callback on the current animation root.
-    /// Mutates sweep angle only; the root handler coalesces one <see cref="SkUiView.InvalidatePaint"/> per tick
-    /// so hundreds of spinners do not each bubble paint invalidation.
-    /// </summary>
-    private void BindSpin()
-    {
-        _spin?.Dispose();
-        _spin = null;
-        if (!_isRunning)
-            return;
-        _spin = AnimationClock.Start(
-            progress => _sweepStart = (float)(progress * 360),
-            TimeSpan.FromSeconds(1),
-            null,
-            repeat: true);
-        // Mark ancestors dirty once so scroll content caches switch to live paint while the clock runs.
-        InvalidatePaint();
     }
 }

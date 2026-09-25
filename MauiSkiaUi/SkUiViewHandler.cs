@@ -89,13 +89,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     {
         base.ConnectHandler(platformView);
         _renderer = new SkUiFrameRenderer(VirtualView,
-            action => VirtualView.Dispatcher.Dispatch(action), InvalidateSurface, beforePaint: static () => { });
-#if IOS
-        // iOS SKGLView retains prior-frame AA strokes when painting the tree directly onto the
-        // drawable; offscreen compose + Src blit (GPU retained surface when GRContext is live).
-        if (VirtualView.HwAccelerated)
-            _renderer.UseOpaquePresentBlit = true;
-#endif
+            action => VirtualView.Dispatcher.Dispatch(action), InvalidateSurface, beforeFrame: static () => { });
         VirtualView.AnimationClock.RunningChanged += OnRunningChanged;
         VirtualView.Loaded += OnLoaded;
         OnRunningChanged(this, EventArgs.Empty);
@@ -368,7 +362,8 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #endif
         }
 
-        _renderer?.Replay(canvas, info, grContext);
+        if (_renderer?.Render(canvas, info) == true)
+            VirtualView.Dispatcher.Dispatch(InvalidateSurface);
 
         if (_surface is SKCanvasView && (_animationTime.IsRunning || clockRunning))
         {

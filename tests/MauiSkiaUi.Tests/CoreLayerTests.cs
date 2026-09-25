@@ -242,15 +242,18 @@ public class CoreLayerTests
     }
 
     [Fact]
-    public void CoreHost_BindsAnimationClockToContent()
+    public void CoreHost_SpinnerRunsOnRenderThread()
     {
         var spinner = new SkUiCoreActivityIndicator();
+        spinner.SetWidth(20).SetHeight(20);
         var host = new SkUiCoreHost().SetContent(spinner);
-        Assert.Same(host.AnimationClock, spinner.AnimationClock);
+        using var surface = new SkUiTestSurface(host, 40, 40);
         spinner.SetIsRunning(true);
-        Assert.True(host.AnimationClock.IsRunning);
+        surface.Frame(0);
+        Assert.True(surface.NeedsFrame);
         spinner.SetIsRunning(false);
-        Assert.False(host.AnimationClock.IsRunning);
+        surface.Frame(100);
+        Assert.False(surface.NeedsFrame);
     }
 
     [Fact]
@@ -436,36 +439,56 @@ public class CoreLayerTests
     }
 
     [Fact]
-    public void ActivityIndicator_StopsWhenSubtreeDetached()
+    public void ActivityIndicator_StopsWhenSubtreeDetachedAndResumesOnNewHost()
     {
         var spinner = new SkUiCoreActivityIndicator();
+        spinner.SetWidth(20).SetHeight(20);
         var panel = new SkUiCoreVerticalStackLayout().Add(spinner);
-        var host = new SkUiCoreHost().SetContent(panel);
+        var host1 = new SkUiCoreHost().SetContent(panel);
+        using var surface1 = new SkUiTestSurface(host1, 40, 40);
         spinner.SetIsRunning(true);
-        Assert.True(spinner.IsRunning);
-        Assert.True(host.AnimationClock.IsRunning);
+        surface1.Frame(0);
+        Assert.True(surface1.NeedsFrame);
 
         panel.Remove(spinner);
-        // Intent stays true; only the clock registration is cleared while detached.
+        surface1.Frame(100);
         Assert.True(spinner.IsRunning);
-        Assert.False(host.AnimationClock.IsRunning);
+        Assert.False(surface1.NeedsFrame);
+
+        var host2 = new SkUiCoreHost().SetContent(spinner);
+        using var surface2 = new SkUiTestSurface(host2, 40, 40);
+        surface2.Frame(0);
+        Assert.True(surface2.NeedsFrame);
     }
 
     [Fact]
-    public void ActivityIndicator_ResumesWhenRehostedOnNewHost()
+    public void CoreNode_TransformsAndOpacityCompositeAndHitTest()
     {
-        var spinner = new SkUiCoreActivityIndicator().SetIsRunning(true);
-        var host1 = new SkUiCoreHost().SetContent(spinner);
-        Assert.True(host1.AnimationClock.IsRunning);
+        var box = new SkUiCoreBox();
+        box.SetColor(Colors.Red);
+        box.SetWidth(20).SetHeight(20);
+        var clicks = 0;
+        var button = new SkUiCoreButton();
+        button.SetText("x");
+        button.SetWidth(20).SetHeight(20);
+        button.Clicked += (_, _) => clicks++;
+        var panel = new SkUiCoreAbsoluteLayout();
+        panel.Add(box, new Rect(0, 0, 20, 20));
+        panel.Add(button, new Rect(0, 30, 20, 20));
+        var host = new SkUiCoreHost().SetContent(panel);
+        using var surface = new SkUiTestSurface(host, 60, 60);
+        box.SetTranslationX(30);
+        button.SetTranslationX(30);
+        var bitmap = surface.Frame();
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(40, 10));
+        Assert.NotEqual(SKColors.Red, bitmap.GetPixel(10, 10));
+        host.Touch(new(1, SkUiTouchAction.Pressed, new Point(40, 40)));
+        host.Touch(new(1, SkUiTouchAction.Released, new Point(40, 40)));
+        Assert.Equal(1, clicks);
 
-        host1.SetContent(null);
-        Assert.True(spinner.IsRunning);
-        Assert.False(host1.AnimationClock.IsRunning);
-
-        var host2 = new SkUiCoreHost().SetContent(spinner);
-        Assert.True(spinner.IsRunning);
-        Assert.Same(host2.AnimationClock, spinner.AnimationClock);
-        Assert.True(host2.AnimationClock.IsRunning);
+        box.SetOpacity(0);
+        bitmap = surface.Frame();
+        Assert.NotEqual(SKColors.Red, bitmap.GetPixel(40, 10));
     }
 
     [Fact]

@@ -19,17 +19,21 @@ public class ScrollViewTests
     }
 
     [Fact]
-    public async Task AsyncScrollCompletesAndDisablingCancelsMotion()
+    public async Task AsyncScrollCompletesOnRenderThreadAndDisablingCancelsMotion()
     {
         var scroll = new SkUiScrollView { Content = new SkUiBox { HeightRequest = 500 } };
-        SkUiTestHelpers.Arrange(scroll, 100, 100);
+        using var surface = new SkUiTestSurface(scroll, 100, 100);
+        surface.Frame(0);
         var completed = scroll.ScrollToAsync(0, 200);
-        scroll.AnimationClock.Tick(TimeSpan.FromSeconds(1));
+        Assert.True(scroll.IsMotionRunning);
+        surface.Frame(1000);
+        surface.Frame(1400);
         await completed;
         Assert.Equal(200, scroll.ScrollY);
+        Assert.False(scroll.IsMotionRunning);
         var cancelled = scroll.ScrollToAsync(0, 300);
         scroll.IsEnabled = false;
-        Assert.False(scroll.AnimationClock.IsRunning);
+        Assert.False(scroll.IsMotionRunning);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled);
     }
 
@@ -70,30 +74,27 @@ public class ScrollViewTests
     }
 
     [Fact]
-    public void ScrollLivePaintsWhileContentAnimationsRunWithoutRebuildingPicture()
+    public void ContentSpinRunsOnRenderThreadWithoutReRecording()
     {
         var indicator = new SkUiActivityIndicator { IsRunning = true, WidthRequest = 36, HeightRequest = 36 };
         var scroll = new SkUiScrollView { Content = indicator };
-        SkUiTestHelpers.Arrange(scroll, 40, 40);
-        using var bitmap = new SKBitmap(40, 40);
-        using var canvas = new SKCanvas(bitmap);
+        using var surface = new SkUiTestSurface(scroll, 40, 40);
+        surface.Frame(0);
+        var recorded = surface.RecordedPictures;
+        Assert.True(surface.NeedsFrame);
 
-        scroll.Paint(canvas);
-        Assert.Equal(0, scroll.ContentPictureRebuilds);
-        Assert.False(scroll.HasContentPicture);
-
-        scroll.AnimationClock.Tick(TimeSpan.FromMilliseconds(250));
-        scroll.Paint(canvas);
-        Assert.Equal(0, scroll.ContentPictureRebuilds);
+        surface.Frame(250);
+        surface.Frame(500);
+        Assert.Equal(recorded, surface.RecordedPictures);
+        Assert.True(surface.NeedsFrame);
 
         indicator.IsRunning = false;
-        scroll.Paint(canvas);
-        Assert.Equal(1, scroll.ContentPictureRebuilds);
-        Assert.True(scroll.HasContentPicture);
+        surface.Frame(750);
+        Assert.False(surface.NeedsFrame);
     }
 
     [Fact]
-    public void ScrollContentPictureCacheSurvivesOffsetOnlyInvalidation()
+    public void OffsetOnlyScrollNeverReRecordsAndContentChangeReRecordsOnlyThatNode()
     {
         var grid = new SkUiGrid { RowDefinitions = [new(new GridLength(8)), new(new GridLength(8))] };
         var red = new SkUiBox { Color = Colors.Red };
@@ -102,36 +103,30 @@ public class ScrollViewTests
         grid.Children.Add(red);
         grid.Children.Add(blue);
         var scroll = new SkUiScrollView { Content = grid };
-        SkUiTestHelpers.Arrange(scroll, 8, 8);
-        using var bitmap = new SKBitmap(8, 8);
-        using var canvas = new SKCanvas(bitmap);
+        using var surface = new SkUiTestSurface(scroll, 8, 8);
 
-        scroll.Paint(canvas);
-        Assert.Equal(1, scroll.ContentPictureRebuilds);
-        Assert.True(scroll.HasContentPicture);
+        var bitmap = surface.Frame();
+        var recorded = surface.RecordedPictures;
         Assert.Equal(SKColors.Red, bitmap.GetPixel(4, 2));
 
         scroll.ScrollTo(0, 4);
-        scroll.Paint(canvas);
-        Assert.Equal(1, scroll.ContentPictureRebuilds);
-        Assert.True(scroll.HasContentPicture);
+        bitmap = surface.Frame();
+        Assert.Equal(recorded, surface.RecordedPictures);
         Assert.Equal(SKColors.Red, bitmap.GetPixel(4, 2));
         Assert.Equal(SKColors.Blue, bitmap.GetPixel(4, 6));
 
         red.Color = Colors.Lime;
-        scroll.Paint(canvas);
-        Assert.Equal(2, scroll.ContentPictureRebuilds);
         scroll.ScrollTo(0, 0);
-        scroll.Paint(canvas);
-        Assert.Equal(2, scroll.ContentPictureRebuilds);
+        bitmap = surface.Frame();
+        Assert.Equal(recorded + 1, surface.RecordedPictures);
         Assert.Equal(SKColors.Lime, bitmap.GetPixel(4, 2));
     }
 
     [Fact]
-    public void ScrollContentPicturePaintsFullViewportWhenExtentNarrowerThanViewport()
+    public void ScrollFillsFullViewportWhenExtentNarrowerThanViewport()
     {
         // Measure with a narrow constraint (extent stays narrow), then arrange into a wider viewport.
-        // Arrange expands content via max(extent, viewport); the picture must use that same space.
+        // Arrange expands content via max(extent, viewport).
         var grid = new SkUiGrid
         {
             ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star)],
@@ -155,9 +150,8 @@ public class ScrollViewTests
     }
 
     [Fact]
-    public void ScrollContentPictureSurvivesLongOffsetScroll()
+    public void LongOffsetScrollReplaysRetainedNodesAndCullsOffscreen()
     {
-        // Full content-space picture: scrolling far must not rebuild (only translate).
         var column = new SkUiVerticalStackLayout();
         for (var i = 0; i < 8; i++)
             column.Children.Add(new SkUiBox
@@ -167,109 +161,92 @@ public class ScrollViewTests
                 WidthRequest = 40,
             });
         var scroll = new SkUiScrollView { Content = column };
-        SkUiTestHelpers.Arrange(scroll, 40, 50);
-        using var bitmap = new SKBitmap(40, 50);
-        using var canvas = new SKCanvas(bitmap);
-
-        scroll.Paint(canvas);
-        Assert.Equal(1, scroll.ContentPictureRebuilds);
+        using var surface = new SkUiTestSurface(scroll, 40, 50);
+        surface.Frame();
+        var recorded = surface.RecordedPictures;
 
         scroll.ScrollTo(0, 40);
-        scroll.Paint(canvas);
-        Assert.Equal(1, scroll.ContentPictureRebuilds);
-
+        surface.Frame();
         scroll.ScrollTo(0, 200);
-        scroll.Paint(canvas);
-        Assert.Equal(1, scroll.ContentPictureRebuilds);
+        var bitmap = surface.Frame();
+        Assert.Equal(recorded, surface.RecordedPictures);
         Assert.Equal(SKColors.Red, bitmap.GetPixel(20, 25));
     }
 
     [Fact]
-    public void ScrollTapDoesNotRebuildContentPictureForPressedChromeAlone()
+    public void ScrollTapReRecordsOnlyTheButton()
     {
         var button = new SkUiButton { Text = "Go", WidthRequest = 80, HeightRequest = 40 };
         var clicks = 0;
         button.Clicked += (_, _) => clicks++;
         var scroll = new SkUiScrollView { Content = button };
-        SkUiTestHelpers.Arrange(scroll, 100, 80);
-        using var bitmap = new SKBitmap(100, 80);
-        using var canvas = new SKCanvas(bitmap);
-
-        scroll.Paint(canvas);
-        Assert.Equal(1, scroll.ContentPictureRebuilds);
+        using var surface = new SkUiTestSurface(scroll, 100, 80);
+        surface.Frame();
+        var recorded = surface.RecordedPictures;
 
         Assert.True(scroll.Touch(new(1, SkUiTouchAction.Pressed, new Point(20, 20), TimeSpan.Zero)));
         Assert.True(scroll.Touch(new(1, SkUiTouchAction.Released, new Point(20, 20), TimeSpan.FromMilliseconds(20))));
-        scroll.Paint(canvas);
+        surface.Frame();
         Assert.Equal(1, clicks);
-        // Pressed chrome is suppressed; release may rebuild once for IsPressed=false. Must not leave a stale cache.
-        Assert.InRange(scroll.ContentPictureRebuilds, 1, 2);
+        Assert.InRange(surface.RecordedPictures - recorded, 1, 2);
     }
 
     [Fact]
-    public void ScrollTapCommandMutationRebuildsContentPicture()
+    public void ScrollTapCommandMutationReRecordsContent()
     {
         var button = new SkUiButton { Text = "Go", WidthRequest = 80, HeightRequest = 40 };
         button.Clicked += (_, _) => button.Text = "Done";
         var scroll = new SkUiScrollView { Content = button };
-        SkUiTestHelpers.Arrange(scroll, 100, 80);
-        using var bitmap = new SKBitmap(100, 80);
-        using var canvas = new SKCanvas(bitmap);
-
-        scroll.Paint(canvas);
-        Assert.Equal(1, scroll.ContentPictureRebuilds);
+        using var surface = new SkUiTestSurface(scroll, 100, 80);
+        surface.Frame();
+        var recorded = surface.RecordedPictures;
 
         Assert.True(scroll.Touch(new(1, SkUiTouchAction.Pressed, new Point(20, 20), TimeSpan.Zero)));
         Assert.True(scroll.Touch(new(1, SkUiTouchAction.Released, new Point(20, 20), TimeSpan.FromMilliseconds(20))));
-        scroll.Paint(canvas);
+        surface.Frame();
         Assert.Equal("Done", button.Text);
-        Assert.True(scroll.ContentPictureRebuilds >= 2);
+        Assert.True(surface.RecordedPictures > recorded);
     }
 
     [Fact]
-    public void AnimateScrollToClearsMotionSoContentPictureCanRebuild()
+    public void AnimateScrollToRunsOnRenderThreadAndReportsOffsets()
     {
         var box = new SkUiBox { Color = Colors.Red, HeightRequest = 200, WidthRequest = 40 };
         var scroll = new SkUiScrollView { Content = box };
-        SkUiTestHelpers.Arrange(scroll, 40, 50);
-        using var bitmap = new SKBitmap(40, 50);
-        using var canvas = new SKCanvas(bitmap);
-        scroll.Paint(canvas);
-        Assert.Equal(1, scroll.ContentPictureRebuilds);
+        using var surface = new SkUiTestSurface(scroll, 40, 50);
+        surface.Frame(0);
+        var scrolled = 0;
+        scroll.Scrolled += (_, _) => scrolled++;
 
         scroll.AnimateScrollTo(0, 100, TimeSpan.FromMilliseconds(100));
-        scroll.AnimationClock.Tick(TimeSpan.FromMilliseconds(100));
+        surface.Frame(10);
+        surface.Frame(60);
+        Assert.InRange(scroll.ScrollY, 1, 99);
+        surface.Frame(200);
+        Assert.Equal(100, scroll.ScrollY);
+        Assert.False(scroll.IsMotionRunning);
+        Assert.True(scrolled >= 2);
         box.Color = Colors.Blue;
-        scroll.Paint(canvas);
-        Assert.Equal(2, scroll.ContentPictureRebuilds);
-        Assert.Equal(SKColors.Blue, bitmap.GetPixel(20, 25));
+        Assert.Equal(SKColors.Blue, surface.Frame(210).GetPixel(20, 25));
     }
 
     [Fact]
-    public void ScrollContentPictureRebuildDeferredDuringPointerGesture()
+    public void PanDoesNotPressChildOrReRecordContent()
     {
         var button = new SkUiButton { Text = "Go", WidthRequest = 80, HeightRequest = 200 };
         var scroll = new SkUiScrollView { Content = button };
-        SkUiTestHelpers.Arrange(scroll, 100, 80);
-        using var bitmap = new SKBitmap(100, 80);
-        using var canvas = new SKCanvas(bitmap);
-
-        scroll.Paint(canvas);
-        Assert.Equal(1, scroll.ContentPictureRebuilds);
+        using var surface = new SkUiTestSurface(scroll, 100, 80);
+        surface.Frame();
+        var recorded = surface.RecordedPictures;
 
         Assert.True(scroll.Touch(new(1, SkUiTouchAction.Pressed, new Point(20, 20), TimeSpan.Zero)));
-        scroll.Paint(canvas);
-        Assert.Equal(1, scroll.ContentPictureRebuilds);
-        Assert.True(scroll.HasContentPicture);
-
+        surface.Frame();
         Assert.True(scroll.Touch(new(1, SkUiTouchAction.Moved, new Point(20, -40), TimeSpan.FromMilliseconds(50))));
-        scroll.Paint(canvas);
-        Assert.Equal(1, scroll.ContentPictureRebuilds);
-
-        // Pan never pressed the child, so finger-up must not rebuild the content picture.
+        surface.Frame();
         Assert.True(scroll.Touch(new(1, SkUiTouchAction.Released, new Point(20, -40), TimeSpan.FromMilliseconds(200))));
-        scroll.Paint(canvas);
-        Assert.Equal(1, scroll.ContentPictureRebuilds);
+        surface.Frame();
+        Assert.False(button.IsPressed);
+        Assert.Equal(recorded, surface.RecordedPictures);
     }
 
     [Fact]
@@ -293,11 +270,12 @@ public class ScrollViewTests
     }
 
     [Fact]
-    public void ScrollPanCancelsButtonAndFlingUsesClock()
+    public void ScrollPanCancelsButtonAndFlingRunsOnRenderThread()
     {
         var button = new SkUiButton { HeightRequest = 500 };
         var scroll = new SkUiScrollView { Content = button };
-        SkUiTestHelpers.Arrange(scroll, 150, 100);
+        using var surface = new SkUiTestSurface(scroll, 150, 100);
+        surface.Frame(0);
         var clicks = 0;
         button.Clicked += (_, _) => clicks++;
         scroll.Touch(new(1, SkUiTouchAction.Pressed, new Point(30, 80), TimeSpan.Zero));
@@ -311,12 +289,35 @@ public class ScrollViewTests
         Assert.False(button.IsPressed);
         Assert.Equal(60, scroll.ScrollY);
         scroll.Touch(new(2, SkUiTouchAction.Released, new Point(30, 20), TimeSpan.FromMilliseconds(160)));
-        Assert.True(scroll.AnimationClock.IsRunning);
-        scroll.AnimationClock.Tick(TimeSpan.FromMilliseconds(200));
+        Assert.True(scroll.IsMotionRunning);
+        surface.Frame(1000);
+        surface.Frame(1200);
         Assert.True(scroll.ScrollY > 60);
-        scroll.AnimationClock.Tick(TimeSpan.FromSeconds(2));
-        Assert.False(scroll.AnimationClock.IsRunning);
+        surface.Frame(9000);
+        Assert.False(scroll.IsMotionRunning);
+        Assert.False(surface.NeedsFrame);
         Assert.Equal(1, clicks);
+    }
+
+    [Fact]
+    public void TouchDuringFlingStopsItWithoutJumpingBack()
+    {
+        var scroll = new SkUiScrollView { Content = new SkUiBox { HeightRequest = 5000 } };
+        using var surface = new SkUiTestSurface(scroll, 100, 100);
+        surface.Frame(0);
+        scroll.Touch(new(1, SkUiTouchAction.Pressed, new Point(50, 90), TimeSpan.Zero));
+        scroll.Touch(new(1, SkUiTouchAction.Moved, new Point(50, 60), TimeSpan.FromMilliseconds(10)));
+        scroll.Touch(new(1, SkUiTouchAction.Moved, new Point(50, 30), TimeSpan.FromMilliseconds(20)));
+        scroll.Touch(new(1, SkUiTouchAction.Released, new Point(50, 30), TimeSpan.FromMilliseconds(25)));
+        surface.Frame(100);
+        surface.Frame(300);
+        var during = scroll.ScrollY;
+        Assert.True(during > 60);
+        scroll.Touch(new(2, SkUiTouchAction.Pressed, new Point(50, 50), TimeSpan.FromMilliseconds(400)));
+        Assert.False(scroll.IsMotionRunning);
+        surface.Frame(400);
+        surface.Frame(600);
+        Assert.Equal(during, scroll.ScrollY, 3);
     }
 
     private sealed class MeasureProbe : SkUiBox

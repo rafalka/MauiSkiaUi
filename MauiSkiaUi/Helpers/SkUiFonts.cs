@@ -9,6 +9,7 @@ namespace MauiSkiaUi;
 /// </summary>
 public static class SkUiFonts
 {
+    private static readonly object Gate = new();
     private static readonly Dictionary<string, Func<Stream>> Factories = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, SKTypeface> Cache = new(StringComparer.Ordinal);
 
@@ -20,25 +21,35 @@ public static class SkUiFonts
     {
         ArgumentException.ThrowIfNullOrEmpty(familyName);
         ArgumentNullException.ThrowIfNull(openFont);
-        Factories[familyName] = openFont;
-        if (Cache.Remove(familyName, out var stale)) stale.Dispose();
+        lock (Gate)
+        {
+            Factories[familyName] = openFont;
+            // Not disposed: retained pictures on the render thread may still reference the old typeface.
+            Cache.Remove(familyName);
+        }
     }
 
-    /// <summary>Removes a registration and disposes its cached typeface, if any.</summary>
+    /// <summary>Removes a registration and forgets its cached typeface (left to the GC: retained pictures may still use it).</summary>
     public static void Unregister(string familyName)
     {
-        Factories.Remove(familyName);
-        if (Cache.Remove(familyName, out var stale)) stale.Dispose();
+        lock (Gate)
+        {
+            Factories.Remove(familyName);
+            Cache.Remove(familyName);
+        }
     }
 
     /// <summary>Resolves a registered family name to a cached, registry-owned typeface, or null if not registered/loadable.</summary>
     internal static SKTypeface? TryResolve(string familyName)
     {
-        if (Cache.TryGetValue(familyName, out var typeface)) return typeface;
-        if (!Factories.TryGetValue(familyName, out var open)) return null;
-        using var stream = open();
-        typeface = SKTypeface.FromStream(stream);
-        if (typeface is not null) Cache[familyName] = typeface;
-        return typeface;
+        lock (Gate)
+        {
+            if (Cache.TryGetValue(familyName, out var typeface)) return typeface;
+            if (!Factories.TryGetValue(familyName, out var open)) return null;
+            using var stream = open();
+            typeface = SKTypeface.FromStream(stream);
+            if (typeface is not null) Cache[familyName] = typeface;
+            return typeface;
+        }
     }
 }

@@ -1,4 +1,4 @@
-using SkiaSharp;
+using MauiSkiaUi.Rendering;
 
 namespace MauiSkiaUi.Core;
 
@@ -7,6 +7,9 @@ public class SkUiCoreContentView : SkUiCoreNode
 {
     private SkUiCoreNode? _content;
     private Thickness _padding;
+
+    /// <summary>Creates a content view; it does not clip its child by default.</summary>
+    public SkUiCoreContentView() => InitClipToBounds(false);
 
     /// <summary>Hosted child, or <c>null</c>.</summary>
     public SkUiCoreNode? Content
@@ -50,6 +53,7 @@ public class SkUiCoreContentView : SkUiCoreNode
             _content.AttachTo(this);
         OnPropertyChanged(nameof(Content));
         OnContentChanged();
+        InvalidateRender(SkUiRenderDirty.Children);
         InvalidateMeasure();
         return this;
     }
@@ -77,10 +81,10 @@ public class SkUiCoreContentView : SkUiCoreNode
     }
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas)
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
     {
-        if (_content is { } child)
-            PaintChild(child, canvas);
+        if (_content is not null)
+            children.Add(_content);
     }
 
     /// <inheritdoc />
@@ -88,15 +92,9 @@ public class SkUiCoreContentView : SkUiCoreNode
     {
         if (_content is not { IsVisible: true } child)
             return false;
-        var frame = child.Frame;
-        if (touch.Position.X < frame.X || touch.Position.Y < frame.Y
-            || touch.Position.X >= frame.Right || touch.Position.Y >= frame.Bottom)
+        if (!TryMapFromParent(child, touch.Position, out var position)
+            || position.X < 0 || position.Y < 0 || position.X >= child.Frame.Width || position.Y >= child.Frame.Height)
             return false;
-        return child.Touch(new SkUiTouchEvent(
-            touch.Id,
-            touch.Action,
-            new Point(touch.Position.X - frame.X, touch.Position.Y - frame.Y),
-            touch.Timestamp,
-            touch.WheelDelta));
+        return child.Touch(touch with { Position = position });
     }
 }

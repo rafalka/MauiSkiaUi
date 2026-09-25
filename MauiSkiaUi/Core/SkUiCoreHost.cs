@@ -1,4 +1,4 @@
-using SkiaSharp;
+using MauiSkiaUi.Rendering;
 
 namespace MauiSkiaUi.Core;
 
@@ -32,9 +32,9 @@ public class SkUiCoreHost : SkUiView
         if (_content is not null)
         {
             _content.MeasureInvalidated -= OnContentMeasureInvalidated;
-            _content.PaintInvalidated -= OnContentPaintInvalidated;
             _content.BindAnimationClock(null);
             _content.HostOwner = null;
+            SkUiRenderInvalidation.ResetSubtree(_content);
         }
 
         _capturedPointer = null;
@@ -45,10 +45,10 @@ public class SkUiCoreHost : SkUiView
         {
             _content.HostOwner = this;
             _content.MeasureInvalidated += OnContentMeasureInvalidated;
-            _content.PaintInvalidated += OnContentPaintInvalidated;
             _content.BindAnimationClock(AnimationClock);
         }
 
+        InvalidateRender(SkUiRenderDirty.Children);
         InvalidateMeasureOverride();
         return this;
     }
@@ -64,7 +64,6 @@ public class SkUiCoreHost : SkUiView
     }
 
     private void OnContentMeasureInvalidated(object? sender, EventArgs e) => InvalidateMeasureOverride();
-    private void OnContentPaintInvalidated(object? sender, EventArgs e) => InvalidatePaint();
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
@@ -88,19 +87,10 @@ public class SkUiCoreHost : SkUiView
     }
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas)
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
     {
-        if (_content is null) return;
-        var save = canvas.Save();
-        try
-        {
-            canvas.Translate((float)_content.Frame.X, (float)_content.Frame.Y);
-            _content.Paint(canvas);
-        }
-        finally
-        {
-            canvas.RestoreToCount(save);
-        }
+        if (_content is not null)
+            children.Add(_content);
     }
 
     /// <inheritdoc />
@@ -141,10 +131,8 @@ public class SkUiCoreHost : SkUiView
             return false;
 
         // Hit-test in the root's local space (root Frame may be nonzero after arrange).
-        var rootLocal = new Point(
-            touch.Position.X - _content.Frame.X,
-            touch.Position.Y - _content.Frame.Y);
-        if (!HitTest(_content, rootLocal, out var target, out var targetLocal))
+        if (!SkUiCoreNode.TryMapFromParent(_content, touch.Position, out var rootLocal)
+            || !HitTest(_content, rootLocal, out var target, out var targetLocal))
             return false;
 
         var handled = target.Touch(new SkUiTouchEvent(touch.Id, touch.Action, targetLocal, touch.Timestamp, touch.WheelDelta));
@@ -176,25 +164,19 @@ public class SkUiCoreHost : SkUiView
             {
                 var child = panel.Children[index];
                 if (!child.IsVisible) continue;
-                var frame = child.Frame;
-                if (position.X < frame.X || position.Y < frame.Y
-                    || position.X >= frame.Right || position.Y >= frame.Bottom)
+                if (!SkUiCoreNode.TryMapFromParent(child, position, out var childPos)
+                    || childPos.X < 0 || childPos.Y < 0 || childPos.X >= child.Frame.Width || childPos.Y >= child.Frame.Height)
                     continue;
-                var childPos = new Point(position.X - frame.X, position.Y - frame.Y);
                 if (HitTest(child, childPos, out target, out local))
                     return true;
             }
         }
         else if (root is SkUiCoreContentView { Content: { IsVisible: true } content })
         {
-            var frame = content.Frame;
-            if (position.X >= frame.X && position.Y >= frame.Y
-                && position.X < frame.Right && position.Y < frame.Bottom)
-            {
-                var childPos = new Point(position.X - frame.X, position.Y - frame.Y);
-                if (HitTest(content, childPos, out target, out local))
-                    return true;
-            }
+            if (SkUiCoreNode.TryMapFromParent(content, position, out var childPos)
+                && childPos.X >= 0 && childPos.Y >= 0 && childPos.X < content.Frame.Width && childPos.Y < content.Frame.Height
+                && HitTest(content, childPos, out target, out local))
+                return true;
         }
 
         if (position.X >= 0 && position.Y >= 0 && position.X < root.Frame.Width && position.Y < root.Frame.Height)
@@ -211,14 +193,14 @@ public class SkUiCoreHost : SkUiView
 
     private static bool TryMapToNode(Point hostLocal, ISkUiCoreNode node, out Point local)
     {
-        var x = 0.0;
-        var y = 0.0;
+        // Map down from the root through each ancestor's frame and inverse render transform.
+        var chain = new List<ISkUiCoreNode>();
         for (ISkUiCoreNode? current = node; current is not null; current = current.Parent)
-        {
-            x += current.Frame.X;
-            y += current.Frame.Y;
-        }
-        local = new Point(hostLocal.X - x, hostLocal.Y - y);
+            chain.Add(current);
+        local = hostLocal;
+        for (var index = chain.Count - 1; index >= 0; index--)
+            if (!SkUiCoreNode.TryMapFromParent(chain[index], local, out local))
+                return false;
         return true;
     }
 }

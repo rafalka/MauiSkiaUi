@@ -75,13 +75,6 @@ public class SkUiContentView : SkUiView
         Math.Max(0, size.Width - _padding.HorizontalThickness), Math.Max(0, size.Height - _padding.VerticalThickness)));
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas)
-    {
-        if (Content is { } child)
-            PaintChild(child, canvas);
-    }
-
-    /// <inheritdoc />
     public override bool Touch(SkUiTouchEvent touch)
     {
         if (InputTransparent || !IsVisible || !IsEnabled)

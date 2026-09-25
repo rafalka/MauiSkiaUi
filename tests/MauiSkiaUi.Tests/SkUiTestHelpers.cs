@@ -1,3 +1,5 @@
+using SkiaSharp;
+
 namespace MauiSkiaUi.Tests;
 
 internal static class SkUiTestHelpers
@@ -26,5 +28,59 @@ internal static class SkUiTestHelpers
     private sealed class FontRegistration(string familyName) : IDisposable
     {
         public void Dispose() => SkUiFonts.Unregister(familyName);
+    }
+}
+
+/// <summary>
+/// Headless surface: runs the UI-thread frame pipeline and the compositor synchronously with explicit
+/// render times, so render-thread animations (fling, spin, AnimateAsync) are deterministic in tests.
+/// </summary>
+internal sealed class SkUiTestSurface : IDisposable
+{
+    private readonly Queue<Action> _ui = new();
+    private readonly SKBitmap _bitmap;
+    private readonly SKCanvas _canvas;
+
+    public SkUiTestSurface(SkUiView root, int width, int height, int density = 1)
+    {
+        Root = root;
+        SkUiTestHelpers.Arrange(root, width, height);
+        _bitmap = new SKBitmap(width * density, height * density);
+        _canvas = new SKCanvas(_bitmap);
+        Renderer = new SkUiFrameRenderer(root, _ui.Enqueue, () => RenderRequests++, () => { });
+        Renderer.RequestFrame();
+    }
+
+    public SkUiView Root { get; }
+    public SkUiFrameRenderer Renderer { get; }
+    public int RenderRequests { get; private set; }
+    public int RecordedPictures => Renderer.RecordedPictures;
+    public bool NeedsFrame => Renderer.Compositor.NeedsFrame;
+    public SKBitmap Bitmap => _bitmap;
+
+    /// <summary>Runs queued UI work (frame commits, render-thread feedback).</summary>
+    public void PumpUi()
+    {
+        while (_ui.Count > 0)
+            _ui.Dequeue()();
+    }
+
+    /// <summary>UI pass, then one render at <paramref name="time"/>, then delivers feedback to the UI.</summary>
+    public SKBitmap Frame(TimeSpan time)
+    {
+        PumpUi();
+        Renderer.PresentFrame();
+        Renderer.Render(_canvas, _bitmap.Info, time);
+        PumpUi();
+        return _bitmap;
+    }
+
+    public SKBitmap Frame(double milliseconds = 0) => Frame(TimeSpan.FromMilliseconds(milliseconds));
+
+    public void Dispose()
+    {
+        Renderer.Dispose();
+        _canvas.Dispose();
+        _bitmap.Dispose();
     }
 }
