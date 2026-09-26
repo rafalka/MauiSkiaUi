@@ -401,7 +401,13 @@ internal sealed class SkUiOverlayContainer(Android.Content.Context context) : An
     }
 }
 #elif IOS || MACCATALYST
-internal sealed class SkUiOverlayContainer : UIKit.UIView
+// Derives from MauiView (with no cross-platform layout attached, so it only does plain UIKit layout)
+// because MAUI's Loaded/Unloaded tracking special-cases its internal lifecycle interface: for any other platform
+// view it installs bounds/frame KVO observers on the view's CALayer. When those managed
+// observers are collected before removal, the layer keeps dangling observation info and the next KVO lookup —
+// typically removeFromSuperview during UIView dealloc from the NSObject disposer — crashes in
+// _NSKeyValueObservationInfoGetObservances. With MauiView MAUI uses MovedToWindow instead.
+internal sealed class SkUiOverlayContainer : MauiView
 {
     private readonly Dictionary<UIKit.UIView, CoreGraphics.CGRect> _bounds = [];
 
