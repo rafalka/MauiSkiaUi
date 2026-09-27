@@ -17,7 +17,14 @@
 | 2.3 Phased pipeline | **Partial**: coalesced record/commit + render phases; relayout boundaries / layout pass cap open |
 | 2.4 Retained paint | **Done**: per-node pictures, composite-time props; raster cache of stable subtrees open |
 | 2.5 Text shaping / RTL | **Done** (HarfBuzz via `SkiaSharp.HarfBuzz`; explicit bidi embeddings / isolates not interpreted). RTL layout mirroring via `FlowDirection` also done ([LayoutSystem.md](LayoutSystem.md#right-to-left-flowdirection)) |
-| 2.6–2.9 | Gesture arena, virtualization, overlay masks, IVisualTreeElement open |
+| 2.6–2.8 | Gesture arena, virtualization, overlay masks open |
+| 2.9 Visual tree / diagnostics | **Done**:
+  - **Core in the tree:** Core nodes are `IVisualTreeElement`s, reachable through `SkUiCoreHost`, and report adds and removes to `VisualDiagnostics`. The check is cached; Release builds trim it away.
+  - **SkUi\* children:** already visible as MAUI logical children.
+  - **`SkUiDiagnostics`:** root and window bounds, hit-testing and `SimulateTap` for drawn elements.
+  - **Core `AutomationId`.**
+  - **DevFlow extension:** `dev.skiaui` in the demo ([Testing.md](Testing.md#drawn-elements-devskiaui-extension)).
+  - **Not possible from outside MAUI:** IDE "select element in running app" and adorners still resolve to the SkiaUi surface, because they need platform views (internal MAUI APIs). |
 
 
 Review of the PRDs in this folder and the `MauiSkiaUi` implementation, compared against local checkouts of .NET MAUI, DrawnUi, Flutter, Avalonia, Uno Platform, and Open-Maui (see [`.cursor/rules/reference-sources.mdc`](../../.cursor/rules/reference-sources.mdc)). Goal: the fastest and most flexible Skia-drawn UI for MAUI.
@@ -100,6 +107,9 @@ Ordered by severity.
    - `ITicker` for pacing and reduce-motion;
    - `IFontRegistrar` for fonts;
    - `IVisualTreeElement` / `VisualDiagnostics` so drawn nodes show up in Live Visual Tree.
+     - **SkUi\*:** these views were already MAUI logical children (and so visual tree children).
+     - **Core:** nodes were invisible to tools; they are now visual tree elements too.
+     - **Remaining gap:** tools locate and tap elements through their platform views, which drawn elements lack. `SkUiDiagnostics` fills that gap for automation and tests (see the status table).
 
 ## 3. PRD review
 

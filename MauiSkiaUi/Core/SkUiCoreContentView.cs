@@ -47,10 +47,16 @@ public class SkUiCoreContentView : SkUiCoreNode
 
         var previous = _content;
         if (previous is not null)
+        {
             previous.AttachTo(null);
+            SkUiDiagnostics.NotifyChildRemoved(this, previous, 0);
+        }
         _content = value;
         if (_content is not null && _content.Parent is null)
+        {
             _content.AttachTo(this);
+            SkUiDiagnostics.NotifyChildAdded(this, _content, 0);
+        }
         OnPropertyChanged(nameof(Content));
         OnContentChanged();
         InvalidateRender(SkUiRenderDirty.Children);
@@ -79,6 +85,9 @@ public class SkUiCoreContentView : SkUiCoreNode
             Math.Max(0, size.Width - _padding.HorizontalThickness),
             Math.Max(0, size.Height - _padding.VerticalThickness)));
     }
+
+    /// <inheritdoc />
+    internal override IReadOnlyList<IVisualTreeElement> VisualChildren => _content is null ? [] : [_content];
 
     /// <inheritdoc />
     internal override void AddRenderChildren(List<ISkUiRenderable> children)

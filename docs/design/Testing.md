@@ -143,6 +143,27 @@ Use `mcp_maui_maui_get_property` on the `SkUiLabel`s and native controls (`TextC
 
 Fall back to manual verification via [`scripts/device_verify.sh`](../../scripts/device_verify.sh) (preferred) or an equivalent plain `dotnet build -t:Run` / IDE Play button, then visually check the same things by hand (type in the Editor, watch the WebView, eyeball contrast). Record what you actually observed — do not report a checklist item as verified without either an agent-based check or an explicit manual one.
 
+### Drawn elements (`dev.skiaui` extension)
+
+DevFlow's own tree treats drawn elements differently from native views:
+- **SkUi\* views:** it lists them, but with parent-relative frames.
+- **Core nodes:** it lists them (they are visual tree elements), without bounds or text.
+- **Taps:** `ui tap` fails for both, because neither has a platform view.
+
+The demo registers a Debug-only agent extension ([SkiaUiDevFlowExtension.cs](../../MauiSkiaUiDemo/Diagnostics/SkiaUiDevFlowExtension.cs)) built on `SkUiDiagnostics`:
+
+```bash
+maui devflow extensions call dev.skiaui tree                                    # drawn elements: type, automationId, text, window bounds
+maui devflow extensions call dev.skiaui tap '{"automationId":"AddObservation"}' # press + release through the drawn tree
+maui devflow extensions call dev.skiaui tap '{"type":"SkUiCoreLabel","text":"Cell 1"}'
+maui devflow extensions call dev.skiaui hit '{"x":201,"y":709}'                 # deepest drawn element at a window point
+```
+
+- **Coordinates:** window DIPs, the same as native elements in `ui tree`.
+- **Tap result:** `tap` returns both the matched element and the element actually hit. If something covers the element's center, the two differ.
+- **Lease:** `tap` is a mutation, so it waits for DevFlow's mutation lease. A lease taken by an earlier CLI call (e.g. `ui navigate`) expires after about 10 s.
+- **Tests:** in headless tests, use `SkUiDiagnostics.GetRootBounds` / `HitTest` / `SimulateTap` directly.
+
 ## Known DevFlow agent issues (as of 2026-09-10)
 
 These affect every device-verification attempt in this repo so far. Check `dotnet_maui_diagnoseDevFlow` first before repeating any step below more than once — it works independently of the MCP connection and reports which of these you're hitting.

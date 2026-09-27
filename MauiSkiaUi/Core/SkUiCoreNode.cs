@@ -346,6 +346,13 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     /// <summary>Host that exclusively owns this node as a Core tree root, if any.</summary>
     internal SkUiCoreHost? HostOwner { get; set; }
 
+    /// <summary>Visual tree children for diagnostics tools (called by tools only; may allocate).</summary>
+    internal virtual IReadOnlyList<IVisualTreeElement> VisualChildren => [];
+
+    IReadOnlyList<IVisualTreeElement> IVisualTreeElement.GetVisualChildren() => VisualChildren;
+
+    IVisualTreeElement? IVisualTreeElement.GetVisualParent() => (IVisualTreeElement?)_parent ?? HostOwner;
+
     /// <summary>Notifies descendants that <see cref="AnimationClock"/> may have changed.</summary>
     private void PropagateAnimationRootChanged(bool subtreeDetached)
     {
@@ -393,6 +400,18 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         var detached = parent is null && !HasInheritedHostClock;
         OnAnimationRootChanged(detached);
         PropagateAnimationRootChanged(detached);
+    }
+
+    private string? _automationId;
+
+    /// <summary>Identifier for UI automation and diagnostics tools (like MAUI's <c>AutomationId</c>); no layout effect.</summary>
+    public string? AutomationId => _automationId;
+
+    /// <summary>Sets <see cref="AutomationId"/>.</summary>
+    public SkUiCoreNode SetAutomationId(string? value)
+    {
+        SetProperty(ref _automationId, value, nameof(AutomationId));
+        return this;
     }
 
     /// <summary>Sets visibility; raises <see cref="System.ComponentModel.INotifyPropertyChanged"/> when changed.</summary>

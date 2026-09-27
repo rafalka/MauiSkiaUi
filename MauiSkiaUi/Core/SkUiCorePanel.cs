@@ -73,6 +73,7 @@ public abstract class SkUiCorePanel : SkUiCoreNode
 
         coreChild.AttachTo(this);
         _children.Insert(index, child);
+        SkUiDiagnostics.NotifyChildAdded(this, child, index);
         OnChildrenChanged();
         InvalidateRender(SkUiRenderDirty.Children);
         InvalidateMeasure();
@@ -83,6 +84,7 @@ public abstract class SkUiCorePanel : SkUiCoreNode
     {
         var child = _children[index];
         _children.RemoveAt(index);
+        SkUiDiagnostics.NotifyChildRemoved(this, child, index);
         if (child is SkUiCoreNode coreChild)
             coreChild.AttachTo(null);
         OnChildRemoved(child);
@@ -96,6 +98,9 @@ public abstract class SkUiCorePanel : SkUiCoreNode
 
     /// <summary>Called after the child collection changes (add/remove/clear).</summary>
     protected virtual void OnChildrenChanged() { }
+
+    /// <inheritdoc />
+    internal override IReadOnlyList<IVisualTreeElement> VisualChildren => _children;
 
     /// <inheritdoc />
     internal override void AddRenderChildren(List<ISkUiRenderable> children)

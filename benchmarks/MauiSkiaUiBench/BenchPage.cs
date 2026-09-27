@@ -101,7 +101,7 @@ public sealed class BenchPage : ContentPage
         var add = watch.Elapsed.TotalMilliseconds;
 
         watch.Restart();
-        ForceLayout();
+        ForceUiKitLayout();
         await WaitForFramesAsync(root, minimumFrames: 1);
         var firstFrame = watch.Elapsed.TotalMilliseconds;
 
@@ -114,7 +114,7 @@ public sealed class BenchPage : ContentPage
             var before = Stats(root)?.Frames ?? 0;
             watch.Restart();
             apply(root);
-            ForceLayout();
+            ForceUiKitLayout();
             await WaitForFramesAsync(root, before + 1);
             update = watch.Elapsed.TotalMilliseconds;
         }
@@ -169,7 +169,7 @@ public sealed class BenchPage : ContentPage
     /// UIKit runs layout in its display-aligned update cycle, so attach / change → measure otherwise waits 0–16 ms
     /// depending on where the benchmark's continuation falls in that cycle: noise unrelated to the code under test.
     /// </summary>
-    private void ForceLayout()
+    private void ForceUiKitLayout()
     {
 #if IOS || MACCATALYST
         (_host.Handler?.PlatformView as UIKit.UIView)?.Window?.LayoutIfNeeded();

@@ -67,6 +67,16 @@ scroller.SetContent(host);
 - `TextRendering` / `SetTextRendering(SkUiTextRendering)`: `Auto` (fast path for plain Latin text, HarfBuzz otherwise), `Shaped`, `Simple` (never shapes, for dense plain text / numbers) — see [SkUiLabel.md](SkUiLabel.md).
 - `TextDirection` / `SetTextDirection(SkUiTextDirection)` sets the paragraph direction (`Auto` = first strong character, default). Shaping, bidi and font fallback are the same as on [`SkUiLabel`](SkUiLabel.md).
 
+## Diagnostics and automation
+
+- **Visual tree:** Core nodes implement `IVisualTreeElement`, so MAUI's visual tree continues from `SkUiCoreHost` into the Core tree (Live Visual Tree, `GetVisualTreeDescendants()`, automation agents).
+- **Notifications:** adds and removes are reported to `VisualDiagnostics` only when MAUI diagnostics are enabled (Debug). Release builds pay nothing.
+- **`AutomationId` / `SetAutomationId`:** identify a node for automation, like MAUI's `AutomationId`.
+- **`SkUiDiagnostics`:** locates drawn elements, which have no platform view:
+  - `GetRootBounds` / `GetWindowBounds`: bounds after transforms and scroll offsets;
+  - `HitTest` / `HitTestWindow`: the deepest element at a point;
+  - `SimulateTap`: press and release through the surface, as a real touch.
+
 ## Stress comparison
 
 Demo **Stress test** page: toggle **Core layer** to build the same two-column grid of buttons with Core nodes vs MAUI-compatible `SkUiGrid` + `SkUiButton`. **Animate** puts running `SkUiCoreActivityIndicator` / `SkUiActivityIndicator` cells in the second column on either layer. Compare Generate / Add / Render timings (see measured gap in [CoreRequirements.md](../design/CoreRequirements.md)).

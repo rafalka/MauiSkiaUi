@@ -7,7 +7,7 @@ namespace MauiSkiaUi.Core;
 /// This is the only Core-related type that derives from <see cref="SkUiView"/>; use it to place
 /// Core content under <see cref="SkUiScrollView"/>, layouts, or a standalone surface.
 /// </summary>
-public class SkUiCoreHost : SkUiView
+public class SkUiCoreHost : SkUiView, IVisualTreeElement
 {
     private SkUiCoreNode? _content;
     private long? _capturedPointer;
@@ -35,6 +35,7 @@ public class SkUiCoreHost : SkUiView
             _content.BindAnimationClock(null);
             _content.HostOwner = null;
             SkUiRenderInvalidation.ResetSubtree(_content);
+            SkUiDiagnostics.NotifyChildRemoved(this, _content, 0);
         }
 
         _capturedPointer = null;
@@ -46,6 +47,7 @@ public class SkUiCoreHost : SkUiView
             _content.HostOwner = this;
             _content.MeasureInvalidated += OnContentMeasureInvalidated;
             _content.BindAnimationClock(AnimationClock);
+            SkUiDiagnostics.NotifyChildAdded(this, _content, 0);
         }
 
         InvalidateRender(SkUiRenderDirty.Children);
@@ -88,6 +90,12 @@ public class SkUiCoreHost : SkUiView
 
         _content.Arrange(slot);
     }
+
+    // The host's Core root is not a MAUI logical child; expose it to diagnostics tools (Live Visual Tree,
+    // automation agents) by re-implementing IVisualTreeElement.
+    IReadOnlyList<IVisualTreeElement> IVisualTreeElement.GetVisualChildren() => _content is null ? [] : [_content];
+
+    IVisualTreeElement? IVisualTreeElement.GetVisualParent() => Parent;
 
     /// <inheritdoc />
     internal override void AddRenderChildren(List<ISkUiRenderable> children)

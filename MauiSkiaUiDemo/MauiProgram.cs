@@ -25,7 +25,7 @@ public static class MauiProgram
 			});
 
 #if MAUI_DEVFLOW
-		builder.AddMauiDevFlowAgent();
+		builder.AddMauiDevFlowAgent(SkiaUiDevFlowExtension.Register);
 #endif
 
 #if DEBUG
