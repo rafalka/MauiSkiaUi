@@ -67,10 +67,12 @@ public class TextShapingTests
     public void ArabicShapesWithJoiningAndLamAlefLigature()
     {
         if (!HasFontFor('ل')) return;
-        var ligature = Shape("لا");
-        var glyphs = ligature.Runs.Sum(run => run.Glyphs.Length);
-        // Lam + Alef form one ligature glyph in Arabic fonts.
-        Assert.Equal(1, glyphs);
+        var ligature = Shape("لا").Runs.SelectMany(run => run.Glyphs).ToArray();
+        var isolated = Shape("ل").Runs.Concat(Shape("ا").Runs).SelectMany(run => run.Glyphs).ToArray();
+        // Lam + Alef are replaced by the lam-alef ligature: one glyph in most fonts (Arial, Tahoma), two dedicated
+        // lam-alef glyphs in Segoe UI (the Windows fallback). Either way, not the isolated lam and alef.
+        Assert.InRange(ligature.Length, 1, 2);
+        Assert.Empty(ligature.Intersect(isolated));
         var word = Shape(Arabic);
         Assert.All(word.Runs, run => Assert.Equal(1, run.Level % 2));
         Assert.NotSame(Primary(), word.Runs[0].Typeface);
