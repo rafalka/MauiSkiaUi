@@ -17,7 +17,14 @@
 | 2.3 Phased pipeline | **Partial**: coalesced record/commit + render phases; relayout boundaries / layout pass cap open |
 | 2.4 Retained paint | **Done**: per-node pictures, composite-time props; raster cache of stable subtrees open |
 | 2.5 Text shaping / RTL | **Done** (HarfBuzz via `SkiaSharp.HarfBuzz`; explicit bidi embeddings / isolates not interpreted). RTL layout mirroring via `FlowDirection` also done ([LayoutSystem.md](LayoutSystem.md#right-to-left-flowdirection)) |
-| 2.6–2.8 | Gesture arena, virtualization, overlay masks open |
+| 2.6 Gesture arena | **Done**:
+  - **Arena:** per pointer, for SkUi* and Core, with tap / double tap / long press / pan / swipe / pinch / pointer recognizers and a press delay when contested.
+  - **Nested scrolling:** axis-aware, with chaining.
+  - **Native coordination:** Android disallow-intercept; iOS gate recognizer.
+  - **`SkUiCoreScrollView`** on a shared scroll engine.
+  - See [EventMechanism.md](EventMechanism.md). |
+| 2.7 Virtualization | Requirements recorded (FR-21 virtual stack layout, FR-22 `SkUiCollectionView`); not implemented |
+| 2.8 Overlay masks | Open |
 | 2.9 Visual tree / diagnostics | **Done**:
   - **Core in the tree:** Core nodes are `IVisualTreeElement`s, reachable through `SkUiCoreHost`, and report adds and removes to `VisualDiagnostics`. The check is cached; Release builds trim it away.
   - **SkUi\* children:** already visible as MAUI logical children.

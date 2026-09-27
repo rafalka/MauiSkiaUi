@@ -12,7 +12,7 @@ namespace MauiSkiaUi;
 /// <see cref="ComputeRootRelativeFrame"/>); it does <b>not</b> account for <c>Rotation</c>, <c>Scale</c>, or
 /// <c>Opacity</c> on this node or its ancestors between here and the standalone root, or snapshot-during-scroll.
 /// Overlay attach/detach only has an effect on Android/iOS/Mac Catalyst/Windows builds; on the headless
-/// <c>net10.0</c> target used for tests, the platform hooks are simply absent (no-ops), so Measure/Arrange/Touch
+/// <c>net10.0</c> target used for tests, the platform hooks are simply absent (no-ops), so Measure/Arrange/hit-testing
 /// remain exercisable without a device.
 /// </remarks>
 [ContentProperty(nameof(Content))]
@@ -55,9 +55,6 @@ public partial class SkUiMauiContentView : SkUiView
         _content?.Arrange(new Rect(Point.Zero, size));
         SyncOverlayBounds();
     }
-
-    /// <summary>Never consumes hits: the native control receives input directly (see FR-15 boundary notes).</summary>
-    public override bool Touch(SkUiTouchEvent touch) => false;
 
     /// <inheritdoc />
     protected override void OnParentSet()

@@ -10,7 +10,7 @@ namespace MauiSkiaUi.Core;
 /// Implements <see cref="INotifyPropertyChanged"/>; fluent <c>Set*</c> methods are the single apply path
 /// and raise notifications via <see cref="SetProperty{T}"/>.
 /// </summary>
-public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderable
+public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderable, ISkUiGestureElement
 {
     private bool _measureDirty = true;
     private bool _arrangeDirty = true;
@@ -343,6 +343,9 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         }
     }
 
+    /// <summary>Width of the coordinate space children are arranged in (RTL mirroring axis); scrollers use their extent.</summary>
+    internal virtual double ChildrenSpaceWidth => _frame.Width;
+
     /// <summary>Host that exclusively owns this node as a Core tree root, if any.</summary>
     internal SkUiCoreHost? HostOwner { get; set; }
 
@@ -397,6 +400,8 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         SetProperty(ref _parent, parent, nameof(Parent));
         if (parent is null && _renderState is not null)
             SkUiRenderInvalidation.ResetSubtree(this);
+        if (parent is null)
+            SkUiGestureSet.CancelSubtree(this);
         var detached = parent is null && !HasInheritedHostClock;
         OnAnimationRootChanged(detached);
         PropagateAnimationRootChanged(detached);
@@ -622,7 +627,7 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         if (!double.IsNaN(_height)) height = Math.Min(height, _height);
         var frame = new Rect(x, y, width, height);
         // RTL: mirror the final frame inside the parent's (or host's) coordinate space.
-        var mirrorSpace = _parent is SkUiCoreNode parentNode ? parentNode._frame.Width : HostOwner?.Width ?? 0;
+        var mirrorSpace = _parent is SkUiCoreNode parentNode ? parentNode.ChildrenSpaceWidth : HostOwner?.Width ?? 0;
         if (mirrorSpace > 0 && (_parent is SkUiCoreNode rtlParent ? rtlParent.IsRightToLeft : HostOwner?.IsRightToLeft == true))
             frame = new Rect(mirrorSpace - frame.Right, frame.Y, frame.Width, frame.Height);
         if (_frame != frame)
@@ -770,8 +775,111 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     /// <summary>Content paint phase (structural). Always virtual — not replaceable by a delegate.</summary>
     protected virtual void OnPaintContent(SKCanvas canvas) { }
 
-    /// <inheritdoc />
-    public virtual bool Touch(SkUiTouchEvent touch) => false;
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<SkUiCoreNode, SkUiPointerRouter> Routers = new();
+    private SkUiGestureSet? _gestures;
+
+    /// <summary>
+    /// Delivers a pointer sample in this node's local DIPs with this node as the dispatch root (normally the
+    /// <see cref="SkUiCoreHost"/> surface does this). Taps, scrolling and other gestures run through the shared gesture
+    /// arena; custom input uses <see cref="AddGestureRecognizer"/> instead of overriding touch handling.
+    /// </summary>
+    public bool Touch(SkUiTouchEvent touch) => Routers.GetValue(this, node => new SkUiPointerRouter(node)).Dispatch(touch);
+
+    bool ISkUiInputNode.IsHitTestVisible => _isVisible;
+
+    bool ISkUiInputNode.IsInputEnabled => true;
+
+    void ISkUiInputNode.CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers) => CollectGestureRecognizers(recognizers);
+
+    /// <summary>Appends this node's recognizers (built-in tap, long press, swipe, pan, pinch, custom, then intrinsic ones).</summary>
+    internal virtual void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
+    {
+        var set = _gestures;
+        if (HasIntrinsicTap || set?.Tapped is not null || set?.WantsDoubleTap == true)
+        {
+            set = GestureSet;
+            recognizers.Add(set.Tap ??= new SkUiTapGestureRecognizer
+            {
+                TapHandler = args =>
+                {
+                    _gestures?.Tapped?.Invoke(this, args);
+                    if (HasIntrinsicTap)
+                        OnIntrinsicTap(args);
+                },
+                WantsDoubleTap = () => _gestures?.WantsDoubleTap == true,
+                DoubleTapHandler = args => _gestures?.RaiseDoubleTapped(args),
+                PressedHandler = OnGesturePressedChanged
+            });
+        }
+        set?.Collect(recognizers);
+    }
+
+    /// <summary>Whether the control reacts to taps without app handlers (buttons, toggles).</summary>
+    internal virtual bool HasIntrinsicTap => false;
+
+    /// <summary>Intrinsic tap action (click, toggle).</summary>
+    internal virtual void OnIntrinsicTap(SkUiTappedEventArgs args) { }
+
+    /// <summary>Press feedback from the tap recognizer.</summary>
+    internal virtual void OnGesturePressedChanged(bool pressed) { }
+
+    void ISkUiGestureElement.CancelGestures() => CancelGestures();
+
+    /// <summary>Stops this node's gestures.</summary>
+    internal virtual void CancelGestures()
+    {
+        _gestures?.CancelAll();
+        if (Routers.TryGetValue(this, out var router))
+            router.CancelAll();
+        OnGesturePressedChanged(false);
+    }
+
+    private SkUiGestureSet GestureSet => _gestures ??= new SkUiGestureSet(this);
+
+    /// <summary>Tap (and click for buttons). Handlers make the node participate in taps.</summary>
+    public event EventHandler<SkUiTappedEventArgs>? Tapped { add => GestureSet.Tapped += value; remove => GestureSet.Tapped -= value; }
+
+    /// <summary>Double tap (single taps then wait <see cref="SkUiGestureSettings.DoubleTapTimeout"/>).</summary>
+    public event EventHandler<SkUiTappedEventArgs>? DoubleTapped { add => GestureSet.DoubleTapped += value; remove => GestureSet.DoubleTapped -= value; }
+
+    /// <summary>Long press.</summary>
+    public event EventHandler<SkUiLongPressedEventArgs>? LongPressed { add => GestureSet.LongPressed += value; remove => GestureSet.LongPressed -= value; }
+
+    /// <summary>Swipe in one of <see cref="SwipeDirections"/>.</summary>
+    public event EventHandler<SkUiSwipedEventArgs>? Swiped { add => GestureSet.Swiped += value; remove => GestureSet.Swiped -= value; }
+
+    /// <summary>Pan along <see cref="PanAxis"/>.</summary>
+    public event EventHandler<SkUiPanUpdatedEventArgs>? PanUpdated { add => GestureSet.PanUpdated += value; remove => GestureSet.PanUpdated -= value; }
+
+    /// <summary>Two-pointer pinch / rotate.</summary>
+    public event EventHandler<SkUiPinchUpdatedEventArgs>? PinchUpdated { add => GestureSet.PinchUpdated += value; remove => GestureSet.PinchUpdated -= value; }
+
+    /// <summary>Directions <see cref="Swiped"/> reacts to (default all).</summary>
+    public SwipeDirection SwipeDirections => _gestures?.SwipeDirections ?? (SwipeDirection.Left | SwipeDirection.Right | SwipeDirection.Up | SwipeDirection.Down);
+
+    /// <summary>Sets <see cref="SwipeDirections"/>.</summary>
+    public SkUiCoreNode SetSwipeDirections(SwipeDirection value) { GestureSet.SwipeDirections = value; return this; }
+
+    /// <summary>Axes <see cref="PanUpdated"/> reacts to (default both).</summary>
+    public SkUiPanAxis PanAxis => _gestures?.PanAxis ?? SkUiPanAxis.Both;
+
+    /// <summary>Sets <see cref="PanAxis"/>.</summary>
+    public SkUiCoreNode SetPanAxis(SkUiPanAxis value) { GestureSet.PanAxis = value; return this; }
+
+    /// <summary>Adds a custom recognizer (after the built-in ones).</summary>
+    public SkUiCoreNode AddGestureRecognizer(SkUiGestureRecognizer recognizer)
+    {
+        ArgumentNullException.ThrowIfNull(recognizer);
+        (GestureSet.Custom ??= []).Add(recognizer);
+        return this;
+    }
+
+    /// <summary>Removes a custom recognizer.</summary>
+    public bool RemoveGestureRecognizer(SkUiGestureRecognizer recognizer)
+    {
+        recognizer.Cancel();
+        return _gestures?.Custom?.Remove(recognizer) == true;
+    }
 
     /// <summary>Converts a MAUI graphics color to Skia.</summary>
     protected static SKColor ToSkColor(Color color) => new(

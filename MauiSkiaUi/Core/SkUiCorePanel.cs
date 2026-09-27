@@ -110,19 +110,4 @@ public abstract class SkUiCorePanel : SkUiCoreNode
                 children.Add(renderable);
     }
 
-    /// <inheritdoc />
-    public override bool Touch(SkUiTouchEvent touch)
-    {
-        for (var index = _children.Count - 1; index >= 0; index--)
-        {
-            var child = _children[index];
-            if (!child.IsVisible) continue;
-            if (!TryMapFromParent(child, touch.Position, out var position)
-                || position.X < 0 || position.Y < 0 || position.X >= child.Frame.Width || position.Y >= child.Frame.Height)
-                continue;
-            if (child.Touch(touch with { Position = position }))
-                return true;
-        }
-        return false;
-    }
 }

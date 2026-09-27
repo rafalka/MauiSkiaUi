@@ -6,7 +6,6 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(Content))]
 public class SkUiContentView : SkUiView
 {
-    private readonly SkUiTouchRouter _touchRouter = new();
     private ISkUiView? _content;
     private Thickness _padding;
 
@@ -44,7 +43,6 @@ public class SkUiContentView : SkUiView
     {
         if (ReferenceEquals(_content, value)) return this;
         if (value is not null) ValidateChild(value);
-        _touchRouter.Cancel();
         var previous = _content;
         _content = value;
         if (previous is not null) DetachChild(previous);
@@ -60,9 +58,6 @@ public class SkUiContentView : SkUiView
     /// <inheritdoc />
     internal override IEnumerable<ISkUiView> SkiaChildren { get { if (_content is not null) yield return _content; } }
 
-    /// <summary>Cancels any active pointer capture in the hosted subtree.</summary>
-    protected void CancelContentTouch() => _touchRouter.Cancel();
-
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
@@ -74,18 +69,4 @@ public class SkUiContentView : SkUiView
     protected override void ArrangeContent(Size size) => Content?.Arrange(new Rect(_padding.Left, _padding.Top,
         Math.Max(0, size.Width - _padding.HorizontalThickness), Math.Max(0, size.Height - _padding.VerticalThickness)));
 
-    /// <inheritdoc />
-    public override bool Touch(SkUiTouchEvent touch)
-    {
-        if (InputTransparent || !IsVisible || !IsEnabled)
-        {
-            _touchRouter.Cancel();
-            return IsVisible && !InputTransparent && !IsEnabled;
-        }
-        if (_touchRouter.DeliverCaptured(touch, out var handled))
-            return handled;
-        if (Content is { } child && _touchRouter.TryPress(child, touch))
-            return true;
-        return base.Touch(touch);
-    }
 }

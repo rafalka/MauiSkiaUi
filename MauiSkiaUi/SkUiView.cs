@@ -8,7 +8,7 @@ using System.Windows.Input;
 namespace MauiSkiaUi;
 
 /// <summary>Base for Skia-drawn views, with layout that does not require a handler.</summary>
-public class SkUiView : View, ISkUiView, ISkUiRenderable
+public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
 {
     private bool _measureDirty = true;
     private bool _arrangeDirty = true;
@@ -25,9 +25,9 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable
     private int _diagnosticRecordFrameCount;
     private double _diagnosticRecordFrameTotalMs;
 #endif
-    private long? _pressedPointer;
-    private Point _pressPosition;
-    private bool _tapCancelled;
+    private SkUiGestureSet? _gestures;
+    private SkUiPointerRouter? _router;
+    private SkUiTapGestureRecognizer? _tap;
     private SkUiAnimationClock? _animationClock;
     private ICommand? _tappedCommand;
     private object? _tappedCommandParameter;
@@ -128,6 +128,8 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable
         // attach must record this subtree from scratch.
         if (SkiaParent is null && _renderState is not null)
             SkUiRenderInvalidation.ResetSubtree(this);
+        // Pointers captured by a detached subtree must not complete (taps, presses) later.
+        SkUiGestureSet.CancelSubtree(this);
     }
 
     /// <summary>
@@ -345,8 +347,7 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable
             || (propertyName == nameof(IsVisible) && !IsVisible)
             || (propertyName == nameof(InputTransparent) && InputTransparent))
         {
-            _pressedPointer = null;
-            SetPressed(false);
+            CancelGestures();
         }
         if (propertyName == nameof(IsVisible))
             InvalidateMeasureOverride();
@@ -673,40 +674,112 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable
         InvalidateMeasureOverride();
     }
 
-    /// <inheritdoc />
-    public virtual bool Touch(SkUiTouchEvent touch)
-    {
-        if (touch.Action == SkUiTouchAction.Pressed)
-        {
-            if (_pressedPointer is not null || InputTransparent || !IsVisible)
-                return false;
-            if (!IsEnabled || !CanReceiveTap)
-                return true;
-            if (Tapped is null && !HandlesTap && !(_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false))
-                return false;
-            _pressedPointer = touch.Id;
-            _pressPosition = touch.Position;
-            _tapCancelled = false;
-            SetPressed(true);
-            return true;
-        }
-        if (_pressedPointer != touch.Id)
-            return false;
+    /// <summary>
+    /// Delivers a pointer sample in this view's local DIPs, with this view as the surface root: the press is hit-tested
+    /// once through the drawn tree (SkUi* and Core), then the gesture arena decides between the recognizers of the
+    /// element under the pointer and its ancestors (taps, scrolling, pans…). Returns whether a drawn element takes the
+    /// pointer; <c>false</c> lets native parents handle it. Custom input: add a recognizer to <see cref="Gestures"/>
+    /// (e.g. <see cref="SkUiPointerGestureRecognizer"/>) instead of overriding this method.
+    /// </summary>
+    public bool Touch(SkUiTouchEvent touch) => Router.Dispatch(touch);
 
-        var deltaX = touch.Position.X - _pressPosition.X;
-        var deltaY = touch.Position.Y - _pressPosition.Y;
-        _tapCancelled |= deltaX * deltaX + deltaY * deltaY > 100;
-        SetPressed(!_tapCancelled && new Rect(0, 0, Width, Height).Contains(touch.Position));
-        if (touch.Action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
-        {
-            _pressedPointer = null;
-            SetPressed(false);
-            if (touch.Action == SkUiTouchAction.Released && !_tapCancelled && IsEnabled && CanReceiveTap && IsVisible && !InputTransparent
-                && new Rect(0, 0, Width, Height).Contains(touch.Position))
-                OnTapped(new SkUiTappedEventArgs(touch.Position));
-        }
-        return true;
+    internal SkUiPointerRouter Router => _router ??= new SkUiPointerRouter(this);
+
+    bool ISkUiInputNode.IsHitTestVisible => IsVisible && !InputTransparent;
+
+    bool ISkUiInputNode.IsInputEnabled => IsEnabled && CanReceiveTap;
+
+    void ISkUiInputNode.CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers) => CollectGestureRecognizers(recognizers);
+
+    /// <summary>Appends this view's recognizers: built-in tap, long press, swipe, pan, pinch, custom, then intrinsic ones.</summary>
+    internal virtual void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
+    {
+        if (WantsSingleTap || _gestures?.WantsDoubleTap == true)
+            recognizers.Add(_tap ??= new SkUiTapGestureRecognizer
+            {
+                TapHandler = args => { if (WantsSingleTap) OnTapped(args); },
+                WantsDoubleTap = () => _gestures?.WantsDoubleTap == true,
+                DoubleTapHandler = args => _gestures?.RaiseDoubleTapped(args),
+                PressedHandler = SetPressed
+            });
+        _gestures?.Collect(recognizers);
     }
+
+    private bool WantsSingleTap => Tapped is not null || HandlesTap || (_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false);
+
+    void ISkUiGestureElement.CancelGestures() => CancelGestures();
+
+    /// <summary>Stops this view's gestures (press state, pans, scrolling).</summary>
+    internal virtual void CancelGestures()
+    {
+        _tap?.Cancel();
+        _gestures?.CancelAll();
+        _router?.CancelAll();
+        SetPressed(false);
+    }
+
+    private SkUiGestureSet GestureSet => _gestures ??= new SkUiGestureSet(this);
+
+    /// <summary>Custom recognizers (e.g. <see cref="SkUiPointerGestureRecognizer"/>, <see cref="SkUiPanGestureRecognizer"/>), after the built-in ones.</summary>
+    public IList<SkUiGestureRecognizer> Gestures => GestureSet.Custom ??= [];
+
+    /// <summary>Double tap (single taps then wait <see cref="SkUiGestureSettings.DoubleTapTimeout"/>).</summary>
+    public event EventHandler<SkUiTappedEventArgs>? DoubleTapped { add => GestureSet.DoubleTapped += value; remove => GestureSet.DoubleTapped -= value; }
+
+    /// <summary>Long press (<see cref="SkUiGestureSettings.LongPressDuration"/> within the touch slop).</summary>
+    public event EventHandler<SkUiLongPressedEventArgs>? LongPressed { add => GestureSet.LongPressed += value; remove => GestureSet.LongPressed -= value; }
+
+    /// <summary>Swipe in one of <see cref="SwipeDirections"/>.</summary>
+    public event EventHandler<SkUiSwipedEventArgs>? Swiped { add => GestureSet.Swiped += value; remove => GestureSet.Swiped -= value; }
+
+    /// <summary>Pan along <see cref="PanAxis"/>.</summary>
+    public event EventHandler<SkUiPanUpdatedEventArgs>? PanUpdated { add => GestureSet.PanUpdated += value; remove => GestureSet.PanUpdated -= value; }
+
+    /// <summary>Two-pointer pinch / rotate.</summary>
+    public event EventHandler<SkUiPinchUpdatedEventArgs>? PinchUpdated { add => GestureSet.PinchUpdated += value; remove => GestureSet.PinchUpdated -= value; }
+
+    /// <summary>Bindable double-tap command.</summary>
+    public static readonly BindableProperty DoubleTappedCommandProperty = BindableProperty.Create(nameof(DoubleTappedCommand), typeof(ICommand), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.DoubleTappedCommand = (ICommand?)value);
+    /// <summary>Bindable double-tap command parameter.</summary>
+    public static readonly BindableProperty DoubleTappedCommandParameterProperty = BindableProperty.Create(nameof(DoubleTappedCommandParameter), typeof(object), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.DoubleTappedCommandParameter = value);
+    /// <summary>Bindable long-press command.</summary>
+    public static readonly BindableProperty LongPressedCommandProperty = BindableProperty.Create(nameof(LongPressedCommand), typeof(ICommand), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.LongPressedCommand = (ICommand?)value);
+    /// <summary>Bindable long-press command parameter.</summary>
+    public static readonly BindableProperty LongPressedCommandParameterProperty = BindableProperty.Create(nameof(LongPressedCommandParameter), typeof(object), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.LongPressedCommandParameter = value);
+    /// <summary>Bindable swipe command (parameter defaults to the <see cref="SwipeDirection"/>).</summary>
+    public static readonly BindableProperty SwipedCommandProperty = BindableProperty.Create(nameof(SwipedCommand), typeof(ICommand), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.SwipedCommand = (ICommand?)value);
+    /// <summary>Bindable swipe command parameter.</summary>
+    public static readonly BindableProperty SwipedCommandParameterProperty = BindableProperty.Create(nameof(SwipedCommandParameter), typeof(object), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.SwipedCommandParameter = value);
+    /// <summary>Bindable swipe directions.</summary>
+    public static readonly BindableProperty SwipeDirectionsProperty = BindableProperty.Create(nameof(SwipeDirections), typeof(SwipeDirection), typeof(SkUiView),
+        SwipeDirection.Left | SwipeDirection.Right | SwipeDirection.Up | SwipeDirection.Down,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.SwipeDirections = (SwipeDirection)value);
+    /// <summary>Bindable pan axis.</summary>
+    public static readonly BindableProperty PanAxisProperty = BindableProperty.Create(nameof(PanAxis), typeof(SkUiPanAxis), typeof(SkUiView), SkUiPanAxis.Both,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.PanAxis = (SkUiPanAxis)value);
+
+    /// <inheritdoc cref="DoubleTappedCommandProperty" />
+    public ICommand? DoubleTappedCommand { get => (ICommand?)GetValue(DoubleTappedCommandProperty); set => SetValue(DoubleTappedCommandProperty, value); }
+    /// <inheritdoc cref="DoubleTappedCommandParameterProperty" />
+    public object? DoubleTappedCommandParameter { get => GetValue(DoubleTappedCommandParameterProperty); set => SetValue(DoubleTappedCommandParameterProperty, value); }
+    /// <inheritdoc cref="LongPressedCommandProperty" />
+    public ICommand? LongPressedCommand { get => (ICommand?)GetValue(LongPressedCommandProperty); set => SetValue(LongPressedCommandProperty, value); }
+    /// <inheritdoc cref="LongPressedCommandParameterProperty" />
+    public object? LongPressedCommandParameter { get => GetValue(LongPressedCommandParameterProperty); set => SetValue(LongPressedCommandParameterProperty, value); }
+    /// <inheritdoc cref="SwipedCommandProperty" />
+    public ICommand? SwipedCommand { get => (ICommand?)GetValue(SwipedCommandProperty); set => SetValue(SwipedCommandProperty, value); }
+    /// <inheritdoc cref="SwipedCommandParameterProperty" />
+    public object? SwipedCommandParameter { get => GetValue(SwipedCommandParameterProperty); set => SetValue(SwipedCommandParameterProperty, value); }
+    /// <inheritdoc cref="SwipeDirectionsProperty" />
+    public SwipeDirection SwipeDirections { get => (SwipeDirection)GetValue(SwipeDirectionsProperty); set => SetValue(SwipeDirectionsProperty, value); }
+    /// <inheritdoc cref="PanAxisProperty" />
+    public SkUiPanAxis PanAxis { get => (SkUiPanAxis)GetValue(PanAxisProperty); set => SetValue(PanAxisProperty, value); }
 
     /// <summary>Allows a control to participate in taps without an event subscriber.</summary>
     protected virtual bool HandlesTap => false;
@@ -731,13 +804,6 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable
         if (_tappedCommand?.CanExecute(_tappedCommandParameter) == true)
             _tappedCommand.Execute(_tappedCommandParameter);
     }
-}
-
-/// <summary>A classified tap in local DIPs.</summary>
-public sealed class SkUiTappedEventArgs(Point position) : EventArgs
-{
-    /// <summary>The release position relative to the tapped node.</summary>
-    public Point Position { get; } = position;
 }
 
 /// <summary>Composite-time properties that <see cref="SkUiView.AnimateAsync"/> animates on the render thread.</summary>

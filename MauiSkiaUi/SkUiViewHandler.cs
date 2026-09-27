@@ -92,7 +92,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #if ANDROID
         if (VirtualView.HwAccelerated)
         {
-            _gpu = new SkUiGlTextureView(MauiContext!.Context!) { TouchHandler = OnSurfaceTouch };
+            _gpu = new SkUiGlTextureView(MauiContext!.Context!) { TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState };
             surfaceNative = _gpu;
         }
         else
@@ -100,7 +100,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #elif IOS || MACCATALYST
         if (VirtualView.HwAccelerated)
         {
-            _gpu = new SkUiMetalView { TouchHandler = OnSurfaceTouch };
+            _gpu = new SkUiMetalView { TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState };
             surfaceNative = _gpu;
         }
         else
@@ -370,6 +370,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
     private bool OnSurfaceTouch(SkUiTouchEvent touch) => _renderer?.TouchDips(touch) == true;
 
+    private SkUiNativeGestureState GetNativeGestureState() =>
+        VirtualView is { } view ? view.Router.NativeState : SkUiNativeGestureState.None;
+
+#if ANDROID
+    private bool _mauiDisallowingIntercept;
+#endif
+
     private void OnMauiTouch(object? sender, SKTouchEventArgs args)
     {
         SkUiTouchAction? action = args.ActionType switch
@@ -385,6 +392,16 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             return;
         args.Handled = _renderer?.TouchPixels(new(args.Id, action.Value,
             new Point(args.Location.X, args.Location.Y), null, args.WheelDelta)) == true;
+#if ANDROID
+        // Same native-parent coordination as the GL surface (requests propagate to every ancestor).
+        var disallow = action is not (SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
+            && GetNativeGestureState() != SkUiNativeGestureState.None;
+        if (disallow != _mauiDisallowingIntercept)
+        {
+            _mauiDisallowingIntercept = disallow;
+            _container?.RequestDisallowInterceptTouchEvent(disallow);
+        }
+#endif
     }
 }
 

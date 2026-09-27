@@ -43,7 +43,14 @@ internal sealed class SkUiMetalView : UIView
             CancelsTouchesInView = false
         };
         AddGestureRecognizer(scroll);
+        _gate = new SkUiNativeGestureGate(this);
+        AddGestureRecognizer(_gate);
     }
+
+    private readonly SkUiNativeGestureGate _gate;
+
+    /// <summary>Whether drawn gestures want the touch; ancestor pan / pinch recognizers wait for this surface's gate.</summary>
+    internal Func<SkUiNativeGestureState>? NativeGestureState { get; set; }
 
     /// <summary>Surface registration with the render loop.</summary>
     internal SkUiMetalSurface Surface => _surface;
@@ -95,6 +102,7 @@ internal sealed class SkUiMetalView : UIView
             var location = touch.LocationInView(this);
             TouchHandler?.Invoke(new SkUiTouchEvent(id, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp)));
         }
+        _gate.Sync(NativeGestureState?.Invoke() ?? SkUiNativeGestureState.None, ended: _touchIds.Count == 0);
     }
 
     private void OnScrollGesture(UIPanGestureRecognizer recognizer)
@@ -111,6 +119,57 @@ internal sealed class SkUiMetalView : UIView
         if (disposing)
             _surface.Dispose();
         base.Dispose(disposing);
+    }
+}
+
+/// <summary>
+/// Coordinates drawn gestures with native ancestors (e.g. a MAUI ScrollView around the surface): ancestor pan /
+/// pinch / swipe recognizers must wait for this gate, which begins when a drawn continuous gesture claims the touch
+/// and fails as soon as none can (so the native scroll starts without delay when nothing drawn competes).
+/// </summary>
+internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
+{
+    public SkUiNativeGestureGate(UIView owner)
+    {
+        CancelsTouchesInView = false;
+        DelaysTouchesBegan = false;
+        DelaysTouchesEnded = false;
+        Delegate = new GateDelegate(owner);
+    }
+
+    /// <summary>Called after the owner delivered a touch batch to the drawn tree.</summary>
+    public void Sync(SkUiNativeGestureState state, bool ended)
+    {
+        switch (State)
+        {
+            case UIGestureRecognizerState.Possible:
+                if (state == SkUiNativeGestureState.Claimed && !ended)
+                    State = UIGestureRecognizerState.Began;
+                else if (state == SkUiNativeGestureState.None || ended)
+                    State = UIGestureRecognizerState.Failed;
+                break;
+            case UIGestureRecognizerState.Began:
+            case UIGestureRecognizerState.Changed:
+                State = ended ? UIGestureRecognizerState.Ended : UIGestureRecognizerState.Changed;
+                break;
+        }
+    }
+
+    public override void TouchesCancelled(NSSet touches, UIEvent evt)
+    {
+        base.TouchesCancelled(touches, evt);
+        State = State is UIGestureRecognizerState.Began or UIGestureRecognizerState.Changed
+            ? UIGestureRecognizerState.Cancelled
+            : UIGestureRecognizerState.Failed;
+    }
+
+    private sealed class GateDelegate(UIView owner) : UIGestureRecognizerDelegate
+    {
+        public override bool ShouldBeRequiredToFailBy(UIGestureRecognizer gestureRecognizer, UIGestureRecognizer otherGestureRecognizer) =>
+            otherGestureRecognizer.View is { } view && !ReferenceEquals(view, owner) && owner.IsDescendantOfView(view)
+            && otherGestureRecognizer is UIPanGestureRecognizer or UIPinchGestureRecognizer or UISwipeGestureRecognizer or UIRotationGestureRecognizer;
+
+        public override bool ShouldRecognizeSimultaneously(UIGestureRecognizer gestureRecognizer, UIGestureRecognizer otherGestureRecognizer) => true;
     }
 }
 

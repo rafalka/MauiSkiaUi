@@ -41,7 +41,33 @@ internal sealed class SkUiGlTextureView : GLTextureView
     /// <summary>UI thread: raw touches in DIPs; <c>true</c> keeps receiving the gesture.</summary>
     internal Func<SkUiTouchEvent, bool>? TouchHandler { get; set; }
 
+    /// <summary>Whether drawn gestures want the touch (keeps native parents such as a ScrollView from intercepting).</summary>
+    internal Func<SkUiNativeGestureState>? NativeGestureState { get; set; }
+
+    private bool _disallowingIntercept;
+
     public override bool OnTouchEvent(MotionEvent? e)
+    {
+        var handled = HandleTouch(e);
+        if (e is not null)
+            SyncNativeParent(e.ActionMasked is MotionEventActions.Up or MotionEventActions.Cancel);
+        return handled;
+    }
+
+    /// <summary>
+    /// While a drawn continuous gesture may still claim (or owns) the touch, native ancestors must not intercept it;
+    /// once none can (e.g. a drawn scroller at its edge), the request is dropped so the native parent can take over.
+    /// </summary>
+    private void SyncNativeParent(bool ended)
+    {
+        var disallow = !ended && NativeGestureState?.Invoke() is SkUiNativeGestureState.Pending or SkUiNativeGestureState.Claimed;
+        if (disallow == _disallowingIntercept)
+            return;
+        _disallowingIntercept = disallow;
+        Parent?.RequestDisallowInterceptTouchEvent(disallow);
+    }
+
+    private bool HandleTouch(MotionEvent? e)
     {
         if (e is null || TouchHandler is not { } touch)
             return false;

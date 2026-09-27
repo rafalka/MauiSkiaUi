@@ -10,8 +10,6 @@ namespace MauiSkiaUi.Core;
 public class SkUiCoreHost : SkUiView, IVisualTreeElement
 {
     private SkUiCoreNode? _content;
-    private long? _capturedPointer;
-    private ISkUiCoreNode? _capturedNode;
 
     /// <summary>Root of the hosted Core tree, or <c>null</c>.</summary>
     public SkUiCoreNode? Content => _content;
@@ -35,11 +33,10 @@ public class SkUiCoreHost : SkUiView, IVisualTreeElement
             _content.BindAnimationClock(null);
             _content.HostOwner = null;
             SkUiRenderInvalidation.ResetSubtree(_content);
+            SkUiGestureSet.CancelSubtree(_content);
             SkUiDiagnostics.NotifyChildRemoved(this, _content, 0);
         }
 
-        _capturedPointer = null;
-        _capturedNode = null;
         _content = value;
 
         if (_content is not null)
@@ -104,114 +101,4 @@ public class SkUiCoreHost : SkUiView, IVisualTreeElement
             children.Add(_content);
     }
 
-    /// <inheritdoc />
-    public override bool Touch(SkUiTouchEvent touch)
-    {
-        if (_content is null || !_content.IsVisible)
-            return false;
-
-        if (_capturedPointer == touch.Id && _capturedNode is not null)
-        {
-            if (!IsUnderHostedRoot(_capturedNode))
-            {
-                try
-                {
-                    _capturedNode.Touch(new SkUiTouchEvent(
-                        touch.Id, SkUiTouchAction.Cancelled, Point.Zero, touch.Timestamp, touch.WheelDelta));
-                }
-                finally
-                {
-                    _capturedPointer = null;
-                    _capturedNode = null;
-                }
-                return false;
-            }
-
-            if (!TryMapToNode(touch.Position, _capturedNode, out var local))
-                local = touch.Position;
-            var delivered = _capturedNode.Touch(new SkUiTouchEvent(touch.Id, touch.Action, local, touch.Timestamp, touch.WheelDelta));
-            if (touch.Action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
-            {
-                _capturedPointer = null;
-                _capturedNode = null;
-            }
-            return delivered;
-        }
-
-        if (touch.Action != SkUiTouchAction.Pressed)
-            return false;
-
-        // Hit-test in the root's local space (root Frame may be nonzero after arrange).
-        if (!SkUiCoreNode.TryMapFromParent(_content, touch.Position, out var rootLocal)
-            || !HitTest(_content, rootLocal, out var target, out var targetLocal))
-            return false;
-
-        var handled = target.Touch(new SkUiTouchEvent(touch.Id, touch.Action, targetLocal, touch.Timestamp, touch.WheelDelta));
-        if (handled)
-        {
-            _capturedPointer = touch.Id;
-            _capturedNode = target;
-        }
-        return handled;
-    }
-
-    private bool IsUnderHostedRoot(ISkUiCoreNode node)
-    {
-        if (_content is null) return false;
-        if (ReferenceEquals(node, _content)) return true;
-        for (var current = node.Parent; current is not null; current = current.Parent)
-        {
-            if (ReferenceEquals(current, _content))
-                return true;
-        }
-        return false;
-    }
-
-    private static bool HitTest(ISkUiCoreNode root, Point position, out ISkUiCoreNode target, out Point local)
-    {
-        if (root is SkUiCorePanel panel)
-        {
-            for (var index = panel.Children.Count - 1; index >= 0; index--)
-            {
-                var child = panel.Children[index];
-                if (!child.IsVisible) continue;
-                if (!SkUiCoreNode.TryMapFromParent(child, position, out var childPos)
-                    || childPos.X < 0 || childPos.Y < 0 || childPos.X >= child.Frame.Width || childPos.Y >= child.Frame.Height)
-                    continue;
-                if (HitTest(child, childPos, out target, out local))
-                    return true;
-            }
-        }
-        else if (root is SkUiCoreContentView { Content: { IsVisible: true } content })
-        {
-            if (SkUiCoreNode.TryMapFromParent(content, position, out var childPos)
-                && childPos.X >= 0 && childPos.Y >= 0 && childPos.X < content.Frame.Width && childPos.Y < content.Frame.Height
-                && HitTest(content, childPos, out target, out local))
-                return true;
-        }
-
-        if (position.X >= 0 && position.Y >= 0 && position.X < root.Frame.Width && position.Y < root.Frame.Height)
-        {
-            target = root;
-            local = position;
-            return true;
-        }
-
-        target = null!;
-        local = default;
-        return false;
-    }
-
-    private static bool TryMapToNode(Point hostLocal, ISkUiCoreNode node, out Point local)
-    {
-        // Map down from the root through each ancestor's frame and inverse render transform.
-        var chain = new List<ISkUiCoreNode>();
-        for (ISkUiCoreNode? current = node; current is not null; current = current.Parent)
-            chain.Add(current);
-        local = hostLocal;
-        for (var index = chain.Count - 1; index >= 0; index--)
-            if (!SkUiCoreNode.TryMapFromParent(chain[index], local, out local))
-                return false;
-        return true;
-    }
 }

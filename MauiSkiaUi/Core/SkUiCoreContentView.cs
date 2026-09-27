@@ -96,14 +96,4 @@ public class SkUiCoreContentView : SkUiCoreNode
             children.Add(_content);
     }
 
-    /// <inheritdoc />
-    public override bool Touch(SkUiTouchEvent touch)
-    {
-        if (_content is not { IsVisible: true } child)
-            return false;
-        if (!TryMapFromParent(child, touch.Position, out var position)
-            || position.X < 0 || position.Y < 0 || position.X >= child.Frame.Width || position.Y >= child.Frame.Height)
-            return false;
-        return child.Touch(touch with { Position = position });
-    }
 }
