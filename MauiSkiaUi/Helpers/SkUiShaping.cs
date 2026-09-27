@@ -18,6 +18,9 @@ internal static class SkUiShaping
 {
     private static readonly ConcurrentDictionary<(SKTypeface Primary, int CodePoint), SKTypeface> Fallbacks = new();
     [ThreadStatic] private static Dictionary<SKTypeface, SKShaper>? t_shapers;
+    [ThreadStatic] private static SKTextBlobBuilder? t_builder;
+    [ThreadStatic] private static Buffer? t_buffer;
+    private static readonly ConcurrentDictionary<SKTypeface, byte[]> Coverage = new();
 
     /// <summary>One shaped run of a paragraph in logical order.</summary>
     internal sealed class Run
@@ -42,6 +45,11 @@ internal static class SkUiShaping
         public List<Run> Runs = [];
         public float[] Advances = [];
         public float Width;
+        /// <summary>
+        /// Built by the simple path: no runs; lines are plain substrings measured / drawn by Skia directly (the
+        /// pre-HarfBuzz renderer). <see cref="Advances"/> are only filled when line breaking needs them.
+        /// </summary>
+        public bool IsSimple;
     }
 
     /// <summary>A laid-out visual line ready to draw at (x, baseline).</summary>
@@ -52,7 +60,59 @@ internal static class SkUiShaping
         public float Ascent;   // positive distance above the baseline
         public float Height;   // line spacing
         public byte BaseLevel;
+        /// <summary>Simple-path line: drawn with <c>DrawText(string)</c> in the primary font (no blob).</summary>
+        public string? Text;
     }
+
+    /// <summary>
+    /// Fast path: text made only of Latin / digits / common punctuation that the primary font fully covers, in a
+    /// left-to-right paragraph, needs no bidi, no fallback and (for UI text) no HarfBuzz — glyphs and advances come
+    /// straight from Skia, like the pre-HarfBuzz renderer. Returns <c>null</c> when the text is not simple.
+    /// </summary>
+    internal static Paragraph? TryShapeSimple(string text, SKFont font, SkUiTextDirection direction)
+    {
+        if (direction == SkUiTextDirection.RightToLeft)
+            return null;
+        var typeface = font.Typeface;
+        foreach (var c in text)
+            if (!IsSimpleChar(c) || !HasGlyph(typeface, c))
+                return null;
+        return ShapeSimple(text, font);
+    }
+
+    /// <summary>Simple (pre-HarfBuzz) paragraph: one Skia measure; missing glyphs draw as the font's .notdef.</summary>
+    internal static Paragraph ShapeSimple(string text, SKFont font) => new()
+    {
+        Text = text,
+        IsSimple = true,
+        Width = text.Length == 0 ? 0 : font.MeasureText(text)
+    };
+
+    /// <summary>Fills per-code-unit advances of a simple paragraph (only needed to wrap or truncate).</summary>
+    internal static void EnsureAdvances(Paragraph paragraph, SKFont font)
+    {
+        if (!paragraph.IsSimple || paragraph.Advances.Length == paragraph.Text.Length)
+            return;
+        var widths = font.GetGlyphWidths(paragraph.Text.AsSpan());
+        if (widths.Length == paragraph.Text.Length)
+        {
+            paragraph.Advances = widths;
+            return;
+        }
+        // Surrogate pairs yield one width per code point: spread them back onto code units.
+        var advances = new float[paragraph.Text.Length];
+        var glyph = 0;
+        for (var index = 0; index < paragraph.Text.Length && glyph < widths.Length; index++, glyph++)
+        {
+            advances[index] = widths[glyph];
+            if (char.IsHighSurrogate(paragraph.Text[index])) index++;
+        }
+        paragraph.Advances = advances;
+    }
+
+    /// <summary>Characters the simple path handles: printable ASCII, Latin-1 / Latin Extended-A, common punctuation and currency.</summary>
+    private static bool IsSimpleChar(char c) =>
+        c is >= ' ' and <= '~' or >= '\u00A0' and <= '\u017F' or >= '\u2010' and <= '\u2027' or >= '\u2030' and <= '\u205E' or >= '\u20A0' and <= '\u20C0';
 
     /// <summary>Shapes <paramref name="text"/> (no line breaks inside) as one paragraph.</summary>
     internal static Paragraph Shape(string text, SKTypeface primary, float size, SkUiTextDirection direction, Func<SKTypeface, SKFont> fonts)
@@ -89,7 +149,10 @@ internal static class SkUiShaping
             var cp = text.ConvertToUtf32OrReplacement(index);
             var units = cp > 0xFFFF ? 2 : 1;
             var level = paragraph.Levels[index];
-            var script = unicode.GetScript(cp);
+            // ASCII needs no native script lookup: letters are Latin, everything else Common.
+            var script = cp < 0x80
+                ? (cp is >= 'A' and <= 'Z' or >= 'a' and <= 'z' ? Script.Latin : Script.Common)
+                : unicode.GetScript(cp);
             var neutralScript = script == Script.Common || script == Script.Inherited || script == Script.Unknown;
             var face = FaceFor(cp, primary, current?.Typeface);
             var sameScript = current is not null && (neutralScript || current.Script == script || current.Script == Script.Common);
@@ -124,7 +187,20 @@ internal static class SkUiShaping
     }
 
 #pragma warning disable CS0618 // Typeface-level glyph lookup is the cheapest coverage check (no SKFont allocation).
-    private static bool HasGlyph(SKTypeface typeface, int cp) => typeface.GetGlyph(cp) != 0;
+    private static bool HasGlyph(SKTypeface typeface, int cp)
+    {
+        if (cp > 0xFFFF)
+            return typeface.GetGlyph(cp) != 0;
+        // BMP coverage cached per typeface (0 = unknown, 1 = has glyph, 2 = missing): avoids a native call per character.
+        var cache = Coverage.GetOrAdd(typeface, static _ => new byte[0x10000]);
+        var known = Volatile.Read(ref cache[cp]);
+        if (known == 0)
+        {
+            known = typeface.GetGlyph(cp) != 0 ? (byte)1 : (byte)2;
+            Volatile.Write(ref cache[cp], known);
+        }
+        return known == 1;
+    }
 #pragma warning restore CS0618
 
     private static bool IsClusterExtender(int cp) =>
@@ -142,7 +218,8 @@ internal static class SkUiShaping
     /// <summary>Shapes <c>text[start..start+length)</c> with the whole string as context into <paramref name="run"/>.</summary>
     private static void ShapeRun(string text, int start, int length, Run run, SKFont font)
     {
-        using var buffer = new Buffer();
+        var buffer = t_buffer ??= new Buffer();
+        buffer.ClearContents();
         buffer.AddUtf16(text.AsSpan(), start, length);
         buffer.Direction = run.Level % 2 == 1 ? Direction.RightToLeft : Direction.LeftToRight;
         if (run.Script != Script.Common)
@@ -167,6 +244,12 @@ internal static class SkUiShaping
         line.Height = primary.Spacing;
         if (end <= start)
             return line;
+        if (paragraph.IsSimple)
+        {
+            line.Text = start == 0 && end == paragraph.Text.Length ? paragraph.Text : paragraph.Text[start..end];
+            line.Width = ReferenceEquals(line.Text, paragraph.Text) ? paragraph.Width : primary.MeasureText(line.Text);
+            return line;
+        }
 
         var pieces = new List<Run>();
         foreach (var run in paragraph.Runs)
@@ -186,7 +269,8 @@ internal static class SkUiShaping
         }
 
         var order = SkUiBidi.VisualOrder(pieces.ConvertAll(piece => piece.Level));
-        using var builder = new SKTextBlobBuilder();
+        // Build() resets the builder, so one per thread is reused.
+        var builder = t_builder ??= new SKTextBlobBuilder();
         var pen = 0f;
         foreach (var index in order)
         {

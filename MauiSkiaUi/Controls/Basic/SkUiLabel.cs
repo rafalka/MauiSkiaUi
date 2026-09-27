@@ -15,6 +15,7 @@ public class SkUiLabel : SkUiView
     private TextAlignment _verticalTextAlignment;
     private Thickness _padding;
     private readonly SkUiTextLayout _layout = new();
+    private SkUiTextRendering _textRendering;
     private SKPaint? _textPaint;
 
     /// <summary>Bindable text.</summary>
@@ -33,6 +34,13 @@ public class SkUiLabel : SkUiView
     public static readonly BindableProperty HorizontalTextAlignmentProperty = BindableProperty.Create(nameof(HorizontalTextAlignment), typeof(TextAlignment), typeof(SkUiLabel), TextAlignment.Start, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextAlignment, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetHorizontalTextAlignment((TextAlignment)value));
     /// <summary>Bindable vertical text alignment.</summary>
     public static readonly BindableProperty VerticalTextAlignmentProperty = BindableProperty.Create(nameof(VerticalTextAlignment), typeof(TextAlignment), typeof(SkUiLabel), TextAlignment.Start, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextAlignment, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetVerticalTextAlignment((TextAlignment)value));
+    /// <summary>
+    /// Bindable text rendering mode: <see cref="SkUiTextRendering.Auto"/> (via <see cref="SkUiTextRendering.Default"/>) takes a
+    /// fast path for plain Latin text and shapes everything else with HarfBuzz; <see cref="SkUiTextRendering.Simple"/> never
+    /// shapes (fastest, for dense plain text / numbers); <see cref="SkUiTextRendering.Shaped"/> always shapes (kerning, ligatures).
+    /// </summary>
+    public static readonly BindableProperty TextRenderingProperty = BindableProperty.Create(nameof(TextRendering), typeof(SkUiTextRendering), typeof(SkUiLabel), SkUiTextRendering.Default,
+        propertyChanged: (view, _, value) => ((SkUiLabel)view).SetTextRendering((SkUiTextRendering)value));
     /// <summary>Bindable text inset.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiLabel), default(Thickness), defaultValueCreator: view => ((SkUiLabel)view).DefaultPadding, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetPadding((Thickness)value));
 
@@ -61,6 +69,10 @@ public class SkUiLabel : SkUiView
     public TextAlignment VerticalTextAlignment { get => _verticalTextAlignment; set => SetValue(VerticalTextAlignmentProperty, value); }
     /// <summary>Text inset in DIPs.</summary>
     public Thickness Padding { get => _padding; set => SetValue(PaddingProperty, value); }
+    /// <inheritdoc cref="TextRenderingProperty" />
+    public SkUiTextRendering TextRendering { get => _textRendering; set => SetValue(TextRenderingProperty, value); }
+    /// <summary>Sets <see cref="TextRendering"/> without bindable write-back.</summary>
+    public SkUiLabel SetTextRendering(SkUiTextRendering value) { if (_textRendering == value) return this; _textRendering = value; InvalidateText(); return this; }
 
     /// <summary>Sets text without bindable write-back.</summary>
     public SkUiLabel SetText(string? value) { value ??= string.Empty; if (_text == value) return this; _text = value; InvalidateText(); return this; }
@@ -104,7 +116,7 @@ public class SkUiLabel : SkUiView
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
         _layout.Measure(_text, SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), _fontSize, _padding, widthConstraint,
-            MauiSkiaUi.Core.SkUiCoreTextLineBreakers.For(_lineBreakMode), TextDirection);
+            MauiSkiaUi.Core.SkUiCoreTextLineBreakers.For(_lineBreakMode), TextDirection, _textRendering);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
@@ -113,6 +125,6 @@ public class SkUiLabel : SkUiView
         var paint = _textPaint ??= new SKPaint { IsAntialias = true };
         paint.Color = ToSkColor(_textColor);
         _layout.Draw(canvas, _text, SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), _fontSize, _padding, Width, Height,
-            _horizontalTextAlignment, _verticalTextAlignment, paint, MauiSkiaUi.Core.SkUiCoreTextLineBreakers.For(_lineBreakMode), TextDirection);
+            _horizontalTextAlignment, _verticalTextAlignment, paint, MauiSkiaUi.Core.SkUiCoreTextLineBreakers.For(_lineBreakMode), TextDirection, _textRendering);
     }
 }

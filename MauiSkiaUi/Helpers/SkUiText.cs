@@ -26,6 +26,38 @@ internal static class SkUiTypefaces
     }
 }
 
+/// <summary>How drawn text is laid out.</summary>
+public enum SkUiTextRendering
+{
+    /// <summary>Use <see cref="SkUiTextOptions.DefaultRendering"/>.</summary>
+    Default,
+    /// <summary>
+    /// Simple Latin / digit / punctuation text the font fully covers takes the fast path (Skia glyphs and advances, no
+    /// HarfBuzz); anything else (complex scripts, RTL, emoji, missing glyphs) is shaped with HarfBuzz.
+    /// </summary>
+    Auto,
+    /// <summary>Always HarfBuzz: kerning and ligatures even for Latin text; bidi and font fallback.</summary>
+    Shaped,
+    /// <summary>
+    /// Always the fast pre-HarfBuzz renderer: no shaping, bidi or font fallback (complex scripts render incorrectly,
+    /// missing glyphs show as the font's .notdef). For dense UIs of plain text or numbers.
+    /// </summary>
+    Simple
+}
+
+/// <summary>Process-wide text options.</summary>
+public static class SkUiTextOptions
+{
+    private static SkUiTextRendering _defaultRendering = SkUiTextRendering.Auto;
+
+    /// <summary>Rendering used by labels whose <c>TextRendering</c> is <see cref="SkUiTextRendering.Default"/> (initially <see cref="SkUiTextRendering.Auto"/>).</summary>
+    public static SkUiTextRendering DefaultRendering
+    {
+        get => _defaultRendering;
+        set => _defaultRendering = value == SkUiTextRendering.Default ? SkUiTextRendering.Auto : value;
+    }
+}
+
 /// <summary>
 /// Shared text measure / paint engine for <see cref="SkUiLabel"/> and <see cref="SkUiCoreLabel"/> (one
 /// implementation for both layers). Text is shaped with HarfBuzz (<see cref="SkUiShaping"/>): complex scripts,
@@ -43,11 +75,49 @@ internal sealed class SkUiTextLayout
     private List<SkUiShaping.Line> _lines = [];
     private double _brokenWidth = double.NaN;
     private SkUiTextDirection _direction;
+    private SkUiTextRendering _rendering;
+    // True when every paragraph fit on its lines without wrapping / truncation at _brokenWidth: any width ≥
+    // _maxLineWidth then yields the same lines, so measure-at-constraint and draw-at-arranged-width share one layout.
+    private bool _naturalFit;
+    private float _maxLineWidth;
 
     internal SkUiTextLayout() => _fontFor = FontFor;
 
+    /// <summary>Line layouts computed by this instance (diagnostics / tests).</summary>
+    internal int LayoutCount { get; private set; }
+
+    /// <summary>Whether the last layout used the simple (non-HarfBuzz) path for every paragraph (tests).</summary>
+    internal bool LastLayoutSimple { get; private set; }
+
     /// <summary>Forgets broken lines (text, font, padding, direction or break policy changed).</summary>
-    internal void Invalidate() => _brokenWidth = double.NaN;
+    internal void Invalidate()
+    {
+        _brokenWidth = double.NaN;
+        _naturalFit = false;
+    }
+
+    private static SkUiTextRendering Resolve(SkUiTextRendering rendering) =>
+        rendering == SkUiTextRendering.Default ? SkUiTextOptions.DefaultRendering : rendering;
+
+    private SkUiShaping.Paragraph ShapeParagraph(string text, SKFont primary, SkUiTextDirection direction)
+    {
+        var paragraph = ShapeParagraphCore(text, primary, direction);
+        LastLayoutSimple &= paragraph.IsSimple;
+        return paragraph;
+    }
+
+    private SkUiShaping.Paragraph ShapeParagraphCore(string text, SKFont primary, SkUiTextDirection direction)
+    {
+        switch (_rendering)
+        {
+            case SkUiTextRendering.Simple:
+                return SkUiShaping.ShapeSimple(text, primary);
+            case SkUiTextRendering.Auto when SkUiShaping.TryShapeSimple(text, primary, direction) is { } simple:
+                return simple;
+            default:
+                return SkUiShaping.Shape(text, primary.Typeface, _fontSize, direction, _fontFor);
+        }
+    }
 
     private SKFont FontFor(SKTypeface typeface)
     {
@@ -71,13 +141,19 @@ internal sealed class SkUiTextLayout
         return FontFor(typeface);
     }
 
-    private void EnsureLines(string text, double width, SKFont primary, SkUiCoreTextLineBreaker breaker, SkUiTextDirection direction)
+    private void EnsureLines(string text, double width, SKFont primary, SkUiCoreTextLineBreaker breaker, SkUiTextDirection direction, SkUiTextRendering rendering)
     {
         width = double.IsNaN(width) ? 0 : Math.Max(0, width);
-        if (width == _brokenWidth && direction == _direction)
+        rendering = Resolve(rendering);
+        if (direction == _direction && rendering == _rendering && !double.IsNaN(_brokenWidth)
+            && (width == _brokenWidth || (_naturalFit && width >= _maxLineWidth)))
             return;
         _brokenWidth = width;
         _direction = direction;
+        _rendering = rendering;
+        _naturalFit = true;
+        LayoutCount++;
+        LastLayoutSimple = true;
         var lines = new List<SkUiShaping.Line>();
         if (text.Length > 0)
         {
@@ -85,6 +161,7 @@ internal sealed class SkUiTextLayout
             if (mode is null)
             {
                 // Custom breaker: it decides the logical lines; each line is shaped as its own paragraph.
+                _naturalFit = false;
                 foreach (var logical in breaker(text, width, primary))
                     lines.Add(ShapeLine(logical, primary, direction));
             }
@@ -95,6 +172,9 @@ internal sealed class SkUiTextLayout
             }
         }
         _lines = lines;
+        _maxLineWidth = 0;
+        foreach (var line in lines)
+            _maxLineWidth = Math.Max(_maxLineWidth, line.Width);
     }
 
     private static LineBreakMode? StockMode(SkUiCoreTextLineBreaker breaker)
@@ -110,13 +190,13 @@ internal sealed class SkUiTextLayout
 
     private SkUiShaping.Line ShapeLine(string text, SKFont primary, SkUiTextDirection direction)
     {
-        var paragraph = SkUiShaping.Shape(text, primary.Typeface, _fontSize, direction, _fontFor);
+        var paragraph = ShapeParagraph(text, primary, direction);
         return SkUiShaping.BuildLine(paragraph, 0, text.Length, primary, _fontFor);
     }
 
     private void LayoutParagraph(string text, double width, LineBreakMode mode, SKFont primary, SkUiTextDirection direction, List<SkUiShaping.Line> lines)
     {
-        var paragraph = SkUiShaping.Shape(text, primary.Typeface, _fontSize, direction, _fontFor);
+        var paragraph = ShapeParagraph(text, primary, direction);
         if (double.IsInfinity(width) || mode == LineBreakMode.NoWrap || paragraph.Width <= width)
         {
             lines.Add(SkUiShaping.BuildLine(paragraph, 0, text.Length, primary, _fontFor));
@@ -127,9 +207,11 @@ internal sealed class SkUiTextLayout
             case LineBreakMode.TailTruncation:
             case LineBreakMode.HeadTruncation:
             case LineBreakMode.MiddleTruncation:
+                _naturalFit = false;
                 lines.Add(ShapeLine(Truncate(paragraph, width, mode, primary), primary, direction));
                 return;
             default:
+                _naturalFit = false;
                 Wrap(paragraph, width, mode == LineBreakMode.WordWrap, primary, lines);
                 return;
         }
@@ -138,6 +220,7 @@ internal sealed class SkUiTextLayout
     /// <summary>Greedy line breaking over shaped advances (grapheme-safe; words, hyphens and CJK boundaries).</summary>
     private void Wrap(SkUiShaping.Paragraph paragraph, double width, bool words, SKFont primary, List<SkUiShaping.Line> lines)
     {
+        SkUiShaping.EnsureAdvances(paragraph, primary);
         var text = paragraph.Text;
         var advances = paragraph.Advances;
         var boundary = GraphemeStarts(text);
@@ -208,6 +291,7 @@ internal sealed class SkUiTextLayout
     /// <summary>Ellipsizes a logical string so its shaped width fits (tail / head / middle).</summary>
     private static string Truncate(SkUiShaping.Paragraph paragraph, double width, LineBreakMode mode, SKFont primary)
     {
+        SkUiShaping.EnsureAdvances(paragraph, primary);
         var ellipsis = primary.MeasureText(Ellipsis);
         if (ellipsis > width)
             return string.Empty;
@@ -252,13 +336,14 @@ internal sealed class SkUiTextLayout
 
     /// <summary>Content size in DIPs including <paramref name="padding"/>.</summary>
     internal Size Measure(string text, SKTypeface typeface, double fontSize, Thickness padding, double widthConstraint,
-        SkUiCoreTextLineBreaker breaker, SkUiTextDirection direction = SkUiTextDirection.Auto)
+        SkUiCoreTextLineBreaker breaker, SkUiTextDirection direction = SkUiTextDirection.Auto,
+        SkUiTextRendering rendering = SkUiTextRendering.Default)
     {
         var primary = Primary(typeface, fontSize);
         var contentWidth = double.IsInfinity(widthConstraint)
             ? double.PositiveInfinity
             : Math.Max(0, widthConstraint - padding.HorizontalThickness);
-        EnsureLines(text, contentWidth, primary, breaker, direction);
+        EnsureLines(text, contentWidth, primary, breaker, direction, rendering);
         var width = 0f;
         var height = 0f;
         foreach (var line in _lines)
@@ -275,13 +360,14 @@ internal sealed class SkUiTextLayout
     /// </summary>
     internal void Draw(SKCanvas canvas, string text, SKTypeface typeface, double fontSize, Thickness padding,
         double width, double height, TextAlignment horizontal, TextAlignment vertical, SKPaint paint,
-        SkUiCoreTextLineBreaker breaker, SkUiTextDirection direction = SkUiTextDirection.Auto)
+        SkUiCoreTextLineBreaker breaker, SkUiTextDirection direction = SkUiTextDirection.Auto,
+        SkUiTextRendering rendering = SkUiTextRendering.Default)
     {
         if (text.Length == 0)
             return;
         var primary = Primary(typeface, fontSize);
         var available = Math.Max(0, width - padding.HorizontalThickness);
-        EnsureLines(text, available, primary, breaker, direction);
+        EnsureLines(text, available, primary, breaker, direction, rendering);
         var total = 0f;
         foreach (var line in _lines)
             total += line.Height;
@@ -290,7 +376,7 @@ internal sealed class SkUiTextLayout
         var top = (float)(padding.Top + Math.Max(0, offset));
         foreach (var line in _lines)
         {
-            if (line.Blob is { } blob)
+            if (line.Blob is not null || line.Text is not null)
             {
                 var rtl = line.BaseLevel % 2 == 1;
                 var alignment = horizontal switch
@@ -301,7 +387,10 @@ internal sealed class SkUiTextLayout
                 };
                 var left = padding.Left + (alignment == TextAlignment.Center ? (available - line.Width) / 2
                     : alignment == TextAlignment.End ? available - line.Width : 0);
-                canvas.DrawText(blob, (float)left, top + line.Ascent, paint);
+                if (line.Blob is { } blob)
+                    canvas.DrawText(blob, (float)left, top + line.Ascent, paint);
+                else
+                    canvas.DrawText(line.Text!, (float)left, top + line.Ascent, SKTextAlign.Left, primary, paint);
             }
             top += line.Height;
         }

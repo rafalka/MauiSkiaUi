@@ -21,6 +21,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     private SkUiCoreTextLineBreaker _lineBreaker = SkUiCoreTextLineBreakers.WordWrap;
     private readonly SkUiTextLayout _layout = new();
     private SkUiTextDirection _textDirection;
+    private SkUiTextRendering _textRendering;
     private SKPaint? _textPaint;
 
     /// <summary>Displayed text.</summary>
@@ -104,6 +105,24 @@ public class SkUiCoreLabel : SkUiCoreNode
 
     /// <inheritdoc />
     internal override void OnEffectiveFlowDirectionChanged() => InvalidateText();
+
+    /// <summary>
+    /// Text rendering mode (<see cref="SkUiTextRendering.Default"/> → <see cref="SkUiTextOptions.DefaultRendering"/>).
+    /// Use <see cref="SkUiTextRendering.Simple"/> for dense plain text / numbers where shaping is never needed.
+    /// </summary>
+    public SkUiTextRendering TextRendering
+    {
+        get => _textRendering;
+        set => SetTextRendering(value);
+    }
+
+    /// <summary>Sets <see cref="TextRendering"/>.</summary>
+    public SkUiCoreLabel SetTextRendering(SkUiTextRendering value)
+    {
+        if (!SetProperty(ref _textRendering, value, nameof(TextRendering))) return this;
+        InvalidateText();
+        return this;
+    }
 
     /// <summary>Sets <see cref="TextDirection"/>.</summary>
     public SkUiCoreLabel SetTextDirection(SkUiTextDirection value)
@@ -205,7 +224,7 @@ public class SkUiCoreLabel : SkUiCoreNode
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
-        _layout.Measure(_text, SkUiTypefaces.Resolve(_fontFamily), _fontSize, _padding, widthConstraint, _lineBreaker, EffectiveTextDirection);
+        _layout.Measure(_text, SkUiTypefaces.Resolve(_fontFamily), _fontSize, _padding, widthConstraint, _lineBreaker, EffectiveTextDirection, _textRendering);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
@@ -214,7 +233,7 @@ public class SkUiCoreLabel : SkUiCoreNode
         var paint = _textPaint ??= new SKPaint { IsAntialias = true };
         paint.Color = ToSkColor(_textColor);
         _layout.Draw(canvas, _text, SkUiTypefaces.Resolve(_fontFamily), _fontSize, _padding, Frame.Width, Frame.Height,
-            _horizontal, _vertical, paint, _lineBreaker, EffectiveTextDirection);
+            _horizontal, _vertical, paint, _lineBreaker, EffectiveTextDirection, _textRendering);
     }
 
     private void InvalidateText()

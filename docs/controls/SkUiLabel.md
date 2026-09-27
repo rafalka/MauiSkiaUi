@@ -10,6 +10,17 @@ Text is shaped with **HarfBuzz**: ligatures, kerning, Arabic joining, Indic reor
 
 Line breaking works on the shaped widths and never splits a grapheme. It breaks after spaces and hyphens, and between CJK ideographs and kana. Shaped lines are cached as text blobs per wrap width, so color and alignment changes don't re-shape. Passive by default: does not consume taps unless `Tapped` / `TappedCommand` is set.
 
+**Rendering modes (`TextRendering`):**
+
+| Mode | Behavior | Use for |
+| --- | --- | --- |
+| `Default` | Uses the global `SkUiTextOptions.DefaultRendering` (initially `Auto`) | Most labels |
+| `Auto` | **Fast path** for text made only of Latin / digits / common punctuation that the font fully covers, in an LTR paragraph. It uses Skia `MeasureText` / `DrawText`, the same cost as the pre-HarfBuzz renderer. Anything else is shaped with HarfBuzz | Mixed content |
+| `Shaped` | Always HarfBuzz: kerning and ligatures even for Latin | Typography-sensitive text |
+| `Simple` | Never shapes: no bidi, no font fallback. Complex scripts render incorrectly and missing glyphs show as .notdef | Dense grids of plain text or numbers |
+
+A label measured at one width and drawn at a wider one reuses its lines when nothing had to wrap, so measure and draw cost one layout.
+
 **Direction:** effective `FlowDirection` RTL (explicit on the label or inherited from any ancestor) makes paragraphs RTL. `FlowDirection="LeftToRight"` forces LTR. The default (`MatchParent` under an LTR parent) lets the first strong character decide, like Android's `firstStrong`. `HorizontalTextAlignment` `Start` / `End` follow the resolved paragraph direction, so `Start` is the right edge for RTL text.
 
 
