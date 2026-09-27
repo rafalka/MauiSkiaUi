@@ -146,14 +146,14 @@ Native overlays (`SkUiMauiContentView`) sit as **sibling platform views** of the
 
 - **Motion signal:** the scroll engine reports motion start / end: drag (including outer scrollers moving through chained drags), fling, and animated scroll. An instant `ScrollTo` is not motion.
 - **On motion start:** each overlay under the moving scroller captures its native view, hides it, and draws the bitmap as ordinary drawn content (render-thread composited, clipped by the viewport).
-  - Capture: Android `View.Draw` (unaffected by what covers the view on screen), iOS `DrawViewHierarchy`, Windows `RenderTargetBitmap`.
+  - Capture: Android `View.Draw` (unaffected by what covers the view on screen), iOS `DrawViewHierarchy`, Windows `RenderTargetBitmap` (WebView2: `CoreWebView2.CapturePreviewAsync`, which `RenderTargetBitmap` cannot capture).
 - **Restore:** `SkUiMauiContentView.SnapshotRestoreDelay` (150 ms) after motion stops, with fresh bounds. A new drag within the delay reuses the snapshot.
 - **Focus:** a focused control stays live.
 - **Clipping:** every overlay sits in a clip wrapper sized to its visible rectangle (ancestor scroll viewports and clipping ancestors), so it neither draws nor takes touches outside it.
   - On Android, wrappers are positioned directly: the MAUI parent may skip re-measuring the container, so a relayout request is not enough.
 - **Demo:** "Native overlays in ScrollView" (mode switch, snapshot highlighting, restore delay).
 - **Verified** on a Galaxy S9: snapshots during the drag, restore after, clipping under the drawn header / footer, typing into an Entry inside a nested carousel. On the iOS simulator: live sync and clipping.
-- **Not verified:** the Windows path; it is not built on macOS.
+- **Verified on Windows 11** (mouse, GPU and software surfaces; [WindowsValidation-results.md](WindowsValidation-results.md)): snapshots during the drag (WebView included), restore after, clipping and hit-test clipping under the drawn header, focused controls stay live, Live mode. On Windows the UI thread also composites, so a UI stall pauses the fling together with the snapshots.
 
 ## FR-21 — Virtual / dynamic scroll layout (requirements)
 

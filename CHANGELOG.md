@@ -27,6 +27,13 @@ Pack and publish workflows copy the body under `## <version>` into the package `
   - **`SkUiScrollView.IsScrolling`.**
   - **Fix:** overlays added before their stack was placed in a scroller never registered with it, so they missed offset sync.
   - **Demo:** "Native overlays in ScrollView".
+- **Windows (first validated build)** ([WindowsValidation-results.md](docs/design/WindowsValidation-results.md)):
+  - GPU surfaces render: root containers are measured and arranged (they stayed 0×0), and a frame drawn at a stale size after a resize is repainted.
+  - Fixed an intermittent native crash on pages with GPU surfaces (Skia called into an unloaded `opengl32.dll`).
+  - Continuous frames (flings, spinners) are paced to the compositor frame and stop for unloaded surfaces; before, the app could stop responding.
+  - RTL no longer mirrors surface pixels; WebView overlays snapshot through WebView2 while scrolling.
+  - Native overlays follow ancestors that move without resizing, and re-attach when their content moves to another root (all platforms).
+  - The demo's `ApplicationDisplayVersion` is numeric (`1.0.0`), as the Windows build requires.
 - **Demo:** "Native nesting" page with drawn surfaces (list, carousel, swipe row, Core scroll view) inside a native MAUI `ScrollView`, with a GPU / software switch.
 - **Gesture arena (breaking):**
   - **Mechanism:** one per-pointer gesture arena for SkUi* and Core, replacing per-container touch routing. It hit-tests once per press; passive nodes pass through, and disabled nodes block.
