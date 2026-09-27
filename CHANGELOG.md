@@ -27,6 +27,7 @@ Pack and publish workflows copy the body under `## <version>` into the package `
   - **`SkUiScrollView.IsScrolling`.**
   - **Fix:** overlays added before their stack was placed in a scroller never registered with it, so they missed offset sync.
   - **Demo:** "Native overlays in ScrollView".
+- **Demo:** "Native nesting" page with drawn surfaces (list, carousel, swipe row, Core scroll view) inside a native MAUI `ScrollView`, with a GPU / software switch.
 - **Gesture arena (breaking):**
   - **Mechanism:** one per-pointer gesture arena for SkUi* and Core, replacing per-container touch routing. It hit-tests once per press; passive nodes pass through, and disabled nodes block.
   - **Recognizers:** tap / double tap, long press, pan, swipe, pinch / rotate, and a raw pointer recognizer. There are new `SkUiView` events and commands (`DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, `SwipeDirections`, `PanAxis`, `Gestures`), the same events on Core nodes, and app-wide `SkUiGestureSettings`.

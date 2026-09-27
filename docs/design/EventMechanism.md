@@ -107,7 +107,13 @@ This gives native "nested scrolling" too: a drawn scroller inside a native one s
 - Devices:
   - **Galaxy S9:** real `adb` swipes and taps. The drawn scroller scrolls with a fling, a drawn button inside it clicks, nested Core carousels and same-axis panels hand over at their edges, and row swipes work inside a vertical scroller.
   - **Physical iOS device:** long press, double tap, pinch and swipes inside drawn scroll views (checked manually, 2026-09-27).
-  - **Not yet verified:** drawn scrollers inside a native MAUI `ScrollView` (the Android disallow-intercept path and the iOS gate recognizer), and Windows.
+  - **Galaxy S9, drawn surfaces inside a native MAUI `ScrollView`** (demo page "Native nesting"), GPU and software surfaces, real swipes:
+    - a drawn same-axis list scrolls first, and a new drag at its end scrolls the page;
+    - a drawn carousel takes horizontal drags, and vertical drags on it scroll the page;
+    - a drawn row with no scroller takes swipes and taps, and vertical drags on it scroll the page;
+    - a Core scroll view behaves like the drawn list.
+  - **Not yet verified:** the same page on iOS (the gate recognizer), and Windows.
+  - **By design:** once a drawn scroller has claimed a drag, the rest of that drag stays drawn. It chains only to drawn outer scrollers; Android cannot hand a gesture back to a native parent mid-drag. The native page takes over on the next drag.
 
 ## Still open
 
