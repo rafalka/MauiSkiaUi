@@ -96,8 +96,9 @@ This gives native "nested scrolling" too: a drawn scroller inside a native one s
 **The iOS gate resolves on its own touches too.**
 - **Why:** a touch the drawn view never receives (e.g. the tap that stops a decelerating native `ScrollView` is consumed by the scroll view) would otherwise leave the gate *Possible*, with every ancestor pan waiting for it. The page would freeze until the next touch that reaches the drawn tree.
 - **Rules:**
-  - the gate fails at touch end if still undecided;
-  - it fails when the pointer moves past the slop and the drawn tree has not seen the touch.
+  - at touch-down, the gate fails at once when an ancestor `UIScrollView` is still decelerating or dragging (that touch belongs to the native scroll view);
+  - it fails at touch end if still undecided;
+  - as a last resort, it fails when the pointer moved past the slop and the drawn tree still has not seen the touch 300 ms after it began. A normal touch reaches content views up to ~150 ms late (`delaysContentTouches`), so failing earlier would give quick drags on drawn scrollers to the native page.
 - **Both surface types:** the gate is attached to the Metal view and to software (`SKCanvasView`) surfaces.
 
 ## Verification

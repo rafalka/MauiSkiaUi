@@ -160,9 +160,13 @@ internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
         }
     }
 
-    // The gate must also resolve on its own: a touch the drawn view never receives (e.g. the tap that stops a
-    // decelerating native ScrollView is consumed by the scroll view) would otherwise leave the gate "Possible"
-    // forever, and every ancestor pan waiting for it — the native page would stay frozen.
+    // The gate must also resolve on its own: a touch the drawn view never receives would otherwise leave it
+    // "Possible" forever, with every ancestor pan waiting — the native page would stay frozen. That happens when the
+    // touch lands while an ancestor scroll view is still moving (the tap that stops a deceleration is consumed by the
+    // scroll view). A normal touch is only *delayed* (UIScrollView delaysContentTouches, ~150 ms), so "moved before
+    // the drawn view saw it" must not fail the gate early — only after the delay could have elapsed.
+    private const double DeliveryDelaySeconds = 0.3;
+    private double _startTime;
 
     public override void TouchesBegan(NSSet touches, UIEvent evt)
     {
@@ -170,7 +174,12 @@ internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
         // _synced is cleared in Reset (after each sequence), not here: a software surface's own touch recognizer may
         // deliver the press to the drawn tree before this recognizer sees it.
         if (_activeTouches == 0 && touches.AnyObject is UITouch touch && View is { } view)
+        {
             _start = touch.LocationInView(view);
+            _startTime = touch.Timestamp;
+            if (State == UIGestureRecognizerState.Possible && AncestorScrollViewIsMoving(view))
+                State = UIGestureRecognizerState.Failed;
+        }
         _activeTouches += (int)touches.Count;
     }
 
@@ -179,13 +188,22 @@ internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
         base.TouchesMoved(touches, evt);
         if (State != UIGestureRecognizerState.Possible || _synced || touches.AnyObject is not UITouch touch || View is not { } view)
             return;
-        // Moved past the slop and the drawn tree has not seen this touch: nothing drawn can claim it.
+        if (touch.Timestamp - _startTime < DeliveryDelaySeconds)
+            return; // the drawn view may still receive the (delayed) touch
         var location = touch.LocationInView(view);
         var dx = location.X - _start.X;
         var dy = location.Y - _start.Y;
         var slop = SkUiGestureSettings.TouchSlop;
         if (dx * dx + dy * dy > slop * slop)
             State = UIGestureRecognizerState.Failed;
+    }
+
+    private static bool AncestorScrollViewIsMoving(UIView view)
+    {
+        for (var ancestor = view.Superview; ancestor is not null; ancestor = ancestor.Superview)
+            if (ancestor is UIScrollView { Decelerating: true } or UIScrollView { Dragging: true })
+                return true;
+        return false;
     }
 
     public override void TouchesEnded(NSSet touches, UIEvent evt)
