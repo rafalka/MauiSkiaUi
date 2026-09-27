@@ -30,7 +30,7 @@ public sealed class BenchPage : ContentPage
         controls.Add(_scenarios, 0);
         controls.Add(_runs, 1);
         controls.Add(_run, 2);
-        var layout = new Grid { Padding = new Thickness(8, 40, 8, 8), RowSpacing = 6, RowDefinitions = [new(GridLength.Auto), new(new GridLength(560)), new(GridLength.Star)] };
+        var layout = new Grid { Padding = new Thickness(8), RowSpacing = 6, RowDefinitions = [new(GridLength.Auto), new(new GridLength(560)), new(GridLength.Star)] };
         layout.Add(controls, 0, 0);
         layout.Add(_host, 0, 1);
         layout.Add(new ScrollView { Content = _status }, 0, 2);

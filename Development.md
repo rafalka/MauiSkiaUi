@@ -18,6 +18,7 @@ Solution file: `SkiaUi.slnx`
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) **10.0.400** (see [global.json](global.json); `rollForward: latestPatch`)
 - MAUI Controls packages pinned to **10.0.101** via [Directory.Build.props](Directory.Build.props) (`MauiVersion`)
+- SkiaSharp packages (SkiaSharp, SkiaSharp.HarfBuzz, SkiaSharp.Views.Maui.Controls, native assets) pinned to **4.152.1** via the same file (`SkiaSharpVersion`)
 - Product version (and demo `ApplicationDisplayVersion`) via the same file (`Version` / `ApplicationVersion`). Per-version notes: [CHANGELOG.md](CHANGELOG.md)
 - .NET MAUI workload (`dotnet workload install maui`)
 - Platform SDKs for the targets you build (Android SDK, Xcode for iOS/Mac Catalyst, etc.)
@@ -120,7 +121,7 @@ When a requirement ships, check it off in the relevant design doc and summarize 
 - Core layouts: absolute, stacks, overlay, **`SkUiCoreGrid`** (owned Auto/absolute/star + per-track min/max), **`SkUiCoreTable`** (row/column backgrounds + span-aware separators). Host via `SkUiCoreHost`.
 - Basic controls: `SkUiLabel`, `SkUiButton`, asynchronous `SkUiImage` / `SkUiImageButton`, `SkUiActivityIndicator`, `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton`.
 - Native hosting: `SkUiMauiContentView` (FR-16). See API notes below for specifics and limits.
-- `SkUiBox`, `SkUiEllipse`, and `SkUiLine` expose bindable colors and sizing and paint with SkiaSharp 4.152.1.
+- `SkUiBox`, `SkUiEllipse`, and `SkUiLine` expose bindable colors and sizing and paint with SkiaSharp (`SkiaSharpVersion`).
 - Hosted children have logical MAUI parents and inherited binding contexts, but no handlers or native surfaces. Duplicate ownership and tree cycles are rejected.
 - Handler-independent measure/arrange uses MAUI constraint and frame helpers, including margins, requests, alignment, and cached unchanged passes.
 - Paint walks Background / Content / Overlay phases, with local rectangular clipping, opacity, translation, rotation, scale, and stable ZIndex ordering.

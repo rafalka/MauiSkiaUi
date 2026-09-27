@@ -21,6 +21,8 @@
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
   </PropertyGroup>
   <ItemGroup>
+    <!-- A launch screen is required: without UILaunchStoryboardName iOS runs the app letterboxed (legacy mode). -->
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#FFFFFF" BaseSize="128,128" />
     <Compile Include="../Scenarios/**/*.cs" Link="Scenarios/%(RecursiveDir)%(Filename)%(Extension)" />
     <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
     <ProjectReference Include="../../MauiSkiaUi/MauiSkiaUi.csproj" />

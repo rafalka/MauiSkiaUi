@@ -20,7 +20,7 @@
     <Using Include="Microsoft.Maui.Controls" />
     <Using Include="Microsoft.Maui.Graphics" />
     <Using Include="Microsoft.Maui" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.152.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="$(SkiaSharpVersion)" />
     <ProjectReference Include="../../MauiSkiaUi/MauiSkiaUi.csproj" />
   </ItemGroup>
 </Project>

@@ -3,6 +3,9 @@
     <!-- Pin Microsoft.Maui.Controls and related package versions used via $(MauiVersion). -->
     <MauiVersion>10.0.101</MauiVersion>
 
+    <!-- Pin SkiaSharp and its companion packages (HarfBuzz, Views, native assets) via $(SkiaSharpVersion); keep them in lockstep. -->
+    <SkiaSharpVersion>4.152.1</SkiaSharpVersion>
+
     <!--
       Shared product version for SkiaUi.Maui NuGet (PackageVersion/Version) and the demo app
       (ApplicationDisplayVersion). Override on the CLI with -p:Version=… (pack/publish workflows).

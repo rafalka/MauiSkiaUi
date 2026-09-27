@@ -111,28 +111,49 @@ app_args() { # label → launch arguments for the bench app / headless runner
 
 BUILT=" "
 
+bench_app_dir() { echo "$1/benchmarks/MauiSkiaUiBench"; } # repo dir → bench app project folder
+
+tfm_for() { # repo dir, platform suffix (android / ios / maccatalyst) → target framework from the project itself
+    dotnet msbuild "$(bench_app_dir "$1")/MauiSkiaUiBench.csproj" -getProperty:TargetFrameworks | tr ';' '\n' | grep -- "-$2\$" | head -1
+}
+
 build() { # label dir
-    local label="$1" dir="$2" project="$2/benchmarks/MauiSkiaUiBench/MauiSkiaUiBench.csproj"
+    local label="$1" dir="$2" app project tfm
     [[ "$BUILT" == *" $label "* ]] && return
+    app="$(bench_app_dir "$dir")"
+    project="$app/MauiSkiaUiBench.csproj"
     log "building $label ($TARGET)"
+    if [[ "$TARGET" != headless ]]; then
+        tfm="$(tfm_for "$dir" "$TARGET")"
+        [[ -n "$tfm" ]] || { echo "no $TARGET target framework in $project" >&2; exit 1; }
+        # Clean output so the artifact lookup below can only find this build.
+        rm -rf "$app/bin"
+    fi
     case "$TARGET" in
         headless) dotnet build -c Release "$dir/benchmarks/MauiSkiaUi.Benchmarks" -v q -nologo >"$OUT/$label.build.log" 2>&1 ;;
-        android) dotnet build -c Release -f net10.0-android -t:SignAndroidPackage "$project" -v q -nologo >"$OUT/$label.build.log" 2>&1 ;;
+        android) dotnet build -c Release -f "$tfm" -t:SignAndroidPackage "$project" -v q -nologo >"$OUT/$label.build.log" 2>&1 ;;
         ios)
-            # Incremental iOS (AOT) builds after a library change can crash at launch ("Failed to load AOT module"):
-            # always build the bench app clean.
-            rm -rf "$dir/benchmarks/MauiSkiaUiBench/bin/Release/net10.0-ios" "$dir/benchmarks/MauiSkiaUiBench/obj/Release/net10.0-ios"
+            # Incremental iOS (AOT) builds after a library change can crash at launch ("Failed to load AOT module").
+            rm -rf "$app/obj/Release/$tfm"
             local rid=ios-arm64
             ios_is_simulator && rid=iossimulator-arm64
-            dotnet build -c Release -f net10.0-ios -p:RuntimeIdentifier=$rid "$project" -v q -nologo >"$OUT/$label.build.log" 2>&1 ;;
-        maccatalyst) dotnet build -c Release -f net10.0-maccatalyst "$project" -v q -nologo >"$OUT/$label.build.log" 2>&1 ;;
+            dotnet build -c Release -f "$tfm" -p:RuntimeIdentifier=$rid "$project" -v q -nologo >"$OUT/$label.build.log" 2>&1 ;;
+        maccatalyst) dotnet build -c Release -f "$tfm" "$project" -v q -nologo >"$OUT/$label.build.log" 2>&1 ;;
     esac || { tail -30 "$OUT/$label.build.log" >&2; echo "build of $label failed ($OUT/$label.build.log)" >&2; exit 1; }
     BUILT="$BUILT$label "
 }
 
+find_output() { # repo dir, glob below bin/Release (after a clean build there is exactly one match)
+    local match
+    # shellcheck disable=SC2086
+    match="$(ls -d "$(bench_app_dir "$1")"/bin/Release/$2 2>/dev/null | head -1)"
+    [[ -n "$match" ]] || { echo "build output $2 not found under $(bench_app_dir "$1")/bin/Release" >&2; exit 1; }
+    echo "$match"
+}
+
 run_android() { # label dir round
     local label="$1" dir="$2" round="$3" apk logfile="$OUT/$1.round$3.log"
-    apk="$(ls "$dir"/benchmarks/MauiSkiaUiBench/bin/Release/net10.0-android/*-Signed.apk | head -1)"
+    apk="$(find_output "$dir" "*-android/*-Signed.apk")"
     adb -s "$DEVICE" install -r "$apk" >/dev/null
     adb -s "$DEVICE" shell am force-stop "$APP_ID"
     adb -s "$DEVICE" logcat -c
@@ -154,12 +175,12 @@ run_ios() { # label dir round
     local label="$1" dir="$2" round="$3" logfile="$OUT/$1.round$3.log" app
     read -r -a args <<<"$(app_args "$label")"
     if ios_is_simulator; then
-        app="$(ls -d "$dir"/benchmarks/MauiSkiaUiBench/bin/Release/net10.0-ios/iossimulator-arm64/*.app | head -1)"
+        app="$(find_output "$dir" "*-ios/iossimulator-arm64/*.app")"
         xcrun simctl install "$DEVICE" "$app"
         timeout "$TIMEOUT" xcrun simctl launch --console --terminate-running-process "$DEVICE" "$APP_ID" --autorun --exit "${args[@]}" 2>&1 \
             | grep "SKUIBENCH" | sed 's/.*SKUIBENCH/SKUIBENCH/' >"$logfile" || true
     else
-        app="$(ls -d "$dir"/benchmarks/MauiSkiaUiBench/bin/Release/net10.0-ios/ios-arm64/*.app | head -1)"
+        app="$(find_output "$dir" "*-ios/ios-arm64/*.app")"
         xcrun devicectl device install app --device "$DEVICE" "$app" >/dev/null
         timeout "$TIMEOUT" xcrun devicectl device process launch --console --terminate-existing --device "$DEVICE" "$APP_ID" --autorun --exit "${args[@]}" 2>&1 \
             | grep "SKUIBENCH" | sed 's/.*SKUIBENCH/SKUIBENCH/' >"$logfile" || true
@@ -170,7 +191,7 @@ run_ios() { # label dir round
 run_maccatalyst() { # label dir round
     local label="$1" dir="$2" round="$3" logfile="$OUT/$1.round$3.log" binary
     read -r -a args <<<"$(app_args "$label")"
-    binary="$(ls "$dir"/benchmarks/MauiSkiaUiBench/bin/Release/net10.0-maccatalyst/maccatalyst-"$(uname -m | sed 's/x86_64/x64/')"/*.app/Contents/MacOS/MauiSkiaUiBench | head -1)"
+    binary="$(find_output "$dir" "*-maccatalyst/maccatalyst-$(uname -m | sed 's/x86_64/x64/')/*.app/Contents/MacOS/MauiSkiaUiBench")"
     timeout "$TIMEOUT" "$binary" --autorun --exit "${args[@]}" 2>&1 | grep "SKUIBENCH" | sed 's/.*SKUIBENCH/SKUIBENCH/' >"$logfile" || true
     echo "$logfile"
 }
