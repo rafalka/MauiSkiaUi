@@ -311,18 +311,19 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 
 ### FR-15 — SkiaUi-owned gestures (not MAUI `GestureRecognizers`)
 
-**Decision:** implement a **shared SkiaUi gesture / event mechanism** on the drawn tree. Do **not** rely on MAUI `View.GestureRecognizers` / `GesturePlatformManager` as the primary path (hosted children have no platform handler — FR-13; long press is not a MAUI recognizer). Design details and implementation checklist: [EventMechanism.md](EventMechanism.md).
+**Decision:** a **shared SkiaUi gesture arena** on the drawn tree, used by SkUi* and Core alike. MAUI `View.GestureRecognizers` / `GesturePlatformManager` are not the primary path: hosted children have no platform handler (FR-13), and long press is not a MAUI recognizer. Design, decisions and API: [EventMechanism.md](EventMechanism.md).
 
-- [ ] Classify **single tap**, **double tap**, **long press**, and **swipe** from the root host’s pointer/touch stream and deliver them through the `ISkUiView` tree (same DIP coordinates as Measure / Arrange / Paint / Touch).
-- [ ] Implement the mechanism **once** on **`SkUiView`** (events, bindable command properties, participation rules) so every control/layout inherits it — **no per-control gesture state machines**.
-- [ ] **Default passive controls** (e.g. `SkUiLabel`): do **not** consume gestures unless the app opts in (subscribe to an event and/or set a command such as `TappedCommand`). Untouched labels must not steal hits from views underneath.
-- [ ] **Default active controls** (e.g. `SkUiButton`): **do** handle tap (and related press feedback / visual states) even when the app has not registered an event or command — intrinsic interaction remains correct.
-- [ ] Honor **`IView.InputTransparent`**: when `true`, the view is skipped for hit-testing / gesture delivery (pointer passes through to views below). Also honor **`IsEnabled`** (disabled views do not raise gestures; define whether they still block hits — document in EventMechanism.md).
-- [ ] Hit-testing for gestures uses **arranged bounds** by default (FR-11); clip/mask does not shrink the hit region unless a future opt-in is used.
-- [ ] Standalone and hosted modes use the **same** gesture API and delivery rules; only the root host maps platform input into the tree.
-- [ ] Demo / gallery: passive label that becomes tappable via command/event; button that works without app handlers; `InputTransparent` pass-through sample.
-- [ ] Public XML docs describe opt-in vs intrinsic handling and that MAUI `GestureRecognizers` are not the SkiaUi gesture API.
-- [ ] Document that input over **`SkUiMauiContentView`** overlays is handled by the **native MAUI control**, not by FR-15 (hit-test / gestures skip or defer to the overlay region).
+- [x] **Recognizers:** single tap, double tap, long press, swipe, pan and pinch / rotate are classified from the root host's pointer stream, in the same DIP coordinates as Measure / Arrange / Paint. A raw pointer recognizer replaces custom touch overrides.
+- [x] **Implemented once:** the arena, hit-testing and recognizers exist once for both layers. `SkUiView` and Core nodes expose events and commands, and recognizers are created only while used. There are no per-control gesture state machines.
+- [x] **Passive by default:** passive controls (e.g. `SkUiLabel`) do not take pointers unless the app opts in. Untouched labels let hits through to views underneath.
+- [x] **Intrinsic handling:** active controls (`SkUiButton`, toggles, Core buttons) handle taps and press feedback without app handlers.
+- [x] **`InputTransparent` and `IsEnabled`:** input-transparent views are skipped; disabled views block (they are hit, nothing reacts).
+- [x] **Hit region:** hit-testing uses **arranged bounds** (FR-11).
+- [x] **One path:** standalone and hosted modes share the API and rules; only the root maps platform input.
+- [x] **Competition:** gestures compete in a per-pointer arena. Nested scrolling works, controls inside scrollers can drag, contested presses show after `PressDelay`, and multi-touch is independent per pointer.
+- [x] **Native coordination:** native ancestors are coordinated at the surface (Android disallow-intercept; iOS gate recognizer).
+- [ ] Demo / gallery gesture page: passive label made tappable, `InputTransparent` pass-through, long press / double tap / swipe / pinch, nested scrollers.
+- [x] **Overlays:** input over `SkUiMauiContentView` overlays is handled by the native control (the overlay node never takes drawn pointers).
 
 ### FR-16 — Host MAUI controls (`SkUiMauiContentView`)
 
@@ -348,14 +349,21 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 
 Design details and checklist: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md).
 
-**Decision:** implement **SkiaUi-owned** scroll and (later) virtualized lists on the shared surface. Do **not** treat MAUI `ScrollView` / `CollectionView` as the primary host for scrollable SkiaUi trees.
+**Decision:** **SkiaUi-owned** scrolling, on-demand item creation (FR-21) and virtualized collections (FR-22) on the shared surface. MAUI `ScrollView` / `CollectionView` are not the primary host for scrollable SkiaUi trees.
 
-- [x] Implement **`SkUiScrollView`** with `Content` (`ISkUiView`), orientation, viewport clip, offset, pan/fling (FR-15 capture + FR-7 fling animation), and scroll APIs/events.
-- [x] Measure content for full extent on the scroll axis; offset-only changes must not force content remeasure (FR-3a / NFR-2).
-- [ ] Sync **`SkUiMauiContentView`** overlays while scrolling; on Android/Windows apply FR-16 snapshot freeze (Apple live sync); honor opt-out.
-- [ ] Demo gallery: long content under `SkUiScrollView` (Skia-drawn + hosted Entry).
-- [ ] **Later:** virtualizing **`SkUiCollectionView`** (or equivalent) with `ItemsSource` / `ItemTemplate` and recycle pool on the shared surface — not MAUI `CollectionView` recycling.
-- [x] Document MAUI `ScrollView`/`CollectionView` nesting as **compat only** (standalone cells keep `HwAccelerated = false` per FR-14).
+- [x] **`SkUiScrollView`:** `Content`, orientation, viewport clip, offsets, pan / fling (gesture arena + render-thread fling), and scroll APIs / events.
+- [x] **Layout:** content is measured for its full extent on the scroll axis; offset-only changes do not remeasure or re-record (FR-3a / NFR-2).
+- [x] **Core layer:** `SkUiCoreScrollView` shares the scroll engine, and Core and SkUi* scrollers nest freely.
+- [x] **Nested scrolling:**
+  - orthogonal scrollers take their own axis;
+  - same-axis inner scrollers go first and chain the remainder to outer ones;
+  - the fling goes to the innermost scroller that can move;
+  - the wheel goes to the innermost scroller that can move;
+  - native ancestors take over at a drawn scroller's edge.
+- [ ] **Overlays:** sync **`SkUiMauiContentView`** overlays while scrolling; on Android / Windows apply the FR-16 snapshot freeze (Apple live sync); honor the opt-out.
+- [ ] **Polish:** scrollbars, snap points, overscroll / bounce.
+- [ ] **Demo gallery:** long content, nested carousels, Core scroll view.
+- [x] **Compat:** MAUI `ScrollView` / `CollectionView` nesting is documented as **compat only** (standalone cells keep `HwAccelerated = false` per FR-14).
 
 ### FR-18 — Control look (shape / chrome / default sizes; not MAUI styles)
 
@@ -409,6 +417,65 @@ Design details: [ColorScheme.md](ColorScheme.md).
 - [ ] Shadow properties are animatable on the render thread like opacity/transform.
 
 Initial controls, layouts, and scroll are delivered with headless tests. Device interaction/rendering/contrast acceptance remains blocked by the installed MAUI extension; checked implementation items do not imply native platform verification. See [Development.md](../../Development.md) for the precise v1 API limits.
+
+### FR-21 — Virtual / dynamic scroll layout (on-demand children)
+
+Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-21--virtual--dynamic-scroll-layout-requirements). Purpose: **endless scrolling**, and the item engine for FR-22.
+
+- [ ] **`SkUiVirtualStackLayout`** (vertical first, horizontal later) **requests** its children while the user scrolls.
+  - It works inside any drawn scroller, below other content, and nested in another virtual layout.
+  - Its window is the intersection of all ancestor viewports.
+- [ ] **`SkUiVirtualScrollView`:** convenience control combining a scroller and a virtual stack.
+- [ ] **Providers** (any one is enough):
+  - a per-index factory with an unknown / endless count (`null` ends the list);
+  - `ItemsSource` + `ItemTemplate` / selector with incremental collection changes;
+  - incremental loading (`RemainingItemsThreshold` event / command, async load-more hook, loading placeholder).
+- [ ] **Prefetch:** items are created **before** they become visible. `PrefetchFactor` (viewport lengths, default 1.0) or `PrefetchDistance`, plus a behind-distance for reverse scrolling. During render-thread flings, prefetch extends by the predicted travel.
+- [ ] **Creation budget:** items are created within a per-frame UI-thread budget, synchronously only to avoid visible gaps. Nothing runs on the render thread.
+- [ ] **Release and sizing:**
+  - optional release of far items (`ReleaseFactor`), keeping their measured sizes;
+  - recycling pool keyed by template;
+  - estimated sizes and a per-index size cache;
+  - scroll anchoring when earlier items change size.
+- [ ] **API:** `ScrollToIndex` (position, animated); `ItemRealized` / `ItemReleased` / `VisibleRangeChanged` events.
+- [ ] **Core variant** `SkUiCoreVirtualStackLayout`: **only if cheap**, meaning a thin wrapper over a layer-agnostic engine.
+- [ ] **Benchmarks and tests:**
+  - device benchmark: endless 10k-item fling at device fps with no blank frames;
+  - memory stays flat with release;
+  - prefetch-before-visible, budget, anchoring and threshold tests.
+
+### FR-22 — `SkUiCollectionView` (virtualized collection)
+
+Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--skuicollectionview-requirements). Built on FR-21 with template recycling. A Core variant is **not required**: templates and bindings are MAUI concepts.
+
+- [ ] **MAUI `CollectionView` parity:**
+  - `ItemsSource`, `ItemTemplate` / selector, `EmptyView` (+ template), `Header` / `Footer` (+ templates);
+  - `ItemsLayout` (linear vertical / horizontal with spacing; grid with `Span`), snap points, `ItemSizingStrategy`;
+  - selection (`SelectionMode`, `SelectedItem(s)`, `SelectionChanged` + command, `Selected` visual state);
+  - grouping (`IsGrouped`, group header / footer templates);
+  - `ScrollTo` (index / item, position, animate) and `Scrolled` (visible indexes);
+  - `RemainingItemsThreshold` (+ event / command), `ItemsUpdatingScrollMode`;
+  - reordering (`CanReorderItems`, `CanMixGroups`, `ReorderCompleted`);
+  - scrollbar visibility.
+- [ ] **Sticky header / footer** (`IsStickyHeader`, `IsStickyFooter`) and **sticky group headers**; pinned parts are not re-recorded while scrolling.
+- [ ] **Selected item background:** `SelectionBackground` brush, optional `SelectedItemTemplate`. A selection change re-records only the affected items.
+- [ ] **Item tap:** `ItemTapped` event and `ItemTappedCommand` (+ parameter, default the item), with item / index / group in the args.
+  - It is raised independently of selection.
+  - Interactive children inside items keep their own taps.
+- [ ] **Pull to refresh** (`IsRefreshing`, `RefreshCommand`).
+- [ ] **Candidates:**
+  - `ItemDoubleTapped` / `ItemLongPressed` (+ commands);
+  - item swipe actions (leading / trailing templates);
+  - load-more footer mode;
+  - item appearing / disappearing events;
+  - keyboard navigation (desktop);
+  - animated insert / remove.
+- [ ] **Benchmarks and tests:**
+  - 10k items at device fps while flinging;
+  - recycling (no per-item allocations in steady scrolling);
+  - selection re-records at most two items;
+  - `ItemTapped` versus buttons inside items;
+  - grouping, sticky header costs, incremental loading and update scroll modes.
 
 ## Non-functional requirements
 
