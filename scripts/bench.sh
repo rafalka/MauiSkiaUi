@@ -119,6 +119,9 @@ build() { # label dir
         headless) dotnet build -c Release "$dir/benchmarks/MauiSkiaUi.Benchmarks" -v q -nologo >"$OUT/$label.build.log" 2>&1 ;;
         android) dotnet build -c Release -f net10.0-android -t:SignAndroidPackage "$project" -v q -nologo >"$OUT/$label.build.log" 2>&1 ;;
         ios)
+            # Incremental iOS (AOT) builds after a library change can crash at launch ("Failed to load AOT module"):
+            # always build the bench app clean.
+            rm -rf "$dir/benchmarks/MauiSkiaUiBench/bin/Release/net10.0-ios" "$dir/benchmarks/MauiSkiaUiBench/obj/Release/net10.0-ios"
             local rid=ios-arm64
             ios_is_simulator && rid=iossimulator-arm64
             dotnet build -c Release -f net10.0-ios -p:RuntimeIdentifier=$rid "$project" -v q -nologo >"$OUT/$label.build.log" 2>&1 ;;

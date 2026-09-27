@@ -19,6 +19,7 @@ public sealed class BenchPage : ContentPage
     private readonly Entry _runs = new() { Text = "6", Keyboard = Keyboard.Numeric, WidthRequest = 60 };
     private readonly Button _run = new() { Text = "Run" };
     private bool _started;
+    private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(100);
 
     public BenchPage()
     {
@@ -100,16 +101,20 @@ public sealed class BenchPage : ContentPage
         var add = watch.Elapsed.TotalMilliseconds;
 
         watch.Restart();
+        ForceLayout();
         await WaitForFramesAsync(root, minimumFrames: 1);
         var firstFrame = watch.Elapsed.TotalMilliseconds;
 
         double? update = null;
         if (scenario.Update is { } apply)
         {
-            await Turns(2);
+            // Idle first: a change right after the previous frame waits for the next vsync (correct pacing), which
+            // would measure frame phase instead of the update.
+            await Task.Delay(Settle);
             var before = Stats(root)?.Frames ?? 0;
             watch.Restart();
             apply(root);
+            ForceLayout();
             await WaitForFramesAsync(root, before + 1);
             update = watch.Elapsed.TotalMilliseconds;
         }
@@ -117,7 +122,7 @@ public sealed class BenchPage : ContentPage
         double? fps = null, avg = null, max = null;
         if (scenario.Motion is { } motion && root is SkUiView)
         {
-            await Turns(2);
+            await Task.Delay(Settle);
             Reset(root);
             watch.Restart();
             var handle = motion(root);
@@ -158,6 +163,17 @@ public sealed class BenchPage : ContentPage
             await Task.Delay(1);
         }
         Console.WriteLine("SKUIBENCH_WARN frame wait timed out");
+    }
+
+    /// <summary>
+    /// UIKit runs layout in its display-aligned update cycle, so attach / change → measure otherwise waits 0–16 ms
+    /// depending on where the benchmark's continuation falls in that cycle: noise unrelated to the code under test.
+    /// </summary>
+    private void ForceLayout()
+    {
+#if IOS || MACCATALYST
+        (_host.Handler?.PlatformView as UIKit.UIView)?.Window?.LayoutIfNeeded();
+#endif
     }
 
     private static readonly MethodInfo? GetStats = typeof(SkUiView).GetMethod("GetRenderStatistics", BindingFlags.Instance | BindingFlags.Public);

@@ -11,6 +11,8 @@ Measure performance **before and after a change**, for any component, in a way t
 
 All values are **milliseconds** (except `motionFps` and `allocKB`). Reports show the **median** of the measured iterations; each scenario first runs `--warmup` iterations that are discarded.
 
+On iOS and Mac Catalyst the app forces UIKit layout (`LayoutIfNeeded`) right after attaching or updating. Since iOS 18, UIKit lays out in an update cycle aligned to the display refresh. Without forcing it, `firstFrame` would include a 0–16 ms wait that depends only on where the benchmark's continuation falls in that cycle. Native views pay that wait too. The update and motion phases start after a 100 ms idle gap: a change right after a frame waits for the next vsync, which is correct pacing but not what `update` should measure.
+
 The device app is always built **Release**: no DevFlow and no profiler. Debug numbers exaggerate managed-code cost several times and must not be compared with Release numbers. Headless numbers miss GPU, AOT and platform text costs. Treat them as a signal, and confirm important changes on a device.
 
 ## Running
@@ -107,7 +109,10 @@ The headless runner reaches the internal frame pipeline (`SkUiFrameRenderer`) by
 
 ## Render statistics API
 
-`SkUiView.GetRenderStatistics()` returns `SkUiRenderStatistics(Frames, AverageMilliseconds, MaxMilliseconds)` for a standalone surface's render thread: frames composited since the last `ResetRenderStatistics()`, and their cost. It counts only frames with committed content, and excludes GPU execution and presentation. It is public so apps can use it for diagnostics too; it returns `default` while the view has no platform surface.
+`SkUiView.GetRenderStatistics()` returns `SkUiRenderStatistics(Frames, AverageMilliseconds, MaxMilliseconds)` for a standalone surface's render thread: frames since the last `ResetRenderStatistics()`, and their cost.
+- A frame is counted after it was flushed and submitted or presented. Its cost therefore includes GPU command submission and first-use shader compilation.
+- The cost excludes GPU execution time and display latency.
+- Only frames with committed content count. It is public so apps can use it for diagnostics too; it returns `default` while the view has no platform surface.
 
 ## Guidance for agents and reviewers
 
@@ -119,6 +124,19 @@ The headless runner reaches the internal frame pipeline (`SkUiFrameRenderer`) by
 - When a component gets a performance-sensitive feature, add a scenario for it in the same change.
 
 ## Findings so far
+
+- **iOS / Catalyst first frame (Core vs SkUi\*):** early simulator runs showed Core slower than SkUi\* (23.6 vs 12.3 ms). Tracing showed the measured work was only about half of each first frame (Core 8–9 ms, SkUi\* 11–13 ms). The rest was waiting:
+  - **Display-link wait:** after a commit, the Metal loop waited for the next `CADisplayLink` tick, 0–16 ms.
+  - **Empty frame:** it also presented an empty frame before the first commit, which delayed the next render.
+  - **UIKit layout wait:** UIKit's display-aligned layout added another 0–16 ms before measure, alternating between iterations.
+  - **Fixes and results:**
+    - Commits that arrive while idle now render immediately, and surfaces skip frames until content exists. Commit-to-rendered latency went from about 5 ms median (up to 16 ms at p90) to about 1 ms.
+    - The bench forces the UIKit layout.
+    - Results are now stable to about ±0.5 ms, with Core ahead on the simulator (labels 8.1 vs 11.0 ms, buttons 9.8 vs 12.3, update 9.7 vs 13.3) and on Catalyst.
+- **First-use shader compilation (Apple):**
+  - **Problem:** after a fresh install, the first frame that uses a new kind of drawing (text, rounded rects) spends 250–500 ms in the GPU flush while Skia compiles Metal pipelines. Metal caches them across launches. It happens on the render thread, so the UI thread stays responsive, but the first screen of a freshly installed app appears late.
+  - **Measurement fix:** statistics used to stop before the flush, so this time spilled into the next measured iteration. They now include it.
+  - **Candidate fix (not implemented):** a startup warm-up frame that draws common primitives offscreen.
 
 - **Android vsync pacing** (found by `spinners` / `scroll-fling`):
   - **Problem:** `eglSwapBuffers` on a `TextureView` does not block on vsync, so continuous render-thread animations rendered 285–497 frames per second on the Galaxy S9 and discarded most of them.
