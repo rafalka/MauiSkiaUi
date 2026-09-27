@@ -255,7 +255,14 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
     protected override Size ArrangeOverride(Rect bounds)
     {
         if (!_arrangeDirty && bounds == _lastArrangeBounds)
+        {
+#if WINDOWS
+            // WinUI arranges per layout pass: an Arrange made before the native view was in the tree is lost, so
+            // re-apply the cached frame (Android / iOS keep the frame they were given).
+            Handler?.PlatformArrange(Frame);
+#endif
             return Frame.Size;
+        }
         var previousFrame = Frame;
         var previousSize = Frame.Size;
         var frame = this.ComputeFrame(bounds);
