@@ -29,6 +29,35 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     public double MaxY => Vertical ? Math.Max(0, Extent.Height - Viewport.Height) : 0;
     public bool IsMotionRunning => _motion is not null;
 
+    private bool _dragging;
+    private bool _moving;
+
+    /// <summary>A drag or render-thread motion (fling, animated scroll) is in progress.</summary>
+    public bool IsMoving => _moving;
+
+    /// <summary>Raised when <see cref="IsMoving"/> changes (e.g. to freeze native overlays while scrolling).</summary>
+    public event Action<bool>? MovingChanged;
+
+    /// <summary>Set by the scroll gesture while a drag owns the pointer.</summary>
+    public bool Dragging
+    {
+        get => _dragging;
+        set
+        {
+            _dragging = value;
+            UpdateMoving();
+        }
+    }
+
+    private void UpdateMoving()
+    {
+        var moving = _dragging || _motion is not null;
+        if (moving == _moving)
+            return;
+        _moving = moving;
+        MovingChanged?.Invoke(moving);
+    }
+
     /// <summary>Recognizer that turns drags into scrolling (created on first use).</summary>
     public SkUiScrollGestureRecognizer Gesture => _gesture ??= new SkUiScrollGestureRecognizer(this);
     private SkUiScrollGestureRecognizer? _gesture;
@@ -116,9 +145,11 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
                 owner.RenderState.ActiveAnimations?.Remove(animation);
                 if (ReferenceEquals(_motion, animation))
                     _motion = null;
+                UpdateMoving();
             }
         };
         _motion = fling;
+        UpdateMoving();
         SkUiRenderInvalidation.Enqueue(owner, fling);
         return true;
     }
@@ -131,6 +162,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         motion?.Cancel();
         _scrollCompletion?.TrySetCanceled();
         _scrollCompletion = null;
+        UpdateMoving();
     }
 
     /// <summary>Content replaced: stop and return to the origin.</summary>
@@ -158,6 +190,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
                     ApplyRenderOffset(values[0], values[1]);
                 if (ReferenceEquals(_motion, animation))
                     _motion = null;
+                UpdateMoving();
                 if (completion is not null)
                 {
                     if (ReferenceEquals(_scrollCompletion, completion)) _scrollCompletion = null;
@@ -166,6 +199,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             }
         };
         _motion = tween;
+        UpdateMoving();
         SkUiRenderInvalidation.Enqueue(owner, tween);
         return tween;
     }
@@ -224,6 +258,8 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
     private Point _last;
     private bool _dragging;
     private SkUiVelocityTracker _velocity;
+    /// <summary>Outer scrollers that received chained drag movement (they are "moving" until release).</summary>
+    private List<SkUiScrollController>? _chained;
 
     protected internal override bool IsExclusive => true;
 
@@ -243,6 +279,7 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
             scroller.StopMotion();
             Claim();
             _dragging = _pointer is not null;
+            scroller.Dragging = _dragging;
         }
         return true;
     }
@@ -273,6 +310,7 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
             if (_pointer != pointer.Id)
                 return;
             _dragging = true;
+            scroller.Dragging = true;
             Apply(_start.X - pointer.Position.X, _start.Y - pointer.Position.Y);
         }
         else
@@ -295,6 +333,29 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
             Resign();
             return;
         }
+        // Start the fling (if any) before clearing the drag, so a continuous motion stays "moving".
+        try
+        {
+            Fling();
+        }
+        finally
+        {
+            scroller.Dragging = false;
+            EndChained();
+        }
+    }
+
+    private void EndChained()
+    {
+        if (_chained is null)
+            return;
+        foreach (var outer in _chained)
+            outer.Dragging = false;
+        _chained.Clear();
+    }
+
+    private void Fling()
+    {
         var finger = _velocity.Velocity;
         var velocity = new Point(-finger.X, -finger.Y);
         if (scroller.CanScroll(velocity.X, velocity.Y))
@@ -315,7 +376,10 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
         if (_pointer == pointerId)
         {
             _pointer = null;
+            if (_dragging)
+                scroller.Dragging = false;
             _dragging = false;
+            EndChained();
         }
     }
 
@@ -327,7 +391,13 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
         {
             if (remainder.X == 0 && remainder.Y == 0)
                 return;
+            var before = remainder;
             remainder = outer.ScrollBy(remainder.X, remainder.Y);
+            if (remainder != before && !(_chained ??= []).Contains(outer))
+            {
+                _chained.Add(outer);
+                outer.Dragging = true;
+            }
         }
     }
 

@@ -6,7 +6,14 @@ Hosts a real MAUI `VisualElement` (Entry, Editor, WebView, …) as a **native ov
 
 ## How it works
 
-The placeholder participates in SkiaUi measure/arrange. The wrapped control's platform view is added as a sibling of the Skia surface inside `SkUiOverlayContainer`. `Touch` always returns `false` so SkiaUi never steals native input. Position uses `ComputeRootRelativeFrame()` (Frame offsets + `TranslationX`/`TranslationY` up the hosted ancestor chain).
+The placeholder participates in SkiaUi measure/arrange. The wrapped control's platform view is added as a sibling of the Skia surface inside `SkUiOverlayContainer`. `Touch` always returns `false` so SkiaUi never steals native input. Position uses `ComputeRootRelativeFrame()` (Frame offsets + `TranslationX`/`TranslationY` up the hosted ancestor chain, minus scroll offsets).
+
+**Clipping:** the overlay is clipped to the viewports of ancestor scrollers and to ancestors with `ClipToBounds`, so a scrolled control never covers drawn content around the scroller and cannot be touched outside it.
+
+**While scrolling** (`ScrollMode`):
+- **Auto** (default): snapshot on Android / Windows, live on iOS / Mac Catalyst.
+- **Snapshot:** while an ancestor scroller moves, the native view is hidden and a bitmap of it is drawn, so it moves exactly with the drawn content (even during render-thread flings while the UI thread is busy). It is restored `SnapshotRestoreDelay` after scrolling stops. A focused control stays live.
+- **Live:** the native view is repositioned on every offset change.
 
 
 ## Shared conventions
@@ -31,6 +38,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 ## Key properties
 
 `Content` (`VisualElement`), `SetContent`. Content must be unparented and handlerless when assigned.
+`ScrollMode` (`SkUiOverlayScrollMode`), `IsShowingSnapshot`, `UsesSnapshotWhileScrolling`; static `SnapshotRestoreDelay` and `HighlightSnapshots` (diagnostics).
 
 ## Differences / v1 limits
 
@@ -38,10 +46,11 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | --- | --- |
 | Paint | Does not draw the live control into Skia |
 | Transforms | No rotation/scale/opacity composition through ancestors |
-| Scroll | Live sync only — **no** snapshot-during-scroll yet |
+| Scroll | Clipped to scroll viewports; snapshot while scrolling on Android / Windows (configurable) |
+| Drawn content over overlays | Not masked yet: drawn popups cannot cover a native overlay |
 | Platforms | Overlay hooks are no-ops on headless `net10.0` tests |
 | Measure without handler | Hosted Editor may measure `Size.Zero` until a platform handler exists |
 
 ## Related
 
-[ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) · Gallery: `MauiContentViewDemoPage`
+[ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) · Gallery: `MauiContentViewDemoPage`, "Native overlays in ScrollView" (`OverlayScrollingDemoPage`)

@@ -21,6 +21,12 @@ Pack and publish workflows copy the body under `## <version>` into the package `
 - Requirements: FR-20 (shadows, future) and NFR-6 (threading).
 - **Benchmarks** ([Benchmarks.md](docs/design/Benchmarks.md)): headless runner and a Release on-device bench app sharing one scenario catalog; `scripts/bench.sh --baseline <ref>` compares any git ref with the working tree (headless, Android, iOS, Mac Catalyst). New `SkUiView.GetRenderStatistics()` / `ResetRenderStatistics()` (render-thread frame count and cost).
 - **iOS / Mac Catalyst:** commits that arrive while the render loop is idle are rendered at once instead of on the next display-link tick (commit → rendered ≈ 1 ms instead of up to a refresh period); surfaces render nothing before their first commit. Render statistics now include the GPU flush / present.
+- **Native overlays while scrolling (FR-16):**
+  - **Clipping:** `SkUiMauiContentView` overlays are clipped to ancestor scroll viewports and clipping ancestors. They no longer draw over or take touches outside the scroller.
+  - **Snapshot while scrolling:** new `ScrollMode` (`Auto` = snapshot on Android / Windows, live on Apple; `Snapshot`; `Live`). While an ancestor scroller moves, the native view is replaced by a bitmap that moves in sync with the drawn content, then restored after `SnapshotRestoreDelay`. Focused controls stay live.
+  - **`SkUiScrollView.IsScrolling`.**
+  - **Fix:** overlays added before their stack was placed in a scroller never registered with it, so they missed offset sync.
+  - **Demo:** "Native overlays in ScrollView".
 - **Gesture arena (breaking):**
   - **Mechanism:** one per-pointer gesture arena for SkUi* and Core, replacing per-container touch routing. It hit-tests once per press; passive nodes pass through, and disabled nodes block.
   - **Recognizers:** tap / double tap, long press, pan, swipe, pinch / rotate, and a raw pointer recognizer. There are new `SkUiView` events and commands (`DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, `SwipeDirections`, `PanAxis`, `Gestures`), the same events on Core nodes, and app-wide `SkUiGestureSettings`.

@@ -23,6 +23,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     public SkUiScrollView()
     {
         _scroller = new SkUiScrollController(this, InvalidateRender, OnOffsetChanged);
+        _scroller.MovingChanged += OnMovingChanged;
         Unloaded += (_, _) => CancelInteraction();
     }
 
@@ -44,6 +45,17 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
 
     /// <summary>True while a render-thread fling or animated scroll is running.</summary>
     internal bool IsMotionRunning => _scroller.IsMotionRunning;
+
+    /// <summary>True while the user drags this scroller or a fling / animated scroll runs.</summary>
+    public bool IsScrolling => _scroller.IsMoving;
+
+    private void OnMovingChanged(bool moving)
+    {
+        if (_overlayDescendants is { Count: > 0 } overlays)
+            foreach (var overlay in overlays.ToArray())
+                overlay.NotifyAncestorScrollMotion(moving);
+        OnPropertyChanged(nameof(IsScrolling));
+    }
 
     /// <summary>Sets orientation without bindable write-back.</summary>
     public SkUiScrollView SetOrientation(ScrollOrientation value)
@@ -149,13 +161,19 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     internal void RegisterOverlayDescendant(SkUiMauiContentView overlay)
     {
         _overlayDescendants ??= [];
-        if (!_overlayDescendants.Contains(overlay))
-            _overlayDescendants.Add(overlay);
+        if (_overlayDescendants.Contains(overlay))
+            return;
+        _overlayDescendants.Add(overlay);
+        if (_scroller.IsMoving)
+            overlay.NotifyAncestorScrollMotion(true);
     }
 
     /// <summary>Removes a previously registered overlay descendant.</summary>
-    internal void UnregisterOverlayDescendant(SkUiMauiContentView overlay) =>
-        _overlayDescendants?.Remove(overlay);
+    internal void UnregisterOverlayDescendant(SkUiMauiContentView overlay)
+    {
+        if (_overlayDescendants?.Remove(overlay) == true && _scroller.IsMoving)
+            overlay.NotifyAncestorScrollMotion(false);
+    }
 
     /// <summary>Pushes updated root-relative bounds to registered <see cref="SkUiMauiContentView"/> descendants.</summary>
     private void SyncRegisteredOverlays()

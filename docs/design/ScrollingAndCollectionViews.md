@@ -138,14 +138,22 @@ Native overlays (`SkUiMauiContentView`) sit as **sibling platform views** of the
 | **Android** | **Snapshot freeze** | Automatic under an actively scrolling scroller |
 | **Windows** | **Snapshot freeze** | Same as Android |
 | **iOS / Mac Catalyst** | **Live sync only** | The native overlay is repositioned each frame |
-| **All** | **Opt-out** | Per-overlay property (name TBD) to force the live native view during scrolling |
+| **All** | **Opt-out** | `SkUiMauiContentView.ScrollMode` = `Live` (or `Snapshot` to opt in on Apple) |
 
 **Rationale:** Android and Windows cannot cheaply keep live native overlays in step with 60 fps Skia motion; Apple platforms usually can.
 
-Implementation notes:
-- Prefer direct pixel buffers for capture.
-- Debounce restoring the native view after motion settles.
-- The scroll engine exposes interaction and motion start / end to overlays.
+#### Implemented
+
+- **Motion signal:** the scroll engine reports motion start / end: drag (including outer scrollers moving through chained drags), fling, and animated scroll. An instant `ScrollTo` is not motion.
+- **On motion start:** each overlay under the moving scroller captures its native view, hides it, and draws the bitmap as ordinary drawn content (render-thread composited, clipped by the viewport).
+  - Capture: Android `View.Draw` (unaffected by what covers the view on screen), iOS `DrawViewHierarchy`, Windows `RenderTargetBitmap`.
+- **Restore:** `SkUiMauiContentView.SnapshotRestoreDelay` (150 ms) after motion stops, with fresh bounds. A new drag within the delay reuses the snapshot.
+- **Focus:** a focused control stays live.
+- **Clipping:** every overlay sits in a clip wrapper sized to its visible rectangle (ancestor scroll viewports and clipping ancestors), so it neither draws nor takes touches outside it.
+  - On Android, wrappers are positioned directly: the MAUI parent may skip re-measuring the container, so a relayout request is not enough.
+- **Demo:** "Native overlays in ScrollView" (mode switch, snapshot highlighting, restore delay).
+- **Verified** on a Galaxy S9: snapshots during the drag, restore after, clipping under the drawn header / footer, typing into an Entry inside a nested carousel. On the iOS simulator: live sync and clipping.
+- **Not verified:** the Windows path; it is not built on macOS.
 
 ## FR-21 — Virtual / dynamic scroll layout (requirements)
 
@@ -299,7 +307,7 @@ A virtualizing, recycling list / grid built on the FR-21 engine.
 - [x] Nested scrolling: orthogonal, same-axis chaining, fling hand-off, wheel to the innermost scroller that can move.
 - [x] Native ancestors: Android disallow-intercept while pending / claimed; iOS gate recognizer.
 - [x] `SkUiCoreScrollView` sharing the engine; Core ↔ SkUi* nesting.
-- [ ] FR-16: Android / Windows snapshot freeze while scrolling (Apple live sync); opt-out property; scroll start / end signals.
+- [x] FR-16: Android / Windows snapshot freeze while scrolling (Apple live sync); `ScrollMode` opt-out / opt-in; scroll start / end signals; overlay clipping to viewports.
 - [ ] Scrollbars, snap points, overscroll / bounce.
 - [ ] Demo pages: nested carousels, Core scroll view, gestures.
 
@@ -311,7 +319,6 @@ See the requirement sections above; check items off in [Requirements.md](Require
 
 - Scrollbar visuals (look, FR-18) and auto-hide policy.
 - Overscroll: clamp (current) versus rubber-band bounce per platform.
-- The snapshot-while-scrolling opt-out property name (FR-16).
 - The horizontal wheel for `Orientation = Both` (needs an axis-aware wheel event).
 - Accessibility / semantics for scrollable regions and collections (platform automation peers).
 
