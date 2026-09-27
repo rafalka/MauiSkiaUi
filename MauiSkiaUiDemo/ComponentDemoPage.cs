@@ -140,7 +140,20 @@ public abstract class ComponentDemoPage : ContentPage
             Grid.SetColumn(_nativePanel, IsWide ? 1 : 0);
             Grid.SetRow(_nativePanel, IsWide ? 0 : 1);
         }
-        _comparisons.HeightRequest = _nativePanel is not null && !IsWide ? 424 : 206;
+        _comparisons.HeightRequest = _nativePanel is not null && !IsWide ? 424 : _singlePanelHeight;
+    }
+
+    private double _singlePanelHeight = 206;
+
+    /// <summary>Height of the preview area on pages without a MAUI counterpart (default 206).</summary>
+    protected double SinglePanelHeight
+    {
+        get => _singlePanelHeight;
+        set
+        {
+            _singlePanelHeight = value;
+            UpdateComparisonLayout(Width);
+        }
     }
 
     protected static Label Caption(string text, string? automationId = null) => new()

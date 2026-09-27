@@ -5,20 +5,25 @@ using SkiaSharp;
 namespace MauiSkiaUiDemo;
 
 /// <summary>
-/// Core scroller with nested scrolling and gestures: a horizontal carousel inside the vertical scroller, rows that
-/// react to swipe / long press / double tap, and a pinch-to-scale tile. The feedback line reports each gesture.
+/// Core scroller with nested scrolling and gestures: a horizontal carousel inside the vertical scroller, a vertical
+/// panel inside it (same direction: the panel scrolls first, then hands the rest of the drag and the fling to the
+/// page at its top / bottom), rows that react to swipe / long press / double tap, and a pinch-to-scale tile. The
+/// feedback line reports each gesture and every offset.
 /// </summary>
 public sealed class CoreScrollViewDemoPage : ComponentDemoPage
 {
     private readonly SkUiCoreScrollView _scroll;
 
     public CoreScrollViewDemoPage()
-        : base(nameof(SkUiCoreScrollView), CreateHost(out var scroll, out var carousel, out var rows, out var tile), native: null,
+        : base(nameof(SkUiCoreScrollView), CreateHost(out var scroll, out var carousel, out var panel, out var rows, out var tile), native: null,
             widthRange: (200, 400, 320), heightRange: (200, 560, 420))
     {
         _scroll = scroll;
-        void Report(string message) => Feedback($"{message} · offset {_scroll.ScrollY:F0}, carousel {carousel.ScrollX:F0}");
-        _scroll.Scrolled += (_, _) => Report("Scrolled");
+        SinglePanelHeight = 460;
+        void Report(string message) =>
+            Feedback($"{message} · page {_scroll.ScrollY:F0}/{Max(_scroll):F0}, panel {panel.ScrollY:F0}/{Max(panel):F0}, carousel {carousel.ScrollX:F0}");
+        _scroll.Scrolled += (_, _) => Report("Page scrolled");
+        panel.Scrolled += (_, _) => Report("Panel scrolled");
         carousel.Scrolled += (_, _) => Report("Carousel scrolled");
         foreach (var (row, index) in rows.Select((row, index) => (row, index)))
         {
@@ -39,11 +44,16 @@ public sealed class CoreScrollViewDemoPage : ComponentDemoPage
             Report($"Pinch {args.Status} ×{scale:F2}");
         };
         ActionButton("Scroll to top", () => _scroll.ScrollToAsync(0, 0));
+        ActionButton("Panel to top", () => panel.ScrollToAsync(0, 0));
+        ActionButton("Panel to bottom", () => panel.ScrollToAsync(0, Max(panel)));
         ActionButton("Reset tile", () => { scale = 1; tile.SetScale(1); });
-        OnReset(() => { _scroll.ScrollTo(0, 0); carousel.ScrollTo(0, 0); scale = 1; tile.SetScale(1); });
+        OnReset(() => { _scroll.ScrollTo(0, 0); panel.ScrollTo(0, 0); carousel.ScrollTo(0, 0); scale = 1; tile.SetScale(1); });
     }
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreScrollView scroll, out SkUiCoreScrollView carousel, out List<SkUiCoreLabel> rows, out SkUiCoreBox tile)
+    private static double Max(SkUiCoreScrollView scroll) => Math.Max(0, scroll.ContentSize.Height - scroll.ViewportSize.Height);
+
+    private static SkUiCoreHost CreateHost(out SkUiCoreScrollView scroll, out SkUiCoreScrollView carousel, out SkUiCoreScrollView panel,
+        out List<SkUiCoreLabel> rows, out SkUiCoreBox tile)
     {
         var cards = new SkUiCoreHorizontalStackLayout().SetSpacing(8).SetPadding(new Thickness(8));
         for (var i = 1; i <= 8; i++)
@@ -58,6 +68,21 @@ public sealed class CoreScrollViewDemoPage : ComponentDemoPage
         var content = new SkUiCoreVerticalStackLayout().SetSpacing(6).SetPadding(new Thickness(8));
         content.Add(Row("Horizontal carousel (nested scroller)", "#E5E7EB", fixedHeight: 28));
         content.Add(carousel);
+
+        // Same-direction nesting: a vertical panel inside the vertical page.
+        var panelRows = new SkUiCoreVerticalStackLayout().SetSpacing(4).SetPadding(new Thickness(6));
+        for (var i = 1; i <= 8; i++)
+            panelRows.Add(Row($"Panel row {i} of 8", i % 2 == 0 ? "#FEF3C7" : "#FDE68A", fixedHeight: 36));
+        panel = new SkUiCoreScrollView();
+        panel.SetContent(panelRows);
+        panel.SetHeight(150);
+        var panelFrame = new SkUiCoreBorder()
+            .SetStroke(Color.FromArgb("#D97706"))
+            .SetStrokeThickness(2)
+            .SetCornerRadius(10)
+            .SetContent(panel);
+        content.Add(Row("Nested vertical panel: drag inside it past its top / bottom", "#E5E7EB", fixedHeight: 28));
+        content.Add(panelFrame);
         rows = [];
         for (var i = 1; i <= 12; i++)
         {
