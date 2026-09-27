@@ -303,6 +303,10 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     private void OnLoaded(object? sender, EventArgs args)
     {
         QueueFrame();
+#if WINDOWS
+        // Nothing may be dirty, so also repaint: restarts continuous frames stopped while unloaded.
+        InvalidateMauiSurface();
+#endif
         OnClockRunningChanged(this, EventArgs.Empty);
     }
 
@@ -344,6 +348,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     private void OnCompositionRendering(object? sender, object args)
     {
         Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= OnCompositionRendering;
+        // Out of the tree (e.g. a Shell page navigated away from), continuous frames stop here instead of painting
+        // forever; OnLoaded queues a frame again. Android / iOS stop on their own: detached views do not draw.
+        if (VirtualView is not { IsLoaded: true })
+        {
+            Interlocked.Exchange(ref _invalidateQueued, 0);
+            return;
+        }
         InvalidateMauiSurfaceNow();
     }
 #endif
