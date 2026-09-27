@@ -62,6 +62,12 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             nameof(IView.AnchorX), nameof(IView.AnchorY)
         })
             mapper[property] = static (handler, _) => handler.QueueFrame();
+#if WINDOWS
+        // The drawn tree mirrors itself for RTL. WinUI FlowDirection (inherited through the XAML tree) would mirror
+        // the surface's pixels on top of that (mirrored text, LTR order), so the container stays LeftToRight.
+        mapper[nameof(IView.FlowDirection)] = static (handler, _) =>
+            handler.PlatformView.FlowDirection = Microsoft.UI.Xaml.FlowDirection.LeftToRight;
+#endif
         return mapper;
     }
 
@@ -115,7 +121,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         _container = new SkUiOverlayContainer();
         _container.AddSubview(surfaceNative);
 #elif WINDOWS
-        _container = new SkUiOverlayContainer();
+        _container = new SkUiOverlayContainer { FlowDirection = Microsoft.UI.Xaml.FlowDirection.LeftToRight };
         _container.Children.Add(surfaceNative);
 #endif
         return _container!;
