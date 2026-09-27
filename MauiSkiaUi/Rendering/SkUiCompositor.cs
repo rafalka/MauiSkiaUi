@@ -142,22 +142,17 @@ internal sealed class SkUiCompositor : IDisposable
     /// <paramref name="canvas"/> sized <paramref name="pixelWidth"/>×<paramref name="pixelHeight"/>.
     /// Returns <c>true</c> when another frame is needed.
     /// </summary>
-    internal bool Render(SKCanvas canvas, int pixelWidth, int pixelHeight, TimeSpan now)
-    {
-        var started = System.Diagnostics.Stopwatch.GetTimestamp();
-        try
-        {
-            return RenderCore(canvas, pixelWidth, pixelHeight, now);
-        }
-        finally
-        {
-            // Only frames that composited committed content count (not clears before the first commit).
-            if (_root is not null)
-                RecordFrameStatistics(System.Diagnostics.Stopwatch.GetTimestamp() - started);
-        }
-    }
+    internal bool Render(SKCanvas canvas, int pixelWidth, int pixelHeight, TimeSpan now) =>
+        RenderCore(canvas, pixelWidth, pixelHeight, now);
 
-    private void RecordFrameStatistics(long elapsed)
+    /// <summary>True once a committed frame exists (frames before that only clear and are not counted).</summary>
+    internal bool HasContent => _root is not null;
+
+    /// <summary>
+    /// Render thread: adds one frame to <see cref="Statistics"/>. Surfaces call it after flushing and presenting,
+    /// so GPU command submission (and first-use pipeline compilation) is included.
+    /// </summary>
+    internal void RecordFrameStatistics(long elapsed)
     {
         Interlocked.Increment(ref _statFrames);
         Interlocked.Add(ref _statTicks, elapsed);

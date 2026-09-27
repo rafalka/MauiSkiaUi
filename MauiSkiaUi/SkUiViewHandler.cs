@@ -359,7 +359,12 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
     private void PaintMauiSurface(SKCanvas canvas, SKImageInfo info)
     {
-        if (_renderer?.Render(canvas, info) == true)
+        if (_renderer is not { } renderer)
+            return;
+        var continuous = renderer.Render(canvas, info);
+        canvas.Flush();
+        renderer.CompleteFrame();
+        if (continuous)
             InvalidateMauiSurface();
     }
 

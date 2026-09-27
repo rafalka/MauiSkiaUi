@@ -26,6 +26,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
     private int _repaintPending;
     private int _gate;
     private bool _committedOnce;
+    private long _frameStarted;
     private volatile bool _disposed;
 
     /// <param name="root">Standalone root (no drawn parent).</param>
@@ -124,6 +125,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
             canvas.Clear(SKColors.Transparent);
             return false;
         }
+        _frameStarted = Stopwatch.GetTimestamp();
         var needsFrame = Compositor.Render(canvas, info.Width, info.Height, now ?? _clock.Elapsed);
         lock (_sizeLock)
         {
@@ -131,6 +133,17 @@ internal sealed class SkUiFrameRenderer : IDisposable
             _dipSize = Compositor.RootSize;
         }
         return needsFrame;
+    }
+
+    /// <summary>
+    /// Render thread: call after the frame started by <see cref="Render"/> was flushed / submitted / presented;
+    /// records its full duration in the compositor statistics.
+    /// </summary>
+    internal void CompleteFrame()
+    {
+        if (_frameStarted != 0 && Compositor.HasContent)
+            Compositor.RecordFrameStatistics(Stopwatch.GetTimestamp() - _frameStarted);
+        _frameStarted = 0;
     }
 
     /// <summary>Test / compatibility alias for <see cref="Render"/>.</summary>

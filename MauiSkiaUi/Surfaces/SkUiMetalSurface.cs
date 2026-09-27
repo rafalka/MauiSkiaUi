@@ -150,11 +150,18 @@ internal sealed class SkUiMetalSurface : IDisposable
     }
 
     /// <summary>Render thread: whether this surface wants a frame now.</summary>
-    internal bool WantsFrame => !_disposed && IsAttached && _renderer is not null && (_continuous || Volatile.Read(ref _needsFrame) != 0);
+    internal bool WantsFrame => !_disposed && IsAttached && _renderer is { } renderer
+        // Nothing to draw before the first commit (the layer starts transparent).
+        && (renderer.Compositor.HasContent || renderer.Compositor.NeedsFrame)
+        && (_continuous || Volatile.Read(ref _needsFrame) != 0);
 
-    /// <summary>Render thread: draws one frame. Returns <c>true</c> when it keeps animating.</summary>
-    internal bool RenderFrame(GRContext context, IMTLCommandQueue queue, TimeSpan now)
+    /// <summary>
+    /// Render thread: draws one frame. Returns <c>true</c> when it keeps animating; <paramref name="presented"/>
+    /// tells whether a drawable was actually presented.
+    /// </summary>
+    internal bool RenderFrame(GRContext context, IMTLCommandQueue queue, TimeSpan now, out bool presented)
     {
+        presented = false;
         if (_renderer is not { } renderer || _disposed)
             return false;
         Interlocked.Exchange(ref _needsFrame, 0);
@@ -181,6 +188,8 @@ internal sealed class SkUiMetalSurface : IDisposable
             commands.PresentDrawable(drawable);
             commands.Commit();
         }
+        renderer.CompleteFrame();
+        presented = true;
         _continuous = continuous;
         return continuous;
     }
@@ -212,6 +221,7 @@ internal static class SkUiMetalRenderLoop
     private static IMTLCommandQueue? _queue;
     private static GRContext? _context;
     private static int _idleTicks;
+    private static TimeSpan _lastPresent = TimeSpan.MinValue / 2;
     private static int _wakeQueued;
     private static volatile bool _suspended;
     private static NSObject? _backgroundObserver;
@@ -285,6 +295,16 @@ internal static class SkUiMetalRenderLoop
     private static void OnTick()
     {
         using var pool = new NSAutoreleasePool();
+        var busy = RenderSurfaces();
+        // Pause after a short idle period; Wake() resumes it from any thread.
+        _idleTicks = busy ? 0 : _idleTicks + 1;
+        if (_idleTicks > 2 && _link is { } link)
+            link.Paused = true;
+    }
+
+    /// <summary>Render thread: renders every surface that wants a frame; <c>true</c> when any did.</summary>
+    private static bool RenderSurfaces()
+    {
         var busy = false;
         if (!_suspended && _queue is { } queue)
         {
@@ -296,7 +316,9 @@ internal static class SkUiMetalRenderLoop
                 _context ??= GRContext.CreateMetal(new GRMtlBackendContext { Device = Device, Queue = queue });
                 try
                 {
-                    surface.RenderFrame(_context, queue, now);
+                    surface.RenderFrame(_context, queue, now, out var presented);
+                    if (presented)
+                        _lastPresent = now;
                 }
                 catch (Exception exception)
                 {
@@ -305,10 +327,7 @@ internal static class SkUiMetalRenderLoop
                 busy = true;
             }
         }
-        // Pause after a short idle period; Wake() resumes it from any thread.
-        _idleTicks = busy ? 0 : _idleTicks + 1;
-        if (_idleTicks > 2 && _link is { } link)
-            link.Paused = true;
+        return busy;
     }
 
     private sealed class RenderLoopTarget : NSObject
@@ -320,6 +339,14 @@ internal static class SkUiMetalRenderLoop
             _idleTicks = 0;
             if (_link is { } link)
                 link.Paused = false;
+            // Render on commit when idle: waiting for the next display-link tick would add up to a full refresh
+            // period of latency to every UI-driven change. While frames are flowing (animations) the tick paces them.
+            var period = _link is { Duration: > 0 } running ? TimeSpan.FromSeconds(running.Duration) : TimeSpan.FromMilliseconds(16.7);
+            if (Clock.Elapsed - _lastPresent >= period / 2)
+            {
+                using var pool = new NSAutoreleasePool();
+                RenderSurfaces();
+            }
         }
     }
 }

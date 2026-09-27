@@ -20,6 +20,7 @@ Pack and publish workflows copy the body under `## <version>` into the package `
 - Multi-pointer native touch and wheel / trackpad scroll on GPU surfaces.
 - Requirements: FR-20 (shadows, future) and NFR-6 (threading).
 - **Benchmarks** ([Benchmarks.md](docs/design/Benchmarks.md)): headless runner and a Release on-device bench app sharing one scenario catalog; `scripts/bench.sh --baseline <ref>` compares any git ref with the working tree (headless, Android, iOS, Mac Catalyst). New `SkUiView.GetRenderStatistics()` / `ResetRenderStatistics()` (render-thread frame count and cost).
+- **iOS / Mac Catalyst:** commits that arrive while the render loop is idle are rendered at once instead of on the next display-link tick (commit → rendered ≈ 1 ms instead of up to a refresh period); surfaces render nothing before their first commit. Render statistics now include the GPU flush / present.
 - **Android:** continuous render-thread animations are vsync-paced (a `TextureView` swap does not block, so they previously rendered 300–500 discarded frames/s on a Galaxy S9); now 60 fps.
 
 ## 1.0.0-Prerelease03
