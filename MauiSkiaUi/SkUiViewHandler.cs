@@ -171,6 +171,9 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         {
             _gpu.FrameRenderer = null;
             _gpu.TouchHandler = null;
+            // Detach synchronously while the managed peer is alive: OnDetachedFromWindow stops the GL thread now
+            // instead of calling back into a dead peer later (GLTextureView has no JNI activation constructor).
+            (_gpu.Parent as Android.Views.ViewGroup)?.RemoveView(_gpu);
         }
 #elif IOS || MACCATALYST
         if (_gpu is not null)
@@ -203,8 +206,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         if (_mauiSurface is not null)
             _mauiSurface.Parent = null;
         _mauiSurface = null;
-#if ANDROID || IOS || MACCATALYST
+#if IOS || MACCATALYST
         _gpu?.Dispose();
+#endif
+        // Android: do not Dispose the GL view's managed peer. Java may still deliver SurfaceTexture / detach
+        // callbacks, and without an activation constructor a disposed peer cannot be recreated (NotSupportedException).
+        // The GC releases it once Java no longer references the view.
+#if ANDROID || IOS || MACCATALYST
         _gpu = null;
 #endif
         _container = null;
@@ -376,8 +384,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 /// arbitrary DIP-derived coordinates unrelated to the container's own layout system.
 /// </summary>
 #if ANDROID
-internal sealed class SkUiOverlayContainer(Android.Content.Context context) : Android.Widget.FrameLayout(context)
+internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
 {
+    public SkUiOverlayContainer(Android.Content.Context context) : base(context) { }
+
+    /// <summary>JNI activation constructor, used if Java calls back after the managed peer was released.</summary>
+    public SkUiOverlayContainer(IntPtr handle, Android.Runtime.JniHandleOwnership transfer) : base(handle, transfer) { }
+
     private readonly Dictionary<Android.Views.View, Android.Graphics.Rect> _bounds = [];
 
     public void SetOverlayBounds(Android.Views.View child, int left, int top, int right, int bottom)
