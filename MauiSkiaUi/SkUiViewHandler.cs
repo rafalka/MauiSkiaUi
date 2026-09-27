@@ -141,9 +141,16 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         _mauiSurface.Parent = VirtualView;
         var platformSurface = _mauiSurface.ToPlatform(MauiContext!);
 #if IOS || MACCATALYST
-        // Same native-ancestor coordination as the Metal view (ancestor pans wait for drawn gestures).
+        // Same native-ancestor coordination as the Metal view. SkiaSharp's own touch recognizer is disabled; our
+        // deliverer feeds the drawn tree and then updates the gate, in a fixed order.
+        if (_mauiSurface is SKCanvasView canvasView)
+            canvasView.EnableTouchEvents = false;
+        else if (_mauiSurface is SKGLView glView)
+            glView.EnableTouchEvents = false;
         _mauiGate = new SkUiNativeGestureGate(platformSurface);
         platformSurface.AddGestureRecognizer(_mauiGate);
+        platformSurface.AddGestureRecognizer(new SkUiTouchDeliverer(_mauiGate) { TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState });
+        platformSurface.UserInteractionEnabled = true;
 #endif
         return platformSurface;
     }
@@ -392,10 +399,6 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             return;
         args.Handled = _renderer?.TouchPixels(new(args.Id, action.Value,
             new Point(args.Location.X, args.Location.Y), null, args.WheelDelta)) == true;
-#if IOS || MACCATALYST
-        _mauiGate?.Sync(GetNativeGestureState(),
-            ended: action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled && VirtualView?.Router.HasActiveArenas != true);
-#endif
 #if ANDROID
         // Same native-parent coordination as the GL surface (requests propagate to every ancestor).
         var disallow = action is not (SkUiTouchAction.Released or SkUiTouchAction.Cancelled)

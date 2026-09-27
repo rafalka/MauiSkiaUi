@@ -249,6 +249,123 @@ internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
     }
 }
 
+/// <summary>
+/// Touch delivery for software (SKCanvasView) surfaces: feeds touches (DIPs) to the drawn tree and then updates the
+/// surface's <see cref="SkUiNativeGestureGate"/>, in that order (a second, unrelated recognizer — SkiaSharp's own —
+/// gives no ordering guarantee relative to the gate). It never changes state and cannot be prevented, so delivery
+/// continues whatever the gate decides; when a native ancestor scroll view starts dragging, the drawn gesture is
+/// cancelled (a content view would get touchesCancelled from the scroll view; a recognizer does not).
+/// </summary>
+internal sealed class SkUiTouchDeliverer : UIGestureRecognizer
+{
+    private readonly SkUiNativeGestureGate _gate;
+    private readonly Dictionary<IntPtr, long> _touchIds = [];
+    private readonly HashSet<IntPtr> _cancelled = [];
+    private long _nextTouchId;
+
+    public SkUiTouchDeliverer(SkUiNativeGestureGate gate)
+    {
+        _gate = gate;
+        CancelsTouchesInView = false;
+        DelaysTouchesBegan = false;
+        DelaysTouchesEnded = false;
+        Delegate = new SimultaneousDelegate();
+    }
+
+    /// <summary>Raw touches in DIPs; the result is ignored (UIKit keeps delivering).</summary>
+    internal Func<SkUiTouchEvent, bool>? TouchHandler { get; set; }
+
+    /// <summary>Drawn-gesture state for the gate.</summary>
+    internal Func<SkUiNativeGestureState>? NativeGestureState { get; set; }
+
+    public override bool CanBePreventedByGestureRecognizer(UIGestureRecognizer preventingGestureRecognizer) => false;
+
+    public override bool CanPreventGestureRecognizer(UIGestureRecognizer preventedGestureRecognizer) => false;
+
+    public override void TouchesBegan(NSSet touches, UIEvent evt)
+    {
+        base.TouchesBegan(touches, evt);
+        Deliver(touches, SkUiTouchAction.Pressed);
+    }
+
+    public override void TouchesMoved(NSSet touches, UIEvent evt)
+    {
+        base.TouchesMoved(touches, evt);
+        if (View is { } view && AncestorScrollViewIsDragging(view))
+        {
+            CancelAll(); // the native scroll view owns this touch now
+            return;
+        }
+        Deliver(touches, SkUiTouchAction.Moved);
+    }
+
+    public override void TouchesEnded(NSSet touches, UIEvent evt)
+    {
+        base.TouchesEnded(touches, evt);
+        Deliver(touches, SkUiTouchAction.Released);
+    }
+
+    public override void TouchesCancelled(NSSet touches, UIEvent evt)
+    {
+        base.TouchesCancelled(touches, evt);
+        Deliver(touches, SkUiTouchAction.Cancelled);
+    }
+
+    private void Deliver(NSSet touches, SkUiTouchAction action)
+    {
+        if (TouchHandler is not { } handler || View is not { } view)
+            return;
+        foreach (var item in touches)
+        {
+            if (item is not UITouch touch)
+                continue;
+            var key = touch.Handle.Handle;
+            if (action == SkUiTouchAction.Pressed)
+            {
+                _cancelled.Remove(key);
+                _touchIds[key] = ++_nextTouchId;
+            }
+            if (_cancelled.Contains(key))
+            {
+                if (action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
+                    _cancelled.Remove(key);
+                continue;
+            }
+            if (!_touchIds.TryGetValue(key, out var id))
+                continue;
+            if (action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
+                _touchIds.Remove(key);
+            var location = touch.LocationInView(view);
+            handler(new SkUiTouchEvent(id, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp)));
+        }
+        _gate.Sync(NativeGestureState?.Invoke() ?? SkUiNativeGestureState.None, ended: _touchIds.Count == 0);
+    }
+
+    private void CancelAll()
+    {
+        if (TouchHandler is { } handler)
+            foreach (var (key, id) in _touchIds)
+            {
+                handler(new SkUiTouchEvent(id, SkUiTouchAction.Cancelled, Point.Zero));
+                _cancelled.Add(key);
+            }
+        _touchIds.Clear();
+    }
+
+    private static bool AncestorScrollViewIsDragging(UIView view)
+    {
+        for (var ancestor = view.Superview; ancestor is not null; ancestor = ancestor.Superview)
+            if (ancestor is UIScrollView { Dragging: true })
+                return true;
+        return false;
+    }
+
+    private sealed class SimultaneousDelegate : UIGestureRecognizerDelegate
+    {
+        public override bool ShouldRecognizeSimultaneously(UIGestureRecognizer gestureRecognizer, UIGestureRecognizer otherGestureRecognizer) => true;
+    }
+}
+
 /// <summary>Per-view render state shared between the UI thread and <see cref="SkUiMetalRenderLoop"/>.</summary>
 internal sealed class SkUiMetalSurface : IDisposable
 {

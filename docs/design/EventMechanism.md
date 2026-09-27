@@ -100,6 +100,9 @@ This gives native "nested scrolling" too: a drawn scroller inside a native one s
   - it fails at touch end if still undecided;
   - as a last resort, it fails when the pointer moved past the slop and the drawn tree still has not seen the touch 300 ms after it began. A normal touch reaches content views up to ~150 ms late (`delaysContentTouches`), so failing earlier would give quick drags on drawn scrollers to the native page.
 - **Both surface types:** the gate is attached to the Metal view and to software (`SKCanvasView`) surfaces.
+- **Software surfaces on iOS / Mac Catalyst:** they don't use SkiaSharp's touch recognizer.
+  - A delivering recognizer (`SkUiTouchDeliverer`) never changes state and cannot be prevented. It feeds touches to the drawn tree, then updates the gate, in that order (two independent recognizers on one view give no ordering guarantee).
+  - When a native ancestor scroll view starts dragging, it cancels the drawn gesture itself, which the scroll view does for content views but not for recognizers.
 
 ## Verification
 
@@ -120,7 +123,7 @@ This gives native "nested scrolling" too: a drawn scroller inside a native one s
     - a drawn carousel takes horizontal drags, and vertical drags on it scroll the page;
     - a drawn row with no scroller takes swipes and taps, and vertical drags on it scroll the page;
     - a Core scroll view behaves like the drawn list.
-  - **iPhone, first run:** GPU surfaces worked, except that a tap stopping the decelerating native page froze it. Software surfaces had no gate, so nested scrolling failed. Both are fixed as described above; a retest on the iPhone is pending.
+  - **iPhone:** GPU surfaces are verified: nested scrolling works, and the page no longer freezes after a tap-to-stop. For software surfaces the delivering recognizer is new; a retest is pending.
   - **Not yet verified:** Windows.
   - **By design:** once a drawn scroller has claimed a drag, the rest of that drag stays drawn. It chains only to drawn outer scrollers; Android cannot hand a gesture back to a native parent mid-drag. The native page takes over on the next drag.
 
