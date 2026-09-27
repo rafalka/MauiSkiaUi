@@ -20,8 +20,12 @@ public partial class SkUiMauiContentView
 
     partial void AttachOverlayIfPossible()
     {
-        if (_content is null || _attachedRoot is not null) return;
-        if (SkUiViewHandler.FindRoot(this) is not { } root) return;
+        if (_content is null) return;
+        var root = SkUiViewHandler.FindRoot(this);
+        if (ReferenceEquals(root, _attachedRoot)) return;
+        // Re-hosted (e.g. content moved out of a root before that root disconnected): leave the old root first.
+        DetachOverlay();
+        if (root is null) return;
         _attachedRoot = root;
         _nativeView = _content.ToPlatform(root.MauiContext!);
         root.AttachOverlay(_nativeView);
