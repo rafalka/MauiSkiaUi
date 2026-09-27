@@ -62,6 +62,8 @@ scroller.SetContent(host);
 - `SetLineBreakMode(LineBreakMode)` installs a stock breaker from `SkUiCoreTextLineBreakers` (same modes as `SkUiLabel`).
 - `SetLineBreaker(...)` installs a custom policy and sets `LineBreakMode` to `null`.
 - Default is `WordWrap`.
+- Stock modes break on HarfBuzz-shaped widths; a custom breaker decides the logical lines and each line is then shaped.
+- `TextDirection` / `SetTextDirection(SkUiTextDirection)` sets the paragraph direction (`Auto` = first strong character, default). Shaping, bidi and font fallback are the same as on [`SkUiLabel`](SkUiLabel.md).
 
 ## Stress comparison
 

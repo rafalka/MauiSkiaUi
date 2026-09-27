@@ -83,10 +83,28 @@ public class SkUiLabel : SkUiView
 
     private void InvalidateText() { _layout.Invalidate(); InvalidateMeasureOverride(); }
 
+    /// <summary>
+    /// Paragraph direction from MAUI <see cref="VisualElement.FlowDirection"/>: an explicit or inherited right-to-left
+    /// flow gives RTL paragraphs, an explicit left-to-right flow gives LTR, and the default (<c>MatchParent</c> under a
+    /// left-to-right parent) lets the first strong character decide, like Android's <c>firstStrong</c> text direction.
+    /// </summary>
+    private SkUiTextDirection TextDirection =>
+        FlowDirection == FlowDirection.LeftToRight ? SkUiTextDirection.LeftToRight
+        : ((IView)this).FlowDirection == FlowDirection.RightToLeft ? SkUiTextDirection.RightToLeft
+        : SkUiTextDirection.Auto;
+
+    /// <inheritdoc />
+    protected override void OnPropertyChanged(string? propertyName = null)
+    {
+        base.OnPropertyChanged(propertyName);
+        if (propertyName == nameof(FlowDirection))
+            InvalidateText();
+    }
+
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
         _layout.Measure(_text, SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), _fontSize, _padding, widthConstraint,
-            MauiSkiaUi.Core.SkUiCoreTextLineBreakers.For(_lineBreakMode));
+            MauiSkiaUi.Core.SkUiCoreTextLineBreakers.For(_lineBreakMode), TextDirection);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
@@ -95,6 +113,6 @@ public class SkUiLabel : SkUiView
         var paint = _textPaint ??= new SKPaint { IsAntialias = true };
         paint.Color = ToSkColor(_textColor);
         _layout.Draw(canvas, _text, SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), _fontSize, _padding, Width, Height,
-            _horizontalTextAlignment, _verticalTextAlignment, paint, MauiSkiaUi.Core.SkUiCoreTextLineBreakers.For(_lineBreakMode));
+            _horizontalTextAlignment, _verticalTextAlignment, paint, MauiSkiaUi.Core.SkUiCoreTextLineBreakers.For(_lineBreakMode), TextDirection);
     }
 }

@@ -6,7 +6,11 @@ Drawn plain text with wrapping, truncation, fonts, alignment, and padding.
 
 ## How it works
 
-Skia text layout paints into the arranged bounds. Measure accounts for padding and line-break mode. Passive by default (does not consume taps unless `Tapped` / `TappedCommand` is set).
+Text is shaped with **HarfBuzz**: ligatures, kerning, Arabic joining, Indic reordering and mark placement. **Bidirectional** paragraphs (RTL and mixed LTR/RTL) are resolved with the Unicode bidi algorithm. **Font fallback** is per character, so a font that lacks a script or emoji falls back to a system font that has it. The primary font is always used where it has the glyph, including spaces and punctuation. Measure accounts for padding and the line-break mode.
+
+Line breaking works on the shaped widths and never splits a grapheme. It breaks after spaces and hyphens, and between CJK ideographs and kana. Shaped lines are cached as text blobs per wrap width, so color and alignment changes don't re-shape. Passive by default: does not consume taps unless `Tapped` / `TappedCommand` is set.
+
+**Direction:** `FlowDirection="RightToLeft"` (explicit or inherited) makes paragraphs RTL. `FlowDirection="LeftToRight"` forces LTR. The default (`MatchParent` under an LTR parent) lets the first strong character decide, like Android's `firstStrong`. `HorizontalTextAlignment` `Start` / `End` follow the resolved paragraph direction, so `Start` is the right edge for RTL text.
 
 
 ## Shared conventions
@@ -43,7 +47,8 @@ Register app-embedded fonts with `SkUiFonts.Register` (MAUI font aliases alone a
 | Topic | SkiaUi |
 | --- | --- |
 | Rich text / spans | Not supported |
-| Bidi / complex scripts | Not supported |
+| Bidi / complex scripts | Supported (HarfBuzz + UAX #9 implicit levels). Explicit embedding / isolate control characters (LRE…PDI) are treated as neutral; LRM / RLM / ALM work |
+| Fallback fonts | Chosen by Skia's font manager per character; may differ from the native text stack's choice (e.g. a different Hebrew face on iOS) |
 | Selection / copy | Not supported |
 | Fonts | System names or `SkUiFonts.Register`; not full MAUI font scaling pipeline |
 | Gestures | Opt-in `Tapped` / `TappedCommand` only |

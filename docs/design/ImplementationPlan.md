@@ -38,7 +38,7 @@ Tests: [LayoutTests](../../tests/MauiSkiaUi.Tests/LayoutTests.cs), [ScrollViewTe
 
 | Type | Notes |
 | --- | --- |
-| `SkUiLabel` | Plain LTR text, wrap/truncate, fonts (system names) |
+| `SkUiLabel` | HarfBuzz-shaped text, bidi / RTL, per-character font fallback, wrap / truncate, fonts (system names, `ConfigureFonts`) |
 | `SkUiButton` | Intrinsic tap, commands, chrome, visual states |
 | `SkUiImage` / `SkUiImageButton` | Async decode; ImageButton adds tap/chrome |
 | `SkUiActivityIndicator` | Clock-driven; stops on detach |

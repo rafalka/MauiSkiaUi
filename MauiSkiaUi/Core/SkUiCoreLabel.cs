@@ -20,6 +20,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     private Microsoft.Maui.LineBreakMode? _lineBreakMode = Microsoft.Maui.LineBreakMode.WordWrap;
     private SkUiCoreTextLineBreaker _lineBreaker = SkUiCoreTextLineBreakers.WordWrap;
     private readonly SkUiTextLayout _layout = new();
+    private SkUiTextDirection _textDirection;
     private SKPaint? _textPaint;
 
     /// <summary>Displayed text.</summary>
@@ -85,6 +86,24 @@ public class SkUiCoreLabel : SkUiCoreNode
     {
         get => _lineBreaker;
         set => SetLineBreaker(value);
+    }
+
+    /// <summary>
+    /// Paragraph direction. <see cref="SkUiTextDirection.Auto"/> (default) uses the first strong character;
+    /// Start / End alignment follows the resolved direction.
+    /// </summary>
+    public SkUiTextDirection TextDirection
+    {
+        get => _textDirection;
+        set => SetTextDirection(value);
+    }
+
+    /// <summary>Sets <see cref="TextDirection"/>.</summary>
+    public SkUiCoreLabel SetTextDirection(SkUiTextDirection value)
+    {
+        if (!SetProperty(ref _textDirection, value, nameof(TextDirection))) return this;
+        InvalidateText();
+        return this;
     }
 
     /// <summary>Sets text and invalidates measure.</summary>
@@ -179,7 +198,7 @@ public class SkUiCoreLabel : SkUiCoreNode
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
-        _layout.Measure(_text, SkUiTypefaces.Resolve(_fontFamily), _fontSize, _padding, widthConstraint, _lineBreaker);
+        _layout.Measure(_text, SkUiTypefaces.Resolve(_fontFamily), _fontSize, _padding, widthConstraint, _lineBreaker, _textDirection);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
@@ -188,7 +207,7 @@ public class SkUiCoreLabel : SkUiCoreNode
         var paint = _textPaint ??= new SKPaint { IsAntialias = true };
         paint.Color = ToSkColor(_textColor);
         _layout.Draw(canvas, _text, SkUiTypefaces.Resolve(_fontFamily), _fontSize, _padding, Frame.Width, Frame.Height,
-            _horizontal, _vertical, paint, _lineBreaker);
+            _horizontal, _vertical, paint, _lineBreaker, _textDirection);
     }
 
     private void InvalidateText()

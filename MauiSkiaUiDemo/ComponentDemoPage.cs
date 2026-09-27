@@ -209,7 +209,7 @@ public abstract class ComponentDemoPage : ContentPage
     }
 
     /// <summary>A multi-line text editor (e.g. for Label's Text) using an <see cref="Editor"/> instead of a single-line Entry.</summary>
-    protected void MultilineText(string name, string initial, Action<string> apply, Func<string> skia, Func<string>? native = null)
+    protected Editor MultilineText(string name, string initial, Action<string> apply, Func<string> skia, Func<string>? native = null)
     {
         var editor = new Editor
         {
@@ -225,6 +225,7 @@ public abstract class ComponentDemoPage : ContentPage
         });
         _checks.Add((name, () => skia() == editor.Text && (native is null || native() == editor.Text)));
         apply(initial);
+        return editor;
     }
 
     protected void Choice<T>(string name, T[] values, T initial, Action<T> apply, Func<T> skia, Func<T>? native = null) where T : notnull

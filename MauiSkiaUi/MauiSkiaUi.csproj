@@ -68,6 +68,8 @@
 		<InternalsVisibleTo Include="MauiSkiaUiDemo" />
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="SkiaSharp" Version="4.152.1" />
+		<!-- Text shaping (complex scripts, ligatures, RTL) via HarfBuzz; keep in lockstep with SkiaSharp. -->
+		<PackageReference Include="SkiaSharp.HarfBuzz" Version="4.152.1" />
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="4.152.1" Condition="'$(TargetFramework)' != 'net10.0'" />
 	</ItemGroup>
 

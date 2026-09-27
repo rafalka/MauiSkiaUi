@@ -12,6 +12,7 @@ Pack and publish workflows copy the body under `## <version>` into the package `
 - **Breaking:** `ClipToBounds` is on for leaf controls but off for layouts / content hosts (MAUI parity); containers no longer paint children inside `OnPaintContent` (the engine composites them); `SkUiView.PaintChild` / `SkUiCoreNode.PaintChild` and `SkUiScrollView` picture-cache diagnostics were removed; `PaintInvalidated` fires on the invalidated node and once per frame on the root.
 - Core nodes gain `Opacity`, `TranslationX/Y`, `Rotation`, `Scale`, `ClipToBounds` with transform-aware hit testing; Core arrange cache fixed.
 - Text: one shared engine for `SkUiLabel` / `SkUiCoreLabel` with cached typefaces / fonts and linear wrapping.
+- **Text shaping and RTL:** HarfBuzz shaping (new dependency `SkiaSharp.HarfBuzz`) for complex scripts, ligatures and emoji sequences; bidirectional text via the Unicode bidi algorithm; per-character system font fallback; RTL-aware `Start` / `End` alignment. `SkUiLabel` follows `FlowDirection`; `SkUiCoreLabel` gains `TextDirection`.
 - Images decode downsampled to `SkUiImageDecoder.MaxDecodeDimension` (layout keeps source size); `SkUiFonts` picks up MAUI `ConfigureFonts` fonts and is thread-safe.
 - Multi-pointer native touch and wheel / trackpad scroll on GPU surfaces.
 - Requirements: FR-20 (shadows, future) and NFR-6 (threading).
