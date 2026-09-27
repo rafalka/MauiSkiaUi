@@ -89,10 +89,24 @@ public partial class SkUiMauiContentView
         SKImage? image = null;
         try
         {
-            var target = new Microsoft.UI.Xaml.Media.Imaging.RenderTargetBitmap();
-            await target.RenderAsync(view);
-            var pixels = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.ToArray(await target.GetPixelsAsync());
-            image = SKImage.FromPixelCopy(new SKImageInfo(target.PixelWidth, target.PixelHeight, SKColorType.Bgra8888, SKAlphaType.Premul), pixels);
+            // RenderTargetBitmap cannot capture WebView2 content (it comes back blank); ask WebView2 itself.
+            if (view is Microsoft.UI.Xaml.Controls.WebView2 { CoreWebView2: { } core })
+            {
+                using var stream = new global::Windows.Storage.Streams.InMemoryRandomAccessStream();
+                await core.CapturePreviewAsync(Microsoft.Web.WebView2.Core.CoreWebView2CapturePreviewImageFormat.Png, stream);
+                using var reader = new global::Windows.Storage.Streams.DataReader(stream.GetInputStreamAt(0));
+                var bytes = new byte[stream.Size];
+                await reader.LoadAsync((uint)bytes.Length);
+                reader.ReadBytes(bytes);
+                image = SKImage.FromEncodedData(bytes);
+            }
+            else
+            {
+                var target = new Microsoft.UI.Xaml.Media.Imaging.RenderTargetBitmap();
+                await target.RenderAsync(view);
+                var pixels = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.ToArray(await target.GetPixelsAsync());
+                image = SKImage.FromPixelCopy(new SKImageInfo(target.PixelWidth, target.PixelHeight, SKColorType.Bgra8888, SKAlphaType.Premul), pixels);
+            }
         }
         catch (Exception)
         {
