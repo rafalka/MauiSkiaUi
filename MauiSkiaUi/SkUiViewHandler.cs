@@ -220,6 +220,9 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             canvas.PaintSurface -= OnMauiSoftwarePaint;
             canvas.Touch -= OnMauiTouch;
         }
+#if WINDOWS
+        Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= OnCompositionRendering;
+#endif
 #if IOS || MACCATALYST
         // Detach before GC so removeFromSuperview is not deferred into the NSObject disposer.
         if (_mauiSurface?.Handler?.PlatformView is UIKit.UIView surfaceNative)
@@ -320,13 +323,30 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     {
         if (Interlocked.Exchange(ref _invalidateQueued, 1) == 1)
             return;
-        VirtualView.Dispatcher.Dispatch(() =>
-        {
-            Interlocked.Exchange(ref _invalidateQueued, 0);
-            if (_mauiSurface is SKGLView gl) gl.InvalidateSurface();
-            else if (_mauiSurface is SKCanvasView canvas) canvas.InvalidateSurface();
-        });
+#if WINDOWS
+        // SKXamlCanvas / SKSwapChainPanel repaint as soon as the dispatcher runs the request, so continuous frames
+        // (flings, spinners) re-queued from each paint starve input and the window stops responding. Pace them to
+        // the compositor's frame, like invalidate() on Android and setNeedsDisplay on iOS.
+        VirtualView.Dispatcher.Dispatch(() => Microsoft.UI.Xaml.Media.CompositionTarget.Rendering += OnCompositionRendering);
+#else
+        VirtualView.Dispatcher.Dispatch(InvalidateMauiSurfaceNow);
+#endif
     }
+
+    private void InvalidateMauiSurfaceNow()
+    {
+        Interlocked.Exchange(ref _invalidateQueued, 0);
+        if (_mauiSurface is SKGLView gl) gl.InvalidateSurface();
+        else if (_mauiSurface is SKCanvasView canvas) canvas.InvalidateSurface();
+    }
+
+#if WINDOWS
+    private void OnCompositionRendering(object? sender, object args)
+    {
+        Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= OnCompositionRendering;
+        InvalidateMauiSurfaceNow();
+    }
+#endif
 
     private void OnClockRunningChanged(object? sender, EventArgs args)
     {
