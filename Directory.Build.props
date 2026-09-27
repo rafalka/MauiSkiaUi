@@ -11,7 +11,8 @@
       (ApplicationDisplayVersion). Override on the CLI with -p:Version=… (pack/publish workflows).
     -->
     <Version>1.0.0-Prerelease03</Version>
-    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <!-- Numeric x.y.z only (Windows / iOS reject SemVer prerelease suffixes): strip "-Prerelease…". -->
+    <ApplicationDisplayVersion>$(Version.Split('-')[0])</ApplicationDisplayVersion>
     <!-- Android versionCode / iOS CFBundleVersion (integer); bump when shipping store builds. -->
     <ApplicationVersion>1</ApplicationVersion>
   </PropertyGroup>
