@@ -153,6 +153,16 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
         }
     }
 
+    /// <summary>Called on this node and every SkiaUi descendant when this node moved within the drawn tree.</summary>
+    internal virtual void NotifyMoved()
+    {
+        foreach (var child in SkiaChildren)
+        {
+            if (child is SkUiView view)
+                view.NotifyMoved();
+        }
+    }
+
     /// <summary>
     /// Hosted <see cref="ISkUiView"/> children, if any. Used to walk the tree when the standalone root's
     /// handler (dis)connects, e.g. to attach/detach <see cref="SkUiMauiContentView"/> native overlays.
@@ -274,6 +284,9 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
         Frame = frame;
         if (_arrangeDirty || previousSize != Frame.Size)
             ArrangeContent(Frame.Size);
+        // Descendants keep their cached frames, but their root-relative position changed (native overlays follow).
+        if (previousFrame.Location != Frame.Location && Handler is null)
+            NotifyMoved();
         var frameChanged = _lastArrangeBounds != bounds || previousFrame != Frame;
         _lastArrangeBounds = bounds;
         _arrangeDirty = false;

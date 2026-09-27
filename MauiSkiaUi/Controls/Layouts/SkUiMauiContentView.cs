@@ -194,6 +194,13 @@ public partial class SkUiMauiContentView : SkUiView
     }
 
     /// <inheritdoc />
+    internal override void NotifyMoved()
+    {
+        SyncOverlayBounds();
+        base.NotifyMoved();
+    }
+
+    /// <inheritdoc />
     protected override void OnParentSet()
     {
         if (Parent is null)
