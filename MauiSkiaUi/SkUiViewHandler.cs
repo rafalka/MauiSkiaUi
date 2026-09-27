@@ -121,11 +121,22 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         return _container!;
     }
 
+#if WINDOWS
+    // SKSwapChainPanel's first frame calls GRGlInterface.Create(). Skia's Windows path (GrGLInterfaces::MakeWin)
+    // loads opengl32.dll, keeps pointers into it and frees it again; once nothing else holds opengl32 it unloads and
+    // the next GPU panel calls into the unloaded module (native crash, fail-fast). Keep it loaded for the process.
+    private static readonly Lazy<nint> s_openGlPin = new(() =>
+        System.Runtime.InteropServices.NativeLibrary.TryLoad("opengl32.dll", out var handle) ? handle : 0);
+#endif
+
     /// <summary>MAUI SkiaSharp view composited on the UI thread (software, and Windows GPU).</summary>
     private PlatformView CreateMauiSurface(bool gpu)
     {
         if (gpu)
         {
+#if WINDOWS
+            _ = s_openGlPin.Value;
+#endif
             var view = new SKGLView { EnableTouchEvents = true, IgnorePixelScaling = false };
             view.PaintSurface += OnMauiGpuPaint;
             view.Touch += OnMauiTouch;
