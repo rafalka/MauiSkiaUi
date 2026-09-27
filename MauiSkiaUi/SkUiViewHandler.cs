@@ -176,6 +176,18 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     private SkUiNativeGestureGate? _mauiGate;
 #endif
 
+#if WINDOWS
+    /// <inheritdoc />
+    public override void PlatformArrange(Rect rect)
+    {
+        // SkUiView measures itself in cross-platform code and never asks the handler for a desired size, so WinUI never
+        // measured the container, and it ignores Arrange on a measure-dirty element: inside a Border / native ScrollView
+        // the container stayed 0x0 and GPU panels never got a size.
+        PlatformView.Measure(new global::Windows.Foundation.Size(Math.Max(0, rect.Width), Math.Max(0, rect.Height)));
+        base.PlatformArrange(rect);
+    }
+#endif
+
     /// <inheritdoc />
     protected override void ConnectHandler(PlatformView platformView)
     {
@@ -406,8 +418,25 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         _renderer?.PresentFrame();
     }
 
-    private void OnMauiGpuPaint(object? sender, SKPaintGLSurfaceEventArgs args) =>
+    private void OnMauiGpuPaint(object? sender, SKPaintGLSurfaceEventArgs args)
+    {
         PaintMauiSurface(args.Surface.Canvas, args.Info);
+#if WINDOWS
+        // ANGLE resizes the swap chain at the next present after a panel size change, so the frame painted right after a
+        // resize still targets the old size (stretched / cropped). Paint again until the target matches the panel.
+        if (sender is SKGLView { Handler.PlatformView: Microsoft.UI.Xaml.Controls.SwapChainPanel panel }
+            && (Math.Abs(args.Info.Width - panel.ActualWidth * panel.CompositionScaleX) > 1
+                || Math.Abs(args.Info.Height - panel.ActualHeight * panel.CompositionScaleY) > 1)
+            && _staleGpuFrames++ < 3)
+            InvalidateMauiSurface();
+        else
+            _staleGpuFrames = 0;
+#endif
+    }
+
+#if WINDOWS
+    private int _staleGpuFrames;
+#endif
 
     private void OnMauiSoftwarePaint(object? sender, SKPaintSurfaceEventArgs args) =>
         PaintMauiSurface(args.Surface.Canvas, args.Info);
