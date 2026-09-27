@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Headless benchmark runner (tier 1): runs the shared scenarios in-process on the host (macOS / Linux / Windows)
+    and reports generate / measure / arrange / paint / update times and allocations.
+    Usage: see docs/design/Benchmarks.md (scripts/bench.sh runs it, builds a baseline commit and compares).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>MauiSkiaUi.Benchmarks</RootNamespace>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Scenarios/**/*.cs" Link="Scenarios/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Using Include="Microsoft.Maui.Controls" />
+    <Using Include="Microsoft.Maui.Graphics" />
+    <Using Include="Microsoft.Maui" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.152.1" />
+    <ProjectReference Include="../../MauiSkiaUi/MauiSkiaUi.csproj" />
+  </ItemGroup>
+</Project>

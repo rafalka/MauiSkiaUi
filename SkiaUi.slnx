@@ -2,6 +2,10 @@
   <Folder Name="/tests/">
     <Project Path="tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/MauiSkiaUi.Benchmarks/MauiSkiaUi.Benchmarks.csproj" />
+    <Project Path="benchmarks/MauiSkiaUiBench/MauiSkiaUiBench.csproj" />
+  </Folder>
   <Project Path="MauiSkiaUi/MauiSkiaUi.csproj" />
   <Project Path="MauiSkiaUiDemo/MauiSkiaUiDemo.csproj" />
 </Solution>

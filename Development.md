@@ -9,6 +9,8 @@ Internal guide for working **on** SkiaUi (library + demo + tests). Library **use
 | `MauiSkiaUi` | .NET MAUI class library (`net10.0-*`, plus `net10.0` for tests) | SkiaSharp-based UI controls (`SkUi*` types); NuGet package id **`SkiaUi.Maui`** |
 | `MauiSkiaUiDemo` | .NET MAUI application (`net10.0-*`) | Sample host used to develop and verify controls; **in-repo only** (not published) |
 | `tests/MauiSkiaUi.Tests` | Headless xUnit tests (`net10.0`) | Real MAUI nodes and offscreen Skia painting; no device required |
+| `benchmarks/MauiSkiaUi.Benchmarks` | Console app (`net10.0`) | Headless benchmark runner (layout / text / recording / compositing) |
+| `benchmarks/MauiSkiaUiBench` | .NET MAUI application (`net10.0-*`) | On-device benchmark app (Release); shares `benchmarks/Scenarios` with the headless runner |
 
 Solution file: `SkiaUi.slnx`
 
@@ -28,6 +30,9 @@ dotnet build SkiaUi.slnx
 
 # Run headless mechanism tests
 dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
+
+# Performance: working tree vs last commit (headless; add -t android -s <serial> for a device)
+./scripts/bench.sh --baseline HEAD
 
 # On-device verification outside VS Code (pick simulator/emulator/device, launch demo, print checklist)
 ./scripts/device_verify.sh -l
@@ -96,6 +101,7 @@ Architecture, requirements, and mechanism checklists live under **[docs/design/]
 | [ScrollingAndCollectionViews.md](docs/design/ScrollingAndCollectionViews.md) | `SkUiScrollView` / collections (FR-17) |
 | [Testing.md](docs/design/Testing.md) | Unit / mechanism / golden / device strategy; `device_verify.sh` |
 | [RenderingPipeline.md](docs/design/RenderingPipeline.md) | Retained compositor, UI vs render thread, Metal / GL surfaces, render-thread animation (NFR-6) |
+| [Benchmarks.md](docs/design/Benchmarks.md) | Headless + device benchmarks, before/after comparisons (`scripts/bench.sh`) |
 | [ArchitectureReview.md](docs/design/ArchitectureReview.md) | 2026-09 review vs DrawnUi / Flutter / Avalonia / Uno / Open-Maui and implementation status |
 
 Per-control user docs (NFR-5): [docs/controls/](docs/controls/README.md).

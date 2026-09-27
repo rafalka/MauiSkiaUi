@@ -19,6 +19,8 @@ Pack and publish workflows copy the body under `## <version>` into the package `
 - Images decode downsampled to `SkUiImageDecoder.MaxDecodeDimension` (layout keeps source size); `SkUiFonts` picks up MAUI `ConfigureFonts` fonts and is thread-safe.
 - Multi-pointer native touch and wheel / trackpad scroll on GPU surfaces.
 - Requirements: FR-20 (shadows, future) and NFR-6 (threading).
+- **Benchmarks** ([Benchmarks.md](docs/design/Benchmarks.md)): headless runner and a Release on-device bench app sharing one scenario catalog; `scripts/bench.sh --baseline <ref>` compares any git ref with the working tree (headless, Android, iOS, Mac Catalyst). New `SkUiView.GetRenderStatistics()` / `ResetRenderStatistics()` (render-thread frame count and cost).
+- **Android:** continuous render-thread animations are vsync-paced (a `TextureView` swap does not block, so they previously rendered 300–500 discarded frames/s on a Galaxy S9); now 60 fps.
 
 ## 1.0.0-Prerelease03
 
