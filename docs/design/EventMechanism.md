@@ -104,8 +104,10 @@ This gives native "nested scrolling" too: a drawn scroller inside a native one s
   - pinch, multi-touch, pointer recognizers;
   - native state;
   - Core scrolling nested in SkUi* scrolling.
-- Device: the Galaxy S9 demo was checked with real `adb` swipes and taps: the drawn scroller scrolls with a fling, and a drawn button inside it clicks.
-  - Not yet verified on a device: the iOS gate recognizer, and drawn scrollers inside a native MAUI `ScrollView` on either platform.
+- Devices:
+  - **Galaxy S9:** real `adb` swipes and taps. The drawn scroller scrolls with a fling, a drawn button inside it clicks, nested Core carousels and same-axis panels hand over at their edges, and row swipes work inside a vertical scroller.
+  - **Physical iOS device:** long press, double tap, pinch and swipes inside drawn scroll views (checked manually, 2026-09-27).
+  - **Not yet verified:** drawn scrollers inside a native MAUI `ScrollView` (the Android disallow-intercept path and the iOS gate recognizer), and Windows.
 
 ## Still open
 
