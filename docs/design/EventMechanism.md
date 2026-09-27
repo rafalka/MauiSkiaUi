@@ -123,7 +123,7 @@ This gives native "nested scrolling" too: a drawn scroller inside a native one s
     - a drawn carousel takes horizontal drags, and vertical drags on it scroll the page;
     - a drawn row with no scroller takes swipes and taps, and vertical drags on it scroll the page;
     - a Core scroll view behaves like the drawn list.
-  - **iPhone:** GPU surfaces are verified: nested scrolling works, and the page no longer freezes after a tap-to-stop. For software surfaces the delivering recognizer is new; a retest is pending.
+  - **iPhone:** GPU and software surfaces both verified: nested scrolling works, and the page no longer freezes after a tap-to-stop (2026-09-27).
   - **Not yet verified:** Windows.
   - **By design:** once a drawn scroller has claimed a drag, the rest of that drag stays drawn. It chains only to drawn outer scrollers; Android cannot hand a gesture back to a native parent mid-drag. The native page takes over on the next drag.
 
