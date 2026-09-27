@@ -129,6 +129,10 @@ internal sealed class SkUiMetalView : UIView
 /// </summary>
 internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
 {
+    private int _activeTouches;
+    private bool _synced;
+    private CGPoint _start;
+
     public SkUiNativeGestureGate(UIView owner)
     {
         CancelsTouchesInView = false;
@@ -140,6 +144,7 @@ internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
     /// <summary>Called after the owner delivered a touch batch to the drawn tree.</summary>
     public void Sync(SkUiNativeGestureState state, bool ended)
     {
+        _synced = true;
         switch (State)
         {
             case UIGestureRecognizerState.Possible:
@@ -155,12 +160,65 @@ internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
         }
     }
 
+    // The gate must also resolve on its own: a touch the drawn view never receives (e.g. the tap that stops a
+    // decelerating native ScrollView is consumed by the scroll view) would otherwise leave the gate "Possible"
+    // forever, and every ancestor pan waiting for it — the native page would stay frozen.
+
+    public override void TouchesBegan(NSSet touches, UIEvent evt)
+    {
+        base.TouchesBegan(touches, evt);
+        // _synced is cleared in Reset (after each sequence), not here: a software surface's own touch recognizer may
+        // deliver the press to the drawn tree before this recognizer sees it.
+        if (_activeTouches == 0 && touches.AnyObject is UITouch touch && View is { } view)
+            _start = touch.LocationInView(view);
+        _activeTouches += (int)touches.Count;
+    }
+
+    public override void TouchesMoved(NSSet touches, UIEvent evt)
+    {
+        base.TouchesMoved(touches, evt);
+        if (State != UIGestureRecognizerState.Possible || _synced || touches.AnyObject is not UITouch touch || View is not { } view)
+            return;
+        // Moved past the slop and the drawn tree has not seen this touch: nothing drawn can claim it.
+        var location = touch.LocationInView(view);
+        var dx = location.X - _start.X;
+        var dy = location.Y - _start.Y;
+        var slop = SkUiGestureSettings.TouchSlop;
+        if (dx * dx + dy * dy > slop * slop)
+            State = UIGestureRecognizerState.Failed;
+    }
+
+    public override void TouchesEnded(NSSet touches, UIEvent evt)
+    {
+        base.TouchesEnded(touches, evt);
+        Finish(touches, cancelled: false);
+    }
+
     public override void TouchesCancelled(NSSet touches, UIEvent evt)
     {
         base.TouchesCancelled(touches, evt);
-        State = State is UIGestureRecognizerState.Began or UIGestureRecognizerState.Changed
-            ? UIGestureRecognizerState.Cancelled
-            : UIGestureRecognizerState.Failed;
+        Finish(touches, cancelled: true);
+    }
+
+    private void Finish(NSSet touches, bool cancelled)
+    {
+        _activeTouches = Math.Max(0, _activeTouches - (int)touches.Count);
+        if (_activeTouches > 0 && !cancelled)
+            return;
+        State = State switch
+        {
+            UIGestureRecognizerState.Began or UIGestureRecognizerState.Changed =>
+                cancelled ? UIGestureRecognizerState.Cancelled : UIGestureRecognizerState.Ended,
+            UIGestureRecognizerState.Possible => UIGestureRecognizerState.Failed,
+            _ => State
+        };
+    }
+
+    public override void Reset()
+    {
+        base.Reset();
+        _activeTouches = 0;
+        _synced = false;
     }
 
     private sealed class GateDelegate(UIView owner) : UIGestureRecognizerDelegate

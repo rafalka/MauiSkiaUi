@@ -93,6 +93,13 @@ The drawn arena runs inside one platform view. Native ancestors (a MAUI `ScrollV
 
 This gives native "nested scrolling" too: a drawn scroller inside a native one scrolls first, and the native one takes over at the drawn edge.
 
+**The iOS gate resolves on its own touches too.**
+- **Why:** a touch the drawn view never receives (e.g. the tap that stops a decelerating native `ScrollView` is consumed by the scroll view) would otherwise leave the gate *Possible*, with every ancestor pan waiting for it. The page would freeze until the next touch that reaches the drawn tree.
+- **Rules:**
+  - the gate fails at touch end if still undecided;
+  - it fails when the pointer moves past the slop and the drawn tree has not seen the touch.
+- **Both surface types:** the gate is attached to the Metal view and to software (`SKCanvasView`) surfaces.
+
 ## Verification
 
 - Headless tests (`GestureTests`, `PipelineTests`, `ScrollViewTests`, `CoreLayerTests`) cover:
@@ -112,7 +119,8 @@ This gives native "nested scrolling" too: a drawn scroller inside a native one s
     - a drawn carousel takes horizontal drags, and vertical drags on it scroll the page;
     - a drawn row with no scroller takes swipes and taps, and vertical drags on it scroll the page;
     - a Core scroll view behaves like the drawn list.
-  - **Not yet verified:** the same page on iOS (the gate recognizer), and Windows.
+  - **iPhone, first run:** GPU surfaces worked, except that a tap stopping the decelerating native page froze it. Software surfaces had no gate, so nested scrolling failed. Both are fixed as described above; a retest on the iPhone is pending.
+  - **Not yet verified:** Windows.
   - **By design:** once a drawn scroller has claimed a drag, the rest of that drag stays drawn. It chains only to drawn outer scrollers; Android cannot hand a gesture back to a native parent mid-drag. The native page takes over on the next drag.
 
 ## Still open

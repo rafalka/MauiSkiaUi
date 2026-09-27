@@ -139,8 +139,18 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             _mauiSurface = view;
         }
         _mauiSurface.Parent = VirtualView;
-        return _mauiSurface.ToPlatform(MauiContext!);
+        var platformSurface = _mauiSurface.ToPlatform(MauiContext!);
+#if IOS || MACCATALYST
+        // Same native-ancestor coordination as the Metal view (ancestor pans wait for drawn gestures).
+        _mauiGate = new SkUiNativeGestureGate(platformSurface);
+        platformSurface.AddGestureRecognizer(_mauiGate);
+#endif
+        return platformSurface;
     }
+
+#if IOS || MACCATALYST
+    private SkUiNativeGestureGate? _mauiGate;
+#endif
 
     /// <inheritdoc />
     protected override void ConnectHandler(PlatformView platformView)
@@ -382,6 +392,10 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             return;
         args.Handled = _renderer?.TouchPixels(new(args.Id, action.Value,
             new Point(args.Location.X, args.Location.Y), null, args.WheelDelta)) == true;
+#if IOS || MACCATALYST
+        _mauiGate?.Sync(GetNativeGestureState(),
+            ended: action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled && VirtualView?.Router.HasActiveArenas != true);
+#endif
 #if ANDROID
         // Same native-parent coordination as the GL surface (requests propagate to every ancestor).
         var disallow = action is not (SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
