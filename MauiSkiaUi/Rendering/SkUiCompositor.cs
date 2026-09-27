@@ -95,6 +95,31 @@ internal sealed class SkUiCompositor : IDisposable
     /// <summary>Frames drawn (diagnostics / tests).</summary>
     internal long FrameCount { get; private set; }
 
+    private long _statFrames;
+    private long _statTicks;
+    private long _statMaxTicks;
+
+    /// <summary>Render-thread cost of <see cref="Render"/> since the last <see cref="ResetStatistics"/> (any thread).</summary>
+    internal SkUiRenderStatistics Statistics
+    {
+        get
+        {
+            var frames = Interlocked.Read(ref _statFrames);
+            var ticks = Interlocked.Read(ref _statTicks);
+            var max = Interlocked.Read(ref _statMaxTicks);
+            var toMs = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            return new SkUiRenderStatistics(frames, frames == 0 ? 0 : ticks * toMs / frames, max * toMs);
+        }
+    }
+
+    /// <summary>Clears <see cref="Statistics"/> (any thread).</summary>
+    internal void ResetStatistics()
+    {
+        Interlocked.Exchange(ref _statFrames, 0);
+        Interlocked.Exchange(ref _statTicks, 0);
+        Interlocked.Exchange(ref _statMaxTicks, 0);
+    }
+
     /// <summary>UI thread: queues a recorded frame. Safe to call while the render thread renders.</summary>
     internal void Commit(SkUiRenderBatch batch)
     {
@@ -118,6 +143,30 @@ internal sealed class SkUiCompositor : IDisposable
     /// Returns <c>true</c> when another frame is needed.
     /// </summary>
     internal bool Render(SKCanvas canvas, int pixelWidth, int pixelHeight, TimeSpan now)
+    {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            return RenderCore(canvas, pixelWidth, pixelHeight, now);
+        }
+        finally
+        {
+            // Only frames that composited committed content count (not clears before the first commit).
+            if (_root is not null)
+                RecordFrameStatistics(System.Diagnostics.Stopwatch.GetTimestamp() - started);
+        }
+    }
+
+    private void RecordFrameStatistics(long elapsed)
+    {
+        Interlocked.Increment(ref _statFrames);
+        Interlocked.Add(ref _statTicks, elapsed);
+        long max;
+        while (elapsed > (max = Interlocked.Read(ref _statMaxTicks))
+            && Interlocked.CompareExchange(ref _statMaxTicks, elapsed, max) != max) { }
+    }
+
+    private bool RenderCore(SKCanvas canvas, int pixelWidth, int pixelHeight, TimeSpan now)
     {
         lock (_renderLock)
         {

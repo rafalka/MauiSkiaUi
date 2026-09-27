@@ -75,7 +75,7 @@ The immediate `ISkUiView.Paint(SKCanvas)` / `ISkUiCoreNode.Paint` path (`SkUiImm
 | Surface | Created when | UI thread | Render thread |
 | --- | --- | --- | --- |
 | **iOS / Mac Catalyst GPU** (`SkUiMetalView`) | `HwAccelerated = true` | record + commit, touch | Shared `SkUiMetalRenderLoop` thread: one `MTLDevice` / queue / `GRContext`; `CADisplayLink` on its own run loop, paused when idle |
-| **Android GPU** (`SkUiGlTextureView`) | `HwAccelerated = true` | record + commit, touch | The view's GL thread (`GLTextureView`, render-when-dirty; continuous only while animating) |
+| **Android GPU** (`SkUiGlTextureView`) | `HwAccelerated = true` | record + commit, touch | The view's GL thread (`GLTextureView`, render-when-dirty; while animating, one frame per vsync from a `Choreographer` on a dedicated looper thread (`SkUiVsync`), since a `TextureView` swap does not block) |
 | **Software** (`SKCanvasView`) | `HwAccelerated = false` | record + commit + composite | — |
 | **Windows** (`SKGLView` / `SKCanvasView`) | either | record + commit + composite | — |
 

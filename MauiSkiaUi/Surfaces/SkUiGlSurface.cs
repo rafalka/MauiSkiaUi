@@ -101,9 +101,23 @@ internal sealed class SkUiGlTextureView : GLTextureView
             }
             var target = e.BackendRenderTarget;
             var info = new SKImageInfo(target.Width, target.Height, e.ColorType, SKAlphaType.Premul);
-            // GL thread: composite only; continuous frames while render-thread animations run.
-            if (renderer.Render(e.Surface.Canvas, info))
-                owner.RequestRender();
+            // GL thread: composite only; continuous frames while render-thread animations run, paced by vsync.
+            if (renderer.Render(e.Surface.Canvas, info) && Interlocked.Exchange(ref _framePending, 1) == 0)
+                SkUiVsync.Post(_vsync ??= new VsyncCallback(this));
+        }
+
+        private int _framePending;
+        private VsyncCallback? _vsync;
+
+        private void OnVsync()
+        {
+            Interlocked.Exchange(ref _framePending, 0);
+            owner.RequestRender();
+        }
+
+        private sealed class VsyncCallback(Renderer renderer) : Java.Lang.Object, Choreographer.IFrameCallback
+        {
+            public void DoFrame(long frameTimeNanos) => renderer.OnVsync();
         }
     }
 }

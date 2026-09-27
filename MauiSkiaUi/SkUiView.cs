@@ -157,6 +157,27 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable
     /// </summary>
     internal virtual IEnumerable<ISkUiView> SkiaChildren => [];
 
+    /// <summary>
+    /// Render-thread compositing statistics of this view's surface (standalone roots with a handler; default otherwise).
+    /// Intended for diagnostics and benchmarks.
+    /// </summary>
+    public SkUiRenderStatistics GetRenderStatistics()
+    {
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+        return Handler is SkUiViewHandler handler ? handler.RenderStatistics : default;
+#else
+        return default;
+#endif
+    }
+
+    /// <summary>Resets <see cref="GetRenderStatistics"/> for this view's surface.</summary>
+    public void ResetRenderStatistics()
+    {
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+        (Handler as SkUiViewHandler)?.ResetRenderStatistics();
+#endif
+    }
+
     /// <summary>Selects GPU rendering for a standalone node. Set before attaching a handler.</summary>
     public bool HwAccelerated
     {

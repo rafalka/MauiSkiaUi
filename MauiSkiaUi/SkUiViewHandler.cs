@@ -65,6 +65,12 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         return mapper;
     }
 
+    /// <summary>Compositor statistics of this surface.</summary>
+    internal SkUiRenderStatistics RenderStatistics => _renderer?.Compositor.Statistics ?? default;
+
+    /// <summary>Clears <see cref="RenderStatistics"/>.</summary>
+    internal void ResetRenderStatistics() => _renderer?.Compositor.ResetStatistics();
+
     /// <summary>True when compositing runs on a dedicated render thread (GPU surface on Apple / Android).</summary>
     internal bool RendersOffUiThread
     {
