@@ -43,6 +43,10 @@ internal sealed class SkUiCoreGridStructure
     private readonly Definition[] _rows;
     private readonly Definition[] _columns;
     private readonly Cell[] _cells;
+    // Star track sizes are only meaningful after ResolveStars; until then star-dependent cells must not be measured.
+    private bool _columnStarsResolved;
+    private bool _rowStarsResolved;
+    private bool[]? _measuredInFirstPass;
     private readonly ISkUiCoreNode[] _children;
     private readonly Thickness _padding;
     private readonly double _rowSpacing;
@@ -209,6 +213,11 @@ internal sealed class SkUiCoreGridStructure
             def.ResetForMeasure();
         foreach (var def in _columns)
             def.ResetForMeasure();
+        _columnStarsResolved = _rowStarsResolved = false;
+        if (_measuredInFirstPass is null || _measuredInFirstPass.Length != _cells.Length)
+            _measuredInFirstPass = new bool[_cells.Length];
+        else
+            Array.Clear(_measuredInFirstPass);
 
         var contentWidthConstraint = double.IsInfinity(_widthConstraint)
             ? double.PositiveInfinity
@@ -223,6 +232,7 @@ internal sealed class SkUiCoreGridStructure
         // Resolve stars when we have a finite remaining space.
         ResolveStars(_columns, contentWidthConstraint, _columnSpacing, _starColumnWeight, isColumn: true);
         ResolveStars(_rows, contentHeightConstraint, _rowSpacing, _starRowWeight, isColumn: false);
+        _columnStarsResolved = _rowStarsResolved = true;
 
         // Pass 2: measure cells that needed star sizes.
         MeasureAutoAndAbsoluteCells(contentWidthConstraint, contentHeightConstraint, secondPass: true);
@@ -252,14 +262,13 @@ internal sealed class SkUiCoreGridStructure
                 if ((!widthKnown && NeedsStarWidth(cell) && !double.IsInfinity(contentWidthConstraint))
                     || (!heightKnown && NeedsStarHeight(cell) && !double.IsInfinity(contentHeightConstraint)))
                     continue;
+                _measuredInFirstPass![i] = true;
             }
-            else
+            else if (_measuredInFirstPass![i])
             {
-                // Second pass: only cells that were deferred or need remeasure with stars.
-                if (widthKnown && heightKnown && !NeedsStarWidth(cell) && !NeedsStarHeight(cell))
-                {
-                    // Already contributed in first pass for pure auto/absolute.
-                }
+                // Second pass: only cells deferred for star sizes. A cell measured in pass 1 did not depend on an
+                // unresolved star track, so re-measuring it would only repeat the same work.
+                continue;
             }
 
             var measureWidth = widthKnown
@@ -273,11 +282,6 @@ internal sealed class SkUiCoreGridStructure
                 : (NeedsStarHeight(cell) && !double.IsInfinity(contentHeightConstraint)
                     ? SpanSize(_rows, cell.Row, cell.RowSpan, _rowSpacing)
                     : double.PositiveInfinity);
-
-            if (secondPass && !NeedsStarWidth(cell) && !NeedsStarHeight(cell) && widthKnown && heightKnown)
-            {
-                // Pure auto already measured; still ok to remeasure for consistency when stars changed siblings.
-            }
 
             var desired = _children[i].Measure(measureWidth, measureHeight);
 
@@ -303,7 +307,7 @@ internal sealed class SkUiCoreGridStructure
         if (cell.HasStarColumn && double.IsInfinity(contentWidthConstraint)) return false;
         // Absolute-only, or stars already resolved under finite constraint.
         if (cell.HasStarColumn)
-            return _columns[cell.Column].Size > 0 || _starColumnWeight == 0 || !double.IsInfinity(contentWidthConstraint);
+            return _columnStarsResolved || _starColumnWeight == 0;
         return true;
     }
 
@@ -312,7 +316,7 @@ internal sealed class SkUiCoreGridStructure
         if (cell.HasAutoRow) return false;
         if (cell.HasStarRow && double.IsInfinity(contentHeightConstraint)) return false;
         if (cell.HasStarRow)
-            return _rows[cell.Row].Size > 0 || _starRowWeight == 0 || !double.IsInfinity(contentHeightConstraint);
+            return _rowStarsResolved || _starRowWeight == 0;
         return true;
     }
 
