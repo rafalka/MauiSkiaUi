@@ -66,6 +66,9 @@ public class SkUiCoreHost : SkUiView
     private void OnContentMeasureInvalidated(object? sender, EventArgs e) => InvalidateMeasureOverride();
 
     /// <inheritdoc />
+    internal override void OnEffectiveFlowDirectionChanged() => _content?.NotifyFlowDirectionChanged();
+
+    /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
         _content?.Measure(widthConstraint, heightConstraint) ?? Size.Zero;
 

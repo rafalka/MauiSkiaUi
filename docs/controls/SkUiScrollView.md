@@ -6,7 +6,7 @@ Single-surface scroller with pan, fling, wheel, and programmatic scroll APIs.
 
 ## How it works
 
-Extends [`SkUiContentView`](SkUiContentView.md). Measures content unconstrained on enabled axes; content keeps a stable arranged frame (`max(measured extent, viewport)`).
+Extends [`SkUiContentView`](SkUiContentView.md). Measures content unconstrained on enabled axes; content keeps a stable arranged frame (`max(measured extent, viewport)`). With an effective right-to-left `FlowDirection`, content is mirrored and a horizontal scroller starts at the right end (`ScrollX` stays a physical offset, 0 = left).
 
 **The scroll offset is a composite-time children translation.** Scrolling never re-records content. Each child keeps its own retained picture, so an animating child re-records only itself, and off-screen children are culled by the compositor.
 

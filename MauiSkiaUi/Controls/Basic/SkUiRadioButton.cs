@@ -53,6 +53,10 @@ public class SkUiRadioButton : SkUiToggleControl
             ringColor = ringColor.MultiplyAlpha(0.5f);
             dotColor = dotColor.MultiplyAlpha(0.5f);
         }
+        // RTL: the glyph sits at the start (right) edge; the glyph itself is not mirrored.
+        var rtlSave = canvas.Save();
+        if (IsRightToLeft) canvas.Translate((float)(Width) - size, 0);
         SkUiLook.Current.DrawRadioButton(canvas, size, IsChecked, ToSkColor(ringColor), ToSkColor(dotColor));
+        canvas.RestoreToCount(rtlSave);
     }
 }

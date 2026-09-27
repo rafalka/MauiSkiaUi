@@ -13,6 +13,7 @@ Pack and publish workflows copy the body under `## <version>` into the package `
 - Core nodes gain `Opacity`, `TranslationX/Y`, `Rotation`, `Scale`, `ClipToBounds` with transform-aware hit testing; Core arrange cache fixed.
 - Text: one shared engine for `SkUiLabel` / `SkUiCoreLabel` with cached typefaces / fonts and linear wrapping.
 - **Text shaping and RTL:** HarfBuzz shaping (new dependency `SkiaSharp.HarfBuzz`) for complex scripts, ligatures and emoji sequences; bidirectional text via the Unicode bidi algorithm; per-character system font fallback; RTL-aware `Start` / `End` alignment. `SkUiLabel` follows `FlowDirection`; `SkUiCoreLabel` gains `TextDirection`.
+- **RTL layout:** `FlowDirection="RightToLeft"` (explicit or inherited) mirrors drawn layouts like native MAUI — grids, stacks, absolute layouts, alignment and margins, hit-testing and native overlays; horizontal scroll views start at the right; Switch / CheckBox / RadioButton and Core table chrome follow. Core nodes gain `FlowDirection`. Demo pages have a shared FlowDirection editor.
 - Images decode downsampled to `SkUiImageDecoder.MaxDecodeDimension` (layout keeps source size); `SkUiFonts` picks up MAUI `ConfigureFonts` fonts and is thread-safe.
 - Multi-pointer native touch and wheel / trackpad scroll on GPU surfaces.
 - Requirements: FR-20 (shadows, future) and NFR-6 (threading).

@@ -41,8 +41,6 @@ public sealed class LabelDemoPage : ComponentDemoPage
             script = value;
             textEditor.Text = ScriptSamples[value];
         }, () => script, () => script);
-        Choice(nameof(SkUiLabel.FlowDirection), Enum.GetValues<FlowDirection>(), FlowDirection.MatchParent,
-            value => { skia.FlowDirection = value; native.FlowDirection = value; }, () => skia.FlowDirection, () => native.FlowDirection);
         Number(nameof(SkUiLabel.Padding), 0, 24, 0, value => { skia.Padding = value; native.Padding = value; }, () => skia.Padding.Left, () => native.Padding.Left);
     }
 }

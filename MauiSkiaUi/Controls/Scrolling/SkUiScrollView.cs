@@ -83,7 +83,28 @@ public class SkUiScrollView : SkUiContentView
             Math.Max(0, Math.Max(_extent.Width, _viewport.Width) - Padding.HorizontalThickness),
             Math.Max(0, Math.Max(_extent.Height, _viewport.Height) - Padding.VerticalThickness)));
         InvalidateRender(SkUiRenderDirty.Props);
-        SetOffset(ScrollX, ScrollY);
+        if (!_rtlStartApplied && IsRightToLeft && Horizontal && MaxX > 0)
+        {
+            _rtlStartApplied = true;
+            SetOffset(MaxX, ScrollY);
+        }
+        else
+        {
+            SetOffset(ScrollX, ScrollY);
+        }
+    }
+
+    /// <inheritdoc />
+    internal override double ChildrenSpaceWidth => Math.Max(_extent.Width, _viewport.Width);
+
+    /// <summary>RTL horizontal scrollers start at their logical start (the right end) once per content / direction.</summary>
+    private bool _rtlStartApplied;
+
+    /// <inheritdoc />
+    internal override void OnEffectiveFlowDirectionChanged()
+    {
+        _rtlStartApplied = false;
+        base.OnEffectiveFlowDirectionChanged();
     }
 
     /// <inheritdoc />
@@ -249,6 +270,7 @@ public class SkUiScrollView : SkUiContentView
         _contentPressPending = false;
         ScrollX = ScrollY = 0;
         _extent = Size.Zero;
+        _rtlStartApplied = false;
         base.OnContentChanged();
         InvalidateRender(SkUiRenderDirty.Props);
     }

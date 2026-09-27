@@ -33,6 +33,10 @@ public class SkUiCoreCheckBox : SkUiCoreToggleControl
         var size = (float)Math.Min(Frame.Width, Frame.Height);
         var fillColor = IsChecked ? _color : Colors.White;
         var borderColor = IsChecked ? _color : SkUiColors.Muted;
+        // RTL: the glyph sits at the start (right) edge; the glyph itself is not mirrored.
+        var rtlSave = canvas.Save();
+        if (IsRightToLeft) canvas.Translate((float)(Frame.Width) - size, 0);
         SkUiLook.Current.DrawCheckBox(canvas, size, IsChecked, ToSkColor(fillColor), ToSkColor(borderColor));
+        canvas.RestoreToCount(rtlSave);
     }
 }

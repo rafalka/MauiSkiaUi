@@ -63,6 +63,7 @@ scroller.SetContent(host);
 - `SetLineBreaker(...)` installs a custom policy and sets `LineBreakMode` to `null`.
 - Default is `WordWrap`.
 - Stock modes break on HarfBuzz-shaped widths; a custom breaker decides the logical lines and each line is then shaped.
+- `FlowDirection` / `SetFlowDirection` on any Core node sets the layout direction (`MatchParent` inherits from the Core parent, then from `SkUiCoreHost.FlowDirection`); RTL mirrors child frames, and labels in `Auto` follow it.
 - `TextDirection` / `SetTextDirection(SkUiTextDirection)` sets the paragraph direction (`Auto` = first strong character, default). Shaping, bidi and font fallback are the same as on [`SkUiLabel`](SkUiLabel.md).
 
 ## Stress comparison

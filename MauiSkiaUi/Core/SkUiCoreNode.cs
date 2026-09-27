@@ -24,6 +24,7 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     private double _rotation;
     private double _scale = 1;
     private bool _clipToBounds = true;
+    private FlowDirection _flowDirection = FlowDirection.MatchParent;
     private SkUiRenderDirty _renderPending;
     private SkUiRenderState? _renderState;
     private ISkUiCoreNode? _parent;
@@ -151,6 +152,59 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     /// <c>false</c> for panels / content views, so children may overflow (shadows, press scale).
     /// </summary>
     public bool ClipToBounds { get => _clipToBounds; set => SetClipToBounds(value); }
+
+    /// <summary>
+    /// Layout direction. <see cref="Microsoft.Maui.FlowDirection.MatchParent"/> (default) inherits from the Core parent, and at
+    /// the Core root from the hosting <see cref="SkUiCoreHost"/> (MAUI <c>FlowDirection</c>). Right-to-left mirrors child
+    /// frames (after margins and alignment), like a native mirrored layout.
+    /// </summary>
+    public FlowDirection FlowDirection { get => _flowDirection; set => SetFlowDirection(value); }
+
+    /// <summary>Sets <see cref="FlowDirection"/>.</summary>
+    public SkUiCoreNode SetFlowDirection(FlowDirection value)
+    {
+        if (SetProperty(ref _flowDirection, value, nameof(FlowDirection)))
+            NotifyFlowDirectionChanged();
+        return this;
+    }
+
+    /// <summary>Effective right-to-left layout direction (own, inherited, or from the host).</summary>
+    internal bool IsRightToLeft => InheritedDirection() == SkUiTextDirection.RightToLeft;
+
+    /// <summary>Effective direction: explicit LTR / RTL on this node or an ancestor (or the host), else <c>Auto</c>.</summary>
+    internal SkUiTextDirection InheritedDirection()
+    {
+        SkUiCoreNode node = this;
+        while (true)
+        {
+            if (node._flowDirection == FlowDirection.RightToLeft) return SkUiTextDirection.RightToLeft;
+            if (node._flowDirection == FlowDirection.LeftToRight) return SkUiTextDirection.LeftToRight;
+            if (node._parent is SkUiCoreNode parent)
+            {
+                node = parent;
+                continue;
+            }
+            if (node.HostOwner is not { } host) return SkUiTextDirection.Auto;
+            var effective = ((IVisualElementController)host).EffectiveFlowDirection;
+            if (effective.HasFlag(EffectiveFlowDirection.RightToLeft)) return SkUiTextDirection.RightToLeft;
+            return effective.HasFlag(EffectiveFlowDirection.Explicit) ? SkUiTextDirection.LeftToRight : SkUiTextDirection.Auto;
+        }
+    }
+
+    /// <summary>Re-lays out this subtree after its effective direction changed (children that inherit follow).</summary>
+    internal void NotifyFlowDirectionChanged()
+    {
+        InvalidateMeasure();
+        OnEffectiveFlowDirectionChanged();
+        var children = new List<ISkUiRenderable>();
+        AddRenderChildren(children);
+        foreach (var child in children)
+            if (child is SkUiCoreNode { _flowDirection: FlowDirection.MatchParent } core)
+                core.NotifyFlowDirectionChanged();
+    }
+
+    /// <summary>Called when the effective direction changes; layout is already invalidated.</summary>
+    internal virtual void OnEffectiveFlowDirectionChanged() { }
 
     /// <summary>Sets <see cref="Opacity"/>.</summary>
     public SkUiCoreNode SetOpacity(double value)
@@ -548,6 +602,10 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         if (!double.IsNaN(_width)) width = Math.Min(width, _width);
         if (!double.IsNaN(_height)) height = Math.Min(height, _height);
         var frame = new Rect(x, y, width, height);
+        // RTL: mirror the final frame inside the parent's (or host's) coordinate space.
+        var mirrorSpace = _parent is SkUiCoreNode parentNode ? parentNode._frame.Width : HostOwner?.Width ?? 0;
+        if (mirrorSpace > 0 && (_parent is SkUiCoreNode rtlParent ? rtlParent.IsRightToLeft : HostOwner?.IsRightToLeft == true))
+            frame = new Rect(mirrorSpace - frame.Right, frame.Y, frame.Width, frame.Height);
         if (_frame != frame)
         {
             _frame = frame;

@@ -78,6 +78,10 @@ public abstract class ComponentDemoPage : ContentPage
         Number(nameof(VisualElement.Opacity), 0, 1, 1, value => SetBoth(VisualElement.OpacityProperty, value), () => skia.Opacity, native is null ? null : () => native.Opacity);
         Toggle(nameof(VisualElement.IsEnabled), true, value => SetBoth(VisualElement.IsEnabledProperty, value), () => skia.IsEnabled, native is null ? null : () => native.IsEnabled);
         Toggle(nameof(VisualElement.IsVisible), true, value => SetBoth(VisualElement.IsVisibleProperty, value), () => skia.IsVisible, native is null ? null : () => native.IsVisible);
+        // Set on both preview panels so the SkUi host (and any recreated host) and the native control inherit it.
+        Choice(nameof(VisualElement.FlowDirection), [FlowDirection.MatchParent, FlowDirection.LeftToRight, FlowDirection.RightToLeft], FlowDirection.MatchParent,
+            value => { _skiaPanel.FlowDirection = value; if (_nativePanel is not null) _nativePanel.FlowDirection = value; },
+            () => _skiaPanel.FlowDirection, _nativePanel is null ? null : () => _nativePanel.FlowDirection);
     }
 
     private static SkUiContentView CreatePreviewHost(ISkUiView? content, bool hwAccelerated)

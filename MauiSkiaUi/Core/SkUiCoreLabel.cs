@@ -98,6 +98,13 @@ public class SkUiCoreLabel : SkUiCoreNode
         set => SetTextDirection(value);
     }
 
+    /// <summary>Explicit <see cref="TextDirection"/>, else the inherited layout direction (<see cref="SkUiCoreNode.FlowDirection"/>).</summary>
+    private SkUiTextDirection EffectiveTextDirection =>
+        _textDirection != SkUiTextDirection.Auto ? _textDirection : InheritedDirection();
+
+    /// <inheritdoc />
+    internal override void OnEffectiveFlowDirectionChanged() => InvalidateText();
+
     /// <summary>Sets <see cref="TextDirection"/>.</summary>
     public SkUiCoreLabel SetTextDirection(SkUiTextDirection value)
     {
@@ -198,7 +205,7 @@ public class SkUiCoreLabel : SkUiCoreNode
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
-        _layout.Measure(_text, SkUiTypefaces.Resolve(_fontFamily), _fontSize, _padding, widthConstraint, _lineBreaker, _textDirection);
+        _layout.Measure(_text, SkUiTypefaces.Resolve(_fontFamily), _fontSize, _padding, widthConstraint, _lineBreaker, EffectiveTextDirection);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
@@ -207,7 +214,7 @@ public class SkUiCoreLabel : SkUiCoreNode
         var paint = _textPaint ??= new SKPaint { IsAntialias = true };
         paint.Color = ToSkColor(_textColor);
         _layout.Draw(canvas, _text, SkUiTypefaces.Resolve(_fontFamily), _fontSize, _padding, Frame.Width, Frame.Height,
-            _horizontal, _vertical, paint, _lineBreaker, _textDirection);
+            _horizontal, _vertical, paint, _lineBreaker, EffectiveTextDirection);
     }
 
     private void InvalidateText()

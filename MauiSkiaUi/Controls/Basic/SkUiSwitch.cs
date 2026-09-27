@@ -40,11 +40,15 @@ public class SkUiSwitch : SkUiToggleControl
             trackColor = trackColor.MultiplyAlpha(0.5f);
             thumbColor = thumbColor.MultiplyAlpha(0.7f);
         }
+        // RTL: the thumb travels the other way (as native RTL switches).
+        var rtlSave = canvas.Save();
+        if (IsRightToLeft) canvas.Scale(-1, 1, (float)(Width) / 2, 0);
         SkUiLook.Current.DrawSwitch(
             canvas,
             new SKRect(0, 0, (float)Width, (float)Height),
             IsChecked,
             ToSkColor(trackColor),
             ToSkColor(thumbColor));
+        canvas.RestoreToCount(rtlSave);
     }
 }

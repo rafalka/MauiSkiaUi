@@ -100,6 +100,16 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable
 
     internal SkUiView? SkiaParent => Parent as SkUiView;
 
+    /// <summary>Effective (inherited or explicit) right-to-left flow direction.</summary>
+    internal bool IsRightToLeft =>
+        ((IVisualElementController)this).EffectiveFlowDirection.HasFlag(EffectiveFlowDirection.RightToLeft);
+
+    /// <summary>Width of the coordinate space children are arranged in (mirroring axis for RTL).</summary>
+    internal virtual double ChildrenSpaceWidth => Frame.Width;
+
+    /// <summary>Called when the effective flow direction changes (own or inherited); layout is already invalidated.</summary>
+    internal virtual void OnEffectiveFlowDirectionChanged() { }
+
     /// <inheritdoc />
     protected override void OnParentSet()
     {
@@ -225,7 +235,13 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable
             return Frame.Size;
         var previousFrame = Frame;
         var previousSize = Frame.Size;
-        Frame = this.ComputeFrame(bounds);
+        var frame = this.ComputeFrame(bounds);
+        // RTL: MAUI mirrors native views; drawn children have none, so mirror the final frame (after margins and
+        // alignment, like a native mirrored layout) inside the parent's children space. Hit-testing, overlays and
+        // rendering all use Frame, so they follow automatically.
+        if (SkiaParent is { IsRightToLeft: true } parent)
+            frame = new Rect(parent.ChildrenSpaceWidth - frame.Right, frame.Y, frame.Width, frame.Height);
+        Frame = frame;
         if (_arrangeDirty || previousSize != Frame.Size)
             ArrangeContent(Frame.Size);
         var frameChanged = _lastArrangeBounds != bounds || previousFrame != Frame;
@@ -313,6 +329,12 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable
         }
         if (propertyName == nameof(IsVisible))
             InvalidateMeasureOverride();
+        // MAUI raises FlowDirection on every descendant whose effective direction changes.
+        if (propertyName == nameof(FlowDirection))
+        {
+            InvalidateMeasureOverride();
+            OnEffectiveFlowDirectionChanged();
+        }
         switch (propertyName)
         {
             case nameof(WidthRequest):

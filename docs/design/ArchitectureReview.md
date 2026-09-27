@@ -16,7 +16,7 @@
 | 2.2 Surfaces + threading | **Done** (NFR-6) |
 | 2.3 Phased pipeline | **Partial**: coalesced record/commit + render phases; relayout boundaries / layout pass cap open |
 | 2.4 Retained paint | **Done**: per-node pictures, composite-time props; raster cache of stable subtrees open |
-| 2.5 Text shaping / RTL | **Done** (HarfBuzz via `SkiaSharp.HarfBuzz`; explicit bidi embeddings / isolates not interpreted) |
+| 2.5 Text shaping / RTL | **Done** (HarfBuzz via `SkiaSharp.HarfBuzz`; explicit bidi embeddings / isolates not interpreted). RTL layout mirroring via `FlowDirection` also done ([LayoutSystem.md](LayoutSystem.md#right-to-left-flowdirection)) |
 | 2.6–2.9 | Gesture arena, virtualization, overlay masks, IVisualTreeElement open |
 
 

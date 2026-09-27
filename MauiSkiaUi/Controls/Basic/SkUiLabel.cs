@@ -88,18 +88,18 @@ public class SkUiLabel : SkUiView
     /// flow gives RTL paragraphs, an explicit left-to-right flow gives LTR, and the default (<c>MatchParent</c> under a
     /// left-to-right parent) lets the first strong character decide, like Android's <c>firstStrong</c> text direction.
     /// </summary>
-    private SkUiTextDirection TextDirection =>
-        FlowDirection == FlowDirection.LeftToRight ? SkUiTextDirection.LeftToRight
-        : ((IView)this).FlowDirection == FlowDirection.RightToLeft ? SkUiTextDirection.RightToLeft
-        : SkUiTextDirection.Auto;
+    private SkUiTextDirection TextDirection
+    {
+        get
+        {
+            var effective = ((IVisualElementController)this).EffectiveFlowDirection;
+            if (effective.HasFlag(EffectiveFlowDirection.RightToLeft)) return SkUiTextDirection.RightToLeft;
+            return effective.HasFlag(EffectiveFlowDirection.Explicit) ? SkUiTextDirection.LeftToRight : SkUiTextDirection.Auto;
+        }
+    }
 
     /// <inheritdoc />
-    protected override void OnPropertyChanged(string? propertyName = null)
-    {
-        base.OnPropertyChanged(propertyName);
-        if (propertyName == nameof(FlowDirection))
-            InvalidateText();
-    }
+    internal override void OnEffectiveFlowDirectionChanged() => InvalidateText();
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
