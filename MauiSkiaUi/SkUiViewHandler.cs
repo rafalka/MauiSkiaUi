@@ -169,11 +169,39 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         platformSurface.AddGestureRecognizer(new SkUiTouchDeliverer(_mauiGate) { TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState });
         platformSurface.UserInteractionEnabled = true;
 #endif
+#if WINDOWS
+        if (gpu)
+            platformSurface.Unloaded += OnGpuPanelUnloaded;
+#endif
         return platformSurface;
     }
 
 #if IOS || MACCATALYST
     private SkUiNativeGestureGate? _mauiGate;
+#endif
+
+#if WINDOWS
+    private bool _reloadingGpuPanel;
+
+    /// <summary>
+    /// WinUI can raise a stale Unloaded (from an earlier removal, e.g. while MAUI wraps a Border's content) after the
+    /// panel was loaded again. SKSwapChainPanel then disposes its GL context and ignores every Invalidate, so a surface
+    /// created on a page that is already shown stayed blank. Reload the panel once so it recreates its context.
+    /// </summary>
+    private void OnGpuPanelUnloaded(object sender, Microsoft.UI.Xaml.RoutedEventArgs args)
+    {
+        if (_reloadingGpuPanel || sender is not Microsoft.UI.Xaml.FrameworkElement { IsLoaded: true } panel
+            || _container is not { } container || !container.Children.Contains(panel))
+            return;
+        _reloadingGpuPanel = true;
+        container.Children.Remove(panel);
+        container.DispatcherQueue.TryEnqueue(() =>
+        {
+            _reloadingGpuPanel = false;
+            if (ReferenceEquals(_container, container) && !container.Children.Contains(panel))
+                container.Children.Insert(0, panel);
+        });
+    }
 #endif
 
 #if WINDOWS
@@ -251,6 +279,8 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         }
 #if WINDOWS
         Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= OnCompositionRendering;
+        if (_mauiSurface?.Handler?.PlatformView is Microsoft.UI.Xaml.FrameworkElement gpuPanel)
+            gpuPanel.Unloaded -= OnGpuPanelUnloaded;
 #endif
 #if IOS || MACCATALYST
         // Detach before GC so removeFromSuperview is not deferred into the NSObject disposer.
