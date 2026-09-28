@@ -297,7 +297,7 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 - [x] **`ISkUiView` derives from MAUI `IView`**; concrete types use **`SkUiView`** / **`SkUiContentView`** / **`SkUiLayout`** so the same type is an `IView` for MAUI and a Skia node in a hosted tree.
 - [x] **Standalone:** the control participates in the MAUI layout / input pipeline via `IView` and our **custom handler**, which creates a SW or GL platform view from **`HwAccelerated`** (FR-14).
 - [x] **Hosted in SkiaUi tree:** when a **Skia-drawn** control is a child of another SkiaUi parent (`SkUiContentView.Content` or `SkUiLayout.Children`), do **not** allocate a MAUI handler or create a Skia platform view for that child; measure / arrange use `IView`, paint / touch use `ISkUiView` on the parent’s shared surface.
-- [x] **`SkUiMauiContentView` exception:** when hosted, the wrapper still has no Skia surface of its own, but **must** create/manage the wrapped MAUI control’s handler and native overlay (FR-16). Implemented via the root handler's `SkUiOverlayContainer` and `FindRoot`/`AttachOverlay`/`UpdateOverlayBounds`; see FR-16 for the current v1 limits (no rotation/scale/opacity composition, no snapshot-during-scroll).
+- [x] **`SkUiMauiContentView` exception:** when hosted, the wrapper still has no Skia surface of its own, but **must** create/manage the wrapped MAUI control’s handler and native overlay (FR-16). Implemented via the root handler's `SkUiOverlayContainer` and `FindRoot`/`AttachOverlay`/`UpdateOverlayBounds`; see FR-16 for the current limits (no rotation/scale/opacity composition).
 - [x] Document how hosted vs standalone mode is detected and what that means for XAML nesting.
 
 ### FR-14 — `HwAccelerated` and custom handler
@@ -311,18 +311,19 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 
 ### FR-15 — SkiaUi-owned gestures (not MAUI `GestureRecognizers`)
 
-**Decision:** implement a **shared SkiaUi gesture / event mechanism** on the drawn tree. Do **not** rely on MAUI `View.GestureRecognizers` / `GesturePlatformManager` as the primary path (hosted children have no platform handler — FR-13; long press is not a MAUI recognizer). Design details and implementation checklist: [EventMechanism.md](EventMechanism.md).
+**Decision:** a **shared SkiaUi gesture arena** on the drawn tree, used by SkUi* and Core alike. MAUI `View.GestureRecognizers` / `GesturePlatformManager` are not the primary path: hosted children have no platform handler (FR-13), and long press is not a MAUI recognizer. Design, decisions and API: [EventMechanism.md](EventMechanism.md).
 
-- [ ] Classify **single tap**, **double tap**, **long press**, and **swipe** from the root host’s pointer/touch stream and deliver them through the `ISkUiView` tree (same DIP coordinates as Measure / Arrange / Paint / Touch).
-- [ ] Implement the mechanism **once** on **`SkUiView`** (events, bindable command properties, participation rules) so every control/layout inherits it — **no per-control gesture state machines**.
-- [ ] **Default passive controls** (e.g. `SkUiLabel`): do **not** consume gestures unless the app opts in (subscribe to an event and/or set a command such as `TappedCommand`). Untouched labels must not steal hits from views underneath.
-- [ ] **Default active controls** (e.g. `SkUiButton`): **do** handle tap (and related press feedback / visual states) even when the app has not registered an event or command — intrinsic interaction remains correct.
-- [ ] Honor **`IView.InputTransparent`**: when `true`, the view is skipped for hit-testing / gesture delivery (pointer passes through to views below). Also honor **`IsEnabled`** (disabled views do not raise gestures; define whether they still block hits — document in EventMechanism.md).
-- [ ] Hit-testing for gestures uses **arranged bounds** by default (FR-11); clip/mask does not shrink the hit region unless a future opt-in is used.
-- [ ] Standalone and hosted modes use the **same** gesture API and delivery rules; only the root host maps platform input into the tree.
-- [ ] Demo / gallery: passive label that becomes tappable via command/event; button that works without app handlers; `InputTransparent` pass-through sample.
-- [ ] Public XML docs describe opt-in vs intrinsic handling and that MAUI `GestureRecognizers` are not the SkiaUi gesture API.
-- [ ] Document that input over **`SkUiMauiContentView`** overlays is handled by the **native MAUI control**, not by FR-15 (hit-test / gestures skip or defer to the overlay region).
+- [x] **Recognizers:** single tap, double tap, long press, swipe, pan and pinch / rotate are classified from the root host's pointer stream, in the same DIP coordinates as Measure / Arrange / Paint. A raw pointer recognizer replaces custom touch overrides.
+- [x] **Implemented once:** the arena, hit-testing and recognizers exist once for both layers. `SkUiView` and Core nodes expose events and commands, and recognizers are created only while used. There are no per-control gesture state machines.
+- [x] **Passive by default:** passive controls (e.g. `SkUiLabel`) do not take pointers unless the app opts in. Untouched labels let hits through to views underneath.
+- [x] **Intrinsic handling:** active controls (`SkUiButton`, toggles, Core buttons) handle taps and press feedback without app handlers.
+- [x] **`InputTransparent` and `IsEnabled`:** input-transparent views are skipped; disabled views block (they are hit, nothing reacts).
+- [x] **Hit region:** hit-testing uses **arranged bounds** (FR-11).
+- [x] **One path:** standalone and hosted modes share the API and rules; only the root maps platform input.
+- [x] **Competition:** gestures compete in a per-pointer arena. Nested scrolling works, controls inside scrollers can drag, contested presses show after `PressDelay`, and multi-touch is independent per pointer.
+- [x] **Native coordination:** native ancestors are coordinated at the surface (Android disallow-intercept; iOS gate recognizer).
+- [ ] Demo / gallery gesture page: passive label made tappable, `InputTransparent` pass-through, long press / double tap / swipe / pinch, nested scrollers.
+- [x] **Overlays:** input over `SkUiMauiContentView` overlays is handled by the native control (the overlay node never takes drawn pointers).
 
 ### FR-16 — Host MAUI controls (`SkUiMauiContentView`)
 
@@ -333,11 +334,15 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 - [x] Implement **`SkUiMauiContentView : SkUiView`** (`ISkUiView`) with **`Content`** (`VisualElement`) marked `[ContentProperty(nameof(Content))]`.
 - [x] XAML works as a child of `SkUiLayout` / `SkUiContentView`, e.g. `<SkUiMauiContentView><Entry …/></SkUiMauiContentView>` and `<SkUiMauiContentView><WebView …/></SkUiMauiContentView>`; attached layout properties (`Grid.Row`, etc.) apply to the **`SkUiMauiContentView`**.
 - [x] **Measure / arrange:** placeholder participates in the SkiaUi MAUI-based layout pipeline (FR-3a); `MeasureContent`/`ArrangeContent` delegate straight to the wrapped `VisualElement`'s own `Measure`/`Arrange`. A handlerless `VisualElement` (not yet attached) measures as `Size.Zero`, matching plain MAUI `IView.Measure` behavior without a handler — this is a MAUI platform limitation, not a SkiaUi one.
-- [x] **Native overlay:** create the wrapped element’s MAUI handler; add its platform view as a **sibling** of the standalone root’s Skia surface inside a small native container (`SkUiOverlayContainer`, one implementation per platform) that the root handler now returns instead of the bare Skia surface. Position/size sync to the placeholder’s root-relative arranged bounds, including this node's and every ancestor's `TranslationX`/`TranslationY` (`ComputeRootRelativeFrame`). **Not yet synced: rotation, scale, opacity, and clip** on this node or any ancestor between here and the root.
+- [x] **Native overlay:** create the wrapped element’s MAUI handler; add its platform view as a **sibling** of the standalone root’s Skia surface inside a small native container (`SkUiOverlayContainer`, one implementation per platform) that the root handler now returns instead of the bare Skia surface. Position/size sync to the placeholder’s root-relative arranged bounds, including this node's and every ancestor's `TranslationX`/`TranslationY` (`ComputeRootRelativeFrame`). The overlay is **clipped** to the intersection of ancestor scroll viewports and clipping ancestors (`ClipToBounds`), through a per-overlay clip wrapper, so it neither draws nor takes touches outside them. **Not yet synced:** rotation, scale and opacity on this node or its ancestors.
 - [x] **Lifecycle:** the standalone root's handler notifies `SkUiMauiContentView` descendants (via a `SkiaChildren` tree walk) on connect/disconnect; attach/detach also runs on `OnParentSet`/content replacement for dynamic insertion into an already-connected tree. BindingContext propagates through the existing `AddLogicalChild`/`RemoveLogicalChild` ownership already used for hosted children.
-- [ ] **Paint:** does not draw the live native control into `SKCanvas` (correct per spec). **Snapshot-during-scroll is not implemented** — the overlay stays live-synced on all platforms during scroll/fling in v1; document this gap until measured as a problem.
+- [x] **Paint / snapshot while scrolling:** `ScrollMode` = `Auto` (Android / Windows: snapshot; Apple: live), `Snapshot`, or `Live`.
+  - While an ancestor scroller moves (drag, including chained drags; fling; animated scroll), the native view is captured, hidden and drawn as a bitmap, so it moves in sync with the drawn content on the render thread.
+  - It is restored `SnapshotRestoreDelay` (150 ms) after motion stops.
+  - A focused control stays live.
+  - `HighlightSnapshots` is a diagnostics outline.
 - [x] **Input:** `SkUiMauiContentView.Touch` always returns `false`, so SkiaUi's touch router never consumes hits in this region; the native view receives real platform input directly.
-- [ ] **Z-order / clipping:** overlays are added after the Skia surface (so they paint on top); clipping the native view to parent bounds (e.g. for a WebView inside a smaller container) is not implemented.
+- [x] **Z-order / clipping:** overlays are added after the Skia surface (so they paint on top). Each overlay sits in a clip wrapper sized to its visible rectangle (ancestor scroll viewports / clipping ancestors); it is hidden when fully scrolled out. Masking by drawn content on top of an overlay (drawn popups over native views) is still open (review 2.8).
 - [x] **Scope for v1 demos:** `MauiContentViewDemoPage` hosts both **`Editor`** and **`WebView`** (switchable) under a `SkUiContentView` in the gallery.
 - [x] Explicitly **out of product scope:** `SkUiEntry`, `SkUiEditor`, `SkUiWebView` (and similar full Skia reimplementations of those controls).
 - [x] Document cost: each hosted control is a real platform view; prefer few overlays, not one per collection cell, unless measured acceptable.
@@ -348,14 +353,21 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 
 Design details and checklist: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md).
 
-**Decision:** implement **SkiaUi-owned** scroll and (later) virtualized lists on the shared surface. Do **not** treat MAUI `ScrollView` / `CollectionView` as the primary host for scrollable SkiaUi trees.
+**Decision:** **SkiaUi-owned** scrolling, on-demand item creation (FR-21) and virtualized collections (FR-22) on the shared surface. MAUI `ScrollView` / `CollectionView` are not the primary host for scrollable SkiaUi trees.
 
-- [x] Implement **`SkUiScrollView`** with `Content` (`ISkUiView`), orientation, viewport clip, offset, pan/fling (FR-15 capture + FR-7 fling animation), and scroll APIs/events.
-- [x] Measure content for full extent on the scroll axis; offset-only changes must not force content remeasure (FR-3a / NFR-2).
-- [ ] Sync **`SkUiMauiContentView`** overlays while scrolling; on Android/Windows apply FR-16 snapshot freeze (Apple live sync); honor opt-out.
-- [ ] Demo gallery: long content under `SkUiScrollView` (Skia-drawn + hosted Entry).
-- [ ] **Later:** virtualizing **`SkUiCollectionView`** (or equivalent) with `ItemsSource` / `ItemTemplate` and recycle pool on the shared surface — not MAUI `CollectionView` recycling.
-- [x] Document MAUI `ScrollView`/`CollectionView` nesting as **compat only** (standalone cells keep `HwAccelerated = false` per FR-14).
+- [x] **`SkUiScrollView`:** `Content`, orientation, viewport clip, offsets, pan / fling (gesture arena + render-thread fling), and scroll APIs / events.
+- [x] **Layout:** content is measured for its full extent on the scroll axis; offset-only changes do not remeasure or re-record (FR-3a / NFR-2).
+- [x] **Core layer:** `SkUiCoreScrollView` shares the scroll engine, and Core and SkUi* scrollers nest freely.
+- [x] **Nested scrolling:**
+  - orthogonal scrollers take their own axis;
+  - same-axis inner scrollers go first and chain the remainder to outer ones;
+  - the fling goes to the innermost scroller that can move;
+  - the wheel goes to the innermost scroller that can move;
+  - native ancestors take over at a drawn scroller's edge.
+- [x] **Overlays:** `SkUiMauiContentView` overlays sync and clip while scrolling. On Android / Windows the FR-16 snapshot freeze applies (Apple live sync), with the `ScrollMode` opt-out. Demo: "Native overlays in ScrollView".
+- [ ] **Polish:** scrollbars, snap points, overscroll / bounce.
+- [ ] **Demo gallery:** long content, nested carousels, Core scroll view.
+- [x] **Compat:** MAUI `ScrollView` / `CollectionView` nesting is documented as **compat only** (standalone cells keep `HwAccelerated = false` per FR-14).
 
 ### FR-18 — Control look (shape / chrome / default sizes; not MAUI styles)
 
@@ -396,7 +408,78 @@ Design details: [ColorScheme.md](ColorScheme.md).
 - [x] Document naming; tests cover swap light/dark + change Accent; Core and MAUI-compatible share scheme accessors.
 - [x] Gallery sample: swap light/dark + change Accent only (`LookAndColorSchemePage`).
 
+### FR-20 — Shadows (future)
+
+**Status:** planned, not implemented. Architectural work must not preclude it (see [ArchitectureReview.md](ArchitectureReview.md)).
+
+- [ ] Drop shadows on any Skia-drawn node (Core and `SkUi*`): color, offset, blur radius, opacity; MAUI `VisualElement.Shadow` (`IShadow`) parity on `SkUi*`.
+- [ ] Shadow follows the node's shape (rounded rect / path / ellipse / text alpha), not only its rectangle.
+- [ ] Shadow paints **outside** the node's arranged bounds: nodes expose **visual (ink) bounds** distinct from layout bounds; culling, dirty regions, and retained caches use visual bounds.
+- [ ] Clip-to-bounds is **opt-in** per node, so a child's shadow is not cut by its own clip; a parent's opt-in clip still applies.
+- [ ] Shadow does not affect layout or hit-testing.
+- [ ] Shadow blur is expensive: rasterized shadow output is cacheable independently of content (keyed by shape, size, radius, density) and survives offset/opacity/transform animation without re-blur.
+- [ ] Shadow properties are animatable on the render thread like opacity/transform.
+
 Initial controls, layouts, and scroll are delivered with headless tests. Device interaction/rendering/contrast acceptance remains blocked by the installed MAUI extension; checked implementation items do not imply native platform verification. See [Development.md](../../Development.md) for the precise v1 API limits.
+
+### FR-21 — Virtual / dynamic scroll layout (on-demand children)
+
+Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-21--virtual--dynamic-scroll-layout-requirements). Purpose: **endless scrolling**, and the item engine for FR-22.
+
+- [ ] **`SkUiVirtualStackLayout`** (vertical first, horizontal later) **requests** its children while the user scrolls.
+  - It works inside any drawn scroller, below other content, and nested in another virtual layout.
+  - Its window is the intersection of all ancestor viewports.
+- [ ] **`SkUiVirtualScrollView`:** convenience control combining a scroller and a virtual stack.
+- [ ] **Providers** (any one is enough):
+  - a per-index factory with an unknown / endless count (`null` ends the list);
+  - `ItemsSource` + `ItemTemplate` / selector with incremental collection changes;
+  - incremental loading (`RemainingItemsThreshold` event / command, async load-more hook, loading placeholder).
+- [ ] **Prefetch:** items are created **before** they become visible. `PrefetchFactor` (viewport lengths, default 1.0) or `PrefetchDistance`, plus a behind-distance for reverse scrolling. During render-thread flings, prefetch extends by the predicted travel.
+- [ ] **Creation budget:** items are created within a per-frame UI-thread budget, synchronously only to avoid visible gaps. Nothing runs on the render thread.
+- [ ] **Release and sizing:**
+  - optional release of far items (`ReleaseFactor`), keeping their measured sizes;
+  - recycling pool keyed by template;
+  - estimated sizes and a per-index size cache;
+  - scroll anchoring when earlier items change size.
+- [ ] **API:** `ScrollToIndex` (position, animated); `ItemRealized` / `ItemReleased` / `VisibleRangeChanged` events.
+- [ ] **Core variant** `SkUiCoreVirtualStackLayout`: **only if cheap**, meaning a thin wrapper over a layer-agnostic engine.
+- [ ] **Benchmarks and tests:**
+  - device benchmark: endless 10k-item fling at device fps with no blank frames;
+  - memory stays flat with release;
+  - prefetch-before-visible, budget, anchoring and threshold tests.
+
+### FR-22 — `SkUiCollectionView` (virtualized collection)
+
+Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--skuicollectionview-requirements). Built on FR-21 with template recycling. A Core variant is **not required**: templates and bindings are MAUI concepts.
+
+- [ ] **MAUI `CollectionView` parity:**
+  - `ItemsSource`, `ItemTemplate` / selector, `EmptyView` (+ template), `Header` / `Footer` (+ templates);
+  - `ItemsLayout` (linear vertical / horizontal with spacing; grid with `Span`), snap points, `ItemSizingStrategy`;
+  - selection (`SelectionMode`, `SelectedItem(s)`, `SelectionChanged` + command, `Selected` visual state);
+  - grouping (`IsGrouped`, group header / footer templates);
+  - `ScrollTo` (index / item, position, animate) and `Scrolled` (visible indexes);
+  - `RemainingItemsThreshold` (+ event / command), `ItemsUpdatingScrollMode`;
+  - reordering (`CanReorderItems`, `CanMixGroups`, `ReorderCompleted`);
+  - scrollbar visibility.
+- [ ] **Sticky header / footer** (`IsStickyHeader`, `IsStickyFooter`) and **sticky group headers**; pinned parts are not re-recorded while scrolling.
+- [ ] **Selected item background:** `SelectionBackground` brush, optional `SelectedItemTemplate`. A selection change re-records only the affected items.
+- [ ] **Item tap:** `ItemTapped` event and `ItemTappedCommand` (+ parameter, default the item), with item / index / group in the args.
+  - It is raised independently of selection.
+  - Interactive children inside items keep their own taps.
+- [ ] **Pull to refresh** (`IsRefreshing`, `RefreshCommand`).
+- [ ] **Candidates:**
+  - `ItemDoubleTapped` / `ItemLongPressed` (+ commands);
+  - item swipe actions (leading / trailing templates);
+  - load-more footer mode;
+  - item appearing / disappearing events;
+  - keyboard navigation (desktop);
+  - animated insert / remove.
+- [ ] **Benchmarks and tests:**
+  - 10k items at device fps while flinging;
+  - recycling (no per-item allocations in steady scrolling);
+  - selection re-records at most two items;
+  - `ItemTapped` versus buttons inside items;
+  - grouping, sticky header costs, incremental loading and update scroll modes.
 
 ## Non-functional requirements
 
@@ -413,7 +496,7 @@ Initial controls, layouts, and scroll are delivered with headless tests. Device 
 - Redraw only when invalidated; use a continuous render loop (`HasRenderLoop` or equivalent) only while animations (or other continuous scenarios) are active — see FR-7 and open decisions.
 - Layout passes should be avoidable when constraints and tree are unchanged.
 - **Selective Measure / Arrange:** call into a child `ISkUiView` only when that child (or its constraints / arranged bounds) actually needs work. Unchanged children must not be re-entered on every parent **layout** pass. Layouts re-measure / re-arrange only the dirty subset and reuse **cached measure** results.
-- **Paint (v1 — see [DrawingMechanism.md](DrawingMechanism.md)):** on surface invalidate, **clear and repaint the full hosted tree**. Do **not** require per-node retained bitmaps in v1 (memory cost; DrawnUi defaults cache off). Opt-in `SKPicture` / `SKImage` cache may follow when profiling shows need. Selective paint via blit/replay applies only where an opt-in cache exists.
+- **Paint ([RenderingPipeline.md](RenderingPipeline.md)):** retained compositor. Each node keeps recorded Content / Overlay `SKPicture`s (vector, low memory — not per-node bitmaps); only nodes whose content changed are re-recorded; offset / transform / opacity / clip / scroll offset are composite-time. Raster caching of stable subtrees is a later optimization.
 - Invalidation must be granular enough for selective **layout** (per-node dirty flags for size and arrangement). Paint invalidation coalesces to the root surface (FR-10).
 - **Transparency:** live paint walk must composite overlapping translucent nodes correctly (FR-8). “Expand dirty region / opaque cover blit” rules apply only if/when retained paint caches or partial-surface updates are introduced — not as a v1 prerequisite.
 
@@ -422,6 +505,18 @@ Initial controls, layouts, and scroll are delivered with headless tests. Device 
 1. **Initial implementation** of a feature or critical path should use **simple, easy-to-understand** code so behavior is obvious and reviewable.
 2. Once **tests confirm** correctness, **optimize** that path toward **maximum performance** and **minimum memory allocation** (including `unsafe` / low-level techniques where profiling shows benefit).
 3. Do not ship clever/unsafe micro-optimizations before the simple version is covered by tests; keep optimized code as readable as practical and document non-obvious invariants.
+
+### NFR-6 — Threading (UI thread offload)
+
+The MAUI UI thread is often overloaded; SkiaUi must keep motion smooth when it stalls. Design: [RenderingPipeline.md](RenderingPipeline.md).
+
+- [x] UI thread does only what must read MAUI objects: layout, recording dirty nodes, committing a batch.
+- [x] GPU surfaces composite and rasterize on a render thread: shared Metal render thread on iOS / Mac Catalyst (no GLKView / OpenGL ES), `GLTextureView` GL thread on Android.
+- [x] Composite-time animations (opacity, transforms, scroll offset, fling, animated scroll, spinners) run on the render thread and report values back; the UI's explicit value wins over a running animation.
+- [x] Nothing on the render thread touches MAUI / `BindableObject` state.
+- [ ] Record Core-only subtrees off the UI thread.
+- [ ] Raster cache of stable subtrees with a per-frame budget.
+- [ ] Hit-test against render-thread transforms while animations run.
 
 ### NFR-3 — Quality
 
@@ -479,7 +574,7 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - Exact method signatures for **`ISkUiView.Paint`** and **raw touch handling** (Skia canvas / paint args; touch event type and return value); Measure/Arrange remain MAUI `IView` APIs (FR-3a). Remaining paint/layer API naming: [DrawingMechanism.md](DrawingMechanism.md). High-level gestures are specified under FR-15 / [EventMechanism.md](EventMechanism.md); remaining open items there include bubbling vs tunneling, multi-touch, and exact public API names.
 - Hit-test / touch **capture** and multi-touch details beyond FR-15’s single-pointer gesture set (default hit region remains arranged bounds per FR-11). Scroll needs capture for pan — see [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md).
 - Exact public names for animation helpers / `ISkUiAnimator` (tier APIs sketched in [AnimationMechanism.md](AnimationMechanism.md)).
-- Scroll v1 details still open in [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md): overscroll (clamp vs bounce), both-axes in v1, nested scroll rules, collection-as-scroll vs outer `SkUiScrollView` extent provider; snapshot opt-out property name.
+- Scroll v1 details still open in [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md): overscroll (clamp vs bounce), both-axes in v1, nested scroll rules, collection-as-scroll vs outer `SkUiScrollView` extent provider.
 - **Control look (FR-18)** remaining: per-tree look attachment (vs process-wide `Current`), and optional OS theme sync helpers. Type names, `Current`, virtual/delegate painters, and default size tokens are decided — see Decided and [ControlLook.md](ControlLook.md).
 - **Color scheme (FR-19)** remaining: optional OS light/dark synchronization helpers. Type names, light/dark packs, `Current`, and construction-snapshot vs paint-time token reads are decided — see Decided and [ColorScheme.md](ColorScheme.md).
 
@@ -500,10 +595,12 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - **Code performance (NFR-2):** critical paths (especially animation tick + paint) aim for **maximum speed** and **zero / near-zero allocations**, using modern C#/.NET techniques including **`unsafe`** where justified. **Correctness-first workflow:** ship simple, readable code first; after tests confirm behavior, optimize for max performance and min allocations.
 - **Flexibility and reuse (NFR-4):** extensible controls via **virtual hooks** and **interfaces**; shared building blocks for background drawing, animations, layers, and similar — avoid copy-paste chrome.
 - **Documentation (NFR-5):** XML + comments for non-obvious code; **one `.md` per control** (how it works / how to use). MAUI reimplementations: link to official MAUI docs for baseline behavior; document **differences and extensions** only (do not duplicate full MAUI manuals).
-- **Paint caching (NFR-2) — full-tree redraw in v1:** on surface invalidate, clear and **repaint the full hosted tree**. No default per-node retained bitmaps (memory cost; DrawnUi/Avalonia default cache off; SkiaSharp GL presents do not reliably retain pixels). Selective **measure/arrange** remains required. Opt-in `Picture` / `Image` cache later when profiling shows asymmetric dirty. Details: [DrawingMechanism.md](DrawingMechanism.md).
+- **Paint caching (NFR-2) — retained compositor (supersedes v1 full-tree redraw):** per-node `SKPicture`s re-recorded only on content change; composite-time properties never re-record; the full frame is cleared and composited each present (no dependence on retained GPU backbuffers). No per-node bitmaps by default. Details: [RenderingPipeline.md](RenderingPipeline.md).
+- **Threading (NFR-6):** record on the UI thread, composite + animate on a render thread (Metal on Apple, GL thread on Android). Details: [RenderingPipeline.md](RenderingPipeline.md).
+- **Clip default:** `ClipToBounds` is on for leaf controls and off for layouts / content hosts (MAUI `Layout.IsClippedToBounds` parity) so children and future shadows (FR-20) can overflow.
 - **Gestures (FR-15) — SkiaUi-owned:** do **not** use MAUI `GestureRecognizers` as the primary API for the drawn tree. Shared tap / double-tap / long-press / swipe classification and delivery live on **`SkUiView`** for all controls. Passive-by-default (e.g. label) vs intrinsic handlers (e.g. button); honor `InputTransparent`. Details: [EventMechanism.md](EventMechanism.md).
 - **Clip vs hit-test (FR-11):** clip/mask/rounded corners affect **paint** only by default. Hit-testing uses **arranged bounds** (iOS / Android / MAUI-like). Shape-aware hit-testing is optional/future opt-in, not v1 default.
-- **Animation (FR-7):** vsync-driven root registry (`HasRenderLoop` while active); **time-based** progress; v1 = paint + **render transforms** (no layout dirty); layout animation optional/later. Details: [AnimationMechanism.md](AnimationMechanism.md).
+- **Animation (FR-7):** two tiers — render-thread composite animations (`AnimateAsync`, fling, animated scroll, spin; preferred) and the UI-thread `SkUiAnimationClock` ticked by a UI vsync ticker for arbitrary property callbacks; **time-based** progress; no layout dirty. Details: [AnimationMechanism.md](AnimationMechanism.md), [RenderingPipeline.md](RenderingPipeline.md).
 - **MAUI control hosting (FR-16):** no custom Skia `SkUiEntry` / `SkUiEditor` / `SkUiWebView`. Host real MAUI `Entry`, `Editor`, `WebView`, and other `VisualElement`s via **`SkUiMauiContentView`**: `ISkUiView` placeholder in the SkiaUi tree; native platform view overlaid on the standalone root’s container and synced to arranged bounds (DrawnUi `SkiaMauiElement` pattern). Content property is **`Content`** (`VisualElement`, `[ContentProperty]`). Input stays with the native control; FR-15 does not own overlay hits.
 - **Snapshot-during-scroll (FR-16 / FR-17):** while an ancestor scroll/fling is active, **Android and Windows** use **snapshot freeze** by default (hide native overlay, paint bitmap on Skia until motion settles); **Apple** uses **live sync only**. Apps may **opt out** per overlay for special cases (e.g. keep WebView live). Details: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#overlays-while-scrolling-fr-16).
 - **Scrolling / collections (FR-17):** implement **`SkUiScrollView`** (and later a virtualizing collection) **inside** the SkiaUi tree on the shared surface. Do **not** use MAUI `ScrollView` / `CollectionView` as the primary composition model for scrollable SkiaUi UI. Nesting standalone `SkUi*` under MAUI scrollers remains a documented compat path only. Details: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md).

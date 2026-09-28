@@ -1,5 +1,7 @@
 # SkiaUi drawing mechanism
 
+> **Superseded in part (2026-09):** paint caching / surface present are now defined by [RenderingPipeline.md](RenderingPipeline.md) — retained per-node pictures, UI-thread recording, render-thread compositing on Metal / GL, opt-in `ClipToBounds` for layouts. Layer phases, clip vs hit-test and transparency rules below still apply; the "v1 full-tree redraw" and iOS offscreen-blit sections are historical.
+
 Design notes and implementation checklist for **FR-9** (layers), **FR-8** (transparency), **FR-11** (clip/mask), surface ownership (**FR-14** / **FR-13**), and selective paint / caching (**NFR-2**) in [Requirements.md](Requirements.md).
 
 ## Goal
@@ -135,8 +137,6 @@ Rules borrowed from references:
 4. Selective measure/arrange (LayoutSystem)  
 5. Demos (label, rounded clip, translucent overlap)  
 6. **Only if needed:** `UseCache` = Picture / Image on hot controls  
-
-## Architecture
 
 ## Architecture
 

@@ -18,13 +18,12 @@ public class PipelineTests
         Assert.Single(queue);
         queue.Dequeue()();
         Assert.Equal(1, presents);
-        Assert.Empty(queue);
+        // Recording painted red content; the overlay then flipped color and requested exactly one follow-up.
+        Assert.Single(queue);
         using var bitmap = new SKBitmap(40, 40);
         using var canvas = new SKCanvas(bitmap);
         renderer.Replay(canvas, bitmap.Info);
-        // Content painted red; overlay then flipped color and requested another frame.
         Assert.Equal(SKColors.Red, bitmap.GetPixel(20, 20));
-        Assert.Single(queue);
         queue.Dequeue()();
         Assert.Equal(2, presents);
         renderer.Replay(canvas, bitmap.Info);
@@ -108,8 +107,8 @@ public class PipelineTests
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.Red);
         renderer.Replay(canvas, bitmap.Info);
-        // Disposed renderer still paints an opaque clear and skips the tree.
-        Assert.Equal(SKColors.White, bitmap.GetPixel(20, 20));
+        // Disposed renderer clears the surface and skips the tree.
+        Assert.Equal(0, bitmap.GetPixel(20, 20).Alpha);
         Assert.False(renderer.TouchPixels(new(1, SkUiTouchAction.Pressed, new Point(20, 20))));
     }
 
@@ -123,10 +122,9 @@ public class PipelineTests
     }
 
     [Fact]
-    public void OpaquePresentBlitClearsPriorStrokeGhosts()
+    public void RetainedFramesClearPriorStrokeGhostsAcrossShrink()
     {
-        // Unit tests have no GRContext, so this exercises the CPU-bitmap fallback of UseOpaquePresentBlit.
-        // Device iOS HW uses the GPU retained surface path with the same Src present contract.
+        // The compositor Src-clears the full surface every frame, so shrinking never leaves prior-frame strokes.
         var border = new SkUiBorder
         {
             BackgroundColor = Colors.White,
@@ -140,10 +138,7 @@ public class PipelineTests
         };
         var host = new SkUiContentView { Background = Colors.White, Content = border };
         var queue = new Queue<Action>();
-        using var renderer = new SkUiFrameRenderer(host, queue.Enqueue, () => { }, () => { })
-        {
-            UseOpaquePresentBlit = true,
-        };
+        using var renderer = new SkUiFrameRenderer(host, queue.Enqueue, () => { }, () => { });
 
         void DrainAndPaint(SKCanvas canvas, SKImageInfo info)
         {
@@ -479,16 +474,21 @@ public class PipelineTests
     {
         var child = new LayoutProbe();
         var host = new SkUiContentView { Content = child };
-        SkUiTestHelpers.Arrange(host, 100, 100);
+        using var surface = new SkUiTestSurface(host, 100, 100);
+        surface.Frame();
+        var recorded = surface.RecordedPictures;
         var invalidations = 0;
         host.PaintInvalidated += (_, _) => invalidations++;
         using var animation = child.AnimationClock.Start(progress => child.TranslationX = 20 * progress, TimeSpan.FromSeconds(1));
         child.AnimationClock.Tick(TimeSpan.FromMilliseconds(500));
         SkUiTestHelpers.Arrange(host, 100, 100);
+        surface.Frame();
         Assert.Equal(10, child.TranslationX);
         Assert.Equal(1, child.Measures);
         Assert.Equal(1, child.Arranges);
         Assert.True(invalidations > 0);
+        // Transform changes are composite-time: nothing is re-recorded.
+        Assert.Equal(recorded, surface.RecordedPictures);
         Assert.Same(host.AnimationClock, child.AnimationClock);
     }
 

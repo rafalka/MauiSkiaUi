@@ -276,6 +276,22 @@ public class SkUiCoreTable : SkUiCoreGrid
     /// <summary>Draws track fills, then cell fills, then separators.</summary>
     protected void PaintTableBackground(SKCanvas canvas)
     {
+        // Track geometry is computed left-to-right; in RTL the cells are mirrored, so mirror the chrome too.
+        var rtlSave = canvas.Save();
+        if (IsRightToLeft)
+            canvas.Scale(-1, 1, (float)Frame.Width / 2, 0);
+        try
+        {
+            PaintTableChrome(canvas);
+        }
+        finally
+        {
+            canvas.RestoreToCount(rtlSave);
+        }
+    }
+
+    private void PaintTableChrome(SKCanvas canvas)
+    {
         using var paint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
 
         if (_trackBackgroundOrder == SkUiCoreTableTrackBackgroundOrder.RowsOverColumns)

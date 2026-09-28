@@ -133,22 +133,20 @@ public class SkUiCoreBorder : SkUiCoreContentView
             (float)_strokeThickness);
     }
 
-    /// <summary>Clips content to the same rounded-rect geometry as the fill/border.</summary>
-    protected override void OnPaintContent(SKCanvas canvas)
+    private SKPath? _childrenClip;
+    private (float Width, float Height, CornerRadius Radius, SkUiLook Look) _childrenClipKey;
+
+    /// <summary>Clips children to the same rounded-rect geometry as the fill/border (applied by the compositor).</summary>
+    internal override void OnGetRenderProps(ref MauiSkiaUi.Rendering.SkUiRenderProps props)
     {
-        var save = canvas.Save();
-        try
+        var key = (props.Width, props.Height, _cornerRadius, SkUiLook.Current);
+        if (_childrenClip is null || key != _childrenClipKey)
         {
-            using var clip = SkUiLook.Current.CreateRoundRectPath(
-                new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
-                _cornerRadius);
-            canvas.ClipPath(clip, antialias: true);
-            base.OnPaintContent(canvas);
+            // Never dispose a committed path: the render thread may still be drawing with it (GC finalizes it).
+            _childrenClip = SkUiLook.Current.CreateRoundRectPath(new SKRect(0, 0, props.Width, props.Height), _cornerRadius);
+            _childrenClipKey = key;
         }
-        finally
-        {
-            canvas.RestoreToCount(save);
-        }
+        props.ChildrenClipPath = _childrenClip;
     }
 
     private static void ValidateCornerRadius(CornerRadius value)

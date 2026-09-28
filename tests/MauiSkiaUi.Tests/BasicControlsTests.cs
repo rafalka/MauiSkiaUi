@@ -10,10 +10,10 @@ public class BasicControlsTests
     {
         var fontPath = Path.Combine(AppContext.BaseDirectory, "Assets", "RobotoMono-Regular.ttf");
         var opens = 0;
-        SkUiFonts.Register("Test-RobotoMono", () => { opens++; return File.OpenRead(fontPath); });
+        SkUiFonts.Register("Test-RobotoMono-Cache", () => { opens++; return File.OpenRead(fontPath); });
         try
         {
-            var label = new SkUiLabel { Text = "Monospace", FontFamily = "Test-RobotoMono" };
+            var label = new SkUiLabel { Text = "Monospace", FontFamily = "Test-RobotoMono-Cache" };
             SkUiTestHelpers.Arrange(label, 200, 40);
             using var bitmap = new SKBitmap(200, 40);
             using var canvas = new SKCanvas(bitmap);
@@ -23,8 +23,8 @@ public class BasicControlsTests
             label.Paint(canvas);
             Assert.Equal(1, opens);
         }
-        finally { SkUiFonts.Unregister("Test-RobotoMono"); }
-        Assert.Null(SkUiFonts.TryResolve("Test-RobotoMono"));
+        finally { SkUiFonts.Unregister("Test-RobotoMono-Cache"); }
+        Assert.Null(SkUiFonts.TryResolve("Test-RobotoMono-Cache"));
     }
 
     [Theory]
@@ -291,82 +291,73 @@ public class BasicControlsTests
     }
 
     [Fact]
-    public void ActivityIndicatorStopsClockWhenRemovedFromTree()
+    public void ActivityIndicatorSpinsOnRenderThreadAndStopsWhenRemovedFromTree()
     {
         var layout = new SkUiLayout();
-        var indicator = new SkUiActivityIndicator();
+        var indicator = new SkUiActivityIndicator { WidthRequest = 20, HeightRequest = 20 };
         layout.Children.Add(indicator);
+        using var surface = new SkUiTestSurface(layout, 40, 40);
         indicator.IsRunning = true;
-        var clock = layout.AnimationClock;
-        Assert.True(clock.IsRunning);
+        surface.Frame(0);
+        Assert.True(surface.NeedsFrame);
+        var recorded = surface.RecordedPictures;
+        surface.Frame(300);
+        Assert.Equal(recorded, surface.RecordedPictures);
+
         layout.Children.Remove(indicator);
-        // Intent stays true; only the clock registration is cleared while detached.
+        surface.Frame(600);
+        // Intent stays true; the detached node is no longer composited, so frames stop.
         Assert.True(indicator.IsRunning);
-        Assert.False(clock.IsRunning);
+        Assert.False(surface.NeedsFrame);
     }
 
     [Fact]
-    public void ActivityIndicatorRebindsClockWhenIsRunningSetBeforeParenting()
+    public void ActivityIndicatorRunningBeforeParentingSpinsOnceAttached()
     {
-        var indicator = new SkUiActivityIndicator { IsRunning = true };
-        Assert.True(indicator.AnimationClock.IsRunning);
-
+        var indicator = new SkUiActivityIndicator { IsRunning = true, WidthRequest = 20, HeightRequest = 20 };
         var layout = new SkUiLayout();
         layout.Children.Add(indicator);
-
-        Assert.True(indicator.IsRunning);
-        Assert.Same(layout.AnimationClock, indicator.AnimationClock);
-        Assert.True(layout.AnimationClock.IsRunning);
-    }
-
-    [Fact]
-    public void ActivityIndicatorRebindsClockWhenSubtreeAttachesToSurfaceRoot()
-    {
-        // Mirrors StressPage: IsRunning before add, then layout under a content host.
-        var indicator = new SkUiActivityIndicator { IsRunning = true };
-        var layout = new SkUiLayout();
-        layout.Children.Add(indicator);
-        Assert.True(layout.AnimationClock.IsRunning);
-
         var root = new SkUiContentView { Content = layout };
+        using var surface = new SkUiTestSurface(root, 40, 40);
+        surface.Frame(0);
         Assert.True(indicator.IsRunning);
-        Assert.Same(root.AnimationClock, indicator.AnimationClock);
-        Assert.Same(root.AnimationClock, layout.AnimationClock);
-        Assert.True(root.AnimationClock.IsRunning);
+        Assert.True(surface.NeedsFrame);
     }
 
     [Fact]
-    public void ActivityIndicatorStopsWhenAncestorLayoutDetached()
+    public void ActivityIndicatorStopsWhenAncestorLayoutDetachedAndResumesWhenRehosted()
     {
-        var indicator = new SkUiActivityIndicator();
+        var indicator = new SkUiActivityIndicator { WidthRequest = 20, HeightRequest = 20 };
         var inner = new SkUiLayout();
         inner.Children.Add(indicator);
-        var root = new SkUiContentView { Content = inner };
+        var host1 = new SkUiContentView { Content = inner };
+        using var surface1 = new SkUiTestSurface(host1, 40, 40);
         indicator.IsRunning = true;
-        Assert.True(root.AnimationClock.IsRunning);
+        surface1.Frame(0);
+        Assert.True(surface1.NeedsFrame);
 
-        // Detach the layout; the indicator still has Parent=inner and must unbind via subtreeDetached.
-        root.Content = null;
+        host1.Content = null;
+        surface1.Frame(100);
         Assert.True(indicator.IsRunning);
-        Assert.False(root.AnimationClock.IsRunning);
+        Assert.False(surface1.NeedsFrame);
+
+        var host2 = new SkUiContentView { HwAccelerated = false, Content = inner };
+        using var surface2 = new SkUiTestSurface(host2, 40, 40);
+        surface2.Frame(0);
+        Assert.True(surface2.NeedsFrame);
     }
 
     [Fact]
-    public void ActivityIndicatorResumesWhenRehostedOnNewRoot()
+    public void ActivityIndicatorSpinIsCulledWhenHidden()
     {
-        // Mirrors ComponentDemoPage HwAccelerated toggle: recreate surface host, keep same content.
-        var indicator = new SkUiActivityIndicator { IsRunning = true };
-        var host1 = new SkUiContentView { Content = indicator };
-        Assert.True(host1.AnimationClock.IsRunning);
-
-        host1.Content = null;
-        host1.AnimationClock.StopAll();
-        Assert.True(indicator.IsRunning);
-        Assert.False(host1.AnimationClock.IsRunning);
-
-        var host2 = new SkUiContentView { HwAccelerated = false, Content = indicator };
-        Assert.True(indicator.IsRunning);
-        Assert.Same(host2.AnimationClock, indicator.AnimationClock);
-        Assert.True(host2.AnimationClock.IsRunning);
+        var indicator = new SkUiActivityIndicator { IsRunning = true, WidthRequest = 20, HeightRequest = 20 };
+        var root = new SkUiContentView { Content = indicator };
+        using var surface = new SkUiTestSurface(root, 40, 40);
+        surface.Frame(0);
+        Assert.True(surface.NeedsFrame);
+        indicator.IsVisible = false;
+        SkUiTestHelpers.Arrange(root, 40, 40);
+        surface.Frame(100);
+        Assert.False(surface.NeedsFrame);
     }
 }

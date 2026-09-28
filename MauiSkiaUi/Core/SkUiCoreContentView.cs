@@ -1,4 +1,4 @@
-using SkiaSharp;
+using MauiSkiaUi.Rendering;
 
 namespace MauiSkiaUi.Core;
 
@@ -7,6 +7,9 @@ public class SkUiCoreContentView : SkUiCoreNode
 {
     private SkUiCoreNode? _content;
     private Thickness _padding;
+
+    /// <summary>Creates a content view; it does not clip its child by default.</summary>
+    public SkUiCoreContentView() => InitClipToBounds(false);
 
     /// <summary>Hosted child, or <c>null</c>.</summary>
     public SkUiCoreNode? Content
@@ -44,12 +47,19 @@ public class SkUiCoreContentView : SkUiCoreNode
 
         var previous = _content;
         if (previous is not null)
+        {
             previous.AttachTo(null);
+            SkUiDiagnostics.NotifyChildRemoved(this, previous, 0);
+        }
         _content = value;
         if (_content is not null && _content.Parent is null)
+        {
             _content.AttachTo(this);
+            SkUiDiagnostics.NotifyChildAdded(this, _content, 0);
+        }
         OnPropertyChanged(nameof(Content));
         OnContentChanged();
+        InvalidateRender(SkUiRenderDirty.Children);
         InvalidateMeasure();
         return this;
     }
@@ -77,26 +87,13 @@ public class SkUiCoreContentView : SkUiCoreNode
     }
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas)
-    {
-        if (_content is { } child)
-            PaintChild(child, canvas);
-    }
+    internal override IReadOnlyList<IVisualTreeElement> VisualChildren => _content is null ? [] : [_content];
 
     /// <inheritdoc />
-    public override bool Touch(SkUiTouchEvent touch)
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
     {
-        if (_content is not { IsVisible: true } child)
-            return false;
-        var frame = child.Frame;
-        if (touch.Position.X < frame.X || touch.Position.Y < frame.Y
-            || touch.Position.X >= frame.Right || touch.Position.Y >= frame.Bottom)
-            return false;
-        return child.Touch(new SkUiTouchEvent(
-            touch.Id,
-            touch.Action,
-            new Point(touch.Position.X - frame.X, touch.Position.Y - frame.Y),
-            touch.Timestamp,
-            touch.WheelDelta));
+        if (_content is not null)
+            children.Add(_content);
     }
+
 }

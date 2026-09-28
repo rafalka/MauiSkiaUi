@@ -12,7 +12,6 @@ public class SkUiCoreImageButton : SkUiCoreImage
     private ICommand? _command;
     private object? _commandParameter;
     private double _cornerRadius;
-    private long? _pressedPointer;
     private bool _isPressed;
     private EventHandler? _commandChanged;
 
@@ -124,48 +123,22 @@ public class SkUiCoreImageButton : SkUiCoreImage
             disabled: !CanExecuteCommand,
             pressed: _isPressed);
 
+
     /// <inheritdoc />
-    public override bool Touch(SkUiTouchEvent touch)
+    internal override bool HasIntrinsicTap => CanExecuteCommand;
+
+    /// <inheritdoc />
+    internal override void OnIntrinsicTap(SkUiTappedEventArgs args)
     {
-        switch (touch.Action)
-        {
-            case SkUiTouchAction.Pressed:
-                if (_pressedPointer is not null || !CanExecuteCommand) return false;
-                _pressedPointer = touch.Id;
-                SetPressed(true);
-                return true;
-            case SkUiTouchAction.Moved:
-                if (_pressedPointer != touch.Id) return false;
-                if (!Contains(touch.Position))
-                {
-                    _pressedPointer = null;
-                    SetPressed(false);
-                }
-                return true;
-            case SkUiTouchAction.Released:
-                if (_pressedPointer != touch.Id) return false;
-                _pressedPointer = null;
-                var wasPressed = _isPressed;
-                SetPressed(false);
-                if (wasPressed && Contains(touch.Position) && CanExecuteCommand)
-                {
-                    Clicked?.Invoke(this, EventArgs.Empty);
-                    if (_command?.CanExecute(_commandParameter) == true)
-                        _command.Execute(_commandParameter);
-                }
-                return true;
-            case SkUiTouchAction.Cancelled:
-                if (_pressedPointer != touch.Id) return false;
-                _pressedPointer = null;
-                SetPressed(false);
-                return true;
-            default:
-                return false;
-        }
+        if (!CanExecuteCommand)
+            return;
+        Clicked?.Invoke(this, EventArgs.Empty);
+        if (_command?.CanExecute(_commandParameter) == true)
+            _command.Execute(_commandParameter);
     }
 
-    private bool Contains(Point position) =>
-        position.X >= 0 && position.Y >= 0 && position.X < Frame.Width && position.Y < Frame.Height;
+    /// <inheritdoc />
+    internal override void OnGesturePressedChanged(bool pressed) => SetPressed(pressed);
 
     private void SetPressed(bool value)
     {

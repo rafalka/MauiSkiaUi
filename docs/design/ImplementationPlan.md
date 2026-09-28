@@ -18,7 +18,8 @@ Shipped library surface (headless-tested). **Device acceptance** for visual/over
 | Layout base | Handler-independent measure/arrange; `SkUiLayout` overlay |
 | Drawing primitives | `SkUiBox`, `SkUiEllipse`, `SkUiLine` |
 | Events | Shared tap path + `Tapped` / `TappedCommand` (FR-15 v1) |
-| Animation | `SkUiAnimationClock` — paint / render-transform tiers (FR-7 v1) |
+| Animation | Render-thread `AnimateAsync` / fling / spin + UI-thread `SkUiAnimationClock` (FR-7) |
+| Rendering | Retained compositor, UI-thread record / render-thread composite; Metal (Apple), GL thread (Android) — [RenderingPipeline.md](RenderingPipeline.md) |
 | Tests | [PipelineTests](../../tests/MauiSkiaUi.Tests/PipelineTests.cs) (frame renderer, paint, input, clock, primitives) |
 
 ### Layouts & scroll
@@ -28,7 +29,7 @@ Shipped library surface (headless-tested). **Device acceptance** for visual/over
 | `SkUiGrid` | MAUI `GridLayoutManager` |
 | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | MAUI stack managers |
 | `SkUiAbsoluteLayout` | MAUI `AbsoluteLayoutManager` + attached bounds/flags |
-| `SkUiScrollView` | Clamped offsets, pan/fling, wheel, picture cache (FR-17 v1) |
+| `SkUiScrollView` | Clamped offsets, pan, render-thread fling / animated scroll, wheel (FR-17 v1) |
 | `SkUiBorder` | Rounded rect fill/stroke/clip |
 
 Tests: [LayoutTests](../../tests/MauiSkiaUi.Tests/LayoutTests.cs), [ScrollViewTests](../../tests/MauiSkiaUi.Tests/ScrollViewTests.cs).
@@ -37,7 +38,7 @@ Tests: [LayoutTests](../../tests/MauiSkiaUi.Tests/LayoutTests.cs), [ScrollViewTe
 
 | Type | Notes |
 | --- | --- |
-| `SkUiLabel` | Plain LTR text, wrap/truncate, fonts (system names) |
+| `SkUiLabel` | HarfBuzz-shaped text, bidi / RTL, per-character font fallback, wrap / truncate, fonts (system names, `ConfigureFonts`) |
 | `SkUiButton` | Intrinsic tap, commands, chrome, visual states |
 | `SkUiImage` / `SkUiImageButton` | Async decode; ImageButton adds tap/chrome |
 | `SkUiActivityIndicator` | Clock-driven; stops on detach |
@@ -94,7 +95,8 @@ Tests: [MauiContentViewTests](../../tests/MauiSkiaUi.Tests/MauiContentViewTests.
 | Gesture bubbling, multi-touch, capture details | [EventMechanism.md](EventMechanism.md) |
 | Optional layout animation tier | [AnimationMechanism.md](AnimationMechanism.md) |
 | Overlay snapshot-during-scroll; nested scroll | [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md) |
-| Opt-in paint caches beyond full-tree redraw | [DrawingMechanism.md](DrawingMechanism.md) |
+| Raster cache of stable subtrees on top of retained pictures; Core recording off the UI thread | [RenderingPipeline.md](RenderingPipeline.md) |
+| Shadows (FR-20) | [Requirements.md](Requirements.md), [RenderingPipeline.md](RenderingPipeline.md#shadows-fr-20--what-the-pipeline-already-provides) |
 | Per-tree look attachment; OS theme sync helpers | [ControlLook.md](ControlLook.md), [ColorScheme.md](ColorScheme.md) |
 | Core: Grid, ScrollView, dependency-clean package split | [CoreRequirements.md](CoreRequirements.md) |
 

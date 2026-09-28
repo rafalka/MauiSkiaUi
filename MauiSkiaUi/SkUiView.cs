@@ -1,11 +1,14 @@
+using System.Collections.Concurrent;
+using System.Reflection;
 using Microsoft.Maui.Layouts;
+using MauiSkiaUi.Rendering;
 using SkiaSharp;
 using System.Windows.Input;
 
 namespace MauiSkiaUi;
 
 /// <summary>Base for Skia-drawn views, with layout that does not require a handler.</summary>
-public class SkUiView : View, ISkUiView
+public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
 {
     private bool _measureDirty = true;
     private bool _arrangeDirty = true;
@@ -16,13 +19,15 @@ public class SkUiView : View, ISkUiView
     private int _updateDepth;
     private bool _paintPending;
     private bool _layoutPending;
+    private SkUiRenderDirty _renderPending;
+    private SkUiRenderState? _renderState;
 #if SKUI_DIAGNOSTICS
     private int _diagnosticRecordFrameCount;
     private double _diagnosticRecordFrameTotalMs;
 #endif
-    private long? _pressedPointer;
-    private Point _pressPosition;
-    private bool _tapCancelled;
+    private SkUiGestureSet? _gestures;
+    private SkUiPointerRouter? _router;
+    private SkUiTapGestureRecognizer? _tap;
     private SkUiAnimationClock? _animationClock;
     private ICommand? _tappedCommand;
     private object? _tappedCommandParameter;
@@ -61,8 +66,26 @@ public class SkUiView : View, ISkUiView
     /// <summary>Whether an intrinsic tap action is currently enabled.</summary>
     protected virtual bool CanReceiveTap => true;
 
-    /// <summary>Raised when this node or a descendant needs another surface frame.</summary>
+    /// <summary>
+    /// Raised when this node's own content must be re-recorded (<see cref="InvalidatePaint"/>), and on the
+    /// surface root once per frame when anything below it changed.
+    /// </summary>
     public event EventHandler? PaintInvalidated;
+
+    /// <summary>Raised on a render root when its subtree needs a new frame (first change per frame only).</summary>
+    internal event EventHandler? RenderRootDirty;
+
+    /// <summary>
+    /// Clips this node's content, children and overlay to its arranged rectangle. Defaults to <c>true</c> for
+    /// leaf controls and <c>false</c> for layouts / content hosts (MAUI <c>Layout.IsClippedToBounds</c> parity),
+    /// so children can overflow (e.g. shadows, press scale). Scroll viewports always clip their children.
+    /// </summary>
+    public static readonly BindableProperty ClipToBoundsProperty = BindableProperty.Create(
+        nameof(ClipToBounds), typeof(bool), typeof(SkUiView), true,
+        defaultValueCreator: view => view is not (SkUiLayout or SkUiContentView or Core.SkUiCoreHost));
+
+    /// <inheritdoc cref="ClipToBoundsProperty" />
+    public bool ClipToBounds { get => (bool)GetValue(ClipToBoundsProperty); set => SetValue(ClipToBoundsProperty, value); }
 
     /// <summary>Opts this node into single taps. MAUI GestureRecognizers are not used.</summary>
     public event EventHandler<SkUiTappedEventArgs>? Tapped;
@@ -76,6 +99,16 @@ public class SkUiView : View, ISkUiView
     public SkUiAnimationClock AnimationClock => SkiaParent?.AnimationClock ?? (_animationClock ??= new());
 
     internal SkUiView? SkiaParent => Parent as SkUiView;
+
+    /// <summary>Effective (inherited or explicit) right-to-left flow direction.</summary>
+    internal bool IsRightToLeft =>
+        ((IVisualElementController)this).EffectiveFlowDirection.HasFlag(EffectiveFlowDirection.RightToLeft);
+
+    /// <summary>Width of the coordinate space children are arranged in (mirroring axis for RTL).</summary>
+    internal virtual double ChildrenSpaceWidth => Frame.Width;
+
+    /// <summary>Called when the effective flow direction changes (own or inherited); layout is already invalidated.</summary>
+    internal virtual void OnEffectiveFlowDirectionChanged() { }
 
     /// <inheritdoc />
     protected override void OnParentSet()
@@ -91,6 +124,12 @@ public class SkUiView : View, ISkUiView
         // When this node is detached, descendants still have it as Parent — pass subtreeDetached so
         // they stop clocks instead of rebinding onto an orphan mid-tree clock.
         NotifyAnimationRootChanged(subtreeDetached: Parent is null);
+        // Detached from a drawn parent: its retained pictures are released by the compositor, so a later
+        // attach must record this subtree from scratch.
+        if (SkiaParent is null && _renderState is not null)
+            SkUiRenderInvalidation.ResetSubtree(this);
+        // Pointers captured by a detached subtree must not complete (taps, presses) later.
+        SkUiGestureSet.CancelSubtree(this);
     }
 
     /// <summary>
@@ -114,11 +153,42 @@ public class SkUiView : View, ISkUiView
         }
     }
 
+    /// <summary>Called on this node and every SkiaUi descendant when this node moved within the drawn tree.</summary>
+    internal virtual void NotifyMoved()
+    {
+        foreach (var child in SkiaChildren)
+        {
+            if (child is SkUiView view)
+                view.NotifyMoved();
+        }
+    }
+
     /// <summary>
     /// Hosted <see cref="ISkUiView"/> children, if any. Used to walk the tree when the standalone root's
     /// handler (dis)connects, e.g. to attach/detach <see cref="SkUiMauiContentView"/> native overlays.
     /// </summary>
     internal virtual IEnumerable<ISkUiView> SkiaChildren => [];
+
+    /// <summary>
+    /// Render-thread compositing statistics of this view's surface (standalone roots with a handler; default otherwise).
+    /// Intended for diagnostics and benchmarks.
+    /// </summary>
+    public SkUiRenderStatistics GetRenderStatistics()
+    {
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+        return Handler is SkUiViewHandler handler ? handler.RenderStatistics : default;
+#else
+        return default;
+#endif
+    }
+
+    /// <summary>Resets <see cref="GetRenderStatistics"/> for this view's surface.</summary>
+    public void ResetRenderStatistics()
+    {
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+        (Handler as SkUiViewHandler)?.ResetRenderStatistics();
+#endif
+    }
 
     /// <summary>Selects GPU rendering for a standalone node. Set before attaching a handler.</summary>
     public bool HwAccelerated
@@ -195,15 +265,35 @@ public class SkUiView : View, ISkUiView
     protected override Size ArrangeOverride(Rect bounds)
     {
         if (!_arrangeDirty && bounds == _lastArrangeBounds)
+        {
+#if WINDOWS
+            // WinUI arranges per layout pass: an Arrange made before the native view was in the tree is lost, so
+            // re-apply the cached frame (Android / iOS keep the frame they were given).
+            Handler?.PlatformArrange(Frame);
+#endif
             return Frame.Size;
+        }
+        var previousFrame = Frame;
         var previousSize = Frame.Size;
-        Frame = this.ComputeFrame(bounds);
+        var frame = this.ComputeFrame(bounds);
+        // RTL: MAUI mirrors native views; drawn children have none, so mirror the final frame (after margins and
+        // alignment, like a native mirrored layout) inside the parent's children space. Hit-testing, overlays and
+        // rendering all use Frame, so they follow automatically.
+        if (SkiaParent is { IsRightToLeft: true } parent)
+            frame = new Rect(parent.ChildrenSpaceWidth - frame.Right, frame.Y, frame.Width, frame.Height);
+        Frame = frame;
         if (_arrangeDirty || previousSize != Frame.Size)
             ArrangeContent(Frame.Size);
+        // Descendants keep their cached frames, but their root-relative position changed (native overlays follow).
+        if (previousFrame.Location != Frame.Location && Handler is null)
+            NotifyMoved();
+        var frameChanged = _lastArrangeBounds != bounds || previousFrame != Frame;
         _lastArrangeBounds = bounds;
         _arrangeDirty = false;
         Handler?.PlatformArrange(Frame);
-        InvalidatePaint();
+        // Offset-only changes are composite-time; the recorder re-records content only when the size changed.
+        if (frameChanged)
+            InvalidateRender(SkUiRenderDirty.Props);
         return Frame.Size;
     }
 
@@ -231,10 +321,18 @@ public class SkUiView : View, ISkUiView
             FlushInvalidation();
     }
 
-    /// <summary>Requests a redraw without invalidating measured sizes.</summary>
+    /// <summary>Requests a re-record of this node's own content (not its children) without invalidating measure.</summary>
     public void InvalidatePaint()
     {
         _paintPending = true;
+        if (_updateDepth == 0)
+            FlushInvalidation();
+    }
+
+    /// <summary>Marks composite-time state (props / children) dirty, honoring update batches.</summary>
+    internal void InvalidateRender(SkUiRenderDirty flags)
+    {
+        _renderPending |= flags;
         if (_updateDepth == 0)
             FlushInvalidation();
     }
@@ -243,7 +341,9 @@ public class SkUiView : View, ISkUiView
     {
         var invalidateLayout = _layoutPending;
         var invalidatePaint = _paintPending;
+        var render = _renderPending;
         _layoutPending = _paintPending = false;
+        _renderPending = SkUiRenderDirty.None;
         if (invalidateLayout)
         {
             if (SkiaParent is { } parent)
@@ -252,12 +352,11 @@ public class SkUiView : View, ISkUiView
                 base.InvalidateMeasureOverride();
         }
         if (invalidatePaint)
-        {
+            render |= SkUiRenderDirty.Content;
+        if (render != SkUiRenderDirty.None)
+            SkUiRenderInvalidation.Mark(this, render);
+        if (invalidatePaint)
             PaintInvalidated?.Invoke(this, EventArgs.Empty);
-            // Layout invalidation already paints the Skia parent via InvalidateMeasureOverride → InvalidatePaint.
-            if (!invalidateLayout)
-                SkiaParent?.InvalidatePaint();
-        }
     }
 
     /// <inheritdoc />
@@ -268,8 +367,15 @@ public class SkUiView : View, ISkUiView
             || (propertyName == nameof(IsVisible) && !IsVisible)
             || (propertyName == nameof(InputTransparent) && InputTransparent))
         {
-            _pressedPointer = null;
-            SetPressed(false);
+            CancelGestures();
+        }
+        if (propertyName == nameof(IsVisible))
+            InvalidateMeasureOverride();
+        // MAUI raises FlowDirection on every descendant whose effective direction changes.
+        if (propertyName == nameof(FlowDirection))
+        {
+            InvalidateMeasureOverride();
+            OnEffectiveFlowDirectionChanged();
         }
         switch (propertyName)
         {
@@ -282,11 +388,17 @@ public class SkUiView : View, ISkUiView
             case nameof(Margin):
             case nameof(HorizontalOptions):
             case nameof(VerticalOptions):
-            case nameof(IsVisible):
                 InvalidateMeasureOverride();
                 break;
             case nameof(Background):
             case nameof(BackgroundColor):
+                InvalidatePaint();
+                break;
+            case nameof(ZIndex):
+                (SkiaParent)?.InvalidateRender(SkUiRenderDirty.Children);
+                break;
+            case nameof(IsVisible):
+            case nameof(ClipToBounds):
             case nameof(Opacity):
             case nameof(TranslationX):
             case nameof(TranslationY):
@@ -296,45 +408,137 @@ public class SkUiView : View, ISkUiView
             case nameof(ScaleY):
             case nameof(AnchorX):
             case nameof(AnchorY):
-            case nameof(ZIndex):
-                InvalidatePaint();
+                InvalidateRender(SkUiRenderDirty.Props);
                 break;
         }
     }
 
     /// <inheritdoc />
-    public void Paint(SKCanvas canvas)
+    /// <remarks>
+    /// Immediate-mode paint of this subtree in local coordinates (offscreen snapshots, tests). Surfaces use the
+    /// retained compositor instead, which composes the same phases from recorded pictures on the render thread.
+    /// </remarks>
+    public void Paint(SKCanvas canvas) => SkUiImmediatePainter.Paint(this, canvas, applyOffset: false);
+
+    SkUiRenderState ISkUiRenderable.RenderState => RenderState;
+
+    internal SkUiRenderState RenderState => _renderState ??= new SkUiRenderState();
+
+    ISkUiRenderable? ISkUiRenderable.RenderParent => SkiaParent;
+
+    void ISkUiRenderable.GetRenderProps(ref SkUiRenderProps props)
     {
-        if (!IsVisible || Opacity <= 0 || Width <= 0 || Height <= 0)
-            return;
-        var saveCount = canvas.Save();
-        try
+        var frame = Frame;
+        props.X = (float)frame.X;
+        props.Y = (float)frame.Y;
+        props.Width = (float)frame.Width;
+        props.Height = (float)frame.Height;
+        props.TranslationX = (float)TranslationX;
+        props.TranslationY = (float)TranslationY;
+        props.Rotation = (float)Rotation;
+        var scale = Scale;
+        props.ScaleX = (float)(scale * ScaleX);
+        props.ScaleY = (float)(scale * ScaleY);
+        props.AnchorX = (float)AnchorX;
+        props.AnchorY = (float)AnchorY;
+        props.Opacity = (float)Opacity;
+        props.IsVisible = IsVisible;
+        props.ClipToBounds = ClipToBounds;
+        OnGetRenderProps(ref props);
+    }
+
+    /// <summary>Lets containers add children offset / clip, spinning content, or ink overflow.</summary>
+    internal virtual void OnGetRenderProps(ref SkUiRenderProps props) { }
+
+    void ISkUiRenderable.RecordContent(SKCanvas canvas)
+    {
+        if (_paintBackground is { } paintBackground)
+            paintBackground(canvas);
+        else
+            OnPaintBackground(canvas);
+        OnPaintContent(canvas);
+    }
+
+    bool ISkUiRenderable.HasOverlay => _paintOverlay is not null || PaintOverrides.For(GetType()).Overlay;
+
+    void ISkUiRenderable.RecordOverlay(SKCanvas canvas)
+    {
+        if (_paintOverlay is { } paintOverlay)
+            paintOverlay(canvas);
+        else
+            OnPaintOverlay(canvas);
+    }
+
+    void ISkUiRenderable.GetRenderChildren(List<ISkUiRenderable> children) => AddRenderChildren(children);
+
+    /// <summary>Appends drawn children in paint order; defaults to <see cref="SkiaChildren"/>.</summary>
+    internal virtual void AddRenderChildren(List<ISkUiRenderable> children)
+    {
+        foreach (var child in SkiaChildren)
+            if (child is ISkUiRenderable renderable)
+                children.Add(renderable);
+    }
+
+    void ISkUiRenderable.OnRenderRootDirty(bool fromDescendant)
+    {
+        RenderRootDirty?.Invoke(this, EventArgs.Empty);
+        // A root's own content invalidation already raised PaintInvalidated in FlushInvalidation.
+        if (fromDescendant)
+            PaintInvalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Animates a composite-time property on the render thread, so the motion stays smooth while the UI thread is
+    /// busy. The bindable property is updated to the final (or last shown, if cancelled) value when it ends.
+    /// Setting the property during the animation cancels it. Returns <c>true</c> when it ran to completion.
+    /// </summary>
+    public Task<bool> AnimateAsync(SkUiAnimatableProperty property, double to, uint length = 250, Easing? easing = null)
+    {
+        if (!double.IsFinite(to)) throw new ArgumentOutOfRangeException(nameof(to));
+        var (properties, targets) = property switch
         {
-            canvas.Concat(RenderMatrix);
-            if (canvas.QuickReject(new SKRect(0, 0, (float)Width, (float)Height)))
-                return;
-            canvas.ClipRect(new SKRect(0, 0, (float)Width, (float)Height));
-            if (Opacity < 1)
+            SkUiAnimatableProperty.Opacity => (new[] { SkUiRenderProperty.Opacity }, new[] { (float)Math.Clamp(to, 0, 1) }),
+            SkUiAnimatableProperty.TranslationX => ([SkUiRenderProperty.TranslationX], [(float)to]),
+            SkUiAnimatableProperty.TranslationY => ([SkUiRenderProperty.TranslationY], [(float)to]),
+            SkUiAnimatableProperty.Rotation => ([SkUiRenderProperty.Rotation], [(float)to]),
+            SkUiAnimatableProperty.ScaleX => ([SkUiRenderProperty.ScaleX], [(float)(Scale * to)]),
+            SkUiAnimatableProperty.ScaleY => ([SkUiRenderProperty.ScaleY], [(float)(Scale * to)]),
+            SkUiAnimatableProperty.Scale => (new[] { SkUiRenderProperty.ScaleX, SkUiRenderProperty.ScaleY },
+                new[] { (float)(to * ScaleX), (float)(to * ScaleY) }),
+            _ => throw new ArgumentOutOfRangeException(nameof(property))
+        };
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tween = new SkUiRenderTween(properties, targets, TimeSpan.FromMilliseconds(Math.Max(1, length)), easing)
+        {
+            Finished = (animation, completed) =>
             {
-                using var alpha = new SKPaint { Color = SKColors.White.WithAlpha((byte)(255 * Opacity)) };
-                canvas.SaveLayer(alpha);
+                RenderState.ActiveAnimations?.Remove(animation);
+                if (!animation.SupersededByUi && ((SkUiRenderTween)animation).LastValues is { } values)
+                    ApplyAnimatedValues(property, (SkUiRenderTween)animation, values);
+                completion.TrySetResult(completed);
             }
-            if (_paintBackground is { } paintBackground)
-                paintBackground(canvas);
-            else
-                OnPaintBackground(canvas);
-            OnPaintContent(canvas);
-            if (_paintOverlay is { } paintOverlay)
-                paintOverlay(canvas);
-            else
-                OnPaintOverlay(canvas);
-        }
-        finally
+        };
+        SkUiRenderInvalidation.Enqueue(this, tween);
+        return completion.Task;
+    }
+
+    private void ApplyAnimatedValues(SkUiAnimatableProperty property, SkUiRenderTween tween, float[] values)
+    {
+        for (var index = 0; index < values.Length; index++)
+            RenderState.Acknowledge(tween.Properties[index], values[index]);
+        switch (property)
         {
-            canvas.RestoreToCount(saveCount);
+            case SkUiAnimatableProperty.Opacity: Opacity = values[0]; break;
+            case SkUiAnimatableProperty.TranslationX: TranslationX = values[0]; break;
+            case SkUiAnimatableProperty.TranslationY: TranslationY = values[0]; break;
+            case SkUiAnimatableProperty.Rotation: Rotation = values[0]; break;
+            case SkUiAnimatableProperty.ScaleX: ScaleX = Scale == 0 ? 0 : values[0] / Scale; break;
+            case SkUiAnimatableProperty.ScaleY: ScaleY = Scale == 0 ? 0 : values[0] / Scale; break;
+            case SkUiAnimatableProperty.Scale: Scale = ScaleX == 0 ? 0 : values[0] / ScaleX; break;
         }
     }
 
+    [ThreadStatic] private static SKPaint? t_fillPaint;
     private Action<SKCanvas>? _paintBackground;
     private Action<SKCanvas>? _paintOverlay;
 
@@ -410,7 +614,8 @@ public class SkUiView : View, ISkUiView
         var color = ResolveSolidBackgroundColor();
         if (color is null)
             return;
-        using var paint = new SKPaint { Color = ToSkColor(color) };
+        var paint = t_fillPaint ??= new SKPaint();
+        paint.Color = ToSkColor(color);
         canvas.DrawRect(0, 0, (float)Width, (float)Height, paint);
     }
 
@@ -463,20 +668,6 @@ public class SkUiView : View, ISkUiView
         return true;
     }
 
-    internal static void PaintChild(ISkUiView child, SKCanvas canvas)
-    {
-        var saveCount = canvas.Save();
-        try
-        {
-            canvas.Translate((float)child.Frame.X, (float)child.Frame.Y);
-            child.Paint(canvas);
-        }
-        finally
-        {
-            canvas.RestoreToCount(saveCount);
-        }
-    }
-
     internal void ValidateChild(ISkUiView child)
     {
         ArgumentNullException.ThrowIfNull(child);
@@ -492,49 +683,123 @@ public class SkUiView : View, ISkUiView
     internal void AttachChild(ISkUiView child)
     {
         AddLogicalChild((Element)child);
+        InvalidateRender(SkUiRenderDirty.Children);
         InvalidateMeasureOverride();
     }
 
     internal void DetachChild(ISkUiView child)
     {
         RemoveLogicalChild((Element)child);
+        InvalidateRender(SkUiRenderDirty.Children);
         InvalidateMeasureOverride();
     }
 
-    /// <inheritdoc />
-    public virtual bool Touch(SkUiTouchEvent touch)
-    {
-        if (touch.Action == SkUiTouchAction.Pressed)
-        {
-            if (_pressedPointer is not null || InputTransparent || !IsVisible)
-                return false;
-            if (!IsEnabled || !CanReceiveTap)
-                return true;
-            if (Tapped is null && !HandlesTap && !(_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false))
-                return false;
-            _pressedPointer = touch.Id;
-            _pressPosition = touch.Position;
-            _tapCancelled = false;
-            SetPressed(true);
-            return true;
-        }
-        if (_pressedPointer != touch.Id)
-            return false;
+    /// <summary>
+    /// Delivers a pointer sample in this view's local DIPs, with this view as the surface root: the press is hit-tested
+    /// once through the drawn tree (SkUi* and Core), then the gesture arena decides between the recognizers of the
+    /// element under the pointer and its ancestors (taps, scrolling, pans…). Returns whether a drawn element takes the
+    /// pointer; <c>false</c> lets native parents handle it. Custom input: add a recognizer to <see cref="Gestures"/>
+    /// (e.g. <see cref="SkUiPointerGestureRecognizer"/>) instead of overriding this method.
+    /// </summary>
+    public bool Touch(SkUiTouchEvent touch) => Router.Dispatch(touch);
 
-        var deltaX = touch.Position.X - _pressPosition.X;
-        var deltaY = touch.Position.Y - _pressPosition.Y;
-        _tapCancelled |= deltaX * deltaX + deltaY * deltaY > 100;
-        SetPressed(!_tapCancelled && new Rect(0, 0, Width, Height).Contains(touch.Position));
-        if (touch.Action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
-        {
-            _pressedPointer = null;
-            SetPressed(false);
-            if (touch.Action == SkUiTouchAction.Released && !_tapCancelled && IsEnabled && CanReceiveTap && IsVisible && !InputTransparent
-                && new Rect(0, 0, Width, Height).Contains(touch.Position))
-                OnTapped(new SkUiTappedEventArgs(touch.Position));
-        }
-        return true;
+    internal SkUiPointerRouter Router => _router ??= new SkUiPointerRouter(this);
+
+    bool ISkUiInputNode.IsHitTestVisible => IsVisible && !InputTransparent;
+
+    bool ISkUiInputNode.IsInputEnabled => IsEnabled && CanReceiveTap;
+
+    void ISkUiInputNode.CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers) => CollectGestureRecognizers(recognizers);
+
+    /// <summary>Appends this view's recognizers: built-in tap, long press, swipe, pan, pinch, custom, then intrinsic ones.</summary>
+    internal virtual void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
+    {
+        if (WantsSingleTap || _gestures?.WantsDoubleTap == true)
+            recognizers.Add(_tap ??= new SkUiTapGestureRecognizer
+            {
+                TapHandler = args => { if (WantsSingleTap) OnTapped(args); },
+                WantsDoubleTap = () => _gestures?.WantsDoubleTap == true,
+                DoubleTapHandler = args => _gestures?.RaiseDoubleTapped(args),
+                PressedHandler = SetPressed
+            });
+        _gestures?.Collect(recognizers);
     }
+
+    private bool WantsSingleTap => Tapped is not null || HandlesTap || (_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false);
+
+    void ISkUiGestureElement.CancelGestures() => CancelGestures();
+
+    /// <summary>Stops this view's gestures (press state, pans, scrolling).</summary>
+    internal virtual void CancelGestures()
+    {
+        _tap?.Cancel();
+        _gestures?.CancelAll();
+        _router?.CancelAll();
+        SetPressed(false);
+    }
+
+    private SkUiGestureSet GestureSet => _gestures ??= new SkUiGestureSet(this);
+
+    /// <summary>Custom recognizers (e.g. <see cref="SkUiPointerGestureRecognizer"/>, <see cref="SkUiPanGestureRecognizer"/>), after the built-in ones.</summary>
+    public IList<SkUiGestureRecognizer> Gestures => GestureSet.Custom ??= [];
+
+    /// <summary>Double tap (single taps then wait <see cref="SkUiGestureSettings.DoubleTapTimeout"/>).</summary>
+    public event EventHandler<SkUiTappedEventArgs>? DoubleTapped { add => GestureSet.DoubleTapped += value; remove => GestureSet.DoubleTapped -= value; }
+
+    /// <summary>Long press (<see cref="SkUiGestureSettings.LongPressDuration"/> within the touch slop).</summary>
+    public event EventHandler<SkUiLongPressedEventArgs>? LongPressed { add => GestureSet.LongPressed += value; remove => GestureSet.LongPressed -= value; }
+
+    /// <summary>Swipe in one of <see cref="SwipeDirections"/>.</summary>
+    public event EventHandler<SkUiSwipedEventArgs>? Swiped { add => GestureSet.Swiped += value; remove => GestureSet.Swiped -= value; }
+
+    /// <summary>Pan along <see cref="PanAxis"/>.</summary>
+    public event EventHandler<SkUiPanUpdatedEventArgs>? PanUpdated { add => GestureSet.PanUpdated += value; remove => GestureSet.PanUpdated -= value; }
+
+    /// <summary>Two-pointer pinch / rotate.</summary>
+    public event EventHandler<SkUiPinchUpdatedEventArgs>? PinchUpdated { add => GestureSet.PinchUpdated += value; remove => GestureSet.PinchUpdated -= value; }
+
+    /// <summary>Bindable double-tap command.</summary>
+    public static readonly BindableProperty DoubleTappedCommandProperty = BindableProperty.Create(nameof(DoubleTappedCommand), typeof(ICommand), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.DoubleTappedCommand = (ICommand?)value);
+    /// <summary>Bindable double-tap command parameter.</summary>
+    public static readonly BindableProperty DoubleTappedCommandParameterProperty = BindableProperty.Create(nameof(DoubleTappedCommandParameter), typeof(object), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.DoubleTappedCommandParameter = value);
+    /// <summary>Bindable long-press command.</summary>
+    public static readonly BindableProperty LongPressedCommandProperty = BindableProperty.Create(nameof(LongPressedCommand), typeof(ICommand), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.LongPressedCommand = (ICommand?)value);
+    /// <summary>Bindable long-press command parameter.</summary>
+    public static readonly BindableProperty LongPressedCommandParameterProperty = BindableProperty.Create(nameof(LongPressedCommandParameter), typeof(object), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.LongPressedCommandParameter = value);
+    /// <summary>Bindable swipe command (parameter defaults to the <see cref="SwipeDirection"/>).</summary>
+    public static readonly BindableProperty SwipedCommandProperty = BindableProperty.Create(nameof(SwipedCommand), typeof(ICommand), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.SwipedCommand = (ICommand?)value);
+    /// <summary>Bindable swipe command parameter.</summary>
+    public static readonly BindableProperty SwipedCommandParameterProperty = BindableProperty.Create(nameof(SwipedCommandParameter), typeof(object), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.SwipedCommandParameter = value);
+    /// <summary>Bindable swipe directions.</summary>
+    public static readonly BindableProperty SwipeDirectionsProperty = BindableProperty.Create(nameof(SwipeDirections), typeof(SwipeDirection), typeof(SkUiView),
+        SwipeDirection.Left | SwipeDirection.Right | SwipeDirection.Up | SwipeDirection.Down,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.SwipeDirections = (SwipeDirection)value);
+    /// <summary>Bindable pan axis.</summary>
+    public static readonly BindableProperty PanAxisProperty = BindableProperty.Create(nameof(PanAxis), typeof(SkUiPanAxis), typeof(SkUiView), SkUiPanAxis.Both,
+        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.PanAxis = (SkUiPanAxis)value);
+
+    /// <inheritdoc cref="DoubleTappedCommandProperty" />
+    public ICommand? DoubleTappedCommand { get => (ICommand?)GetValue(DoubleTappedCommandProperty); set => SetValue(DoubleTappedCommandProperty, value); }
+    /// <inheritdoc cref="DoubleTappedCommandParameterProperty" />
+    public object? DoubleTappedCommandParameter { get => GetValue(DoubleTappedCommandParameterProperty); set => SetValue(DoubleTappedCommandParameterProperty, value); }
+    /// <inheritdoc cref="LongPressedCommandProperty" />
+    public ICommand? LongPressedCommand { get => (ICommand?)GetValue(LongPressedCommandProperty); set => SetValue(LongPressedCommandProperty, value); }
+    /// <inheritdoc cref="LongPressedCommandParameterProperty" />
+    public object? LongPressedCommandParameter { get => GetValue(LongPressedCommandParameterProperty); set => SetValue(LongPressedCommandParameterProperty, value); }
+    /// <inheritdoc cref="SwipedCommandProperty" />
+    public ICommand? SwipedCommand { get => (ICommand?)GetValue(SwipedCommandProperty); set => SetValue(SwipedCommandProperty, value); }
+    /// <inheritdoc cref="SwipedCommandParameterProperty" />
+    public object? SwipedCommandParameter { get => GetValue(SwipedCommandParameterProperty); set => SetValue(SwipedCommandParameterProperty, value); }
+    /// <inheritdoc cref="SwipeDirectionsProperty" />
+    public SwipeDirection SwipeDirections { get => (SwipeDirection)GetValue(SwipeDirectionsProperty); set => SetValue(SwipeDirectionsProperty, value); }
+    /// <inheritdoc cref="PanAxisProperty" />
+    public SkUiPanAxis PanAxis { get => (SkUiPanAxis)GetValue(PanAxisProperty); set => SetValue(PanAxisProperty, value); }
 
     /// <summary>Allows a control to participate in taps without an event subscriber.</summary>
     protected virtual bool HandlesTap => false;
@@ -561,9 +826,36 @@ public class SkUiView : View, ISkUiView
     }
 }
 
-/// <summary>A classified tap in local DIPs.</summary>
-public sealed class SkUiTappedEventArgs(Point position) : EventArgs
+/// <summary>Composite-time properties that <see cref="SkUiView.AnimateAsync"/> animates on the render thread.</summary>
+public enum SkUiAnimatableProperty
 {
-    /// <summary>The release position relative to the tapped node.</summary>
-    public Point Position { get; } = position;
+    /// <summary><see cref="VisualElement.Opacity"/>.</summary>
+    Opacity,
+    /// <summary><see cref="VisualElement.TranslationX"/>.</summary>
+    TranslationX,
+    /// <summary><see cref="VisualElement.TranslationY"/>.</summary>
+    TranslationY,
+    /// <summary><see cref="VisualElement.Rotation"/> in degrees.</summary>
+    Rotation,
+    /// <summary><see cref="VisualElement.Scale"/> (both axes).</summary>
+    Scale,
+    /// <summary><see cref="VisualElement.ScaleX"/>.</summary>
+    ScaleX,
+    /// <summary><see cref="VisualElement.ScaleY"/>.</summary>
+    ScaleY
+}
+
+/// <summary>Caches which paint phases a type overrides, so empty phases skip recording.</summary>
+internal static class PaintOverrides
+{
+    private static readonly ConcurrentDictionary<Type, (bool Overlay, bool Content)> Cache = new();
+
+    internal static (bool Overlay, bool Content) For(Type type) => Cache.GetOrAdd(type, static t =>
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+        bool Overrides(string name, Type baseType) =>
+            t.GetMethod(name, flags, [typeof(SKCanvas)])?.DeclaringType is { } declaring && declaring != baseType;
+        var baseType = typeof(SkUiView).IsAssignableFrom(t) ? typeof(SkUiView) : typeof(Core.SkUiCoreNode);
+        return (Overrides("OnPaintOverlay", baseType), Overrides("OnPaintContent", baseType));
+    });
 }

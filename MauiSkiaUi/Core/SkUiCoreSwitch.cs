@@ -48,11 +48,15 @@ public class SkUiCoreSwitch : SkUiCoreToggleControl
     protected override void OnPaintContent(SKCanvas canvas)
     {
         var trackColor = IsChecked ? _onColor : SkUiColors.TrackOff;
+        // RTL: the thumb travels the other way (as native RTL switches).
+        var rtlSave = canvas.Save();
+        if (IsRightToLeft) canvas.Scale(-1, 1, (float)(Frame.Width) / 2, 0);
         SkUiLook.Current.DrawSwitch(
             canvas,
             new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
             IsChecked,
             ToSkColor(trackColor),
             ToSkColor(_thumbColor));
+        canvas.RestoreToCount(rtlSave);
     }
 }

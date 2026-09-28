@@ -1,4 +1,4 @@
-using SkiaSharp;
+using MauiSkiaUi.Rendering;
 
 namespace MauiSkiaUi.Core;
 
@@ -10,6 +10,9 @@ public abstract class SkUiCorePanel : SkUiCoreNode
 {
     private readonly List<ISkUiCoreNode> _children = [];
     private Thickness _padding;
+
+    /// <summary>Creates a panel; panels do not clip children by default.</summary>
+    protected SkUiCorePanel() => InitClipToBounds(false);
 
     /// <summary>Children in insertion order (paint back-to-front; hit-test front-to-back).</summary>
     public IReadOnlyList<ISkUiCoreNode> Children => _children;
@@ -70,7 +73,9 @@ public abstract class SkUiCorePanel : SkUiCoreNode
 
         coreChild.AttachTo(this);
         _children.Insert(index, child);
+        SkUiDiagnostics.NotifyChildAdded(this, child, index);
         OnChildrenChanged();
+        InvalidateRender(SkUiRenderDirty.Children);
         InvalidateMeasure();
     }
 
@@ -79,10 +84,12 @@ public abstract class SkUiCorePanel : SkUiCoreNode
     {
         var child = _children[index];
         _children.RemoveAt(index);
+        SkUiDiagnostics.NotifyChildRemoved(this, child, index);
         if (child is SkUiCoreNode coreChild)
             coreChild.AttachTo(null);
         OnChildRemoved(child);
         OnChildrenChanged();
+        InvalidateRender(SkUiRenderDirty.Children);
         InvalidateMeasure();
     }
 
@@ -93,32 +100,14 @@ public abstract class SkUiCorePanel : SkUiCoreNode
     protected virtual void OnChildrenChanged() { }
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas)
-    {
-        foreach (var child in _children)
-            PaintChild(child, canvas);
-    }
+    internal override IReadOnlyList<IVisualTreeElement> VisualChildren => _children;
 
     /// <inheritdoc />
-    public override bool Touch(SkUiTouchEvent touch)
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
     {
-        for (var index = _children.Count - 1; index >= 0; index--)
-        {
-            var child = _children[index];
-            if (!child.IsVisible) continue;
-            var frame = child.Frame;
-            if (touch.Position.X < frame.X || touch.Position.Y < frame.Y
-                || touch.Position.X >= frame.Right || touch.Position.Y >= frame.Bottom)
-                continue;
-            var local = new SkUiTouchEvent(
-                touch.Id,
-                touch.Action,
-                new Point(touch.Position.X - frame.X, touch.Position.Y - frame.Y),
-                touch.Timestamp,
-                touch.WheelDelta);
-            if (child.Touch(local))
-                return true;
-        }
-        return false;
+        foreach (var child in _children)
+            if (child is ISkUiRenderable renderable)
+                children.Add(renderable);
     }
+
 }

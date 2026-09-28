@@ -1,169 +1,164 @@
 # SkiaUi event / gesture mechanism
 
-Design notes and implementation checklist for **FR-15** in [Requirements.md](Requirements.md).
+Design and status of **FR-15** in [Requirements.md](Requirements.md): one shared gesture mechanism for the drawn tree, used by SkUi* views and Core nodes alike.
 
 ## Goal
 
-Provide one **easy, shared** gesture API that every `SkUi*` control inherits from `SkUiView`, without copying gesture state machines per control.
-
-Apps should be able to:
-
-- Leave most controls inert to input (e.g. `SkUiLabel`).
-- Opt a control into gestures via **events** and/or **commands** (e.g. `Tapped` / `TappedCommand`).
-- Rely on interactive controls (e.g. `SkUiButton`) to **handle tap by default**, including press visuals / visual states, even when no app handler is registered.
+- Most controls stay inert to input (e.g. `SkUiLabel`) and do not block what is underneath.
+- Apps opt a control into gestures via **events** and / or **commands** (`Tapped` / `TappedCommand`, `LongPressed`, `Swiped`, …).
+- Interactive controls (`SkUiButton`, toggles, Core buttons) handle taps and press feedback by default.
+- Competing gestures resolve predictably:
+  - taps versus scrolling;
+  - a horizontal carousel inside a vertical page;
+  - a slider inside a scroller;
+  - pinch versus pan;
+  - drawn versus native ancestors.
 
 ## Decision summary
 
 | Topic | Choice |
 | --- | --- |
-| Primary API | **SkiaUi-owned** gestures on `SkUiView` |
-| Not primary | MAUI `View.GestureRecognizers` / `GesturePlatformManager` |
-| Why | Hosted children have no platform handler (FR-13); long press is not a MAUI recognizer; one path for standalone + hosted |
-| Gesture set (v1) | Single tap, double tap, long press, swipe |
-| Shared implementation | Classifier + delivery on the root host; participation + raise API on `SkUiView` |
-| Hit-test region | **Arranged bounds** by default (FR-11); clip/mask is paint-only unless a future opt-in |
-| `InputTransparent` | Honored (`IView.InputTransparent`) — skip hit-test / delivery |
-
-Optional later: bridge classified gestures into MAUI recognizers for compatibility. **Out of scope for v1.**
+| Primary API | **SkiaUi-owned** recognizers and a **gesture arena**; MAUI `GestureRecognizers` are not used for drawn trees |
+| Layers | One implementation for SkUi* and Core: hit-testing over the shared render tree (`ISkUiRenderable`), recognizers on any node |
+| Gestures | Tap, double tap, long press, swipe, pan, pinch / rotate, raw pointer; scrolling is a built-in recognizer of scroll views |
+| Hit region | **Arranged bounds** (FR-11); clip / mask is paint-only; children of a scroll viewport are hit only inside the viewport |
+| `InputTransparent` / invisible | Skipped: pointers reach what is underneath |
+| Disabled (`IsEnabled = false`, or a button whose command cannot execute) | **Blocks**: hit, but neither it nor its subtree reacts. Core nodes have no `IsEnabled`; a Core button that cannot execute does not take part |
+| Passive nodes | Transparent to pointers: the search continues **underneath** (z-order) at that point |
+| Unhandled at the target | **Ancestors** on the hit path also compete (their recognizers are in the arena), so both rules apply: passive nodes pass through, and participating ancestors compete |
+| Press feedback | **Immediate** when uncontested. After **`PressDelay` (100 ms)** when an ancestor competes (e.g. a scroll view), and never shown if the ancestor wins first |
+| Thresholds | App-wide `SkUiGestureSettings` (touch slop 10 DIPs, press delay 100 ms, long press 500 ms, double tap 300 ms / 40 DIPs, swipe 100 DIPs or 800 DIPs/s, fling 40–3000 DIPs/s); per-recognizer overrides where useful |
+| Multi-touch | One arena **per pointer**; independent presses (two buttons at once); pinch spans two pointers |
+| Raw touch | `ISkUiView.Touch` / `SkUiCoreNode.Touch` is the **entry point** for a surface root. Custom interaction uses `SkUiPointerGestureRecognizer`, not a `Touch` override (**breaking**: `Touch` is no longer virtual) |
+| Native ancestors | Coordinated at the surface: native parents are held back while a drawn continuous gesture may claim or owns the touch |
+| MAUI recognizer bridge | Not planned |
 
 ## Architecture
 
 ```
-Platform pointer/touch
-        │
+Platform pointer (GL / Metal surface, MAUI SKCanvasView)
+        │  DIPs + pointer id (surface root coordinates)
         ▼
-Standalone SkUi root (handler / surface)     ← only place that maps platform → DIPs
-        │
+SkUiPointerRouter (one per surface root)
+        │  Press: hit-test once through the drawn tree (SkUi* + Core)
+        │         → topmost node that participates (has recognizers) or blocks (disabled)
+        │  Arena: recognizers of that node, then of each ancestor up to the root (innermost first)
         ▼
-Hit-test ISkUiView tree (z-order, arranged bounds, InputTransparent, IsEnabled)
-        │
+SkUiGestureArena (one per pointer)
+        │  every member sees Pressed / Moved / Released
+        │  Claim() → winner; the others are rejected (press states cleared, pans cancelled)
+        │  last member standing wins by default; on release an undecided arena is won by the innermost member
         ▼
-Gesture classifier (tap / double-tap / long-press / swipe)
-        │
-        ▼
-SkUiView participation check → raise events / execute commands / intrinsic control logic
+Recognizers raise events / commands on their owner (UI thread)
 ```
 
-Raw `ISkUiView` touch (down/move/up) remains available for controls that need continuous tracking (scroll, custom drag). The classifier builds **high-level gestures** on top of that stream; controls should prefer the shared gesture API for tap/swipe/etc. instead of reimplementing timers and thresholds.
+- **Built-in recognizers exist only while used.** A node's tap recognizer exists while it has `Tapped` handlers, an executable `TappedCommand`, an intrinsic tap (buttons, toggles) or double-tap handlers. Long press, swipe, pan and pinch recognizers exist while their events or commands are set.
+  - Recognizers live in a per-node gesture set that is allocated on first use. Passive Core nodes carry one null field.
+- **Validation per event:** members whose element was detached, hidden, made input-transparent or disabled are rejected. Detaching a subtree cancels its gestures, so press states never stick.
+- **Coordinates:** recognizers receive surface-root DIPs (`SkUiPointer.Position`). `GetPosition(element)` maps through the current transforms and scroll offsets.
 
-## Participation model
+### Recognizers
 
-A control **participates** in a gesture when at least one of the following is true:
-
-1. **App opt-in** — an event has subscribers and/or a related command is set (and `CanExecute` is true when applicable).
-2. **Intrinsic handler** — the control type opts in by default (e.g. `SkUiButton` for tap / press).
-
-Otherwise the control is **transparent to that gesture**: hit-testing continues to views underneath (subject to siblings/z-order). A plain `SkUiLabel` with no `Tapped` handlers and no `TappedCommand` must not consume taps.
-
-### Examples
-
-| Control | Default | App can |
+| Recognizer | Claims when | Events |
 | --- | --- | --- |
-| `SkUiLabel` | Passive — no gesture consumption | Subscribe to `Tapped` / set `TappedCommand` (and other gestures as exposed) |
-| `SkUiButton` | Active — handles tap (and press feedback) even with no app handlers | Also use `Tapped` / `Command` for app logic; disabling / `InputTransparent` still applies |
-| `SkUiLayout` / `SkUiContentView` | Passive unless opted in | Same opt-in surface as other `SkUiView`s; layouts still forward hit-test to children first |
+| `SkUiTapGestureRecognizer` | Wins by default (innermost on release); resigns past the touch slop | `Tapped`, `DoubleTapped` (single taps wait `DoubleTapTimeout` only when double taps are handled), `PressedChanged` |
+| `SkUiLongPressGestureRecognizer` | After `Duration` within the slop | `LongPressed` |
+| `SkUiPanGestureRecognizer` (`Axis`) | Past the slop along its axis (that axis dominating) | `PanUpdated` (Started / Running / Completed with velocity / Canceled) |
+| `SkUiSwipeGestureRecognizer` (`Direction`, `Threshold`) | Past the slop in an allowed dominant direction (resigns otherwise) | `Swiped` on release (distance ≥ threshold, or a fast flick) |
+| `SkUiPinchGestureRecognizer` | Two pointers, when the distance changes past the slop or rotation > 5° | `PinchUpdated` (Scale, TotalScale, Rotation, TotalRotation, Origin) |
+| `SkUiPointerGestureRecognizer` | On press (`ClaimOnPress`, default) | `Pointer` (Pressed / Moved / Released / Cancelled) |
+| Scroll (internal, scroll views) | Past the slop along an enabled axis in a direction it can move; immediately when pressed during a fling | Scrolls; chains the remainder / fling outward ([ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#gestures-and-nesting-rules-implemented)) |
 
-Intrinsic vs opt-in must be implemented as a **virtual hook** on `SkUiView` (e.g. “does this type intrinsically handle tap?”), not duplicated gesture detectors in each control class.
+### Public surface
 
-## Public surface (target)
+- **Events on `SkUiView`:**
+  - `Tapped`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`.
+  - Bindable `TappedCommand`, `DoubleTappedCommand`, `LongPressedCommand` and `SwipedCommand` (+ parameters; the swipe parameter defaults to the direction).
+  - `SwipeDirections`, `PanAxis`, `IsPressed`.
+  - The `Gestures` collection for custom recognizers.
+- **Core nodes (`SkUiCoreNode`):** the same events, `SetSwipeDirections`, `SetPanAxis`, `AddGestureRecognizer` / `RemoveGestureRecognizer`, and `AutomationId`.
+- **Controls:** `SkUiButton.Clicked` / `Command`, toggles and Core buttons use the intrinsic tap.
+- **`SkUiGestureSettings`:** app-wide thresholds.
+- **`SkUiDiagnostics.SimulateTap` / `HitTest`:** for tests and automation.
 
-Exact names TBD during implementation; intent:
+## Native coordination
 
-- **Events** on `SkUiView`: e.g. `Tapped`, `DoubleTapped`, `LongPressed`, `Swiped` (with event-args carrying position, direction for swipe, etc.).
-- **Commands** (bindable): e.g. `TappedCommand` / `TappedCommandParameter`, and analogs for double-tap, long-press, swipe where useful for MVVM.
-- **Fluent direct setters** for commands if FR-10 pattern applies.
-- Controls like `SkUiButton` may expose a primary `Command` that aliases or shares the tap path (document clearly).
+The drawn arena runs inside one platform view. Native ancestors (a MAUI `ScrollView`, Shell swipe-back, …) are coordinated at the surface boundary through `SkUiPointerRouter.NativeState`:
 
-XAML / code should feel familiar to MAUI authors without requiring `GestureRecognizers` collections.
+| State | Meaning | Android (GL / MAUI surface) | iOS / Mac Catalyst (Metal) |
+| --- | --- | --- | --- |
+| `Pending` | A drawn continuous gesture (pan, scroll, swipe, pinch, blocking pointer recognizer) may still claim; within the slop | `RequestDisallowInterceptTouchEvent(true)` | Gate recognizer stays *Possible*; ancestor pan / pinch / swipe recognizers wait for it |
+| `Claimed` | A drawn continuous gesture owns the touch | keep disallowing | Gate *Began* → ancestors fail |
+| `None` | Nothing drawn wants a continuous gesture (taps only, or past the slop without a claim, e.g. a drawn scroller at its edge) | disallow released → the native parent may intercept | Gate *Failed* → ancestors proceed immediately |
 
-## Input rules
+This gives native "nested scrolling" too: a drawn scroller inside a native one scrolls first, and the native one takes over at the drawn edge.
 
-### `IView.InputTransparent`
+**Windows** (touch / pen; mouse drags never pan a WinUI `ScrollViewer`): SkiaSharp captures every pointer and sets `ManipulationMode = All`, which keeps DirectManipulation off. When the state becomes `None` past the slop, the handler hands the contact to an ancestor `ScrollViewer` that can scroll: it releases the capture, sets `ManipulationMode = System` and calls `TryStartDirectManipulation` (one attempt per contact). If that fails, SkiaSharp's capture and mode are restored. A surface contact that loses capture while still down (DirectManipulation, another capture, a system gesture) is cancelled in the drawn tree, so no drawn gesture keeps tracking a lost pointer.
 
-When `InputTransparent == true`:
+### Drags that start on a native overlay
 
-- The view is **excluded** from hit-testing.
-- It does **not** receive gestures or raw touch.
-- Pointers pass through to views below (or parent continues the search).
+A native control hosted by `SkUiMauiContentView` sits above the drawn surface, so its touches never reach the drawn tree by themselves. Each overlay's clip wrapper therefore also offers them to the drawn tree (`SkUiPointerRouter.DispatchFromOverlay`).
+- **Who competes:** only the **continuous** recognizers (scroll, pan, swipe, pinch) of the overlay's drawn ancestors. Taps, text selection and cursor placement stay native.
+- **Handover:** once a drawn gesture claims the pointer (e.g. a vertical drag in a drawn scroller), the native control's touch is cancelled and the rest of the drag goes to the drawn tree.
+  - **Android:** `SkUiOverlayClip.OnInterceptTouchEvent`, like a native scrolling parent.
+  - **iOS / Mac Catalyst:** `SkUiOverlayDragRecognizer` on the clip wrapper. It stays *Possible* while nothing drawn has claimed, so the native control works as usual; it begins when a drawn gesture claims, which cancels the native touches; it fails as soon as nothing drawn can claim.
+- **Native precedence:** controls that scroll their own content keep it, as they do inside a native MAUI `ScrollView`:
+  - a WebView, and MAUI's Android `Editor`, which blocks its parents from intercepting;
+  - on iOS, a scrollable `UITextView` / `WKWebView`, whose own pan begins first.
+- **Windows:** `OverlayDragWatcher` in `SkUiOverlayContainer`, touch and pen only (mouse drags stay native: text selection).
+  - `handledEventsToo` pointer handlers on the clip canvas see the native control's events; once the contact is down, its moves, release and cancel are also followed on the overlay container and the window's root content, so a finger lifted outside the overlay still ends the drawn gesture.
+  - On a claim the overlay container captures the pointer, so the native control loses it. If the native control's own manipulation (DirectManipulation) takes the contact first, the drawn side gets a cancel.
+  - The overlay a drag started on stays live (not replaced by its snapshot) until the drag ends: WinUI drops a contact whose element is hidden.
+  - A wheel (touchpad two-finger scroll) the native control does not use is forwarded to the drawn tree. WebView2 takes wheel input itself, so the list does not scroll under a WebView.
+  - Verified on a Windows touch laptop (2026-09-28; `WindowsValidation-results.md`).
+- **Verified on a Galaxy S9:** a slow vertical drag starting on an Entry scrolls the drawn list without focusing the Entry; a tap on the Entry still focuses it (keyboard shown); a drag on the Editor stays native.
 
-Applies equally to passive and intrinsic controls (a transparent button is not pressable).
+**The iOS gate resolves on its own touches too.**
+- **Why:** a touch the drawn view never receives (e.g. the tap that stops a decelerating native `ScrollView` is consumed by the scroll view) would otherwise leave the gate *Possible*, with every ancestor pan waiting for it. The page would freeze until the next touch that reaches the drawn tree.
+- **Rules:**
+  - at touch-down, the gate fails at once when an ancestor `UIScrollView` is still decelerating or dragging (that touch belongs to the native scroll view);
+  - it fails at touch end if still undecided;
+  - as a last resort, it fails when the pointer moved past the slop and the drawn tree still has not seen the touch 300 ms after it began. A normal touch reaches content views up to ~150 ms late (`delaysContentTouches`), so failing earlier would give quick drags on drawn scrollers to the native page.
+- **Both surface types:** the gate is attached to the Metal view and to software (`SKCanvasView`) surfaces.
+- **Software surfaces on iOS / Mac Catalyst:** they don't use SkiaSharp's touch recognizer.
+  - A delivering recognizer (`SkUiTouchDeliverer`) never changes state and cannot be prevented. It feeds touches to the drawn tree, then updates the gate, in that order (two independent recognizers on one view give no ordering guarantee).
+  - When a native ancestor scroll view starts dragging, it cancels the drawn gesture itself, which the scroll view does for content views but not for recognizers.
 
-### `IsEnabled`
+## Verification
 
-When `IsEnabled == false`:
+- Headless tests (`GestureTests`, `PipelineTests`, `ScrollViewTests`, `CoreLayerTests`) cover:
+  - tap rules and pass-through;
+  - press delay;
+  - orthogonal and same-axis nested scrolling, fling hand-off, wheel routing;
+  - drags and swipes inside scrollers;
+  - double tap / long press with a deterministic clock;
+  - pinch, multi-touch, pointer recognizers;
+  - native state;
+  - Core scrolling nested in SkUi* scrolling.
+- Devices:
+  - **Galaxy S9:** real `adb` swipes and taps. The drawn scroller scrolls with a fling, a drawn button inside it clicks, nested Core carousels and same-axis panels hand over at their edges, and row swipes work inside a vertical scroller.
+  - **Physical iOS device:** long press, double tap, pinch and swipes inside drawn scroll views (checked manually, 2026-09-27).
+  - **Galaxy S9, drawn surfaces inside a native MAUI `ScrollView`** (demo page "Native nesting"), GPU and software surfaces, real swipes:
+    - a drawn same-axis list scrolls first, and a new drag at its end scrolls the page;
+    - a drawn carousel takes horizontal drags, and vertical drags on it scroll the page;
+    - a drawn row with no scroller takes swipes and taps, and vertical drags on it scroll the page;
+    - a Core scroll view behaves like the drawn list.
+  - **iPhone:** GPU and software surfaces both verified: nested scrolling works, and the page no longer freezes after a tap-to-stop (2026-09-27).
+  - **Windows 11, mouse** (2026-09-27, GPU and software surfaces; [WindowsValidation-results.md](WindowsValidation-results.md)): press feedback and clicks, drawn scroller drag / fling / wheel, a drag that starts on a button scrolls without clicking, Core carousel, same-axis panel hand-off to the page, row swipe, long press, double tap.
+  - **Windows 11, "Native nesting", mouse** (2026-09-28, GPU and software): drawn and Core lists take drags without moving the page; the wheel scrolls a list to its end and then the page; wheel over native filler scrolls the page; carousel drag, row swipe and tap work. Mouse drags never pan the native page (WinUI `ScrollViewer` pans only for touch / pen). A vertical wheel over a horizontal-only drawn scroller scrolls it horizontally.
+  - **Windows touch laptop** (2026-09-28, touchscreen and touchpad): drawn drags and flicks; drags that start on Entry fields scroll the drawn list (snapshot mode, the live overlay stays aligned); taps still focus them; "Native nesting" hand-over to the native page; touchpad wheel over an Entry / Editor scrolls the list; lost contacts no longer leave scrolling stuck; pinch.
+  - **By design:** once a drawn scroller has claimed a drag, the rest of that drag stays drawn. It chains only to drawn outer scrollers; Android cannot hand a gesture back to a native parent mid-drag. The native page takes over on the next drag.
 
-- Do **not** raise gesture events or execute gesture commands.
-- **Proposed default (confirm in implementation):** disabled views still **hit-test and block** pointers (like typical MAUI buttons), unless `InputTransparent` is also true. Document the final rule in public XML docs.
+## Still open
 
-### Clip / mask (FR-11)
-
-**Paint and hit-test are decoupled by default** (same idea as UIKit `cornerRadius` / Android `clipToOutline` / MAUI buttons):
-
-- Clip, rounded corners, and masks constrain **what is drawn**.
-- Hit-testing uses the control’s **arranged layout rectangle**.
-- A tap in a visually empty rounded corner that is still inside the layout rect **hits that control** (does not fall through to views underneath).
-
-Shape-aware hit-testing (path / mask contains-point) is **out of scope for v1** as a default; if needed later, expose an opt-in override rather than coupling every clip to input.
-
-### Platform / density
-
-Gesture positions use the same **DIP** coordinate system as Measure / Arrange / Paint / Touch (Requirements — Decided).
-
-## Delivery rules (v1 intent)
-
-1. Root host converts platform events → DIP + pointer id.
-2. On press: hit-test top-most eligible view (respect z-order, arranged bounds, `InputTransparent`).
-3. Track capture for that press so move/up go to the press target (needed for swipe / long-press cancel if pointer leaves — define cancel thresholds).
-4. Classifier emits at most the configured gestures for that interaction.
-5. For each emitted gesture, ask the target (then optionally parents — see open questions) whether it participates; if yes, raise/execute and mark consumed as appropriate.
-6. If the leaf does not participate, continue to the next view under the point (or bubble — see open questions).
-
-Layouts paint and hit-test children in z-order; the gesture system must not require each layout to reimplement classification.
-
-## What we need to implement
-
-### Core (shared)
-
-- [ ] Pointer/touch ingress on the **standalone root** host (handler / Skia surface), including enable-touch wiring.
-- [ ] DIP mapping and multi-pointer id plumbing (v1 may document single-pointer-only if multi-touch is deferred).
-- [ ] Tree **hit-test** API used by both raw touch and gestures (**arranged bounds** + `InputTransparent`; not clip/mask by default — FR-11).
-- [ ] **Gesture classifier**: thresholds/timeouts for single tap, double tap, long press, swipe (direction + distance); cancel rules when movement exceeds tap slop.
-- [ ] **`SkUiView` participation API**: detect event subscribers / commands; virtual `HasIntrinsic*Gesture` (or equivalent) for button-like controls.
-- [ ] Raise events + execute commands on the UI thread as required by MAUI conventions.
-- [ ] Consume / pass-through semantics so passive labels do not block siblings underneath.
-- [ ] Honor `IsEnabled` per the documented blocking rule.
-- [ ] XML docs on all public gesture members; note that MAUI `GestureRecognizers` are not used.
-
-### Control integration
-
-- [ ] `SkUiLabel` (and similar chrome-less text): default passive; works when user sets command or event.
-- [ ] `SkUiButton`: intrinsic tap / press; visual state `Pressed` / `Disabled` via FR-12 where applicable; works with zero app handlers.
-- [ ] Layouts / content host: child-first hit-test; no accidental full-rect gesture steal unless opted in.
-- [ ] Avoid per-control copies of timers, swipe math, or double-tap tracking.
-
-### Verification
-
-- [ ] Demo: label with `TappedCommand` / `Tapped` handler.
-- [ ] Demo: button without app handlers still shows press feedback and can host a `Command`.
-- [ ] Demo: `InputTransparent="True"` overlay does not receive taps; view below does.
-- [ ] Demo: rounded / clipped control still receives taps in layout-rect corners (paint-only clip — FR-11).
-- [ ] Standalone leaf and hosted-under-`SkUiContentView` behave the same for the public gesture API.
-
-## Open questions
-
-Record answers here when decided; keep Requirements “Open decisions” in sync for cross-cutting items.
-
-1. **Bubble vs sibling search:** If the top-most view under the pointer does not participate, do we walk **down the z-stack** at that point, or **bubble to parents** only, or both?
-2. **Public API names:** final event/command property names; whether swipe is one event with direction vs per-direction events.
-3. **Thresholds:** platform-specific vs fixed DIP timeouts/distances; configurability on `SkUiView` or app-wide defaults only.
-4. **Multi-touch:** v1 single pointer only, or simultaneous independent pointers?
-5. **Raw touch vs gestures:** can a control both handle raw touch and still receive classified taps? Precedence when both consume.
-6. **Disabled hit-testing:** confirm “disabled still blocks” vs “disabled is pass-through.”
-7. **MAUI recognizer bridge:** defer entirely, or schedule a thin optional compatibility layer later?
+- A demo page for gestures and nested scrollers (FR-15 checklist).
+- Hover / pointer-over events and an axis-aware wheel (desktop).
+- Keyboard and accessibility actions (activation of focused elements) — later.
+- Shape-aware hit-testing (opt-in), if needed.
 
 ## References
 
-- [Requirements.md](Requirements.md) — FR-11, FR-13, FR-15, coordinate system, dual-mode hosting
-- [DrawingMechanism.md](DrawingMechanism.md) — clip/mask is paint-only by default; same arranged bounds for hit-test
-- .NET MAUI — layout/`IView` only for input *properties* (`InputTransparent`, `IsEnabled`); not `GesturePlatformManager` for SkiaUi trees
-- DrawnUi — useful reference for drawn-tree gesture participation / attached commands; do not copy wholesale
+- [Requirements.md](Requirements.md): FR-11, FR-13, FR-15, FR-16, FR-17.
+- [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md): scrolling rules and nesting.
+- Local **Flutter**: `gestures/arena.dart`, `recognizer.dart` (arena model: accept / reject, sweep on pointer up).
+- Local **Android** / **UIKit** docs: `requestDisallowInterceptTouchEvent`, `gestureRecognizer:shouldBeRequiredToFailByGestureRecognizer:`.

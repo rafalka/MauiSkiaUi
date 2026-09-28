@@ -1,12 +1,12 @@
 # SkUiActivityIndicator
 
-Indeterminate spinner driven by the shared animation clock.
+Indeterminate spinner that spins on the render thread.
 
 **MAUI counterpart:** [`ActivityIndicator`](https://learn.microsoft.com/dotnet/maui/user-interface/controls/activityindicator)
 
 ## How it works
 
-While `IsRunning` is true, a repeating clock animation updates the sweep angle. The root handler issues **one** paint invalidation per tick (spinners do not each bubble `InvalidatePaint`). Hiding (`IsVisible=false`) clears `IsRunning`. Detaching the control—or an **ancestor**—from its parent **unbinds** the spin callback so detached subtrees cannot keep ticking, but **keeps** `IsRunning` so a temporary rehost (e.g. recreating the surface host for `HwAccelerated`) resumes automatically. Setting `IsRunning` before the control joins its surface-owning ancestor still works: the spin callback rebinds onto the shared root clock when parenting changes. Stroke paint is cached and released on detach. Intrinsic measure comes from `SkUiLook.Current.DefaultActivityIndicatorSize` (default 36×36 DIPs). Arc geometry uses `SkUiLook.Current.DrawActivityIndicator` (same path as `SkUiCoreActivityIndicator`).
+While `IsRunning` is true, the arc is recorded once and the compositor rotates it about the slot center on the render thread (one revolution per second). No per-frame re-recording and no UI-thread work, so it keeps spinning while the UI thread is busy. Spinning only requests frames while the indicator is actually drawn: hidden, culled or detached indicators cost nothing. Hiding (`IsVisible=false`) clears `IsRunning`. Detaching keeps `IsRunning`, so a rehost resumes automatically. Intrinsic measure comes from `SkUiLook.Current.DefaultActivityIndicatorSize` (default 36×36 DIPs). The arc comes from `SkUiLook.Current.DrawActivityIndicator`, drawn at `sweepStart = 0`, so custom painters must draw centered, rotation-symmetric geometry. `SkUiCoreActivityIndicator` uses the same path.
 
 
 ## Shared conventions
@@ -16,7 +16,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 - **Coordinates** use DIPs. Paint and touch share the same local space as measure/arrange.
 - **BindableProperty + fluent `Set*` setters:** bindables call the direct setter. Direct setters **do not** write back to the bindable store (intentional FR-10 desync). Prefer one update path per property.
 - **`StartUpdating` / `EndUpdating`** batch layout and paint invalidation.
-- **Gestures** use SkiaUi's own tap model (`Tapped` / `TappedCommand`), not MAUI `GestureRecognizers`. See [EventMechanism.md](../design/EventMechanism.md).
+- **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`), not MAUI `GestureRecognizers`. See [EventMechanism.md](../design/EventMechanism.md).
 - **Hosted vs standalone:** when nested under another SkiaUi parent, the node has no platform handler and paints into the root surface. See [LayoutSystem.md](../design/LayoutSystem.md).
 
 

@@ -1,338 +1,335 @@
 # SkiaUi scrolling and collection views
 
-Design notes and implementation checklist for **FR-17** (custom scroll and list/collection controls) in [Requirements.md](Requirements.md). Aligns with [LayoutSystem.md](LayoutSystem.md), [DrawingMechanism.md](DrawingMechanism.md), [EventMechanism.md](EventMechanism.md), [AnimationMechanism.md](AnimationMechanism.md), and FR-16 (`SkUiMauiContentView` overlays / scroll snapshots).
+Design notes and implementation checklists for **FR-17** (scrolling), **FR-21** (virtual / dynamic scroll layout) and **FR-22** (collection view) in [Requirements.md](Requirements.md). Aligns with [LayoutSystem.md](LayoutSystem.md), [RenderingPipeline.md](RenderingPipeline.md), [EventMechanism.md](EventMechanism.md) (gesture arena), [AnimationMechanism.md](AnimationMechanism.md) and FR-16 (`SkUiMauiContentView` overlays while scrolling).
 
 ## Goal
 
-**ScrollView (completed):** `SkUiScrollView : SkUiContentView` now provides vertical/horizontal/both-axis clamped offsets, padded content extent, viewport clipping, tap-to-pan takeover at 10 DIPs, a bounded root-clock fling, wheel input, `ScrollTo`, `ScrollToAsync`, `AnimateScrollTo`, and `Scrolled`. Offset changes **invalidate paint only** (canvas/touch translation); content keeps a stable arranged frame and is not remeasured or rearranged per frame. A content **`SKPicture` cache** records the full arranged content space (`max(measured extent, viewport)`); offset-only frames replay that picture. When the cache is dirty and the shared animation clock is running (content paint animations), the scroller **live-paints the viewport** instead of re-recording the full extent every frame; fling-only motion leaves the picture clean so offset animation still reuses the cache. Child press is withheld until a tap is confirmed (movement under the pan threshold), so finger pans do not press buttons or force cache rebuilds; synthetic taps suppress press-chrome picture invalidation. Other paint invalidations during an active pointer/fling still **defer rebuild** until the gesture settles. Disabling, hiding, detaching, or unloading cancels interaction/motion; pending async scrolls cancel on interruption. Tests cover these mechanisms and full-pixel viewport composition. Nested scroll arbitration, overscroll/bounce, scrollbars, snapping, overlays, and virtualization remain future work. Device acceptance is still blocked; the remainder of this document describes the broader target design, including unimplemented types.
-
-Provide **SkiaUi-owned** scrolling and (later) virtualized collections so large or scrollable UIs stay on **one shared Skia surface**, with pan/fling, viewport clipping, and optional item recycling — without relying on MAUI `ScrollView` / `CollectionView` as the primary composition model.
+Provide **SkiaUi-owned** scrolling, on-demand item creation and virtualized collections, so large or scrollable UIs stay on **one shared Skia surface**. The toolkit supplies pan and fling, nested scrolling, viewport clipping and item recycling itself, without relying on MAUI `ScrollView` / `CollectionView` as the primary composition model.
 
 Apps should be able to:
 
-- Author a scrollable form or stack entirely under `SkUiContentView` in XAML.
-- Pan and fling with physics that match platform expectations reasonably (thresholds, inertia, optional bounce/overscroll).
-- Later: bind large `ItemsSource` lists with recycled cell templates without one MAUI handler / surface per row.
+- Author a scrollable form or stack entirely under `SkUiContentView` in XAML. This is **done**: `SkUiScrollView`.
+- Scroll inside Core-built complex controls. This is **done**: `SkUiCoreScrollView`.
+- Nest scrollers, such as horizontal carousels in a vertical feed or a scrollable panel inside a scrollable page. This is **done**: gesture arena plus scroll chaining.
+- Build endless feeds whose items are created on demand while the user scrolls, before they become visible (FR-21).
+- Bind large `ItemsSource` lists with recycled templates, selection, grouping, sticky header / footer and item tap commands, without one MAUI handler per row (FR-22).
 
 ## Decision summary
 
 | Topic | Choice |
 | --- | --- |
-| Primary scroll | **`SkUiScrollView`** — fully drawn; owns offset, viewport, clip, pan/fling |
-| Primary lists (later) | **`SkUiCollectionView`** (or templated virtualizing layout) — recycle pool on shared surface |
-| Not primary | Nesting SkiaUi trees inside MAUI `ScrollView` / `CollectionView` |
-| Why | One surface (FR-13/14); Skia-owned viewport for cull/paint; FR-15 gestures; FR-16 overlay sync / snapshots |
-| MAUI nest | **Compat / migration only** — document cost; leaf `HwAccelerated = false` |
-| Layout contract | Still **MAUI measure/arrange** for content and cells ([LayoutSystem.md](LayoutSystem.md)) |
-| Gestures | Scroll consumes pan along its axis via **raw touch + capture**; tap/swipe still FR-15 where not scrolling |
-| Overlay while scroll | **Android/Windows:** snapshot freeze by default; **Apple:** live sync; **opt-out** per overlay |
-| Closest analogues | **DrawnUi** `SkiaScroll` + templated `SkiaLayout`; Flutter `Scrollable`/`Viewport`/slivers; Avalonia `ScrollViewer` + `VirtualizingStackPanel`; Uno `ItemsRepeater` |
+| Scroll engine | One shared engine for both layers. `SkUiScrollController` holds the state and motion; `SkUiScrollGestureRecognizer` handles drags. It drives `SkUiScrollView` (SkUi*) and `SkUiCoreScrollView` (Core). |
+| Offset model | A composite-time children translation. Scrolling never re-records content, and fling and animated scrolls run on the render thread, which reports offsets back ([RenderingPipeline.md](RenderingPipeline.md)). |
+| Gestures | Scroll drags take part in the **gesture arena** ([EventMechanism.md](EventMechanism.md)). Content taps win unless the pointer moves past the touch slop along a direction the scroller can move. |
+| Nested scrolling | Axis-aware claims, inner scrollers first. The part of a drag an inner scroller cannot absorb chains to outer scrollers on the same axis, and a fling goes to the innermost scroller that can move. |
+| Native ancestors | Drawn continuous gestures hold native parents back while they may claim. Once none can claim, the native parent may take over (Android `RequestDisallowInterceptTouchEvent`; iOS gate recognizer). |
+| On-demand items (FR-21) | **`SkUiVirtualStackLayout`**: a layout that *requests* its children from a provider as its visible window (plus prefetch) grows. It sits inside any drawn scroller. `SkUiVirtualScrollView` is the combined convenience control. |
+| Collections (FR-22) | **`SkUiCollectionView`**, built on the FR-21 engine with template recycling: MAUI `CollectionView` API parity plus sticky header / footer, selection background, and item tap event / command. |
+| Core layer | `SkUiCoreScrollView` is done. A Core virtual stack is added only if the FR-21 engine stays layer-agnostic, so it costs a thin wrapper. No Core collection view: templates and bindings are MAUI concepts. |
+| Not primary | Nesting SkiaUi trees inside MAUI `ScrollView` / `CollectionView` is compat / migration only. Leaf views keep `HwAccelerated = false` (FR-14). |
+| Layout contract | Content and items use MAUI measure / arrange ([LayoutSystem.md](LayoutSystem.md)). |
+| Overlays while scrolling | **Android / Windows:** snapshot freeze by default. **Apple:** live sync. Opt-out per overlay (FR-16). |
 
 ## How peer platforms implement this
 
 | Platform | Scroll | Collections | Fully drawn? |
 | --- | --- | --- | --- |
 | **.NET MAUI** | Native (`UIScrollView`, etc.) | Native recyclers + MAUI cell handlers | **No** |
-| **Flutter** | `Scrollable` + `Viewport` + slivers | `ListView` / `SliverList` build only visible children | **Yes** |
+| **Flutter** | `Scrollable` + `Viewport` + slivers | `ListView` / `SliverList` build only visible children (+ cache extent) | **Yes** |
 | **Avalonia** | `ScrollViewer` (Offset / Extent) | `ItemsControl` + `VirtualizingStackPanel` recycle | **Yes** |
 | **Uno** | `ScrollViewer` (+ Skia path) | `ItemsRepeater` virtualization | **Mostly yes** on Skia |
-| **DrawnUi** | `SkiaScroll` (gestures, viewport, rubber-band) | Templated layout + `RecyclingTemplate` + items windowing | **Yes** |
+| **DrawnUi** | `SkiaScroll` (gestures, viewport, rubber-band) | Templated layout + recycling template + items windowing | **Yes** |
 
-**Lesson:** toolkits that paint with Skia **own** scroll offset and list virtualization inside the drawn tree. MAUI’s scrollers stay platform-native by design — nesting SkiaUi under them fights the single-surface model.
+**Lesson:** toolkits that paint with Skia **own** the scroll offset and list virtualization inside the drawn tree. MAUI's scrollers stay platform-native by design, and nesting SkiaUi under them fights the single-surface model.
 
 ## Why not MAUI `ScrollView` / `CollectionView` as the main host
 
-1. **Many surfaces / handlers** — a `CollectionView` cell with standalone `SkUiView` creates a handler per cell (even SW). That is what FR-14 defaults try to avoid for “many cells.”
-2. **Viewport lives outside Skia** — culling, selective paint, and overlay repositioning need an in-tree offset; native scroll does not give a clean SkiaUi viewport API.
-3. **Gesture conflict** — FR-15 owns pan/swipe on the drawn tree; nested native scroll fights SkiaUi capture and physics.
-4. **`SkUiMauiContentView`** — overlays need scroll-time sync; on Android/Windows, snapshot freeze while scrolling (FR-16 decided policy).
-5. **Wrong cost center** — MAUI still pays layout/handler cost per visible cell; SkiaUi’s goal is to move that work onto one surface.
+1. **Many surfaces / handlers.** A `CollectionView` cell with a standalone `SkUiView` creates a handler per cell.
+2. **The viewport lives outside Skia.** Culling, on-demand creation and overlay repositioning need an in-tree offset.
+3. **Gesture conflicts.** Drawn gestures are arbitrated in the drawn tree. Native scrollers only coordinate with it at the surface boundary.
+4. **`SkUiMauiContentView`.** Overlays need scroll-time sync.
+5. **The wrong cost center.** MAUI still pays layout and handler cost per visible cell.
 
-**Allowed escape hatch:** small lists or hybrid pages may put standalone `SkUi*` controls inside MAUI `CollectionView` / `ScrollView`. Document as slower interop; prefer composing under one `SkUiContentView` + `SkUiScrollView`.
+**Escape hatch:** small lists or hybrid pages may put standalone `SkUi*` controls inside MAUI scrollers. Drawn scrollers inside a native `ScrollView` coordinate with it: drawn first, native at the drawn edge. This path is documented as slower interop.
 
 ## Recommended composition
 
 ```xml
 <SkUiContentView>
-  <SkUiScrollView Orientation="Vertical">
-    <SkUiVerticalStack>
-      <SkUiLabel Text="…" />
-      <SkUiMauiContentView>
-        <Entry Placeholder="…" />
-      </SkUiMauiContentView>
-      <!-- more content -->
-    </SkUiVerticalStack>
+  <SkUiScrollView>
+    <SkUiVerticalStackLayout>
+      <SkUiLabel Text="Recent" />
+      <SkUiScrollView Orientation="Horizontal">       <!-- nested carousel: horizontal drags -->
+        <SkUiHorizontalStackLayout>…</SkUiHorizontalStackLayout>
+      </SkUiScrollView>
+      <SkUiVirtualStackLayout ItemsSource="{Binding Feed}" PrefetchFactor="1.5"> <!-- FR-21 -->
+        <SkUiVirtualStackLayout.ItemTemplate>
+          <DataTemplate><local:FeedCard /></DataTemplate>
+        </SkUiVirtualStackLayout.ItemTemplate>
+      </SkUiVirtualStackLayout>
+    </SkUiVerticalStackLayout>
   </SkUiScrollView>
 </SkUiContentView>
 ```
 
-Later (virtualized):
-
 ```xml
 <SkUiContentView>
-  <SkUiCollectionView ItemsSource="{Binding Items}">
+  <SkUiCollectionView ItemsSource="{Binding Orders}" SelectionMode="Single"
+                      IsStickyHeader="True" SelectionBackground="#1F0A84FF"
+                      ItemTappedCommand="{Binding OpenOrder}">          <!-- FR-22 -->
+    <SkUiCollectionView.Header><local:OrdersHeader /></SkUiCollectionView.Header>
     <SkUiCollectionView.ItemTemplate>
-      <DataTemplate>
-        <SkUiGrid>
-          <SkUiLabel Text="{Binding Title}" />
-        </SkUiGrid>
-      </DataTemplate>
+      <DataTemplate><local:OrderRow /></DataTemplate>
     </SkUiCollectionView.ItemTemplate>
   </SkUiCollectionView>
 </SkUiContentView>
 ```
 
-Not recommended as the default:
+Core complex controls use `SkUiCoreScrollView`:
 
-```xml
-<!-- Avoid for large / scroll-heavy SkiaUi UI -->
-<ScrollView>
-  <SkUiContentView>…</SkUiContentView>
-</ScrollView>
+```csharp
+var list = new SkUiCoreScrollView().SetContent(new SkUiCoreVerticalStackLayout().Add(...));
 ```
 
-## Architecture
-
-### Scroll (`SkUiScrollView`)
+## Scroll engine (implemented)
 
 ```
-Standalone SkUi root (one SK surface)
-        │
-        ▼
-SkUiScrollView : SkUiLayout (or content host)
-        │  Measure: viewport = arranged size; measure Content unconstrained (or max) on scroll axis
-        │  Arrange: Content at -Offset; clip to viewport
-        │  Touch: capture pan on scroll axis; fling → animation clock (FR-7)
-        │  Paint: clip → translate by -Offset → paint Content (and chrome / scrollbars)
-        ▼
-Content : ISkUiView (stack, grid, …)
+SkUiScrollView (SkUi*) ─┐                      ┌─ SkUiCoreScrollView (Core)
+                        ├─ SkUiScrollController ┤
+                        │   offset / extent / viewport / orientation, clamping
+                        │   render-thread tween (ScrollToAsync / AnimateScrollTo) and fling
+                        │   wheel (innermost scroller that can move)
+                        │   ScrollBy → remainder (for chaining)
+                        └─ SkUiScrollGestureRecognizer (arena member)
 ```
 
 | Concern | Behavior |
 | --- | --- |
-| **Viewport** | Arranged bounds of the scroll view |
-| **Content extent** | Desired size of `Content` (after measure with loose constraint on the scroll axis) |
-| **Offset** | `(ScrollX, ScrollY)` in DIPs; clamped to `[0, max(0, extent − viewport)]` (plus optional overscroll) |
-| **Clip** | Paint and hit-test content against viewport (hit-test: transform pointer by `+Offset` then hit content) |
-| **Orientation** | Vertical, Horizontal, or Both (Both is harder; v1 may ship Vertical + Horizontal only) |
-| **Chrome** | Optional scrollbar(s) as paint layers or child chrome (FR-9), not MAUI `ScrollBar` |
+| **Viewport** | The scroller's arranged size. Children are clipped to it (`ChildrenClipRect`), and hit-testing stops at it. |
+| **Content extent** | The content's desired size, measured unconstrained along the scroll axes. Content is arranged at `max(extent, viewport)`. |
+| **Offset** | `(ScrollX, ScrollY)`, clamped to `[0, max(0, extent − viewport)]`. It is a children translation, so there is no re-record, remeasure or rearrange. |
+| **Motion** | Tweens and flings run on the render thread with exponential decay. The last shown offset is reported back when motion stops, and a press during motion stops it. |
+| **RTL** | Horizontal scrollers start at their logical start (the right end). Children are mirrored inside the extent (`ChildrenSpaceWidth`). |
+| **Overlays** | `SkUiScrollView` syncs registered `SkUiMauiContentView` descendants on each offset change. |
 
-### Collection / virtualization (to be implemented)
+### Gestures and nesting rules (implemented)
 
-```
-SkUiCollectionView (or SkUiLayout + ItemsSource)
-        │  Knows viewport (often nested in / acting as scroll)
-        │  Realizes only cells intersecting viewport (+ cache margin)
-        │  Recycle pool keyed by template / recycle key
-        ▼
-Cell instances : ISkUiView (Handler == null; painted on shared surface)
-```
-
-Virtualization is **not** MAUI `CollectionView` recycling. Cells are hosted SkiaUi nodes: no per-cell platform view unless a cell embeds `SkUiMauiContentView` (discourage many overlays in lists — FR-16 cost note).
-
-## Delivery order
-
-| Milestone | Deliverable | Scope |
-| --- | --- | --- |
-| **Completed** | `SkUiScrollView` | Single `Content`; Vertical/Horizontal/Both; pan + fling; clip; offsets / `ScrollTo`; picture cache |
-| **Next** | Polish | Nested scroll (outer vs inner), snap points, keyboard / focus bring-into-view; stronger wheel when Both |
-| **Later** | Virtualizing collection | `ItemsSource` + `ItemTemplate`, recycle pool, scroll-to-index, variable-size rows (start with fixed/estimated height) |
-| **Later** | Advanced lists | Grouping, grid items layout, sticky headers, horizontal carousels, infinite / windowed source |
-
-Do **not** block demos on full collection virtualization. Non-virtualizing scroll covers forms, settings, and short content.
-
-## `SkUiScrollView` — design details
-
-### Type placement
-
-- Prefer **`SkUiScrollView : SkUiLayout`** or a dedicated subclass of `SkUiContentView`-like single-child host with layout overrides.
-- Expose **`Content`** (`ISkUiView`) as `[ContentProperty]` for XAML parity with DrawnUi / MAUI `ScrollView`.
-- Default **`HwAccelerated = true`** when used as standalone root (same as other composition hosts). When nested under `SkUiContentView`, no surface of its own (FR-13).
-
-### Measure / arrange
-
-- **Viewport size** = constraints from parent (the scroll view’s own arranged size).
-- Measure **Content** with:
-  - Scroll axis: effectively unconstrained (or a large max), so content reports full desired extent.
-  - Cross axis: typically the viewport cross-axis size (stretch), matching MAUI `ScrollView` / stack-in-scroll expectations — document exact parity.
-- Arrange Content at origin offset by **`-ScrollOffset`** (content moves under a fixed viewport).
-- Changing offset alone must **not** remeasure Content when size unchanged (FR-3a / NFR-2) — only rearrange or apply paint/hit transform.
-
-### Paint
-
-- Apply **clip** to viewport (FR-11).
-- Translate canvas by `-Offset` (or arrange-based positions already include offset — pick one model and keep hit-test consistent).
-- v1: full-tree paint under root invalidate ([DrawingMechanism.md](DrawingMechanism.md)); optional later: skip painting children whose bounds miss the viewport (cull).
-
-### Input (FR-15 interaction)
-
-- Scroll is an **intrinsic** pan consumer along its enabled axis (like a button is an intrinsic tap consumer).
-- Use **pointer capture** while dragging; integrate with EventMechanism capture open items.
-- Threshold: small movement → allow tap/click on children; past threshold → scroll wins and cancels child press.
-- Fling: velocity → decelerate via FR-7 animator registry on the standalone root (`HasRenderLoop` while animating).
-- Nested scroll: define which ancestor claims the gesture (direction lock, leftover delta) — open for v1.x.
-
-### Public surface (target names TBD)
-
-- Properties: `Orientation`, `ScrollX` / `ScrollY` (or `Offset`), `ContentSize` / extent (read-only), `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility`.
-- Methods: `ScrollToAsync` / `ScrollTo` (position or element).
-- Events: `Scrolled`, `Scrolling` / `ScrollAnimationEnded` as needed.
-- Bindable + FR-10 direct setters where applicable.
+- **Claiming:** a scroller claims when the pointer moves more than `SkUiGestureSettings.TouchSlop` along an enabled axis, that axis dominates the movement, and the scroller can move in that direction. Until then, content recognizers (taps, pans, swipes) compete normally.
+- **Orthogonal nesting:** each scroller gets the drags of its own axis (a horizontal carousel inside a vertical page).
+- **Same-axis nesting:** the inner scroller claims first while it can move. The part of each drag it cannot absorb goes to the next outer scroller on that axis. A drag that starts at the inner scroller's edge, moving outward, is claimed by the outer scroller.
+- **Fling:** the fling goes to the innermost scroller that can move in its direction.
+- **Stopping a fling:** a press during a fling stops it and claims the pointer, so the content under the finger is not tapped.
+- **Press feedback:** a button inside a scroller shows its pressed state after `PressDelay` (100 ms) unless a scroll starts first; there is no flash while scrolling.
+- **Native ancestors:** while a drawn scroller may still claim (within the slop), native ancestors are held back. If the drawn scroller cannot move in the drag direction, the native parent takes over once the finger passes the slop.
 
 ### Overlays while scrolling (FR-16)
 
-Native overlays (`SkUiMauiContentView`) sit as **sibling platform views** of the Skia surface. Their frames must track the placeholder’s arranged bounds (which move when scroll offset changes).
-
-Two strategies:
+Native overlays (`SkUiMauiContentView`) sit as **sibling platform views** of the Skia surface. Their frames must track the placeholder's arranged bounds, which move when the scroll offset changes.
 
 | Strategy | Behavior |
 | --- | --- |
-| **Live sync** | Every scroll frame: set native view position / transform / clip to match placeholder. Native view stays visible and interactive. |
-| **Snapshot freeze** | On scroll/animation start (or first transform change): capture a bitmap of the native view, **hide** the native view, **paint the bitmap** on the Skia canvas (translated with content). When motion settles (debounce timer), show the native view again and drop the snapshot. |
+| **Live sync** | On every scroll frame, set the native view's position, transform and clip to match the placeholder. The native view stays visible and interactive. |
+| **Snapshot freeze** | When scrolling starts, capture a bitmap of the native view, hide the view, and paint the bitmap on the Skia canvas. When motion settles, show the native view again. |
 
 #### Decided policy
 
-| Platform | Default while scrolling / fling | Notes |
+| Platform | Default while scrolling / flinging | Notes |
 | --- | --- | --- |
-| **Android** | **Snapshot freeze required** | Auto when placeholder is under an actively scrolling `SkUiScrollView` (or equivalent scroll/fling animation) |
-| **Windows** | **Snapshot freeze required** | Same as Android |
-| **iOS / Mac Catalyst** | **Live sync only** (snapshot off) | Reposition native overlay each frame; no snapshot path required in v1 |
-| **All** | **Opt-out** | Per-overlay property (name TBD, e.g. `UseSnapshotWhileScrolling` / DrawnUi-like `AnimateSnapshot`) so apps can force live native view during scroll (e.g. WebView that must stay interactive / updating) |
+| **Android** | **Snapshot freeze** | Automatic under an actively scrolling scroller |
+| **Windows** | **Snapshot freeze** | Same as Android |
+| **iOS / Mac Catalyst** | **Live sync only** | The native overlay is repositioned each frame |
+| **All** | **Opt-out** | `SkUiMauiContentView.ScrollMode` = `Live` (or `Snapshot` to opt in on Apple) |
 
-**Rationale:** DrawnUi’s production lesson — Android/Windows cannot cheaply track 60 fps Skia motion with live native overlays; Apple usually can. Opt-out covers special cases without making every consumer configure Android/Windows for acceptable demos.
+**Rationale:** Android and Windows cannot cheaply keep live native overlays in step with 60 fps Skia motion; Apple platforms usually can.
 
-Implementation notes:
+#### Implemented
 
-- Prefer direct pixel buffers for capture (avoid naive PNG encode/decode round-trips — NFR-2).
-- Debounce restore of the native view after motion settles (`FreezeTimeMs`-style).
-- While snapshot is showing, native control is not interactive; document hit-test / IME policy (typically: scroll owns the gesture; focus may be deferred until restore).
-- FR-17 `SkUiScrollView` must signal overlays when scroll interaction / fling starts and ends (or “transform dirty while animating”) so they can take/clear snapshots.
+- **Motion signal:** the scroll engine reports motion start / end: drag (including outer scrollers moving through chained drags), fling, and animated scroll. An instant `ScrollTo` is not motion.
+- **On motion start:** each overlay under the moving scroller captures its native view, hides it, and draws the bitmap as ordinary drawn content (render-thread composited, clipped by the viewport).
+  - Capture: Android `View.Draw` (unaffected by what covers the view on screen), iOS `DrawViewHierarchy`, Windows `RenderTargetBitmap` (WebView2: `CoreWebView2.CapturePreviewAsync`, which `RenderTargetBitmap` cannot capture).
+- **Restore:** `SkUiMauiContentView.SnapshotRestoreDelay` (150 ms) after motion stops, with fresh bounds. A new drag within the delay reuses the snapshot.
+- **Focus:** a focused control stays live.
+- **Clipping:** every overlay sits in a clip wrapper sized to its visible rectangle (ancestor scroll viewports and clipping ancestors), so it neither draws nor takes touches outside it.
+  - On Android, wrappers are positioned directly: the MAUI parent may skip re-measuring the container, so a relayout request is not enough.
+- **Demo:** "Native overlays in ScrollView" (mode switch, snapshot highlighting, restore delay).
+- **Verified** on a Galaxy S9: snapshots during the drag, restore after, clipping under the drawn header / footer, typing into an Entry inside a nested carousel. On the iOS simulator: live sync and clipping.
+- **Verified on Windows 11** (mouse, GPU and software surfaces; [WindowsValidation-results.md](WindowsValidation-results.md)): snapshots during the drag (WebView included), restore after, clipping and hit-test clipping under the drawn header, focused controls stay live, Live mode. On Windows the UI thread also composites, so a UI stall pauses the fling together with the snapshots.
 
-#### Why Android / Windows need this
+## FR-21 — Virtual / dynamic scroll layout (requirements)
 
-DrawnUi’s `SkiaMauiElement` documents this explicitly:
+**Purpose:**
+- Endless scrolling (feeds, logs, search results loaded page by page).
+- The item engine underneath `SkUiCollectionView`.
 
-> ANDROID + WINDOWS: To respond to fast skia updates (ex: while scrolling) we are forced to make a native view snapshot, hide the native view and draw the snapshot while we are animating. … OTHER PLATFORMS: Do not need a snapshot, maui view is moved/transformed directly.
+The layout **requests** children from a provider while scrolling, before they reach the visible area, so scrolling stays fluent.
 
-| Platform | Typical behavior moving a native overlay every frame | Default |
-| --- | --- | --- |
-| **iOS / Mac Catalyst** | Repositioning/transforming the overlay (`UIView` frame / transform) usually keeps up with the Skia present rate | Live sync |
-| **Android** | Updating a platform `View` layout/visibility every fling frame often **lags** the GL surface → jitter / trail | Snapshot freeze |
-| **Windows** | WinUI layout / capture path cannot cheaply track 60 fps Skia motion | Snapshot freeze |
+### Shape
 
-#### Costs and tradeoffs (reference)
+- **`SkUiVirtualStackLayout`:** a stack layout whose children are created on demand. Vertical is required first; horizontal is a later extension.
+  - It works as the content of a drawn scroller or anywhere below one (several virtual sections in one page, headers above the list).
+  - It also works nested inside another virtual layout.
+- **Visible window:** the layout computes its window as the intersection of the viewports of all ancestor scrollers, in its own coordinates. It does not care which ancestor scrolls.
+- **`SkUiVirtualScrollView`:** a convenience control combining a vertical scroller with a virtual stack, for the common single-list case.
+- **Core variant `SkUiCoreVirtualStackLayout`:** optional. It is added only if the engine is written against the shared render / input node contracts, so that it is a thin wrapper.
 
-| Concern | Snapshot path | Live-sync-only path |
-| --- | --- | --- |
-| Visual smoothness with Skia content | Good on Android/Windows | Often poor (stutter / desync) |
-| Implementation cost | Capture API per platform, bitmap cache, hide/show, debounce | Simpler: only layout native view each frame |
-| Memory / CPU | Bitmap alloc + capture at scroll start | Per-frame native layout cost |
-| Interactivity while scrolling | Native control **not** interactive (hidden) | IME / focus stay on native view (can fight scroll) |
-| Visual fidelity | Stale until scroll ends | Always live |
+### Item provider
 
-Velocity-threshold **hybrid** (snapshot only above a speed) is a possible later refinement; not required for v1.
+Three ways to supply items; any one is enough:
+- **Per-index factory:** a callback or event such as `ItemRequested(index) → ISkUiView?`, returning `null` at the end.
+  - `ItemCount` is optional; `null` means unknown / endless.
+- **Binding:** `ItemsSource` + `ItemTemplate` / `ItemTemplateSelector` (MAUI-familiar), with `INotifyCollectionChanged` insert, remove, move, replace and reset.
+- **Incremental loading:**
+  - a `RemainingItemsThreshold` + `RemainingItemsThresholdReached` event / command, and / or
+  - an async `LoadMore` hook returning whether more exists.
+  - A configurable loading placeholder item is shown while a page loads.
 
-## Collection views — design details (to be implemented)
+### Prefetch and budget
 
-### API shape (MAUI-familiar)
+- **`PrefetchFactor`:** how far ahead to create items, in viewport lengths (default 1.0). Items are requested while still outside the visible area. An optional DIP variant, `PrefetchDistance`, and a smaller behind-distance for reverse scrolling are also required.
+- **Scroll direction and fling:** prefetch follows the scroll direction.
+  - During a render-thread fling, the UI thread receives offset reports every frame. The window is extended by the predicted fling travel for the next frames, because the render thread can only show items that already exist.
+- **Creation budget:** items are created within a per-frame UI-thread budget (for example `CreationBudget` = 4 ms), spread over frames.
+  - Creation is synchronous only when the visible area would otherwise show a gap.
+  - All work stays off the render thread (NFR-6).
+- **Nested virtual layouts** receive the clipped window of their ancestor, so an inner list inside a card only realizes what could be visible.
 
-- `ItemsSource` (`IEnumerable` / `IList` + `INotifyCollectionChanged`).
-- `ItemTemplate` (`DataTemplate` producing `ISkUiView`).
-- Optional: `ItemsLayout` (linear vertical first; grid later), `SelectionMode`, header/footer templates.
+### Release, recycling and sizing
 
-### Virtualization model
+- **`ReleaseFactor`:** items farther than this many viewport lengths from the window are released (default: never in endless-append mode). Their measured size is kept, so the extent and scroll position stay stable.
+- **Recycling:** optional here, required for FR-22. Released items return to a pool keyed by template / recycle key and are rebound (`BindingContext`) instead of recreated.
+- **Sizing:**
+  - `EstimatedItemSize` covers items not yet measured, and measured sizes are cached per index.
+  - The extent is measured plus estimated; for unknown counts it grows as items are appended.
+  - When items before the visible area change size (or are inserted), the first visible item keeps its position on screen (scroll anchoring).
 
-| Approach | When |
+### API, events, behavior
+
+- **Scrolling to an index:** `ScrollToIndex(index, position = MakeVisible | Start | Center | End, animated)`. It realizes the target, using estimates in between.
+- **Events:**
+  - `ItemRealized` / `ItemReleased` (index, view), for loading images or data;
+  - `VisibleRangeChanged` (first / last visible index).
+- **Items are ordinary drawn children.** Taps, swipes and nested carousels inside items go through the gesture arena, and scrolling is the ancestor scroller's.
+- **Programmatic content changes** never remeasure unaffected realized items. An append measures only the new items.
+
+### Acceptance and performance
+
+- **Benchmark scenarios** (headless and device):
+  - endless feed with 10k+ items, flinging at device fps with no blank frames while items are created within budget;
+  - release enabled: managed memory stays flat over a long scroll;
+  - per-item creation cost reported.
+- **Tests:**
+  - prefetch creates items before they intersect the viewport;
+  - the creation budget is honored;
+  - anchoring is stable when an earlier item changes height;
+  - the endless provider stops at `null`;
+  - `RemainingItemsThreshold` fires once per page;
+  - nested windows.
+
+## FR-22 — `SkUiCollectionView` (requirements)
+
+A virtualizing, recycling list / grid built on the FR-21 engine.
+
+### MAUI `CollectionView` parity
+
+| Area | Members |
 | --- | --- |
-| **Viewport realize + recycle** | Default — DrawnUi / Avalonia / Uno ItemsRepeater style |
-| **Estimated extent** | Variable-height lists before all rows measured |
-| **Windowed source** | Extremely large sources (DrawnUi `ItemsSourceWindow`) — optional later |
+| **Data** | `ItemsSource`, `ItemTemplate`, `ItemTemplateSelector`, `EmptyView` / `EmptyViewTemplate`; `INotifyCollectionChanged` incremental updates |
+| **Header / footer** | `Header` / `HeaderTemplate`, `Footer` / `FooterTemplate` |
+| **Layout** | `ItemsLayout`:<br>• `LinearItemsLayout` (vertical / horizontal, `ItemSpacing`)<br>• `GridItemsLayout` (`Span`, horizontal / vertical spacing)<br>• `SnapPointsType` / `SnapPointsAlignment`<br>• `ItemSizingStrategy` (`MeasureAllItems` / `MeasureFirstItem`) |
+| **Selection** | `SelectionMode` (None / Single / Multiple), `SelectedItem`, `SelectedItems`, `SelectionChanged`, `SelectionChangedCommand` (+ parameter). The item root gets the `Selected` visual state. |
+| **Grouping** | `IsGrouped`, `GroupHeaderTemplate`, `GroupFooterTemplate` |
+| **Scrolling** | `ScrollTo(index / item, groupIndex, position, animate)`, `ScrollToRequested`, `Scrolled` (deltas, offsets, first / center / last visible index), `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility` |
+| **Incremental loading** | `RemainingItemsThreshold`, `RemainingItemsThresholdReached` (+ command) |
+| **Updates** | `ItemsUpdatingScrollMode`: `KeepItemsInView`, `KeepScrollOffset`, `KeepLastItemInView` |
+| **Reordering** | `CanReorderItems`, `CanMixGroups`, `ReorderCompleted`. Drag starts on long press, through the gesture arena. |
 
-Cells remain **hosted** `ISkUiView` nodes (`Handler == null`). Prefer pure Skia cell UI; avoid `SkUiMauiContentView` per row unless measured acceptable.
+### Additional requirements
 
-### Measure strategies
+- **Sticky header / footer:**
+  - `IsStickyHeader` / `IsStickyFooter` keep the header / footer pinned while items scroll beneath.
+  - `IsStickyGroupHeader` pins the current group's header.
+  - Pinned parts are separate composite nodes, so scrolling does not re-record them.
+- **Selected item background:**
+  - `SelectionBackground` (brush) is drawn behind the selected item's content, with an optional `SelectedItemTemplate` override.
+  - A selection change re-records only the affected items.
+- **Item tap:** `ItemTapped` event and `ItemTappedCommand` (+ `ItemTappedCommandParameter`, default: the item).
+  - The event args carry the item, index, group and position.
+  - It is raised whether or not selection is enabled; selection updates after tap handlers.
+  - Taps on interactive children inside an item (buttons) do not raise `ItemTapped`; the innermost recognizer wins.
+- **Pull to refresh:** `IsRefreshing` / `RefreshCommand`, driven by pulling at the scroll start (a drawn refresh indicator).
+- **Candidate extras** (prioritize after the above):
+  - `ItemDoubleTapped` / `ItemLongPressed` (+ commands);
+  - swipe actions on items (leading / trailing templates);
+  - a "load more" footer mode (automatic or on tap);
+  - item appearing / disappearing events;
+  - keyboard navigation with a focused item (desktop);
+  - animated insert / remove.
 
-1. **Fixed / first-item height** — simplest; good v2 start (mirrors MAUI `ItemSizingStrategy.MeasureFirstItem` idea).
-2. **Per-item measure with cache** — store heights; invalidate on template/data change.
-3. **Full measure all items** — only for small sources; not for virtualizing path.
+### Behavior and cost
 
-### Scroll integration
+- **Items:** cells are hosted drawn nodes with no platform view. `SkUiMauiContentView` inside cells is discouraged in large lists, because each one is a native overlay.
+- **Recycling:** per template / selector result. A rebind changes `BindingContext` and re-records only the changed nodes.
+- **Measurement:** `MeasureFirstItem` measures one item per template. `MeasureAllItems` measures realized items and caches the results.
+- **Grid layout:** items are placed in `Span` columns; a row is realized as a unit.
+- **Acceptance:**
+  - 10k-item list at device fps during fling;
+  - selection change re-records at most two items;
+  - sticky header costs nothing while scrolling (no re-record);
+  - `ItemTapped` versus a button inside an item;
+  - grouping and sticky group headers;
+  - incremental load;
+  - `ItemsUpdatingScrollMode`.
 
-- Collection may **embed** scroll (self-scrolling) or be **Content** of `SkUiScrollView`.
-- Prefer one owner of offset: either the collection is a scrollable viewport, or it reports extent to an outer `SkUiScrollView` (logical scrollable / extent provider — Avalonia `ILogicalScrollable` idea). Document the chosen pattern before implementing both.
+## Delivery order
 
-## Interaction with other mechanisms
-
-| Mechanism | Interaction |
-| --- | --- |
-| **Layout** | Content/cells use same `MeasureOverride` / `ArrangeOverride`; offset changes are arrange/paint, not full-tree remeasure |
-| **Drawing** | Viewport clip; optional cull; scrollbars as layers; transparency still live-walk in v1 |
-| **Events** | Capture + pan threshold; child taps when not scrolling; overlays exclude FR-15 |
-| **Animation** | Fling / `ScrollTo` animations register on root clock; paint-only offset updates |
-| **FR-16** | Overlay sync or snapshot during scroll |
-
-## Compat: SkiaUi inside MAUI scrollers
-
-Document explicitly in public docs:
-
-- Supported for **interop / migration**, not recommended for performance-critical lists.
-- Standalone cells: `HwAccelerated` defaults **false** (FR-14).
-- No shared viewport cull with MAUI scroll offset unless a future bridge syncs it.
-- Prefer migrating scrollable regions to `SkUiScrollView` under one `SkUiContentView`.
+| Milestone | Deliverable | Status |
+| --- | --- | --- |
+| Scroll engine | `SkUiScrollView`: offsets, render-thread fling / tween, wheel, clip, RTL start | **Done** |
+| Gestures | Gesture arena; scroll as arena member; press delay; drags inside scrollers | **Done** |
+| Nested scrolling | Orthogonal and same-axis nesting, drag and fling chaining, native-parent coordination | **Done** |
+| Core scrolling | `SkUiCoreScrollView` on the shared engine (Core and SkUi* nest freely) | **Done** |
+| FR-21 | `SkUiVirtualStackLayout` (vertical), provider / binding, prefetch, budget, anchoring; `SkUiVirtualScrollView` | Next |
+| FR-21 | Release + recycling pool; fling-predictive prefetch; horizontal; optional Core variant | Next |
+| FR-22 | `SkUiCollectionView` linear layout: templates, selection, header / footer (sticky), item tap, empty view | Later |
+| FR-22 | Grouping (sticky group headers), grid layout, incremental loading, updating scroll modes, pull to refresh | Later |
+| FR-22 | Reordering, candidate extras | Later |
+| Polish | Scrollbars, snap points, overscroll / bounce, keyboard / focus bring-into-view, horizontal wheel for `Both` | Later |
 
 ## Implementation checklist
 
-### `SkUiScrollView` (v1)
+### Scrolling (FR-17)
 
-- [ ] Type + XAML `Content` / `Orientation` / offset properties; XML docs.
-- [ ] Measure: viewport vs content extent; selective cache when constraints unchanged.
-- [ ] Arrange: position content from offset; no remeasure on offset-only changes.
-- [ ] Paint: clip to viewport; draw content and optional scrollbars.
-- [ ] Touch: pan capture, threshold vs child tap, fling via FR-7.
-- [ ] Clamp offset; optional overscroll (define v1: clamp-only vs bounce).
-- [ ] `ScrollTo` / `Scrolled` API.
-- [ ] FR-16: Android/Windows snapshot freeze while scrolling (Apple live sync); opt-out property; scroll start/end signals to overlays.
-- [ ] Demo gallery page: long stack under `SkUiScrollView` (with and without hosted Entry).
-- [ ] Unit / mechanism tests: measure extent, clamp, offset-only no remeasure, hit-test with offset ([Testing.md](Testing.md)).
+- [x] `SkUiScrollView`:
+  - [x] `Content` / `Orientation` / offsets, clamp, `ScrollTo` / `ScrollToAsync` / `AnimateScrollTo` / `Scrolled`;
+  - [x] offset-only changes never remeasure or re-record.
+- [x] Render-thread fling and tween, with offsets reported back and motion stopped by a press.
+- [x] Gesture arena integration: tap versus scroll, press delay, drags inside scrollers.
+- [x] Nested scrolling: orthogonal, same-axis chaining, fling hand-off, wheel to the innermost scroller that can move.
+- [x] Native ancestors: Android disallow-intercept while pending / claimed; iOS gate recognizer.
+- [x] `SkUiCoreScrollView` sharing the engine; Core ↔ SkUi* nesting.
+- [x] FR-16: Android / Windows snapshot freeze while scrolling (Apple live sync); `ScrollMode` opt-out / opt-in; scroll start / end signals; overlay clipping to viewports.
+- [ ] Scrollbars, snap points, overscroll / bounce.
+- [ ] Demo pages: nested carousels, Core scroll view, gestures.
 
-### Collection (v2)
+### FR-21 / FR-22
 
-- [ ] `ItemsSource` + `ItemTemplate` + recycle pool.
-- [ ] Realize / clear cells from viewport (+ cache margin).
-- [ ] Fixed or first-item sizing strategy; scroll-to-index.
-- [ ] Collection change notifications (`INotifyCollectionChanged`).
-- [ ] Demo: large list (1k+ items) at interactive fps.
-- [ ] Document: no MAUI `CollectionView` required; discourage overlay-per-cell.
-
-### Docs / Requirements
-
-- [ ] Keep this file as the design source of truth; check off items as implemented.
-- [ ] Summarize delivered behavior in [Development.md](../../Development.md) when shipped.
-- [ ] Cross-link FR entries in [Requirements.md](Requirements.md).
+See the requirement sections above; check items off in [Requirements.md](Requirements.md).
 
 ## Open items
 
-- Exact type bases: `SkUiScrollView` as `SkUiLayout` vs specialized content host.
-- Property names: `ScrollX`/`ScrollY` vs single `Offset` (`Point` / `Thickness`-like).
-- v1 overscroll: clamp-only vs rubber-band bounce.
-- Both-axes scroll in v1 or defer.
-- Nested scroll negotiation rules.
-- Whether collection **is** a scroll view or reports extent to outer `SkUiScrollView`.
-- Overscroll (clamp vs bounce), both-axes in v1, nested scroll rules, collection-as-scroll vs outer `SkUiScrollView` extent provider.
-- Exact opt-out property name for snapshot-while-scrolling (`UseSnapshotWhileScrolling` vs DrawnUi-like `AnimateSnapshot`).
-- Hit-test / IME policy while snapshot is showing (document in FR-16 XML docs).
-- Wheel / trackpad / keyboard page-up for desktop TFMs.
-- Accessibility / semantics for scrollable regions (platform automation peers) — later.
+- Scrollbar visuals (look, FR-18) and auto-hide policy.
+- Overscroll: clamp (current) versus rubber-band bounce per platform.
+- The horizontal wheel for `Orientation = Both` (needs an axis-aware wheel event).
+- Accessibility / semantics for scrollable regions and collections (platform automation peers).
 
 ## References
 
-- [Requirements.md](Requirements.md) — architecture, FR-13/14/15/16, NFR-2.
-- [LayoutSystem.md](LayoutSystem.md) — hosted measure/arrange without handlers.
-- [DrawingMechanism.md](DrawingMechanism.md) — clip, paint walk, layers.
-- [EventMechanism.md](EventMechanism.md) — gestures, capture, participation.
-- [AnimationMechanism.md](AnimationMechanism.md) — fling / scroll animation clock.
-- Local **DrawnUi**: `SkiaScroll`, `SkiaScroll.Virtual`, `VirtualisationType`, `RecyclingTemplate`, `ItemsSourceWindow`, `ViewsAdapter`.
-- Local **Flutter**: `scrollable.dart`, `viewport.dart`, `scroll_view.dart`, slivers.
+- [Requirements.md](Requirements.md): FR-13 / 14 / 15 / 16 / 17 / 21 / 22, NFR-2 / 6.
+- [EventMechanism.md](EventMechanism.md): gesture arena, recognizers, native coordination.
+- [RenderingPipeline.md](RenderingPipeline.md): composite-time offsets, render-thread motion.
+- [LayoutSystem.md](LayoutSystem.md): hosted measure / arrange without handlers.
+- Local **DrawnUi**: `SkiaScroll`, virtualization / recycling templates, items windowing.
+- Local **Flutter**: `scrollable.dart`, `viewport.dart`, slivers, cache extent.
 - Local **Avalonia**: `ScrollViewer`, `VirtualizingStackPanel`, `ILogicalScrollable`.
-- Local **Uno**: `ScrollViewer`, `ItemsRepeater` / `ItemsRepeaterScrollHost`.
-- Local **MAUI**: `ScrollView` handlers (native); `CollectionView` handlers (platform recyclers) — contrast only, not the SkiaUi primary path.
+- Local **Uno**: `ScrollViewer`, `ItemsRepeater`.
+- Local **MAUI**: `ScrollView` / `CollectionView` handlers (native), for API parity reference only.

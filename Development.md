@@ -9,6 +9,8 @@ Internal guide for working **on** SkiaUi (library + demo + tests). Library **use
 | `MauiSkiaUi` | .NET MAUI class library (`net10.0-*`, plus `net10.0` for tests) | SkiaSharp-based UI controls (`SkUi*` types); NuGet package id **`SkiaUi.Maui`** |
 | `MauiSkiaUiDemo` | .NET MAUI application (`net10.0-*`) | Sample host used to develop and verify controls; **in-repo only** (not published) |
 | `tests/MauiSkiaUi.Tests` | Headless xUnit tests (`net10.0`) | Real MAUI nodes and offscreen Skia painting; no device required |
+| `benchmarks/MauiSkiaUi.Benchmarks` | Console app (`net10.0`) | Headless benchmark runner (layout / text / recording / compositing) |
+| `benchmarks/MauiSkiaUiBench` | .NET MAUI application (`net10.0-*`) | On-device benchmark app (Release); shares `benchmarks/Scenarios` with the headless runner |
 
 Solution file: `SkiaUi.slnx`
 
@@ -16,6 +18,7 @@ Solution file: `SkiaUi.slnx`
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) **10.0.400** (see [global.json](global.json); `rollForward: latestPatch`)
 - MAUI Controls packages pinned to **10.0.101** via [Directory.Build.props](Directory.Build.props) (`MauiVersion`)
+- SkiaSharp packages (SkiaSharp, SkiaSharp.HarfBuzz, SkiaSharp.Views.Maui.Controls, native assets) pinned to **4.152.1** via the same file (`SkiaSharpVersion`)
 - Product version (and demo `ApplicationDisplayVersion`) via the same file (`Version` / `ApplicationVersion`). Per-version notes: [CHANGELOG.md](CHANGELOG.md)
 - .NET MAUI workload (`dotnet workload install maui`)
 - Platform SDKs for the targets you build (Android SDK, Xcode for iOS/Mac Catalyst, etc.)
@@ -28,6 +31,9 @@ dotnet build SkiaUi.slnx
 
 # Run headless mechanism tests
 dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
+
+# Performance: working tree vs last commit (headless; add -t android -s <serial> for a device)
+./scripts/bench.sh --baseline HEAD
 
 # On-device verification outside VS Code (pick simulator/emulator/device, launch demo, print checklist)
 ./scripts/device_verify.sh -l
@@ -95,6 +101,9 @@ Architecture, requirements, and mechanism checklists live under **[docs/design/]
 | [AnimationMechanism.md](docs/design/AnimationMechanism.md) | Vsync clock, paint / transform animation (FR-7) |
 | [ScrollingAndCollectionViews.md](docs/design/ScrollingAndCollectionViews.md) | `SkUiScrollView` / collections (FR-17) |
 | [Testing.md](docs/design/Testing.md) | Unit / mechanism / golden / device strategy; `device_verify.sh` |
+| [RenderingPipeline.md](docs/design/RenderingPipeline.md) | Retained compositor, UI vs render thread, Metal / GL surfaces, render-thread animation (NFR-6) |
+| [Benchmarks.md](docs/design/Benchmarks.md) | Headless + device benchmarks, before/after comparisons (`scripts/bench.sh`) |
+| [ArchitectureReview.md](docs/design/ArchitectureReview.md) | 2026-09 review vs DrawnUi / Flutter / Avalonia / Uno / Open-Maui and implementation status |
 
 Per-control user docs (NFR-5): [docs/controls/](docs/controls/README.md).
 
@@ -112,7 +121,7 @@ When a requirement ships, check it off in the relevant design doc and summarize 
 - Core layouts: absolute, stacks, overlay, **`SkUiCoreGrid`** (owned Auto/absolute/star + per-track min/max), **`SkUiCoreTable`** (row/column backgrounds + span-aware separators). Host via `SkUiCoreHost`.
 - Basic controls: `SkUiLabel`, `SkUiButton`, asynchronous `SkUiImage` / `SkUiImageButton`, `SkUiActivityIndicator`, `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton`.
 - Native hosting: `SkUiMauiContentView` (FR-16). See API notes below for specifics and limits.
-- `SkUiBox`, `SkUiEllipse`, and `SkUiLine` expose bindable colors and sizing and paint with SkiaSharp 4.152.1.
+- `SkUiBox`, `SkUiEllipse`, and `SkUiLine` expose bindable colors and sizing and paint with SkiaSharp (`SkiaSharpVersion`).
 - Hosted children have logical MAUI parents and inherited binding contexts, but no handlers or native surfaces. Duplicate ownership and tree cycles are rejected.
 - Handler-independent measure/arrange uses MAUI constraint and frame helpers, including margins, requests, alignment, and cached unchanged passes.
 - Paint walks Background / Content / Overlay phases, with local rectangular clipping, opacity, translation, rotation, scale, and stable ZIndex ordering.
@@ -134,9 +143,10 @@ Register `builder.UseSkiaUi()` in `MauiProgram`, then compose in XAML (see [READ
 - `SkUiLayout` is deliberately an **overlay**: every child receives the same padded slot. `SkUiGrid` delegates measurement and arrangement to MAUI's `GridLayoutManager`, including Auto/star/absolute definitions, spans, spacing, padding, and standard `Grid.Row`, `Grid.Column`, `Grid.RowSpan`, and `Grid.ColumnSpan`. Runtime definition/attached-property changes invalidate layout. Other layout packs remain later work.
 - `HwAccelerated` is a CLR property set **before handler creation**; changing it after attachment throws. Content hosts/layouts default to GPU; leaves default to software. Hosted values are ignored. The SkiaSharp GPU backend is platform-dependent (Metal on Mac Catalyst). There is no automatic GPU recovery: set `HwAccelerated="False"` before attachment on unsupported devices.
 - All tree geometry, paint, and input use DIPs. Only the handler scales to surface pixels. `Paint` receives a local canvas; parents translate to child frames, and input routers undo the same render transform.
-- Tree mutations and animation callbacks run on the UI thread. Each requested frame records the full tree into a scoped `SKPicture`; the surface replays the snapshot under a lock. This bridges Android's GL render thread safely, not a retained per-node cache. GPU `HasRenderLoop` drives animation; software schedules the next invalidation after paint. No fixed-rate timer is used.
-- The handler shares an internal, headless-tested `SkUiFrameRenderer` for recording, replay, density mapping, and cleanup. Invalidation raised during painting queues one follow-up frame even when animation is idle; animation changes applied before painting are included in the current frame.
-- Animation callbacks should change paint/transform properties. Dispose their handles on page disappearance; handler unload/disconnect also stops the root clock. Start animations after attaching nodes to their intended root.
+- **Threading ([RenderingPipeline.md](docs/design/RenderingPipeline.md)):** tree mutations, layout and recording run on the UI thread; compositing, rasterization and composite-time animations run on a render thread for GPU surfaces (a shared Metal render thread on iOS / Mac Catalyst, the `GLTextureView` GL thread on Android). Software surfaces and Windows composite on the UI thread.
+- **Retained compositor:** each node keeps recorded Content / Overlay `SKPicture`s. Only nodes whose content changed are re-recorded. Offset, transform, opacity, clip and scroll offset are composite-time properties. Invalidation reaches the root once per frame.
+- The handler shares an internal, headless-tested `SkUiFrameRenderer` (record + commit + density mapping + cleanup) and `SkUiCompositor` (apply + animate + draw). Invalidation raised while recording queues one follow-up frame; `SkUiTestSurface` in the tests drives both halves with explicit times.
+- Prefer `AnimateAsync` (opacity / translation / rotation / scale, render thread) over `AnimationClock` callbacks (UI thread, vsync ticker) for motion. Clock callbacks should change paint/transform properties. Dispose their handles on page disappearance; handler unload/disconnect also stops the root clock. Start animations after attaching nodes to their intended root.
 - `StopAll()` preserves the clock's monotonic timeline. After restarting an animation on the same clock, continue supplying elapsed timestamps rather than resetting them to zero.
 - Hit regions are rectangular arranged bounds, including the visually empty corners of ellipses and the area beside a line. Render transforms are inverted before testing these bounds; shape-aware hits are deferred. Disabled nodes block hits without firing, and `IsVisible="False"` collapses nodes and excludes them from paint/input.
 - Backgrounds support solid brushes/colors only. Setting only `BackgroundColor` works even though MAUI leaves `Background` as an empty default brush; an explicit solid `Background` wins over `BackgroundColor`. Custom masks, gradients, double tap, long press, swipe, multi-touch, native overlays, and retained per-node caching are deferred. Hosted implementations must also be MAUI `Element` instances for logical ownership.
@@ -189,7 +199,7 @@ Register `builder.UseSkiaUi()` in `MauiProgram`, then compose in XAML (see [READ
 
 - Headless suite is grouped by functionality (`PipelineTests`, `BasicControlsTests`, `LayoutTests`, `ScrollViewTests`, `MauiContentViewTests`, `PerformanceTests`, `CoreGridLayoutTests`, `CoreTableLayoutTests`, plus Core / look / demo contract tests). Run `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj`.
 - Completed surface includes FR-16 native hosting (`SkUiMauiContentView` + per-platform overlay container) and the layouts/controls listed above, each with a gallery demo page (native side-by-side where MAUI has a direct counterpart). Android/iOS/Mac Catalyst diagnostic builds pass with 0 warnings. Per-control markdown docs (NFR-5) are under [docs/controls/](docs/controls/README.md). See [ImplementationPlan.md](docs/design/ImplementationPlan.md) for completed vs backlog.
-- **iOS teardown:** `SkUiViewHandler.DisconnectHandler` stops `HasRenderLoop`, detaches the Skia platform view from `SkUiOverlayContainer`, then disconnects the surface handler before the host is disposed. Still watch for intermittent `UIView`/`CALayer` KVO crashes and `observer object was not disposed manually with Dispose()`; those can come from MAUI Loaded observers on views without `IUIViewLifeCycleEvents`. [SkiaSharp #3178](https://github.com/mono/SkiaSharp/issues/3178) is historical context for a Metal `GRContext` disposal bug that has since been fixed.
+- **iOS teardown:** `SkUiViewHandler.DisconnectHandler` unregisters the Metal surface from the render loop (waiting for an in-flight frame), detaches the Skia platform view from `SkUiOverlayContainer`, then disconnects the surface handler before the host is disposed. The root container (`SkUiOverlayContainer`) derives from MAUI `MauiView` so MAUI's Loaded/Unloaded tracking uses MovedToWindow instead of installing `bounds`/`frame` KVO observers on its `CALayer`; leaked observers there caused `EXC_BAD_ACCESS` in `_NSKeyValueObservationInfoGetObservances` from `UIView dealloc` → `removeFromSuperview` (NSObject disposer). Not reproduced locally before or after the change, so the stress page keeps its teardown delays until device runs confirm. [SkiaSharp #3178](https://github.com/mono/SkiaSharp/issues/3178) is historical context for a Metal `GRContext` disposal bug that has since been fixed.
 - Review regressions (covered by tests): `SkUiRadioButton` select-only tap; `SkUiBorder` `BackgroundColor` fallback; `SkUiActivityIndicator` stops clock on detach; `ComputeRootRelativeFrame()` includes translations; SkUiImage decode completion on UI thread; Button single-command execution and rounded text clip; Grid attached-property invalidation. See `tmp/review.md` for historical findings.
 - A 1,000-label, 400x600-DIP headless Debug measurement improved warm CPU recording from **8.106 ms / 568,384 managed bytes per frame** to **0.635 ms / 9,488 bytes** after clip rejection and cached ordering (30 frames, same Mac). These are indicative single-run measurements, not device FPS or release performance guarantees. Native allocations and initial layout costs are not included in the per-frame allocation figure; near-zero allocation remains future work.
 - **Device exit gate remains open:** the installed MAUI extension's DevFlow injection target still fails with `MSB4099`, blocking Copilot-triggered launch; the extension was not modified. Native overlay attachment/positioning (`SkUiMauiContentView`), rendered colors/contrast, and other on-device behavior remain unverified. No visual or GPU-performance success is inferred from compilation. Headless tests do not replace these checks. See [Testing.md](docs/design/Testing.md#how-to-verify-device-rendering--live-update-behavior).

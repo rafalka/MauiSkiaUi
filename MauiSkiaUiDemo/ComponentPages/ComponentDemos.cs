@@ -30,8 +30,11 @@ public static class ComponentDemos
         new(typeof(SkUiEllipse), typeof(EllipseDemoPage), nameof(Microsoft.Maui.Controls.Shapes.Ellipse), ComponentCategory.Graphics, () => new EllipseDemoPage()),
         new(typeof(SkUiLine), typeof(LineDemoPage), nameof(Microsoft.Maui.Controls.Shapes.Line), ComponentCategory.Graphics, () => new LineDemoPage()),
         new(typeof(SkUiScrollView), typeof(ScrollViewDemoPage), nameof(ScrollView), ComponentCategory.ScrollingAndCollections, () => new ScrollViewDemoPage()),
+        new(typeof(SkUiMauiContentView), typeof(OverlayScrollingDemoPage), "Native overlays in ScrollView", ComponentCategory.ScrollingAndCollections,
+            () => new OverlayScrollingDemoPage(), Key: "OverlaysInScrollView"),
         new(typeof(SkUiCoreGrid), typeof(CoreGridDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreGridDemoPage()),
-        new(typeof(SkUiCoreTable), typeof(CoreTableDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreTableDemoPage())
+        new(typeof(SkUiCoreTable), typeof(CoreTableDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreTableDemoPage()),
+        new(typeof(SkUiCoreScrollView), typeof(CoreScrollViewDemoPage), "ScrollView + gestures", ComponentCategory.Core, () => new CoreScrollViewDemoPage())
     ];
 
     /// <summary>MAUI-compatible <c>SkUi*</c> demos shown on the Components flyout.</summary>

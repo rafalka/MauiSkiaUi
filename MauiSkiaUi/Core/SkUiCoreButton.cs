@@ -15,7 +15,6 @@ public class SkUiCoreButton : SkUiCoreLabel
     private double _cornerRadius;
     private bool _cornerRadiusExplicit;
     private bool _minimumHeightExplicit;
-    private long? _pressedPointer;
     private bool _isPressed;
     private ICommand? _command;
     private object? _commandParameter;
@@ -223,49 +222,20 @@ public class SkUiCoreButton : SkUiCoreLabel
     }
 
     /// <inheritdoc />
-    public override bool Touch(SkUiTouchEvent touch)
+    internal override bool HasIntrinsicTap => CanExecuteCommand;
+
+    /// <inheritdoc />
+    internal override void OnIntrinsicTap(SkUiTappedEventArgs args)
     {
-        switch (touch.Action)
-        {
-            case SkUiTouchAction.Pressed:
-                if (_pressedPointer is not null || !CanExecuteCommand) return false;
-                _pressedPointer = touch.Id;
-                SetPressed(true);
-                return true;
-            case SkUiTouchAction.Moved:
-                if (_pressedPointer != touch.Id) return false;
-                var inside = touch.Position.X >= 0 && touch.Position.Y >= 0
-                    && touch.Position.X < Frame.Width && touch.Position.Y < Frame.Height;
-                if (!inside)
-                {
-                    _pressedPointer = null;
-                    SetPressed(false);
-                }
-                return true;
-            case SkUiTouchAction.Released:
-                if (_pressedPointer != touch.Id) return false;
-                _pressedPointer = null;
-                var wasPressed = _isPressed;
-                SetPressed(false);
-                if (wasPressed
-                    && touch.Position.X >= 0 && touch.Position.Y >= 0
-                    && touch.Position.X < Frame.Width && touch.Position.Y < Frame.Height
-                    && CanExecuteCommand)
-                {
-                    Clicked?.Invoke(this, EventArgs.Empty);
-                    if (_command?.CanExecute(_commandParameter) == true)
-                        _command.Execute(_commandParameter);
-                }
-                return true;
-            case SkUiTouchAction.Cancelled:
-                if (_pressedPointer != touch.Id) return false;
-                _pressedPointer = null;
-                SetPressed(false);
-                return true;
-            default:
-                return false;
-        }
+        if (!CanExecuteCommand)
+            return;
+        Clicked?.Invoke(this, EventArgs.Empty);
+        if (_command?.CanExecute(_commandParameter) == true)
+            _command.Execute(_commandParameter);
     }
+
+    /// <inheritdoc />
+    internal override void OnGesturePressedChanged(bool pressed) => SetPressed(pressed);
 
     private void SetPressed(bool value)
     {

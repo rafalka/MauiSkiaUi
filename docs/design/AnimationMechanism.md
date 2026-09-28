@@ -1,5 +1,7 @@
 # SkiaUi animation mechanism
 
+> **Update (2026-09):** composite-time animations (opacity, transforms, scroll offset, fling, spinners) now run on the **render thread** via `AnimateAsync` / internal render animations, independent of the UI thread; `SkUiAnimationClock` remains for UI-thread callback animations and is ticked by a UI vsync ticker (not `HasRenderLoop`). See [RenderingPipeline.md](RenderingPipeline.md#animation-tiers).
+
 Design notes and implementation checklist for **FR-7** in [Requirements.md](Requirements.md). Aligns with [DrawingMechanism.md](DrawingMechanism.md) (paint / opacity / transform at paint time) and [LayoutSystem.md](LayoutSystem.md) (selective measure/arrange).
 
 ## Goal

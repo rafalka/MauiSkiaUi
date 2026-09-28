@@ -1,4 +1,4 @@
-using SkiaSharp;
+using MauiSkiaUi.Rendering;
 
 namespace MauiSkiaUi.Core;
 
@@ -7,11 +7,9 @@ namespace MauiSkiaUi.Core;
 /// This is the only Core-related type that derives from <see cref="SkUiView"/>; use it to place
 /// Core content under <see cref="SkUiScrollView"/>, layouts, or a standalone surface.
 /// </summary>
-public class SkUiCoreHost : SkUiView
+public class SkUiCoreHost : SkUiView, IVisualTreeElement
 {
     private SkUiCoreNode? _content;
-    private long? _capturedPointer;
-    private ISkUiCoreNode? _capturedNode;
 
     /// <summary>Root of the hosted Core tree, or <c>null</c>.</summary>
     public SkUiCoreNode? Content => _content;
@@ -32,23 +30,24 @@ public class SkUiCoreHost : SkUiView
         if (_content is not null)
         {
             _content.MeasureInvalidated -= OnContentMeasureInvalidated;
-            _content.PaintInvalidated -= OnContentPaintInvalidated;
             _content.BindAnimationClock(null);
             _content.HostOwner = null;
+            SkUiRenderInvalidation.ResetSubtree(_content);
+            SkUiGestureSet.CancelSubtree(_content);
+            SkUiDiagnostics.NotifyChildRemoved(this, _content, 0);
         }
 
-        _capturedPointer = null;
-        _capturedNode = null;
         _content = value;
 
         if (_content is not null)
         {
             _content.HostOwner = this;
             _content.MeasureInvalidated += OnContentMeasureInvalidated;
-            _content.PaintInvalidated += OnContentPaintInvalidated;
             _content.BindAnimationClock(AnimationClock);
+            SkUiDiagnostics.NotifyChildAdded(this, _content, 0);
         }
 
+        InvalidateRender(SkUiRenderDirty.Children);
         InvalidateMeasureOverride();
         return this;
     }
@@ -64,7 +63,9 @@ public class SkUiCoreHost : SkUiView
     }
 
     private void OnContentMeasureInvalidated(object? sender, EventArgs e) => InvalidateMeasureOverride();
-    private void OnContentPaintInvalidated(object? sender, EventArgs e) => InvalidatePaint();
+
+    /// <inheritdoc />
+    internal override void OnEffectiveFlowDirectionChanged() => _content?.NotifyFlowDirectionChanged();
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
@@ -87,138 +88,17 @@ public class SkUiCoreHost : SkUiView
         _content.Arrange(slot);
     }
 
-    /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas)
-    {
-        if (_content is null) return;
-        var save = canvas.Save();
-        try
-        {
-            canvas.Translate((float)_content.Frame.X, (float)_content.Frame.Y);
-            _content.Paint(canvas);
-        }
-        finally
-        {
-            canvas.RestoreToCount(save);
-        }
-    }
+    // The host's Core root is not a MAUI logical child; expose it to diagnostics tools (Live Visual Tree,
+    // automation agents) by re-implementing IVisualTreeElement.
+    IReadOnlyList<IVisualTreeElement> IVisualTreeElement.GetVisualChildren() => _content is null ? [] : [_content];
+
+    IVisualTreeElement? IVisualTreeElement.GetVisualParent() => Parent;
 
     /// <inheritdoc />
-    public override bool Touch(SkUiTouchEvent touch)
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
     {
-        if (_content is null || !_content.IsVisible)
-            return false;
-
-        if (_capturedPointer == touch.Id && _capturedNode is not null)
-        {
-            if (!IsUnderHostedRoot(_capturedNode))
-            {
-                try
-                {
-                    _capturedNode.Touch(new SkUiTouchEvent(
-                        touch.Id, SkUiTouchAction.Cancelled, Point.Zero, touch.Timestamp, touch.WheelDelta));
-                }
-                finally
-                {
-                    _capturedPointer = null;
-                    _capturedNode = null;
-                }
-                return false;
-            }
-
-            if (!TryMapToNode(touch.Position, _capturedNode, out var local))
-                local = touch.Position;
-            var delivered = _capturedNode.Touch(new SkUiTouchEvent(touch.Id, touch.Action, local, touch.Timestamp, touch.WheelDelta));
-            if (touch.Action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
-            {
-                _capturedPointer = null;
-                _capturedNode = null;
-            }
-            return delivered;
-        }
-
-        if (touch.Action != SkUiTouchAction.Pressed)
-            return false;
-
-        // Hit-test in the root's local space (root Frame may be nonzero after arrange).
-        var rootLocal = new Point(
-            touch.Position.X - _content.Frame.X,
-            touch.Position.Y - _content.Frame.Y);
-        if (!HitTest(_content, rootLocal, out var target, out var targetLocal))
-            return false;
-
-        var handled = target.Touch(new SkUiTouchEvent(touch.Id, touch.Action, targetLocal, touch.Timestamp, touch.WheelDelta));
-        if (handled)
-        {
-            _capturedPointer = touch.Id;
-            _capturedNode = target;
-        }
-        return handled;
+        if (_content is not null)
+            children.Add(_content);
     }
 
-    private bool IsUnderHostedRoot(ISkUiCoreNode node)
-    {
-        if (_content is null) return false;
-        if (ReferenceEquals(node, _content)) return true;
-        for (var current = node.Parent; current is not null; current = current.Parent)
-        {
-            if (ReferenceEquals(current, _content))
-                return true;
-        }
-        return false;
-    }
-
-    private static bool HitTest(ISkUiCoreNode root, Point position, out ISkUiCoreNode target, out Point local)
-    {
-        if (root is SkUiCorePanel panel)
-        {
-            for (var index = panel.Children.Count - 1; index >= 0; index--)
-            {
-                var child = panel.Children[index];
-                if (!child.IsVisible) continue;
-                var frame = child.Frame;
-                if (position.X < frame.X || position.Y < frame.Y
-                    || position.X >= frame.Right || position.Y >= frame.Bottom)
-                    continue;
-                var childPos = new Point(position.X - frame.X, position.Y - frame.Y);
-                if (HitTest(child, childPos, out target, out local))
-                    return true;
-            }
-        }
-        else if (root is SkUiCoreContentView { Content: { IsVisible: true } content })
-        {
-            var frame = content.Frame;
-            if (position.X >= frame.X && position.Y >= frame.Y
-                && position.X < frame.Right && position.Y < frame.Bottom)
-            {
-                var childPos = new Point(position.X - frame.X, position.Y - frame.Y);
-                if (HitTest(content, childPos, out target, out local))
-                    return true;
-            }
-        }
-
-        if (position.X >= 0 && position.Y >= 0 && position.X < root.Frame.Width && position.Y < root.Frame.Height)
-        {
-            target = root;
-            local = position;
-            return true;
-        }
-
-        target = null!;
-        local = default;
-        return false;
-    }
-
-    private static bool TryMapToNode(Point hostLocal, ISkUiCoreNode node, out Point local)
-    {
-        var x = 0.0;
-        var y = 0.0;
-        for (ISkUiCoreNode? current = node; current is not null; current = current.Parent)
-        {
-            x += current.Frame.X;
-            y += current.Frame.Y;
-        }
-        local = new Point(hostLocal.X - x, hostLocal.Y - y);
-        return true;
-    }
 }

@@ -5,8 +5,10 @@ namespace MauiSkiaUi.Core;
 /// <summary>
 /// Lightweight SkiaUi node with no MAUI <c>View</c> / <c>BindableObject</c> identity.
 /// Intended for composing complex controls and dense trees; host via <see cref="SkUiCoreHost"/>.
+/// Nodes are <see cref="IVisualTreeElement"/>s so diagnostics tools (Live Visual Tree, automation agents) can walk
+/// through <see cref="SkUiCoreHost"/> into the Core tree.
 /// </summary>
-public interface ISkUiCoreNode
+public interface ISkUiCoreNode : IVisualTreeElement
 {
     /// <summary>Parent in the Core tree, or <c>null</c> when unparented / hosted by <see cref="SkUiCoreHost"/>.</summary>
     ISkUiCoreNode? Parent { get; }
@@ -37,4 +39,10 @@ public interface ISkUiCoreNode
 
     /// <summary>Requests a redraw of this subtree without necessarily remeasuring.</summary>
     void InvalidatePaint();
+
+    /// <summary>Visual tree children (diagnostics); leaf nodes have none.</summary>
+    IReadOnlyList<IVisualTreeElement> IVisualTreeElement.GetVisualChildren() => [];
+
+    /// <summary>Visual tree parent (diagnostics): the Core parent.</summary>
+    IVisualTreeElement? IVisualTreeElement.GetVisualParent() => Parent;
 }

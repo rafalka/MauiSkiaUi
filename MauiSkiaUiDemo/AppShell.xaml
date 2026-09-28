@@ -28,6 +28,13 @@
             Route="composition" />
     </FlyoutItem>
 
+    <FlyoutItem Title="Native nesting">
+        <ShellContent
+            Title="Native nesting"
+            ContentTemplate="{DataTemplate local:NativeNestingPage}"
+            Route="nesting" />
+    </FlyoutItem>
+
     <FlyoutItem Title="Look &amp; colors">
         <ShellContent
             Title="Look &amp; colors"

@@ -361,4 +361,35 @@ public class CoreGridLayoutTests
         box.Height = height;
         return box;
     }
+
+    [Fact]
+    public void StarColumnsMeasureEachChildOnceAtTheResolvedWidth()
+    {
+        var grid = new SkUiCoreGrid()
+            .SetColumnDefinitions([new SkUiCoreColumnDefinition(SkUiCoreGridLength.Star), new SkUiCoreColumnDefinition(SkUiCoreGridLength.Star)])
+            .SetRowDefinitions([new SkUiCoreRowDefinition(new SkUiCoreGridLength(40)), new SkUiCoreRowDefinition(new SkUiCoreGridLength(40))]);
+        var probes = Enumerable.Range(0, 4).Select(_ => new MeasureCountingNode()).ToArray();
+        for (var i = 0; i < probes.Length; i++)
+            grid.Add(probes[i], i / 2, i % 2);
+        grid.Measure(200, double.PositiveInfinity);
+        Assert.All(probes, probe =>
+        {
+            // Regression: star cells were first measured at width 0 (unresolved star), then again after resolution.
+            Assert.Equal(1, probe.Measures);
+            Assert.Equal(100, probe.LastWidthConstraint, 3);
+        });
+    }
+
+    private sealed class MeasureCountingNode : SkUiCoreNode
+    {
+        public int Measures { get; private set; }
+        public double LastWidthConstraint { get; private set; }
+
+        protected override Size MeasureContent(double widthConstraint, double heightConstraint)
+        {
+            Measures++;
+            LastWidthConstraint = widthConstraint;
+            return new Size(10, 10);
+        }
+    }
 }

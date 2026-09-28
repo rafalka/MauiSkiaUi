@@ -10,6 +10,7 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
 {
     private static readonly HttpClient Http = new();
     private SKImage? _image;
+    private SKSizeI? _decodedSourceSize;
     private Aspect _aspect = Aspect.AspectFit;
     private CancellationTokenSource? _loading;
     private int _generation;
@@ -33,7 +34,9 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
     public Exception? LoadError { get; private set; }
 
     /// <summary>Decoded source dimensions; one source pixel maps to one intrinsic DIP.</summary>
-    public Size ImageSize => _image is null ? Size.Zero : new Size(_image.Width, _image.Height);
+    /// <remarks>Large sources are decoded at reduced resolution (<see cref="SkUiImageDecoder.MaxDecodeDimension"/>); this still reports the original size.</remarks>
+    public Size ImageSize => _image is null ? Size.Zero
+        : _decodedSourceSize is { } source ? new Size(source.Width, source.Height) : new Size(_image.Width, _image.Height);
 
     /// <summary>Sets aspect mode.</summary>
     public SkUiCoreImage SetAspect(Aspect value)
@@ -116,6 +119,7 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
         PublishState();
 
         SKImage? decoded = null;
+        SKSizeI sourceSize = default;
         Exception? failure = null;
         var cancelled = false;
         try
@@ -131,7 +135,7 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
                 bytes.Write(buffer, 0, read);
             }
             var data = bytes.ToArray();
-            decoded = await Task.Run(() => Decode(data), token);
+            (decoded, sourceSize) = await Task.Run(() => SkUiImageDecoder.Decode(data), token);
             token.ThrowIfCancellationRequested();
         }
         catch (OperationCanceledException) { cancelled = true; }
@@ -144,20 +148,15 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
         }
 
         if (failure is not null) LoadError = failure;
-        else ReplaceImage(decoded, ownsImage: true);
+        else
+        {
+            ReplaceImage(decoded, ownsImage: true);
+            _decodedSourceSize = sourceSize;
+        }
         IsLoading = false;
         PublishState();
     }
 
-    private static SKImage Decode(byte[] bytes)
-    {
-        using var data = SKData.CreateCopy(bytes);
-        using var codec = SKCodec.Create(data) ?? throw new InvalidDataException("Unsupported or corrupt image.");
-        if ((long)codec.Info.Width * codec.Info.Height > 16 * 1024 * 1024)
-            throw new InvalidDataException("Image exceeds the 16 megapixel decoded limit.");
-        using var bitmap = SKBitmap.Decode(codec) ?? throw new InvalidDataException("Image decoding failed.");
-        return SKImage.FromBitmap(bitmap);
-    }
 
     private void CancelLoad()
     {
@@ -178,6 +177,7 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
         if (_ownsImage)
             _image?.Dispose();
         _image = image;
+        _decodedSourceSize = null;
         _ownsImage = ownsImage;
     }
 

@@ -3,12 +3,18 @@
     <!-- Pin Microsoft.Maui.Controls and related package versions used via $(MauiVersion). -->
     <MauiVersion>10.0.101</MauiVersion>
 
+    <!-- Pin SkiaSharp and its companion packages (HarfBuzz, Views, native assets) via $(SkiaSharpVersion); keep them in lockstep. -->
+    <SkiaSharpVersion>4.152.1</SkiaSharpVersion>
+    <!-- HarfBuzzSharp version SkiaSharp.HarfBuzz $(SkiaSharpVersion) depends on (for the Linux native assets of headless projects). -->
+    <HarfBuzzSharpVersion>14.2.1.201</HarfBuzzSharpVersion>
+
     <!--
       Shared product version for SkiaUi.Maui NuGet (PackageVersion/Version) and the demo app
       (ApplicationDisplayVersion). Override on the CLI with -p:Version=… (pack/publish workflows).
     -->
-    <Version>1.0.0-Prerelease03</Version>
-    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <Version>1.0.0-Prerelease04</Version>
+    <!-- Numeric x.y.z only (Windows / iOS reject SemVer prerelease suffixes): strip "-Prerelease…". -->
+    <ApplicationDisplayVersion>$(Version.Split('-')[0])</ApplicationDisplayVersion>
     <!-- Android versionCode / iOS CFBundleVersion (integer); bump when shipping store builds. -->
     <ApplicationVersion>1</ApplicationVersion>
   </PropertyGroup>

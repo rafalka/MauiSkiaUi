@@ -11,6 +11,7 @@ public static class MauiProgram
 {
 	public static MauiApp CreateMauiApp()
 	{
+		DemoTrace.StartIfRequested();
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
@@ -25,7 +26,7 @@ public static class MauiProgram
 			});
 
 #if MAUI_DEVFLOW
-		builder.AddMauiDevFlowAgent();
+		builder.AddMauiDevFlowAgent(SkiaUiDevFlowExtension.Register);
 #endif
 
 #if DEBUG

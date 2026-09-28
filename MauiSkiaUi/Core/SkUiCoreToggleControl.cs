@@ -4,7 +4,6 @@ namespace MauiSkiaUi.Core;
 public abstract class SkUiCoreToggleControl : SkUiCoreNode
 {
     private bool _isChecked;
-    private long? _pressedPointer;
     private bool _isPressed;
 
     /// <summary>Whether the control is checked/toggled on.</summary>
@@ -32,44 +31,18 @@ public abstract class SkUiCoreToggleControl : SkUiCoreNode
     /// <summary>Called on a completed tap; default toggles <see cref="IsChecked"/>.</summary>
     protected virtual void OnToggled() => SetIsChecked(!_isChecked);
 
+
     /// <inheritdoc />
-    public override bool Touch(SkUiTouchEvent touch)
+    internal override bool HasIntrinsicTap => true;
+
+    /// <inheritdoc />
+    internal override void OnIntrinsicTap(SkUiTappedEventArgs args)
     {
-        switch (touch.Action)
-        {
-            case SkUiTouchAction.Pressed:
-                if (_pressedPointer is not null) return false;
-                _pressedPointer = touch.Id;
-                SetPressed(true);
-                return true;
-            case SkUiTouchAction.Moved:
-                if (_pressedPointer != touch.Id) return false;
-                if (!Contains(touch.Position))
-                {
-                    _pressedPointer = null;
-                    SetPressed(false);
-                }
-                return true;
-            case SkUiTouchAction.Released:
-                if (_pressedPointer != touch.Id) return false;
-                _pressedPointer = null;
-                var wasPressed = _isPressed;
-                SetPressed(false);
-                if (wasPressed && Contains(touch.Position))
-                    OnToggled();
-                return true;
-            case SkUiTouchAction.Cancelled:
-                if (_pressedPointer != touch.Id) return false;
-                _pressedPointer = null;
-                SetPressed(false);
-                return true;
-            default:
-                return false;
-        }
+        OnToggled();
     }
 
-    private bool Contains(Point position) =>
-        position.X >= 0 && position.Y >= 0 && position.X < Frame.Width && position.Y < Frame.Height;
+    /// <inheritdoc />
+    internal override void OnGesturePressedChanged(bool pressed) => SetPressed(pressed);
 
     private void SetPressed(bool value)
     {

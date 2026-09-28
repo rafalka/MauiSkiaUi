@@ -158,6 +158,18 @@ Aligned with NFR-2 / FR-3:
 - Arrange-only changes (same size, new offset) update `Frame` / paint transform without remeasure.
 - Cached bitmaps for unchanged paint; transparency-aware invalidation (FR-8).
 
+## Right-to-left (FlowDirection)
+
+MAUI mirrors native views for `FlowDirection="RightToLeft"`. Hosted SkiaUi nodes have no native view, so SkiaUi mirrors them itself:
+
+- Layout managers still compute left-to-right frames (MAUI `GridLayoutManager`, stack and absolute managers are reused unchanged).
+- `SkUiView.ArrangeOverride` mirrors the **final** frame, after margins and alignment, inside the parent's children space when the parent's effective flow direction is RTL: `x' = parentWidth − frame.Right`. That is what a native mirrored layout does: grid column 0 moves to the right, horizontal stacks run right to left, `Start` alignment and leading margins land on the right.
+- Effective direction comes from MAUI (`IVisualElementController.EffectiveFlowDirection`), which already propagates to logical children. Every descendant whose effective direction changes gets `PropertyChanged(FlowDirection)` and invalidates its layout.
+- Hit-testing, native overlays (`ComputeRootRelativeFrame`) and the compositor all read `Frame`, so they follow the mirrored layout with no extra work.
+- A horizontal `SkUiScrollView` starts at its logical start (the right end) in RTL. `ScrollX` stays physical (0 = left edge).
+- Core mirrors the same way: `SkUiCoreNode.FlowDirection` (`MatchParent` inherits from the Core parent, then from the `SkUiCoreHost`).
+- Direction-dependent chrome: the Switch thumb travels the other way; CheckBox / RadioButton glyphs sit at the start edge (not mirrored); `SkUiCoreTable` chrome is mirrored with its cells. Images and activity indicators are not mirrored, matching MAUI.
+
 ## Coordinate system
 
 - All Measure / Arrange / Paint / Touch inputs and `Frame` / `DesiredSize` use **MAUI DIPs**.

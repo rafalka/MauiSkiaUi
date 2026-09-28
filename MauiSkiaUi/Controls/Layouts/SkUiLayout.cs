@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections;
 using System.ComponentModel;
-using SkiaSharp;
+using MauiSkiaUi.Rendering;
 using ILayout = Microsoft.Maui.ILayout;
 
 namespace MauiSkiaUi;
@@ -10,7 +10,6 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(Children))]
 public class SkUiLayout : SkUiView, ILayout
 {
-    private readonly SkUiTouchRouter _touchRouter = new();
     private Thickness _padding;
     private ISkUiView[]? _paintOrder;
     private ISkUiView[] PaintOrder => _paintOrder ??= Children.OrderBy(child => child.ZIndex).ToArray();
@@ -53,7 +52,7 @@ public class SkUiLayout : SkUiView, ILayout
 
     private void OnChildPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName == nameof(ZIndex)) _paintOrder = null;
+        if (args.PropertyName == nameof(ZIndex)) { _paintOrder = null; InvalidateRender(SkUiRenderDirty.Children); }
         // Children carry standard MAUI Grid.Row/Column/RowSpan/ColumnSpan and AbsoluteLayout.LayoutBounds/
         // LayoutFlags attached values (see SkUiGrid/SkUiAbsoluteLayout), but MAUI's own propertyChanged
         // callbacks never fire our invalidation because Parent is our layout, not Microsoft.Maui.Controls.Grid
@@ -98,27 +97,11 @@ public class SkUiLayout : SkUiView, ILayout
     }
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas)
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
     {
         foreach (var child in PaintOrder)
-            PaintChild(child, canvas);
-    }
-
-    /// <inheritdoc />
-    public override bool Touch(SkUiTouchEvent touch)
-    {
-        if (InputTransparent || !IsVisible || !IsEnabled)
-        {
-            _touchRouter.Cancel();
-            return IsVisible && !InputTransparent && !IsEnabled;
-        }
-        if (_touchRouter.DeliverCaptured(touch, out var handled))
-            return handled;
-        var order = PaintOrder;
-        for (var index = order.Length - 1; index >= 0; index--)
-            if (_touchRouter.TryPress(order[index], touch))
-                return true;
-        return base.Touch(touch);
+            if (child is ISkUiRenderable renderable)
+                children.Add(renderable);
     }
 
     private sealed class ChildCollection(SkUiLayout owner) : Collection<ISkUiView>
@@ -138,7 +121,6 @@ public class SkUiLayout : SkUiView, ILayout
                 return;
             owner.ValidateChild(item);
             var previous = this[index];
-            owner._touchRouter.Cancel();
             base.SetItem(index, item);
             owner._paintOrder = null;
             ((Element)previous).PropertyChanged -= owner.OnChildPropertyChanged;
@@ -150,7 +132,6 @@ public class SkUiLayout : SkUiView, ILayout
         protected override void RemoveItem(int index)
         {
             var previous = this[index];
-            owner._touchRouter.Cancel();
             base.RemoveItem(index);
             owner._paintOrder = null;
             ((Element)previous).PropertyChanged -= owner.OnChildPropertyChanged;
@@ -159,7 +140,6 @@ public class SkUiLayout : SkUiView, ILayout
 
         protected override void ClearItems()
         {
-            owner._touchRouter.Cancel();
             var previous = this.ToArray();
             base.ClearItems();
             owner._paintOrder = null;

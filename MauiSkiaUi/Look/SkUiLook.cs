@@ -268,7 +268,11 @@ public class SkUiLook
     protected virtual Size MeasureActivityIndicatorCore(double widthConstraint, double heightConstraint) =>
         DefaultActivityIndicatorSize;
 
-    /// <summary>Draws ActivityIndicator chrome.</summary>
+    /// <summary>
+    /// Draws ActivityIndicator chrome. Controls record it once (<paramref name="sweepStart"/> = 0) and the
+    /// compositor rotates it about the slot center on the render thread, so painters should draw centered,
+    /// rotation-symmetric geometry (e.g. an arc of a centered circle).
+    /// </summary>
     public void DrawActivityIndicator(SKCanvas canvas, float width, float height, float sweepStart, SKPaint paint)
     {
         if (ActivityIndicatorPainter is { } painter)

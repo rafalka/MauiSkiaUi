@@ -1,14 +1,13 @@
+using MauiSkiaUi.Rendering;
 using SkiaSharp;
 
 namespace MauiSkiaUi.Core;
 
-/// <summary>Indeterminate spinner (Core analogue of <c>SkUiActivityIndicator</c>).</summary>
+/// <summary>Indeterminate spinner (Core analogue of <c>SkUiActivityIndicator</c>); rotated on the render thread.</summary>
 public class SkUiCoreActivityIndicator : SkUiCoreNode
 {
     private bool _isRunning;
     private Color _color = SkUiColors.Muted;
-    private IDisposable? _spin;
-    private float _sweepStart;
     private SKPaint? _strokePaint;
 
     /// <summary>Whether the spinner is animating.</summary>
@@ -25,12 +24,11 @@ public class SkUiCoreActivityIndicator : SkUiCoreNode
         set => SetColor(value);
     }
 
-    /// <summary>Sets running state; animates only while <c>true</c> and attached under a host clock.</summary>
+    /// <summary>Sets running state; the compositor spins the arc while <c>true</c>.</summary>
     public SkUiCoreActivityIndicator SetIsRunning(bool value)
     {
         if (!SetProperty(ref _isRunning, value, nameof(IsRunning))) return this;
-        BindSpin();
-        if (!_isRunning) InvalidatePaint();
+        InvalidatePaint();
         return this;
     }
 
@@ -53,12 +51,6 @@ public class SkUiCoreActivityIndicator : SkUiCoreNode
     protected override void OnPaintContent(SKCanvas canvas)
     {
         if (!_isRunning) return;
-        if (!AnimationClock.IsRunning)
-        {
-            BindSpin();
-            if (!AnimationClock.IsRunning)
-                return;
-        }
         var paint = _strokePaint ??= new SKPaint
         {
             Style = SKPaintStyle.Stroke,
@@ -66,52 +58,17 @@ public class SkUiCoreActivityIndicator : SkUiCoreNode
             IsAntialias = true,
             Color = ToSkColor(_color)
         };
-        SkUiLook.Current.DrawActivityIndicator(canvas, (float)Frame.Width, (float)Frame.Height, _sweepStart, paint);
+        SkUiLook.Current.DrawActivityIndicator(canvas, (float)Frame.Width, (float)Frame.Height, 0, paint);
     }
+
+    /// <inheritdoc />
+    internal override void OnGetRenderProps(ref SkUiRenderProps props) =>
+        props.ContentSpinPeriod = _isRunning ? 1 : 0;
 
     /// <inheritdoc />
     protected override void OnIsVisibleChanged()
     {
         if (!IsVisible)
             SetIsRunning(false);
-    }
-
-    /// <inheritdoc />
-    /// <remarks>
-    /// Detach unbinds the spin callback but keeps <see cref="IsRunning"/> so a temporary rehost
-    /// (e.g. swapping the surface-owning host) can resume without the app re-setting the flag.
-    /// </remarks>
-    protected override void OnAnimationRootChanged(bool subtreeDetached = false)
-    {
-        if (subtreeDetached)
-        {
-            _spin?.Dispose();
-            _spin = null;
-            DisposeStrokePaint();
-            return;
-        }
-
-        if (_isRunning)
-            BindSpin();
-    }
-
-    private void BindSpin()
-    {
-        _spin?.Dispose();
-        _spin = null;
-        if (!_isRunning || !IsVisible || !HasInheritedHostClock)
-            return;
-        _spin = AnimationClock.Start(
-            progress => _sweepStart = (float)(progress * 360),
-            TimeSpan.FromSeconds(1),
-            repeat: true);
-        // Mark ancestors dirty once so scroll content caches switch to live paint while the clock runs.
-        InvalidatePaint();
-    }
-
-    private void DisposeStrokePaint()
-    {
-        _strokePaint?.Dispose();
-        _strokePaint = null;
     }
 }
