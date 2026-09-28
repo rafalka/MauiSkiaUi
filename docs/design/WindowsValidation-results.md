@@ -50,7 +50,7 @@ The demo ran as a Debug build (DevFlow agent included). Most checks were done in
 
 | # | Item | Result | Notes |
 | --- | --- | --- | --- |
-| 11 | Mouse | **Fixed** (rendering) / **Not tested** (input) | GPU surfaces inside the native `ScrollView` were blank, then stretched after a resize (47200f7); now they draw correctly, GPU and software. The mouse checks could not be run: the workstation locked (no input desktop, no screen capture) before they started. Still to do: drag in the list / Core list, wheel at the list end (does the page continue?), wheel over native filler, carousel, swipe row. |
+| 11 | Mouse | **Fixed** (rendering) → OK | GPU surfaces inside the native `ScrollView` were blank, then stretched after a resize (47200f7); now they draw correctly. Run 2026-09-28, GPU and software, same results:<br>• Drag in the drawn list (150) and the Core list (130): the list scrolls, the page doesn't.<br>• Wheel over a list: the list scrolls to its end (367 / 340), then further wheel input scrolls the page (0 → 283, 472 → 755).<br>• Wheel over native filler: the page scrolls.<br>• Carousel: horizontal drag scrolls it.<br>• Swipe row: swipe and tap reported.<br>• Mouse **drags** on native filler, or vertical drags on the carousel, don't scroll the page. That's expected with a mouse: WinUI `ScrollViewer` pans only for touch / pen.<br>• A **vertical wheel over the horizontal carousel scrolls the carousel** (0 → 240), not the page. See open problems. |
 | 12 | Touch | **Not tested** | No touchscreen. This is where the known gap (no native-parent coordination on Windows) would show. |
 
 ### E. Performance (Debug build — the DevFlow agent is Debug-only)
@@ -99,7 +99,8 @@ Headless benchmark, median of 3, ms:
 
 ## Open problems and proposed next steps
 
-1. **D.11 mouse checks** on "Native nesting" still to run (blocked by the locked session), and **D.12 touch** needs a touchscreen. Also still unexplained: in one early run the native page there sat at offset 829 without any input. It wasn't seen again after the fixes.
+1. **D.12 touch** needs a touchscreen. Also still unexplained: in one early run the native "Native nesting" page sat at offset 829 without any input. It wasn't seen again after the fixes.
+   - **Vertical wheel over a horizontal-only drawn scroller** scrolls it horizontally, so a page that's being wheel-scrolled stops as soon as a carousel passes under the cursor. That's convenient for mice without horizontal wheels, but it traps page scrolling. Proposal: a vertical wheel only moves a scroller that can move vertically; horizontal needs Shift+wheel or a horizontal wheel / trackpad (part of the "axis-aware wheel" item in EventMechanism.md). This is shared code, so decide before changing it.
 2. **Native-parent coordination on Windows** (known gap, not built): with a mouse it only matters for the wheel. Proposed approach once touch results exist: while a drawn gesture may claim the pointer, set `ManipulationMode = None` on the surface (keeps DirectManipulation from starting a pan on the ancestor `ScrollViewer`), and use `ScrollViewer.CancelDirectManipulations` if it already started. That mirrors Android's `RequestDisallowInterceptTouchEvent`.
 3. **WebView black background** when its HTML sets no background (`demo-SkUiMauiContentView`; GPU and software). With a body background (overlay page) it's fine. Probably WebView2's transparent default inside the overlay canvas. Next step: check a plain MAUI page with the same WebView, then set `DefaultBackgroundColor` if it's overlay-specific.
 4. **Drag that starts on a native TextBox** selects text instead of scrolling the drawn list (WinUI TextBox captures the pointer). On mobile the list probably scrolls. Decide whether that's acceptable on desktop.

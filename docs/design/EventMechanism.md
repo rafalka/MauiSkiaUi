@@ -125,7 +125,8 @@ This gives native "nested scrolling" too: a drawn scroller inside a native one s
     - a Core scroll view behaves like the drawn list.
   - **iPhone:** GPU and software surfaces both verified: nested scrolling works, and the page no longer freezes after a tap-to-stop (2026-09-27).
   - **Windows 11, mouse** (2026-09-27, GPU and software surfaces; [WindowsValidation-results.md](WindowsValidation-results.md)): press feedback and clicks, drawn scroller drag / fling / wheel, a drag that starts on a button scrolls without clicking, Core carousel, same-axis panel hand-off to the page, row swipe, long press, double tap.
-  - **Not yet verified on Windows:** drawn surfaces inside a native `ScrollView` with real input (mouse and touch), pinch.
+  - **Windows 11, "Native nesting", mouse** (2026-09-28, GPU and software): drawn and Core lists take drags without moving the page; the wheel scrolls a list to its end and then the page; wheel over native filler scrolls the page; carousel drag, row swipe and tap work. Mouse drags never pan the native page (WinUI `ScrollViewer` pans only for touch / pen). A vertical wheel over a horizontal-only drawn scroller scrolls it horizontally.
+  - **Not yet verified on Windows:** touch (native-parent coordination gap), pinch.
   - **By design:** once a drawn scroller has claimed a drag, the rest of that drag stays drawn. It chains only to drawn outer scrollers; Android cannot hand a gesture back to a native parent mid-drag. The native page takes over on the next drag.
 
 ## Still open
