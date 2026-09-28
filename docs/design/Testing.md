@@ -160,7 +160,8 @@ maui devflow extensions call dev.skiaui hit '{"x":201,"y":709}'                 
 ```
 
 - **Coordinates:** window DIPs, the same as native elements in `ui tree`.
-- **Tap result:** `tap` returns both the matched element and the element actually hit. If something covers the element's center, the two differ.
+- **Scope:** all three tools look only at the page on screen (the top modal page, else the Shell's current page). Pages lower in the navigation stack or in other Shell sections keep their surfaces, but they are ignored.
+- **Tap result:** `tap` returns both the matched element and the element actually hit. If something covers the element's center, the two differ. An element outside every viewport returns **422** ("not on screen"); **409** is always DevFlow's mutation lease.
 - **Lease:** `tap` is a mutation, so it waits for DevFlow's mutation lease. A lease taken by an earlier CLI call (e.g. `ui navigate`) expires after about 10 s.
 - **Tests:** in headless tests, use `SkUiDiagnostics.GetRootBounds` / `HitTest` / `SimulateTap` directly.
 

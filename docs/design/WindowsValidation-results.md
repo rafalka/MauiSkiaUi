@@ -1,6 +1,6 @@
 # Windows validation — results
 
-First build and run of SkiaUi on Windows, following [WINDOWS_VALIDATION.md](../../WINDOWS_VALIDATION.md). Date: 2026-09-27. Branch `claude_review`.
+First build and run of SkiaUi on Windows, following the Windows validation instructions (`WINDOWS_VALIDATION.md`, added in f9a0503 and removed after validation). Date: 2026-09-27. Branch `claude_review`.
 
 ## Environment
 
@@ -104,7 +104,7 @@ Headless benchmark, median of 3, ms:
 2. **Native-parent coordination on Windows** (known gap, not built): with a mouse it only matters for the wheel. Proposed approach once touch results exist: while a drawn gesture may claim the pointer, set `ManipulationMode = None` on the surface (keeps DirectManipulation from starting a pan on the ancestor `ScrollViewer`), and use `ScrollViewer.CancelDirectManipulations` if it already started. That mirrors Android's `RequestDisallowInterceptTouchEvent`.
 3. ~~**WebView black background**~~ **Resolved** (1f20bf4): not SkiaUi. `DefaultBackgroundColor` was white; WebView2 follows the Windows dark theme and renders an unstyled page dark. The demo now sets a light document around the edited snippet.
 4. **Drag that starts on a native TextBox** selects text instead of scrolling the drawn list (WinUI TextBox captures the pointer). On mobile the list probably scrolls. Decide whether that's acceptable on desktop.
-5. **`dev.skiaui` extension:**
+5. ~~**`dev.skiaui` extension**~~ **Resolved**: `tree` / `tap` / `hit` are limited to the page on screen, and "not on screen" returns 422. Original report:
    - `tree` / `tap` include elements of pages that aren't visible (navigation stack, other Shell tabs). `tap` then picks the first match, which may be the hidden one. Filter to loaded pages, or return the visible match first.
    - "Not on screen" returns 409, which the CLI shows only as "409 (Conflict)", the same code as the DevFlow lease. A different code (e.g. 422) would avoid confusing the two.
 6. **`SKSwapChainPanel` workarounds** (opengl32 pin, stale-size repaint) depend on SkiaSharp 4.152 / ANGLE behavior. Worth reporting upstream; re-check them when SkiaSharp is updated. During a live window-resize drag, one stretched frame may still show.
@@ -113,7 +113,7 @@ Headless benchmark, median of 3, ms:
 
 ## Notes for the next Windows session
 
-- **Mouse moves:** use `mouse_event(MOVE | ABSOLUTE | VIRTUALDESK)`. `SetCursorPos` alone produces no WinUI `PointerMoved`, so drags arrive as press + release only. The snippet in WINDOWS_VALIDATION.md §4 needs this change. Make PowerShell per-monitor DPI aware (`SetThreadDpiAwarenessContext(-4)`) before converting coordinates.
+- **Mouse moves:** use `mouse_event(MOVE | ABSOLUTE | VIRTUALDESK)`. `SetCursorPos` alone produces no WinUI `PointerMoved`, so drags arrive as press + release only. The input snippet in the removed instructions (`WINDOWS_VALIDATION.md` §4, see f9a0503) needs this change. Make PowerShell per-monitor DPI aware (`SetThreadDpiAwarenessContext(-4)`) before converting coordinates.
 - **Screenshots:** `maui devflow ui screenshot` uses `RenderTargetBitmap`, which shows GPU surfaces blank. Use a screen capture or `PrintWindow(PW_RENDERFULLCONTENT)`.
 - **Tooling quirks:**
   - The DevFlow agent may listen on 10223 (broker-assigned), not 9223.

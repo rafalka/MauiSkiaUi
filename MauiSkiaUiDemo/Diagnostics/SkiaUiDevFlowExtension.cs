@@ -41,7 +41,8 @@ internal static class SkiaUiDevFlowExtension
         var target = matches[index];
         var hit = SkUiDiagnostics.SimulateTap(target);
         return hit is null
-            ? HttpResponse.Error("Element is not on screen (clipped or detached).", 409)
+            // 422, not 409: the DevFlow CLI shows only the status code, and 409 is also its mutation-lease conflict.
+            ? HttpResponse.Error("Element is not on screen (clipped or detached).", 422)
             : HttpResponse.Json(new { tapped = Describe(target), hit = Describe(hit) });
     }
 
@@ -49,8 +50,8 @@ internal static class SkiaUiDevFlowExtension
     {
         if (!double.TryParse(parameters.GetValueOrDefault("x"), out var x) || !double.TryParse(parameters.GetValueOrDefault("y"), out var y))
             return HttpResponse.Error("x and y are required.");
-        return Application.Current?.Windows.FirstOrDefault() is IVisualTreeElement window
-            && SkUiDiagnostics.HitTestWindow(window, new Point(x, y)) is { } hit
+        return VisiblePage() is { } page
+            && SkUiDiagnostics.HitTestWindow(page, new Point(x, y)) is { } hit
             ? HttpResponse.Json(Describe(hit))
             : HttpResponse.NotFound("No drawn element at that point.");
     }
@@ -60,12 +61,31 @@ internal static class SkiaUiDevFlowExtension
         && (!parameters.TryGetValue("text", out var text) || Text(element) == text)
         && (!parameters.TryGetValue("type", out var type) || element.GetType().Name == type);
 
-    /// <summary>Drawn elements (under a connected surface root) of the first window, in tree order.</summary>
+    /// <summary>
+    /// Drawn elements (under a connected surface root) of the page on screen, in tree order. Pages below it in the
+    /// navigation stack or in other Shell sections keep their surfaces, so the whole window would also list (and tap)
+    /// elements the user cannot see.
+    /// </summary>
     private static IEnumerable<IVisualTreeElement> DrawnElements() =>
-        Application.Current?.Windows.FirstOrDefault() is IVisualTreeElement window
-            ? window.GetVisualTreeDescendants().Where(element =>
+        VisiblePage() is { } page
+            ? page.GetVisualTreeDescendants().Where(element =>
                 element is SkUiView or ISkUiCoreNode && SkUiDiagnostics.GetWindowBounds(element) is not null)
             : [];
+
+    /// <summary>The page on screen: the top modal page, else the Shell's current page, else the window's page.</summary>
+    private static IVisualTreeElement? VisiblePage()
+    {
+        if (Application.Current?.Windows.FirstOrDefault()?.Page is not { } root)
+            return null;
+        if (root.Navigation.ModalStack.LastOrDefault() is { } modal)
+            return modal;
+        return root switch
+        {
+            Shell { CurrentPage: { } current } => current,
+            NavigationPage { CurrentPage: { } current } => current,
+            _ => root
+        };
+    }
 
     private static object Describe(IVisualTreeElement element)
     {
