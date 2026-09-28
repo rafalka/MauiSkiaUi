@@ -22,7 +22,7 @@ public class TextShapingTests
     private static SkUiShaping.Paragraph Shape(string text, SkUiTextDirection direction = SkUiTextDirection.Auto)
     {
         var fonts = new Dictionary<SKTypeface, SKFont>();
-        return SkUiShaping.Shape(text, Primary(), 16, direction, face => fonts.TryGetValue(face, out var f) ? f : fonts[face] = new SKFont(face, 16));
+        return SkUiShaping.Shape(text, Primary(), 16, direction, face => fonts.TryGetValue(face, out var f) ? f : fonts[face] = new SKFont(face, 16) { LinearMetrics = true });
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public class TextShapingTests
     {
         var layout = new SkUiTextLayout();
         SkUiCoreTextLineBreaker halves = (text, _, _) => [text[..(text.Length / 2)], text[(text.Length / 2)..]];
-        using var font = new SKFont(Primary(), 16);
+        using var font = new SKFont(Primary(), 16) { LinearMetrics = true };
         var size = layout.Measure("abcdef", Primary(), 16, default, 500, halves);
         Assert.Equal(font.Spacing * 2, (float)size.Height, 1);
         Assert.Equal(font.MeasureText("abc"), (float)size.Width, 1);
