@@ -75,11 +75,11 @@ public abstract class ComponentDemoPage : ContentPage
         skia.SizeChanged += (_, _) => UpdateBounds();
         if (native is not null) native.SizeChanged += (_, _) => UpdateBounds();
         Toggle("HwAccelerated", true, ApplyHwAcceleration, () => _hwAccelerated);
-        // Without explicit ranges the sizes start at the control's natural size (its SkUiLook default), measured once
+        // Without explicit ranges the sizes switch to the control's natural size (its SkUiLook default), measured once
         // the page is loaded, and the preview area is twice the initial height.
         _autoSize = widthRange is null && heightRange is null;
-        Number(nameof(View.WidthRequest), widthRange?.Min ?? 60, widthRange?.Max ?? 260, widthRange?.Initial ?? 220, value => SetBoth(View.WidthRequestProperty, value), () => skia.WidthRequest, native is null ? null : () => native.WidthRequest, applyInitial: !_autoSize);
-        Number(nameof(View.HeightRequest), heightRange?.Min ?? 40, heightRange?.Max ?? 160, heightRange?.Initial ?? 120, value => SetBoth(View.HeightRequestProperty, value), () => skia.HeightRequest, native is null ? null : () => native.HeightRequest, applyInitial: !_autoSize);
+        Number(nameof(View.WidthRequest), widthRange?.Min ?? 60, widthRange?.Max ?? 260, widthRange?.Initial ?? 220, value => SetBoth(View.WidthRequestProperty, value), () => skia.WidthRequest, native is null ? null : () => native.WidthRequest);
+        Number(nameof(View.HeightRequest), heightRange?.Min ?? 40, heightRange?.Max ?? 160, heightRange?.Initial ?? 120, value => SetBoth(View.HeightRequestProperty, value), () => skia.HeightRequest, native is null ? null : () => native.HeightRequest);
         if (_autoSize)
             Loaded += OnLoadedAutoSize;
         Number(nameof(VisualElement.Opacity), 0, 1, 1, value => SetBoth(VisualElement.OpacityProperty, value), () => skia.Opacity, native is null ? null : () => native.Opacity);
@@ -97,6 +97,9 @@ public abstract class ComponentDemoPage : ContentPage
     private void OnLoadedAutoSize(object? sender, EventArgs args)
     {
         Loaded -= OnLoadedAutoSize;
+        // The fallback size was applied at construction; clear it to measure the natural size.
+        SkiaControl.WidthRequest = -1;
+        SkiaControl.HeightRequest = -1;
         var natural = ((IView)SkiaControl).Measure(double.PositiveInfinity, double.PositiveInfinity);
         // Controls without a natural size (empty views, layouts, scrollers) keep the old defaults.
         var width = natural.Width >= 1 ? Math.Ceiling(natural.Width) : 220;
@@ -215,7 +218,7 @@ public abstract class ComponentDemoPage : ContentPage
         NativeControl?.SetValue(property, value);
     }
 
-    protected void Number(string name, double minimum, double maximum, double initial, Action<double> apply, Func<double> skia, Func<double>? native = null, bool applyInitial = true)
+    protected void Number(string name, double minimum, double maximum, double initial, Action<double> apply, Func<double> skia, Func<double>? native = null)
     {
         var slider = new Slider { Minimum = minimum, Maximum = maximum, Value = initial, MinimumTrackColor = Accent, AutomationId = "Edit" + name };
         var valueLabel = Caption(initial.ToString("0.##"));
@@ -228,8 +231,7 @@ public abstract class ComponentDemoPage : ContentPage
         _numbers[name] = (slider, initial, Apply);
         _resets.Add(() => SetSlider(_numbers[name].Slider, _numbers[name].Initial, Apply));
         _checks.Add((name, () => Math.Abs(skia() - slider.Value) < 0.001 && (native is null || Math.Abs(native() - slider.Value) < 0.001)));
-        if (applyInitial)
-            apply(initial);
+        apply(initial);
     }
 
     // Assigning the same Value does not raise ValueChanged; only then apply explicitly.
