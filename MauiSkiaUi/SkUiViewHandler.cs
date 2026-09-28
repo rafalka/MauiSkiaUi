@@ -172,6 +172,11 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #if WINDOWS
         if (gpu)
             platformSurface.Unloaded += OnGpuPanelUnloaded;
+        // After SkiaSharp's own handlers (handledEventsToo): the arena has seen the sample by then.
+        platformSurface.AddHandler(Microsoft.UI.Xaml.UIElement.PointerMovedEvent,
+            new Microsoft.UI.Xaml.Input.PointerEventHandler(OnSurfacePointerMoved), true);
+        platformSurface.AddHandler(Microsoft.UI.Xaml.UIElement.PointerCaptureLostEvent,
+            new Microsoft.UI.Xaml.Input.PointerEventHandler(OnSurfacePointerCaptureLost), true);
 #endif
         return platformSurface;
     }
@@ -181,6 +186,40 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #endif
 
 #if WINDOWS
+    /// <summary>Touch / pen pointers handed to an ancestor ScrollViewer (DirectManipulation) during this contact.</summary>
+    private readonly HashSet<uint> _handedOver = [];
+    private readonly Dictionary<long, Point> _lastTouchPixels = [];
+
+    /// <summary>
+    /// Native-parent coordination, like Android's intercept release: once no drawn gesture wants the touch (past the
+    /// slop, nothing claimed — e.g. a drawn list at its end, a vertical drag on a carousel), give the pointer to the
+    /// ancestor ScrollViewer. SkiaSharp captures every handled pointer and sets ManipulationMode = All, so
+    /// DirectManipulation would otherwise never start from a drawn surface. Mouse drags never pan a ScrollViewer.
+    /// </summary>
+    private void OnSurfacePointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+    {
+        var pointer = args.Pointer;
+        if (pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse || !pointer.IsInContact
+            || _handedOver.Contains(pointer.PointerId) || GetNativeGestureState() != SkUiNativeGestureState.None)
+            return;
+        _handedOver.Add(pointer.PointerId); // one attempt per contact
+        // SkiaSharp set ManipulationMode = All and captured the pointer on press; both keep DirectManipulation off.
+        var element = (Microsoft.UI.Xaml.UIElement)sender;
+        element.ManipulationMode = Microsoft.UI.Xaml.Input.ManipulationModes.System;
+        element.ReleasePointerCapture(pointer);
+        Microsoft.UI.Xaml.UIElement.TryStartDirectManipulation(pointer);
+    }
+
+    /// <summary>DirectManipulation took the pointer: SkiaSharp reports no Cancelled for that, so end the drawn arena.</summary>
+    private void OnSurfacePointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+    {
+        var id = args.Pointer.PointerId;
+        if (!_handedOver.Remove(id))
+            return;
+        if (_lastTouchPixels.Remove(id, out var position))
+            _renderer?.TouchPixels(new(id, SkUiTouchAction.Cancelled, position));
+    }
+
     private bool _reloadingGpuPanel;
 
     /// <summary>
@@ -506,6 +545,15 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             return;
         args.Handled = _renderer?.TouchPixels(new(args.Id, action.Value,
             new Point(args.Location.X, args.Location.Y), null, args.WheelDelta)) == true;
+#if WINDOWS
+        if (action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
+        {
+            _lastTouchPixels.Remove(args.Id);
+            _handedOver.Remove((uint)args.Id);
+        }
+        else if (action is SkUiTouchAction.Pressed or SkUiTouchAction.Moved)
+            _lastTouchPixels[args.Id] = new Point(args.Location.X, args.Location.Y);
+#endif
 #if ANDROID
         // Same native-parent coordination as the GL surface (requests propagate to every ancestor).
         var disallow = action is not (SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
