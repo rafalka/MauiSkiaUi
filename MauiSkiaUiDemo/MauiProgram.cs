@@ -11,6 +11,7 @@ public static class MauiProgram
 {
 	public static MauiApp CreateMauiApp()
 	{
+		DemoTrace.StartIfRequested();
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
