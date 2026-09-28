@@ -4,7 +4,7 @@ Release notes for the NuGet package **SkiaUi.Maui**.
 
 Pack and publish workflows copy the body under `## <version>` into the package `PackageReleaseNotes` field. nuget.org shows that text on the package page. The heading must match `Version` in [Directory.Build.props](Directory.Build.props) exactly (newest section first). A link back to this file is appended when the notes are extracted.
 
-## Unreleased
+## 1.0.0-Prerelease04
 
 - **Retained compositor with a render thread** ([RenderingPipeline.md](docs/design/RenderingPipeline.md)): the UI thread records only the nodes whose content changed; GPU surfaces composite on a render thread. Offset, transform, opacity, clip and scroll offset are composite-time properties (no re-record).
 - **Metal on iOS / Mac Catalyst** replaces the deprecated GLKView-based `SKGLView`; Android GPU surfaces render on their own GL thread.
