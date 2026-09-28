@@ -14,6 +14,7 @@ public abstract class ComponentDemoPage : ContentPage
     private readonly List<Action> _resets = [];
     private readonly List<(string Name, Func<bool> Check)> _checks = [];
     private readonly View? _nativePanel;
+    private readonly Grid? _nativeArea;
     private readonly Grid _skiaPanel;
     private readonly Label _result;
     private readonly Label _skiaStatus;
@@ -49,7 +50,8 @@ public abstract class ComponentDemoPage : ContentPage
         _comparisons.Add(_skiaPanel);
         if (native is not null)
         {
-            _nativePanel = MakePanel("MAUI", native, out var status);
+            _nativeArea = new Grid { Children = { native } };
+            _nativePanel = MakePanel("MAUI", _nativeArea, out var status);
             _nativeStatus = status;
             _comparisons.Add(_nativePanel);
         }
@@ -73,8 +75,13 @@ public abstract class ComponentDemoPage : ContentPage
         skia.SizeChanged += (_, _) => UpdateBounds();
         if (native is not null) native.SizeChanged += (_, _) => UpdateBounds();
         Toggle("HwAccelerated", true, ApplyHwAcceleration, () => _hwAccelerated);
-        Number(nameof(View.WidthRequest), widthRange?.Min ?? 60, widthRange?.Max ?? 260, widthRange?.Initial ?? 220, value => SetBoth(View.WidthRequestProperty, value), () => skia.WidthRequest, native is null ? null : () => native.WidthRequest);
-        Number(nameof(View.HeightRequest), heightRange?.Min ?? 40, heightRange?.Max ?? 160, heightRange?.Initial ?? 120, value => SetBoth(View.HeightRequestProperty, value), () => skia.HeightRequest, native is null ? null : () => native.HeightRequest);
+        // Without explicit ranges the sizes start at the control's natural size (its SkUiLook default), measured once
+        // the page is loaded, and the preview area is twice the initial height.
+        _autoSize = widthRange is null && heightRange is null;
+        Number(nameof(View.WidthRequest), widthRange?.Min ?? 60, widthRange?.Max ?? 260, widthRange?.Initial ?? 220, value => SetBoth(View.WidthRequestProperty, value), () => skia.WidthRequest, native is null ? null : () => native.WidthRequest, applyInitial: !_autoSize);
+        Number(nameof(View.HeightRequest), heightRange?.Min ?? 40, heightRange?.Max ?? 160, heightRange?.Initial ?? 120, value => SetBoth(View.HeightRequestProperty, value), () => skia.HeightRequest, native is null ? null : () => native.HeightRequest, applyInitial: !_autoSize);
+        if (_autoSize)
+            Loaded += OnLoadedAutoSize;
         Number(nameof(VisualElement.Opacity), 0, 1, 1, value => SetBoth(VisualElement.OpacityProperty, value), () => skia.Opacity, native is null ? null : () => native.Opacity);
         Toggle(nameof(VisualElement.IsEnabled), true, value => SetBoth(VisualElement.IsEnabledProperty, value), () => skia.IsEnabled, native is null ? null : () => native.IsEnabled);
         Toggle(nameof(VisualElement.IsVisible), true, value => SetBoth(VisualElement.IsVisibleProperty, value), () => skia.IsVisible, native is null ? null : () => native.IsVisible);
@@ -82,6 +89,33 @@ public abstract class ComponentDemoPage : ContentPage
         Choice(nameof(VisualElement.FlowDirection), [FlowDirection.MatchParent, FlowDirection.LeftToRight, FlowDirection.RightToLeft], FlowDirection.MatchParent,
             value => { _skiaPanel.FlowDirection = value; if (_nativePanel is not null) _nativePanel.FlowDirection = value; },
             () => _skiaPanel.FlowDirection, _nativePanel is null ? null : () => _nativePanel.FlowDirection);
+    }
+
+    private readonly bool _autoSize;
+    private double _areaHeight = -1;
+
+    private void OnLoadedAutoSize(object? sender, EventArgs args)
+    {
+        Loaded -= OnLoadedAutoSize;
+        var natural = ((IView)SkiaControl).Measure(double.PositiveInfinity, double.PositiveInfinity);
+        // Controls without a natural size (empty views, layouts, scrollers) keep the old defaults.
+        var width = natural.Width >= 1 ? Math.Ceiling(natural.Width) : 220;
+        var height = natural.Height >= 1 ? Math.Ceiling(natural.Height) : 120;
+        SetNumberInitial(nameof(View.WidthRequest), width, Math.Max(8, Math.Floor(width / 4)), Math.Max(width * 2, 320));
+        SetNumberInitial(nameof(View.HeightRequest), height, Math.Max(8, Math.Floor(height / 4)), height * 2);
+        _areaHeight = height * 2;
+        ApplyAreaHeight();
+        UpdateComparisonLayout(Width);
+    }
+
+    /// <summary>Auto-sized pages: preview (and native comparison) area of <see cref="_areaHeight"/>.</summary>
+    private void ApplyAreaHeight()
+    {
+        if (_areaHeight <= 0)
+            return;
+        _host.HeightRequest = _areaHeight;
+        if (_nativeArea is not null)
+            _nativeArea.HeightRequest = _areaHeight;
     }
 
     private static SkUiContentView CreatePreviewHost(ISkUiView? content, bool hwAccelerated)
@@ -115,6 +149,7 @@ public abstract class ComponentDemoPage : ContentPage
         _host.AnimationClock.StopAll();
         _skiaPanel.Remove(_host);
         _host = CreatePreviewHost(content, enabled);
+        ApplyAreaHeight();
         _skiaPanel.Add(_host, 0, 1);
         UpdateBounds();
     }
@@ -134,13 +169,15 @@ public abstract class ComponentDemoPage : ContentPage
     {
         IsWide = width >= 720 && _nativePanel is not null;
         _comparisons.ColumnDefinitions = IsWide ? [new(GridLength.Star), new(GridLength.Star)] : [new(GridLength.Star)];
-        _comparisons.RowDefinitions = _nativePanel is not null && !IsWide ? [new(GridLength.Star), new(GridLength.Star)] : [new(GridLength.Star)];
+        // Auto-sized pages: the panels take their content height (preview area = 2 x the control's initial height).
+        var row = _areaHeight > 0 ? GridLength.Auto : GridLength.Star;
+        _comparisons.RowDefinitions = _nativePanel is not null && !IsWide ? [new(row), new(row)] : [new(row)];
         if (_nativePanel is not null)
         {
             Grid.SetColumn(_nativePanel, IsWide ? 1 : 0);
             Grid.SetRow(_nativePanel, IsWide ? 0 : 1);
         }
-        _comparisons.HeightRequest = _nativePanel is not null && !IsWide ? 424 : _singlePanelHeight;
+        _comparisons.HeightRequest = _areaHeight > 0 ? -1 : _nativePanel is not null && !IsWide ? 424 : _singlePanelHeight;
     }
 
     private double _singlePanelHeight = 206;
@@ -178,40 +215,50 @@ public abstract class ComponentDemoPage : ContentPage
         NativeControl?.SetValue(property, value);
     }
 
-    protected void Number(string name, double minimum, double maximum, double initial, Action<double> apply, Func<double> skia, Func<double>? native = null)
+    protected void Number(string name, double minimum, double maximum, double initial, Action<double> apply, Func<double> skia, Func<double>? native = null, bool applyInitial = true)
     {
         var slider = new Slider { Minimum = minimum, Maximum = maximum, Value = initial, MinimumTrackColor = Accent, AutomationId = "Edit" + name };
         var valueLabel = Caption(initial.ToString("0.##"));
         var row = new Grid { ColumnDefinitions = [new(GridLength.Star), new(new GridLength(48))] };
         row.Add(slider);
         row.Add(valueLabel, 1);
-        slider.ValueChanged += (_, args) => { apply(args.NewValue); valueLabel.Text = args.NewValue.ToString("0.##"); };
+        void Apply(double value) { apply(value); valueLabel.Text = value.ToString("0.##"); }
+        slider.ValueChanged += (_, args) => Apply(args.NewValue);
         AddEditor(name, row);
-        _numbers[name] = (slider, initial);
-        _resets.Add(() =>
-        {
-            var value = _numbers[name].Initial;
-            // Assigning the same Value does not raise ValueChanged; only then apply explicitly.
-            if (Math.Abs(slider.Value - value) < 0.001) apply(value);
-            else slider.Value = value;
-        });
+        _numbers[name] = (slider, initial, Apply);
+        _resets.Add(() => SetSlider(_numbers[name].Slider, _numbers[name].Initial, Apply));
         _checks.Add((name, () => Math.Abs(skia() - slider.Value) < 0.001 && (native is null || Math.Abs(native() - slider.Value) < 0.001)));
-        apply(initial);
+        if (applyInitial)
+            apply(initial);
     }
 
-    private readonly Dictionary<string, (Slider Slider, double Initial)> _numbers = [];
+    // Assigning the same Value does not raise ValueChanged; only then apply explicitly.
+    private static void SetSlider(Slider slider, double value, Action<double> apply)
+    {
+        if (Math.Abs(slider.Value - value) < 0.001) apply(value);
+        else slider.Value = value;
+    }
+
+    private readonly Dictionary<string, (Slider Slider, double Initial, Action<double> Apply)> _numbers = [];
 
     /// <summary>
-    /// Replaces the initial (and Reset) value of a <see cref="Number"/> editor and applies it, clamped to its range;
-    /// e.g. a size that depends on the page width, known only after layout.
+    /// Replaces the initial (and Reset) value of a <see cref="Number"/> editor and applies it, clamped to its range
+    /// (optionally replaced too); e.g. a size known only after layout.
     /// </summary>
-    protected void SetNumberInitial(string name, double value)
+    protected void SetNumberInitial(string name, double value, double? minimum = null, double? maximum = null)
     {
         if (!_numbers.TryGetValue(name, out var number))
             return;
-        value = Math.Clamp(value, number.Slider.Minimum, number.Slider.Maximum);
-        _numbers[name] = (number.Slider, value);
-        number.Slider.Value = value;
+        var slider = number.Slider;
+        if (minimum is { } min && maximum is { } max)
+        {
+            // Keep Minimum <= Maximum at every step.
+            if (min > slider.Maximum) { slider.Maximum = max; slider.Minimum = min; }
+            else { slider.Minimum = min; slider.Maximum = max; }
+        }
+        value = Math.Clamp(value, slider.Minimum, slider.Maximum);
+        _numbers[name] = (slider, value, number.Apply);
+        SetSlider(slider, value, number.Apply);
     }
 
     protected void Toggle(string name, bool initial, Action<bool> apply, Func<bool> skia, Func<bool>? native = null)

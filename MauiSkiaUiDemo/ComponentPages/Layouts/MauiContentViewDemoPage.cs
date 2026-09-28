@@ -81,6 +81,7 @@ public sealed class MauiContentViewDemoPage : ComponentDemoPage
             // | HTML source | Live preview |
             // |   Editor    |   WebView    |
             // |      Refresh preview       |
+            _grid.ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star)];
             _grid.RowDefinitions = [new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto)];
             Place(_sourceLabel, row: 0, column: 0);
             Place(_previewLabel, row: 0, column: 1);
@@ -92,6 +93,8 @@ public sealed class MauiContentViewDemoPage : ComponentDemoPage
             // | HTML source | Editor  |
             // | Live preview | WebView |
             // |      Refresh preview   |
+            // Labels take only the width they need; the Editor and WebView get the rest.
+            _grid.ColumnDefinitions = [new(GridLength.Auto), new(GridLength.Star)];
             _grid.RowDefinitions = [new(GridLength.Star), new(GridLength.Star), new(GridLength.Auto)];
             Place(_sourceLabel, row: 0, column: 0);
             Place(_editorHost, row: 0, column: 1);
