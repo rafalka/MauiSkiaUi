@@ -1077,9 +1077,40 @@ internal sealed class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.Canvas
             _contact = args.Pointer.PointerId;
             _pointer = ++s_nextPointer;
             _taken = false;
+            WatchWindow(true);
             // Claimed at once when the press stops a drawn fling: the native control never keeps it.
             if (Forward(args, SkUiTouchAction.Pressed) == SkUiNativeGestureState.Claimed)
                 TakeOver(args);
+        }
+
+        private Microsoft.UI.Xaml.UIElement? _window;
+        private Microsoft.UI.Xaml.Input.PointerEventHandler? _windowReleased;
+        private Microsoft.UI.Xaml.Input.PointerEventHandler? _windowCanceled;
+
+        /// <summary>
+        /// Without a capture (the native control keeps the touch until a drawn gesture claims it) the finger may be
+        /// lifted anywhere in the window, e.g. over native controls below the drawn surface: watch the window's root
+        /// while the contact is down, or the drawn tree never gets the release and the scroll gesture keeps tracking
+        /// that pointer (every later drag was ignored).
+        /// </summary>
+        private void WatchWindow(bool watch)
+        {
+            if (watch)
+            {
+                if (_window is not null || _space.XamlRoot?.Content is not Microsoft.UI.Xaml.UIElement root)
+                    return;
+                _window = root;
+                _windowReleased ??= (_, args) => End(args, SkUiTouchAction.Released);
+                _windowCanceled ??= (_, args) => { Why("PointerCanceled in window", args); End(args, SkUiTouchAction.Cancelled); };
+                root.AddHandler(Microsoft.UI.Xaml.UIElement.PointerReleasedEvent, _windowReleased, handledEventsToo: true);
+                root.AddHandler(Microsoft.UI.Xaml.UIElement.PointerCanceledEvent, _windowCanceled, handledEventsToo: true);
+            }
+            else if (_window is { } root)
+            {
+                root.RemoveHandler(Microsoft.UI.Xaml.UIElement.PointerReleasedEvent, _windowReleased);
+                root.RemoveHandler(Microsoft.UI.Xaml.UIElement.PointerCanceledEvent, _windowCanceled);
+                _window = null;
+            }
         }
 
         /// <summary>The last event forwarded from the clip (it bubbles on to the container).</summary>
@@ -1130,6 +1161,7 @@ internal sealed class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.Canvas
             var taken = _taken;
             _contact = null;
             _taken = false;
+            WatchWindow(false);
             _contactEnded(); // apply a hide deferred while the contact was down
             if (taken)
             {
