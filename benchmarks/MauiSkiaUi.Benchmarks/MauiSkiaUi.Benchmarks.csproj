@@ -21,6 +21,7 @@
     <Using Include="Microsoft.Maui.Graphics" />
     <Using Include="Microsoft.Maui" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="$(SkiaSharpVersion)" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" Version="$(HarfBuzzSharpVersion)" />
     <ProjectReference Include="../../MauiSkiaUi/MauiSkiaUi.csproj" />
   </ItemGroup>
 </Project>

@@ -5,6 +5,8 @@
 
     <!-- Pin SkiaSharp and its companion packages (HarfBuzz, Views, native assets) via $(SkiaSharpVersion); keep them in lockstep. -->
     <SkiaSharpVersion>4.152.1</SkiaSharpVersion>
+    <!-- HarfBuzzSharp version SkiaSharp.HarfBuzz $(SkiaSharpVersion) depends on (for the Linux native assets of headless projects). -->
+    <HarfBuzzSharpVersion>14.2.1.201</HarfBuzzSharpVersion>
 
     <!--
       Shared product version for SkiaUi.Maui NuGet (PackageVersion/Version) and the demo app
