@@ -27,8 +27,11 @@ public sealed class MauiContentViewDemoPage : ComponentDemoPage
     private bool _isWideLayout;
 
     public MauiContentViewDemoPage() : base(nameof(SkUiMauiContentView), new SkUiGrid { RowSpacing = 8, ColumnSpacing = 12, Padding = 12 },
-        widthRange: (220, 640, 320), heightRange: (300, 560, 440))
+        widthRange: (220, 1600, 320), heightRange: (300, 560, 440))
     {
+        // Room for the 440 DIP default height; the width starts at the full page width once it is known.
+        SinglePanelHeight = 520;
+        SizeChanged += OnFirstSize;
         _editor.Text = "<h3>Live HTML</h3>\n<p>Edit this HTML \u2014 the WebView below updates as you type.</p>";
         _grid = (SkUiGrid)SkiaControl;
         _grid.ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star)];
@@ -50,7 +53,14 @@ public sealed class MauiContentViewDemoPage : ComponentDemoPage
         ApplyResponsiveLayout(Width);
         SizeChanged += (_, _) => ApplyResponsiveLayout(Width);
 
-        void Apply() => _webView.Source = new HtmlWebViewSource { Html = _editor.Text };
+        // Light document around the edited snippet: without it the WebView follows the system theme (Windows dark
+        // mode renders an unstyled page dark, with the snippet's black text).
+        void Apply() => _webView.Source = new HtmlWebViewSource
+        {
+            Html = "<html><head><meta name='color-scheme' content='light'><meta name='viewport' content='width=device-width, initial-scale=1'>"
+                + "<style>body{background:#fff;color:#1b1b1b;font-family:sans-serif;margin:8px}</style></head><body>"
+                + _editor.Text + "</body></html>"
+        };
         Apply();
         _editor.TextChanged += (_, _) => Apply();
         _refresh.Clicked += (_, _) => Apply();
@@ -91,6 +101,23 @@ public sealed class MauiContentViewDemoPage : ComponentDemoPage
 
         Place(_refresh, row: 2, column: 0);
         Grid.SetColumnSpan(_refresh, 2);
+    }
+
+    private double _autoWidth = double.NaN;
+
+    /// <summary>Keeps the preview at the full page width until the WidthRequest slider is moved.</summary>
+    private void OnFirstSize(object? sender, EventArgs args)
+    {
+        if (Width <= 0)
+            return;
+        if (!double.IsNaN(_autoWidth) && Math.Abs(SkiaControl.WidthRequest - _autoWidth) > 0.5)
+        {
+            SizeChanged -= OnFirstSize; // user picked a width
+            return;
+        }
+        // Page padding (12 on each side) is all that separates the preview from the page edges.
+        _autoWidth = Math.Clamp(Width - 24, 220, 1600);
+        SetNumberInitial(nameof(WidthRequest), _autoWidth);
     }
 
     private static void Place(BindableObject view, int row, int column)

@@ -187,14 +187,31 @@ public abstract class ComponentDemoPage : ContentPage
         row.Add(valueLabel, 1);
         slider.ValueChanged += (_, args) => { apply(args.NewValue); valueLabel.Text = args.NewValue.ToString("0.##"); };
         AddEditor(name, row);
+        _numbers[name] = (slider, initial);
         _resets.Add(() =>
         {
+            var value = _numbers[name].Initial;
             // Assigning the same Value does not raise ValueChanged; only then apply explicitly.
-            if (Math.Abs(slider.Value - initial) < 0.001) apply(initial);
-            else slider.Value = initial;
+            if (Math.Abs(slider.Value - value) < 0.001) apply(value);
+            else slider.Value = value;
         });
         _checks.Add((name, () => Math.Abs(skia() - slider.Value) < 0.001 && (native is null || Math.Abs(native() - slider.Value) < 0.001)));
         apply(initial);
+    }
+
+    private readonly Dictionary<string, (Slider Slider, double Initial)> _numbers = [];
+
+    /// <summary>
+    /// Replaces the initial (and Reset) value of a <see cref="Number"/> editor and applies it, clamped to its range;
+    /// e.g. a size that depends on the page width, known only after layout.
+    /// </summary>
+    protected void SetNumberInitial(string name, double value)
+    {
+        if (!_numbers.TryGetValue(name, out var number))
+            return;
+        value = Math.Clamp(value, number.Slider.Minimum, number.Slider.Maximum);
+        _numbers[name] = (number.Slider, value);
+        number.Slider.Value = value;
     }
 
     protected void Toggle(string name, bool initial, Action<bool> apply, Func<bool> skia, Func<bool>? native = null)
