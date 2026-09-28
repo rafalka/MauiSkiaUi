@@ -42,7 +42,7 @@ The demo ran as a Debug build (DevFlow agent included). Most checks were done in
 
 | # | Item | Result | Notes |
 | --- | --- | --- | --- |
-| 8 | `demo-SkUiMauiContentView` | **Fixed** → OK | Overlays sat ~460 DIP to the right after the window resized (71070ec) and vanished after toggling `HwAccelerated` (2729f2e). Editor editable; typing updates the WebView live. Open: WebView background is black here (see below). |
+| 8 | `demo-SkUiMauiContentView` | **Fixed** → OK | Overlays sat ~460 DIP to the right after the window resized (71070ec) and vanished after toggling `HwAccelerated` (2729f2e). Editor editable; typing updates the WebView live. The black WebView was WebView2 following Windows dark mode; the demo now wraps the snippet in a light document, and its preview area is taller and full width (1f20bf4). |
 | 9 | `demo-OverlaysInScrollView` (Snapshot) | **Fixed** → OK | At rest: placed and clipped; a click on the header over a clipped Entry focuses nothing, a click on its visible part focuses it. Dragging: red-outlined snapshots move with the list, `frozen N/7`. Release: natives return, `frozen 0/7`. **WebView snapshot was blank** (`RenderTargetBitmap`); it now uses `CapturePreviewAsync` and shows the page (98c5f41). A focused Entry / WebView stays live. Stall 2 s after a fling: snapshots stay aligned; the fling itself also pauses (no render thread on Windows, by design) and continues afterwards. Live mode: overlays follow, no snapshots. GPU and software. |
 | 10 | Diagnostics extension | OK | `dev.skiaui tree` bounds matched the screen for every element used to aim the mouse (also after RTL, which was off before 54efe9f). `tap` clicks a drawn button (`Clicks: 2`); on an element scrolled out of its viewport it correctly refuses (409). `hit` returns the right element. Minor issues below. |
 
@@ -102,14 +102,14 @@ Headless benchmark, median of 3, ms:
 1. **D.12 touch** needs a touchscreen. Also still unexplained: in one early run the native "Native nesting" page sat at offset 829 without any input. It wasn't seen again after the fixes.
    - **Vertical wheel over a horizontal-only drawn scroller** scrolls it horizontally, so a page that's being wheel-scrolled stops as soon as a carousel passes under the cursor. That's convenient for mice without horizontal wheels, but it traps page scrolling. Proposal: a vertical wheel only moves a scroller that can move vertically; horizontal needs Shift+wheel or a horizontal wheel / trackpad (part of the "axis-aware wheel" item in EventMechanism.md). This is shared code, so decide before changing it.
 2. **Native-parent coordination on Windows** (known gap, not built): with a mouse it only matters for the wheel. Proposed approach once touch results exist: while a drawn gesture may claim the pointer, set `ManipulationMode = None` on the surface (keeps DirectManipulation from starting a pan on the ancestor `ScrollViewer`), and use `ScrollViewer.CancelDirectManipulations` if it already started. That mirrors Android's `RequestDisallowInterceptTouchEvent`.
-3. **WebView black background** when its HTML sets no background (`demo-SkUiMauiContentView`; GPU and software). With a body background (overlay page) it's fine. Probably WebView2's transparent default inside the overlay canvas. Next step: check a plain MAUI page with the same WebView, then set `DefaultBackgroundColor` if it's overlay-specific.
+3. ~~**WebView black background**~~ **Resolved** (1f20bf4): not SkiaUi. `DefaultBackgroundColor` was white; WebView2 follows the Windows dark theme and renders an unstyled page dark. The demo now sets a light document around the edited snippet.
 4. **Drag that starts on a native TextBox** selects text instead of scrolling the drawn list (WinUI TextBox captures the pointer). On mobile the list probably scrolls. Decide whether that's acceptable on desktop.
 5. **`dev.skiaui` extension:**
    - `tree` / `tap` include elements of pages that aren't visible (navigation stack, other Shell tabs). `tap` then picks the first match, which may be the hidden one. Filter to loaded pages, or return the visible match first.
    - "Not on screen" returns 409, which the CLI shows only as "409 (Conflict)", the same code as the DevFlow lease. A different code (e.g. 422) would avoid confusing the two.
 6. **`SKSwapChainPanel` workarounds** (opengl32 pin, stale-size repaint) depend on SkiaSharp 4.152 / ANGLE behavior. Worth reporting upstream; re-check them when SkiaSharp is updated. During a live window-resize drag, one stretched frame may still show.
 7. **Stress numbers are Debug.** For Release numbers, drive the stress page without DevFlow (e.g. keyboard / mouse input, or an auto-run switch).
-8. `demo-SkUiMauiContentView` reports `Bounds 320 x 156` with `HeightRequest` 440. It's probably the preview host limiting the height (not Windows-specific); not investigated.
+8. ~~`demo-SkUiMauiContentView` reports `Bounds 320 x 156`~~ **Resolved** (1f20bf4): the demo's preview area was 206 DIPs high; it is now 520, and the preview starts at the full page width.
 
 ## Notes for the next Windows session
 
