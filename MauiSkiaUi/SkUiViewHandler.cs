@@ -48,7 +48,33 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     private static readonly IPropertyMapper<SkUiView, SkUiViewHandler> SkiaMapper = CreateMapper();
 
     /// <summary>Creates a handler using normal MAUI sizing and Skia-owned drawing properties.</summary>
-    public SkUiViewHandler() : base(SkiaMapper) { }
+    public SkUiViewHandler() : base(SkiaMapper, SkiaCommandMapper) { }
+
+    private static readonly CommandMapper<SkUiView, SkUiViewHandler> SkiaCommandMapper = new(ViewCommandMapper)
+    {
+#if WINDOWS
+        [nameof(IView.InvalidateMeasure)] = static (handler, _, _) => handler.InvalidateNativeMeasure(),
+#endif
+    };
+
+#if WINDOWS
+    /// <summary>
+    /// MAUI only invalidates the container itself, whose native desired size never changes, so WinUI never re-measured
+    /// the MAUI panel that measures this root (cross-platform): WidthRequest / HeightRequest / content size changes of
+    /// drawn children had no effect. Invalidate up to (and including) the nearest MAUI layout / content panel.
+    /// </summary>
+    private void InvalidateNativeMeasure()
+    {
+        for (var element = PlatformView as Microsoft.UI.Xaml.UIElement; element is not null;
+             element = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element) as Microsoft.UI.Xaml.UIElement)
+        {
+            element.InvalidateMeasure();
+            element.InvalidateArrange();
+            if (!ReferenceEquals(element, PlatformView) && element is LayoutPanel or ContentPanel)
+                break;
+        }
+    }
+#endif
 
     private static IPropertyMapper<SkUiView, SkUiViewHandler> CreateMapper()
     {
