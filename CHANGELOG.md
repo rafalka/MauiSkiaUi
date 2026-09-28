@@ -25,7 +25,7 @@ Pack and publish workflows copy the body under `## <version>` into the package `
 - **Drags that start on a native overlay** (Entry, Editor, WebView in a `SkUiMauiContentView`) now scroll the drawn scroll view around it (Android, iOS / Mac Catalyst).
   - **How:** the overlay's drawn ancestors see the drag; once a drawn scroll claims it, the native touch is cancelled.
   - **Native keeps:** taps, text selection and cursor placement. Controls that scroll their own content keep precedence.
-  - **Windows:** touch and pen only (mouse drags keep text selection); not yet verified on a touchscreen.
+  - **Windows:** touch and pen only (mouse drags keep text selection); verified on a Windows touchscreen.
 - **Native overlays while scrolling (FR-16):**
   - **Clipping:** `SkUiMauiContentView` overlays are clipped to ancestor scroll viewports and clipping ancestors. They no longer draw over or take touches outside the scroller.
   - **Snapshot while scrolling:** new `ScrollMode` (`Auto` = snapshot on Android / Windows, live on Apple; `Snapshot`; `Live`). While an ancestor scroller moves, the native view is replaced by a bitmap that moves in sync with the drawn content, then restored after `SnapshotRestoreDelay`. Focused controls stay live.
@@ -35,7 +35,7 @@ Pack and publish workflows copy the body under `## <version>` into the package `
 - **Fixes from the PR #8 review:**
   - A fade-in from `Opacity == 0` (`AnimateAsync`) now shows the content while it animates (#9).
   - `AnimateAsync` and animated scrolls always complete (with `false`) when the surface is disposed or the node detached before the animation ran (#10).
-  - iOS / Mac Catalyst: disconnecting a surface waits for a frame being presented; a failed `SKSurface` creation retries on the next vsync (#11).
+  - iOS / Mac Catalyst: disconnecting a surface waits for a frame being presented; a failed `SKSurface` creation retries on the next vsync (#11; verified on an iPhone).
   - `SkUiMauiContentView`: switching `ScrollMode` keeps the count of moving ancestor scrollers; completions of stale captures (async on Windows) are ignored (#12, #14).
   - `TextRendering.Simple` honours RTL `Start` / `End` alignment (#13).
   - `SkUiFonts`: a lookup before the MAUI font registrar is available is retried later instead of cached as a miss; `Unregister` clears misses (#15).
