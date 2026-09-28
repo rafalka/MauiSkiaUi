@@ -168,6 +168,21 @@ internal sealed class SkUiFrameRenderer : IDisposable
     }
 
     /// <summary>UI thread: dispatches a touch already in root-surface DIPs.</summary>
+    /// <summary>
+    /// UI thread: a pointer that started on the native overlay of <paramref name="overlay"/> (surface DIPs). Only the
+    /// continuous gestures of the overlay's drawn ancestors see it (<see cref="SkUiPointerRouter.DispatchFromOverlay"/>).
+    /// </summary>
+    internal SkUiNativeGestureState TouchOverlayDips(SkUiTouchEvent touch, SkUiView overlay)
+    {
+        if (_disposed)
+            return SkUiNativeGestureState.None;
+        var position = new Point(touch.Position.X + _root.Frame.X, touch.Position.Y + _root.Frame.Y);
+        if (!SkUiView.MapPoint(_root, position, out var local))
+            return SkUiNativeGestureState.None;
+        _root.Router.DispatchFromOverlay(touch with { Position = local }, overlay);
+        return _root.Router.StateOf(touch.Id);
+    }
+
     internal bool TouchDips(SkUiTouchEvent touch)
     {
         if (_disposed)

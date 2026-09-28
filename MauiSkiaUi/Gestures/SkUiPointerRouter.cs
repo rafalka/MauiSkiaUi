@@ -149,9 +149,34 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         }
     }
 
+    /// <summary>
+    /// <see cref="NativeState"/> of one pointer: <c>Claimed</c> once a continuous drawn gesture took it, <c>Pending</c>
+    /// while one still may (within the slop), otherwise <c>None</c> (also when the pointer is unknown or ended).
+    /// </summary>
+    internal SkUiNativeGestureState StateOf(long pointerId)
+    {
+        if (!_arenas.TryGetValue(pointerId, out var arena))
+            return SkUiNativeGestureState.None;
+        if (arena.Winner is { IsExclusive: true } && arena.WinnerClaimed)
+            return SkUiNativeGestureState.Claimed;
+        return !arena.SlopExceeded && arena.Members.Exists(member => member.IsExclusive)
+            ? SkUiNativeGestureState.Pending
+            : SkUiNativeGestureState.None;
+    }
+
     internal void OnArenaChanged() => NativeStateChanged?.Invoke();
 
-    public bool Dispatch(SkUiTouchEvent touch)
+    public bool Dispatch(SkUiTouchEvent touch) => Dispatch(touch, overlay: null);
+
+    /// <summary>
+    /// A pointer that started on a native overlay (<see cref="SkUiMauiContentView"/>): only the <b>continuous</b>
+    /// recognizers (scroll, pan, swipe, pinch) of the overlay's drawn ancestors compete, so a drag can scroll the drawn
+    /// content under the native control while taps, text selection and cursor placement stay native. The platform
+    /// cancels the native touch once <see cref="NativeState"/> reports <see cref="SkUiNativeGestureState.Claimed"/>.
+    /// </summary>
+    public bool DispatchFromOverlay(SkUiTouchEvent touch, ISkUiInputNode overlay) => Dispatch(touch, overlay);
+
+    private bool Dispatch(SkUiTouchEvent touch, ISkUiInputNode? overlay)
     {
         var time = touch.Timestamp ?? SkUiGestureSettings.Now;
         switch (touch.Action)
@@ -159,7 +184,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
             case SkUiTouchAction.Wheel:
                 return DispatchWheel(touch);
             case SkUiTouchAction.Pressed:
-                return Press(touch, time);
+                return overlay is null ? Press(touch, time) : PressFromOverlay(touch, time, overlay);
         }
         if (!_arenas.TryGetValue(touch.Id, out var arena))
             return false;
@@ -217,12 +242,31 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
             arena.Close();
             return true;
         }
+        AddMembers(arena, leaf, continuousOnly: false);
+        return Open(arena, touch, time);
+    }
+
+    private bool PressFromOverlay(SkUiTouchEvent touch, TimeSpan time, ISkUiInputNode overlay)
+    {
+        if (_arenas.TryGetValue(touch.Id, out var stale))
+            EndArena(stale, cancelled: true);
+        if (overlay.RenderParent is not ISkUiInputNode parent || !IsLive(overlay))
+            return false;
+        var arena = new SkUiGestureArena(touch.Id, this, touch.Position);
+        AddMembers(arena, parent, continuousOnly: true);
+        return Open(arena, touch, time);
+    }
+
+    private void AddMembers(SkUiGestureArena arena, ISkUiInputNode leaf, bool continuousOnly)
+    {
         for (var node = leaf; node is not null; node = node.RenderParent as ISkUiInputNode)
         {
             _recognizers.Clear();
             node.CollectGestureRecognizers(_recognizers);
             foreach (var recognizer in _recognizers)
             {
+                if (continuousOnly && !recognizer.IsExclusive)
+                    continue;
                 recognizer.Node = node;
                 if (!arena.Members.Contains(recognizer))
                     arena.Add(recognizer);
@@ -231,6 +275,10 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
                 break;
         }
         _recognizers.Clear();
+    }
+
+    private bool Open(SkUiGestureArena arena, SkUiTouchEvent touch, TimeSpan time)
+    {
         _arenas[touch.Id] = arena;
         ActiveArenas++;
         var pointer = new SkUiPointer(touch.Id, touch.Position, touch.Position, time, this);

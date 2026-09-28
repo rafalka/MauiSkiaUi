@@ -366,6 +366,108 @@ internal sealed class SkUiTouchDeliverer : UIGestureRecognizer
     }
 }
 
+/// <summary>
+/// Watches touches that start on a native overlay (on its clip wrapper) and offers them to the continuous gestures of
+/// the overlay's drawn ancestors. While nothing drawn has claimed, it stays <i>Possible</i> and the native control works
+/// as usual (taps, text selection); when a drawn gesture claims (e.g. a drawn scroller), it begins, which cancels the
+/// native view's touches, and the rest of the drag goes to the drawn tree. It fails as soon as nothing drawn can claim.
+/// Controls that scroll their own content (WebView, a long Editor) keep precedence: their own pan begins first.
+/// </summary>
+internal sealed class SkUiOverlayDragRecognizer : UIGestureRecognizer
+{
+    private static long s_nextPointer = 1L << 40; // distinct from surface pointer ids
+    private readonly UIView _space;
+    private readonly Func<SkUiTouchEvent, SkUiNativeGestureState> _overlayTouch;
+    private UITouch? _touch;
+    private long _pointer;
+
+    /// <param name="space">View whose coordinates are the surface's (the overlay container).</param>
+    /// <param name="overlayTouch">Delivers the pointer (surface DIPs) to the drawn tree and returns its drawn state.</param>
+    public SkUiOverlayDragRecognizer(UIView space, Func<SkUiTouchEvent, SkUiNativeGestureState> overlayTouch)
+    {
+        _space = space;
+        _overlayTouch = overlayTouch;
+        CancelsTouchesInView = true;
+        DelaysTouchesBegan = false;
+        DelaysTouchesEnded = false;
+    }
+
+    public override void TouchesBegan(NSSet touches, UIEvent evt)
+    {
+        base.TouchesBegan(touches, evt);
+        if (_touch is not null || touches.AnyObject is not UITouch touch)
+            return;
+        _touch = touch;
+        _pointer = ++s_nextPointer;
+        Update(Forward(SkUiTouchAction.Pressed), ended: false);
+    }
+
+    public override void TouchesMoved(NSSet touches, UIEvent evt)
+    {
+        base.TouchesMoved(touches, evt);
+        if (_touch is not null && touches.Contains(_touch))
+            Update(Forward(SkUiTouchAction.Moved), ended: false);
+    }
+
+    public override void TouchesEnded(NSSet touches, UIEvent evt)
+    {
+        base.TouchesEnded(touches, evt);
+        if (_touch is null || !touches.Contains(_touch))
+            return;
+        Forward(SkUiTouchAction.Released);
+        _touch = null;
+        Update(SkUiNativeGestureState.None, ended: true);
+    }
+
+    public override void TouchesCancelled(NSSet touches, UIEvent evt)
+    {
+        base.TouchesCancelled(touches, evt);
+        if (_touch is null || !touches.Contains(_touch))
+            return;
+        Forward(SkUiTouchAction.Cancelled);
+        _touch = null;
+        State = State is UIGestureRecognizerState.Began or UIGestureRecognizerState.Changed
+            ? UIGestureRecognizerState.Cancelled
+            : UIGestureRecognizerState.Failed;
+    }
+
+    public override void Reset()
+    {
+        base.Reset();
+        // Failed / prevented (e.g. a WebView's own pan began): end the drawn pointer too.
+        if (_touch is not null)
+        {
+            _overlayTouch(new SkUiTouchEvent(_pointer, SkUiTouchAction.Cancelled, Point.Zero));
+            _touch = null;
+        }
+    }
+
+    private void Update(SkUiNativeGestureState state, bool ended)
+    {
+        switch (State)
+        {
+            case UIGestureRecognizerState.Possible:
+                if (ended || state == SkUiNativeGestureState.None)
+                    State = UIGestureRecognizerState.Failed;
+                else if (state == SkUiNativeGestureState.Claimed)
+                    State = UIGestureRecognizerState.Began; // cancels the native view's touches
+                break;
+            case UIGestureRecognizerState.Began:
+            case UIGestureRecognizerState.Changed:
+                State = ended ? UIGestureRecognizerState.Ended : UIGestureRecognizerState.Changed;
+                break;
+        }
+    }
+
+    private SkUiNativeGestureState Forward(SkUiTouchAction action)
+    {
+        if (_touch is not { } touch)
+            return SkUiNativeGestureState.None;
+        var location = touch.LocationInView(_space);
+        return _overlayTouch(new SkUiTouchEvent(_pointer, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp)));
+    }
+}
+
 /// <summary>Per-view render state shared between the UI thread and <see cref="SkUiMetalRenderLoop"/>.</summary>
 internal sealed class SkUiMetalSurface : IDisposable
 {

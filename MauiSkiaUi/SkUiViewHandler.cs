@@ -394,8 +394,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         return null;
     }
 
-    /// <summary>Adds a native overlay view above the Skia surface (inside its own clip wrapper).</summary>
-    internal void AttachOverlay(PlatformView child) => _container?.AddOverlay(child);
+    /// <summary>
+    /// Adds a native overlay view above the Skia surface (inside its own clip wrapper). Drags that start on it are also
+    /// offered to the continuous gestures of <paramref name="owner"/>'s drawn ancestors (e.g. a drawn scroller), which
+    /// take the touch over from the native control once they claim it.
+    /// </summary>
+    internal void AttachOverlay(PlatformView child, SkUiMauiContentView owner) =>
+        _container?.AddOverlay(child, touch => _renderer?.TouchOverlayDips(touch, owner) ?? SkUiNativeGestureState.None);
 
     /// <summary>Removes a previously attached native overlay view.</summary>
     internal void DetachOverlay(PlatformView child) => _container?.RemoveOverlay(child);
@@ -617,10 +622,10 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
         public bool Hidden;
     }
 
-    public void AddOverlay(Android.Views.View child)
+    public void AddOverlay(Android.Views.View child, Func<SkUiTouchEvent, SkUiNativeGestureState> overlayTouch)
     {
         if (_overlays.ContainsKey(child)) return;
-        var clip = new SkUiOverlayClip(Context!);
+        var clip = new SkUiOverlayClip(Context!) { OverlayTouch = overlayTouch };
         clip.AddView(child);
         _overlays[child] = new OverlayState(clip);
         AddView(clip);
@@ -687,11 +692,89 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
 
 /// <summary>
 /// Clips one overlay to its visible rectangle: a view group sized to the clip, with the overlay placed at its full
-/// bounds inside, so it neither draws nor receives touches outside the ancestor scroll viewports.
+/// bounds inside, so it neither draws nor receives touches outside the ancestor scroll viewports. Like a native
+/// scrolling parent it also watches the overlay's touches (<see cref="OnInterceptTouchEvent"/>): they are offered to
+/// the drawn ancestors' continuous gestures, and once one claims the drag (e.g. a drawn scroller), the native control
+/// gets ACTION_CANCEL and the rest of the drag goes to the drawn tree.
 /// </summary>
 internal sealed class SkUiOverlayClip : Android.Views.ViewGroup
 {
+    private static long s_nextPointer = 1L << 40; // distinct from surface pointer ids
+    private int _pointerId = -1;
+    private long _pointer;
+
     public SkUiOverlayClip(Android.Content.Context context) : base(context) => SetClipChildren(true);
+
+    /// <summary>Delivers a pointer (surface DIPs) to the drawn tree; returns the drawn state of that pointer.</summary>
+    internal Func<SkUiTouchEvent, SkUiNativeGestureState>? OverlayTouch { get; set; }
+
+    public override bool OnInterceptTouchEvent(Android.Views.MotionEvent? e)
+    {
+        if (e is null)
+            return false;
+        switch (e.ActionMasked)
+        {
+            case Android.Views.MotionEventActions.Down:
+                _pointerId = e.GetPointerId(0);
+                _pointer = ++s_nextPointer;
+                // Claimed at once when the press stops a drawn fling: the native control never sees it.
+                return Forward(e, SkUiTouchAction.Pressed) == SkUiNativeGestureState.Claimed && TakeOver();
+            case Android.Views.MotionEventActions.Move:
+                return Forward(e, SkUiTouchAction.Moved) == SkUiNativeGestureState.Claimed && TakeOver();
+            case Android.Views.MotionEventActions.Up:
+                Forward(e, SkUiTouchAction.Released);
+                _pointerId = -1;
+                return false;
+            case Android.Views.MotionEventActions.Cancel:
+                Forward(e, SkUiTouchAction.Cancelled);
+                _pointerId = -1;
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>After <see cref="OnInterceptTouchEvent"/> took the drag over (or no native child wanted the press).</summary>
+    public override bool OnTouchEvent(Android.Views.MotionEvent? e)
+    {
+        if (e is null || _pointerId < 0)
+            return false;
+        switch (e.ActionMasked)
+        {
+            case Android.Views.MotionEventActions.Move:
+                Forward(e, SkUiTouchAction.Moved);
+                break;
+            case Android.Views.MotionEventActions.Up:
+                Forward(e, SkUiTouchAction.Released);
+                _pointerId = -1;
+                break;
+            case Android.Views.MotionEventActions.Cancel:
+                Forward(e, SkUiTouchAction.Cancelled);
+                _pointerId = -1;
+                break;
+        }
+        return true;
+    }
+
+    private bool TakeOver()
+    {
+        // Keep native ancestors (e.g. a MAUI ScrollView around the surface) from intercepting the drawn drag.
+        Parent?.RequestDisallowInterceptTouchEvent(true);
+        return true;
+    }
+
+    private SkUiNativeGestureState Forward(Android.Views.MotionEvent e, SkUiTouchAction action)
+    {
+        if (OverlayTouch is not { } touch || _pointerId < 0)
+            return SkUiNativeGestureState.None;
+        var index = e.FindPointerIndex(_pointerId);
+        if (index < 0)
+            return SkUiNativeGestureState.None;
+        var density = Resources?.DisplayMetrics?.Density ?? 1;
+        // This view's position in the overlay container equals the surface's coordinate space.
+        var position = new Point((Left + e.GetX(index)) / density, (Top + e.GetY(index)) / density);
+        return touch(new SkUiTouchEvent(_pointer, action, position, TimeSpan.FromMilliseconds(e.EventTime)));
+    }
 
     /// <summary>JNI activation constructor.</summary>
     public SkUiOverlayClip(IntPtr handle, Android.Runtime.JniHandleOwnership transfer) : base(handle, transfer) { }
@@ -748,12 +831,13 @@ internal sealed class SkUiOverlayContainer : MauiView
         public bool Hidden;
     }
 
-    public void AddOverlay(UIKit.UIView child)
+    public void AddOverlay(UIKit.UIView child, Func<SkUiTouchEvent, SkUiNativeGestureState> overlayTouch)
     {
         if (_overlays.ContainsKey(child)) return;
         // Clip views are plain UIViews that MAUI never tracks (the KVO note above applies to MAUI-created views).
         var clip = new UIKit.UIView { ClipsToBounds = true, BackgroundColor = UIKit.UIColor.Clear };
         clip.AddSubview(child);
+        clip.AddGestureRecognizer(new SkUiOverlayDragRecognizer(this, overlayTouch));
         _overlays[child] = new OverlayState(clip);
         AddSubview(clip);
     }
@@ -825,7 +909,9 @@ internal sealed class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.Canvas
         }
     }
 
-    public void AddOverlay(Microsoft.UI.Xaml.FrameworkElement child)
+    // TODO(Windows): offer drags that start on the overlay to the drawn tree (handledEventsToo pointer handlers on the
+    // clip canvas + CapturePointer on claim), as on Android / Apple. Not built on the Mac; see WindowsValidation-results.
+    public void AddOverlay(Microsoft.UI.Xaml.FrameworkElement child, Func<SkUiTouchEvent, SkUiNativeGestureState> overlayTouch)
     {
         if (_overlays.ContainsKey(child)) return;
         var clip = new Microsoft.UI.Xaml.Controls.Canvas();

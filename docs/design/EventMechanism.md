@@ -93,6 +93,19 @@ The drawn arena runs inside one platform view. Native ancestors (a MAUI `ScrollV
 
 This gives native "nested scrolling" too: a drawn scroller inside a native one scrolls first, and the native one takes over at the drawn edge.
 
+### Drags that start on a native overlay
+
+A native control hosted by `SkUiMauiContentView` sits above the drawn surface, so its touches never reach the drawn tree by themselves. Each overlay's clip wrapper therefore also offers them to the drawn tree (`SkUiPointerRouter.DispatchFromOverlay`).
+- **Who competes:** only the **continuous** recognizers (scroll, pan, swipe, pinch) of the overlay's drawn ancestors. Taps, text selection and cursor placement stay native.
+- **Handover:** once a drawn gesture claims the pointer (e.g. a vertical drag in a drawn scroller), the native control's touch is cancelled and the rest of the drag goes to the drawn tree.
+  - **Android:** `SkUiOverlayClip.OnInterceptTouchEvent`, like a native scrolling parent.
+  - **iOS / Mac Catalyst:** `SkUiOverlayDragRecognizer` on the clip wrapper. It stays *Possible* while nothing drawn has claimed, so the native control works as usual; it begins when a drawn gesture claims, which cancels the native touches; it fails as soon as nothing drawn can claim.
+- **Native precedence:** controls that scroll their own content keep it, as they do inside a native MAUI `ScrollView`:
+  - a WebView, and MAUI's Android `Editor`, which blocks its parents from intercepting;
+  - on iOS, a scrollable `UITextView` / `WKWebView`, whose own pan begins first.
+- **Windows:** not implemented yet (see `WindowsValidation-results.md`, open problem 4).
+- **Verified on a Galaxy S9:** a slow vertical drag starting on an Entry scrolls the drawn list without focusing the Entry; a tap on the Entry still focuses it (keyboard shown); a drag on the Editor stays native.
+
 **The iOS gate resolves on its own touches too.**
 - **Why:** a touch the drawn view never receives (e.g. the tap that stops a decelerating native `ScrollView` is consumed by the scroll view) would otherwise leave the gate *Possible*, with every ancestor pan waiting for it. The page would freeze until the next touch that reaches the drawn tree.
 - **Rules:**

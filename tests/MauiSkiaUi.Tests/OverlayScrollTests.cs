@@ -145,4 +145,35 @@ public class OverlayScrollTests
             SkUiMauiContentView.CaptureOverride = null;
         }
     }
+
+    [Fact]
+    public void DragsStartingOnAnOverlayScrollTheDrawnScrollerButTapsStayNative()
+    {
+        var (root, scroll, overlay) = Form(SkUiOverlayScrollMode.Live);
+        var drawnTaps = 0;
+        scroll.Tapped += (_, _) => drawnTaps++;
+        var router = root.Router;
+        // Pointer on the overlay at root (100, 170): a tap stays native (no drawn tap), nothing is claimed.
+        router.DispatchFromOverlay(new(900, SkUiTouchAction.Pressed, new Point(100, 170), TimeSpan.Zero), overlay);
+        Assert.Equal(SkUiNativeGestureState.Pending, router.StateOf(900));
+        router.DispatchFromOverlay(new(900, SkUiTouchAction.Released, new Point(100, 170), TimeSpan.FromMilliseconds(80)), overlay);
+        Assert.Equal(0, drawnTaps);
+        Assert.Equal(0, scroll.ScrollY);
+
+        // A vertical drag is claimed by the drawn scroller (the platform then cancels the native touch).
+        router.DispatchFromOverlay(new(901, SkUiTouchAction.Pressed, new Point(100, 170), TimeSpan.FromSeconds(1)), overlay);
+        router.DispatchFromOverlay(new(901, SkUiTouchAction.Moved, new Point(100, 130), TimeSpan.FromSeconds(1.05)), overlay);
+        Assert.Equal(SkUiNativeGestureState.Claimed, router.StateOf(901));
+        router.DispatchFromOverlay(new(901, SkUiTouchAction.Moved, new Point(100, 100), TimeSpan.FromSeconds(1.1)), overlay);
+        Assert.Equal(70, scroll.ScrollY);
+        router.DispatchFromOverlay(new(901, SkUiTouchAction.Released, new Point(100, 100), TimeSpan.FromSeconds(2)), overlay);
+        Assert.Equal(SkUiNativeGestureState.None, router.StateOf(901));
+
+        // A horizontal drag (text selection / cursor) is not the vertical scroller's: it stays native.
+        router.DispatchFromOverlay(new(902, SkUiTouchAction.Pressed, new Point(60, 150), TimeSpan.FromSeconds(3)), overlay);
+        router.DispatchFromOverlay(new(902, SkUiTouchAction.Moved, new Point(160, 152), TimeSpan.FromSeconds(3.1)), overlay);
+        Assert.Equal(SkUiNativeGestureState.None, router.StateOf(902));
+        router.DispatchFromOverlay(new(902, SkUiTouchAction.Released, new Point(160, 152), TimeSpan.FromSeconds(3.5)), overlay);
+        Assert.Equal(70, scroll.ScrollY);
+    }
 }

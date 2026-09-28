@@ -10,6 +10,8 @@ The placeholder participates in SkiaUi measure/arrange. The wrapped control's pl
 
 **Clipping:** the overlay is clipped to the viewports of ancestor scrollers and to ancestors with `ClipToBounds`, so a scrolled control never covers drawn content around the scroller and cannot be touched outside it.
 
+**Drags that start on the native control** also reach the drawn scroll view around it. Once the drag is clearly a scroll (past the touch slop along the scroller's axis), the native touch is cancelled and the drawn list scrolls. Taps, text selection and cursor placement stay native. Controls that scroll their own content (WebView, Android Editor) keep their native scrolling. Implemented on Android and iOS / Mac Catalyst; not yet on Windows.
+
 **While scrolling** (`ScrollMode`):
 - **Auto** (default): snapshot on Android / Windows, live on iOS / Mac Catalyst.
 - **Snapshot:** while an ancestor scroller moves, the native view is hidden and a bitmap of it is drawn, so it moves exactly with the drawn content (even during render-thread flings while the UI thread is busy). It is restored `SnapshotRestoreDelay` after scrolling stops. A focused control stays live.

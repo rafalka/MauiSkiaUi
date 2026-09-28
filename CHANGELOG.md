@@ -21,6 +21,10 @@ Pack and publish workflows copy the body under `## <version>` into the package `
 - Requirements: FR-20 (shadows, future) and NFR-6 (threading).
 - **Benchmarks** ([Benchmarks.md](docs/design/Benchmarks.md)): headless runner and a Release on-device bench app sharing one scenario catalog; `scripts/bench.sh --baseline <ref>` compares any git ref with the working tree (headless, Android, iOS, Mac Catalyst). New `SkUiView.GetRenderStatistics()` / `ResetRenderStatistics()` (render-thread frame count and cost).
 - **iOS / Mac Catalyst:** commits that arrive while the render loop is idle are rendered at once instead of on the next display-link tick (commit → rendered ≈ 1 ms instead of up to a refresh period); surfaces render nothing before their first commit. Render statistics now include the GPU flush / present.
+- **Drags that start on a native overlay** (Entry, Editor, WebView in a `SkUiMauiContentView`) now scroll the drawn scroll view around it (Android, iOS / Mac Catalyst).
+  - **How:** the overlay's drawn ancestors see the drag; once a drawn scroll claims it, the native touch is cancelled.
+  - **Native keeps:** taps, text selection and cursor placement. Controls that scroll their own content keep precedence.
+  - **Windows:** not yet.
 - **Native overlays while scrolling (FR-16):**
   - **Clipping:** `SkUiMauiContentView` overlays are clipped to ancestor scroll viewports and clipping ancestors. They no longer draw over or take touches outside the scroller.
   - **Snapshot while scrolling:** new `ScrollMode` (`Auto` = snapshot on Android / Windows, live on Apple; `Snapshot`; `Live`). While an ancestor scroller moves, the native view is replaced by a bitmap that moves in sync with the drawn content, then restored after `SnapshotRestoreDelay`. Focused controls stay live.

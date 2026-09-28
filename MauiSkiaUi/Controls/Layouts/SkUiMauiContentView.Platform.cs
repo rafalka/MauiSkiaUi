@@ -28,7 +28,7 @@ public partial class SkUiMauiContentView
         if (root is null) return;
         _attachedRoot = root;
         _nativeView = _content.ToPlatform(root.MauiContext!);
-        root.AttachOverlay(_nativeView);
+        root.AttachOverlay(_nativeView, this);
         SyncOverlayBounds();
     }
 
