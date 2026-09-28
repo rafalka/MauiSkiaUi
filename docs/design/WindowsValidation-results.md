@@ -13,7 +13,7 @@ First build and run of SkiaUi on Windows, following the Windows validation instr
 | Workload | `maui-windows` 10.0.20/10.0.100; MAUI packages 10.0.101 |
 | SkiaSharp | 4.152.1 (Views.WinUI: `SKGLView` = ANGLE `SKSwapChainPanel`, `SKCanvasView` = `SKXamlCanvas`) |
 | DevFlow CLI | 0.1.0-preview.12.26421.1 (same as the Mac) |
-| Input | Mouse only (Win32 `mouse_event`); no touchscreen |
+| Input | First session: mouse only (Win32 `mouse_event`). Second session (2026-09-28): a touch laptop (touchscreen, touchpad) and injected touch (`InjectTouchInput`) |
 
 The demo ran as a Debug build (DevFlow agent included). Most checks were done in a 900×650 or 1000×800 DIP window, so that the drawn scrollers have content to scroll.
 
@@ -51,7 +51,7 @@ The demo ran as a Debug build (DevFlow agent included). Most checks were done in
 | # | Item | Result | Notes |
 | --- | --- | --- | --- |
 | 11 | Mouse | **Fixed** (rendering) → OK | GPU surfaces inside the native `ScrollView` were blank, then stretched after a resize (47200f7); now they draw correctly. Run 2026-09-28, GPU and software, same results:<br>• Drag in the drawn list (150) and the Core list (130): the list scrolls, the page doesn't.<br>• Wheel over a list: the list scrolls to its end (367 / 340), then further wheel input scrolls the page (0 → 283, 472 → 755).<br>• Wheel over native filler: the page scrolls.<br>• Carousel: horizontal drag scrolls it.<br>• Swipe row: swipe and tap reported.<br>• Mouse **drags** on native filler, or vertical drags on the carousel, don't scroll the page. That's expected with a mouse: WinUI `ScrollViewer` pans only for touch / pen.<br>• A **vertical wheel over the horizontal carousel scrolls the carousel** (0 → 240), not the page. See open problems. |
-| 12 | Touch | **Not tested** | No touchscreen. This is where the known gap (no native-parent coordination on Windows) would show. |
+| 12 | Touch | **Fixed** → OK | Touch laptop, 2026-09-28 (b1f0c64, fd83cb1, bee67c9). Drawn drags and flicks; "Native nesting" hand-over to the native `ScrollView` (DirectManipulation); drags that start on Entry fields scroll the drawn list, taps focus them. Fixed: a drag from an overlay was dropped after ~20 DIPs (its snapshot hid the element under the finger); contacts lost while down, or lifted outside the overlay, left the scroll gesture tracking them, so later finger drags did nothing; touchpad wheel over an Entry / Editor didn't scroll the list. Pinch not checked. |
 
 ### E. Performance (Debug build — the DevFlow agent is Debug-only)
 
@@ -96,12 +96,16 @@ Headless benchmark, median of 3, ms:
 | 71070ec | Overlays re-sync when an ancestor moves without resizing | **Shared** — re-verify on Android / iOS |
 | 2729f2e | Overlays re-attach when their content moves to another root | **Shared** — re-verify on Android / iOS |
 | 98c5f41 | WebView2 snapshots via `CoreWebView2.CapturePreviewAsync` | Windows |
+| b1f0c64 | Touch: the overlay a drag started on stays live until the drag ends; lost surface contacts cancel the drawn gesture; hand-over only to a scrollable `ScrollViewer`, restored on failure | Windows (+ trace hooks, off by default) |
+| fd83cb1 | Overlay drags follow a contact that leaves the overlay; unused wheel over an overlay scrolls the drawn list | Windows |
+| bee67c9 | A contact released anywhere in the window ends the overlay drag | Windows |
+| fbd3e1d | Demo: optional input trace log (`trace.on` / `SKUI_TRACE=1`) | Demo |
 
 ## Open problems and proposed next steps
 
-1. **D.12 touch** needs a touchscreen. Also still unexplained: in one early run the native "Native nesting" page sat at offset 829 without any input. It wasn't seen again after the fixes.
+1. ~~**D.12 touch**~~ **Resolved** (touch laptop, 2026-09-28; see D.12). Also still unexplained: in one early run the native "Native nesting" page sat at offset 829 without any input. It wasn't seen again after the fixes.
    - **Vertical wheel over a horizontal-only drawn scroller** scrolls it horizontally, so a page that's being wheel-scrolled stops as soon as a carousel passes under the cursor. That's convenient for mice without horizontal wheels, but it traps page scrolling. Proposal: a vertical wheel only moves a scroller that can move vertically; horizontal needs Shift+wheel or a horizontal wheel / trackpad (part of the "axis-aware wheel" item in EventMechanism.md). This is shared code, so decide before changing it.
-2. **Native-parent coordination on Windows** (known gap, not built): with a mouse it only matters for the wheel. Proposed approach once touch results exist: while a drawn gesture may claim the pointer, set `ManipulationMode = None` on the surface (keeps DirectManipulation from starting a pan on the ancestor `ScrollViewer`), and use `ScrollViewer.CancelDirectManipulations` if it already started. That mirrors Android's `RequestDisallowInterceptTouchEvent`.
+2. ~~**Native-parent coordination on Windows**~~ **Resolved**: hand-over through `TryStartDirectManipulation` (EventMechanism.md, Native coordination), verified with touch on "Native nesting". Original note: with a mouse it only matters for the wheel. Proposed approach once touch results exist: while a drawn gesture may claim the pointer, set `ManipulationMode = None` on the surface (keeps DirectManipulation from starting a pan on the ancestor `ScrollViewer`), and use `ScrollViewer.CancelDirectManipulations` if it already started. That mirrors Android's `RequestDisallowInterceptTouchEvent`.
 3. ~~**WebView black background**~~ **Resolved** (1f20bf4): not SkiaUi. `DefaultBackgroundColor` was white; WebView2 follows the Windows dark theme and renders an unstyled page dark. The demo now sets a light document around the edited snippet.
 4. ~~**Drag that starts on a native TextBox**~~ **Resolved** for touch / pen (verified on a touchscreen, 2026-09-28). Original report: the drag selected text instead of scrolling the drawn list (WinUI TextBox captures the pointer).
    - **Mobile:** it didn't scroll there either, until drags from overlays were handed to drawn scrollers on Android and iOS / Catalyst (`DispatchFromOverlay`; see EventMechanism.md "Drags that start on a native overlay").
@@ -112,6 +116,7 @@ Headless benchmark, median of 3, ms:
 6. **`SKSwapChainPanel` workarounds** (opengl32 pin, stale-size repaint) depend on SkiaSharp 4.152 / ANGLE behavior. Worth reporting upstream; re-check them when SkiaSharp is updated. During a live window-resize drag, one stretched frame may still show.
 7. **Stress numbers are Debug.** For Release numbers, drive the stress page without DevFlow (e.g. keyboard / mouse input, or an auto-run switch).
 8. ~~`demo-SkUiMauiContentView` reports `Bounds 320 x 156`~~ **Resolved** (1f20bf4): the demo's preview area was 206 DIPs high; it is now 520, and the preview starts at the full page width.
+9. **Wheel over a WebView** doesn't scroll the drawn list: WebView2 takes wheel input itself (no XAML pointer events). Over an Entry / Editor an unused wheel is forwarded to the list (fd83cb1).
 
 ## Notes for the next Windows session
 

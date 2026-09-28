@@ -93,6 +93,8 @@ The drawn arena runs inside one platform view. Native ancestors (a MAUI `ScrollV
 
 This gives native "nested scrolling" too: a drawn scroller inside a native one scrolls first, and the native one takes over at the drawn edge.
 
+**Windows** (touch / pen; mouse drags never pan a WinUI `ScrollViewer`): SkiaSharp captures every pointer and sets `ManipulationMode = All`, which keeps DirectManipulation off. When the state becomes `None` past the slop, the handler hands the contact to an ancestor `ScrollViewer` that can scroll: it releases the capture, sets `ManipulationMode = System` and calls `TryStartDirectManipulation` (one attempt per contact). If that fails, SkiaSharp's capture and mode are restored. A surface contact that loses capture while still down (DirectManipulation, another capture, a system gesture) is cancelled in the drawn tree, so no drawn gesture keeps tracking a lost pointer.
+
 ### Drags that start on a native overlay
 
 A native control hosted by `SkUiMauiContentView` sits above the drawn surface, so its touches never reach the drawn tree by themselves. Each overlay's clip wrapper therefore also offers them to the drawn tree (`SkUiPointerRouter.DispatchFromOverlay`).
@@ -103,7 +105,12 @@ A native control hosted by `SkUiMauiContentView` sits above the drawn surface, s
 - **Native precedence:** controls that scroll their own content keep it, as they do inside a native MAUI `ScrollView`:
   - a WebView, and MAUI's Android `Editor`, which blocks its parents from intercepting;
   - on iOS, a scrollable `UITextView` / `WKWebView`, whose own pan begins first.
-- **Windows:** `OverlayDragWatcher` in `SkUiOverlayContainer`: `handledEventsToo` pointer handlers on the clip canvas; on a claim the clip captures the pointer, so the native control loses it. Touch and pen only: mouse drags stay native (text selection). If the native control's own manipulation (DirectManipulation) takes the contact first, the drawn side gets a cancel. Verified on a Windows touchscreen (2026-09-28; `WindowsValidation-results.md`, open problem 4).
+- **Windows:** `OverlayDragWatcher` in `SkUiOverlayContainer`, touch and pen only (mouse drags stay native: text selection).
+  - `handledEventsToo` pointer handlers on the clip canvas see the native control's events; once the contact is down, its moves, release and cancel are also followed on the overlay container and the window's root content, so a finger lifted outside the overlay still ends the drawn gesture.
+  - On a claim the overlay container captures the pointer, so the native control loses it. If the native control's own manipulation (DirectManipulation) takes the contact first, the drawn side gets a cancel.
+  - The overlay a drag started on stays live (not replaced by its snapshot) until the drag ends: WinUI drops a contact whose element is hidden.
+  - A wheel (touchpad two-finger scroll) the native control does not use is forwarded to the drawn tree. WebView2 takes wheel input itself, so the list does not scroll under a WebView.
+  - Verified on a Windows touch laptop (2026-09-28; `WindowsValidation-results.md`).
 - **Verified on a Galaxy S9:** a slow vertical drag starting on an Entry scrolls the drawn list without focusing the Entry; a tap on the Entry still focuses it (keyboard shown); a drag on the Editor stays native.
 
 **The iOS gate resolves on its own touches too.**
@@ -139,7 +146,8 @@ A native control hosted by `SkUiMauiContentView` sits above the drawn surface, s
   - **iPhone:** GPU and software surfaces both verified: nested scrolling works, and the page no longer freezes after a tap-to-stop (2026-09-27).
   - **Windows 11, mouse** (2026-09-27, GPU and software surfaces; [WindowsValidation-results.md](WindowsValidation-results.md)): press feedback and clicks, drawn scroller drag / fling / wheel, a drag that starts on a button scrolls without clicking, Core carousel, same-axis panel hand-off to the page, row swipe, long press, double tap.
   - **Windows 11, "Native nesting", mouse** (2026-09-28, GPU and software): drawn and Core lists take drags without moving the page; the wheel scrolls a list to its end and then the page; wheel over native filler scrolls the page; carousel drag, row swipe and tap work. Mouse drags never pan the native page (WinUI `ScrollViewer` pans only for touch / pen). A vertical wheel over a horizontal-only drawn scroller scrolls it horizontally.
-  - **Not yet verified on Windows:** touch (native-parent coordination gap), pinch.
+  - **Windows touch laptop** (2026-09-28, touchscreen and touchpad): drawn drags and flicks; drags that start on Entry fields scroll the drawn list (snapshot mode, the live overlay stays aligned); taps still focus them; "Native nesting" hand-over to the native page; touchpad wheel over an Entry / Editor scrolls the list; lost contacts no longer leave scrolling stuck.
+  - **Not yet verified on Windows:** pinch.
   - **By design:** once a drawn scroller has claimed a drag, the rest of that drag stays drawn. It chains only to drawn outer scrollers; Android cannot hand a gesture back to a native parent mid-drag. The native page takes over on the next drag.
 
 ## Still open

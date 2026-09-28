@@ -44,6 +44,7 @@ Pack and publish workflows copy the body under `## <version>` into the package `
   - Fixed an intermittent native crash on pages with GPU surfaces (Skia called into an unloaded `opengl32.dll`).
   - Continuous frames (flings, spinners) are paced to the compositor frame and stop for unloaded surfaces; before, the app could stop responding.
   - RTL no longer mirrors surface pixels; WebView overlays snapshot through WebView2 while scrolling.
+  - **Touch** (validated on a touch laptop): drawn surfaces inside a native `ScrollView` hand the drag to it at their edges (DirectManipulation); drags that start on native overlays scroll the drawn list; contacts lost or lifted elsewhere no longer leave scrolling stuck; touchpad scrolling over an Entry / Editor scrolls the list.
   - Native overlays follow ancestors that move without resizing, and re-attach when their content moves to another root (all platforms).
   - The demo's `ApplicationDisplayVersion` is numeric (`1.0.0`), as the Windows build requires.
 - **Demo:** "Native nesting" page with drawn surfaces (list, carousel, swipe row, Core scroll view) inside a native MAUI `ScrollView`, with a GPU / software switch.
