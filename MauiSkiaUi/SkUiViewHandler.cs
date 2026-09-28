@@ -1002,10 +1002,13 @@ internal sealed class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.Canvas
             Add(Microsoft.UI.Xaml.UIElement.PointerReleasedEvent, (_, args) => End(args, SkUiTouchAction.Released));
             Add(Microsoft.UI.Xaml.UIElement.PointerCanceledEvent, (_, args) => { Why("PointerCanceled on clip", args); End(args, SkUiTouchAction.Cancelled); });
             Add(Microsoft.UI.Xaml.UIElement.PointerCaptureLostEvent, OnCaptureLost);
-            // After the takeover the container owns the pointer: its events are raised there, not on the clip.
-            AddToSpace(Microsoft.UI.Xaml.UIElement.PointerMovedEvent, (sender, args) => { if (_taken) OnMoved(sender, args); });
-            AddToSpace(Microsoft.UI.Xaml.UIElement.PointerReleasedEvent, (_, args) => { if (_taken) End(args, SkUiTouchAction.Released); });
-            AddToSpace(Microsoft.UI.Xaml.UIElement.PointerCanceledEvent, (_, args) => { if (_taken) { Why("PointerCanceled on container", args); End(args, SkUiTouchAction.Cancelled); } });
+            Add(Microsoft.UI.Xaml.UIElement.PointerWheelChangedEvent, OnWheel);
+            // After the takeover the container owns the pointer, and without one the finger may leave the overlay (the
+            // release then lands on the drawn surface): the contact's events are also seen on the container. Events
+            // that bubbled from the clip were already handled there (same args instance).
+            AddToSpace(Microsoft.UI.Xaml.UIElement.PointerMovedEvent, (sender, args) => { if (!ReferenceEquals(args, _seen)) OnMoved(sender, args); });
+            AddToSpace(Microsoft.UI.Xaml.UIElement.PointerReleasedEvent, (_, args) => End(args, SkUiTouchAction.Released));
+            AddToSpace(Microsoft.UI.Xaml.UIElement.PointerCanceledEvent, (_, args) => { Why("PointerCanceled on container", args); End(args, SkUiTouchAction.Cancelled); });
             AddToSpace(Microsoft.UI.Xaml.UIElement.PointerCaptureLostEvent, (_, args) =>
             {
                 if (_taken && ReferenceEquals(args.OriginalSource, _space))
@@ -1079,10 +1082,30 @@ internal sealed class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.Canvas
                 TakeOver(args);
         }
 
+        /// <summary>The last event forwarded from the clip (it bubbles on to the container).</summary>
+        private Microsoft.UI.Xaml.Input.PointerRoutedEventArgs? _seen;
+
+        /// <summary>
+        /// Wheel / touchpad scrolling over an overlay reaches the native control only: when it did not use it, the
+        /// drawn scroller underneath scrolls (a native ScrollViewer also scrolls when the wheel is over a TextBox).
+        /// </summary>
+        private void OnWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+        {
+            if (args.Handled)
+                return;
+            var point = args.GetCurrentPoint(_space);
+            if (point.Properties.IsHorizontalMouseWheel)
+                return;
+            _touch(new SkUiTouchEvent(++s_nextPointer, SkUiTouchAction.Wheel, new Point(point.Position.X, point.Position.Y),
+                null, point.Properties.MouseWheelDelta));
+            args.Handled = true;
+        }
+
         private void OnMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
         {
             if (args.Pointer.PointerId != _contact)
                 return;
+            _seen = args;
             if (Forward(args, SkUiTouchAction.Moved) == SkUiNativeGestureState.Claimed && !_taken)
                 TakeOver(args);
             if (_taken)
