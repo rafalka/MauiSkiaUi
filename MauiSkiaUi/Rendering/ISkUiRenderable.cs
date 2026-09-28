@@ -76,6 +76,9 @@ internal sealed class SkUiRenderState
     /// <summary>Forgets everything sent to the compositor: the next sync records this node from scratch into a new render node.</summary>
     public void Reset()
     {
+        // Committed animations are finished by the compositor once it sees the cancel; ones never sent to it
+        // would never finish, so they are finished here (after the reset, so handlers see a consistent state).
+        SkUiRenderAnimation[]? unsent = PendingAnimations is { Count: > 0 } pending ? [.. pending] : null;
         if (ActiveAnimations is { } active)
         {
             foreach (var animation in active)
@@ -87,6 +90,12 @@ internal sealed class SkUiRenderState
         Dirty = SkUiRenderDirty.All;
         HasCommitted = false;
         CommittedSources = [];
+        if (unsent is not null)
+            foreach (var animation in unsent)
+            {
+                animation.Cancel();
+                animation.NotifyFinished(completed: false);
+            }
     }
 }
 

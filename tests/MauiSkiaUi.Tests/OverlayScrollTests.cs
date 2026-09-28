@@ -90,6 +90,70 @@ public class OverlayScrollTests
     }
 
     [Fact]
+    public void ScrollModeChangesKeepTheMovingScrollerCount()
+    {
+        using var clock = new ManualGestureClock();
+        SkUiMauiContentView.CaptureOverride = (_, done) => { done(SKImage.Create(new SKImageInfo(4, 4))); return true; };
+        try
+        {
+            var (_, _, overlay) = Form(SkUiOverlayScrollMode.Snapshot);
+            overlay.NotifyAncestorScrollMotion(true); // scroller A
+            Assert.True(overlay.IsShowingSnapshot);
+            overlay.ScrollMode = SkUiOverlayScrollMode.Live;
+            Assert.False(overlay.IsShowingSnapshot);
+            overlay.NotifyAncestorScrollMotion(true); // scroller B, while Live
+            overlay.ScrollMode = SkUiOverlayScrollMode.Snapshot;
+            Assert.True(overlay.IsShowingSnapshot); // A and B still move
+            overlay.NotifyAncestorScrollMotion(false); // A stops; B still moves
+            clock.Advance(TimeSpan.FromSeconds(1));
+            Assert.True(overlay.IsShowingSnapshot);
+            overlay.NotifyAncestorScrollMotion(false);
+            clock.Advance(TimeSpan.FromSeconds(1));
+            Assert.False(overlay.IsShowingSnapshot);
+        }
+        finally
+        {
+            SkUiMauiContentView.CaptureOverride = null;
+        }
+    }
+
+    [Fact]
+    public void StaleAsyncCapturesAreIgnored()
+    {
+        using var clock = new ManualGestureClock();
+        var pending = new List<Action<SKImage?>>();
+        SkUiMauiContentView.CaptureOverride = (_, done) => { pending.Add(done); return true; };
+        try
+        {
+            var (_, _, overlay) = Form(SkUiOverlayScrollMode.Snapshot);
+            overlay.NotifyAncestorScrollMotion(true);
+            overlay.NotifyAncestorScrollMotion(false);
+            clock.Advance(TimeSpan.FromSeconds(1)); // restored before the first capture finished
+            overlay.NotifyAncestorScrollMotion(true);
+            Assert.Equal(2, pending.Count);
+
+            pending[0](SKImage.Create(new SKImageInfo(4, 4))); // stale: must not clear the second capture
+            Assert.False(overlay.IsShowingSnapshot);
+            overlay.NotifyAncestorScrollMotion(false);
+            overlay.NotifyAncestorScrollMotion(true);
+            Assert.Equal(2, pending.Count); // second capture still in flight: no third one
+            pending[1](SKImage.Create(new SKImageInfo(4, 4)));
+            Assert.True(overlay.IsShowingSnapshot);
+
+            overlay.ScrollMode = SkUiOverlayScrollMode.Live;
+            overlay.ScrollMode = SkUiOverlayScrollMode.Snapshot; // still moving: captures again
+            Assert.Equal(3, pending.Count);
+            overlay.ScrollMode = SkUiOverlayScrollMode.Live;
+            pending[2](SKImage.Create(new SKImageInfo(4, 4))); // completes after switching to Live
+            Assert.False(overlay.IsShowingSnapshot);
+        }
+        finally
+        {
+            SkUiMauiContentView.CaptureOverride = null;
+        }
+    }
+
+    [Fact]
     public void LiveModeNeverSnapshotsAndProgrammaticJumpsDoNot()
     {
         var captures = 0;

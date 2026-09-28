@@ -103,7 +103,7 @@ A native control hosted by `SkUiMauiContentView` sits above the drawn surface, s
 - **Native precedence:** controls that scroll their own content keep it, as they do inside a native MAUI `ScrollView`:
   - a WebView, and MAUI's Android `Editor`, which blocks its parents from intercepting;
   - on iOS, a scrollable `UITextView` / `WKWebView`, whose own pan begins first.
-- **Windows:** not implemented yet (see `WindowsValidation-results.md`, open problem 4).
+- **Windows:** `OverlayDragWatcher` in `SkUiOverlayContainer`: `handledEventsToo` pointer handlers on the clip canvas; on a claim the clip captures the pointer, so the native control loses it. Touch and pen only: mouse drags stay native (text selection). If the native control's own manipulation (DirectManipulation) takes the contact first, the drawn side gets a cancel. Not yet verified on a Windows touchscreen (see `WindowsValidation-results.md`, open problem 4).
 - **Verified on a Galaxy S9:** a slow vertical drag starting on an Entry scrolls the drawn list without focusing the Entry; a tap on the Entry still focuses it (keyboard shown); a drag on the Editor stays native.
 
 **The iOS gate resolves on its own touches too.**

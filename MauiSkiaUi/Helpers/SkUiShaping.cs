@@ -77,14 +77,18 @@ internal static class SkUiShaping
         foreach (var c in text)
             if (!IsSimpleChar(c) || !HasGlyph(typeface, c))
                 return null;
-        return ShapeSimple(text, font);
+        return ShapeSimple(text, font, direction);
     }
 
-    /// <summary>Simple (pre-HarfBuzz) paragraph: one Skia measure; missing glyphs draw as the font's .notdef.</summary>
-    internal static Paragraph ShapeSimple(string text, SKFont font) => new()
+    /// <summary>
+    /// Simple (pre-HarfBuzz) paragraph: one Skia measure; missing glyphs draw as the font's .notdef. Glyphs stay in
+    /// logical order (no bidi); the base direction still decides what Start / End alignment means.
+    /// </summary>
+    internal static Paragraph ShapeSimple(string text, SKFont font, SkUiTextDirection direction) => new()
     {
         Text = text,
         IsSimple = true,
+        BaseLevel = SkUiBidi.BaseLevel(text, direction),
         Width = text.Length == 0 ? 0 : font.MeasureText(text)
     };
 

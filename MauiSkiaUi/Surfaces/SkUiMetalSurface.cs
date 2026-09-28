@@ -472,6 +472,9 @@ internal sealed class SkUiOverlayDragRecognizer : UIGestureRecognizer
 internal sealed class SkUiMetalSurface : IDisposable
 {
     private readonly CAMetalLayer _layer;
+    // Held by the render thread from render to present; taken by the UI thread when detaching, so once the renderer
+    // is cleared (before the view leaves its superview) no frame is still presenting into it.
+    private readonly object _frameLock = new();
     private int _needsFrame = 1;
     private volatile SkUiFrameRenderer? _renderer;
     private volatile bool _continuous;
@@ -487,11 +490,17 @@ internal sealed class SkUiMetalSurface : IDisposable
         get => _renderer;
         set
         {
-            _renderer = value;
             if (value is null)
+            {
+                lock (_frameLock)
+                    _renderer = null;
                 SkUiMetalRenderLoop.Unregister(this);
+            }
             else
+            {
+                _renderer = value;
                 SkUiMetalRenderLoop.Register(this);
+            }
             RequestRender();
         }
     }
@@ -516,9 +525,10 @@ internal sealed class SkUiMetalSurface : IDisposable
     internal bool RenderFrame(GRContext context, IMTLCommandQueue queue, TimeSpan now, out bool presented)
     {
         presented = false;
-        if (_renderer is not { } renderer || _disposed)
+        if (_renderer is null || _disposed)
             return false;
         Interlocked.Exchange(ref _needsFrame, 0);
+        // Acquired outside the frame lock: it can block for a vsync, and detaching must not wait for that.
         using var drawable = _layer.NextDrawable();
         if (drawable is null)
         {
@@ -526,31 +536,41 @@ internal sealed class SkUiMetalSurface : IDisposable
             Interlocked.Exchange(ref _needsFrame, 1);
             return false;
         }
-        var texture = drawable.Texture;
-        var width = (int)texture.Width;
-        var height = (int)texture.Height;
-        using var target = new GRBackendRenderTarget(width, height, new GRMtlTextureInfo(texture));
-        using var surface = SKSurface.Create(context, target, GRSurfaceOrigin.TopLeft, SKColorType.Bgra8888);
-        if (surface is null)
-            return false;
-        var continuous = renderer.Render(surface.Canvas, new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul), now);
-        surface.Flush();
-        context.Flush();
-        var commands = queue.CommandBuffer();
-        if (commands is not null)
+        lock (_frameLock)
         {
-            commands.PresentDrawable(drawable);
-            commands.Commit();
+            if (_renderer is not { } renderer || _disposed)
+                return false;
+            var texture = drawable.Texture;
+            var width = (int)texture.Width;
+            var height = (int)texture.Height;
+            using var target = new GRBackendRenderTarget(width, height, new GRMtlTextureInfo(texture));
+            using var surface = SKSurface.Create(context, target, GRSurfaceOrigin.TopLeft, SKColorType.Bgra8888);
+            if (surface is null)
+            {
+                // Transient (e.g. drawable resized mid-frame): keep the request for the next vsync.
+                Interlocked.Exchange(ref _needsFrame, 1);
+                return false;
+            }
+            var continuous = renderer.Render(surface.Canvas, new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul), now);
+            surface.Flush();
+            context.Flush();
+            var commands = queue.CommandBuffer();
+            if (commands is not null)
+            {
+                commands.PresentDrawable(drawable);
+                commands.Commit();
+            }
+            renderer.CompleteFrame();
+            presented = true;
+            _continuous = continuous;
+            return continuous;
         }
-        renderer.CompleteFrame();
-        presented = true;
-        _continuous = continuous;
-        return continuous;
     }
 
     public void Dispose()
     {
-        _disposed = true;
+        lock (_frameLock)
+            _disposed = true;
         SkUiMetalRenderLoop.Unregister(this);
     }
 }

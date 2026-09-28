@@ -36,6 +36,60 @@ public class RenderingTests
     }
 
     [Fact]
+    public async Task FadeInFromZeroOpacityShowsContentWhileAnimating()
+    {
+        var box = new SkUiBox { Color = Colors.Red, WidthRequest = 20, HeightRequest = 20, Opacity = 0 };
+        var root = new SkUiContentView { Content = box, Background = Colors.White };
+        using var surface = new SkUiTestSurface(root, 40, 40);
+        using var bitmap = new SKBitmap(40, 40);
+        using var canvas = new SKCanvas(bitmap);
+        Assert.Equal(SKColors.White, surface.Frame(0).GetPixel(10, 10));
+
+        var fade = box.AnimateAsync(SkUiAnimatableProperty.Opacity, 1, 100);
+        surface.Renderer.PresentFrame();
+        // Render thread only: the content must already be recorded although the node was invisible.
+        surface.Renderer.Render(canvas, bitmap.Info, TimeSpan.FromMilliseconds(1000));
+        surface.Renderer.Render(canvas, bitmap.Info, TimeSpan.FromMilliseconds(1050));
+        var mid = bitmap.GetPixel(10, 10);
+        Assert.True(mid.Red == 255 && mid.Green is > 0 and < 255, $"half-faded red expected, got {mid}");
+        surface.Renderer.Render(canvas, bitmap.Info, TimeSpan.FromMilliseconds(1200));
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(10, 10));
+        surface.PumpUi();
+        Assert.True(await fade.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Theory]
+    [InlineData(false)] // queued on the node, never committed
+    [InlineData(true)]  // committed, not yet applied by the render thread
+    public async Task AnimateAsyncCompletesWhenTheSurfaceIsDisposedFirst(bool committed)
+    {
+        var box = new SkUiBox { Color = Colors.Red, WidthRequest = 20, HeightRequest = 20 };
+        var root = new SkUiContentView { Content = box };
+        var surface = new SkUiTestSurface(root, 40, 40);
+        surface.Frame(0);
+        var fade = box.AnimateAsync(SkUiAnimatableProperty.Opacity, 0, 100);
+        if (committed)
+            surface.Renderer.PresentFrame();
+        surface.Dispose();
+        surface.PumpUi();
+        Assert.False(await fade.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(1, box.Opacity);
+    }
+
+    [Fact]
+    public async Task AnimateAsyncCompletesWhenTheNodeIsDetachedBeforeCommit()
+    {
+        var box = new SkUiBox { Color = Colors.Red, WidthRequest = 20, HeightRequest = 20 };
+        var root = new SkUiContentView { Content = box };
+        using var surface = new SkUiTestSurface(root, 40, 40);
+        surface.Frame(0);
+        var move = box.AnimateAsync(SkUiAnimatableProperty.TranslationX, 10, 100);
+        root.Content = null;
+        surface.Frame(10);
+        Assert.False(await move.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
     public async Task SettingAnimatedPropertyCancelsRenderAnimation()
     {
         var box = new SkUiBox { Color = Colors.Red, WidthRequest = 20, HeightRequest = 20 };

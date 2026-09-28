@@ -127,9 +127,7 @@ internal sealed class SkUiCompositor : IDisposable
         {
             if (_disposed)
             {
-                batch.Discard();
-                foreach (var animation in batch.Animations)
-                    animation.Cancel();
+                DiscardWithAnimations(batch);
                 return;
             }
             _pending.Add(batch);
@@ -358,12 +356,24 @@ internal sealed class SkUiCompositor : IDisposable
 
     private void Finish(SkUiRenderAnimation animation, bool completed, List<Action>? reports)
     {
-        if (animation.Finished is not { } finished)
+        if (animation.Finished is null)
             return;
         if (reports is not null)
-            reports.Add(() => finished(animation, completed));
+            reports.Add(() => animation.NotifyFinished(completed));
         else
-            _postToUi(() => finished(animation, completed));
+            _postToUi(() => animation.NotifyFinished(completed));
+    }
+
+    /// <summary>Drops a batch that will never be applied: releases its pictures and finishes its animations as cancelled.</summary>
+    private void DiscardWithAnimations(SkUiRenderBatch batch)
+    {
+        batch.Discard();
+        foreach (var animation in batch.Animations)
+        {
+            animation.Cancel();
+            Finish(animation, completed: false, reports: null);
+        }
+        batch.Animations.Clear();
     }
 
     private void DrawNode(SKCanvas canvas, SkUiRenderNode node, bool isRoot)
@@ -449,7 +459,7 @@ internal sealed class SkUiCompositor : IDisposable
                 return;
             _disposed = true;
             foreach (var batch in _pending)
-                batch.Discard();
+                DiscardWithAnimations(batch);
             _pending.Clear();
             _hasPending = false;
         }

@@ -323,6 +323,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #elif IOS || MACCATALYST
         if (_gpu is not null)
         {
+            // Waits for a frame the render thread is presenting, so nothing presents after the view is removed.
             _gpu.Surface.Renderer = null;
             _gpu.TouchHandler = null;
             _gpu.RemoveFromSuperview();
@@ -909,15 +910,107 @@ internal sealed class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.Canvas
         }
     }
 
-    // TODO(Windows): offer drags that start on the overlay to the drawn tree (handledEventsToo pointer handlers on the
-    // clip canvas + CapturePointer on claim), as on Android / Apple. Not built on the Mac; see WindowsValidation-results.
     public void AddOverlay(Microsoft.UI.Xaml.FrameworkElement child, Func<SkUiTouchEvent, SkUiNativeGestureState> overlayTouch)
     {
         if (_overlays.ContainsKey(child)) return;
         var clip = new Microsoft.UI.Xaml.Controls.Canvas();
         clip.Children.Add(child);
         _overlays[child] = new OverlayState(clip);
+        new OverlayDragWatcher(this, clip, overlayTouch);
         Children.Add(clip);
+    }
+
+    /// <summary>
+    /// Touch / pen drags that start on an overlay are offered to the drawn ancestors' continuous gestures (as on
+    /// Android / Apple): handledEventsToo handlers on the clip canvas see the native control's pointer events, and once
+    /// a drawn scroller claims the drag the clip captures the pointer, so the native control loses it. Mouse input
+    /// stays native (text selection). If the native control's own manipulation takes the contact first, the drawn
+    /// side gets a cancel and the drag stays native.
+    /// </summary>
+    private sealed class OverlayDragWatcher
+    {
+        private static long s_nextPointer = 1L << 40; // distinct from surface pointer ids
+        private readonly Microsoft.UI.Xaml.UIElement _space;
+        private readonly Microsoft.UI.Xaml.Controls.Canvas _clip;
+        private readonly Func<SkUiTouchEvent, SkUiNativeGestureState> _touch;
+        private uint? _contact;
+        private long _pointer;
+        private bool _taken;
+
+        public OverlayDragWatcher(Microsoft.UI.Xaml.UIElement space, Microsoft.UI.Xaml.Controls.Canvas clip, Func<SkUiTouchEvent, SkUiNativeGestureState> touch)
+        {
+            _space = space;
+            _clip = clip;
+            _touch = touch;
+            Add(Microsoft.UI.Xaml.UIElement.PointerPressedEvent, OnPressed);
+            Add(Microsoft.UI.Xaml.UIElement.PointerMovedEvent, OnMoved);
+            Add(Microsoft.UI.Xaml.UIElement.PointerReleasedEvent, (_, args) => End(args, SkUiTouchAction.Released));
+            Add(Microsoft.UI.Xaml.UIElement.PointerCanceledEvent, (_, args) => End(args, SkUiTouchAction.Cancelled));
+            Add(Microsoft.UI.Xaml.UIElement.PointerCaptureLostEvent, OnCaptureLost);
+        }
+
+        private void Add(Microsoft.UI.Xaml.RoutedEvent routedEvent, Microsoft.UI.Xaml.Input.PointerEventHandler handler) =>
+            _clip.AddHandler(routedEvent, handler, handledEventsToo: true);
+
+        private void OnPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+        {
+            if (_contact is not null || args.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
+                return;
+            _contact = args.Pointer.PointerId;
+            _pointer = ++s_nextPointer;
+            _taken = false;
+            // Claimed at once when the press stops a drawn fling: the native control never keeps it.
+            if (Forward(args, SkUiTouchAction.Pressed) == SkUiNativeGestureState.Claimed)
+                TakeOver(args);
+        }
+
+        private void OnMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+        {
+            if (args.Pointer.PointerId != _contact)
+                return;
+            if (Forward(args, SkUiTouchAction.Moved) == SkUiNativeGestureState.Claimed && !_taken)
+                TakeOver(args);
+            if (_taken)
+                args.Handled = true;
+        }
+
+        private void OnCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+        {
+            // The native child losing capture to the clip (our takeover) bubbles here too; only a lost drawn capture
+            // or a native manipulation taking the contact ends the drawn gesture.
+            if (_taken && !ReferenceEquals(args.OriginalSource, _clip))
+                return;
+            End(args, SkUiTouchAction.Cancelled);
+        }
+
+        private void End(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args, SkUiTouchAction action)
+        {
+            if (args.Pointer.PointerId != _contact)
+                return;
+            Forward(args, action);
+            if (_taken)
+            {
+                args.Handled = true;
+                _clip.ReleasePointerCapture(args.Pointer);
+            }
+            _contact = null;
+            _taken = false;
+        }
+
+        private void TakeOver(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+        {
+            _taken = _clip.CapturePointer(args.Pointer);
+            if (_taken)
+                args.Handled = true;
+        }
+
+        private SkUiNativeGestureState Forward(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args, SkUiTouchAction action)
+        {
+            // The overlay container's space is the surface's DIP space (the surface is its first child at 0, 0).
+            var point = args.GetCurrentPoint(_space);
+            return _touch(new SkUiTouchEvent(_pointer, action, new Point(point.Position.X, point.Position.Y),
+                TimeSpan.FromTicks((long)point.Timestamp * 10)));
+        }
     }
 
     public void RemoveOverlay(Microsoft.UI.Xaml.FrameworkElement child)

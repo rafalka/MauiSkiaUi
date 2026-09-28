@@ -37,6 +37,7 @@ public static class SkUiFonts
         lock (Gate)
         {
             Factories.Remove(familyName);
+            Misses.Remove(familyName);
             Cache.Remove(familyName);
         }
     }
@@ -48,6 +49,7 @@ public static class SkUiFonts
         {
             if (Cache.TryGetValue(familyName, out var typeface)) return typeface;
             if (Misses.Contains(familyName)) return null;
+            var definitive = false;
             if (Factories.TryGetValue(familyName, out var open))
             {
                 using var stream = open();
@@ -55,10 +57,11 @@ public static class SkUiFonts
             }
             else
             {
-                typeface = ResolveMauiFont(familyName);
+                typeface = ResolveMauiFont(familyName, out definitive);
             }
             if (typeface is not null) Cache[familyName] = typeface;
-            else if (!Factories.ContainsKey(familyName)) Misses.Add(familyName);
+            // Remember a miss only when the MAUI registrar answered: before the app's services exist, retry later.
+            else if (definitive) Misses.Add(familyName);
             return typeface;
         }
     }
@@ -68,24 +71,30 @@ public static class SkUiFonts
     /// so app-embedded fonts work without an explicit <see cref="Register"/> call. The registrar returns a file path
     /// (Android / Windows) or a registered family / PostScript name (Apple).
     /// </summary>
-    private static SKTypeface? ResolveMauiFont(string alias)
+    /// <param name="alias">Family name / alias to look up.</param>
+    /// <param name="definitive"><c>false</c> when the registrar could not be asked (app not started yet, lookup failed).</param>
+    private static SKTypeface? ResolveMauiFont(string alias, out bool definitive)
     {
 #if ANDROID || IOS || MACCATALYST || WINDOWS
+        definitive = false;
         try
         {
-            var registrar = IPlatformApplication.Current?.Services.GetService(typeof(Microsoft.Maui.IFontRegistrar)) as Microsoft.Maui.IFontRegistrar;
-            if (registrar?.GetFont(alias) is not { Length: > 0 } font)
+            if (IPlatformApplication.Current?.Services.GetService(typeof(Microsoft.Maui.IFontRegistrar)) is not Microsoft.Maui.IFontRegistrar registrar)
+                return null;
+            var font = registrar.GetFont(alias);
+            definitive = true;
+            if (font is not { Length: > 0 })
                 return null;
             if (File.Exists(font))
                 return SKTypeface.FromFile(font);
-            var byName = SKFontManager.Default.MatchFamily(font);
-            return byName;
+            return SKFontManager.Default.MatchFamily(font);
         }
         catch (Exception)
         {
             return null;
         }
 #else
+        definitive = true;
         return null;
 #endif
     }

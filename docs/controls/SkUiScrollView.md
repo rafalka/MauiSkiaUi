@@ -63,7 +63,7 @@ await scroller.ScrollToAsync(0, 400, animated: true);
 | Scrollbars / bounce / snap | Not implemented |
 | Nested scrolling | Supported (axis-aware, chaining, fling hand-off; also with Core `SkUiCoreScrollView` and native ancestors) |
 | Wheel on `Both` | Vertical wheel always; horizontal only when orientation is horizontal-only |
-| Overlay snapshot while scrolling | Not yet (overlays live-sync) |
+| Overlay snapshot while scrolling | `SkUiMauiContentView.ScrollMode` (snapshot on Android / Windows, live on Apple by default) |
 
 ## Related
 

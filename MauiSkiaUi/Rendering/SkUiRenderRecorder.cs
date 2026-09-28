@@ -67,7 +67,7 @@ internal sealed class SkUiRenderRecorder : IDisposable
             }
             if ((dirty & SkUiRenderDirty.Content) != 0 || sizeChanged)
             {
-                if (props.IsSkipped)
+                if (props.IsSkipped && !FadesIn(state, props))
                 {
                     // Nothing visible to record; keep the request until the node can paint again.
                     state.Dirty |= SkUiRenderDirty.Content;
@@ -120,6 +120,20 @@ internal sealed class SkUiRenderRecorder : IDisposable
 
         foreach (var child in state.CommittedSources)
             SyncNode(child, isRoot: false, batch);
+    }
+
+    /// <summary>
+    /// True when a node hidden only by <c>Opacity == 0</c> has an opacity animation queued or running: the render
+    /// thread will make it visible without another UI sync, so its content must be recorded now.
+    /// </summary>
+    private static bool FadesIn(SkUiRenderState state, in SkUiRenderProps props)
+    {
+        if (!props.IsVisible || props.Width <= 0 || props.Height <= 0 || state.ActiveAnimations is not { Count: > 0 } active)
+            return false;
+        foreach (var animation in active)
+            if (!animation.IsCancelled && (animation.PropertyMask & (1 << (int)SkUiRenderProperty.Opacity)) != 0)
+                return true;
+        return false;
     }
 
     private SKPicture? Record(ISkUiRenderable node, SKRect cull, bool overlay)

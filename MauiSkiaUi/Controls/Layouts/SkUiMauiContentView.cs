@@ -77,6 +77,8 @@ public partial class SkUiMauiContentView : SkUiView
     private int _movingScrollers;
     private SKImage? _snapshot;
     private bool _capturing;
+    // Bumped whenever an in-flight capture becomes stale (restore, mode change, reset): its completion is ignored.
+    private int _captureGeneration;
     private IDisposable? _restoreTimer;
 
     /// <summary>Test hook: replaces platform capture (called with the completion callback; return false when not started).</summary>
@@ -104,11 +106,14 @@ public partial class SkUiMauiContentView : SkUiView
         if (_snapshot is not null || _capturing || !UsesSnapshotWhileScrolling || _content is null or { IsFocused: true })
             return;
         _capturing = true;
+        var generation = ++_captureGeneration;
         var started = false;
         void Done(SKImage? image)
         {
+            if (generation != _captureGeneration)
+                return; // superseded: a newer capture owns _capturing
             _capturing = false;
-            if (image is null || _movingScrollers == 0 || _content is null)
+            if (image is null || _movingScrollers == 0 || _content is null || !UsesSnapshotWhileScrolling)
             {
                 SyncOverlayBounds();
                 return;
@@ -122,7 +127,7 @@ public partial class SkUiMauiContentView : SkUiView
             started = capture(this, Done);
         else
             StartCapture(Done, ref started);
-        if (!started)
+        if (!started && generation == _captureGeneration)
             _capturing = false;
     }
 
@@ -131,6 +136,13 @@ public partial class SkUiMauiContentView : SkUiView
         _restoreTimer = null;
         if (_movingScrollers > 0)
             return;
+        RestoreLive();
+    }
+
+    /// <summary>Drops the snapshot (and any capture in flight) and shows the live native view again.</summary>
+    private void RestoreLive()
+    {
+        _captureGeneration++;
         _capturing = false;
         if (_snapshot is null)
             return;
@@ -144,10 +156,16 @@ public partial class SkUiMauiContentView : SkUiView
 
     private void OnScrollModeChanged()
     {
+        // The moving-scroller count keeps tracking ancestors in every mode; only the snapshot follows the mode.
         if (!UsesSnapshotWhileScrolling)
         {
-            _movingScrollers = Math.Min(_movingScrollers, 0);
-            EndSnapshot();
+            _restoreTimer?.Dispose();
+            _restoreTimer = null;
+            RestoreLive();
+        }
+        else if (_movingScrollers > 0)
+        {
+            BeginSnapshot();
         }
     }
 
@@ -247,6 +265,7 @@ public partial class SkUiMauiContentView : SkUiView
         _restoreTimer?.Dispose();
         _restoreTimer = null;
         _movingScrollers = 0;
+        _captureGeneration++;
         _capturing = false;
         if (_snapshot is null)
             return;

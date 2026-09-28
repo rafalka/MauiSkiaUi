@@ -111,7 +111,7 @@ internal sealed class SkUiTextLayout
         switch (_rendering)
         {
             case SkUiTextRendering.Simple:
-                return SkUiShaping.ShapeSimple(text, primary);
+                return SkUiShaping.ShapeSimple(text, primary, direction);
             case SkUiTextRendering.Auto when SkUiShaping.TryShapeSimple(text, primary, direction) is { } simple:
                 return simple;
             default:

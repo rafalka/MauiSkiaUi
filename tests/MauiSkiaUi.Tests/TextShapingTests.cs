@@ -123,6 +123,8 @@ public class TextShapingTests
     public void ExplicitRightToLeftFlowDirectionRightAlignsLatinText()
     {
         Assert.True(InkCenterX("Hello", FlowDirection.RightToLeft) > 100);
+        Assert.True(InkCenterX("Hello", FlowDirection.RightToLeft, SkUiTextRendering.Simple) > 100, "Simple rendering keeps RTL Start alignment");
+        Assert.True(InkCenterX("Hello", FlowDirection.LeftToRight, SkUiTextRendering.Simple) < 100);
     }
 
     [Fact]
@@ -167,10 +169,10 @@ public class TextShapingTests
         Assert.Equal(font.MeasureText("abc"), (float)size.Width, 1);
     }
 
-    private static double InkCenterX(string text, FlowDirection flow = FlowDirection.MatchParent)
+    private static double InkCenterX(string text, FlowDirection flow = FlowDirection.MatchParent, SkUiTextRendering rendering = SkUiTextRendering.Default)
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
-        var label = new SkUiLabel { Text = text, FlowDirection = flow, TextColor = Colors.Black, FontFamily = SkUiTestHelpers.BundledFontFamily };
+        var label = new SkUiLabel { Text = text, FlowDirection = flow, TextColor = Colors.Black, FontFamily = SkUiTestHelpers.BundledFontFamily, TextRendering = rendering };
         SkUiTestHelpers.Arrange(label, 200, 40);
         using var bitmap = new SKBitmap(200, 40);
         using (var canvas = new SKCanvas(bitmap))

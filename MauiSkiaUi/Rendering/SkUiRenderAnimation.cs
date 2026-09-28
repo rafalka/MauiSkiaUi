@@ -24,6 +24,18 @@ internal abstract class SkUiRenderAnimation
     /// <summary>UI-thread callback: <c>true</c> when the animation ran to completion, <c>false</c> when cancelled.</summary>
     internal Action<SkUiRenderAnimation, bool>? Finished;
 
+    /// <summary>
+    /// UI thread: invokes <see cref="Finished"/> once. Every path that drops an animation (completion, cancel,
+    /// compositor dispose, render-state reset) ends here, so awaiters never hang.
+    /// </summary>
+    internal void NotifyFinished(bool completed)
+    {
+        if (Interlocked.Exchange(ref _notified, 1) == 0)
+            Finished?.Invoke(this, completed);
+    }
+
+    private int _notified;
+
     /// <summary>Bit mask of <see cref="SkUiRenderProperty"/> values this animation writes.</summary>
     internal abstract int PropertyMask { get; }
 
