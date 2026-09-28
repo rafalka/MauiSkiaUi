@@ -132,6 +132,9 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
 
     internal bool HasActiveArenas => _arenas.Count > 0;
 
+    /// <summary>Per-pointer arenas still open (diagnostics: a stuck one means a pointer never ended).</summary>
+    internal int ActiveArenaCount => _arenas.Count;
+
     /// <summary>Current meaning of the drawn gestures for native ancestors.</summary>
     internal SkUiNativeGestureState NativeState
     {

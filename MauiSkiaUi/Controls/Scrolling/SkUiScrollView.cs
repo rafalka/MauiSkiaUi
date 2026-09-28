@@ -51,6 +51,8 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
 
     private void OnMovingChanged(bool moving)
     {
+        if (SkUiDiagnostics.TraceOn)
+            SkUiDiagnostics.Write($"scroll {AutomationId ?? GetHashCode().ToString()} moving={moving} dragging={_scroller.Dragging} motion={_scroller.IsMotionRunning} offset={_scroller.X:F0},{_scroller.Y:F0} overlays={_overlayDescendants?.Count ?? 0}");
         if (_overlayDescendants is { Count: > 0 } overlays)
             foreach (var overlay in overlays.ToArray())
                 overlay.NotifyAncestorScrollMotion(moving);

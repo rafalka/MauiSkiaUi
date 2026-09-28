@@ -88,6 +88,8 @@ public partial class SkUiMauiContentView : SkUiView
     internal void NotifyAncestorScrollMotion(bool moving)
     {
         _movingScrollers = Math.Max(0, _movingScrollers + (moving ? 1 : -1));
+        if (SkUiDiagnostics.TraceOn)
+            SkUiDiagnostics.Write($"overlay {TraceName} ancestor moving={moving} -> movingScrollers={_movingScrollers} snapshot={_snapshot is not null} capturing={_capturing}");
         if (_movingScrollers > 0)
         {
             _restoreTimer?.Dispose();
@@ -113,6 +115,8 @@ public partial class SkUiMauiContentView : SkUiView
             if (generation != _captureGeneration)
                 return; // superseded: a newer capture owns _capturing
             _capturing = false;
+            if (SkUiDiagnostics.TraceOn)
+                SkUiDiagnostics.Write($"overlay {TraceName} captured image={image is not null} movingScrollers={_movingScrollers} -> {(image is null || _movingScrollers == 0 ? "stay live" : "show snapshot")}");
             if (image is null || _movingScrollers == 0 || _content is null || !UsesSnapshotWhileScrolling)
             {
                 SyncOverlayBounds();
@@ -134,10 +138,14 @@ public partial class SkUiMauiContentView : SkUiView
     private void EndSnapshot()
     {
         _restoreTimer = null;
+        if (SkUiDiagnostics.TraceOn)
+            SkUiDiagnostics.Write($"overlay {TraceName} restore timer movingScrollers={_movingScrollers} snapshot={_snapshot is not null} -> {(_movingScrollers > 0 ? "keep snapshot" : "restore live")}");
         if (_movingScrollers > 0)
             return;
         RestoreLive();
     }
+
+    private string TraceName => _content is null ? GetHashCode().ToString() : $"{_content.GetType().Name}#{_content.GetHashCode() % 10000}";
 
     /// <summary>Drops the snapshot (and any capture in flight) and shows the live native view again.</summary>
     private void RestoreLive()
@@ -338,8 +346,14 @@ public partial class SkUiMauiContentView : SkUiView
     /// <summary>Repositions the native overlay after an ancestor scroll offset change (no local rearrange).</summary>
     internal void NotifyAncestorScrollOffsetChanged()
     {
+#if WINDOWS
+        // Windows keeps the overlay a touch drag started on live (hiding it would drop the contact), even while its
+        // snapshot is shown: keep it placed.
+        SyncOverlayBounds();
+#else
         if (_snapshot is null)
             SyncOverlayBounds(); // hidden while a snapshot is shown: restored with fresh bounds
+#endif
     }
 
     /// <summary>Registers with every ancestor scroller so offset sync stays O(overlays) instead of O(tree).</summary>

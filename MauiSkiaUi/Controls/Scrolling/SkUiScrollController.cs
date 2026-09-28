@@ -266,7 +266,11 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
     protected internal override bool OnPointerPressed(SkUiPointer pointer)
     {
         if (_pointer is not null || scroller.Orientation == ScrollOrientation.Neither || Owner is not { } owner)
+        {
+            if (_pointer is not null && SkUiDiagnostics.TraceOn)
+                SkUiDiagnostics.Write($"scroll gesture busy: still tracks pointer {_pointer} (dragging={_dragging}), ignores press {pointer.Id}");
             return false;
+        }
         var local = pointer.GetPosition(owner);
         if (local.X < 0 || local.Y < 0 || local.X > scroller.Viewport.Width || local.Y > scroller.Viewport.Height)
             return false;

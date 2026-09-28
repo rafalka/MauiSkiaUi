@@ -12,6 +12,16 @@ namespace MauiSkiaUi;
 /// </summary>
 public static class SkUiDiagnostics
 {
+    /// <summary>
+    /// Trace sink for input / scrolling diagnostics (surface touches, native handover, scroll motion, overlay
+    /// snapshots); <c>null</c> (default) = off. Call sites check <see cref="TraceOn"/> before formatting.
+    /// </summary>
+    internal static Action<string>? Trace { get; set; }
+
+    internal static bool TraceOn => Trace is not null;
+
+    internal static void Write(string message) => Trace?.Invoke(message);
+
     /// <summary>The standalone root (the view that owns the SkiaUi surface) drawing <paramref name="element"/>.</summary>
     public static SkUiView? GetSurfaceRoot(object element)
     {
