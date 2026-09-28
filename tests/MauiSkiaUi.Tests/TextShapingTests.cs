@@ -106,8 +106,8 @@ public class TextShapingTests
     {
         var paragraph = Shape("Hello, shaped world!");
         Assert.Equal(paragraph.Width, paragraph.Advances.Sum(), 2);
-        using var font = new SKFont(Primary(), 16);
-        // HarfBuzz uses unhinted advances; Skia's MeasureText may differ by a fraction of a pixel.
+        using var font = new SKFont(Primary(), 16) { LinearMetrics = true };
+        // HarfBuzz uses unhinted advances, as Skia does with linear metrics (hinted FreeType advances would differ).
         Assert.InRange(paragraph.Width - font.MeasureText(paragraph.Text), -0.5, 0.5);
     }
 

@@ -17,7 +17,7 @@ namespace MauiSkiaUi;
 internal static class SkUiShaping
 {
     private static readonly ConcurrentDictionary<(SKTypeface Primary, int CodePoint), SKTypeface> Fallbacks = new();
-    [ThreadStatic] private static Dictionary<SKTypeface, SKShaper>? t_shapers;
+    [ThreadStatic] private static Dictionary<SKTypeface, SKShaper?>? t_shapers;
     [ThreadStatic] private static SKTextBlobBuilder? t_builder;
     [ThreadStatic] private static Buffer? t_buffer;
     private static readonly ConcurrentDictionary<SKTypeface, byte[]> Coverage = new();
@@ -207,11 +207,17 @@ internal static class SkUiShaping
         cp is 0x200C or 0x200D or >= 0xFE00 and <= 0xFE0F or >= 0xE0100 and <= 0xE01EF or >= 0x1F3FB and <= 0x1F3FF or >= 0xE0020 and <= 0xE007F
         || CharUnicodeInfo.GetUnicodeCategory(cp) is UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark or UnicodeCategory.SpacingCombiningMark;
 
-    private static SKShaper Shaper(SKTypeface typeface)
+    /// <summary>HarfBuzz shaper for a typeface, or <c>null</c> when the typeface exposes no font data (e.g. Skia's empty
+    /// default typeface on a Linux host without fonts).</summary>
+    private static SKShaper? Shaper(SKTypeface typeface)
     {
         var shapers = t_shapers ??= [];
         if (!shapers.TryGetValue(typeface, out var shaper))
-            shapers[typeface] = shaper = new SKShaper(typeface);
+        {
+            using (var data = typeface.OpenStream())
+                shaper = data is null ? null : new SKShaper(typeface);
+            shapers[typeface] = shaper;
+        }
         return shaper;
     }
 
@@ -225,7 +231,12 @@ internal static class SkUiShaping
         if (run.Script != Script.Common)
             buffer.Script = run.Script;
         buffer.GuessSegmentProperties();
-        var result = Shaper(run.Typeface).Shape(buffer, font);
+        if (Shaper(run.Typeface) is not { } shaper)
+        {
+            ShapeRunUnshaped(text, start, length, run, font);
+            return;
+        }
+        var result = shaper.Shape(buffer, font);
         var count = result.Codepoints.Length;
         run.Glyphs = new ushort[count];
         run.Positions = result.Points;
@@ -233,6 +244,37 @@ internal static class SkUiShaping
         run.Width = result.Width;
         for (var index = 0; index < count; index++)
             run.Glyphs[index] = (ushort)result.Codepoints[index];
+    }
+
+    /// <summary>Run of a typeface HarfBuzz cannot read: one Skia glyph per code point with Skia advances, in visual order.</summary>
+    private static void ShapeRunUnshaped(string text, int start, int length, Run run, SKFont font)
+    {
+        var span = text.AsSpan(start, length);
+        var glyphs = font.GetGlyphs(span);
+        var widths = font.GetGlyphWidths(span);
+        var count = Math.Min(glyphs.Length, widths.Length);
+        var clusters = new uint[count];
+        for (int index = 0, unit = start; index < count && unit < start + length; index++)
+        {
+            clusters[index] = (uint)unit;
+            unit += char.IsHighSurrogate(text[unit]) ? 2 : 1;
+        }
+        var order = new int[count];
+        for (var index = 0; index < count; index++)
+            order[index] = run.Level % 2 == 1 ? count - 1 - index : index;
+        run.Glyphs = new ushort[count];
+        run.Positions = new SKPoint[count];
+        run.Clusters = new uint[count];
+        var x = 0f;
+        for (var index = 0; index < count; index++)
+        {
+            var logical = order[index];
+            run.Glyphs[index] = glyphs[logical];
+            run.Clusters[index] = clusters[logical];
+            run.Positions[index] = new SKPoint(x, 0);
+            x += widths[logical];
+        }
+        run.Width = x;
     }
 
     /// <summary>Builds the visual line for logical range <c>[start, end)</c> of <paramref name="paragraph"/>.</summary>

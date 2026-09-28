@@ -122,7 +122,9 @@ internal sealed class SkUiTextLayout
     private SKFont FontFor(SKTypeface typeface)
     {
         if (!_fonts.TryGetValue(typeface, out var font))
-            _fonts[typeface] = font = new SKFont(typeface, _fontSize);
+            // Linear (unhinted) metrics: Skia measures like HarfBuzz shapes, so simple and shaped text agree on FreeType
+            // hosts (Android, Linux) too, where hinted advances would otherwise differ by a fraction of a pixel per glyph.
+            _fonts[typeface] = font = new SKFont(typeface, _fontSize) { LinearMetrics = true };
         return font;
     }
 
