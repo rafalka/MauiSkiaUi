@@ -16,8 +16,13 @@ public class TextShapingTests
     private static SKTypeface Primary() =>
         SKTypeface.FromFile(Path.Combine(AppContext.BaseDirectory, "Assets", "RobotoMono-Regular.ttf"));
 
-    private static bool HasFontFor(int codePoint) =>
-        SKFontManager.Default.MatchCharacter(codePoint) is { } face && face.GetGlyph(codePoint) != 0;
+    private static bool HasFontFor(int codePoint)
+    {
+        if (SKFontManager.Default.MatchCharacter(codePoint) is not { } face)
+            return false;
+        using var font = new SKFont(face);
+        return font.GetGlyph(codePoint) != 0;
+    }
 
     private static SkUiShaping.Paragraph Shape(string text, SkUiTextDirection direction = SkUiTextDirection.Auto)
     {
