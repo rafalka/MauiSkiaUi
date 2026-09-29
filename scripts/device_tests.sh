@@ -115,13 +115,15 @@ skiaui_warnings() { # build log → trim / AOT warnings attributed to SkiaUi (so
     python3 - "$1" "$REPO_ROOT" <<'PY'
 import re, sys
 log, root = sys.argv[1], sys.argv[2]
+# Library sources: this checkout's MauiSkiaUi/ folder, or /_/MauiSkiaUi/ in deterministic (CI) builds.
 skiaui = re.compile(
-    re.escape(root + "/MauiSkiaUi/") + r"|[\\/]MauiSkiaUi[\\/][^ ]*\.cs"
+    "(?:" + re.escape(root) + "|/_)/MauiSkiaUi/"
     r"|Assembly 'MauiSkiaUi'|MauiSkiaUi\.dll|SkiaUi\.Maui"
     r"|(?<![\w.])MauiSkiaUi\.(?!DeviceTests|LeakTests)[A-Z]")  # library types, not the test app's own namespaces
+project_context = re.compile(r"\s\[[^\]]*\]\s*$")  # MSBuild's trailing "[<project>::TargetFramework=…]"
 seen = set()
 for line in open(log, errors="replace"):
-    if re.search(r"warning IL\d{4}", line) and skiaui.search(line) and line not in seen:
+    if re.search(r"warning IL\d{4}", line) and skiaui.search(project_context.sub("", line)) and line not in seen:
         seen.add(line)
         print(line.rstrip())
 PY
