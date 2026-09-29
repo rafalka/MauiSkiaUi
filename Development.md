@@ -48,9 +48,9 @@ Workflows live under [`.github/workflows/`](.github/workflows/). Shared setup: [
 
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
-| [ci.yml](.github/workflows/ci.yml) | Push / PR to `master` | Headless tests (Ubuntu `net10.0`); build iOS/Mac Catalyst (macOS) and Windows TFMs |
+| [ci.yml](.github/workflows/ci.yml) | Push / PR to `master` or `devel` | Headless tests (Ubuntu `net10.0`); build iOS/Mac Catalyst (macOS) and Windows TFMs; Mac Catalyst device tests (memory leaks) |
 | [nuget-pack.yml](.github/workflows/nuget-pack.yml) | Manual, or tag `v*` | `dotnet pack` on macOS + Windows; merge multi-TFM `.nupkg` / `.snupkg` artifacts |
-| [nuget-publish.yml](.github/workflows/nuget-publish.yml) | Manual (optional version override + dry-run), or GitHub Release published | Same multi-TFM pack + push to [nuget.org](https://www.nuget.org/) via [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) (OIDC); Environment `nuget.org` |
+| [nuget-publish.yml](.github/workflows/nuget-publish.yml) | Manual: version bump (+ dry run), from `master` or `devel` | Bumps the version and changelog, commits and tags the release, packs it, pushes to [nuget.org](https://www.nuget.org/) via [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) (OIDC; Environment `nuget.org`), creates the GitHub release. See [docs/Releasing.md](docs/Releasing.md) |
 | [demo-publish.yml](.github/workflows/demo-publish.yml) | Manual (platform choice), or tag `demo-v*` | Publish demo Android APK (`android-arm64`) and optionally Mac Catalyst as artifacts |
 
 ### Secrets and environments
@@ -80,9 +80,9 @@ Without Android signing secrets, the demo Android job still publishes an APK for
 
 Demo app icon/splash SVGs intentionally omit SVG `<filter>` elements: MAUI **10.0.101** Resizetizer regresses on filtered SVGs ([dotnet/maui#38319](https://github.com/dotnet/maui/issues/38319)).
 
-Version overrides: pack/publish accept an optional version input; `v1.2.3` tags and GitHub Releases strip the leading `v`. Leave the input empty to use `Version` from [Directory.Build.props](Directory.Build.props) (shared with the demo app).
+Versions and releases: branches, version format, bumps and the publish procedure are in [docs/Releasing.md](docs/Releasing.md). `nuget-pack.yml` (artifacts only) still accepts an optional version input, or takes it from a `v*` tag or [Directory.Build.props](Directory.Build.props).
 
-Release notes: add a `## <version>` section to [CHANGELOG.md](CHANGELOG.md) before packing that version. Workflows run [`scripts/extract-release-notes.py`](scripts/extract-release-notes.py) and the library packs the section as `PackageReleaseNotes` (shown on nuget.org), with a link back to the changelog.
+Release notes: write entries under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md); publishing renames the section to the version. Workflows run [`scripts/extract-release-notes.py`](scripts/extract-release-notes.py) and the library packs the section as `PackageReleaseNotes` (shown on nuget.org), with a link back to the changelog.
 
 ## Design documentation
 
