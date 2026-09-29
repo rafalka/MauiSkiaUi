@@ -79,13 +79,20 @@ scripts/device_tests.sh -t android -S ButtonsClicked,NativeOverlays
 The script builds the app in Release (no debugger or Hot Reload keeping instances alive), launches it with `--autorun --exit` and collects its console lines:
 
 - `SKUILEAK_START`;
+- `SKUILEAK_RENDER {json}` for the render check;
 - `SKUILEAK_DETECTOR {json}` for the self-test;
 - one `SKUILEAK {json}` per scenario;
 - `SKUILEAK_DONE`.
 
-It prints a table and exits non-zero on any failure. Logs go to `artifacts/device-tests/<timestamp>/`. iOS devices below iOS 17 (not supported by `devicectl`) are launched through `mlaunch` (`dotnet build -t:Run`).
+It prints a table and exits non-zero on any failure. Logs go to `artifacts/device-tests/<timestamp>/`.
 
-Launched normally, the app shows the test page: **Run all**, **Rerun failed**, **Check detector**, and **Run** per scenario, with results and survivors inline.
+- **`--aot`:** builds the app with Native AOT (which implies full trimming).
+- **`--trim`:** builds it fully trimmed, without AOT.
+- Either way, the script fails when the app build reports a trim or AOT warning for SkiaUi code.
+- **Render check:** before the scenarios, the app draws a label, a button and an app-defined view with an overlay layer offscreen, and checks their pixels (`SKUILEAK_RENDER`). Leak scenarios alone would not notice a build where drawing silently breaks.
+- **CI** runs the Mac Catalyst device tests with `--aot`. iOS devices below iOS 17 (not supported by `devicectl`) are launched through `mlaunch` (`dotnet build -t:Run`).
+
+Launched normally, the app shows the test page: **Run all**, **Rerun failed**, **Self-checks** (detector and render check), and **Run** per scenario, with results and survivors inline.
 
 ## Device profiling (dotnet-trace)
 

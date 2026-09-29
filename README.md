@@ -116,6 +116,7 @@ Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](
 - **`StartUpdating` / `EndUpdating`** batch layout and paint invalidation when changing many properties.
 - Direct fluent setters update applied state but **do not write back** to the bindable store — prefer one update path per property.
 - Drawn nodes are not yet full accessibility / keyboard targets; native overlays keep their platform a11y.
+- **Trimming and Native AOT:** the library is trimmable and AOT-compatible (no reflection; trim / AOT analyzers fail its build). Checked with Native AOT on iOS and Mac Catalyst and full trimming on Android. Android Native AOT (experimental in .NET 10): software surfaces (`HwAccelerated = false`) fail, because SkiaSharp's Android `SKCanvasView` needs an assembly that build doesn't include; GPU surfaces work.
 
 ## Sample app
 

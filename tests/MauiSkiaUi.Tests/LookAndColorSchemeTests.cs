@@ -142,15 +142,24 @@ public class LookAndColorSchemeTests
     }
 
     [Fact]
-    public void UniformPathUsesFloatCreateRoundRectPathOverride()
+    public void CustomRoundRectGeometryShapesPathsAndRoundedBoxes()
     {
-        var look = new FloatPathLook();
-        using var path = look.CreateRoundRectPath(new SKRect(0, 0, 40, 20), 5f);
-        Assert.Equal(1, look.FloatPathCalls);
-        using (var bitmap = new SKBitmap(40, 20))
+        var look = new NotchedLook();
+        using (var path = look.CreateRoundRectPath(new SKRect(0, 0, 40, 20), 5f))
+            Assert.False(path.Contains(1, 1)); // notched corner
+        using var bitmap = new SKBitmap(40, 20);
         using (var canvas = new SKCanvas(bitmap))
+        {
+            canvas.Clear(SKColors.White);
             look.DrawRoundedBox(canvas, new SKRect(0, 0, 40, 20), new CornerRadius(5), SKColors.Black, SKColors.Transparent, 0);
-        Assert.True(look.FloatPathCalls >= 2);
+        }
+        Assert.Equal(SKColors.White, bitmap.GetPixel(1, 1));
+        Assert.Equal(SKColors.Black, bitmap.GetPixel(20, 10));
+
+        // The default look has no custom geometry: plain corners, drawn without a path.
+        Assert.Null(DefaultSkUiLook.Instance.CreateCustomRoundRectPath(new SKRect(0, 0, 40, 20), new CornerRadius(5)));
+        using var plain = DefaultSkUiLook.Instance.CreateRoundRectPath(new SKRect(0, 0, 40, 20), 5f);
+        Assert.True(plain.Contains(20, 10));
     }
 
     [Fact]
@@ -201,14 +210,23 @@ public class LookAndColorSchemeTests
         }
     }
 
-    private sealed class FloatPathLook : DefaultSkUiLook
+    /// <summary>Corners cut at 45° instead of rounded.</summary>
+    private sealed class NotchedLook : DefaultSkUiLook
     {
-        public int FloatPathCalls { get; private set; }
-
-        public override SKPath CreateRoundRectPath(SKRect bounds, float radius)
+        public override SKPath? CreateCustomRoundRectPath(SKRect bounds, CornerRadius radii)
         {
-            FloatPathCalls++;
-            return base.CreateRoundRectPath(bounds, radius);
+            var cut = (float)radii.TopLeft;
+            using var builder = new SKPathBuilder();
+            builder.MoveTo(bounds.Left + cut, bounds.Top);
+            builder.LineTo(bounds.Right - cut, bounds.Top);
+            builder.LineTo(bounds.Right, bounds.Top + cut);
+            builder.LineTo(bounds.Right, bounds.Bottom - cut);
+            builder.LineTo(bounds.Right - cut, bounds.Bottom);
+            builder.LineTo(bounds.Left + cut, bounds.Bottom);
+            builder.LineTo(bounds.Left, bounds.Bottom - cut);
+            builder.LineTo(bounds.Left, bounds.Top + cut);
+            builder.Close();
+            return builder.Detach();
         }
     }
 }

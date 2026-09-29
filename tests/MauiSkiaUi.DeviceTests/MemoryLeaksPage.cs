@@ -36,7 +36,7 @@ public sealed class MemoryLeaksPage : ContentPage
                            "and checks that the page, every view, handler, platform view and surface was garbage collected.",
                     FontSize = 13, TextColor = LeakColors.Caption
                 },
-                new HorizontalStackLayout { Spacing = 8, Children = { Command("Run all", "Leak_RunAll", RunAll), Command("Rerun failed", "Leak_RerunFailed", RerunFailed), Command("Check detector", "Leak_CheckDetector", CheckDetector) } },
+                new HorizontalStackLayout { Spacing = 8, Children = { Command("Run all", "Leak_RunAll", RunAll), Command("Rerun failed", "Leak_RerunFailed", RerunFailed), Command("Self-checks", "Leak_CheckDetector", CheckDetector) } },
                 _summary,
                 _detector,
                 _focusSink
@@ -137,10 +137,11 @@ public sealed class MemoryLeaksPage : ContentPage
 
     private async Task CheckDetector()
     {
+        var render = RenderCheck.Run();
         var result = await MemoryLeakRunner.CheckDetectorAsync();
         _detector.IsVisible = true;
-        _detector.TextColor = result.Status == LeakStatus.Pass ? LeakColors.Pass : LeakColors.Fail;
-        _detector.Text = result.Details;
+        _detector.TextColor = result.Status == LeakStatus.Pass && render.Status == LeakStatus.Pass ? LeakColors.Pass : LeakColors.Fail;
+        _detector.Text = $"Detector: {result.Details}\nRendering: {render.Details}";
     }
 
     private static Task Run(IEnumerable<LeakScenario> scenarios) => MemoryLeakRunner.RunAsync(scenarios);

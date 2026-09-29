@@ -100,7 +100,7 @@ jobs:
           -p:ContinuousIntegrationBuild=true
 
   device-tests-maccatalyst:
-    name: Device tests (Mac Catalyst)
+    name: Device tests (Mac Catalyst, Native AOT)
     runs-on: macos-15
     timeout-minutes: 45
     steps:
@@ -113,8 +113,9 @@ jobs:
           workloads: maui-maccatalyst
           java-version: ""
 
+      # Native AOT (full trimming): also fails on trim / AOT warnings from SkiaUi and checks that drawing works.
       - name: Run memory leak tests (real handlers and platform views)
-        run: scripts/device_tests.sh -t maccatalyst -o artifacts/device-tests/ci
+        run: scripts/device_tests.sh -t maccatalyst --aot -o artifacts/device-tests/ci
 
       - name: Upload device test logs
         if: always()

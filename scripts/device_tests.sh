@@ -10,6 +10,8 @@
 #   scripts/device_tests.sh -t android -s 2299011508047ece -S ButtonsClicked,NativeOverlays
 #   scripts/device_tests.sh -t ios                             # the booted simulator
 #   scripts/device_tests.sh -t ios -s <device-udid>            # physical device (devicectl, or mlaunch below iOS 17)
+#   scripts/device_tests.sh -t maccatalyst --aot               # Native AOT (fully trimmed) build of the app
+#   scripts/device_tests.sh -t android --trim                  # fully trimmed build (no AOT)
 #
 set -euo pipefail
 
@@ -27,6 +29,8 @@ SCENARIOS=""
 OUT=""
 TIMEOUT=900
 BUILD=true
+AOT=false
+TRIM=false
 
 usage() {
     cat <<'EOF'
@@ -38,6 +42,8 @@ Usage: scripts/device_tests.sh -t TARGET [options]
   -S LIST          comma separated scenario names (default: all)
   -o DIR           output directory (default artifacts/device-tests/<timestamp>)
   --timeout SEC    give up after SEC seconds (default 900)
+  --aot            publish the app with Native AOT (implies full trimming); fails on trim / AOT warnings from SkiaUi
+  --trim           build the app fully trimmed (TrimMode=full, no AOT); fails on trim warnings from SkiaUi
   --no-build       reuse the last build
   -h, --help       this help
 EOF
@@ -52,6 +58,8 @@ while [[ $# -gt 0 ]]; do
         -o) OUT="$2"; shift 2 ;;
         --timeout) TIMEOUT="$2"; shift 2 ;;
         --no-build) BUILD=false; shift ;;
+        --aot) AOT=true; shift ;;
+        --trim) TRIM=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option $1" >&2; usage; exit 2 ;;
     esac
@@ -86,6 +94,11 @@ TFM="$(dotnet msbuild "$PROJECT" -getProperty:TargetFrameworks | tr ';' '\n' | g
 [[ -n "$TFM" ]] || { echo "no $TARGET target framework in $PROJECT" >&2; exit 1; }
 RID=""
 if [[ "$TARGET" == ios ]]; then RID=ios-arm64; ios_is_simulator && RID=iossimulator-arm64; fi
+if [[ "$AOT" == true ]]; then
+    # Native AOT compiles one runtime identifier.
+    [[ "$TARGET" == maccatalyst ]] && RID="maccatalyst-$(uname -m | sed 's/x86_64/x64/')"
+    [[ "$TARGET" == android ]] && RID=android-arm64
+fi
 IOS_MLAUNCH=false
 if [[ "$TARGET" == ios && "$RID" == ios-arm64 ]] && ! xcrun devicectl list devices 2>/dev/null | grep -q "$DEVICE"; then
     IOS_MLAUNCH=true # devicectl knows only iOS 17+ devices; older ones launch through mlaunch (dotnet build -t:Run)
@@ -101,14 +114,37 @@ build() {
     # Only this target framework (also for the library): restore then needs no other platform's workload.
     local args=(-c "$CONFIG" -f "$TFM" "-p:TargetFrameworks=$TFM" "$PROJECT" -v q -nologo)
     [[ -n "$RID" ]] && args+=(-p:RuntimeIdentifier=$RID)
-    [[ "$TARGET" == android ]] && args+=(-t:SignAndroidPackage)
-    dotnet build "${args[@]}" >"$OUT/build.log" 2>&1 || { tail -30 "$OUT/build.log" >&2; echo "build failed ($OUT/build.log)" >&2; exit 1; }
+    local command=build
+    if [[ "$AOT" == true ]]; then
+        args+=(-p:PublishAot=true)
+        if [[ "$RID" == iossimulator-* ]]; then
+            args+=(-p:_IsPublishing=true) # the iOS SDK refuses `publish` for simulators; a publishing build still compiles AOT
+        else
+            command=publish
+        fi
+    fi
+    [[ "$TRIM" == true ]] && args+=(-p:TrimMode=full)
+    # Each trim warning on its own line (not one per assembly), so the SkiaUi check below sees them.
+    [[ "$AOT" == true || "$TRIM" == true ]] && args+=(-p:TrimmerSingleWarn=false)
+    [[ "$TARGET" == android && "$AOT" != true ]] && args+=(-t:SignAndroidPackage)
+    dotnet "$command" "${args[@]}" >"$OUT/build.log" 2>&1 || { tail -30 "$OUT/build.log" >&2; echo "build failed ($OUT/build.log)" >&2; exit 1; }
+    if [[ "$AOT" == true || "$TRIM" == true ]]; then
+        # Trim / AOT warnings the app build reports for SkiaUi code: apps using SkiaUi would see the same.
+        local warnings
+        warnings="$(grep -E "warning IL[0-9]{4}" "$OUT/build.log" | grep -E "$REPO_ROOT/MauiSkiaUi/|Assembly 'MauiSkiaUi'" | sort -u || true)"
+        if [[ -n "$warnings" ]]; then
+            echo "$warnings" >&2
+            echo "trim / AOT warnings from SkiaUi ($OUT/build.log)" >&2
+            exit 1
+        fi
+        log "no trim / AOT warnings from SkiaUi"
+    fi
 }
 
-output() { # glob below bin/<config>/<tfm>
+output() { # glob below bin/<config>/<tfm> (or its <rid> folder, where a publish puts it)
     local match
     # shellcheck disable=SC2086
-    match="$(ls -d "$APP_DIR"/bin/$CONFIG/$TFM/$1 2>/dev/null | head -1)"
+    match="$(ls -d "$APP_DIR"/bin/$CONFIG/$TFM/$1 "$APP_DIR"/bin/$CONFIG/$TFM/*/$1 2>/dev/null | head -1)"
     [[ -n "$match" ]] || { echo "build output $1 not found under $APP_DIR/bin/$CONFIG/$TFM" >&2; exit 1; }
     echo "$match"
 }
@@ -172,21 +208,24 @@ log "running on $TARGET${DEVICE:+ ($DEVICE)}"
 python3 - "$LOG" <<'PY'
 import json, sys
 lines = open(sys.argv[1]).read().splitlines()
-results, detector, done, errors = [], None, None, []
+results, detector, render, done, errors = [], None, None, None, []
 for line in lines:
     tag, _, payload = line.partition(" ")
     if tag == "SKUILEAK":
         results.append(json.loads(payload))
     elif tag == "SKUILEAK_DETECTOR":
         detector = json.loads(payload)
+    elif tag == "SKUILEAK_RENDER":
+        render = json.loads(payload)
     elif tag == "SKUILEAK_DONE":
         done = payload
     elif tag == "SKUILEAK_START":
         print(payload)
     elif tag == "SKUILEAK_ERROR":
         errors.append(payload)
-if detector:
-    print(f"detector  {detector['Status']:4}  {detector['Details']}")
+for check, name in ((render, "rendering"), (detector, "detector")):
+    if check:
+        print(f"{name:9} {check['Status']:4}  {check['Details']}")
 for r in results:
     print(f"{r['Status']:4}  {r['Name']:22} {r['Seconds']:5.1f}s  {r['Details']}")
 failed = [r for r in results if r["Status"] != "Pass"]
@@ -194,7 +233,8 @@ for e in errors:
     print("ERROR", e)
 if done is None:
     print("the run did not finish (crash or timeout); see the log")
-ok = done is not None and not failed and not errors and detector is not None and detector["Status"] == "Pass"
+ok = (done is not None and not failed and not errors
+      and all(check is not None and check["Status"] == "Pass" for check in (detector, render)))
 print(f"\n{len(results) - len(failed)}/{len(results)} passed" + ("" if ok else " — FAILED"))
 sys.exit(0 if ok else 1)
 PY

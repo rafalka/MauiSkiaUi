@@ -23,11 +23,11 @@ public sealed record LeakResult(string Name, LeakStatus Status, string? Details 
 /// drawn view and Core node, each handler, platform view and what surface handlers own (renderer, compositor, GPU /
 /// software surfaces, overlay container) — must then be collected. Used by <see cref="MemoryLeaksPage"/>; with
 /// <c>--autorun</c> (<see cref="RunForAutomationAsync"/>) results go to the console for scripts/device_tests.sh:
-/// <c>SKUILEAK_START</c>, one <c>SKUILEAK {json}</c> per scenario, <c>SKUILEAK_DETECTOR {json}</c>, <c>SKUILEAK_DONE</c>.
+/// <c>SKUILEAK_START</c>, <c>SKUILEAK_RENDER {json}</c> (<see cref="RenderCheck"/>), <c>SKUILEAK_DETECTOR {json}</c>, one
+/// <c>SKUILEAK {json}</c> per scenario, <c>SKUILEAK_DONE</c>.
 /// </summary>
 public static class MemoryLeakRunner
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
 
     /// <summary>How long objects may take to be collected after the page closes (native peers are released asynchronously).</summary>
     public static TimeSpan CollectTimeout { get; set; } = TimeSpan.FromSeconds(10);
@@ -77,8 +77,12 @@ public static class MemoryLeakRunner
         {
             var scenarios = options.SelectedScenarios();
             Console.WriteLine($"SKUILEAK_START scenarios={scenarios.Count} platform={DeviceInfo.Platform} {DeviceInfo.VersionString} model={DeviceInfo.Model}");
+            var render = RenderCheck.Run();
+            Console.WriteLine("SKUILEAK_RENDER " + JsonSerializer.Serialize(render, LeakJson.Default.LeakResult));
+            if (render.Status != LeakStatus.Pass)
+                failed++;
             var detector = await CheckDetectorAsync();
-            Console.WriteLine("SKUILEAK_DETECTOR " + JsonSerializer.Serialize(detector, JsonOptions));
+            Console.WriteLine("SKUILEAK_DETECTOR " + JsonSerializer.Serialize(detector, LeakJson.Default.LeakResult));
             if (detector.Status != LeakStatus.Pass)
                 failed++;
             failed += (await RunAsync(scenarios)).Count(result => result.Status != LeakStatus.Pass);
@@ -187,7 +191,12 @@ public static class MemoryLeakRunner
     {
         s_results[result.Name] = result;
         if (result.Status is LeakStatus.Pass or LeakStatus.Fail && result.Name != LeakScenarios.DeliberateLeak.Name)
-            Console.WriteLine("SKUILEAK " + JsonSerializer.Serialize(result, JsonOptions));
+            Console.WriteLine("SKUILEAK " + JsonSerializer.Serialize(result, LeakJson.Default.LeakResult));
         ResultChanged?.Invoke(result);
     }
 }
+
+/// <summary>Source-generated JSON for the console results (trimming / Native AOT safe).</summary>
+[System.Text.Json.Serialization.JsonSourceGenerationOptions(UseStringEnumConverter = true)]
+[System.Text.Json.Serialization.JsonSerializable(typeof(LeakResult))]
+internal sealed partial class LeakJson : System.Text.Json.Serialization.JsonSerializerContext;
