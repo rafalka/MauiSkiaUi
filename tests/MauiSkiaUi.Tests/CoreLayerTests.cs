@@ -5,6 +5,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>Smoke tests for the public Core layer prototype (no MAUI View identity per node).</summary>
+[Collection(GlobalStateCollection.Name)]
 public class CoreLayerTests
 {
     [Fact]

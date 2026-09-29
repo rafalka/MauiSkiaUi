@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [master, devel]
   pull_request:
-    branches: [master]
+    branches: [master, devel]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -98,6 +98,47 @@ jobs:
           -f net10.0-maccatalyst
           --no-restore
           -p:ContinuousIntegrationBuild=true
+
+  device-tests-maccatalyst:
+    name: Device tests (Mac Catalyst, Native AOT)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-maccatalyst
+          java-version: ""
+
+      # Building an app (unlike the library) needs the Xcode version the installed MAUI workload was built for (its
+      # SDK pack name ends in it, e.g. ..._26.0); the image may default to another. Take its newest patch release.
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          pack="$(ls -d "${DOTNET_ROOT:-$HOME/.dotnet}"/packs/Microsoft.MacCatalyst.Sdk.net*_* | sort -V | tail -1)"
+          want="${pack##*_}"
+          echo "Mac Catalyst SDK pack $(basename "$pack") needs Xcode $want"
+          ls -d /Applications/Xcode*.app
+          xcode="$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' \
+            | grep -E "/Xcode_${want//./\\.}(\.[0-9]+)*\.app$" | sort -V | tail -1)"
+          [[ -n "$xcode" ]] || { echo "No Xcode $want on this runner image." >&2; exit 1; }
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+
+      # Native AOT (full trimming): also fails on trim / AOT warnings from SkiaUi and checks that drawing works.
+      - name: Run memory leak tests (real handlers and platform views)
+        run: scripts/device_tests.sh -t maccatalyst --aot -o artifacts/device-tests/ci
+
+      - name: Upload device test logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: device-tests-maccatalyst
+          path: artifacts/device-tests/ci
+          if-no-files-found: ignore
 
   build-windows:
     name: Build library (Windows TFM)

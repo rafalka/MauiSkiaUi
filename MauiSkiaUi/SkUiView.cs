@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-using System.Reflection;
 using Microsoft.Maui.Layouts;
 using MauiSkiaUi.Rendering;
 using SkiaSharp;
@@ -459,15 +457,9 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
         OnPaintContent(canvas);
     }
 
-    bool ISkUiRenderable.HasOverlay => _paintOverlay is not null || PaintOverrides.For(GetType()).Overlay;
+    bool ISkUiRenderable.HasOverlay => _paintOverlay is not null;
 
-    void ISkUiRenderable.RecordOverlay(SKCanvas canvas)
-    {
-        if (_paintOverlay is { } paintOverlay)
-            paintOverlay(canvas);
-        else
-            OnPaintOverlay(canvas);
-    }
+    void ISkUiRenderable.RecordOverlay(SKCanvas canvas) => _paintOverlay?.Invoke(canvas);
 
     void ISkUiRenderable.GetRenderChildren(List<ISkUiRenderable> children) => AddRenderChildren(children);
 
@@ -554,9 +546,8 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
     }
 
     /// <summary>
-    /// Overlay-layer painter drawn after <see cref="OnPaintContent"/>. <c>null</c> means no overlay
-    /// unless a subclass overrides <see cref="OnPaintOverlay"/>.
-    /// Prefer this over subclassing for badges, press tints, and similar chrome.
+    /// Overlay-layer painter drawn after <see cref="OnPaintContent"/> and the children (badges, press tints, borders
+    /// over content); <c>null</c> (default) means no overlay layer. Subclasses set it too, e.g. in their constructor.
     /// </summary>
     public Action<SKCanvas>? PaintOverlay
     {
@@ -573,7 +564,7 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
         return this;
     }
 
-    /// <summary>Sets the Overlay painter; <c>null</c> falls back to <see cref="OnPaintOverlay"/>.</summary>
+    /// <summary>Sets the Overlay painter; <c>null</c> removes the overlay layer.</summary>
     public SkUiView SetPaintOverlay(Action<SKCanvas>? value)
     {
         if (ReferenceEquals(_paintOverlay, value)) return this;
@@ -627,12 +618,6 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
 
     /// <summary>Content paint phase (structural: glyphs, children, hosted content). Always virtual — not replaceable by a delegate.</summary>
     protected virtual void OnPaintContent(SKCanvas canvas) { }
-
-    /// <summary>
-    /// Overlay paint phase when <see cref="PaintOverlay"/> is unset (no-op by default).
-    /// Prefer <see cref="PaintOverlay"/> for new code; override this for subclass chrome that must stay virtual.
-    /// </summary>
-    protected virtual void OnPaintOverlay(SKCanvas canvas) { }
 
     /// <summary>Converts a MAUI color to its Skia RGBA representation.</summary>
     protected static SKColor ToSkColor(Color color) => new(
@@ -843,19 +828,4 @@ public enum SkUiAnimatableProperty
     ScaleX,
     /// <summary><see cref="VisualElement.ScaleY"/>.</summary>
     ScaleY
-}
-
-/// <summary>Caches which paint phases a type overrides, so empty phases skip recording.</summary>
-internal static class PaintOverrides
-{
-    private static readonly ConcurrentDictionary<Type, (bool Overlay, bool Content)> Cache = new();
-
-    internal static (bool Overlay, bool Content) For(Type type) => Cache.GetOrAdd(type, static t =>
-    {
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
-        bool Overrides(string name, Type baseType) =>
-            t.GetMethod(name, flags, [typeof(SKCanvas)])?.DeclaringType is { } declaring && declaring != baseType;
-        var baseType = typeof(SkUiView).IsAssignableFrom(t) ? typeof(SkUiView) : typeof(Core.SkUiCoreNode);
-        return (Overrides("OnPaintOverlay", baseType), Overrides("OnPaintContent", baseType));
-    });
 }

@@ -37,7 +37,8 @@ public class SkUiLook
     public virtual void DrawRadioButton(SKCanvas canvas, float size, bool isChecked, SKColor ring, SKColor dot) { … }
     public virtual void DrawActivityIndicator(SKCanvas canvas, float width, float height, float sweepStart, SKPaint paint) { … }
     public virtual void DrawRoundedBox(…) { … } // float radius and CornerRadius overloads
-    public virtual SKPath CreateRoundRectPath(…) { … } // uniform or per-corner
+    public virtual SKPath? CreateCustomRoundRectPath(SKRect bounds, CornerRadius radii) => null; // custom corner geometry (null = plain)
+    public SKPath CreateRoundRectPath(…) { … } // uniform or per-corner: custom geometry, else plain corners
     public virtual void DrawPressTint(…) { … }
     public virtual void DrawImage(…) { … }
 

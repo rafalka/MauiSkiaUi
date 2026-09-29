@@ -13,16 +13,18 @@ public class DefaultSkUiLook : SkUiLook
 
     /// <inheritdoc />
     /// <remarks>
-    /// Routes through the uniform-radius <c>CreateRoundRectPath</c> overload so subclasses that
-    /// customize that hook keep affecting buttons, switches, and other rounded chrome.
+    /// Plain circular corners draw with <c>DrawRoundRect</c> (no path); a look with
+    /// <see cref="SkUiLook.CreateCustomRoundRectPath"/> geometry draws that path instead, so it shapes buttons, switches
+    /// and other rounded chrome too.
     /// </remarks>
     protected override void DrawRoundedBoxCore(SKCanvas canvas, SKRect bounds, float radius, SKColor fill, SKColor border, float width)
     {
         var paint = Paint(fill);
         var strokeRadius = Math.Max(0, radius - width / 2);
-        if (!OverridesUniformPath)
+        using var path = CreateCustomRoundRectPath(bounds, new CornerRadius(radius));
+        if (path is null)
         {
-            // Fast path: no path allocation when the rounded-rect geometry hook is not customized.
+            // Plain corners: no path allocation.
             if (fill.Alpha != 0)
                 canvas.DrawRoundRect(bounds, radius, radius, paint);
             if (width <= 0 || border.Alpha == 0) return;
@@ -31,7 +33,6 @@ public class DefaultSkUiLook : SkUiLook
             canvas.DrawRoundRect(bounds, strokeRadius, strokeRadius, paint);
             return;
         }
-        using var path = CreateRoundRectPath(bounds, radius);
         canvas.DrawPath(path, paint);
         if (width <= 0) return;
         bounds.Inflate(-width / 2, -width / 2);
@@ -58,12 +59,6 @@ public class DefaultSkUiLook : SkUiLook
         paint.Style = SKPaintStyle.Stroke;
         paint.StrokeWidth = width;
     }
-
-    private bool? _overridesUniformPath;
-
-    /// <summary>Whether this look type customizes the uniform-radius <c>CreateRoundRectPath</c> hook.</summary>
-    private bool OverridesUniformPath => _overridesUniformPath ??=
-        GetType().GetMethod(nameof(CreateRoundRectPath), [typeof(SKRect), typeof(float)])?.DeclaringType != typeof(SkUiLook);
 
     /// <inheritdoc />
     protected override void DrawRoundedBoxCore(SKCanvas canvas, SKRect bounds, CornerRadius radii, SKColor fill, SKColor border, float width)

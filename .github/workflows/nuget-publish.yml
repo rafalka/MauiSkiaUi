@@ -4,22 +4,27 @@ name: NuGet publish
 # via Trusted Publishing (OIDC):
 #   https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
 # Uses GitHub Environment "nuget.org" (match this name in the nuget.org trusted policy).
+#
+# Versioning (docs/Releasing.md): run from master or devel and pick a bump. The workflow computes the version and
+# renames CHANGELOG.md's "## Unreleased" section to it, packs the result, then (after the nuget.org environment
+# gate) commits "Release <version>" with tag v<version> atomically, pushes the package and creates a GitHub release.
 
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: Package version (empty = Version from Directory.Build.props)
-        required: false
-        type: string
-        default: ""
+      bump:
+        description: >-
+          Version bump (docs/Releasing.md): prerelease (-PrereleaseNN+1), release (drop the prerelease suffix),
+          patch / minor / major, or none (publish the current version again, e.g. after a failed publish)
+        required: true
+        type: choice
+        options: [prerelease, release, patch, minor, major, none]
+        default: prerelease
       dry_run:
-        description: Pack only; do not push to nuget.org
+        description: Compute, pack and upload artifacts only; no commit, tag, push to nuget.org or GitHub release
         required: false
         type: boolean
         default: false
-  release:
-    types: [published]
 
 env:
   DOTNET_NOLOGO: true
@@ -27,59 +32,100 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
-  resolve-version:
-    name: Resolve version
+  prepare:
+    name: Prepare version
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.ver.outputs.version }}
+      ref: ${{ steps.ref.outputs.ref }}
       push: ${{ steps.ver.outputs.push }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Resolve version
+      - name: Compute version
         id: ver
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_VERSION: ${{ inputs.version }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          BUMP: ${{ inputs.bump }}
           DRY_RUN: ${{ inputs.dry_run }}
+          BRANCH: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "release" ]]; then
-            VERSION="${RELEASE_TAG#v}"
-            PUSH=true
-          else
-            VERSION="${INPUT_VERSION:-}"
-            if [[ -z "$VERSION" ]]; then
-              VERSION="$(sed -n 's/^[[:space:]]*<Version>\([^<]*\)<\/Version>/\1/p' Directory.Build.props | head -1)"
+          [[ "$REF_TYPE" == branch ]] || { echo "Run this workflow from a branch (master or devel)." >&2; exit 1; }
+          VERSION="$(python3 scripts/release_version.py next --bump "$BUMP" --branch "$BRANCH")"
+          PUSH=true
+          [[ "$DRY_RUN" == true ]] && PUSH=false
+          # A version is published once (nuget.org rejects re-pushes). Only a listing that names the version counts;
+          # if nuget.org cannot be asked, warn and let the push itself refuse a duplicate.
+          code="$(curl -sS -o nuget-index.json -w '%{http_code}' "https://api.nuget.org/v3-flatcontainer/skiaui.maui/index.json" || echo 000)"
+          if [[ "$code" == 200 ]]; then
+            if python3 -c "import json,sys; sys.exit(0 if sys.argv[1].lower() in json.load(open('nuget-index.json')).get('versions', []) else 1)" "$VERSION"; then
+              if [[ "$PUSH" == true ]]; then echo "$VERSION is already on nuget.org." >&2; exit 1; fi
+              echo "::warning::$VERSION is already on nuget.org (dry run continues)"
             fi
-            if [[ "${DRY_RUN:-false}" == "true" ]]; then
-              PUSH=false
-            else
-              PUSH=true
-            fi
+          elif [[ "$code" != 404 ]]; then
+            echo "::warning::Could not check nuget.org for $VERSION (HTTP $code)"
           fi
-          if [[ -z "$VERSION" ]]; then
-            echo "Version is empty (provide an input or set <Version> in Directory.Build.props)" >&2
-            exit 1
+          tag_exists=false
+          git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null && tag_exists=true
+          if [[ "$BUMP" == none && "$tag_exists" != true ]]; then
+            echo "bump=none republishes a released version, but tag v$VERSION does not exist." >&2; exit 1
           fi
-          if [[ ! "$VERSION" =~ ^[A-Za-z0-9._+-]+$ ]]; then
-            echo "Invalid version: $VERSION" >&2
-            exit 1
+          if [[ "$BUMP" != none && "$tag_exists" == true ]]; then
+            echo "Tag v$VERSION already exists." >&2; exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "push=$PUSH" >> "$GITHUB_OUTPUT"
-          echo "Publishing Version=$VERSION (push=$PUSH)"
+          echo "Releasing $VERSION from $BRANCH (bump=$BUMP, push=$PUSH)"
+
+      - name: Check out the release tag (bump=none)
+        if: inputs.bump == 'none'
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          # Republish exactly what was released, even if the branch moved on since.
+          git fetch --depth=1 origin "refs/tags/v$VERSION:refs/tags/v$VERSION"
+          git checkout --detach "v$VERSION"
+
+      - name: Apply version (Directory.Build.props, CHANGELOG.md)
+        if: inputs.bump != 'none'
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: python3 scripts/release_version.py apply --version "$VERSION"
+
+      - name: Build commit
+        id: ref
+        # The dispatch commit plus the release files below (bump=none: the release tag's commit). Nothing is
+        # committed or pushed here: the publish job does that after the nuget.org environment gate.
+        run: echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release files
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-files
+          path: |
+            CHANGELOG.md
+            Directory.Build.props
 
   pack-apple:
     name: Pack (macOS TFMs)
-    needs: resolve-version
+    needs: prepare
     runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Release files (version, changelog)
+        uses: actions/download-artifact@v7
+        with:
+          name: release-files
+          path: .
 
       - name: Setup .NET MAUI
         uses: ./.github/actions/setup-dotnet-maui
@@ -94,7 +140,7 @@ jobs:
 
       - name: Extract release notes
         env:
-          PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+          PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -102,7 +148,7 @@ jobs:
 
       - name: Pack
         env:
-          PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+          PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -129,11 +175,19 @@ jobs:
 
   pack-windows:
     name: Pack (Windows TFM)
-    needs: resolve-version
+    needs: prepare
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Release files (version, changelog)
+        uses: actions/download-artifact@v7
+        with:
+          name: release-files
+          path: .
 
       - name: Setup .NET MAUI
         uses: ./.github/actions/setup-dotnet-maui
@@ -143,7 +197,7 @@ jobs:
 
       - name: Extract release notes
         env:
-          PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+          PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -151,7 +205,7 @@ jobs:
 
       - name: Pack Windows TFM
         env:
-          PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+          PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
@@ -176,16 +230,24 @@ jobs:
 
   publish:
     name: Merge and publish
-    needs: [resolve-version, pack-apple, pack-windows]
+    needs: [prepare, pack-apple, pack-windows]
     runs-on: ubuntu-24.04
     environment: nuget.org
     permissions:
-      contents: read
+      contents: write
       id-token: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Release files (version, changelog)
+        uses: actions/download-artifact@v7
+        with:
+          name: release-files
+          path: .
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v5
@@ -243,20 +305,37 @@ jobs:
       - name: Upload NuGet packages
         uses: actions/upload-artifact@v6
         with:
-          name: nuget-packages-${{ needs.resolve-version.outputs.version }}
+          name: nuget-packages-${{ needs.prepare.outputs.version }}
           path: |
             artifacts/nuget/*.nupkg
             artifacts/nuget/*.snupkg
 
+      # After the environment gate, before anything is published: the release commit (the dispatch commit plus the
+      # files the packages were built with) and its tag, pushed atomically. If the branch moved since the dispatch
+      # the push is rejected, and nothing is published or tagged.
+      - name: Commit and tag the release
+        if: needs.prepare.outputs.push == 'true' && inputs.bump != 'none'
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          BRANCH: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release $VERSION"
+          git tag -a "v$VERSION" -m "SkiaUi.Maui $VERSION"
+          git push --atomic origin "HEAD:refs/heads/$BRANCH" "refs/tags/v$VERSION"
+
       - name: NuGet login (OIDC → temporary API key)
-        if: needs.resolve-version.outputs.push == 'true'
+        if: needs.prepare.outputs.push == 'true'
         uses: NuGet/login@v1
         id: nuget-login
         with:
           user: ${{ secrets.NUGET_USER }}
 
       - name: Push to nuget.org
-        if: needs.resolve-version.outputs.push == 'true'
+        if: needs.prepare.outputs.push == 'true'
         env:
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
@@ -266,10 +345,27 @@ jobs:
             echo "Pushing $pkg"
             dotnet nuget push "$pkg" \
               --api-key "$NUGET_API_KEY" \
-              --source https://api.nuget.org/v3/index.json \
-              --skip-duplicate
+              --source https://api.nuget.org/v3/index.json
           done
 
+      - name: GitHub release
+        if: needs.prepare.outputs.push == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/extract-release-notes.py "$VERSION" CHANGELOG.md artifacts/release-notes.txt
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "Release v$VERSION exists"
+            exit 0
+          fi
+          flags=()
+          [[ "$VERSION" == *-* ]] && flags+=(--prerelease)
+          gh release create "v$VERSION" --verify-tag --title "SkiaUi.Maui $VERSION" \
+            --notes-file artifacts/release-notes.txt "${flags[@]}" artifacts/nuget/*.nupkg
+
       - name: Dry run notice
-        if: needs.resolve-version.outputs.push != 'true'
+        if: needs.prepare.outputs.push != 'true'
         run: echo "Dry run — packages were packed and uploaded as artifacts only."

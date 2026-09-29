@@ -12,22 +12,44 @@ internal static class SkUiTestHelpers
         view.Arrange(new Rect(0, 0, width, height));
     }
 
+    private static readonly Dictionary<string, int> FontUsers = [];
+
     /// <summary>
     /// Registers the Roboto Mono TTF copied next to the test assembly. Linux CI agents often have no
     /// usable system fonts, so Skia <c>FromFamilyName</c> measures as empty without a registered face.
+    /// Reference-counted per family: test classes run in parallel, and one test's dispose must not unregister the
+    /// family while another test is measuring with it.
     /// </summary>
     public static IDisposable UseBundledFont(string familyName = BundledFontFamily)
     {
         var fontPath = Path.Combine(AppContext.BaseDirectory, "Assets", "RobotoMono-Regular.ttf");
         if (!File.Exists(fontPath))
             throw new FileNotFoundException($"Bundled test font missing at '{fontPath}'.");
-        SkUiFonts.Register(familyName, () => File.OpenRead(fontPath));
+        lock (FontUsers)
+        {
+            var users = FontUsers.GetValueOrDefault(familyName);
+            if (users == 0)
+                SkUiFonts.Register(familyName, () => File.OpenRead(fontPath));
+            FontUsers[familyName] = users + 1;
+        }
         return new FontRegistration(familyName);
     }
 
     private sealed class FontRegistration(string familyName) : IDisposable
     {
-        public void Dispose() => SkUiFonts.Unregister(familyName);
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            lock (FontUsers)
+            {
+                if (_disposed)
+                    return;
+                _disposed = true;
+                if (--FontUsers[familyName] == 0)
+                    SkUiFonts.Unregister(familyName);
+            }
+        }
     }
 }
 

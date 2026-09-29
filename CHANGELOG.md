@@ -2,7 +2,17 @@
 
 Release notes for the NuGet package **SkiaUi.Maui**.
 
-Pack and publish workflows copy the body under `## <version>` into the package `PackageReleaseNotes` field. nuget.org shows that text on the package page. The heading must match `Version` in [Directory.Build.props](Directory.Build.props) exactly (newest section first). A link back to this file is appended when the notes are extracted.
+Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) renames that section to the new version, and the pack workflows copy a version's section into the package `PackageReleaseNotes` field shown on nuget.org, with a link back to this file. Newest section first; headings are exactly `## <version>`.
+
+## Unreleased
+
+- **Trimming and Native AOT:** the library is marked trimmable and AOT-compatible, with the trim / AOT analyzers failing its build (MAUI switches the trim analyzer off by default; the library opts back in). It no longer uses reflection. Verified with the device tests on iOS and Mac Catalyst Native AOT and on fully trimmed Android. Android Native AOT (experimental in .NET 10): GPU surfaces work; software surfaces fail in SkiaSharp's `SKCanvasView`.
+  - **Breaking:** `SkUiView.OnPaintOverlay` is removed; paint overlays with `PaintOverlay` / `SetPaintOverlay` (as on Core nodes and as documented). The virtual existed only for subclasses and was found by reflection.
+  - **Breaking:** custom rounded-rect geometry overrides `SkUiLook.CreateCustomRoundRectPath` (returns `null` for plain corners); `CreateRoundRectPath` is no longer virtual. The default look draws plain corners without a path, as before, now without reflection.
+
+- **Memory leak tests** ([Testing.md](docs/design/Testing.md#memory-leak-tests)): 13 scenarios that exercise controls before closing them (clicks, re-layout, flings, gestures, animations, native overlays, surface switches), checked headless in CI and on devices with real handlers and platform views (`tests/MauiSkiaUi.DeviceTests`, `scripts/device_tests.sh`).
+  - **Fixed, iOS / Mac Catalyst:** software surfaces (`HwAccelerated = false`) leaked their handler and SkiaSharp view after the page closed. Their gesture recognizers were never removed, and the gate's delegate held its view: a cycle that the view's native retain kept rooted.
+  - **Fixed:** focusing a native overlay while its snapshot was shown (e.g. just after a scroll, before the restore delay) left the native view hidden; it is now restored at once. On iOS, the field that became first responder while hidden also stayed retained after its page closed.
 
 ## 1.0.0-Prerelease04
 

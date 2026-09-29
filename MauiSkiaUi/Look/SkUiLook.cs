@@ -46,17 +46,30 @@ public class SkUiLook
     /// <summary>Optional per-corner rounded-box painter.</summary>
     public Action<SKCanvas, SKRect, CornerRadius, SKColor, SKColor, float>? RoundedBoxCornersPainter { get; set; }
 
-    /// <summary>Builds a rounded-rect path with a uniform corner radius for fill/border/clip.</summary>
-    public virtual SKPath CreateRoundRectPath(SKRect bounds, float radius) =>
+    /// <summary>
+    /// Custom rounded-rect geometry for fills, borders and clips (e.g. squircle corners), or <c>null</c> (default) for
+    /// plain circular corners, which looks draw with Skia's round-rect primitives (no path). Override this to change
+    /// the shape of every rounded control; <see cref="CreateRoundRectPath(SKRect, CornerRadius)"/> uses it.
+    /// </summary>
+    /// <remarks>Corner order matches MAUI <see cref="CornerRadius"/>: top-left, top-right, bottom-left, bottom-right.</remarks>
+    public virtual SKPath? CreateCustomRoundRectPath(SKRect bounds, CornerRadius radii) => null;
+
+    /// <summary>Rounded-rect path with a uniform corner radius for fill/border/clip (see <see cref="CreateCustomRoundRectPath"/>).</summary>
+    public SKPath CreateRoundRectPath(SKRect bounds, float radius) =>
         CreateRoundRectPath(bounds, new CornerRadius(radius));
 
-    /// <summary>Builds a rounded-rect path with independent corner radii for fill/border/clip.</summary>
+    /// <summary>
+    /// Rounded-rect path with independent corner radii for fill/border/clip: the look's
+    /// <see cref="CreateCustomRoundRectPath"/> geometry, else plain circular corners.
+    /// </summary>
     /// <remarks>
     /// Corner order matches MAUI <see cref="CornerRadius"/>: top-left, top-right, bottom-left, bottom-right.
     /// Skia’s rect-radii order is TL, TR, BR, BL; this method remaps accordingly.
     /// </remarks>
-    public virtual SKPath CreateRoundRectPath(SKRect bounds, CornerRadius radii)
+    public SKPath CreateRoundRectPath(SKRect bounds, CornerRadius radii)
     {
+        if (CreateCustomRoundRectPath(bounds, radii) is { } custom)
+            return custom;
         var tl = (float)Math.Max(0, radii.TopLeft);
         var tr = (float)Math.Max(0, radii.TopRight);
         var bl = (float)Math.Max(0, radii.BottomLeft);

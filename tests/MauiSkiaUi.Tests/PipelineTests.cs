@@ -437,7 +437,7 @@ public class PipelineTests
     }
 
     [Fact]
-    public void PaintVirtualBackgroundAndOverlayRunWhenDelegatesUnset()
+    public void PaintVirtualBackgroundRunsWhenDelegateUnsetAndNoOverlayWithoutADelegate()
     {
         var calls = new List<string>();
         var probe = new VirtualPaintProbe(calls);
@@ -445,7 +445,7 @@ public class PipelineTests
         using var bitmap = new SKBitmap(40, 40);
         using var canvas = new SKCanvas(bitmap);
         probe.Paint(canvas);
-        Assert.Equal(["virtual-background", "content", "virtual-overlay"], calls);
+        Assert.Equal(["virtual-background", "content"], calls);
     }
 
     [Fact]
@@ -707,7 +707,6 @@ public class PipelineTests
         private readonly List<string> _calls;
         protected override void OnPaintBackground(SKCanvas canvas) => _calls.Add("virtual-background");
         protected override void OnPaintContent(SKCanvas canvas) => _calls.Add("content");
-        protected override void OnPaintOverlay(SKCanvas canvas) => _calls.Add("virtual-overlay");
     }
 
     [Fact]
