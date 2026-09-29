@@ -25,7 +25,8 @@ public static class LeakScenarios
     public static IReadOnlyList<LeakScenario> All { get; } =
     [
         new("ButtonsClicked", Controls, "Buttons with a long-lived command, clicked twice each, disabled and re-enabled, a cancelled press; an image button.", () => new ButtonsRun()),
-        new("TogglesTapped", Controls, "Switch, check box and a radio group, each tapped several times.", () => new TogglesRun()),
+        new("TogglesTapped", Controls, "Switch, check boxes (one three-state) and a radio group, each tapped several times.", () => new TogglesRun()),
+        new("SlidersAndProgress", Controls, "Horizontal, vertical and Core sliders dragged and tapped; progress bars animating and indeterminate at close.", () => new SlidersRun()),
         new("LabelsReshaped", Controls, "Wrapped, truncated, RTL, Arabic, emoji and Simple / Shaped labels; text and width changed repeatedly.", () => new LabelsRun()),
         new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed.", () => new ImagesRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute layout and border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
@@ -114,6 +115,7 @@ public static class LeakScenarios
             var stack = new SkUiVerticalStackLayout { Spacing = 10, Padding = new Thickness(12) };
             _toggles.Add(new SkUiSwitch { HeightRequest = 32, WidthRequest = 56 });
             _toggles.Add(new SkUiCheckBox { HeightRequest = 32, WidthRequest = 32 });
+            _toggles.Add(new SkUiCheckBox { HeightRequest = 32, WidthRequest = 32, IsThreeState = true, CheckState = SkUiCheckState.Indeterminate });
             for (var index = 0; index < 3; index++)
                 _toggles.Add(new SkUiRadioButton { GroupName = "leak-radio", HeightRequest = 32, WidthRequest = 32 });
             foreach (var toggle in _toggles)
@@ -242,6 +244,61 @@ public static class LeakScenarios
             var failed = _images.Where(image => !image.LoadingTask.IsCompletedSuccessfully || image.LoadError is not null || image.IsLoading).ToList();
             return failed.Count == 0 ? null : $"{failed.Count} image(s) did not load: {failed[0].LoadError?.Message ?? "still loading"}.";
         }
+    }
+
+    private sealed class SlidersRun : LeakScenarioRun
+    {
+        private SkUiSlider? _horizontal;
+        private SkUiSlider? _vertical;
+        private SkUiCoreSlider? _core;
+        private SkUiProgressBar? _bar;
+        private int _changes;
+        private int _drags;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _horizontal = new SkUiSlider { Maximum = 100, HeightRequest = 40, DragCompletedCommand = LeakCommands.Shared };
+            _vertical = new SkUiSlider { Orientation = StackOrientation.Vertical, HeightRequest = 160, HorizontalOptions = LayoutOptions.Start };
+            _horizontal.ValueChanged += (_, _) => _changes++;
+            _vertical.ValueChanged += (_, _) => _changes++;
+            _horizontal.DragCompleted += (_, _) => _drags++;
+            _core = new SkUiCoreSlider();
+            _core.SetHeight(40);
+            _core.ValueChanged += (_, _) => _changes++;
+            _bar = new SkUiProgressBar { HeightRequest = 8 };
+            var indeterminate = new SkUiProgressBar { IsIndeterminate = true, HeightRequest = 8 };
+            var coreBar = new SkUiCoreProgressBar();
+            coreBar.SetIsIndeterminate(true).SetHeight(8);
+            var coreStack = new SkUiCoreVerticalStackLayout().SetSpacing(8);
+            coreStack.Add(_core);
+            coreStack.Add(coreBar);
+            var host = new SkUiCoreHost { HeightRequest = 60 };
+            host.SetContent(coreStack);
+            return Root(new SkUiVerticalStackLayout
+            {
+                Spacing = 12, Padding = new Thickness(12),
+                Children = { _horizontal, _vertical, _bar, indeterminate, host }
+            });
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.DragAsync(_horizontal!, 80, 0, durationMs: 200);
+            await context.TapAsync(_horizontal!);
+            await context.DragAsync(_vertical!, 0, -50, durationMs: 200);
+            await context.DragAsync(_core!, 60, 0, durationMs: 200);
+            await context.WaitForAsync(_bar!.ProgressTo(0.5, 200));
+            _ = _bar.ProgressTo(1, 5000); // still animating when the page closes
+            await context.WaitAsync(200);
+            // A drag still in progress when the page closes.
+            await context.DragAsync(_horizontal!, -40, 0, release: false);
+        }
+
+        public override string? CheckInteraction() =>
+            _changes < 4 ? $"{_changes} slider value changes, expected at least 4."
+            : _drags < 1 ? "No slider drag completed."
+            : _bar!.Progress < 0.49 ? $"ProgressTo did not run (progress {_bar.Progress:F2})."
+            : null;
     }
 
     // ---- Layouts ----------------------------------------------------------------------------------------------

@@ -6,11 +6,25 @@ Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs
 
 ## Unreleased
 
+- **Three-state toggles:** `CheckState` (`SkUiCheckState`: Unchecked / Checked / Indeterminate) and `IsThreeState` on check boxes, switches and radio buttons, SkUi* and Core. `IsChecked` stays as the two-state view for MAUI parity; `CheckStateChanged` is new.
+  - **Fixed:** a tap now writes back to the bindable `IsChecked` / `CheckState` (two-way by default), so bindings see user changes; before, a tap changed only the drawn state.
+  - **Breaking:** `SkUiLook.DrawSwitch` / `DrawCheckBox` / `DrawRadioButton`, their `*Core` overrides and painter delegates take `SkUiCheckState` instead of `bool`.
+- **`SkUiSlider` / `SkUiCoreSlider`:** MAUI's Slider API plus `Orientation` (vertical sliders). Drags along the slider claim through the gesture arena, so drags across it still scroll the page; taps jump to the tapped value. Drawn by `SkUiLook.DrawSlider`.
+- **`SkUiProgressBar` / `SkUiCoreProgressBar`:** MAUI's ProgressBar API (`Progress`, `ProgressColor`, `ProgressTo`) plus `TrackColor` and `IsIndeterminate`, whose moving segment runs on the render thread. Drawn by `SkUiLook.DrawProgressBar`.
+- **Label chrome:** `SkUiLabel` / `SkUiCoreLabel` get per-corner `CornerRadii` (MAUI's `CornerRadius` type, as on `SkUiBorder`), `CornerRadius` (an `int` that sets all four corners, as MAUI Button's property), `BorderColor` and `BorderWidth` (the Core label also `FillColor`), moved down from the buttons, so a badge, chip or tab is one label instead of a label inside a border. Buttons inherit them, so they get per-corner radii too. Square labels without a border draw as before.
+  - **Breaking:** `SkUiButton.CornerRadius` / `SkUiCoreButton.CornerRadius` and `SetCornerRadius` are `int` (were `double`), matching MAUI's `Button`; set fractional radii with `CornerRadii` / `SetCornerRadii`.
+- **Review fixes:**
+  - Toggles: `IsChecked = false` clears Indeterminate; change events and `ValueChanged` run after the bindable properties (and their bindings) are updated.
+  - Slider: the requested `Value` is kept and comes back when the range widens, as in MAUI 10 (XAML order `Value` before `Minimum` / `Maximum` no longer loses it).
+  - ProgressBar: `ProgressTo` completes with `false` when its animation is stopped (e.g. the page closed) instead of never completing, pauses while the bar is detached and continues once it is attached (also when called before the bar was added); `Progress` NaN becomes 0.
+  - A view that gets a drawn parent now hands its local animation clock over (clients rebind first) before the rest stops.
+- **Fixed:** an `SkUiAnimationClock` callback that disposed another animation, or called `StopAll`, during a tick skipped animations or threw `ArgumentOutOfRangeException` inside the frame callback.
+
 - **Trimming and Native AOT:** the library is marked trimmable and AOT-compatible, with the trim / AOT analyzers failing its build (MAUI switches the trim analyzer off by default; the library opts back in). It no longer uses reflection. Verified with the device tests on iOS and Mac Catalyst Native AOT and on fully trimmed Android. Android Native AOT (experimental in .NET 10): GPU surfaces work; software surfaces fail in SkiaSharp's `SKCanvasView`.
   - **Breaking:** `SkUiView.OnPaintOverlay` is removed; paint overlays with `PaintOverlay` / `SetPaintOverlay` (as on Core nodes and as documented). The virtual existed only for subclasses and was found by reflection.
   - **Breaking:** custom rounded-rect geometry overrides `SkUiLook.CreateCustomRoundRectPath` (returns `null` for plain corners); `CreateRoundRectPath` is no longer virtual. The default look draws plain corners without a path, as before, now without reflection.
 
-- **Memory leak tests** ([Testing.md](docs/design/Testing.md#memory-leak-tests)): 13 scenarios that exercise controls before closing them (clicks, re-layout, flings, gestures, animations, native overlays, surface switches), checked headless in CI and on devices with real handlers and platform views (`tests/MauiSkiaUi.DeviceTests`, `scripts/device_tests.sh`).
+- **Memory leak tests** ([Testing.md](docs/design/Testing.md#memory-leak-tests)): 14 scenarios that exercise controls before closing them (clicks, re-layout, flings, gestures, animations, native overlays, surface switches), checked headless in CI and on devices with real handlers and platform views (`tests/MauiSkiaUi.DeviceTests`, `scripts/device_tests.sh`).
   - **Fixed, iOS / Mac Catalyst:** software surfaces (`HwAccelerated = false`) leaked their handler and SkiaSharp view after the page closed. Their gesture recognizers were never removed, and the gate's delegate held its view: a cycle that the view's native retain kept rooted.
   - **Fixed:** focusing a native overlay while its snapshot was shown (e.g. just after a scroll, before the restore delay) left the native view hidden; it is now restored at once. On iOS, the field that became first responder while hidden also stayed retained after its page closed.
 

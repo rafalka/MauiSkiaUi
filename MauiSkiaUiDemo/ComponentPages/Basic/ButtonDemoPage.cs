@@ -21,7 +21,7 @@ public sealed class ButtonDemoPage : ComponentDemoPage
         skia.TextColor = Colors.White;
         Text(nameof(SkUiButton.Text), "Add observation", value => { skia.Text = value; native.Text = value; }, () => skia.Text, () => native.Text);
         Number(nameof(SkUiButton.FontSize), 10, 30, 16, value => { skia.FontSize = value; native.FontSize = value; }, () => skia.FontSize, () => native.FontSize);
-        Number(nameof(SkUiButton.CornerRadius), 0, 30, 6, value => { skia.CornerRadius = value; native.CornerRadius = (int)Math.Round(value); }, () => skia.CornerRadius);
+        Number(nameof(SkUiButton.CornerRadius), 0, 30, 6, value => { skia.CornerRadius = (int)Math.Round(value); native.CornerRadius = (int)Math.Round(value); }, () => skia.CornerRadius, () => native.CornerRadius, whole: true);
         Number(nameof(SkUiButton.BorderWidth), 0, 8, 1, value => { skia.BorderWidth = value; native.BorderWidth = value; }, () => skia.BorderWidth, () => native.BorderWidth);
         ColorEditor(nameof(SkUiButton.FillColor), Accent, value => { skia.FillColor = value; native.Background = value; }, () => skia.FillColor, () => ((SolidColorBrush)native.Background).Color);
         ColorEditor(nameof(SkUiButton.BorderColor), Ink, value => { skia.BorderColor = value; native.BorderColor = value; }, () => skia.BorderColor, () => native.BorderColor);

@@ -5,6 +5,8 @@ public sealed class SkUiAnimationClock
 {
     private readonly List<RunningAnimation> _animations = [];
     private TimeSpan _frameTime;
+    private bool _ticking;
+    private bool _removedDuringTick;
 
     internal TimeSpan FrameTime => _frameTime;
 
@@ -12,16 +14,35 @@ public sealed class SkUiAnimationClock
     public event EventHandler? RunningChanged;
 
     /// <summary>True while at least one animation requires frames.</summary>
-    public bool IsRunning => _animations.Count > 0;
+    public bool IsRunning
+    {
+        get
+        {
+            if (!_removedDuringTick)
+                return _animations.Count > 0;
+            foreach (var animation in _animations)
+                if (!animation.IsDisposed)
+                    return true;
+            return false;
+        }
+    }
 
     /// <summary>Starts a progress callback. Dispose the returned handle to cancel it.</summary>
-    public IDisposable Start(Action<double> apply, TimeSpan duration, Easing? easing = null, bool repeat = false)
+    public IDisposable Start(Action<double> apply, TimeSpan duration, Easing? easing = null, bool repeat = false) =>
+        Start(apply, duration, easing, repeat, stopped: null);
+
+    /// <summary>
+    /// <see cref="Start(Action{double}, TimeSpan, Easing?, bool)"/> with <paramref name="stopped"/>, run once when the
+    /// animation is stopped before it finished: its handle disposed, or <see cref="StopAll"/> (e.g. the handler
+    /// disconnected). Not run when it finishes.
+    /// </summary>
+    internal IDisposable Start(Action<double> apply, TimeSpan duration, Easing? easing, bool repeat, Action? stopped)
     {
         ArgumentNullException.ThrowIfNull(apply);
         if (duration <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(duration));
         var wasRunning = IsRunning;
-        var animation = new RunningAnimation(this, apply, duration, easing ?? Easing.Linear, repeat, _frameTime);
+        var animation = new RunningAnimation(this, apply, duration, easing ?? Easing.Linear, repeat, _frameTime, stopped);
         _animations.Add(animation);
         apply(0);
         if (!wasRunning)
@@ -33,28 +54,42 @@ public sealed class SkUiAnimationClock
     /// Advances all active animations; tests may supply deterministic frame times.
     /// Allocation-free: does not snapshot the animator list. Only animations that existed when
     /// the tick began are advanced (callbacks started mid-tick wait for the next frame).
+    /// Callbacks may dispose any animation (their own included) or call <see cref="StopAll"/>: removals during a
+    /// tick only mark the entry, and the list is compacted after the loop, so no animation is skipped or indexed
+    /// out of range.
     /// </summary>
     public void Tick(TimeSpan elapsed)
     {
         if (elapsed < _frameTime)
             throw new ArgumentOutOfRangeException(nameof(elapsed), "Frame time must be monotonic.");
         _frameTime = elapsed;
-        // Bound to the count at tick start so Start() from Apply does not double-invoke at progress 0.
-        var endExclusive = _animations.Count;
-        var index = 0;
-        while (index < endExclusive)
+        var wasRunning = IsRunning;
+        _ticking = true;
+        try
         {
-            var animation = _animations[index];
-            var progress = (elapsed - animation.Started).TotalMilliseconds / animation.Duration.TotalMilliseconds;
-            animation.Apply(animation.Easing.Ease(animation.Repeat ? progress % 1 : Math.Min(progress, 1)));
-            if (!animation.Repeat && progress >= 1)
+            // Bound to the count at tick start so Start() from Apply does not double-invoke at progress 0.
+            var endExclusive = _animations.Count;
+            for (var index = 0; index < endExclusive; index++)
             {
-                // Dispose removes this entry; keep index and shrink the original-prefix bound.
-                animation.Dispose();
-                endExclusive--;
-                continue;
+                var animation = _animations[index];
+                if (animation.IsDisposed)
+                    continue;
+                var progress = (elapsed - animation.Started).TotalMilliseconds / animation.Duration.TotalMilliseconds;
+                animation.Apply(animation.Easing.Ease(animation.Repeat ? progress % 1 : Math.Min(progress, 1)));
+                if (!animation.Repeat && progress >= 1)
+                    animation.Remove(finished: true);
             }
-            index++;
+        }
+        finally
+        {
+            _ticking = false;
+            if (_removedDuringTick)
+            {
+                _removedDuringTick = false;
+                _animations.RemoveAll(static animation => animation.IsDisposed);
+                if (wasRunning && _animations.Count == 0)
+                    RunningChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
     }
 
@@ -64,24 +99,38 @@ public sealed class SkUiAnimationClock
     {
         if (!IsRunning)
             return;
-        // Dispose each handle so callers holding Start() disposables can rebind cleanly.
-        while (_animations.Count > 0)
-            _animations[^1].Dispose();
+        // Dispose each handle so callers holding Start() disposables can rebind cleanly. Mid-tick this only marks
+        // them (Tick compacts afterwards).
+        for (var index = _animations.Count - 1; index >= 0 && index < _animations.Count; index--)
+            _animations[index].Dispose();
     }
 
     private sealed class RunningAnimation(
-        SkUiAnimationClock owner, Action<double> apply, TimeSpan duration, Easing easing, bool repeat, TimeSpan started) : IDisposable
+        SkUiAnimationClock owner, Action<double> apply, TimeSpan duration, Easing easing, bool repeat, TimeSpan started, Action? stopped) : IDisposable
     {
         internal Action<double> Apply { get; } = apply;
         internal TimeSpan Duration { get; } = duration;
         internal Easing Easing { get; } = easing;
         internal bool Repeat { get; } = repeat;
         internal TimeSpan Started { get; } = started;
+        internal bool IsDisposed { get; private set; }
 
-        public void Dispose()
+        public void Dispose() => Remove(finished: false);
+
+        internal void Remove(bool finished)
         {
-            if (owner._animations.Remove(this) && !owner.IsRunning)
+            if (IsDisposed)
+                return;
+            IsDisposed = true;
+            if (owner._ticking)
+            {
+                // Mid-tick: Tick compacts the list (and raises RunningChanged) after its loop.
+                owner._removedDuringTick = true;
+            }
+            else if (owner._animations.Remove(this) && owner._animations.Count == 0)
                 owner.RunningChanged?.Invoke(owner, EventArgs.Empty);
+            if (!finished)
+                stopped?.Invoke();
         }
     }
 }

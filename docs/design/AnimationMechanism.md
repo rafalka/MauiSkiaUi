@@ -20,7 +20,7 @@ The clock must integrate with root invalidation: continuous frames **only while*
 
 | Topic | Choice |
 | --- | --- |
-| Frame source | **Display vsync** via root `HasRenderLoop` (or SW invalidate equivalent) while animators run — **not** a fixed `Timer(1000/60)` |
+| Frame source | **Display vsync** while animations run — **not** a fixed `Timer(1000/60)`. Today: the render thread's vsync for composite animations, a UI vsync ticker for `SkUiAnimationClock` ([RenderingPipeline.md](RenderingPipeline.md#animation-tiers)); the original `HasRenderLoop` design below is historical |
 | “60 fps” meaning | Target **display-smooth** motion; nominal budget ~16.7 ms on 60 Hz. Prefer **time-based** interpolation so 90/120 Hz devices stay correct (and still look smooth) |
 | Primary animation class | **Paint + render-transform** (cheap). Layout animation is **opt-in / later** |
 | Clock ownership | **Standalone SkUi root** owns animator registry + render-loop on/off |
@@ -44,7 +44,7 @@ The clock must integrate with root invalidation: continuous frames **only while*
 | **Avalonia** | Composition / property animations | **RenderTransform** = fast, no re-layout | **LayoutTransform** = siblings adjust; animating it recalculates layout each frame | Split **render** vs **layout** transforms explicitly ([docs](https://docs.avaloniaui.net/docs/graphics-animation/render-vs-layout-transforms)) |
 | **OpenMaui / general mobile** | Choreographer / vsync frame budget | Redraw dirty content each vsync | Layout only when needed | Do not hardcode 16.67 ms timers; sync to refresh |
 
-### Verdict: best mechanism for SkiaUi
+### Verdict: best mechanism for SkiaUi (original design; `HasRenderLoop` steps superseded)
 
 Use a **root-owned, vsync-driven animator clock** that:
 
@@ -215,13 +215,13 @@ These create a registered animator, apply via direct setters, complete when fini
 | Frame-count `progress += 1/60` | **No** | Speeds up on 120 Hz; freezes wrong on drops |
 | Hard cap at 60 Hz presents | Optional later | Battery vs smoothness tradeoff |
 
-**Decided for SkiaUi:** vsync-driven loop + time-based animation math. Marketing “60 fps” = **smooth on 60 Hz class devices** with a ~16.7 ms frame budget — not a software metronome.
+**Decided for SkiaUi:** vsync-driven frames + time-based animation math (render thread for composite animations, UI vsync ticker for clock callbacks — no `HasRenderLoop`). Marketing “60 fps” = **smooth on 60 Hz class devices** with a ~16.7 ms frame budget — not a software metronome.
 
 ### Open decision (Requirements) — resolved here
 
 > Should a HW-accelerated root set `HasRenderLoop = true` whenever any descendant has an active animation? When the last animation ends, turn it off?
 
-**Yes.** Active animator count on the surface-owning root toggles the loop. Paint may full-walk each frame in v1; measure/arrange only if layout-dirty. Sibling `Picture`/`Image` cache only if profiling shows static regions dominating (DrawingMechanism).
+**Superseded.** Frames are requested only while animations run: the render thread ticks composite animations and stops when none remain; the root `SkUiAnimationClock` runs its UI ticker only while it has animations. Unchanged nodes replay their retained pictures ([RenderingPipeline.md](RenderingPipeline.md)).
 
 ## Invalidation rules
 
@@ -252,7 +252,6 @@ Honor platform “reduce motion” when available (MAUI / OS setting): shorten o
 
 ## Out of scope (v1)
 
-- Full Avalonia-style composition-thread animations (no separate render thread compositor).
 - Lottie / Skottie as the core property system (optional control later via SkiaSharp Skottie).
 - Physics/spring graph as default (nice DrawnUi extras; add after basics).
 - Animating MAUI parents outside the SkiaUi island.
@@ -262,24 +261,24 @@ Honor platform “reduce motion” when available (MAUI / OS setting): shorten o
 
 ### Clock and registry
 
-- [ ] Animator registry on standalone root (thread-affinity: UI thread).
-- [ ] `Register` / `Unregister`; `ActiveAnimatorCount`; toggle `HasRenderLoop` (GL) or continuous invalidate (SW).
-- [ ] Pass `frameTimeNanos` (or high-res elapsed) into tick before paint.
-- [ ] Auto-disable loop when count hits 0; dispose/unregister on node detach.
+- [x] Animator registry on standalone root (thread-affinity: UI thread): the root's `SkUiAnimationClock` (hosted nodes share it).
+- [x] `Register` / `Unregister`; `ActiveAnimatorCount`; toggle continuous frames: `Start` returns a disposable handle, `IsRunning` / `RunningChanged`, the UI ticker runs only while animations exist (no `HasRenderLoop`).
+- [x] Pass `frameTimeNanos` (or high-res elapsed) into tick before paint.
+- [x] Auto-disable loop when count hits 0; dispose/unregister on node detach.
 
 ### Tier 1 — Paint
 
-- [ ] Animate `Opacity` and at least one color property via helpers + direct setters.
-- [ ] Paint-only invalidation; no measure dirty.
+- [ ] Animate `Opacity` and at least one color property via helpers + direct setters. *(Partial: `AnimateAsync(Opacity, …)` on the render thread; colors only through `SkUiAnimationClock` callbacks, no color helper.)*
+- [x] Paint-only invalidation; no measure dirty.
 - [ ] Demo: pulsing opacity / color under `SkUiContentView`.
 
 ### Tier 2 — Render transforms
 
-- [ ] Bindable + direct setters: `TranslationX/Y`, `Rotation`, `ScaleX/Y`, `AnchorX/Y`.
-- [ ] Build `SKMatrix` in paint; identity fast path.
-- [ ] Inverse matrix in hit-test when transform non-identity.
-- [ ] Transform changes never set measure dirty.
-- [ ] Demo: translate / rotate / scale animation without layout thrash.
+- [ ] Bindable + direct setters: `TranslationX/Y`, `Rotation`, `ScaleX/Y`, `AnchorX/Y`. *(Partial: MAUI bindables on `SkUi*`, fluent setters on Core nodes; no direct setters on `SkUiView`.)*
+- [x] Build `SKMatrix` in paint; identity fast path.
+- [x] Inverse matrix in hit-test when transform non-identity.
+- [x] Transform changes never set measure dirty.
+- [x] Demo: translate / rotate / scale animation without layout thrash (Primitives page).
 
 ### Tier 3 — Layout (optional)
 
@@ -289,10 +288,10 @@ Honor platform “reduce motion” when available (MAUI / OS setting): shorten o
 
 ### API polish
 
-- [ ] XML docs on public animation types and transform semantics (render vs layout).
-- [ ] Easing reuse (`Microsoft.Maui.Easing`) or documented equivalent.
+- [x] XML docs on public animation types and transform semantics (render vs layout).
+- [x] Easing reuse (`Microsoft.Maui.Easing`) or documented equivalent.
 - [ ] Reduced-motion / `SystemEnabled` behavior documented.
-- [ ] Cross-link FR-7 in Requirements as designed here; mark demo item when shipped.
+- [x] Cross-link FR-7 in Requirements as designed here; mark demo item when shipped.
 
 ## Tracking
 

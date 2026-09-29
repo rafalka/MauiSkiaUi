@@ -42,7 +42,7 @@ public class SkUiCoreRadioButton : SkUiCoreToggleControl
     }
 
     /// <summary>A tap only selects (never unchecks), matching MAUI RadioButton.</summary>
-    protected override void OnToggled() => SetIsChecked(true);
+    protected override void OnToggled() => SetCheckState(SkUiCheckState.Checked);
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
@@ -52,11 +52,11 @@ public class SkUiCoreRadioButton : SkUiCoreToggleControl
     protected override void OnPaintContent(SKCanvas canvas)
     {
         var size = (float)Math.Min(Frame.Width, Frame.Height);
-        var ringColor = IsChecked ? _color : SkUiColors.Muted;
+        var ringColor = CheckState != SkUiCheckState.Unchecked ? _color : SkUiColors.Muted;
         // RTL: the glyph sits at the start (right) edge; the glyph itself is not mirrored.
         var rtlSave = canvas.Save();
         if (IsRightToLeft) canvas.Translate((float)(Frame.Width) - size, 0);
-        SkUiLook.Current.DrawRadioButton(canvas, size, IsChecked, ToSkColor(ringColor), ToSkColor(_color));
+        SkUiLook.Current.DrawRadioButton(canvas, size, CheckState, ToSkColor(ringColor), ToSkColor(_color));
         canvas.RestoreToCount(rtlSave);
     }
 }

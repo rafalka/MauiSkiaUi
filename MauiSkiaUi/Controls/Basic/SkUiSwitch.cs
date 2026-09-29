@@ -33,7 +33,13 @@ public class SkUiSwitch : SkUiToggleControl
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        var trackColor = IsChecked ? _onColor : SkUiColors.TrackOff;
+        var trackColor = CheckState switch
+        {
+            SkUiCheckState.Checked => _onColor,
+            // Indeterminate: halfway between off and on.
+            SkUiCheckState.Indeterminate => SkUiColors.Mix(SkUiColors.TrackOff, _onColor),
+            _ => SkUiColors.TrackOff
+        };
         var thumbColor = _thumbColor;
         if (!IsEnabled)
         {
@@ -46,7 +52,7 @@ public class SkUiSwitch : SkUiToggleControl
         SkUiLook.Current.DrawSwitch(
             canvas,
             new SKRect(0, 0, (float)Width, (float)Height),
-            IsChecked,
+            CheckState,
             ToSkColor(trackColor),
             ToSkColor(thumbColor));
         canvas.RestoreToCount(rtlSave);

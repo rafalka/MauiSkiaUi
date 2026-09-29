@@ -113,15 +113,15 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
     {
         base.OnParentSet();
         // A local clock is only valid while this node is the top of its SkiaUi subtree. Once a
-        // Skia parent appears, abandon it so descendants re-register on the shared ancestor clock.
-        if (SkiaParent is not null && _animationClock is not null)
-        {
-            _animationClock.StopAll();
+        // Skia parent appears, abandon it so descendants re-register on the shared ancestor clock:
+        // clients rebind first (OnAnimationRootChanged), then whatever is left on the local clock stops.
+        var abandoned = SkiaParent is not null ? _animationClock : null;
+        if (abandoned is not null)
             _animationClock = null;
-        }
         // When this node is detached, descendants still have it as Parent — pass subtreeDetached so
         // they stop clocks instead of rebinding onto an orphan mid-tree clock.
         NotifyAnimationRootChanged(subtreeDetached: Parent is null);
+        abandoned?.StopAll();
         // Detached from a drawn parent: its retained pictures are released by the compositor, so a later
         // attach must record this subtree from scratch.
         if (SkiaParent is null && _renderState is not null)

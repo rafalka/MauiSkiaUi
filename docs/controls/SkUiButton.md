@@ -6,7 +6,7 @@ Drawn text button with intrinsic tap, command, rounded chrome, and visual states
 
 ## How it works
 
-Extends [`SkUiLabel`](SkUiLabel.md). Background uses shared `SkUiChrome` rounded rect; content is clipped to the same path. `HandlesTap` is true. `Command.CanExecute` gates eligibility and Disabled visual state.
+Extends [`SkUiLabel`](SkUiLabel.md). Background uses the shared `SkUiLook.Current` rounded rect; content is clipped to the same path. `HandlesTap` is true. `Command.CanExecute` gates eligibility and Disabled visual state.
 
 
 ## Shared conventions
@@ -29,7 +29,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-Inherits Label text APIs. Adds `Command`, `CommandParameter`, `Clicked`, `CornerRadius`, `FillColor`, `BorderColor`, `BorderWidth`.
+Inherits Label text APIs and its rounded chrome: per-corner `CornerRadii`, and `CornerRadius` as in MAUI (an `int` that sets all four corners; use `CornerRadii` for fractional radii), both defaulting to the look's `DefaultButtonCornerRadius`; `BorderColor`, `BorderWidth`. Adds `Command`, `CommandParameter`, `Clicked`, `FillColor`.
 
 ## Differences from MAUI Button
 

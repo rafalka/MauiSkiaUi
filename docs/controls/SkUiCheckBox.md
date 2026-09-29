@@ -6,7 +6,7 @@ Square checkbox with check mark when selected.
 
 ## How it works
 
-Extends [`SkUiToggleControl`](SkUiToggleControl.md). Tap toggles `IsChecked`. Intrinsic measure comes from `SkUiLook.Current.DefaultCheckBoxSize` (default 24×24 DIPs). Box/checkmark drawn via `SkUiLook.Current.DrawCheckBox` (same path as `SkUiCoreCheckBox`).
+Extends [`SkUiToggleControl`](SkUiToggleControl.md). Tap toggles; with `IsThreeState` it also reaches Indeterminate (drawn as a dash), which apps also set to show a partly checked group. Intrinsic measure comes from `SkUiLook.Current.DefaultCheckBoxSize` (default 24×24 DIPs). Box/checkmark drawn via `SkUiLook.Current.DrawCheckBox` (same path as `SkUiCoreCheckBox`).
 
 
 ## Shared conventions
@@ -24,11 +24,12 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ```xml
 <sk:SkUiCheckBox IsChecked="True" Color="#087F83" />
+<sk:SkUiCheckBox CheckState="{Binding AllSelected}" IsThreeState="True" />
 ```
 
 ## Key properties
 
-`IsChecked`, `CheckedChanged`, `Color`.
+`CheckState`, `IsChecked`, `IsThreeState`, `CheckStateChanged`, `CheckedChanged`, `Color`.
 
 ## Differences from MAUI CheckBox
 
@@ -36,6 +37,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | --- | --- |
 | Label text | None — compose with [`SkUiLabel`](SkUiLabel.md) in a stack |
 | Color model | Single `Color` for checked chrome |
+| Three states | `CheckState` / `IsThreeState` (MAUI has two) |
 | Gestures | Intrinsic SkiaUi tap |
 
 ## Related

@@ -1,189 +1,125 @@
-# SkiaUi architecture review (2026-09-25)
+# SkiaUi architecture review (2026-09-29)
 
-## Implementation status (same day)
+Re-review of the implementation against the previous review (2026-09-25), checked in the code rather than the docs. Goal unchanged: the fastest and most flexible Skia-drawn UI for MAUI.
 
-| Review item | Status |
-| --- | --- |
-| 1.1 Android paint off the UI thread | **Fixed by design**: UI thread records; the GL thread only composites retained pictures ([RenderingPipeline.md](RenderingPipeline.md)) |
-| 1.2 iOS on OpenGL ES | **Done**: Metal render thread (`SkUiMetalView` / `SkUiMetalRenderLoop`); offscreen blit removed |
-| 1.3 O(N × depth) invalidation | **Done**: marks stop at the first marked ancestor; arrange marks props only |
-| 1.4 Core arrange cache | **Fixed** |
-| 1.5 Text | **Done**: shared `SkUiTextLayout`, cached typefaces / fonts, HarfBuzz shaping, bidi (UAX #9 implicit levels), per-character font fallback, shaped line breaking cached as text blobs |
-| 1.6 Paint allocations | **Done** for view background / opacity / look chrome (and recording now happens only on content change) |
-| 1.7 Clip on every node | **Done**: `ClipToBounds` opt-in for layouts |
-| 1.8 Images / fonts / Core transforms | **Done**: downsampled decode, `ConfigureFonts` fallback, thread-safe font registry, Core opacity / transforms. Multi-pointer native touch done; gesture arena open |
-| 2.1 Core as engine | **Partial**: one render pipeline (`ISkUiRenderable`) and one text engine for both layers; full `SkUi*`-over-Core facades still open |
-| 2.2 Surfaces + threading | **Done** (NFR-6) |
-| 2.3 Phased pipeline | **Partial**: coalesced record/commit + render phases; relayout boundaries / layout pass cap open |
-| 2.4 Retained paint | **Done**: per-node pictures, composite-time props; raster cache of stable subtrees open |
-| 2.5 Text shaping / RTL | **Done** (HarfBuzz via `SkiaSharp.HarfBuzz`; explicit bidi embeddings / isolates not interpreted). RTL layout mirroring via `FlowDirection` also done ([LayoutSystem.md](LayoutSystem.md#right-to-left-flowdirection)) |
-| 2.6 Gesture arena | **Done**:
-  - **Arena:** per pointer, for SkUi* and Core, with tap / double tap / long press / pan / swipe / pinch / pointer recognizers and a press delay when contested.
-  - **Nested scrolling:** axis-aware, with chaining.
-  - **Native coordination:** Android disallow-intercept; iOS gate recognizer.
-  - **`SkUiCoreScrollView`** on a shared scroll engine.
-  - See [EventMechanism.md](EventMechanism.md). |
-| 2.7 Virtualization | Requirements recorded (FR-21 virtual stack layout, FR-22 `SkUiCollectionView`); not implemented |
-| 2.8 Overlay masks | Open |
-| 2.9 Visual tree / diagnostics | **Done**:
-  - **Core in the tree:** Core nodes are `IVisualTreeElement`s, reachable through `SkUiCoreHost`, and report adds and removes to `VisualDiagnostics`. The check is cached; Release builds trim it away.
-  - **SkUi\* children:** already visible as MAUI logical children.
-  - **`SkUiDiagnostics`:** root and window bounds, hit-testing and `SimulateTap` for drawn elements.
-  - **Core `AutomationId`.**
-  - **DevFlow extension:** `dev.skiaui` in the demo ([Testing.md](Testing.md#drawn-elements-devskiaui-extension)).
-  - **Not possible from outside MAUI:** IDE "select element in running app" and adorners still resolve to the SkiaUi surface, because they need platform views (internal MAUI APIs). |
+**Resolved since the previous review** (removed from this document):
+- **Rendering:** retained compositor with UI-thread recording and render-thread compositing (Metal on Apple, GL thread on Android), per-node pictures and composite-time properties, opt-in clipping.
+- **Text:** shared engine with HarfBuzz shaping, bidi and font fallback; resource caching on the hot paths; downsampled image decode; thread-safe fonts with `ConfigureFonts`.
+- **Core and input:** Core opacity / transforms and arrange cache; per-pointer gesture arena with nested scrolling and native coordination.
+- **Diagnostics and requirements:** Core nodes in the Live Visual Tree; threading (NFR-6) and shadows (FR-20) recorded as requirements; stale checkboxes fixed.
 
+**Summary.** The engine work the previous review asked for is done; the remaining risks are breadth and a few structural costs:
+- the two layers still have duplicate control implementations, which are drifting apart;
+- layout invalidation still walks to the root and re-records ancestors;
+- there is no raster cache;
+- virtualization, accessibility and look-driven state animations are missing.
 
-Review of the PRDs in this folder and the `MauiSkiaUi` implementation, compared against local checkouts of .NET MAUI, DrawnUi, Flutter, Avalonia, Uno Platform, and Open-Maui (see [`.cursor/rules/reference-sources.mdc`](../../.cursor/rules/reference-sources.mdc)). Goal: the fastest and most flexible Skia-drawn UI for MAUI.
+## 1. Open from the previous review
 
-**Summary.** The foundation is sound. The strongest design decisions are the two layers (MAUI-compatible `SkUi*` plus the lightweight Core layer), keeping MAUI's layout rules, and hosting native controls as overlays. To be the fastest option, three things are missing:
+| Item | Status | Notes |
+| --- | --- | --- |
+| Invalidation cost (old 1.3) | Partial | Render marks stop early; **measure** invalidation still walks to the root with no early-out and marks every ancestor's content dirty (N5) |
+| Core as the engine, SkUi\* as facades (2.1) | Partial | Shared: render pipeline, text engine, gesture arena, scroll engine, look. Duplicated: two node bases and every control pair — already diverging (N3, N4, N13). See §4 |
+| Phased pipeline: relayout boundaries (2.3) | Open | No relayout boundaries; MAUI drives layout, so no pass cap is needed |
+| Raster cache of stable subtrees (2.4) | Open | Every animated frame replays the whole tree (N7) |
+| Virtualization (2.7) | Open | FR-21 / FR-22 recorded; readiness gaps in §4 |
+| Masked native overlays (2.8) | Open | Overlays clip to rectangles only; drawn content can't cover them |
+| `ITicker` / reduce motion (2.9) | Open | Own `SkUiUiTicker`; the OS reduce-motion setting is not honored |
+| Accessibility, keyboard focus, OS font scaling | Open | No semantics tree; drawn UI is invisible to TalkBack / VoiceOver (N8) |
+| Enforced performance budget | Open | `PerformanceTests` logs numbers for the immediate painter, not the retained record / commit path |
+| Drawn `SkUiEntry` with an IME proxy | Decided against | FR-16: host native text input; revisit only if overlays block a real need |
+| Core as a separate assembly (FR-C1) | Open, re-decide | Core now uses MAUI Controls types (`IVisualElementController` for flow direction) |
+| Features (old §4) | Open | CollectionView, accessibility, spans / `FormattedText`, brushes and effects (non-solid `Background` is ignored), SwipeView / RefreshView / Carousel / Expander / Stepper / Picker, spring physics, SVG / Lottie, an on-screen diagnostics overlay, stored golden images. Slider and ProgressBar are now shipped |
 
-- a threading model;
-- retained paint caching with cheap invalidation;
-- a single shared engine. Today `SkUi*` and Core each have their own paint, touch, invalidation, and animation code.
+## 2. New findings
 
-## 1. Implementation problems
+Ordered by severity. File references are to the code at the time of the review.
 
-Ordered by severity.
+| # | Severity | Finding | Direction |
+| --- | --- | --- | --- |
+| N1 | High — **fixed** | `SkUiAnimationClock.Tick` indexed its list while callbacks could dispose animations or call `StopAll`: skipped animations or `ArgumentOutOfRangeException` inside the frame callback (app crash) | Fixed: removals during a tick are tombstoned and compacted after the loop (`AnimationClockTests`) |
+| N2 | Medium | A press on a disabled node (or a button whose command can't execute) is swallowed with an empty arena, so ancestor scrollers never join: a list of disabled buttons can't be scrolled from them (`SkUiPointerRouter`) | A disabled node blocks only its own recognizers; still collect ancestors' exclusive ones (scroll, pan) |
+| N3 | Medium | A disabled Core button lets taps through to what is underneath (`SkUiCoreButton.HasIntrinsicTap => CanExecuteCommand`); `SkUiButton` blocks | Give Core `IsEnabled` / `InputTransparent` and one blocking rule for both layers |
+| N4 | Medium | Core stacks and content views ignore child alignment (only absolute, grid and host call `AlignInSlot`), although Core promises MAUI `ComputeFrame` behavior | Align in every Core container; SkUi-vs-Core parity test |
+| N5 | Medium | `InvalidateMeasure` walks to the root without an early-out, and each level calls `InvalidatePaint`: every ancestor re-records its picture (e.g. `SkUiCoreTable` redraws all track backgrounds on a cell text change) | Propagate layout without content dirtiness (size changes already re-record); stop at measure-dirty parents; relayout boundaries (§4) |
+| N6 | Medium | Swapping `SkUiLook.Current` / `SkUiColorScheme.Current` leaves retained pictures stale (nothing listens to `CurrentChanged`), and some controls snapshot scheme colors at construction | Surface roots weakly subscribe and invalidate their subtree; resolve defaults at paint time ("not explicitly set"); hook `RequestedThemeChanged` |
+| N7 | Medium | Any running render-thread animation (a 36-DIP spinner, an indeterminate bar) re-composites the whole surface at display rate | Raster-cache stable siblings (§4) |
+| N8 | Medium | No OS font scaling (`FontAutoScalingEnabled`), no semantics tree, no keyboard focus / activation | Accessibility work (§4) |
+| N9 | Medium | No shared image cache: every instance re-loads and re-decodes the same source and holds several copies of the encoded bytes; duplicated between SkUi\* and Core | One loader + decoded-image cache keyed by source and decode size, shared by both layers; needed before virtualization |
+| N10 | Low–Medium | Android overlays allocate `Rect` Java peers per offset report and look overlays up with LINQ per child; clip computation walks ancestors per ancestor (O(depth²)) | Reuse rectangles, key overlays by clip view, one ancestor walk |
+| N11 | Low | Fling stop test ignores direction (a flick inward from an edge stops at once); `maxX` / `maxY` are frozen at fling start | Direction-aware stop; live extent updates (also needed by FR-21) |
+| N12 | Low | `NotifyMoved` walks whole subtrees on every offset change even without overlays | Gate on a "subtree has overlays" counter |
+| N13 | Low | SkUi vs Core drift: button padding defaults, corner radius resolution, Core label without `FontAttributes`, Core without `IsEnabled` / anchor / `ScaleX`/`ScaleY`, some SkUi setters without equality early-outs | Shared defaults and parity tests |
+| N14 | Low | Per-label native objects (`SKPaint`, an `SKFont` per fallback typeface) freed by finalizers | Share fonts by (typeface, size); one recording paint |
+| N15 | Low (unverified) | Single-entry line cache: text measured at several widths in one pass re-shapes | Two-entry width cache |
+| N16 | Low | Hidden subtrees' descendants still record on change; hit-testing ignores rounded `ChildrenClipPath` | Skip hidden subtrees; honor the clip path in hit-testing |
+| N17 | Low (unverified) | One Apple render thread for all surfaces (`NextDrawable` can block the others); no GPU-cache purge on memory warnings / trim-memory | Measure with several surfaces; purge on memory pressure |
+| N18 | — | Test gaps: no record / commit budgets, no concurrent commit / render / dispose stress, no SkUi-vs-Core pixel parity matrix; global statics force serialized test collections | Add as the areas are touched |
 
-1. **Paint likely runs off the UI thread on Android (verify first).**
-   - MAUI's `SKGLView` on Android is a `SKGLTextureView`, which draws on its own `GLThread`.
-   - That means [`SkUiViewHandler.PaintSurface`](../../MauiSkiaUi/SkUiViewHandler.cs) walks the whole tree on the GL thread while the UI thread mutates it.
-   - Under `HasRenderLoop` it also ticks animations there, so setters and `PropertyChanged` fire off the UI thread.
-   - `SkUiFrameRenderer._gate` is not thread-safe.
-2. **iOS uses deprecated OpenGL ES.**
-   - SkiaSharp's MAUI `SKGLView` on iOS is backed by `GLKView`; the assembly itself carries the warning "Use 'Metal' instead".
-   - The "ghost strokes" that led to the full-frame offscreen compose plus Src blit (`SkUiFrameRenderer.ReplayViaOpaqueBlit`) are most likely a GLKView artifact.
-   - That workaround costs an extra full-screen copy every frame.
-   - DrawnUi (`SKMetalViewRetained`) and Uno (`UnoSKMetalView`) both use `MTKView` with Metal.
-3. **Invalidation walks the whole ancestor chain every time.**
-   - `InvalidatePaint` / `FlushInvalidation` in `SkUiView` and `SkUiCoreNode` walk up to the root and raise an event at each level, even when the path is already dirty.
-   - Every arrange also calls `InvalidatePaint`.
-   - So the first layout of N nodes costs O(N × depth) just in propagation.
-4. **Core arrange cache almost never hits.** `SkUiCoreNode.Arrange` compares the incoming `bounds` against `_frame`, but `_frame` is the margin-deflated, explicit-size-capped rect. Any node with a margin or explicit size therefore re-arranges its whole subtree on every parent arrange.
-5. **Text costs a lot on every measure and paint.**
-   - Every measure and paint calls `SKTypeface.FromFamilyName` and creates and disposes an `SKFont`.
-   - `SkUiLabel` word wrap is O(n²): it re-measures the growing substring for each grapheme.
-   - There is no shaping (HarfBuzz), so complex scripts, RTL, ligatures, and emoji fallback are wrong.
-   - The label logic is duplicated between the MAUI and Core layers; FR-C6 is not done.
-6. **Allocations in the paint path, which NFR-2 forbids.**
-   - A new `SKPaint` is created on every paint for opacity and for the default background (`SkUiView`).
-   - `DefaultSkUiLook` allocates a paint and a path for every rounded rectangle.
-7. **Every node clips to its bounds** (`SkUiView.Paint`). This costs on every node and makes shadows, focus rings, and press-scale overflow impossible. Clipping should be opt-in, like MAUI `IsClippedToBounds`.
-8. **Smaller issues:**
-   - Images decode at full source resolution, not display size.
-   - `SkUiFonts` is not thread-safe and needs manual registration; MAUI's `IFontRegistrar.GetFont` could resolve `ConfigureFonts` aliases instead.
-   - Core has no opacity or transforms.
-   - Touch handles a single pointer, with no nested-scroll arbitration.
-   - `SkUiScrollView` records the whole content extent into one `SKPicture`, which does not scale to long content.
+## 3. Comparison with other Skia-in-MAUI options
 
-## 2. Recommended architectural changes
+Only **DrawnUi** solves the same problem (Uno and Avalonia can't be hosted inside a MAUI page; Open-Maui is a CPU Linux backend; MAUI `GraphicsView` is not Skia).
 
-1. **Core as the engine, `SkUi*` as thin facades.** Each `SkUi*` owns a Core node (FR-C6, generalized), so hit-testing, paint, invalidation, and the clock exist once. Measured: Core is 12–52× faster, and the per-node MAUI `View` is the dominant cost.
-2. **Own the platform surfaces and define a threading model.**
-   - The UI thread records a frame (`SKPicture`); a render thread replays it (Uno's `FramePicture`). This removes the Android race by design.
-   - Apple: Metal (`MTKView`, paused and driven by a display link).
-   - Android: a GL `TextureView`/`SurfaceView` that only renders when dirty.
-3. **Phased frame pipeline** (Flutter): animate → layout → paint → semantics, all on one vsync tick.
-   - Dirty lists sorted by depth.
-   - Idempotent dirty marking that stops at the first node already dirty.
-   - Relayout boundaries: a tight or fixed-size child stops measure propagation.
-   - A layout pass cap, as in Avalonia (`MaxPasses = 10`).
-4. **Retained paint at repaint boundaries.**
-   - Keep an `SKPicture` per boundary node.
-   - Apply opacity, transform, and clip at composite time, so animating them never re-records.
-   - Collapse subtrees that have been stable for N frames (Uno).
-   - Raster-cache with a per-frame budget (Flutter: 3 stable frames, at most 3 new entries per frame).
-   - Generalize the ad-hoc `SkUiScrollView` picture cache into this.
-5. **Hot-path resource caching.**
-   - Pool paints; cache typefaces and fonts; cache `SKTextBlob`s per line.
-   - Shape text with HarfBuzz.
-   - Paint-only text changes must not re-run line breaking (Flutter `RenderComparison`).
-6. **Gesture arena.**
-   - Hit-test once per pointer-down.
-   - Recognizers compete for the gesture using movement thresholds.
-   - Multi-pointer support and nested-scroll handoff.
-   - Android: `RequestDisallowInterceptTouchEvent`. iOS: handle `TouchesCancelled`.
-7. **Sliver-style virtualization.**
-   - O(1) fixed-extent indexing.
-   - For variable sizes: estimate, then correct with scroll anchoring.
-   - Recycle views by recycle key.
-   - A cache extent beyond the viewport, plus keep-alive.
-8. **Masked native overlays** (Uno): a z-ordered `SKPath` turned into a `CAShapeLayer` mask, so Skia content can draw over native views and overlays can be clipped.
-9. **Use MAUI services:**
-   - `ITicker` for pacing and reduce-motion;
-   - `IFontRegistrar` for fonts;
-   - `IVisualTreeElement` / `VisualDiagnostics` so drawn nodes show up in Live Visual Tree.
-     - **SkUi\*:** these views were already MAUI logical children (and so visual tree children).
-     - **Core:** nodes were invisible to tools; they are now visual tree elements too.
-     - **Remaining gap:** tools locate and tap elements through their platform views, which drawn elements lack. `SkUiDiagnostics` fills that gap for automation and tests (see the status table).
+| | **SkiaUi** | **DrawnUi** |
+| --- | --- | --- |
+| Node cost | Light Core nodes, plus MAUI-View SkUi\* controls | Every node is a `VisualElement` |
+| Layout | MAUI layout managers (drop-in parity) | Own system |
+| Rendering | Retained per-node pictures, render-thread compositing and animation; no raster cache yet | Rich, hand-tuned cache types |
+| GPU | Metal, GL thread, ANGLE | Metal, GL thread, ANGLE |
+| Text | HarfBuzz, bidi, fallback; no spans yet | HarfBuzz, spans |
+| Controls | ~20 per layer | ~70 |
+| Virtualization / accessibility | Not yet | Yes / Windows only |
+| Quality | ~16k LOC, headless suite, leak tests on devices, AOT-clean | ~132k LOC, few tests |
 
-## 3. PRD review
+**Verdict:** the engine now has the speed foundations. The gap to DrawnUi is breadth (lists, containers, effects) plus accessibility, not architecture — provided the structural items below land before the control count grows further.
 
-- **Stale checkboxes:** FR-3a, FR-14, the DrawingMechanism checklist, and the ScrollView v1 checklist are unchecked, but Development.md and ImplementationPlan.md say they are done. DrawingMechanism.md has a duplicated `## Architecture` heading.
-- **Missing requirements:**
-  - threading model;
-  - accessibility;
-  - text shaping, RTL, and bidi;
-  - keyboard focus and tab order;
-  - shadows (added as FR-20);
-  - a per-scenario performance budget (frame ms, allocations per frame) enforced by `PerformanceTests`.
-- **FR-16, "no `SkUiEntry`":** DrawnUi, Uno, and Avalonia all draw their text box and route IME through an invisible native field. Native overlays break under transforms, clipping, and scroll snapshots. Recommendation:
-  - keep overlays for WebView and media;
-  - plan a drawn `SkUiEntry` with a hidden IME proxy for v2.
-- **CoreRequirements:** FR-C1 (separate assembly) and FR-C6 (shared paint and measure) are the architectural keystone and should come before new controls.
+## 4. Recommendations
 
-## 4. Suggested new features
+**SkUi\*-over-Core (old 2.1).** Don't wrap a Core node in every SkUi\* (double node memory, and the `BindableObject` cost stays). Instead:
+- Keep extracting layer-agnostic engines, as done for text, scrolling, the slider and progress drawing: toggles, button chrome, the image loader.
+- Factor the duplicated node mechanics (measure cache, invalidation flags, render properties, alignment) into one internal helper used by both node bases.
+- Gate it with a parity test matrix.
 
-Ordered by value.
+**Relayout boundaries (2.3).** A node whose size can't change stops upward propagation and re-arranges only its own subtree: explicit width and height, tightly constrained by its parent, or re-measured in place with an unchanged size. Remove the ancestor `InvalidatePaint` first (N5).
 
-1. Virtualized `SkUiCollectionView`: fixed-extent path, estimate plus anchoring, grouping, sticky headers.
-2. Accessibility: a semantics tree mapped to `ExploreByTouchHelper` (Android) and `UIAccessibilityElement` (iOS). DrawnUi has neither on mobile, so this would be a differentiator.
-3. Drawn `SkUiEntry` / `SkUiEditor` with a hidden IME proxy.
-4. HarfBuzz shaping, RTL, and spans / FormattedText.
-5. Brushes and effects: gradients (only solid colors today), shadows (FR-20), blur, `SKRuntimeEffect` shaders.
-6. Slider, ProgressBar, Stepper, Picker, SwipeView, RefreshView, CarouselView, Expander.
-7. Spring and fling physics simulations; `FadeTo`/`TranslateTo`-style async helpers.
-8. SVG and Lottie (Skottie).
-9. Diagnostics overlay: FPS, dirty regions, cache hits.
-10. Golden-image rendering tests.
+**Raster cache (2.4).** Render thread only (needs the GPU context), in stages:
+1. An opt-in cache hint on a node.
+2. Automatic caching: subtrees stable for 3+ frames while only composite properties animate, at most ~3 new entries per frame, with a byte budget.
+3. Invalidation from the compositor's update pass.
+4. Dropped on context loss.
 
-## 5. Comparison with other Skia-in-MAUI options
+The spinner and fling cases (N7) are the benchmark.
 
-Only **DrawnUi** solves the same problem.
+**Virtualization readiness (FR-21 / FR-22).**
+- **Already fits:** composite-time offsets, culling, per-item render nodes, dirty-path recording.
+- **Close first:**
+  - realize items from the fling's predicted target offset, since UI-side offsets arrive late;
+  - recycle without reparenting, which today resets and re-records the subtree;
+  - keep item re-measure local to the list (a relayout boundary) and correct the scroll anchor;
+  - live extent updates for the fling (N11);
+  - the shared image cache (N9).
 
-- **Open-Maui** is a Linux MAUI backend that draws everything on the CPU.
-- **Uno** and **Avalonia** are full frameworks with Skia renderers; their drawn trees cannot be hosted inside a MAUI page.
-- **MAUI `GraphicsView`** is not Skia (CoreGraphics on the CPU on iOS).
+**Overlay masks (2.8).** The practical need is drawn popups over hosted controls and rounded clipping.
+- Compute each overlay's occluding region from higher-z drawn nodes that opt in, plus ancestor clip paths.
+- Apply it as a mask: `CAShapeLayer` on iOS, a path clip on Android, a geometric clip on Windows.
+- Fall back to the snapshot mode while an occluder overlaps.
 
-| | **SkiaUi** | **DrawnUi** | **Raw `SKCanvasView` / GraphicsView** | **Open-Maui** |
-| --- | --- | --- | --- | --- |
-| Node cost | Light Core nodes, plus MAUI-View facades | Every node is a `VisualElement` | n/a (draw everything yourself) | Heavy |
-| Layout | MAUI layout managers (drop-in parity) | Own system | none | Reimplemented, no measure cache |
-| Size | ~9.4k LOC, readable | ~132k LOC, god-classes | tiny | ~82k LOC |
-| GPU | GL; GLKView on iOS | Metal on iOS, GL thread on Android, ANGLE on Windows | varies | CPU only |
-| Caching | Full redraw; ScrollView picture only | Rich cache types, but hand-tuned and fragile | manual | none |
-| Controls | ~20 | ~70 (Shell, markdown, Lottie, SVG, shaders, drawn editor) | none | ~55 handlers |
-| Virtualization | none | yes, with many knobs | none | index cache, no recycling |
-| Text | no shaping | HarfBuzz, spans | manual | no shaping |
-| Accessibility | none | Windows only | none | stub |
-| Docs / tests | strong PRDs, headless tests | docs, few tests | n/a | weak |
+**Accessibility.**
+- Build a semantics tree during recording (own dirty flag), from MAUI `SemanticProperties` / `AutomationProperties` on SkUi\* and a semantics API on Core.
+- Expose it through `ExploreByTouchHelper` (Android), accessibility elements on the surface view (iOS) and an automation peer (Windows). Reuse the router's hit-testing and `SkUiDiagnostics.SimulateTap` for bounds and actions.
+- Add OS font scaling, desktop keyboard focus / activation and reduce-motion.
 
-**SkiaUi strengths:**
+## State-change animations
 
-- MAUI layout and XAML parity, which makes it a true drop-in.
-- Core nodes are about an order of magnitude cheaper than DrawnUi's `VisualElement` nodes.
-- The codebase is small enough to optimize thoroughly.
-- Look, color scheme, and style are cleanly separated.
-- Design is documented and tests run headless.
+Requirement FR-26 (switch, check box and radio transitions, press ripple, slider / progress motion, configurable by `SkUiLook`). Today looks are stateless painters called while a picture is recorded, and render-thread animation covers only composite properties, `ContentSpinPeriod` and `ContentSlidePeriod`. Animating a thumb or a check mark means changing *what* is drawn, which needs:
 
-**SkiaUi weaknesses:**
+1. **Looks draw from continuous parameters.** A visual-state input: from / to state, progress 0–1, press progress, ripple origin and radius. The look also describes each transition, e.g. `GetTransition(kind, from, to) → (duration, easing)`, with zero meaning none (so looks can turn effects off, and reduce-motion forces zero). The current signatures become the progress = 1 case; the paint structs used by the slider and progress bar are the pattern.
+2. **Per-control animation state in the control.** A small animator (target, current progress, handle) that reverses from its current position when interrupted. The logical state changes at once, so bindings and events are unaffected; the look stays global and stateless.
+3. **Version 1: UI-thread clock, re-recording the one node per frame.** Cheap for 150–250 ms micro-animations and testable with a deterministic tick, once N5 stops re-recording ancestors. Needed N1's fix, which is done.
+4. **Version 2: render-thread, for smoothness under UI load.** Two options:
+   - split the moving parts (thumb, check glyph, ripple) into child render nodes animated with composite-time tweens, with color changes as cross-fades between two pictures;
+   - render-thread painters: a node kind whose pure, thread-safe painter runs per frame with an immutable parameter snapshot, instead of a fixed picture.
+5. **Press position for ripples.** The tap recognizer reports pressed / released but not the point. Draw the ripple in the overlay layer, clipped with the control's rounded path.
+6. **One timeline per transition.** The UI clock and the render clock are different timelines; mixing both in one transition would drift.
 
-- Far fewer controls, and no virtualization.
-- No drawn text input, text shaping, RTL, or accessibility.
-- iOS runs on deprecated GL, and the Android paint thread is likely unsafe.
-- No general retained cache.
-- Single-pointer gestures only.
-- Still prerelease.
-
-**Verdict:** SkiaUi can beat DrawnUi on raw speed and predictability, because it has lighter nodes and needs no per-control cache tuning. That depends on changes 2.1–2.4 above, not on adding features.
+Recommendation: decide between version 1 and the child-node variant of version 2 with a spike on the switch and a button ripple, measured on a device. Do it before adding more controls with state visuals ([ImplementationPlan.md](ImplementationPlan.md), Phase 0).

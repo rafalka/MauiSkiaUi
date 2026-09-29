@@ -12,6 +12,12 @@ internal static class SkUiTestHelpers
         view.Arrange(new Rect(0, 0, width, height));
     }
 
+    /// <summary>
+    /// Gives the calling thread a MAUI dispatcher (bindings need one) until disposed. Thread-scoped: tests in other
+    /// classes, which run in parallel and rely on "no dispatcher, no gesture timers", are unaffected.
+    /// </summary>
+    public static IDisposable UseTestDispatcher() => TestDispatcherProvider.Enable();
+
     private static readonly Dictionary<string, int> FontUsers = [];
 
     /// <summary>
@@ -104,5 +110,50 @@ internal sealed class SkUiTestSurface : IDisposable
         Renderer.Dispose();
         _canvas.Dispose();
         _bitmap.Dispose();
+    }
+}
+
+/// <summary>Dispatcher provider that answers only on threads that enabled it (see <see cref="SkUiTestHelpers.UseTestDispatcher"/>).</summary>
+internal sealed class TestDispatcherProvider : IDispatcherProvider
+{
+    [ThreadStatic] private static TestDispatcher? t_dispatcher;
+    private static readonly object Gate = new();
+    private static bool s_installed;
+
+    public IDispatcher? GetForCurrentThread() => t_dispatcher;
+
+    public static IDisposable Enable()
+    {
+        lock (Gate)
+        {
+            if (!s_installed)
+            {
+                DispatcherProvider.SetCurrent(new TestDispatcherProvider());
+                s_installed = true;
+            }
+        }
+        t_dispatcher = new TestDispatcher();
+        return new Scope();
+    }
+
+    private sealed class Scope : IDisposable
+    {
+        public void Dispose() => t_dispatcher = null;
+    }
+
+    /// <summary>Runs dispatched work inline; delayed work (gesture timers) is dropped.</summary>
+    private sealed class TestDispatcher : IDispatcher
+    {
+        public bool IsDispatchRequired => false;
+
+        public bool Dispatch(Action action)
+        {
+            action();
+            return true;
+        }
+
+        public bool DispatchDelayed(TimeSpan delay, Action action) => true;
+
+        public IDispatcherTimer CreateTimer() => throw new NotSupportedException("No timers in headless tests.");
     }
 }

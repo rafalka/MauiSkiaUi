@@ -309,7 +309,7 @@ A virtualizing, recycling list / grid built on the FR-21 engine.
 - [x] `SkUiCoreScrollView` sharing the engine; Core ↔ SkUi* nesting.
 - [x] FR-16: Android / Windows snapshot freeze while scrolling (Apple live sync); `ScrollMode` opt-out / opt-in; scroll start / end signals; overlay clipping to viewports.
 - [ ] Scrollbars, snap points, overscroll / bounce.
-- [ ] Demo pages: nested carousels, Core scroll view, gestures.
+- [x] Demo pages: nested carousels, Core scroll view, gestures (Core "ScrollView + gestures", "Native overlays in ScrollView", "Native nesting").
 
 ### FR-21 / FR-22
 

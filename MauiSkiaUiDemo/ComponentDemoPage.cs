@@ -218,7 +218,8 @@ public abstract class ComponentDemoPage : ContentPage
         NativeControl?.SetValue(property, value);
     }
 
-    protected void Number(string name, double minimum, double maximum, double initial, Action<double> apply, Func<double> skia, Func<double>? native = null)
+    /// <param name="whole">Snaps the slider to whole numbers (for <c>int</c> properties such as a button's <c>CornerRadius</c>).</param>
+    protected void Number(string name, double minimum, double maximum, double initial, Action<double> apply, Func<double> skia, Func<double>? native = null, bool whole = false)
     {
         var slider = new Slider { Minimum = minimum, Maximum = maximum, Value = initial, MinimumTrackColor = Accent, AutomationId = "Edit" + name };
         var valueLabel = Caption(initial.ToString("0.##"));
@@ -226,7 +227,13 @@ public abstract class ComponentDemoPage : ContentPage
         row.Add(slider);
         row.Add(valueLabel, 1);
         void Apply(double value) { apply(value); valueLabel.Text = value.ToString("0.##"); }
-        slider.ValueChanged += (_, args) => Apply(args.NewValue);
+        slider.ValueChanged += (_, args) =>
+        {
+            if (whole && args.NewValue != Math.Round(args.NewValue))
+                slider.Value = Math.Round(args.NewValue); // raises ValueChanged again with the whole number
+            else
+                Apply(args.NewValue);
+        };
         AddEditor(name, row);
         _numbers[name] = (slider, initial, Apply);
         _resets.Add(() => SetSlider(_numbers[name].Slider, _numbers[name].Initial, Apply));

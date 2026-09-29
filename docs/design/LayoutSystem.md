@@ -54,12 +54,15 @@ Paint on shared SKCanvas (hosted) or own surface (standalone)
 
 ## Hosted vs standalone
 
-### Detection (to implement)
+### Detection
 
-Document and implement a clear rule, for example:
+The rule is structural, decided by the node's MAUI `Parent`:
 
-- **Hosted** when the logical SkiaUi parent is another `ISkUiView` (`Content` or `Children`), **or** when `Handler` is null and a SkiaUi ancestor owns the surface.
-- **Standalone** when the view is attached to the MAUI visual tree with our handler created (root of a SkiaUi island, or a lone control in MAUI layout).
+- **Hosted:** the parent is another SkiaUi node — the view was assigned to `SkUiContentView.Content` (or another single-child host) or added to `SkUiLayout.Children`. A child must be unparented and handlerless when it is added (otherwise `InvalidOperationException`), cycles are rejected, and it becomes a logical child of that parent (binding context, XAML ownership). MAUI never creates a handler for it, because no MAUI layout owns it; if one is forced anyway, the frame renderer rejects it.
+- **Standalone:** the parent is a MAUI element (page, MAUI layout, `ScrollView`, collection cell). MAUI creates `SkUiViewHandler`, and this node becomes the root of a SkiaUi island: it owns the surface (`HwAccelerated`), the render loop and pointer routing for its hosted descendants.
+- Moving a node between a SkiaUi parent and a MAUI parent switches its mode. Remove it from its old parent first: a standalone node must have lost its handler before it can be hosted.
+
+**XAML nesting:** anything nested inside a SkiaUi element in markup is hosted; only the outermost SkiaUi element under a MAUI parent is standalone. `SkUiMauiContentView` is hosted like any other node, but creates a handler for its wrapped MAUI control (FR-16).
 
 Hosted children must **never** create a handler even if `HwAccelerated` is true (FR-13 / FR-14).
 
@@ -156,7 +159,7 @@ Aligned with NFR-2 / FR-3:
 - Per-node dirty flags: size, arrangement, visual layers.
 - Layout managers should ideally skip clean children when constraints are unchanged; if a stock manager always measures all children, wrap or port so SkiaUi can short-circuit via cached `DesiredSize` when safe.
 - Arrange-only changes (same size, new offset) update `Frame` / paint transform without remeasure.
-- Cached bitmaps for unchanged paint; transparency-aware invalidation (FR-8).
+- Retained per-node pictures for unchanged paint ([RenderingPipeline.md](RenderingPipeline.md)); transparency-aware invalidation (FR-8).
 
 ## Right-to-left (FlowDirection)
 
@@ -180,45 +183,44 @@ MAUI mirrors native views for `FlowDirection="RightToLeft"`. Hosted SkiaUi nodes
 
 ### Core (`SkUiView`)
 
-- [ ] Override **`MeasureOverride`**: handler-independent; margins + dimension requests; cache + dirty flags.
-- [ ] Override **`ArrangeOverride`**: set `Frame`; optional `Handler?.PlatformArrange` for standalone root only.
-- [ ] Override **`InvalidateMeasureOverride`** (and arrange/paint invalidation): propagate in hosted tree without handler.
-- [ ] Document hosted vs standalone detection.
-- [ ] Ensure `IView.Measure` / `Arrange` assign `DesiredSize` / `Frame` consistently with MAUI.
+- [x] Override **`MeasureOverride`**: handler-independent; margins + dimension requests; cache + dirty flags.
+- [x] Override **`ArrangeOverride`**: set `Frame`; optional `Handler?.PlatformArrange` for standalone root only.
+- [x] Override **`InvalidateMeasureOverride`** (and arrange/paint invalidation): propagate in hosted tree without handler.
+- [x] Document hosted vs standalone detection ([Detection](#detection)).
+- [x] Ensure `IView.Measure` / `Arrange` assign `DesiredSize` / `Frame` consistently with MAUI.
 
 ### Content host (`SkUiContentView`)
 
-- [ ] Measure: constrain and measure `Content`; return size including padding if any.
-- [ ] Arrange: arrange `Content` into content bounds.
-- [ ] Do not create a handler for `Content` when nested.
+- [x] Measure: constrain and measure `Content`; return size including padding if any.
+- [x] Arrange: arrange `Content` into content bounds.
+- [x] Do not create a handler for `Content` when nested.
 
 ### Layouts (`SkUiLayout` + concrete)
 
-- [ ] Implement MAUI layout host interfaces as needed (`ILayout`, `IGridLayout`, …).
-- [ ] Wire **layout managers** (reuse or port) for Grid, Vertical/Horizontal stack, Absolute, etc.
-- [ ] Attached properties for Grid row/column/span with drop-in names/behavior.
-- [ ] Selective dirty tracking over `Children` (FR-3).
-- [ ] Default `HwAccelerated = true` when the layout is a standalone root (FR-14).
+- [x] Implement MAUI layout host interfaces as needed (`ILayout`, `IGridLayout`, …).
+- [x] Wire **layout managers** (reuse or port) for Grid, Vertical/Horizontal stack, Absolute, etc.
+- [x] Attached properties for Grid row/column/span with drop-in names/behavior.
+- [x] Selective dirty tracking over `Children` (FR-3).
+- [x] Default `HwAccelerated = true` when the layout is a standalone root (FR-14).
 
 ### Controls
 
-- [ ] Leaf `MeasureOverride` based on content (e.g. `SkUiLabel` text / font metrics).
-- [ ] Default `HwAccelerated = false` for leaves used standalone in collections (FR-14).
+- [x] Leaf `MeasureOverride` based on content (e.g. `SkUiLabel` text / font metrics).
+- [x] Default `HwAccelerated = false` for leaves used standalone in collections (FR-14).
 
 ### Verification
 
-- [ ] Hosted tree under `SkUiContentView`: children `Handler == null`; non-zero measures; correct Grid Auto/`*` layout.
-- [ ] Standalone `SkUiLabel` / `SkUiGrid` in a MAUI `VerticalStackLayout`: correct size and position.
-- [ ] Standalone `SkUiGrid` with hosted children: one surface, children arranged by manager.
-- [ ] Parity samples vs MAUI `Grid` / `StackLayout` for the same markup structure (spot-check).
-- [ ] Invalidation: property change on hosted child remeasures only what is needed and redraws the root surface.
+- [x] Hosted tree under `SkUiContentView`: children `Handler == null`; non-zero measures; correct Grid Auto/`*` layout.
+- [x] Standalone `SkUiLabel` / `SkUiGrid` in a MAUI `VerticalStackLayout`: correct size and position.
+- [x] Standalone `SkUiGrid` with hosted children: one surface, children arranged by manager.
+- [x] Parity samples vs MAUI `Grid` / `StackLayout` for the same markup structure (spot-check).
+- [x] Invalidation: property change on hosted child remeasures only what is needed and redraws the root surface.
 
 ## Open items
 
-- Exact hosted-vs-standalone detection API (property vs internal flag vs parent walk).
-- Whether `SkUiLayout` mirrors MAUI `Layout.CrossPlatformMeasure`/`Arrange` or only overrides `MeasureOverride`/`ArrangeOverride`.
-- How aggressively to wrap stock managers for selective child measure vs always porting.
-- Interaction of layout passes with animation render loop (avoid full-tree remeasure every frame — see Requirements open decisions).
+- How aggressively to wrap stock managers for selective child measure vs porting them. Today `SkUiLayout` overrides `MeasureOverride` / `ArrangeOverride`, calls the stock MAUI managers, and unchanged children answer from their measure cache.
+
+Resolved: detection is structural ([Detection](#detection)); composite-time animations run on the render thread and never trigger layout passes ([RenderingPipeline.md](RenderingPipeline.md#animation-tiers)).
 
 ## References
 

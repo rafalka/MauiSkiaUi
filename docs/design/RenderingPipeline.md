@@ -111,9 +111,7 @@ The GPU surfaces deliver native multi-pointer touches (pointer ids, DIP coordina
 
 - Raster caching of stable subtrees (Flutter-style: rasterize after N stable frames, with a per-frame budget) on top of the per-node pictures.
 - Recording off the UI thread for Core-only subtrees (Core nodes are not `BindableObject`s).
-- A gesture arena and nested-scroll handoff to native parents (`RequestDisallowInterceptTouchEvent` / `TouchesCancelled`).
 - Hit-testing against render-thread transforms during running animations.
-- Snapshot-while-scrolling for native overlays on Android / Windows (FR-16).
 
 ## References
 

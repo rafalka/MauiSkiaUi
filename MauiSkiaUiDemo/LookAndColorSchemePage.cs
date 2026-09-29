@@ -559,7 +559,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         var button = new SkUiButton();
         button.SetText("Go");
         button.SetFillColor(scheme.Accent);
-        button.SetCornerRadius(look.DefaultButtonCornerRadius);
+        button.SetCornerRadii(new CornerRadius(look.DefaultButtonCornerRadius));
         button.MinimumHeightRequest = look.DefaultButtonMinimumHeight;
         button.HorizontalOptions = LayoutOptions.Center;
         button.VerticalOptions = LayoutOptions.Center;
@@ -571,7 +571,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         var button = new SkUiCoreButton();
         button.SetText("Go");
         button.SetFillColor(scheme.Accent);
-        button.SetCornerRadius(look.DefaultButtonCornerRadius);
+        button.SetCornerRadii(new CornerRadius(look.DefaultButtonCornerRadius));
         button.SetMinimumHeight(look.DefaultButtonMinimumHeight);
         button.SetHorizontalAlignment(LayoutAlignment.Center);
         button.SetVerticalAlignment(LayoutAlignment.Center);

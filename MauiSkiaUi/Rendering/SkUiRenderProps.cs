@@ -30,6 +30,19 @@ internal record struct SkUiRenderProps
     public float ContentSpinPeriod;
 
     /// <summary>
+    /// Seconds per loop of a horizontal content slide (marquee); 0 = static. The compositor shifts the content picture
+    /// by <see cref="ContentSlideDistance"/> per period and draws a second copy one distance behind, so a picture one
+    /// distance wide repeats seamlessly (indeterminate progress bars).
+    /// </summary>
+    public float ContentSlidePeriod;
+
+    /// <summary>Horizontal DIPs the content moves per <see cref="ContentSlidePeriod"/> (negative = right to left).</summary>
+    public float ContentSlideDistance;
+
+    /// <summary>Clip for sliding content (e.g. rounded bar ends); <c>null</c> = the layout rectangle. Treated as immutable once committed.</summary>
+    public SKPath? ContentClipPath;
+
+    /// <summary>
     /// Ink overflow outside the layout rectangle (Left/Top/Right/Bottom as positive amounts), e.g. shadows (FR-20).
     /// Culling, recording cull rects and opacity layers use <see cref="VisualBounds"/>.
     /// </summary>

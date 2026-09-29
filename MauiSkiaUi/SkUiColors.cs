@@ -23,4 +23,11 @@ public static class SkUiColors
 
     /// <summary>Disabled fill from the current color scheme.</summary>
     public static Color Disabled => SkUiColorScheme.Current.Disabled;
+
+    /// <summary>Linear mix of two colors (<paramref name="amount"/> 0 = <paramref name="from"/>, 1 = <paramref name="to"/>).</summary>
+    internal static Color Mix(Color from, Color to, float amount = 0.5f) => new(
+        from.Red + (to.Red - from.Red) * amount,
+        from.Green + (to.Green - from.Green) * amount,
+        from.Blue + (to.Blue - from.Blue) * amount,
+        from.Alpha + (to.Alpha - from.Alpha) * amount);
 }

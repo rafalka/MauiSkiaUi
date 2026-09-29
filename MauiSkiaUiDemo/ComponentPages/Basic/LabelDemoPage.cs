@@ -42,5 +42,14 @@ public sealed class LabelDemoPage : ComponentDemoPage
             textEditor.Text = ScriptSamples[value];
         }, () => script, () => script);
         Number(nameof(SkUiLabel.Padding), 0, 24, 0, value => { skia.Padding = value; native.Padding = value; }, () => skia.Padding.Left, () => native.Padding.Left);
+        // Badge / chip chrome without a wrapping border (MAUI's Label has none: the native side shows only the fill).
+        ColorEditor(nameof(SkUiLabel.BackgroundColor), Colors.Transparent, value => { skia.BackgroundColor = value; native.BackgroundColor = value; }, () => skia.BackgroundColor, () => native.BackgroundColor);
+        // Per-corner radii (CornerRadius sets all four at once; see the Button page).
+        Number("CornerRadii.TopLeft", 0, 40, 0, value => { var r = skia.CornerRadii; skia.CornerRadii = new CornerRadius(value, r.TopRight, r.BottomLeft, r.BottomRight); }, () => skia.CornerRadii.TopLeft);
+        Number("CornerRadii.TopRight", 0, 40, 0, value => { var r = skia.CornerRadii; skia.CornerRadii = new CornerRadius(r.TopLeft, value, r.BottomLeft, r.BottomRight); }, () => skia.CornerRadii.TopRight);
+        Number("CornerRadii.BottomLeft", 0, 40, 0, value => { var r = skia.CornerRadii; skia.CornerRadii = new CornerRadius(r.TopLeft, r.TopRight, value, r.BottomRight); }, () => skia.CornerRadii.BottomLeft);
+        Number("CornerRadii.BottomRight", 0, 40, 0, value => { var r = skia.CornerRadii; skia.CornerRadii = new CornerRadius(r.TopLeft, r.TopRight, r.BottomLeft, value); }, () => skia.CornerRadii.BottomRight);
+        Number(nameof(SkUiLabel.BorderWidth), 0, 8, 0, value => skia.BorderWidth = value, () => skia.BorderWidth);
+        ColorEditor(nameof(SkUiLabel.BorderColor), Ink, value => skia.BorderColor = value, () => skia.BorderColor);
     }
 }
