@@ -6,6 +6,8 @@ Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs
 
 ## Unreleased
 
+## 1.0.0-Prerelease05
+
 - **State-change transitions** ([ControlLook.md](docs/design/ControlLook.md#state-change-transitions-fr-26)):
   - Switches slide, check boxes draw their check mark in, radio dots grow, and button and image-button presses dim or ripple from the press point (`DefaultSkUiLook.PressEffect`).
   - Slider thumbs glide to tapped values; a look can smooth `Progress` changes. The same on SkUi* and Core.
