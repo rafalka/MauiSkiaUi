@@ -8,27 +8,16 @@ public class SkUiButton : SkUiLabel
 {
     private ICommand? _command;
     private object? _commandParameter;
-    private double _cornerRadius = SkUiLook.Current.DefaultButtonCornerRadius;
     private Color _fillColor = SkUiColors.Accent;
-    private Color _borderColor = Colors.Transparent;
-    private double _borderWidth;
 
     /// <summary>Bindable command executed on a valid release.</summary>
     public static readonly BindableProperty CommandProperty = BindableProperty.Create(nameof(Command), typeof(ICommand), typeof(SkUiButton), null, propertyChanged: (view, _, value) => ((SkUiButton)view).SetCommand((ICommand?)value));
     /// <summary>Bindable command argument.</summary>
     public static readonly BindableProperty CommandParameterProperty = BindableProperty.Create(nameof(CommandParameter), typeof(object), typeof(SkUiButton), null, propertyChanged: (view, _, value) => ((SkUiButton)view).SetCommandParameter(value));
-    /// <summary>Bindable rounded corner radius.</summary>
-    public static readonly BindableProperty CornerRadiusProperty = BindableProperty.Create(nameof(CornerRadius), typeof(double), typeof(SkUiButton), 6d,
-        defaultValueCreator: _ => SkUiLook.Current.DefaultButtonCornerRadius,
-        propertyChanged: (view, _, value) => ((SkUiButton)view).SetCornerRadius((double)value));
     /// <summary>Bindable button fill.</summary>
     public static readonly BindableProperty FillColorProperty = BindableProperty.Create(nameof(FillColor), typeof(Color), typeof(SkUiButton), null,
         defaultValueCreator: _ => SkUiColors.Accent,
         propertyChanged: (view, _, value) => ((SkUiButton)view).SetFillColor((Color)value));
-    /// <summary>Bindable border color.</summary>
-    public static readonly BindableProperty BorderColorProperty = BindableProperty.Create(nameof(BorderColor), typeof(Color), typeof(SkUiButton), Colors.Transparent, propertyChanged: (view, _, value) => ((SkUiButton)view).SetBorderColor((Color)value));
-    /// <summary>Bindable border width.</summary>
-    public static readonly BindableProperty BorderWidthProperty = BindableProperty.Create(nameof(BorderWidth), typeof(double), typeof(SkUiButton), 0d, propertyChanged: (view, _, value) => ((SkUiButton)view).SetBorderWidth((double)value));
 
     /// <summary>Creates a centered, padded button.</summary>
     public SkUiButton()
@@ -37,6 +26,7 @@ public class SkUiButton : SkUiLabel
         SetPadding(new Thickness(18, 12));
         SetHorizontalTextAlignment(TextAlignment.Center);
         SetVerticalTextAlignment(TextAlignment.Center);
+        SetCornerRadii(new CornerRadius(DefaultCornerRadius));
         SetPaintBackground(PaintButtonBackground);
     }
 
@@ -59,6 +49,8 @@ public class SkUiButton : SkUiLabel
     protected override TextAlignment DefaultTextAlignment => TextAlignment.Center;
     /// <inheritdoc />
     protected override Thickness DefaultPadding => new(18, 12);
+    /// <inheritdoc />
+    protected override double DefaultCornerRadius => SkUiLook.Current.DefaultButtonCornerRadius;
 
     /// <summary>Raised for a valid enabled tap, even without a command.</summary>
     public event EventHandler? Clicked;
@@ -66,14 +58,8 @@ public class SkUiButton : SkUiLabel
     public ICommand? Command { get => _command; set => SetValue(CommandProperty, value); }
     /// <summary>Command argument.</summary>
     public object? CommandParameter { get => _commandParameter; set => SetValue(CommandParameterProperty, value); }
-    /// <summary>Rounded radius in DIPs; hit bounds remain rectangular.</summary>
-    public double CornerRadius { get => _cornerRadius; set => SetValue(CornerRadiusProperty, value); }
     /// <summary>Button background fill.</summary>
     public Color FillColor { get => _fillColor; set => SetValue(FillColorProperty, value); }
-    /// <summary>Border color.</summary>
-    public Color BorderColor { get => _borderColor; set => SetValue(BorderColorProperty, value); }
-    /// <summary>Border width in DIPs.</summary>
-    public double BorderWidth { get => _borderWidth; set => SetValue(BorderWidthProperty, value); }
 
     /// <summary>Sets command without bindable write-back; command notifications use a weak target.</summary>
     public SkUiButton SetCommand(ICommand? value)
@@ -99,14 +85,16 @@ public class SkUiButton : SkUiLabel
     private EventHandler? _commandChanged;
     /// <summary>Sets command argument without bindable write-back.</summary>
     public SkUiButton SetCommandParameter(object? value) { _commandParameter = value; UpdateState(); return this; }
-    /// <summary>Sets radius without bindable write-back.</summary>
-    public SkUiButton SetCornerRadius(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _cornerRadius = value; InvalidatePaint(); return this; }
+    /// <summary>Sets all four corner radii without bindable write-back.</summary>
+    public new SkUiButton SetCornerRadius(int value) { base.SetCornerRadius(value); return this; }
+    /// <summary>Sets the per-corner radii without bindable write-back.</summary>
+    public new SkUiButton SetCornerRadii(CornerRadius value) { base.SetCornerRadii(value); return this; }
     /// <summary>Sets fill without bindable write-back.</summary>
     public SkUiButton SetFillColor(Color value) { ArgumentNullException.ThrowIfNull(value); _fillColor = value; InvalidatePaint(); return this; }
     /// <summary>Sets border color without bindable write-back.</summary>
-    public SkUiButton SetBorderColor(Color value) { ArgumentNullException.ThrowIfNull(value); _borderColor = value; InvalidatePaint(); return this; }
+    public new SkUiButton SetBorderColor(Color value) { base.SetBorderColor(value); return this; }
     /// <summary>Sets border width without bindable write-back.</summary>
-    public SkUiButton SetBorderWidth(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _borderWidth = value; InvalidatePaint(); return this; }
+    public new SkUiButton SetBorderWidth(double value) { base.SetBorderWidth(value); return this; }
     /// <inheritdoc />
     protected override bool HandlesTap => true;
     /// <inheritdoc />
@@ -140,20 +128,6 @@ public class SkUiButton : SkUiLabel
         var color = ResolveSolidBackgroundColor() ?? _fillColor;
         if (!IsEnabled || !CanReceiveTap) color = SkUiColors.Disabled;
         else if (IsPressed) color = color.MultiplyAlpha(0.75f);
-        SkUiLook.Current.DrawRoundedBox(canvas, new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius,
-            ToSkColor(color), ToSkColor(_borderColor), (float)_borderWidth);
-    }
-
-    /// <summary>Clips text to the same rounded-rect geometry as the background fill so glyphs never bleed past the corners.</summary>
-    protected override void OnPaintContent(SKCanvas canvas)
-    {
-        var saveCount = canvas.Save();
-        try
-        {
-            using var clip = SkUiLook.Current.CreateRoundRectPath(new SKRect(0, 0, (float)Width, (float)Height), (float)_cornerRadius);
-            canvas.ClipPath(clip, antialias: true);
-            base.OnPaintContent(canvas);
-        }
-        finally { canvas.RestoreToCount(saveCount); }
+        PaintChrome(canvas, color);
     }
 }

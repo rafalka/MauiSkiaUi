@@ -16,6 +16,7 @@ public class SkUiCoreSlider : SkUiCoreNode
     private Color _maximumTrackColor = SkUiColors.TrackOff;
     private Color _thumbColor = SkUiColors.Accent;
     private SkUiSliderGestureRecognizer? _gesture;
+    private double _requestedValue;
 
     /// <summary>Smallest value (default 0).</summary>
     public double Minimum { get => _minimum; set => SetMinimum(value); }
@@ -23,7 +24,10 @@ public class SkUiCoreSlider : SkUiCoreNode
     /// <summary>Largest value (default 1).</summary>
     public double Maximum { get => _maximum; set => SetMaximum(value); }
 
-    /// <summary>Current value, clamped between <see cref="Minimum"/> and <see cref="Maximum"/>.</summary>
+    /// <summary>
+    /// Current value, clamped between <see cref="Minimum"/> and <see cref="Maximum"/>; the requested value is kept, so
+    /// it comes back when the range widens again (as with <see cref="SkUiSlider"/>).
+    /// </summary>
     public double Value { get => _value; set => SetValue(value); }
 
     /// <summary>Horizontal (default; minimum at the start) or vertical (minimum at the bottom).</summary>
@@ -55,7 +59,7 @@ public class SkUiCoreSlider : SkUiCoreNode
     {
         if (!SetProperty(ref _minimum, value, nameof(Minimum))) return this;
         InvalidatePaint();
-        return SetValue(_value);
+        return ApplyValue(_requestedValue);
     }
 
     /// <summary>Sets the maximum (the value is clamped into the new range).</summary>
@@ -63,11 +67,17 @@ public class SkUiCoreSlider : SkUiCoreNode
     {
         if (!SetProperty(ref _maximum, value, nameof(Maximum))) return this;
         InvalidatePaint();
-        return SetValue(_value);
+        return ApplyValue(_requestedValue);
     }
 
     /// <summary>Sets the value, clamped to the range.</summary>
     public SkUiCoreSlider SetValue(double value)
+    {
+        _requestedValue = value;
+        return ApplyValue(value);
+    }
+
+    private SkUiCoreSlider ApplyValue(double value)
     {
         var old = _value;
         if (!SetProperty(ref _value, SkUiSliderMath.Clamp(value, _minimum, _maximum), nameof(Value))) return this;

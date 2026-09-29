@@ -90,6 +90,43 @@ public class ToggleStateTests
     }
 
     [Fact]
+    public void ChangeEventsSeeBindingsAlreadyUpdated()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var model = new ToggleModel();
+        var box = Hosted(new SkUiCheckBox { BindingContext = model });
+        box.SetBinding(SkUiToggleControl.CheckStateProperty, nameof(ToggleModel.State));
+        box.SetBinding(SkUiToggleControl.IsCheckedProperty, nameof(ToggleModel.IsOn));
+        var seen = new List<string>();
+        box.CheckStateChanged += (_, state) => seen.Add($"state {state}: model {model.State}, {model.IsOn}, store {box.GetValue(SkUiToggleControl.IsCheckedProperty)}");
+        box.CheckedChanged += (_, isChecked) => seen.Add($"checked {isChecked}: model {model.State}, {model.IsOn}");
+
+        Tap(box);
+        Assert.Equal(["state Checked: model Checked, True, store True", "checked True: model Checked, True"], seen);
+        seen.Clear();
+        model.IsOn = false; // source → control: the other binding is updated before the events too
+        Assert.Equal(["state Unchecked: model Unchecked, False, store False", "checked False: model Unchecked, False"], seen);
+    }
+
+    [Fact]
+    public void SettingIsCheckedFalseClearsIndeterminate()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var box = new SkUiCheckBox { CheckState = SkUiCheckState.Indeterminate };
+        box.IsChecked = false; // IsChecked is already false: still clears the state, like the fluent and Core setters
+        Assert.Equal(SkUiCheckState.Unchecked, box.CheckState);
+
+        var model = new ToggleModel { IsOn = true };
+        var bound = new SkUiRadioButton { BindingContext = model };
+        bound.SetBinding(SkUiToggleControl.IsCheckedProperty, nameof(ToggleModel.IsOn));
+        bound.CheckState = SkUiCheckState.Indeterminate;
+        Assert.False(model.IsOn);
+        bound.IsChecked = false; // e.g. an app clearing radio siblings
+        Assert.Equal(SkUiCheckState.Unchecked, bound.CheckState);
+        Assert.False(model.IsOn);
+    }
+
+    [Fact]
     public void RadioTapsOnlySelectEvenFromIndeterminate()
     {
         var radio = Hosted(new SkUiRadioButton { IsThreeState = true, CheckState = SkUiCheckState.Indeterminate });

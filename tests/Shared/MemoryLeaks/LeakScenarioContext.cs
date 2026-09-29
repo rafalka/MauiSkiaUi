@@ -41,11 +41,19 @@ public sealed class LeakScenarioContext(Func<TimeSpan, Task> wait, bool isDevice
     /// <summary>One frame's worth of time, so pending layout and commits are applied.</summary>
     public Task SettleAsync() => WaitAsync(IsDevice ? 60 : 16);
 
-    /// <summary>Waits (rendering) until <paramref name="task"/> ends or <paramref name="timeoutMs"/> passes, without awaiting it directly.</summary>
+    /// <summary>
+    /// Waits (rendering) until <paramref name="task"/> ends or <paramref name="timeoutMs"/> passes, without awaiting it
+    /// directly. Headless frames take no real time, so work on other threads (image decoding) gets a real-time wait
+    /// between frames as well.
+    /// </summary>
     public async Task WaitForAsync(Task task, double timeoutMs = 3000)
     {
         for (double waited = 0; !task.IsCompleted && waited < timeoutMs; waited += 16)
+        {
+            if (!IsDevice)
+                ((IAsyncResult)task).AsyncWaitHandle.WaitOne(16);
             await WaitAsync(16);
+        }
     }
 
     /// <summary>A native text input was focused during the run (see <see cref="FocusAsync"/>).</summary>

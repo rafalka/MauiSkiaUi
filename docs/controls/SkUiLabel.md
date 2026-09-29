@@ -1,6 +1,6 @@
 # SkUiLabel
 
-Drawn plain text with wrapping, truncation, fonts, alignment, and padding.
+Drawn plain text with wrapping, truncation, fonts, alignment, and padding, with optional rounded chrome for badges, chips and tags.
 
 **MAUI counterpart:** [`Label`](https://learn.microsoft.com/dotnet/maui/user-interface/controls/label)
 
@@ -20,6 +20,8 @@ Line breaking works on the shaped widths and never splits a grapheme. It breaks 
 | `Simple` | Never shapes: no bidi, no font fallback. Complex scripts render incorrectly and missing glyphs show as .notdef | Dense grids of plain text or numbers |
 
 A label measured at one width and drawn at a wider one reuses its lines when nothing had to wrap, so measure and draw cost one layout.
+
+**Rounded chrome:** `CornerRadii` (per corner, MAUI's `CornerRadius` type as on [`SkUiBorder`](SkUiBorder.md)), `BorderColor` and `BorderWidth` shape the `Background` / `BackgroundColor` fill, drawn through `SkUiLook.DrawRoundedBox` like [`SkUiButton`](SkUiButton.md) (which inherits them). `CornerRadius` (an `int`, as on MAUI's `Button`) sets all four corners at once and reads the top-left one, rounded; use `CornerRadii` for fractional radii; whichever of the two is set last wins. A badge is a single label, without a wrapping [`SkUiBorder`](SkUiBorder.md), so it costs no extra layout node or picture. Radii larger than the label allows are scaled down, so a large uniform radius gives a pill. The border is drawn inside the bounds and `Padding` is not adjusted. With a radius, text is clipped to the rounded shape; hit bounds stay rectangular. A label with square corners and no border draws its background as before.
 
 **Direction:** effective `FlowDirection` RTL (explicit on the label or inherited from any ancestor) makes paragraphs RTL. `FlowDirection="LeftToRight"` forces LTR. The default (`MatchParent` under an LTR parent) lets the first strong character decide, like Android's `firstStrong`. `HorizontalTextAlignment` `Start` / `End` follow the resolved paragraph direction, so `Start` is the right edge for RTL text.
 
@@ -47,11 +49,24 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 label.SetText("Hello").SetFontFamily("OpenSansRegular").SetFontSize(20);
 ```
 
+A badge:
+
+```xml
+<sk:SkUiLabel Text="12" FontSize="12" TextColor="White" BackgroundColor="#C62828"
+              CornerRadius="100" Padding="8,2" HorizontalOptions="Start" />
+```
+
+A tab with rounded top corners (`CornerRadii` order: top-left, top-right, bottom-left, bottom-right):
+
+```xml
+<sk:SkUiLabel Text="Details" BackgroundColor="#E0F2F1" CornerRadii="12,12,0,0" Padding="16,8" />
+```
+
 Register app-embedded fonts with `SkUiFonts.Register` (MAUI font aliases alone are not enough for Skia).
 
 ## Key properties
 
-`Text`, `TextColor`, `FontSize`, `FontFamily`, `FontAttributes`, `LineBreakMode`, `HorizontalTextAlignment`, `VerticalTextAlignment`, `Padding` (+ matching `Set*` setters).
+`Text`, `TextColor`, `FontSize`, `FontFamily`, `FontAttributes`, `LineBreakMode`, `HorizontalTextAlignment`, `VerticalTextAlignment`, `Padding`, `CornerRadii`, `CornerRadius`, `BorderColor`, `BorderWidth` (+ matching `Set*` setters).
 
 ## Differences from MAUI Label
 
@@ -63,7 +78,7 @@ Register app-embedded fonts with `SkUiFonts.Register` (MAUI font aliases alone a
 | Selection / copy | Not supported |
 | Fonts | System names or `SkUiFonts.Register`; not full MAUI font scaling pipeline |
 | Gestures | Opt-in `Tapped` / `TappedCommand` only |
-| Rounded border | Compose with [`SkUiBorder`](SkUiBorder.md) (also on the backlog as Label+border pattern) |
+| Rounded background / border | Built in (`CornerRadii` / `CornerRadius`, `BorderColor`, `BorderWidth`); MAUI needs a `Border` around the label |
 
 ## Related
 

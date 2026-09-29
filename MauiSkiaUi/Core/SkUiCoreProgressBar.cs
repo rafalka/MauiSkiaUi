@@ -13,8 +13,7 @@ public class SkUiCoreProgressBar : SkUiCoreNode
     private bool _isIndeterminate;
     private Color _progressColor = SkUiColors.Accent;
     private Color _trackColor = SkUiColors.TrackOff;
-    private IDisposable? _progressAnimation;
-    private TaskCompletionSource<bool>? _progressCompletion;
+    private SkUiProgressTween? _tween;
     private SKPath? _clip;
     private SKSize _clipSize;
 
@@ -33,7 +32,7 @@ public class SkUiCoreProgressBar : SkUiCoreNode
     /// <summary>Sets the progress (clamped).</summary>
     public SkUiCoreProgressBar SetProgress(double value)
     {
-        if (SetProperty(ref _progress, Math.Clamp(value, 0, 1), nameof(Progress)))
+        if (SetProperty(ref _progress, SkUiProgressTween.Clamp(value), nameof(Progress)))
             InvalidatePaint();
         return this;
     }
@@ -66,27 +65,17 @@ public class SkUiCoreProgressBar : SkUiCoreNode
 
     /// <summary>
     /// Animates <see cref="Progress"/> to <paramref name="value"/> over <paramref name="length"/> ms. Returns
-    /// <c>true</c> when it ran to completion; <c>false</c> when a newer call replaced it.
+    /// <c>true</c> when it ran to completion; <c>false</c> when a newer call replaced it or the animation was stopped
+    /// (e.g. the page closed). It pauses while the node is detached and continues once it is in a host tree again.
     /// </summary>
-    public Task<bool> ProgressTo(double value, uint length = 250, Easing? easing = null)
+    public Task<bool> ProgressTo(double value, uint length = 250, Easing? easing = null) =>
+        (_tween ??= new SkUiProgressTween(progress => SetProgress(progress))).Start(AnimationClock, _progress, value, length, easing);
+
+    /// <inheritdoc />
+    protected override void OnAnimationRootChanged(bool subtreeDetached = false)
     {
-        _progressAnimation?.Dispose();
-        _progressCompletion?.TrySetResult(false);
-        var from = _progress;
-        var to = Math.Clamp(value, 0, 1);
-        var curve = easing ?? Easing.Linear;
-        var completion = _progressCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _progressAnimation = AnimationClock.Start(t =>
-        {
-            SetProgress(from + (to - from) * curve.Ease(Math.Min(t, 1)));
-            if (t >= 1 && ReferenceEquals(_progressCompletion, completion))
-            {
-                _progressAnimation = null;
-                _progressCompletion = null;
-                completion.TrySetResult(true);
-            }
-        }, TimeSpan.FromMilliseconds(Math.Max(1, length)));
-        return completion.Task;
+        base.OnAnimationRootChanged(subtreeDetached);
+        _tween?.Rebind(AnimationClock, subtreeDetached);
     }
 
     /// <inheritdoc />

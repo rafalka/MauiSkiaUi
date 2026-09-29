@@ -59,6 +59,43 @@ public class SliderTests
     }
 
     [Fact]
+    public void RequestedValueComesBackWhenTheRangeWidens()
+    {
+        // XAML order Value="7" Minimum="5" Maximum="10": the value ends at 7, as with MAUI's Slider.
+        var slider = new SkUiSlider { Value = 7, Minimum = 5, Maximum = 10 };
+        Assert.Equal(7, slider.Value);
+        slider.Maximum = 6;
+        Assert.Equal(6, slider.Value);
+        slider.Maximum = 10;
+        Assert.Equal(7, slider.Value);
+        slider.Maximum = 5; // empty range: the value is the minimum
+        Assert.Equal(5, slider.Value);
+
+        var core = new SkUiCoreSlider().SetValue(7).SetMinimum(5).SetMaximum(10);
+        Assert.Equal(7, core.Value);
+    }
+
+    [Fact]
+    public void ValueChangedSeesTheBindingAlreadyUpdated()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var model = new SliderModel();
+        var (root, slider) = Surface();
+        slider.BindingContext = model;
+        slider.SetBinding(SkUiSlider.ValueProperty, nameof(SliderModel.Level));
+        var stale = 0;
+        slider.ValueChanged += (_, args) =>
+        {
+            if (model.Level != args.NewValue || (double)slider.GetValue(SkUiSlider.ValueProperty) != args.NewValue)
+                stale++;
+        };
+        Drag(root, new Point(10, 16), new Point(160, 16));
+        slider.Maximum = 0.5;
+        Assert.Equal(0.5, model.Level);
+        Assert.Equal(0, stale);
+    }
+
+    [Fact]
     public void DraggingAlongTheSliderMovesTheValueAndWritesItBack()
     {
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();

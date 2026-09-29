@@ -29,7 +29,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-Inherits Label text APIs. Adds `Command`, `CommandParameter`, `Clicked`, `CornerRadius`, `FillColor`, `BorderColor`, `BorderWidth`.
+Inherits Label text APIs and its rounded chrome: per-corner `CornerRadii`, and `CornerRadius` as in MAUI (an `int` that sets all four corners; use `CornerRadii` for fractional radii), both defaulting to the look's `DefaultButtonCornerRadius`; `BorderColor`, `BorderWidth`. Adds `Command`, `CommandParameter`, `Clicked`, `FillColor`.
 
 ## Differences from MAUI Button
 

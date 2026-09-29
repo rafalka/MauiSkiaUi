@@ -9,11 +9,6 @@ namespace MauiSkiaUi.Core;
 /// </summary>
 public class SkUiCoreButton : SkUiCoreLabel
 {
-    private Color _fillColor = SkUiColors.Accent;
-    private Color _borderColor = Colors.Transparent;
-    private double _borderWidth;
-    private double _cornerRadius;
-    private bool _cornerRadiusExplicit;
     private bool _minimumHeightExplicit;
     private bool _isPressed;
     private ICommand? _command;
@@ -27,41 +22,12 @@ public class SkUiCoreButton : SkUiCoreLabel
         SetPadding(new Thickness(6));
         SetHorizontalTextAlignment(TextAlignment.Center);
         SetVerticalTextAlignment(TextAlignment.Center);
+        SetFillColor(SkUiColors.Accent);
         SetPaintBackground(PaintButtonBackground);
     }
 
     /// <summary>Raised on a completed tap inside the button bounds (in addition to <see cref="Command"/>).</summary>
     public event EventHandler? Clicked;
-
-    /// <summary>Fill color.</summary>
-    public Color FillColor
-    {
-        get => _fillColor;
-        set => SetFillColor(value);
-    }
-
-    /// <summary>Border color.</summary>
-    public Color BorderColor
-    {
-        get => _borderColor;
-        set => SetBorderColor(value);
-    }
-
-    /// <summary>Border width in DIPs.</summary>
-    public double BorderWidth
-    {
-        get => _borderWidth;
-        set => SetBorderWidth(value);
-    }
-
-    /// <summary>
-    /// Corner radius in DIPs. When unset, resolves from <see cref="SkUiLook.Current"/> at paint time.
-    /// </summary>
-    public double CornerRadius
-    {
-        get => EffectiveCornerRadius;
-        set => SetCornerRadius(value);
-    }
 
     /// <summary>Optional command executed on a completed tap.</summary>
     public ICommand? Command
@@ -80,45 +46,23 @@ public class SkUiCoreButton : SkUiCoreLabel
     /// <summary>Whether an eligible pointer is currently pressed inside this button.</summary>
     public bool IsPressed => _isPressed;
 
-    private double EffectiveCornerRadius =>
-        _cornerRadiusExplicit ? _cornerRadius : SkUiLook.Current.DefaultButtonCornerRadius;
+    /// <inheritdoc />
+    protected override double DefaultCornerRadius => SkUiLook.Current.DefaultButtonCornerRadius;
 
     /// <summary>Sets fill color.</summary>
-    public SkUiCoreButton SetFillColor(Color value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-        if (!SetProperty(ref _fillColor, value, nameof(FillColor))) return this;
-        InvalidatePaint();
-        return this;
-    }
+    public new SkUiCoreButton SetFillColor(Color value) { base.SetFillColor(value); return this; }
 
     /// <summary>Sets border color.</summary>
-    public SkUiCoreButton SetBorderColor(Color value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-        if (!SetProperty(ref _borderColor, value, nameof(BorderColor))) return this;
-        InvalidatePaint();
-        return this;
-    }
+    public new SkUiCoreButton SetBorderColor(Color value) { base.SetBorderColor(value); return this; }
 
     /// <summary>Sets border width in DIPs.</summary>
-    public SkUiCoreButton SetBorderWidth(double value)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
-        if (!SetProperty(ref _borderWidth, value, nameof(BorderWidth))) return this;
-        InvalidatePaint();
-        return this;
-    }
+    public new SkUiCoreButton SetBorderWidth(double value) { base.SetBorderWidth(value); return this; }
 
-    /// <summary>Sets corner radius in DIPs (marks the value as app-explicit so look swaps do not replace it).</summary>
-    public SkUiCoreButton SetCornerRadius(double value)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
-        _cornerRadiusExplicit = true;
-        if (!SetProperty(ref _cornerRadius, value, nameof(CornerRadius))) return this;
-        InvalidatePaint();
-        return this;
-    }
+    /// <summary>Sets all four corner radii in DIPs (app-explicit, so look swaps do not replace them).</summary>
+    public new SkUiCoreButton SetCornerRadius(int value) { base.SetCornerRadius(value); return this; }
+
+    /// <summary>Sets the per-corner radii in DIPs (app-explicit, so look swaps do not replace them).</summary>
+    public new SkUiCoreButton SetCornerRadii(CornerRadius value) { base.SetCornerRadii(value); return this; }
 
     /// <inheritdoc />
     public override SkUiCoreNode SetMinimumHeight(double value)
@@ -189,37 +133,8 @@ public class SkUiCoreButton : SkUiCoreLabel
     }
 
     /// <summary>Draws the rounded fill/border registered as <see cref="SkUiCoreNode.PaintBackground"/>. Subclasses may call or re-register this painter.</summary>
-    protected void PaintButtonBackground(SKCanvas canvas)
-    {
-        var color = !CanExecuteCommand ? SkUiColors.Disabled
-            : _isPressed ? _fillColor.MultiplyAlpha(0.75f) : _fillColor;
-        var radius = (float)EffectiveCornerRadius;
-        SkUiLook.Current.DrawRoundedBox(
-            canvas,
-            new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
-            radius,
-            ToSkColor(color),
-            ToSkColor(_borderColor),
-            (float)_borderWidth);
-    }
-
-    /// <summary>Clips text to the same rounded-rect geometry as the background fill so glyphs never bleed past the corners.</summary>
-    protected override void OnPaintContent(SKCanvas canvas)
-    {
-        var saveCount = canvas.Save();
-        try
-        {
-            using var clip = SkUiLook.Current.CreateRoundRectPath(
-                new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
-                (float)EffectiveCornerRadius);
-            canvas.ClipPath(clip, antialias: true);
-            base.OnPaintContent(canvas);
-        }
-        finally
-        {
-            canvas.RestoreToCount(saveCount);
-        }
-    }
+    protected void PaintButtonBackground(SKCanvas canvas) =>
+        PaintChrome(canvas, !CanExecuteCommand ? SkUiColors.Disabled : _isPressed ? FillColor.MultiplyAlpha(0.75f) : FillColor);
 
     /// <inheritdoc />
     internal override bool HasIntrinsicTap => CanExecuteCommand;

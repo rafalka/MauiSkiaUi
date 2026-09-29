@@ -31,7 +31,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`Minimum`, `Maximum`, `Value` (two-way; clamped to the range, also when the range changes), `Orientation`, `MinimumTrackColor`, `MaximumTrackColor`, `ThumbColor`, `IsDragging`, `DragStartedCommand`, `DragCompletedCommand`. Events: `ValueChanged` (MAUI `ValueChangedEventArgs`), `DragStarted`, `DragCompleted`. Fluent: `SetSliderValue` (not `SetValue`, which is `BindableObject`'s), `SetMinimum`, `SetMaximum`, `SetOrientation`, color setters.
+`Minimum`, `Maximum`, `Value` (two-way; clamped to the range, also when the range changes; as in MAUI 10 the requested value is kept and comes back when the range widens, so XAML property order doesn't matter; an empty range gives `Minimum`), `Orientation`, `MinimumTrackColor`, `MaximumTrackColor`, `ThumbColor`, `IsDragging`, `DragStartedCommand`, `DragCompletedCommand`. Events: `ValueChanged` (MAUI `ValueChangedEventArgs`), `DragStarted`, `DragCompleted`. Fluent: `SetSliderValue` (not `SetValue`, which is `BindableObject`'s), `SetMinimum`, `SetMaximum`, `SetOrientation`, color setters.
 
 ## Differences from MAUI Slider
 

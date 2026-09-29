@@ -52,12 +52,13 @@ public abstract class SkUiCoreToggleControl : SkUiCoreNode
         var wasChecked = IsChecked;
         if (!SetProperty(ref _state, value, nameof(CheckState))) return this;
         InvalidatePaint();
-        CheckStateChanged?.Invoke(this, value);
-        if (wasChecked != IsChecked)
-        {
+        // Both property notifications first, then the events: handlers see IsChecked bindings already updated.
+        var checkedChanged = wasChecked != IsChecked;
+        if (checkedChanged)
             OnPropertyChanged(nameof(IsChecked));
+        CheckStateChanged?.Invoke(this, value);
+        if (checkedChanged)
             CheckedChanged?.Invoke(this, IsChecked);
-        }
         return this;
     }
 

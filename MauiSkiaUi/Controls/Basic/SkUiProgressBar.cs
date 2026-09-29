@@ -14,14 +14,13 @@ public class SkUiProgressBar : SkUiView
     private bool _isIndeterminate;
     private Color _progressColor = SkUiColors.Accent;
     private Color _trackColor = SkUiColors.TrackOff;
-    private IDisposable? _progressAnimation;
-    private TaskCompletionSource<bool>? _progressCompletion;
+    private SkUiProgressTween? _tween;
     private SKPath? _clip;
     private SKSize _clipSize;
 
     /// <summary>Bindable <see cref="Progress"/>.</summary>
     public static readonly BindableProperty ProgressProperty = BindableProperty.Create(nameof(Progress), typeof(double), typeof(SkUiProgressBar), 0d,
-        coerceValue: (_, value) => Math.Clamp((double)value, 0, 1),
+        coerceValue: (_, value) => SkUiProgressTween.Clamp((double)value),
         propertyChanged: (view, _, value) => ((SkUiProgressBar)view).SetProgress((double)value));
 
     /// <summary>Bindable <see cref="IsIndeterminate"/>.</summary>
@@ -36,7 +35,7 @@ public class SkUiProgressBar : SkUiView
     public static readonly BindableProperty TrackColorProperty = BindableProperty.Create(nameof(TrackColor), typeof(Color), typeof(SkUiProgressBar), null,
         defaultValueCreator: _ => SkUiColors.TrackOff, propertyChanged: (view, _, value) => ((SkUiProgressBar)view).SetTrackColor((Color)value));
 
-    /// <summary>Completed fraction, 0–1 (clamped).</summary>
+    /// <summary>Completed fraction, 0–1 (clamped; NaN becomes 0).</summary>
     public double Progress { get => _progress; set => SetValue(ProgressProperty, value); }
 
     /// <summary>Shows activity without a known amount: a segment moves along the bar and <see cref="Progress"/> is not drawn.</summary>
@@ -51,7 +50,7 @@ public class SkUiProgressBar : SkUiView
     /// <summary>Sets the progress (clamped) without bindable write-back.</summary>
     public SkUiProgressBar SetProgress(double value)
     {
-        value = Math.Clamp(value, 0, 1);
+        value = SkUiProgressTween.Clamp(value);
         if (_progress == value) return this;
         _progress = value;
         InvalidatePaint();
@@ -76,35 +75,18 @@ public class SkUiProgressBar : SkUiView
 
     /// <summary>
     /// Animates <see cref="Progress"/> to <paramref name="value"/> over <paramref name="length"/> ms, like MAUI's
-    /// <c>ProgressTo</c>. Returns <c>true</c> when it ran to completion; <c>false</c> when a newer call replaced it.
+    /// <c>ProgressTo</c>. Returns <c>true</c> when it ran to completion; <c>false</c> when a newer call replaced it or
+    /// the animation was stopped (e.g. the page closed). It pauses while the bar is detached and continues once the bar
+    /// is in a tree again (also when called before the bar was added).
     /// </summary>
-    public Task<bool> ProgressTo(double value, uint length = 250, Easing? easing = null)
-    {
-        CancelProgressAnimation();
-        var from = _progress;
-        var to = Math.Clamp(value, 0, 1);
-        var curve = easing ?? Easing.Linear;
-        var completion = _progressCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        // A linear clock with the easing applied here: completion is exactly t >= 1, whatever the easing overshoots.
-        _progressAnimation = AnimationClock.Start(t =>
-        {
-            Progress = from + (to - from) * curve.Ease(Math.Min(t, 1));
-            if (t >= 1 && ReferenceEquals(_progressCompletion, completion))
-            {
-                _progressAnimation = null;
-                _progressCompletion = null;
-                completion.TrySetResult(true);
-            }
-        }, TimeSpan.FromMilliseconds(Math.Max(1, length)));
-        return completion.Task;
-    }
+    public Task<bool> ProgressTo(double value, uint length = 250, Easing? easing = null) =>
+        (_tween ??= new SkUiProgressTween(progress => Progress = progress)).Start(AnimationClock, _progress, value, length, easing);
 
-    private void CancelProgressAnimation()
+    /// <inheritdoc />
+    protected override void OnAnimationRootChanged(bool subtreeDetached = false)
     {
-        _progressAnimation?.Dispose();
-        _progressAnimation = null;
-        _progressCompletion?.TrySetResult(false);
-        _progressCompletion = null;
+        base.OnAnimationRootChanged(subtreeDetached);
+        _tween?.Rebind(AnimationClock, subtreeDetached);
     }
 
     /// <inheritdoc />
@@ -170,5 +152,89 @@ internal static class SkUiProgressBarDrawing
             clipSize = size;
         }
         props.ContentClipPath = clip;
+    }
+}
+
+/// <summary>
+/// <c>ProgressTo</c> for <see cref="SkUiProgressBar"/> / <see cref="Core.SkUiCoreProgressBar"/>: one tween at a time on
+/// the UI-thread animation clock. <see cref="Rebind"/> moves a running tween to another clock (the bar moved to another
+/// surface), keeping its curve and remaining time; while the bar is detached, the tween pauses.
+/// </summary>
+internal sealed class SkUiProgressTween(Action<double> setProgress)
+{
+    private TaskCompletionSource<bool>? _completion;
+    private IDisposable? _handle;
+    private double _from;
+    private double _to;
+    private double _position;
+    private double _lengthMs;
+    private Easing _easing = Easing.Linear;
+
+    /// <summary>0–1; NaN (which <see cref="Math.Clamp(double, double, double)"/> passes through) becomes 0.</summary>
+    public static double Clamp(double value) => double.IsNaN(value) ? 0 : Math.Clamp(value, 0, 1);
+
+    public Task<bool> Start(SkUiAnimationClock clock, double from, double to, uint length, Easing? easing)
+    {
+        Finish(false);
+        _from = from;
+        _to = Clamp(to);
+        _easing = easing ?? Easing.Linear;
+        _lengthMs = Math.Max(1, length);
+        _position = 0;
+        var completion = _completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Run(clock);
+        return completion.Task;
+    }
+
+    public void Rebind(SkUiAnimationClock clock, bool detached)
+    {
+        if (_completion is null)
+            return;
+        if (detached)
+        {
+            var handle = _handle;
+            _handle = null;
+            handle?.Dispose(); // paused: its stopped callback sees it is no longer current
+        }
+        else
+            Run(clock);
+    }
+
+    private void Run(SkUiAnimationClock clock)
+    {
+        var previous = _handle;
+        _handle = null;
+        previous?.Dispose(); // its stopped callback sees it is no longer current
+        var start = _position;
+        IDisposable? handle = null;
+        // A linear clock with the easing applied here: completion is exactly t >= 1, whatever the easing overshoots.
+        handle = clock.Start(t =>
+        {
+            _position = start + (1 - start) * Math.Min(t, 1);
+            setProgress(_from + (_to - _from) * _easing.Ease(_position));
+            if (t >= 1 && handle is not null && ReferenceEquals(_handle, handle))
+            {
+                _handle = null;
+                Finish(true);
+            }
+        }, TimeSpan.FromMilliseconds(Math.Max(1, _lengthMs * (1 - start))), easing: null, repeat: false, stopped: () =>
+        {
+            if (handle is not null && ReferenceEquals(_handle, handle))
+            {
+                _handle = null;
+                Finish(false);
+            }
+        });
+        _handle = handle;
+    }
+
+    private void Finish(bool result)
+    {
+        var completion = _completion;
+        _completion = null;
+        var handle = _handle;
+        _handle = null;
+        handle?.Dispose();
+        completion?.TrySetResult(result);
     }
 }

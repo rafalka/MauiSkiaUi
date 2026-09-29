@@ -20,6 +20,8 @@ public class SkUiSlider : SkUiView
     private ICommand? _dragStartedCommand;
     private ICommand? _dragCompletedCommand;
     private SkUiSliderGestureRecognizer? _gesture;
+    private double _requestedValue;
+    private bool _recoercing;
 
     /// <summary>Bindable <see cref="Minimum"/>.</summary>
     public static readonly BindableProperty MinimumProperty = BindableProperty.Create(nameof(Minimum), typeof(double), typeof(SkUiSlider), 0d,
@@ -31,7 +33,7 @@ public class SkUiSlider : SkUiView
 
     /// <summary>Bindable <see cref="Value"/> (two-way by default, clamped to the range).</summary>
     public static readonly BindableProperty ValueProperty = BindableProperty.Create(nameof(Value), typeof(double), typeof(SkUiSlider), 0d, BindingMode.TwoWay,
-        coerceValue: (view, value) => ((SkUiSlider)view).Clamp((double)value),
+        coerceValue: (view, value) => ((SkUiSlider)view).CoerceValue((double)value),
         propertyChanged: (view, _, value) => ((SkUiSlider)view).ApplyValue((double)value));
 
     /// <summary>Bindable <see cref="Orientation"/>.</summary>
@@ -64,7 +66,11 @@ public class SkUiSlider : SkUiView
     /// <summary>Largest value (default 1).</summary>
     public double Maximum { get => _maximum; set => SetValue(MaximumProperty, value); }
 
-    /// <summary>Current value, clamped between <see cref="Minimum"/> and <see cref="Maximum"/>.</summary>
+    /// <summary>
+    /// Current value, clamped between <see cref="Minimum"/> and <see cref="Maximum"/>. As in MAUI, the requested value
+    /// is kept: when the range widens again, the value moves back towards it (so XAML property order doesn't matter).
+    /// When <see cref="Maximum"/> is not above <see cref="Minimum"/>, the value is <see cref="Minimum"/>.
+    /// </summary>
     public double Value { get => _value; set => SetValue(ValueProperty, value); }
 
     /// <summary>Horizontal (default; minimum at the start) or vertical (minimum at the bottom).</summary>
@@ -104,7 +110,7 @@ public class SkUiSlider : SkUiView
     public SkUiSlider SetMaximum(double value) { OnRangeChanged(maximum: value); return this; }
 
     /// <summary>Sets the value (clamped) without bindable write-back.</summary>
-    public SkUiSlider SetSliderValue(double value) { ApplyValue(Clamp(value)); return this; }
+    public SkUiSlider SetSliderValue(double value) { _requestedValue = value; ApplyValue(Clamp(value)); return this; }
 
     /// <summary>Sets the orientation without bindable write-back.</summary>
     public SkUiSlider SetOrientation(StackOrientation value)
@@ -169,26 +175,43 @@ public class SkUiSlider : SkUiView
         });
     }
 
-    /// <summary>A user change: applies the value under <paramref name="position"/> and writes it back.</summary>
+    /// <summary>A user change: writes the value under <paramref name="position"/> back, then applies it (raising <see cref="ValueChanged"/>).</summary>
     private void CommitAt(Point position)
     {
         var value = Clamp(SkUiSliderMath.ValueAt(position, new Size(Width, Height), _orientation, IsRightToLeft, _minimum, _maximum));
-        ApplyValue(value);
         SetValue(ValueProperty, value);
+        ApplyValue(value);
     }
 
     private double Clamp(double value) => SkUiSliderMath.Clamp(value, _minimum, _maximum);
+
+    private double CoerceValue(double value)
+    {
+        if (!_recoercing)
+            _requestedValue = value;
+        return Clamp(value);
+    }
 
     private void OnRangeChanged(double? minimum = null, double? maximum = null)
     {
         _minimum = minimum ?? _minimum;
         _maximum = maximum ?? _maximum;
         InvalidatePaint();
-        // Keep the value inside the new range (and bindings in step), as MAUI's Slider coerces it.
-        var clamped = Clamp(_value);
-        ApplyValue(clamped);
-        if ((double)GetValue(ValueProperty) != clamped)
-            SetValue(ValueProperty, clamped);
+        // Keep the value inside the new range, as near the requested value as it allows (bindings in step), as MAUI does.
+        var value = Clamp(_requestedValue);
+        if ((double)GetValue(ValueProperty) != value)
+        {
+            _recoercing = true;
+            try
+            {
+                SetValue(ValueProperty, value);
+            }
+            finally
+            {
+                _recoercing = false;
+            }
+        }
+        ApplyValue(value);
     }
 
     private void ApplyValue(double value)

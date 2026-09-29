@@ -31,9 +31,21 @@ public abstract class SkUiToggleControl : SkUiView
 
     /// <summary>
     /// Whether the control is checked (MAUI-compatible view of <see cref="CheckState"/>): <c>true</c> only for
-    /// <see cref="SkUiCheckState.Checked"/>; setting it sets Checked or Unchecked.
+    /// <see cref="SkUiCheckState.Checked"/>; setting it sets Checked or Unchecked (<c>false</c> also clears
+    /// Indeterminate). A binding that pushes <c>false</c> while Indeterminate leaves the state: it only mirrors it.
     /// </summary>
-    public bool IsChecked { get => SkUiCheckStates.IsChecked(_state); set => SetValue(IsCheckedProperty, value); }
+    public bool IsChecked
+    {
+        get => SkUiCheckStates.IsChecked(_state);
+        set
+        {
+            // Indeterminate already reads false, so SetValue(false) would change nothing.
+            if (!value && _state == SkUiCheckState.Indeterminate)
+                CheckState = SkUiCheckState.Unchecked;
+            else
+                SetValue(IsCheckedProperty, value);
+        }
+    }
 
     /// <summary>
     /// Whether taps also reach <see cref="SkUiCheckState.Indeterminate"/> (Unchecked → Checked → Indeterminate →
@@ -50,7 +62,7 @@ public abstract class SkUiToggleControl : SkUiView
     /// <summary>Sets the state without bindable write-back.</summary>
     public SkUiToggleControl SetCheckState(SkUiCheckState value)
     {
-        ApplyState(value);
+        ApplyState(value, writeBack: false);
         return this;
     }
 
@@ -81,24 +93,15 @@ public abstract class SkUiToggleControl : SkUiView
     }
 
     /// <summary>A user change: applies <paramref name="value"/> and writes it back to both bindable properties.</summary>
-    private protected void CommitState(SkUiCheckState value)
-    {
-        ApplyState(value);
-        SetValue(CheckStateProperty, value);
-        SyncIsCheckedProperty();
-    }
+    private protected void CommitState(SkUiCheckState value) => ApplyState(value, writeBack: true);
 
-    private void OnCheckStatePropertyChanged(SkUiCheckState value)
-    {
-        ApplyState(value);
-        SyncIsCheckedProperty();
-    }
+    private void OnCheckStatePropertyChanged(SkUiCheckState value) => ApplyState(value, writeBack: true);
 
     private void OnIsCheckedPropertyChanged(bool value)
     {
         if (_syncingIsChecked)
             return;
-        CheckState = SkUiCheckStates.FromIsChecked(value);
+        ApplyState(SkUiCheckStates.FromIsChecked(value), writeBack: true);
     }
 
     /// <summary>Keeps the <see cref="IsCheckedProperty"/> store (and its bindings) in step with the state.</summary>
@@ -118,15 +121,26 @@ public abstract class SkUiToggleControl : SkUiView
         }
     }
 
-    private void ApplyState(SkUiCheckState value)
+    /// <summary>
+    /// Applies <paramref name="value"/>; with <paramref name="writeBack"/>, updates both bindable properties (and so their
+    /// bindings) before the change events run, so handlers see the new state everywhere.
+    /// </summary>
+    private void ApplyState(SkUiCheckState value, bool writeBack)
     {
-        if (_state == value)
-            return;
-        var wasChecked = SkUiCheckStates.IsChecked(_state);
+        var old = _state;
         _state = value;
+        if (writeBack)
+        {
+            // Re-enters OnCheckStatePropertyChanged with the state already applied: that call only syncs.
+            SetValue(CheckStateProperty, value);
+            SyncIsCheckedProperty();
+        }
+        if (old == value)
+            return;
         InvalidatePaint();
         CheckStateChanged?.Invoke(this, value);
-        if (wasChecked != SkUiCheckStates.IsChecked(value))
-            CheckedChanged?.Invoke(this, !wasChecked);
+        var isChecked = SkUiCheckStates.IsChecked(value);
+        if (SkUiCheckStates.IsChecked(old) != isChecked)
+            CheckedChanged?.Invoke(this, isChecked);
     }
 }

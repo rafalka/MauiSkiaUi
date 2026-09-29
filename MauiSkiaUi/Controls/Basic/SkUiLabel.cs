@@ -2,7 +2,11 @@ using SkiaSharp;
 
 namespace MauiSkiaUi;
 
-/// <summary>Drawn, left-to-right text with wrapping, alignment, and MAUI-style bindable properties.</summary>
+/// <summary>
+/// Drawn text with wrapping, alignment, and MAUI-style bindable properties. Optional rounded chrome (a badge, a chip,
+/// a tag): <see cref="CornerRadii"/> (or the uniform <see cref="CornerRadius"/>), <see cref="BorderColor"/> and
+/// <see cref="BorderWidth"/> shape the <see cref="VisualElement.Background"/> fill without wrapping the label in a border.
+/// </summary>
 public class SkUiLabel : SkUiView
 {
     private string _text = string.Empty;
@@ -17,6 +21,10 @@ public class SkUiLabel : SkUiView
     private readonly SkUiTextLayout _layout = new();
     private SkUiTextRendering _textRendering;
     private SKPaint? _textPaint;
+    private Microsoft.Maui.CornerRadius _cornerRadii;
+    private Color _borderColor = Colors.Transparent;
+    private double _borderWidth;
+    private SkUiRoundedClip _textClip;
 
     /// <summary>Bindable text.</summary>
     public static readonly BindableProperty TextProperty = BindableProperty.Create(nameof(Text), typeof(string), typeof(SkUiLabel), string.Empty, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetText((string?)value));
@@ -44,6 +52,21 @@ public class SkUiLabel : SkUiView
     /// <summary>Bindable text inset.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiLabel), default(Thickness), defaultValueCreator: view => ((SkUiLabel)view).DefaultPadding, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetPadding((Thickness)value));
 
+    /// <summary>Bindable per-corner radii of the background and border (0: square).</summary>
+    public static readonly BindableProperty CornerRadiiProperty = BindableProperty.Create(nameof(CornerRadii), typeof(Microsoft.Maui.CornerRadius), typeof(SkUiLabel), default(Microsoft.Maui.CornerRadius),
+        defaultValueCreator: view => new Microsoft.Maui.CornerRadius(((SkUiLabel)view).DefaultCornerRadius),
+        propertyChanged: (view, _, value) => ((SkUiLabel)view).SetCornerRadii((Microsoft.Maui.CornerRadius)value));
+    /// <summary>Bindable uniform corner radius (MAUI Button's <c>int</c> <c>CornerRadius</c>): sets all four <see cref="CornerRadii"/>.</summary>
+    public static readonly BindableProperty CornerRadiusProperty = BindableProperty.Create(nameof(CornerRadius), typeof(int), typeof(SkUiLabel), 0,
+        defaultValueCreator: view => (int)Math.Round(((SkUiLabel)view).DefaultCornerRadius),
+        propertyChanged: (view, _, value) => ((SkUiLabel)view).SetCornerRadius((int)value));
+    /// <summary>Bindable border color.</summary>
+    public static readonly BindableProperty BorderColorProperty = BindableProperty.Create(nameof(BorderColor), typeof(Color), typeof(SkUiLabel), Colors.Transparent, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetBorderColor((Color)value));
+    /// <summary>Bindable border width.</summary>
+    public static readonly BindableProperty BorderWidthProperty = BindableProperty.Create(nameof(BorderWidth), typeof(double), typeof(SkUiLabel), 0d, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetBorderWidth((double)value));
+
+    /// <summary>Default (uniform) corner radius used by derived controls and bindable value clearing.</summary>
+    protected virtual double DefaultCornerRadius => 0;
     /// <summary>Default foreground used by derived controls and bindable value clearing.</summary>
     protected virtual Color DefaultTextColor => SkUiColors.DefaultForeground;
     /// <summary>Default alignment used by derived controls and bindable value clearing.</summary>
@@ -69,6 +92,22 @@ public class SkUiLabel : SkUiView
     public TextAlignment VerticalTextAlignment { get => _verticalTextAlignment; set => SetValue(VerticalTextAlignmentProperty, value); }
     /// <summary>Text inset in DIPs.</summary>
     public Thickness Padding { get => _padding; set => SetValue(PaddingProperty, value); }
+    /// <summary>
+    /// Per-corner radii in DIPs of the background and border (like <see cref="SkUiBorder.CornerRadius"/>); text is
+    /// clipped to them. Radii larger than the label allows are scaled down, so a large uniform radius gives a pill.
+    /// Hit bounds remain rectangular.
+    /// </summary>
+    public Microsoft.Maui.CornerRadius CornerRadii { get => _cornerRadii; set => SetValue(CornerRadiiProperty, value); }
+    /// <summary>
+    /// Uniform view of <see cref="CornerRadii"/>, an <c>int</c> as MAUI Button's <c>CornerRadius</c>: setting it sets all
+    /// four corners; it reads the top-left radius, rounded. Setting either property replaces the corners (the last one
+    /// set wins); use <see cref="CornerRadii"/> for fractional radii.
+    /// </summary>
+    public int CornerRadius { get => (int)Math.Round(_cornerRadii.TopLeft); set => SetValue(CornerRadiusProperty, value); }
+    /// <summary>Border color (drawn inside the bounds; <see cref="Padding"/> is not adjusted).</summary>
+    public Color BorderColor { get => _borderColor; set => SetValue(BorderColorProperty, value); }
+    /// <summary>Border width in DIPs.</summary>
+    public double BorderWidth { get => _borderWidth; set => SetValue(BorderWidthProperty, value); }
     /// <inheritdoc cref="TextRenderingProperty" />
     public SkUiTextRendering TextRendering { get => _textRendering; set => SetValue(TextRenderingProperty, value); }
     /// <summary>Sets <see cref="TextRendering"/> without bindable write-back.</summary>
@@ -92,6 +131,32 @@ public class SkUiLabel : SkUiView
     public SkUiLabel SetVerticalTextAlignment(TextAlignment value) { _verticalTextAlignment = value; InvalidatePaint(); return this; }
     /// <summary>Sets padding without bindable write-back.</summary>
     public SkUiLabel SetPadding(Thickness value) { _padding = value; InvalidateText(); return this; }
+
+    /// <summary>Sets the per-corner radii without bindable write-back.</summary>
+    public SkUiLabel SetCornerRadii(Microsoft.Maui.CornerRadius value) { SkUiCornerRadii.Validate(value, nameof(value)); if (_cornerRadii == value) return this; _cornerRadii = value; InvalidatePaint(); return this; }
+    /// <summary>Sets all four corner radii to <paramref name="value"/> without bindable write-back.</summary>
+    public SkUiLabel SetCornerRadius(int value) { ArgumentOutOfRangeException.ThrowIfNegative(value); return SetCornerRadii(new Microsoft.Maui.CornerRadius(value)); }
+    /// <summary>Sets border color without bindable write-back.</summary>
+    public SkUiLabel SetBorderColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (_borderColor == value) return this; _borderColor = value; InvalidatePaint(); return this; }
+    /// <summary>Sets border width without bindable write-back.</summary>
+    public SkUiLabel SetBorderWidth(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (_borderWidth == value) return this; _borderWidth = value; InvalidatePaint(); return this; }
+
+    /// <summary>Whether the label draws rounded chrome instead of the plain rectangular background.</summary>
+    private bool HasChrome => SkUiCornerRadii.HasAny(_cornerRadii) || (_borderWidth > 0 && _borderColor.Alpha > 0);
+
+    /// <summary>Draws the rounded fill (<paramref name="fill"/>) and border through <see cref="SkUiLook.DrawRoundedBox(SKCanvas, SKRect, Microsoft.Maui.CornerRadius, SKColor, SKColor, float)"/>.</summary>
+    protected void PaintChrome(SKCanvas canvas, Color fill) =>
+        SkUiLook.Current.DrawRoundedBox(canvas, new SKRect(0, 0, (float)Width, (float)Height), _cornerRadii,
+            ToSkColor(fill), ToSkColor(_borderColor), (float)_borderWidth);
+
+    /// <inheritdoc />
+    protected override void OnPaintBackground(SKCanvas canvas)
+    {
+        if (HasChrome)
+            PaintChrome(canvas, ResolveSolidBackgroundColor() ?? Colors.Transparent);
+        else
+            base.OnPaintBackground(canvas);
+    }
 
     private void InvalidateText() { _layout.Invalidate(); InvalidateMeasureOverride(); }
 
@@ -122,6 +187,23 @@ public class SkUiLabel : SkUiView
     protected override void OnPaintContent(SKCanvas canvas)
     {
         if (_text.Length == 0) return;
+        if (!SkUiCornerRadii.HasAny(_cornerRadii))
+        {
+            PaintText(canvas);
+            return;
+        }
+        // Glyphs never bleed past the rounded corners.
+        var saveCount = canvas.Save();
+        try
+        {
+            canvas.ClipPath(_textClip.Get((float)Width, (float)Height, _cornerRadii), antialias: true);
+            PaintText(canvas);
+        }
+        finally { canvas.RestoreToCount(saveCount); }
+    }
+
+    private void PaintText(SKCanvas canvas)
+    {
         var paint = _textPaint ??= new SKPaint { IsAntialias = true };
         paint.Color = ToSkColor(_textColor);
         _layout.Draw(canvas, _text, SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), _fontSize, _padding, Width, Height,

@@ -1,3 +1,4 @@
+using MauiSkiaUi.Core;
 using Xunit;
 using SkiaSharp;
 
@@ -196,6 +197,75 @@ public class BasicControlsTests
         label.Paint(canvas);
         Assert.Contains(bitmap.Pixels, pixel => pixel.Red > 0 && pixel.Alpha > 0);
         Assert.False(label.Touch(new(1, SkUiTouchAction.Pressed, new Point(10, 10))));
+    }
+
+    [Fact]
+    public void LabelDrawsRoundedBadgeChromeWithoutAWrappingBorder()
+    {
+        var plain = new SkUiLabel { BackgroundColor = Colors.Red };
+        Assert.Equal(0, plain.CornerRadius);
+        Assert.Equal(SkUiLook.Current.DefaultButtonCornerRadius, new SkUiButton().CornerRadius);
+        var badge = new SkUiLabel { Text = "12", BackgroundColor = Colors.Red, CornerRadius = 100, BorderColor = Colors.Blue, BorderWidth = 2 };
+        foreach (var (label, cornerAlpha) in new[] { (plain, 255), (badge, 0) })
+        {
+            SkUiTestHelpers.Arrange(label, 80, 40);
+            using var bitmap = new SKBitmap(80, 40);
+            using var canvas = new SKCanvas(bitmap);
+            canvas.Clear(SKColors.Transparent);
+            label.Paint(canvas);
+            Assert.Equal(cornerAlpha, bitmap.GetPixel(0, 0).Alpha); // a radius beyond half the height gives a pill
+            Assert.Equal(SKColors.Red, bitmap.GetPixel(40, 3));
+            if (label == badge)
+                Assert.Equal(SKColors.Blue, bitmap.GetPixel(40, 0)); // border inside the bounds
+        }
+
+        var core = new SkUiCoreLabel().SetText("12").SetFillColor(Colors.Red).SetCornerRadius(100).SetBorderColor(Colors.Blue).SetBorderWidth(2);
+        using var surface = new SkUiTestSurface(new SkUiCoreHost { Background = Colors.White }.SetContent(core), 80, 40);
+        var frame = surface.Frame();
+        Assert.Equal(SKColors.White, frame.GetPixel(0, 0));
+        Assert.Equal(SKColors.Red, frame.GetPixel(40, 3));
+        Assert.Equal(SKColors.Blue, frame.GetPixel(40, 0));
+        Assert.Equal(SkUiLook.Current.DefaultButtonCornerRadius, new SkUiCoreButton().CornerRadius);
+        Assert.Equal(0, new SkUiCoreLabel().CornerRadius);
+    }
+
+    [Fact]
+    public void LabelAndButtonCornersAreSetSeparatelyOrAllAtOnce()
+    {
+        // A tab: rounded top corners only.
+        var tab = new SkUiLabel { BackgroundColor = Colors.Red, CornerRadii = new CornerRadius(16, 16, 0, 0) };
+        SkUiTestHelpers.Arrange(tab, 80, 40);
+        using (var bitmap = new SKBitmap(80, 40))
+        using (var canvas = new SKCanvas(bitmap))
+        {
+            canvas.Clear(SKColors.Transparent);
+            tab.Paint(canvas);
+            Assert.Equal(0, bitmap.GetPixel(0, 0).Alpha);
+            Assert.Equal(0, bitmap.GetPixel(79, 0).Alpha);
+            Assert.Equal(SKColors.Red, bitmap.GetPixel(0, 39));
+            Assert.Equal(SKColors.Red, bitmap.GetPixel(79, 39));
+        }
+
+        // MAUI Button's CornerRadius sets all four corners; the last property set wins.
+        var button = new SkUiButton { CornerRadius = 10 };
+        Assert.Equal(new CornerRadius(10), button.CornerRadii);
+        button.CornerRadii = new CornerRadius(1, 2, 3, 4);
+        Assert.Equal(1, button.CornerRadius);
+        button.CornerRadius = 5;
+        Assert.Equal(new CornerRadius(5), button.CornerRadii);
+        button.ClearValue(SkUiLabel.CornerRadiusProperty);
+        Assert.Equal(new CornerRadius(SkUiLook.Current.DefaultButtonCornerRadius), button.CornerRadii);
+        Assert.Throws<ArgumentOutOfRangeException>(() => button.SetCornerRadii(new CornerRadius(-1, 0, 0, 0)));
+
+        var core = new SkUiCoreButton();
+        Assert.Equal(new CornerRadius(SkUiLook.Current.DefaultButtonCornerRadius), core.CornerRadii);
+        var names = new List<string?>();
+        ((System.ComponentModel.INotifyPropertyChanged)core).PropertyChanged += (_, args) => names.Add(args.PropertyName);
+        core.SetCornerRadii(new CornerRadius(8, 8, 0, 0));
+        Assert.Equal(8, core.CornerRadius);
+        Assert.Equal([nameof(SkUiCoreLabel.CornerRadii), nameof(SkUiCoreLabel.CornerRadius)], names);
+        core.SetCornerRadius(3);
+        Assert.Equal(new CornerRadius(3), core.CornerRadii);
     }
 
     [Fact]

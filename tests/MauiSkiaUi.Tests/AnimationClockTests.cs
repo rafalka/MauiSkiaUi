@@ -41,10 +41,29 @@ public class AnimationClockTests
         Assert.Equal(1, seenAfter); // the animation after a self-disposing one still runs
         Assert.True(clock.IsRunning);
 
-        clock.Start(_ => clock.StopAll(), TimeSpan.FromSeconds(1));
-        clock.Tick(TimeSpan.FromMilliseconds(100)); // StopAll mid-tick: no exception, nothing left
+        var stopped = 0;
+        var later = 0;
+        clock.Start(t => { if (t > 0) clock.StopAll(); }, TimeSpan.FromSeconds(1)); // not at Start's apply(0)
+        clock.Start(_ => later++, TimeSpan.FromSeconds(1), easing: null, repeat: false, stopped: () => stopped++);
+        later = 0;
+        clock.Tick(TimeSpan.FromMilliseconds(100)); // StopAll mid-tick: no exception, the rest is not run, nothing left
+        Assert.Equal(0, later);
+        Assert.Equal(1, stopped);
         Assert.False(clock.IsRunning);
         Assert.Equal(1, stops);
         clock.Tick(TimeSpan.FromMilliseconds(150));
+    }
+
+    [Fact]
+    public void StoppedRunsOnlyWhenAnAnimationDoesNotFinish()
+    {
+        var clock = new SkUiAnimationClock();
+        var stopped = new List<string>();
+        clock.Start(_ => { }, TimeSpan.FromMilliseconds(100), easing: null, repeat: false, stopped: () => stopped.Add("finished"));
+        var cancelled = clock.Start(_ => { }, TimeSpan.FromSeconds(1), easing: null, repeat: false, stopped: () => stopped.Add("cancelled"));
+        clock.Tick(TimeSpan.FromMilliseconds(150));
+        cancelled.Dispose();
+        cancelled.Dispose();
+        Assert.Equal(["cancelled"], stopped);
     }
 }

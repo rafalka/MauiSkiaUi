@@ -88,6 +88,42 @@ public class ProgressBarTests
     }
 
     [Fact]
+    public async Task ProgressToCompletesWhenStoppedAndContinuesOnAnotherSurface()
+    {
+        var bar = Bar();
+        bar.Progress = double.NaN;
+        Assert.Equal(0, bar.Progress);
+
+        var first = new SkUiContentView { Content = bar };
+        var stopped = bar.ProgressTo(1, 100);
+        first.AnimationClock.StopAll(); // what a handler disconnect does
+        Assert.False(await stopped);
+
+        var moved = bar.ProgressTo(1, 100);
+        first.AnimationClock.Tick(TimeSpan.FromMilliseconds(50));
+        Assert.InRange(bar.Progress, 0.4, 0.6);
+        first.Content = null;
+        var second = new SkUiContentView { Content = bar };
+        second.AnimationClock.Tick(TimeSpan.FromMilliseconds(10));
+        Assert.False(moved.IsCompleted);
+        second.AnimationClock.Tick(TimeSpan.FromMilliseconds(70)); // the remaining 50 ms
+        Assert.True(await moved);
+        Assert.Equal(1, bar.Progress);
+
+        var early = new SkUiProgressBar(); // ProgressTo before the bar is in a tree (e.g. in a page constructor)
+        var queued = early.ProgressTo(1, 100);
+        var third = new SkUiContentView { Content = early };
+        third.AnimationClock.Tick(TimeSpan.FromMilliseconds(200));
+        Assert.True(await queued);
+
+        var core = new SkUiCoreProgressBar();
+        var host = new SkUiCoreHost().SetContent(core);
+        var coreTask = core.ProgressTo(1, 100);
+        host.AnimationClock.StopAll();
+        Assert.False(await coreTask);
+    }
+
+    [Fact]
     public void CoreProgressBarMatches()
     {
         var bar = new SkUiCoreProgressBar();
