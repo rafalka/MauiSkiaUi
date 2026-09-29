@@ -6,6 +6,16 @@ Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs
 
 ## Unreleased
 
+- **State-change transitions** ([ControlLook.md](docs/design/ControlLook.md#state-change-transitions-fr-26)):
+  - Switches slide, check boxes draw their check mark in, radio dots grow, and button and image-button presses dim or ripple from the press point (`DefaultSkUiLook.PressEffect`).
+  - Slider thumbs glide to tapped values; a look can smooth `Progress` changes. The same on SkUi* and Core.
+  - Looks draw every point of a transition and set each one's duration and easing: `SkUiLook.GetTransition` / `GetTransitionCore` / `TransitionProvider`, with `SkUiTransition.None` to turn one off.
+  - State and events change at once; toggling back mid-way reverses from the current point. Controls animate once they have been drawn, so states set before a page appears show at once.
+  - `SkUiMotion` follows the OS reduce-motion setting (`ReduceMotion` overrides it); while reduced, transitions are off.
+  - **Press feedback on any control:** `ShowsPressEffect` on every `SkUiView` and Core node draws the look's press overlay over the node and its children while pressed, clipped to its rounded shape. For cards and composite buttons built from several nodes (the node needs a tap handler).
+  - **Breaking:** the Switch / CheckBox / RadioButton painters, their `Draw*` entry points and `*Core` overrides take paint structs (`SkUiSwitchPaint`, `SkUiCheckBoxPaint`, `SkUiRadioButtonPaint`) that carry the transition (`SkUiToggleVisual`, `SkUiPressVisual`). `DrawPressTint` / `PressTintPainter` / `DrawPressTintCore` became `DrawPressOverlay` / `PressOverlayPainter` / `DrawPressOverlayCore` with a `SkUiPressOverlayPaint` (per-corner radii), shared by ImageButton and `ShowsPressEffect`. Buttons draw through the new `DrawButton` (`SkUiButtonPaint`). `SkUiSliderPaint.IsPressed` became `Pressed` (0–1).
+  - **Fixed:** replacing `SkUiLook.Current` or `SkUiColorScheme.Current` now re-measures and redraws every live surface (before, retained pictures stayed stale until something else changed). New `SkUiLook.NotifyChanged()` for looks changed in place.
+  - `SkUiRenderStatistics` also reports UI-thread animation frames (`UiFrames`, `UiAverageMilliseconds`, `UiMaxMilliseconds`); benchmarks gain `toggle-transitions` scenarios and `motionUi*` metrics.
 - **Three-state toggles:** `CheckState` (`SkUiCheckState`: Unchecked / Checked / Indeterminate) and `IsThreeState` on check boxes, switches and radio buttons, SkUi* and Core. `IsChecked` stays as the two-state view for MAUI parity; `CheckStateChanged` is new.
   - **Fixed:** a tap now writes back to the bindable `IsChecked` / `CheckState` (two-way by default), so bindings see user changes; before, a tap changed only the drawn state.
   - **Breaking:** `SkUiLook.DrawSwitch` / `DrawCheckBox` / `DrawRadioButton`, their `*Core` overrides and painter delegates take `SkUiCheckState` instead of `bool`.

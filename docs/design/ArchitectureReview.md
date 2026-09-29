@@ -42,7 +42,7 @@ Ordered by severity. File references are to the code at the time of the review.
 | N3 | Medium | A disabled Core button lets taps through to what is underneath (`SkUiCoreButton.HasIntrinsicTap => CanExecuteCommand`); `SkUiButton` blocks | Give Core `IsEnabled` / `InputTransparent` and one blocking rule for both layers |
 | N4 | Medium | Core stacks and content views ignore child alignment (only absolute, grid and host call `AlignInSlot`), although Core promises MAUI `ComputeFrame` behavior | Align in every Core container; SkUi-vs-Core parity test |
 | N5 | Medium | `InvalidateMeasure` walks to the root without an early-out, and each level calls `InvalidatePaint`: every ancestor re-records its picture (e.g. `SkUiCoreTable` redraws all track backgrounds on a cell text change) | Propagate layout without content dirtiness (size changes already re-record); stop at measure-dirty parents; relayout boundaries (§4) |
-| N6 | Medium | Swapping `SkUiLook.Current` / `SkUiColorScheme.Current` leaves retained pictures stale (nothing listens to `CurrentChanged`), and some controls snapshot scheme colors at construction | Surface roots weakly subscribe and invalidate their subtree; resolve defaults at paint time ("not explicitly set"); hook `RequestedThemeChanged` |
+| N6 | Medium — **partly fixed** | Swapping `SkUiLook.Current` / `SkUiColorScheme.Current` left retained pictures stale; some controls snapshot scheme colors at construction | Fixed: live surfaces re-measure and redraw their drawn tree on `CurrentChanged` (`SkUiLook.NotifyChanged()` for looks changed in place). Open: resolve scheme defaults at paint time ("not explicitly set") instead of snapshots; hook `RequestedThemeChanged` |
 | N7 | Medium | Any running render-thread animation (a 36-DIP spinner, an indeterminate bar) re-composites the whole surface at display rate | Raster-cache stable siblings (§4) |
 | N8 | Medium | No OS font scaling (`FontAutoScalingEnabled`), no semantics tree, no keyboard focus / activation | Accessibility work (§4) |
 | N9 | Medium | No shared image cache: every instance re-loads and re-decodes the same source and holds several copies of the encoded bytes; duplicated between SkUi\* and Core | One loader + decoded-image cache keyed by source and decode size, shared by both layers; needed before virtualization |
@@ -111,15 +111,43 @@ The spinner and fling cases (N7) are the benchmark.
 
 ## State-change animations
 
-Requirement FR-26 (switch, check box and radio transitions, press ripple, slider / progress motion, configurable by `SkUiLook`). Today looks are stateless painters called while a picture is recorded, and render-thread animation covers only composite properties, `ContentSpinPeriod` and `ContentSlidePeriod`. Animating a thumb or a check mark means changing *what* is drawn, which needs:
+Requirement FR-26: switch, check box and radio transitions, press feedback (dim, ripple), slider and progress motion, configurable by `SkUiLook`. **Implemented** on the UI-thread design below; the render-thread variants stay open for later.
 
-1. **Looks draw from continuous parameters.** A visual-state input: from / to state, progress 0–1, press progress, ripple origin and radius. The look also describes each transition, e.g. `GetTransition(kind, from, to) → (duration, easing)`, with zero meaning none (so looks can turn effects off, and reduce-motion forces zero). The current signatures become the progress = 1 case; the paint structs used by the slider and progress bar are the pattern.
-2. **Per-control animation state in the control.** A small animator (target, current progress, handle) that reverses from its current position when interrupted. The logical state changes at once, so bindings and events are unaffected; the look stays global and stateless.
-3. **Version 1: UI-thread clock, re-recording the one node per frame.** Cheap for 150–250 ms micro-animations and testable with a deterministic tick, once N5 stops re-recording ancestors. Needed N1's fix, which is done.
-4. **Version 2: render-thread, for smoothness under UI load.** Two options:
-   - split the moving parts (thumb, check glyph, ripple) into child render nodes animated with composite-time tweens, with color changes as cross-fades between two pictures;
-   - render-thread painters: a node kind whose pure, thread-safe painter runs per frame with an immutable parameter snapshot, instead of a fixed picture.
-5. **Press position for ripples.** The tap recognizer reports pressed / released but not the point. Draw the ripple in the overlay layer, clipped with the control's rounded path.
-6. **One timeline per transition.** The UI clock and the render clock are different timelines; mixing both in one transition would drift.
+**Design as built** ([ControlLook.md](ControlLook.md#state-change-transitions-fr-26), [AnimationMechanism.md](AnimationMechanism.md#state-change-transitions)):
 
-Recommendation: decide between version 1 and the child-node variant of version 2 with a spike on the switch and a button ripple, measured on a device. Do it before adding more controls with state visuals ([ImplementationPlan.md](ImplementationPlan.md), Phase 0).
+1. **Looks draw from continuous parameters.**
+   - Paint structs carry the transition: `SkUiToggleVisual` (from / to state, eased progress, press amount, with `Weight` / `Blend` helpers) and `SkUiPressVisual` (press amount, press point, ripple spread and fade). The slider's drawn fraction and press amount, and the progress bar's drawn fill, travel in their paint structs too.
+   - `GetTransition(kind)` gives each transition's duration and easing, or `None`.
+2. **Per-control animation state lives in the control.** Internal animators are shared by both layers: `SkUiTween`, `SkUiToggleAnimator`, `SkUiPressAnimator`, `SkUiSliderVisual`.
+   - The logical state changes at once. Interrupted transitions reverse from their current point.
+   - A quick tap shows its full press before releasing.
+   - Controls animate only after their first frame, and a stopped clock jumps to the end state.
+3. **UI-thread clock, re-recording only the animating control.** Paint invalidation marks just that node's content; ancestors are only walked, so N5 (which is about measure invalidation) was not a prerequisite. `TransitionTests` checks that one picture is recorded per frame.
+4. **Press position.** The tap recognizer now reports it. The ripple is drawn with the button's background, clipped to its rounded path; for image buttons, in the overlay.
+5. **One timeline.** Every transition runs on the UI clock; nothing mixes it with the render clock.
+6. **Reduce motion.** `SkUiMotion` follows the OS setting and can be overridden. While reduced, every transition is `None`.
+
+**Measurements.** Device benchmarks `toggle-transitions` and `toggle-transitions-busy` ([Benchmarks.md](Benchmarks.md)): 96 switches and check boxes re-toggled every 120 ms, so all of them are always mid-transition. Release builds, medians of 6 runs.
+
+| Device | Scenario | UI animation frames / s | UI work per frame (avg / max) | Render per frame (avg) |
+| --- | --- | --- | --- | --- |
+| Galaxy S9 (2018, 60 Hz) | 96 animating | 58.4 | 4.7 / 40 ms | 4.1 ms |
+| Galaxy S9 | + UI thread blocked 25 ms every 100 ms | 51.5 | 4.6 / 32 ms | 4.5 ms |
+| Mac Catalyst (Apple M5 Pro) | 96 animating | 59.9 | 0.6 / 2.4 ms | 0.6 ms |
+| Mac Catalyst | + busy UI thread | 49.9 | 0.5 / 2.5 ms | 0.6 ms |
+| Reference: `spinners` (render thread), Galaxy S9 | 120 spinning | — | — | 2.2 ms at 59.8 fps |
+
+**Decision: keep the UI-thread design.**
+- **Cheap:** about 0.05 ms of UI work per animating control per frame on a 2018 phone. A real screen animates one to a few controls at a time.
+- **Where it loses frames:** only when the UI thread itself is blocked (−7 to −10 frames per second at 25% blocked). Then taps and bindings stall too, and transitions last 80–450 ms.
+- **What it keeps:** look painters stay ordinary single-threaded code that app authors can write without thread-safety rules, and tests drive them with a deterministic clock.
+- **Occasional long frames** (up to 40 ms on the S9, with all 96 controls animating) don't show on the Mac. Probably GC or JIT; not investigated.
+- **Not measured:** a physical iPhone / iPad. The benchmark app has no provisioning profile for device builds.
+
+**Kept open (version 2, render thread).** Both options leave the look API as it is:
+- *Render-thread painters:* the compositor calls the look's painter per frame with an immutable paint-struct snapshot instead of replaying a picture. It needs painters that are safe to run on the render thread, so it would be an opt-in per look.
+- *Child render nodes:* moving parts (thumb, check glyph, ripple) animated with composite-time tweens. It fits simple slides, but not blended colors or partially drawn check marks.
+
+Revisit if a real app shows jank from UI-thread work during transitions.
+
+**Not done yet (FR-26):** several ripples at once (a new press restarts the ripple); press scale (the look draws the chrome, but the text is drawn by the control, so scaling needs a composite-time transform).

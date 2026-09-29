@@ -13,6 +13,7 @@ public class SkUiCoreImageButton : SkUiCoreImage
     private object? _commandParameter;
     private double _cornerRadius;
     private bool _isPressed;
+    private SkUiPressAnimator? _press;
     private EventHandler? _commandChanged;
 
     /// <summary>Creates an image button with a press/disabled tint overlay painter.</summary>
@@ -114,15 +115,10 @@ public class SkUiCoreImageButton : SkUiCoreImage
 
     private bool CanExecuteCommand => _command?.CanExecute(_commandParameter) ?? true;
 
-    /// <summary>Draws pressed/disabled tint registered as <see cref="SkUiCoreNode.PaintOverlay"/>. Subclasses may call or re-register this painter.</summary>
+    /// <summary>Draws press / disabled feedback (<see cref="SkUiLook.DrawPressOverlay"/>) registered as <see cref="SkUiCoreNode.PaintOverlay"/>. Subclasses may call or re-register this painter.</summary>
     protected void PaintButtonOverlay(SKCanvas canvas) =>
-        SkUiLook.Current.DrawPressTint(
-            canvas,
-            new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
-            (float)_cornerRadius,
-            disabled: !CanExecuteCommand,
-            pressed: _isPressed);
-
+        SkUiLook.Current.DrawPressOverlay(canvas, new SkUiPressOverlayPaint(new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
+            new CornerRadius(_cornerRadius), _press?.Visual ?? SkUiPressVisual.None, CanExecuteCommand));
 
     /// <inheritdoc />
     internal override bool HasIntrinsicTap => CanExecuteCommand;
@@ -143,6 +139,7 @@ public class SkUiCoreImageButton : SkUiCoreImage
     private void SetPressed(bool value)
     {
         if (!SetProperty(ref _isPressed, value, nameof(IsPressed))) return;
+        (_press ??= new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
         InvalidatePaint();
     }
 

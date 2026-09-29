@@ -10,7 +10,7 @@ namespace MauiSkiaUi.Core;
 /// Implements <see cref="INotifyPropertyChanged"/>; fluent <c>Set*</c> methods are the single apply path
 /// and raise notifications via <see cref="SetProperty{T}"/>.
 /// </summary>
-public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderable, ISkUiGestureElement
+public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost
 {
     private bool _measureDirty = true;
     private bool _arrangeDirty = true;
@@ -682,9 +682,15 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         OnPaintContent(canvas);
     }
 
-    bool ISkUiRenderable.HasOverlay => _paintOverlay is not null;
+    bool ISkUiRenderable.HasOverlay => _paintOverlay is not null || _showsPressEffect;
 
-    void ISkUiRenderable.RecordOverlay(SKCanvas canvas) => _paintOverlay?.Invoke(canvas);
+    void ISkUiRenderable.RecordOverlay(SKCanvas canvas)
+    {
+        _paintOverlay?.Invoke(canvas);
+        if (_showsPressEffect)
+            SkUiLook.Current.DrawPressOverlay(canvas, new SkUiPressOverlayPaint(new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
+                PressEffectCornerRadii, _pressEffect?.Visual ?? SkUiPressVisual.None, IsEnabled: true));
+    }
 
     void ISkUiRenderable.GetRenderChildren(List<ISkUiRenderable> children) => AddRenderChildren(children);
 
@@ -808,7 +814,12 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
                 },
                 WantsDoubleTap = () => _gestures?.WantsDoubleTap == true,
                 DoubleTapHandler = args => _gestures?.RaiseDoubleTapped(args),
-                PressedHandler = OnGesturePressedChanged
+                PressedHandler = (pressed, position) =>
+                {
+                    PressPosition = position;
+                    UpdatePressEffect(pressed);
+                    OnGesturePressedChanged(pressed);
+                }
             });
         }
         set?.Collect(recognizers);
@@ -823,6 +834,53 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     /// <summary>Press feedback from the tap recognizer.</summary>
     internal virtual void OnGesturePressedChanged(bool pressed) { }
 
+    /// <summary>Where the last press started, in this node's coordinates (ripple origin).</summary>
+    internal Point PressPosition { get; private set; }
+
+    private bool _showsPressEffect;
+    private SkUiPressAnimator? _pressEffect;
+
+    /// <summary>
+    /// Draws the look's press feedback (<see cref="SkUiLook.DrawPressOverlay"/>: a dim or a ripple from the press point)
+    /// over this node and its children while it is pressed, clipped to its rounded shape (a label's or border's corner
+    /// radii). For composite buttons built from several nodes (e.g. a <see cref="SkUiCoreBorder"/> holding an icon and
+    /// labels): the node needs a <see cref="Tapped"/> handler to be pressed. Buttons draw their own feedback.
+    /// </summary>
+    public bool ShowsPressEffect
+    {
+        get => _showsPressEffect;
+        set => SetShowsPressEffect(value);
+    }
+
+    /// <summary>Sets <see cref="ShowsPressEffect"/>.</summary>
+    public SkUiCoreNode SetShowsPressEffect(bool value)
+    {
+        if (!SetProperty(ref _showsPressEffect, value, nameof(ShowsPressEffect))) return this;
+        InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Corner radii the press effect is clipped to (default square; labels and borders use their own).</summary>
+    internal virtual CornerRadius PressEffectCornerRadii => default;
+
+    /// <summary>The look or color scheme changed: forget the cached measure and re-record (no per-node propagation).</summary>
+    internal void MarkLookChanged()
+    {
+        _measureDirty = true;
+        _arrangeDirty = true;
+        SkUiRenderInvalidation.Mark(this, SkUiRenderDirty.Content);
+    }
+
+    private void UpdatePressEffect(bool pressed)
+    {
+        if (_showsPressEffect || _pressEffect is not null)
+            (_pressEffect ??= new SkUiPressAnimator(this)).SetPressed(pressed, PressPosition);
+    }
+
+    SkUiAnimationClock? ISkUiTransitionHost.TransitionClock => _renderState is { HasCommitted: true } ? AnimationClock : null;
+
+    void ISkUiTransitionHost.InvalidateTransition() => InvalidatePaint();
+
     void ISkUiGestureElement.CancelGestures() => CancelGestures();
 
     /// <summary>Stops this node's gestures.</summary>
@@ -831,6 +889,7 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         _gestures?.CancelAll();
         if (Routers.TryGetValue(this, out var router))
             router.CancelAll();
+        UpdatePressEffect(false);
         OnGesturePressedChanged(false);
     }
 

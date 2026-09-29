@@ -136,6 +136,27 @@ internal static class SkUiRenderInvalidation
         }
     }
 
+    /// <summary>
+    /// The look or color scheme changed: every drawn node under <paramref name="node"/> forgets its cached measure and
+    /// re-records. Marks stop at already-marked ancestors, so the walk costs O(nodes); the caller re-lays out the root.
+    /// </summary>
+    public static void MarkLookChanged(ISkUiRenderable node, List<ISkUiRenderable>? scratch = null)
+    {
+        switch (node)
+        {
+            case SkUiView view: view.MarkLookChanged(); break;
+            case Core.SkUiCoreNode core: core.MarkLookChanged(); break;
+            default: Mark(node, SkUiRenderDirty.Content); break;
+        }
+        scratch ??= [];
+        var start = scratch.Count;
+        node.GetRenderChildren(scratch);
+        var end = scratch.Count;
+        for (var index = start; index < end; index++)
+            MarkLookChanged(scratch[index], scratch);
+        scratch.RemoveRange(start, end - start);
+    }
+
     /// <summary>Resets a detached subtree so a later attach re-records it into fresh render nodes.</summary>
     public static void ResetSubtree(ISkUiRenderable node, List<ISkUiRenderable>? scratch = null)
     {

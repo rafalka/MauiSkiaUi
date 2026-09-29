@@ -13,6 +13,8 @@ public sealed class ViewDemoPage : ComponentDemoPage
         var taps = 0;
         SkiaControl.Tapped += (_, _) => Feedback($"Taps: {++taps}");
         Toggle(nameof(InputTransparent), false, value => SkiaControl.InputTransparent = value, () => SkiaControl.InputTransparent);
+        // Press feedback from the look (Dim / Ripple and speed: Look & colors page).
+        Toggle(nameof(SkUiView.ShowsPressEffect), true, value => SkiaControl.ShowsPressEffect = value, () => SkiaControl.ShowsPressEffect);
         OnReset(() => taps = 0);
     }
 }

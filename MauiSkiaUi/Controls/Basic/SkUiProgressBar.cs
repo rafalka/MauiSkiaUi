@@ -15,6 +15,7 @@ public class SkUiProgressBar : SkUiView
     private Color _progressColor = SkUiColors.Accent;
     private Color _trackColor = SkUiColors.TrackOff;
     private SkUiProgressTween? _tween;
+    private SkUiTween? _fill;
     private SKPath? _clip;
     private SKSize _clipSize;
 
@@ -52,6 +53,7 @@ public class SkUiProgressBar : SkUiView
     {
         value = SkUiProgressTween.Clamp(value);
         if (_progress == value) return this;
+        SkUiProgressBarDrawing.ProgressChanged(this, ref _fill, _progress, value, _tween);
         _progress = value;
         InvalidatePaint();
         return this;
@@ -79,8 +81,15 @@ public class SkUiProgressBar : SkUiView
     /// the animation was stopped (e.g. the page closed). It pauses while the bar is detached and continues once the bar
     /// is in a tree again (also when called before the bar was added).
     /// </summary>
-    public Task<bool> ProgressTo(double value, uint length = 250, Easing? easing = null) =>
-        (_tween ??= new SkUiProgressTween(progress => Progress = progress)).Start(AnimationClock, _progress, value, length, easing);
+    public Task<bool> ProgressTo(double value, uint length = 250, Easing? easing = null)
+    {
+        if (_fill is { IsRunning: true } fill)
+        {
+            fill.Jump((float)_progress); // ProgressTo owns Progress now: no smoothing on top
+            InvalidatePaint();
+        }
+        return (_tween ??= new SkUiProgressTween(progress => Progress = progress)).Start(AnimationClock, _progress, value, length, easing);
+    }
 
     /// <inheritdoc />
     protected override void OnAnimationRootChanged(bool subtreeDetached = false)
@@ -103,7 +112,7 @@ public class SkUiProgressBar : SkUiView
             track = track.MultiplyAlpha(0.5f);
             fill = fill.MultiplyAlpha(0.5f);
         }
-        SkUiProgressBarDrawing.Draw(canvas, (float)Width, (float)Height, IsRightToLeft, (float)_progress, _isIndeterminate,
+        SkUiProgressBarDrawing.Draw(canvas, (float)Width, (float)Height, IsRightToLeft, SkUiProgressBarDrawing.Drawn(_fill, _progress), _isIndeterminate,
             ToSkColor(track), ToSkColor(fill), IsEnabled);
     }
 
@@ -123,6 +132,27 @@ public class SkUiProgressBar : SkUiView
 /// <summary>Drawing and render-thread slide shared by <see cref="SkUiProgressBar"/> and <see cref="Core.SkUiCoreProgressBar"/>.</summary>
 internal static class SkUiProgressBarDrawing
 {
+    /// <summary>
+    /// <c>Progress</c> changed: the drawn fill follows with the look's <see cref="SkUiTransitionKind.Progress"/>
+    /// transition (none by default), except while <c>ProgressTo</c> animates it.
+    /// </summary>
+    public static void ProgressChanged(ISkUiTransitionHost host, ref SkUiTween? fill, double from, double to, SkUiProgressTween? progressTo)
+    {
+        var transition = progressTo?.IsRunning == true ? SkUiTransition.None : SkUiLook.Current.GetTransition(SkUiTransitionKind.Progress);
+        if (transition.IsNone)
+        {
+            fill?.Jump((float)to);
+            return;
+        }
+        fill ??= new SkUiTween(host);
+        if (!fill.IsRunning)
+            fill.Jump((float)from);
+        fill.AnimateTo((float)to, transition);
+    }
+
+    /// <summary>The fill to draw for <paramref name="progress"/>.</summary>
+    public static float Drawn(SkUiTween? fill, double progress) => fill is { IsRunning: true } ? fill.Value : (float)progress;
+
     public static void Draw(SKCanvas canvas, float width, float height, bool rightToLeft, float progress, bool indeterminate,
         SKColor track, SKColor fill, bool enabled)
     {
@@ -162,6 +192,9 @@ internal static class SkUiProgressBarDrawing
 /// </summary>
 internal sealed class SkUiProgressTween(Action<double> setProgress)
 {
+    /// <summary>Whether a <c>ProgressTo</c> is in progress.</summary>
+    public bool IsRunning => _completion is not null;
+
     private TaskCompletionSource<bool>? _completion;
     private IDisposable? _handle;
     private double _from;

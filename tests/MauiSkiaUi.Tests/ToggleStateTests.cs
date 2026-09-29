@@ -182,7 +182,7 @@ public class ToggleStateTests
             using var bitmap = new SKBitmap(24, 24);
             using var canvas = new SKCanvas(bitmap);
             canvas.Clear(SKColors.Transparent);
-            SkUiLook.Current.DrawCheckBox(canvas, 24, state, SKColors.Teal, SKColors.Teal);
+            SkUiLook.Current.DrawCheckBox(canvas, new SkUiCheckBoxPaint(24, SkUiToggleVisual.Settled(state), SKColors.Teal, SKColors.White, SKColors.Gray, IsEnabled: true));
             return bitmap.GetPixel(12, 12);
         }
         Assert.Equal(SKColors.White, Center(SkUiCheckState.Indeterminate)); // the dash crosses the center

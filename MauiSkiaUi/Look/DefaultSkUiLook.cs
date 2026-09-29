@@ -5,11 +5,31 @@ namespace MauiSkiaUi;
 /// <summary>
 /// Built-in control look: current cross-platform geometry and intrinsic sizes (former <c>SkUiChrome</c>).
 /// Subclass or set painter/measure delegates to customize without replacing every control type.
+/// State changes animate (<see cref="GetTransitionCore"/>): switch thumbs slide, check marks draw in, radio dots grow,
+/// pressed buttons dim or ripple (<see cref="PressEffect"/>) and slider thumbs glide to tapped values.
 /// </summary>
 public class DefaultSkUiLook : SkUiLook
 {
     /// <summary>Shared default look used as the process <see cref="SkUiLook.Current"/>.</summary>
     public static DefaultSkUiLook Instance { get; } = new();
+
+    /// <summary>Button and ImageButton press feedback (default <see cref="SkUiPressEffect.Dim"/>). Repaint after changing it.</summary>
+    public SkUiPressEffect PressEffect { get; set; } = SkUiPressEffect.Dim;
+
+    /// <inheritdoc />
+    protected override SkUiTransition GetTransitionCore(SkUiTransitionKind kind) => kind switch
+    {
+        SkUiTransitionKind.Switch => SkUiTransition.FromMilliseconds(200, Easing.CubicInOut),
+        SkUiTransitionKind.CheckBox => SkUiTransition.FromMilliseconds(160, Easing.CubicInOut),
+        SkUiTransitionKind.RadioButton => SkUiTransition.FromMilliseconds(160, Easing.CubicInOut),
+        SkUiTransitionKind.Press => SkUiTransition.FromMilliseconds(80, Easing.CubicOut),
+        SkUiTransitionKind.Release => SkUiTransition.FromMilliseconds(220, Easing.CubicOut),
+        // Only rippling looks spend frames on the ripple.
+        SkUiTransitionKind.Ripple => PressEffect == SkUiPressEffect.Ripple ? SkUiTransition.FromMilliseconds(450, Easing.CubicOut) : SkUiTransition.None,
+        SkUiTransitionKind.SliderThumb => SkUiTransition.FromMilliseconds(150, Easing.CubicOut),
+        // Determinate progress follows Progress at once, as MAUI's ProgressBar (ProgressTo animates).
+        _ => SkUiTransition.None
+    };
 
     /// <inheritdoc />
     /// <remarks>
@@ -80,69 +100,102 @@ public class DefaultSkUiLook : SkUiLook
     }
 
     /// <inheritdoc />
-    protected override void DrawSwitchCore(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb)
+    protected override void DrawButtonCore(SKCanvas canvas, SkUiButtonPaint button)
     {
-        var radius = bounds.Height / 2;
-        DrawRoundedBox(canvas, bounds, radius, track, SKColors.Transparent, 0);
-        var thumbRadius = radius - 2;
-        // Indeterminate: the thumb rests in the middle of the track.
-        var thumbX = state switch
-        {
-            SkUiCheckState.Checked => bounds.Right - radius,
-            SkUiCheckState.Indeterminate => bounds.MidX,
-            _ => bounds.Left + radius
-        };
-        canvas.DrawCircle(thumbX, bounds.Top + radius, thumbRadius, Paint(thumb));
+        var fill = button.Fill;
+        if (PressEffect == SkUiPressEffect.Dim)
+            fill = fill.WithAlpha((byte)(fill.Alpha * (1 - 0.25f * button.Press.Pressed)));
+        DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, fill, button.Border, button.BorderWidth);
+        if (PressEffect == SkUiPressEffect.Ripple && button.IsEnabled)
+            DrawRipple(canvas, button.Bounds, button.CornerRadii, button.Press, RippleColor(button.Fill));
     }
 
     /// <inheritdoc />
-    protected override void DrawCheckBoxCore(SKCanvas canvas, float size, SkUiCheckState state, SKColor fill, SKColor border)
+    protected override void DrawSwitchCore(SKCanvas canvas, SkUiSwitchPaint toggle)
     {
+        var bounds = toggle.Bounds;
+        var visual = toggle.Visual;
+        var radius = bounds.Height / 2;
+        // Indeterminate: halfway between off and on, thumb in the middle.
+        var track = visual.Blend(toggle.OffTrack, toggle.OnTrack, Mix(toggle.OffTrack, toggle.OnTrack, 0.5f));
+        DrawRoundedBox(canvas, bounds, radius, track, SKColors.Transparent, 0);
+        var thumbRadius = radius - 2;
+        var start = bounds.Left + radius;
+        var end = bounds.Right - radius;
+        var thumbX = visual.Blend(start, end, bounds.MidX);
+        // Pressed: the thumb stretches towards the middle (iOS-like).
+        var stretch = thumbRadius * 0.35f * visual.Pressed;
+        var position = end > start ? (thumbX - start) / (end - start) : 0;
+        var thumb = new SKRect(thumbX - thumbRadius - stretch * position, bounds.Top + radius - thumbRadius,
+            thumbX + thumbRadius + stretch * (1 - position), bounds.Top + radius + thumbRadius);
+        canvas.DrawRoundRect(thumb, thumbRadius, thumbRadius, Paint(toggle.Thumb));
+    }
+
+    /// <inheritdoc />
+    protected override void DrawCheckBoxCore(SKCanvas canvas, SkUiCheckBoxPaint box)
+    {
+        var size = box.Size;
+        var visual = box.Visual;
+        var on = 1 - visual.Weight(SkUiCheckState.Unchecked);
         var bounds = new SKRect(0, 0, size, size);
-        DrawRoundedBox(canvas, bounds, size * 0.2f, fill, border, 1.5f);
-        if (state == SkUiCheckState.Unchecked) return;
-        using var check = new SKPaint
+        DrawRoundedBox(canvas, bounds, size * 0.2f, Mix(box.Background, box.Color, on), Mix(box.Border, box.Color, on), 1.5f);
+        var check = visual.Weight(SkUiCheckState.Checked);
+        var dash = visual.Weight(SkUiCheckState.Indeterminate);
+        if (check <= 0 && dash <= 0) return;
+        var paint = Paint(SKColors.White);
+        Stroke(paint, SKColors.White, size * 0.12f);
+        paint.StrokeCap = SKStrokeCap.Round;
+        paint.StrokeJoin = SKStrokeJoin.Round;
+        if (dash > 0)
         {
-            Color = SKColors.White,
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = size * 0.12f,
-            StrokeCap = SKStrokeCap.Round,
-            StrokeJoin = SKStrokeJoin.Round,
-            IsAntialias = true
-        };
-        if (state == SkUiCheckState.Indeterminate)
+            // The dash grows from the middle.
+            var half = size * 0.24f * dash;
+            canvas.DrawLine(size * 0.5f - half, size * 0.5f, size * 0.5f + half, size * 0.5f, paint);
+        }
+        if (check > 0)
+            DrawCheckMark(canvas, size, check, paint);
+    }
+
+    /// <summary>The check mark's two strokes, drawn in up to <paramref name="amount"/> of their length (0–1).</summary>
+    private static void DrawCheckMark(SKCanvas canvas, float size, float amount, SKPaint paint)
+    {
+        var a = new SKPoint(size * 0.22f, size * 0.55f);
+        var b = new SKPoint(size * 0.42f, size * 0.75f);
+        var c = new SKPoint(size * 0.8f, size * 0.28f);
+        var first = SKPoint.Distance(a, b);
+        var drawn = (first + SKPoint.Distance(b, c)) * Math.Clamp(amount, 0, 1);
+        if (drawn <= first)
         {
-            canvas.DrawLine(size * 0.26f, size * 0.5f, size * 0.74f, size * 0.5f, check);
+            canvas.DrawLine(a, Lerp(a, b, drawn / first), paint);
             return;
         }
         using var builder = new SKPathBuilder();
-        builder.MoveTo(size * 0.22f, size * 0.55f);
-        builder.LineTo(size * 0.42f, size * 0.75f);
-        builder.LineTo(size * 0.8f, size * 0.28f);
+        builder.MoveTo(a);
+        builder.LineTo(b);
+        builder.LineTo(Lerp(b, c, (drawn - first) / SKPoint.Distance(b, c)));
         using var path = builder.Detach();
-        canvas.DrawPath(path, check);
+        canvas.DrawPath(path, paint);
     }
 
     /// <inheritdoc />
-    protected override void DrawRadioButtonCore(SKCanvas canvas, float size, SkUiCheckState state, SKColor ring, SKColor dot)
+    protected override void DrawRadioButtonCore(SKCanvas canvas, SkUiRadioButtonPaint radio)
     {
+        var size = radio.Size;
+        var visual = radio.Visual;
         var center = size / 2;
-        using var ringPaint = new SKPaint
-        {
-            Color = ring,
-            Style = SKPaintStyle.Stroke,
-            StrokeWidth = size * 0.08f,
-            IsAntialias = true
-        };
-        canvas.DrawCircle(center, center, center - ringPaint.StrokeWidth / 2, ringPaint);
-        if (state == SkUiCheckState.Checked)
-        {
-            canvas.DrawCircle(center, center, size * 0.28f, Paint(dot));
-        }
-        else if (state == SkUiCheckState.Indeterminate)
+        var paint = Paint(SKColors.Transparent);
+        Stroke(paint, Mix(radio.Ring, radio.Color, 1 - visual.Weight(SkUiCheckState.Unchecked)), size * 0.08f);
+        canvas.DrawCircle(center, center, center - paint.StrokeWidth / 2, paint);
+        // The dot (or the indeterminate bar) grows from the center.
+        var dot = visual.Weight(SkUiCheckState.Checked);
+        if (dot > 0)
+            canvas.DrawCircle(center, center, size * 0.28f * dot, Paint(radio.Color));
+        var bar = visual.Weight(SkUiCheckState.Indeterminate);
+        if (bar > 0)
         {
             var half = size * 0.14f;
-            canvas.DrawRoundRect(new SKRect(center - size * 0.26f, center - half / 2, center + size * 0.26f, center + half / 2), half / 2, half / 2, Paint(dot));
+            var length = size * 0.26f * bar;
+            canvas.DrawRoundRect(new SKRect(center - length, center - half / 2, center + length, center + half / 2), half / 2, half / 2, Paint(radio.Color));
         }
     }
 
@@ -159,8 +212,9 @@ public class DefaultSkUiLook : SkUiLook
         DrawRoundedBox(canvas, new SKRect(start, top, end, top + track), track / 2, slider.MaximumTrack, SKColors.Transparent, 0);
         if (thumbX > start)
             DrawRoundedBox(canvas, new SKRect(start, top, thumbX, top + track), track / 2, slider.MinimumTrack, SKColors.Transparent, 0);
-        if (slider.IsPressed)
-            canvas.DrawCircle(thumbX, bounds.MidY, radius * 1.8f, Paint(slider.Thumb.WithAlpha((byte)(slider.Thumb.Alpha / 5))));
+        if (slider.Pressed > 0)
+            canvas.DrawCircle(thumbX, bounds.MidY, radius * (1 + 0.8f * slider.Pressed),
+                Paint(slider.Thumb.WithAlpha((byte)(slider.Thumb.Alpha / 5 * slider.Pressed))));
         canvas.DrawCircle(thumbX, bounds.MidY, radius, Paint(slider.Thumb));
     }
 
@@ -213,19 +267,68 @@ public class DefaultSkUiLook : SkUiLook
     }
 
     /// <inheritdoc />
-    protected override void DrawPressTintCore(SKCanvas canvas, SKRect bounds, float cornerRadius, bool disabled, bool pressed)
+    protected override void DrawPressOverlayCore(SKCanvas canvas, SkUiPressOverlayPaint overlay)
     {
-        if (!disabled && !pressed) return;
-        var tint = disabled ? new SKColor(0, 0, 0, 96) : new SKColor(0, 0, 0, 48);
-        using var paint = new SKPaint { Color = tint };
-        if (cornerRadius > 0)
+        // Over arbitrary content (images, cards): a dark tint or a dark ripple shows on light and mid-tone content alike.
+        var alpha = !overlay.IsEnabled ? 96 : PressEffect == SkUiPressEffect.Dim ? 48 * overlay.Press.Pressed : 0;
+        if (alpha > 0)
         {
-            using var path = CreateRoundRectPath(bounds, cornerRadius);
-            canvas.DrawPath(path, paint);
+            var paint = Paint(new SKColor(0, 0, 0, (byte)alpha));
+            if (IsUniformCornerRadius(overlay.CornerRadii) && overlay.CornerRadii.TopLeft <= 0)
+            {
+                canvas.DrawRect(overlay.Bounds, paint);
+            }
+            else
+            {
+                using var path = CreateRoundRectPath(overlay.Bounds, overlay.CornerRadii);
+                canvas.DrawPath(path, paint);
+            }
         }
-        else
+        if (PressEffect == SkUiPressEffect.Ripple && overlay.IsEnabled)
+            DrawRipple(canvas, overlay.Bounds, overlay.CornerRadii, overlay.Press, new SKColor(0, 0, 0, 56));
+    }
+
+    /// <summary>
+    /// A Material-like ripple: a circle spreading from the press point to the farthest corner, fading after the
+    /// release, over a light press overlay; clipped to the control's rounded shape.
+    /// </summary>
+    protected void DrawRipple(SKCanvas canvas, SKRect bounds, CornerRadius radii, SkUiPressVisual press, SKColor color)
+    {
+        if (!press.HasRipple && press.Pressed <= 0) return;
+        var save = canvas.Save();
+        using (var clip = CreateRoundRectPath(bounds, radii))
+            canvas.ClipPath(clip, antialias: true);
+        if (press.Pressed > 0)
+            canvas.DrawRect(bounds, Paint(color.WithAlpha((byte)(color.Alpha * 0.4f * press.Pressed))));
+        if (press.HasRipple)
         {
-            canvas.DrawRect(bounds, paint);
+            var origin = press.Origin;
+            var reach = Math.Max(
+                Math.Max(SKPoint.Distance(origin, new SKPoint(bounds.Left, bounds.Top)), SKPoint.Distance(origin, new SKPoint(bounds.Right, bounds.Top))),
+                Math.Max(SKPoint.Distance(origin, new SKPoint(bounds.Left, bounds.Bottom)), SKPoint.Distance(origin, new SKPoint(bounds.Right, bounds.Bottom))));
+            var radius = reach * (0.1f + 0.9f * press.Ripple);
+            canvas.DrawCircle(origin, radius, Paint(color.WithAlpha((byte)(color.Alpha * (1 - press.RippleFade)))));
         }
+        canvas.RestoreToCount(save);
+    }
+
+    /// <summary>Ripple color over <paramref name="fill"/>: dark over light fills, light over dark ones.</summary>
+    private static SKColor RippleColor(SKColor fill) =>
+        0.299f * fill.Red + 0.587f * fill.Green + 0.114f * fill.Blue > 160 && fill.Alpha > 64
+            ? new SKColor(0, 0, 0, 60)
+            : new SKColor(255, 255, 255, 90);
+
+    private static SKPoint Lerp(SKPoint from, SKPoint to, float amount) =>
+        new(from.X + (to.X - from.X) * amount, from.Y + (to.Y - from.Y) * amount);
+
+    /// <summary>Blends two colors (straight alpha): 0 gives <paramref name="from"/>, 1 <paramref name="to"/>.</summary>
+    protected static SKColor Mix(SKColor from, SKColor to, float amount)
+    {
+        amount = Math.Clamp(amount, 0, 1);
+        if (amount <= 0) return from;
+        if (amount >= 1) return to;
+        static byte Channel(byte a, byte b, float t) => (byte)Math.Round(a + (b - a) * t);
+        return new SKColor(Channel(from.Red, to.Red, amount), Channel(from.Green, to.Green, amount),
+            Channel(from.Blue, to.Blue, amount), Channel(from.Alpha, to.Alpha, amount));
     }
 }

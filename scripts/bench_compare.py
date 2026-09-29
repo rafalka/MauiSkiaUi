@@ -35,6 +35,9 @@ METRICS = [
     ("MotionFps", "motionFps", False),
     ("MotionAvgRenderMs", "motionAvgRenderMs", True),
     ("MotionMaxRenderMs", "motionMaxRenderMs", True),
+    ("MotionUiFps", "motionUiFps", False),
+    ("MotionAvgUiMs", "motionAvgUiMs", True),
+    ("MotionMaxUiMs", "motionMaxUiMs", True),
     ("AllocatedBytes", "allocKB", True),
 ]
 

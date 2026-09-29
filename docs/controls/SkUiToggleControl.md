@@ -10,7 +10,8 @@ Abstract base for Switch, CheckBox, and RadioButton.
 - **Taps:** with `IsThreeState` a tap cycles Unchecked → Checked → Indeterminate → Unchecked. Without it, taps go between Checked and Unchecked, and an Indeterminate set by the app (e.g. a "select all" box whose group is partly checked) goes to Checked. RadioButton taps only ever select.
 - **Write-back:** a tap sets `CheckState` and `IsChecked` through their bindable properties (two-way by default), so bindings see user changes.
 - **Events:** `CheckStateChanged` on every state change; `CheckedChanged` only when `IsChecked` changes. Both run after the bindable properties and their bindings are updated.
-- **Drawing:** the look's `DrawSwitch` / `DrawCheckBox` / `DrawRadioButton` take the `SkUiCheckState` (Indeterminate: centered thumb, dash, bar).
+- **Drawing:** the look's `DrawSwitch` / `DrawCheckBox` / `DrawRadioButton` take a paint struct whose `Visual` (`SkUiToggleVisual`) carries the state, the state it comes from, the transition progress and the press amount (Indeterminate: centered thumb, dash, bar). Subclasses draw `ToggleVisual`.
+- **Transitions:** state changes animate with the look's [transitions](../design/ControlLook.md#state-change-transitions-fr-26) (`TransitionKind`: `Switch`, `CheckBox` or `RadioButton`). The state and events change at once; toggling back mid-way reverses from the current point. Controls animate once they have been drawn; reduce motion turns it off.
 
 
 ## Shared conventions

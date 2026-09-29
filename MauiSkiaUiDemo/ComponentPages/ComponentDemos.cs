@@ -36,7 +36,9 @@ public static class ComponentDemos
             () => new OverlayScrollingDemoPage(), Key: "OverlaysInScrollView"),
         new(typeof(SkUiCoreGrid), typeof(CoreGridDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreGridDemoPage()),
         new(typeof(SkUiCoreTable), typeof(CoreTableDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreTableDemoPage()),
-        new(typeof(SkUiCoreScrollView), typeof(CoreScrollViewDemoPage), "ScrollView + gestures", ComponentCategory.Core, () => new CoreScrollViewDemoPage())
+        new(typeof(SkUiCoreScrollView), typeof(CoreScrollViewDemoPage), "ScrollView + gestures", ComponentCategory.Core, () => new CoreScrollViewDemoPage()),
+        new(typeof(SkUiCoreBorder), typeof(CorePressEffectDemoPage), "Composite buttons (press effect)", ComponentCategory.Core,
+            () => new CorePressEffectDemoPage(), Key: "CompositeButtons")
     ];
 
     /// <summary>MAUI-compatible <c>SkUi*</c> demos shown on the Components flyout.</summary>

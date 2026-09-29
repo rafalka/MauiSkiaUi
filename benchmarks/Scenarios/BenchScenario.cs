@@ -67,4 +67,7 @@ public sealed record BenchSample(
     double? MotionFps,
     double? MotionAvgRenderMs,
     double? MotionMaxRenderMs,
-    long? AllocatedBytes);
+    long? AllocatedBytes,
+    double? MotionUiFps = null,
+    double? MotionAvgUiMs = null,
+    double? MotionMaxUiMs = null);

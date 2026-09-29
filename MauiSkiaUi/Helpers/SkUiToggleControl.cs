@@ -4,13 +4,16 @@ namespace MauiSkiaUi;
 /// Shared toggle state and intrinsic tap-to-toggle behavior for Switch / CheckBox / RadioButton.
 /// <see cref="CheckState"/> is the state (<see cref="SkUiCheckState.Indeterminate"/> included); <see cref="IsChecked"/>
 /// is its MAUI-compatible two-state view. A tap moves to the next state and writes it back to the bindable
-/// properties, so two-way bindings see user changes, as with MAUI's controls.
+/// properties, so two-way bindings see user changes, as with MAUI's controls. State changes and presses animate with
+/// the look's transitions (<see cref="TransitionKind"/>); subclasses draw <see cref="ToggleVisual"/>.
 /// </summary>
 public abstract class SkUiToggleControl : SkUiView
 {
     private SkUiCheckState _state;
     private bool _isThreeState;
     private bool _syncingIsChecked;
+    private SkUiToggleAnimator? _transition;
+    private SkUiPressAnimator? _press;
 
     /// <summary>Bindable <see cref="CheckState"/> (two-way by default).</summary>
     public static readonly BindableProperty CheckStateProperty = BindableProperty.Create(nameof(CheckState), typeof(SkUiCheckState), typeof(SkUiToggleControl),
@@ -76,6 +79,13 @@ public abstract class SkUiToggleControl : SkUiView
         return this;
     }
 
+    /// <summary>Which look transition animates state changes (<see cref="SkUiLook.GetTransition"/>).</summary>
+    protected virtual SkUiTransitionKind TransitionKind => SkUiTransitionKind.CheckBox;
+
+    /// <summary>What to draw: the state, the transition towards it and the press amount.</summary>
+    protected SkUiToggleVisual ToggleVisual =>
+        _transition?.Visual(_state, _press?.Pressed ?? 0) ?? SkUiToggleVisual.Settled(_state, _press?.Pressed ?? 0);
+
     /// <summary>The state a tap moves to (radio buttons only ever select).</summary>
     protected virtual SkUiCheckState NextCheckState() => SkUiCheckStates.Next(_state, _isThreeState);
 
@@ -83,7 +93,11 @@ public abstract class SkUiToggleControl : SkUiView
     protected override bool HandlesTap => true;
 
     /// <inheritdoc />
-    protected override void OnPressedChanged() => InvalidatePaint();
+    protected override void OnPressedChanged()
+    {
+        (_press ??= new SkUiPressAnimator(this, ripple: false)).SetPressed(IsPressed, PressPosition);
+        InvalidatePaint();
+    }
 
     /// <inheritdoc />
     protected override void OnTapped(SkUiTappedEventArgs args)
@@ -137,6 +151,7 @@ public abstract class SkUiToggleControl : SkUiView
         }
         if (old == value)
             return;
+        (_transition ??= new SkUiToggleAnimator(this, TransitionKind)).Changed(old, value);
         InvalidatePaint();
         CheckStateChanged?.Invoke(this, value);
         var isChecked = SkUiCheckStates.IsChecked(value);

@@ -20,15 +20,6 @@ internal static class SkUiChrome
     internal static void DrawRoundedBox(SKCanvas canvas, SKRect bounds, CornerRadius radii, SKColor fill, SKColor border, float width) =>
         SkUiLook.Current.DrawRoundedBox(canvas, bounds, radii, fill, border, width);
 
-    internal static void DrawSwitch(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb) =>
-        SkUiLook.Current.DrawSwitch(canvas, bounds, state, track, thumb);
-
-    internal static void DrawCheckBox(SKCanvas canvas, float size, SkUiCheckState state, SKColor fill, SKColor border) =>
-        SkUiLook.Current.DrawCheckBox(canvas, size, state, fill, border);
-
-    internal static void DrawRadioButton(SKCanvas canvas, float size, SkUiCheckState state, SKColor ring, SKColor dot) =>
-        SkUiLook.Current.DrawRadioButton(canvas, size, state, ring, dot);
-
     internal static void DrawActivityIndicator(SKCanvas canvas, float width, float height, float sweepStart, SKPaint paint) =>
         SkUiLook.Current.DrawActivityIndicator(canvas, width, height, sweepStart, paint);
 
@@ -38,6 +29,4 @@ internal static class SkUiChrome
     internal static void DrawImage(SKCanvas canvas, SKImage image, float viewWidth, float viewHeight, Aspect aspect) =>
         SkUiLook.Current.DrawImage(canvas, image, viewWidth, viewHeight, aspect);
 
-    internal static void DrawPressTint(SKCanvas canvas, SKRect bounds, float cornerRadius, bool disabled, bool pressed) =>
-        SkUiLook.Current.DrawPressTint(canvas, bounds, cornerRadius, disabled, pressed);
 }

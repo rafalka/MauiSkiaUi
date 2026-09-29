@@ -4,9 +4,10 @@ using MauiSkiaUi.Core;
 namespace MauiSkiaUiDemo;
 
 /// <summary>
-/// Live playground for FR-18 control look and FR-19 color scheme: swap light/dark/brand accents,
-/// alternate look packs, and edit per-control default sizes. Changes <see cref="SkUiLook.Current"/> and
-/// <see cref="SkUiColorScheme.Current"/> for the process; restores defaults when the page disappears.
+/// Live playground for FR-18 control look, FR-19 color scheme and FR-26 transitions: swap light/dark/brand accents,
+/// alternate look packs, press effect and transition speed, and edit per-control default sizes. Changes
+/// <see cref="SkUiLook.Current"/>, <see cref="SkUiColorScheme.Current"/> and <see cref="SkUiMotion.ReduceMotion"/> for the
+/// whole app until Reset; the selection is kept across visits (<see cref="Settings"/>).
 /// </summary>
 public sealed class LookAndColorSchemePage : ContentPage
 {
@@ -14,17 +15,27 @@ public sealed class LookAndColorSchemePage : ContentPage
     private readonly Picker _schemePicker;
     private readonly Picker _lookPicker;
     private readonly Picker _accentPicker;
+    private readonly Picker _pressPicker;
+    private readonly Picker _motionPicker;
     private readonly Grid _sizeGrid;
-    private readonly DemoConfigurableLook _look = new();
+    /// <summary>The page's selections, shared by every visit (the look they produce stays current app-wide).</summary>
+    private static class Settings
+    {
+        public static readonly DemoConfigurableLook Look = new();
+        public static int Scheme;
+        public static int Accent;
+        public static int Pack;
+        public static int Press;
+        public static int Motion;
+    }
+
+    private readonly DemoConfigurableLook _look = Settings.Look;
     private readonly List<SizeRow> _sizeRows = [];
     private bool? _widePreviews;
 
     /// <summary>Width at which MAUI and Core previews sit side by side (tablets / landscape phones).</summary>
     private const double WidePreviewBreakpoint = 600;
-    private SkUiColorScheme _savedScheme = LightSkUiColorScheme.Instance;
-    private SkUiLook _savedLook = DefaultSkUiLook.Instance;
     private bool _applying;
-    private bool _restored;
     private bool _syncingSizes;
 
     private static readonly (string Name, Color Value)[] AccentPresets =
@@ -43,16 +54,13 @@ public sealed class LookAndColorSchemePage : ContentPage
         Background = DemoColors.PageBackground;
         AutomationId = "LookAndColorSchemePage";
 
-        _savedScheme = SkUiColorScheme.Current;
-        _savedLook = SkUiLook.Current;
-
         var description = new Label
         {
             Text =
                 "Control look (shapes + default sizes) and color scheme (shared palette) are separate from MAUI Style. " +
                 "Each row previews SkUi* and SkUiCore* (stacked on narrow screens, side by side when width ≥ 600). " +
                 "Tap the monospace property name under width/height to copy a SkUiLook override snippet. " +
-                "Leaving this page restores the previous look and scheme.",
+                "These settings apply to the whole app (every page) until you reset them.",
             TextColor = DemoColors.Caption,
             FontFamily = DemoFonts.OpenSansRegular,
             FontSize = 12,
@@ -63,7 +71,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         {
             Title = "Color scheme",
             ItemsSource = new[] { "Light", "Dark", "Light + custom accent" },
-            SelectedIndex = 0,
+            SelectedIndex = Settings.Scheme,
             AutomationId = "LookSchemePicker",
             TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular
@@ -74,7 +82,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         {
             Title = "Accent",
             ItemsSource = AccentPresets.Select(p => p.Name).ToList(),
-            SelectedIndex = 0,
+            SelectedIndex = Settings.Accent,
             AutomationId = "LookAccentPicker",
             TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular
@@ -85,7 +93,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         {
             Title = "Control look",
             ItemsSource = new[] { "Default", "Chunky (alternate)", "Minimal (alternate)" },
-            SelectedIndex = 0,
+            SelectedIndex = Settings.Pack,
             AutomationId = "LookPackPicker",
             TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular
@@ -95,6 +103,28 @@ public sealed class LookAndColorSchemePage : ContentPage
             _look.ClearSizeOverrides();
             Apply();
         };
+
+        _pressPicker = new Picker
+        {
+            Title = "Press effect",
+            ItemsSource = new[] { "Dim", "Ripple" },
+            SelectedIndex = Settings.Press,
+            AutomationId = "LookPressPicker",
+            TextColor = DemoColors.Ink,
+            FontFamily = DemoFonts.OpenSansRegular
+        };
+        _pressPicker.SelectedIndexChanged += (_, _) => Apply();
+
+        _motionPicker = new Picker
+        {
+            Title = "Transitions",
+            ItemsSource = new[] { "Normal (follows the system's reduce motion)", "Slow motion (×5, always on)", "Off (reduce motion)" },
+            SelectedIndex = Settings.Motion,
+            AutomationId = "LookMotionPicker",
+            TextColor = DemoColors.Ink,
+            FontFamily = DemoFonts.OpenSansRegular
+        };
+        _motionPicker.SelectedIndexChanged += (_, _) => Apply();
 
         var reset = new Button
         {
@@ -112,6 +142,8 @@ public sealed class LookAndColorSchemePage : ContentPage
             _schemePicker.SelectedIndex = 0;
             _accentPicker.SelectedIndex = 0;
             _lookPicker.SelectedIndex = 0;
+            _pressPicker.SelectedIndex = 0;
+            _motionPicker.SelectedIndex = 0;
             _look.Style = DemoLookStyle.Default;
             _look.ClearSizeOverrides();
             _applying = false;
@@ -155,6 +187,15 @@ public sealed class LookAndColorSchemePage : ContentPage
                 _accentPicker,
                 Section("Control look pack"),
                 _lookPicker,
+                Section("Press effect"),
+                Caption("How buttons, image buttons and tappable containers with ShowsPressEffect (cards, composite buttons) " +
+                    "react to a press. Dim fades the button; Ripple spreads a circle from the finger and fades after the release."),
+                _pressPicker,
+                Section("State-change transitions"),
+                Caption("Animation of switches, check boxes, radio buttons, presses and slider thumbs. Normal follows the " +
+                    "system's reduce-motion setting; Slow motion stretches every transition 5× so you can watch it (even when " +
+                    "the system reduces motion); Off skips them."),
+                _motionPicker,
                 reset,
                 Section("Default sizes (preview | width | height)"),
                 _sizeGrid,
@@ -178,22 +219,8 @@ public sealed class LookAndColorSchemePage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        if (_restored)
-        {
-            _savedScheme = SkUiColorScheme.Current;
-            _savedLook = SkUiLook.Current;
-            _restored = false;
-        }
-    }
-
-    /// <inheritdoc />
-    protected override void OnDisappearing()
-    {
-        base.OnDisappearing();
-        if (_restored) return;
-        _restored = true;
-        SkUiColorScheme.Current = _savedScheme ?? LightSkUiColorScheme.Instance;
-        SkUiLook.Current = _savedLook ?? DefaultSkUiLook.Instance;
+        // The selection is app-wide: make sure it is what the app uses (and the previews show it) on every visit.
+        Apply();
     }
 
     private void BuildSizeRows()
@@ -459,13 +486,25 @@ public sealed class LookAndColorSchemePage : ContentPage
             2 => DemoLookStyle.Minimal,
             _ => DemoLookStyle.Default
         };
-        SkUiLook.Current = _look;
+        Settings.Scheme = _schemePicker.SelectedIndex;
+        Settings.Accent = _accentPicker.SelectedIndex;
+        Settings.Pack = _lookPicker.SelectedIndex;
+        Settings.Press = _pressPicker.SelectedIndex;
+        Settings.Motion = _motionPicker.SelectedIndex;
+        _look.PressEffect = _pressPicker.SelectedIndex == 1 ? SkUiPressEffect.Ripple : SkUiPressEffect.Dim;
+        _look.TransitionScale = _motionPicker.SelectedIndex == 1 ? 5 : 1;
+        // Slow motion is for watching transitions: on even when the system reduces motion.
+        SkUiMotion.ReduceMotion = _motionPicker.SelectedIndex switch { 1 => false, 2 => true, _ => null };
+        if (ReferenceEquals(SkUiLook.Current, _look))
+            SkUiLook.NotifyChanged(); // changed in place: live pages re-measure and redraw with it
+        else
+            SkUiLook.Current = _look;
 
         SyncSizeEntriesFromLook();
         RebuildAllPreviews();
         _status.Text =
             $"Scheme: {SkUiColorScheme.Current.GetType().Name} · Accent {ToHex(SkUiColorScheme.Current.Accent)} · " +
-            $"Look: {_look.Style}";
+            $"Look: {_look.Style} · Press: {_look.PressEffect} · Transitions: {(SkUiMotion.IsMotionReduced ? "off" : _look.TransitionScale == 1 ? "normal" : "slow")}";
     }
 
     private void SyncSizeEntriesFromLook()
@@ -700,6 +739,15 @@ public sealed class LookAndColorSchemePage : ContentPage
         FontFamily = DemoFonts.OpenSansSemibold,
         FontSize = 12,
         TextColor = DemoColors.Caption
+    };
+
+    private static Label Caption(string text) => new()
+    {
+        Text = text,
+        TextColor = DemoColors.Caption,
+        FontFamily = DemoFonts.OpenSansRegular,
+        FontSize = 12,
+        LineBreakMode = LineBreakMode.WordWrap
     };
 
     private static Label Section(string title) => new()

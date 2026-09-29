@@ -9,6 +9,7 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
 {
     private long? _pointer;
     private Point _start;
+    private Point _pressPosition;
     private bool _won;
     private bool _released;
     private SkUiPointer _release;
@@ -35,7 +36,8 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
     internal Func<bool>? WantsDoubleTap { get; init; }
     internal Action<SkUiTappedEventArgs>? TapHandler { get; init; }
     internal Action<SkUiTappedEventArgs>? DoubleTapHandler { get; init; }
-    internal Action<bool>? PressedHandler { get; init; }
+    /// <summary>Press state changes with the press point in the owner's coordinates.</summary>
+    internal Action<bool, Point>? PressedHandler { get; init; }
 
     private bool HandlesDoubleTap => DoubleTapped is not null || WantsDoubleTap?.Invoke() == true;
 
@@ -46,6 +48,7 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
             return false;
         _pointer = pointer.Id;
         _start = pointer.Position;
+        _pressPosition = Owner is { } owner ? pointer.GetPosition(owner) : pointer.Position;
         _won = _released = false;
         var id = pointer.Id;
         _pressTimer = SkUiGestureSettings.Schedule(SkUiGestureSettings.PressDelay, () =>
@@ -159,7 +162,7 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
         if (_pressed == value)
             return;
         _pressed = value;
-        PressedHandler?.Invoke(value);
+        PressedHandler?.Invoke(value, _pressPosition);
         PressedChanged?.Invoke(Owner, value);
     }
 }

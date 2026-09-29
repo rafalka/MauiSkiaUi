@@ -141,6 +141,9 @@ public class SkUiLabel : SkUiView
     /// <summary>Sets border width without bindable write-back.</summary>
     public SkUiLabel SetBorderWidth(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (_borderWidth == value) return this; _borderWidth = value; InvalidatePaint(); return this; }
 
+    /// <inheritdoc />
+    internal override Microsoft.Maui.CornerRadius PressEffectCornerRadii => _cornerRadii;
+
     /// <summary>Whether the label draws rounded chrome instead of the plain rectangular background.</summary>
     private bool HasChrome => SkUiCornerRadii.HasAny(_cornerRadii) || (_borderWidth > 0 && _borderColor.Alpha > 0);
 

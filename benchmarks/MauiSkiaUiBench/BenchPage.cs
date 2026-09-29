@@ -119,7 +119,7 @@ public sealed class BenchPage : ContentPage
             update = watch.Elapsed.TotalMilliseconds;
         }
 
-        double? fps = null, avg = null, max = null;
+        double? fps = null, avg = null, max = null, uiFps = null, uiAvg = null, uiMax = null;
         if (scenario.Motion is { } motion && root is SkUiView)
         {
             await Task.Delay(Settle);
@@ -135,11 +135,17 @@ public sealed class BenchPage : ContentPage
                 fps = s.Frames / seconds;
                 avg = s.AverageMilliseconds;
                 max = s.MaxMilliseconds;
+                if (s.UiFrames is { } uiFrames && uiFrames > 0)
+                {
+                    uiFps = uiFrames / seconds;
+                    uiAvg = s.UiAverageMilliseconds;
+                    uiMax = s.UiMaxMilliseconds;
+                }
             }
         }
 
         return new BenchSample(scenario.Name, DeviceInfo.Current.Platform.ToString(), iteration, generate, add, null, null, null, null,
-            firstFrame, update, fps, avg, max, null);
+            firstFrame, update, fps, avg, max, null, uiFps, uiAvg, uiMax);
     }
 
     /// <summary>
@@ -180,14 +186,18 @@ public sealed class BenchPage : ContentPage
     private static readonly MethodInfo? ResetStats = typeof(SkUiView).GetMethod("ResetRenderStatistics", BindingFlags.Instance | BindingFlags.Public);
 
     /// <summary>Render statistics through reflection, so the app also builds against libraries that predate the API.</summary>
-    private static (long Frames, double AverageMilliseconds, double MaxMilliseconds)? Stats(View root)
+    private static (long Frames, double AverageMilliseconds, double MaxMilliseconds, long? UiFrames, double? UiAverageMilliseconds, double? UiMaxMilliseconds)? Stats(View root)
     {
         if (root is not SkUiView view || GetStats?.Invoke(view, null) is not { } value)
             return null;
         var type = value.GetType();
+        // UI-thread animation frames are newer: absent on older libraries.
         return ((long)type.GetProperty("Frames")!.GetValue(value)!,
             (double)type.GetProperty("AverageMilliseconds")!.GetValue(value)!,
-            (double)type.GetProperty("MaxMilliseconds")!.GetValue(value)!);
+            (double)type.GetProperty("MaxMilliseconds")!.GetValue(value)!,
+            type.GetProperty("UiFrames")?.GetValue(value) as long?,
+            type.GetProperty("UiAverageMilliseconds")?.GetValue(value) as double?,
+            type.GetProperty("UiMaxMilliseconds")?.GetValue(value) as double?);
     }
 
     private static void Reset(View root)

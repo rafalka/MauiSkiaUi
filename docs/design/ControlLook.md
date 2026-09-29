@@ -33,15 +33,18 @@ Colors come from the **color scheme** (FR-19) and/or explicit control properties
 public class SkUiLook
 {
     // Controls call the public, non-virtual entry points; each uses its painter delegate when set,
-    // else the protected virtual *Core method that subclasses override.
-    // Toggles draw an SkUiCheckState (Unchecked / Checked / Indeterminate).
-    public void DrawSwitch(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb) { … } // → SwitchPainter ?? DrawSwitchCore
-    protected virtual void DrawSwitchCore(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb) { … }
-    public void DrawCheckBox(…) / DrawRadioButton(…) / DrawActivityIndicator(…)  // → *Painter ?? Draw*Core
-    // Slider / ProgressBar take one paint struct (room to grow without new overloads), in horizontal
-    // left-to-right coordinates: the controls rotate the canvas for vertical sliders and mirror RTL.
+    // else the protected virtual *Core method that subclasses override. Each takes one paint struct
+    // (room to grow without new overloads). Colors arrive resolved (disabled dimming applied).
+    public void DrawSwitch(SKCanvas canvas, SkUiSwitchPaint toggle) { … }            // → SwitchPainter ?? DrawSwitchCore
+    public void DrawCheckBox(SKCanvas canvas, SkUiCheckBoxPaint box) { … }           // → CheckBoxPainter ?? DrawCheckBoxCore
+    public void DrawRadioButton(SKCanvas canvas, SkUiRadioButtonPaint radio) { … }   // → RadioButtonPainter ?? DrawRadioButtonCore
+    public void DrawButton(SKCanvas canvas, SkUiButtonPaint button) { … }            // fill, border, press feedback → ButtonPainter ?? DrawButtonCore
+    public void DrawPressOverlay(SKCanvas canvas, SkUiPressOverlayPaint overlay) { … } // over content: ImageButton, ShowsPressEffect → PressOverlayPainter ?? DrawPressOverlayCore
+    // Slider / ProgressBar draw in horizontal left-to-right coordinates: the controls rotate the canvas for
+    // vertical sliders and mirror RTL.
     public void DrawSlider(SKCanvas canvas, SkUiSliderPaint slider) { … }            // → SliderPainter ?? DrawSliderCore
     public void DrawProgressBar(SKCanvas canvas, SkUiProgressBarPaint bar) { … }     // → ProgressBarPainter ?? DrawProgressBarCore
+    public void DrawActivityIndicator(…) { … }                                      // → ActivityIndicatorPainter ?? DrawActivityIndicatorCore
     public virtual float SliderThumbRadius => 10;         // input maps touches to the thumb's center
     public virtual float IndeterminateProgressSegment => 0.35f;
     public virtual float IndeterminateProgressPeriod => 1.5f; // seconds; the compositor slides the bar on the render thread
@@ -49,8 +52,10 @@ public class SkUiLook
     public void DrawRoundedBox(…) { … }      // float radius and CornerRadius overloads → DrawRoundedBoxCore
     public virtual SKPath? CreateCustomRoundRectPath(SKRect bounds, CornerRadius radii) => null; // custom corner geometry (null = plain)
     public SKPath CreateRoundRectPath(…) { … } // uniform or per-corner: custom geometry, else plain corners
-    public void DrawPressTint(…) { … }       // → PressTintPainter ?? DrawPressTintCore
     public void DrawImage(…) { … }           // → ImagePainter ?? DrawImageCore
+
+    // State-change transitions (below): duration + easing per kind; None while reduce motion is on.
+    public SkUiTransition GetTransition(SkUiTransitionKind kind) { … }  // → TransitionProvider ?? GetTransitionCore
 
     // Default intrinsic sizes (DIPs) — public size tokens; Measure* reads these unless a size delegate is set.
     public virtual Size DefaultSwitchSize => new(51, 31);
@@ -74,16 +79,54 @@ SkUiLook.Current = new MaterialSkUiLook();
 // Partial replace via subclass:
 sealed class AppLook : DefaultSkUiLook
 {
-    protected override void DrawRadioButtonCore(…) { /* brand radio */ }
+    protected override void DrawRadioButtonCore(SKCanvas canvas, SkUiRadioButtonPaint radio) { /* brand radio */ }
     public override Size DefaultSwitchSize => new(52, 32); // larger track
 }
 
 // Or per-painter / per-size delegates on the look instance:
-look.RadioButtonPainter = (canvas, size, state, ring, dot) => { … };
+look.RadioButtonPainter = (canvas, radio) => { … };
 look.SwitchMeasure = (w, h) => new Size(52, 32);
 ```
 
 Controls call **`SkUiLook.Current` (or an inherited / attached look)** for both paint and default measure instead of a sealed static `SkUiChrome` and hardcoded sizes. Keep a thin compatibility façade if needed during migration.
+
+### State-change transitions (FR-26)
+
+Looks draw every point of a transition, not only the resting states. Switches, check boxes and radio buttons slide or draw in between states; buttons dim or ripple while pressed; slider thumbs glide to tapped values; progress bars can smooth `Progress` changes.
+
+**What a painter receives.**
+
+| Paint struct | Transition data | Helpers |
+| --- | --- | --- |
+| `SkUiSwitchPaint`, `SkUiCheckBoxPaint`, `SkUiRadioButtonPaint` | `Visual` (`SkUiToggleVisual`): `State` (target), `From`, `Progress` (eased, 1 = settled), `Pressed` (0–1) | `Weight(state)`: how much of a state shows (the weights add up to 1). `Blend(u, c, i)`: numbers or colors per state, blended |
+| `SkUiButtonPaint`, `SkUiPressOverlayPaint` | `Press` (`SkUiPressVisual`): `Pressed` (0–1), `Origin` (press point), `Ripple` (spread 0–1), `RippleFade` (0 visible, 1 gone) | `HasRipple` |
+| `SkUiSliderPaint` | `Fraction` is the drawn position (glides after a tap); `Pressed` (0–1) while dragged | — |
+| `SkUiProgressBarPaint` | `Progress` is the drawn fill | — |
+
+Drawing the blend makes interruptions free: a switch toggled back mid-way reverses from where it is. (A third state mid-way, only possible with three-state toggles, starts again from the nearer of the two states.)
+
+**How long, which curve.** `GetTransition(kind)` returns a `SkUiTransition(Duration, Easing)`; `None` (zero duration) turns a transition off. Kinds: `Switch`, `CheckBox`, `RadioButton`, `Press`, `Release`, `Ripple`, `SliderThumb`, `Progress`.
+
+| Kind | `DefaultSkUiLook` |
+| --- | --- |
+| Switch | 200 ms, cubic in-out |
+| CheckBox, RadioButton | 160 ms, cubic in-out |
+| Press / Release | 80 ms / 220 ms, cubic out (a quick tap still shows its full press) |
+| Ripple | 450 ms, cubic out (only with `PressEffect = Ripple`, else none: no frames spent) |
+| SliderThumb | 150 ms, cubic out (taps only; drags and code follow at once) |
+| Progress | None, as MAUI's `ProgressBar` (`ProgressTo` animates on its own) |
+
+**Press feedback on any control.** `ShowsPressEffect` (every `SkUiView` and Core node) draws the look's press overlay (`DrawPressOverlay`) over the node and its children while it is pressed, clipped to its rounded shape (a label's `CornerRadii`, a border's `CornerRadius`). This is for containers that act as one button: a card, or a composite button built from several Core nodes. The node needs a tap handler (`Tapped`, or `TappedCommand` on SkUi*) to be pressed. A button inside it still takes its own presses. `DefaultSkUiLook` dims the content or spreads a dark ripple.
+
+Override `GetTransitionCore` in a subclass, or set `TransitionProvider` on a look instance. `DefaultSkUiLook.PressEffect` picks `Dim` (default: the fill fades by a quarter) or `Ripple` (a circle spreads from the press point, clipped to the button's rounded shape, and fades after the release).
+
+**Reduce motion.** `SkUiMotion.IsMotionReduced` follows the OS setting (iOS / Mac Catalyst Reduce Motion, Android "Remove animations", Windows animation effects off); `SkUiMotion.ReduceMotion` overrides it. While reduced, `GetTransition` returns `None` for every kind. Activity animations (spinners, the indeterminate progress bar) keep running, since they show that work is in progress.
+
+**Where it runs.**
+- Transitions run on the surface's UI-thread animation clock. Each frame re-records only the animating control's picture (ancestors are not re-recorded), and the rest of the tree is composited from retained pictures. Painters stay ordinary single-threaded code.
+- Controls animate only after they have been drawn on a surface. A state set before a page appears (a constructor, a binding) shows at once.
+- Stopping the clock (the page closes, the surface is replaced) jumps every transition to its end state.
+- The decision and its measurements: [ArchitectureReview.md](ArchitectureReview.md#state-change-animations).
 
 ### Default width / height
 
@@ -101,14 +144,14 @@ Where a control has a meaningful **intrinsic** or **default** size (Switch, Chec
 3. Else **`SkUiLook.Current`** (process / app default).
 4. Else built-in **`DefaultSkUiLook`**.
 
-Changing the active look must invalidate paint and, when default sizes differ, measure.
+Changing the active look re-measures and redraws every live surface (each standalone root re-marks its drawn tree on `CurrentChanged`). After changing the current look **in place** (sizes, painters, `PressEffect`), call `SkUiLook.NotifyChanged()`.
 
 ## Relationship to layers (FR-9) and color scheme (FR-19)
 
 Look methods are the **shared Content/Background chrome implementations**. Controls still own:
 
 - Which phase calls which painter (`OnPaintContent` vs `PaintBackground` / `PaintOverlay`).
-- Property state (`IsChecked`, colors, `IsEnabled` alpha).
+- Property state (`CheckState`, colors, `IsEnabled` alpha) and the transition state they pass to the look.
 - Interaction / commands.
 
 Looks do **not** replace `PaintBackground` / `OnPaintContent` hooks; they are what those hooks call for stock geometry. Looks do **not** own the palette — that is **FR-19**.
@@ -142,6 +185,7 @@ Core and MAUI-compatible controls **must** use the same look resolution so Stres
 - [x] Single-control override via virtual method **or** replaceable painter / size delegate (drawing and/or default size).
 - [x] Wire `SkUi*` and `SkUiCore*` Content painters **and** default measures through the active look.
 - [x] Document naming vs FR-12 / FR-19; tests cover swap look + override painter and measure.
-- [x] Look change raises `CurrentChanged`; app should invalidate measure/paint when sizes change (no automatic tree walk in v1).
+- [x] Look change raises `CurrentChanged`; live surfaces re-measure and redraw their drawn trees (`SkUiLook.NotifyChanged()` for in-place changes).
+- [x] State-change transitions: paint structs carry the transition, `GetTransition` / `TransitionProvider`, reduce motion (FR-26).
 - [ ] Optional per-control / per-tree look attachment.
 - [x] Gallery sample page for look packs (`LookAndColorSchemePage`, route `look`).

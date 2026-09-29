@@ -20,6 +20,7 @@ Headless-tested; device-verified on a Galaxy S9, iPhone / iOS simulator, Mac Cat
 | Controls | Label, Button, Image, ImageButton, ActivityIndicator, Switch / CheckBox / RadioButton (three-state `CheckState`, FR-23), **Slider** (horizontal / vertical, FR-24), **ProgressBar** (determinate / render-thread indeterminate, FR-25), shapes — each on both layers |
 | Native hosting | `SkUiMauiContentView` (FR-16): viewport clipping, snapshot while scrolling, drags from overlays handed to drawn scrollers |
 | Animation | Render-thread `AnimateAsync`, fling, spin and content slide; UI-thread `SkUiAnimationClock` (FR-7) |
+| State-change transitions | Look-driven toggle, press (dim / ripple), slider-thumb and progress transitions on both layers; reduce motion (`SkUiMotion`); measured on a Galaxy S9 and Mac Catalyst (FR-26, [ArchitectureReview.md](ArchitectureReview.md#state-change-animations)) |
 | Look and colors | `SkUiLook` (FR-18), `SkUiColorScheme` (FR-19) |
 | Core layer | Layouts (stacks, absolute, grid, table, overlay, border, scroll view) and basic controls; `SkUiCoreHost` |
 | Diagnostics | Core nodes in the Live Visual Tree, `SkUiDiagnostics`, DevFlow `dev.skiaui` extension |
@@ -32,12 +33,7 @@ Headless-tested; device-verified on a Galaxy S9, iPhone / iOS simulator, Mac Cat
 
 Ordered for adoption by real apps (replace a MAUI page's tree with one drawn surface): layouts and containers for page shells first, then virtualized lists, then list chrome, then the remaining MAUI parity. Within a phase, the order is the suggested order.
 
-### Phase 0 — State-change animations: decide the architecture (FR-26)
-
-Switch, check box and radio transitions, press effects (ripple) and slider / progress motion, configurable by `SkUiLook`. This comes first because it decides how looks draw (continuous parameters instead of discrete states) and where animation runs (render thread vs re-recording). Every further control with state visuals would otherwise be reworked.
-
-1. Spike the candidates on the switch and a button ripple (see [ArchitectureReview.md](ArchitectureReview.md#state-change-animations)), measure on a device, decide.
-2. Implement for the existing toggles, buttons, slider and progress bar; reduce-motion switch; headless tests with a deterministic clock.
+Phase 0 (state-change animations, FR-26) is shipped: looks draw from continuous parameters, transitions run on the UI clock re-recording one control per frame. New controls with state visuals follow the same pattern (a paint struct with the transition, a `SkUiTransitionKind`, the shared animators). Left open: several ripples at once, press scale, render-thread painters.
 
 ### Phase A — Page shells: composition layouts and containers
 
@@ -84,12 +80,12 @@ Switch, check box and radio transitions, press effects (ripple) and slider / pro
 
 From [ArchitectureReview.md](ArchitectureReview.md) (finding numbers N\*). Scheduled next to the phases above, not after them.
 
-- **Now (small, correctness):** disabled controls must not block ancestor scrolling (N2); Core `IsEnabled` / `InputTransparent` with one blocking rule (N3); child alignment in every Core container (N4); look / color-scheme swaps invalidate retained pictures (N6).
-- **With Phase 0:** measure invalidation without re-recording ancestors (N5) — the per-frame re-record path of state animations depends on it.
+- **Now (small, correctness):** disabled controls must not block ancestor scrolling (N2); Core `IsEnabled` / `InputTransparent` with one blocking rule (N3); child alignment in every Core container (N4); scheme defaults resolved at paint time instead of snapshotted at construction (rest of N6; look / scheme swaps already redraw live surfaces).
+- **With Phase A:** measure invalidation without re-recording ancestors (N5); containers that re-measure often (wrap layout, expander) benefit first.
 - **Before Phase B:** relayout boundaries; shared image cache (N9); fling live extents (N11); raster cache of stable subtrees (N7).
 - **Accessibility:** semantics tree mapped to platform accessibility (Android `ExploreByTouchHelper`, iOS accessibility elements), OS font scaling, keyboard focus, reduce-motion (N8). Needed before broad production use.
 - **Drawn over native:** overlay masks, so drawn popups can cover hosted controls; cheaper overlay bookkeeping on Android (N10, N12).
-- **One implementation per control:** extract layer-agnostic engines and shared node mechanics, gated by SkUi-vs-Core parity tests (N13). Revisit when Phase 0 changes the control drawing anyway.
+- **One implementation per control:** extract layer-agnostic engines and shared node mechanics, gated by SkUi-vs-Core parity tests (N13). Toggle drawing and all transition animators are already shared (`SkUiToggleDrawing`, `SkUiTransitionAnimators`).
 
 ---
 
@@ -120,7 +116,6 @@ From [ArchitectureReview.md](ArchitectureReview.md) (finding numbers N\*). Sched
 
 | Item | Must verify |
 | --- | --- |
-| State-change animations | Smooth while the UI thread is busy (or bounded re-record); interruptible; reduce-motion; looks can replace every effect |
 | Wrap layout | Wraps across width; re-measures when a child's size changes; RTL |
 | Weighted stack | Weighted children fill the leftover space; fixed children keep their size |
 | StateContainer | Switching states releases the previous content (leak scenario) |
@@ -145,10 +140,10 @@ From [ArchitectureReview.md](ArchitectureReview.md) (finding numbers N\*). Sched
 
 ## Suggested order for a new control
 
-1. Look entry point (`SkUiLook.Draw*` / `Measure*`, paint struct, default look)
+1. Look entry point (`SkUiLook.Draw*` / `Measure*`, paint struct carrying the transition state, `SkUiTransitionKind` if it has state visuals, default look)
 2. Types on both layers, shared math / input helpers
 3. Measure / arrange, paint
 4. Input through the gesture arena (write user changes back to bindables)
-5. Animation (render thread when possible)
+5. Animation: state changes through the shared transition animators; continuous motion on the render thread when possible
 6. Demo page, docs page under [docs/controls/](../controls/README.md)
 7. Tests, leak scenario, then optimize

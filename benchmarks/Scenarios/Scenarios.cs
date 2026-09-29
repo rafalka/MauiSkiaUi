@@ -23,6 +23,8 @@ public static class Scenarios
         new SkUiLabelsUpdate(),
         new ScrollFling(),
         new Spinners(),
+        new ToggleTransitions(),
+        new ToggleTransitions(busy: true),
         new NativeLabels(),
     ];
 
@@ -314,5 +316,67 @@ public sealed class NativeLabels : BenchScenario
         for (var i = 0; i < Scenarios.Count; i++)
             grid.Add(new Label { Text = $"Label {i:0000}", FontSize = 14 }, i % 2, i / 2);
         return new ScrollView { Content = grid };
+    }
+}
+
+/// <summary>
+/// State-change transitions (FR-26): switches and check boxes re-toggled every 120 ms, so transitions (UI-thread clock,
+/// one re-recorded picture per animating control per frame) run through the whole sampling window. The busy variant
+/// also blocks the UI thread for 25 ms every 100 ms, like an app doing work while the user taps.
+/// </summary>
+public sealed class ToggleTransitions(bool busy = false) : BenchScenario
+{
+    public override string Name => busy ? "toggle-transitions-busy" : "toggle-transitions";
+    public override string Description => busy
+        ? "48 SkUiSwitch + 48 SkUiCheckBox re-toggled every 120 ms while the UI thread is blocked 25 ms every 100 ms"
+        : "48 SkUiSwitch + 48 SkUiCheckBox re-toggled every 120 ms; motion = their transitions (frame stats)";
+    public override bool DeviceOnly => true;
+
+    public override View Build()
+    {
+        var grid = new SkUiGrid { Padding = new Thickness(8), RowSpacing = 6, ColumnSpacing = 6 };
+        grid.ColumnDefinitions = new ColumnDefinitionCollection(Enumerable.Range(0, 6).Select(_ => new ColumnDefinition(GridLength.Star)).ToArray());
+        grid.RowDefinitions = new RowDefinitionCollection(Enumerable.Range(0, 16).Select(_ => new RowDefinition(new GridLength(36))).ToArray());
+        for (var i = 0; i < 96; i++)
+        {
+            SkUiView toggle = i % 2 == 0 ? new SkUiSwitch() : new SkUiCheckBox();
+            Grid.SetRow(toggle, i / 6);
+            Grid.SetColumn(toggle, i % 6);
+            grid.Children.Add(toggle);
+        }
+        return new SkUiContentView { Background = Colors.White, Content = grid };
+    }
+
+    public override Func<View, IDisposable?>? Motion => root =>
+    {
+        var toggles = root.GetVisualTreeDescendants().OfType<SkUiToggleControl>().ToList();
+        void ToggleAll()
+        {
+            foreach (var toggle in toggles)
+                toggle.IsChecked = !toggle.IsChecked;
+        }
+        ToggleAll();
+        var toggleTimer = root.Dispatcher.CreateTimer();
+        toggleTimer.Interval = TimeSpan.FromMilliseconds(120);
+        toggleTimer.Tick += (_, _) => ToggleAll();
+        toggleTimer.Start();
+        IDispatcherTimer? busyTimer = null;
+        if (busy)
+        {
+            busyTimer = root.Dispatcher.CreateTimer();
+            busyTimer.Interval = TimeSpan.FromMilliseconds(100);
+            busyTimer.Tick += (_, _) => Thread.Sleep(25);
+            busyTimer.Start();
+        }
+        return new Stop(() =>
+        {
+            toggleTimer.Stop();
+            busyTimer?.Stop();
+        });
+    };
+
+    private sealed class Stop(Action stop) : IDisposable
+    {
+        public void Dispose() => stop();
     }
 }

@@ -14,6 +14,7 @@ public class SkUiCoreProgressBar : SkUiCoreNode
     private Color _progressColor = SkUiColors.Accent;
     private Color _trackColor = SkUiColors.TrackOff;
     private SkUiProgressTween? _tween;
+    private SkUiTween? _fill;
     private SKPath? _clip;
     private SKSize _clipSize;
 
@@ -32,8 +33,12 @@ public class SkUiCoreProgressBar : SkUiCoreNode
     /// <summary>Sets the progress (clamped).</summary>
     public SkUiCoreProgressBar SetProgress(double value)
     {
+        var old = _progress;
         if (SetProperty(ref _progress, SkUiProgressTween.Clamp(value), nameof(Progress)))
+        {
+            SkUiProgressBarDrawing.ProgressChanged(this, ref _fill, old, _progress, _tween);
             InvalidatePaint();
+        }
         return this;
     }
 
@@ -68,8 +73,15 @@ public class SkUiCoreProgressBar : SkUiCoreNode
     /// <c>true</c> when it ran to completion; <c>false</c> when a newer call replaced it or the animation was stopped
     /// (e.g. the page closed). It pauses while the node is detached and continues once it is in a host tree again.
     /// </summary>
-    public Task<bool> ProgressTo(double value, uint length = 250, Easing? easing = null) =>
-        (_tween ??= new SkUiProgressTween(progress => SetProgress(progress))).Start(AnimationClock, _progress, value, length, easing);
+    public Task<bool> ProgressTo(double value, uint length = 250, Easing? easing = null)
+    {
+        if (_fill is { IsRunning: true } fill)
+        {
+            fill.Jump((float)_progress); // ProgressTo owns Progress now: no smoothing on top
+            InvalidatePaint();
+        }
+        return (_tween ??= new SkUiProgressTween(progress => SetProgress(progress))).Start(AnimationClock, _progress, value, length, easing);
+    }
 
     /// <inheritdoc />
     protected override void OnAnimationRootChanged(bool subtreeDetached = false)
@@ -84,7 +96,7 @@ public class SkUiCoreProgressBar : SkUiCoreNode
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>
-        SkUiProgressBarDrawing.Draw(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, (float)_progress, _isIndeterminate,
+        SkUiProgressBarDrawing.Draw(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, SkUiProgressBarDrawing.Drawn(_fill, _progress), _isIndeterminate,
             ToSkColor(_trackColor), ToSkColor(_progressColor), enabled: true);
 
     /// <inheritdoc />

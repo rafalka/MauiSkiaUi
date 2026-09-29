@@ -20,6 +20,9 @@ Run `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj`. The library's 
 | `PerformanceTests` | 1,000-label warm recording measurement (no timing assertion) |
 | `CoreLayerTests` | `MauiSkiaUi.Core` smoke/regression |
 | `LookAndColorSchemeTests` | FR-18 / FR-19 look and color scheme |
+| `ToggleStateTests`, `SliderTests`, `ProgressBarTests` | Three-state toggles and binding write-back, slider range / input / scroll competition, progress fill / indeterminate slide / `ProgressTo` |
+| `TransitionTests` | FR-26 state-change transitions on a deterministic clock: switch slide and mid-way reversal (one re-record per frame), no animation before the first frame or with reduced motion, stopped clock jumps to the end, quick-tap press and ripple origin, ripple pixels, slider glide, progress smoothing, Core parity |
+| `AnimationClockTests` | Callbacks that dispose animations or stop the clock mid-tick; the internal stopped callback |
 | `ComponentDemoTests` | One demo page per concrete control (editors/reset contract) |
 | `MemoryLeakTests` | Leak scenarios (below): nothing a scenario built survives its surfaces; the detector self-test; long-lived commands drop listeners |
 

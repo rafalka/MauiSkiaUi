@@ -108,6 +108,9 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Uniform corner radius used until the radii are set (0; buttons use the look's).</summary>
     protected virtual double DefaultCornerRadius => 0;
 
+    /// <inheritdoc />
+    internal override Microsoft.Maui.CornerRadius PressEffectCornerRadii => EffectiveCornerRadii;
+
     private Microsoft.Maui.CornerRadius EffectiveCornerRadii =>
         _cornerRadiusExplicit ? _cornerRadii : new Microsoft.Maui.CornerRadius(DefaultCornerRadius);
 

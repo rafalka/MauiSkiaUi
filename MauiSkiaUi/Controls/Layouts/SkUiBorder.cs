@@ -73,6 +73,9 @@ public class SkUiBorder : SkUiContentView
         SkUiLook.Current.DrawRoundedBox(canvas, bounds, _cornerRadius, SKColors.Transparent, ToSkColor(_stroke), (float)_strokeThickness);
     }
 
+    /// <inheritdoc />
+    internal override CornerRadius PressEffectCornerRadii => _cornerRadius;
+
     private SKPath? _childrenClip;
     private (float Width, float Height, CornerRadius Radius, SkUiLook Look) _childrenClipKey;
 

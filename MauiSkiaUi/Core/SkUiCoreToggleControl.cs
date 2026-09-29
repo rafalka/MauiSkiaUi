@@ -3,12 +3,16 @@ namespace MauiSkiaUi.Core;
 /// <summary>
 /// Shared toggle state and tap-to-toggle behavior for Core Switch / CheckBox / RadioButton. <see cref="CheckState"/>
 /// is the state (<see cref="SkUiCheckState.Indeterminate"/> included); <see cref="IsChecked"/> is its two-state view.
+/// State changes and presses animate with the look's transitions (<see cref="TransitionKind"/>); subclasses draw
+/// <see cref="ToggleVisual"/>.
 /// </summary>
 public abstract class SkUiCoreToggleControl : SkUiCoreNode
 {
     private SkUiCheckState _state;
     private bool _isThreeState;
     private bool _isPressed;
+    private SkUiToggleAnimator? _transition;
+    private SkUiPressAnimator? _press;
 
     /// <summary>Unchecked, checked or indeterminate.</summary>
     public SkUiCheckState CheckState
@@ -50,7 +54,9 @@ public abstract class SkUiCoreToggleControl : SkUiCoreNode
     public SkUiCoreToggleControl SetCheckState(SkUiCheckState value)
     {
         var wasChecked = IsChecked;
+        var old = _state;
         if (!SetProperty(ref _state, value, nameof(CheckState))) return this;
+        (_transition ??= new SkUiToggleAnimator(this, TransitionKind)).Changed(old, value);
         InvalidatePaint();
         // Both property notifications first, then the events: handlers see IsChecked bindings already updated.
         var checkedChanged = wasChecked != IsChecked;
@@ -72,6 +78,13 @@ public abstract class SkUiCoreToggleControl : SkUiCoreNode
         return this;
     }
 
+    /// <summary>Which look transition animates state changes (<see cref="SkUiLook.GetTransition"/>).</summary>
+    protected virtual SkUiTransitionKind TransitionKind => SkUiTransitionKind.CheckBox;
+
+    /// <summary>What to draw: the state, the transition towards it and the press amount.</summary>
+    protected SkUiToggleVisual ToggleVisual =>
+        _transition?.Visual(_state, _press?.Pressed ?? 0) ?? SkUiToggleVisual.Settled(_state, _press?.Pressed ?? 0);
+
     /// <summary>Called on a completed tap; default moves to the next state (see <see cref="IsThreeState"/>).</summary>
     protected virtual void OnToggled() => SetCheckState(SkUiCheckStates.Next(_state, _isThreeState));
 
@@ -90,6 +103,7 @@ public abstract class SkUiCoreToggleControl : SkUiCoreNode
     private void SetPressed(bool value)
     {
         if (!SetProperty(ref _isPressed, value, nameof(IsPressed))) return;
+        (_press ??= new SkUiPressAnimator(this, ripple: false)).SetPressed(value, PressPosition);
         InvalidatePaint();
     }
 }

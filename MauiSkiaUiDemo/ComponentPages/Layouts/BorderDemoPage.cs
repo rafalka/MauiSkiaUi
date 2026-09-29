@@ -46,6 +46,11 @@ public sealed class BorderDemoPage : ComponentDemoPage
         Number("TopRight", 0, 30, 10, value => ApplyCorner(skia, native, tr: value), () => skia.CornerRadius.TopRight);
         Number("BottomLeft", 0, 30, 10, value => ApplyCorner(skia, native, bl: value), () => skia.CornerRadius.BottomLeft);
         Number("BottomRight", 0, 30, 10, value => ApplyCorner(skia, native, br: value), () => skia.CornerRadius.BottomRight);
+        // The border as one tappable card: the look's press feedback over it and its content, clipped to its corners.
+        var taps = 0;
+        skia.Tapped += (_, _) => Feedback($"Taps: {++taps}");
+        Toggle(nameof(SkUiView.ShowsPressEffect), true, value => skia.ShowsPressEffect = value, () => skia.ShowsPressEffect);
+        OnReset(() => taps = 0);
     }
 
     private static void ApplyCorner(SkUiBorder skia, Border native, double? tl = null, double? tr = null, double? bl = null, double? br = null)
