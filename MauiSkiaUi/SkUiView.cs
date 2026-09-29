@@ -79,6 +79,14 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
     /// <summary>Corner radii the press effect is clipped to (default square; labels and borders use their own).</summary>
     internal virtual CornerRadius PressEffectCornerRadii => default;
 
+    /// <summary>The look or color scheme changed: forget the cached measure and re-record (no per-node propagation).</summary>
+    internal void MarkLookChanged()
+    {
+        _measureDirty = true;
+        _arrangeDirty = true;
+        SkUiRenderInvalidation.Mark(this, SkUiRenderDirty.Content);
+    }
+
     SkUiAnimationClock? ISkUiTransitionHost.TransitionClock => _renderState is { HasCommitted: true } ? AnimationClock : null;
 
     void ISkUiTransitionHost.InvalidateTransition() => InvalidatePaint();
@@ -500,7 +508,7 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
         _paintOverlay?.Invoke(canvas);
         if (_showsPressEffect)
             SkUiLook.Current.DrawPressOverlay(canvas, new SkUiPressOverlayPaint(new SKRect(0, 0, (float)Width, (float)Height),
-                PressEffectCornerRadii, _pressEffect?.Visual ?? SkUiPressVisual.None, IsEnabled));
+                PressEffectCornerRadii, _pressEffect?.Visual ?? SkUiPressVisual.None, IsEnabled: true)); // a disabled view is not pressed; no veil
     }
 
     void ISkUiRenderable.GetRenderChildren(List<ISkUiRenderable> children) => AddRenderChildren(children);

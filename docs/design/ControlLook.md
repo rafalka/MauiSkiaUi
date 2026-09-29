@@ -103,7 +103,7 @@ Looks draw every point of a transition, not only the resting states. Switches, c
 | `SkUiSliderPaint` | `Fraction` is the drawn position (glides after a tap); `Pressed` (0–1) while dragged | — |
 | `SkUiProgressBarPaint` | `Progress` is the drawn fill | — |
 
-Drawing the blend makes interruptions free: a switch toggled back mid-way reverses from where it is.
+Drawing the blend makes interruptions free: a switch toggled back mid-way reverses from where it is. (A third state mid-way, only possible with three-state toggles, starts again from the nearer of the two states.)
 
 **How long, which curve.** `GetTransition(kind)` returns a `SkUiTransition(Duration, Easing)`; `None` (zero duration) turns a transition off. Kinds: `Switch`, `CheckBox`, `RadioButton`, `Press`, `Release`, `Ripple`, `SliderThumb`, `Progress`.
 
@@ -144,7 +144,7 @@ Where a control has a meaningful **intrinsic** or **default** size (Switch, Chec
 3. Else **`SkUiLook.Current`** (process / app default).
 4. Else built-in **`DefaultSkUiLook`**.
 
-Changing the active look must invalidate paint and, when default sizes differ, measure.
+Changing the active look re-measures and redraws every live surface (each standalone root re-marks its drawn tree on `CurrentChanged`). After changing the current look **in place** (sizes, painters, `PressEffect`), call `SkUiLook.NotifyChanged()`.
 
 ## Relationship to layers (FR-9) and color scheme (FR-19)
 
@@ -185,7 +185,7 @@ Core and MAUI-compatible controls **must** use the same look resolution so Stres
 - [x] Single-control override via virtual method **or** replaceable painter / size delegate (drawing and/or default size).
 - [x] Wire `SkUi*` and `SkUiCore*` Content painters **and** default measures through the active look.
 - [x] Document naming vs FR-12 / FR-19; tests cover swap look + override painter and measure.
-- [x] Look change raises `CurrentChanged`; app should invalidate measure/paint when sizes change (no automatic tree walk in v1).
+- [x] Look change raises `CurrentChanged`; live surfaces re-measure and redraw their drawn trees (`SkUiLook.NotifyChanged()` for in-place changes).
 - [x] State-change transitions: paint structs carry the transition, `GetTransition` / `TransitionProvider`, reduce motion (FR-26).
 - [ ] Optional per-control / per-tree look attachment.
 - [x] Gallery sample page for look packs (`LookAndColorSchemePage`, route `look`).

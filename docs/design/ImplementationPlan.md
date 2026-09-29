@@ -80,7 +80,7 @@ Phase 0 (state-change animations, FR-26) is shipped: looks draw from continuous 
 
 From [ArchitectureReview.md](ArchitectureReview.md) (finding numbers N\*). Scheduled next to the phases above, not after them.
 
-- **Now (small, correctness):** disabled controls must not block ancestor scrolling (N2); Core `IsEnabled` / `InputTransparent` with one blocking rule (N3); child alignment in every Core container (N4); look / color-scheme swaps invalidate retained pictures (N6).
+- **Now (small, correctness):** disabled controls must not block ancestor scrolling (N2); Core `IsEnabled` / `InputTransparent` with one blocking rule (N3); child alignment in every Core container (N4); scheme defaults resolved at paint time instead of snapshotted at construction (rest of N6; look / scheme swaps already redraw live surfaces).
 - **With Phase A:** measure invalidation without re-recording ancestors (N5); containers that re-measure often (wrap layout, expander) benefit first.
 - **Before Phase B:** relayout boundaries; shared image cache (N9); fling live extents (N11); raster cache of stable subtrees (N7).
 - **Accessibility:** semantics tree mapped to platform accessibility (Android `ExploreByTouchHelper`, iOS accessibility elements), OS font scaling, keyboard focus, reduce-motion (N8). Needed before broad production use.

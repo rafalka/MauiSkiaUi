@@ -393,6 +393,8 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         _ticker = new SkUiUiTicker(VirtualView.Dispatcher, OnUiTick);
         VirtualView.AnimationClock.RunningChanged += OnClockRunningChanged;
         VirtualView.Loaded += OnLoaded;
+        SkUiLook.CurrentChanged += OnLookChanged;
+        SkUiColorScheme.CurrentChanged += OnLookChanged;
         OnClockRunningChanged(this, EventArgs.Empty);
         QueueFrame();
         NotifyRootAttached(VirtualView);
@@ -404,6 +406,8 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         NotifyRootDetached(VirtualView);
         VirtualView.AnimationClock.RunningChanged -= OnClockRunningChanged;
         VirtualView.Loaded -= OnLoaded;
+        SkUiLook.CurrentChanged -= OnLookChanged;
+        SkUiColorScheme.CurrentChanged -= OnLookChanged;
         VirtualView.AnimationClock.StopAll();
         _ticker?.Dispose();
         _ticker = null;
@@ -600,6 +604,20 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         InvalidateMauiSurfaceNow();
     }
 #endif
+
+    /// <summary>The look or color scheme changed: re-measure and redraw this surface's drawn tree with it.</summary>
+    private void OnLookChanged(object? sender, EventArgs args)
+    {
+        if (VirtualView is not { } root)
+            return;
+        if (root.Dispatcher.IsDispatchRequired)
+        {
+            root.Dispatcher.Dispatch(() => OnLookChanged(sender, args));
+            return;
+        }
+        Rendering.SkUiRenderInvalidation.MarkLookChanged(root);
+        ((IView)root).InvalidateMeasure();
+    }
 
     private void OnClockRunningChanged(object? sender, EventArgs args)
     {

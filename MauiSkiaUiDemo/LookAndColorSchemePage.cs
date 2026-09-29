@@ -118,7 +118,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         _motionPicker = new Picker
         {
             Title = "Transitions",
-            ItemsSource = new[] { "Normal", "Slow motion (×5)", "Off (reduce motion)" },
+            ItemsSource = new[] { "Normal (follows the system's reduce motion)", "Slow motion (×5, always on)", "Off (reduce motion)" },
             SelectedIndex = Settings.Motion,
             AutomationId = "LookMotionPicker",
             TextColor = DemoColors.Ink,
@@ -192,8 +192,9 @@ public sealed class LookAndColorSchemePage : ContentPage
                     "react to a press. Dim fades the button; Ripple spreads a circle from the finger and fades after the release."),
                 _pressPicker,
                 Section("State-change transitions"),
-                Caption("Animation of switches, check boxes, radio buttons, presses and slider thumbs. Slow motion stretches " +
-                    "every transition 5× so you can watch it; Off skips them, like the system's reduce-motion setting."),
+                Caption("Animation of switches, check boxes, radio buttons, presses and slider thumbs. Normal follows the " +
+                    "system's reduce-motion setting; Slow motion stretches every transition 5× so you can watch it (even when " +
+                    "the system reduces motion); Off skips them."),
                 _motionPicker,
                 reset,
                 Section("Default sizes (preview | width | height)"),
@@ -492,8 +493,12 @@ public sealed class LookAndColorSchemePage : ContentPage
         Settings.Motion = _motionPicker.SelectedIndex;
         _look.PressEffect = _pressPicker.SelectedIndex == 1 ? SkUiPressEffect.Ripple : SkUiPressEffect.Dim;
         _look.TransitionScale = _motionPicker.SelectedIndex == 1 ? 5 : 1;
-        SkUiMotion.ReduceMotion = _motionPicker.SelectedIndex == 2 ? true : null;
-        SkUiLook.Current = _look;
+        // Slow motion is for watching transitions: on even when the system reduces motion.
+        SkUiMotion.ReduceMotion = _motionPicker.SelectedIndex switch { 1 => false, 2 => true, _ => null };
+        if (ReferenceEquals(SkUiLook.Current, _look))
+            SkUiLook.NotifyChanged(); // changed in place: live pages re-measure and redraw with it
+        else
+            SkUiLook.Current = _look;
 
         SyncSizeEntriesFromLook();
         RebuildAllPreviews();

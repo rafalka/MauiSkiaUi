@@ -81,8 +81,15 @@ public class SkUiProgressBar : SkUiView
     /// the animation was stopped (e.g. the page closed). It pauses while the bar is detached and continues once the bar
     /// is in a tree again (also when called before the bar was added).
     /// </summary>
-    public Task<bool> ProgressTo(double value, uint length = 250, Easing? easing = null) =>
-        (_tween ??= new SkUiProgressTween(progress => Progress = progress)).Start(AnimationClock, _progress, value, length, easing);
+    public Task<bool> ProgressTo(double value, uint length = 250, Easing? easing = null)
+    {
+        if (_fill is { IsRunning: true } fill)
+        {
+            fill.Jump((float)_progress); // ProgressTo owns Progress now: no smoothing on top
+            InvalidatePaint();
+        }
+        return (_tween ??= new SkUiProgressTween(progress => Progress = progress)).Start(AnimationClock, _progress, value, length, easing);
+    }
 
     /// <inheritdoc />
     protected override void OnAnimationRootChanged(bool subtreeDetached = false)

@@ -80,9 +80,13 @@ internal sealed class SkUiSliderVisual(ISkUiTransitionHost host)
         _thumb.AnimateTo(to, SkUiLook.Current.GetTransition(SkUiTransitionKind.SliderThumb));
     }
 
-    /// <summary>A drag started or ended.</summary>
-    public void SetDragging(bool dragging) =>
+    /// <summary>A drag started or ended; a drag takes over from a glide at once (the thumb follows the finger).</summary>
+    public void SetDragging(bool dragging)
+    {
+        if (dragging && _thumb.IsRunning)
+            _thumb.Jump(_thumb.Target);
         _pressed.AnimateTo(dragging ? 1 : 0, SkUiLook.Current.GetTransition(dragging ? SkUiTransitionKind.Press : SkUiTransitionKind.Release));
+    }
 }
 
 /// <summary>

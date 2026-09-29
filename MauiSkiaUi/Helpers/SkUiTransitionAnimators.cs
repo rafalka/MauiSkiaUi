@@ -17,8 +17,8 @@ internal interface ISkUiTransitionHost
 
 /// <summary>
 /// One animated number for state-change transitions, on the host's UI-thread <see cref="SkUiAnimationClock"/>. Each
-/// frame re-records only the host's own picture. When the clock is stopped (the page closed, the surface replaced), the
-/// tween jumps to its target.
+/// frame re-records only the host's own picture. When the clock is stopped (the page closed, the surface replaced) or
+/// the host leaves it (detached, recycled, moved to another surface), the tween jumps to its target.
 /// </summary>
 internal sealed class SkUiTween(ISkUiTransitionHost host)
 {
@@ -69,6 +69,16 @@ internal sealed class SkUiTween(ISkUiTransitionHost host)
         IDisposable? handle = null;
         handle = clock.Start(t =>
         {
+            if (handle is not null && ReferenceEquals(_handle, handle) && !ReferenceEquals(host.TransitionClock, clock))
+            {
+                // The host left this clock (detached or moved): no more frames for it; show the end state, as when
+                // the clock stops (completion runs with finished = false, e.g. a pending release jumps too).
+                _value = _to;
+                host.InvalidateTransition();
+                Finish(finished: false);
+                handle.Dispose(); // no longer current: its stopped callback does nothing
+                return;
+            }
             _value = t >= 1 ? _to : _from + (_to - _from) * (float)easing.Ease(t);
             host.InvalidateTransition();
             if (t >= 1 && handle is not null && ReferenceEquals(_handle, handle))
@@ -130,8 +140,10 @@ internal sealed class SkUiToggleAnimator(ISkUiTransitionHost host, SkUiTransitio
             _progress.AnimateTo(1, transition, durationScale: shown);
             return;
         }
+        // A third state mid-way (three-state toggles only): the visual blends two states, so it starts again from the
+        // nearer one; the other one's remaining weight disappears at once.
         if (_progress.IsRunning)
-            from = _progress.Value >= 0.5f ? _to : _from; // a third state mid-way: start from the nearer one
+            from = _progress.Value >= 0.5f ? _to : _from;
         _from = from;
         _to = to;
         _progress.Jump(0);

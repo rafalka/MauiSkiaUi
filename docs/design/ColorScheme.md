@@ -114,6 +114,6 @@ Core and MAUI-compatible controls **must** resolve the same scheme so dual-layer
 - [x] App can change individual scheme colors (properties) without replacing the whole pack.
 - [x] Wire Core + MAUI control **defaults** through the active scheme (`SkUiColors` accessors + construction snapshots).
 - [x] Document precedence: explicit property wins; paint-time tokens via `SkUiColors` follow `Current`; construction fields snapshot `Current`.
-- [x] Scheme / token change raises events; app should invalidate paint for scheme-following UI (no automatic tree walk in v1).
+- [x] Scheme change raises `CurrentChanged`; live surfaces re-measure and redraw their drawn trees. Controls that snapshotted a default color at construction keep it (open, ArchitectureReview N6).
 - [ ] Optional per-control / per-tree scheme attachment.
 - [x] Gallery sample: swap light/dark + change Accent (`LookAndColorSchemePage`, route `look`).

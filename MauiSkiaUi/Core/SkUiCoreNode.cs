@@ -863,6 +863,14 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     /// <summary>Corner radii the press effect is clipped to (default square; labels and borders use their own).</summary>
     internal virtual CornerRadius PressEffectCornerRadii => default;
 
+    /// <summary>The look or color scheme changed: forget the cached measure and re-record (no per-node propagation).</summary>
+    internal void MarkLookChanged()
+    {
+        _measureDirty = true;
+        _arrangeDirty = true;
+        SkUiRenderInvalidation.Mark(this, SkUiRenderDirty.Content);
+    }
+
     private void UpdatePressEffect(bool pressed)
     {
         if (_showsPressEffect || _pressEffect is not null)

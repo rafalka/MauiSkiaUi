@@ -21,8 +21,18 @@ public class SkUiLook
 
     private static SkUiLook? _current;
 
-    /// <summary>Raised after <see cref="Current"/> is replaced.</summary>
+    /// <summary>
+    /// Raised after <see cref="Current"/> is replaced, or by <see cref="NotifyChanged"/>. Live surfaces then re-measure and
+    /// redraw their drawn trees.
+    /// </summary>
     public static event EventHandler? CurrentChanged;
+
+    /// <summary>
+    /// Call after changing the current look in place (sizes, painters, options such as
+    /// <see cref="DefaultSkUiLook.PressEffect"/>): raises <see cref="CurrentChanged"/> so live surfaces re-measure and
+    /// redraw with it. Replacing <see cref="Current"/> does this by itself.
+    /// </summary>
+    public static void NotifyChanged() => CurrentChanged?.Invoke(null, EventArgs.Empty);
 
     /// <summary>
     /// Active app-wide look. Defaults to <see cref="DefaultSkUiLook.Instance"/>.

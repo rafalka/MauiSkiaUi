@@ -340,6 +340,112 @@ public class TransitionTests
     }
 
     [Fact]
+    public void DetachingMidTransitionStopsItsFrames()
+    {
+        WithLook(new DefaultSkUiLook(), () =>
+        {
+            var toggle = new SkUiSwitch();
+            var stack = new SkUiVerticalStackLayout { Children = { toggle } };
+            var root = new SkUiContentView { Content = stack };
+            using var surface = new SkUiTestSurface(root, 60, 40);
+            surface.Frame();
+            toggle.IsChecked = true;
+            At(surface, 50);
+            Assert.True(root.AnimationClock.IsRunning);
+            stack.Children.Remove(toggle); // recycled / removed mid-way
+            At(surface, 66);
+            Assert.False(root.AnimationClock.IsRunning); // no more frames for a detached control
+        });
+    }
+
+    [Fact]
+    public void ProgressToAndDragsTakeOverFromSmoothingAndGlides()
+    {
+        var progress = new List<float>();
+        var fractions = new List<float>();
+        var look = new DefaultSkUiLook
+        {
+            ProgressBarPainter = (_, paint) => progress.Add(paint.Progress),
+            SliderPainter = (_, paint) => fractions.Add(paint.Fraction),
+            TransitionProvider = kind => kind is SkUiTransitionKind.Progress or SkUiTransitionKind.SliderThumb
+                ? SkUiTransition.FromMilliseconds(100) : SkUiTransition.None
+        };
+        WithLook(look, () =>
+        {
+            var bar = new SkUiProgressBar();
+            var slider = new SkUiSlider();
+            var stack = new SkUiVerticalStackLayout { Children = { bar, slider } };
+            var root = new SkUiContentView { Content = stack };
+            using var surface = new SkUiTestSurface(root, 220, 60);
+            surface.Frame();
+
+            bar.Progress = 1;
+            At(surface, 50);
+            Assert.Equal(0.5f, progress[^1], 2);
+            _ = bar.ProgressTo(1, 100); // already at 1: ProgressTo owns Progress, the smoothing stops
+            surface.Frame(50);
+            Assert.Equal(1f, progress[^1], 2);
+
+            var y = bar.Height + slider.Height / 2;
+            Tap(root, new Point(160, y)); // glide towards 0.75
+            surface.Frame(50);
+            Assert.True(fractions[^1] < 0.7f);
+            var id = ++s_pointer;
+            root.Touch(new(id, SkUiTouchAction.Pressed, new Point(160, y), TimeSpan.FromSeconds(2)));
+            root.Touch(new(id, SkUiTouchAction.Moved, new Point(172, y), TimeSpan.FromSeconds(2.05))); // a drag from the same value
+            surface.Frame(50);
+            Assert.Equal((float)slider.Value, fractions[^1], 2); // the thumb is under the finger at once
+            root.Touch(new(id, SkUiTouchAction.Released, new Point(172, y), TimeSpan.FromSeconds(2.1)));
+        });
+    }
+
+    [Fact]
+    public void DisabledContainersWithShowsPressEffectAreNotVeiled()
+    {
+        WithLook(new DefaultSkUiLook(), () =>
+        {
+            var card = new SkUiBorder { CornerRadius = 0, StrokeThickness = 0, BackgroundColor = Colors.White, ShowsPressEffect = true, IsEnabled = false };
+            var root = new SkUiContentView { Content = card };
+            using var surface = new SkUiTestSurface(root, 100, 40);
+            Assert.Equal(SKColors.White, surface.Frame().GetPixel(50, 20));
+        });
+    }
+
+    [Fact]
+    public void LookChangesReMeasureAndRedrawLiveTrees()
+    {
+        var toggle = new SkUiSwitch { HorizontalOptions = LayoutOptions.Start };
+        var core = new SkUiCoreSwitch();
+        var host = new SkUiCoreHost { HorizontalOptions = LayoutOptions.Start }.SetContent(core);
+        var stack = new SkUiVerticalStackLayout { Children = { toggle, host } };
+        var root = new SkUiContentView { Content = stack };
+        using var surface = new SkUiTestSurface(root, 200, 200);
+        surface.Frame();
+        Assert.Equal(51, toggle.Width);
+        var recorded = surface.RecordedPictures;
+        var previous = SkUiLook.Current;
+        try
+        {
+            SkUiLook.Current = new BigSwitchLook();
+            MauiSkiaUi.Rendering.SkUiRenderInvalidation.MarkLookChanged(root); // what a live surface does on CurrentChanged
+            SkUiTestHelpers.Arrange(root, 200, 200);
+            surface.Frame();
+            Assert.Equal(80, toggle.Width);
+            Assert.Equal(80, core.Frame.Width);
+            Assert.True(surface.RecordedPictures - recorded >= 5, "every drawn node re-records");
+        }
+        finally
+        {
+            SkUiLook.Current = previous;
+        }
+    }
+
+    private sealed class BigSwitchLook : DefaultSkUiLook
+    {
+        public override Size DefaultSwitchSize => new(80, 40);
+    }
+
+    [Fact]
     public void ToggleVisualBlendsBetweenStates()
     {
         var visual = new SkUiToggleVisual(SkUiCheckState.Checked, SkUiCheckState.Unchecked, 0.25f);
