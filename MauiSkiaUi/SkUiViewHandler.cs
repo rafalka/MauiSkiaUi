@@ -50,6 +50,43 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     /// <summary>Creates a handler using normal MAUI sizing and Skia-owned drawing properties.</summary>
     public SkUiViewHandler() : base(SkiaMapper, SkiaCommandMapper) { }
 
+    /// <summary>
+    /// Diagnostics (leak tests): what this handler currently owns besides its platform view — renderer, compositor,
+    /// platform surfaces, overlay container. All of it must be collectable once the handler is disconnected.
+    /// </summary>
+    internal IEnumerable<(object Instance, string Label)> GetOwnedObjects()
+    {
+        if (_renderer is { } renderer)
+        {
+            yield return (renderer, nameof(SkUiFrameRenderer));
+            yield return (renderer.Compositor, nameof(Rendering.SkUiCompositor));
+        }
+        if (_container is not null)
+            yield return (_container, nameof(SkUiOverlayContainer));
+        if (_ticker is not null)
+            yield return (_ticker, nameof(SkUiUiTicker));
+        if (_mauiSurface is { } surface)
+        {
+            yield return (surface, $"{surface.GetType().Name} (MAUI surface)");
+            if (surface.Handler is { } surfaceHandler)
+            {
+                yield return (surfaceHandler, $"{surfaceHandler.GetType().Name} (MAUI surface)");
+                if (surfaceHandler.PlatformView is { } surfaceView)
+                    yield return (surfaceView, $"{surfaceView.GetType().Name} (MAUI surface)");
+            }
+        }
+#if ANDROID
+        if (_gpu is not null)
+            yield return (_gpu, nameof(SkUiGlTextureView));
+#elif IOS || MACCATALYST
+        if (_gpu is not null)
+        {
+            yield return (_gpu, nameof(SkUiMetalView));
+            yield return (_gpu.Surface, nameof(SkUiMetalSurface));
+        }
+#endif
+    }
+
     private static readonly CommandMapper<SkUiView, SkUiViewHandler> SkiaCommandMapper = new(ViewCommandMapper)
     {
 #if WINDOWS
@@ -190,9 +227,10 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             canvasView.EnableTouchEvents = false;
         else if (_mauiSurface is SKGLView glView)
             glView.EnableTouchEvents = false;
-        _mauiGate = new SkUiNativeGestureGate(platformSurface);
+        _mauiGate = new SkUiNativeGestureGate();
+        _mauiDeliverer = new SkUiTouchDeliverer(_mauiGate) { TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState };
         platformSurface.AddGestureRecognizer(_mauiGate);
-        platformSurface.AddGestureRecognizer(new SkUiTouchDeliverer(_mauiGate) { TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState });
+        platformSurface.AddGestureRecognizer(_mauiDeliverer);
         platformSurface.UserInteractionEnabled = true;
 #endif
 #if WINDOWS
@@ -209,6 +247,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
 #if IOS || MACCATALYST
     private SkUiNativeGestureGate? _mauiGate;
+    private SkUiTouchDeliverer? _mauiDeliverer;
 #endif
 
 #if WINDOWS
@@ -388,9 +427,23 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             gpuPanel.Unloaded -= OnGpuPanelUnloaded;
 #endif
 #if IOS || MACCATALYST
-        // Detach before GC so removeFromSuperview is not deferred into the NSObject disposer.
+        // Detach before GC so removeFromSuperview is not deferred into the NSObject disposer. The recognizers go too:
+        // the view retains them natively, which keeps their managed callbacks (into this handler) rooted.
         if (_mauiSurface?.Handler?.PlatformView is UIKit.UIView surfaceNative)
+        {
+            if (_mauiGate is not null)
+                surfaceNative.RemoveGestureRecognizer(_mauiGate);
+            if (_mauiDeliverer is not null)
+                surfaceNative.RemoveGestureRecognizer(_mauiDeliverer);
             surfaceNative.RemoveFromSuperview();
+        }
+        if (_mauiDeliverer is not null)
+        {
+            _mauiDeliverer.TouchHandler = null;
+            _mauiDeliverer.NativeGestureState = null;
+        }
+        _mauiGate = null;
+        _mauiDeliverer = null;
 #endif
         _mauiSurface?.Handler?.DisconnectHandler();
         if (_mauiSurface is not null)

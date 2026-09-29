@@ -32,6 +32,9 @@ Pack and publish workflows copy the body under `## <version>` into the package `
   - **`SkUiScrollView.IsScrolling`.**
   - **Fix:** overlays added before their stack was placed in a scroller never registered with it, so they missed offset sync.
   - **Demo:** "Native overlays in ScrollView".
+- **Memory leak tests** ([Testing.md](docs/design/Testing.md#memory-leak-tests)): 13 scenarios that exercise controls before closing them (clicks, re-layout, flings, gestures, animations, native overlays, surface switches), checked headless in CI and on devices with real handlers and platform views (`tests/MauiSkiaUi.DeviceTests`, `scripts/device_tests.sh`).
+  - **Fixed, iOS / Mac Catalyst:** software surfaces (`HwAccelerated = false`) leaked their handler and SkiaSharp view after the page closed. Their gesture recognizers were never removed, and the gate's delegate held its view: a cycle that the view's native retain kept rooted.
+  - **Fixed:** focusing a native overlay while its snapshot was shown (e.g. just after a scroll, before the restore delay) left the native view hidden; it is now restored at once. On iOS, the field that became first responder while hidden also stayed retained after its page closed.
 - **Fixes from the PR #8 review:**
   - A fade-in from `Opacity == 0` (`AnimateAsync`) now shows the content while it animates (#9).
   - `AnimateAsync` and animated scrolls always complete (with `false`) when the surface is disposed or the node detached before the animation ran (#10).

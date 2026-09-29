@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    On-device test app: memory leak checks with real handlers and platform views (docs/design/Testing.md).
+    Launched with autorun arguments it runs every scenario, prints "SKUILEAK {json}" per result and "SKUILEAK_DONE"
+    at the end, then exits; scripts/device_tests.sh drives it. Launched normally it shows the test page (Run all,
+    Rerun failed, per-scenario Run). Release by default: no debugger, Hot Reload or DevFlow agent holding references.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>MauiSkiaUi.DeviceTests</RootNamespace>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <IsPackable>false</IsPackable>
+    <ApplicationTitle>SkiaUi Device Tests</ApplicationTitle>
+    <ApplicationId>com.rkdevel.skiauidevicetests</ApplicationId>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- A launch screen is required: without UILaunchStoryboardName iOS runs the app letterboxed (legacy mode). -->
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#FFFFFF" BaseSize="128,128" />
+    <!-- Scenarios shared with the headless tests (tests/MauiSkiaUi.Tests/MemoryLeakTests.cs). -->
+    <Compile Include="../Shared/MemoryLeaks/*.cs" Link="Shared/MemoryLeaks/%(Filename)%(Extension)" />
+    <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+    <ProjectReference Include="../../MauiSkiaUi/MauiSkiaUi.csproj" />
+  </ItemGroup>
+</Project>

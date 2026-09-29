@@ -162,6 +162,18 @@ public partial class SkUiMauiContentView : SkUiView
         OnPropertyChanged(nameof(IsShowingSnapshot));
     }
 
+    /// <summary>
+    /// A focused control stays live: focusing it while its snapshot is shown (e.g. right after a scroll, before the
+    /// restore delay) brings the native view back at once. Otherwise the user would type into a hidden field, and on
+    /// iOS a text field that becomes first responder while hidden stays retained by UIKit after its page closes.
+    /// </summary>
+    private void OnContentFocused(object? sender, FocusEventArgs e)
+    {
+        _restoreTimer?.Dispose();
+        _restoreTimer = null;
+        RestoreLive();
+    }
+
     private void OnScrollModeChanged()
     {
         // The moving-scroller count keeps tracking ancestors in every mode; only the snapshot follows the mode.
@@ -200,9 +212,17 @@ public partial class SkUiMauiContentView : SkUiView
         if (value is not null && (value.Parent is not null || value.Handler is not null))
             throw new InvalidOperationException("A hosted MAUI control must be unparented and have no handler.");
         DetachOverlay();
-        if (_content is not null) RemoveLogicalChild(_content);
+        if (_content is not null)
+        {
+            _content.Focused -= OnContentFocused;
+            RemoveLogicalChild(_content);
+        }
         _content = value;
-        if (_content is not null) AddLogicalChild(_content);
+        if (_content is not null)
+        {
+            _content.Focused += OnContentFocused;
+            AddLogicalChild(_content);
+        }
         InvalidateMeasureOverride();
         AttachOverlayIfPossible();
         return this;

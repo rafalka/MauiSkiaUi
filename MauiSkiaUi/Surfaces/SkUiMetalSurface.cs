@@ -43,7 +43,7 @@ internal sealed class SkUiMetalView : UIView
             CancelsTouchesInView = false
         };
         AddGestureRecognizer(scroll);
-        _gate = new SkUiNativeGestureGate(this);
+        _gate = new SkUiNativeGestureGate();
         AddGestureRecognizer(_gate);
     }
 
@@ -133,12 +133,12 @@ internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
     private bool _synced;
     private CGPoint _start;
 
-    public SkUiNativeGestureGate(UIView owner)
+    public SkUiNativeGestureGate()
     {
         CancelsTouchesInView = false;
         DelaysTouchesBegan = false;
         DelaysTouchesEnded = false;
-        Delegate = new GateDelegate(owner);
+        Delegate = new GateDelegate();
     }
 
     /// <summary>Called after the owner delivered a touch batch to the drawn tree.</summary>
@@ -239,10 +239,12 @@ internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
         _synced = false;
     }
 
-    private sealed class GateDelegate(UIView owner) : UIGestureRecognizerDelegate
+    // Reads the owner from the recognizer: holding it would form a managed cycle (view → gate → delegate → view) that
+    // the view's native retain of the gate keeps rooted, so the view and everything reachable from it would leak.
+    private sealed class GateDelegate : UIGestureRecognizerDelegate
     {
         public override bool ShouldBeRequiredToFailBy(UIGestureRecognizer gestureRecognizer, UIGestureRecognizer otherGestureRecognizer) =>
-            otherGestureRecognizer.View is { } view && !ReferenceEquals(view, owner) && owner.IsDescendantOfView(view)
+            gestureRecognizer.View is { } owner && otherGestureRecognizer.View is { } view && !ReferenceEquals(view, owner) && owner.IsDescendantOfView(view)
             && otherGestureRecognizer is UIPanGestureRecognizer or UIPinchGestureRecognizer or UISwipeGestureRecognizer or UIRotationGestureRecognizer;
 
         public override bool ShouldRecognizeSimultaneously(UIGestureRecognizer gestureRecognizer, UIGestureRecognizer otherGestureRecognizer) => true;

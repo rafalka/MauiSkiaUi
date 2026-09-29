@@ -21,6 +21,7 @@ Run `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj`. The library's 
 | `CoreLayerTests` | `MauiSkiaUi.Core` smoke/regression |
 | `LookAndColorSchemeTests` | FR-18 / FR-19 look and color scheme |
 | `ComponentDemoTests` | One demo page per concrete control (editors/reset contract) |
+| `MemoryLeakTests` | Leak scenarios (below): nothing a scenario built survives its surfaces; the detector self-test; long-lived commands drop listeners |
 
 Clock tests never sleep. Interior pixels are exact; antialiased edge baselines and font goldens remain later work where not already covered by scroll solid-color goldens.
 
@@ -31,6 +32,60 @@ dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj --filter FullyQualifi
 ```
 
 It constructs 1,000 labels, measures/arranges a 400x600-DIP viewport, warms one picture recording, then records 30 frames. Before clip rejection/cached Z-order: 8.106 ms and 568,384 managed bytes/frame. After: 0.635 ms and 9,488 bytes/frame on the same Mac, Debug, .NET 10. These are indicative CPU measurements, not GPU FPS; no timing assertion is used. Remaining allocations include visible labels' font/paint resources, and native allocations are excluded. Use the device stress page's **Record** action for CPU recording of 1,000 buttons, and a native profiler for actual presentation timing.
+
+## Memory leak tests
+
+One scenario catalog, [`tests/Shared/MemoryLeaks`](../../tests/Shared/MemoryLeaks/LeakScenarios.cs), runs in two places:
+
+- **Headless** (`MemoryLeakTests`, part of `dotnet test` and CI). Each scenario is hosted on test surfaces, exercised, and its surfaces are disposed like a handler disconnect.
+- **On a device** ([`tests/MauiSkiaUi.DeviceTests`](../../tests/MauiSkiaUi.DeviceTests), an app for Android, iOS and Mac Catalyst). Each scenario's page is pushed on a Shell stack, exercised with real handlers and platform views, then popped; Shell disconnects its handlers, as in apps.
+
+**What a scenario does.** Leaks usually come from state that only exists after interaction, so every scenario exercises its UI first:
+
+| Scenario | Exercise |
+| --- | --- |
+| `ButtonsClicked` | Buttons bound to a long-lived command, clicked twice each, disabled and re-enabled, a cancelled press; an image button |
+| `TogglesTapped` | Switch, check box, radio group, tapped several times |
+| `LabelsReshaped` | Wrapped, truncated, RTL, Arabic, emoji, Simple / Shaped labels; text and width changed repeatedly |
+| `ImagesReloaded` | Stream images: sources swapped, reloaded, aspect changed |
+| `LayoutsRelayout` | Grid, stacks, absolute layout, border: resized; children added, removed, reordered, hidden; definitions changed |
+| `ScrollFling` | Vertical list with a nested carousel: drags, flings, animated scroll; closed mid-fling |
+| `GesturesMixed` | Tap, double tap, long press, swipe, pan, pinch (drawn and Core); closed with a finger down |
+| `AnimationsRunning` | Render-thread animations and a spinner running at close; nodes detached mid-animation |
+| `SurfaceReplaced` | A page replaces its GPU surface with a software one and back (device only) |
+| `MovedBetweenSurfaces` | A subtree with gestures, a scroller and a native Entry moves between two surfaces |
+| `CoreControls` | Core buttons, toggles, table and scroll view: clicked, scrolled, rows removed |
+| `NativeOverlays` | Entry / Editor overlays in a drawn scroller (snapshot mode): scrolled, focused, content replaced |
+| `NativeNesting` | GPU and software surfaces inside a native `ScrollView`, each dragged |
+
+**What is checked.**
+
+- **Interaction took effect.** Each run checks its own results (clicks counted, every gesture raised, offsets moved). A leak check over an interaction that silently did nothing would prove nothing.
+- **Removed while open.** Objects a scenario removes (children, replaced overlay content and its native view, discarded surfaces) must be collectable while the rest of the page is still alive. This catches leaks that grow for as long as a long-lived page lives.
+- **After close.** Everything else must be collectable: the page, every MAUI view, drawn view and Core node, each handler and platform view, and what surface handlers own (renderer, compositor, GPU / software surface, overlay container). Survivors are listed by type and text, e.g. `SkUiViewHandler of SkUiCoreHost`.
+- **The detector itself.** A scenario that deliberately retains its root must be reported (`DetectorReportsADeliberateLeak`; the device app runs it first).
+
+**Text focus.** Android's `InputMethodManager` and MAUI's Apple keyboard helper keep the last focused text field until another one gains focus; a plain MAUI page does the same. After a scenario focused a field, the device runner therefore focuses the test page's own field, as the next screen of an app would.
+
+**Run on a device:**
+
+```bash
+scripts/device_tests.sh -t maccatalyst
+scripts/device_tests.sh -t ios                          # booted simulator; -s UDID for a device
+scripts/device_tests.sh -t android -s 2299011508047ece
+scripts/device_tests.sh -t android -S ButtonsClicked,NativeOverlays
+```
+
+The script builds the app in Release (no debugger or Hot Reload keeping instances alive), launches it with `--autorun --exit` and collects its console lines:
+
+- `SKUILEAK_START`;
+- `SKUILEAK_DETECTOR {json}` for the self-test;
+- one `SKUILEAK {json}` per scenario;
+- `SKUILEAK_DONE`.
+
+It prints a table and exits non-zero on any failure. Logs go to `artifacts/device-tests/<timestamp>/`. iOS devices below iOS 17 (not supported by `devicectl`) are launched through `mlaunch` (`dotnet build -t:Run`).
+
+Launched normally, the app shows the test page: **Run all**, **Rerun failed**, **Check detector**, and **Run** per scenario, with results and survivors inline.
 
 ## Device profiling (dotnet-trace)
 

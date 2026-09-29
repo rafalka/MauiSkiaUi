@@ -3,6 +3,7 @@ using Xunit;
 
 namespace MauiSkiaUi.Tests;
 
+[Collection(GlobalStateCollection.Name)]
 public class LookAndColorSchemeTests
 {
     [Fact]

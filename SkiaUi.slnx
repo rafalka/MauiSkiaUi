@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/tests/">
     <Project Path="tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj" />
+    <Project Path="tests/MauiSkiaUi.DeviceTests/MauiSkiaUi.DeviceTests.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/MauiSkiaUi.Benchmarks/MauiSkiaUi.Benchmarks.csproj" />

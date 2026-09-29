@@ -99,6 +99,31 @@ jobs:
           --no-restore
           -p:ContinuousIntegrationBuild=true
 
+  device-tests-maccatalyst:
+    name: Device tests (Mac Catalyst)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-maccatalyst
+          java-version: ""
+
+      - name: Run memory leak tests (real handlers and platform views)
+        run: scripts/device_tests.sh -t maccatalyst -o artifacts/device-tests/ci
+
+      - name: Upload device test logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: device-tests-maccatalyst
+          path: artifacts/device-tests/ci
+          if-no-files-found: ignore
+
   build-windows:
     name: Build library (Windows TFM)
     runs-on: windows-latest
