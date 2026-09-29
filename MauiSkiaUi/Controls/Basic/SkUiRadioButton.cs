@@ -31,12 +31,7 @@ public class SkUiRadioButton : SkUiToggleControl
     public SkUiRadioButton SetGroupName(string? value) { _groupName = value; return this; }
 
     /// <summary>Unlike the shared toggle base, a tap only selects (matching MAUI's RadioButton); it never unchecks.</summary>
-    protected override void OnTapped(SkUiTappedEventArgs args)
-    {
-        RaiseTapped(args);
-        ExecuteTappedCommand();
-        SetIsChecked(true);
-    }
+    protected override SkUiCheckState NextCheckState() => SkUiCheckState.Checked;
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
@@ -46,7 +41,7 @@ public class SkUiRadioButton : SkUiToggleControl
     protected override void OnPaintContent(SKCanvas canvas)
     {
         var size = (float)Math.Min(Width, Height);
-        var ringColor = IsChecked ? _color : SkUiColors.Muted;
+        var ringColor = CheckState != SkUiCheckState.Unchecked ? _color : SkUiColors.Muted;
         var dotColor = _color;
         if (!IsEnabled)
         {
@@ -56,7 +51,7 @@ public class SkUiRadioButton : SkUiToggleControl
         // RTL: the glyph sits at the start (right) edge; the glyph itself is not mirrored.
         var rtlSave = canvas.Save();
         if (IsRightToLeft) canvas.Translate((float)(Width) - size, 0);
-        SkUiLook.Current.DrawRadioButton(canvas, size, IsChecked, ToSkColor(ringColor), ToSkColor(dotColor));
+        SkUiLook.Current.DrawRadioButton(canvas, size, CheckState, ToSkColor(ringColor), ToSkColor(dotColor));
         canvas.RestoreToCount(rtlSave);
     }
 }

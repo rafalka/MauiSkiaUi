@@ -6,7 +6,11 @@ Abstract base for Switch, CheckBox, and RadioButton.
 
 ## How it works
 
-Owns `IsChecked`, `CheckedChanged`, and default tap-to-toggle. RadioButton overrides tap for select-only behavior.
+- **State:** `CheckState` (`SkUiCheckState`: Unchecked, Checked, Indeterminate) is the state. `IsChecked` is its MAUI-compatible two-state view: `true` only for Checked; setting it sets Checked or Unchecked.
+- **Taps:** with `IsThreeState` a tap cycles Unchecked → Checked → Indeterminate → Unchecked. Without it, taps go between Checked and Unchecked, and an Indeterminate set by the app (e.g. a "select all" box whose group is partly checked) goes to Checked. RadioButton taps only ever select.
+- **Write-back:** a tap sets `CheckState` and `IsChecked` through their bindable properties (two-way by default), so bindings see user changes.
+- **Events:** `CheckStateChanged` on every state change; `CheckedChanged` only when `IsChecked` changes.
+- **Drawing:** the look's `DrawSwitch` / `DrawCheckBox` / `DrawRadioButton` take the `SkUiCheckState` (Indeterminate: centered thumb, dash, bar).
 
 
 ## Shared conventions
@@ -22,7 +26,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`IsChecked`, `IsCheckedProperty`, `CheckedChanged`, `SetIsChecked`.
+`CheckState`, `IsChecked`, `IsThreeState` (bindable), `CheckStateChanged`, `CheckedChanged`, `SetCheckState`, `SetIsChecked`, `SetIsThreeState`.
 
 ## Related
 

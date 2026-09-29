@@ -9,7 +9,10 @@ public sealed class SwitchDemoPage : ComponentDemoPage
     {
         var skia = (SkUiSwitch)SkiaControl;
         var native = (Switch)NativeControl!;
-        Toggle(nameof(SkUiSwitch.IsChecked), false, value => { skia.IsChecked = value; native.IsToggled = value; }, () => skia.IsChecked, () => native.IsToggled);
+        Choice(nameof(SkUiSwitch.CheckState), [SkUiCheckState.Unchecked, SkUiCheckState.Checked, SkUiCheckState.Indeterminate], SkUiCheckState.Unchecked,
+            // IsChecked (MAUI) is its two-state view; the native control follows it.
+            value => { skia.CheckState = value; native.IsToggled = value == SkUiCheckState.Checked; }, () => skia.CheckState);
+        Toggle(nameof(SkUiSwitch.IsThreeState), false, value => skia.IsThreeState = value, () => skia.IsThreeState);
         ColorEditor(nameof(SkUiSwitch.OnColor), Accent, value => { skia.OnColor = value; native.OnColor = value; }, () => skia.OnColor, () => native.OnColor);
     }
 }

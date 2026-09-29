@@ -151,7 +151,7 @@ A native control hosted by `SkUiMauiContentView` sits above the drawn surface, s
 
 ## Still open
 
-- A demo page for gestures and nested scrollers (FR-15 checklist).
+- A dedicated SkUi* gesture demo page. Gestures and nested scrollers are shown today on the Core "ScrollView + gestures" page, `ViewDemoPage` (`InputTransparent`) and "Native nesting".
 - Hover / pointer-over events and an axis-aware wheel (desktop).
 - Keyboard and accessibility actions (activation of focused elements) — later.
 - Shape-aware hit-testing (opt-in), if needed.

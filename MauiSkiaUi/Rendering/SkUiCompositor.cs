@@ -411,6 +411,24 @@ internal sealed class SkUiCompositor : IDisposable
                 canvas.DrawPicture(before);
                 canvas.RestoreToCount(spin);
             }
+            else if (props.ContentSlidePeriod > 0 && props.ContentSlideDistance != 0)
+            {
+                _spinning = true;
+                var period = props.ContentSlidePeriod;
+                var distance = props.ContentSlideDistance;
+                var offset = (float)(_now.TotalSeconds % period / period) * distance;
+                var slide = canvas.Save();
+                if (props.ContentClipPath is { } clip)
+                    canvas.ClipPath(clip, antialias: true);
+                else
+                    canvas.ClipRect(props.Bounds);
+                // Two copies one distance apart cover the whole distance for any phase.
+                canvas.Translate(offset, 0);
+                canvas.DrawPicture(before);
+                canvas.Translate(-distance, 0);
+                canvas.DrawPicture(before);
+                canvas.RestoreToCount(slide);
+            }
             else
             {
                 canvas.DrawPicture(before);

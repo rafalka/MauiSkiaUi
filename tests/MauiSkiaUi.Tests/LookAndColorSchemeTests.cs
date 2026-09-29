@@ -109,7 +109,7 @@ public class LookAndColorSchemeTests
             using var bitmap = new SKBitmap(10, 10);
             using var canvas = new SKCanvas(bitmap);
             canvas.Clear(SKColors.Transparent);
-            SkUiLook.Current.DrawSwitch(canvas, new SKRect(0, 0, 10, 10), true, SKColors.Red, SKColors.White);
+            SkUiLook.Current.DrawSwitch(canvas, new SKRect(0, 0, 10, 10), SkUiCheckState.Checked, SKColors.Red, SKColors.White);
             Assert.Contains(bitmap.Pixels, p => p.Alpha > 0);
         }
         finally
@@ -184,7 +184,7 @@ public class LookAndColorSchemeTests
     {
         public override Size DefaultSwitchSize => new(10, 10);
 
-        protected override void DrawSwitchCore(SKCanvas canvas, SKRect bounds, bool isChecked, SKColor track, SKColor thumb)
+        protected override void DrawSwitchCore(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb)
         {
             using var paint = new SKPaint { Color = track, IsAntialias = true };
             canvas.DrawRect(bounds, paint);

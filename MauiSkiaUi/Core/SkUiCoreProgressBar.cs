@@ -1,0 +1,104 @@
+using MauiSkiaUi.Rendering;
+using SkiaSharp;
+
+namespace MauiSkiaUi.Core;
+
+/// <summary>
+/// Drawn progress bar (Core analogue of <c>SkUiProgressBar</c>), with <see cref="IsIndeterminate"/>: a segment moves
+/// along the bar on the render thread. Drawn by <see cref="SkUiLook.DrawProgressBar"/>.
+/// </summary>
+public class SkUiCoreProgressBar : SkUiCoreNode
+{
+    private double _progress;
+    private bool _isIndeterminate;
+    private Color _progressColor = SkUiColors.Accent;
+    private Color _trackColor = SkUiColors.TrackOff;
+    private IDisposable? _progressAnimation;
+    private TaskCompletionSource<bool>? _progressCompletion;
+    private SKPath? _clip;
+    private SKSize _clipSize;
+
+    /// <summary>Completed fraction, 0–1 (clamped).</summary>
+    public double Progress { get => _progress; set => SetProgress(value); }
+
+    /// <summary>Shows activity without a known amount: a segment moves along the bar and <see cref="Progress"/> is not drawn.</summary>
+    public bool IsIndeterminate { get => _isIndeterminate; set => SetIsIndeterminate(value); }
+
+    /// <summary>Fill (and moving segment) color.</summary>
+    public Color ProgressColor { get => _progressColor; set => SetProgressColor(value); }
+
+    /// <summary>Track color behind the fill.</summary>
+    public Color TrackColor { get => _trackColor; set => SetTrackColor(value); }
+
+    /// <summary>Sets the progress (clamped).</summary>
+    public SkUiCoreProgressBar SetProgress(double value)
+    {
+        if (SetProperty(ref _progress, Math.Clamp(value, 0, 1), nameof(Progress)))
+            InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets <see cref="IsIndeterminate"/>.</summary>
+    public SkUiCoreProgressBar SetIsIndeterminate(bool value)
+    {
+        if (SetProperty(ref _isIndeterminate, value, nameof(IsIndeterminate)))
+            InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets the progress color.</summary>
+    public SkUiCoreProgressBar SetProgressColor(Color value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (SetProperty(ref _progressColor, value, nameof(ProgressColor)))
+            InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets the track color.</summary>
+    public SkUiCoreProgressBar SetTrackColor(Color value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (SetProperty(ref _trackColor, value, nameof(TrackColor)))
+            InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>
+    /// Animates <see cref="Progress"/> to <paramref name="value"/> over <paramref name="length"/> ms. Returns
+    /// <c>true</c> when it ran to completion; <c>false</c> when a newer call replaced it.
+    /// </summary>
+    public Task<bool> ProgressTo(double value, uint length = 250, Easing? easing = null)
+    {
+        _progressAnimation?.Dispose();
+        _progressCompletion?.TrySetResult(false);
+        var from = _progress;
+        var to = Math.Clamp(value, 0, 1);
+        var curve = easing ?? Easing.Linear;
+        var completion = _progressCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _progressAnimation = AnimationClock.Start(t =>
+        {
+            SetProgress(from + (to - from) * curve.Ease(Math.Min(t, 1)));
+            if (t >= 1 && ReferenceEquals(_progressCompletion, completion))
+            {
+                _progressAnimation = null;
+                _progressCompletion = null;
+                completion.TrySetResult(true);
+            }
+        }, TimeSpan.FromMilliseconds(Math.Max(1, length)));
+        return completion.Task;
+    }
+
+    /// <inheritdoc />
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
+        SkUiLook.Current.MeasureProgressBar(widthConstraint, heightConstraint);
+
+    /// <inheritdoc />
+    protected override void OnPaintContent(SKCanvas canvas) =>
+        SkUiProgressBarDrawing.Draw(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, (float)_progress, _isIndeterminate,
+            ToSkColor(_trackColor), ToSkColor(_progressColor), enabled: true);
+
+    /// <inheritdoc />
+    internal override void OnGetRenderProps(ref SkUiRenderProps props) =>
+        SkUiProgressBarDrawing.SetSlide(ref props, _isIndeterminate, IsRightToLeft, ref _clip, ref _clipSize);
+}

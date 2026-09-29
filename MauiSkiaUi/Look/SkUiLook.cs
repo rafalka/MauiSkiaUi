@@ -165,7 +165,7 @@ public class SkUiLook
     public Func<double, double, Size>? SwitchMeasure { get; set; }
 
     /// <summary>Optional Switch painter; when set, replaces <see cref="DrawSwitchCore"/>.</summary>
-    public Action<SKCanvas, SKRect, bool, SKColor, SKColor>? SwitchPainter { get; set; }
+    public Action<SKCanvas, SKRect, SkUiCheckState, SKColor, SKColor>? SwitchPainter { get; set; }
 
     /// <summary>Intrinsic Switch size in DIPs.</summary>
     public Size MeasureSwitch(double widthConstraint, double heightConstraint) =>
@@ -176,18 +176,18 @@ public class SkUiLook
     protected virtual Size MeasureSwitchCore(double widthConstraint, double heightConstraint) => DefaultSwitchSize;
 
     /// <summary>Draws Switch chrome (delegate or <see cref="DrawSwitchCore"/>).</summary>
-    public void DrawSwitch(SKCanvas canvas, SKRect bounds, bool isChecked, SKColor track, SKColor thumb)
+    public void DrawSwitch(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb)
     {
         if (SwitchPainter is { } painter)
         {
-            painter(canvas, bounds, isChecked, track, thumb);
+            painter(canvas, bounds, state, track, thumb);
             return;
         }
-        DrawSwitchCore(canvas, bounds, isChecked, track, thumb);
+        DrawSwitchCore(canvas, bounds, state, track, thumb);
     }
 
     /// <summary>Default Switch geometry.</summary>
-    protected virtual void DrawSwitchCore(SKCanvas canvas, SKRect bounds, bool isChecked, SKColor track, SKColor thumb) { }
+    protected virtual void DrawSwitchCore(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb) { }
 
     #endregion
 
@@ -200,7 +200,7 @@ public class SkUiLook
     public Func<double, double, Size>? CheckBoxMeasure { get; set; }
 
     /// <summary>Optional CheckBox painter.</summary>
-    public Action<SKCanvas, float, bool, SKColor, SKColor>? CheckBoxPainter { get; set; }
+    public Action<SKCanvas, float, SkUiCheckState, SKColor, SKColor>? CheckBoxPainter { get; set; }
 
     /// <summary>Intrinsic CheckBox size in DIPs.</summary>
     public Size MeasureCheckBox(double widthConstraint, double heightConstraint) =>
@@ -211,18 +211,18 @@ public class SkUiLook
     protected virtual Size MeasureCheckBoxCore(double widthConstraint, double heightConstraint) => DefaultCheckBoxSize;
 
     /// <summary>Draws CheckBox chrome.</summary>
-    public void DrawCheckBox(SKCanvas canvas, float size, bool isChecked, SKColor fill, SKColor border)
+    public void DrawCheckBox(SKCanvas canvas, float size, SkUiCheckState state, SKColor fill, SKColor border)
     {
         if (CheckBoxPainter is { } painter)
         {
-            painter(canvas, size, isChecked, fill, border);
+            painter(canvas, size, state, fill, border);
             return;
         }
-        DrawCheckBoxCore(canvas, size, isChecked, fill, border);
+        DrawCheckBoxCore(canvas, size, state, fill, border);
     }
 
     /// <summary>Default CheckBox geometry.</summary>
-    protected virtual void DrawCheckBoxCore(SKCanvas canvas, float size, bool isChecked, SKColor fill, SKColor border) { }
+    protected virtual void DrawCheckBoxCore(SKCanvas canvas, float size, SkUiCheckState state, SKColor fill, SKColor border) { }
 
     #endregion
 
@@ -235,7 +235,7 @@ public class SkUiLook
     public Func<double, double, Size>? RadioButtonMeasure { get; set; }
 
     /// <summary>Optional RadioButton painter.</summary>
-    public Action<SKCanvas, float, bool, SKColor, SKColor>? RadioButtonPainter { get; set; }
+    public Action<SKCanvas, float, SkUiCheckState, SKColor, SKColor>? RadioButtonPainter { get; set; }
 
     /// <summary>Intrinsic RadioButton size in DIPs.</summary>
     public Size MeasureRadioButton(double widthConstraint, double heightConstraint) =>
@@ -246,18 +246,18 @@ public class SkUiLook
     protected virtual Size MeasureRadioButtonCore(double widthConstraint, double heightConstraint) => DefaultRadioButtonSize;
 
     /// <summary>Draws RadioButton chrome.</summary>
-    public void DrawRadioButton(SKCanvas canvas, float size, bool isChecked, SKColor ring, SKColor dot)
+    public void DrawRadioButton(SKCanvas canvas, float size, SkUiCheckState state, SKColor ring, SKColor dot)
     {
         if (RadioButtonPainter is { } painter)
         {
-            painter(canvas, size, isChecked, ring, dot);
+            painter(canvas, size, state, ring, dot);
             return;
         }
-        DrawRadioButtonCore(canvas, size, isChecked, ring, dot);
+        DrawRadioButtonCore(canvas, size, state, ring, dot);
     }
 
     /// <summary>Default RadioButton geometry.</summary>
-    protected virtual void DrawRadioButtonCore(SKCanvas canvas, float size, bool isChecked, SKColor ring, SKColor dot) { }
+    protected virtual void DrawRadioButtonCore(SKCanvas canvas, float size, SkUiCheckState state, SKColor ring, SKColor dot) { }
 
     #endregion
 
@@ -298,6 +298,113 @@ public class SkUiLook
 
     /// <summary>Default ActivityIndicator geometry.</summary>
     protected virtual void DrawActivityIndicatorCore(SKCanvas canvas, float width, float height, float sweepStart, SKPaint paint) { }
+
+    #endregion
+
+    #region Slider
+
+    /// <summary>Default Slider size across the track (height of a horizontal slider), in DIPs.</summary>
+    public virtual double DefaultSliderThickness => 32;
+
+    /// <summary>Default Slider length along the track when the layout offers unlimited space, in DIPs.</summary>
+    public virtual double DefaultSliderLength => 200;
+
+    /// <summary>
+    /// Thumb radius in DIPs. The thumb's center travels from this inset to the length minus it, so input maps a
+    /// touch to the value the thumb shows there.
+    /// </summary>
+    public virtual float SliderThumbRadius => 10;
+
+    /// <summary>Optional Slider intrinsic measure override (width constraint, height constraint, orientation).</summary>
+    public Func<double, double, StackOrientation, Size>? SliderMeasure { get; set; }
+
+    /// <summary>Optional Slider painter; when set, replaces <see cref="DrawSliderCore"/>.</summary>
+    public Action<SKCanvas, SkUiSliderPaint>? SliderPainter { get; set; }
+
+    /// <summary>Intrinsic Slider size in DIPs.</summary>
+    public Size MeasureSlider(double widthConstraint, double heightConstraint, StackOrientation orientation) =>
+        SliderMeasure?.Invoke(widthConstraint, heightConstraint, orientation)
+        ?? MeasureSliderCore(widthConstraint, heightConstraint, orientation);
+
+    /// <summary>Default Slider size: the offered length (else <see cref="DefaultSliderLength"/>) by <see cref="DefaultSliderThickness"/>.</summary>
+    protected virtual Size MeasureSliderCore(double widthConstraint, double heightConstraint, StackOrientation orientation)
+    {
+        static double Length(double constraint, double fallback) => double.IsFinite(constraint) ? constraint : fallback;
+        return orientation == StackOrientation.Vertical
+            ? new Size(DefaultSliderThickness, Length(heightConstraint, DefaultSliderLength))
+            : new Size(Length(widthConstraint, DefaultSliderLength), DefaultSliderThickness);
+    }
+
+    /// <summary>
+    /// Draws a Slider (delegate or <see cref="DrawSliderCore"/>). Always in horizontal, left-to-right coordinates:
+    /// the control rotates the canvas for vertical sliders and mirrors it for right-to-left layouts.
+    /// </summary>
+    public void DrawSlider(SKCanvas canvas, SkUiSliderPaint slider)
+    {
+        if (SliderPainter is { } painter)
+        {
+            painter(canvas, slider);
+            return;
+        }
+        DrawSliderCore(canvas, slider);
+    }
+
+    /// <summary>Default Slider geometry.</summary>
+    protected virtual void DrawSliderCore(SKCanvas canvas, SkUiSliderPaint slider) { }
+
+    #endregion
+
+    #region ProgressBar
+
+    /// <summary>Default ProgressBar height in DIPs.</summary>
+    public virtual double DefaultProgressBarHeight => 4;
+
+    /// <summary>Default ProgressBar width when the layout offers unlimited space, in DIPs.</summary>
+    public virtual double DefaultProgressBarLength => 200;
+
+    /// <summary>Length of the moving segment of an indeterminate ProgressBar, as a fraction of the bar.</summary>
+    public virtual float IndeterminateProgressSegment => 0.35f;
+
+    /// <summary>Seconds for the indeterminate segment to cross the bar once.</summary>
+    public virtual float IndeterminateProgressPeriod => 1.5f;
+
+    /// <summary>Corner radius of a ProgressBar of <paramref name="height"/> (default: fully rounded ends).</summary>
+    public virtual float GetProgressBarCornerRadius(float height) => height / 2;
+
+    /// <summary>Optional ProgressBar intrinsic measure override.</summary>
+    public Func<double, double, Size>? ProgressBarMeasure { get; set; }
+
+    /// <summary>Optional ProgressBar painter; when set, replaces <see cref="DrawProgressBarCore"/>.</summary>
+    public Action<SKCanvas, SkUiProgressBarPaint>? ProgressBarPainter { get; set; }
+
+    /// <summary>Intrinsic ProgressBar size in DIPs.</summary>
+    public Size MeasureProgressBar(double widthConstraint, double heightConstraint) =>
+        ProgressBarMeasure?.Invoke(widthConstraint, heightConstraint)
+        ?? MeasureProgressBarCore(widthConstraint, heightConstraint);
+
+    /// <summary>Default ProgressBar size: the offered width (else <see cref="DefaultProgressBarLength"/>) by <see cref="DefaultProgressBarHeight"/>.</summary>
+    protected virtual Size MeasureProgressBarCore(double widthConstraint, double heightConstraint) =>
+        new(double.IsFinite(widthConstraint) ? widthConstraint : DefaultProgressBarLength, DefaultProgressBarHeight);
+
+    /// <summary>
+    /// Draws a ProgressBar (delegate or <see cref="DrawProgressBarCore"/>), in left-to-right coordinates (the control
+    /// mirrors right-to-left layouts). Indeterminate: fill the whole bounds with the track, with square ends, and draw
+    /// one segment of <see cref="IndeterminateProgressSegment"/> at the start. The compositor slides that picture along
+    /// the bar on the render thread (so the motion needs no UI-thread work), tiling it one bar width apart and clipping
+    /// to the bar's shape (<see cref="GetProgressBarCornerRadius"/>).
+    /// </summary>
+    public void DrawProgressBar(SKCanvas canvas, SkUiProgressBarPaint bar)
+    {
+        if (ProgressBarPainter is { } painter)
+        {
+            painter(canvas, bar);
+            return;
+        }
+        DrawProgressBarCore(canvas, bar);
+    }
+
+    /// <summary>Default ProgressBar geometry.</summary>
+    protected virtual void DrawProgressBarCore(SKCanvas canvas, SkUiProgressBarPaint bar) { }
 
     #endregion
 

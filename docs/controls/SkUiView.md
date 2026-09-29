@@ -48,7 +48,7 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 | `InvalidatePaint` | Re-record this node's content (not its children) without remeasure. Transform / opacity / offset changes need no call: they are composite-time |
 | `ClipToBounds` | Clip content, children and overlay to the arranged rect. Defaults: `true` for leaves, `false` for `SkUiLayout` / `SkUiContentView` / `SkUiCoreHost` |
 | `AnimateAsync(property, to, length, easing)` | Animates `Opacity`, translation, `Rotation` or scale **on the render thread**; the bindable is updated to the final value. Setting the property meanwhile cancels it |
-| `PaintBackground` / `PaintOverlay` | Chrome layer delegates (`SetPaintBackground` / `SetPaintOverlay`). Content is virtual `OnPaintContent` only. Control chrome painters (e.g. `PaintButtonBackground`) are `protected` for subclass reuse; `PaintDefaultBackground` is the solid MAUI fill fallback. |
+| `PaintBackground` / `PaintOverlay` | Chrome layer delegates (`SetPaintBackground` / `SetPaintOverlay`). Without a Background delegate the virtual `OnPaintBackground` runs; the overlay is delegate-only (no `OnPaintOverlay`). Content is virtual `OnPaintContent` only. Control chrome painters (e.g. `PaintButtonBackground`) are `protected` for subclass reuse; `PaintDefaultBackground` is the solid MAUI fill fallback. |
 | `AnimationClock` | Shared clock of the topmost SkiaUi ancestor; local clocks are abandoned when the subtree is reparented (`OnAnimationRootChanged`) |
 | `Paint` / `Touch` | `ISkUiView` surface |
 

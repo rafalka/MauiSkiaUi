@@ -79,7 +79,9 @@ public class MemoryLeakTests
                 delay -= step;
                 foreach (var (surface, width, height) in surfaces)
                 {
-                    // The platform's layout pass: re-measure / re-arrange after invalidations (cached when clean).
+                    // The platform's per-frame work: tick UI-thread animations (ProgressTo, ...), then the layout
+                    // pass (re-measure / re-arrange after invalidations; cached when clean).
+                    surface.Root.AnimationClock.Tick(time);
                     SkUiTestHelpers.Arrange(surface.Root, width, height);
                     surface.Frame(time);
                 }

@@ -39,7 +39,7 @@ radio.CheckedChanged += (_, isChecked) =>
 
 ## Key properties
 
-`IsChecked`, `CheckedChanged`, `Color`, `GroupName`.
+`IsChecked`, `CheckedChanged`, `Color`, `GroupName`. `CheckState` (Indeterminate draws a bar; taps only select) comes from [`SkUiToggleControl`](SkUiToggleControl.md).
 
 ## Differences from MAUI RadioButton
 

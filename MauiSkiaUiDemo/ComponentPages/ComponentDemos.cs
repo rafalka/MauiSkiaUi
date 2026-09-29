@@ -17,6 +17,8 @@ public static class ComponentDemos
         new(typeof(SkUiActivityIndicator), typeof(ActivityIndicatorDemoPage), nameof(ActivityIndicator), ComponentCategory.BasicControls, () => new ActivityIndicatorDemoPage()),
         new(typeof(SkUiSwitch), typeof(SwitchDemoPage), nameof(Switch), ComponentCategory.BasicControls, () => new SwitchDemoPage()),
         new(typeof(SkUiCheckBox), typeof(CheckBoxDemoPage), nameof(CheckBox), ComponentCategory.BasicControls, () => new CheckBoxDemoPage()),
+        new(typeof(SkUiSlider), typeof(SliderDemoPage), nameof(Slider), ComponentCategory.BasicControls, () => new SliderDemoPage()),
+        new(typeof(SkUiProgressBar), typeof(ProgressBarDemoPage), nameof(ProgressBar), ComponentCategory.BasicControls, () => new ProgressBarDemoPage()),
         new(typeof(SkUiRadioButton), typeof(RadioButtonDemoPage), nameof(RadioButton), ComponentCategory.BasicControls, () => new RadioButtonDemoPage()),
         new(typeof(SkUiContentView), typeof(ContentViewDemoPage), nameof(ContentView), ComponentCategory.Layouts, () => new ContentViewDemoPage()),
         new(typeof(SkUiMauiContentView), typeof(MauiContentViewDemoPage), "Editor / WebView (hosted natively)", ComponentCategory.Layouts, () => new MauiContentViewDemoPage()),

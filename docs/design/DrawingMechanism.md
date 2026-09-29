@@ -216,16 +216,16 @@ Layer paint code runs in the context of the owning control so it can read layout
 5. Paint **Overlay**.
 6. Restore canvas state.
 
-Exact API: **Background / Overlay** use optional `PaintBackground` / `PaintOverlay` delegates (`Action<SKCanvas>?`); **Content** stays virtual `OnPaintContent` only (layouts and leaf content). When `PaintBackground` is unset on `SkUiView`, protected `PaintDefaultBackground` paints solid MAUI `Background`/`BackgroundColor`. Control chrome painters registered as delegates are `protected` so subclasses can call or re-register them. Same split on `SkUiCoreNode` (no default background).
+Exact API: **Background / Overlay** use optional `PaintBackground` / `PaintOverlay` delegates (`Action<SKCanvas>?`); **Content** stays virtual `OnPaintContent` only (layouts and leaf content). When `PaintBackground` is unset on `SkUiView`, the virtual `OnPaintBackground` runs; by default it calls protected `PaintDefaultBackground`, which paints solid MAUI `Background`/`BackgroundColor`. Control chrome painters registered as delegates are `protected` so subclasses can call or re-register them. Same split on `SkUiCoreNode` (no default background).
 
 ### Reusable drawing helpers
 
-Favor shared primitives used by many Background/Content layers (`Helpers/SkUiChrome.cs` today; **FR-18** / [ControlLook.md](ControlLook.md) promotes these into a public replaceable **control look**):
+Favor shared primitives used by many Background/Content layers — the public, replaceable **control look** `SkUiLook.Current` (**FR-18** / [ControlLook.md](ControlLook.md)):
 
 - Rounded rectangle fill / stroke / clip path (`DrawRoundedBox`, `CreateRoundRectPath`) — uniform radius (Button, ImageButton tint) or per-corner `CornerRadius` (Border)
 - Switch / CheckBox / RadioButton / ActivityIndicator / Image destination — one painter each for Core + MAUI-compatible controls
 - Pressed/disabled tint overlay (`DrawPressTint`)
-- Text run helpers for labels (still per-control; Core is single-line)
+- Text layout for labels: one shared engine for `SkUiLabel` and `SkUiCoreLabel` (shaping, bidi, wrapping / truncation)
 
 Reuse is via **utilities or shared look implementations**, not by making every chrome piece an `ISkUiView`. Apps customize shapes by swapping or subclassing the look (not by forking each control’s `OnPaintContent`).
 
@@ -314,48 +314,48 @@ Exact signatures TBD (Requirements open decisions); intent:
 
 ### Core (surface + paint walk)
 
-- [ ] Custom handler paint callback → root `Paint` with DIP mapping.
-- [ ] Root clear / present policy documented and implemented.
-- [ ] Tree paint walk: `SkUiContentView` → `Content`; `SkUiLayout` → `Children` in z-order.
-- [ ] Hosted nodes paint without handler; invalidation bubbles to standalone ancestor.
-- [ ] Honor arranged `Frame` / transforms for child placement.
-- [ ] Optional dirty-rect or overlap tests to skip non-intersecting children.
+- [x] Custom handler paint callback → root `Paint` with DIP mapping.
+- [x] Root clear / present policy documented and implemented.
+- [x] Tree paint walk: `SkUiContentView` → `Content`; `SkUiLayout` → `Children` in z-order.
+- [x] Hosted nodes paint without handler; invalidation bubbles to standalone ancestor.
+- [x] Honor arranged `Frame` / transforms for child placement.
+- [x] Optional dirty-rect or overlap tests to skip non-intersecting children.
 
 ### Layers (FR-9)
 
-- [ ] Background / Overlay via **`PaintBackground` / `PaintOverlay` delegates**; Content via virtual **`OnPaintContent`** (**Decided**).
-- [ ] Default empty implementations; controls override as needed.
-- [ ] Layouts: paint **Children / Content after Content chrome**, then Overlay.
-- [ ] Shared drawing helpers for common chrome (**FR-18:** public control look; today `SkUiChrome`).
-- [ ] Apply model to built-in controls (`SkUiLabel`, button, grid lines example when grid exists).
+- [x] Background / Overlay via **`PaintBackground` / `PaintOverlay` delegates**; Content via virtual **`OnPaintContent`** (**Decided**).
+- [x] Default empty implementations; controls override as needed.
+- [x] Layouts: paint **Children / Content after Content chrome**, then Overlay.
+- [x] Shared drawing helpers for common chrome (**FR-18:** public control look `SkUiLook`).
+- [x] Apply model to built-in controls (`SkUiLabel`, button, grid lines example when grid exists).
 
 ### Clip / mask (FR-11)
 
-- [ ] Rectangle / rounded-rect / path mask constraints on paint.
-- [ ] Clip applied consistently across layers (with documented opt-out).
-- [ ] Demo: rounded control with transparent corners still hit-testing full layout rect.
+- [ ] Rectangle / rounded-rect / path mask constraints on paint. *(Partial: rectangle `ClipToBounds` and rounded-rect `ChildrenClipPath` done; path / mask open.)*
+- [x] Clip applied consistently across layers (`ClipToBounds` clips content, children and overlay; no per-layer opt-out).
+- [x] Demo: rounded control with transparent corners still hit-testing full layout rect.
 
 ### Transparency (FR-8)
 
-- [ ] Node opacity in paint path (`SaveLayer` when 0&lt;α&lt;1; fast paths for 0/1).
-- [ ] Overlap compositing correct for translucent siblings on the live walk.
-- [ ] Demo: overlapping transparent content.
-- [ ] *(Later)* Transparency rules for opt-in caches — not required for v1 full redraw.
+- [x] Node opacity in paint path (`SaveLayer` when 0&lt;α&lt;1; fast paths for 0/1).
+- [x] Overlap compositing correct for translucent siblings on the live walk.
+- [x] Demo: overlapping transparent content.
+- [ ] *(Later)* Transparency rules for raster caches — pictures replay with their own alpha, so they need none; applies once raster caching lands.
 
 ### Caching / performance (NFR-2)
 
-- [ ] **v1:** full-tree paint on root invalidate; no retained paint cache by default.
-- [ ] Dirty flags coalesce paint to root; selective **measure/arrange** remains required (LayoutSystem).
-- [ ] *(Later)* Opt-in `UseCache` = `None` | `Picture` | `Image`; drop on size/density change.
-- [ ] *(Later)* Animation path may keep static sibling pictures warm — only if profiling needs it.
+- [x] ~~**v1:** full-tree paint on root invalidate; no retained paint cache by default.~~ Superseded by retained per-node pictures ([RenderingPipeline.md](RenderingPipeline.md)).
+- [x] Dirty flags coalesce paint to root; selective **measure/arrange** remains required (LayoutSystem).
+- [x] ~~*(Later)* Opt-in `UseCache` = `None` | `Picture` | `Image`; drop on size/density change.~~ Superseded: every node keeps a retained `SKPicture`, re-recorded on content or size change; raster caching of stable subtrees is open in [RenderingPipeline.md](RenderingPipeline.md#not-done-yet--next-steps).
+- [x] *(Later)* Animation path may keep static sibling pictures warm — composite-time animations never re-record siblings.
 
 ### Verification
 
-- [ ] Standalone leaf paints on SW surface (`HwAccelerated = false`).
-- [ ] Hosted tree under `SkUiContentView`: one surface; children visible and correctly positioned.
-- [ ] Clip demo + transparency overlap demo.
-- [ ] Property batching: `StartUpdating` / `EndUpdating` yields a single invalidate/paint.
-- [ ] *(Later)* Opt-in Picture cache: content update rebuilds picture; unchanged sibling can replay.
+- [x] Standalone leaf paints on SW surface (`HwAccelerated = false`).
+- [x] Hosted tree under `SkUiContentView`: one surface; children visible and correctly positioned.
+- [x] Clip demo + transparency overlap demo.
+- [x] Property batching: `StartUpdating` / `EndUpdating` yields a single invalidate/paint.
+- [x] *(Later)* Opt-in Picture cache: content update rebuilds picture; unchanged sibling can replay (retained pictures, default).
 
 ## Open items
 
@@ -363,11 +363,11 @@ Record answers here when decided; keep Requirements “Open decisions” in sync
 
 **Decided:** v1 full-tree paint; no default retained paint cache; opt-in `Picture`/`Image` later — see *Recommended solution* and Requirements *Decided*.
 
-1. **`ISkUiView.Paint` signature:** canvas-only vs paint-args object; density/scale; void return for v1.
-2. ~~**Layer API names:** …~~ **Decided:** Content = virtual `OnPaintContent`; Background/Overlay = `PaintBackground` / `PaintOverlay` delegates (fluent `SetPaint*`). No virtual `OnPaintBackground` / `OnPaintOverlay`.
+1. ~~**`ISkUiView.Paint` signature:** …~~ **Decided:** `void Paint(SKCanvas canvas)` in local DIPs; density is applied by the surface.
+2. ~~**Layer API names:** …~~ **Decided:** Content = virtual `OnPaintContent`; Background: delegate, else virtual `OnPaintBackground`; overlay: `PaintOverlay` delegate only (no `OnPaintOverlay`). Fluent `SetPaint*`.
 3. **Children vs Content:** **Decided** — paint Children / Content after Content chrome, before Overlay.
-4. **When to add `UseCache`:** after first gallery profiling, or stub the enum early with only `None` implemented?
-5. **Animation / `HasRenderLoop`:** full-tree paint per frame until measured otherwise (still open in Requirements).
+4. ~~**When to add `UseCache`:** …~~ **Superseded:** retained per-node pictures ([RenderingPipeline.md](RenderingPipeline.md)).
+5. ~~**Animation / `HasRenderLoop`:** …~~ **Superseded:** render-thread composite animations; no `HasRenderLoop` ([RenderingPipeline.md](RenderingPipeline.md#animation-tiers)).
 6. **Overlay input:** v1 view-level hit-test only (**Decided**).
 
 ## References

@@ -19,54 +19,67 @@ Prefer saying **“look”** or **“control look”** in docs and API. Avoid ca
 
 ## Goal
 
-One **extensible look object** supplies the shared Skia painters **and default sizes** that both MAUI-compatible `SkUi*` and Core `SkUiCore*` controls use (today’s sealed `SkUiChrome` helpers + hardcoded `MeasureContent` sizes such as Switch 51×31). Apps can:
+One **extensible look object** supplies the shared Skia painters **and default sizes** that both MAUI-compatible `SkUi*` and Core `SkUiCore*` controls use (replacing the former sealed `SkUiChrome` helpers + hardcoded `MeasureContent` sizes such as Switch 51×31). Apps can:
 
 1. **Replace the entire look** — e.g. Android-like / iOS-like / Fluent / custom brand pack (shapes **and** default sizes where they differ).
 2. **Override one control’s drawing and/or default size** — subclass and override `DrawRadioButton` / `MeasureRadioButton`, or replace a single painter / size delegate, without forking every control type.
 
 Colors come from the **color scheme** (FR-19) and/or explicit control properties / FR-12 styles; the look receives already-resolved `SKColor`s and decides **shape**. Default **width/height** (intrinsic measure) come from the look when applicable.
 
-## Proposed API shape (sketch — names open)
+## API shape (sketch)
 
 ```csharp
-// Public, subclassable. Built-in DefaultSkUiLook holds today’s SkUiChrome geometry + sizes.
+// Public, subclassable. Built-in DefaultSkUiLook holds the default geometry + sizes (formerly SkUiChrome).
 public class SkUiLook
 {
-    public virtual void DrawSwitch(SKCanvas canvas, SKRect bounds, bool isChecked, SKColor track, SKColor thumb) { … }
-    public virtual void DrawCheckBox(SKCanvas canvas, float size, bool isChecked, SKColor fill, SKColor border) { … }
-    public virtual void DrawRadioButton(SKCanvas canvas, float size, bool isChecked, SKColor ring, SKColor dot) { … }
-    public virtual void DrawActivityIndicator(SKCanvas canvas, float width, float height, float sweepStart, SKPaint paint) { … }
-    public virtual void DrawRoundedBox(…) { … } // float radius and CornerRadius overloads
+    // Controls call the public, non-virtual entry points; each uses its painter delegate when set,
+    // else the protected virtual *Core method that subclasses override.
+    // Toggles draw an SkUiCheckState (Unchecked / Checked / Indeterminate).
+    public void DrawSwitch(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb) { … } // → SwitchPainter ?? DrawSwitchCore
+    protected virtual void DrawSwitchCore(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb) { … }
+    public void DrawCheckBox(…) / DrawRadioButton(…) / DrawActivityIndicator(…)  // → *Painter ?? Draw*Core
+    // Slider / ProgressBar take one paint struct (room to grow without new overloads), in horizontal
+    // left-to-right coordinates: the controls rotate the canvas for vertical sliders and mirror RTL.
+    public void DrawSlider(SKCanvas canvas, SkUiSliderPaint slider) { … }            // → SliderPainter ?? DrawSliderCore
+    public void DrawProgressBar(SKCanvas canvas, SkUiProgressBarPaint bar) { … }     // → ProgressBarPainter ?? DrawProgressBarCore
+    public virtual float SliderThumbRadius => 10;         // input maps touches to the thumb's center
+    public virtual float IndeterminateProgressSegment => 0.35f;
+    public virtual float IndeterminateProgressPeriod => 1.5f; // seconds; the compositor slides the bar on the render thread
+    public virtual float GetProgressBarCornerRadius(float height) => height / 2;
+    public void DrawRoundedBox(…) { … }      // float radius and CornerRadius overloads → DrawRoundedBoxCore
     public virtual SKPath? CreateCustomRoundRectPath(SKRect bounds, CornerRadius radii) => null; // custom corner geometry (null = plain)
     public SKPath CreateRoundRectPath(…) { … } // uniform or per-corner: custom geometry, else plain corners
-    public virtual void DrawPressTint(…) { … }
-    public virtual void DrawImage(…) { … }
+    public void DrawPressTint(…) { … }       // → PressTintPainter ?? DrawPressTintCore
+    public void DrawImage(…) { … }           // → ImagePainter ?? DrawImageCore
 
     // Default intrinsic sizes (DIPs) — public size tokens; Measure* reads these unless a size delegate is set.
     public virtual Size DefaultSwitchSize => new(51, 31);
     public virtual Size DefaultCheckBoxSize => new(24, 24);
     public virtual Size DefaultRadioButtonSize => new(24, 24);
     public virtual Size DefaultActivityIndicatorSize => new(36, 36);
+    public virtual double DefaultSliderThickness => 32;   // and DefaultSliderLength when unconstrained
+    public virtual double DefaultProgressBarHeight => 4;  // and DefaultProgressBarLength
     public virtual double DefaultButtonMinimumHeight => 44;
     public virtual double DefaultButtonCornerRadius => 6;
 
     public Size MeasureSwitch(double widthConstraint, double heightConstraint) =>
-        SwitchMeasure?.Invoke(widthConstraint, heightConstraint) ?? DefaultSwitchSize;
+        SwitchMeasure?.Invoke(widthConstraint, heightConstraint) ?? MeasureSwitchCore(widthConstraint, heightConstraint);
+    protected virtual Size MeasureSwitchCore(double widthConstraint, double heightConstraint) => DefaultSwitchSize;
     // … same pattern for CheckBox / RadioButton / ActivityIndicator
 }
 
-// App-wide current look (exact static/DI API open).
+// App-wide current look.
 SkUiLook.Current = new MaterialSkUiLook();
 
 // Partial replace via subclass:
 sealed class AppLook : DefaultSkUiLook
 {
-    public override void DrawRadioButton(…) { /* brand radio */ }
+    protected override void DrawRadioButtonCore(…) { /* brand radio */ }
     public override Size DefaultSwitchSize => new(52, 32); // larger track
 }
 
-// Or per-painter / per-size delegates on the look instance (open):
-look.RadioButtonPainter = (canvas, size, isChecked, ring, dot) => { … };
+// Or per-painter / per-size delegates on the look instance:
+look.RadioButtonPainter = (canvas, size, state, ring, dot) => { … };
 look.SwitchMeasure = (w, h) => new Size(52, 32);
 ```
 
@@ -104,7 +117,7 @@ Looks do **not** replace `PaintBackground` / `OnPaintContent` hooks; they are wh
 
 | Pack | Intent |
 | --- | --- |
-| `DefaultSkUiLook` | Current cross-platform geometry and sizes (today’s `SkUiChrome` + hardcoded measures) |
+| `DefaultSkUiLook` | Current cross-platform geometry and sizes (the former `SkUiChrome` painters + hardcoded measures) |
 | Platform-inspired packs (later) | Android-like, iOS-like, etc. — approximate shapes **and** typical default sizes |
 | App / library packs | Brand-specific subclasses or delegate replacements |
 
@@ -125,7 +138,7 @@ Core and MAUI-compatible controls **must** use the same look resolution so Stres
 
 - [x] Promote today’s `SkUiChrome` painters into a public subclassable **`SkUiLook`** / **`DefaultSkUiLook`**.
 - [x] Look exposes **default width/height** (and related defaults such as corner radius / min height) for controls that use intrinsic sizes; controls’ `MeasureContent` reads the active look when applicable.
-- [x] App can set global current look; optional per-control / per-tree override (global `Current` shipped; per-tree deferred).
+- [x] App can set global current look (`SkUiLook.Current`).
 - [x] Single-control override via virtual method **or** replaceable painter / size delegate (drawing and/or default size).
 - [x] Wire `SkUi*` and `SkUiCore*` Content painters **and** default measures through the active look.
 - [x] Document naming vs FR-12 / FR-19; tests cover swap look + override painter and measure.

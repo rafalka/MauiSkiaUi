@@ -45,7 +45,8 @@ One scenario catalog, [`tests/Shared/MemoryLeaks`](../../tests/Shared/MemoryLeak
 | Scenario | Exercise |
 | --- | --- |
 | `ButtonsClicked` | Buttons bound to a long-lived command, clicked twice each, disabled and re-enabled, a cancelled press; an image button |
-| `TogglesTapped` | Switch, check box, radio group, tapped several times |
+| `TogglesTapped` | Switch, check boxes (one three-state), radio group, tapped several times |
+| `SlidersAndProgress` | Horizontal, vertical and Core sliders dragged and tapped; progress bars animating and indeterminate at close |
 | `LabelsReshaped` | Wrapped, truncated, RTL, Arabic, emoji, Simple / Shaped labels; text and width changed repeatedly |
 | `ImagesReloaded` | Stream images: sources swapped, reloaded, aspect changed |
 | `LayoutsRelayout` | Grid, stacks, absolute layout, border: resized; children added, removed, reordered, hidden; definitions changed |

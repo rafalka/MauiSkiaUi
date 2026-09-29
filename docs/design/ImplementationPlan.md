@@ -1,112 +1,134 @@
 # SkiaUi implementation plan
 
-Delivery tracking for [Requirements.md](Requirements.md). Design details live in the mechanism docs linked from [Development.md](../../Development.md).
+Delivery tracking for [Requirements.md](Requirements.md): what is shipped, and the order of the next work. Design details live in the mechanism docs linked from [Development.md](../../Development.md); architecture findings in [ArchitectureReview.md](ArchitectureReview.md).
 
 **Workflow reminder (NFR-2):** prefer **simple, correct** code first; expand tests; then **optimize** hot paths for speed and near-zero allocations.
 
 ---
 
-## Completed
+## Shipped
 
-Shipped library surface (headless-tested). **Device acceptance** for visual/overlay checks remains open — see [Testing.md](Testing.md) and [Development.md](../../Development.md).
-
-### Core pipeline
+Headless-tested; device-verified on a Galaxy S9, iPhone / iOS simulator, Mac Catalyst and Windows 11 for gestures, scrolling, overlays and memory leaks ([Testing.md](Testing.md)).
 
 | Area | Delivered |
 | --- | --- |
-| Host | `ISkUiView : IView`, `SkUiView`, `SkUiContentView`, custom handler + `HwAccelerated` (FR-1 / FR-13 / FR-14) |
-| Layout base | Handler-independent measure/arrange; `SkUiLayout` overlay |
-| Drawing primitives | `SkUiBox`, `SkUiEllipse`, `SkUiLine` |
-| Events | Shared tap path + `Tapped` / `TappedCommand` (FR-15 v1) |
-| Animation | Render-thread `AnimateAsync` / fling / spin + UI-thread `SkUiAnimationClock` (FR-7) |
-| Rendering | Retained compositor, UI-thread record / render-thread composite; Metal (Apple), GL thread (Android) — [RenderingPipeline.md](RenderingPipeline.md) |
-| Tests | [PipelineTests](../../tests/MauiSkiaUi.Tests/PipelineTests.cs) (frame renderer, paint, input, clock, primitives) |
-
-### Layouts & scroll
-
-| Type | Notes |
-| --- | --- |
-| `SkUiGrid` | MAUI `GridLayoutManager` |
-| `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | MAUI stack managers |
-| `SkUiAbsoluteLayout` | MAUI `AbsoluteLayoutManager` + attached bounds/flags |
-| `SkUiScrollView` | Clamped offsets, pan, render-thread fling / animated scroll, wheel (FR-17 v1) |
-| `SkUiBorder` | Rounded rect fill/stroke/clip |
-
-Tests: [LayoutTests](../../tests/MauiSkiaUi.Tests/LayoutTests.cs), [ScrollViewTests](../../tests/MauiSkiaUi.Tests/ScrollViewTests.cs).
-
-### Basic controls
-
-| Type | Notes |
-| --- | --- |
-| `SkUiLabel` | HarfBuzz-shaped text, bidi / RTL, per-character font fallback, wrap / truncate, fonts (system names, `ConfigureFonts`) |
-| `SkUiButton` | Intrinsic tap, commands, chrome, visual states |
-| `SkUiImage` / `SkUiImageButton` | Async decode; ImageButton adds tap/chrome |
-| `SkUiActivityIndicator` | Clock-driven; stops on detach |
-| `SkUiSwitch` / `SkUiCheckBox` / `SkUiRadioButton` | Shared toggle base; RadioButton select-only |
-
-Tests: [BasicControlsTests](../../tests/MauiSkiaUi.Tests/BasicControlsTests.cs).
-
-### Native hosting
-
-| Type | Notes |
-| --- | --- |
-| `SkUiMauiContentView` | FR-16 native overlay (`Editor` / `WebView` demo); v1 live-sync (no snapshot-during-scroll) |
-
-Tests: [MauiContentViewTests](../../tests/MauiSkiaUi.Tests/MauiContentViewTests.cs).
-
-### Look, colors, Core, demos
-
-| Area | Delivered |
-| --- | --- |
-| Control look / color scheme | FR-18 / FR-19 (`SkUiLook`, `SkUiColorScheme`) |
-| Core layer | `MauiSkiaUi.Core` layouts + basic controls (Grid/ScrollView deferred on Core) |
-| Gallery | Per-control demo pages + Composition / Look & colors / Stress / Primitives |
-| Docs | Per-control markdown under [docs/controls/](../controls/README.md) |
-| Perf measurement | [PerformanceTests](../../tests/MauiSkiaUi.Tests/PerformanceTests.cs) (1,000-label recording) |
-
-### Explicitly deferred from completed work
-
-- `SkUiFlexLayout`
-- Snapshot-during-scroll for overlays (FR-16/17)
-- Full double-tap / long-press / swipe / multi-touch
-- Drawn-tree accessibility / keyboard
-- Shape-aware hit-testing
-- NuGet packaging polish beyond current metadata (ongoing)
+| Host and rendering | `ISkUiView : IView`, `SkUiView`, `SkUiContentView`, custom handler + `HwAccelerated`; retained compositor with UI-thread recording and render-thread compositing: Metal (Apple), GL thread (Android), ANGLE / software (Windows) — [RenderingPipeline.md](RenderingPipeline.md) |
+| Layouts | `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiBorder`, `SkUiContentView` on MAUI's layout managers; RTL mirroring |
+| Scrolling | `SkUiScrollView` / `SkUiCoreScrollView` on one engine: render-thread fling and animated scroll, wheel, nested and same-axis chaining, native-parent coordination |
+| Input | Per-pointer gesture arena for SkUi* and Core: tap, double tap, long press, pan, swipe, pinch, pointer recognizers — [EventMechanism.md](EventMechanism.md) |
+| Text | Shared engine: HarfBuzz shaping, bidi / RTL, per-character font fallback, wrap / truncation, `TextRendering` fast path |
+| Controls | Label, Button, Image, ImageButton, ActivityIndicator, Switch / CheckBox / RadioButton (three-state `CheckState`, FR-23), **Slider** (horizontal / vertical, FR-24), **ProgressBar** (determinate / render-thread indeterminate, FR-25), shapes — each on both layers |
+| Native hosting | `SkUiMauiContentView` (FR-16): viewport clipping, snapshot while scrolling, drags from overlays handed to drawn scrollers |
+| Animation | Render-thread `AnimateAsync`, fling, spin and content slide; UI-thread `SkUiAnimationClock` (FR-7) |
+| Look and colors | `SkUiLook` (FR-18), `SkUiColorScheme` (FR-19) |
+| Core layer | Layouts (stacks, absolute, grid, table, overlay, border, scroll view) and basic controls; `SkUiCoreHost` |
+| Diagnostics | Core nodes in the Live Visual Tree, `SkUiDiagnostics`, DevFlow `dev.skiaui` extension |
+| Quality | Headless suite; memory-leak scenarios headless and on devices (`scripts/device_tests.sh`, CI on Mac Catalyst with Native AOT); trimmable and Native-AOT-compatible library; benchmarks (`scripts/bench.sh`) |
+| Packaging | NuGet `SkiaUi.Maui`; publish workflow bumps the version ([Releasing.md](../Releasing.md)) |
 
 ---
 
-## To be implemented
+## Next
 
-### Controls & layouts
+Ordered for adoption by real apps (replace a MAUI page's tree with one drawn surface): layouts and containers for page shells first, then virtualized lists, then list chrome, then the remaining MAUI parity. Within a phase, the order is the suggested order.
 
-| Item | Notes |
+### Phase 0 — State-change animations: decide the architecture (FR-26)
+
+Switch, check box and radio transitions, press effects (ripple) and slider / progress motion, configurable by `SkUiLook`. This comes first because it decides how looks draw (continuous parameters instead of discrete states) and where animation runs (render thread vs re-recording). Every further control with state visuals would otherwise be reworked.
+
+1. Spike the candidates on the switch and a button ripple (see [ArchitectureReview.md](ArchitectureReview.md#state-change-animations)), measure on a device, decide.
+2. Implement for the existing toggles, buttons, slider and progress bar; reduce-motion switch; headless tests with a deterministic clock.
+
+### Phase A — Page shells: composition layouts and containers
+
+| # | Deliverable | Layer | Why |
+| --- | --- | --- | --- |
+| A1 | **Wrap layout** (`SkUiCoreWrapLayout`, then `SkUiWrapLayout`) | Core first | Chips, tag and filter rows; not covered by stock MAUI layouts |
+| A2 | **Weighted / stretch stack** (children share leftover space by weight) | Core + SkUi* | Common app layout; star rows without a Grid |
+| A3 | **`SkUiStateContainer`** (loading / empty / error / content) | Core + SkUi* | Community Toolkit parity; busy and skeleton screens |
+| A4 | **`SkUiExpander`** (header + animated collapsible content) | Core + SkUi* | Community Toolkit parity; also hosts native content (e.g. a WebView) |
+| A5 | **Hosted-control regression suite** | Tests + device checklist | Entry / Editor / WebView in drawn scrollers: focus, IME, scroll nesting, snapshots |
+| A6 | **Hardening from adoption** | Both | Label, Grid, Border, ScrollView bugs found while porting real pages |
+
+### Phase B — Virtualized lists (FR-21, FR-22)
+
+| # | Deliverable | Notes |
+| --- | --- | --- |
+| B1 | **`SkUiVirtualStackLayout`** (+ virtual scroll) | Vertical first; fixed-extent fast path; estimate + anchoring for variable sizes; recycling; prefetch |
+| B2 | **`SkUiCollectionView` MVP** | `ItemsSource` + `ItemTemplate` / selector, single selection, `ItemTapped` / command, header / footer / `EmptyView`, `RemainingItemsThreshold`, pull-to-refresh (`IsRefreshing` / `RefreshCommand`) |
+| B3 | **Phase 2** | Grouping, sticky group headers, grid layout, multiple selection, horizontal |
+
+### Phase C — List chrome and text
+
+| # | Deliverable | Notes |
+| --- | --- | --- |
+| C1 | **`SkUiSwipeView`** | Row actions; competes with vertical scrolling through the arena |
+| C2 | **`SkUiRefreshView`** / pull-to-refresh on scroll views | If not already delivered with B2 |
+| C3 | **Label auto-fit** (shrink to fit, fit number) | After the measure cache is proven for it |
+| C4 | **Tile / wrap-grid layout** | Dashboard tiles |
+| C5 | **Label spans** (`FormattedString`) | MAUI parity |
+
+### Phase D — Remaining MAUI parity and polish
+
+| # | Deliverable |
 | --- | --- |
-| **`SkUiFlexLayout`** | MAUI FlexLayout parity via layout manager |
-| **`SkUiExpander`** | MCT-like header + collapsible content |
-| **`SkUiStateContainer`** | MCT-like loading / empty / error / success |
-| **`SkUiSwipeView`** | List-row swipe actions; needs FR-15 capture |
-| **Label + rounded border pattern** | Prefer `SkUiBorder` + Label; document vs MAUI Label |
-| **Virtualizing collection** | FR-17 collection view (beyond ScrollView) |
+| D1 | `SkUiFlexLayout` (MAUI `FlexLayoutManager`) |
+| D2 | Carousel + `IndicatorView` (horizontal virtual list with snapping) |
+| D3 | Shadows (FR-20) |
+| D4 | Scroll polish: scrollbars, bounce, snap points |
+| D5 | Shapes: Path, Polygon, Polyline, Rectangle / RoundRectangle |
+| D6 | Image cache integration hooks |
+| D7 | Stepper; Slider `ThumbImageSource` and step |
 
-### Mechanisms (open items in design docs)
+### Architecture work alongside
 
-| Area | See |
+From [ArchitectureReview.md](ArchitectureReview.md) (finding numbers N\*). Scheduled next to the phases above, not after them.
+
+- **Now (small, correctness):** disabled controls must not block ancestor scrolling (N2); Core `IsEnabled` / `InputTransparent` with one blocking rule (N3); child alignment in every Core container (N4); look / color-scheme swaps invalidate retained pictures (N6).
+- **With Phase 0:** measure invalidation without re-recording ancestors (N5) — the per-frame re-record path of state animations depends on it.
+- **Before Phase B:** relayout boundaries; shared image cache (N9); fling live extents (N11); raster cache of stable subtrees (N7).
+- **Accessibility:** semantics tree mapped to platform accessibility (Android `ExploreByTouchHelper`, iOS accessibility elements), OS font scaling, keyboard focus, reduce-motion (N8). Needed before broad production use.
+- **Drawn over native:** overlay masks, so drawn popups can cover hosted controls; cheaper overlay bookkeeping on Android (N10, N12).
+- **One implementation per control:** extract layer-agnostic engines and shared node mechanics, gated by SkUi-vs-Core parity tests (N13). Revisit when Phase 0 changes the control drawing anyway.
+
+---
+
+## MAUI parity at a glance
+
+| MAUI | SkiaUi | Status |
+| --- | --- | --- |
+| Label, Button, Image, ImageButton, ActivityIndicator, BoxView, Ellipse, Line | SkUi* + Core | Done (Label spans: C5) |
+| CheckBox, Switch, RadioButton | SkUi* + Core | Done, plus three states |
+| Slider, ProgressBar | SkUi* + Core | Done, plus vertical / indeterminate |
+| Grid, VerticalStackLayout, HorizontalStackLayout, AbsoluteLayout, Border, ContentView | SkUi* + Core | Done |
+| ScrollView | SkUi* + Core | Done (polish: D4) |
+| FlexLayout | — | D1 |
+| CollectionView (ListView, TableView map here) | — | B1–B3 |
+| RefreshView, SwipeView | — | C1, C2 |
+| CarouselView, IndicatorView | — | D2 |
+| Path, Polygon, Polyline, Rectangle, RoundRectangle | Box with corner radius covers rectangles | D5 |
+| Stepper | — | D7 |
+| Shadow | — | D3 |
+| Entry, Editor, SearchBar, WebView, pickers, Map, media | Hosted (`SkUiMauiContentView`) | By design |
+| Pages, Shell, navigation | MAUI | Out of scope |
+
+**Not planned (by design):** drawn Entry / Editor / WebView / media / maps (host them); Shell and navigation replacements; ListView cell API ports; vendor control clones.
+
+---
+
+## Acceptance checks
+
+| Item | Must verify |
 | --- | --- |
-| Gesture bubbling, multi-touch, capture details | [EventMechanism.md](EventMechanism.md) |
-| Optional layout animation tier | [AnimationMechanism.md](AnimationMechanism.md) |
-| Overlay snapshot-during-scroll; nested scroll | [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md) |
-| Raster cache of stable subtrees on top of retained pictures; Core recording off the UI thread | [RenderingPipeline.md](RenderingPipeline.md) |
-| Shadows (FR-20) | [Requirements.md](Requirements.md), [RenderingPipeline.md](RenderingPipeline.md#shadows-fr-20--what-the-pipeline-already-provides) |
-| Per-tree look attachment; OS theme sync helpers | [ControlLook.md](ControlLook.md), [ColorScheme.md](ColorScheme.md) |
-| Core: Grid, ScrollView, dependency-clean package split | [CoreRequirements.md](CoreRequirements.md) |
-
-### Verification & packaging
-
-| Item | Notes |
-| --- | --- |
-| On-device acceptance | Native overlay position, contrast, input — [Testing.md](Testing.md) checklists |
-| NuGet readiness | FR-6 packaging metadata exists; GitHub Actions pack/publish workflows under `.github/workflows/` |
-| Windows TFM verification | Compile/run on a Windows host when available |
+| State-change animations | Smooth while the UI thread is busy (or bounded re-record); interruptible; reduce-motion; looks can replace every effect |
+| Wrap layout | Wraps across width; re-measures when a child's size changes; RTL |
+| Weighted stack | Weighted children fill the leftover space; fixed children keep their size |
+| StateContainer | Switching states releases the previous content (leak scenario) |
+| Expander | Header tap toggles with animation; nested in a scroll view; hosted native child |
+| Virtual stack | No blank frames while flinging on a device; recycling without per-item allocations; memory flat after release |
+| CollectionView MVP | Template recycling; selection + `ItemTapped`; `EmptyView`; load-more threshold; pull-to-refresh |
+| SwipeView | Wins horizontal swipes, loses vertical scrolls |
+| Hosted controls | Entry focus + IME; WebView scroll nesting; snapshots during flings (Android / Windows) |
 
 ---
 
@@ -115,17 +137,18 @@ Tests: [MauiContentViewTests](../../tests/MauiSkiaUi.Tests/MauiContentViewTests.
 | Topic | Expectation |
 | --- | --- |
 | Correctness → optimize | NFR-2 on every new hot path |
-| Extensibility | Virtual hooks / interfaces / shared helpers (NFR-4) |
-| Testing | Grow coverage by **functionality** ([Testing.md](Testing.md)); classes named `*Tests` by area |
-| Tracking | Check off [Requirements.md](Requirements.md); summarize shipped behavior in [Development.md](../../Development.md) |
+| Both layers | New controls ship on SkUi* and Core with the same look entry points |
+| Extensibility | Looks draw every control; virtual hooks / interfaces / shared helpers (NFR-4) |
+| Testing | Headless tests by functionality ([Testing.md](Testing.md)); a leak scenario for every new stateful control; demo page per control (enforced by `ComponentDemoTests`) |
+| Trimming / AOT | No reflection; analyzers fail the build |
+| Tracking | Check off [Requirements.md](Requirements.md); summarize shipped behavior in [Development.md](../../Development.md); changelog under `## Unreleased` |
 
-## Suggested order for new work
+## Suggested order for a new control
 
-1. Types + handler / host wiring  
-2. Measure / arrange  
-3. Paint  
-4. Events / gestures  
-5. Animation (when in scope)  
-6. Demo page  
-7. Tests (add to the matching `*Tests` class or a new area-named file)  
-8. Optimize / docs  
+1. Look entry point (`SkUiLook.Draw*` / `Measure*`, paint struct, default look)
+2. Types on both layers, shared math / input helpers
+3. Measure / arrange, paint
+4. Input through the gesture arena (write user changes back to bindables)
+5. Animation (render thread when possible)
+6. Demo page, docs page under [docs/controls/](../controls/README.md)
+7. Tests, leak scenario, then optimize

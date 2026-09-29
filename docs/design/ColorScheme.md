@@ -74,7 +74,7 @@ _trackOff = scheme.TrackOff;
 4. Else **`SkUiColorScheme.Current`**.
 5. Else built-in **light / default** scheme.
 
-Exact semantics for “explicitly set” vs “still following scheme” are open (e.g. unset sentinel, or apply scheme only at construction). Document the chosen rule so live scheme swaps behave predictably.
+Chosen rule: controls snapshot scheme colors (e.g. accents) into their fields at construction, so an explicit value simply overwrites the snapshot; paint-time tokens read through `SkUiColors` follow `Current` live. Steps 2–3 (control-local / tree scheme) are not implemented.
 
 Changing the active scheme must invalidate paint for controls that still follow scheme defaults (and optionally push updated defaults into controls that opted in to live tracking).
 
@@ -110,7 +110,7 @@ Core and MAUI-compatible controls **must** resolve the same scheme so dual-layer
 ## Checklist (implementation)
 
 - [x] Promote today’s `SkUiColors` into a public **`SkUiColorScheme`** (default / light pack) plus **`DarkSkUiColorScheme`**.
-- [x] App can set global current scheme; optional per-control / per-tree override (global `Current` shipped; per-tree deferred).
+- [x] App can set global current scheme (`SkUiColorScheme.Current`).
 - [x] App can change individual scheme colors (properties) without replacing the whole pack.
 - [x] Wire Core + MAUI control **defaults** through the active scheme (`SkUiColors` accessors + construction snapshots).
 - [x] Document precedence: explicit property wins; paint-time tokens via `SkUiColors` follow `Current`; construction fields snapshot `Current`.

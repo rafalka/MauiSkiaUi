@@ -4,7 +4,7 @@ Requirements for the **SkiaUi Core** layer (`MauiSkiaUi.Core`): a separate, low-
 
 The MAUI-compatible surface (`SkUiLabel`, `SkUiGrid`, …) remains the primary drop-in API and is specified in [Requirements.md](Requirements.md). This document covers Core only.
 
-**Status:** Core layouts (Absolute, stacks, overlay, ContentView/Border, **Grid**, **Table**) and basic controls (Label, Button, toggles, Image/ImageButton, ActivityIndicator, shapes) exist under `MauiSkiaUi/Core/` (same assembly today). ScrollView is deferred. Stress results below motivate promoting Core to a first-class, dependency-clean layer. Items are **not complete** unless checked and summarized in [Development.md](../../Development.md).
+**Status:** Core layouts (Absolute, stacks, overlay, ContentView/Border, **Grid**, **Table**, **ScrollView**) and basic controls (Label, Button, toggles, Image/ImageButton, ActivityIndicator, shapes) exist under `MauiSkiaUi/Core/` (same assembly today). Stress results below motivate promoting Core to a first-class, dependency-clean layer. Items are **not complete** unless checked and summarized in [Development.md](../../Development.md).
 
 ## Motivation (measured)
 
@@ -84,23 +84,23 @@ Target packaging: prefer a **separate project/assembly** (`MauiSkiaUi.Core`) ref
 ### FR-C2 — Role and tree rules
 
 - [ ] Core is for **complex UI / custom controls / dense lists**, not for XAML page markup.
-- [ ] Core layouts accept **only** `ISkUiCoreNode` children (never `ISkUiView` / MAUI views).
-- [ ] MAUI-compatible layouts accept **only** `ISkUiView` children (unchanged). Mixing requires **`SkUiCoreHost`**.
-- [ ] Core nodes support parent/child attach rules, cycle detection, and detach (no MAUI logical tree).
+- [x] Core layouts accept **only** `ISkUiCoreNode` children (never `ISkUiView` / MAUI views).
+- [x] MAUI-compatible layouts accept **only** `ISkUiView` children (unchanged). Mixing requires **`SkUiCoreHost`**.
+- [x] Core nodes support parent/child attach rules, cycle detection, and detach (no MAUI logical tree).
 
 ### FR-C3 — Layout, paint, touch (Core-owned)
 
-- [ ] Measure / arrange / paint / touch use **DIPs**, same semantics as the host surface.
+- [x] Measure / arrange / paint / touch use **DIPs**, same semantics as the host surface.
 - [ ] Implement Core layouts **without** MAUI layout managers:
   - [x] Absolute (+ proportional flags) — prototype
   - [x] Vertical / horizontal stack (+ overlay)
   - [x] Grid (Auto / absolute / `*`) — owned `SkUiCoreGridStructure`; per-track min/max; do not call `GridLayoutManager`
   - [x] Table chrome on `SkUiCoreTable` (row/column backgrounds + span-aware separators)
-  - [ ] ScrollView — deferred (host Core under MAUI-compatible `SkUiScrollView` for now)
+  - [x] ScrollView — `SkUiCoreScrollView` on the shared scroll engine (nests with Core and SkUi* scrollers)
 - [x] Invalidation: per-node dirty flags; `StartUpdating` / `EndUpdating` batching (mirror FR-10 batching, no bindables).
 - [x] Layers: Background/Overlay via painters (`PaintBackground` / `PaintOverlay`); Content via virtual `OnPaintContent` (FR-9 / DrawingMechanism).
 - [x] Gestures: Core-owned pointer delivery (hit-test arranged bounds); bridge maps host `SkUiTouchEvent` ↔ Core. No MAUI `GestureRecognizers`.
-- [x] Primitives + basic controls (Label, Button, Border, ContentView, toggles, Image/ImageButton, ActivityIndicator, shapes). ScrollView excluded for now.
+- [x] Primitives + basic controls (Label, Button, Border, ContentView, toggles, Image/ImageButton, ActivityIndicator, shapes).
 
 ### FR-C4 — Fluent API + CLR properties (single apply path)
 
@@ -122,8 +122,8 @@ Do **not** implement “property setter returns `this`” (illegal in C#) or mak
 
 Checklist:
 
-- [ ] Every stylable Core property exposes both CLR get/set and fluent `Set*` returning the concrete type (or a generic fluent interface).
-- [ ] `Set*` is the sole mutation/apply implementation; setters and any code-gen INPC helpers call it.
+- [x] Every stylable Core property exposes both CLR get/set and fluent `Set*` returning the concrete type (or a generic fluent interface).
+- [x] `Set*` is the sole mutation/apply implementation; setters and any code-gen INPC helpers call it.
 - [ ] Document fluent vs property usage in [docs/controls/SkUiCore.md](../controls/SkUiCore.md).
 
 ### FR-C5 — Property change notifications (MVVM Toolkit)
@@ -171,11 +171,11 @@ public class SkUiLabel : SkUiView
 
 Requirements:
 
-- [ ] Extract / align **text measure + paint** so `SkUiLabel` and `SkUiCoreLabel` share one implementation (Core type is the source of truth).
-- [ ] Same for Button chrome + label (and later Image, toggles, etc.) — prioritize high-churn controls first.
+- [x] Extract / align **text measure + paint** so `SkUiLabel` and `SkUiCoreLabel` share one implementation. *(Done through a shared internal text engine, `SkUiTextLayout`, used by both labels — not through a `SkUiCoreLabel` delegate instance.)*
+- [x] Same for Button chrome + label (and later Image, toggles, etc.) — prioritize high-churn controls first. *(Chrome and default sizes go through `SkUiLook.Current`, text through the shared engine.)*
 - [ ] MAUI bindable `propertyChanged` handlers call the same `Set*` that mutates the Core delegate (FR-10 remains: BP → Set*; Set* does not write back to BP).
 - [ ] Core delegate lifetime: owned by the MAUI control; not inserted into a Core layout tree unless the author also builds a Core subtree.
-- [ ] Avoid duplicating line-breaking / typeface resolution / chrome path code in both layers; chrome geometry and default sizes go through the shared **control look** (FR-18 / [ControlLook.md](ControlLook.md)); default colors go through the shared **color scheme** (FR-19 / [ColorScheme.md](ColorScheme.md)).
+- [x] Avoid duplicating line-breaking / typeface resolution / chrome path code in both layers; chrome geometry and default sizes go through the shared **control look** (FR-18 / [ControlLook.md](ControlLook.md)); default colors go through the shared **color scheme** (FR-19 / [ColorScheme.md](ColorScheme.md)).
 - [ ] Unit tests: Core label measure/paint golden behavior; MAUI `SkUiLabel` matches for the same inputs (delegate path).
 
 Alternative rejected for v1: parallel “engine” structs neither public as Core nor used as nodes — prefer **public Core controls** so composition and delegation are the same types.
@@ -184,7 +184,7 @@ Alternative rejected for v1: parallel “engine” structs neither public as Cor
 
 - [x] `SkUiCoreHost : SkUiView` hosts one Core root; forwards measure / arrange / paint / touch (prototype).
 - [ ] Host invalidation hooks remain correct under `StartUpdating` / scroll picture caching.
-- [ ] Document that Host is the **only** supported way to place Core under `SkUiScrollView` / `SkUiLayout` / pages.
+- [x] Document that Host is the **only** supported way to place Core under `SkUiScrollView` / `SkUiLayout` / pages.
 - [ ] Optional later: `SkUiView` “owned visual children” API for internal Core subtrees without a public Host child (advanced; not required for v1).
 
 ### FR-C8 — Control set (Core)
@@ -198,9 +198,11 @@ Minimum public Core primitives (expand as MAUI wrappers gain delegates):
 | `SkUiCoreLabel` | Prototype (wrap/truncate via `LineBreaker` + `SetLineBreakMode`; still missing font attrs parity) |
 | `SkUiCoreButton` | Prototype |
 | `SkUiCoreBox` / shape primitives | Prototype |
+| `SkUiCoreContentView` / `SkUiCoreBorder` | Prototype |
 | Stack layouts (`Vertical` / `Horizontal` / `Overlay`) | Prototype |
 | Grid (`SkUiCoreGrid`) + Table (`SkUiCoreTable`) | Prototype |
 | Activity indicator / toggles / Image | Prototype |
+| `SkUiCoreScrollView` | Prototype |
 
 ### FR-C9 — Demo and proof
 

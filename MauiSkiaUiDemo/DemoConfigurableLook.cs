@@ -102,11 +102,11 @@ internal sealed class DemoConfigurableLook : DefaultSkUiLook
         };
 
     /// <inheritdoc />
-    protected override void DrawSwitchCore(SKCanvas canvas, SKRect bounds, bool isChecked, SKColor track, SKColor thumb)
+    protected override void DrawSwitchCore(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb)
     {
         if (Style == DemoLookStyle.Default)
         {
-            base.DrawSwitchCore(canvas, bounds, isChecked, track, thumb);
+            base.DrawSwitchCore(canvas, bounds, state, track, thumb);
             return;
         }
 
@@ -116,7 +116,12 @@ internal sealed class DemoConfigurableLook : DefaultSkUiLook
             var radius = bounds.Height / 2;
             DrawRoundedBox(canvas, bounds, radius, track, SKColors.Transparent, 0);
             var thumbSize = bounds.Height - 4;
-            var thumbX = isChecked ? bounds.Right - thumbSize - 2 : bounds.Left + 2;
+            var thumbX = state switch
+            {
+                SkUiCheckState.Checked => bounds.Right - thumbSize - 2,
+                SkUiCheckState.Indeterminate => bounds.MidX - thumbSize / 2,
+                _ => bounds.Left + 2
+            };
             using var paint = new SKPaint { Color = thumb, IsAntialias = true };
             canvas.DrawRect(thumbX, bounds.Top + 2, thumbSize, thumbSize, paint);
             return;
@@ -129,7 +134,12 @@ internal sealed class DemoConfigurableLook : DefaultSkUiLook
         var radiusTrack = trackBounds.Height / 2;
         DrawRoundedBox(canvas, trackBounds, radiusTrack, track, SKColors.Transparent, 0);
         var thumbRadius = bounds.Height / 2 - 1;
-        var thumbX2 = isChecked ? bounds.Right - thumbRadius - 1 : bounds.Left + thumbRadius + 1;
+        var thumbX2 = state switch
+        {
+            SkUiCheckState.Checked => bounds.Right - thumbRadius - 1,
+            SkUiCheckState.Indeterminate => bounds.MidX,
+            _ => bounds.Left + thumbRadius + 1
+        };
         using var thumbPaint = new SKPaint { Color = thumb, IsAntialias = true };
         canvas.DrawCircle(thumbX2, bounds.MidY, thumbRadius, thumbPaint);
         using var rim = new SKPaint
@@ -143,18 +153,18 @@ internal sealed class DemoConfigurableLook : DefaultSkUiLook
     }
 
     /// <inheritdoc />
-    protected override void DrawCheckBoxCore(SKCanvas canvas, float size, bool isChecked, SKColor fill, SKColor border)
+    protected override void DrawCheckBoxCore(SKCanvas canvas, float size, SkUiCheckState state, SKColor fill, SKColor border)
     {
         if (Style == DemoLookStyle.Default)
         {
-            base.DrawCheckBoxCore(canvas, size, isChecked, fill, border);
+            base.DrawCheckBoxCore(canvas, size, state, fill, border);
             return;
         }
 
         var radius = Style == DemoLookStyle.Chunky ? size * 0.28f : size * 0.08f;
         var stroke = Style == DemoLookStyle.Chunky ? 2.5f : 1f;
         DrawRoundedBox(canvas, new SKRect(0, 0, size, size), radius, fill, border, stroke);
-        if (!isChecked) return;
+        if (state == SkUiCheckState.Unchecked) return;
         using var check = new SKPaint
         {
             Color = Style == DemoLookStyle.Minimal ? border : SKColors.White,
@@ -164,6 +174,11 @@ internal sealed class DemoConfigurableLook : DefaultSkUiLook
             StrokeJoin = SKStrokeJoin.Round,
             IsAntialias = true
         };
+        if (state == SkUiCheckState.Indeterminate)
+        {
+            canvas.DrawLine(size * 0.25f, size * 0.5f, size * 0.75f, size * 0.5f, check);
+            return;
+        }
         using var builder = new SKPathBuilder();
         builder.MoveTo(size * 0.2f, size * 0.52f);
         builder.LineTo(size * 0.42f, size * 0.74f);
@@ -173,13 +188,15 @@ internal sealed class DemoConfigurableLook : DefaultSkUiLook
     }
 
     /// <inheritdoc />
-    protected override void DrawRadioButtonCore(SKCanvas canvas, float size, bool isChecked, SKColor ring, SKColor dot)
+    protected override void DrawRadioButtonCore(SKCanvas canvas, float size, SkUiCheckState state, SKColor ring, SKColor dot)
     {
-        if (Style == DemoLookStyle.Default)
+        // The demo styles only restyle the two-state glyph; Indeterminate keeps the default bar.
+        if (Style == DemoLookStyle.Default || state == SkUiCheckState.Indeterminate)
         {
-            base.DrawRadioButtonCore(canvas, size, isChecked, ring, dot);
+            base.DrawRadioButtonCore(canvas, size, state, ring, dot);
             return;
         }
+        var isChecked = state == SkUiCheckState.Checked;
 
         if (Style == DemoLookStyle.Minimal)
         {

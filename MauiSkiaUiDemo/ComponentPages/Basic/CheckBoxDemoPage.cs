@@ -9,7 +9,10 @@ public sealed class CheckBoxDemoPage : ComponentDemoPage
     {
         var skia = (SkUiCheckBox)SkiaControl;
         var native = (CheckBox)NativeControl!;
-        Toggle(nameof(SkUiCheckBox.IsChecked), false, value => { skia.IsChecked = value; native.IsChecked = value; }, () => skia.IsChecked, () => native.IsChecked);
+        Choice(nameof(SkUiCheckBox.CheckState), [SkUiCheckState.Unchecked, SkUiCheckState.Checked, SkUiCheckState.Indeterminate], SkUiCheckState.Unchecked,
+            // IsChecked (MAUI) is its two-state view; the native control follows it.
+            value => { skia.CheckState = value; native.IsChecked = value == SkUiCheckState.Checked; }, () => skia.CheckState);
+        Toggle(nameof(SkUiCheckBox.IsThreeState), false, value => skia.IsThreeState = value, () => skia.IsThreeState);
         ColorEditor(nameof(SkUiCheckBox.Color), Accent, value => { skia.Color = value; native.Color = value; }, () => skia.Color, () => native.Color);
     }
 }

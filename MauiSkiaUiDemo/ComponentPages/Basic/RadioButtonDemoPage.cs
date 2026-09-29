@@ -10,7 +10,9 @@ public sealed class RadioButtonDemoPage : ComponentDemoPage
         var skia = (SkUiRadioButton)SkiaControl;
         var native = (RadioButton)NativeControl!;
         native.Content = "Option";
-        Toggle(nameof(SkUiRadioButton.IsChecked), false, value => { skia.IsChecked = value; native.IsChecked = value; }, () => skia.IsChecked, () => native.IsChecked);
+        Choice(nameof(SkUiRadioButton.CheckState), [SkUiCheckState.Unchecked, SkUiCheckState.Checked, SkUiCheckState.Indeterminate], SkUiCheckState.Unchecked,
+            // IsChecked (MAUI) is its two-state view; the native control follows it.
+            value => { skia.CheckState = value; native.IsChecked = value == SkUiCheckState.Checked; }, () => skia.CheckState);
         ColorEditor(nameof(SkUiRadioButton.Color), Accent, value => skia.Color = value, () => skia.Color);
     }
 }

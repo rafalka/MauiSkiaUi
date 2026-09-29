@@ -80,21 +80,27 @@ public class DefaultSkUiLook : SkUiLook
     }
 
     /// <inheritdoc />
-    protected override void DrawSwitchCore(SKCanvas canvas, SKRect bounds, bool isChecked, SKColor track, SKColor thumb)
+    protected override void DrawSwitchCore(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb)
     {
         var radius = bounds.Height / 2;
         DrawRoundedBox(canvas, bounds, radius, track, SKColors.Transparent, 0);
         var thumbRadius = radius - 2;
-        var thumbX = isChecked ? bounds.Right - radius : bounds.Left + radius;
+        // Indeterminate: the thumb rests in the middle of the track.
+        var thumbX = state switch
+        {
+            SkUiCheckState.Checked => bounds.Right - radius,
+            SkUiCheckState.Indeterminate => bounds.MidX,
+            _ => bounds.Left + radius
+        };
         canvas.DrawCircle(thumbX, bounds.Top + radius, thumbRadius, Paint(thumb));
     }
 
     /// <inheritdoc />
-    protected override void DrawCheckBoxCore(SKCanvas canvas, float size, bool isChecked, SKColor fill, SKColor border)
+    protected override void DrawCheckBoxCore(SKCanvas canvas, float size, SkUiCheckState state, SKColor fill, SKColor border)
     {
         var bounds = new SKRect(0, 0, size, size);
         DrawRoundedBox(canvas, bounds, size * 0.2f, fill, border, 1.5f);
-        if (!isChecked) return;
+        if (state == SkUiCheckState.Unchecked) return;
         using var check = new SKPaint
         {
             Color = SKColors.White,
@@ -104,6 +110,11 @@ public class DefaultSkUiLook : SkUiLook
             StrokeJoin = SKStrokeJoin.Round,
             IsAntialias = true
         };
+        if (state == SkUiCheckState.Indeterminate)
+        {
+            canvas.DrawLine(size * 0.26f, size * 0.5f, size * 0.74f, size * 0.5f, check);
+            return;
+        }
         using var builder = new SKPathBuilder();
         builder.MoveTo(size * 0.22f, size * 0.55f);
         builder.LineTo(size * 0.42f, size * 0.75f);
@@ -113,7 +124,7 @@ public class DefaultSkUiLook : SkUiLook
     }
 
     /// <inheritdoc />
-    protected override void DrawRadioButtonCore(SKCanvas canvas, float size, bool isChecked, SKColor ring, SKColor dot)
+    protected override void DrawRadioButtonCore(SKCanvas canvas, float size, SkUiCheckState state, SKColor ring, SKColor dot)
     {
         var center = size / 2;
         using var ringPaint = new SKPaint
@@ -124,8 +135,55 @@ public class DefaultSkUiLook : SkUiLook
             IsAntialias = true
         };
         canvas.DrawCircle(center, center, center - ringPaint.StrokeWidth / 2, ringPaint);
-        if (!isChecked) return;
-        canvas.DrawCircle(center, center, size * 0.28f, Paint(dot));
+        if (state == SkUiCheckState.Checked)
+        {
+            canvas.DrawCircle(center, center, size * 0.28f, Paint(dot));
+        }
+        else if (state == SkUiCheckState.Indeterminate)
+        {
+            var half = size * 0.14f;
+            canvas.DrawRoundRect(new SKRect(center - size * 0.26f, center - half / 2, center + size * 0.26f, center + half / 2), half / 2, half / 2, Paint(dot));
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void DrawSliderCore(SKCanvas canvas, SkUiSliderPaint slider)
+    {
+        var bounds = slider.Bounds;
+        var radius = SliderThumbRadius;
+        var start = bounds.Left + radius;
+        var end = Math.Max(start, bounds.Right - radius);
+        var thumbX = start + (end - start) * Math.Clamp(slider.Fraction, 0, 1);
+        const float track = 4;
+        var top = bounds.MidY - track / 2;
+        DrawRoundedBox(canvas, new SKRect(start, top, end, top + track), track / 2, slider.MaximumTrack, SKColors.Transparent, 0);
+        if (thumbX > start)
+            DrawRoundedBox(canvas, new SKRect(start, top, thumbX, top + track), track / 2, slider.MinimumTrack, SKColors.Transparent, 0);
+        if (slider.IsPressed)
+            canvas.DrawCircle(thumbX, bounds.MidY, radius * 1.8f, Paint(slider.Thumb.WithAlpha((byte)(slider.Thumb.Alpha / 5))));
+        canvas.DrawCircle(thumbX, bounds.MidY, radius, Paint(slider.Thumb));
+    }
+
+    /// <inheritdoc />
+    protected override void DrawProgressBarCore(SKCanvas canvas, SkUiProgressBarPaint bar)
+    {
+        var bounds = bar.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0) return;
+        var radius = GetProgressBarCornerRadius(bounds.Height);
+        if (bar.IsIndeterminate)
+        {
+            // Square, unantialiased track: copies tiled one bar width apart meet without a seam (the compositor
+            // clips the rounded ends).
+            using var track = new SKPaint { Color = bar.Track };
+            canvas.DrawRect(bounds, track);
+        }
+        else
+        {
+            DrawRoundedBox(canvas, bounds, radius, bar.Track, SKColors.Transparent, 0);
+        }
+        var fraction = bar.IsIndeterminate ? bar.SegmentFraction : Math.Clamp(bar.Progress, 0, 1);
+        if (fraction <= 0) return;
+        DrawRoundedBox(canvas, new SKRect(bounds.Left, bounds.Top, bounds.Left + bounds.Width * fraction, bounds.Bottom), radius, bar.Fill, SKColors.Transparent, 0);
     }
 
     /// <inheritdoc />

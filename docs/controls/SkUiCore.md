@@ -28,10 +28,12 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreContentView` / `SkUiCoreBorder` | Single-child host; border adds rounded chrome with per-corner `CornerRadius` |
 | `SkUiCoreLabel` / `SkUiCoreButton` | Text (wrap/truncate via `LineBreakMode` or custom `LineBreaker`) and rounded tap button (`ICommand`) |
 | `SkUiCoreTextLineBreaker` / `SkUiCoreTextLineBreakers` | Line-break delegate + stock MAUI-mode breakers for Core labels |
-| `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Boolean toggles |
+| `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Toggles: `CheckState` (Unchecked / Checked / Indeterminate), `IsChecked` view, `IsThreeState` |
+| `SkUiCoreSlider` | Horizontal or vertical slider (`Minimum` / `Maximum` / `Value`, drag events) |
+| `SkUiCoreProgressBar` | Determinate or indeterminate (render-thread) progress bar, `ProgressTo` |
 | `SkUiCoreShape` / `Box` / `Ellipse` / `Line` | Drawing primitives |
 | `SkUiCoreImage` / `SkUiCoreImageButton` | Decoded image (+ tap/tint); no MAUI `ImageSource` |
-| `SkUiCoreActivityIndicator` | Indeterminate spinner on the host animation clock |
+| `SkUiCoreActivityIndicator` | Indeterminate spinner, rotated by the compositor on the render thread |
 | `SkUiCoreScrollView` | Scroller on the shared scroll engine: offsets, render-thread fling / animated scroll, wheel, nesting with Core and SkUi* scrollers |
 | `SkUiCoreHost` | `SkUiView` bridge that hosts one Core root |
 
@@ -92,10 +94,6 @@ Demo **Stress test** page: toggle **Core layer** to build the same two-column gr
 ## Roadmap (see CoreRequirements)
 
 - Separate `MauiSkiaUi.Core` assembly without `Microsoft.Maui.Controls`
-- Hand-rolled INPC on `SkUiCoreNode`; button/image-button commands are `ICommand` (`SkUiCoreCommand` helper)
-- Fluent `Set*` as single apply path; CLR setters call `Set*`
-- Shared painters via public **`SkUiLook`** / **`DefaultSkUiLook`** (`SkUiChrome` is a thin façade); **FR-18**
-- Shared palette via public **`SkUiColorScheme`** (light/dark) and **`SkUiColors`** accessors; **FR-19**
-- Neither look nor scheme is MAUI Style/VSM (FR-12)
-- `SkUiLabel` / `SkUiButton` eventually delegate measure & paint to Core (still separate types; chrome already shared)
-- Core **ScrollView** (deferred; Grid/Table shipped)
+- `SkUiLabel` / `SkUiButton` delegate measure & paint to Core instances (today they are separate types that share the internal text engine and the `SkUiLook` chrome)
+
+Already shipped: hand-rolled INPC on `SkUiCoreNode` with `ICommand` commands (`SkUiCoreCommand` helper); fluent `Set*` as the single apply path, with CLR setters calling `Set*`; shared painters and default sizes via **`SkUiLook`** (FR-18) and the shared palette via **`SkUiColorScheme`** / **`SkUiColors`** (FR-19) — neither is MAUI Style/VSM (FR-12); Grid, Table and ScrollView layouts.

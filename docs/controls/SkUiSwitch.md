@@ -28,7 +28,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`IsChecked`, `CheckedChanged`, `OnColor`, `ThumbColor`.
+`IsChecked`, `CheckedChanged`, `OnColor`, `ThumbColor`. `CheckState` (Indeterminate: centered thumb, half-on track) and `IsThreeState` come from [`SkUiToggleControl`](SkUiToggleControl.md).
 
 ## Differences from MAUI Switch
 
