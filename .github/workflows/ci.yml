@@ -113,17 +113,18 @@ jobs:
           workloads: maui-maccatalyst
           java-version: ""
 
-      # Building an app (unlike the library) needs an Xcode at least as new as the one the MAUI workload targets
-      # (26 for .NET 10); the image may default to an older one. Take the newest installed stable release.
+      # Building an app (unlike the library) needs the Xcode version the installed MAUI workload was built for (its
+      # SDK pack name ends in it, e.g. ..._26.0); the image may default to another. Take its newest patch release.
       - name: Select Xcode
-        env:
-          MIN_XCODE_MAJOR: "26"
         run: |
           set -euo pipefail
+          pack="$(ls -d "${DOTNET_ROOT:-$HOME/.dotnet}"/packs/Microsoft.MacCatalyst.Sdk.net*_* | sort -V | tail -1)"
+          want="${pack##*_}"
+          echo "Mac Catalyst SDK pack $(basename "$pack") needs Xcode $want"
           ls -d /Applications/Xcode*.app
           xcode="$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' \
-            | sed -E 's#.*/Xcode_([0-9.]+)\.app#\1 &#' | sort -V | awk -v min="$MIN_XCODE_MAJOR" '$1+0 >= min {x=$2} END {print x}')"
-          [[ -n "$xcode" ]] || { echo "No stable Xcode $MIN_XCODE_MAJOR or newer on this runner image." >&2; exit 1; }
+            | grep -E "/Xcode_${want//./\\.}(\.[0-9]+)*\.app$" | sort -V | tail -1)"
+          [[ -n "$xcode" ]] || { echo "No Xcode $want on this runner image." >&2; exit 1; }
           sudo xcode-select -s "$xcode"
           xcodebuild -version
 
