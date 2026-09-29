@@ -85,6 +85,9 @@ public static class BenchReport
         ("motionFps", s => s.MotionFps),
         ("motionAvgRenderMs", s => s.MotionAvgRenderMs),
         ("motionMaxRenderMs", s => s.MotionMaxRenderMs),
+        ("motionUiFps", s => s.MotionUiFps),
+        ("motionAvgUiMs", s => s.MotionAvgUiMs),
+        ("motionMaxUiMs", s => s.MotionMaxUiMs),
         ("allocKB", s => s.AllocatedBytes / 1024.0),
     ];
 

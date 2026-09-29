@@ -17,6 +17,8 @@ public class SkUiCoreSlider : SkUiCoreNode
     private Color _thumbColor = SkUiColors.Accent;
     private SkUiSliderGestureRecognizer? _gesture;
     private double _requestedValue;
+    private SkUiSliderVisual? _visual;
+    private bool _animateThumb;
 
     /// <summary>Smallest value (default 0).</summary>
     public double Minimum { get => _minimum; set => SetMinimum(value); }
@@ -81,6 +83,8 @@ public class SkUiCoreSlider : SkUiCoreNode
     {
         var old = _value;
         if (!SetProperty(ref _value, SkUiSliderMath.Clamp(value, _minimum, _maximum), nameof(Value))) return this;
+        if (_animateThumb || _visual is not null)
+            SliderVisual.Moved(SkUiSliderMath.Fraction(old, _minimum, _maximum), SkUiSliderMath.Fraction(_value, _minimum, _maximum), _animateThumb);
         InvalidatePaint();
         ValueChanged?.Invoke(this, new ValueChangedEventArgs(old, _value));
         return this;
@@ -116,9 +120,14 @@ public class SkUiCoreSlider : SkUiCoreNode
         SkUiLook.Current.MeasureSlider(widthConstraint, heightConstraint, _orientation);
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas) =>
-        SkUiSliderMath.Draw(canvas, (float)Frame.Width, (float)Frame.Height, _orientation, IsRightToLeft, SkUiSliderMath.Fraction(_value, _minimum, _maximum),
-            ToSkColor(_minimumTrackColor), ToSkColor(_maximumTrackColor), ToSkColor(_thumbColor), IsDragging, enabled: true);
+    protected override void OnPaintContent(SKCanvas canvas)
+    {
+        var fraction = SkUiSliderMath.Fraction(_value, _minimum, _maximum);
+        SkUiSliderMath.Draw(canvas, (float)Frame.Width, (float)Frame.Height, _orientation, IsRightToLeft, _visual?.Fraction(fraction) ?? fraction,
+            ToSkColor(_minimumTrackColor), ToSkColor(_maximumTrackColor), ToSkColor(_thumbColor), _visual?.Pressed ?? 0, enabled: true);
+    }
+
+    private SkUiSliderVisual SliderVisual => _visual ??= new SkUiSliderVisual(this);
 
     /// <inheritdoc />
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
@@ -129,6 +138,7 @@ public class SkUiCoreSlider : SkUiCoreNode
             Orientation = () => _orientation,
             Began = position =>
             {
+                SliderVisual.SetDragging(true);
                 InvalidatePaint();
                 DragStarted?.Invoke(this, EventArgs.Empty);
                 SetValueAt(position);
@@ -136,10 +146,17 @@ public class SkUiCoreSlider : SkUiCoreNode
             Moved = SetValueAt,
             Ended = () =>
             {
+                SliderVisual.SetDragging(false);
                 InvalidatePaint();
                 DragCompleted?.Invoke(this, EventArgs.Empty);
             },
-            Tapped = SetValueAt
+            Tapped = position =>
+            {
+                // The thumb glides to a tapped value (the value itself changes at once).
+                _animateThumb = true;
+                try { SetValueAt(position); }
+                finally { _animateThumb = false; }
+            }
         });
     }
 

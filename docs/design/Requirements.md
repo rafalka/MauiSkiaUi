@@ -507,25 +507,27 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--s
 - [x] Look-customizable: `SkUiLook.DrawProgressBar(SkUiProgressBarPaint)`, sizes, segment length, period, corner radius, delegates.
 - [x] Headless tests (`ProgressBarTests`), demo page, leak scenario.
 
-### FR-26 — State-change animations (future; first-priority candidate)
+### FR-26 — State-change animations
 
-**Status:** not implemented. **May change the architecture**, so decide the approach before adding more controls with state visuals. See [ArchitectureReview.md](ArchitectureReview.md#state-change-animations).
+**Status:** implemented on the UI-thread design; the render-thread variants stay open. Decision and device measurements: [ArchitectureReview.md](ArchitectureReview.md#state-change-animations). Look API: [ControlLook.md](ControlLook.md#state-change-transitions-fr-26).
 
-- [ ] **Animate state changes:**
+- [x] **Animate state changes:**
   - Switch: thumb slide and track color.
   - Check box: check mark / dash drawing in, fill.
   - Radio button: dot scale.
-  - Slider: thumb grow while pressed.
-  - Progress: value changes.
-  - Indeterminate transitions.
-- [ ] **Press effects** on buttons, image buttons and other tappable controls:
-  - Ripple from the touch point, clipped to the control's shape; several at once; fades on release or cancel.
-  - Or a highlight fade, or a press scale.
-- [ ] **Configurable by `SkUiLook`:** each look chooses the effect, duration and easing per control and state change, or none. Looks draw from continuous parameters (e.g. thumb position 0–1, color mix, ripple radius), not only the discrete state.
-- [ ] **Visual only:** state and events change at once (`CheckedChanged` does not wait for the animation). Animations are interruptible and reverse from their current position.
-- [ ] **Smooth under load:** preferably on the render thread, like `AnimateAsync` and the indeterminate progress bar; otherwise bounded to re-recording the one small node per frame.
-- [ ] Respect the OS reduce-motion setting and a global off switch.
-- [ ] Same on `SkUi*` and Core; headless tests with a deterministic clock.
+  - Slider: press halo while dragged; the thumb glides to tapped values.
+  - Progress: value changes (a look option; off in the default look, as MAUI).
+  - Transitions to and from Indeterminate.
+- [x] **Press effects** on buttons and image buttons: a highlight fade (`Dim`) or a ripple from the touch point, clipped to the control's shape, fading on release or cancel (`DefaultSkUiLook.PressEffect`). Toggles and sliders pass their press amount to the look too.
+  - [x] On any other tappable node, including composite buttons built from several Core nodes: `ShowsPressEffect` (drawn over the node and its children, clipped to its rounded shape).
+  - [ ] Several ripples at once (a new press restarts the ripple).
+  - [ ] Press scale (the text is drawn by the control, so it needs a composite-time transform).
+- [x] **Configurable by `SkUiLook`:** each look sets the duration and easing per kind of state change, or none (`GetTransition` / `GetTransitionCore` / `TransitionProvider`). Looks draw from continuous parameters (`SkUiToggleVisual`, `SkUiPressVisual`, drawn slider fraction and progress), not only the discrete state.
+- [x] **Visual only:** state and events change at once (`CheckedChanged` does not wait for the animation). Animations are interruptible and reverse from their current position.
+- [x] **Smooth under load:** bounded to re-recording the one small node per frame (about 0.05 ms per animating control on a Galaxy S9). Frames drop only while the UI thread itself is blocked.
+  - [ ] Render-thread painters: an opt-in, if apps need transitions during UI-thread work.
+- [x] Respect the OS reduce-motion setting and a global off switch (`SkUiMotion`).
+- [x] Same on `SkUi*` and Core; headless tests with a deterministic clock (`TransitionTests`).
 
 ## Non-functional requirements
 

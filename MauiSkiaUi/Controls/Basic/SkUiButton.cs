@@ -9,6 +9,7 @@ public class SkUiButton : SkUiLabel
     private ICommand? _command;
     private object? _commandParameter;
     private Color _fillColor = SkUiColors.Accent;
+    private SkUiPressAnimator? _press;
 
     /// <summary>Bindable command executed on a valid release.</summary>
     public static readonly BindableProperty CommandProperty = BindableProperty.Create(nameof(Command), typeof(ICommand), typeof(SkUiButton), null, propertyChanged: (view, _, value) => ((SkUiButton)view).SetCommand((ICommand?)value));
@@ -100,7 +101,11 @@ public class SkUiButton : SkUiLabel
     /// <inheritdoc />
     protected override bool CanReceiveTap => _command?.CanExecute(_commandParameter) ?? true;
     /// <inheritdoc />
-    protected override void OnPressedChanged() => UpdateState();
+    protected override void OnPressedChanged()
+    {
+        (_press ??= new SkUiPressAnimator(this)).SetPressed(IsPressed, PressPosition);
+        UpdateState();
+    }
     private void UpdateState()
     {
         VisualStateManager.GoToState(this, !IsEnabled || !CanReceiveTap ? "Disabled" : IsPressed ? "Pressed" : "Normal");
@@ -122,12 +127,15 @@ public class SkUiButton : SkUiLabel
         Clicked?.Invoke(this, EventArgs.Empty);
         if (_command?.CanExecute(_commandParameter) == true) _command.Execute(_commandParameter);
     }
-    /// <summary>Draws the rounded fill/border registered as <see cref="SkUiView.PaintBackground"/>. Subclasses may call or re-register this painter.</summary>
+    /// <summary>
+    /// Draws the rounded fill, border and press feedback (<see cref="SkUiLook.DrawButton"/>) registered as
+    /// <see cref="SkUiView.PaintBackground"/>. Subclasses may call or re-register this painter.
+    /// </summary>
     protected void PaintButtonBackground(SKCanvas canvas)
     {
-        var color = ResolveSolidBackgroundColor() ?? _fillColor;
-        if (!IsEnabled || !CanReceiveTap) color = SkUiColors.Disabled;
-        else if (IsPressed) color = color.MultiplyAlpha(0.75f);
-        PaintChrome(canvas, color);
+        var enabled = IsEnabled && CanReceiveTap;
+        var color = enabled ? ResolveSolidBackgroundColor() ?? _fillColor : SkUiColors.Disabled;
+        SkUiLook.Current.DrawButton(canvas, new SkUiButtonPaint(new SKRect(0, 0, (float)Width, (float)Height), CornerRadii,
+            ToSkColor(color), ToSkColor(BorderColor), (float)BorderWidth, _press?.Visual ?? SkUiPressVisual.None, enabled));
     }
 }

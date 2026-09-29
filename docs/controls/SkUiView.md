@@ -44,6 +44,7 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 | `DoubleTapped` / `LongPressed` / `Swiped` (+ commands), `PanUpdated`, `PinchUpdated` | Opt-in gestures (gesture arena) |
 | `Gestures` | Custom recognizers (`SkUiPointerGestureRecognizer`, `SkUiPanGestureRecognizer`, …) |
 | `IsPressed` | Shared press state for intrinsic controls |
+| `ShowsPressEffect` | Draws the look's press feedback (dim or ripple) over the view and its children while pressed, clipped to its rounded shape; for cards and composite buttons with a `Tapped` / `TappedCommand` handler ([transitions](../design/ControlLook.md#state-change-transitions-fr-26)) |
 | `StartUpdating` / `EndUpdating` | Coalesce invalidation |
 | `InvalidatePaint` | Re-record this node's content (not its children) without remeasure. Transform / opacity / offset changes need no call: they are composite-time |
 | `ClipToBounds` | Clip content, children and overlay to the arranged rect. Defaults: `true` for leaves, `false` for `SkUiLayout` / `SkUiContentView` / `SkUiCoreHost` |

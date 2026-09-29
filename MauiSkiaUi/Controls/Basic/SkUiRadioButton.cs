@@ -38,20 +38,9 @@ public class SkUiRadioButton : SkUiToggleControl
         SkUiLook.Current.MeasureRadioButton(widthConstraint, heightConstraint);
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas)
-    {
-        var size = (float)Math.Min(Width, Height);
-        var ringColor = CheckState != SkUiCheckState.Unchecked ? _color : SkUiColors.Muted;
-        var dotColor = _color;
-        if (!IsEnabled)
-        {
-            ringColor = ringColor.MultiplyAlpha(0.5f);
-            dotColor = dotColor.MultiplyAlpha(0.5f);
-        }
-        // RTL: the glyph sits at the start (right) edge; the glyph itself is not mirrored.
-        var rtlSave = canvas.Save();
-        if (IsRightToLeft) canvas.Translate((float)(Width) - size, 0);
-        SkUiLook.Current.DrawRadioButton(canvas, size, CheckState, ToSkColor(ringColor), ToSkColor(dotColor));
-        canvas.RestoreToCount(rtlSave);
-    }
+    protected override SkUiTransitionKind TransitionKind => SkUiTransitionKind.RadioButton;
+
+    /// <inheritdoc />
+    protected override void OnPaintContent(SKCanvas canvas) =>
+        SkUiToggleDrawing.DrawRadioButton(canvas, (float)Width, (float)Height, IsRightToLeft, ToggleVisual, _color, IsEnabled);
 }

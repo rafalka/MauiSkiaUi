@@ -11,6 +11,9 @@ namespace MauiSkiaUi;
 /// <remarks>
 /// Entry points such as <see cref="DrawSwitch"/> honor an optional delegate first, then the virtual
 /// implementation. After swapping <see cref="Current"/> or changing sizes, invalidate measure and paint.
+/// State changes animate: controls draw every frame of a transition through the same entry points, with the progress
+/// in the paint struct (<see cref="SkUiToggleVisual"/>, <see cref="SkUiPressVisual"/>), and <see cref="GetTransition"/>
+/// sets each transition's duration and easing. Painters run on the UI thread.
 /// </remarks>
 public class SkUiLook
 {
@@ -154,6 +157,48 @@ public class SkUiLook
     /// <summary>Default button corner radius in DIPs.</summary>
     public virtual double DefaultButtonCornerRadius => 6;
 
+    /// <summary>Optional Button painter (fill, border and press feedback behind the text); replaces <see cref="DrawButtonCore"/>.</summary>
+    public Action<SKCanvas, SkUiButtonPaint>? ButtonPainter { get; set; }
+
+    /// <summary>Draws a Button's fill, border and press feedback (delegate or <see cref="DrawButtonCore"/>); the text follows.</summary>
+    public void DrawButton(SKCanvas canvas, SkUiButtonPaint button)
+    {
+        if (ButtonPainter is { } painter)
+        {
+            painter(canvas, button);
+            return;
+        }
+        DrawButtonCore(canvas, button);
+    }
+
+    /// <summary>Default Button chrome: the rounded fill and border (<see cref="DrawRoundedBox(SKCanvas, SKRect, CornerRadius, SKColor, SKColor, float)"/>).</summary>
+    protected virtual void DrawButtonCore(SKCanvas canvas, SkUiButtonPaint button) =>
+        DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, button.Fill, button.Border, button.BorderWidth);
+
+    #endregion
+
+    #region Transitions
+
+    /// <summary>
+    /// Optional transition override; when set, replaces <see cref="GetTransitionCore"/> (return
+    /// <see cref="SkUiTransition.None"/> to turn a transition off).
+    /// </summary>
+    public Func<SkUiTransitionKind, SkUiTransition>? TransitionProvider { get; set; }
+
+    /// <summary>
+    /// How a state change of <paramref name="kind"/> animates (delegate or <see cref="GetTransitionCore"/>); always
+    /// <see cref="SkUiTransition.None"/> while <see cref="SkUiMotion.IsMotionReduced"/>. Read when a transition starts.
+    /// </summary>
+    public SkUiTransition GetTransition(SkUiTransitionKind kind)
+    {
+        if (SkUiMotion.IsMotionReduced)
+            return SkUiTransition.None;
+        return TransitionProvider is { } provider ? provider(kind) : GetTransitionCore(kind);
+    }
+
+    /// <summary>Default transitions: none (<see cref="DefaultSkUiLook"/> animates).</summary>
+    protected virtual SkUiTransition GetTransitionCore(SkUiTransitionKind kind) => SkUiTransition.None;
+
     #endregion
 
     #region Switch
@@ -165,7 +210,7 @@ public class SkUiLook
     public Func<double, double, Size>? SwitchMeasure { get; set; }
 
     /// <summary>Optional Switch painter; when set, replaces <see cref="DrawSwitchCore"/>.</summary>
-    public Action<SKCanvas, SKRect, SkUiCheckState, SKColor, SKColor>? SwitchPainter { get; set; }
+    public Action<SKCanvas, SkUiSwitchPaint>? SwitchPainter { get; set; }
 
     /// <summary>Intrinsic Switch size in DIPs.</summary>
     public Size MeasureSwitch(double widthConstraint, double heightConstraint) =>
@@ -175,19 +220,19 @@ public class SkUiLook
     /// <summary>Default Switch size from <see cref="DefaultSwitchSize"/>.</summary>
     protected virtual Size MeasureSwitchCore(double widthConstraint, double heightConstraint) => DefaultSwitchSize;
 
-    /// <summary>Draws Switch chrome (delegate or <see cref="DrawSwitchCore"/>).</summary>
-    public void DrawSwitch(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb)
+    /// <summary>Draws a Switch (delegate or <see cref="DrawSwitchCore"/>), every frame of its transitions.</summary>
+    public void DrawSwitch(SKCanvas canvas, SkUiSwitchPaint toggle)
     {
         if (SwitchPainter is { } painter)
         {
-            painter(canvas, bounds, state, track, thumb);
+            painter(canvas, toggle);
             return;
         }
-        DrawSwitchCore(canvas, bounds, state, track, thumb);
+        DrawSwitchCore(canvas, toggle);
     }
 
     /// <summary>Default Switch geometry.</summary>
-    protected virtual void DrawSwitchCore(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb) { }
+    protected virtual void DrawSwitchCore(SKCanvas canvas, SkUiSwitchPaint toggle) { }
 
     #endregion
 
@@ -199,8 +244,8 @@ public class SkUiLook
     /// <summary>Optional CheckBox intrinsic measure override.</summary>
     public Func<double, double, Size>? CheckBoxMeasure { get; set; }
 
-    /// <summary>Optional CheckBox painter.</summary>
-    public Action<SKCanvas, float, SkUiCheckState, SKColor, SKColor>? CheckBoxPainter { get; set; }
+    /// <summary>Optional CheckBox painter; when set, replaces <see cref="DrawCheckBoxCore"/>.</summary>
+    public Action<SKCanvas, SkUiCheckBoxPaint>? CheckBoxPainter { get; set; }
 
     /// <summary>Intrinsic CheckBox size in DIPs.</summary>
     public Size MeasureCheckBox(double widthConstraint, double heightConstraint) =>
@@ -210,19 +255,19 @@ public class SkUiLook
     /// <summary>Default CheckBox size from <see cref="DefaultCheckBoxSize"/>.</summary>
     protected virtual Size MeasureCheckBoxCore(double widthConstraint, double heightConstraint) => DefaultCheckBoxSize;
 
-    /// <summary>Draws CheckBox chrome.</summary>
-    public void DrawCheckBox(SKCanvas canvas, float size, SkUiCheckState state, SKColor fill, SKColor border)
+    /// <summary>Draws a CheckBox (delegate or <see cref="DrawCheckBoxCore"/>), every frame of its transitions.</summary>
+    public void DrawCheckBox(SKCanvas canvas, SkUiCheckBoxPaint box)
     {
         if (CheckBoxPainter is { } painter)
         {
-            painter(canvas, size, state, fill, border);
+            painter(canvas, box);
             return;
         }
-        DrawCheckBoxCore(canvas, size, state, fill, border);
+        DrawCheckBoxCore(canvas, box);
     }
 
     /// <summary>Default CheckBox geometry.</summary>
-    protected virtual void DrawCheckBoxCore(SKCanvas canvas, float size, SkUiCheckState state, SKColor fill, SKColor border) { }
+    protected virtual void DrawCheckBoxCore(SKCanvas canvas, SkUiCheckBoxPaint box) { }
 
     #endregion
 
@@ -234,8 +279,8 @@ public class SkUiLook
     /// <summary>Optional RadioButton intrinsic measure override.</summary>
     public Func<double, double, Size>? RadioButtonMeasure { get; set; }
 
-    /// <summary>Optional RadioButton painter.</summary>
-    public Action<SKCanvas, float, SkUiCheckState, SKColor, SKColor>? RadioButtonPainter { get; set; }
+    /// <summary>Optional RadioButton painter; when set, replaces <see cref="DrawRadioButtonCore"/>.</summary>
+    public Action<SKCanvas, SkUiRadioButtonPaint>? RadioButtonPainter { get; set; }
 
     /// <summary>Intrinsic RadioButton size in DIPs.</summary>
     public Size MeasureRadioButton(double widthConstraint, double heightConstraint) =>
@@ -245,19 +290,19 @@ public class SkUiLook
     /// <summary>Default RadioButton size from <see cref="DefaultRadioButtonSize"/>.</summary>
     protected virtual Size MeasureRadioButtonCore(double widthConstraint, double heightConstraint) => DefaultRadioButtonSize;
 
-    /// <summary>Draws RadioButton chrome.</summary>
-    public void DrawRadioButton(SKCanvas canvas, float size, SkUiCheckState state, SKColor ring, SKColor dot)
+    /// <summary>Draws a RadioButton (delegate or <see cref="DrawRadioButtonCore"/>), every frame of its transitions.</summary>
+    public void DrawRadioButton(SKCanvas canvas, SkUiRadioButtonPaint radio)
     {
         if (RadioButtonPainter is { } painter)
         {
-            painter(canvas, size, state, ring, dot);
+            painter(canvas, radio);
             return;
         }
-        DrawRadioButtonCore(canvas, size, state, ring, dot);
+        DrawRadioButtonCore(canvas, radio);
     }
 
     /// <summary>Default RadioButton geometry.</summary>
-    protected virtual void DrawRadioButtonCore(SKCanvas canvas, float size, SkUiCheckState state, SKColor ring, SKColor dot) { }
+    protected virtual void DrawRadioButtonCore(SKCanvas canvas, SkUiRadioButtonPaint radio) { }
 
     #endregion
 
@@ -413,8 +458,8 @@ public class SkUiLook
     /// <summary>Optional image painter.</summary>
     public Action<SKCanvas, SKImage, float, float, Aspect>? ImagePainter { get; set; }
 
-    /// <summary>Optional press-tint painter (ImageButton pressed/disabled chrome).</summary>
-    public Action<SKCanvas, SKRect, float, bool, bool>? PressTintPainter { get; set; }
+    /// <summary>Optional press-overlay painter (press feedback over content, ImageButton disabled dimming); replaces <see cref="DrawPressOverlayCore"/>.</summary>
+    public Action<SKCanvas, SkUiPressOverlayPaint>? PressOverlayPainter { get; set; }
 
     /// <summary>Draws an image with aspect fit/fill.</summary>
     public void DrawImage(SKCanvas canvas, SKImage image, float viewWidth, float viewHeight, Aspect aspect)
@@ -445,19 +490,22 @@ public class SkUiLook
             height);
     }
 
-    /// <summary>Draws ImageButton pressed/disabled tint.</summary>
-    public void DrawPressTint(SKCanvas canvas, SKRect bounds, float cornerRadius, bool disabled, bool pressed)
+    /// <summary>
+    /// Draws press feedback over a control's content (ImageButton, or any node with <c>ShowsPressEffect</c>), every frame
+    /// of its transitions; also an ImageButton's disabled dimming.
+    /// </summary>
+    public void DrawPressOverlay(SKCanvas canvas, SkUiPressOverlayPaint overlay)
     {
-        if (PressTintPainter is { } painter)
+        if (PressOverlayPainter is { } painter)
         {
-            painter(canvas, bounds, cornerRadius, disabled, pressed);
+            painter(canvas, overlay);
             return;
         }
-        DrawPressTintCore(canvas, bounds, cornerRadius, disabled, pressed);
+        DrawPressOverlayCore(canvas, overlay);
     }
 
-    /// <summary>Default press-tint geometry.</summary>
-    protected virtual void DrawPressTintCore(SKCanvas canvas, SKRect bounds, float cornerRadius, bool disabled, bool pressed) { }
+    /// <summary>Default press-overlay geometry.</summary>
+    protected virtual void DrawPressOverlayCore(SKCanvas canvas, SkUiPressOverlayPaint overlay) { }
 
     #endregion
 }

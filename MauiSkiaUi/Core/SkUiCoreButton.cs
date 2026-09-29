@@ -11,6 +11,7 @@ public class SkUiCoreButton : SkUiCoreLabel
 {
     private bool _minimumHeightExplicit;
     private bool _isPressed;
+    private SkUiPressAnimator? _press;
     private ICommand? _command;
     private object? _commandParameter;
     private EventHandler? _commandChanged;
@@ -132,9 +133,17 @@ public class SkUiCoreButton : SkUiCoreLabel
         return size;
     }
 
-    /// <summary>Draws the rounded fill/border registered as <see cref="SkUiCoreNode.PaintBackground"/>. Subclasses may call or re-register this painter.</summary>
-    protected void PaintButtonBackground(SKCanvas canvas) =>
-        PaintChrome(canvas, !CanExecuteCommand ? SkUiColors.Disabled : _isPressed ? FillColor.MultiplyAlpha(0.75f) : FillColor);
+    /// <summary>
+    /// Draws the rounded fill, border and press feedback (<see cref="SkUiLook.DrawButton"/>) registered as
+    /// <see cref="SkUiCoreNode.PaintBackground"/>. Subclasses may call or re-register this painter.
+    /// </summary>
+    protected void PaintButtonBackground(SKCanvas canvas)
+    {
+        var enabled = CanExecuteCommand;
+        SkUiLook.Current.DrawButton(canvas, new SkUiButtonPaint(new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height), CornerRadii,
+            ToSkColor(enabled ? FillColor : SkUiColors.Disabled), ToSkColor(BorderColor), (float)BorderWidth,
+            _press?.Visual ?? SkUiPressVisual.None, enabled));
+    }
 
     /// <inheritdoc />
     internal override bool HasIntrinsicTap => CanExecuteCommand;
@@ -155,6 +164,7 @@ public class SkUiCoreButton : SkUiCoreLabel
     private void SetPressed(bool value)
     {
         if (!SetProperty(ref _isPressed, value, nameof(IsPressed))) return;
+        (_press ??= new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
         InvalidatePaint();
     }
 }

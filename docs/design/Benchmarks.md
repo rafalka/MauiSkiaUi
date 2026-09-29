@@ -7,7 +7,7 @@ Measure performance **before and after a change**, for any component, in a way t
 | Tier | Where | What it measures | Use it for |
 | --- | --- | --- | --- |
 | **Headless** (`benchmarks/MauiSkiaUi.Benchmarks`) | `net10.0` console app, any dev machine or CI | `generate` (build tree), `measure`, `arrange`, `record` (UI-thread picture recording of the first frame), `composite` (render-thread compositing into an offscreen raster), `update`, `allocKB` (managed bytes) | Fast inner loop (≈ 10 s), layout / text / recording regressions, allocations |
-| **Device** (`benchmarks/MauiSkiaUiBench`) | Release MAUI app on Android / iOS / Mac Catalyst | `generate`, `add` (attach to the page: handler creation), `firstFrame` (attach → first composited frame: layout, recording and compositing on the real surface), `update` (change → next composited frame), `motionFps` / `motionAvgRenderMs` / `motionMaxRenderMs` (render-thread frames while animating) | Authoritative numbers: JIT/AOT, GPU surfaces, vsync pacing, real text stacks |
+| **Device** (`benchmarks/MauiSkiaUiBench`) | Release MAUI app on Android / iOS / Mac Catalyst | `generate`, `add` (attach to the page: handler creation), `firstFrame` (attach → first composited frame: layout, recording and compositing on the real surface), `update` (change → next composited frame), `motionFps` / `motionAvgRenderMs` / `motionMaxRenderMs` (render-thread frames while animating), `motionUiFps` / `motionAvgUiMs` / `motionMaxUiMs` (UI-thread animation frames: clock tick, recording and commit) | Authoritative numbers: JIT/AOT, GPU surfaces, vsync pacing, real text stacks |
 
 All values are **milliseconds** (except `motionFps` and `allocKB`). Reports show the **median** of the measured iterations; each scenario first runs `--warmup` iterations that are discarded.
 
@@ -91,6 +91,8 @@ The catalog lives in [benchmarks/Scenarios/Scenarios.cs](../../benchmarks/Scenar
 | `core-labels-update`, `skui-labels-update` | Steady state: change every label's text (re-layout + re-record) |
 | `scroll-fling` `[device]` | Render-thread `AnimateScrollTo` through 400 buttons |
 | `spinners` `[device]` | 120 activity indicators (render-thread content spin) |
+| `toggle-transitions` `[device]` | 48 switches + 48 check boxes re-toggled every 120 ms: state-change transitions always running (UI clock, one re-record per control per frame) |
+| `toggle-transitions-busy` `[device]` | The same while the UI thread is blocked 25 ms every 100 ms (where UI-thread transitions lose frames) |
 | `native-labels` `[device]` | Reference: 1,000 native MAUI labels. `add` includes native handler creation; `firstFrame` is approximated (layout + dispatcher turns) |
 
 ### Adding a scenario
@@ -109,7 +111,7 @@ The headless runner reaches the internal frame pipeline (`SkUiFrameRenderer`) by
 
 ## Render statistics API
 
-`SkUiView.GetRenderStatistics()` returns `SkUiRenderStatistics(Frames, AverageMilliseconds, MaxMilliseconds)` for a standalone surface's render thread: frames since the last `ResetRenderStatistics()`, and their cost.
+`SkUiView.GetRenderStatistics()` returns `SkUiRenderStatistics(Frames, AverageMilliseconds, MaxMilliseconds)` for a standalone surface's render thread: frames since the last `ResetRenderStatistics()`, and their cost. `UiFrames`, `UiAverageMilliseconds` and `UiMaxMilliseconds` add the UI-thread animation frames (UI-clock animations such as state-change transitions): each tick of the clock plus the recording and commit it causes.
 - A frame is counted after it was flushed and submitted or presented. Its cost therefore includes GPU command submission and first-use shader compilation.
 - The cost excludes GPU execution time and display latency.
 - Only frames with committed content count. It is public so apps can use it for diagnostics too; it returns `default` while the view has no platform surface.
@@ -142,3 +144,7 @@ The headless runner reaches the internal frame pipeline (`SkUiFrameRenderer`) by
   - **Problem:** `eglSwapBuffers` on a `TextureView` does not block on vsync, so continuous render-thread animations rendered 285–497 frames per second on the Galaxy S9 and discarded most of them.
   - **Fix:** continuous frames are now paced by a `Choreographer` on a dedicated looper thread (`SkUiVsync`). Pacing is independent of the UI thread, so animations still run while it is busy.
   - **Result:** 59.8–60 fps, at an average render cost of 1.7–3.2 ms per frame.
+
+- **State-change transitions (UI thread)** (found by `toggle-transitions`):
+  - **First run:** re-toggling every 250 ms reported about 50 frames per second even on Mac Catalyst at 0.4 ms per frame. The transitions (160–200 ms) had ended before each re-toggle, so no frames were needed in between. The scenarios now re-toggle every 120 ms.
+  - **Result:** with 96 controls always animating, the Galaxy S9 runs 58.4 UI animation frames per second at 4.7 ms each (about 0.05 ms per control); Mac Catalyst runs 59.9 at 0.6 ms. With the UI thread blocked 25% of the time, it drops to 51.5 / 49.9. Details and the design decision: [ArchitectureReview.md](ArchitectureReview.md#state-change-animations).

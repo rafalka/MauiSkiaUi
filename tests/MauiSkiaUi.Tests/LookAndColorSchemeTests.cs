@@ -59,7 +59,7 @@ public class LookAndColorSchemeTests
         {
             var look = new DefaultSkUiLook
             {
-                RadioButtonPainter = (_, _, _, _, _) => painted = true
+                RadioButtonPainter = (_, _) => painted = true
             };
             SkUiLook.Current = look;
             var radio = new SkUiRadioButton { IsChecked = true };
@@ -109,7 +109,8 @@ public class LookAndColorSchemeTests
             using var bitmap = new SKBitmap(10, 10);
             using var canvas = new SKCanvas(bitmap);
             canvas.Clear(SKColors.Transparent);
-            SkUiLook.Current.DrawSwitch(canvas, new SKRect(0, 0, 10, 10), SkUiCheckState.Checked, SKColors.Red, SKColors.White);
+            SkUiLook.Current.DrawSwitch(canvas, new SkUiSwitchPaint(new SKRect(0, 0, 10, 10), SkUiToggleVisual.Settled(SkUiCheckState.Checked),
+                SKColors.Red, SKColors.Gray, SKColors.White, IsEnabled: true));
             Assert.Contains(bitmap.Pixels, p => p.Alpha > 0);
         }
         finally
@@ -184,10 +185,10 @@ public class LookAndColorSchemeTests
     {
         public override Size DefaultSwitchSize => new(10, 10);
 
-        protected override void DrawSwitchCore(SKCanvas canvas, SKRect bounds, SkUiCheckState state, SKColor track, SKColor thumb)
+        protected override void DrawSwitchCore(SKCanvas canvas, SkUiSwitchPaint toggle)
         {
-            using var paint = new SKPaint { Color = track, IsAntialias = true };
-            canvas.DrawRect(bounds, paint);
+            using var paint = new SKPaint { Color = toggle.OnTrack, IsAntialias = true };
+            canvas.DrawRect(toggle.Bounds, paint);
         }
     }
 

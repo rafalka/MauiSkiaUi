@@ -65,6 +65,9 @@ public class SkUiCoreBorder : SkUiCoreContentView
         return this;
     }
 
+    /// <inheritdoc />
+    internal override CornerRadius PressEffectCornerRadii => _cornerRadius;
+
     /// <summary>Sets the fill color.</summary>
     public SkUiCoreBorder SetBackgroundColor(Color value)
     {

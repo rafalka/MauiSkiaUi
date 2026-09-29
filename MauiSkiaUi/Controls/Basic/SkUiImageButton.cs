@@ -64,7 +64,13 @@ public class SkUiImageButton : SkUiImage
     /// <inheritdoc />
     protected override bool CanReceiveTap => _command?.CanExecute(_commandParameter) ?? true;
     /// <inheritdoc />
-    protected override void OnPressedChanged() => InvalidatePaint();
+    protected override void OnPressedChanged()
+    {
+        (_press ??= new SkUiPressAnimator(this)).SetPressed(IsPressed, PressPosition);
+        InvalidatePaint();
+    }
+
+    private SkUiPressAnimator? _press;
 
     /// <inheritdoc />
     protected override void OnTapped(SkUiTappedEventArgs args)
@@ -74,12 +80,8 @@ public class SkUiImageButton : SkUiImage
         if (_command?.CanExecute(_commandParameter) == true) _command.Execute(_commandParameter);
     }
 
-    /// <summary>Draws pressed/disabled tint registered as <see cref="SkUiView.PaintOverlay"/>. Subclasses may call or re-register this painter.</summary>
+    /// <summary>Draws press / disabled feedback (<see cref="SkUiLook.DrawPressOverlay"/>) registered as <see cref="SkUiView.PaintOverlay"/>. Subclasses may call or re-register this painter.</summary>
     protected void PaintButtonOverlay(SKCanvas canvas) =>
-        SkUiLook.Current.DrawPressTint(
-            canvas,
-            new SKRect(0, 0, (float)Width, (float)Height),
-            (float)_cornerRadius,
-            disabled: !IsEnabled || !CanReceiveTap,
-            pressed: IsPressed);
+        SkUiLook.Current.DrawPressOverlay(canvas, new SkUiPressOverlayPaint(new SKRect(0, 0, (float)Width, (float)Height),
+            new CornerRadius(_cornerRadius), _press?.Visual ?? SkUiPressVisual.None, IsEnabled && CanReceiveTap));
 }

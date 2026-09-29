@@ -6,7 +6,7 @@ Drawn text button with intrinsic tap, command, rounded chrome, and visual states
 
 ## How it works
 
-Extends [`SkUiLabel`](SkUiLabel.md). Background uses the shared `SkUiLook.Current` rounded rect; content is clipped to the same path. `HandlesTap` is true. `Command.CanExecute` gates eligibility and Disabled visual state.
+Extends [`SkUiLabel`](SkUiLabel.md). Background (fill, border and press feedback) is drawn by `SkUiLook.Current.DrawButton` with a `SkUiButtonPaint`; content is clipped to the same rounded path. Press feedback animates with the look's [transitions](../design/ControlLook.md#state-change-transitions-fr-26): the default look dims the fill (`PressEffect = Dim`) or spreads a ripple from the press point (`Ripple`); a quick tap still shows its full press. `HandlesTap` is true. `Command.CanExecute` gates eligibility and Disabled visual state.
 
 
 ## Shared conventions

@@ -14,6 +14,7 @@ public class SkUiCoreProgressBar : SkUiCoreNode
     private Color _progressColor = SkUiColors.Accent;
     private Color _trackColor = SkUiColors.TrackOff;
     private SkUiProgressTween? _tween;
+    private SkUiTween? _fill;
     private SKPath? _clip;
     private SKSize _clipSize;
 
@@ -32,8 +33,12 @@ public class SkUiCoreProgressBar : SkUiCoreNode
     /// <summary>Sets the progress (clamped).</summary>
     public SkUiCoreProgressBar SetProgress(double value)
     {
+        var old = _progress;
         if (SetProperty(ref _progress, SkUiProgressTween.Clamp(value), nameof(Progress)))
+        {
+            SkUiProgressBarDrawing.ProgressChanged(this, ref _fill, old, _progress, _tween);
             InvalidatePaint();
+        }
         return this;
     }
 
@@ -84,7 +89,7 @@ public class SkUiCoreProgressBar : SkUiCoreNode
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>
-        SkUiProgressBarDrawing.Draw(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, (float)_progress, _isIndeterminate,
+        SkUiProgressBarDrawing.Draw(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, SkUiProgressBarDrawing.Drawn(_fill, _progress), _isIndeterminate,
             ToSkColor(_trackColor), ToSkColor(_progressColor), enabled: true);
 
     /// <inheritdoc />

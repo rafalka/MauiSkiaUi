@@ -6,7 +6,7 @@ using System.Windows.Input;
 namespace MauiSkiaUi;
 
 /// <summary>Base for Skia-drawn views, with layout that does not require a handler.</summary>
-public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
+public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost
 {
     private bool _measureDirty = true;
     private bool _arrangeDirty = true;
@@ -49,10 +49,46 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
     /// <summary>Whether an eligible captured pointer is currently pressed inside this node.</summary>
     public bool IsPressed { get; private set; }
 
+    /// <summary>Where the last press started, in this view's coordinates (ripple origin).</summary>
+    internal Point PressPosition { get; private set; }
+
+    private bool _showsPressEffect;
+    private SkUiPressAnimator? _pressEffect;
+
+    /// <summary>Bindable <see cref="ShowsPressEffect"/>.</summary>
+    public static readonly BindableProperty ShowsPressEffectProperty = BindableProperty.Create(nameof(ShowsPressEffect), typeof(bool), typeof(SkUiView), false,
+        propertyChanged: (view, _, value) => ((SkUiView)view).SetShowsPressEffect((bool)value));
+
+    /// <summary>
+    /// Draws the look's press feedback (<see cref="SkUiLook.DrawPressOverlay"/>: a dim or a ripple from the press point)
+    /// over this view and its children while it is pressed, clipped to its rounded shape (a label's or border's corner
+    /// radii). For containers that act as one button (a card, an icon with text): the view needs a tap handler
+    /// (<see cref="Tapped"/> or <see cref="TappedCommand"/>) to be pressed. Buttons draw their own feedback.
+    /// </summary>
+    public bool ShowsPressEffect { get => _showsPressEffect; set => SetValue(ShowsPressEffectProperty, value); }
+
+    /// <summary>Sets <see cref="ShowsPressEffect"/> without bindable write-back.</summary>
+    public SkUiView SetShowsPressEffect(bool value)
+    {
+        if (_showsPressEffect == value) return this;
+        _showsPressEffect = value;
+        InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Corner radii the press effect is clipped to (default square; labels and borders use their own).</summary>
+    internal virtual CornerRadius PressEffectCornerRadii => default;
+
+    SkUiAnimationClock? ISkUiTransitionHost.TransitionClock => _renderState is { HasCommitted: true } ? AnimationClock : null;
+
+    void ISkUiTransitionHost.InvalidateTransition() => InvalidatePaint();
+
     private void SetPressed(bool value)
     {
         if (IsPressed == value) return;
         IsPressed = value;
+        if (_showsPressEffect || _pressEffect is not null)
+            (_pressEffect ??= new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
         OnPropertyChanged(nameof(IsPressed));
         OnPressedChanged();
         InvalidatePaint();
@@ -457,9 +493,15 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
         OnPaintContent(canvas);
     }
 
-    bool ISkUiRenderable.HasOverlay => _paintOverlay is not null;
+    bool ISkUiRenderable.HasOverlay => _paintOverlay is not null || _showsPressEffect;
 
-    void ISkUiRenderable.RecordOverlay(SKCanvas canvas) => _paintOverlay?.Invoke(canvas);
+    void ISkUiRenderable.RecordOverlay(SKCanvas canvas)
+    {
+        _paintOverlay?.Invoke(canvas);
+        if (_showsPressEffect)
+            SkUiLook.Current.DrawPressOverlay(canvas, new SkUiPressOverlayPaint(new SKRect(0, 0, (float)Width, (float)Height),
+                PressEffectCornerRadii, _pressEffect?.Visual ?? SkUiPressVisual.None, IsEnabled));
+    }
 
     void ISkUiRenderable.GetRenderChildren(List<ISkUiRenderable> children) => AddRenderChildren(children);
 
@@ -705,7 +747,11 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement
                 TapHandler = args => { if (WantsSingleTap) OnTapped(args); },
                 WantsDoubleTap = () => _gestures?.WantsDoubleTap == true,
                 DoubleTapHandler = args => _gestures?.RaiseDoubleTapped(args),
-                PressedHandler = SetPressed
+                PressedHandler = (pressed, position) =>
+                {
+                    PressPosition = position;
+                    SetPressed(pressed);
+                }
             });
         _gestures?.Collect(recognizers);
     }

@@ -29,7 +29,7 @@ internal static class SkUiSliderMath
 
     /// <summary>Draws through the look in horizontal left-to-right coordinates (rotated / mirrored as needed).</summary>
     public static void Draw(SKCanvas canvas, float width, float height, StackOrientation orientation, bool rightToLeft,
-        float fraction, SKColor minimumTrack, SKColor maximumTrack, SKColor thumb, bool pressed, bool enabled)
+        float fraction, SKColor minimumTrack, SKColor maximumTrack, SKColor thumb, float pressed, bool enabled)
     {
         var save = canvas.Save();
         SKRect bounds;
@@ -49,6 +49,40 @@ internal static class SkUiSliderMath
         SkUiLook.Current.DrawSlider(canvas, new SkUiSliderPaint(bounds, fraction, orientation, minimumTrack, maximumTrack, thumb, pressed, enabled));
         canvas.RestoreToCount(save);
     }
+}
+
+/// <summary>
+/// Slider transitions shared by <see cref="SkUiSlider"/> and <see cref="Core.SkUiCoreSlider"/>: the thumb glides to a
+/// tapped value (<see cref="SkUiTransitionKind.SliderThumb"/>; drags and code follow at once) and the press halo fades
+/// in and out with dragging.
+/// </summary>
+internal sealed class SkUiSliderVisual(ISkUiTransitionHost host)
+{
+    private readonly SkUiTween _thumb = new(host);
+    private readonly SkUiTween _pressed = new(host);
+
+    /// <summary>The fraction to draw for the value's <paramref name="fraction"/>.</summary>
+    public float Fraction(float fraction) => _thumb.IsRunning ? _thumb.Value : fraction;
+
+    /// <summary>The press amount to draw.</summary>
+    public float Pressed => _pressed.Value;
+
+    /// <summary>The value moved from <paramref name="from"/> to <paramref name="to"/> (fractions).</summary>
+    public void Moved(float from, float to, bool animate)
+    {
+        if (!animate)
+        {
+            _thumb.Jump(to);
+            return;
+        }
+        if (!_thumb.IsRunning)
+            _thumb.Jump(from);
+        _thumb.AnimateTo(to, SkUiLook.Current.GetTransition(SkUiTransitionKind.SliderThumb));
+    }
+
+    /// <summary>A drag started or ended.</summary>
+    public void SetDragging(bool dragging) =>
+        _pressed.AnimateTo(dragging ? 1 : 0, SkUiLook.Current.GetTransition(dragging ? SkUiTransitionKind.Press : SkUiTransitionKind.Release));
 }
 
 /// <summary>

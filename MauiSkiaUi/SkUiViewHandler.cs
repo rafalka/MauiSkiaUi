@@ -134,11 +134,31 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         return mapper;
     }
 
-    /// <summary>Compositor statistics of this surface.</summary>
-    internal SkUiRenderStatistics RenderStatistics => _renderer?.Compositor.Statistics ?? default;
+    /// <summary>Compositor statistics of this surface, with its UI-thread animation frames.</summary>
+    internal SkUiRenderStatistics RenderStatistics
+    {
+        get
+        {
+            var toMs = 1000.0 / Stopwatch.Frequency;
+            return (_renderer?.Compositor.Statistics ?? default) with
+            {
+                UiFrames = _uiFrames,
+                UiAverageMilliseconds = _uiFrames == 0 ? 0 : _uiTicks * toMs / _uiFrames,
+                UiMaxMilliseconds = _uiMaxTicks * toMs
+            };
+        }
+    }
 
     /// <summary>Clears <see cref="RenderStatistics"/>.</summary>
-    internal void ResetRenderStatistics() => _renderer?.Compositor.ResetStatistics();
+    internal void ResetRenderStatistics()
+    {
+        _renderer?.Compositor.ResetStatistics();
+        _uiFrames = _uiTicks = _uiMaxTicks = 0;
+    }
+
+    private long _uiFrames;
+    private long _uiTicks;
+    private long _uiMaxTicks;
 
     /// <summary>True when compositing runs on a dedicated render thread (GPU surface on Apple / Android).</summary>
     internal bool RendersOffUiThread
@@ -607,8 +627,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         var clock = VirtualView.AnimationClock;
         if (!clock.IsRunning)
             return;
+        var started = Stopwatch.GetTimestamp();
         clock.Tick(_clockOffset + _clockTime.Elapsed);
         _renderer?.PresentFrame();
+        var ticks = Stopwatch.GetTimestamp() - started;
+        _uiFrames++;
+        _uiTicks += ticks;
+        _uiMaxTicks = Math.Max(_uiMaxTicks, ticks);
     }
 
     private void OnMauiGpuPaint(object? sender, SKPaintGLSurfaceEventArgs args)

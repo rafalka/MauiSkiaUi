@@ -30,6 +30,7 @@ The clock must integrate with root invalidation: continuous frames **only while*
 | Layout dirty on transform/paint anim | **Never** — only paint invalidate / transform dirty |
 | Layout anim | Explicit API that marks measure/arrange dirty; document cost |
 | Closest analogue | **DrawnUi** animator registry + `TickFrame` before draw; ideas from Flutter ticker / Avalonia render vs layout transforms |
+| State-change transitions (FR-26) | Look-driven: controls pass transition progress to the look's painters; UI-thread clock, re-recording only the animating control ([State-change transitions](#state-change-transitions)) |
 
 ## Recommended solution (from references + web)
 
@@ -246,9 +247,19 @@ These create a registered animator, apply via direct setters, complete when fini
 | **Theming (FR-12)** | Visual states may *start* animations; animation writes go through setters |
 | **SW roots** | No `HasRenderLoop`; use continuous invalidate or platform ticker while `ActiveAnimatorCount > 0` |
 
+## State-change transitions
+
+Switch, check box and radio transitions, button press feedback (dim or ripple), slider thumb glides and optional progress smoothing (FR-26). The look draws them and sets their timing: [ControlLook.md](ControlLook.md#state-change-transitions-fr-26).
+
+- **Engine:** internal tweens on the root's `SkUiAnimationClock`, shared by the SkUi* and Core controls (`SkUiTween`, `SkUiToggleAnimator`, `SkUiPressAnimator`, `SkUiSliderVisual`). Each frame the control re-records its own picture; ancestors are only walked.
+- **Interruptions:** a toggle sent back mid-way reverses from its current point, over the part already travelled. A third state mid-way starts from the nearer state.
+- **Quick taps:** a press released before it showed fully finishes its press, then releases.
+- **When they run:** only for controls already drawn on a surface. States set before the first frame show at once. Stopping the clock (the handler disconnects, the surface is replaced) jumps to the end state.
+- **Why the UI thread:** see [ArchitectureReview.md](ArchitectureReview.md#state-change-animations) for the measurements and the render-thread alternatives kept open.
+
 ## Reduced motion / accessibility
 
-Honor platform “reduce motion” when available (MAUI / OS setting): shorten or jump to end for non-essential motion. Document a library-level switch (e.g. `SkUiAnimation.SystemEnabled`) mirroring MAUI ticker `SystemEnabled`.
+`SkUiMotion.IsMotionReduced` follows the OS setting: iOS / Mac Catalyst Reduce Motion, Android "Remove animations" (animator duration scale 0, as MAUI's ticker checks), Windows animation effects. `SkUiMotion.ReduceMotion` overrides it (`true` / `false`; `null` follows the OS). While reduced, state-change transitions jump to the new state. Activity animations (spinners, indeterminate progress) and app animations (`AnimateAsync`, `SkUiAnimationClock` callbacks, flings) are not affected; apps can read `SkUiMotion.IsMotionReduced` for their own motion.
 
 ## Out of scope (v1)
 
@@ -290,7 +301,7 @@ Honor platform “reduce motion” when available (MAUI / OS setting): shorten o
 
 - [x] XML docs on public animation types and transform semantics (render vs layout).
 - [x] Easing reuse (`Microsoft.Maui.Easing`) or documented equivalent.
-- [ ] Reduced-motion / `SystemEnabled` behavior documented.
+- [x] Reduced-motion behavior documented (`SkUiMotion`; state-change transitions honor it).
 - [x] Cross-link FR-7 in Requirements as designed here; mark demo item when shipped.
 
 ## Tracking

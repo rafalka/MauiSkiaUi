@@ -6,7 +6,7 @@ On/off pill toggle.
 
 ## How it works
 
-Extends [`SkUiToggleControl`](SkUiToggleControl.md). Tap toggles `IsChecked`. Intrinsic measure comes from `SkUiLook.Current.DefaultSwitchSize` (default 51×31 DIPs). Track/thumb geometry is drawn via `SkUiLook.Current.DrawSwitch` (same path as `SkUiCoreSwitch`).
+Extends [`SkUiToggleControl`](SkUiToggleControl.md). Tap toggles `IsChecked`. Intrinsic measure comes from `SkUiLook.Current.DefaultSwitchSize` (default 51×31 DIPs). Track/thumb geometry is drawn via `SkUiLook.Current.DrawSwitch` (same path as `SkUiCoreSwitch`); the default look slides the thumb and blends the track color over 200 ms, and stretches the thumb while pressed ([transitions](../design/ControlLook.md#state-change-transitions-fr-26)).
 
 
 ## Shared conventions

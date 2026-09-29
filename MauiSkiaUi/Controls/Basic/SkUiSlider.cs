@@ -22,6 +22,8 @@ public class SkUiSlider : SkUiView
     private SkUiSliderGestureRecognizer? _gesture;
     private double _requestedValue;
     private bool _recoercing;
+    private SkUiSliderVisual? _visual;
+    private bool _animateThumb;
 
     /// <summary>Bindable <see cref="Minimum"/>.</summary>
     public static readonly BindableProperty MinimumProperty = BindableProperty.Create(nameof(Minimum), typeof(double), typeof(SkUiSlider), 0d,
@@ -146,8 +148,9 @@ public class SkUiSlider : SkUiView
             maximumTrack = maximumTrack.MultiplyAlpha(0.5f);
             thumb = thumb.MultiplyAlpha(0.5f);
         }
-        SkUiSliderMath.Draw(canvas, (float)Width, (float)Height, _orientation, IsRightToLeft, SkUiSliderMath.Fraction(_value, _minimum, _maximum),
-            ToSkColor(minimumTrack), ToSkColor(maximumTrack), ToSkColor(thumb), IsDragging, IsEnabled);
+        var fraction = SkUiSliderMath.Fraction(_value, _minimum, _maximum);
+        SkUiSliderMath.Draw(canvas, (float)Width, (float)Height, _orientation, IsRightToLeft, _visual?.Fraction(fraction) ?? fraction,
+            ToSkColor(minimumTrack), ToSkColor(maximumTrack), ToSkColor(thumb), _visual?.Pressed ?? 0, IsEnabled);
     }
 
     /// <inheritdoc />
@@ -159,6 +162,7 @@ public class SkUiSlider : SkUiView
             Orientation = () => _orientation,
             Began = position =>
             {
+                SliderVisual.SetDragging(true);
                 InvalidatePaint();
                 DragStarted?.Invoke(this, EventArgs.Empty);
                 _dragStartedCommand?.Execute(null);
@@ -167,11 +171,18 @@ public class SkUiSlider : SkUiView
             Moved = CommitAt,
             Ended = () =>
             {
+                SliderVisual.SetDragging(false);
                 InvalidatePaint();
                 DragCompleted?.Invoke(this, EventArgs.Empty);
                 _dragCompletedCommand?.Execute(null);
             },
-            Tapped = CommitAt
+            Tapped = position =>
+            {
+                // The thumb glides to a tapped value (the value itself changes at once).
+                _animateThumb = true;
+                try { CommitAt(position); }
+                finally { _animateThumb = false; }
+            }
         });
     }
 
@@ -184,6 +195,8 @@ public class SkUiSlider : SkUiView
     }
 
     private double Clamp(double value) => SkUiSliderMath.Clamp(value, _minimum, _maximum);
+
+    private SkUiSliderVisual SliderVisual => _visual ??= new SkUiSliderVisual(this);
 
     private double CoerceValue(double value)
     {
@@ -219,6 +232,8 @@ public class SkUiSlider : SkUiView
         if (_value == value) return;
         var old = _value;
         _value = value;
+        if (_animateThumb || _visual is not null)
+            SliderVisual.Moved(SkUiSliderMath.Fraction(old, _minimum, _maximum), SkUiSliderMath.Fraction(value, _minimum, _maximum), _animateThumb);
         InvalidatePaint();
         ValueChanged?.Invoke(this, new ValueChangedEventArgs(old, value));
     }

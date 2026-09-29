@@ -8,7 +8,7 @@ Horizontal or vertical slider for a value in a range.
 
 - **Input:** a drag along the slider moves the value once it passes the touch slop, so a drag across a horizontal slider still scrolls the page around it. A tap moves the value to the tapped position. The thumb's center follows the touch.
 - **Vertical:** `Orientation="Vertical"` puts the minimum at the bottom. Right-to-left layouts put a horizontal slider's minimum at the right.
-- **Drawing:** `SkUiLook.Current.DrawSlider` with a `SkUiSliderPaint` (fraction, colors, pressed, enabled), always in horizontal left-to-right coordinates: the control rotates the canvas for vertical sliders. Sizes come from `DefaultSliderThickness`, `DefaultSliderLength` and `SliderThumbRadius`. Same drawing as [`SkUiCoreSlider`](SkUiCore.md).
+- **Drawing:** `SkUiLook.Current.DrawSlider` with a `SkUiSliderPaint` (drawn fraction, colors, press amount, enabled). After a tap the thumb glides to the new value (`SliderThumb` transition, 150 ms by default; the value changes at once); drags and code move it at once. The press halo fades in and out with dragging ([transitions](../design/ControlLook.md#state-change-transitions-fr-26)). It is always in horizontal left-to-right coordinates: the control rotates the canvas for vertical sliders. Sizes come from `DefaultSliderThickness`, `DefaultSliderLength` and `SliderThumbRadius`. Same drawing as [`SkUiCoreSlider`](SkUiCore.md).
 
 ## Shared conventions
 

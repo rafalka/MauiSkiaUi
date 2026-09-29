@@ -23,21 +23,9 @@ public class SkUiCheckBox : SkUiToggleControl
         SkUiLook.Current.MeasureCheckBox(widthConstraint, heightConstraint);
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas)
-    {
-        var size = (float)Math.Min(Width, Height);
-        var on = CheckState != SkUiCheckState.Unchecked;
-        var fillColor = on ? _color : Colors.White;
-        var borderColor = on ? _color : SkUiColors.Muted;
-        if (!IsEnabled)
-        {
-            fillColor = fillColor.MultiplyAlpha(0.5f);
-            borderColor = borderColor.MultiplyAlpha(0.5f);
-        }
-        // RTL: the glyph sits at the start (right) edge; the glyph itself is not mirrored.
-        var rtlSave = canvas.Save();
-        if (IsRightToLeft) canvas.Translate((float)(Width) - size, 0);
-        SkUiLook.Current.DrawCheckBox(canvas, size, CheckState, ToSkColor(fillColor), ToSkColor(borderColor));
-        canvas.RestoreToCount(rtlSave);
-    }
+    protected override SkUiTransitionKind TransitionKind => SkUiTransitionKind.CheckBox;
+
+    /// <inheritdoc />
+    protected override void OnPaintContent(SKCanvas canvas) =>
+        SkUiToggleDrawing.DrawCheckBox(canvas, (float)Width, (float)Height, IsRightToLeft, ToggleVisual, _color, IsEnabled);
 }

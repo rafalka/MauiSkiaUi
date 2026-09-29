@@ -224,7 +224,7 @@ Favor shared primitives used by many Background/Content layers — the public, r
 
 - Rounded rectangle fill / stroke / clip path (`DrawRoundedBox`, `CreateRoundRectPath`) — uniform radius (Button, ImageButton tint) or per-corner `CornerRadius` (Border)
 - Switch / CheckBox / RadioButton / ActivityIndicator / Image destination — one painter each for Core + MAUI-compatible controls
-- Pressed/disabled tint overlay (`DrawPressTint`)
+- Pressed/disabled overlay (`DrawPressOverlay`; also any node with `ShowsPressEffect`)
 - Text layout for labels: one shared engine for `SkUiLabel` and `SkUiCoreLabel` (shaping, bidi, wrapping / truncation)
 
 Reuse is via **utilities or shared look implementations**, not by making every chrome piece an `ISkUiView`. Apps customize shapes by swapping or subclassing the look (not by forking each control’s `OnPaintContent`).

@@ -77,13 +77,15 @@ public class BasicControlsTests
         using var bitmap = new SKBitmap(51, 31);
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.Transparent);
-        SkUiChrome.DrawSwitch(canvas, new SKRect(0, 0, 51, 31), SkUiCheckState.Checked, SKColors.Teal, SKColors.White);
+        SkUiLook.Current.DrawSwitch(canvas, new SkUiSwitchPaint(new SKRect(0, 0, 51, 31), SkUiToggleVisual.Settled(SkUiCheckState.Checked),
+            SKColors.Teal, SKColors.Gray, SKColors.White, IsEnabled: true));
         Assert.Contains(bitmap.Pixels, pixel => pixel.Alpha > 0);
 
         using var checkBitmap = new SKBitmap(24, 24);
         using var checkCanvas = new SKCanvas(checkBitmap);
         checkCanvas.Clear(SKColors.Transparent);
-        SkUiChrome.DrawCheckBox(checkCanvas, 24, SkUiCheckState.Checked, SKColors.Teal, SKColors.Teal);
+        SkUiLook.Current.DrawCheckBox(checkCanvas, new SkUiCheckBoxPaint(24, SkUiToggleVisual.Settled(SkUiCheckState.Checked),
+            SKColors.Teal, SKColors.White, SKColors.Gray, IsEnabled: true));
         Assert.Contains(checkBitmap.Pixels, pixel => pixel.Alpha > 0);
     }
 
