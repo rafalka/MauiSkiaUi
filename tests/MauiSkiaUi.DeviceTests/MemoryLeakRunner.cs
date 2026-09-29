@@ -109,7 +109,8 @@ public static class MemoryLeakRunner
         try
         {
             var result = (await RunAsync([LeakScenarios.DeliberateLeak]))[0];
-            return result.Status == LeakStatus.Fail && result.Details?.Contains("SkUiContentView", StringComparison.Ordinal) == true
+            return result.Status == LeakStatus.Fail
+                && result.Details?.Contains($"{nameof(SkUiContentView)} '{LeakScenarios.DeliberateLeakMarker}'", StringComparison.Ordinal) == true
                 ? result with { Status = LeakStatus.Pass, Details = $"Detector caught the deliberate leak: {result.Details}" }
                 : result with { Status = LeakStatus.Fail, Details = $"Detector missed the deliberate leak ({result.Status}: {result.Details})" };
         }

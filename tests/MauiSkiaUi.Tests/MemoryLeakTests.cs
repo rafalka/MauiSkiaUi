@@ -35,7 +35,7 @@ public class MemoryLeakTests
         {
             var (tracked, _) = Run(LeakScenarios.DeliberateLeak);
             var survivors = LeakTracker.CollectNow(tracked);
-            Assert.Contains(survivors, label => label.StartsWith(nameof(SkUiContentView), StringComparison.Ordinal));
+            Assert.Contains($"{nameof(SkUiContentView)} '{LeakScenarios.DeliberateLeakMarker}'", survivors);
         }
         finally
         {

@@ -176,6 +176,26 @@ public class OverlayScrollTests
     }
 
     [Fact]
+    public void FocusDuringAnAsyncCaptureKeepsTheControlLive()
+    {
+        using var clock = new ManualGestureClock();
+        Action<SKImage?>? pending = null;
+        SkUiMauiContentView.CaptureOverride = (_, done) => { pending = done; return true; };
+        try
+        {
+            var (_, _, overlay) = Form(SkUiOverlayScrollMode.Snapshot);
+            overlay.NotifyAncestorScrollMotion(true); // capture starts, completes later (Windows)
+            ((IView)overlay.Content!).IsFocused = true;
+            pending!(SKImage.Create(new SKImageInfo(4, 4)));
+            Assert.False(overlay.IsShowingSnapshot);
+        }
+        finally
+        {
+            SkUiMauiContentView.CaptureOverride = null;
+        }
+    }
+
+    [Fact]
     public void LiveModeNeverSnapshotsAndProgrammaticJumpsDoNot()
     {
         var captures = 0;

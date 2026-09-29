@@ -30,18 +30,18 @@ Run the **NuGet publish** workflow ([nuget-publish.yml](../.github/workflows/nug
 | `prerelease` | `-PrereleaseNN` → `-Prerelease(NN+1)` | `devel`; `master` only before the first stable release |
 | `release` | Drops the suffix: `1.1.0-Prerelease03` → `1.1.0` | `master` |
 | `patch` / `minor` / `major` | Next `X.Y.Z`; on `devel`, its `-Prerelease01` | Both |
-| `none` | Publishes the current version again (e.g. after a failed publish) | Both |
+| `none` | Publishes the current, already tagged version again from its tag (e.g. after a failed publish) | Both |
 
 The workflow then:
 
-1. Computes the version with [`scripts/release_version.py`](../scripts/release_version.py). It fails if the version is already on nuget.org, or if its tag already exists.
-2. Updates `Directory.Build.props` and `CHANGELOG.md`, commits `Release <version>` to the branch, and tags it `v<version>`.
-3. Packs that commit on macOS and Windows and merges the packages. The changelog section becomes `PackageReleaseNotes`.
+1. Computes the version with [`scripts/release_version.py`](../scripts/release_version.py). It fails if the version is already on nuget.org, or if its tag already exists. If nuget.org can't be reached, it warns and continues; the push itself would still refuse a duplicate.
+2. Updates `Directory.Build.props` and `CHANGELOG.md` in the job's workspace, and packs that on macOS and Windows. The changelog section becomes `PackageReleaseNotes`.
+3. After the `nuget.org` environment gate (where reviewers approve, if required), commits `Release <version>` on top of the dispatch commit and pushes it together with the tag `v<version>` (`git push --atomic`). If the branch moved since the run started, the push is rejected and nothing is published or tagged: run it again.
 4. Pushes the package to nuget.org (Trusted Publishing), then creates the GitHub release `v<version>` with the notes and the package. Prereleases are marked as such.
 
 **Dry run:** computes the version and packs, but doesn't commit, tag, push to nuget.org or create a release. The packages are uploaded as workflow artifacts.
 
-**If a run fails after the release commit was pushed** (e.g. while packing), run it again with bump `none`: it publishes the committed version without bumping again.
+**If a run fails after the release commit was pushed** (step 4, e.g. a nuget.org outage), run it again with bump `none`: it rebuilds the tagged release commit `v<version>`, even if the branch has moved on since, and publishes it without bumping again. `none` requires that tag.
 
 Preview the next version locally:
 

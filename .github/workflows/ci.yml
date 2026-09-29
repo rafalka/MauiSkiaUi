@@ -113,14 +113,17 @@ jobs:
           workloads: maui-maccatalyst
           java-version: ""
 
-      # Building an app (unlike the library) needs the Xcode the workload targets; the image defaults to an older one.
-      - name: Select Xcode 26
+      # Building an app (unlike the library) needs an Xcode at least as new as the one the MAUI workload targets
+      # (26 for .NET 10); the image may default to an older one. Take the newest installed stable release.
+      - name: Select Xcode
+        env:
+          MIN_XCODE_MAJOR: "26"
         run: |
           set -euo pipefail
           ls -d /Applications/Xcode*.app
-          xcode="$(ls -d /Applications/Xcode_26.0*.app 2>/dev/null | sort -V | tail -1)"
-          [[ -n "$xcode" ]] || xcode="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
-          [[ -n "$xcode" ]] || { echo "No Xcode 26 on this runner image." >&2; exit 1; }
+          xcode="$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' \
+            | sed -E 's#.*/Xcode_([0-9.]+)\.app#\1 &#' | sort -V | awk -v min="$MIN_XCODE_MAJOR" '$1+0 >= min {x=$2} END {print x}')"
+          [[ -n "$xcode" ]] || { echo "No stable Xcode $MIN_XCODE_MAJOR or newer on this runner image." >&2; exit 1; }
           sudo xcode-select -s "$xcode"
           xcodebuild -version
 

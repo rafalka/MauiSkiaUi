@@ -117,7 +117,8 @@ public partial class SkUiMauiContentView : SkUiView
             _capturing = false;
             if (SkUiDiagnostics.TraceOn)
                 SkUiDiagnostics.Write($"overlay {TraceName} captured image={image is not null} movingScrollers={_movingScrollers} -> {(image is null || _movingScrollers == 0 ? "stay live" : "show snapshot")}");
-            if (image is null || _movingScrollers == 0 || _content is null || !UsesSnapshotWhileScrolling)
+            // Focus can arrive while an async capture (Windows) is in flight: a focused control stays live.
+            if (image is null || _movingScrollers == 0 || _content is null || _content.IsFocused || !UsesSnapshotWhileScrolling)
             {
                 SyncOverlayBounds();
                 return;

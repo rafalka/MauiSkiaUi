@@ -93,18 +93,39 @@ esac
 TFM="$(dotnet msbuild "$PROJECT" -getProperty:TargetFrameworks | tr ';' '\n' | grep -- "-$TARGET\$" | head -1)"
 [[ -n "$TFM" ]] || { echo "no $TARGET target framework in $PROJECT" >&2; exit 1; }
 RID=""
-if [[ "$TARGET" == ios ]]; then RID=ios-arm64; ios_is_simulator && RID=iossimulator-arm64; fi
+HOST_ARCH="$(uname -m | sed 's/x86_64/x64/')"
+if [[ "$TARGET" == ios ]]; then RID=ios-arm64; ios_is_simulator && RID="iossimulator-$HOST_ARCH"; fi
 if [[ "$AOT" == true ]]; then
     # Native AOT compiles one runtime identifier.
-    [[ "$TARGET" == maccatalyst ]] && RID="maccatalyst-$(uname -m | sed 's/x86_64/x64/')"
+    [[ "$TARGET" == maccatalyst ]] && RID="maccatalyst-$HOST_ARCH"
     [[ "$TARGET" == android ]] && RID=android-arm64
 fi
 IOS_MLAUNCH=false
 if [[ "$TARGET" == ios && "$RID" == ios-arm64 ]] && ! xcrun devicectl list devices 2>/dev/null | grep -q "$DEVICE"; then
     IOS_MLAUNCH=true # devicectl knows only iOS 17+ devices; older ones launch through mlaunch (dotnet build -t:Run)
 fi
+if [[ "$IOS_MLAUNCH" == true && ( "$AOT" == true || "$TRIM" == true ) ]]; then
+    echo "--aot / --trim are not supported for iOS devices below iOS 17 (mlaunch path); use a simulator or an iOS 17+ device" >&2
+    exit 2
+fi
 
 # ---- build ---------------------------------------------------------------------------------------------------------
+
+skiaui_warnings() { # build log → trim / AOT warnings attributed to SkiaUi (source path, assembly, package or namespace)
+    python3 - "$1" "$REPO_ROOT" <<'PY'
+import re, sys
+log, root = sys.argv[1], sys.argv[2]
+skiaui = re.compile(
+    re.escape(root + "/MauiSkiaUi/") + r"|[\\/]MauiSkiaUi[\\/][^ ]*\.cs"
+    r"|Assembly 'MauiSkiaUi'|MauiSkiaUi\.dll|SkiaUi\.Maui"
+    r"|(?<![\w.])MauiSkiaUi\.(?!DeviceTests|LeakTests)[A-Z]")  # library types, not the test app's own namespaces
+seen = set()
+for line in open(log, errors="replace"):
+    if re.search(r"warning IL\d{4}", line) and skiaui.search(line) and line not in seen:
+        seen.add(line)
+        print(line.rstrip())
+PY
+}
 
 build() {
     log "building $CONFIG $TFM${RID:+ ($RID)}"
@@ -131,7 +152,7 @@ build() {
     if [[ "$AOT" == true || "$TRIM" == true ]]; then
         # Trim / AOT warnings the app build reports for SkiaUi code: apps using SkiaUi would see the same.
         local warnings
-        warnings="$(grep -E "warning IL[0-9]{4}" "$OUT/build.log" | grep -E "$REPO_ROOT/MauiSkiaUi/|Assembly 'MauiSkiaUi'" | sort -u || true)"
+        warnings="$(skiaui_warnings "$OUT/build.log")"
         if [[ -n "$warnings" ]]; then
             echo "$warnings" >&2
             echo "trim / AOT warnings from SkiaUi ($OUT/build.log)" >&2
@@ -177,7 +198,7 @@ run_android() {
 
 run_ios() {
     if ios_is_simulator; then
-        xcrun simctl install "$DEVICE" "$(output "iossimulator-arm64/*.app")"
+        xcrun simctl install "$DEVICE" "$(output "$RID/*.app")"
         timeout "$TIMEOUT" xcrun simctl launch --console --terminate-running-process "$DEVICE" "$APP_ID" "${app_args[@]}" 2>&1 | filter >"$LOG" || true
     elif [[ "$IOS_MLAUNCH" == true ]]; then
         local mlaunch_args="" stdout="$OUT/ios.stdout"
@@ -194,7 +215,7 @@ run_ios() {
 
 run_maccatalyst() {
     local binary
-    binary="$(output "maccatalyst-$(uname -m | sed 's/x86_64/x64/')/*.app/Contents/MacOS/MauiSkiaUi.DeviceTests")"
+    binary="$(output "maccatalyst-$HOST_ARCH/*.app/Contents/MacOS/MauiSkiaUi.DeviceTests")"
     timeout "$TIMEOUT" "$binary" "${app_args[@]}" 2>&1 | filter >"$LOG" || true
 }
 

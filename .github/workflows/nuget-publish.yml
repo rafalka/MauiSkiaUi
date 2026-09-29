@@ -5,9 +5,9 @@ name: NuGet publish
 #   https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
 # Uses GitHub Environment "nuget.org" (match this name in the nuget.org trusted policy).
 #
-# Versioning (docs/Releasing.md): run from master or devel and pick a bump. The workflow computes the version,
-# renames CHANGELOG.md's "## Unreleased" section to it, commits "Release <version>" with tag v<version>, then packs
-# that commit, pushes the package and creates a GitHub release.
+# Versioning (docs/Releasing.md): run from master or devel and pick a bump. The workflow computes the version and
+# renames CHANGELOG.md's "## Unreleased" section to it, packs the result, then (after the nuget.org environment
+# gate) commits "Release <version>" with tag v<version> atomically, pushes the package and creates a GitHub release.
 
 on:
   workflow_dispatch:
@@ -36,10 +36,10 @@ jobs:
     name: Prepare version
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
     outputs:
       version: ${{ steps.ver.outputs.version }}
-      ref: ${{ steps.commit.outputs.ref }}
+      ref: ${{ steps.ref.outputs.ref }}
       push: ${{ steps.ver.outputs.push }}
     steps:
       - name: Checkout
@@ -59,18 +59,37 @@ jobs:
           VERSION="$(python3 scripts/release_version.py next --bump "$BUMP" --branch "$BRANCH")"
           PUSH=true
           [[ "$DRY_RUN" == true ]] && PUSH=false
-          # A version is published once: nuget.org rejects re-pushes, and a silent skip would hide the mistake.
-          if curl -fsS "https://api.nuget.org/v3-flatcontainer/skiaui.maui/index.json" \
-              | python3 -c "import json,sys; sys.exit(0 if sys.argv[1].lower() in json.load(sys.stdin)['versions'] else 1)" "$VERSION"; then
-            if [[ "$PUSH" == true ]]; then echo "$VERSION is already on nuget.org." >&2; exit 1; fi
-            echo "::warning::$VERSION is already on nuget.org (dry run continues)"
+          # A version is published once (nuget.org rejects re-pushes). Only a listing that names the version counts;
+          # if nuget.org cannot be asked, warn and let the push itself refuse a duplicate.
+          code="$(curl -sS -o nuget-index.json -w '%{http_code}' "https://api.nuget.org/v3-flatcontainer/skiaui.maui/index.json" || echo 000)"
+          if [[ "$code" == 200 ]]; then
+            if python3 -c "import json,sys; sys.exit(0 if sys.argv[1].lower() in json.load(open('nuget-index.json')).get('versions', []) else 1)" "$VERSION"; then
+              if [[ "$PUSH" == true ]]; then echo "$VERSION is already on nuget.org." >&2; exit 1; fi
+              echo "::warning::$VERSION is already on nuget.org (dry run continues)"
+            fi
+          elif [[ "$code" != 404 ]]; then
+            echo "::warning::Could not check nuget.org for $VERSION (HTTP $code)"
           fi
-          if [[ "$BUMP" != none ]] && git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+          tag_exists=false
+          git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null && tag_exists=true
+          if [[ "$BUMP" == none && "$tag_exists" != true ]]; then
+            echo "bump=none republishes a released version, but tag v$VERSION does not exist." >&2; exit 1
+          fi
+          if [[ "$BUMP" != none && "$tag_exists" == true ]]; then
             echo "Tag v$VERSION already exists." >&2; exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "push=$PUSH" >> "$GITHUB_OUTPUT"
           echo "Releasing $VERSION from $BRANCH (bump=$BUMP, push=$PUSH)"
+
+      - name: Check out the release tag (bump=none)
+        if: inputs.bump == 'none'
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          # Republish exactly what was released, even if the branch moved on since.
+          git fetch --depth=1 origin "refs/tags/v$VERSION:refs/tags/v$VERSION"
+          git checkout --detach "v$VERSION"
 
       - name: Apply version (Directory.Build.props, CHANGELOG.md)
         if: inputs.bump != 'none'
@@ -78,26 +97,11 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: python3 scripts/release_version.py apply --version "$VERSION"
 
-      - name: Commit and tag
-        id: commit
-        env:
-          VERSION: ${{ steps.ver.outputs.version }}
-          BRANCH: ${{ github.ref_name }}
-          PUSH: ${{ steps.ver.outputs.push }}
-          BUMP: ${{ inputs.bump }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "$PUSH" == true && "$BUMP" != none ]]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -am "Release $VERSION"
-            git tag -a "v$VERSION" -m "SkiaUi.Maui $VERSION"
-            git push origin "HEAD:refs/heads/$BRANCH" "v$VERSION"
-          fi
-          # Pack jobs build this commit. In a dry run (or bump=none) it is the checked-out one; the dry run's
-          # applied files travel as an artifact instead.
-          echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Build commit
+        id: ref
+        # The dispatch commit plus the release files below (bump=none: the release tag's commit). Nothing is
+        # committed or pushed here: the publish job does that after the nuget.org environment gate.
+        run: echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Upload release files
         uses: actions/upload-artifact@v6
@@ -305,6 +309,23 @@ jobs:
           path: |
             artifacts/nuget/*.nupkg
             artifacts/nuget/*.snupkg
+
+      # After the environment gate, before anything is published: the release commit (the dispatch commit plus the
+      # files the packages were built with) and its tag, pushed atomically. If the branch moved since the dispatch
+      # the push is rejected, and nothing is published or tagged.
+      - name: Commit and tag the release
+        if: needs.prepare.outputs.push == 'true' && inputs.bump != 'none'
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          BRANCH: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release $VERSION"
+          git tag -a "v$VERSION" -m "SkiaUi.Maui $VERSION"
+          git push --atomic origin "HEAD:refs/heads/$BRANCH" "refs/tags/v$VERSION"
 
       - name: NuGet login (OIDC → temporary API key)
         if: needs.prepare.outputs.push == 'true'

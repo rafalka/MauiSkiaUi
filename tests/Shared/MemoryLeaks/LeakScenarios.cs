@@ -47,6 +47,9 @@ public static class LeakScenarios
         All.FirstOrDefault(scenario => scenario.Name == name)
         ?? (name == DeliberateLeak.Name ? DeliberateLeak : throw new ArgumentException($"Unknown leak scenario '{name}'.", nameof(name)));
 
+    /// <summary>Automation id of the root <see cref="DeliberateLeak"/> retains: survivor reports name it.</summary>
+    public const string DeliberateLeakMarker = "DeliberateLeakRoot";
+
     /// <summary>Clears what <see cref="DeliberateLeak"/> retained.</summary>
     public static void ReleaseDeliberateLeak() => DeliberateLeakRun.Retained.Clear();
 
@@ -135,6 +138,7 @@ public static class LeakScenarios
     {
         private const string Long = "The quick brown fox jumps over the lazy dog while the drawn label wraps its text across several lines.";
         private readonly List<SkUiLabel> _labels = [];
+        private readonly HashSet<double> _widths = [];
         private SkUiContentView? _root;
 
         public override View Build(LeakScenarioContext context)
@@ -170,7 +174,17 @@ public static class LeakScenarios
             {
                 _root!.WidthRequest = width;
                 await context.SettleAsync();
+                _widths.Add(Math.Round(_labels[0].Width));
             }
+        }
+
+        public override string? CheckInteraction()
+        {
+            if (_labels.Any(label => label.Text != Long))
+                return "Not every label shows the last text.";
+            if (_labels.Any(label => label.Width <= 0 || label.Height <= 0))
+                return "A label was not laid out.";
+            return _widths.Count >= 3 ? null : $"The labels were laid out at {_widths.Count} widths, expected at least 3.";
         }
     }
 
@@ -214,7 +228,18 @@ public static class LeakScenarios
                 foreach (var image in _images)
                     await context.WaitForAsync(image.LoadingTask);
             }
-            await context.WaitForAsync(_images[0].ReloadAsync());
+            _reload = _images[0].ReloadAsync();
+            await context.WaitForAsync(_reload);
+        }
+
+        private Task? _reload;
+
+        public override string? CheckInteraction()
+        {
+            if (_reload is not { IsCompletedSuccessfully: true })
+                return "The reload did not complete.";
+            var failed = _images.Where(image => !image.LoadingTask.IsCompletedSuccessfully || image.LoadError is not null || image.IsLoading).ToList();
+            return failed.Count == 0 ? null : $"{failed.Count} image(s) did not load: {failed[0].LoadError?.Message ?? "still loading"}.";
         }
     }
 
@@ -296,6 +321,17 @@ public static class LeakScenarios
             context.TrackDetached(oldContent);
             _stack!.Padding = new Thickness(20);
             await context.SettleAsync();
+        }
+
+        public override string? CheckInteraction()
+        {
+            if (_stack!.Children.Count != 4)
+                return $"The stack has {_stack.Children.Count} children after adding and removing, expected 4.";
+            if (_grid!.Children.Count != 11 || _grid.ColumnDefinitions.Count != 3 || _grid.ColumnDefinitions[2].Width != GridLength.Auto)
+                return "The grid changes were not applied.";
+            if (_border!.Content is not SkUiLabel { Text: "Replaced content" })
+                return "The border content was not replaced.";
+            return _stack.Width > 0 && _stack.Height > 0 && _row!.Children[^1] is SkUiBox { Width: > 0 } ? null : "The layouts were not laid out.";
         }
     }
 
@@ -425,7 +461,7 @@ public static class LeakScenarios
 
         public override async Task InteractAsync(LeakScenarioContext context)
         {
-            _ = _boxes[0].AnimateAsync(SkUiAnimatableProperty.Opacity, 1, 400); // fade-in from 0
+            _fadeIn = _boxes[0].AnimateAsync(SkUiAnimatableProperty.Opacity, 1, 400); // fade-in from 0
             _ = _boxes[1].AnimateAsync(SkUiAnimatableProperty.TranslationX, 120, 5000);
             _ = _boxes[2].AnimateAsync(SkUiAnimatableProperty.Rotation, 360, 5000);
             _ = _boxes[3].AnimateAsync(SkUiAnimatableProperty.Scale, 1.5, 5000);
@@ -442,8 +478,15 @@ public static class LeakScenarios
             _boxes.RemoveAt(2);
             _stack.Children.Remove(rotating);
             context.TrackDetached(rotating);
-            await context.WaitAsync(200);
+            await context.WaitForAsync(_fadeIn);
         }
+
+        private Task<bool>? _fadeIn;
+
+        public override string? CheckInteraction() =>
+            _fadeIn is { IsCompletedSuccessfully: true, Result: true } && _boxes[0].Opacity > 0.99
+                ? null
+                : $"The fade-in did not run to completion (opacity {_boxes[0].Opacity:F2}).";
     }
 
     private sealed class SurfaceReplacedRun : LeakScenarioRun
@@ -733,6 +776,7 @@ public static class LeakScenarios
         public override View Build(LeakScenarioContext context)
         {
             var root = Root(Text("This surface is retained on purpose"));
+            root.AutomationId = DeliberateLeakMarker;
             Retained.Add(root);
             return root;
         }
