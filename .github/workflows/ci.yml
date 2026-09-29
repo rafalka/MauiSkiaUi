@@ -113,6 +113,17 @@ jobs:
           workloads: maui-maccatalyst
           java-version: ""
 
+      # Building an app (unlike the library) needs the Xcode the workload targets; the image defaults to an older one.
+      - name: Select Xcode 26
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode*.app
+          xcode="$(ls -d /Applications/Xcode_26.0*.app 2>/dev/null | sort -V | tail -1)"
+          [[ -n "$xcode" ]] || xcode="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
+          [[ -n "$xcode" ]] || { echo "No Xcode 26 on this runner image." >&2; exit 1; }
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+
       # Native AOT (full trimming): also fails on trim / AOT warnings from SkiaUi and checks that drawing works.
       - name: Run memory leak tests (real handlers and platform views)
         run: scripts/device_tests.sh -t maccatalyst --aot -o artifacts/device-tests/ci

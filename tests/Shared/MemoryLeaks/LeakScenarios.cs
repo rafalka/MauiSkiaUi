@@ -573,8 +573,9 @@ public static class LeakScenarios
             _table.SetCellBackground(1, 1, LeakColors.Surface, 2, 2);
             stack.Add(_table);
             _rows = new SkUiCoreVerticalStackLayout().SetSpacing(2);
+            // Fixed row heights: text measures empty on hosts without fonts (Linux CI), which would leave nothing to scroll.
             for (var index = 0; index < 30; index++)
-                _rows.Add(new SkUiCoreLabel().SetText($"Core row {index}").SetFontSize(13));
+                _rows.Add(new SkUiCoreLabel().SetText($"Core row {index}").SetFontSize(13).SetHeight(24));
             _scroll = new SkUiCoreScrollView();
             _scroll.SetContent(_rows);
             _scroll.SetHeight(200);
@@ -676,8 +677,13 @@ public static class LeakScenarios
         public override View Build(LeakScenarioContext context)
         {
             var rows = new SkUiVerticalStackLayout { Spacing = 4, Padding = new Thickness(6) };
+            // Fixed row heights: text measures empty on hosts without fonts (Linux CI), which would leave nothing to scroll.
             for (var index = 0; index < 20; index++)
-                rows.Children.Add(Text($"List row {index}", 13));
+            {
+                var row = Text($"List row {index}", 13);
+                row.HeightRequest = 28;
+                rows.Children.Add(row);
+            }
             _list = new SkUiScrollView { Content = rows };
             var cards = new SkUiHorizontalStackLayout { Spacing = 8, Padding = new Thickness(8) };
             for (var index = 0; index < 30; index++)
@@ -685,7 +691,7 @@ public static class LeakScenarios
             _carousel = new SkUiScrollView { Orientation = ScrollOrientation.Horizontal, Content = cards };
             var coreRows = new SkUiCoreVerticalStackLayout().SetSpacing(4).SetPadding(new Thickness(8));
             for (var index = 0; index < 12; index++)
-                coreRows.Add(new SkUiCoreLabel().SetText($"Core row {index}"));
+                coreRows.Add(new SkUiCoreLabel().SetText($"Core row {index}").SetHeight(28));
             _core = new SkUiCoreScrollView();
             _core.SetContent(coreRows);
             var stack = new VerticalStackLayout { Spacing = 12, Padding = new Thickness(12) };

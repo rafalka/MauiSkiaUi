@@ -76,11 +76,20 @@ public static class LeakTracker
         return Survivors(tracked);
     }
 
-    /// <summary>Synchronous variant for headless tests (no native peers): a few full collections.</summary>
-    public static IReadOnlyList<string> CollectNow(IReadOnlyCollection<TrackedObject> tracked, int attempts = 3)
+    /// <summary>
+    /// Synchronous variant for headless tests: full collections for up to <paramref name="timeoutMilliseconds"/> of
+    /// real time. Background work (an image decode on the thread pool, a finalizer) can hold an object briefly on a
+    /// slow machine; a leak keeps it for good.
+    /// </summary>
+    public static IReadOnlyList<string> CollectNow(IReadOnlyCollection<TrackedObject> tracked, int timeoutMilliseconds = 2000)
     {
-        for (var attempt = 0; attempt < attempts && tracked.Any(entry => entry.Reference.IsAlive); attempt++)
+        var deadline = Environment.TickCount64 + timeoutMilliseconds;
+        FullCollect();
+        while (tracked.Any(entry => entry.Reference.IsAlive) && Environment.TickCount64 < deadline)
+        {
+            Thread.Sleep(20);
             FullCollect();
+        }
         return Survivors(tracked);
     }
 
