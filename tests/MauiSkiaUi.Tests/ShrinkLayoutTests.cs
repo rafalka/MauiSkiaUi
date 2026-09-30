@@ -294,6 +294,17 @@ public class ShrinkLayoutTests
     }
 
     [Fact]
+    public void ShrinkLayoutsClipTheirChildrenOnBothLayers()
+    {
+        // Children stuck at their minimum size can still overflow; unlike other layouts, shrink layouts clip.
+        Assert.True(new SkUiHorizontalShrinkLayout().ClipToBounds);
+        Assert.True(new SkUiVerticalShrinkLayout().ClipToBounds);
+        Assert.False(new SkUiHorizontalStackLayout().ClipToBounds);
+        Assert.True(new SkUiCoreHorizontalShrinkLayout().ClipToBounds);
+        Assert.True(new SkUiCoreVerticalShrinkLayout().ClipToBounds);
+    }
+
+    [Fact]
     public void ShrinkFactorParsesFormatsAndValidates()
     {
         Assert.Equal(SkUiShrinkFactor.Auto, SkUiShrinkFactor.Parse(" auto "));

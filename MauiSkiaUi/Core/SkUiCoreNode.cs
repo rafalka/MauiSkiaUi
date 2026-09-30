@@ -949,10 +949,18 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     public event PropertyChangedEventHandler? PropertyChanged;
 
     // Attached values: a small array created on the first SetValue (most nodes have none, laid-out children one to
-    // four). Each value sits in its own typed box, reused by later writes, so only the first write allocates and
-    // reads never do; a linear scan beats a dictionary at these sizes.
-    private (object Property, object Box)[]? _attached;
+    // four). Each value sits in its own typed box, kept (and reused) even when the value returns to its default, so
+    // only the first write of a property allocates and reads never do; a linear scan beats a dictionary at these sizes.
+    private AttachedEntry[]? _attached;
     private int _attachedCount;
+
+    private struct AttachedEntry
+    {
+        public object Property;
+        public object Box;
+        /// <summary>Whether the value differs from the default (<see cref="IsSet{T}"/>).</summary>
+        public bool IsSet;
+    }
 
     /// <summary>Gets an attached value (<see cref="SkUiCoreAttachedProperty{T}.DefaultValue"/> when never set).</summary>
     public T GetValue<T>(SkUiCoreAttachedProperty<T> property)
@@ -964,27 +972,30 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
 
     /// <summary>
     /// Sets an attached value, raises <see cref="PropertyChanged"/> with the property's name when it changes and, for
-    /// layout properties, re-measures the parent.
+    /// layout properties, re-measures the parent. Writing the default value is the same as <see cref="ClearValue{T}"/>.
     /// </summary>
     public SkUiCoreNode SetValue<T>(SkUiCoreAttachedProperty<T> property, T value)
     {
         ArgumentNullException.ThrowIfNull(property);
         property.Validate(value);
+        var isDefault = EqualityComparer<T>.Default.Equals(property.DefaultValue, value);
         var index = IndexOfAttached(property);
         if (index >= 0)
         {
-            var box = (StrongBox<T>)_attached![index].Box;
+            ref var entry = ref _attached![index];
+            var box = (StrongBox<T>)entry.Box;
             if (EqualityComparer<T>.Default.Equals(box.Value, value))
                 return this;
             box.Value = value;
+            entry.IsSet = !isDefault;
         }
         else
         {
-            if (EqualityComparer<T>.Default.Equals(property.DefaultValue, value))
+            if (isDefault)
                 return this;
             if (_attached is null || _attachedCount == _attached.Length)
                 Array.Resize(ref _attached, _attachedCount == 0 ? 2 : _attachedCount * 2);
-            _attached[_attachedCount++] = (property, new StrongBox<T>(value));
+            _attached[_attachedCount++] = new AttachedEntry { Property = property, Box = new StrongBox<T>(value), IsSet = true };
         }
         OnAttachedValueChanged(property);
         return this;
@@ -994,22 +1005,18 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     public SkUiCoreNode ClearValue<T>(SkUiCoreAttachedProperty<T> property)
     {
         ArgumentNullException.ThrowIfNull(property);
-        var index = IndexOfAttached(property);
-        if (index < 0)
-            return this;
-        var changed = !EqualityComparer<T>.Default.Equals(((StrongBox<T>)_attached![index].Box).Value, property.DefaultValue);
-        _attached[index] = _attached[--_attachedCount];
-        _attached[_attachedCount] = default;
-        if (changed)
-            OnAttachedValueChanged(property);
-        return this;
+        return SetValue(property, property.DefaultValue);
     }
 
-    /// <summary>Whether an attached value has been set (and not cleared) on this node.</summary>
+    /// <summary>
+    /// Whether the node holds a value other than the default. Writing the default (or <see cref="ClearValue{T}"/>)
+    /// resets it; unlike MAUI, where writing the default still counts as set.
+    /// </summary>
     public bool IsSet<T>(SkUiCoreAttachedProperty<T> property)
     {
         ArgumentNullException.ThrowIfNull(property);
-        return IndexOfAttached(property) >= 0;
+        var index = IndexOfAttached(property);
+        return index >= 0 && _attached![index].IsSet;
     }
 
     private int IndexOfAttached(object property)

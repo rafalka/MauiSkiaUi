@@ -13,7 +13,7 @@ One engine serves both layers (`SkUiWrapEngine`), after the wrap layout in [hart
 - `Spacing` separates items in a row; `RowSpacing` separates rows. A row is as tall as its tallest child.
 - Each child gets a slot as wide as its desired width and as tall as its row, and aligns inside it: `VerticalOptions` (SkUi*) / `VerticalAlignment` (Core). The default `Fill` makes a row's children equally tall, as a stack's cross axis does.
 - Collapsed / hidden children take no space. RTL mirrors the rows like every drawn layout.
-- Arrange reuses the measured sizes; the Core layout allocates nothing per pass.
+- Arrange reuses the measured sizes when it gets the width they were measured for. Arranged at another width (measured wide, then given a narrower slot), the children are measured again against the real width first, so wrapping labels get the right rows and row heights. The Core layout allocates nothing per pass.
 
 ## Shared conventions
 

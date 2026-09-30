@@ -41,7 +41,9 @@ internal readonly struct SkUiFlexBasis
     {
         if (basis == FlexBasis.Auto)
             return Auto;
-        // A relative basis is at most 1 (MAUI's constructor enforces it), so only then can it be relative.
+        // Intentional probe of MAUI's internal IsRelative: public equality distinguishes relative from absolute for the
+        // same length, and a relative basis is at most 1 (MAUI's constructor enforces it, so larger lengths are
+        // absolute). FlexLayoutTests.RelativeAndAbsoluteBasisOfTheSameLengthDiffer locks this in.
         return basis.Length <= 1 && basis == new FlexBasis(basis.Length, isRelative: true)
             ? new SkUiFlexBasis(basis.Length, isRelative: true)
             : new SkUiFlexBasis(basis.Length);

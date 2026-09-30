@@ -9,6 +9,7 @@ public class SkUiWrapLayout : SkUiLayout
 {
     private double _spacing;
     private double _rowSpacing;
+    private SkUiWrapState _state;
 
     /// <summary>Bindable gap between items in a row, in DIPs.</summary>
     public static readonly BindableProperty SpacingProperty = BindableProperty.Create(nameof(Spacing), typeof(double), typeof(SkUiWrapLayout), 0d,
@@ -31,13 +32,13 @@ public class SkUiWrapLayout : SkUiLayout
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         var children = new SkUiViewChildren(Children);
-        return SkUiWrapEngine.Measure(ref children, widthConstraint, Padding, _spacing, _rowSpacing);
+        return SkUiWrapEngine.Measure(ref children, ref _state, widthConstraint, Padding, _spacing, _rowSpacing);
     }
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
         var children = new SkUiViewChildren(Children);
-        SkUiWrapEngine.Arrange(ref children, size, Padding, _spacing, _rowSpacing);
+        SkUiWrapEngine.Arrange(ref children, ref _state, size, Padding, _spacing, _rowSpacing);
     }
 }

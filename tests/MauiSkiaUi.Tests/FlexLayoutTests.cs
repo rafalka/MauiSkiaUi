@@ -183,6 +183,21 @@ public class FlexLayoutTests
     }
 
     [Fact]
+    public void RelativeAndAbsoluteBasisOfTheSameLengthDiffer()
+    {
+        var flex = new SkUiFlexLayout { AlignItems = FlexAlignItems.Start };
+        var relative = new FixedSkView(new Size(0, 10));
+        var absolute = new FixedSkView(new Size(0, 10));
+        SkUiFlexLayout.SetBasis(relative, new FlexBasis(0.5f, isRelative: true));
+        SkUiFlexLayout.SetBasis(absolute, new FlexBasis(0.5f));
+        flex.Children.Add(relative);
+        flex.Children.Add(absolute);
+        SkUiTestHelpers.Arrange(flex, 200, 20);
+        Assert.Equal(100, flex.GetFlexFrame(relative).Width, 3); // 50% of 200
+        Assert.Equal(0.5, flex.GetFlexFrame(absolute).Width, 3); // 0.5 DIP
+    }
+
+    [Fact]
     public void ChildrenChangesRebuildTheItemTree()
     {
         var flex = new SkUiFlexLayout { AlignItems = FlexAlignItems.Start };

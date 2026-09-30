@@ -105,6 +105,42 @@ public class WrapLayoutTests
     }
 
     [Fact]
+    public void ArrangedNarrowerThanMeasuredMeasuresTheChildrenAgain()
+    {
+        // Measured wide (one row, single-line labels), then arranged into a narrower slot: the labels must wrap
+        // against the real width and the rows must follow.
+        var wrap = new SkUiWrapLayout { RowSpacing = 4 };
+        var first = new WrappingSkView(150, 10);
+        var second = new WrappingSkView(150, 10);
+        wrap.Children.Add(first);
+        wrap.Children.Add(second);
+        ((IView)wrap).Measure(400, 200);
+        ((IView)wrap).Arrange(new Rect(0, 0, 100, 200));
+        Assert.Equal(new Rect(0, 0, 100, 20), first.Frame);
+        Assert.Equal(new Rect(0, 24, 100, 20), second.Frame);
+
+        var core = new SkUiCoreWrapLayout().SetRowSpacing(4);
+        var coreFirst = new WrappingCoreNode(150, 10);
+        var coreSecond = new WrappingCoreNode(150, 10);
+        core.Add(coreFirst).Add(coreSecond);
+        core.Measure(400, 200);
+        core.Arrange(new Rect(0, 0, 100, 200));
+        Assert.Equal(first.Frame, coreFirst.Frame);
+        Assert.Equal(second.Frame, coreSecond.Frame);
+
+        // Measured unconstrained, arranged wide enough for every child: nothing to re-measure, same rows.
+        var loose = new SkUiWrapLayout();
+        var a = new WrappingSkView(60, 10);
+        var b = new WrappingSkView(60, 10);
+        loose.Children.Add(a);
+        loose.Children.Add(b);
+        ((IView)loose).Measure(double.PositiveInfinity, 200);
+        ((IView)loose).Arrange(new Rect(0, 0, 100, 200));
+        Assert.Equal(new Rect(0, 0, 60, 10), a.Frame);
+        Assert.Equal(new Rect(0, 10, 60, 10), b.Frame);
+    }
+
+    [Fact]
     public void CoreHiddenChildrenTakeNoSpace()
     {
         var core = CoreWrap(out var children);

@@ -34,6 +34,13 @@ public class CoreAttachedPropertyTests
         Assert.False(node.IsSet(Weight));
         Assert.Equal("x", node.GetValue(Note));
 
+        // Writing the default is the same as clearing (MAUI would still report it as set).
+        node.SetValue(Weight, 4);
+        Assert.True(node.IsSet(Weight));
+        node.SetValue(Weight, 1);
+        Assert.False(node.IsSet(Weight));
+        Assert.Equal(1, node.GetValue(Weight));
+
         Assert.Throws<ArgumentOutOfRangeException>(() => node.SetValue(Weight, 0));
         Assert.Throws<ArgumentException>(() => new SkUiCoreAttachedProperty<int>("Bad", typeof(CoreAttachedPropertyTests), 0, validate: value => value > 0));
         Assert.Equal("CoreAttachedPropertyTests.Weight", Weight.ToString());

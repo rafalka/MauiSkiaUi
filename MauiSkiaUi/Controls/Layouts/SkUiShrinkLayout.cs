@@ -28,7 +28,12 @@ public abstract class SkUiShrinkLayout : SkUiLayout
     /// <summary>Sets a child's shrink factor.</summary>
     public static void SetShrink(BindableObject view, SkUiShrinkFactor value) => view.SetValue(ShrinkProperty, value);
 
-    private protected SkUiShrinkLayout(bool vertical) => _vertical = vertical;
+    private protected SkUiShrinkLayout(bool vertical)
+    {
+        _vertical = vertical;
+        // Unlike other layouts, clip: children stuck at their minimum size can still overflow (as the Core layout).
+        ClipToBounds = true;
+    }
 
     /// <summary>Gap between children in DIPs.</summary>
     public double Spacing { get => _spacing; set => SetValue(SpacingProperty, value); }

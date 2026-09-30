@@ -10,6 +10,7 @@ public class SkUiCoreWrapLayout : SkUiCorePanel
 {
     private double _spacing;
     private double _rowSpacing;
+    private SkUiWrapState _state;
 
     /// <summary>Gap between items in a row, in DIPs.</summary>
     public double Spacing
@@ -61,13 +62,13 @@ public class SkUiCoreWrapLayout : SkUiCorePanel
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         var children = new SkUiCoreNodeChildren(Children);
-        return SkUiWrapEngine.Measure(ref children, widthConstraint, Padding, _spacing, _rowSpacing);
+        return SkUiWrapEngine.Measure(ref children, ref _state, widthConstraint, Padding, _spacing, _rowSpacing);
     }
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
         var children = new SkUiCoreNodeChildren(Children);
-        SkUiWrapEngine.Arrange(ref children, size, Padding, _spacing, _rowSpacing);
+        SkUiWrapEngine.Arrange(ref children, ref _state, size, Padding, _spacing, _rowSpacing);
     }
 }

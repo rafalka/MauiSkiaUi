@@ -8,8 +8,9 @@ namespace MauiSkiaUi;
 /// main-axis space when the children do not fit:
 /// <list type="bullet">
 /// <item><see cref="None"/> (the default): never shrinks.</item>
-/// <item><see cref="Auto"/>: shrinks only when its natural size is above the average of the visible children; its
-/// share of the overflow is proportional to its natural size.</item>
+/// <item><see cref="Auto"/>: shrinks only when its natural size is larger than the equal share of the available main
+/// axis (the space left after spacing, divided by the number of visible children); its share of the overflow is
+/// proportional to its natural size.</item>
 /// <item>A positive factor: always shrinks; its share of the overflow is proportional to factor × natural size
 /// (as CSS <c>flex-shrink</c>), so 2 gives up twice as much relative to its size as 1.</item>
 /// </list>
@@ -40,7 +41,10 @@ public readonly struct SkUiShrinkFactor : IEquatable<SkUiShrinkFactor>
     /// <summary>Never shrinks (factor 0), the default.</summary>
     public static SkUiShrinkFactor None => default;
 
-    /// <summary>Shrinks only when larger than the average child, in proportion to its natural size.</summary>
+    /// <summary>
+    /// Shrinks only when its natural size is larger than the equal share of the available main axis (space after
+    /// spacing ÷ visible children), in proportion to its natural size.
+    /// </summary>
     public static SkUiShrinkFactor Auto { get; } = new(1, isAuto: true);
 
     /// <summary>Whether this is <see cref="Auto"/>.</summary>
