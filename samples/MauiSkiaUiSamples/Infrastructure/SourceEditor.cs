@@ -59,7 +59,12 @@ public static class SourceEditor
             if (Metadata("SampleBuildDevEnv") is { } devEnvDir)
                 using (Process.Start(Path.Combine(devEnvDir, "devenv.exe"), ["/edit", path])) { }
             else if (Metadata("SampleBuildVsCode") is not null)
-                await Launcher.OpenAsync(new Uri("vscode://file/" + path.Replace('\\', '/')));
+            {
+                // Started from VS Code's debugger, this process inherits the extension host's ELECTRON_RUN_AS_NODE=1,
+                // and so would the Code.exe the shell starts for the URL: it would run as plain Node.js and exit.
+                Environment.SetEnvironmentVariable("ELECTRON_RUN_AS_NODE", null);
+                using (Process.Start(new ProcessStartInfo("vscode://file/" + path.Replace('\\', '/')) { UseShellExecute = true })) { }
+            }
             else
                 using (Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })) { }
 #endif
