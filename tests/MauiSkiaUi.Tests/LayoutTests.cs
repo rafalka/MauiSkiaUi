@@ -155,6 +155,10 @@ public class LayoutTests
     [InlineData(typeof(SkUiVerticalStackLayout))]
     [InlineData(typeof(SkUiHorizontalStackLayout))]
     [InlineData(typeof(SkUiAbsoluteLayout))]
+    [InlineData(typeof(SkUiFlexLayout))]
+    [InlineData(typeof(SkUiWrapLayout))]
+    [InlineData(typeof(SkUiHorizontalShrinkLayout))]
+    [InlineData(typeof(SkUiVerticalShrinkLayout))]
     [InlineData(typeof(SkUiLabel))]
     public void BackgroundColorPaintsWhenDefaultBackgroundBrushIsEmpty(Type type)
     {

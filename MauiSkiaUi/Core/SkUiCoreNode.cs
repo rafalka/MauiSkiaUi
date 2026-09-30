@@ -948,6 +948,85 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    // Attached values: a small array created on the first SetValue (most nodes have none, laid-out children one to
+    // four). Each value sits in its own typed box, reused by later writes, so only the first write allocates and
+    // reads never do; a linear scan beats a dictionary at these sizes.
+    private (object Property, object Box)[]? _attached;
+    private int _attachedCount;
+
+    /// <summary>Gets an attached value (<see cref="SkUiCoreAttachedProperty{T}.DefaultValue"/> when never set).</summary>
+    public T GetValue<T>(SkUiCoreAttachedProperty<T> property)
+    {
+        ArgumentNullException.ThrowIfNull(property);
+        var index = IndexOfAttached(property);
+        return index < 0 ? property.DefaultValue : ((StrongBox<T>)_attached![index].Box).Value!;
+    }
+
+    /// <summary>
+    /// Sets an attached value, raises <see cref="PropertyChanged"/> with the property's name when it changes and, for
+    /// layout properties, re-measures the parent.
+    /// </summary>
+    public SkUiCoreNode SetValue<T>(SkUiCoreAttachedProperty<T> property, T value)
+    {
+        ArgumentNullException.ThrowIfNull(property);
+        property.Validate(value);
+        var index = IndexOfAttached(property);
+        if (index >= 0)
+        {
+            var box = (StrongBox<T>)_attached![index].Box;
+            if (EqualityComparer<T>.Default.Equals(box.Value, value))
+                return this;
+            box.Value = value;
+        }
+        else
+        {
+            if (EqualityComparer<T>.Default.Equals(property.DefaultValue, value))
+                return this;
+            if (_attached is null || _attachedCount == _attached.Length)
+                Array.Resize(ref _attached, _attachedCount == 0 ? 2 : _attachedCount * 2);
+            _attached[_attachedCount++] = (property, new StrongBox<T>(value));
+        }
+        OnAttachedValueChanged(property);
+        return this;
+    }
+
+    /// <summary>Restores an attached value to its default.</summary>
+    public SkUiCoreNode ClearValue<T>(SkUiCoreAttachedProperty<T> property)
+    {
+        ArgumentNullException.ThrowIfNull(property);
+        var index = IndexOfAttached(property);
+        if (index < 0)
+            return this;
+        var changed = !EqualityComparer<T>.Default.Equals(((StrongBox<T>)_attached![index].Box).Value, property.DefaultValue);
+        _attached[index] = _attached[--_attachedCount];
+        _attached[_attachedCount] = default;
+        if (changed)
+            OnAttachedValueChanged(property);
+        return this;
+    }
+
+    /// <summary>Whether an attached value has been set (and not cleared) on this node.</summary>
+    public bool IsSet<T>(SkUiCoreAttachedProperty<T> property)
+    {
+        ArgumentNullException.ThrowIfNull(property);
+        return IndexOfAttached(property) >= 0;
+    }
+
+    private int IndexOfAttached(object property)
+    {
+        for (var index = 0; index < _attachedCount; index++)
+            if (ReferenceEquals(_attached![index].Property, property))
+                return index;
+        return -1;
+    }
+
+    private void OnAttachedValueChanged<T>(SkUiCoreAttachedProperty<T> property)
+    {
+        OnPropertyChanged(property.Name);
+        if (property.AffectsParentMeasure)
+            _parent?.InvalidateMeasure();
+    }
+
     /// <summary>
     /// Updates <paramref name="field"/> when the value changes and raises <see cref="PropertyChanged"/>.
     /// Returns <c>false</c> when the value is unchanged (no notification).

@@ -529,6 +529,15 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--s
 - [x] Respect the OS reduce-motion setting and a global off switch (`SkUiMotion`).
 - [x] Same on `SkUi*` and Core; headless tests with a deterministic clock (`TransitionTests`).
 
+### FR-27 — Composition layouts (flex, wrap, shrink)
+
+**Status:** implemented (Phase A1–A3 in [ImplementationPlan.md](ImplementationPlan.md)). Docs: [SkUiFlexLayout.md](../controls/SkUiFlexLayout.md), [SkUiWrapLayout.md](../controls/SkUiWrapLayout.md), [SkUiShrinkLayout.md](../controls/SkUiShrinkLayout.md).
+
+- [x] **`SkUiFlexLayout`** (SkUi* only): MAUI `FlexLayout` API (`Direction`, `Wrap`, `JustifyContent`, `AlignItems`, `AlignContent`, `Position`; attached `Order`, `Grow`, `Shrink`, `AlignSelf`, `Basis` reused from MAUI) laid out by MAUI's `FlexLayoutManager`. MAUI's flex engine is internal, so it is ported. A Core flex layout is not planned.
+- [x] **Wrap layout** (`SkUiWrapLayout`, `SkUiCoreWrapLayout`): children flow left to right and wrap to new rows; `Spacing` between items, `RowSpacing` between rows; children align vertically inside their row. One engine for both layers.
+- [x] **Shrink stacks** (`SkUiHorizontalShrinkLayout`, `SkUiVerticalShrinkLayout` and their Core twins): a stack that fits its content on the main axis. Without overflow it is a plain stack. On overflow, children share the overflow by their shrink factor (`SkUiShrinkFactor`): `None` (default) keeps its size; `Auto` shrinks in proportion to its natural size, only when above the average; a number `f` shrinks by `f` × natural size (CSS `flex-shrink`). No child goes below its minimum size; the rest is shared again. One engine for both layers and axes.
+- [x] RTL through the standard frame mirroring; attached-property changes relayout; headless tests (`FlexLayoutTests` with a MAUI `FlexLayout` parity sweep, `WrapLayoutTests`, `ShrinkLayoutTests`), demo pages, docs, leak scenario (`LayoutsRelayout`).
+
 ## Non-functional requirements
 
 ### NFR-1 — Platforms
