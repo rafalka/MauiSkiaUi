@@ -1030,7 +1030,7 @@ internal sealed class SkUiOverlayContainer : MauiView
     }
 }
 #elif WINDOWS
-internal sealed class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.Canvas
+internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.Canvas
 {
     private readonly Dictionary<Microsoft.UI.Xaml.FrameworkElement, OverlayState> _overlays = [];
 
