@@ -115,6 +115,17 @@ public class ComponentDemoTests
     }
 
     [Fact]
+    public void ControlSpecificEditorsComeBeforeTheCommonOnes()
+    {
+        var page = new GridDemoPage();
+        var captions = Descendants(page.Editors).OfType<Label>().Select(label => label.Text).ToList();
+        Assert.Equal(nameof(SkUiGrid.Padding), captions[0]);
+        var common = captions.IndexOf("Common properties");
+        Assert.True(common > captions.IndexOf("SpanLastCell"));
+        Assert.Equal("HwAccelerated", captions[common + 1]);
+    }
+
+    [Fact]
     public void LabelFontFamilyChoiceUsesRegisteredAndSystemNames()
     {
         var page = new LabelDemoPage();

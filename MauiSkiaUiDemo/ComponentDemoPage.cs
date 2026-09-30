@@ -10,7 +10,12 @@ public abstract class ComponentDemoPage : ContentPage
     /// <summary>Interactive accent used by editors and sample fills.</summary>
     protected static readonly Color Accent = DemoColors.Accent;
     private readonly Grid _comparisons = new() { ColumnSpacing = 16, RowSpacing = 12 };
-    private readonly Grid _editors = new() { RowSpacing = 10, Padding = new Thickness(0, 8, 0, 24) };
+    // Control-specific editors (added by the derived page) come first; the common ones the base page adds for every
+    // control (HwAccelerated, sizes, opacity, ...) follow under their own heading.
+    private readonly Grid _specificEditors = new() { RowSpacing = 10 };
+    private readonly Grid _commonEditors = new() { RowSpacing = 10 };
+    private readonly Grid _editors = new() { RowSpacing = 16, Padding = new Thickness(0, 8, 0, 24) };
+    private bool _addingCommonEditors;
     private readonly List<Action> _resets = [];
     private readonly List<(string Name, Func<bool> Check)> _checks = [];
     private readonly View? _nativePanel;
@@ -74,6 +79,15 @@ public abstract class ComponentDemoPage : ContentPage
         UpdateComparisonLayout(0);
         skia.SizeChanged += (_, _) => UpdateBounds();
         if (native is not null) native.SizeChanged += (_, _) => UpdateBounds();
+        _editors.RowDefinitions = [new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto)];
+        _editors.Add(_specificEditors, 0, 0);
+        _editors.Add(new Label
+        {
+            Text = "Common properties", TextColor = DemoColors.Caption, FontSize = 13, FontFamily = DemoFonts.OpenSansSemibold,
+            Margin = new Thickness(0, 8, 0, 0)
+        }, 0, 1);
+        _editors.Add(_commonEditors, 0, 2);
+        _addingCommonEditors = true;
         Toggle("HwAccelerated", true, ApplyHwAcceleration, () => _hwAccelerated);
         // Without explicit ranges the sizes switch to the control's natural size (its SkUiLook default), measured once
         // the page is loaded, and the preview area is twice the initial height.
@@ -89,6 +103,7 @@ public abstract class ComponentDemoPage : ContentPage
         Choice(nameof(VisualElement.FlowDirection), [FlowDirection.MatchParent, FlowDirection.LeftToRight, FlowDirection.RightToLeft], FlowDirection.MatchParent,
             value => { _skiaPanel.FlowDirection = value; if (_nativePanel is not null) _nativePanel.FlowDirection = value; },
             () => _skiaPanel.FlowDirection, _nativePanel is null ? null : () => _nativePanel.FlowDirection);
+        _addingCommonEditors = false;
     }
 
     private readonly bool _autoSize;
@@ -204,12 +219,13 @@ public abstract class ComponentDemoPage : ContentPage
 
     protected void AddEditor(string title, View editor)
     {
-        var row = _editors.RowDefinitions.Count;
-        _editors.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        var editors = _addingCommonEditors ? _commonEditors : _specificEditors;
+        var row = editors.RowDefinitions.Count;
+        editors.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         var field = new Grid { RowDefinitions = [new(GridLength.Auto), new(GridLength.Auto)], RowSpacing = 2 };
         field.Add(Caption(title));
         field.Add(editor, 0, 1);
-        _editors.Add(field, 0, row);
+        editors.Add(field, 0, row);
     }
 
     private void SetBoth(BindableProperty property, object value)
