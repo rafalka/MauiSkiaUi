@@ -7,7 +7,8 @@ public static class MauiProgram
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
-        builder.UseMauiApp<App>().UseSkiaUi();
+        builder.UseMauiApp<App>().UseSkiaUi()
+            .ConfigureFonts(fonts => fonts.AddFont("RobotoMono-Regular.ttf", RenderCheck.MauiFontAlias));
         return builder.Build();
     }
 }

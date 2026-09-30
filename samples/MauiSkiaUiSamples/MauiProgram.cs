@@ -15,6 +15,8 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Regular.ttf", SampleFonts.Regular);
                 fonts.AddFont("OpenSans-Semibold.ttf", SampleFonts.Semibold);
                 fonts.AddFont("RobotoMono-Regular.ttf", SampleFonts.Mono);
+                // Only ConfigureFonts, no SkUiFonts.Register: drawn text resolves these aliases too (AppFontsSample).
+                fonts.AddFont("Lobster-Regular.ttf", "Lobster");
             });
         return builder.Build();
     }

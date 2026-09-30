@@ -41,6 +41,7 @@
     <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/OpenSans-Regular.ttf" />
     <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/OpenSans-Semibold.ttf" />
     <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/RobotoMono-Regular.ttf" />
+    <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/Lobster-Regular.ttf" />
 
     <!-- Every example's source file, shown in the app (Source button): the code people read is the code that runs. -->
     <EmbeddedResource Include="Samples/**/*.cs" LogicalName="SampleSource/%(Filename)%(Extension)" />
