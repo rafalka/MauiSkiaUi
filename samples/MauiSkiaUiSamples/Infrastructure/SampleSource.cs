@@ -1,13 +1,16 @@
 namespace MauiSkiaUiSamples;
 
-/// <summary>An example's source file, embedded by the project (<c>SampleSource/&lt;file name&gt;</c>), as text or highlighted HTML.</summary>
+/// <summary>
+/// An example's source file, embedded by the project (<c>SampleSource/&lt;section&gt;/&lt;file name&gt;</c>, see
+/// <see cref="SampleInfo.SourceKey"/>), as text or highlighted HTML.
+/// </summary>
 public static class SampleSource
 {
-    public static string Load(string fileName)
+    public static string Load(string key)
     {
-        using var stream = typeof(SampleSource).Assembly.GetManifestResourceStream("SampleSource/" + fileName);
+        using var stream = typeof(SampleSource).Assembly.GetManifestResourceStream("SampleSource/" + key);
         if (stream is null)
-            return $"// {fileName} is not embedded (see MauiSkiaUiSamples.csproj).";
+            return $"// {key} is not embedded (see MauiSkiaUiSamples.csproj).";
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
     }
@@ -49,6 +52,6 @@ public sealed class SourcePage : ContentPage
         SampleColors.ApplyNavigationBar(this);
         if (SourceEditor.ActionTitle(info.SourcePath) is { } action)
             ToolbarItems.Add(new ToolbarItem(action, null, async () => await SourceEditor.OpenAsync(info.SourcePath)));
-        Content = new WebView { Source = new HtmlWebViewSource { Html = SampleSource.ToHtml(SampleSource.Load(info.SourceFileName)) } };
+        Content = new WebView { Source = new HtmlWebViewSource { Html = SampleSource.ToHtml(SampleSource.Load(info.SourceKey)) } };
     }
 }

@@ -9,7 +9,8 @@ namespace MauiSkiaUiSamples;
 /// <list type="bullet">
 /// <item>macOS: the bundle id of the app that started the build (Rider, Visual Studio Code, Cursor, …); the file is
 /// opened with <c>open -b &lt;id&gt;</c>. Built from a terminal: the default app for <c>.cs</c> files.</item>
-/// <item>Windows: Visual Studio (<c>devenv /edit</c>), Visual Studio Code (<c>vscode://file/</c>), else the default app.</item>
+/// <item>Windows: Visual Studio (<c>devenv /edit</c>), Visual Studio Code (<c>vscode://file/</c>), Cursor
+/// (<c>cursor://file/</c>), else the default app.</item>
 /// </list>
 /// The Mac Catalyst app is not sandboxed (Platforms/MacCatalyst/Entitlements.plist) so it can see and open the file.
 /// </summary>
@@ -58,12 +59,13 @@ public static class SourceEditor
 #elif WINDOWS
             if (Metadata("SampleBuildDevEnv") is { } devEnvDir)
                 using (Process.Start(Path.Combine(devEnvDir, "devenv.exe"), ["/edit", path])) { }
-            else if (Metadata("SampleBuildVsCode") is not null)
+            else if (Metadata("SampleBuildCodeEditor") is { } editor)
             {
-                // Started from VS Code's debugger, this process inherits the extension host's ELECTRON_RUN_AS_NODE=1,
-                // and so would the Code.exe the shell starts for the URL: it would run as plain Node.js and exit.
+                // Started from VS Code's (or Cursor's) debugger, this process inherits the extension host's
+                // ELECTRON_RUN_AS_NODE=1, and so would the editor the shell starts for the URL: it would run as plain
+                // Node.js and exit.
                 Environment.SetEnvironmentVariable("ELECTRON_RUN_AS_NODE", null);
-                using (Process.Start(new ProcessStartInfo("vscode://file/" + path.Replace('\\', '/')) { UseShellExecute = true })) { }
+                using (Process.Start(new ProcessStartInfo(FileUrl(editor, path)) { UseShellExecute = true })) { }
             }
             else
                 using (Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })) { }
@@ -85,12 +87,29 @@ public static class SourceEditor
             return Metadata("SampleBuildAppId") is { } id && KnownApps.TryGetValue(id, out var name) ? name : null;
 #elif WINDOWS
             return Metadata("SampleBuildDevEnv") is not null ? "Visual Studio"
-                : Metadata("SampleBuildVsCode") is not null ? "Visual Studio Code"
-                : null;
+                : Metadata("SampleBuildCodeEditor") switch
+                {
+                    "cursor" => "Cursor",
+                    "vscode" => "Visual Studio Code",
+                    _ => null
+                };
 #else
             return null;
 #endif
         }
+    }
+
+    /// <summary>
+    /// <c>vscode://file/C:/My%20Projects/A.cs</c>: each path segment escaped (spaces, <c>#</c>, <c>?</c>), the drive and the
+    /// separators kept.
+    /// </summary>
+    internal static string FileUrl(string scheme, string path)
+    {
+        var segments = path.Replace('\\', '/').Split('/');
+        for (var index = 0; index < segments.Length; index++)
+            if (!(index == 0 && segments[index].EndsWith(':')))
+                segments[index] = Uri.EscapeDataString(segments[index]);
+        return $"{scheme}://file/{string.Join('/', segments).TrimStart('/')}";
     }
 
     private static string? Metadata(string key) =>

@@ -22,7 +22,7 @@ public static class SampleSectionText
 
     public static string Description(this SampleSection section) => section switch
     {
-        SampleSection.GettingStarted => "Hosting a drawn surface in a MAUI page.",
+        SampleSection.GettingStarted => "The basics of drawn controls in a MAUI app: surfaces, fonts, text.",
         SampleSection.Controls => "Using the drawn controls.",
         SampleSection.Customisation => "Changing how controls are drawn and animated: looks, color schemes, transitions.",
         SampleSection.Core => "Lightweight Core nodes for dense or custom UI.",

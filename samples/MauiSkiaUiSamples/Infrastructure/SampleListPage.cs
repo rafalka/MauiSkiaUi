@@ -26,6 +26,12 @@ public sealed class SampleListPage : ContentPage
         Content = new ScrollView { Content = stack };
     }
 
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        SampleLooks.Show(null); // back from an example with its own look
+    }
+
     private View Row(SampleEntry entry)
     {
         var row = new Border

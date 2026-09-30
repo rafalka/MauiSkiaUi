@@ -27,12 +27,17 @@ public class SamplesTests
             Assert.Equal(info.Title, page.Title);
             // [CallerFilePath] names the example's own file; the embedded copy is found by that name.
             Assert.EndsWith(info.SourceFileName, info.SourcePath.Replace('\\', '/'));
-            var source = SampleSource.Load(info.SourceFileName);
+            Assert.EndsWith("/" + info.SourceFileName, "/" + info.SourceKey);
+            var source = SampleSource.Load(info.SourceKey);
             Assert.Contains($"class {Path.GetFileNameWithoutExtension(info.SourceFileName)}", source);
             Assert.Contains("SampleInfo Info", source); // the description is declared in the example's own file
             Assert.Equal(info.SourceFileName, new SourcePage(info).Title);
         }
         Assert.All(SampleCatalog.Sections, section => Assert.NotEmpty(section.Description()));
+        // Embedded by path under Samples/ (Section/File.cs): two sections may reuse a file name.
+        var keys = SampleCatalog.All.Select(entry => entry.Info.SourceKey).ToList();
+        Assert.Equal(keys.Count, keys.Distinct().Count());
+        Assert.Contains("Customisation/CrossCheckBoxSample.cs", keys);
     }
 
     [Fact]
@@ -42,6 +47,13 @@ public class SamplesTests
         Assert.Contains("<span", html);            // keywords, strings and comments get colors
         Assert.Contains("&lt;x&gt;", html);        // code is escaped
         Assert.Contains("white-space: pre", html); // not wrapped: scrolls sideways
+    }
+
+    [Fact]
+    public void EditorUrlsEscapePathSegmentsButKeepTheDrive()
+    {
+        Assert.Equal("vscode://file/C:/My%20Projects/A%23B/Sample%3F.cs", SourceEditor.FileUrl("vscode", @"C:\My Projects\A#B\Sample?.cs"));
+        Assert.Equal("cursor://file/Users/me/My%20App/Sample.cs", SourceEditor.FileUrl("cursor", "/Users/me/My App/Sample.cs"));
     }
 
     [Fact]

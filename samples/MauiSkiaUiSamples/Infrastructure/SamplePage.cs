@@ -9,7 +9,6 @@ namespace MauiSkiaUiSamples;
 public abstract class SamplePage : ContentPage
 {
     private readonly ContentView _content = new();
-    private SkUiLook? _previousLook;
 
     protected SamplePage(SampleInfo info)
     {
@@ -42,28 +41,15 @@ public abstract class SamplePage : ContentPage
 
     /// <summary>
     /// A look to show the example with. Looks are app-wide (<see cref="SkUiLook.Current"/>): an app sets its look once at
-    /// startup; an example page makes its own look current only while it is shown.
+    /// startup; here each page picks the look when it appears (<see cref="SampleLooks"/>). The example's look stays while
+    /// its Source page is on top, and the list pages restore the app's look.
     /// </summary>
     protected virtual SkUiLook? Look => null;
 
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        if (Look is { } look && !ReferenceEquals(SkUiLook.Current, look))
-        {
-            _previousLook = SkUiLook.Current;
-            SkUiLook.Current = look;
-        }
-    }
-
-    protected override void OnDisappearing()
-    {
-        base.OnDisappearing();
-        if (_previousLook is { } previous)
-        {
-            SkUiLook.Current = previous;
-            _previousLook = null;
-        }
+        SampleLooks.Show(Look);
     }
 
     /// <summary>A header that shows or hides <paramref name="body"/> (collapsed at first, so the example stays in view).</summary>
@@ -97,5 +83,23 @@ public abstract class SamplePage : ContentPage
             Padding = new Thickness(12, 10),
             Content = new VerticalStackLayout { Children = { header, body } }
         };
+    }
+}
+
+/// <summary>
+/// Which look is current: the example's while an example (or its source) is shown, the app's otherwise. Pages call
+/// <see cref="Show"/> when they appear, which also covers switching sections from the flyout.
+/// </summary>
+public static class SampleLooks
+{
+    private static SkUiLook? s_appLook;
+
+    /// <summary>Makes <paramref name="look"/> current, or the app's look for <c>null</c>.</summary>
+    public static void Show(SkUiLook? look)
+    {
+        s_appLook ??= SkUiLook.Current;
+        var target = look ?? s_appLook;
+        if (!ReferenceEquals(SkUiLook.Current, target))
+            SkUiLook.Current = target;
     }
 }

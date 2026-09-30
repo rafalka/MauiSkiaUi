@@ -34,6 +34,12 @@
     <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
   </PropertyGroup>
 
+  <!-- VS Code or Cursor ran the build (see the SampleBuild* metadata below). -->
+  <PropertyGroup>
+    <SampleBuildCodeEditor Condition="'$(VSCODE_PID)' != '' or '$(TERM_PROGRAM)' == 'vscode'">vscode</SampleBuildCodeEditor>
+    <SampleBuildCodeEditor Condition="'$(SampleBuildCodeEditor)' == 'vscode' and ('$(CURSOR_TRACE_ID)' != '' or $([System.String]::Copy('$(VSCODE_CODE_CACHE_PATH)$(VSCODE_IPC_HOOK)').Contains('Cursor')))">cursor</SampleBuildCodeEditor>
+  </PropertyGroup>
+
   <ItemGroup>
     <!-- Icon, splash and fonts shared with the demo app. -->
     <MauiIcon Include="../../MauiSkiaUiDemo/Resources/AppIcon/appicon.svg" />
@@ -44,16 +50,17 @@
     <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/Lobster-Regular.ttf" />
 
     <!-- Every example's source file, shown in the app (Source button): the code people read is the code that runs. -->
-    <EmbeddedResource Include="Samples/**/*.cs" LogicalName="SampleSource/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Samples/**/*.cs" LogicalName="SampleSource/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
 
     <!--
       The app that ran this build, for the Source page's "Open in …" button (Mac Catalyst / Windows): on macOS the
       launching app's bundle id (inherited by every process it starts: com.jetbrains.rider, com.microsoft.VSCode, …);
-      on Windows Visual Studio's DevEnvDir, or a VS Code environment. Empty when built from a terminal or CI.
+      on Windows Visual Studio's DevEnvDir, or a VS Code / Cursor environment (Cursor, a VS Code fork, sets VS Code's
+      variables too: its cache path names it). Empty when built from a terminal or CI.
     -->
     <AssemblyMetadata Include="SampleBuildAppId" Value="$(__CFBundleIdentifier)" Condition="'$(__CFBundleIdentifier)' != ''" />
     <AssemblyMetadata Include="SampleBuildDevEnv" Value="$(DevEnvDir)" Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(DevEnvDir)' != ''" />
-    <AssemblyMetadata Include="SampleBuildVsCode" Value="true" Condition="'$(VSCODE_PID)' != '' or '$(TERM_PROGRAM)' == 'vscode'" />
+    <AssemblyMetadata Include="SampleBuildCodeEditor" Value="$(SampleBuildCodeEditor)" Condition="'$(SampleBuildCodeEditor)' != ''" />
   </ItemGroup>
 
   <ItemGroup>

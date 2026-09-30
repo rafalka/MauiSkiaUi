@@ -85,13 +85,20 @@ public sealed class CrossCheckBoxSample : SamplePage, ISample
             }
         };
 
-        // Several transitions at once, each reversible mid-way (tap twice quickly).
+        // Several transitions at once, each reversible mid-way (tap twice quickly). Each box moves to its next state as a
+        // tap would, so the three-state one also passes through the dash.
+        static SkUiCheckState Next(SkUiCheckState state, bool threeState) => state switch
+        {
+            SkUiCheckState.Unchecked => SkUiCheckState.Checked,
+            SkUiCheckState.Checked => threeState ? SkUiCheckState.Indeterminate : SkUiCheckState.Unchecked,
+            _ => SkUiCheckState.Unchecked
+        };
         var toggleAll = new Button { Text = "Toggle all", HorizontalOptions = LayoutOptions.Start, BackgroundColor = SampleColors.Accent, TextColor = Colors.White };
         toggleAll.Clicked += (_, _) =>
         {
             foreach (var box in boxes)
-                box.IsChecked = !box.IsChecked;
-            core.SetIsChecked(!core.IsChecked);
+                box.CheckState = Next(box.CheckState, box.IsThreeState);
+            core.SetCheckState(Next(core.CheckState, core.IsThreeState));
         };
         return new VerticalStackLayout { Spacing = 12, Children = { surface, toggleAll } };
     }

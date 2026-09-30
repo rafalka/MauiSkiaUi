@@ -128,9 +128,8 @@ public static class SkUiFonts
             using var asset = Android.App.Application.Context.Assets?.Open(fileName);
             if (asset is null)
                 return null;
-            using var memory = new MemoryStream();
-            asset.CopyTo(memory);
-            return SKTypeface.FromData(SKData.CreateCopy(memory.ToArray()));
+            using var data = SKData.Create(asset); // read once into Skia memory; the typeface keeps its own reference
+            return SKTypeface.FromData(data);
         }
         catch (Java.IO.IOException)
         {

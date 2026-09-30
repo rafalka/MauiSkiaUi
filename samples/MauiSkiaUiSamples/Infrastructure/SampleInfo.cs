@@ -27,6 +27,20 @@ public sealed record SampleInfo(
 {
     /// <summary>The source file's name (e.g. <c>CrossCheckBoxSample.cs</c>), also on another OS than the build's.</summary>
     public string SourceFileName => Path.GetFileName(SourcePath.Replace('\\', '/'));
+
+    /// <summary>
+    /// The embedded copy's key: the path under <c>Samples/</c> (e.g. <c>Customisation/CrossCheckBoxSample.cs</c>), so two
+    /// sections may have files of the same name.
+    /// </summary>
+    public string SourceKey
+    {
+        get
+        {
+            var path = SourcePath.Replace('\\', '/');
+            var folder = path.LastIndexOf("/Samples/", StringComparison.Ordinal);
+            return folder >= 0 ? path[(folder + "/Samples/".Length)..] : SourceFileName;
+        }
+    }
 }
 
 /// <summary>An example page: <see cref="Info"/> is read by the catalog without creating the page.</summary>
