@@ -13,7 +13,7 @@ Headless-tested; device-verified on a Galaxy S9, iPhone / iOS simulator, Mac Cat
 | Area | Delivered |
 | --- | --- |
 | Host and rendering | `ISkUiView : IView`, `SkUiView`, `SkUiContentView`, custom handler + `HwAccelerated`; retained compositor with UI-thread recording and render-thread compositing: Metal (Apple), GL thread (Android), ANGLE / software (Windows) — [RenderingPipeline.md](RenderingPipeline.md) |
-| Layouts | `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiBorder`, `SkUiContentView` on MAUI's layout managers; RTL mirroring |
+| Layouts | `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiBorder`, `SkUiContentView` on MAUI's layout managers; **`SkUiFlexLayout`** (MAUI `FlexLayoutManager` over a ported flex engine, frames checked against MAUI's `FlexLayout`); **`SkUiWrapLayout`** and **shrink stacks** on engines shared with Core (FR-27, A1–A3); RTL mirroring |
 | Scrolling | `SkUiScrollView` / `SkUiCoreScrollView` on one engine: render-thread fling and animated scroll, wheel, nested and same-axis chaining, native-parent coordination |
 | Input | Per-pointer gesture arena for SkUi* and Core: tap, double tap, long press, pan, swipe, pinch, pointer recognizers — [EventMechanism.md](EventMechanism.md) |
 | Text | Shared engine: HarfBuzz shaping, bidi / RTL, per-character font fallback, wrap / truncation, `TextRendering` fast path |
@@ -22,7 +22,7 @@ Headless-tested; device-verified on a Galaxy S9, iPhone / iOS simulator, Mac Cat
 | Animation | Render-thread `AnimateAsync`, fling, spin and content slide; UI-thread `SkUiAnimationClock` (FR-7) |
 | State-change transitions | Look-driven toggle, press (dim / ripple), slider-thumb and progress transitions on both layers; reduce motion (`SkUiMotion`); measured on a Galaxy S9 and Mac Catalyst (FR-26, [ArchitectureReview.md](ArchitectureReview.md#state-change-animations)) |
 | Look and colors | `SkUiLook` (FR-18), `SkUiColorScheme` (FR-19) |
-| Core layer | Layouts (stacks, absolute, grid, table, overlay, border, scroll view) and basic controls; `SkUiCoreHost` |
+| Core layer | Layouts (stacks, absolute, grid, table, overlay, border, scroll view, **wrap**, **shrink stacks**) and basic controls; `SkUiCoreHost` |
 | Diagnostics | Core nodes in the Live Visual Tree, `SkUiDiagnostics`, DevFlow `dev.skiaui` extension |
 | Quality | Headless suite; memory-leak scenarios headless and on devices (`scripts/device_tests.sh`, CI on Mac Catalyst with Native AOT); trimmable and Native-AOT-compatible library; benchmarks (`scripts/bench.sh`) |
 | Packaging | NuGet `SkiaUi.Maui`; publish workflow bumps the version ([Releasing.md](../Releasing.md)) |
@@ -37,14 +37,19 @@ Phase 0 (state-change animations, FR-26) is shipped: looks draw from continuous 
 
 ### Phase A — Page shells: composition layouts and containers
 
+A1–A3 are shipped (see **Shipped**); A4 onwards is next.
+
 | # | Deliverable | Layer | Why |
 | --- | --- | --- | --- |
-| A1 | **Wrap layout** (`SkUiCoreWrapLayout`, then `SkUiWrapLayout`) | Core first | Chips, tag and filter rows; not covered by stock MAUI layouts |
-| A2 | **Weighted / stretch stack** (children share leftover space by weight) | Core + SkUi* | Common app layout; star rows without a Grid |
-| A3 | **`SkUiStateContainer`** (loading / empty / error / content) | Core + SkUi* | Community Toolkit parity; busy and skeleton screens |
-| A4 | **`SkUiExpander`** (header + animated collapsible content) | Core + SkUi* | Community Toolkit parity; also hosts native content (e.g. a WebView) |
-| A5 | **Hosted-control regression suite** | Tests + device checklist | Entry / Editor / WebView in drawn scrollers: focus, IME, scroll nesting, snapshots |
-| A6 | **Hardening from adoption** | Both | Label, Grid, Border, ScrollView bugs found while porting real pages |
+| A1 | **`SkUiFlexLayout`** (MAUI `FlexLayoutManager` over a ported flex engine; MAUI's engine is internal) | SkUi* only (Core flex not planned) | MAUI parity; wrapping rows, grow / shrink / basis without a Grid |
+| A2 | **Wrap layout** (`SkUiCoreWrapLayout` + `SkUiWrapLayout`, one shared engine) | Core + SkUi* | Chips, tag and filter rows; `Spacing` / `RowSpacing` without the flex model |
+| A3 | **Shrink stacks** (`SkUi[Core]HorizontalShrinkLayout`, `SkUi[Core]VerticalShrinkLayout`) | Core + SkUi* | Rows that fit: on overflow, children shrink by their shrink factor (`None`, `Auto`, or a number as CSS `flex-shrink`; truncating / wrapping labels next to fixed icons) |
+| A4 | **`SkUiStateContainer`** (loading / empty / error / content) | Core + SkUi* | Community Toolkit parity; busy and skeleton screens |
+| A5 | **`SkUiExpander`** (header + animated collapsible content) | Core + SkUi* | Community Toolkit parity; also hosts native content (e.g. a WebView) |
+| A6 | **Hosted-control regression suite** | Tests + device checklist | Entry / Editor / WebView in drawn scrollers: focus, IME, scroll nesting, snapshots |
+| A7 | **Hardening from adoption** | Both | Label, Grid, Border, ScrollView bugs found while porting real pages |
+
+Weighted growth (leftover space shared by weight) is not a separate layout: use flex `Grow` on SkUi* and grid stars in Core.
 
 ### Phase B — Virtualized lists (FR-21, FR-22)
 
@@ -68,20 +73,19 @@ Phase 0 (state-change animations, FR-26) is shipped: looks draw from continuous 
 
 | # | Deliverable |
 | --- | --- |
-| D1 | `SkUiFlexLayout` (MAUI `FlexLayoutManager`) |
-| D2 | Carousel + `IndicatorView` (horizontal virtual list with snapping) |
-| D3 | Shadows (FR-20) |
-| D4 | Scroll polish: scrollbars, bounce, snap points |
-| D5 | Shapes: Path, Polygon, Polyline, Rectangle / RoundRectangle |
-| D6 | Image cache integration hooks |
-| D7 | Stepper; Slider `ThumbImageSource` and step |
+| D1 | Carousel + `IndicatorView` (horizontal virtual list with snapping) |
+| D2 | Shadows (FR-20) |
+| D3 | Scroll polish: scrollbars, bounce, snap points |
+| D4 | Shapes: Path, Polygon, Polyline, Rectangle / RoundRectangle |
+| D5 | Image cache integration hooks |
+| D6 | Stepper; Slider `ThumbImageSource` and step |
 
 ### Architecture work alongside
 
 From [ArchitectureReview.md](ArchitectureReview.md) (finding numbers N\*). Scheduled next to the phases above, not after them.
 
 - **Now (small, correctness):** disabled controls must not block ancestor scrolling (N2); Core `IsEnabled` / `InputTransparent` with one blocking rule (N3); child alignment in every Core container (N4); scheme defaults resolved at paint time instead of snapshotted at construction (rest of N6; look / scheme swaps already redraw live surfaces).
-- **With Phase A:** measure invalidation without re-recording ancestors (N5); containers that re-measure often (wrap layout, expander) benefit first.
+- **With Phase A:** measure invalidation without re-recording ancestors (N5); containers that re-measure often (flex, wrap, expander) benefit first.
 - **Before Phase B:** relayout boundaries; shared image cache (N9); fling live extents (N11); raster cache of stable subtrees (N7).
 - **Accessibility:** semantics tree mapped to platform accessibility (Android `ExploreByTouchHelper`, iOS accessibility elements), OS font scaling, keyboard focus, reduce-motion (N8). Needed before broad production use.
 - **Drawn over native:** overlay masks, so drawn popups can cover hosted controls; cheaper overlay bookkeeping on Android (N10, N12).
@@ -97,18 +101,18 @@ From [ArchitectureReview.md](ArchitectureReview.md) (finding numbers N\*). Sched
 | CheckBox, Switch, RadioButton | SkUi* + Core | Done, plus three states |
 | Slider, ProgressBar | SkUi* + Core | Done, plus vertical / indeterminate |
 | Grid, VerticalStackLayout, HorizontalStackLayout, AbsoluteLayout, Border, ContentView | SkUi* + Core | Done |
-| ScrollView | SkUi* + Core | Done (polish: D4) |
-| FlexLayout | — | D1 |
+| ScrollView | SkUi* + Core | Done (polish: D3) |
+| FlexLayout | `SkUiFlexLayout` (SkUi* only) | A1 |
 | CollectionView (ListView, TableView map here) | — | B1–B3 |
 | RefreshView, SwipeView | — | C1, C2 |
-| CarouselView, IndicatorView | — | D2 |
-| Path, Polygon, Polyline, Rectangle, RoundRectangle | Box with corner radius covers rectangles | D5 |
-| Stepper | — | D7 |
-| Shadow | — | D3 |
+| CarouselView, IndicatorView | — | D1 |
+| Path, Polygon, Polyline, Rectangle, RoundRectangle | Box with corner radius covers rectangles | D4 |
+| Stepper | — | D6 |
+| Shadow | — | D2 |
 | Entry, Editor, SearchBar, WebView, pickers, Map, media | Hosted (`SkUiMauiContentView`) | By design |
 | Pages, Shell, navigation | MAUI | Out of scope |
 
-**Not planned (by design):** drawn Entry / Editor / WebView / media / maps (host them); Shell and navigation replacements; ListView cell API ports; vendor control clones.
+**Not planned (by design):** drawn Entry / Editor / WebView / media / maps (host them); Shell and navigation replacements; ListView cell API ports; vendor control clones; a Core flex layout (Core uses the wrap and shrink layouts and the grid).
 
 ---
 
@@ -116,8 +120,9 @@ From [ArchitectureReview.md](ArchitectureReview.md) (finding numbers N\*). Sched
 
 | Item | Must verify |
 | --- | --- |
-| Wrap layout | Wraps across width; re-measures when a child's size changes; RTL |
-| Weighted stack | Weighted children fill the leftover space; fixed children keep their size |
+| Flex layout | Frames match MAUI `FlexLayout` for direction, wrap, justify, align and grow / shrink / basis / order; attached-property edits relayout; works under an infinite constraint (scroll view); RTL |
+| Wrap layout | Wraps across width; re-measures when a child's size changes; RTL; same frames on both layers |
+| Shrink stack | Without overflow it is a plain stack; on overflow children shrink by factor (Auto: only those above the average), stop at their minimum size, and `None` children keep their size; both axes, both layers |
 | StateContainer | Switching states releases the previous content (leak scenario) |
 | Expander | Header tap toggles with animation; nested in a scroll view; hosted native child |
 | Virtual stack | No blank frames while flinging on a device; recycling without per-item allocations; memory flat after release |

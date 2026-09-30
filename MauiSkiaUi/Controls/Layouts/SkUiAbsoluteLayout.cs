@@ -19,6 +19,10 @@ public class SkUiAbsoluteLayout : SkUiLayout, IAbsoluteLayout
     /// <summary>Sets which components of a child's bounds are proportional.</summary>
     public static void SetLayoutFlags(BindableObject view, AbsoluteLayoutFlags flags) => AbsoluteLayout.SetLayoutFlags(view, flags);
 
+    /// <inheritdoc />
+    private protected override bool AffectsChildLayout(string? propertyName) =>
+        propertyName == AbsoluteLayout.LayoutBoundsProperty.PropertyName || propertyName == AbsoluteLayout.LayoutFlagsProperty.PropertyName;
+
     Rect IAbsoluteLayout.GetLayoutBounds(IView view) => AbsoluteLayout.GetLayoutBounds((BindableObject)view);
     AbsoluteLayoutFlags IAbsoluteLayout.GetLayoutFlags(IView view) => AbsoluteLayout.GetLayoutFlags((BindableObject)view);
 

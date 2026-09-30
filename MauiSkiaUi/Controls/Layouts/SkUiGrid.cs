@@ -76,6 +76,11 @@ public class SkUiGrid : SkUiLayout, IGridLayout
 
     IReadOnlyList<IGridRowDefinition> IGridLayout.RowDefinitions => _rowSnapshot ??= _rows.Cast<IGridRowDefinition>().ToArray();
     IReadOnlyList<IGridColumnDefinition> IGridLayout.ColumnDefinitions => _columnSnapshot ??= _columns.Cast<IGridColumnDefinition>().ToArray();
+    /// <inheritdoc />
+    private protected override bool AffectsChildLayout(string? propertyName) =>
+        propertyName == Grid.RowProperty.PropertyName || propertyName == Grid.ColumnProperty.PropertyName
+        || propertyName == Grid.RowSpanProperty.PropertyName || propertyName == Grid.ColumnSpanProperty.PropertyName;
+
     int IGridLayout.GetRow(IView view) => Grid.GetRow((BindableObject)view);
     int IGridLayout.GetColumn(IView view) => Grid.GetColumn((BindableObject)view);
     int IGridLayout.GetRowSpan(IView view) => Grid.GetRowSpan((BindableObject)view);

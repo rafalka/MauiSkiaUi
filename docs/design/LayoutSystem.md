@@ -150,6 +150,12 @@ SkUiGrid : SkUiLayout, IGridLayout
 | **Port / copy `GridStructure`** | If interface surface or multi-pass interaction with selective caching is awkward; keep MAUI behavior, own the code. |
 | **Reimplement from scratch** | Last resort; still target MAUI-compatible results for drop-in markup. |
 
+**Flex:** `SkUiFlexLayout` calls MAUI's shipped `FlexLayoutManager`, but the flex engine it drives through `IFlexLayout.Layout` (`Microsoft.Maui.Layouts.Flex.Item`) is internal to MAUI. SkiaUi carries a port of that engine (`SkUiFlexItem`, from dotnet/maui 10.0.101) with the algorithm unchanged; a headless test checks its frames against MAUI's own `FlexLayout` over every container combination.
+
+**Layouts without a MAUI manager** (wrap, shrink) use one engine per algorithm for both layers (`SkUiWrapEngine`, `SkUiShrinkEngine`). Engines reach children through struct adapters (`ISkUiLayoutChildren`: `SkUiViewChildren` for SkUi*, `SkUiCoreNodeChildren` for Core), so they take no allocation per pass. The SkUi* adapter lets the child align itself (`ComputeFrame`); the Core adapter aligns it in its slot (`AlignInSlot`), since Core nodes do not align themselves.
+
+**Attached properties:** MAUI's attached-property callbacks only invalidate MAUI's own layout types, so each `SkUiLayout` lists the child properties it reads (`AffectsChildLayout`: `Grid.Row`…, `AbsoluteLayout.LayoutBounds`…, `FlexLayout.Grow`…, `SkUiShrinkLayout.Shrink`) and re-measures when one changes.
+
 Multi-pass measure (Auto then `*` columns/rows) is **expected**. Optimize with per-node caches and dirty flags; do not switch to Flutter constraints to avoid passes.
 
 ## Selective measure / arrange / paint
@@ -165,7 +171,7 @@ Aligned with NFR-2 / FR-3:
 
 MAUI mirrors native views for `FlowDirection="RightToLeft"`. Hosted SkiaUi nodes have no native view, so SkiaUi mirrors them itself:
 
-- Layout managers still compute left-to-right frames (MAUI `GridLayoutManager`, stack and absolute managers are reused unchanged).
+- Layout managers still compute left-to-right frames (MAUI `GridLayoutManager`, stack, absolute and flex managers are reused unchanged; the wrap and shrink engines are left to right too).
 - `SkUiView.ArrangeOverride` mirrors the **final** frame, after margins and alignment, inside the parent's children space when the parent's effective flow direction is RTL: `x' = parentWidth − frame.Right`. That is what a native mirrored layout does: grid column 0 moves to the right, horizontal stacks run right to left, `Start` alignment and leading margins land on the right.
 - Effective direction comes from MAUI (`IVisualElementController.EffectiveFlowDirection`), which already propagates to logical children. Every descendant whose effective direction changes gets `PropertyChanged(FlowDirection)` and invalidates its layout.
 - Hit-testing, native overlays (`ComputeRootRelativeFrame`) and the compositor all read `Frame`, so they follow the mirrored layout with no extra work.
@@ -198,7 +204,8 @@ MAUI mirrors native views for `FlowDirection="RightToLeft"`. Hosted SkiaUi nodes
 ### Layouts (`SkUiLayout` + concrete)
 
 - [x] Implement MAUI layout host interfaces as needed (`ILayout`, `IGridLayout`, …).
-- [x] Wire **layout managers** (reuse or port) for Grid, Vertical/Horizontal stack, Absolute, etc.
+- [x] Wire **layout managers** (reuse or port) for Grid, Vertical/Horizontal stack, Absolute, Flex (ported engine), etc.
+- [x] Wrap and shrink layouts on shared engines for SkUi* and Core.
 - [x] Attached properties for Grid row/column/span with drop-in names/behavior.
 - [x] Selective dirty tracking over `Children` (FR-3).
 - [x] Default `HwAccelerated = true` when the layout is a standalone root (FR-14).

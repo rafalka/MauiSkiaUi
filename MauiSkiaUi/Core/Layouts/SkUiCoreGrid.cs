@@ -9,7 +9,14 @@ public class SkUiCoreGrid : SkUiCorePanel
 {
     private readonly List<SkUiCoreRowDefinition> _rows = [];
     private readonly List<SkUiCoreColumnDefinition> _columns = [];
-    private readonly Dictionary<ISkUiCoreNode, SkUiCoreGridPlacement> _placements = new();
+    /// <summary>Attached: zero-based row of a child (default 0).</summary>
+    public static readonly SkUiCoreAttachedProperty<int> RowProperty = new("Row", typeof(SkUiCoreGrid), 0, validate: value => value >= 0);
+    /// <summary>Attached: zero-based column of a child (default 0).</summary>
+    public static readonly SkUiCoreAttachedProperty<int> ColumnProperty = new("Column", typeof(SkUiCoreGrid), 0, validate: value => value >= 0);
+    /// <summary>Attached: rows a child spans (default 1).</summary>
+    public static readonly SkUiCoreAttachedProperty<int> RowSpanProperty = new("RowSpan", typeof(SkUiCoreGrid), 1, validate: value => value >= 1);
+    /// <summary>Attached: columns a child spans (default 1).</summary>
+    public static readonly SkUiCoreAttachedProperty<int> ColumnSpanProperty = new("ColumnSpan", typeof(SkUiCoreGrid), 1, validate: value => value >= 1);
     private double _rowSpacing;
     private double _columnSpacing;
     private SkUiCoreGridStructure? _structure;
@@ -103,35 +110,71 @@ public class SkUiCoreGrid : SkUiCorePanel
         return this;
     }
 
-    /// <summary>Appends a child in cell (0,0).</summary>
-    public new SkUiCoreGrid Add(ISkUiCoreNode child) => Add(child, 0, 0);
+    /// <summary>Appends a child in the cell given by its attached <see cref="RowProperty"/> / <see cref="ColumnProperty"/> (and spans), (0,0) unless set.</summary>
+    public new SkUiCoreGrid Add(ISkUiCoreNode child)
+    {
+        base.Add(child);
+        return this;
+    }
 
-    /// <summary>Appends a child at the given row and column.</summary>
+    /// <summary>Appends a child at the given row and column (sets its attached placement).</summary>
     public SkUiCoreGrid Add(ISkUiCoreNode child, int row, int column, int rowSpan = 1, int columnSpan = 1)
     {
         ArgumentNullException.ThrowIfNull(child);
-        InsertChild(Children.Count, child);
-        _placements[child] = new SkUiCoreGridPlacement(row, column, rowSpan, columnSpan);
+        var placement = new SkUiCoreGridPlacement(row, column, rowSpan, columnSpan);
+        // Insert first (it validates the child), then write the placement; one re-measure for both.
+        StartUpdating();
+        try
+        {
+            InsertChild(Children.Count, child);
+            WritePlacement((SkUiCoreNode)child, placement);
+        }
+        finally
+        {
+            EndUpdating();
+        }
         return this;
     }
 
-    /// <summary>Sets the grid cell for an existing child.</summary>
+    /// <summary>Sets the grid cell for a child of this grid.</summary>
     public SkUiCoreGrid SetPlacement(ISkUiCoreNode child, int row, int column, int rowSpan = 1, int columnSpan = 1)
     {
         ArgumentNullException.ThrowIfNull(child);
-        if (!_placements.ContainsKey(child) && !Children.Contains(child))
+        if (child.Parent != this)
             throw new ArgumentException("Child is not in this grid.", nameof(child));
-        _placements[child] = new SkUiCoreGridPlacement(row, column, rowSpan, columnSpan);
-        InvalidateMeasure();
+        var placement = new SkUiCoreGridPlacement(row, column, rowSpan, columnSpan);
+        // One re-measure for up to four attached values.
+        StartUpdating();
+        try
+        {
+            WritePlacement(Node(child), placement);
+        }
+        finally
+        {
+            EndUpdating();
+        }
         return this;
     }
 
-    /// <summary>Gets the placement for <paramref name="child"/> (defaults to 0,0,1,1).</summary>
+    /// <summary>Gets the placement of <paramref name="child"/> from its attached values (defaults to 0,0,1,1).</summary>
     public SkUiCoreGridPlacement GetPlacement(ISkUiCoreNode child)
     {
         ArgumentNullException.ThrowIfNull(child);
-        return _placements.TryGetValue(child, out var placement) ? placement : SkUiCoreGridPlacement.Default;
+        return child is SkUiCoreNode node
+            ? new SkUiCoreGridPlacement(node.GetValue(RowProperty), node.GetValue(ColumnProperty), node.GetValue(RowSpanProperty), node.GetValue(ColumnSpanProperty))
+            : SkUiCoreGridPlacement.Default;
     }
+
+    private static void WritePlacement(SkUiCoreNode node, SkUiCoreGridPlacement placement)
+    {
+        node.SetValue(RowProperty, placement.Row);
+        node.SetValue(ColumnProperty, placement.Column);
+        node.SetValue(RowSpanProperty, placement.RowSpan);
+        node.SetValue(ColumnSpanProperty, placement.ColumnSpan);
+    }
+
+    private static SkUiCoreNode Node(ISkUiCoreNode child) =>
+        child as SkUiCoreNode ?? throw new ArgumentException("Core layouts accept SkUiCoreNode instances only.", nameof(child));
 
     /// <summary>Sets the row index for <paramref name="child"/>.</summary>
     public SkUiCoreGrid SetRow(ISkUiCoreNode child, int row)
@@ -161,22 +204,11 @@ public class SkUiCoreGrid : SkUiCorePanel
         return SetPlacement(child, p.Row, p.Column, p.RowSpan, columnSpan);
     }
 
-    /// <summary>Removes a child and its placement.</summary>
-    public new bool Remove(ISkUiCoreNode child)
-    {
-        _placements.Remove(child);
-        return base.Remove(child);
-    }
+    /// <summary>Removes a child; its attached placement stays on the child.</summary>
+    public new bool Remove(ISkUiCoreNode child) => base.Remove(child);
 
-    /// <summary>Removes all children and placements.</summary>
-    public new void Clear()
-    {
-        _placements.Clear();
-        base.Clear();
-    }
-
-    /// <inheritdoc />
-    protected override void OnChildRemoved(ISkUiCoreNode child) => _placements.Remove(child);
+    /// <summary>Removes all children; their attached placements stay on them.</summary>
+    public new void Clear() => base.Clear();
 
     /// <summary>Y origin of row <paramref name="index"/> within this grid's local content (includes padding).</summary>
     public double GetRowOffset(int index) =>

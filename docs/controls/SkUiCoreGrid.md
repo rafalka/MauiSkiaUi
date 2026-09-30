@@ -6,7 +6,7 @@ Core grid layout with Auto, absolute, and star tracks, optional **per-track min/
 
 ## How it works
 
-Extends [`SkUiCorePanel`](SkUiCore.md). Child placement is a dictionary on the panel (`SetRow` / `SetColumn` / spans or `Add(child, row, col, …)`), not MAUI attached properties.
+Extends [`SkUiCorePanel`](SkUiCore.md). Child placement is stored on each child as Core attached properties (`SkUiCoreGrid.RowProperty`, `ColumnProperty`, `RowSpanProperty`, `ColumnSpanProperty`; see [Attached properties](SkUiCore.md#attached-properties)). Set them with `Add(child, row, col, …)`, `SetPlacement` / `SetRow` / `SetColumn` / spans, or `child.SetValue(...)`, also before the child is added.
 
 Empty `RowDefinitions` / `ColumnDefinitions` imply one star track each (MAUI parity).
 

@@ -19,10 +19,13 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | --- | --- |
 | `ISkUiCoreNode` / `SkUiCoreNode` | Measure / arrange / paint / touch; fluent `Set*`; `INotifyPropertyChanged`; `PaintBackground`/`PaintOverlay` delegates + virtual `OnPaintContent`; `StartUpdating` / `EndUpdating`; `AnimationClock`; composite-time `Opacity` / `TranslationX/Y` / `Rotation` / `Scale` / `ClipToBounds` (transform-aware hit testing) and render-thread `AnimateAsync` |
 | `SkUiCorePanel` | Multi-child base (attach, padding, paint, hit-test) |
+| `SkUiCoreAttachedProperty<T>` | Typed per-child value a layout reads (grid row, absolute bounds, shrink factor); `node.GetValue` / `SetValue` / `ClearValue` / `IsSet`. See [Attached properties](#attached-properties) |
 | `SkUiCoreAbsoluteLayout` | Absolute (+ optional proportional) layout; MAUI-compatible proportional X/Y and child alignment |
 | `SkUiCoreAbsoluteLayoutFlags` | Same idea as MAUI `AbsoluteLayoutFlags` |
 | `SkUiCoreVerticalStackLayout` / `SkUiCoreHorizontalStackLayout` | Stack layouts (owned algorithms; no MAUI managers) |
 | `SkUiCoreOverlayLayout` | Children share one slot (like `SkUiLayout`) |
+| `SkUiCoreWrapLayout` | Children wrap onto new rows (`Spacing`, `RowSpacing`); same engine as `SkUiWrapLayout`, see [SkUiWrapLayout.md](SkUiWrapLayout.md) |
+| `SkUiCoreHorizontalShrinkLayout` / `SkUiCoreVerticalShrinkLayout` | Stacks whose children with a shrink factor (`ShrinkProperty`: `None`, `Auto` or a number; e.g. `Add(child, SkUiShrinkFactor.Auto)`) shrink to fit; see [SkUiShrinkLayout.md](SkUiShrinkLayout.md) |
 | `SkUiCoreGrid` | Auto / absolute / star grid + per-track min/max; see [SkUiCoreGrid.md](SkUiCoreGrid.md) |
 | `SkUiCoreTable` | Grid + row/column/cell backgrounds and span-aware separators; see [SkUiCoreTable.md](SkUiCoreTable.md) |
 | `SkUiCoreContentView` / `SkUiCoreBorder` | Single-child host; border adds rounded chrome with per-corner `CornerRadius` |
@@ -38,6 +41,23 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreHost` | `SkUiView` bridge that hosts one Core root |
 
 Core types intentionally do **not** implement `IView` and are **not** accepted by `SkUiLayout.Children`. Mixing requires `SkUiCoreHost`.
+
+## Attached properties
+
+Core has no bindable properties, but layouts need per-child data (a grid cell, absolute bounds, a shrink factor). That data is stored on the child as a **Core attached property**: the Core counterpart of a MAUI attached property, without bindings or styles.
+
+- A layout declares a static `SkUiCoreAttachedProperty<T>` (name, owner type, default value, optional validation). Stock ones: `SkUiCoreGrid.RowProperty` / `ColumnProperty` / `RowSpanProperty` / `ColumnSpanProperty`, `SkUiCoreAbsoluteLayout.LayoutBoundsProperty` / `LayoutFlagsProperty`, `SkUiCoreShrinkLayout.ShrinkProperty`.
+- Any node reads and writes them: `GetValue` (the default when never set), `SetValue` (validated), `ClearValue`, `IsSet`. Writing the default value is the same as `ClearValue`: `IsSet` then returns `false` (unlike MAUI, where writing the default still counts as set).
+- A change raises `PropertyChanged` with the property's name and, for layout properties (`affectsParentMeasure`, the default), re-measures the node's parent. Layouts do not subscribe to their children.
+- The value lives on the child: it can be set **before** the child is added, and it **stays** with the child when it is removed or moved to another layout (as in MAUI). Layouts keep no per-child tables, so removing a child needs no cleanup.
+- The layout helpers (`grid.Add(child, row, column)`, `grid.SetRow`, `absolute.Add(child, bounds)`, `shrink.Add(child, SkUiShrinkFactor.Auto)`, …) write the same values. Layout-scoped setters (`SetPlacement`, `SetLayoutBounds`, `SetShrink`) still require the child to be in that layout; `SetValue` does not.
+- Storage is a small array per node, created on the first value; later writes reuse each value's box, so only the first write of a property allocates and reads never do.
+
+```csharp
+var cell = new SkUiCoreLabel().SetText("B2");
+cell.SetValue(SkUiCoreGrid.RowProperty, 1).SetValue(SkUiCoreGrid.ColumnProperty, 1);
+grid.Add(cell); // placed by its own values
+```
 
 ## Example
 

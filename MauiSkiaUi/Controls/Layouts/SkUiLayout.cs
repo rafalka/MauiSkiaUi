@@ -53,16 +53,20 @@ public class SkUiLayout : SkUiView, ILayout
     private void OnChildPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName == nameof(ZIndex)) { _paintOrder = null; InvalidateRender(SkUiRenderDirty.Children); }
-        // Children carry standard MAUI Grid.Row/Column/RowSpan/ColumnSpan and AbsoluteLayout.LayoutBounds/
-        // LayoutFlags attached values (see SkUiGrid/SkUiAbsoluteLayout), but MAUI's own propertyChanged
-        // callbacks never fire our invalidation because Parent is our layout, not Microsoft.Maui.Controls.Grid
-        // or AbsoluteLayout. Compare against each BindableProperty's own PropertyName (not a literal string) so
-        // this keeps working if MAUI ever renames those attached properties.
-        if (args.PropertyName == Grid.RowProperty.PropertyName || args.PropertyName == Grid.ColumnProperty.PropertyName
-            || args.PropertyName == Grid.RowSpanProperty.PropertyName || args.PropertyName == Grid.ColumnSpanProperty.PropertyName
-            || args.PropertyName == AbsoluteLayout.LayoutBoundsProperty.PropertyName || args.PropertyName == AbsoluteLayout.LayoutFlagsProperty.PropertyName)
+        if (AffectsChildLayout(args.PropertyName))
             InvalidateMeasureOverride();
     }
+
+    /// <summary>
+    /// Whether a child's property change (usually an attached property such as <c>Grid.Row</c>) changes this
+    /// layout's measure. MAUI's own attached-property callbacks never invalidate SkiaUi layouts, because the
+    /// child's parent is not the MAUI layout type, so each layout lists the attached properties it reads.
+    /// Compare against each <see cref="BindableProperty.PropertyName"/>, not a literal string.
+    /// </summary>
+    private protected virtual bool AffectsChildLayout(string? propertyName) => false;
+
+    /// <summary>Called after a child is added, replaced or removed, or the children are cleared.</summary>
+    private protected virtual void OnChildrenChanged() { }
 
     /// <summary>Creates a GPU-default layout with an owned child collection.</summary>
     public SkUiLayout()
@@ -112,6 +116,7 @@ public class SkUiLayout : SkUiView, ILayout
             base.InsertItem(index, item);
             owner._paintOrder = null;
             ((Element)item).PropertyChanged += owner.OnChildPropertyChanged;
+            owner.OnChildrenChanged();
             owner.AttachChild(item);
         }
 
@@ -125,6 +130,7 @@ public class SkUiLayout : SkUiView, ILayout
             owner._paintOrder = null;
             ((Element)previous).PropertyChanged -= owner.OnChildPropertyChanged;
             ((Element)item).PropertyChanged += owner.OnChildPropertyChanged;
+            owner.OnChildrenChanged();
             owner.DetachChild(previous);
             owner.AttachChild(item);
         }
@@ -135,6 +141,7 @@ public class SkUiLayout : SkUiView, ILayout
             base.RemoveItem(index);
             owner._paintOrder = null;
             ((Element)previous).PropertyChanged -= owner.OnChildPropertyChanged;
+            owner.OnChildrenChanged();
             owner.DetachChild(previous);
         }
 
@@ -143,6 +150,7 @@ public class SkUiLayout : SkUiView, ILayout
             var previous = this.ToArray();
             base.ClearItems();
             owner._paintOrder = null;
+            owner.OnChildrenChanged();
             foreach (var child in previous)
             {
                 ((Element)child).PropertyChanged -= owner.OnChildPropertyChanged;

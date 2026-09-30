@@ -29,7 +29,7 @@ public static class LeakScenarios
         new("SlidersAndProgress", Controls, "Horizontal, vertical and Core sliders dragged and tapped; progress bars animating and indeterminate at close.", () => new SlidersRun()),
         new("LabelsReshaped", Controls, "Wrapped, truncated, RTL, Arabic, emoji and Simple / Shaped labels; text and width changed repeatedly.", () => new LabelsRun()),
         new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed.", () => new ImagesRun()),
-        new("LayoutsRelayout", Layouts, "Grid, stacks, absolute layout and border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
+        new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
@@ -311,6 +311,11 @@ public static class LeakScenarios
         private SkUiHorizontalStackLayout? _row;
         private SkUiAbsoluteLayout? _absolute;
         private SkUiBorder? _border;
+        private SkUiFlexLayout? _flex;
+        private SkUiWrapLayout? _wrap;
+        private SkUiHorizontalShrinkLayout? _shrink;
+        private SkUiCoreWrapLayout? _coreWrap;
+        private SkUiCoreHorizontalShrinkLayout? _coreShrink;
 
         public override View Build(LeakScenarioContext context)
         {
@@ -337,7 +342,38 @@ public static class LeakScenarios
                 _absolute.Children.Add(box);
             }
             _border = new SkUiBorder { Stroke = LeakColors.Accent, StrokeThickness = 2, CornerRadius = 8, Content = Text("Bordered content") };
-            _stack = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12), Children = { _grid, _row, _absolute, _border } };
+            _flex = new SkUiFlexLayout { Wrap = FlexWrap.Wrap, JustifyContent = FlexJustify.SpaceBetween };
+            for (var index = 0; index < 8; index++)
+            {
+                var chip = Text($"Flex {index}", 12);
+                SkUiFlexLayout.SetGrow(chip, index % 2);
+                _flex.Children.Add(chip);
+            }
+            _wrap = new SkUiWrapLayout { Spacing = 4, RowSpacing = 4 };
+            for (var index = 0; index < 8; index++)
+                _wrap.Children.Add(Text($"Wrap chip {index}", 12));
+            _shrink = new SkUiHorizontalShrinkLayout { Spacing = 4 };
+            _shrink.Children.Add(new SkUiBox { Color = LeakColors.Accent, WidthRequest = 24, HeightRequest = 24 });
+            for (var index = 0; index < 3; index++)
+            {
+                var label = Text($"A shrinkable label that is too long for the row {index}", 12);
+                label.LineBreakMode = LineBreakMode.TailTruncation;
+                SkUiShrinkLayout.SetShrink(label, SkUiShrinkFactor.Auto);
+                _shrink.Children.Add(label);
+            }
+            _coreWrap = new SkUiCoreWrapLayout().SetSpacing(4).SetRowSpacing(4);
+            for (var index = 0; index < 6; index++)
+                _coreWrap.Add(new SkUiCoreLabel().SetText($"Core chip {index}").SetFontSize(12));
+            _coreShrink = new SkUiCoreHorizontalShrinkLayout();
+            for (var index = 0; index < 3; index++)
+                _coreShrink.Add(new SkUiCoreLabel().SetText($"A Core shrinkable label that is too long {index}").SetFontSize(12)
+                    .SetLineBreakMode(LineBreakMode.TailTruncation), index > 0 ? SkUiShrinkFactor.Auto : SkUiShrinkFactor.None);
+            var core = new SkUiCoreVerticalStackLayout().SetSpacing(4).Add(_coreWrap).Add(_coreShrink);
+            _stack = new SkUiVerticalStackLayout
+            {
+                Spacing = 8, Padding = new Thickness(12),
+                Children = { _grid, _row, _absolute, _border, _flex, _wrap, _shrink, new SkUiCoreHost().SetContent(core) }
+            };
             return _root = Root(_stack);
         }
 
@@ -379,12 +415,41 @@ public static class LeakScenarios
             context.TrackDetached(oldContent);
             _stack!.Padding = new Thickness(20);
             await context.SettleAsync();
+            // Flex / wrap / shrink: removed children must not stay in the layouts' own per-child state.
+            var flexChild = (SkUiView)_flex!.Children[1];
+            _flex.Children.Remove(flexChild);
+            context.TrackDetached(flexChild);
+            FlexLayout.SetOrder((BindableObject)_flex.Children[0], 3);
+            _flex.Direction = FlexDirection.Column;
+            var wrapChild = (SkUiView)_wrap!.Children[0];
+            _wrap.Children.RemoveAt(0);
+            _wrap.Children.Add(wrapChild);
+            var wrapRemoved = (SkUiView)_wrap.Children[2];
+            _wrap.Children.Remove(wrapRemoved);
+            context.TrackDetached(wrapRemoved);
+            var shrinkRemoved = (SkUiView)_shrink!.Children[^1];
+            _shrink.Children.Remove(shrinkRemoved);
+            context.TrackDetached(shrinkRemoved);
+            SkUiShrinkLayout.SetShrink((BindableObject)_shrink.Children[1], SkUiShrinkFactor.None);
+            var coreWrapRemoved = _coreWrap!.Children[^1];
+            _coreWrap.Remove(coreWrapRemoved);
+            context.TrackDetached(coreWrapRemoved);
+            var coreShrinkRemoved = _coreShrink!.Children[^1];
+            _coreShrink.Remove(coreShrinkRemoved);
+            context.TrackDetached(coreShrinkRemoved);
+            await context.SettleAsync();
         }
 
         public override string? CheckInteraction()
         {
-            if (_stack!.Children.Count != 4)
-                return $"The stack has {_stack.Children.Count} children after adding and removing, expected 4.";
+            if (_stack!.Children.Count != 8)
+                return $"The stack has {_stack.Children.Count} children after adding and removing, expected 8.";
+            if (_flex!.Children.Count != 7 || _wrap!.Children.Count != 7 || _shrink!.Children.Count != 3
+                || _coreWrap!.Children.Count != 5 || _coreShrink!.Children.Count != 2)
+                return "The flex / wrap / shrink changes were not applied.";
+            // Width, not height: text measures empty on hosts without fonts (Linux CI), so label-only layouts are 0 tall.
+            if (_flex.Width <= 0 || _wrap.Width <= 0 || _shrink.Width <= 0 || _coreWrap.Frame.Width <= 0 || _coreShrink.Frame.Width <= 0)
+                return "The flex / wrap / shrink layouts were not laid out.";
             if (_grid!.Children.Count != 11 || _grid.ColumnDefinitions.Count != 3 || _grid.ColumnDefinitions[2].Width != GridLength.Auto)
                 return "The grid changes were not applied.";
             if (_border!.Content is not SkUiLabel { Text: "Replaced content" })

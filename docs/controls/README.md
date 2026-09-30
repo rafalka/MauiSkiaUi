@@ -10,6 +10,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | --- | --- | --- |
 | `SkUiCoreNode` / `ISkUiCoreNode` | [SkUiCore.md](SkUiCore.md) | Public Core tree; fluent + INPC |
 | `SkUiCorePanel` / stacks / absolute / overlay / **grid** / **table** / **scroll view** | [SkUiCore.md](SkUiCore.md), [SkUiCoreGrid.md](SkUiCoreGrid.md), [SkUiCoreTable.md](SkUiCoreTable.md) | Core-only layouts; `SkUiCoreScrollView` shares the `SkUiScrollView` engine |
+| `SkUiCoreWrapLayout` / `SkUiCoreHorizontalShrinkLayout` / `SkUiCoreVerticalShrinkLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md), [SkUiShrinkLayout.md](SkUiShrinkLayout.md) | Same engines as the SkUi* twins (no Core flex layout) |
 | `SkUiCoreLabel` / `Button` / toggles / `Slider` / `ProgressBar` / Image / shapes / … | [SkUiCore.md](SkUiCore.md) | Core primitives & basic controls |
 | `SkUiCoreHost` | [SkUiCore.md](SkUiCore.md) | `SkUiView` bridge for Core roots |
 
@@ -42,8 +43,9 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiVerticalStackLayout` | [SkUiVerticalStackLayout.md](SkUiVerticalStackLayout.md) | VerticalStackLayout |
 | `SkUiHorizontalStackLayout` | [SkUiHorizontalStackLayout.md](SkUiHorizontalStackLayout.md) | HorizontalStackLayout |
 | `SkUiAbsoluteLayout` | [SkUiAbsoluteLayout.md](SkUiAbsoluteLayout.md) | AbsoluteLayout |
-
-`SkUiFlexLayout` is not implemented yet.
+| `SkUiFlexLayout` | [SkUiFlexLayout.md](SkUiFlexLayout.md) | FlexLayout |
+| `SkUiWrapLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md) | — (chips / tags) |
+| `SkUiHorizontalShrinkLayout` / `SkUiVerticalShrinkLayout` | [SkUiShrinkLayout.md](SkUiShrinkLayout.md) | — (stacks whose children shrink to fit) |
 
 ## Graphics
 

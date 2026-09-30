@@ -11,7 +11,13 @@ namespace MauiSkiaUi.Core;
 /// </summary>
 public class SkUiCoreAbsoluteLayout : SkUiCorePanel
 {
-    private readonly Dictionary<ISkUiCoreNode, (Rect Bounds, SkUiCoreAbsoluteLayoutFlags Flags)> _placements = new();
+    /// <summary>
+    /// Attached: a child's layout bounds (absolute DIPs, or 0–1 proportions per <see cref="LayoutFlagsProperty"/>).
+    /// Non-positive non-proportional width / height mean the child's measured size. Default: measured size at (0,0).
+    /// </summary>
+    public static readonly SkUiCoreAttachedProperty<Rect> LayoutBoundsProperty = new("LayoutBounds", typeof(SkUiCoreAbsoluteLayout), Rect.Zero);
+    /// <summary>Attached: which components of <see cref="LayoutBoundsProperty"/> are proportional (default none).</summary>
+    public static readonly SkUiCoreAttachedProperty<SkUiCoreAbsoluteLayoutFlags> LayoutFlagsProperty = new("LayoutFlags", typeof(SkUiCoreAbsoluteLayout), SkUiCoreAbsoluteLayoutFlags.None);
 
     /// <inheritdoc cref="SkUiCorePanel.SetPadding" />
     public new SkUiCoreAbsoluteLayout SetPadding(Thickness value)
@@ -28,43 +34,62 @@ public class SkUiCoreAbsoluteLayout : SkUiCorePanel
     public SkUiCoreAbsoluteLayout Add(ISkUiCoreNode child, Rect bounds, SkUiCoreAbsoluteLayoutFlags flags)
     {
         ArgumentNullException.ThrowIfNull(child);
-        InsertChild(Children.Count, child);
-        _placements[child] = (bounds, flags);
+        // Insert first (it validates the child), then write the placement; one re-measure for both.
+        StartUpdating();
+        try
+        {
+            InsertChild(Children.Count, child);
+            WritePlacement((SkUiCoreNode)child, bounds, flags);
+        }
+        finally
+        {
+            EndUpdating();
+        }
         return this;
     }
 
-    /// <summary>Updates bounds/flags for an existing child.</summary>
+    /// <summary>Appends a child placed by its own attached <see cref="LayoutBoundsProperty"/> / <see cref="LayoutFlagsProperty"/> (measured size at (0,0) unless set).</summary>
+    public new SkUiCoreAbsoluteLayout Add(ISkUiCoreNode child)
+    {
+        base.Add(child);
+        return this;
+    }
+
+    /// <summary>Updates bounds/flags for a child of this layout.</summary>
     public SkUiCoreAbsoluteLayout SetLayoutBounds(ISkUiCoreNode child, Rect bounds, SkUiCoreAbsoluteLayoutFlags flags = SkUiCoreAbsoluteLayoutFlags.None)
     {
         ArgumentNullException.ThrowIfNull(child);
-        if (!_placements.ContainsKey(child))
+        if (child.Parent != this)
             throw new ArgumentException("Child is not in this layout.", nameof(child));
-        _placements[child] = (bounds, flags);
-        InvalidateMeasure();
+        StartUpdating();
+        try
+        {
+            WritePlacement((SkUiCoreNode)child, bounds, flags);
+        }
+        finally
+        {
+            EndUpdating();
+        }
         return this;
     }
 
-    /// <summary>Removes a child if present, including its absolute placement.</summary>
-    public new bool Remove(ISkUiCoreNode child)
+    /// <summary>Removes a child if present; its attached placement stays on the child.</summary>
+    public new bool Remove(ISkUiCoreNode child) => base.Remove(child);
+
+    /// <summary>Removes all children; their attached placements stay on them.</summary>
+    public new void Clear() => base.Clear();
+
+    private static void WritePlacement(SkUiCoreNode node, Rect bounds, SkUiCoreAbsoluteLayoutFlags flags)
     {
-        _placements.Remove(child);
-        return base.Remove(child);
+        node.SetValue(LayoutBoundsProperty, bounds);
+        node.SetValue(LayoutFlagsProperty, flags);
     }
 
-    /// <summary>Removes all children and placements.</summary>
-    public new void Clear()
+    private static (Rect Bounds, SkUiCoreAbsoluteLayoutFlags Flags) ReadPlacement(ISkUiCoreNode child)
     {
-        _placements.Clear();
-        base.Clear();
+        var node = (SkUiCoreNode)child;
+        return (node.GetValue(LayoutBoundsProperty), node.GetValue(LayoutFlagsProperty));
     }
-
-    /// <inheritdoc />
-    protected override void OnChildRemoved(ISkUiCoreNode child) => _placements.Remove(child);
-
-    /// <summary>Hides parameterless <see cref="SkUiCorePanel.Add"/> — absolute children require bounds.</summary>
-    [Obsolete("Use Add(child, bounds) or Add(child, bounds, flags).", error: true)]
-    public new SkUiCoreAbsoluteLayout Add(ISkUiCoreNode child) =>
-        throw new NotSupportedException("Absolute layout children require bounds. Use Add(child, bounds).");
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
@@ -123,7 +148,7 @@ public class SkUiCoreAbsoluteLayout : SkUiCorePanel
     /// <summary>Measure constraints for a child (proportional size → fraction of the slot).</summary>
     private Size ResolveMeasureConstraints(ISkUiCoreNode child, double slotWidth, double slotHeight)
     {
-        var (bounds, flags) = _placements[child];
+        var (bounds, flags) = ReadPlacement(child);
         // Non-proportional non-positive bounds mean "auto": measure unconstrained so ResolveDestination
         // can fall back to the intrinsic DesiredSize (a zero constraint would also measure as zero).
         var width = flags.HasFlag(SkUiCoreAbsoluteLayoutFlags.Width)
@@ -141,7 +166,7 @@ public class SkUiCoreAbsoluteLayout : SkUiCorePanel
     /// </summary>
     private Rect ResolveDestination(ISkUiCoreNode child, double slotWidth, double slotHeight, Size desired)
     {
-        var (bounds, flags) = _placements[child];
+        var (bounds, flags) = ReadPlacement(child);
         var width = ResolveDimension(
             flags.HasFlag(SkUiCoreAbsoluteLayoutFlags.Width), bounds.Width, slotWidth, desired.Width);
         var height = ResolveDimension(
