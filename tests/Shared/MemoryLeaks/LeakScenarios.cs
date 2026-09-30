@@ -447,7 +447,8 @@ public static class LeakScenarios
             if (_flex!.Children.Count != 7 || _wrap!.Children.Count != 7 || _shrink!.Children.Count != 3
                 || _coreWrap!.Children.Count != 5 || _coreShrink!.Children.Count != 2)
                 return "The flex / wrap / shrink changes were not applied.";
-            if (_flex.Height <= 0 || _wrap.Height <= 0 || _shrink.Height <= 0 || _coreWrap.Frame.Height <= 0)
+            // Width, not height: text measures empty on hosts without fonts (Linux CI), so label-only layouts are 0 tall.
+            if (_flex.Width <= 0 || _wrap.Width <= 0 || _shrink.Width <= 0 || _coreWrap.Frame.Width <= 0 || _coreShrink.Frame.Width <= 0)
                 return "The flex / wrap / shrink layouts were not laid out.";
             if (_grid!.Children.Count != 11 || _grid.ColumnDefinitions.Count != 3 || _grid.ColumnDefinitions[2].Width != GridLength.Auto)
                 return "The grid changes were not applied.";
