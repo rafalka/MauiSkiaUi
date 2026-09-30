@@ -14,9 +14,14 @@
     <Compile Include="../../MauiSkiaUiDemo/DemoAssets.cs" Link="Demo/DemoAssets.cs" />
     <Compile Include="../../MauiSkiaUiDemo/DemoFonts.cs" Link="Demo/DemoFonts.cs" />
     <Compile Include="../../MauiSkiaUiDemo/ComponentPages/**/*.cs" Link="Demo/ComponentPages/%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Samples app examples (samples/MauiSkiaUiSamples): built and exercised headlessly; sources embedded as in the app. -->
+    <Compile Include="../../samples/MauiSkiaUiSamples/Infrastructure/*.cs" Link="Samples/Infrastructure/%(Filename)%(Extension)" />
+    <Compile Include="../../samples/MauiSkiaUiSamples/Samples/**/*.cs" Link="Samples/Samples/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../samples/MauiSkiaUiSamples/Samples/**/*.cs" Link="Samples/Source/%(RecursiveDir)%(Filename)%(Extension)" LogicalName="SampleSource/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
     <!-- Leak scenarios shared with the on-device test app (tests/MauiSkiaUi.DeviceTests). -->
     <Compile Include="../Shared/MemoryLeaks/*.cs" Link="Shared/MemoryLeaks/%(Filename)%(Extension)" />
     <None Include="../../MauiSkiaUiDemo/Resources/Fonts/RobotoMono-Regular.ttf" Link="Assets/RobotoMono-Regular.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <PackageReference Include="ColorCode.HTML" Version="2.0.15" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" PrivateAssets="all" />

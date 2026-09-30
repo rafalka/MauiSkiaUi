@@ -25,6 +25,8 @@
   <ItemGroup>
     <!-- A launch screen is required: without UILaunchStoryboardName iOS runs the app letterboxed (legacy mode). -->
     <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#FFFFFF" BaseSize="128,128" />
+    <!-- Registered only with ConfigureFonts (no SkUiFonts.Register): RenderCheck checks drawn text resolves it. -->
+    <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/RobotoMono-Regular.ttf" />
     <!-- Scenarios shared with the headless tests (tests/MauiSkiaUi.Tests/MemoryLeakTests.cs). -->
     <Compile Include="../Shared/MemoryLeaks/*.cs" Link="Shared/MemoryLeaks/%(Filename)%(Extension)" />
     <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />

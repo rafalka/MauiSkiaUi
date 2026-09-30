@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Usage examples for SkiaUi.Maui, one page per example, grouped in sections. Each example is one source file under
+    Samples/ that declares its in-app description (SampleInfo) at the top; the file itself is embedded and shown by the
+    page's Source button. See samples/README.md for adding an example.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>MauiSkiaUiSamples</RootNamespace>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <ApplicationTitle>SkiaUi Samples</ApplicationTitle>
+    <ApplicationId>com.rkdevel.skiauisamples</ApplicationId>
+    <!-- Version / ApplicationDisplayVersion / ApplicationVersion: Directory.Build.props -->
+
+    <Authors>Rafal Kukla</Authors>
+    <Company>Rafal Kukla</Company>
+    <Copyright>Copyright © Rafal Kukla</Copyright>
+    <Description>Usage examples for SkiaUi.Maui — SkiaSharp-drawn .NET MAUI controls.</Description>
+    <RepositoryUrl>https://github.com/rafalka/MauiSkiaUi</RepositoryUrl>
+
+    <WindowsPackageType>None</WindowsPackageType>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+  </PropertyGroup>
+
+  <!-- VS Code or Cursor ran the build (see the SampleBuild* metadata below). -->
+  <PropertyGroup>
+    <SampleBuildCodeEditor Condition="'$(VSCODE_PID)' != '' or '$(TERM_PROGRAM)' == 'vscode'">vscode</SampleBuildCodeEditor>
+    <SampleBuildCodeEditor Condition="'$(SampleBuildCodeEditor)' == 'vscode' and ('$(CURSOR_TRACE_ID)' != '' or $([System.String]::Copy('$(VSCODE_CODE_CACHE_PATH)$(VSCODE_IPC_HOOK)').Contains('Cursor')))">cursor</SampleBuildCodeEditor>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Icon, splash and fonts shared with the demo app. -->
+    <MauiIcon Include="../../MauiSkiaUiDemo/Resources/AppIcon/appicon.svg" />
+    <MauiSplashScreen Include="../../MauiSkiaUiDemo/Resources/Splash/splash.svg" Color="#0B1220" BaseSize="128,128" />
+    <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/OpenSans-Regular.ttf" />
+    <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/OpenSans-Semibold.ttf" />
+    <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/RobotoMono-Regular.ttf" />
+    <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/Lobster-Regular.ttf" />
+
+    <!-- Every example's source file, shown in the app (Source button): the code people read is the code that runs. -->
+    <EmbeddedResource Include="Samples/**/*.cs" LogicalName="SampleSource/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
+
+    <!--
+      The app that ran this build, for the Source page's "Open in …" button (Mac Catalyst / Windows): on macOS the
+      launching app's bundle id (inherited by every process it starts: com.jetbrains.rider, com.microsoft.VSCode, …);
+      on Windows Visual Studio's DevEnvDir, or a VS Code / Cursor environment (Cursor, a VS Code fork, sets VS Code's
+      variables too: its cache path names it). Empty when built from a terminal or CI.
+    -->
+    <AssemblyMetadata Include="SampleBuildAppId" Value="$(__CFBundleIdentifier)" Condition="'$(__CFBundleIdentifier)' != ''" />
+    <AssemblyMetadata Include="SampleBuildDevEnv" Value="$(DevEnvDir)" Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(DevEnvDir)' != ''" />
+    <AssemblyMetadata Include="SampleBuildCodeEditor" Value="$(SampleBuildCodeEditor)" Condition="'$(SampleBuildCodeEditor)' != ''" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+    <!-- C# → syntax-highlighted HTML for the Source page (.NET Foundation, used by the Windows Community Toolkit). -->
+    <PackageReference Include="ColorCode.HTML" Version="2.0.15" />
+    <ProjectReference Include="../../MauiSkiaUi/MauiSkiaUi.csproj" />
+  </ItemGroup>
+</Project>

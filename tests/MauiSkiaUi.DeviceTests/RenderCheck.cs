@@ -6,11 +6,15 @@ namespace MauiSkiaUi.DeviceTests;
 /// <summary>
 /// Draws a few controls offscreen through the real frame pipeline (recorder, compositor) and checks their pixels.
 /// Leak scenarios prove lifetime and input, not painting; this catches builds (trimmed, Native AOT) where drawing
-/// silently breaks (an app-defined overlay painter, text, a button fill).
+/// silently breaks (an app-defined overlay painter, text, a button fill), and checks that drawn text finds a font the
+/// app registered only with MAUI's <c>ConfigureFonts</c>.
 /// </summary>
 internal static class RenderCheck
 {
     private const int Size = 200;
+
+    /// <summary>Alias of Roboto Mono, registered with <c>ConfigureFonts</c> only (MauiProgram).</summary>
+    public const string MauiFontAlias = "SkUiDeviceTestMono";
 
     public static LeakResult Run()
     {
@@ -34,8 +38,19 @@ internal static class RenderCheck
                 problems.Add("label text not drawn");
             if (!Any(bitmap, SkUiDiagnostics.GetRootBounds(button)!.Value, color => color.Green > 100 && color.Red < 60 && color.Blue < 60))
                 problems.Add("button fill not drawn");
+            // Drawn text in the ConfigureFonts font (label → text engine → SkUiFonts → MAUI's registrar). Roboto Mono is
+            // monospaced: ten i's are as wide as ten M's; in the default (proportional) font they are far narrower.
+            double Width(string text)
+            {
+                var sample = new SkUiLabel { Text = text, FontFamily = MauiFontAlias, FontSize = 20 };
+                return sample.Measure(double.PositiveInfinity, double.PositiveInfinity).Width;
+            }
+            var narrow = Width("iiiiiiiiii");
+            var wide = Width("MMMMMMMMMM");
+            if (SkUiFonts.TryResolve(MauiFontAlias) is null || wide <= 0 || Math.Abs(narrow - wide) > wide * 0.02)
+                problems.Add($"drawn text in ConfigureFonts alias '{MauiFontAlias}' is not monospaced (i×10 {narrow:F1} vs M×10 {wide:F1}): the font did not resolve");
             return new LeakResult("RenderCheck", problems.Count == 0 ? LeakStatus.Pass : LeakStatus.Fail,
-                problems.Count == 0 ? "overlay layer, label and button drawn" : string.Join(" · ", problems));
+                problems.Count == 0 ? "overlay layer, label and button drawn; ConfigureFonts font resolved" : string.Join(" · ", problems));
         }
         catch (Exception exception)
         {

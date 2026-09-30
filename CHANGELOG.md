@@ -6,6 +6,8 @@ Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs
 
 ## Unreleased
 
+- **Fixed:** drawn text (`SkUiLabel`, buttons, Core labels) now finds fonts registered only with MAUI's `ConfigureFonts`, on every platform. MAUI's registrar returns a PostScript name on iOS / Mac Catalyst, an asset file name on Android and an `ms-appx:` / `ms-appdata:` URI on Windows. The fallback only handled file paths, so these fonts fell back to the default font unless the app also called `SkUiFonts.Register`.
+
 ## 1.0.0-Prerelease05
 
 - **State-change transitions** ([ControlLook.md](docs/design/ControlLook.md#state-change-transitions-fr-26)):
