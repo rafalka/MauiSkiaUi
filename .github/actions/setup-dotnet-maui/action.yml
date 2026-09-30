@@ -14,6 +14,53 @@ inputs:
 runs:
   using: composite
   steps:
+    # ---- Windows speed-ups -------------------------------------------------------------------------------------
+    # Defender scans every file dotnet, NuGet and MSBuild write (SDK, workload packs, packages): turn real-time
+    # scanning off for this throwaway VM, and exclude the build folders and tools in case the image blocks that.
+    - name: Exclude build folders from Windows Defender
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
+        $paths = @($env:GITHUB_WORKSPACE, $env:RUNNER_TEMP, $env:RUNNER_TOOL_CACHE, $env:TEMP,
+                   "$env:USERPROFILE\.nuget", "$env:ProgramFiles\dotnet")
+        foreach ($path in $paths) { if ($path) { Add-MpPreference -ExclusionPath $path -ErrorAction SilentlyContinue } }
+        Add-MpPreference -ExclusionProcess 'dotnet.exe', 'MSBuild.exe', 'VBCSCompiler.exe' -ErrorAction SilentlyContinue
+        Get-MpPreference | Select-Object DisableRealtimeMonitoring, ExclusionPath | Format-List
+
+    # The image's SDK lives in Program Files, where workloads install as MSIs, and Visual Studio's install records
+    # pull in every other installed workload (iOS, Mac Catalyst, Android, wasm) with it. An SDK installed into a
+    # private folder installs workloads as plain files, only the requested ones, and the folder can be cached.
+    # The month in the key picks up new SDK patches (global.json rolls forward to the latest patch).
+    - name: Use a private .NET install
+      id: dotnet-dir
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        dir="${RUNNER_TEMP}\\dotnet"
+        echo "DOTNET_INSTALL_DIR=${dir}" >> "$GITHUB_ENV"
+        echo "dir=${dir}" >> "$GITHUB_OUTPUT"
+        echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache .NET SDK and workloads
+      if: runner.os == 'Windows'
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.dotnet-dir.outputs.dir }}
+        key: dotnet-${{ runner.os }}-${{ hashFiles('global.json') }}-${{ inputs.workloads }}-${{ steps.dotnet-dir.outputs.month }}-v1
+
+    # Restore downloads the large Windows App SDK packages on every run otherwise.
+    - name: Cache NuGet packages
+      if: runner.os == 'Windows'
+      uses: actions/cache@v6
+      with:
+        path: ~/.nuget/packages
+        key: nuget-${{ runner.os }}-${{ github.job }}-${{ hashFiles('global.json', 'Directory.Build.props', '**/*.csproj') }}
+        restore-keys: |
+          nuget-${{ runner.os }}-${{ github.job }}-
+
+    # ---- All platforms -----------------------------------------------------------------------------------------
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v5
       with:
