@@ -122,6 +122,8 @@ Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](
 
 `MauiSkiaUiDemo` in this repo is a component gallery (editors, native side-by-side comparisons, look/color playground, stress page). It is for exploration and verification, not published with the NuGet package.
 
+`samples/MauiSkiaUiSamples` shows **how to** build things with SkiaUi, e.g. a custom look with its own check-box transition. Each example page explains what it presents and how to achieve it, lists the things to know, and shows its own source ([samples/README.md](samples/README.md)).
+
 ## Stress results (device)
 
 Average of **3 runs** each on a **Samsung Galaxy S9** (Android), stress page, **1 000 children**, animation **off**. SkUi* / Core used **HW acceleration on**. Times are milliseconds from the demo’s `[Stress]` console metrics.

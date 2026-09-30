@@ -7,6 +7,9 @@
     <Project Path="benchmarks/MauiSkiaUi.Benchmarks/MauiSkiaUi.Benchmarks.csproj" />
     <Project Path="benchmarks/MauiSkiaUiBench/MauiSkiaUiBench.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/MauiSkiaUiSamples/MauiSkiaUiSamples.csproj" />
+  </Folder>
   <Project Path="MauiSkiaUi/MauiSkiaUi.csproj" />
   <Project Path="MauiSkiaUiDemo/MauiSkiaUiDemo.csproj" />
 </Solution>

@@ -8,6 +8,7 @@ Internal guide for working **on** SkiaUi (library + demo + tests). Library **use
 | --- | --- | --- |
 | `MauiSkiaUi` | .NET MAUI class library (`net10.0-*`, plus `net10.0` for tests) | SkiaSharp-based UI controls (`SkUi*` types); NuGet package id **`SkiaUi.Maui`** |
 | `MauiSkiaUiDemo` | .NET MAUI application (`net10.0-*`) | Sample host used to develop and verify controls; **in-repo only** (not published) |
+| `samples/MauiSkiaUiSamples` | .NET MAUI application (`net10.0-*`) | Usage examples, one page per example in sections, each with its in-app description and source ([samples/README.md](samples/README.md)); built headlessly by `SamplesTests` |
 | `tests/MauiSkiaUi.Tests` | Headless xUnit tests (`net10.0`) | Real MAUI nodes and offscreen Skia painting; no device required |
 | `tests/MauiSkiaUi.DeviceTests` | .NET MAUI application (`net10.0-*`) | On-device memory-leak scenarios with real handlers and platform views (`scripts/device_tests.sh`) |
 | `benchmarks/MauiSkiaUi.Benchmarks` | Console app (`net10.0`) | Headless benchmark runner (layout / text / recording / compositing) |
