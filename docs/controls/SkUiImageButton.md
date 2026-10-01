@@ -37,6 +37,7 @@ All Image APIs plus `Command`, `CommandParameter`, `Clicked`, `Pressed`, `Releas
 | --- | --- |
 | Aspect / source limits | Same as [`SkUiImage`](SkUiImage.md) |
 | Gestures | SkiaUi tap model only |
+| Visual states | MAUI's: `Normal`, `PointerOver` (hover), `Pressed`, `Disabled` (also when the command cannot execute) |
 
 ## Related
 

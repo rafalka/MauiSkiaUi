@@ -39,6 +39,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | Color model | Single `Color` for checked chrome |
 | Three states | `CheckState` / `IsThreeState` (MAUI has two) |
 | Gestures | Intrinsic SkiaUi tap |
+| Visual states | As MAUI's CheckBox: while checked, `IsChecked` when the `CommonStates` group defines it, else `Normal`; otherwise `Normal` / `PointerOver` / `Disabled`. Indeterminate counts as unchecked |
 
 ## Related
 

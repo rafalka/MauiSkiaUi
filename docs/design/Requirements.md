@@ -287,17 +287,17 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 
 **Naming:** this is **MAUI styling** of individual controls. It is **not** control look (FR-18) and **not** the shared SkiaUi **color scheme** (FR-19).
 
-**Status:** styles and VSM setters are implemented; most controls do not raise their MAUI visual states yet (P2 in [ImplementationPlan.md](ImplementationPlan.md)).
+**Status:** implemented (P2 in [ImplementationPlan.md](ImplementationPlan.md)) except the states that wait for keyboard focus and collection views.
 
 - [x] Style SkiaUi controls with standard **MAUI** mechanisms: `Style` (implicit and explicit), `Setter`s on `BindableProperty`s, resource dictionaries, and `VisualStateManager` visual state groups with setters.
 - [x] `Normal` / `Disabled` on every `SkUi*` view (MAUI's `VisualElement` raises them on `IsEnabled` changes); `SkUiButton` raises `Normal` / `Pressed` / `Disabled`, including Disabled when its command cannot execute.
-- [ ] Every control raises the visual states of its MAUI counterpart: `SkUiView` overrides `ChangeVisualState` with SkiaUi's input state instead of MAUI's platform-set flags.
-  - [ ] `Pressed` on `SkUiImageButton`.
-  - [ ] Toggle states: `IsChecked` (CheckBox), `On` / `Off` (Switch), `Checked` / `Unchecked` (RadioButton).
-  - [ ] `PointerOver` from hover tracking in the pointer router (mouse, trackpad, pen, iPad pointer); MAUI's `IsPointerOver` is internal, so SkiaUi keeps its own flag.
+- [x] Every control raises the visual states of its MAUI counterpart: `SkUiView` overrides `ChangeVisualState` with SkiaUi's input state instead of MAUI's platform-set flags (checked against MAUI's controls step by step in `VisualStateTests`).
+  - [x] `Pressed` on `SkUiImageButton`.
+  - [x] Toggle states: `IsChecked` (CheckBox), `On` / `Off` (Switch), `Checked` / `Unchecked` (RadioButton).
+  - [x] `PointerOver` from hover tracking in the pointer router (mouse, trackpad, pen, iPad pointer); MAUI's `IsPointerOver` is internal, so SkiaUi keeps its own flag (`SkUiView.IsPointerOver`).
   - [ ] `Focused` / `Unfocused`, once drawn controls take keyboard focus (N8).
   - [ ] `Selected` on collection items (FR-22).
-- [ ] State triggers (`StateTrigger`, `AdaptiveTrigger`, `CompareStateTrigger`) verified on drawn controls.
+- [x] State triggers (`StateTrigger`, `AdaptiveTrigger`, `CompareStateTrigger`) verified on drawn controls.
 - Core nodes are not `VisualElement`s: their state visuals come from the look and its transitions (FR-18, FR-26), not from VSM.
 - [x] Prefer FR-12 for **per-control** overrides (this button’s fill, that label’s font). Shared **default** palette across Core + MAUI controls is **FR-19** (color scheme); do not require apps to duplicate Accent/Background tokens only via MAUI resources for Core trees.
 - [x] Document sample `Style` resources for common controls in the demo or docs.

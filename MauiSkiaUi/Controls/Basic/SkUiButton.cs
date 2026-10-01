@@ -108,14 +108,26 @@ public class SkUiButton : SkUiLabel
     protected override void OnPressedChanged()
     {
         (_press ??= new SkUiPressAnimator(this)).SetPressed(IsPressed, PressPosition);
-        UpdateState();
+        InvalidatePaint();
         (IsPressed ? Pressed : Released)?.Invoke(this, EventArgs.Empty);
     }
     private void UpdateState()
     {
-        VisualStateManager.GoToState(this, !IsEnabled || !CanReceiveTap ? "Disabled" : IsPressed ? "Pressed" : "Normal");
+        ChangeVisualState();
         InvalidatePaint();
     }
+    /// <summary>MAUI's button states: <c>Pressed</c> while an enabled press is held, otherwise the common states.</summary>
+    protected override void ChangeVisualState()
+    {
+        if (IsVisualStateEnabled && IsPressed)
+            VisualStateManager.GoToState(this, PressedVisualState);
+        else
+            base.ChangeVisualState();
+    }
+
+    /// <summary>The name of the visual state while pressed (MAUI's <c>ButtonElement.PressedVisualState</c>).</summary>
+    public const string PressedVisualState = "Pressed";
+
     /// <inheritdoc />
     protected override void OnPropertyChanged(string? propertyName = null)
     {

@@ -167,6 +167,7 @@ public abstract class SkUiToggleControl : SkUiView
         (_transition ??= new SkUiToggleAnimator(this, TransitionKind)).Changed(old, value);
         InvalidatePaint();
         OnCheckStateApplied(old, value);
+        ChangeVisualState();
         CheckStateChanged?.Invoke(this, value);
         var isChecked = SkUiCheckStates.IsChecked(value);
         if (SkUiCheckStates.IsChecked(old) != isChecked)

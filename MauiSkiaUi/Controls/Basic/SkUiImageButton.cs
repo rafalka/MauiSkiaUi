@@ -77,18 +77,18 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
             EventHandler? listener = null;
             listener = (sender, _) =>
             {
-                if (weak.TryGetTarget(out var button)) button.InvalidatePaint();
+                if (weak.TryGetTarget(out var button)) button.UpdateState();
                 else if (sender is ICommand oldCommand) oldCommand.CanExecuteChanged -= listener;
             };
             _commandChanged = listener;
             value.CanExecuteChanged += listener;
         }
-        InvalidatePaint();
+        UpdateState();
         return this;
     }
     private EventHandler? _commandChanged;
     /// <summary>Sets command argument without bindable write-back.</summary>
-    public SkUiImageButton SetCommandParameter(object? value) { _commandParameter = value; InvalidatePaint(); return this; }
+    public SkUiImageButton SetCommandParameter(object? value) { _commandParameter = value; UpdateState(); return this; }
     /// <summary>Sets the per-corner radii without bindable write-back.</summary>
     public SkUiImageButton SetCornerRadii(CornerRadius value) { SkUiCornerRadii.Validate(value, nameof(value)); if (_cornerRadii == value) return this; _cornerRadii = value; InvalidatePaint(); return this; }
     /// <summary>Sets all four corner radii to <paramref name="value"/> without bindable write-back.</summary>
@@ -116,6 +116,24 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     }
 
     private SkUiPressAnimator? _press;
+
+    private void UpdateState()
+    {
+        ChangeVisualState();
+        InvalidatePaint();
+    }
+
+    /// <summary>MAUI's image button states: <c>Pressed</c> while an enabled press is held, otherwise the common states.</summary>
+    protected override void ChangeVisualState()
+    {
+        if (IsVisualStateEnabled && IsPressed)
+            VisualStateManager.GoToState(this, PressedVisualState);
+        else
+            base.ChangeVisualState();
+    }
+
+    /// <summary>The name of the visual state while pressed (MAUI's <c>ButtonElement.PressedVisualState</c>).</summary>
+    public const string PressedVisualState = "Pressed";
 
     /// <inheritdoc />
     protected override void OnTapped(SkUiTappedEventArgs args)

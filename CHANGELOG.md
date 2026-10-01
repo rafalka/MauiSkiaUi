@@ -6,6 +6,10 @@ Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs
 
 ## Unreleased
 
+- **MAUI visual states (P2)** on every `SkUi*` view, from SkiaUi's own input state: `Disabled` (also while a button's command cannot execute), `PointerOver`, `Normal`, and `Focused` / `Unfocused` in a focus group, plus each control's MAUI states: `Pressed` on `SkUiButton` / `SkUiImageButton`, `IsChecked` on `SkUiCheckBox` (when the `CommonStates` group defines it, as in MAUI), `On` / `Off` on `SkUiSwitch`, `Checked` / `Unchecked` on `SkUiRadioButton`. Checked against MAUI's controls step by step. `StateTrigger`, `CompareStateTrigger` and `AdaptiveTrigger` work on drawn controls.
+  - **Hover:** new `SkUiView.IsPointerOver` and `SkUiTouchAction.HoverMoved` / `HoverExited`. A mouse, trackpad, pen or iPad pointer over the surface makes the view under it and its ancestors pointer-over. Windows reports hover through SkiaSharp; Android surfaces use the view's `Hover` event, Apple surfaces a `UIHoverGestureRecognizer` ([EventMechanism.md](docs/design/EventMechanism.md#hover)).
+  - Before, only `SkUiButton` raised `Normal` / `Pressed` / `Disabled`.
+
 - **MAUI API parity of existing controls (P1)**, on SkUi* and Core:
   - **Switch:** `IsToggled` (two-way bindable) and `Toggled` (`ToggledEventArgs`), MAUI's names for the two-state view of `CheckState`; they stay in step with `IsChecked`.
   - **RadioButton:** checking one unchecks the rest of its group, with MAUI's rules: siblings in the same parent when there is no `GroupName`, every radio button with the same `GroupName` on the page otherwise. New `Value`, and MAUI's own `RadioButtonGroup.GroupName` / `SelectedValue` work on drawn layouts with unchanged markup: the layout names its radio buttons, and `SelectedValue` binds two-way to the checked one's `Value` ([SkUiRadioButton.md](docs/controls/SkUiRadioButton.md)). `SkUiCoreRadioButton`: the radio buttons in the same parent exclude each other.

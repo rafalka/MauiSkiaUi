@@ -49,6 +49,13 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
     /// <summary>Whether an eligible captured pointer is currently pressed inside this node.</summary>
     public bool IsPressed { get; private set; }
 
+    /// <summary>
+    /// Whether a hovering pointer (mouse, trackpad, pen or iPad pointer) is over this view or one of its descendants.
+    /// Drives the <c>PointerOver</c> visual state; touch-only devices never set it. MAUI's own flag is internal and set
+    /// by native views, which drawn views do not have.
+    /// </summary>
+    public bool IsPointerOver { get; private set; }
+
     /// <summary>Where the last press started, in this view's coordinates (ripple origin).</summary>
     internal Point PressPosition { get; private set; }
 
@@ -99,8 +106,39 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
             (_pressEffect ??= new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
         OnPropertyChanged(nameof(IsPressed));
         OnPressedChanged();
+        ChangeVisualState();
         InvalidatePaint();
     }
+
+    void ISkUiInputNode.SetPointerOver(bool isOver)
+    {
+        if (IsPointerOver == isOver) return;
+        IsPointerOver = isOver;
+        OnPropertyChanged(nameof(IsPointerOver));
+        ChangeVisualState();
+    }
+
+    /// <summary>
+    /// Moves to MAUI's visual states from SkiaUi's input state, as MAUI's <c>VisualElement</c> does from the native view's:
+    /// <c>CommonStates</c> is <c>Disabled</c> (also while <see cref="CanReceiveTap"/> is false, e.g. a command that
+    /// cannot execute), else <c>PointerOver</c> (<see cref="IsPointerOver"/>), else <c>Normal</c>; while enabled, the
+    /// focus group gets <c>Focused</c> / <c>Unfocused</c>. Controls add theirs (buttons <c>Pressed</c>, toggles their
+    /// checked states). Runs on press, hover, enabled and control state changes, and when visual state groups are set.
+    /// </summary>
+    protected override void ChangeVisualState()
+    {
+        var enabled = IsVisualStateEnabled;
+        VisualStateManager.GoToState(this, !enabled ? VisualStateManager.CommonStates.Disabled
+            : IsPointerOver ? VisualStateManager.CommonStates.PointerOver : VisualStateManager.CommonStates.Normal);
+        if (enabled)
+            VisualStateManager.GoToState(this, IsFocused ? VisualStateManager.CommonStates.Focused : UnfocusedState);
+    }
+
+    /// <summary>MAUI's (internal) name of the focus group's unfocused state.</summary>
+    private const string UnfocusedState = "Unfocused";
+
+    /// <summary>Enabled for visual states: <see cref="VisualElement.IsEnabled"/> and <see cref="CanReceiveTap"/>.</summary>
+    private protected bool IsVisualStateEnabled => IsEnabled && CanReceiveTap;
 
     /// <summary>Updates intrinsic control feedback when the shared pointer state changes.</summary>
     protected virtual void OnPressedChanged() { }

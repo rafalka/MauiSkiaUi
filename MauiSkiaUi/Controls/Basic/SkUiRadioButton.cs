@@ -68,6 +68,19 @@ public class SkUiRadioButton : SkUiToggleControl
             SkUiRadioGroups.OnChecked(this);
     }
 
+    /// <summary>The visual state while checked (MAUI's <c>RadioButton.CheckedVisualState</c>).</summary>
+    public const string CheckedVisualState = "Checked";
+
+    /// <summary>The visual state while not checked (MAUI's <c>RadioButton.UncheckedVisualState</c>; also Indeterminate).</summary>
+    public const string UncheckedVisualState = "Unchecked";
+
+    /// <summary>As MAUI's RadioButton: <c>Checked</c> / <c>Unchecked</c> (in any group that defines them), then the common states.</summary>
+    protected override void ChangeVisualState()
+    {
+        VisualStateManager.GoToState(this, IsChecked ? CheckedVisualState : UncheckedVisualState);
+        base.ChangeVisualState();
+    }
+
     /// <summary>A change made by the group (exclusion, selected value): written back like a user change.</summary>
     internal void SetCheckedByGroup(bool value) => CommitState(SkUiCheckStates.FromIsChecked(value));
 

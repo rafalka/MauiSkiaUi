@@ -18,6 +18,37 @@ public class SkUiCheckBox : SkUiToggleControl
     /// <summary>Sets the color without bindable write-back.</summary>
     public SkUiCheckBox SetColor(Color value) { ArgumentNullException.ThrowIfNull(value); _color = value; InvalidatePaint(); return this; }
 
+    /// <summary>The <c>CommonStates</c> state while checked (MAUI's <c>CheckBox.IsCheckedVisualState</c>).</summary>
+    public const string IsCheckedVisualState = "IsChecked";
+
+    /// <summary>
+    /// As MAUI's CheckBox: while enabled and checked, <c>IsChecked</c> when the <c>CommonStates</c> group defines it, else
+    /// <c>Normal</c>; otherwise the common states (Indeterminate counts as unchecked).
+    /// </summary>
+    protected override void ChangeVisualState()
+    {
+        if (IsVisualStateEnabled && IsChecked)
+            VisualStateManager.GoToState(this, HasCommonState(IsCheckedVisualState) ? IsCheckedVisualState : VisualStateManager.CommonStates.Normal);
+        else
+            base.ChangeVisualState();
+    }
+
+    private bool HasCommonState(string name)
+    {
+        if (!this.HasVisualStateGroups())
+            return false;
+        foreach (var group in VisualStateManager.GetVisualStateGroups(this))
+        {
+            if (group.Name != "CommonStates")
+                continue;
+            foreach (var state in group.States)
+                if (state.Name == name)
+                    return true;
+            return false;
+        }
+        return false;
+    }
+
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
         SkUiLook.Current.MeasureCheckBox(widthConstraint, heightConstraint);

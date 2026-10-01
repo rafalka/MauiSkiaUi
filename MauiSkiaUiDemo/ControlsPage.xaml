@@ -36,6 +36,12 @@
                         <VisualStateManager.VisualStateGroups>
                             <VisualStateGroup Name="CommonStates">
                                 <VisualState Name="Normal" />
+                                <!-- Mouse, trackpad, pen or iPad pointer hover -->
+                                <VisualState Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Property="FillColor" Value="#0A9499" />
+                                    </VisualState.Setters>
+                                </VisualState>
                                 <VisualState Name="Pressed">
                                     <VisualState.Setters>
                                         <Setter Property="FillColor" Value="#075B5E" />

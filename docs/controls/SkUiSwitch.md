@@ -37,6 +37,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | Three states | `CheckState` / `IsThreeState` (MAUI has two); `IsToggled` is `true` only for Checked |
 | Off-track color | Fixed SkiaUi track-off color (no full MAUI off-color model) |
 | Gestures | Intrinsic SkiaUi tap |
+| Visual states | As MAUI's Switch: the common states, then `On` / `Off` while enabled (Indeterminate is `Off`) |
 
 ## Related
 

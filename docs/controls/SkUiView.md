@@ -58,6 +58,7 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 - Not a MAUI `SKGLView` subclass; surface comes from `SkUiViewHandler` (Metal on Apple, GL thread on Android, `SKCanvasView` for software).
 - Defaults: leaf controls `HwAccelerated = false`; hosts/layouts default `true`.
 - Hit-testing uses **arranged bounds** (shape-aware hits deferred).
+- **Visual states:** MAUI's `VisualStateManager` groups and setters work; `SkUiView` raises the states from SkiaUi's input state: `Disabled` (also while a control cannot be tapped, e.g. a command that cannot execute), else `PointerOver` while `IsPointerOver` (mouse, trackpad, pen or iPad pointer hover; see [EventMechanism.md](../design/EventMechanism.md#hover)), else `Normal`; `Focused` / `Unfocused` in a focus group (no keyboard focus on drawn views yet). Controls add their MAUI states (buttons `Pressed`, toggles their checked states). State triggers (`StateTrigger`, `CompareStateTrigger`, `AdaptiveTrigger`) work as in MAUI.
 - Solid `Background` / `BackgroundColor` only in v1. Prefer either path; empty MAUI default brushes do not block `BackgroundColor`.
 
 ## Related

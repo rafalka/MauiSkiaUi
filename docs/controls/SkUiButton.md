@@ -39,7 +39,7 @@ Inherits Label text APIs and its rounded chrome: per-corner `CornerRadii`, and `
 | Hit region | Rectangular arranged bounds (corners outside the round fill still hit) |
 | `TappedCommand` vs `Command` | On tap, only `Command` runs (plus `Clicked` / `Tapped` event). Do not rely on both commands. |
 | Chrome | `FillColor`; solid `Background` overrides fill |
-| Visual states | Normal / Pressed / Disabled via MAUI `VisualStateManager` |
+| Visual states | MAUI's: `Normal`, `PointerOver` (hover), `Pressed`, `Disabled` (also when the command cannot execute) |
 
 ## Related
 

@@ -58,6 +58,20 @@ public class SkUiSwitch : SkUiToggleControl
     /// <summary>Sets the thumb color without bindable write-back.</summary>
     public SkUiSwitch SetThumbColor(Color value) { ArgumentNullException.ThrowIfNull(value); _thumbColor = value; InvalidatePaint(); return this; }
 
+    /// <summary>The visual state while on (MAUI's <c>Switch.SwitchOnVisualState</c>).</summary>
+    public const string SwitchOnVisualState = "On";
+
+    /// <summary>The visual state while off (MAUI's <c>Switch.SwitchOffVisualState</c>; also Indeterminate).</summary>
+    public const string SwitchOffVisualState = "Off";
+
+    /// <summary>As MAUI's Switch: the common states, then <c>On</c> / <c>Off</c> while enabled.</summary>
+    protected override void ChangeVisualState()
+    {
+        base.ChangeVisualState();
+        if (IsVisualStateEnabled)
+            VisualStateManager.GoToState(this, IsToggled ? SwitchOnVisualState : SwitchOffVisualState);
+    }
+
     private void OnIsToggledPropertyChanged(bool value)
     {
         if (!_syncingIsToggled)

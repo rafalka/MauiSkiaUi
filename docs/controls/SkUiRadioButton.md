@@ -64,6 +64,7 @@ radio.CheckedChanged += (_, args) => { if (args.Value) Selected = radio.Value; }
 | `Content` / label | Not drawn — compose a label beside the control (P8 in [ImplementationPlan.md](../design/ImplementationPlan.md)) |
 | `ControlTemplate` | Not supported |
 | Visual | Circle + dot only |
+| Visual states | As MAUI's RadioButton: `Checked` / `Unchecked`, then the common states |
 
 ## Related
 
