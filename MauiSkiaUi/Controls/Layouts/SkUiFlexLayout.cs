@@ -140,7 +140,7 @@ public class SkUiFlexLayout : SkUiLayout, IFlexLayout
             InitItemProperties(children[index], _items[children[index]]);
 
         // MAUI's FlexLayout also has an infinite-constraint "measure hack" (shrink 0, align-self Start), but in
-        // 10.0.101 it runs before the item properties are refreshed, which overwrite it, so it has no effect.
+        // 10.0.101–10.0.110 it runs before the item properties are refreshed, which overwrite it, so it has no effect.
         // The engine already skips shrinking and stretching on an axis of size 0 (unconstrained).
         _root.Width = !double.IsPositiveInfinity(width) ? (float)width : 0;
         _root.Height = !double.IsPositiveInfinity(height) ? (float)height : 0;
