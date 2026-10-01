@@ -22,9 +22,9 @@ public class SkUiImage : SkUiView, IDisposable
     public static readonly BindableProperty AspectProperty = BindableProperty.Create(nameof(Aspect), typeof(Aspect), typeof(SkUiImage), Aspect.AspectFit,
         propertyChanged: (view, _, value) => ((SkUiImage)view).SetAspect((Aspect)value));
     /// <summary>Image source; asynchronous loading starts when it changes.</summary>
-    public ImageSource? Source { get => _source; set => SetValue(SourceProperty, value); }
+    public ImageSource? Source { get => (ImageSource?)GetValue(SourceProperty); set => SetValue(SourceProperty, value); }
     /// <summary>Fit, fill, stretch or center (unscaled) within the arranged bounds.</summary>
-    public Aspect Aspect { get => _aspect; set => SetValue(AspectProperty, value); }
+    public Aspect Aspect { get => (Aspect)GetValue(AspectProperty); set => SetValue(AspectProperty, value); }
     /// <summary>Current asynchronous load, including error-state publication.</summary>
     public Task LoadingTask { get; private set; } = Task.CompletedTask;
     /// <summary>Whether the current source is loading.</summary>
@@ -36,10 +36,11 @@ public class SkUiImage : SkUiView, IDisposable
     public Size ImageSize => _image is null ? Size.Zero
         : _decodedSourceSize is { } source ? new Size(source.Width, source.Height) : new Size(_image.Width, _image.Height);
 
-    /// <summary>Sets source without bindable write-back. Call on the UI thread; streams are owned and disposed by this control.</summary>
+    /// <summary>Sets source (same as the property setter). Call on the UI thread; streams are owned and disposed by this control.</summary>
     public SkUiImage SetSource(ImageSource? value)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (WriteBindable(SourceProperty, value)) return this;
         if (ReferenceEquals(_source, value)) return this;
         if (_source is not null) _source.PropertyChanged -= OnSourceChanged;
         _source = value;
@@ -48,8 +49,8 @@ public class SkUiImage : SkUiView, IDisposable
         return this;
     }
 
-    /// <summary>Sets aspect without bindable write-back.</summary>
-    public SkUiImage SetAspect(Aspect value) { _aspect = value; InvalidatePaint(); return this; }
+    /// <summary>Sets aspect (same as the property setter).</summary>
+    public SkUiImage SetAspect(Aspect value) { if (WriteBindable(AspectProperty, value)) return this; _aspect = value; InvalidatePaint(); return this; }
     private void OnSourceChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName is nameof(FileImageSource.File) or nameof(StreamImageSource.Stream) or nameof(UriImageSource.Uri))

@@ -47,11 +47,11 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     /// <summary>Raised when a press ends: released, cancelled (e.g. a scroll took over) or moved out.</summary>
     public event EventHandler? Released;
     /// <summary>Command; CanExecute also controls tap eligibility and the disabled tint.</summary>
-    public ICommand? Command { get => _command; set => SetValue(CommandProperty, value); }
+    public ICommand? Command { get => (ICommand?)GetValue(CommandProperty); set => SetValue(CommandProperty, value); }
     /// <summary>Command argument.</summary>
-    public object? CommandParameter { get => _commandParameter; set => SetValue(CommandParameterProperty, value); }
+    public object? CommandParameter { get => GetValue(CommandParameterProperty); set => SetValue(CommandParameterProperty, value); }
     /// <summary>Per-corner radii in DIPs: they clip the image, the press / disabled tint and the border.</summary>
-    public CornerRadius CornerRadii { get => _cornerRadii; set => SetValue(CornerRadiiProperty, value); }
+    public CornerRadius CornerRadii { get => (CornerRadius)GetValue(CornerRadiiProperty); set => SetValue(CornerRadiiProperty, value); }
     /// <summary>
     /// Uniform view of <see cref="CornerRadii"/>, an <c>int</c> as MAUI ImageButton's <c>CornerRadius</c>: setting it sets all
     /// four corners, and it reads the top-left radius, rounded (whichever of the two is set last wins); use
@@ -59,15 +59,16 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     /// </summary>
     public int CornerRadius { get => (int)Math.Round(_cornerRadii.TopLeft); set => SetValue(CornerRadiusProperty, value); }
     /// <summary>Border color; the border is drawn inside the bounds, over the image.</summary>
-    public Color BorderColor { get => _borderColor; set => SetValue(BorderColorProperty, value); }
+    public Color BorderColor { get => (Color)GetValue(BorderColorProperty); set => SetValue(BorderColorProperty, value); }
     /// <summary>Border width in DIPs (0: no border).</summary>
-    public double BorderWidth { get => _borderWidth; set => SetValue(BorderWidthProperty, value); }
+    public double BorderWidth { get => (double)GetValue(BorderWidthProperty); set => SetValue(BorderWidthProperty, value); }
     /// <summary>Space between the bounds and the image; adds to the intrinsic size.</summary>
-    public Thickness Padding { get => _padding; set => SetValue(PaddingProperty, value); }
+    public Thickness Padding { get => (Thickness)GetValue(PaddingProperty); set => SetValue(PaddingProperty, value); }
 
-    /// <summary>Sets command without bindable write-back; command notifications use a weak target.</summary>
+    /// <summary>Sets command; command notifications use a weak target.</summary>
     public SkUiImageButton SetCommand(ICommand? value)
     {
+        if (WriteBindable(CommandProperty, value)) return this;
         if (_command == value) return this;
         if (_command is not null && _commandChanged is not null) _command.CanExecuteChanged -= _commandChanged;
         _command = value;
@@ -87,18 +88,18 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
         return this;
     }
     private EventHandler? _commandChanged;
-    /// <summary>Sets command argument without bindable write-back.</summary>
-    public SkUiImageButton SetCommandParameter(object? value) { _commandParameter = value; UpdateState(); return this; }
-    /// <summary>Sets the per-corner radii without bindable write-back.</summary>
-    public SkUiImageButton SetCornerRadii(CornerRadius value) { SkUiCornerRadii.Validate(value, nameof(value)); if (_cornerRadii == value) return this; _cornerRadii = value; InvalidatePaint(); return this; }
-    /// <summary>Sets all four corner radii to <paramref name="value"/> without bindable write-back.</summary>
-    public SkUiImageButton SetCornerRadius(int value) { ArgumentOutOfRangeException.ThrowIfNegative(value); return SetCornerRadii(new CornerRadius(value)); }
-    /// <summary>Sets the border color without bindable write-back.</summary>
-    public SkUiImageButton SetBorderColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (_borderColor == value) return this; _borderColor = value; InvalidatePaint(); return this; }
-    /// <summary>Sets the border width without bindable write-back.</summary>
-    public SkUiImageButton SetBorderWidth(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (_borderWidth == value) return this; _borderWidth = value; InvalidatePaint(); return this; }
-    /// <summary>Sets the padding without bindable write-back.</summary>
-    public SkUiImageButton SetPadding(Thickness value) { if (_padding == value) return this; _padding = value; InvalidateMeasureOverride(); return this; }
+    /// <summary>Sets command argument (same as the property setter).</summary>
+    public SkUiImageButton SetCommandParameter(object? value) { if (WriteBindable(CommandParameterProperty, value)) return this; _commandParameter = value; UpdateState(); return this; }
+    /// <summary>Sets the per-corner radii (same as the property setter).</summary>
+    public SkUiImageButton SetCornerRadii(CornerRadius value) { SkUiCornerRadii.Validate(value, nameof(value)); if (WriteBindable(CornerRadiiProperty, value)) return this; if (_cornerRadii == value) return this; _cornerRadii = value; InvalidatePaint(); return this; }
+    /// <summary>Sets all four corner radii to <paramref name="value"/> (same as the property setter).</summary>
+    public SkUiImageButton SetCornerRadius(int value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(CornerRadiusProperty, value)) return this; return SetCornerRadii(new CornerRadius(value)); }
+    /// <summary>Sets the border color (same as the property setter).</summary>
+    public SkUiImageButton SetBorderColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(BorderColorProperty, value)) return this; if (_borderColor == value) return this; _borderColor = value; InvalidatePaint(); return this; }
+    /// <summary>Sets the border width (same as the property setter).</summary>
+    public SkUiImageButton SetBorderWidth(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(BorderWidthProperty, value)) return this; if (_borderWidth == value) return this; _borderWidth = value; InvalidatePaint(); return this; }
+    /// <summary>Sets the padding (same as the property setter).</summary>
+    public SkUiImageButton SetPadding(Thickness value) { if (WriteBindable(PaddingProperty, value)) return this; if (_padding == value) return this; _padding = value; InvalidateMeasureOverride(); return this; }
 
     /// <summary>Creates an image button with a press/disabled tint overlay painter.</summary>
     public SkUiImageButton() => SetPaintOverlay(PaintButtonOverlay);

@@ -37,21 +37,22 @@ public class SkUiProgressBar : SkUiView
         defaultValueCreator: _ => SkUiColors.TrackOff, propertyChanged: (view, _, value) => ((SkUiProgressBar)view).SetTrackColor((Color)value));
 
     /// <summary>Completed fraction, 0–1 (clamped; NaN becomes 0).</summary>
-    public double Progress { get => _progress; set => SetValue(ProgressProperty, value); }
+    public double Progress { get => (double)GetValue(ProgressProperty); set => SetValue(ProgressProperty, value); }
 
     /// <summary>Shows activity without a known amount: a segment moves along the bar and <see cref="Progress"/> is not drawn.</summary>
-    public bool IsIndeterminate { get => _isIndeterminate; set => SetValue(IsIndeterminateProperty, value); }
+    public bool IsIndeterminate { get => (bool)GetValue(IsIndeterminateProperty); set => SetValue(IsIndeterminateProperty, value); }
 
     /// <summary>Fill (and moving segment) color.</summary>
-    public Color ProgressColor { get => _progressColor; set => SetValue(ProgressColorProperty, value); }
+    public Color ProgressColor { get => (Color)GetValue(ProgressColorProperty); set => SetValue(ProgressColorProperty, value); }
 
     /// <summary>Track color behind the fill.</summary>
-    public Color TrackColor { get => _trackColor; set => SetValue(TrackColorProperty, value); }
+    public Color TrackColor { get => (Color)GetValue(TrackColorProperty); set => SetValue(TrackColorProperty, value); }
 
-    /// <summary>Sets the progress (clamped) without bindable write-back.</summary>
+    /// <summary>Sets the progress (clamped) (same as the property setter).</summary>
     public SkUiProgressBar SetProgress(double value)
     {
         value = SkUiProgressTween.Clamp(value);
+        if (WriteBindable(ProgressProperty, value)) return this;
         if (_progress == value) return this;
         SkUiProgressBarDrawing.ProgressChanged(this, ref _fill, _progress, value, _tween);
         _progress = value;
@@ -59,9 +60,10 @@ public class SkUiProgressBar : SkUiView
         return this;
     }
 
-    /// <summary>Sets <see cref="IsIndeterminate"/> without bindable write-back.</summary>
+    /// <summary>Sets <see cref="IsIndeterminate"/> (same as the property setter).</summary>
     public SkUiProgressBar SetIsIndeterminate(bool value)
     {
+        if (WriteBindable(IsIndeterminateProperty, value)) return this;
         if (_isIndeterminate == value) return this;
         _isIndeterminate = value;
         InvalidatePaint();
@@ -69,11 +71,11 @@ public class SkUiProgressBar : SkUiView
         return this;
     }
 
-    /// <summary>Sets the progress color without bindable write-back.</summary>
-    public SkUiProgressBar SetProgressColor(Color value) { ArgumentNullException.ThrowIfNull(value); _progressColor = value; InvalidatePaint(); return this; }
+    /// <summary>Sets the progress color (same as the property setter).</summary>
+    public SkUiProgressBar SetProgressColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(ProgressColorProperty, value)) return this; _progressColor = value; InvalidatePaint(); return this; }
 
-    /// <summary>Sets the track color without bindable write-back.</summary>
-    public SkUiProgressBar SetTrackColor(Color value) { ArgumentNullException.ThrowIfNull(value); _trackColor = value; InvalidatePaint(); return this; }
+    /// <summary>Sets the track color (same as the property setter).</summary>
+    public SkUiProgressBar SetTrackColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(TrackColorProperty, value)) return this; _trackColor = value; InvalidatePaint(); return this; }
 
     /// <summary>
     /// Animates <see cref="Progress"/> to <paramref name="value"/> over <paramref name="length"/> ms, like MAUI's

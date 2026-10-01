@@ -24,25 +24,26 @@ public class SkUiBorder : SkUiContentView
         propertyChanged: (view, _, value) => ((SkUiBorder)view).SetCornerRadius((CornerRadius)value));
 
     /// <summary>Border color; null paints no border.</summary>
-    public Color? Stroke { get => _stroke; set => SetValue(StrokeProperty, value); }
+    public Color? Stroke { get => (Color?)GetValue(StrokeProperty); set => SetValue(StrokeProperty, value); }
     /// <summary>Border thickness in DIPs.</summary>
-    public double StrokeThickness { get => _strokeThickness; set => SetValue(StrokeThicknessProperty, value); }
+    public double StrokeThickness { get => (double)GetValue(StrokeThicknessProperty); set => SetValue(StrokeThicknessProperty, value); }
     /// <summary>
     /// Per-corner radii in DIPs. XAML accepts a uniform value or <c>tl,tr,bl,br</c>;
     /// a uniform <see cref="double"/> assigns via implicit conversion.
     /// </summary>
-    public CornerRadius CornerRadius { get => _cornerRadius; set => SetValue(CornerRadiusProperty, value); }
+    public CornerRadius CornerRadius { get => (CornerRadius)GetValue(CornerRadiusProperty); set => SetValue(CornerRadiusProperty, value); }
 
-    /// <summary>Sets the border color without bindable write-back.</summary>
-    public SkUiBorder SetStroke(Color? value) { _stroke = value; InvalidatePaint(); return this; }
-    /// <summary>Sets the border thickness without bindable write-back.</summary>
-    public SkUiBorder SetStrokeThickness(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _strokeThickness = value; InvalidatePaint(); return this; }
-    /// <summary>Sets a uniform corner radius without bindable write-back.</summary>
+    /// <summary>Sets the border color (same as the property setter).</summary>
+    public SkUiBorder SetStroke(Color? value) { if (WriteBindable(StrokeProperty, value)) return this; _stroke = value; InvalidatePaint(); return this; }
+    /// <summary>Sets the border thickness (same as the property setter).</summary>
+    public SkUiBorder SetStrokeThickness(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(StrokeThicknessProperty, value)) return this; _strokeThickness = value; InvalidatePaint(); return this; }
+    /// <summary>Sets a uniform corner radius (same as the property setter).</summary>
     public SkUiBorder SetCornerRadius(double uniformRadius) => SetCornerRadius(new CornerRadius(uniformRadius));
-    /// <summary>Sets independent corner radii without bindable write-back.</summary>
+    /// <summary>Sets independent corner radii (same as the property setter).</summary>
     public SkUiBorder SetCornerRadius(CornerRadius value)
     {
         ValidateCornerRadius(value);
+        if (WriteBindable(CornerRadiusProperty, value)) return this;
         _cornerRadius = value;
         InvalidatePaint();
         return this;

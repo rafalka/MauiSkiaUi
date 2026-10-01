@@ -175,7 +175,7 @@ public class BasicControlsTests
     }
 
     [Fact]
-    public void LabelWrapsAndDirectSettersDoNotWriteBack()
+    public void LabelWrapsAndDirectSettersWriteTheStore()
     {
         using var font = SkUiTestHelpers.UseBundledFont();
         var label = new SkUiLabel
@@ -189,7 +189,7 @@ public class BasicControlsTests
         Assert.True(narrow.Height > wide.Height);
         label.SetText("direct").SetTextColor(Colors.Red);
         Assert.Equal("direct", label.Text);
-        Assert.Equal("alpha beta gamma delta", label.GetValue(SkUiLabel.TextProperty));
+        Assert.Equal("direct", label.GetValue(SkUiLabel.TextProperty)); // a direct setter is the property setter
         label.Text = "bound";
         Assert.Equal("bound", label.Text);
         SkUiTestHelpers.Arrange(label, 160, 60);

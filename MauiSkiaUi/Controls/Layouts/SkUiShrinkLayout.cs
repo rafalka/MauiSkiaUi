@@ -36,10 +36,10 @@ public abstract class SkUiShrinkLayout : SkUiLayout
     }
 
     /// <summary>Gap between children in DIPs.</summary>
-    public double Spacing { get => _spacing; set => SetValue(SpacingProperty, value); }
+    public double Spacing { get => (double)GetValue(SpacingProperty); set => SetValue(SpacingProperty, value); }
 
-    /// <summary>Sets <see cref="Spacing"/> without bindable write-back.</summary>
-    public SkUiShrinkLayout SetSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _spacing = value; InvalidateMeasureOverride(); return this; }
+    /// <summary>Sets <see cref="Spacing"/> (same as the property setter).</summary>
+    public SkUiShrinkLayout SetSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(SpacingProperty, value)) return this; _spacing = value; InvalidateMeasureOverride(); return this; }
 
     /// <inheritdoc />
     private protected override bool AffectsChildLayout(string? propertyName) => propertyName == ShrinkProperty.PropertyName;

@@ -13,10 +13,10 @@ public class SkUiCheckBox : SkUiToggleControl
         propertyChanged: (view, _, value) => ((SkUiCheckBox)view).SetColor((Color)value));
 
     /// <summary>Fill/checkmark color while checked; unchecked always draws a neutral outline.</summary>
-    public Color Color { get => _color; set => SetValue(ColorProperty, value); }
+    public Color Color { get => (Color)GetValue(ColorProperty); set => SetValue(ColorProperty, value); }
 
-    /// <summary>Sets the color without bindable write-back.</summary>
-    public SkUiCheckBox SetColor(Color value) { ArgumentNullException.ThrowIfNull(value); _color = value; InvalidatePaint(); return this; }
+    /// <summary>Sets the color (same as the property setter).</summary>
+    public SkUiCheckBox SetColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(ColorProperty, value)) return this; _color = value; InvalidatePaint(); return this; }
 
     /// <summary>The <c>CommonStates</c> state while checked (MAUI's <c>CheckBox.IsCheckedVisualState</c>).</summary>
     public const string IsCheckedVisualState = "IsChecked";

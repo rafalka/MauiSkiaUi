@@ -13,9 +13,9 @@ public class SkUiContentView : SkUiView
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiContentView), default(Thickness),
         propertyChanged: (view, _, value) => ((SkUiContentView)view).SetPadding((Thickness)value));
     /// <summary>Inset around the hosted content.</summary>
-    public Thickness Padding { get => _padding; set => SetValue(PaddingProperty, value); }
-    /// <summary>Sets padding without bindable write-back.</summary>
-    public SkUiContentView SetPadding(Thickness value) { _padding = value; InvalidateMeasureOverride(); return this; }
+    public Thickness Padding { get => (Thickness)GetValue(PaddingProperty); set => SetValue(PaddingProperty, value); }
+    /// <summary>Sets padding (same as the property setter).</summary>
+    public SkUiContentView SetPadding(Thickness value) { if (WriteBindable(PaddingProperty, value)) return this; _padding = value; InvalidateMeasureOverride(); return this; }
 
     /// <summary>The bindable single-child content property.</summary>
     public static readonly BindableProperty ContentProperty = BindableProperty.Create(
@@ -34,15 +34,16 @@ public class SkUiContentView : SkUiView
     /// <summary>The handlerless child painted into this host's surface.</summary>
     public ISkUiView? Content
     {
-        get => _content;
+        get => (ISkUiView?)GetValue(ContentProperty);
         set => SetValue(ContentProperty, value);
     }
 
-    /// <summary>Replaces content without bindable write-back, cancelling the old capture.</summary>
+    /// <summary>Replaces content, cancelling the old capture.</summary>
     public SkUiContentView SetContent(ISkUiView? value)
     {
         if (ReferenceEquals(_content, value)) return this;
         if (value is not null) ValidateChild(value);
+        if (WriteBindable(ContentProperty, value)) return this;
         var previous = _content;
         _content = value;
         if (previous is not null) DetachChild(previous);

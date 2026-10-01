@@ -32,7 +32,7 @@ public class SkUiSwitch : SkUiToggleControl
     /// </summary>
     public bool IsToggled
     {
-        get => IsChecked;
+        get => (bool)GetValue(IsToggledProperty);
         set
         {
             // Indeterminate already reads false, so SetValue(false) would change nothing.
@@ -47,16 +47,16 @@ public class SkUiSwitch : SkUiToggleControl
     public event EventHandler<ToggledEventArgs>? Toggled;
 
     /// <summary>Track color while toggled on.</summary>
-    public Color OnColor { get => _onColor; set => SetValue(OnColorProperty, value); }
+    public Color OnColor { get => (Color)GetValue(OnColorProperty); set => SetValue(OnColorProperty, value); }
     /// <summary>Thumb (knob) color.</summary>
-    public Color ThumbColor { get => _thumbColor; set => SetValue(ThumbColorProperty, value); }
+    public Color ThumbColor { get => (Color)GetValue(ThumbColorProperty); set => SetValue(ThumbColorProperty, value); }
 
-    /// <summary>Sets <see cref="IsToggled"/> without bindable write-back.</summary>
+    /// <summary>Sets <see cref="IsToggled"/>.</summary>
     public SkUiSwitch SetIsToggled(bool value) { SetIsChecked(value); return this; }
-    /// <summary>Sets the on-color without bindable write-back.</summary>
-    public SkUiSwitch SetOnColor(Color value) { ArgumentNullException.ThrowIfNull(value); _onColor = value; InvalidatePaint(); return this; }
-    /// <summary>Sets the thumb color without bindable write-back.</summary>
-    public SkUiSwitch SetThumbColor(Color value) { ArgumentNullException.ThrowIfNull(value); _thumbColor = value; InvalidatePaint(); return this; }
+    /// <summary>Sets the on-color (same as the property setter).</summary>
+    public SkUiSwitch SetOnColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(OnColorProperty, value)) return this; _onColor = value; InvalidatePaint(); return this; }
+    /// <summary>Sets the thumb color (same as the property setter).</summary>
+    public SkUiSwitch SetThumbColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(ThumbColorProperty, value)) return this; _thumbColor = value; InvalidatePaint(); return this; }
 
     /// <summary>The visual state while on (MAUI's <c>Switch.SwitchOnVisualState</c>).</summary>
     public const string SwitchOnVisualState = "On";

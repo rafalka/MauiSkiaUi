@@ -27,21 +27,22 @@ public class SkUiRadioButton : SkUiToggleControl
         propertyChanged: (view, _, value) => ((SkUiRadioButton)view).SetRadioValue(value));
 
     /// <summary>Ring/dot color while checked.</summary>
-    public Color Color { get => _color; set => SetValue(ColorProperty, value); }
+    public Color Color { get => (Color)GetValue(ColorProperty); set => SetValue(ColorProperty, value); }
     /// <summary>
     /// The group whose radio buttons exclude each other across the page; <c>null</c> or empty groups the radio button
     /// with its siblings in the same parent.
     /// </summary>
-    public string? GroupName { get => _groupName; set => SetValue(GroupNameProperty, value); }
+    public string? GroupName { get => (string?)GetValue(GroupNameProperty); set => SetValue(GroupNameProperty, value); }
     /// <summary>The value this radio button stands for: the group layout's <see cref="RadioButtonGroup.SelectedValueProperty"/> while it is checked.</summary>
-    public object? Value { get => _value; set => SetValue(ValueProperty, value); }
+    public object? Value { get => GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
 
-    /// <summary>Sets the color without bindable write-back.</summary>
-    public SkUiRadioButton SetColor(Color value) { ArgumentNullException.ThrowIfNull(value); _color = value; InvalidatePaint(); return this; }
+    /// <summary>Sets the color (same as the property setter).</summary>
+    public SkUiRadioButton SetColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(ColorProperty, value)) return this; _color = value; InvalidatePaint(); return this; }
 
-    /// <summary>Sets the group name without bindable write-back.</summary>
+    /// <summary>Sets the group name (same as the property setter).</summary>
     public SkUiRadioButton SetGroupName(string? value)
     {
+        if (WriteBindable(GroupNameProperty, value)) return this;
         var old = _groupName;
         if (old == value) return this;
         _groupName = value;
@@ -49,9 +50,10 @@ public class SkUiRadioButton : SkUiToggleControl
         return this;
     }
 
-    /// <summary>Sets <see cref="Value"/> without bindable write-back.</summary>
+    /// <summary>Sets <see cref="Value"/> (same as the property setter).</summary>
     public SkUiRadioButton SetRadioValue(object? value)
     {
+        if (WriteBindable(ValueProperty, value)) return this;
         if (Equals(_value, value)) return this;
         _value = value;
         if (IsChecked)

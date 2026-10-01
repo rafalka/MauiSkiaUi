@@ -47,7 +47,7 @@ public partial class SkUiMauiContentView : SkUiView
         propertyChanged: (view, _, value) => ((SkUiMauiContentView)view).SetContent((VisualElement?)value));
 
     /// <summary>The native MAUI control rendered over this node's arranged bounds.</summary>
-    public VisualElement? Content { get => _content; set => SetValue(ContentProperty, value); }
+    public VisualElement? Content { get => (VisualElement?)GetValue(ContentProperty); set => SetValue(ContentProperty, value); }
 
     /// <summary>Bindable <see cref="ScrollMode"/>.</summary>
     public static readonly BindableProperty ScrollModeProperty = BindableProperty.Create(
@@ -206,12 +206,13 @@ public partial class SkUiMauiContentView : SkUiView
         }
     }
 
-    /// <summary>Replaces the hosted control without bindable write-back.</summary>
+    /// <summary>Replaces the hosted control (same as the property setter).</summary>
     public SkUiMauiContentView SetContent(VisualElement? value)
     {
         if (ReferenceEquals(_content, value)) return this;
         if (value is not null && (value.Parent is not null || value.Handler is not null))
             throw new InvalidOperationException("A hosted MAUI control must be unparented and have no handler.");
+        if (WriteBindable(ContentProperty, value)) return this;
         DetachOverlay();
         if (_content is not null)
         {

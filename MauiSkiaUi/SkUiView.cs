@@ -39,13 +39,13 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
         nameof(TappedCommandParameter), typeof(object), typeof(SkUiView), null,
         propertyChanged: (view, _, value) => ((SkUiView)view).SetTappedCommandParameter(value));
     /// <summary>Optional command; passive nodes participate when it can execute.</summary>
-    public ICommand? TappedCommand { get => _tappedCommand; set => SetValue(TappedCommandProperty, value); }
+    public ICommand? TappedCommand { get => (ICommand?)GetValue(TappedCommandProperty); set => SetValue(TappedCommandProperty, value); }
     /// <summary>Parameter supplied to the tap command.</summary>
-    public object? TappedCommandParameter { get => _tappedCommandParameter; set => SetValue(TappedCommandParameterProperty, value); }
-    /// <summary>Sets the tap command without bindable write-back.</summary>
-    public SkUiView SetTappedCommand(ICommand? value) { _tappedCommand = value; return this; }
-    /// <summary>Sets the tap parameter without bindable write-back.</summary>
-    public SkUiView SetTappedCommandParameter(object? value) { _tappedCommandParameter = value; return this; }
+    public object? TappedCommandParameter { get => GetValue(TappedCommandParameterProperty); set => SetValue(TappedCommandParameterProperty, value); }
+    /// <summary>Sets the tap command (same as the property setter).</summary>
+    public SkUiView SetTappedCommand(ICommand? value) { if (WriteBindable(TappedCommandProperty, value)) return this; _tappedCommand = value; return this; }
+    /// <summary>Sets the tap parameter (same as the property setter).</summary>
+    public SkUiView SetTappedCommandParameter(object? value) { if (WriteBindable(TappedCommandParameterProperty, value)) return this; _tappedCommandParameter = value; return this; }
     /// <summary>Whether an eligible captured pointer is currently pressed inside this node.</summary>
     public bool IsPressed { get; private set; }
 
@@ -72,11 +72,12 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
     /// radii). For containers that act as one button (a card, an icon with text): the view needs a tap handler
     /// (<see cref="Tapped"/> or <see cref="TappedCommand"/>) to be pressed. Buttons draw their own feedback.
     /// </summary>
-    public bool ShowsPressEffect { get => _showsPressEffect; set => SetValue(ShowsPressEffectProperty, value); }
+    public bool ShowsPressEffect { get => (bool)GetValue(ShowsPressEffectProperty); set => SetValue(ShowsPressEffectProperty, value); }
 
-    /// <summary>Sets <see cref="ShowsPressEffect"/> without bindable write-back.</summary>
+    /// <summary>Sets <see cref="ShowsPressEffect"/> (same as the property setter).</summary>
     public SkUiView SetShowsPressEffect(bool value)
     {
+        if (WriteBindable(ShowsPressEffectProperty, value)) return this;
         if (_showsPressEffect == value) return this;
         _showsPressEffect = value;
         InvalidatePaint();
@@ -132,6 +133,21 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
             : IsPointerOver ? VisualStateManager.CommonStates.PointerOver : VisualStateManager.CommonStates.Normal);
         if (enabled)
             VisualStateManager.GoToState(this, IsFocused ? VisualStateManager.CommonStates.Focused : UnfocusedState);
+    }
+
+    /// <summary>
+    /// Start of every direct <c>Set*</c> setter: writes <paramref name="value"/> to <paramref name="property"/>'s store, as
+    /// the CLR setter does, and returns <c>true</c>. The property's change callback then calls the setter again, which
+    /// gets <c>false</c> here and applies the value to the control. So CLR getters, which read the store as MAUI's do, are
+    /// up to date when <c>PropertyChanged</c> is raised (MAUI raises it before the change callback), and bindings, triggers
+    /// and <c>x:Reference</c> sources see the new value. An equal value is not written (no local value over a style).
+    /// </summary>
+    private protected bool WriteBindable(BindableProperty property, object? value)
+    {
+        if (Equals(GetValue(property), value))
+            return false;
+        SetValue(property, value);
+        return true;
     }
 
     /// <summary>MAUI's (internal) name of the focus group's unfocused state.</summary>

@@ -19,14 +19,14 @@ public class SkUiWrapLayout : SkUiLayout
         propertyChanged: (view, _, value) => ((SkUiWrapLayout)view).SetRowSpacing((double)value));
 
     /// <summary>Gap between items in a row, in DIPs.</summary>
-    public double Spacing { get => _spacing; set => SetValue(SpacingProperty, value); }
+    public double Spacing { get => (double)GetValue(SpacingProperty); set => SetValue(SpacingProperty, value); }
     /// <summary>Gap between rows, in DIPs.</summary>
-    public double RowSpacing { get => _rowSpacing; set => SetValue(RowSpacingProperty, value); }
+    public double RowSpacing { get => (double)GetValue(RowSpacingProperty); set => SetValue(RowSpacingProperty, value); }
 
-    /// <summary>Sets <see cref="Spacing"/> without bindable write-back.</summary>
-    public SkUiWrapLayout SetSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _spacing = value; InvalidateMeasureOverride(); return this; }
-    /// <summary>Sets <see cref="RowSpacing"/> without bindable write-back.</summary>
-    public SkUiWrapLayout SetRowSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _rowSpacing = value; InvalidateMeasureOverride(); return this; }
+    /// <summary>Sets <see cref="Spacing"/> (same as the property setter).</summary>
+    public SkUiWrapLayout SetSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(SpacingProperty, value)) return this; _spacing = value; InvalidateMeasureOverride(); return this; }
+    /// <summary>Sets <see cref="RowSpacing"/> (same as the property setter).</summary>
+    public SkUiWrapLayout SetRowSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(RowSpacingProperty, value)) return this; _rowSpacing = value; InvalidateMeasureOverride(); return this; }
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)

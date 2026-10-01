@@ -63,35 +63,35 @@ public class SkUiSlider : SkUiView
         propertyChanged: (view, _, value) => ((SkUiSlider)view)._dragCompletedCommand = (ICommand?)value);
 
     /// <summary>Smallest value (default 0).</summary>
-    public double Minimum { get => _minimum; set => SetValue(MinimumProperty, value); }
+    public double Minimum { get => (double)GetValue(MinimumProperty); set => SetValue(MinimumProperty, value); }
 
     /// <summary>Largest value (default 1).</summary>
-    public double Maximum { get => _maximum; set => SetValue(MaximumProperty, value); }
+    public double Maximum { get => (double)GetValue(MaximumProperty); set => SetValue(MaximumProperty, value); }
 
     /// <summary>
     /// Current value, clamped between <see cref="Minimum"/> and <see cref="Maximum"/>. As in MAUI, the requested value
     /// is kept: when the range widens again, the value moves back towards it (so XAML property order doesn't matter).
     /// When <see cref="Maximum"/> is not above <see cref="Minimum"/>, the value is <see cref="Minimum"/>.
     /// </summary>
-    public double Value { get => _value; set => SetValue(ValueProperty, value); }
+    public double Value { get => (double)GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
 
     /// <summary>Horizontal (default; minimum at the start) or vertical (minimum at the bottom).</summary>
-    public StackOrientation Orientation { get => _orientation; set => SetValue(OrientationProperty, value); }
+    public StackOrientation Orientation { get => (StackOrientation)GetValue(OrientationProperty); set => SetValue(OrientationProperty, value); }
 
     /// <summary>Track color between the minimum and the thumb.</summary>
-    public Color MinimumTrackColor { get => _minimumTrackColor; set => SetValue(MinimumTrackColorProperty, value); }
+    public Color MinimumTrackColor { get => (Color)GetValue(MinimumTrackColorProperty); set => SetValue(MinimumTrackColorProperty, value); }
 
     /// <summary>Track color between the thumb and the maximum.</summary>
-    public Color MaximumTrackColor { get => _maximumTrackColor; set => SetValue(MaximumTrackColorProperty, value); }
+    public Color MaximumTrackColor { get => (Color)GetValue(MaximumTrackColorProperty); set => SetValue(MaximumTrackColorProperty, value); }
 
     /// <summary>Thumb color.</summary>
-    public Color ThumbColor { get => _thumbColor; set => SetValue(ThumbColorProperty, value); }
+    public Color ThumbColor { get => (Color)GetValue(ThumbColorProperty); set => SetValue(ThumbColorProperty, value); }
 
     /// <summary>Executed when a drag starts.</summary>
-    public ICommand? DragStartedCommand { get => _dragStartedCommand; set => SetValue(DragStartedCommandProperty, value); }
+    public ICommand? DragStartedCommand { get => (ICommand?)GetValue(DragStartedCommandProperty); set => SetValue(DragStartedCommandProperty, value); }
 
     /// <summary>Executed when a drag ends.</summary>
-    public ICommand? DragCompletedCommand { get => _dragCompletedCommand; set => SetValue(DragCompletedCommandProperty, value); }
+    public ICommand? DragCompletedCommand { get => (ICommand?)GetValue(DragCompletedCommandProperty); set => SetValue(DragCompletedCommandProperty, value); }
 
     /// <summary>Whether the thumb is being dragged.</summary>
     public bool IsDragging => _gesture?.IsDragging == true;
@@ -105,32 +105,33 @@ public class SkUiSlider : SkUiView
     /// <summary>Raised when a drag ends.</summary>
     public event EventHandler? DragCompleted;
 
-    /// <summary>Sets the minimum without bindable write-back.</summary>
-    public SkUiSlider SetMinimum(double value) { OnRangeChanged(minimum: value); return this; }
+    /// <summary>Sets the minimum (same as the property setter).</summary>
+    public SkUiSlider SetMinimum(double value) { Minimum = value; return this; }
 
-    /// <summary>Sets the maximum without bindable write-back.</summary>
-    public SkUiSlider SetMaximum(double value) { OnRangeChanged(maximum: value); return this; }
+    /// <summary>Sets the maximum (same as the property setter).</summary>
+    public SkUiSlider SetMaximum(double value) { Maximum = value; return this; }
 
-    /// <summary>Sets the value (clamped) without bindable write-back.</summary>
-    public SkUiSlider SetSliderValue(double value) { _requestedValue = value; ApplyValue(Clamp(value)); return this; }
+    /// <summary>Sets the value, clamped to the range (same as the property setter; the requested value is kept).</summary>
+    public SkUiSlider SetSliderValue(double value) { Value = value; return this; }
 
-    /// <summary>Sets the orientation without bindable write-back.</summary>
+    /// <summary>Sets the orientation (same as the property setter).</summary>
     public SkUiSlider SetOrientation(StackOrientation value)
     {
+        if (WriteBindable(OrientationProperty, value)) return this;
         if (_orientation == value) return this;
         _orientation = value;
         InvalidateMeasureOverride();
         return this;
     }
 
-    /// <summary>Sets the minimum-track color without bindable write-back.</summary>
-    public SkUiSlider SetMinimumTrackColor(Color value) { ArgumentNullException.ThrowIfNull(value); _minimumTrackColor = value; InvalidatePaint(); return this; }
+    /// <summary>Sets the minimum-track color (same as the property setter).</summary>
+    public SkUiSlider SetMinimumTrackColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(MinimumTrackColorProperty, value)) return this; _minimumTrackColor = value; InvalidatePaint(); return this; }
 
-    /// <summary>Sets the maximum-track color without bindable write-back.</summary>
-    public SkUiSlider SetMaximumTrackColor(Color value) { ArgumentNullException.ThrowIfNull(value); _maximumTrackColor = value; InvalidatePaint(); return this; }
+    /// <summary>Sets the maximum-track color (same as the property setter).</summary>
+    public SkUiSlider SetMaximumTrackColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(MaximumTrackColorProperty, value)) return this; _maximumTrackColor = value; InvalidatePaint(); return this; }
 
-    /// <summary>Sets the thumb color without bindable write-back.</summary>
-    public SkUiSlider SetThumbColor(Color value) { ArgumentNullException.ThrowIfNull(value); _thumbColor = value; InvalidatePaint(); return this; }
+    /// <summary>Sets the thumb color (same as the property setter).</summary>
+    public SkUiSlider SetThumbColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(ThumbColorProperty, value)) return this; _thumbColor = value; InvalidatePaint(); return this; }
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>

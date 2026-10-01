@@ -16,10 +16,12 @@ public class SkUiGrid : SkUiLayout, IGridLayout
     /// <summary>Bindable row definitions, including XAML shorthand such as Auto,*.</summary>
     public static readonly BindableProperty RowDefinitionsProperty = BindableProperty.Create(
         nameof(RowDefinitions), typeof(RowDefinitionCollection), typeof(SkUiGrid), null,
+        defaultValueCreator: view => ((SkUiGrid)view)._rows,
         propertyChanged: (view, _, value) => ((SkUiGrid)view).SetRowDefinitions((RowDefinitionCollection)value));
     /// <summary>Bindable column definitions.</summary>
     public static readonly BindableProperty ColumnDefinitionsProperty = BindableProperty.Create(
         nameof(ColumnDefinitions), typeof(ColumnDefinitionCollection), typeof(SkUiGrid), null,
+        defaultValueCreator: view => ((SkUiGrid)view)._columns,
         propertyChanged: (view, _, value) => ((SkUiGrid)view).SetColumnDefinitions((ColumnDefinitionCollection)value));
     /// <summary>Bindable gap between rows.</summary>
     public static readonly BindableProperty RowSpacingProperty = BindableProperty.Create(
@@ -40,39 +42,41 @@ public class SkUiGrid : SkUiLayout, IGridLayout
 
     /// <summary>Rows; an empty collection implies one star row.</summary>
     [System.ComponentModel.TypeConverter(typeof(RowDefinitionCollectionTypeConverter))]
-    public RowDefinitionCollection RowDefinitions { get => _rows; set => SetValue(RowDefinitionsProperty, value); }
+    public RowDefinitionCollection RowDefinitions { get => (RowDefinitionCollection)GetValue(RowDefinitionsProperty); set => SetValue(RowDefinitionsProperty, value); }
     /// <summary>Columns; an empty collection implies one star column.</summary>
     [System.ComponentModel.TypeConverter(typeof(ColumnDefinitionCollectionTypeConverter))]
-    public ColumnDefinitionCollection ColumnDefinitions { get => _columns; set => SetValue(ColumnDefinitionsProperty, value); }
+    public ColumnDefinitionCollection ColumnDefinitions { get => (ColumnDefinitionCollection)GetValue(ColumnDefinitionsProperty); set => SetValue(ColumnDefinitionsProperty, value); }
     /// <summary>Gap between rows in DIPs.</summary>
-    public double RowSpacing { get => _rowSpacing; set => SetValue(RowSpacingProperty, value); }
+    public double RowSpacing { get => (double)GetValue(RowSpacingProperty); set => SetValue(RowSpacingProperty, value); }
     /// <summary>Gap between columns in DIPs.</summary>
-    public double ColumnSpacing { get => _columnSpacing; set => SetValue(ColumnSpacingProperty, value); }
+    public double ColumnSpacing { get => (double)GetValue(ColumnSpacingProperty); set => SetValue(ColumnSpacingProperty, value); }
 
-    /// <summary>Sets rows without bindable write-back.</summary>
+    /// <summary>Sets rows (same as the property setter).</summary>
     public SkUiGrid SetRowDefinitions(RowDefinitionCollection value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        if (WriteBindable(RowDefinitionsProperty, value)) return this;
         _rows.ItemSizeChanged -= OnDefinitionsChanged;
         _rows = value;
         _rows.ItemSizeChanged += OnDefinitionsChanged;
         OnDefinitionsChanged(this, EventArgs.Empty);
         return this;
     }
-    /// <summary>Sets columns without bindable write-back.</summary>
+    /// <summary>Sets columns (same as the property setter).</summary>
     public SkUiGrid SetColumnDefinitions(ColumnDefinitionCollection value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        if (WriteBindable(ColumnDefinitionsProperty, value)) return this;
         _columns.ItemSizeChanged -= OnDefinitionsChanged;
         _columns = value;
         _columns.ItemSizeChanged += OnDefinitionsChanged;
         OnDefinitionsChanged(this, EventArgs.Empty);
         return this;
     }
-    /// <summary>Sets row spacing without bindable write-back.</summary>
-    public SkUiGrid SetRowSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _rowSpacing = value; InvalidateMeasureOverride(); return this; }
-    /// <summary>Sets column spacing without bindable write-back.</summary>
-    public SkUiGrid SetColumnSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _columnSpacing = value; InvalidateMeasureOverride(); return this; }
+    /// <summary>Sets row spacing (same as the property setter).</summary>
+    public SkUiGrid SetRowSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(RowSpacingProperty, value)) return this; _rowSpacing = value; InvalidateMeasureOverride(); return this; }
+    /// <summary>Sets column spacing (same as the property setter).</summary>
+    public SkUiGrid SetColumnSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(ColumnSpacingProperty, value)) return this; _columnSpacing = value; InvalidateMeasureOverride(); return this; }
 
     IReadOnlyList<IGridRowDefinition> IGridLayout.RowDefinitions => _rowSnapshot ??= _rows.Cast<IGridRowDefinition>().ToArray();
     IReadOnlyList<IGridColumnDefinition> IGridLayout.ColumnDefinitions => _columnSnapshot ??= _columns.Cast<IGridColumnDefinition>().ToArray();

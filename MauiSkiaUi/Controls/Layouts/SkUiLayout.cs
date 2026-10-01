@@ -20,11 +20,12 @@ public class SkUiLayout : SkUiView, ILayout
         propertyChanged: (view, _, value) => ((SkUiLayout)view).SetPadding((Thickness)value));
 
     /// <summary>Space inside the layout in DIPs.</summary>
-    public Thickness Padding { get => _padding; set => SetValue(PaddingProperty, value); }
+    public Thickness Padding { get => (Thickness)GetValue(PaddingProperty); set => SetValue(PaddingProperty, value); }
 
-    /// <summary>Sets padding without writing back to the bindable property.</summary>
+    /// <summary>Sets padding (same as the property setter).</summary>
     public SkUiLayout SetPadding(Thickness value)
     {
+        if (WriteBindable(PaddingProperty, value)) return this;
         if (_padding == value) return this;
         _padding = value;
         InvalidateMeasureOverride();

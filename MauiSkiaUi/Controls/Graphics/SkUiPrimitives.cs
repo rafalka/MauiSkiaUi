@@ -55,12 +55,13 @@ public class SkUiBox : SkUiShape
         propertyChanged: (view, _, value) => ((SkUiBox)view).SetCornerRadius((CornerRadius)value));
 
     /// <summary>Per-corner radii (MAUI's BoxView <c>CornerRadius</c>; <c>"8"</c> or <c>"8,8,0,0"</c> in XAML). Larger radii than the box allows are scaled down.</summary>
-    public CornerRadius CornerRadius { get => _cornerRadius; set => SetValue(CornerRadiusProperty, value); }
+    public CornerRadius CornerRadius { get => (CornerRadius)GetValue(CornerRadiusProperty); set => SetValue(CornerRadiusProperty, value); }
 
-    /// <summary>Sets the corner radii without bindable write-back.</summary>
+    /// <summary>Sets the corner radii (same as the property setter).</summary>
     public SkUiBox SetCornerRadius(CornerRadius value)
     {
         SkUiCornerRadii.Validate(value, nameof(value));
+        if (WriteBindable(CornerRadiusProperty, value)) return this;
         if (_cornerRadius == value) return this;
         _cornerRadius = value;
         InvalidatePaint();

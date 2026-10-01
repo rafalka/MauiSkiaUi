@@ -114,7 +114,7 @@ Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](
 - **Gestures** use SkiaUi’s own tap model (`Tapped` / `TappedCommand`), not MAUI `GestureRecognizers`.
 - **Styles / VisualStateManager** work on bindable `SkUi*` properties like other MAUI views, with MAUI's states: `Normal`, `Disabled`, `PointerOver` (mouse / trackpad / pen / iPad pointer hover), buttons' `Pressed`, CheckBox `IsChecked`, Switch `On` / `Off`, RadioButton `Checked` / `Unchecked`. `Focused` waits for keyboard focus on drawn views.
 - **`StartUpdating` / `EndUpdating`** batch layout and paint invalidation when changing many properties.
-- Direct fluent setters update applied state but **do not write back** to the bindable store — prefer one update path per property.
+- Fluent `Set*` setters are the property setters in chainable form: they write the bindable store, so bindings and triggers see them.
 - Drawn nodes are not yet full accessibility / keyboard targets; native overlays keep their platform a11y.
 - **Trimming and Native AOT:** the library is trimmable and AOT-compatible (no reflection; trim / AOT analyzers fail its build). Checked with Native AOT on iOS and Mac Catalyst and full trimming on Android. Android Native AOT (experimental in .NET 10): software surfaces (`HwAccelerated = false`) fail, because SkiaSharp's Android `SKCanvasView` needs an assembly that build doesn't include; GPU surfaces work.
 
