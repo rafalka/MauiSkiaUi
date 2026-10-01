@@ -6,6 +6,8 @@ Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs
 
 ## Unreleased
 
+## 1.0.0-Prerelease06
+
 - **Fixed: `FontAttributes` (bold / italic) had no effect** in most drawn text. Without a `FontFamily` the system lookup ignored the style (an empty family name matches only the regular face), and fonts registered with `ConfigureFonts` or `SkUiFonts.Register` ignored the attributes altogether. Now the family's bold / italic face is used when there is one (system fonts, fonts MAUI registered with CoreText), and synthetic bold and slant otherwise, as on Android. An unknown family falls back to the default family in the requested style.
 - **`HorizontalTextAlignment="Justify"`** on drawn labels and buttons (both layers): wrapped lines fill the width by widening their spaces; a paragraph's last line stays at `Start`. `VerticalTextAlignment="Justify"` spreads the lines over the height. Before, Justify drew like `Start`.
 - **Fixed: `CornerRadius` bindings went stale** on `SkUiLabel`, `SkUiButton` and `SkUiImageButton` when only `CornerRadii` was set: the `CornerRadius` getter read a field and its store kept the old value. It now reads the store, which follows `CornerRadii` (the top-left radius, rounded).
