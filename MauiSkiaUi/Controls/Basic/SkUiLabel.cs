@@ -32,6 +32,7 @@ public class SkUiLabel : SkUiView
     private SkUiTextRendering _textRendering;
     private SKPaint? _textPaint;
     private Microsoft.Maui.CornerRadius _cornerRadii;
+    private bool _syncingCornerRadius;
     private Color _borderColor = Colors.Transparent;
     private double _borderWidth;
     private SkUiRoundedClip _textClip;
@@ -161,7 +162,7 @@ public class SkUiLabel : SkUiView
     /// four corners; it reads the top-left radius, rounded. Setting either property replaces the corners (the last one
     /// set wins); use <see cref="CornerRadii"/> for fractional radii.
     /// </summary>
-    public int CornerRadius { get => (int)Math.Round(_cornerRadii.TopLeft); set => SetValue(CornerRadiusProperty, value); }
+    public int CornerRadius { get => (int)GetValue(CornerRadiusProperty); set => SetValue(CornerRadiusProperty, value); }
     /// <summary>Border color (drawn inside the bounds; <see cref="Padding"/> is not adjusted).</summary>
     public Color BorderColor { get => (Color)GetValue(BorderColorProperty); set => SetValue(BorderColorProperty, value); }
     /// <summary>Border width in DIPs.</summary>
@@ -226,15 +227,31 @@ public class SkUiLabel : SkUiView
 
     /// <summary>Sets the per-corner radii (same as the property setter).</summary>
     public SkUiLabel SetCornerRadii(Microsoft.Maui.CornerRadius value) { SkUiCornerRadii.Validate(value, nameof(value)); CornerRadii = value; return this; }
-    private void OnCornerRadiiChanged(Microsoft.Maui.CornerRadius value) { if (_cornerRadii == value) return; _cornerRadii = value; InvalidatePaint(); }
+    private void OnCornerRadiiChanged(Microsoft.Maui.CornerRadius value)
+    {
+        if (_cornerRadii == value) return;
+        _cornerRadii = value;
+        SyncCornerRadiusProperty();
+        InvalidatePaint();
+    }
     /// <summary>Sets all four corner radii to <paramref name="value"/> (same as the property setter).</summary>
     public SkUiLabel SetCornerRadius(int value) { ArgumentOutOfRangeException.ThrowIfNegative(value); CornerRadius = value; return this; }
-    private void OnCornerRadiusChanged(int value) => CornerRadii = new Microsoft.Maui.CornerRadius(value);
+    private void OnCornerRadiusChanged(int value) { if (!_syncingCornerRadius) CornerRadii = new Microsoft.Maui.CornerRadius(value); }
+
+    /// <summary>Keeps the <see cref="CornerRadius"/> store at the top-left radius, rounded, so its bindings see <see cref="CornerRadii"/> changes.</summary>
+    private void SyncCornerRadiusProperty()
+    {
+        var uniform = (int)Math.Round(_cornerRadii.TopLeft);
+        if ((int)GetValue(CornerRadiusProperty) == uniform) return;
+        _syncingCornerRadius = true; // the store follows the radii; it must not set all four corners back
+        try { SetValue(CornerRadiusProperty, uniform); }
+        finally { _syncingCornerRadius = false; }
+    }
     /// <summary>Sets border color (same as the property setter).</summary>
     public SkUiLabel SetBorderColor(Color value) { ArgumentNullException.ThrowIfNull(value); BorderColor = value; return this; }
     private void OnBorderColorChanged(Color value) { if (_borderColor == value) return; _borderColor = value; InvalidatePaint(); }
     /// <summary>Sets border width (same as the property setter).</summary>
-    public SkUiLabel SetBorderWidth(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); BorderWidth = value; return this; }
+    public SkUiLabel SetBorderWidth(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); BorderWidth = value; return this; }
     private void OnBorderWidthChanged(double value) { if (_borderWidth == value) return; _borderWidth = value; InvalidatePaint(); }
 
     /// <inheritdoc />

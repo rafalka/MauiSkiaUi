@@ -129,6 +129,56 @@ public class BindableStoreTests
         Assert.Null(host.Content);
     }
 
+    [Fact]
+    public void NonFiniteSizesAreRejectedOnBothLayers()
+    {
+        var label = new SkUiLabel { BorderWidth = 2 };
+        label.BorderWidth = double.NaN;
+        label.CornerRadii = new CornerRadius(double.NaN, 0, 0, 0);
+        label.CornerRadii = new CornerRadius(double.PositiveInfinity);
+        Assert.Equal((2d, default(CornerRadius)), (label.BorderWidth, label.CornerRadii));
+        Assert.Throws<ArgumentOutOfRangeException>(() => label.SetBorderWidth(double.NaN));
+        Assert.Throws<ArgumentOutOfRangeException>(() => label.SetCornerRadii(new CornerRadius(double.NaN)));
+        var grid = new SkUiGrid { RowSpacing = 4 };
+        grid.RowSpacing = double.PositiveInfinity;
+        Assert.Equal(4d, grid.RowSpacing);
+        Assert.Throws<ArgumentOutOfRangeException>(() => grid.SetRowSpacing(double.NaN));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiVerticalStackLayout().SetSpacing(double.PositiveInfinity));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiBorder().SetStrokeThickness(double.NaN));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new MauiSkiaUi.Core.SkUiCoreLabel().SetBorderWidth(double.NaN));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new MauiSkiaUi.Core.SkUiCoreLabel().SetCornerRadii(new CornerRadius(double.PositiveInfinity)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new MauiSkiaUi.Core.SkUiCoreVerticalStackLayout().SetSpacing(double.NaN));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new MauiSkiaUi.Core.SkUiCoreLabel().SetMinimumWidth(double.NaN));
+    }
+
+    [Fact]
+    public void CornerRadiusFollowsCornerRadiiInTheStore()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        foreach (var (view, radii, radius) in new (BindableObject, BindableProperty, BindableProperty)[]
+                 {
+                     (new SkUiLabel(), SkUiLabel.CornerRadiiProperty, SkUiLabel.CornerRadiusProperty),
+                     (new SkUiButton(), SkUiLabel.CornerRadiiProperty, SkUiLabel.CornerRadiusProperty),
+                     (new SkUiImageButton(), SkUiImageButton.CornerRadiiProperty, SkUiImageButton.CornerRadiusProperty),
+                 })
+        {
+            var name = view.GetType().Name;
+            // A binding on CornerRadius sees a CornerRadii change.
+            var target = new Label();
+            target.SetBinding(Label.TextProperty, new Binding(radius.PropertyName, source: view, stringFormat: "{0}"));
+            view.SetValue(radii, new CornerRadius(8));
+            Assert.Equal(("8", 8), (target.Text, (int)view.GetValue(radius)));
+            // Fractional or per-corner radii stay as set; CornerRadius reads the top-left one, rounded.
+            view.SetValue(radii, new CornerRadius(2.6, 10, 0, 4));
+            Assert.Equal(new CornerRadius(2.6, 10, 0, 4), view.GetValue(radii));
+            Assert.Equal(3, view.GetValue(radius));
+            // And CornerRadius still sets all four.
+            view.SetValue(radius, 5);
+            Assert.True(new CornerRadius(5) == (CornerRadius)view.GetValue(radii), name);
+        }
+    }
+
     /// <summary>Painting and layout read private fields; after construction they must agree with the store on every control.</summary>
     [Fact]
     public void FieldsAgreeWithTheStoreOnEveryControl()

@@ -29,7 +29,7 @@ public class SkUiCoreWrapLayout : SkUiCorePanel
     /// <summary>Sets the gap between items in a row.</summary>
     public SkUiCoreWrapLayout SetSpacing(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _spacing, value, nameof(Spacing))) return this;
         InvalidateMeasure();
         return this;
@@ -38,7 +38,7 @@ public class SkUiCoreWrapLayout : SkUiCorePanel
     /// <summary>Sets the gap between rows.</summary>
     public SkUiCoreWrapLayout SetRowSpacing(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _rowSpacing, value, nameof(RowSpacing))) return this;
         InvalidateMeasure();
         return this;

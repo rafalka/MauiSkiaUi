@@ -261,10 +261,10 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         foreach (var node in _hovered)
             if (!_hoverChain.Contains(node))
                 node.SetPointerOver(false);
-        // Outermost first, as native hover enters a parent before its child.
+        // Outermost first, as native hover enters a parent before its child. Unconditional (SetPointerOver ignores an
+        // unchanged value): a node detached while hovered cleared its own flag, and may be back under the pointer.
         for (var index = _hoverChain.Count - 1; index >= 0; index--)
-            if (!_hovered.Contains(_hoverChain[index]))
-                _hoverChain[index].SetPointerOver(true);
+            _hoverChain[index].SetPointerOver(true);
         _hovered.Clear();
         _hovered.AddRange(_hoverChain);
         _hoverChain.Clear();

@@ -17,7 +17,7 @@ public class SkUiVerticalStackLayout : SkUiLayout, IStackLayout
     public double Spacing { get => (double)GetValue(SpacingProperty); set => SetValue(SpacingProperty, value); }
 
     /// <summary>Sets spacing (same as the property setter).</summary>
-    public SkUiVerticalStackLayout SetSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); Spacing = value; return this; }
+    public SkUiVerticalStackLayout SetSpacing(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); Spacing = value; return this; }
     private void OnSpacingChanged(double value) { _spacing = value; InvalidateMeasureOverride(); }
 
     /// <summary>Creates a stack with MAUI layout management.</summary>

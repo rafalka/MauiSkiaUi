@@ -39,7 +39,7 @@ public class SkUiBorder : SkUiContentView
     public SkUiBorder SetStroke(Color? value) { Stroke = value; return this; }
     private void OnStrokeChanged(Color? value) { _stroke = value; InvalidatePaint(); }
     /// <summary>Sets the border thickness (same as the property setter).</summary>
-    public SkUiBorder SetStrokeThickness(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); StrokeThickness = value; return this; }
+    public SkUiBorder SetStrokeThickness(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); StrokeThickness = value; return this; }
     private void OnStrokeThicknessChanged(double value) { _strokeThickness = value; InvalidatePaint(); }
     /// <summary>Sets a uniform corner radius (same as the property setter).</summary>
     public SkUiBorder SetCornerRadius(double uniformRadius) => SetCornerRadius(new CornerRadius(uniformRadius));

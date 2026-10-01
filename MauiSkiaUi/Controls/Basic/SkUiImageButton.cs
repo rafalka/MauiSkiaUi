@@ -13,6 +13,7 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     private ICommand? _command;
     private object? _commandParameter;
     private CornerRadius _cornerRadii;
+    private bool _syncingCornerRadius;
     private Color _borderColor = Colors.Transparent;
     private double _borderWidth;
     private Thickness _padding;
@@ -61,7 +62,7 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     /// four corners, and it reads the top-left radius, rounded (whichever of the two is set last wins); use
     /// <see cref="CornerRadii"/> for fractional or per-corner radii.
     /// </summary>
-    public int CornerRadius { get => (int)Math.Round(_cornerRadii.TopLeft); set => SetValue(CornerRadiusProperty, value); }
+    public int CornerRadius { get => (int)GetValue(CornerRadiusProperty); set => SetValue(CornerRadiusProperty, value); }
     /// <summary>Border color; the border is drawn inside the bounds, over the image.</summary>
     public Color BorderColor { get => (Color)GetValue(BorderColorProperty); set => SetValue(BorderColorProperty, value); }
     /// <summary>Border width in DIPs (0: no border).</summary>
@@ -101,15 +102,31 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     private void OnCommandParameterChanged(object? value) { _commandParameter = value; UpdateState(); }
     /// <summary>Sets the per-corner radii (same as the property setter).</summary>
     public SkUiImageButton SetCornerRadii(CornerRadius value) { SkUiCornerRadii.Validate(value, nameof(value)); CornerRadii = value; return this; }
-    private void OnCornerRadiiChanged(CornerRadius value) { if (_cornerRadii == value) return; _cornerRadii = value; InvalidatePaint(); }
+    private void OnCornerRadiiChanged(CornerRadius value)
+    {
+        if (_cornerRadii == value) return;
+        _cornerRadii = value;
+        SyncCornerRadiusProperty();
+        InvalidatePaint();
+    }
     /// <summary>Sets all four corner radii to <paramref name="value"/> (same as the property setter).</summary>
     public SkUiImageButton SetCornerRadius(int value) { ArgumentOutOfRangeException.ThrowIfNegative(value); CornerRadius = value; return this; }
-    private void OnCornerRadiusChanged(int value) => CornerRadii = new CornerRadius(value);
+    private void OnCornerRadiusChanged(int value) { if (!_syncingCornerRadius) CornerRadii = new CornerRadius(value); }
+
+    /// <summary>Keeps the <see cref="CornerRadius"/> store at the top-left radius, rounded, so its bindings see <see cref="CornerRadii"/> changes.</summary>
+    private void SyncCornerRadiusProperty()
+    {
+        var uniform = (int)Math.Round(_cornerRadii.TopLeft);
+        if ((int)GetValue(CornerRadiusProperty) == uniform) return;
+        _syncingCornerRadius = true; // the store follows the radii; it must not set all four corners back
+        try { SetValue(CornerRadiusProperty, uniform); }
+        finally { _syncingCornerRadius = false; }
+    }
     /// <summary>Sets the border color (same as the property setter).</summary>
     public SkUiImageButton SetBorderColor(Color value) { ArgumentNullException.ThrowIfNull(value); BorderColor = value; return this; }
     private void OnBorderColorChanged(Color value) { if (_borderColor == value) return; _borderColor = value; InvalidatePaint(); }
     /// <summary>Sets the border width (same as the property setter).</summary>
-    public SkUiImageButton SetBorderWidth(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); BorderWidth = value; return this; }
+    public SkUiImageButton SetBorderWidth(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); BorderWidth = value; return this; }
     private void OnBorderWidthChanged(double value) { if (_borderWidth == value) return; _borderWidth = value; InvalidatePaint(); }
     /// <summary>Sets the padding (same as the property setter).</summary>
     public SkUiImageButton SetPadding(Thickness value) { Padding = value; return this; }

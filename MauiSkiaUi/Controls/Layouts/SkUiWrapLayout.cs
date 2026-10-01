@@ -26,10 +26,10 @@ public class SkUiWrapLayout : SkUiLayout
     public double RowSpacing { get => (double)GetValue(RowSpacingProperty); set => SetValue(RowSpacingProperty, value); }
 
     /// <summary>Sets <see cref="Spacing"/> (same as the property setter).</summary>
-    public SkUiWrapLayout SetSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); Spacing = value; return this; }
+    public SkUiWrapLayout SetSpacing(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); Spacing = value; return this; }
     private void OnSpacingChanged(double value) { _spacing = value; InvalidateMeasureOverride(); }
     /// <summary>Sets <see cref="RowSpacing"/> (same as the property setter).</summary>
-    public SkUiWrapLayout SetRowSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); RowSpacing = value; return this; }
+    public SkUiWrapLayout SetRowSpacing(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); RowSpacing = value; return this; }
     private void OnRowSpacingChanged(double value) { _rowSpacing = value; InvalidateMeasureOverride(); }
 
     /// <inheritdoc />

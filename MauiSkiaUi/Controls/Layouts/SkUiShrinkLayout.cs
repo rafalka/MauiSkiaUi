@@ -40,7 +40,7 @@ public abstract class SkUiShrinkLayout : SkUiLayout
     public double Spacing { get => (double)GetValue(SpacingProperty); set => SetValue(SpacingProperty, value); }
 
     /// <summary>Sets <see cref="Spacing"/> (same as the property setter).</summary>
-    public SkUiShrinkLayout SetSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); Spacing = value; return this; }
+    public SkUiShrinkLayout SetSpacing(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); Spacing = value; return this; }
     private void OnSpacingChanged(double value) { _spacing = value; InvalidateMeasureOverride(); }
 
     /// <inheritdoc />

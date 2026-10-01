@@ -63,7 +63,7 @@ public class SkUiCoreGrid : SkUiCorePanel
     /// <summary>Sets the gap between rows in DIPs.</summary>
     public SkUiCoreGrid SetRowSpacing(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _rowSpacing, value, nameof(RowSpacing))) return this;
         InvalidateMeasure();
         return this;
@@ -72,7 +72,7 @@ public class SkUiCoreGrid : SkUiCorePanel
     /// <summary>Sets the gap between columns in DIPs.</summary>
     public SkUiCoreGrid SetColumnSpacing(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _columnSpacing, value, nameof(ColumnSpacing))) return this;
         InvalidateMeasure();
         return this;

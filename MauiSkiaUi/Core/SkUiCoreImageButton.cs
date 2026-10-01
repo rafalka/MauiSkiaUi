@@ -158,7 +158,7 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
     /// <summary>Sets the border width in DIPs.</summary>
     public SkUiCoreImageButton SetBorderWidth(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _borderWidth, value, nameof(BorderWidth))) return this;
         InvalidatePaint();
         return this;

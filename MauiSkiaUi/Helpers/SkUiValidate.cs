@@ -11,7 +11,7 @@ internal static class SkUiValidate
 
     public static bool NonNegative(BindableObject bindable, object? value) => value switch
     {
-        double number => !(number < 0),
+        double number => double.IsFinite(number) && number >= 0,
         int number => number >= 0,
         _ => false
     };
@@ -21,6 +21,13 @@ internal static class SkUiValidate
     public static bool FinitePositive(BindableObject bindable, object? value) => value is double number && double.IsFinite(number) && number > 0;
 
     public static bool CornerRadii(BindableObject bindable, object? value) => value is CornerRadius radii && SkUiCornerRadii.IsValid(radii);
+
+    /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is finite and not negative (the rule of <see cref="NonNegative"/>).</summary>
+    public static void ThrowIfNegativeOrNotFinite(double value, string name)
+    {
+        if (!double.IsFinite(value) || value < 0)
+            throw new ArgumentOutOfRangeException(name, value, "The value must be finite and not negative.");
+    }
 
     /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is finite.</summary>
     public static void ThrowIfNotFinite(double value, string name)

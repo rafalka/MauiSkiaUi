@@ -157,6 +157,30 @@ public class VisualStateTests
     }
 
     [Fact]
+    public void AViewRemovedWhileHoveredIsNoLongerPointerOverAndHoversAgainWhenBack()
+    {
+        var button = new SkUiButton { Text = "", WidthRequest = 100, HeightRequest = 40 };
+        var stack = new SkUiVerticalStackLayout { Children = { button } };
+        var root = new SkUiContentView { Content = stack };
+        VisualStateManager.SetVisualStateGroups(button, Groups());
+        SkUiTestHelpers.Arrange(root, 100, 40);
+        root.Touch(new(0, SkUiTouchAction.HoverMoved, new Point(10, 10)));
+        Assert.True(button.IsPointerOver);
+
+        stack.Children.Remove(button); // the surface stays live; no hover event follows
+        Assert.False(button.IsPointerOver);
+        Assert.Equal("Normal", VisualStateManager.GetVisualStateGroups(button)[0].CurrentState?.Name);
+
+        stack.Children.Add(button);
+        SkUiTestHelpers.Arrange(root, 100, 40);
+        root.Touch(new(0, SkUiTouchAction.HoverMoved, new Point(12, 10)));
+        Assert.True(button.IsPointerOver);
+        Assert.Equal("PointerOver", VisualStateManager.GetVisualStateGroups(button)[0].CurrentState?.Name);
+        root.Touch(new(0, SkUiTouchAction.HoverExited, Point.Zero));
+        Assert.False(button.IsPointerOver);
+    }
+
+    [Fact]
     public void StateTriggersApplyToDrawnControls()
     {
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();

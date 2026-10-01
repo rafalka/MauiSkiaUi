@@ -86,10 +86,10 @@ public class SkUiGrid : SkUiLayout, IGridLayout
         OnDefinitionsChanged(this, EventArgs.Empty);
     }
     /// <summary>Sets row spacing (same as the property setter).</summary>
-    public SkUiGrid SetRowSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); RowSpacing = value; return this; }
+    public SkUiGrid SetRowSpacing(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); RowSpacing = value; return this; }
     private void OnRowSpacingChanged(double value) { _rowSpacing = value; InvalidateMeasureOverride(); }
     /// <summary>Sets column spacing (same as the property setter).</summary>
-    public SkUiGrid SetColumnSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); ColumnSpacing = value; return this; }
+    public SkUiGrid SetColumnSpacing(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); ColumnSpacing = value; return this; }
     private void OnColumnSpacingChanged(double value) { _columnSpacing = value; InvalidateMeasureOverride(); }
 
     IReadOnlyList<IGridRowDefinition> IGridLayout.RowDefinitions => _rowSnapshot ??= _rows.Cast<IGridRowDefinition>().ToArray();

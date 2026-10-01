@@ -343,7 +343,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Sets border width in DIPs.</summary>
     public SkUiCoreLabel SetBorderWidth(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _borderWidth, value, nameof(BorderWidth))) return this;
         InvalidatePaint();
         return this;

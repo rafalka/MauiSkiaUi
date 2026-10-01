@@ -8,6 +8,9 @@ Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs
 
 - **Fixed: `FontAttributes` (bold / italic) had no effect** in most drawn text. Without a `FontFamily` the system lookup ignored the style (an empty family name matches only the regular face), and fonts registered with `ConfigureFonts` or `SkUiFonts.Register` ignored the attributes altogether. Now the family's bold / italic face is used when there is one (system fonts, fonts MAUI registered with CoreText), and synthetic bold and slant otherwise, as on Android. An unknown family falls back to the default family in the requested style.
 - **`HorizontalTextAlignment="Justify"`** on drawn labels and buttons (both layers): wrapped lines fill the width by widening their spaces; a paragraph's last line stays at `Start`. `VerticalTextAlignment="Justify"` spreads the lines over the height. Before, Justify drew like `Start`.
+- **Fixed: `CornerRadius` bindings went stale** on `SkUiLabel`, `SkUiButton` and `SkUiImageButton` when only `CornerRadii` was set: the `CornerRadius` getter read a field and its store kept the old value. It now reads the store, which follows `CornerRadii` (the top-left radius, rounded).
+- **Fixed:** a view removed from a live surface while the pointer was over it kept `IsPointerOver` and its `PointerOver` state until the next hover move.
+- **Changed:** sizes, spacing, border widths and corner radii reject `NaN` and infinity as well as negative values (both layers): `Set*` throws, and XAML, bindings and styles ignore the value as MAUI does.
 - **Dependencies:** MAUI 10.0.110 (was 10.0.101), SkiaSharp 4.153.1 (was 4.152.1), HarfBuzzSharp 14.2.1.301.
 
 - **MAUI Label text properties (P3)** on `SkUiLabel`, `SkUiButton` (inherited) and `SkUiCoreLabel` / `SkUiCoreButton`, in the shared text engine (cached lines and the `Auto` fast path keep working):

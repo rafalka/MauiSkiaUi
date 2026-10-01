@@ -121,6 +121,7 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
     {
         if (IsPointerOver == isOver) return;
         IsPointerOver = isOver;
+        SkUiHover.Changed(isOver);
         OnPropertyChanged(nameof(IsPointerOver));
         ChangeVisualState();
     }
@@ -215,8 +216,10 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
         // attach must record this subtree from scratch.
         if (SkiaParent is null && _renderState is not null)
             SkUiRenderInvalidation.ResetSubtree(this);
-        // Pointers captured by a detached subtree must not complete (taps, presses) later.
+        // Pointers captured by a detached subtree must not complete (taps, presses) later, and it is no longer under
+        // the pointer: no PointerOver state sticks to it until the next hover move.
         SkUiGestureSet.CancelSubtree(this);
+        SkUiHover.ClearSubtree(this);
     }
 
     /// <summary>
