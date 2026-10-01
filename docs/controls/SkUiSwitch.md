@@ -6,7 +6,7 @@ On/off pill toggle.
 
 ## How it works
 
-Extends [`SkUiToggleControl`](SkUiToggleControl.md). Tap toggles `IsChecked`. Intrinsic measure comes from `SkUiLook.Current.DefaultSwitchSize` (default 51×31 DIPs). Track/thumb geometry is drawn via `SkUiLook.Current.DrawSwitch` (same path as `SkUiCoreSwitch`); the default look slides the thumb and blends the track color over 200 ms, and stretches the thumb while pressed ([transitions](../design/ControlLook.md#state-change-transitions-fr-26)).
+Extends [`SkUiToggleControl`](SkUiToggleControl.md). Tap toggles the state. `IsToggled` / `Toggled` (MAUI's names, two-way bindable) and `IsChecked` / `CheckedChanged` are the same two-state view of `CheckState` and stay in step; `Toggled` follows `CheckedChanged`. Intrinsic measure comes from `SkUiLook.Current.DefaultSwitchSize` (default 51×31 DIPs). Track/thumb geometry is drawn via `SkUiLook.Current.DrawSwitch` (same path as `SkUiCoreSwitch`); the default look slides the thumb and blends the track color over 200 ms, and stretches the thumb while pressed ([transitions](../design/ControlLook.md#state-change-transitions-fr-26)).
 
 
 ## Shared conventions
@@ -23,18 +23,18 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 ## How to use
 
 ```xml
-<sk:SkUiSwitch IsChecked="True" OnColor="#087F83" ThumbColor="White" />
+<sk:SkUiSwitch IsToggled="{Binding Notifications}" OnColor="#087F83" ThumbColor="White" />
 ```
 
 ## Key properties
 
-`IsChecked`, `CheckedChanged`, `OnColor`, `ThumbColor`. `CheckState` (Indeterminate: centered thumb, half-on track) and `IsThreeState` come from [`SkUiToggleControl`](SkUiToggleControl.md).
+`IsToggled`, `Toggled` (`ToggledEventArgs`), `OnColor`, `ThumbColor`; `IsChecked` / `CheckedChanged` as on the other toggles. `CheckState` (Indeterminate: centered thumb, half-on track) and `IsThreeState` come from [`SkUiToggleControl`](SkUiToggleControl.md).
 
 ## Differences from MAUI Switch
 
 | Topic | SkiaUi |
 | --- | --- |
-| State API | `IsChecked` / `CheckedChanged` (not `IsToggled` / `Toggled`) |
+| Three states | `CheckState` / `IsThreeState` (MAUI has two); `IsToggled` is `true` only for Checked |
 | Off-track color | Fixed SkiaUi track-off color (no full MAUI off-color model) |
 | Gestures | Intrinsic SkiaUi tap |
 

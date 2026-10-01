@@ -18,6 +18,7 @@ Headless-tested; device-verified on a Galaxy S9, iPhone / iOS simulator, Mac Cat
 | Input | Per-pointer gesture arena for SkUi* and Core: tap, double tap, long press, pan, swipe, pinch, pointer recognizers — [EventMechanism.md](EventMechanism.md) |
 | Text | Shared engine: HarfBuzz shaping, bidi / RTL, per-character font fallback, wrap / truncation, `TextRendering` fast path |
 | Controls | Label, Button, Image, ImageButton, ActivityIndicator, Switch / CheckBox / RadioButton (three-state `CheckState`, FR-23), **Slider** (horizontal / vertical, FR-24), **ProgressBar** (determinate / render-thread indeterminate, FR-25), shapes — each on both layers |
+| MAUI parity P1 | Switch `IsToggled` / `Toggled`; `CheckedChangedEventArgs`; radio group exclusion, `Value`, MAUI's `RadioButtonGroup.GroupName` / `SelectedValue` on drawn layouts; Button / ImageButton `Pressed` / `Released`; BoxView `CornerRadius`; Line `X1`…`Y2`; Image `Aspect.Center` and http; ImageButton `Padding`, border and clipped image — both layers (Phase P) |
 | Native hosting | `SkUiMauiContentView` (FR-16): viewport clipping, snapshot while scrolling, drags from overlays handed to drawn scrollers |
 | Animation | Render-thread `AnimateAsync`, fling, spin and content slide; UI-thread `SkUiAnimationClock` (FR-7) |
 | State-change transitions | Look-driven toggle, press (dim / ripple), slider-thumb and progress transitions on both layers; reduce motion (`SkUiMotion`); measured on a Galaxy S9 and Mac Catalyst (FR-26, [ArchitectureReview.md](ArchitectureReview.md#state-change-animations)) |
@@ -31,13 +32,41 @@ Headless-tested; device-verified on a Galaxy S9, iPhone / iOS simulator, Mac Cat
 
 ## Next
 
-Ordered for adoption by real apps (replace a MAUI page's tree with one drawn surface): layouts and containers for page shells first, then virtualized lists, then list chrome, then the remaining MAUI parity. Within a phase, the order is the suggested order.
+Ordered for adoption by real apps (replace a MAUI page's tree with one drawn surface): **full MAUI parity of the controls that already ship comes first**, so a MAUI page ports by changing the XAML prefix instead of rewriting it; then containers for page shells, virtualized lists, list chrome, and the remaining new controls. Within a phase, the order is the suggested order.
 
 Phase 0 (state-change animations, FR-26) is shipped: looks draw from continuous parameters, transitions run on the UI clock re-recording one control per frame. New controls with state visuals follow the same pattern (a paint struct with the transition, a `SkUiTransitionKind`, the shared animators). Left open: several ripples at once, press scale, render-thread painters.
 
+### Phase P — MAUI parity of shipped controls
+
+Every shipped control gets the MAUI API it is missing. P1 is shipped (see **Shipped**); P2 onwards is next. Most controls are still partial: they draw and behave like their MAUI counterpart for the common properties, but miss secondary API that real pages use (renamed state properties, text styling, image sources, brushes, shape geometry, scrollbars, accessibility).
+
+**Parity rules:**
+- **MAUI names and signatures win.** Where SkiaUi diverged (`IsChecked` on Switch, `EventHandler<bool>` for `CheckedChanged`, `StrokeWidth` on shapes), the MAUI member is added and the SkiaUi one is renamed or removed before 1.0, marked **Breaking** in the changelog. SkiaUi extensions stay (`CheckState` / `IsThreeState`, vertical `Slider`, `IsIndeterminate`, label chrome, `ShowsPressEffect`).
+- **Both layers.** A property lands on the SkUi* control and on its Core twin through the shared engine or painter (fluent `Set*` + CLR property on Core; no attached-property XAML there). Core-only drift found on the way is fixed in the same item (N13).
+- **Drawn by the look.** New visuals (scrollbars, decorations, shadows, radio content) get `SkUiLook` entry points and paint structs, as in **Suggested order for a new control**.
+- **Checked against MAUI.** Each item adds a XAML parity test: the control's samples from the MAUI docs, with only the namespace prefix changed, load, bind and measure as documented.
+
+| # | Deliverable | Controls | Notes |
+| --- | --- | --- | --- |
+| P1 | **Drop-in names and small properties** (shipped) | Switch, CheckBox, RadioButton, Button, ImageButton, BoxView, Line, Image | Switch `IsToggled` / `Toggled` (`ToggledEventArgs`) as the two-state view of `CheckState`; `CheckedChanged` with `CheckedChangedEventArgs` on all toggles; RadioButton `Value`, automatic exclusion by `GroupName`, MAUI's own `RadioButtonGroup.GroupName` / `SelectedValue` (two-way) working on a parent drawn layout; Button / ImageButton `Pressed` / `Released`; BoxView `CornerRadius`; Line `X1` / `Y1` / `X2` / `Y2`; Image `Aspect.Center` and `http://` URIs (where the platform allows cleartext); ImageButton `BorderColor` / `BorderWidth` / `Padding` and the bitmap clipped to `CornerRadius` |
+| P2 | **Visual states** ([MAUI visual states](https://learn.microsoft.com/dotnet/maui/user-interface/visual-states)) | All SkUi* views | VSM setters, styles and state triggers already work, and `Normal` / `Disabled` come from MAUI's `VisualElement`; only `SkUiButton` raises `Pressed`. `SkUiView` overrides `ChangeVisualState` with SkiaUi's own input state, so every control raises MAUI's states: `Pressed` on ImageButton; `IsChecked` (CheckBox), `On` / `Off` (Switch), `Checked` / `Unchecked` (RadioButton); `PointerOver` from hover tracking in the pointer router (mouse, trackpad, pen and iPad pointer: Mac Catalyst, Windows, iPadOS, Android with a mouse; MAUI's `IsPointerOver` is internal, so SkiaUi keeps its own flag). `Focused` / `Unfocused` follow P10's focus; `Selected` arrives with CollectionView items (B2). Core nodes are not `VisualElement`s: their state visuals stay with the look and transitions |
+| P3 | **Label text properties** | Label, Button (inherits), Core label | `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations` (underline / strikethrough), `TextTransform`; Core label `FontAttributes` (N13). In the shared text engine, so the line cache and the `Auto` fast path keep working |
+| P4 | **Image sources and cache** | Image, ImageButton, Core images | `MauiImage` resources (the build-processed file per platform, e.g. PNGs generated from SVGs), `FontImageSource` (glyph through the font pipeline), one loader + decoded-image cache shared by both layers and keyed by source and decode size (N9), `UriImageSource.CachingEnabled` / `CacheValidity`, EXIF orientation. Then Slider `ThumbImageSource` on top of it. Animated GIF / WebP (`IsAnimationPlaying`) last |
+| P5 | **Label spans** (`FormattedText`, `Span`) | Label, Core label | Per-span font, size, colours, decorations, character spacing and line height; span `GestureRecognizers` → per-span tap hit-testing on the shaped runs; bidi across spans. `TextType="Html"` stays out |
+| P6 | **Shape model and Border shapes** | `SkUiShape` family, Border | MAUI `Shape` API on `SkUiShape`: `Fill` and `Stroke` brushes, `StrokeThickness` (replaces `StrokeWidth`), `StrokeDashArray` / `StrokeDashOffset` / `StrokeLineCap` / `StrokeLineJoin` / `StrokeMiterLimit`, `Aspect`; stroke-only ellipses. New `SkUiRectangle`, `SkUiRoundRectangle`, `SkUiPath` (geometries + path markup), `SkUiPolygon`, `SkUiPolyline`. Border `StrokeShape` (any of these shapes, incl. `RoundRectangle 10` markup), `Stroke` as `Brush`, dashes and joins; content clip follows the stroke shape |
+| P7 | **Brushes, shadow and clip on every view** | All views | Gradient `Background` (`LinearGradientBrush`, `RadialGradientBrush`) wherever a solid fill is drawn today (look paint structs carry a brush); `Shadow` (FR-20); `Clip` geometry (FR-11's open path / mask item). Shadows and clips are composite-time where possible, so they do not re-record on scroll or transform |
+| P8 | **ScrollView parity** | ScrollView, Core scroll view | `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility` with look-drawn scrollbars (fade, RTL side); bounce / overscroll per look (rubber band, stretch) that keeps nested chaining; `ScrollToAsync(Element, ScrollToPosition, bool)` and `ScrollToRequested`; horizontal wheel and trackpad on `Both`; direction-aware fling stop and live extents (N11, also needed by Phase B) |
+| P9 | **Content and templates** | RadioButton, Button | RadioButton `Content` (string drawn by the look, or a drawn view) with `TextColor`, font, `CharacterSpacing`, `TextTransform`, `BorderColor` / `BorderWidth` / `CornerRadius`, and `ControlTemplate` with SkUi* content; Button `ImageSource` + `ContentLayout` (position and spacing), on P4's image loader |
+| P10 | **Accessibility, focus and font scaling** | All views, both layers | Semantics tree from `SemanticProperties` (`Description`, `Hint`, `HeadingLevel`) and `AutomationProperties`, mapped to platform accessibility (Android `ExploreByTouchHelper`, iOS accessibility elements, Windows automation peers); keyboard focus (`Focus()` / `Unfocus()`, `IsFocused`, `Focused` / `Unfocused`, tab order, activation keys); `FontAutoScalingEnabled` and OS text size (N8). Needed before broad production use |
+| P11 | **MAUI `GestureRecognizers` bridge** | All views | The optional compatibility bridge from [Requirements.md](Requirements.md#out-of-scope-for-now): `TapGestureRecognizer` (`NumberOfTapsRequired`, `Command`, `Buttons`), `SwipeGestureRecognizer`, `PanGestureRecognizer`, `PinchGestureRecognizer` and `PointerGestureRecognizer` mapped onto arena recognizers, so MAUI XAML with recognizers keeps working. The arena stays the gesture system; confirm the scope before starting |
+
+P1–P3 are small and unblock the most XAML (P2's hover tracking is the only new input path); P4 is the largest porting blocker (icons are on almost every page) and also fixes N9; P6–P7 share the brush and geometry plumbing, so they go together. P10 can start in parallel with any item, since it touches the node base classes and the platform handlers rather than individual controls.
+
+**Shared chrome before P6 / P7.** Labels, buttons and image buttons on both layers carry the same rounded chrome (`CornerRadii`, `BorderColor`, `BorderWidth`; SkUi* also MAUI's `int CornerRadius`), each with its own fields, validation, default-radius resolution (Core: explicit vs the look's default), rounded clip and border drawing: four copies (`SkUiLabel`, `SkUiImageButton`, `SkUiCoreLabel`, `SkUiCoreImageButton`). As the first step of P6 / P7, which turn the border color into a brush and add dashes and stroke shapes, move that into one internal chrome state struct and shared drawing (like `SkUiImageButtonDrawing`), with a SkUi-vs-Core parity test; the public API stays as it is. No public interface for now: styles and XAML target concrete types, the fluent setters return concrete types, `SkUiBorder` uses MAUI's other names (`Stroke`, `StrokeThickness`), and P6 / P7 would break it. Add one only when a consumer needs it (a look painter API, shared editors).
+
 ### Phase A — Page shells: composition layouts and containers
 
-A1–A3 are shipped (see **Shipped**); A4 onwards is next.
+A1–A3 are shipped (see **Shipped**); A4 onwards follows Phase P.
 
 | # | Deliverable | Layer | Why |
 | --- | --- | --- | --- |
@@ -67,18 +96,17 @@ Weighted growth (leftover space shared by weight) is not a separate layout: use 
 | C2 | **`SkUiRefreshView`** / pull-to-refresh on scroll views | If not already delivered with B2 |
 | C3 | **Label auto-fit** (shrink to fit, fit number) | After the measure cache is proven for it |
 | C4 | **Tile / wrap-grid layout** | Dashboard tiles |
-| C5 | **Label spans** (`FormattedString`) | MAUI parity |
 
-### Phase D — Remaining MAUI parity and polish
+Label spans moved to P5.
+
+### Phase D — Remaining new MAUI controls
+
+Shadows, scrollbars and bounce, shapes, the image cache and Slider `ThumbImageSource` moved to Phase P (P4, P6–P8).
 
 | # | Deliverable |
 | --- | --- |
-| D1 | Carousel + `IndicatorView` (horizontal virtual list with snapping) |
-| D2 | Shadows (FR-20) |
-| D3 | Scroll polish: scrollbars, bounce, snap points |
-| D4 | Shapes: Path, Polygon, Polyline, Rectangle / RoundRectangle |
-| D5 | Image cache integration hooks |
-| D6 | Stepper; Slider `ThumbImageSource` and step |
+| D1 | Carousel + `IndicatorView` (horizontal virtual list with snap points) |
+| D2 | Stepper |
 
 ### Architecture work alongside
 
@@ -86,33 +114,47 @@ From [ArchitectureReview.md](ArchitectureReview.md) (finding numbers N\*). Sched
 
 - **Now (small, correctness):** disabled controls must not block ancestor scrolling (N2); Core `IsEnabled` / `InputTransparent` with one blocking rule (N3); child alignment in every Core container (N4); scheme defaults resolved at paint time instead of snapshotted at construction (rest of N6; look / scheme swaps already redraw live surfaces).
 - **With Phase A:** measure invalidation without re-recording ancestors (N5); containers that re-measure often (flex, wrap, expander) benefit first.
-- **Before Phase B:** relayout boundaries; shared image cache (N9); fling live extents (N11); raster cache of stable subtrees (N7).
-- **Accessibility:** semantics tree mapped to platform accessibility (Android `ExploreByTouchHelper`, iOS accessibility elements), OS font scaling, keyboard focus, reduce-motion (N8). Needed before broad production use.
+- **Before Phase B:** relayout boundaries; raster cache of stable subtrees (N7). The shared image cache (N9) and fling live extents (N11) are part of P4 and P8.
+- **Accessibility (N8):** scheduled as P10; reduce motion already follows the OS (`SkUiMotion`).
 - **Drawn over native:** overlay masks, so drawn popups can cover hosted controls; cheaper overlay bookkeeping on Android (N10, N12).
-- **One implementation per control:** extract layer-agnostic engines and shared node mechanics, gated by SkUi-vs-Core parity tests (N13). Toggle drawing and all transition animators are already shared (`SkUiToggleDrawing`, `SkUiTransitionAnimators`).
+- **One implementation per control:** extract layer-agnostic engines and shared node mechanics, gated by SkUi-vs-Core parity tests (N13). Next: the rounded chrome of labels and buttons (see **Shared chrome before P6 / P7**). Toggle drawing and all transition animators are already shared (`SkUiToggleDrawing`, `SkUiTransitionAnimators`).
 
 ---
 
 ## MAUI parity at a glance
 
+Checked against `Microsoft.Maui.Controls` 10.0.101 (the pinned version). **Partial** means the control ships but misses MAUI API that real pages use; the missing parts are scheduled in Phase P.
+
 | MAUI | SkiaUi | Status |
 | --- | --- | --- |
-| Label, Button, Image, ImageButton, ActivityIndicator, BoxView, Ellipse, Line | SkUi* + Core | Done (Label spans: C5) |
-| CheckBox, Switch, RadioButton | SkUi* + Core | Done, plus three states |
-| Slider, ProgressBar | SkUi* + Core | Done, plus vertical / indeterminate |
-| Grid, VerticalStackLayout, HorizontalStackLayout, AbsoluteLayout, Border, ContentView | SkUi* + Core | Done |
-| ScrollView | SkUi* + Core | Done (polish: D3) |
-| FlexLayout | `SkUiFlexLayout` (SkUi* only) | A1 |
-| CollectionView (ListView, TableView map here) | — | B1–B3 |
+| ActivityIndicator, ProgressBar | SkUi* + Core | Done (ProgressBar plus indeterminate) |
+| CheckBox | SkUi* + Core | Done, plus three states |
+| Slider | SkUi* + Core | Done, plus vertical (`ThumbImageSource`: P4) |
+| Switch | SkUi* + Core | Done, plus three states (`On` / `Off` visual states: P2) |
+| RadioButton | SkUi* + Core | Partial: `Content`, `ControlTemplate` (P9); group exclusion, `Value`, `RadioButtonGroup` done (P1) |
+| Label | SkUi* + Core | Partial: `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform` (P3); spans (P5) |
+| Button | SkUi* + Core | Partial: text properties (P3); `ImageSource` + `ContentLayout` (P9) |
+| Image, ImageButton | SkUi* + Core | Partial: `MauiImage`, `FontImageSource`, cache, animation (P4) |
+| BoxView, Ellipse, Line | SkUi* + Core | Partial: brushes, stroke model, `Aspect` (P6) |
+| Rectangle, RoundRectangle, Path, Polygon, Polyline | Box / Border cover rectangles | P6 |
+| Border | SkUi* + Core | Partial: `StrokeShape`, brush stroke, dashes (P6) |
+| ScrollView | SkUi* + Core | Partial: scrollbars, bounce, scroll-to-element (P8) |
+| Grid, VerticalStackLayout, HorizontalStackLayout, AbsoluteLayout, ContentView | SkUi* + Core | Done |
+| FlexLayout | `SkUiFlexLayout` (SkUi* only) | Done (A1) |
+| StackLayout, BindableLayout | Stacks; templated items via CollectionView | Map |
+| Every view: visual states | `Style` / VSM setters; `Normal`, `Disabled`, Button `Pressed` | Partial: `PointerOver`, toggle states, ImageButton `Pressed` (P2); `Focused` (P10); `Selected` (B2) |
+| Every view: `Shadow`, gradient `Background`, `Clip` | — | P7 |
+| Every view: `SemanticProperties`, focus, font scaling | — | P10 |
+| Every view: `GestureRecognizers` | Arena gestures (`Tapped`, …) | P11 (bridge, scope to confirm) |
+| CollectionView | — | B1–B3 |
 | RefreshView, SwipeView | — | C1, C2 |
 | CarouselView, IndicatorView | — | D1 |
-| Path, Polygon, Polyline, Rectangle, RoundRectangle | Box with corner radius covers rectangles | D4 |
-| Stepper | — | D6 |
-| Shadow | — | D2 |
+| Stepper | — | D2 |
 | Entry, Editor, SearchBar, WebView, pickers, Map, media | Hosted (`SkUiMauiContentView`) | By design |
 | Pages, Shell, navigation | MAUI | Out of scope |
+| Frame, ListView, TableView, cells (`TextCell`, `ImageCell`, `SwitchCell`, `EntryCell`, `ViewCell`), Compatibility layouts | — | Out of scope: obsolete in MAUI (Frame since .NET 9, the rest in .NET 10); use Border and CollectionView |
 
-**Not planned (by design):** drawn Entry / Editor / WebView / media / maps (host them); Shell and navigation replacements; ListView cell API ports; vendor control clones; a Core flex layout (Core uses the wrap and shrink layouts and the grid).
+**Not planned (by design):** drawn Entry / Editor / WebView / media / maps (host them); Shell and navigation replacements; MAUI-obsolete controls (above); `Label.TextType="Html"`; tooltips, context flyouts and drag and drop gestures; vendor control clones; a Core flex layout (Core uses the wrap and shrink layouts and the grid).
 
 ---
 
@@ -120,6 +162,16 @@ From [ArchitectureReview.md](ArchitectureReview.md) (finding numbers N\*). Sched
 
 | Item | Must verify |
 | --- | --- |
+| Every Phase P item | MAUI doc samples for the control, with only the prefix changed, load, bind and measure as documented; the same result on SkUi* and Core; changelog lists renamed members as **Breaking** |
+| P1 names and small properties | `IsToggled` and `IsChecked` stay in sync both ways; one checked radio per group across nested layouts, `SelectedValue` two-way; `Pressed` / `Released` pair up, also when a scroll cancels the press; Line measures and places its points as MAUI's unstretched `Line` (points are not mirrored in RTL, as on Android and iOS) — headless tests in `ControlParityTests` / `RadioButtonGroupTests` |
+| P2 visual states | Each control goes through the same state sequence as its MAUI counterpart (a recorded `GoToState` log compared with MAUI's); `PointerOver` enters and leaves with the mouse on Mac Catalyst and Windows, and clears when the pointer leaves the surface; states set before the first draw apply without animation; `AdaptiveTrigger` / `StateTrigger` on a drawn control |
+| P3 text properties | `MaxLines` truncates with the `LineBreakMode` ellipsis; `LineHeight` and `CharacterSpacing` change measure; decorations follow bidi runs; the `Auto` fast path still applies to plain Latin text |
+| P4 images | `MauiImage` and `FontImageSource` resolve on Android, iOS, Mac Catalyst and Windows; a second view of the same source decodes nothing; memory flat after release (leak scenario) |
+| P5 spans | Mixed styles wrap inside one paragraph; span taps hit the right run, also in RTL |
+| P6 shapes and Border | Geometry matches MAUI's shapes (stretch, stroke alignment, dashes); Border clips content to its `StrokeShape` |
+| P7 brushes, shadow, clip | Gradients and shadows survive look / scheme swaps; scrolling and transform animations do not re-record shadowed or clipped nodes |
+| P8 scroll | Scrollbars show and fade per visibility; bounce keeps nested chaining and fling hand-off; scroll-to-element lands at each `ScrollToPosition` |
+| P10 accessibility | TalkBack, VoiceOver and Narrator read and activate drawn controls; keyboard tab order; text grows with the OS text size |
 | Flex layout | Frames match MAUI `FlexLayout` for direction, wrap, justify, align and grow / shrink / basis / order; attached-property edits relayout; works under an infinite constraint (scroll view); RTL |
 | Wrap layout | Wraps across width; re-measures when a child's size changes; RTL; same frames on both layers |
 | Shrink stack | Without overflow it is a plain stack; on overflow children shrink by factor (Auto: only those above the average), stop at their minimum size, and `None` children keep their size; both axes, both layers |

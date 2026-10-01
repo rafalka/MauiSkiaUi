@@ -7,9 +7,8 @@ namespace MauiSkiaUi.Core;
 /// No MAUI bindable properties or styling — suitable inside complex controls hosted by <see cref="SkUiCoreHost"/>.
 /// Defaults come from <see cref="SkUiColorScheme"/> / <see cref="SkUiLook"/>.
 /// Line wrapping/truncation is driven by <see cref="LineBreaker"/>; <see cref="SetLineBreakMode"/> installs a stock breaker.
-/// Optional rounded chrome (a badge, a chip): <see cref="FillColor"/>, <see cref="CornerRadii"/> (or the uniform
-/// <see cref="CornerRadius"/>),
-/// <see cref="BorderColor"/> and <see cref="BorderWidth"/>, drawn unless a <see cref="SkUiCoreNode.PaintBackground"/>
+/// Optional rounded chrome (a badge, a chip): <see cref="FillColor"/>, <see cref="CornerRadii"/> (<see cref="SetCornerRadius"/>
+/// sets all four), <see cref="BorderColor"/> and <see cref="BorderWidth"/>, drawn unless a <see cref="SkUiCoreNode.PaintBackground"/>
 /// painter replaces it.
 /// </summary>
 public class SkUiCoreLabel : SkUiCoreNode
@@ -92,17 +91,6 @@ public class SkUiCoreLabel : SkUiCoreNode
     {
         get => EffectiveCornerRadii;
         set => SetCornerRadii(value);
-    }
-
-    /// <summary>
-    /// Uniform view of <see cref="CornerRadii"/>, an <c>int</c> as MAUI Button's <c>CornerRadius</c> (and
-    /// <see cref="SkUiLabel.CornerRadius"/>): setting it sets all four corners; it reads the top-left radius, rounded.
-    /// Use <see cref="CornerRadii"/> for fractional radii.
-    /// </summary>
-    public int CornerRadius
-    {
-        get => (int)Math.Round(EffectiveCornerRadii.TopLeft);
-        set => SetCornerRadius(value);
     }
 
     /// <summary>Uniform corner radius used until the radii are set (0; buttons use the look's).</summary>
@@ -262,16 +250,20 @@ public class SkUiCoreLabel : SkUiCoreNode
         SkUiCornerRadii.Validate(value, nameof(value));
         var wasExplicit = _cornerRadiusExplicit;
         _cornerRadiusExplicit = true;
-        if (!SetProperty(ref _cornerRadii, value, nameof(CornerRadii)) && wasExplicit) return this;
-        OnPropertyChanged(nameof(CornerRadius));
+        if (!SetProperty(ref _cornerRadii, value, nameof(CornerRadii)))
+        {
+            if (wasExplicit) return this;
+            OnPropertyChanged(nameof(CornerRadii)); // the effective radii changed from the default to the stored value
+        }
         InvalidatePaint();
         return this;
     }
 
-    /// <summary>Sets all four corner radii to <paramref name="value"/> DIPs (app-explicit, like <see cref="SetCornerRadii"/>).</summary>
-    public SkUiCoreLabel SetCornerRadius(int value)
+    /// <summary>Sets all four <see cref="CornerRadii"/> to <paramref name="value"/> DIPs (app-explicit, like <see cref="SetCornerRadii"/>).</summary>
+    public SkUiCoreLabel SetCornerRadius(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        if (!double.IsFinite(value) || value < 0)
+            throw new ArgumentOutOfRangeException(nameof(value), value, "The corner radius must be finite and non-negative.");
         return SetCornerRadii(new Microsoft.Maui.CornerRadius(value));
     }
 

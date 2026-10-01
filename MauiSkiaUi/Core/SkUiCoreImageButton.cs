@@ -4,14 +4,19 @@ using SkiaSharp;
 namespace MauiSkiaUi.Core;
 
 /// <summary>
-/// Core image with intrinsic taps, <see cref="ICommand"/>, and pressed/disabled tint overlay
-/// (Core analogue of <c>SkUiImageButton</c>).
+/// Core image with intrinsic taps, <see cref="ICommand"/>, and pressed/disabled tint overlay (Core analogue of
+/// <c>SkUiImageButton</c>): the image sits inside <see cref="Padding"/>, is clipped to <see cref="CornerRadii"/>, and the
+/// border is drawn inside the bounds.
 /// </summary>
-public class SkUiCoreImageButton : SkUiCoreImage
+public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
 {
     private ICommand? _command;
     private object? _commandParameter;
-    private double _cornerRadius;
+    private CornerRadius _cornerRadii;
+    private Color _borderColor = Colors.Transparent;
+    private double _borderWidth;
+    private Thickness _padding;
+    private SkUiRoundedClip _clip;
     private bool _isPressed;
     private SkUiPressAnimator? _press;
     private EventHandler? _commandChanged;
@@ -21,6 +26,12 @@ public class SkUiCoreImageButton : SkUiCoreImage
 
     /// <summary>Raised on a completed tap (in addition to <see cref="Command"/>).</summary>
     public event EventHandler? Clicked;
+
+    /// <summary>Raised when a press starts (MAUI order: <c>Pressed</c>, <c>Released</c>, then <c>Clicked</c> for a tap).</summary>
+    public event EventHandler? Pressed;
+
+    /// <summary>Raised when a press ends: released, cancelled (e.g. a scroll took over) or moved out.</summary>
+    public event EventHandler? Released;
 
     /// <summary>Optional command executed on a completed tap.</summary>
     public ICommand? Command
@@ -36,11 +47,32 @@ public class SkUiCoreImageButton : SkUiCoreImage
         set => SetCommandParameter(value);
     }
 
-    /// <summary>Corner radius in DIPs for the pressed/disabled tint clip; the image itself is not clipped.</summary>
-    public double CornerRadius
+    /// <summary>Per-corner radii in DIPs: they clip the image, the press / disabled tint and the border.</summary>
+    public CornerRadius CornerRadii
     {
-        get => _cornerRadius;
-        set => SetCornerRadius(value);
+        get => _cornerRadii;
+        set => SetCornerRadii(value);
+    }
+
+    /// <summary>Border color; the border is drawn inside the bounds, over the image.</summary>
+    public Color BorderColor
+    {
+        get => _borderColor;
+        set => SetBorderColor(value);
+    }
+
+    /// <summary>Border width in DIPs (0: no border).</summary>
+    public double BorderWidth
+    {
+        get => _borderWidth;
+        set => SetBorderWidth(value);
+    }
+
+    /// <summary>Space between the bounds and the image; adds to the intrinsic size.</summary>
+    public Thickness Padding
+    {
+        get => _padding;
+        set => SetPadding(value);
     }
 
     /// <summary>Whether an eligible pointer is currently pressed inside this button.</summary>
@@ -97,12 +129,46 @@ public class SkUiCoreImageButton : SkUiCoreImage
         return this;
     }
 
-    /// <summary>Sets the tint clip corner radius in DIPs.</summary>
+    /// <summary>Sets the per-corner radii in DIPs.</summary>
+    public SkUiCoreImageButton SetCornerRadii(CornerRadius value)
+    {
+        SkUiCornerRadii.Validate(value, nameof(value));
+        if (!SetProperty(ref _cornerRadii, value, nameof(CornerRadii))) return this;
+        InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets all four <see cref="CornerRadii"/> to <paramref name="value"/> DIPs.</summary>
     public SkUiCoreImageButton SetCornerRadius(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
-        if (!SetProperty(ref _cornerRadius, value, nameof(CornerRadius))) return this;
+        if (!double.IsFinite(value) || value < 0)
+            throw new ArgumentOutOfRangeException(nameof(value), value, "The corner radius must be finite and non-negative.");
+        return SetCornerRadii(new CornerRadius(value));
+    }
+
+    /// <summary>Sets the border color.</summary>
+    public SkUiCoreImageButton SetBorderColor(Color value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (!SetProperty(ref _borderColor, value, nameof(BorderColor))) return this;
         InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets the border width in DIPs.</summary>
+    public SkUiCoreImageButton SetBorderWidth(double value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        if (!SetProperty(ref _borderWidth, value, nameof(BorderWidth))) return this;
+        InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets the padding around the image.</summary>
+    public SkUiCoreImageButton SetPadding(Thickness value)
+    {
+        if (!SetProperty(ref _padding, value, nameof(Padding))) return this;
+        InvalidateMeasure();
         return this;
     }
 
@@ -115,10 +181,26 @@ public class SkUiCoreImageButton : SkUiCoreImage
 
     private bool CanExecuteCommand => _command?.CanExecute(_commandParameter) ?? true;
 
-    /// <summary>Draws press / disabled feedback (<see cref="SkUiLook.DrawPressOverlay"/>) registered as <see cref="SkUiCoreNode.PaintOverlay"/>. Subclasses may call or re-register this painter.</summary>
+    /// <inheritdoc />
+    internal override CornerRadius PressEffectCornerRadii => _cornerRadii;
+
+    /// <inheritdoc />
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
+        SkUiImageButtonDrawing.Measure(base.MeasureContent(widthConstraint, heightConstraint), _padding);
+
+    /// <inheritdoc />
+    protected override void OnPaintContent(SKCanvas canvas) =>
+        SkUiImageButtonDrawing.PaintContent(canvas, this, (float)Frame.Width, (float)Frame.Height, _padding, _cornerRadii, ref _clip);
+
+    /// <summary>
+    /// Draws press / disabled feedback (<see cref="SkUiLook.DrawPressOverlay"/>) and the border, registered as
+    /// <see cref="SkUiCoreNode.PaintOverlay"/>. Subclasses may call or re-register this painter.
+    /// </summary>
     protected void PaintButtonOverlay(SKCanvas canvas) =>
-        SkUiLook.Current.DrawPressOverlay(canvas, new SkUiPressOverlayPaint(new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
-            new CornerRadius(_cornerRadius), _press?.Visual ?? SkUiPressVisual.None, CanExecuteCommand));
+        SkUiImageButtonDrawing.PaintOverlay(canvas, (float)Frame.Width, (float)Frame.Height, _cornerRadii, ToSkColor(_borderColor), (float)_borderWidth,
+            _press?.Visual ?? SkUiPressVisual.None, CanExecuteCommand);
+
+    void SkUiImageButtonDrawing.IImage.Paint(SKCanvas canvas, SKRect area) => PaintImage(canvas, area);
 
     /// <inheritdoc />
     internal override bool HasIntrinsicTap => CanExecuteCommand;
@@ -141,6 +223,7 @@ public class SkUiCoreImageButton : SkUiCoreImage
         if (!SetProperty(ref _isPressed, value, nameof(IsPressed))) return;
         (_press ??= new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
         InvalidatePaint();
+        (value ? Pressed : Released)?.Invoke(this, EventArgs.Empty);
     }
 
     /// <inheritdoc />

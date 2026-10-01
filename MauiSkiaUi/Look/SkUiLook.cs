@@ -471,7 +471,7 @@ public class SkUiLook
     /// <summary>Optional press-overlay painter (press feedback over content, ImageButton disabled dimming); replaces <see cref="DrawPressOverlayCore"/>.</summary>
     public Action<SKCanvas, SkUiPressOverlayPaint>? PressOverlayPainter { get; set; }
 
-    /// <summary>Draws an image with aspect fit/fill.</summary>
+    /// <summary>Draws an image with aspect fit / fill / stretch / center.</summary>
     public void DrawImage(SKCanvas canvas, SKImage image, float viewWidth, float viewHeight, Aspect aspect)
     {
         if (ImagePainter is { } painter)
@@ -485,9 +485,11 @@ public class SkUiLook
     /// <summary>Default image destination drawing.</summary>
     protected virtual void DrawImageCore(SKCanvas canvas, SKImage image, float viewWidth, float viewHeight, Aspect aspect) { }
 
-    /// <summary>Computes the destination rect for an image under the given aspect.</summary>
+    /// <summary>Computes the destination rect for an image under the given aspect (<see cref="Aspect.Center"/>: unscaled, centered).</summary>
     public virtual SKRect ComputeImageDestination(float viewWidth, float viewHeight, float imageWidth, float imageHeight, Aspect aspect)
     {
+        if (aspect == Aspect.Center)
+            return SKRect.Create((viewWidth - imageWidth) / 2, (viewHeight - imageHeight) / 2, imageWidth, imageHeight);
         var scale = aspect == Aspect.AspectFill
             ? Math.Max(viewWidth / imageWidth, viewHeight / imageHeight)
             : Math.Min(viewWidth / imageWidth, viewHeight / imageHeight);

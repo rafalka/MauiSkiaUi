@@ -31,6 +31,17 @@ public class SkUiLayout : SkUiView, ILayout
         return this;
     }
 
+    /// <inheritdoc />
+    protected override void OnPropertyChanged(string? propertyName = null)
+    {
+        base.OnPropertyChanged(propertyName);
+        // MAUI's RadioButtonGroup attached properties: MAUI's controller only handles its own RadioButton.
+        if (propertyName == RadioButtonGroup.GroupNameProperty.PropertyName)
+            SkUiRadioGroups.OnLayoutGroupNameChanged(this);
+        else if (propertyName == RadioButtonGroup.SelectedValueProperty.PropertyName)
+            SkUiRadioGroups.OnLayoutSelectedValueChanged(this);
+    }
+
     bool ILayout.ClipsToBounds => true;
     bool ISafeAreaView.IgnoreSafeArea => true;
     Size ILayout.CrossPlatformMeasure(double widthConstraint, double heightConstraint) => MeasureContent(widthConstraint, heightConstraint);

@@ -29,13 +29,13 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreGrid` | Auto / absolute / star grid + per-track min/max; see [SkUiCoreGrid.md](SkUiCoreGrid.md) |
 | `SkUiCoreTable` | Grid + row/column/cell backgrounds and span-aware separators; see [SkUiCoreTable.md](SkUiCoreTable.md) |
 | `SkUiCoreContentView` / `SkUiCoreBorder` | Single-child host; border adds rounded chrome with per-corner `CornerRadius` |
-| `SkUiCoreLabel` / `SkUiCoreButton` | Text (wrap/truncate via `LineBreakMode` or custom `LineBreaker`) with optional rounded chrome (`FillColor`, per-corner `CornerRadii` or uniform `CornerRadius`, `BorderColor`, `BorderWidth`: badges without a wrapping border), and the rounded tap button (`ICommand`) built on it |
+| `SkUiCoreLabel` / `SkUiCoreButton` | Text (wrap/truncate via `LineBreakMode` or custom `LineBreaker`) with optional rounded chrome (`FillColor`, per-corner `CornerRadii`, `SetCornerRadius(double)` to set all four, `BorderColor`, `BorderWidth`: badges without a wrapping border), and the rounded tap button (`ICommand`) built on it |
 | `SkUiCoreTextLineBreaker` / `SkUiCoreTextLineBreakers` | Line-break delegate + stock MAUI-mode breakers for Core labels |
-| `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Toggles: `CheckState` (Unchecked / Checked / Indeterminate), `IsChecked` view, `IsThreeState` |
+| `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Toggles: `CheckState` (Unchecked / Checked / Indeterminate), `IsChecked` view, `IsThreeState`; Switch `IsToggled` / `Toggled`; radio buttons in the same parent exclude each other |
 | `SkUiCoreSlider` | Horizontal or vertical slider (`Minimum` / `Maximum` / `Value`, drag events) |
 | `SkUiCoreProgressBar` | Determinate or indeterminate (render-thread) progress bar, `ProgressTo` |
-| `SkUiCoreShape` / `Box` / `Ellipse` / `Line` | Drawing primitives |
-| `SkUiCoreImage` / `SkUiCoreImageButton` | Decoded image (+ tap/tint); no MAUI `ImageSource` |
+| `SkUiCoreShape` / `Box` / `Ellipse` / `Line` | Drawing primitives; box `CornerRadius`, line `X1`…`Y2` (`SetPoints`) |
+| `SkUiCoreImage` / `SkUiCoreImageButton` | Decoded image (+ tap/tint, `Pressed` / `Released`, `Padding`, `CornerRadii` clip (`SetCornerRadius(double)`), border); no MAUI `ImageSource` |
 | `SkUiCoreActivityIndicator` | Indeterminate spinner, rotated by the compositor on the render thread |
 | `SkUiCoreScrollView` | Scroller on the shared scroll engine: offsets, render-thread fling / animated scroll, wheel, nesting with Core and SkUi* scrollers |
 | `SkUiCoreHost` | `SkUiView` bridge that hosts one Core root |

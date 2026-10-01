@@ -30,6 +30,12 @@ public class SkUiCoreButton : SkUiCoreLabel
     /// <summary>Raised on a completed tap inside the button bounds (in addition to <see cref="Command"/>).</summary>
     public event EventHandler? Clicked;
 
+    /// <summary>Raised when a press starts (MAUI order: <c>Pressed</c>, <c>Released</c>, then <c>Clicked</c> for a tap).</summary>
+    public event EventHandler? Pressed;
+
+    /// <summary>Raised when a press ends: released, cancelled (e.g. a scroll took over) or moved out.</summary>
+    public event EventHandler? Released;
+
     /// <summary>Optional command executed on a completed tap.</summary>
     public ICommand? Command
     {
@@ -60,7 +66,7 @@ public class SkUiCoreButton : SkUiCoreLabel
     public new SkUiCoreButton SetBorderWidth(double value) { base.SetBorderWidth(value); return this; }
 
     /// <summary>Sets all four corner radii in DIPs (app-explicit, so look swaps do not replace them).</summary>
-    public new SkUiCoreButton SetCornerRadius(int value) { base.SetCornerRadius(value); return this; }
+    public new SkUiCoreButton SetCornerRadius(double value) { base.SetCornerRadius(value); return this; }
 
     /// <summary>Sets the per-corner radii in DIPs (app-explicit, so look swaps do not replace them).</summary>
     public new SkUiCoreButton SetCornerRadii(CornerRadius value) { base.SetCornerRadii(value); return this; }
@@ -166,5 +172,6 @@ public class SkUiCoreButton : SkUiCoreLabel
         if (!SetProperty(ref _isPressed, value, nameof(IsPressed))) return;
         (_press ??= new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
         InvalidatePaint();
+        (value ? Pressed : Released)?.Invoke(this, EventArgs.Empty);
     }
 }

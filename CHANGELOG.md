@@ -6,6 +6,22 @@ Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs
 
 ## Unreleased
 
+- **MAUI API parity of existing controls (P1)**, on SkUi* and Core:
+  - **Switch:** `IsToggled` (two-way bindable) and `Toggled` (`ToggledEventArgs`), MAUI's names for the two-state view of `CheckState`; they stay in step with `IsChecked`.
+  - **RadioButton:** checking one unchecks the rest of its group, with MAUI's rules: siblings in the same parent when there is no `GroupName`, every radio button with the same `GroupName` on the page otherwise. New `Value`, and MAUI's own `RadioButtonGroup.GroupName` / `SelectedValue` work on drawn layouts with unchanged markup: the layout names its radio buttons, and `SelectedValue` binds two-way to the checked one's `Value` ([SkUiRadioButton.md](docs/controls/SkUiRadioButton.md)). `SkUiCoreRadioButton`: the radio buttons in the same parent exclude each other.
+  - **Button, ImageButton:** `Pressed` and `Released` events, in MAUI's order (`Pressed`, `Released`, `Clicked`); a cancelled press raises `Released` without `Clicked`.
+  - **BoxView:** `SkUiBox` / `SkUiCoreBox` `CornerRadius` (per corner, MAUI's `CornerRadius`).
+  - **Line:** `X1`, `Y1`, `X2`, `Y2` and the `(x1, y1, x2, y2)` constructor; the line measures to its far end points plus the stroke and is placed as MAUI places an unstretched `Line` ([SkUiLine.md](docs/controls/SkUiLine.md)).
+  - **Image:** `Aspect.Center` (unscaled and centered, also for images the decoder reduced) and plain `http://` sources (they need the platform's cleartext permission).
+  - **ImageButton:** `Padding`, `BorderColor` and `BorderWidth`; per-corner `CornerRadii` (with MAUI's `int` `CornerRadius` setting all four, as on `SkUiButton`), which now clip the image and the border as well as the press tint.
+  - **Breaking:**
+    - `CheckedChanged` on all toggles (both layers) is an `EventHandler<CheckedChangedEventArgs>` (was `EventHandler<bool>`): read `args.Value`.
+    - Radio buttons uncheck the other radio buttons of their group (before, `GroupName` was only stored). Apps that cleared siblings in `CheckedChanged` can drop that code.
+    - `SkUiCoreRadioButton.GroupName` / `SetGroupName` are removed: a Core group is the radio buttons in one parent.
+    - `SkUiLine` / `SkUiCoreLine` draw between their points instead of the diagonal of their bounds; a line without points draws nothing. Set `X2` / `Y2` (e.g. to the old `WidthRequest` / `HeightRequest` minus the stroke) to keep a diagonal.
+    - `SkUiImageButton.CornerRadius` and `SetCornerRadius` are `int` (were `double`), as MAUI's `ImageButton`; fractional and per-corner radii go in the new `CornerRadii`.
+    - Core labels and buttons have only `CornerRadii`: `SkUiCoreLabel.CornerRadius` / `SkUiCoreButton.CornerRadius` (the `int` view) are removed, `SkUiCoreImageButton.CornerRadius` became `CornerRadii`, and `SetCornerRadius` takes a `double` on all three (sets all four corners).
+
 - **Core attached properties** (`SkUiCoreAttachedProperty<T>`, `node.GetValue` / `SetValue` / `ClearValue` / `IsSet`): typed per-child values that Core layouts read, the Core counterpart of MAUI attached properties ([SkUiCore.md](docs/controls/SkUiCore.md#attached-properties)). Grid cells (`SkUiCoreGrid.RowProperty`, …), absolute bounds (`SkUiCoreAbsoluteLayout.LayoutBoundsProperty` / `LayoutFlagsProperty`) and shrink factors now live on the child instead of in per-layout tables: they can be set before the child is added and stay with it when it moves. The existing layout methods are unchanged and write the same values.
   - `SkUiCoreAbsoluteLayout.Add(child)` is now allowed (it was a compile error): the child is placed by its own `LayoutBounds` / `LayoutFlags`, by default at its measured size at (0,0).
 - **`SkUiFlexLayout`:** MAUI's `FlexLayout` API (`Direction`, `Wrap`, `JustifyContent`, `AlignItems`, `AlignContent`; attached `Order`, `Grow`, `Shrink`, `AlignSelf`, `Basis`, the same property objects as MAUI's) laid out by MAUI's `FlexLayoutManager`. MAUI's flex engine is internal, so SkiaUi ships a port of it; frames match MAUI's `FlexLayout`. SkUi* only ([SkUiFlexLayout.md](docs/controls/SkUiFlexLayout.md)).

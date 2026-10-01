@@ -6,7 +6,7 @@ Asynchronously decoded bitmap painted with aspect modes.
 
 ## How it works
 
-Changing `Source` starts `ReloadAsync`. Decode runs off the UI thread; completion is marshaled back to the starting dispatcher. Errors set `LoadError` and leave a blank image. Implements `IDisposable` for permanent teardown. Aspect destination rect is drawn via `SkUiLook.Current.DrawImage` (same path as `SkUiCoreImage`).
+Changing `Source` starts `ReloadAsync`. Decode runs off the UI thread; completion is marshaled back to the starting dispatcher. Errors set `LoadError` and leave a blank image. Implements `IDisposable` for permanent teardown. Aspect destination rect is drawn via `SkUiLook.Current.DrawImage` (same path as `SkUiCoreImage`). `Aspect.Center` draws the image unscaled (one source pixel per DIP) in the middle, clipped to the bounds, also when the decoder reduced a large image.
 
 
 ## Shared conventions
@@ -34,7 +34,7 @@ await image.LoadingTask; // wait for success or error publication
 
 `Source`, `Aspect`, `IsLoading`, `LoadError`, `ImageSize`, `LoadingTask`, `ReloadAsync()`, `Dispose()`.
 
-Supported sources: `FileImageSource` (absolute path or **Resources/Raw**), `StreamImageSource`, HTTPS `UriImageSource`.
+Supported sources: `FileImageSource` (absolute path or **Resources/Raw**), `StreamImageSource`, HTTP(S) `UriImageSource`. Plain `http://` needs the platform's cleartext permission (Android `usesCleartextTraffic` / network security config, iOS App Transport Security); without it the load fails with `LoadError`.
 
 ## Differences from MAUI Image
 

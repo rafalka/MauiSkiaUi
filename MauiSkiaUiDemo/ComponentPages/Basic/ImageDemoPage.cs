@@ -20,7 +20,7 @@ public sealed class ImageDemoPage : ComponentDemoPage
     {
         _skia = (SkUiImage)SkiaControl;
         _native = (Image)NativeControl!;
-        Choice(nameof(SkUiImage.Aspect), new[] { Aspect.AspectFit, Aspect.AspectFill, Aspect.Fill }, Aspect.AspectFit,
+        Choice(nameof(SkUiImage.Aspect), new[] { Aspect.AspectFit, Aspect.AspectFill, Aspect.Fill, Aspect.Center }, Aspect.AspectFit,
             value => { _skia.Aspect = value; _native.Aspect = value; }, () => _skia.Aspect, () => _native.Aspect);
         Choice(nameof(SkUiImage.Source), new[] { SampleEarth, SampleEmpty, SampleInvalid }, SampleEarth, SetSample, () => _sample);
         _skia.PropertyChanged += (_, args) => { if (args.PropertyName is nameof(SkUiImage.IsLoading) or nameof(SkUiImage.LoadError)) UpdateImageStatus(); };

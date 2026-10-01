@@ -29,7 +29,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`CheckState`, `IsChecked`, `IsThreeState`, `CheckStateChanged`, `CheckedChanged`, `Color`.
+`CheckState`, `IsChecked`, `IsThreeState`, `CheckStateChanged`, `CheckedChanged` (`CheckedChangedEventArgs`, as in MAUI), `Color`.
 
 ## Differences from MAUI CheckBox
 

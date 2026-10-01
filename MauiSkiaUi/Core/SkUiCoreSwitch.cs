@@ -2,11 +2,24 @@ using SkiaSharp;
 
 namespace MauiSkiaUi.Core;
 
-/// <summary>Drawn on/off pill switch (Core analogue of <c>SkUiSwitch</c>).</summary>
+/// <summary>
+/// Drawn on/off pill switch (Core analogue of <c>SkUiSwitch</c>). <see cref="IsToggled"/> / <see cref="Toggled"/> are
+/// MAUI's names for <see cref="SkUiCoreToggleControl.IsChecked"/> / <see cref="SkUiCoreToggleControl.CheckedChanged"/>.
+/// </summary>
 public class SkUiCoreSwitch : SkUiCoreToggleControl
 {
     private Color _onColor = SkUiColors.Accent;
     private Color _thumbColor = Colors.White;
+
+    /// <summary>Whether the switch is on (MAUI's name for <see cref="SkUiCoreToggleControl.IsChecked"/>).</summary>
+    public bool IsToggled
+    {
+        get => IsChecked;
+        set => SetIsToggled(value);
+    }
+
+    /// <summary>Raised when <see cref="IsToggled"/> changes, including from a tap, after <see cref="SkUiCoreToggleControl.CheckedChanged"/>.</summary>
+    public event EventHandler<ToggledEventArgs>? Toggled;
 
     /// <summary>Track color while toggled on.</summary>
     public Color OnColor
@@ -20,6 +33,13 @@ public class SkUiCoreSwitch : SkUiCoreToggleControl
     {
         get => _thumbColor;
         set => SetThumbColor(value);
+    }
+
+    /// <summary>Sets <see cref="IsToggled"/> (Checked or Unchecked).</summary>
+    public SkUiCoreSwitch SetIsToggled(bool value)
+    {
+        SetIsChecked(value);
+        return this;
     }
 
     /// <summary>Sets the on-track color.</summary>
@@ -38,6 +58,18 @@ public class SkUiCoreSwitch : SkUiCoreToggleControl
         if (!SetProperty(ref _thumbColor, value, nameof(ThumbColor))) return this;
         InvalidatePaint();
         return this;
+    }
+
+    private protected override void OnCheckStateApplied(SkUiCheckState oldState, SkUiCheckState newState)
+    {
+        if (SkUiCheckStates.IsChecked(oldState) != SkUiCheckStates.IsChecked(newState))
+            OnPropertyChanged(nameof(IsToggled));
+    }
+
+    private protected override void RaiseCheckedChanged(bool isChecked)
+    {
+        base.RaiseCheckedChanged(isChecked);
+        Toggled?.Invoke(this, new ToggledEventArgs(isChecked));
     }
 
     /// <inheritdoc />

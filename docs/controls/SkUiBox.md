@@ -6,7 +6,7 @@ Filled rectangle primitive.
 
 ## How it works
 
-[`SkUiShape`](SkUiShape.md) subclass. Default intrinsic size 48×48. Hit region is the arranged rectangle.
+[`SkUiShape`](SkUiShape.md) subclass. Default intrinsic size 48×48. `CornerRadius` rounds each corner independently (MAUI's `CornerRadius`; radii larger than the box allows are scaled down), with the look's rounded-rect geometry like [`SkUiBorder`](SkUiBorder.md). Hit region is the arranged rectangle.
 
 
 ## Shared conventions
@@ -24,15 +24,16 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ```xml
 <sk:SkUiBox Color="#C54150" WidthRequest="112" HeightRequest="112" />
+<sk:SkUiBox Color="#087F83" CornerRadius="12,12,0,0" HeightRequest="40" />
 ```
 
 ## Key properties
 
-`Color`, `StrokeWidth` (ignored for filled box), plus base view layout/transform props.
+`Color`, `CornerRadius` (+ `SetCornerRadius`), `StrokeWidth` (ignored for filled box), plus base view layout/transform props.
 
 ## Differences from MAUI BoxView
 
-Drawn with Skia; corner radius not supported (use [`SkUiBorder`](SkUiBorder.md)). Passive unless `Tapped` subscribed.
+Drawn with Skia. Default intrinsic size is 48×48 (MAUI: 40×40). Passive unless `Tapped` subscribed.
 
 ## Related
 

@@ -27,7 +27,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`CheckState`, `IsChecked`, `IsThreeState` (bindable), `CheckStateChanged`, `CheckedChanged`, `SetCheckState`, `SetIsChecked`, `SetIsThreeState`.
+`CheckState`, `IsChecked`, `IsThreeState` (bindable), `CheckStateChanged`, `CheckedChanged` (MAUI's `CheckedChangedEventArgs`), `SetCheckState`, `SetIsChecked`, `SetIsThreeState`.
 
 ## Related
 

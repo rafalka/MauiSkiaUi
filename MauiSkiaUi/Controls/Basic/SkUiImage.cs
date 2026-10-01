@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace MauiSkiaUi;
 
-/// <summary>A Skia-decoded image supporting file, packaged raw asset, stream, and HTTPS image sources.</summary>
+/// <summary>A Skia-decoded image supporting file, packaged raw asset, stream, and HTTP(S) image sources.</summary>
 public class SkUiImage : SkUiView, IDisposable
 {
     private static readonly HttpClient Http = new();
@@ -23,7 +23,7 @@ public class SkUiImage : SkUiView, IDisposable
         propertyChanged: (view, _, value) => ((SkUiImage)view).SetAspect((Aspect)value));
     /// <summary>Image source; asynchronous loading starts when it changes.</summary>
     public ImageSource? Source { get => _source; set => SetValue(SourceProperty, value); }
-    /// <summary>Fit, fill, or stretch within the arranged bounds.</summary>
+    /// <summary>Fit, fill, stretch or center (unscaled) within the arranged bounds.</summary>
     public Aspect Aspect { get => _aspect; set => SetValue(AspectProperty, value); }
     /// <summary>Current asynchronous load, including error-state publication.</summary>
     public Task LoadingTask { get; private set; } = Task.CompletedTask;
@@ -131,8 +131,9 @@ public class SkUiImage : SkUiView, IDisposable
             StreamImageSource stream => await stream.Stream(token),
             FileImageSource file when Path.IsPathRooted(file.File) => File.OpenRead(file.File),
             FileImageSource file => await Microsoft.Maui.Storage.FileSystem.Current.OpenAppPackageFileAsync(file.File),
-            UriImageSource uri when uri.Uri?.Scheme == Uri.UriSchemeHttps => await Http.GetStreamAsync(uri.Uri, token),
-            _ => throw new NotSupportedException("Use a file, raw package asset, stream, or HTTPS source.")
+            // Plain http needs the platform's cleartext permission (Android network security config, iOS ATS).
+            UriImageSource uri when uri.Uri?.Scheme == Uri.UriSchemeHttps || uri.Uri?.Scheme == Uri.UriSchemeHttp => await Http.GetStreamAsync(uri.Uri, token),
+            _ => throw new NotSupportedException("Use a file, raw package asset, stream, or HTTP(S) source.")
         };
     }
 
@@ -149,10 +150,13 @@ public class SkUiImage : SkUiView, IDisposable
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => ImageSize;
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas)
+    protected override void OnPaintContent(SKCanvas canvas) => PaintImage(canvas, new SKRect(0, 0, (float)Width, (float)Height));
+
+    /// <summary>Draws the decoded image into <paramref name="area"/> (local DIPs) with <see cref="Aspect"/>; nothing while none is loaded.</summary>
+    protected void PaintImage(SKCanvas canvas, SKRect area)
     {
         if (_image is null) return;
-        SkUiLook.Current.DrawImage(canvas, _image, (float)Width, (float)Height, _aspect);
+        SkUiImageDrawing.Draw(canvas, _image, ImageSize, area, _aspect);
     }
 
     /// <summary>Cancels loading and releases decoded image resources; a disposed control cannot be reused.</summary>

@@ -112,7 +112,7 @@ Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](
 - **Coordinates** are MAUI DIPs; the handler maps to surface pixels.
 - **`HwAccelerated`** is set before the handler attaches (ContentView/Layout default GPU; leaves default software). Hosted children ignore it.
 - **Gestures** use SkiaUi’s own tap model (`Tapped` / `TappedCommand`), not MAUI `GestureRecognizers`.
-- **Styles / VisualStateManager** work on bindable `SkUi*` properties like other MAUI views.
+- **Styles / VisualStateManager** setters work on bindable `SkUi*` properties like other MAUI views. Every view raises `Normal` / `Disabled` and `SkUiButton` also `Pressed`; the other MAUI states (`PointerOver`, `Focused`, toggle states) are not raised yet.
 - **`StartUpdating` / `EndUpdating`** batch layout and paint invalidation when changing many properties.
 - Direct fluent setters update applied state but **do not write back** to the bindable store — prefer one update path per property.
 - Drawn nodes are not yet full accessibility / keyboard targets; native overlays keep their platform a11y.

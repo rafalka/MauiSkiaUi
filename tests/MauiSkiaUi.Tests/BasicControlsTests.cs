@@ -227,8 +227,8 @@ public class BasicControlsTests
         Assert.Equal(SKColors.White, frame.GetPixel(0, 0));
         Assert.Equal(SKColors.Red, frame.GetPixel(40, 3));
         Assert.Equal(SKColors.Blue, frame.GetPixel(40, 0));
-        Assert.Equal(SkUiLook.Current.DefaultButtonCornerRadius, new SkUiCoreButton().CornerRadius);
-        Assert.Equal(0, new SkUiCoreLabel().CornerRadius);
+        Assert.Equal(new CornerRadius(SkUiLook.Current.DefaultButtonCornerRadius), new SkUiCoreButton().CornerRadii);
+        Assert.Equal(new CornerRadius(0), new SkUiCoreLabel().CornerRadii);
     }
 
     [Fact]
@@ -264,10 +264,34 @@ public class BasicControlsTests
         var names = new List<string?>();
         ((System.ComponentModel.INotifyPropertyChanged)core).PropertyChanged += (_, args) => names.Add(args.PropertyName);
         core.SetCornerRadii(new CornerRadius(8, 8, 0, 0));
-        Assert.Equal(8, core.CornerRadius);
-        Assert.Equal([nameof(SkUiCoreLabel.CornerRadii), nameof(SkUiCoreLabel.CornerRadius)], names);
-        core.SetCornerRadius(3);
-        Assert.Equal(new CornerRadius(3), core.CornerRadii);
+        Assert.Equal([nameof(SkUiCoreLabel.CornerRadii)], names);
+        core.SetCornerRadius(2.5); // Core has only CornerRadii; SetCornerRadius sets all four, fractions included
+        Assert.Equal(new CornerRadius(2.5), core.CornerRadii);
+        Assert.Throws<ArgumentOutOfRangeException>(() => core.SetCornerRadius(double.NaN));
+
+        // An explicit radius equal to the stored default still notifies: the effective radii change from the look's.
+        var unset = new SkUiCoreButton();
+        names.Clear();
+        ((System.ComponentModel.INotifyPropertyChanged)unset).PropertyChanged += (_, args) => names.Add(args.PropertyName);
+        unset.SetCornerRadii(default);
+        Assert.Equal([nameof(SkUiCoreLabel.CornerRadii)], names);
+        Assert.Equal(new CornerRadius(0), unset.CornerRadii);
+    }
+
+    [Fact]
+    public void ImageButtonCornersAreSetSeparatelyOrAllAtOnce()
+    {
+        using var button = new SkUiImageButton { CornerRadius = 10 };
+        Assert.Equal(new CornerRadius(10), button.CornerRadii);
+        button.CornerRadii = new CornerRadius(1, 2, 3, 4);
+        Assert.Equal(1, button.CornerRadius);
+        button.CornerRadius = 5;
+        Assert.Equal(new CornerRadius(5), button.CornerRadii);
+
+        using var core = new SkUiCoreImageButton().SetCornerRadius(4.5);
+        Assert.Equal(new CornerRadius(4.5), core.CornerRadii);
+        core.SetCornerRadii(new CornerRadius(8, 8, 0, 0));
+        Assert.Equal(new CornerRadius(8, 8, 0, 0), core.CornerRadii);
     }
 
     [Fact]

@@ -55,6 +55,10 @@ public class SkUiButton : SkUiLabel
 
     /// <summary>Raised for a valid enabled tap, even without a command.</summary>
     public event EventHandler? Clicked;
+    /// <summary>Raised when a press starts (MAUI order: <c>Pressed</c>, <c>Released</c>, then <c>Clicked</c> for a tap).</summary>
+    public event EventHandler? Pressed;
+    /// <summary>Raised when a press ends: released, cancelled (e.g. a scroll took over) or moved out.</summary>
+    public event EventHandler? Released;
     /// <summary>Command; CanExecute also controls tap eligibility and disabled appearance.</summary>
     public ICommand? Command { get => _command; set => SetValue(CommandProperty, value); }
     /// <summary>Command argument.</summary>
@@ -105,6 +109,7 @@ public class SkUiButton : SkUiLabel
     {
         (_press ??= new SkUiPressAnimator(this)).SetPressed(IsPressed, PressPosition);
         UpdateState();
+        (IsPressed ? Pressed : Released)?.Invoke(this, EventArgs.Empty);
     }
     private void UpdateState()
     {
