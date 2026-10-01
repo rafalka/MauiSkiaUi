@@ -58,9 +58,9 @@
       on Windows Visual Studio's DevEnvDir, or a VS Code / Cursor environment (Cursor, a VS Code fork, sets VS Code's
       variables too: its cache path names it). Empty when built from a terminal or CI.
     -->
-<!--    <AssemblyMetadata Include="SampleBuildAppId" Value="$(__CFBundleIdentifier)" Condition="'$(__CFBundleIdentifier)' != ''" />-->
-<!--    <AssemblyMetadata Include="SampleBuildDevEnv" Value="$(DevEnvDir)" Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(DevEnvDir)' != ''" />-->
-<!--    <AssemblyMetadata Include="SampleBuildCodeEditor" Value="$(SampleBuildCodeEditor)" Condition="'$(SampleBuildCodeEditor)' != ''" />-->
+    <AssemblyMetadata Include="SampleBuildAppId" Value="$(__CFBundleIdentifier)" Condition="'$(__CFBundleIdentifier)' != ''" />
+    <AssemblyMetadata Include="SampleBuildDevEnv" Value="$(DevEnvDir)" Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(DevEnvDir)' != ''" />
+    <AssemblyMetadata Include="SampleBuildCodeEditor" Value="$(SampleBuildCodeEditor)" Condition="'$(SampleBuildCodeEditor)' != ''" />
   </ItemGroup>
 
   <ItemGroup>
