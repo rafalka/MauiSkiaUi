@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace MauiSkiaUi;
 
-/// <summary>A Skia-decoded image supporting file, packaged raw asset, stream, and HTTPS image sources.</summary>
+/// <summary>A Skia-decoded image supporting file, packaged raw asset, stream, and HTTP(S) image sources.</summary>
 public class SkUiImage : SkUiView, IDisposable
 {
     private static readonly HttpClient Http = new();
@@ -17,14 +17,14 @@ public class SkUiImage : SkUiView, IDisposable
 
     /// <summary>Bindable MAUI image source. Relative files refer to Resources/Raw, not generated MauiImage assets.</summary>
     public static readonly BindableProperty SourceProperty = BindableProperty.Create(nameof(Source), typeof(ImageSource), typeof(SkUiImage), null,
-        propertyChanged: (view, _, value) => ((SkUiImage)view).SetSource((ImageSource?)value));
+        propertyChanged: (view, _, value) => ((SkUiImage)view).OnSourceChanged((ImageSource?)value));
     /// <summary>Bindable aspect mode.</summary>
     public static readonly BindableProperty AspectProperty = BindableProperty.Create(nameof(Aspect), typeof(Aspect), typeof(SkUiImage), Aspect.AspectFit,
-        propertyChanged: (view, _, value) => ((SkUiImage)view).SetAspect((Aspect)value));
+        propertyChanged: (view, _, value) => ((SkUiImage)view).OnAspectChanged((Aspect)value));
     /// <summary>Image source; asynchronous loading starts when it changes.</summary>
-    public ImageSource? Source { get => _source; set => SetValue(SourceProperty, value); }
-    /// <summary>Fit, fill, or stretch within the arranged bounds.</summary>
-    public Aspect Aspect { get => _aspect; set => SetValue(AspectProperty, value); }
+    public ImageSource? Source { get => (ImageSource?)GetValue(SourceProperty); set => SetValue(SourceProperty, value); }
+    /// <summary>Fit, fill, stretch or center (unscaled) within the arranged bounds.</summary>
+    public Aspect Aspect { get => (Aspect)GetValue(AspectProperty); set => SetValue(AspectProperty, value); }
     /// <summary>Current asynchronous load, including error-state publication.</summary>
     public Task LoadingTask { get; private set; } = Task.CompletedTask;
     /// <summary>Whether the current source is loading.</summary>
@@ -36,21 +36,27 @@ public class SkUiImage : SkUiView, IDisposable
     public Size ImageSize => _image is null ? Size.Zero
         : _decodedSourceSize is { } source ? new Size(source.Width, source.Height) : new Size(_image.Width, _image.Height);
 
-    /// <summary>Sets source without bindable write-back. Call on the UI thread; streams are owned and disposed by this control.</summary>
+    /// <summary>Sets source (same as the property setter). Call on the UI thread; streams are owned and disposed by this control.</summary>
     public SkUiImage SetSource(ImageSource? value)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (ReferenceEquals(_source, value)) return this;
-        if (_source is not null) _source.PropertyChanged -= OnSourceChanged;
-        _source = value;
-        if (_source is not null) _source.PropertyChanged += OnSourceChanged;
-        LoadingTask = ReloadAsync();
+        Source = value;
         return this;
     }
 
-    /// <summary>Sets aspect without bindable write-back.</summary>
-    public SkUiImage SetAspect(Aspect value) { _aspect = value; InvalidatePaint(); return this; }
-    private void OnSourceChanged(object? sender, PropertyChangedEventArgs args)
+    private void OnSourceChanged(ImageSource? value)
+    {
+        if (ReferenceEquals(_source, value)) return;
+        if (_source is not null) _source.PropertyChanged -= OnSourceObjectChanged;
+        _source = value;
+        if (_source is not null) _source.PropertyChanged += OnSourceObjectChanged;
+        LoadingTask = ReloadAsync();
+    }
+
+    /// <summary>Sets aspect (same as the property setter).</summary>
+    public SkUiImage SetAspect(Aspect value) { Aspect = value; return this; }
+    private void OnAspectChanged(Aspect value) { _aspect = value; InvalidatePaint(); }
+    private void OnSourceObjectChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName is nameof(FileImageSource.File) or nameof(StreamImageSource.Stream) or nameof(UriImageSource.Uri))
             LoadingTask = ReloadAsync();
@@ -131,8 +137,9 @@ public class SkUiImage : SkUiView, IDisposable
             StreamImageSource stream => await stream.Stream(token),
             FileImageSource file when Path.IsPathRooted(file.File) => File.OpenRead(file.File),
             FileImageSource file => await Microsoft.Maui.Storage.FileSystem.Current.OpenAppPackageFileAsync(file.File),
-            UriImageSource uri when uri.Uri?.Scheme == Uri.UriSchemeHttps => await Http.GetStreamAsync(uri.Uri, token),
-            _ => throw new NotSupportedException("Use a file, raw package asset, stream, or HTTPS source.")
+            // Plain http needs the platform's cleartext permission (Android network security config, iOS ATS).
+            UriImageSource uri when uri.Uri?.Scheme == Uri.UriSchemeHttps || uri.Uri?.Scheme == Uri.UriSchemeHttp => await Http.GetStreamAsync(uri.Uri, token),
+            _ => throw new NotSupportedException("Use a file, raw package asset, stream, or HTTP(S) source.")
         };
     }
 
@@ -149,10 +156,13 @@ public class SkUiImage : SkUiView, IDisposable
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => ImageSize;
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas)
+    protected override void OnPaintContent(SKCanvas canvas) => PaintImage(canvas, new SKRect(0, 0, (float)Width, (float)Height));
+
+    /// <summary>Draws the decoded image into <paramref name="area"/> (local DIPs) with <see cref="Aspect"/>; nothing while none is loaded.</summary>
+    protected void PaintImage(SKCanvas canvas, SKRect area)
     {
         if (_image is null) return;
-        SkUiLook.Current.DrawImage(canvas, _image, (float)Width, (float)Height, _aspect);
+        SkUiImageDrawing.Draw(canvas, _image, ImageSize, area, _aspect);
     }
 
     /// <summary>Cancels loading and releases decoded image resources; a disposed control cannot be reused.</summary>
@@ -164,7 +174,7 @@ public class SkUiImage : SkUiView, IDisposable
         _loading?.Cancel();
         _loading?.Dispose();
         _loading = null;
-        if (_source is not null) _source.PropertyChanged -= OnSourceChanged;
+        if (_source is not null) _source.PropertyChanged -= OnSourceObjectChanged;
         _image?.Dispose();
         _image = null;
         IsLoading = false;

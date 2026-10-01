@@ -450,7 +450,7 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     /// <summary>Sets minimum width in DIPs.</summary>
     public SkUiCoreNode SetMinimumWidth(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _minimumWidth, value, nameof(MinimumWidth))) return this;
         InvalidateMeasure();
         return this;
@@ -459,7 +459,7 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     /// <summary>Sets minimum height in DIPs.</summary>
     public virtual SkUiCoreNode SetMinimumHeight(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _minimumHeight, value, nameof(MinimumHeight))) return this;
         InvalidateMeasure();
         return this;

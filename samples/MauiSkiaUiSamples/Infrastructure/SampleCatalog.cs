@@ -1,3 +1,4 @@
+using MauiSkiaUiSamples.Samples.Controls;
 using MauiSkiaUiSamples.Samples.Customisation;
 using MauiSkiaUiSamples.Samples.GettingStarted;
 
@@ -9,6 +10,7 @@ public static class SampleCatalog
     public static IReadOnlyList<SampleEntry> All { get; } =
     [
         SampleEntry.For<AppFontsSample>(),
+        SampleEntry.For<TextThatFitsSample>(),
         SampleEntry.For<CrossCheckBoxSample>(),
     ];
 

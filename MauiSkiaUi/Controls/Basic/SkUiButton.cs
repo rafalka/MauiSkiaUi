@@ -12,24 +12,17 @@ public class SkUiButton : SkUiLabel
     private SkUiPressAnimator? _press;
 
     /// <summary>Bindable command executed on a valid release.</summary>
-    public static readonly BindableProperty CommandProperty = BindableProperty.Create(nameof(Command), typeof(ICommand), typeof(SkUiButton), null, propertyChanged: (view, _, value) => ((SkUiButton)view).SetCommand((ICommand?)value));
+    public static readonly BindableProperty CommandProperty = BindableProperty.Create(nameof(Command), typeof(ICommand), typeof(SkUiButton), null, propertyChanged: (view, _, value) => ((SkUiButton)view).OnCommandChanged((ICommand?)value));
     /// <summary>Bindable command argument.</summary>
-    public static readonly BindableProperty CommandParameterProperty = BindableProperty.Create(nameof(CommandParameter), typeof(object), typeof(SkUiButton), null, propertyChanged: (view, _, value) => ((SkUiButton)view).SetCommandParameter(value));
+    public static readonly BindableProperty CommandParameterProperty = BindableProperty.Create(nameof(CommandParameter), typeof(object), typeof(SkUiButton), null, propertyChanged: (view, _, value) => ((SkUiButton)view).OnCommandParameterChanged(value));
     /// <summary>Bindable button fill.</summary>
     public static readonly BindableProperty FillColorProperty = BindableProperty.Create(nameof(FillColor), typeof(Color), typeof(SkUiButton), null,
         defaultValueCreator: _ => SkUiColors.Accent,
-        propertyChanged: (view, _, value) => ((SkUiButton)view).SetFillColor((Color)value));
+        validateValue: SkUiValidate.NotNull,
+        propertyChanged: (view, _, value) => ((SkUiButton)view).OnFillColorChanged((Color)value));
 
-    /// <summary>Creates a centered, padded button.</summary>
-    public SkUiButton()
-    {
-        SetTextColor(Colors.White);
-        SetPadding(new Thickness(18, 12));
-        SetHorizontalTextAlignment(TextAlignment.Center);
-        SetVerticalTextAlignment(TextAlignment.Center);
-        SetCornerRadii(new CornerRadius(DefaultCornerRadius));
-        SetPaintBackground(PaintButtonBackground);
-    }
+    /// <summary>Creates a centered, padded button (its defaults are the <c>Default*</c> overrides below).</summary>
+    public SkUiButton() => SetPaintBackground(PaintButtonBackground);
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
@@ -55,17 +48,27 @@ public class SkUiButton : SkUiLabel
 
     /// <summary>Raised for a valid enabled tap, even without a command.</summary>
     public event EventHandler? Clicked;
+    /// <summary>Raised when a press starts (MAUI order: <c>Pressed</c>, <c>Released</c>, then <c>Clicked</c> for a tap).</summary>
+    public event EventHandler? Pressed;
+    /// <summary>Raised when a press ends: released, cancelled (e.g. a scroll took over) or moved out.</summary>
+    public event EventHandler? Released;
     /// <summary>Command; CanExecute also controls tap eligibility and disabled appearance.</summary>
-    public ICommand? Command { get => _command; set => SetValue(CommandProperty, value); }
+    public ICommand? Command { get => (ICommand?)GetValue(CommandProperty); set => SetValue(CommandProperty, value); }
     /// <summary>Command argument.</summary>
-    public object? CommandParameter { get => _commandParameter; set => SetValue(CommandParameterProperty, value); }
+    public object? CommandParameter { get => GetValue(CommandParameterProperty); set => SetValue(CommandParameterProperty, value); }
     /// <summary>Button background fill.</summary>
-    public Color FillColor { get => _fillColor; set => SetValue(FillColorProperty, value); }
+    public Color FillColor { get => (Color)GetValue(FillColorProperty); set => SetValue(FillColorProperty, value); }
 
-    /// <summary>Sets command without bindable write-back; command notifications use a weak target.</summary>
+    /// <summary>Sets command; command notifications use a weak target.</summary>
     public SkUiButton SetCommand(ICommand? value)
     {
-        if (_command == value) return this;
+        Command = value;
+        return this;
+    }
+
+    private void OnCommandChanged(ICommand? value)
+    {
+        if (_command == value) return;
         if (_command is not null && _commandChanged is not null) _command.CanExecuteChanged -= _commandChanged;
         _command = value;
         if (value is not null)
@@ -81,20 +84,21 @@ public class SkUiButton : SkUiLabel
             value.CanExecuteChanged += listener;
         }
         UpdateState();
-        return this;
     }
     private EventHandler? _commandChanged;
-    /// <summary>Sets command argument without bindable write-back.</summary>
-    public SkUiButton SetCommandParameter(object? value) { _commandParameter = value; UpdateState(); return this; }
-    /// <summary>Sets all four corner radii without bindable write-back.</summary>
+    /// <summary>Sets command argument (same as the property setter).</summary>
+    public SkUiButton SetCommandParameter(object? value) { CommandParameter = value; return this; }
+    private void OnCommandParameterChanged(object? value) { _commandParameter = value; UpdateState(); }
+    /// <summary>Sets all four corner radii (same as the property setter).</summary>
     public new SkUiButton SetCornerRadius(int value) { base.SetCornerRadius(value); return this; }
-    /// <summary>Sets the per-corner radii without bindable write-back.</summary>
+    /// <summary>Sets the per-corner radii (same as the property setter).</summary>
     public new SkUiButton SetCornerRadii(CornerRadius value) { base.SetCornerRadii(value); return this; }
-    /// <summary>Sets fill without bindable write-back.</summary>
-    public SkUiButton SetFillColor(Color value) { ArgumentNullException.ThrowIfNull(value); _fillColor = value; InvalidatePaint(); return this; }
-    /// <summary>Sets border color without bindable write-back.</summary>
+    /// <summary>Sets fill (same as the property setter).</summary>
+    public SkUiButton SetFillColor(Color value) { ArgumentNullException.ThrowIfNull(value); FillColor = value; return this; }
+    private void OnFillColorChanged(Color value) { _fillColor = value; InvalidatePaint(); }
+    /// <summary>Sets border color (same as the property setter).</summary>
     public new SkUiButton SetBorderColor(Color value) { base.SetBorderColor(value); return this; }
-    /// <summary>Sets border width without bindable write-back.</summary>
+    /// <summary>Sets border width (same as the property setter).</summary>
     public new SkUiButton SetBorderWidth(double value) { base.SetBorderWidth(value); return this; }
     /// <inheritdoc />
     protected override bool HandlesTap => true;
@@ -104,13 +108,26 @@ public class SkUiButton : SkUiLabel
     protected override void OnPressedChanged()
     {
         (_press ??= new SkUiPressAnimator(this)).SetPressed(IsPressed, PressPosition);
-        UpdateState();
+        InvalidatePaint();
+        (IsPressed ? Pressed : Released)?.Invoke(this, EventArgs.Empty);
     }
     private void UpdateState()
     {
-        VisualStateManager.GoToState(this, !IsEnabled || !CanReceiveTap ? "Disabled" : IsPressed ? "Pressed" : "Normal");
+        ChangeVisualState();
         InvalidatePaint();
     }
+    /// <summary>MAUI's button states: <c>Pressed</c> while an enabled press is held, otherwise the common states.</summary>
+    protected override void ChangeVisualState()
+    {
+        if (IsVisualStateEnabled && IsPressed)
+            VisualStateManager.GoToState(this, PressedVisualState);
+        else
+            base.ChangeVisualState();
+    }
+
+    /// <summary>The name of the visual state while pressed (MAUI's <c>ButtonElement.PressedVisualState</c>).</summary>
+    public const string PressedVisualState = "Pressed";
+
     /// <inheritdoc />
     protected override void OnPropertyChanged(string? propertyName = null)
     {

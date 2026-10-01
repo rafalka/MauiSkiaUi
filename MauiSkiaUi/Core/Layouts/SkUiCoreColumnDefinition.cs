@@ -52,9 +52,7 @@ public sealed class SkUiCoreColumnDefinition
     /// <summary>Sets the minimum column width in DIPs.</summary>
     public SkUiCoreColumnDefinition SetMinWidth(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
-        if (double.IsNaN(value) || double.IsInfinity(value))
-            throw new ArgumentOutOfRangeException(nameof(value));
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (_minWidth.Equals(value)) return this;
         _minWidth = value;
         SizeChanged?.Invoke(this, EventArgs.Empty);

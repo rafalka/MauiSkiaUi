@@ -44,8 +44,8 @@ public abstract class SkUiCoreToggleControl : SkUiCoreNode
     /// <summary>Whether an eligible pointer is currently pressed inside this control.</summary>
     public bool IsPressed => _isPressed;
 
-    /// <summary>Raised when <see cref="IsChecked"/> changes, including from a tap.</summary>
-    public event EventHandler<bool>? CheckedChanged;
+    /// <summary>Raised when <see cref="IsChecked"/> changes, including from a tap (MAUI's event arguments).</summary>
+    public event EventHandler<CheckedChangedEventArgs>? CheckedChanged;
 
     /// <summary>Raised when <see cref="CheckState"/> changes, including from a tap.</summary>
     public event EventHandler<SkUiCheckState>? CheckStateChanged;
@@ -62,11 +62,21 @@ public abstract class SkUiCoreToggleControl : SkUiCoreNode
         var checkedChanged = wasChecked != IsChecked;
         if (checkedChanged)
             OnPropertyChanged(nameof(IsChecked));
+        OnCheckStateApplied(old, value);
         CheckStateChanged?.Invoke(this, value);
         if (checkedChanged)
-            CheckedChanged?.Invoke(this, IsChecked);
+            RaiseCheckedChanged(IsChecked);
         return this;
     }
+
+    /// <summary>
+    /// Runs after a state change and its property notifications, before the change events (Switch <c>IsToggled</c>
+    /// notification, radio group exclusion).
+    /// </summary>
+    private protected virtual void OnCheckStateApplied(SkUiCheckState oldState, SkUiCheckState newState) { }
+
+    /// <summary>Raises <see cref="CheckedChanged"/>; subclasses add their MAUI-named events (Switch <c>Toggled</c>).</summary>
+    private protected virtual void RaiseCheckedChanged(bool isChecked) => CheckedChanged?.Invoke(this, new CheckedChangedEventArgs(isChecked));
 
     /// <summary>Sets Checked or Unchecked.</summary>
     public SkUiCoreToggleControl SetIsChecked(bool value) => SetCheckState(SkUiCheckStates.FromIsChecked(value));

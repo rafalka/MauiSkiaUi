@@ -6,24 +6,32 @@ namespace MauiSkiaUi.Core;
 /// Core text node with fluent <c>Set*</c> apply path and <see cref="System.ComponentModel.INotifyPropertyChanged"/>.
 /// No MAUI bindable properties or styling — suitable inside complex controls hosted by <see cref="SkUiCoreHost"/>.
 /// Defaults come from <see cref="SkUiColorScheme"/> / <see cref="SkUiLook"/>.
-/// Line wrapping/truncation is driven by <see cref="LineBreaker"/>; <see cref="SetLineBreakMode"/> installs a stock breaker.
-/// Optional rounded chrome (a badge, a chip): <see cref="FillColor"/>, <see cref="CornerRadii"/> (or the uniform
-/// <see cref="CornerRadius"/>),
-/// <see cref="BorderColor"/> and <see cref="BorderWidth"/>, drawn unless a <see cref="SkUiCoreNode.PaintBackground"/>
+/// The text properties of <see cref="SkUiLabel"/> (one shared engine): <see cref="LineBreakMode"/>, a custom
+/// <see cref="LineBreaker"/>, <see cref="MaxLines"/>, <see cref="LineHeight"/>, <see cref="CharacterSpacing"/>,
+/// <see cref="TextDecorations"/>, <see cref="TextTransform"/> and <see cref="FontAttributes"/>.
+/// Optional rounded chrome (a badge, a chip): <see cref="FillColor"/>, <see cref="CornerRadii"/> (<see cref="SetCornerRadius"/>
+/// sets all four), <see cref="BorderColor"/> and <see cref="BorderWidth"/>, drawn unless a <see cref="SkUiCoreNode.PaintBackground"/>
 /// painter replaces it.
 /// </summary>
 public class SkUiCoreLabel : SkUiCoreNode
 {
     private string _text = string.Empty;
+    private string _displayText = string.Empty; // _text after _textTransform
     private Color _textColor = SkUiColors.DefaultForeground;
     private double _fontSize = 16;
     private string? _fontFamily;
+    private FontAttributes _fontAttributes;
     private Thickness _padding;
     private TextAlignment _horizontal = TextAlignment.Start;
     private TextAlignment _vertical = TextAlignment.Start;
-    private Microsoft.Maui.LineBreakMode? _lineBreakMode = Microsoft.Maui.LineBreakMode.WordWrap;
-    private SkUiCoreTextLineBreaker _lineBreaker = SkUiCoreTextLineBreakers.WordWrap;
-    private readonly SkUiTextLayout _layout = new();
+    private Microsoft.Maui.LineBreakMode _lineBreakMode = Microsoft.Maui.LineBreakMode.WordWrap;
+    private SkUiTextLineBreaker? _lineBreaker;
+    private int _maxLines = -1;
+    private double _lineHeight = -1;
+    private double _characterSpacing;
+    private TextDecorations _textDecorations;
+    private TextTransform _textTransform = TextTransform.Default;
+    private readonly SkUiTextLayout _layout;
     private SkUiTextDirection _textDirection;
     private SkUiTextRendering _textRendering;
     private SKPaint? _textPaint;
@@ -33,6 +41,9 @@ public class SkUiCoreLabel : SkUiCoreNode
     private Microsoft.Maui.CornerRadius _cornerRadii;
     private bool _cornerRadiusExplicit;
     private SkUiRoundedClip _textClip;
+
+    /// <summary>Creates an empty word-wrapping label.</summary>
+    public SkUiCoreLabel() => _layout = new SkUiTextLayout(this);
 
     /// <summary>Displayed text.</summary>
     public string Text
@@ -60,6 +71,48 @@ public class SkUiCoreLabel : SkUiCoreNode
     {
         get => _fontFamily;
         set => SetFontFamily(value);
+    }
+
+    /// <summary>Bold and italic flags.</summary>
+    public FontAttributes FontAttributes
+    {
+        get => _fontAttributes;
+        set => SetFontAttributes(value);
+    }
+
+    /// <summary>The most lines drawn; -1 (default), 0 or less: no limit (see <see cref="SkUiLabel.MaxLines"/>).</summary>
+    public int MaxLines
+    {
+        get => _maxLines;
+        set => SetMaxLines(value);
+    }
+
+    /// <summary>Multiplier of the font's line spacing; -1 (default), 0 or less: the font's (see <see cref="SkUiLabel.LineHeight"/>).</summary>
+    public double LineHeight
+    {
+        get => _lineHeight;
+        set => SetLineHeight(value);
+    }
+
+    /// <summary>DIPs added after each character (negative: tighter).</summary>
+    public double CharacterSpacing
+    {
+        get => _characterSpacing;
+        set => SetCharacterSpacing(value);
+    }
+
+    /// <summary>Underline and / or strikethrough, in the text color.</summary>
+    public TextDecorations TextDecorations
+    {
+        get => _textDecorations;
+        set => SetTextDecorations(value);
+    }
+
+    /// <summary>Displays <see cref="Text"/> in upper or lower case (invariant culture); <see cref="Text"/> keeps its value.</summary>
+    public TextTransform TextTransform
+    {
+        get => _textTransform;
+        set => SetTextTransform(value);
     }
 
     /// <summary>Background fill of the rounded chrome (transparent by default).</summary>
@@ -94,17 +147,6 @@ public class SkUiCoreLabel : SkUiCoreNode
         set => SetCornerRadii(value);
     }
 
-    /// <summary>
-    /// Uniform view of <see cref="CornerRadii"/>, an <c>int</c> as MAUI Button's <c>CornerRadius</c> (and
-    /// <see cref="SkUiLabel.CornerRadius"/>): setting it sets all four corners; it reads the top-left radius, rounded.
-    /// Use <see cref="CornerRadii"/> for fractional radii.
-    /// </summary>
-    public int CornerRadius
-    {
-        get => (int)Math.Round(EffectiveCornerRadii.TopLeft);
-        set => SetCornerRadius(value);
-    }
-
     /// <summary>Uniform corner radius used until the radii are set (0; buttons use the look's).</summary>
     protected virtual double DefaultCornerRadius => 0;
 
@@ -135,17 +177,18 @@ public class SkUiCoreLabel : SkUiCoreNode
         set => SetVerticalTextAlignment(value);
     }
 
-    /// <summary>
-    /// Stock <see cref="Microsoft.Maui.LineBreakMode"/> last applied via <see cref="SetLineBreakMode"/>,
-    /// or <c>null</c> when a custom <see cref="LineBreaker"/> is installed.
-    /// </summary>
-    public Microsoft.Maui.LineBreakMode? LineBreakMode => _lineBreakMode;
+    /// <summary>Wrapping / truncation (default <see cref="Microsoft.Maui.LineBreakMode.WordWrap"/>); a custom <see cref="LineBreaker"/> replaces it and can still apply it.</summary>
+    public Microsoft.Maui.LineBreakMode LineBreakMode
+    {
+        get => _lineBreakMode;
+        set => SetLineBreakMode(value);
+    }
 
     /// <summary>
-    /// Active line-breaking policy. Defaults to <see cref="SkUiCoreTextLineBreakers.WordWrap"/>.
-    /// Assigning a custom breaker clears <see cref="LineBreakMode"/>.
+    /// Custom line breaking that replaces <see cref="LineBreakMode"/> (see <see cref="SkUiLabel.LineBreaker"/>);
+    /// <c>null</c> (default): <see cref="LineBreakMode"/>. Call <see cref="InvalidateTextLayout"/> when its own inputs change.
     /// </summary>
-    public SkUiCoreTextLineBreaker LineBreaker
+    public SkUiTextLineBreaker? LineBreaker
     {
         get => _lineBreaker;
         set => SetLineBreaker(value);
@@ -199,7 +242,57 @@ public class SkUiCoreLabel : SkUiCoreNode
     {
         value ??= string.Empty;
         if (!SetProperty(ref _text, value, nameof(Text))) return this;
+        UpdateDisplayText();
+        return this;
+    }
+
+    /// <summary>Sets bold and italic flags.</summary>
+    public SkUiCoreLabel SetFontAttributes(FontAttributes value)
+    {
+        if (!SetProperty(ref _fontAttributes, value, nameof(FontAttributes))) return this;
         InvalidateText();
+        return this;
+    }
+
+    /// <summary>Sets the maximum number of lines (-1, 0 or less: no limit).</summary>
+    public SkUiCoreLabel SetMaxLines(int value)
+    {
+        if (!SetProperty(ref _maxLines, value, nameof(MaxLines))) return this;
+        InvalidateText();
+        return this;
+    }
+
+    /// <summary>Sets the line height multiplier (-1, 0 or less: the font's).</summary>
+    public SkUiCoreLabel SetLineHeight(double value)
+    {
+        SkUiValidate.ThrowIfNotFinite(value, nameof(value));
+        if (!SetProperty(ref _lineHeight, value, nameof(LineHeight))) return this;
+        InvalidateText();
+        return this;
+    }
+
+    /// <summary>Sets the spacing between characters in DIPs.</summary>
+    public SkUiCoreLabel SetCharacterSpacing(double value)
+    {
+        SkUiValidate.ThrowIfNotFinite(value, nameof(value));
+        if (!SetProperty(ref _characterSpacing, value, nameof(CharacterSpacing))) return this;
+        InvalidateText();
+        return this;
+    }
+
+    /// <summary>Sets underline / strikethrough.</summary>
+    public SkUiCoreLabel SetTextDecorations(TextDecorations value)
+    {
+        if (!SetProperty(ref _textDecorations, value, nameof(TextDecorations))) return this;
+        InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets the case transform of the displayed text.</summary>
+    public SkUiCoreLabel SetTextTransform(TextTransform value)
+    {
+        if (!SetProperty(ref _textTransform, value, nameof(TextTransform))) return this;
+        UpdateDisplayText();
         return this;
     }
 
@@ -250,7 +343,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Sets border width in DIPs.</summary>
     public SkUiCoreLabel SetBorderWidth(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _borderWidth, value, nameof(BorderWidth))) return this;
         InvalidatePaint();
         return this;
@@ -262,16 +355,20 @@ public class SkUiCoreLabel : SkUiCoreNode
         SkUiCornerRadii.Validate(value, nameof(value));
         var wasExplicit = _cornerRadiusExplicit;
         _cornerRadiusExplicit = true;
-        if (!SetProperty(ref _cornerRadii, value, nameof(CornerRadii)) && wasExplicit) return this;
-        OnPropertyChanged(nameof(CornerRadius));
+        if (!SetProperty(ref _cornerRadii, value, nameof(CornerRadii)))
+        {
+            if (wasExplicit) return this;
+            OnPropertyChanged(nameof(CornerRadii)); // the effective radii changed from the default to the stored value
+        }
         InvalidatePaint();
         return this;
     }
 
-    /// <summary>Sets all four corner radii to <paramref name="value"/> DIPs (app-explicit, like <see cref="SetCornerRadii"/>).</summary>
-    public SkUiCoreLabel SetCornerRadius(int value)
+    /// <summary>Sets all four <see cref="CornerRadii"/> to <paramref name="value"/> DIPs (app-explicit, like <see cref="SetCornerRadii"/>).</summary>
+    public SkUiCoreLabel SetCornerRadius(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        if (!double.IsFinite(value) || value < 0)
+            throw new ArgumentOutOfRangeException(nameof(value), value, "The corner radius must be finite and non-negative.");
         return SetCornerRadii(new Microsoft.Maui.CornerRadius(value));
     }
 
@@ -291,8 +388,10 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Sets horizontal text alignment within the arranged slot.</summary>
     public SkUiCoreLabel SetHorizontalTextAlignment(TextAlignment value)
     {
+        var relayout = value == TextAlignment.Justify || _horizontal == TextAlignment.Justify;
         if (!SetProperty(ref _horizontal, value, nameof(HorizontalTextAlignment))) return this;
-        InvalidatePaint();
+        // Justified lines are stretched by the layout (and measure as wide as the label); other alignments only paint.
+        if (relayout) InvalidateText(); else InvalidatePaint();
         return this;
     }
 
@@ -304,40 +403,31 @@ public class SkUiCoreLabel : SkUiCoreNode
         return this;
     }
 
-    /// <summary>
-    /// Installs the stock breaker for <paramref name="mode"/> (same semantics as <see cref="SkUiLabel"/>).
-    /// </summary>
+    /// <summary>Sets wrapping / truncation (same semantics as <see cref="SkUiLabel.LineBreakMode"/>).</summary>
     public SkUiCoreLabel SetLineBreakMode(Microsoft.Maui.LineBreakMode mode)
     {
-        if (_lineBreakMode == mode)
-            return this;
-        _lineBreakMode = mode;
-        _lineBreaker = SkUiCoreTextLineBreakers.For(mode);
-        OnPropertyChanged(nameof(LineBreakMode));
-        OnPropertyChanged(nameof(LineBreaker));
+        if (!SetProperty(ref _lineBreakMode, mode, nameof(LineBreakMode))) return this;
         InvalidateText();
         return this;
     }
 
-    /// <summary>
-    /// Installs a custom line breaker. Sets <see cref="LineBreakMode"/> to <c>null</c>.
-    /// </summary>
-    public SkUiCoreLabel SetLineBreaker(SkUiCoreTextLineBreaker value)
+    /// <summary>Sets the custom line breaker (<c>null</c>: <see cref="LineBreakMode"/>).</summary>
+    public SkUiCoreLabel SetLineBreaker(SkUiTextLineBreaker? value)
     {
-        ArgumentNullException.ThrowIfNull(value);
-        if (ReferenceEquals(_lineBreaker, value) && _lineBreakMode is null)
-            return this;
-        _lineBreaker = value;
-        _lineBreakMode = null;
-        OnPropertyChanged(nameof(LineBreaker));
-        OnPropertyChanged(nameof(LineBreakMode));
+        if (!SetProperty(ref _lineBreaker, value, nameof(LineBreaker))) return this;
         InvalidateText();
         return this;
     }
+
+    /// <summary>Breaks the text again at the next measure, e.g. when what a custom <see cref="LineBreaker"/> reads has changed.</summary>
+    public void InvalidateTextLayout() => InvalidateText();
+
+    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), _fontSize, _lineBreakMode, _lineBreaker,
+        _maxLines, _lineHeight, _characterSpacing, EffectiveTextDirection, _textRendering, _fontAttributes, _horizontal == TextAlignment.Justify);
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
-        _layout.Measure(_text, SkUiTypefaces.Resolve(_fontFamily), _fontSize, _padding, widthConstraint, _lineBreaker, EffectiveTextDirection, _textRendering);
+        _layout.Measure(_displayText, TextStyle, _padding, widthConstraint);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
@@ -345,7 +435,7 @@ public class SkUiCoreLabel : SkUiCoreNode
         var radii = EffectiveCornerRadii;
         if (PaintBackground is null && (_fillColor.Alpha > 0 || (_borderWidth > 0 && _borderColor.Alpha > 0)))
             PaintChrome(canvas, _fillColor);
-        if (_text.Length == 0) return;
+        if (_displayText.Length == 0) return;
         if (!SkUiCornerRadii.HasAny(radii))
         {
             PaintText(canvas);
@@ -368,8 +458,16 @@ public class SkUiCoreLabel : SkUiCoreNode
     {
         var paint = _textPaint ??= new SKPaint { IsAntialias = true };
         paint.Color = ToSkColor(_textColor);
-        _layout.Draw(canvas, _text, SkUiTypefaces.Resolve(_fontFamily), _fontSize, _padding, Frame.Width, Frame.Height,
-            _horizontal, _vertical, paint, _lineBreaker, EffectiveTextDirection, _textRendering);
+        _layout.Draw(canvas, _displayText, TextStyle, _padding, Frame.Width, Frame.Height,
+            _horizontal, _vertical, paint, _textDecorations);
+    }
+
+    private void UpdateDisplayText()
+    {
+        var display = SkUiTextTransform.Apply(_text, _textTransform);
+        if (display == _displayText) return;
+        _displayText = display;
+        InvalidateText();
     }
 
     private void InvalidateText()

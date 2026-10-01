@@ -33,21 +33,30 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
     /// <summary>Bindable opt-in tap command.</summary>
     public static readonly BindableProperty TappedCommandProperty = BindableProperty.Create(
         nameof(TappedCommand), typeof(ICommand), typeof(SkUiView), null,
-        propertyChanged: (view, _, value) => ((SkUiView)view).SetTappedCommand((ICommand?)value));
+        propertyChanged: (view, _, value) => ((SkUiView)view).OnTappedCommandChanged((ICommand?)value));
     /// <summary>Bindable tap command parameter.</summary>
     public static readonly BindableProperty TappedCommandParameterProperty = BindableProperty.Create(
         nameof(TappedCommandParameter), typeof(object), typeof(SkUiView), null,
-        propertyChanged: (view, _, value) => ((SkUiView)view).SetTappedCommandParameter(value));
+        propertyChanged: (view, _, value) => ((SkUiView)view).OnTappedCommandParameterChanged(value));
     /// <summary>Optional command; passive nodes participate when it can execute.</summary>
-    public ICommand? TappedCommand { get => _tappedCommand; set => SetValue(TappedCommandProperty, value); }
+    public ICommand? TappedCommand { get => (ICommand?)GetValue(TappedCommandProperty); set => SetValue(TappedCommandProperty, value); }
     /// <summary>Parameter supplied to the tap command.</summary>
-    public object? TappedCommandParameter { get => _tappedCommandParameter; set => SetValue(TappedCommandParameterProperty, value); }
-    /// <summary>Sets the tap command without bindable write-back.</summary>
-    public SkUiView SetTappedCommand(ICommand? value) { _tappedCommand = value; return this; }
-    /// <summary>Sets the tap parameter without bindable write-back.</summary>
-    public SkUiView SetTappedCommandParameter(object? value) { _tappedCommandParameter = value; return this; }
+    public object? TappedCommandParameter { get => GetValue(TappedCommandParameterProperty); set => SetValue(TappedCommandParameterProperty, value); }
+    /// <summary>Sets the tap command (same as the property setter).</summary>
+    public SkUiView SetTappedCommand(ICommand? value) { TappedCommand = value; return this; }
+    private void OnTappedCommandChanged(ICommand? value) { _tappedCommand = value; }
+    /// <summary>Sets the tap parameter (same as the property setter).</summary>
+    public SkUiView SetTappedCommandParameter(object? value) { TappedCommandParameter = value; return this; }
+    private void OnTappedCommandParameterChanged(object? value) { _tappedCommandParameter = value; }
     /// <summary>Whether an eligible captured pointer is currently pressed inside this node.</summary>
     public bool IsPressed { get; private set; }
+
+    /// <summary>
+    /// Whether a hovering pointer (mouse, trackpad, pen or iPad pointer) is over this view or one of its descendants.
+    /// Drives the <c>PointerOver</c> visual state; touch-only devices never set it. MAUI's own flag is internal and set
+    /// by native views, which drawn views do not have.
+    /// </summary>
+    public bool IsPointerOver { get; private set; }
 
     /// <summary>Where the last press started, in this view's coordinates (ripple origin).</summary>
     internal Point PressPosition { get; private set; }
@@ -57,7 +66,7 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
 
     /// <summary>Bindable <see cref="ShowsPressEffect"/>.</summary>
     public static readonly BindableProperty ShowsPressEffectProperty = BindableProperty.Create(nameof(ShowsPressEffect), typeof(bool), typeof(SkUiView), false,
-        propertyChanged: (view, _, value) => ((SkUiView)view).SetShowsPressEffect((bool)value));
+        propertyChanged: (view, _, value) => ((SkUiView)view).OnShowsPressEffectChanged((bool)value));
 
     /// <summary>
     /// Draws the look's press feedback (<see cref="SkUiLook.DrawPressOverlay"/>: a dim or a ripple from the press point)
@@ -65,15 +74,20 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
     /// radii). For containers that act as one button (a card, an icon with text): the view needs a tap handler
     /// (<see cref="Tapped"/> or <see cref="TappedCommand"/>) to be pressed. Buttons draw their own feedback.
     /// </summary>
-    public bool ShowsPressEffect { get => _showsPressEffect; set => SetValue(ShowsPressEffectProperty, value); }
+    public bool ShowsPressEffect { get => (bool)GetValue(ShowsPressEffectProperty); set => SetValue(ShowsPressEffectProperty, value); }
 
-    /// <summary>Sets <see cref="ShowsPressEffect"/> without bindable write-back.</summary>
+    /// <summary>Sets <see cref="ShowsPressEffect"/> (same as the property setter).</summary>
     public SkUiView SetShowsPressEffect(bool value)
     {
-        if (_showsPressEffect == value) return this;
+        ShowsPressEffect = value;
+        return this;
+    }
+
+    private void OnShowsPressEffectChanged(bool value)
+    {
+        if (_showsPressEffect == value) return;
         _showsPressEffect = value;
         InvalidatePaint();
-        return this;
     }
 
     /// <summary>Corner radii the press effect is clipped to (default square; labels and borders use their own).</summary>
@@ -99,8 +113,40 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
             (_pressEffect ??= new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
         OnPropertyChanged(nameof(IsPressed));
         OnPressedChanged();
+        ChangeVisualState();
         InvalidatePaint();
     }
+
+    void ISkUiInputNode.SetPointerOver(bool isOver)
+    {
+        if (IsPointerOver == isOver) return;
+        IsPointerOver = isOver;
+        SkUiHover.Changed(isOver);
+        OnPropertyChanged(nameof(IsPointerOver));
+        ChangeVisualState();
+    }
+
+    /// <summary>
+    /// Moves to MAUI's visual states from SkiaUi's input state, as MAUI's <c>VisualElement</c> does from the native view's:
+    /// <c>CommonStates</c> is <c>Disabled</c> (also while <see cref="CanReceiveTap"/> is false, e.g. a command that
+    /// cannot execute), else <c>PointerOver</c> (<see cref="IsPointerOver"/>), else <c>Normal</c>; while enabled, the
+    /// focus group gets <c>Focused</c> / <c>Unfocused</c>. Controls add theirs (buttons <c>Pressed</c>, toggles their
+    /// checked states). Runs on press, hover, enabled and control state changes, and when visual state groups are set.
+    /// </summary>
+    protected override void ChangeVisualState()
+    {
+        var enabled = IsVisualStateEnabled;
+        VisualStateManager.GoToState(this, !enabled ? VisualStateManager.CommonStates.Disabled
+            : IsPointerOver ? VisualStateManager.CommonStates.PointerOver : VisualStateManager.CommonStates.Normal);
+        if (enabled)
+            VisualStateManager.GoToState(this, IsFocused ? VisualStateManager.CommonStates.Focused : UnfocusedState);
+    }
+
+    /// <summary>MAUI's (internal) name of the focus group's unfocused state.</summary>
+    private const string UnfocusedState = "Unfocused";
+
+    /// <summary>Enabled for visual states: <see cref="VisualElement.IsEnabled"/> and <see cref="CanReceiveTap"/>.</summary>
+    private protected bool IsVisualStateEnabled => IsEnabled && CanReceiveTap;
 
     /// <summary>Updates intrinsic control feedback when the shared pointer state changes.</summary>
     protected virtual void OnPressedChanged() { }
@@ -170,8 +216,10 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
         // attach must record this subtree from scratch.
         if (SkiaParent is null && _renderState is not null)
             SkUiRenderInvalidation.ResetSubtree(this);
-        // Pointers captured by a detached subtree must not complete (taps, presses) later.
+        // Pointers captured by a detached subtree must not complete (taps, presses) later, and it is no longer under
+        // the pointer: no PointerOver state sticks to it until the next hover move.
         SkUiGestureSet.CancelSubtree(this);
+        SkUiHover.ClearSubtree(this);
     }
 
     /// <summary>

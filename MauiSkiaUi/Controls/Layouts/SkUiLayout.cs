@@ -17,18 +17,34 @@ public class SkUiLayout : SkUiView, ILayout
     /// <summary>Bindable space inside the layout.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(
         nameof(Padding), typeof(Thickness), typeof(SkUiLayout), default(Thickness),
-        propertyChanged: (view, _, value) => ((SkUiLayout)view).SetPadding((Thickness)value));
+        propertyChanged: (view, _, value) => ((SkUiLayout)view).OnPaddingChanged((Thickness)value));
 
     /// <summary>Space inside the layout in DIPs.</summary>
-    public Thickness Padding { get => _padding; set => SetValue(PaddingProperty, value); }
+    public Thickness Padding { get => (Thickness)GetValue(PaddingProperty); set => SetValue(PaddingProperty, value); }
 
-    /// <summary>Sets padding without writing back to the bindable property.</summary>
+    /// <summary>Sets padding (same as the property setter).</summary>
     public SkUiLayout SetPadding(Thickness value)
     {
-        if (_padding == value) return this;
+        Padding = value;
+        return this;
+    }
+
+    private void OnPaddingChanged(Thickness value)
+    {
+        if (_padding == value) return;
         _padding = value;
         InvalidateMeasureOverride();
-        return this;
+    }
+
+    /// <inheritdoc />
+    protected override void OnPropertyChanged(string? propertyName = null)
+    {
+        base.OnPropertyChanged(propertyName);
+        // MAUI's RadioButtonGroup attached properties: MAUI's controller only handles its own RadioButton.
+        if (propertyName == RadioButtonGroup.GroupNameProperty.PropertyName)
+            SkUiRadioGroups.OnLayoutGroupNameChanged(this);
+        else if (propertyName == RadioButtonGroup.SelectedValueProperty.PropertyName)
+            SkUiRadioGroups.OnLayoutSelectedValueChanged(this);
     }
 
     bool ILayout.ClipsToBounds => true;

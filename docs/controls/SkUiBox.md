@@ -6,7 +6,7 @@ Filled rectangle primitive.
 
 ## How it works
 
-[`SkUiShape`](SkUiShape.md) subclass. Default intrinsic size 48×48. Hit region is the arranged rectangle.
+[`SkUiShape`](SkUiShape.md) subclass. Default intrinsic size 48×48. `CornerRadius` rounds each corner independently (MAUI's `CornerRadius`; radii larger than the box allows are scaled down), with the look's rounded-rect geometry like [`SkUiBorder`](SkUiBorder.md). Hit region is the arranged rectangle.
 
 
 ## Shared conventions
@@ -14,7 +14,7 @@ Filled rectangle primitive.
 All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 - **Coordinates** use DIPs. Paint and touch share the same local space as measure/arrange.
-- **BindableProperty + fluent `Set*` setters:** bindables call the direct setter. Direct setters **do not** write back to the bindable store (intentional FR-10 desync). Prefer one update path per property.
+- **BindableProperty + fluent `Set*` setters:** a `Set*` setter is the property setter in fluent form (`label.SetText("a").SetFontSize(20)`): getters read the bindable store, as in MAUI, so bindings, triggers and `x:Reference` see every change (FR-10). Invalid values: `Set*` throws; XAML, bindings, styles and the property setter ignore them with a logged warning, as MAUI does.
 - **`StartUpdating` / `EndUpdating`** batch layout and paint invalidation.
 - **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`), not MAUI `GestureRecognizers`. See [EventMechanism.md](../design/EventMechanism.md).
 - **Hosted vs standalone:** when nested under another SkiaUi parent, the node has no platform handler and paints into the root surface. See [LayoutSystem.md](../design/LayoutSystem.md).
@@ -24,15 +24,16 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ```xml
 <sk:SkUiBox Color="#C54150" WidthRequest="112" HeightRequest="112" />
+<sk:SkUiBox Color="#087F83" CornerRadius="12,12,0,0" HeightRequest="40" />
 ```
 
 ## Key properties
 
-`Color`, `StrokeWidth` (ignored for filled box), plus base view layout/transform props.
+`Color`, `CornerRadius` (+ `SetCornerRadius`), `StrokeWidth` (ignored for filled box), plus base view layout/transform props.
 
 ## Differences from MAUI BoxView
 
-Drawn with Skia; corner radius not supported (use [`SkUiBorder`](SkUiBorder.md)). Passive unless `Tapped` subscribed.
+Drawn with Skia. Default intrinsic size is 48×48 (MAUI: 40×40). Passive unless `Tapped` subscribed.
 
 ## Related
 

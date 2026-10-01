@@ -273,6 +273,7 @@ public class FlexLayoutTests
 }
 
 /// <summary>XAML attached-property syntax for the flex and stretch layouts (runtime XAML inflation).</summary>
+[Collection(RuntimeXamlCollection.Name)]
 public class LayoutXamlTests
 {
     [Fact]

@@ -15,37 +15,46 @@ public class SkUiBorder : SkUiContentView
 
     /// <summary>Bindable border color; null paints no border.</summary>
     public static readonly BindableProperty StrokeProperty = BindableProperty.Create(nameof(Stroke), typeof(Color), typeof(SkUiBorder), null,
-        propertyChanged: (view, _, value) => ((SkUiBorder)view).SetStroke((Color?)value));
+        propertyChanged: (view, _, value) => ((SkUiBorder)view).OnStrokeChanged((Color?)value));
     /// <summary>Bindable border thickness in DIPs.</summary>
     public static readonly BindableProperty StrokeThicknessProperty = BindableProperty.Create(nameof(StrokeThickness), typeof(double), typeof(SkUiBorder), 1d,
-        propertyChanged: (view, _, value) => ((SkUiBorder)view).SetStrokeThickness((double)value));
+        validateValue: SkUiValidate.NonNegative,
+        propertyChanged: (view, _, value) => ((SkUiBorder)view).OnStrokeThicknessChanged((double)value));
     /// <summary>Bindable per-corner radii in DIPs (top-left, top-right, bottom-left, bottom-right).</summary>
     public static readonly BindableProperty CornerRadiusProperty = BindableProperty.Create(nameof(CornerRadius), typeof(CornerRadius), typeof(SkUiBorder), new CornerRadius(6),
-        propertyChanged: (view, _, value) => ((SkUiBorder)view).SetCornerRadius((CornerRadius)value));
+        validateValue: SkUiValidate.CornerRadii,
+        propertyChanged: (view, _, value) => ((SkUiBorder)view).OnCornerRadiusChanged((CornerRadius)value));
 
     /// <summary>Border color; null paints no border.</summary>
-    public Color? Stroke { get => _stroke; set => SetValue(StrokeProperty, value); }
+    public Color? Stroke { get => (Color?)GetValue(StrokeProperty); set => SetValue(StrokeProperty, value); }
     /// <summary>Border thickness in DIPs.</summary>
-    public double StrokeThickness { get => _strokeThickness; set => SetValue(StrokeThicknessProperty, value); }
+    public double StrokeThickness { get => (double)GetValue(StrokeThicknessProperty); set => SetValue(StrokeThicknessProperty, value); }
     /// <summary>
     /// Per-corner radii in DIPs. XAML accepts a uniform value or <c>tl,tr,bl,br</c>;
     /// a uniform <see cref="double"/> assigns via implicit conversion.
     /// </summary>
-    public CornerRadius CornerRadius { get => _cornerRadius; set => SetValue(CornerRadiusProperty, value); }
+    public CornerRadius CornerRadius { get => (CornerRadius)GetValue(CornerRadiusProperty); set => SetValue(CornerRadiusProperty, value); }
 
-    /// <summary>Sets the border color without bindable write-back.</summary>
-    public SkUiBorder SetStroke(Color? value) { _stroke = value; InvalidatePaint(); return this; }
-    /// <summary>Sets the border thickness without bindable write-back.</summary>
-    public SkUiBorder SetStrokeThickness(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _strokeThickness = value; InvalidatePaint(); return this; }
-    /// <summary>Sets a uniform corner radius without bindable write-back.</summary>
+    /// <summary>Sets the border color (same as the property setter).</summary>
+    public SkUiBorder SetStroke(Color? value) { Stroke = value; return this; }
+    private void OnStrokeChanged(Color? value) { _stroke = value; InvalidatePaint(); }
+    /// <summary>Sets the border thickness (same as the property setter).</summary>
+    public SkUiBorder SetStrokeThickness(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); StrokeThickness = value; return this; }
+    private void OnStrokeThicknessChanged(double value) { _strokeThickness = value; InvalidatePaint(); }
+    /// <summary>Sets a uniform corner radius (same as the property setter).</summary>
     public SkUiBorder SetCornerRadius(double uniformRadius) => SetCornerRadius(new CornerRadius(uniformRadius));
-    /// <summary>Sets independent corner radii without bindable write-back.</summary>
+    /// <summary>Sets independent corner radii (same as the property setter).</summary>
     public SkUiBorder SetCornerRadius(CornerRadius value)
     {
         ValidateCornerRadius(value);
+        CornerRadius = value;
+        return this;
+    }
+
+    private void OnCornerRadiusChanged(CornerRadius value)
+    {
         _cornerRadius = value;
         InvalidatePaint();
-        return this;
     }
 
     /// <summary>Creates a border that paints fill in <see cref="SkUiView.PaintBackground"/> and stroke in <see cref="SkUiView.PaintOverlay"/> (after content).</summary>

@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 //
-// Ported from dotnet/maui 10.0.101, src/Core/src/Layouts/Flex.cs (Microsoft.Maui.Layouts.Flex.Item), which is
+// Ported from dotnet/maui 10.0.101 (unchanged through 10.0.110), src/Core/src/Layouts/Flex.cs (Microsoft.Maui.Layouts.Flex.Item), which is
 // internal to Microsoft.Maui and so cannot be reused by SkUiFlexLayout.
 // Author(s) of the original:
 //  - Laurent Sansonetti (native Microsoft.Maui.Controls flex https://github.com/xamarin/flex)

@@ -10,13 +10,15 @@ public class SkUiHorizontalStackLayout : SkUiLayout, IStackLayout
 
     /// <summary>Bindable gap between children in DIPs.</summary>
     public static readonly BindableProperty SpacingProperty = BindableProperty.Create(nameof(Spacing), typeof(double), typeof(SkUiHorizontalStackLayout), 0d,
-        propertyChanged: (view, _, value) => ((SkUiHorizontalStackLayout)view).SetSpacing((double)value));
+        validateValue: SkUiValidate.NonNegative,
+        propertyChanged: (view, _, value) => ((SkUiHorizontalStackLayout)view).OnSpacingChanged((double)value));
 
     /// <summary>Gap between children in DIPs.</summary>
-    public double Spacing { get => _spacing; set => SetValue(SpacingProperty, value); }
+    public double Spacing { get => (double)GetValue(SpacingProperty); set => SetValue(SpacingProperty, value); }
 
-    /// <summary>Sets spacing without bindable write-back.</summary>
-    public SkUiHorizontalStackLayout SetSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _spacing = value; InvalidateMeasureOverride(); return this; }
+    /// <summary>Sets spacing (same as the property setter).</summary>
+    public SkUiHorizontalStackLayout SetSpacing(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); Spacing = value; return this; }
+    private void OnSpacingChanged(double value) { _spacing = value; InvalidateMeasureOverride(); }
 
     /// <summary>Creates a stack with MAUI layout management.</summary>
     public SkUiHorizontalStackLayout() => _manager = new HorizontalStackLayoutManager(this);

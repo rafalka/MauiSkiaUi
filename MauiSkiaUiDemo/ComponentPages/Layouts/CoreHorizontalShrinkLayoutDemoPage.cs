@@ -28,7 +28,7 @@ public sealed class CoreHorizontalShrinkLayoutDemoPage : ComponentDemoPage
         Choice<SkUiShrinkFactor>("Label1.Shrink", [SkUiShrinkFactor.None, SkUiShrinkFactor.Auto, 1, 2], SkUiShrinkFactor.Auto, value => row.SetShrink(first, value), () => row.GetShrink(first));
         Choice<SkUiShrinkFactor>("Label2.Shrink", [SkUiShrinkFactor.None, SkUiShrinkFactor.Auto, 1, 2], SkUiShrinkFactor.Auto, value => row.SetShrink(second, value), () => row.GetShrink(second));
         Choice<LineBreakMode>(nameof(SkUiCoreLabel.LineBreakMode), [LineBreakMode.TailTruncation, LineBreakMode.WordWrap], LineBreakMode.TailTruncation,
-            value => { first.SetLineBreakMode(value); second.SetLineBreakMode(value); }, () => first.LineBreakMode ?? LineBreakMode.WordWrap);
+            value => { first.SetLineBreakMode(value); second.SetLineBreakMode(value); }, () => first.LineBreakMode);
     }
 
     private static SkUiCoreHost CreateHost(out SkUiCoreHorizontalShrinkLayout row, out SkUiCoreLabel first, out SkUiCoreLabel second)

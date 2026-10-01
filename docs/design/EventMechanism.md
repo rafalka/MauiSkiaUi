@@ -31,6 +31,7 @@ Design and status of **FR-15** in [Requirements.md](Requirements.md): one shared
 | Multi-touch | One arena **per pointer**; independent presses (two buttons at once); pinch spans two pointers |
 | Raw touch | `ISkUiView.Touch` / `SkUiCoreNode.Touch` is the **entry point** for a surface root. Custom interaction uses `SkUiPointerGestureRecognizer`, not a `Touch` override (**breaking**: `Touch` is no longer virtual) |
 | Native ancestors | Coordinated at the surface: native parents are held back while a drawn continuous gesture may claim or owns the touch |
+| Hover | Outside the arena: `HoverMoved` / `HoverExited` samples set `SkUiView.IsPointerOver` on the hovered view and its ancestors (MAUI's `PointerOver` visual state); see **Hover** |
 | MAUI recognizer bridge | Not planned |
 
 ## Architecture
@@ -80,6 +81,15 @@ Recognizers raise events / commands on their owner (UI thread)
 - **Controls:** `SkUiButton.Clicked` / `Command`, toggles and Core buttons use the intrinsic tap.
 - **`SkUiGestureSettings`:** app-wide thresholds.
 - **`SkUiDiagnostics.SimulateTap` / `HitTest`:** for tests and automation.
+
+## Hover
+
+A pointer moving over the surface without contact (mouse, trackpad, pen hover, iPad pointer) arrives as `SkUiTouchAction.HoverMoved`; `HoverExited` when it leaves the surface or starts touching it.
+
+- **Sources:** Windows reports hover through SkiaSharp's touch events (`Moved` / `Entered` without contact, `Exited`). Android surfaces (GL and software) use the platform view's `Hover` event (`HoverEnter` / `HoverMove` / `HoverExit`); Apple surfaces a `UIHoverGestureRecognizer` (Mac Catalyst, iPadOS with a pointer). Both are removed when the handler disconnects. Touch-only devices never hover.
+- **Routing:** `SkUiPointerRouter` hit-tests the position like a press, but passive nodes count: the topmost hit-test-visible node there and every ancestor up to the root are pointer-over, as with native hover (a parent stays hovered while the pointer is over a child). Nodes that leave the chain are told before nodes that enter it, outermost first. A disabled node ends the search, as for a press.
+- **Effect:** `SkUiView.IsPointerOver` (with a property change) and `ChangeVisualState`, so `PointerOver` visual states apply. Core nodes ignore hover. Hover does not touch gesture arenas: a press while hovered runs as usual, and on release the view is still pointer-over.
+- **Limits:** content that scrolls under a still pointer updates on the next pointer move; a hovered view removed from the tree is cleared on the next move; the surface disconnecting clears all.
 
 ## Native coordination
 

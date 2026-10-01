@@ -54,7 +54,7 @@ public class ToggleStateTests
     {
         var box = new SkUiCheckBox();
         var checkedChanges = new List<bool>();
-        box.CheckedChanged += (_, value) => checkedChanges.Add(value);
+        box.CheckedChanged += (_, args) => checkedChanges.Add(args.Value);
         box.IsChecked = true;
         Assert.Equal(SkUiCheckState.Checked, box.CheckState);
         box.CheckState = SkUiCheckState.Indeterminate;
@@ -99,7 +99,7 @@ public class ToggleStateTests
         box.SetBinding(SkUiToggleControl.IsCheckedProperty, nameof(ToggleModel.IsOn));
         var seen = new List<string>();
         box.CheckStateChanged += (_, state) => seen.Add($"state {state}: model {model.State}, {model.IsOn}, store {box.GetValue(SkUiToggleControl.IsCheckedProperty)}");
-        box.CheckedChanged += (_, isChecked) => seen.Add($"checked {isChecked}: model {model.State}, {model.IsOn}");
+        box.CheckedChanged += (_, args) => seen.Add($"checked {args.Value}: model {model.State}, {model.IsOn}");
 
         Tap(box);
         Assert.Equal(["state Checked: model Checked, True, store True", "checked True: model Checked, True"], seen);

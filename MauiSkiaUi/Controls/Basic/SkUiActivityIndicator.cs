@@ -16,34 +16,45 @@ public class SkUiActivityIndicator : SkUiView
 
     /// <summary>Bindable running state; animates only while true.</summary>
     public static readonly BindableProperty IsRunningProperty = BindableProperty.Create(nameof(IsRunning), typeof(bool), typeof(SkUiActivityIndicator), false,
-        propertyChanged: (view, _, value) => ((SkUiActivityIndicator)view).SetIsRunning((bool)value));
+        propertyChanged: (view, _, value) => ((SkUiActivityIndicator)view).OnIsRunningChanged((bool)value));
     /// <summary>Bindable spinner color.</summary>
     public static readonly BindableProperty ColorProperty = BindableProperty.Create(nameof(Color), typeof(Color), typeof(SkUiActivityIndicator), null,
         defaultValueCreator: _ => SkUiColors.Muted,
-        propertyChanged: (view, _, value) => ((SkUiActivityIndicator)view).SetColor((Color)value));
+        validateValue: SkUiValidate.NotNull,
+        propertyChanged: (view, _, value) => ((SkUiActivityIndicator)view).OnColorChanged((Color)value));
 
     /// <summary>Whether the spinner is animating.</summary>
-    public bool IsRunning { get => _isRunning; set => SetValue(IsRunningProperty, value); }
+    public bool IsRunning { get => (bool)GetValue(IsRunningProperty); set => SetValue(IsRunningProperty, value); }
     /// <summary>Spinner stroke color.</summary>
-    public Color Color { get => _color; set => SetValue(ColorProperty, value); }
+    public Color Color { get => (Color)GetValue(ColorProperty); set => SetValue(ColorProperty, value); }
 
-    /// <summary>Sets running state without bindable write-back.</summary>
+    /// <summary>Sets running state (same as the property setter).</summary>
     public SkUiActivityIndicator SetIsRunning(bool value)
     {
-        if (_isRunning == value) return this;
-        _isRunning = value;
-        InvalidatePaint();
+        IsRunning = value;
         return this;
     }
-    /// <summary>Sets color without bindable write-back.</summary>
+
+    private void OnIsRunningChanged(bool value)
+    {
+        if (_isRunning == value) return;
+        _isRunning = value;
+        InvalidatePaint();
+    }
+    /// <summary>Sets color (same as the property setter).</summary>
     public SkUiActivityIndicator SetColor(Color value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        Color = value;
+        return this;
+    }
+
+    private void OnColorChanged(Color value)
+    {
         _color = value;
         if (_strokePaint is not null)
             _strokePaint.Color = ToSkColor(value);
         InvalidatePaint();
-        return this;
     }
 
     /// <inheritdoc />

@@ -116,7 +116,7 @@ Rationale:
 
 - One place for validation + invalidation (same lesson as FR-10).
 - Fluent chaining is for **builders**; property setters are for **assignment / INPC consumers**.
-- Unlike MAUI FR-10, Core **must keep** property getters and fields synchronized (no intentional BindableProperty desync).
+- Core keeps property getters and fields synchronized (as FR-10 now requires of the MAUI-compatible layer too).
 
 Do **not** implement “property setter returns `this`” (illegal in C#) or make fluent methods only update fields while setters duplicate logic.
 
@@ -173,7 +173,7 @@ Requirements:
 
 - [x] Extract / align **text measure + paint** so `SkUiLabel` and `SkUiCoreLabel` share one implementation. *(Done through a shared internal text engine, `SkUiTextLayout`, used by both labels — not through a `SkUiCoreLabel` delegate instance.)*
 - [x] Same for Button chrome + label (and later Image, toggles, etc.) — prioritize high-churn controls first. *(Chrome and default sizes go through `SkUiLook.Current`, text through the shared engine.)*
-- [ ] MAUI bindable `propertyChanged` handlers call the same `Set*` that mutates the Core delegate (FR-10 remains: BP → Set*; Set* does not write back to BP).
+- [ ] MAUI bindable `propertyChanged` handlers call the same `Set*` that mutates the Core delegate (FR-10: BP → Set*; a direct Set* writes the BP first).
 - [ ] Core delegate lifetime: owned by the MAUI control; not inserted into a Core layout tree unless the author also builds a Core subtree.
 - [x] Avoid duplicating line-breaking / typeface resolution / chrome path code in both layers; chrome geometry and default sizes go through the shared **control look** (FR-18 / [ControlLook.md](ControlLook.md)); default colors go through the shared **color scheme** (FR-19 / [ColorScheme.md](ColorScheme.md)).
 - [ ] Unit tests: Core label measure/paint golden behavior; MAUI `SkUiLabel` matches for the same inputs (delegate path).
@@ -195,7 +195,7 @@ Minimum public Core primitives (expand as MAUI wrappers gain delegates):
 | --- | --- |
 | `SkUiCoreNode` / `ISkUiCoreNode` | Prototype |
 | `SkUiCoreAbsoluteLayout` | Prototype |
-| `SkUiCoreLabel` | Prototype (wrap/truncate via `LineBreaker` + `SetLineBreakMode`; still missing font attrs parity) |
+| `SkUiCoreLabel` | Shipped: the `SkUiLabel` text engine and properties (`LineBreakMode`, custom `LineBreaker`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`, `FontAttributes`) |
 | `SkUiCoreButton` | Prototype |
 | `SkUiCoreBox` / shape primitives | Prototype |
 | `SkUiCoreContentView` / `SkUiCoreBorder` | Prototype |

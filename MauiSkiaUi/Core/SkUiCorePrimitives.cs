@@ -37,9 +37,15 @@ public abstract class SkUiCoreShape : SkUiCoreNode
         if (!double.IsFinite(value) || value < 0)
             throw new ArgumentOutOfRangeException(nameof(value));
         if (!SetProperty(ref _strokeWidth, value, nameof(StrokeWidth))) return this;
-        InvalidatePaint();
+        if (StrokeAffectsSize)
+            InvalidateMeasure();
+        else
+            InvalidatePaint();
         return this;
     }
+
+    /// <summary>Whether the stroke width is part of the intrinsic size (lines).</summary>
+    private protected virtual bool StrokeAffectsSize => false;
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => new(48, 48);
@@ -60,12 +66,39 @@ public abstract class SkUiCoreShape : SkUiCoreNode
     protected abstract void DrawShape(SKCanvas canvas, SKRect bounds, SKPaint paint);
 }
 
-/// <summary>Filled rectangular Core primitive.</summary>
+/// <summary>Filled rectangle with optional rounded corners (Core analogue of <c>SkUiBox</c>, MAUI's BoxView).</summary>
 public class SkUiCoreBox : SkUiCoreShape
 {
+    private CornerRadius _cornerRadius;
+    private SkUiRoundedClip _shape;
+
+    /// <summary>Per-corner radii in DIPs. Larger radii than the box allows are scaled down.</summary>
+    public CornerRadius CornerRadius
+    {
+        get => _cornerRadius;
+        set => SetCornerRadius(value);
+    }
+
+    /// <summary>Sets the corner radii (a number converts to the same radius on every corner).</summary>
+    public SkUiCoreBox SetCornerRadius(CornerRadius value)
+    {
+        SkUiCornerRadii.Validate(value, nameof(value));
+        if (!SetProperty(ref _cornerRadius, value, nameof(CornerRadius))) return this;
+        InvalidatePaint();
+        return this;
+    }
+
     /// <inheritdoc />
-    protected override void DrawShape(SKCanvas canvas, SKRect bounds, SKPaint paint) =>
-        canvas.DrawRect(bounds, paint);
+    internal override CornerRadius PressEffectCornerRadii => _cornerRadius;
+
+    /// <inheritdoc />
+    protected override void DrawShape(SKCanvas canvas, SKRect bounds, SKPaint paint)
+    {
+        if (SkUiCornerRadii.HasAny(_cornerRadius))
+            canvas.DrawPath(_shape.Get(bounds.Width, bounds.Height, _cornerRadius), paint);
+        else
+            canvas.DrawRect(bounds, paint);
+    }
 }
 
 /// <summary>Filled ellipse; input uses rectangular arranged bounds.</summary>
@@ -76,14 +109,66 @@ public class SkUiCoreEllipse : SkUiCoreShape
         canvas.DrawOval(bounds, paint);
 }
 
-/// <summary>Diagonal line from top-left to bottom-right, inset by half the stroke width.</summary>
+/// <summary>
+/// Straight line from (<see cref="X1"/>, <see cref="Y1"/>) to (<see cref="X2"/>, <see cref="Y2"/>) in local DIPs (Core
+/// analogue of <c>SkUiLine</c>, MAUI's <c>Line</c>): measures to its far end points plus the stroke.
+/// </summary>
 public class SkUiCoreLine : SkUiCoreShape
 {
-    /// <inheritdoc />
-    protected override void DrawShape(SKCanvas canvas, SKRect bounds, SKPaint paint)
+    private double _x1;
+    private double _y1;
+    private double _x2;
+    private double _y2;
+
+    /// <summary>Creates a line; set its end points with <see cref="SetPoints"/>.</summary>
+    public SkUiCoreLine() { }
+
+    /// <summary>Creates a line between two points.</summary>
+    public SkUiCoreLine(double x1, double y1, double x2, double y2) => SetPoints(x1, y1, x2, y2);
+
+    /// <summary>The start point's x coordinate.</summary>
+    public double X1 { get => _x1; set => SetX1(value); }
+
+    /// <summary>The start point's y coordinate.</summary>
+    public double Y1 { get => _y1; set => SetY1(value); }
+
+    /// <summary>The end point's x coordinate.</summary>
+    public double X2 { get => _x2; set => SetX2(value); }
+
+    /// <summary>The end point's y coordinate.</summary>
+    public double Y2 { get => _y2; set => SetY2(value); }
+
+    /// <summary>Sets the start point's x coordinate.</summary>
+    public SkUiCoreLine SetX1(double value) => SetPoint(ref _x1, value, nameof(X1));
+
+    /// <summary>Sets the start point's y coordinate.</summary>
+    public SkUiCoreLine SetY1(double value) => SetPoint(ref _y1, value, nameof(Y1));
+
+    /// <summary>Sets the end point's x coordinate.</summary>
+    public SkUiCoreLine SetX2(double value) => SetPoint(ref _x2, value, nameof(X2));
+
+    /// <summary>Sets the end point's y coordinate.</summary>
+    public SkUiCoreLine SetY2(double value) => SetPoint(ref _y2, value, nameof(Y2));
+
+    /// <summary>Sets both end points.</summary>
+    public SkUiCoreLine SetPoints(double x1, double y1, double x2, double y2) => SetX1(x1).SetY1(y1).SetX2(x2).SetY2(y2);
+
+    private SkUiCoreLine SetPoint(ref double field, double value, string name)
     {
-        paint.Style = SKPaintStyle.Stroke;
-        var inset = Math.Min((float)StrokeWidth / 2, Math.Min(bounds.Width, bounds.Height) / 2);
-        canvas.DrawLine(inset, inset, bounds.Right - inset, bounds.Bottom - inset, paint);
+        if (!double.IsFinite(value))
+            throw new ArgumentOutOfRangeException(name, value, "Line coordinates must be finite.");
+        if (SetProperty(ref field, value, name))
+            InvalidateMeasure();
+        return this;
     }
+
+    private protected override bool StrokeAffectsSize => true;
+
+    /// <inheritdoc />
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
+        SkUiShapeGeometry.MeasureLine(_x1, _y1, _x2, _y2, StrokeWidth);
+
+    /// <inheritdoc />
+    protected override void DrawShape(SKCanvas canvas, SKRect bounds, SKPaint paint) =>
+        SkUiShapeGeometry.DrawLine(canvas, bounds, (float)_x1, (float)_y1, (float)_x2, (float)_y2, paint);
 }

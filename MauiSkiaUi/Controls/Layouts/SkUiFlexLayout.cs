@@ -27,27 +27,27 @@ public class SkUiFlexLayout : SkUiLayout, IFlexLayout
     /// <summary>Bindable main-axis direction.</summary>
     public static readonly BindableProperty DirectionProperty = BindableProperty.Create(
         nameof(Direction), typeof(FlexDirection), typeof(SkUiFlexLayout), FlexDirection.Row,
-        propertyChanged: (view, _, value) => ((SkUiFlexLayout)view).SetDirection((FlexDirection)value));
+        propertyChanged: (view, _, value) => ((SkUiFlexLayout)view).OnDirectionChanged((FlexDirection)value));
     /// <summary>Bindable wrapping mode.</summary>
     public static readonly BindableProperty WrapProperty = BindableProperty.Create(
         nameof(Wrap), typeof(FlexWrap), typeof(SkUiFlexLayout), FlexWrap.NoWrap,
-        propertyChanged: (view, _, value) => ((SkUiFlexLayout)view).SetWrap((FlexWrap)value));
+        propertyChanged: (view, _, value) => ((SkUiFlexLayout)view).OnWrapChanged((FlexWrap)value));
     /// <summary>Bindable main-axis distribution of free space.</summary>
     public static readonly BindableProperty JustifyContentProperty = BindableProperty.Create(
         nameof(JustifyContent), typeof(FlexJustify), typeof(SkUiFlexLayout), FlexJustify.Start,
-        propertyChanged: (view, _, value) => ((SkUiFlexLayout)view).SetJustifyContent((FlexJustify)value));
+        propertyChanged: (view, _, value) => ((SkUiFlexLayout)view).OnJustifyContentChanged((FlexJustify)value));
     /// <summary>Bindable cross-axis alignment of the children within a line.</summary>
     public static readonly BindableProperty AlignItemsProperty = BindableProperty.Create(
         nameof(AlignItems), typeof(FlexAlignItems), typeof(SkUiFlexLayout), FlexAlignItems.Stretch,
-        propertyChanged: (view, _, value) => ((SkUiFlexLayout)view).SetAlignItems((FlexAlignItems)value));
+        propertyChanged: (view, _, value) => ((SkUiFlexLayout)view).OnAlignItemsChanged((FlexAlignItems)value));
     /// <summary>Bindable cross-axis distribution of the lines when wrapping.</summary>
     public static readonly BindableProperty AlignContentProperty = BindableProperty.Create(
         nameof(AlignContent), typeof(FlexAlignContent), typeof(SkUiFlexLayout), FlexAlignContent.Stretch,
-        propertyChanged: (view, _, value) => ((SkUiFlexLayout)view).SetAlignContent((FlexAlignContent)value));
+        propertyChanged: (view, _, value) => ((SkUiFlexLayout)view).OnAlignContentChanged((FlexAlignContent)value));
     /// <summary>Bindable <see cref="IFlexLayout.Position"/>; kept for MAUI API parity, it does not affect the layout (as in MAUI).</summary>
     public static readonly BindableProperty PositionProperty = BindableProperty.Create(
         nameof(Position), typeof(FlexPosition), typeof(SkUiFlexLayout), FlexPosition.Relative,
-        propertyChanged: (view, _, value) => ((SkUiFlexLayout)view).SetPosition((FlexPosition)value));
+        propertyChanged: (view, _, value) => ((SkUiFlexLayout)view).OnPositionChanged((FlexPosition)value));
 
     /// <summary>MAUI's attached <c>FlexLayout.Order</c> (visual order; stable for equal values).</summary>
     public static readonly BindableProperty OrderProperty = FlexLayout.OrderProperty;
@@ -64,30 +64,36 @@ public class SkUiFlexLayout : SkUiLayout, IFlexLayout
     public SkUiFlexLayout() => _manager = new FlexLayoutManager(this);
 
     /// <summary>Main-axis direction; default <see cref="FlexDirection.Row"/>.</summary>
-    public FlexDirection Direction { get => _direction; set => SetValue(DirectionProperty, value); }
+    public FlexDirection Direction { get => (FlexDirection)GetValue(DirectionProperty); set => SetValue(DirectionProperty, value); }
     /// <summary>Whether children wrap onto new lines; default <see cref="FlexWrap.NoWrap"/>.</summary>
-    public FlexWrap Wrap { get => _wrap; set => SetValue(WrapProperty, value); }
+    public FlexWrap Wrap { get => (FlexWrap)GetValue(WrapProperty); set => SetValue(WrapProperty, value); }
     /// <summary>Main-axis distribution of free space; default <see cref="FlexJustify.Start"/>.</summary>
-    public FlexJustify JustifyContent { get => _justifyContent; set => SetValue(JustifyContentProperty, value); }
+    public FlexJustify JustifyContent { get => (FlexJustify)GetValue(JustifyContentProperty); set => SetValue(JustifyContentProperty, value); }
     /// <summary>Cross-axis alignment within a line; default <see cref="FlexAlignItems.Stretch"/>.</summary>
-    public FlexAlignItems AlignItems { get => _alignItems; set => SetValue(AlignItemsProperty, value); }
+    public FlexAlignItems AlignItems { get => (FlexAlignItems)GetValue(AlignItemsProperty); set => SetValue(AlignItemsProperty, value); }
     /// <summary>Distribution of wrapped lines on the cross axis; default <see cref="FlexAlignContent.Stretch"/>.</summary>
-    public FlexAlignContent AlignContent { get => _alignContent; set => SetValue(AlignContentProperty, value); }
+    public FlexAlignContent AlignContent { get => (FlexAlignContent)GetValue(AlignContentProperty); set => SetValue(AlignContentProperty, value); }
     /// <summary>MAUI API parity; does not affect the layout (as in MAUI).</summary>
-    public FlexPosition Position { get => _position; set => SetValue(PositionProperty, value); }
+    public FlexPosition Position { get => (FlexPosition)GetValue(PositionProperty); set => SetValue(PositionProperty, value); }
 
-    /// <summary>Sets <see cref="Direction"/> without bindable write-back.</summary>
-    public SkUiFlexLayout SetDirection(FlexDirection value) { _direction = value; InvalidateMeasureOverride(); return this; }
-    /// <summary>Sets <see cref="Wrap"/> without bindable write-back.</summary>
-    public SkUiFlexLayout SetWrap(FlexWrap value) { _wrap = value; InvalidateMeasureOverride(); return this; }
-    /// <summary>Sets <see cref="JustifyContent"/> without bindable write-back.</summary>
-    public SkUiFlexLayout SetJustifyContent(FlexJustify value) { _justifyContent = value; InvalidateMeasureOverride(); return this; }
-    /// <summary>Sets <see cref="AlignItems"/> without bindable write-back.</summary>
-    public SkUiFlexLayout SetAlignItems(FlexAlignItems value) { _alignItems = value; InvalidateMeasureOverride(); return this; }
-    /// <summary>Sets <see cref="AlignContent"/> without bindable write-back.</summary>
-    public SkUiFlexLayout SetAlignContent(FlexAlignContent value) { _alignContent = value; InvalidateMeasureOverride(); return this; }
-    /// <summary>Sets <see cref="Position"/> without bindable write-back.</summary>
-    public SkUiFlexLayout SetPosition(FlexPosition value) { _position = value; return this; }
+    /// <summary>Sets <see cref="Direction"/> (same as the property setter).</summary>
+    public SkUiFlexLayout SetDirection(FlexDirection value) { Direction = value; return this; }
+    private void OnDirectionChanged(FlexDirection value) { _direction = value; InvalidateMeasureOverride(); }
+    /// <summary>Sets <see cref="Wrap"/> (same as the property setter).</summary>
+    public SkUiFlexLayout SetWrap(FlexWrap value) { Wrap = value; return this; }
+    private void OnWrapChanged(FlexWrap value) { _wrap = value; InvalidateMeasureOverride(); }
+    /// <summary>Sets <see cref="JustifyContent"/> (same as the property setter).</summary>
+    public SkUiFlexLayout SetJustifyContent(FlexJustify value) { JustifyContent = value; return this; }
+    private void OnJustifyContentChanged(FlexJustify value) { _justifyContent = value; InvalidateMeasureOverride(); }
+    /// <summary>Sets <see cref="AlignItems"/> (same as the property setter).</summary>
+    public SkUiFlexLayout SetAlignItems(FlexAlignItems value) { AlignItems = value; return this; }
+    private void OnAlignItemsChanged(FlexAlignItems value) { _alignItems = value; InvalidateMeasureOverride(); }
+    /// <summary>Sets <see cref="AlignContent"/> (same as the property setter).</summary>
+    public SkUiFlexLayout SetAlignContent(FlexAlignContent value) { AlignContent = value; return this; }
+    private void OnAlignContentChanged(FlexAlignContent value) { _alignContent = value; InvalidateMeasureOverride(); }
+    /// <summary>Sets <see cref="Position"/> (same as the property setter).</summary>
+    public SkUiFlexLayout SetPosition(FlexPosition value) { Position = value; return this; }
+    private void OnPositionChanged(FlexPosition value) { _position = value; }
 
     /// <summary>Gets a child's visual order.</summary>
     public static int GetOrder(BindableObject view) => FlexLayout.GetOrder(view);
@@ -134,7 +140,7 @@ public class SkUiFlexLayout : SkUiLayout, IFlexLayout
             InitItemProperties(children[index], _items[children[index]]);
 
         // MAUI's FlexLayout also has an infinite-constraint "measure hack" (shrink 0, align-self Start), but in
-        // 10.0.101 it runs before the item properties are refreshed, which overwrite it, so it has no effect.
+        // 10.0.101–10.0.110 it runs before the item properties are refreshed, which overwrite it, so it has no effect.
         // The engine already skips shrinking and stretching on an axis of size 0 (unconstrained).
         _root.Width = !double.IsPositiveInfinity(width) ? (float)width : 0;
         _root.Height = !double.IsPositiveInfinity(height) ? (float)height : 0;

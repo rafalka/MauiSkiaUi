@@ -31,10 +31,16 @@ internal static class SkUiCornerRadii
     public static bool HasAny(CornerRadius radii) =>
         radii.TopLeft > 0 || radii.TopRight > 0 || radii.BottomRight > 0 || radii.BottomLeft > 0;
 
+    /// <summary>Every radius finite and not negative (<c>NaN</c> or infinity would reach the rounded-path geometry).</summary>
+    public static bool IsValid(CornerRadius radii) =>
+        IsValid(radii.TopLeft) && IsValid(radii.TopRight) && IsValid(radii.BottomRight) && IsValid(radii.BottomLeft);
+
+    private static bool IsValid(double radius) => double.IsFinite(radius) && radius >= 0;
+
     public static CornerRadius Validate(CornerRadius radii, string name)
     {
-        if (radii.TopLeft < 0 || radii.TopRight < 0 || radii.BottomRight < 0 || radii.BottomLeft < 0)
-            throw new ArgumentOutOfRangeException(name, radii, "Corner radii must be non-negative.");
+        if (!IsValid(radii))
+            throw new ArgumentOutOfRangeException(name, radii, "Corner radii must be finite and not negative.");
         return radii;
     }
 }

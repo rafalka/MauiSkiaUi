@@ -125,7 +125,7 @@ public class SkUiCoreTable : SkUiCoreGrid
     /// <summary>Sets horizontal separator thickness in DIPs.</summary>
     public SkUiCoreTable SetRowSeparatorThickness(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _rowSeparatorThickness, value, nameof(RowSeparatorThickness))) return this;
         InvalidatePaint();
         return this;
@@ -134,7 +134,7 @@ public class SkUiCoreTable : SkUiCoreGrid
     /// <summary>Sets vertical separator thickness in DIPs.</summary>
     public SkUiCoreTable SetColumnSeparatorThickness(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _columnSeparatorThickness, value, nameof(ColumnSeparatorThickness))) return this;
         InvalidatePaint();
         return this;

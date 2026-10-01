@@ -52,9 +52,7 @@ public sealed class SkUiCoreRowDefinition
     /// <summary>Sets the minimum row height in DIPs.</summary>
     public SkUiCoreRowDefinition SetMinHeight(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
-        if (double.IsNaN(value) || double.IsInfinity(value))
-            throw new ArgumentOutOfRangeException(nameof(value));
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (_minHeight.Equals(value)) return this;
         _minHeight = value;
         SizeChanged?.Invoke(this, EventArgs.Empty);

@@ -12,7 +12,13 @@ public sealed class ButtonDemoPage : ComponentDemoPage
         var skiaClicks = 0;
         var nativeClicks = 0;
         var canExecute = true;
-        void Counts() => Feedback($"Clicks: {skiaClicks}", $"Clicks: {nativeClicks}");
+        var skiaPress = "";
+        var nativePress = "";
+        void Counts() => Feedback($"Clicks: {skiaClicks}{skiaPress}", $"Clicks: {nativeClicks}{nativePress}");
+        skia.Pressed += (_, _) => { skiaPress = " · pressed"; Counts(); };
+        skia.Released += (_, _) => { skiaPress = " · released"; Counts(); };
+        native.Pressed += (_, _) => { nativePress = " · pressed"; Counts(); };
+        native.Released += (_, _) => { nativePress = " · released"; Counts(); };
         var skiaCommand = new Command(() => { skiaClicks++; Counts(); }, () => canExecute);
         var nativeCommand = new Command(() => { nativeClicks++; Counts(); }, () => canExecute);
         skia.Command = skiaCommand;
@@ -26,6 +32,6 @@ public sealed class ButtonDemoPage : ComponentDemoPage
         ColorEditor(nameof(SkUiButton.FillColor), Accent, value => { skia.FillColor = value; native.Background = value; }, () => skia.FillColor, () => ((SolidColorBrush)native.Background).Color);
         ColorEditor(nameof(SkUiButton.BorderColor), Ink, value => { skia.BorderColor = value; native.BorderColor = value; }, () => skia.BorderColor, () => native.BorderColor);
         Toggle(nameof(Command.CanExecute), true, value => { canExecute = value; skiaCommand.ChangeCanExecute(); nativeCommand.ChangeCanExecute(); }, () => skia.Command.CanExecute(null), () => native.Command.CanExecute(null));
-        OnReset(() => { skiaClicks = nativeClicks = 0; Counts(); });
+        OnReset(() => { skiaClicks = nativeClicks = 0; skiaPress = nativePress = ""; Counts(); });
     }
 }

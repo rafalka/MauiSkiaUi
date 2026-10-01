@@ -14,7 +14,7 @@ Extends [`SkUiToggleControl`](SkUiToggleControl.md). Tap toggles; with `IsThreeS
 All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 - **Coordinates** use DIPs. Paint and touch share the same local space as measure/arrange.
-- **BindableProperty + fluent `Set*` setters:** bindables call the direct setter. Direct setters **do not** write back to the bindable store (intentional FR-10 desync). Prefer one update path per property.
+- **BindableProperty + fluent `Set*` setters:** a `Set*` setter is the property setter in fluent form (`label.SetText("a").SetFontSize(20)`): getters read the bindable store, as in MAUI, so bindings, triggers and `x:Reference` see every change (FR-10). Invalid values: `Set*` throws; XAML, bindings, styles and the property setter ignore them with a logged warning, as MAUI does.
 - **`StartUpdating` / `EndUpdating`** batch layout and paint invalidation.
 - **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`), not MAUI `GestureRecognizers`. See [EventMechanism.md](../design/EventMechanism.md).
 - **Hosted vs standalone:** when nested under another SkiaUi parent, the node has no platform handler and paints into the root surface. See [LayoutSystem.md](../design/LayoutSystem.md).
@@ -29,7 +29,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`CheckState`, `IsChecked`, `IsThreeState`, `CheckStateChanged`, `CheckedChanged`, `Color`.
+`CheckState`, `IsChecked`, `IsThreeState`, `CheckStateChanged`, `CheckedChanged` (`CheckedChangedEventArgs`, as in MAUI), `Color`.
 
 ## Differences from MAUI CheckBox
 
@@ -39,6 +39,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | Color model | Single `Color` for checked chrome |
 | Three states | `CheckState` / `IsThreeState` (MAUI has two) |
 | Gestures | Intrinsic SkiaUi tap |
+| Visual states | As MAUI's CheckBox: while checked, `IsChecked` when the `CommonStates` group defines it, else `Normal`; otherwise `Normal` / `PointerOver` / `Disabled`. Indeterminate counts as unchecked |
 
 ## Related
 

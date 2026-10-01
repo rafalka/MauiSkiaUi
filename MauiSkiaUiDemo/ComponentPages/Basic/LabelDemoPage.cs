@@ -19,6 +19,30 @@ public sealed class LabelDemoPage : ComponentDemoPage
         ["Emoji"] = "Launch 🚀 ready 👍🏽 family 👩‍👩‍👧 flag 🇵🇱 done ✅",
     };
 
+    private const string NoLineBreaker = "None (LineBreakMode)";
+
+    private static readonly Dictionary<string, SkUiTextLineBreaker?> LineBreakers = new()
+    {
+        [NoLineBreaker] = null,
+        ["Ellipsis \"…\""] = SkUiTextLineBreakers.WithEllipsis("…"),
+        ["Ellipsis \" (more)\""] = SkUiTextLineBreakers.WithEllipsis(" (more)"),
+        // Whole words with a count of what was left out, e.g. "Earth is our home. +7 words".
+        ["Words + count"] = context =>
+        {
+            var words = context.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            for (var shown = words.Length; shown > 0; shown--)
+            {
+                var candidate = string.Join(' ', words[..shown]) + (shown < words.Length ? $" +{words.Length - shown} words" : "");
+                if (context.Fits(candidate))
+                    return [candidate];
+            }
+            return context.Break();
+        },
+    };
+
+    private static string LineBreakerName(SkUiTextLineBreaker? breaker) =>
+        LineBreakers.FirstOrDefault(entry => ReferenceEquals(entry.Value, breaker)).Key ?? NoLineBreaker;
+
     public LabelDemoPage() : base(nameof(SkUiLabel), new SkUiLabel(), new Label())
     {
         var skia = (SkUiLabel)SkiaControl;
@@ -29,8 +53,17 @@ public sealed class LabelDemoPage : ComponentDemoPage
             () => skia.FontFamily ?? DefaultFontFamily, () => native.FontFamily ?? DefaultFontFamily);
         Number(nameof(SkUiLabel.FontSize), 10, 36, 18, value => { skia.FontSize = value; native.FontSize = value; }, () => skia.FontSize, () => native.FontSize);
         Choice(nameof(SkUiLabel.LineBreakMode), Enum.GetValues<LineBreakMode>(), LineBreakMode.WordWrap, value => { skia.LineBreakMode = value; native.LineBreakMode = value; }, () => skia.LineBreakMode, () => native.LineBreakMode);
+        // MaxLines: -1 / 0 is no limit; with TailTruncation the text wraps and the last line ends with the ellipsis.
+        Number(nameof(SkUiLabel.MaxLines), -1, 6, -1, value => { skia.MaxLines = (int)value; native.MaxLines = (int)value; }, () => skia.MaxLines, () => native.MaxLines, whole: true);
+        Number(nameof(SkUiLabel.LineHeight), 0.5, 3, 1, value => { skia.LineHeight = value; native.LineHeight = value; }, () => skia.LineHeight, () => native.LineHeight);
+        Number(nameof(SkUiLabel.CharacterSpacing), -2, 10, 0, value => { skia.CharacterSpacing = value; native.CharacterSpacing = value; }, () => skia.CharacterSpacing, () => native.CharacterSpacing);
+        Choice(nameof(SkUiLabel.TextDecorations), new[] { TextDecorations.None, TextDecorations.Underline, TextDecorations.Strikethrough, TextDecorations.Underline | TextDecorations.Strikethrough }, TextDecorations.None,
+            value => { skia.TextDecorations = value; native.TextDecorations = value; }, () => skia.TextDecorations, () => native.TextDecorations);
+        Choice(nameof(SkUiLabel.TextTransform), Enum.GetValues<TextTransform>(), TextTransform.Default, value => { skia.TextTransform = value; native.TextTransform = value; }, () => skia.TextTransform, () => native.TextTransform);
+        // SkiaUi only: a custom line breaker (MAUI's Label has none, so the native side keeps its LineBreakMode).
+        Choice(nameof(SkUiLabel.LineBreaker), LineBreakers.Keys.ToArray(), NoLineBreaker, value => skia.LineBreaker = LineBreakers[value], () => LineBreakerName(skia.LineBreaker));
         Choice(nameof(SkUiLabel.HorizontalTextAlignment), Enum.GetValues<TextAlignment>(), TextAlignment.Start, value => { skia.HorizontalTextAlignment = value; native.HorizontalTextAlignment = value; }, () => skia.HorizontalTextAlignment, () => native.HorizontalTextAlignment);
-        Choice(nameof(SkUiLabel.FontAttributes), new[] { FontAttributes.None, FontAttributes.Bold, FontAttributes.Italic }, FontAttributes.None, value => { skia.FontAttributes = value; native.FontAttributes = value; }, () => skia.FontAttributes, () => native.FontAttributes);
+        Choice(nameof(SkUiLabel.FontAttributes), new[] { FontAttributes.None, FontAttributes.Bold, FontAttributes.Italic, FontAttributes.Bold | FontAttributes.Italic }, FontAttributes.None, value => { skia.FontAttributes = value; native.FontAttributes = value; }, () => skia.FontAttributes, () => native.FontAttributes);
         ColorEditor(nameof(SkUiLabel.TextColor), Ink, value => { skia.TextColor = value; native.TextColor = value; }, () => skia.TextColor, () => native.TextColor);
         Choice(nameof(SkUiLabel.VerticalTextAlignment), Enum.GetValues<TextAlignment>(), TextAlignment.Start, value => { skia.VerticalTextAlignment = value; native.VerticalTextAlignment = value; }, () => skia.VerticalTextAlignment, () => native.VerticalTextAlignment);
         // Script samples exercise HarfBuzz shaping, bidi and font fallback against the native Label.

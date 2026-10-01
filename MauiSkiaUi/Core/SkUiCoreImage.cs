@@ -17,7 +17,7 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
     private bool _disposed;
     private bool _ownsImage = true;
 
-    /// <summary>Fit, fill, or stretch within the arranged bounds.</summary>
+    /// <summary>Fit, fill, stretch or center (unscaled) within the arranged bounds.</summary>
     public Aspect Aspect
     {
         get => _aspect;
@@ -83,12 +83,12 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
         return this;
     }
 
-    /// <summary>Loads an image from an HTTPS URI.</summary>
+    /// <summary>Loads an image from an HTTP(S) URI (plain http needs the platform's cleartext permission).</summary>
     public SkUiCoreImage SetSourceUri(Uri uri)
     {
         ArgumentNullException.ThrowIfNull(uri);
-        if (uri.Scheme != Uri.UriSchemeHttps)
-            throw new NotSupportedException("Only HTTPS image URIs are supported.");
+        if (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp)
+            throw new NotSupportedException("Only HTTP(S) image URIs are supported.");
         ObjectDisposedException.ThrowIf(_disposed, this);
         LoadingTask = LoadAsync(token => Http.GetStreamAsync(uri, token));
         return this;
@@ -193,10 +193,13 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => ImageSize;
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas)
+    protected override void OnPaintContent(SKCanvas canvas) => PaintImage(canvas, new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height));
+
+    /// <summary>Draws the image into <paramref name="area"/> (local DIPs) with <see cref="Aspect"/>; nothing while none is set.</summary>
+    protected void PaintImage(SKCanvas canvas, SKRect area)
     {
         if (_image is null) return;
-        SkUiLook.Current.DrawImage(canvas, _image, (float)Frame.Width, (float)Frame.Height, _aspect);
+        SkUiImageDrawing.Draw(canvas, _image, ImageSize, area, _aspect);
     }
 
     /// <summary>Cancels loading and releases owned image resources; a disposed node cannot be reused.</summary>

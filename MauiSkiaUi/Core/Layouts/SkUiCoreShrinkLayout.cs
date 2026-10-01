@@ -36,7 +36,7 @@ public abstract class SkUiCoreShrinkLayout : SkUiCorePanel
     /// <summary>Sets the gap between children in DIPs.</summary>
     public SkUiCoreShrinkLayout SetSpacing(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _spacing, value, nameof(Spacing))) return this;
         InvalidateMeasure();
         return this;

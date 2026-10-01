@@ -378,7 +378,7 @@ public class PipelineTests
         Assert.Equal(SKColors.Blue, bitmap.GetPixel(20, 20));
         Assert.Equal(0, bitmap.GetPixel(0, 0).Alpha);
 
-        var line = new SkUiLine { Color = Colors.Red, StrokeWidth = 4 };
+        var line = new SkUiLine(0, 0, 36, 36) { Color = Colors.Red, StrokeWidth = 4 };
         SkUiTestHelpers.Arrange(line, 40, 40);
         canvas.Clear(SKColors.Transparent);
         line.Paint(canvas);

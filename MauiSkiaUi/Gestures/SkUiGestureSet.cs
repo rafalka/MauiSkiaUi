@@ -104,6 +104,39 @@ internal sealed class SkUiGestureSet(object owner)
     }
 }
 
+/// <summary>Pointer-over state of nodes that leave their surface.</summary>
+internal static class SkUiHover
+{
+    // SkUi* views that are pointer-over now (0 on touch-only devices: detaching then walks nothing). Interlocked:
+    // each surface's input runs on its UI thread, but headless tests drive surfaces from several threads.
+    private static int s_pointerOverCount;
+
+    /// <summary>A view became pointer-over (<paramref name="isOver"/>) or stopped being it.</summary>
+    internal static void Changed(bool isOver)
+    {
+        if (isOver) Interlocked.Increment(ref s_pointerOverCount);
+        else Interlocked.Decrement(ref s_pointerOverCount);
+    }
+
+    /// <summary>
+    /// A subtree left its surface (or moved): nothing in it is pointer-over any more. The surface's router drops it on
+    /// the next hover move; until then a re-attached node under the pointer turns pointer-over again on that move.
+    /// </summary>
+    public static void ClearSubtree(ISkUiRenderable node, List<ISkUiRenderable>? scratch = null)
+    {
+        if (Volatile.Read(ref s_pointerOverCount) == 0)
+            return;
+        (node as ISkUiInputNode)?.SetPointerOver(false);
+        scratch ??= [];
+        var start = scratch.Count;
+        node.GetRenderChildren(scratch);
+        var end = scratch.Count;
+        for (var index = start; index < end; index++)
+            ClearSubtree(scratch[index], scratch);
+        scratch.RemoveRange(start, end - start);
+    }
+}
+
 /// <summary>An element whose gestures can be cancelled (detach, disable, hide).</summary>
 internal interface ISkUiGestureElement : ISkUiInputNode
 {

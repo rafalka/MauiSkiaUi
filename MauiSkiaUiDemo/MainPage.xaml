@@ -26,6 +26,7 @@
                                 HorizontalOptions="End" VerticalOptions="Start"
                                 Color="#087F83" Tapped="OnPrimitiveTapped" />
                 <sk:SkUiLine x:Name="Diagonal" AutomationId="Diagonal"
+                             X2="175" Y2="47"
                              WidthRequest="180" HeightRequest="52" Margin="24,0,0,28"
                              HorizontalOptions="Start" VerticalOptions="End"
                              Color="#263D43" StrokeWidth="5" InputTransparent="True" />

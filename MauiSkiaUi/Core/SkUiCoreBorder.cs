@@ -88,7 +88,7 @@ public class SkUiCoreBorder : SkUiCoreContentView
     /// <summary>Sets the border thickness in DIPs.</summary>
     public SkUiCoreBorder SetStrokeThickness(double value)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _strokeThickness, value, nameof(StrokeThickness))) return this;
         InvalidatePaint();
         return this;

@@ -14,6 +14,9 @@ internal interface ISkUiInputNode : ISkUiRenderable
 
     /// <summary>Appends this node's active recognizers (innermost priority first); nothing when passive.</summary>
     void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers);
+
+    /// <summary>A hovering pointer entered (<c>true</c>) or left this node or one of its descendants.</summary>
+    void SetPointerOver(bool isOver) { }
 }
 
 /// <summary>What a surface's gestures mean for native ancestors (e.g. a MAUI ScrollView around the surface).</summary>
@@ -121,6 +124,9 @@ internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router,
 internal sealed class SkUiPointerRouter(ISkUiInputNode root)
 {
     private readonly Dictionary<long, SkUiGestureArena> _arenas = [];
+    /// <summary>The hovered node and its ancestors up to the root, innermost first.</summary>
+    private readonly List<ISkUiInputNode> _hovered = [];
+    private readonly List<ISkUiInputNode> _hoverChain = [];
     private readonly List<SkUiGestureRecognizer> _recognizers = [];
     private readonly List<ISkUiRenderable> _children = [];
 
@@ -186,6 +192,12 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         {
             case SkUiTouchAction.Wheel:
                 return DispatchWheel(touch);
+            case SkUiTouchAction.HoverMoved:
+                Hover(touch.Position);
+                return false;
+            case SkUiTouchAction.HoverExited:
+                ClearHover();
+                return false;
             case SkUiTouchAction.Pressed:
                 return overlay is null ? Press(touch, time) : PressFromOverlay(touch, time, overlay);
         }
@@ -223,11 +235,50 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         return handled;
     }
 
-    /// <summary>Cancels every pointer (surface detached, root disabled…).</summary>
+    /// <summary>Cancels every pointer (surface detached, root disabled…) and clears the hover.</summary>
     public void CancelAll()
     {
         foreach (var arena in _arenas.Values.ToArray())
             EndArena(arena, cancelled: true);
+        ClearHover();
+    }
+
+    /// <summary>
+    /// A hovering pointer at <paramref name="position"/> (root coordinates): the topmost hit-test-visible node there and
+    /// its ancestors are pointer-over, as with native hover (a parent stays hovered while the pointer is over a child);
+    /// nodes that left the chain are told first. Passive nodes count; a disabled node ends the search like a press does.
+    /// </summary>
+    private void Hover(Point position)
+    {
+        _hoverChain.Clear();
+        for (var node = FindTarget(root, ToSk(position), isRoot: true, requireParticipant: false);
+             node is not null; node = node.RenderParent as ISkUiInputNode)
+        {
+            _hoverChain.Add(node);
+            if (ReferenceEquals(node, root))
+                break;
+        }
+        foreach (var node in _hovered)
+            if (!_hoverChain.Contains(node))
+                node.SetPointerOver(false);
+        // Outermost first, as native hover enters a parent before its child. Unconditional (SetPointerOver ignores an
+        // unchanged value): a node detached while hovered cleared its own flag, and may be back under the pointer.
+        for (var index = _hoverChain.Count - 1; index >= 0; index--)
+            _hoverChain[index].SetPointerOver(true);
+        _hovered.Clear();
+        _hovered.AddRange(_hoverChain);
+        _hoverChain.Clear();
+    }
+
+    /// <summary>Nothing is pointer-over any more (the pointer left, or the surface went away).</summary>
+    internal void ClearHover()
+    {
+        if (_hovered.Count == 0)
+            return;
+        var left = _hovered.ToArray();
+        _hovered.Clear();
+        foreach (var node in left)
+            node.SetPointerOver(false);
     }
 
     private bool Press(SkUiTouchEvent touch, TimeSpan time)

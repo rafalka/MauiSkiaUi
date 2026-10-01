@@ -24,7 +24,14 @@ public enum SkUiTouchAction
     /// <summary>The platform cancelled the interaction.</summary>
     Cancelled,
     /// <summary>A desktop wheel delta, positive towards the start of the scroll axis.</summary>
-    Wheel
+    Wheel,
+    /// <summary>
+    /// A pointer moved over the surface without contact (mouse, trackpad, pen or iPad pointer hover): updates
+    /// <see cref="SkUiView.IsPointerOver"/> and the <c>PointerOver</c> visual state. Not part of any gesture.
+    /// </summary>
+    HoverMoved,
+    /// <summary>The hovering pointer left the surface (or started touching it): nothing is pointer-over any more.</summary>
+    HoverExited
 }
 
 /// <summary>A pointer sample with a stable id and a local position in DIPs.</summary>

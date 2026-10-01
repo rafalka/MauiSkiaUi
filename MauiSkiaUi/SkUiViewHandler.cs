@@ -197,6 +197,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #else
         surfaceNative = CreateMauiSurface(gpu: VirtualView.HwAccelerated);
 #endif
+        AttachHover(surfaceNative);
 #if ANDROID
         _container = new SkUiOverlayContainer(MauiContext!.Context!);
         _container.AddView(surfaceNative);
@@ -403,6 +404,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     /// <inheritdoc />
     protected override void DisconnectHandler(PlatformView platformView)
     {
+        DetachHover();
         NotifyRootDetached(VirtualView);
         VirtualView.AnimationClock.RunningChanged -= OnClockRunningChanged;
         VirtualView.Loaded -= OnLoaded;
@@ -697,11 +699,93 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     private bool _mauiDisallowingIntercept;
 #endif
 
+#if ANDROID
+    private Android.Views.View? _hoverView;
+#elif IOS || MACCATALYST
+    private UIKit.UIView? _hoverView;
+    private UIKit.UIHoverGestureRecognizer? _hover;
+#endif
+
+    /// <summary>
+    /// Hover input for <see cref="SkUiView.IsPointerOver"/> and the <c>PointerOver</c> visual state. Windows reports
+    /// hover through SkiaSharp's touch events (<see cref="OnMauiTouch"/>); Android and Apple surfaces need their own
+    /// listener (mouse, trackpad and stylus hover; the iPad pointer), for GPU and software surfaces alike.
+    /// </summary>
+    private void AttachHover(PlatformView surface)
+    {
+#if ANDROID
+        _hoverView = surface;
+        surface.Hover += OnAndroidHover;
+#elif IOS || MACCATALYST
+        // Weak: the view retains the recognizer natively, which would root this handler through the callback.
+        var weak = new WeakReference<SkUiViewHandler>(this);
+        _hover = new UIKit.UIHoverGestureRecognizer(recognizer =>
+        {
+            if (weak.TryGetTarget(out var handler))
+                handler.OnAppleHover(recognizer);
+        });
+        _hoverView = surface;
+        surface.AddGestureRecognizer(_hover);
+#endif
+    }
+
+    private void DetachHover()
+    {
+#if ANDROID
+        if (_hoverView is not null)
+            _hoverView.Hover -= OnAndroidHover;
+        _hoverView = null;
+#elif IOS || MACCATALYST
+        if (_hover is not null)
+            _hoverView?.RemoveGestureRecognizer(_hover);
+        _hover?.Dispose();
+        _hover = null;
+        _hoverView = null;
+#endif
+        // The pointer may still be over the surface: nothing stays pointer-over in a tree without a surface.
+        VirtualView?.Router.ClearHover();
+    }
+
+#if ANDROID
+    private void OnAndroidHover(object? sender, Android.Views.View.HoverEventArgs args)
+    {
+        args.Handled = false;
+        if (args.Event is not { } motion)
+            return;
+        SkUiTouchAction? action = motion.ActionMasked switch
+        {
+            Android.Views.MotionEventActions.HoverEnter or Android.Views.MotionEventActions.HoverMove => SkUiTouchAction.HoverMoved,
+            Android.Views.MotionEventActions.HoverExit => SkUiTouchAction.HoverExited,
+            _ => null
+        };
+        if (action is not null)
+            _renderer?.TouchPixels(new(0, action.Value, new Point(motion.GetX(), motion.GetY())));
+    }
+#elif IOS || MACCATALYST
+    private void OnAppleHover(UIKit.UIHoverGestureRecognizer recognizer)
+    {
+        if (_hoverView is not { } view)
+            return;
+        if (recognizer.State is UIKit.UIGestureRecognizerState.Began or UIKit.UIGestureRecognizerState.Changed)
+        {
+            var location = recognizer.LocationInView(view);
+            _renderer?.TouchDips(new(0, SkUiTouchAction.HoverMoved, new Point(location.X, location.Y)));
+        }
+        else
+        {
+            _renderer?.TouchDips(new(0, SkUiTouchAction.HoverExited, Point.Zero));
+        }
+    }
+#endif
+
     private void OnMauiTouch(object? sender, SKTouchEventArgs args)
     {
         SkUiTouchAction? action = args.ActionType switch
         {
             SKTouchAction.Pressed => SkUiTouchAction.Pressed,
+            // A pointer moving without contact hovers (Windows mouse / pen; SkiaSharp reports no hover elsewhere).
+            SKTouchAction.Moved or SKTouchAction.Entered when !args.InContact => SkUiTouchAction.HoverMoved,
+            SKTouchAction.Exited => SkUiTouchAction.HoverExited,
             SKTouchAction.Moved => SkUiTouchAction.Moved,
             SKTouchAction.Released => SkUiTouchAction.Released,
             SKTouchAction.Cancelled => SkUiTouchAction.Cancelled,

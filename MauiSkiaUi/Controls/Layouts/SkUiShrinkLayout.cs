@@ -15,7 +15,8 @@ public abstract class SkUiShrinkLayout : SkUiLayout
 
     /// <summary>Bindable gap between children in DIPs.</summary>
     public static readonly BindableProperty SpacingProperty = BindableProperty.Create(nameof(Spacing), typeof(double), typeof(SkUiShrinkLayout), 0d,
-        propertyChanged: (view, _, value) => ((SkUiShrinkLayout)view).SetSpacing((double)value));
+        validateValue: SkUiValidate.NonNegative,
+        propertyChanged: (view, _, value) => ((SkUiShrinkLayout)view).OnSpacingChanged((double)value));
 
     /// <summary>
     /// Attached: how a child gives up space when the children do not fit (<c>sk:SkUiShrinkLayout.Shrink="Auto"</c>,
@@ -36,10 +37,11 @@ public abstract class SkUiShrinkLayout : SkUiLayout
     }
 
     /// <summary>Gap between children in DIPs.</summary>
-    public double Spacing { get => _spacing; set => SetValue(SpacingProperty, value); }
+    public double Spacing { get => (double)GetValue(SpacingProperty); set => SetValue(SpacingProperty, value); }
 
-    /// <summary>Sets <see cref="Spacing"/> without bindable write-back.</summary>
-    public SkUiShrinkLayout SetSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); _spacing = value; InvalidateMeasureOverride(); return this; }
+    /// <summary>Sets <see cref="Spacing"/> (same as the property setter).</summary>
+    public SkUiShrinkLayout SetSpacing(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); Spacing = value; return this; }
+    private void OnSpacingChanged(double value) { _spacing = value; InvalidateMeasureOverride(); }
 
     /// <inheritdoc />
     private protected override bool AffectsChildLayout(string? propertyName) => propertyName == ShrinkProperty.PropertyName;
