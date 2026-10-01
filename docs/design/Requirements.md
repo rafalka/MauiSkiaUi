@@ -203,6 +203,7 @@ Design and checklist: [LayoutSystem.md](LayoutSystem.md).
 - [x] Initial **Skia-drawn** control set (no nested MAUI visuals for these types), including at least `SkUiLabel` (or equivalent text control).
 - [x] Do **not** implement custom Skia `SkUiEntry`, `SkUiEditor`, or `SkUiWebView` — use **`SkUiMauiContentView`** hosting instead (FR-16).
 - [x] Each Skia-drawn control derives from **`SkUiView`** (implements `ISkUiView`), is XAML-constructible, works under `SkUiContentView` / `SkUiLayout`, and can be used standalone in the MAUI tree (FR-13).
+- [x] Labels (both layers) have MAUI Label's text properties (`MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`) and custom line breaking (`SkUiTextLineBreaker`), so text can get shorter in its own way (fewer decimals, another ellipsis) instead of the stock ellipsis.
 - [x] Labels (both layers) draw optional rounded chrome — per-corner radii, border, fill — so badges, chips, tags and tabs need no wrapping border node; buttons inherit it and keep MAUI's uniform `CornerRadius`.
 
 ### FR-5 — Demo gallery

@@ -147,8 +147,8 @@ public class TextShapingTests
     {
         if (!HasFontFor('ש')) return;
         var layout = new SkUiTextLayout();
-        var full = layout.Measure(Hebrew, Primary(), 16, default, double.PositiveInfinity, SkUiCoreTextLineBreakers.NoWrap);
-        var truncated = new SkUiTextLayout().Measure(Hebrew, Primary(), 16, default, full.Width / 2, SkUiCoreTextLineBreakers.TailTruncation);
+        var full = layout.Measure(Hebrew, new SkUiTextStyle(Primary(), 16, LineBreakMode.NoWrap), default, double.PositiveInfinity);
+        var truncated = new SkUiTextLayout().Measure(Hebrew, new SkUiTextStyle(Primary(), 16, LineBreakMode.TailTruncation), default, full.Width / 2);
         Assert.True(truncated.Width <= full.Width / 2 + 0.5);
         Assert.True(truncated.Width > 0);
     }
@@ -158,7 +158,7 @@ public class TextShapingTests
     {
         if (!HasFontFor('漢')) return;
         var layout = new SkUiTextLayout();
-        var size = layout.Measure("漢字漢字漢字漢字漢字漢字漢字漢字", Primary(), 16, default, 60, SkUiCoreTextLineBreakers.WordWrap);
+        var size = layout.Measure("漢字漢字漢字漢字漢字漢字漢字漢字", new SkUiTextStyle(Primary(), 16), default, 60);
         Assert.True(size.Width <= 60.5, $"width {size.Width}");
         Assert.True(size.Height > 16 * 2);
     }
@@ -167,9 +167,9 @@ public class TextShapingTests
     public void CustomLineBreakerLinesAreShaped()
     {
         var layout = new SkUiTextLayout();
-        SkUiCoreTextLineBreaker halves = (text, _, _) => [text[..(text.Length / 2)], text[(text.Length / 2)..]];
+        SkUiTextLineBreaker halves = context => [context.Text[..(context.Text.Length / 2)], context.Text[(context.Text.Length / 2)..]];
         using var font = new SKFont(Primary(), 16) { LinearMetrics = true };
-        var size = layout.Measure("abcdef", Primary(), 16, default, 500, halves);
+        var size = layout.Measure("abcdef", new SkUiTextStyle(Primary(), 16, LineBreaker: halves), default, 500);
         Assert.Equal(font.Spacing * 2, (float)size.Height, 1);
         Assert.Equal(font.MeasureText("abc"), (float)size.Width, 1);
     }

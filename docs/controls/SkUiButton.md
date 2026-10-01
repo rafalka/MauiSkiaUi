@@ -29,7 +29,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-Inherits Label text APIs and its rounded chrome: per-corner `CornerRadii`, and `CornerRadius` as in MAUI (an `int` that sets all four corners; use `CornerRadii` for fractional radii), both defaulting to the look's `DefaultButtonCornerRadius` (`SkUiCoreButton` has only `CornerRadii`, plus `SetCornerRadius(double)` for all four); `BorderColor`, `BorderWidth`. Adds `Command`, `CommandParameter`, `Clicked`, `Pressed`, `Released`, `FillColor`. As in MAUI, a tap raises `Pressed`, `Released`, then `Clicked`; a cancelled press (a scroll took over, the pointer left) raises `Released` without `Clicked`.
+Inherits Label text APIs (MAUI Button's `CharacterSpacing`, `TextTransform`, `LineBreakMode`, plus the label's `MaxLines`, `LineHeight`, `TextDecorations` and a custom `LineBreaker`) and its rounded chrome: per-corner `CornerRadii`, and `CornerRadius` as in MAUI (an `int` that sets all four corners; use `CornerRadii` for fractional radii), both defaulting to the look's `DefaultButtonCornerRadius` (`SkUiCoreButton` has only `CornerRadii`, plus `SetCornerRadius(double)` for all four); `BorderColor`, `BorderWidth`. Adds `Command`, `CommandParameter`, `Clicked`, `Pressed`, `Released`, `FillColor`. As in MAUI, a tap raises `Pressed`, `Released`, then `Clicked`; a cancelled press (a scroll took over, the pointer left) raises `Released` without `Clicked`.
 
 ## Differences from MAUI Button
 

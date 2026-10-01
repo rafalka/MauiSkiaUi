@@ -3,22 +3,32 @@ using SkiaSharp;
 namespace MauiSkiaUi;
 
 /// <summary>
-/// Drawn text with wrapping, alignment, and MAUI-style bindable properties. Optional rounded chrome (a badge, a chip,
-/// a tag): <see cref="CornerRadii"/> (or the uniform <see cref="CornerRadius"/>), <see cref="BorderColor"/> and
-/// <see cref="BorderWidth"/> shape the <see cref="VisualElement.Background"/> fill without wrapping the label in a border.
+/// Drawn text with wrapping, alignment, and MAUI-style bindable properties: MAUI Label's text properties
+/// (<see cref="MaxLines"/>, <see cref="LineHeight"/>, <see cref="CharacterSpacing"/>, <see cref="TextDecorations"/>,
+/// <see cref="TextTransform"/>), plus a custom <see cref="LineBreaker"/> that can shorten text its own way. Optional
+/// rounded chrome (a badge, a chip, a tag): <see cref="CornerRadii"/> (or the uniform <see cref="CornerRadius"/>),
+/// <see cref="BorderColor"/> and <see cref="BorderWidth"/> shape the <see cref="VisualElement.Background"/> fill without
+/// wrapping the label in a border.
 /// </summary>
 public class SkUiLabel : SkUiView
 {
     private string _text = string.Empty;
+    private string _displayText = string.Empty; // _text after _textTransform
     private Color _textColor = SkUiColors.DefaultForeground;
     private double _fontSize = 16;
     private string? _fontFamily;
     private FontAttributes _fontAttributes;
     private LineBreakMode _lineBreakMode = LineBreakMode.WordWrap;
+    private SkUiTextLineBreaker? _lineBreaker;
+    private int _maxLines = -1;
+    private double _lineHeight = -1;
+    private double _characterSpacing;
+    private TextDecorations _textDecorations;
+    private TextTransform _textTransform = TextTransform.Default;
     private TextAlignment _horizontalTextAlignment;
     private TextAlignment _verticalTextAlignment;
     private Thickness _padding;
-    private readonly SkUiTextLayout _layout = new();
+    private readonly SkUiTextLayout _layout;
     private SkUiTextRendering _textRendering;
     private SKPaint? _textPaint;
     private Microsoft.Maui.CornerRadius _cornerRadii;
@@ -49,6 +59,18 @@ public class SkUiLabel : SkUiView
     /// </summary>
     public static readonly BindableProperty TextRenderingProperty = BindableProperty.Create(nameof(TextRendering), typeof(SkUiTextRendering), typeof(SkUiLabel), SkUiTextRendering.Default,
         propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextRenderingChanged((SkUiTextRendering)value));
+    /// <summary>Bindable custom line breaker (<c>null</c>: <see cref="LineBreakMode"/>).</summary>
+    public static readonly BindableProperty LineBreakerProperty = BindableProperty.Create(nameof(LineBreaker), typeof(SkUiTextLineBreaker), typeof(SkUiLabel), null, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnLineBreakerChanged((SkUiTextLineBreaker?)value));
+    /// <summary>Bindable maximum number of lines (-1: no limit).</summary>
+    public static readonly BindableProperty MaxLinesProperty = BindableProperty.Create(nameof(MaxLines), typeof(int), typeof(SkUiLabel), -1, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnMaxLinesChanged((int)value));
+    /// <summary>Bindable line height multiplier (-1: the font's).</summary>
+    public static readonly BindableProperty LineHeightProperty = BindableProperty.Create(nameof(LineHeight), typeof(double), typeof(SkUiLabel), -1d, validateValue: SkUiValidate.Finite, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnLineHeightChanged((double)value));
+    /// <summary>Bindable spacing between characters in DIPs.</summary>
+    public static readonly BindableProperty CharacterSpacingProperty = BindableProperty.Create(nameof(CharacterSpacing), typeof(double), typeof(SkUiLabel), 0d, validateValue: SkUiValidate.Finite, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnCharacterSpacingChanged((double)value));
+    /// <summary>Bindable underline / strikethrough.</summary>
+    public static readonly BindableProperty TextDecorationsProperty = BindableProperty.Create(nameof(TextDecorations), typeof(TextDecorations), typeof(SkUiLabel), TextDecorations.None, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextDecorationsChanged((TextDecorations)value));
+    /// <summary>Bindable case transform of the displayed text.</summary>
+    public static readonly BindableProperty TextTransformProperty = BindableProperty.Create(nameof(TextTransform), typeof(TextTransform), typeof(SkUiLabel), TextTransform.Default, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextTransformChanged((TextTransform)value));
     /// <summary>Bindable text inset.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiLabel), default(Thickness), defaultValueCreator: view => ((SkUiLabel)view).DefaultPadding, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnPaddingChanged((Thickness)value));
 
@@ -73,6 +95,7 @@ public class SkUiLabel : SkUiView
     /// </summary>
     public SkUiLabel()
     {
+        _layout = new SkUiTextLayout(this);
         _textColor = DefaultTextColor;
         _horizontalTextAlignment = _verticalTextAlignment = DefaultTextAlignment;
         _padding = DefaultPadding;
@@ -100,6 +123,27 @@ public class SkUiLabel : SkUiView
     public FontAttributes FontAttributes { get => (FontAttributes)GetValue(FontAttributesProperty); set => SetValue(FontAttributesProperty, value); }
     /// <summary>Wrapping/truncation behavior.</summary>
     public LineBreakMode LineBreakMode { get => (LineBreakMode)GetValue(LineBreakModeProperty); set => SetValue(LineBreakModeProperty, value); }
+    /// <summary>
+    /// Custom line breaking that replaces <see cref="LineBreakMode"/>, which it can still apply
+    /// (<see cref="SkUiTextLineBreakContext.Break()"/>): a custom ellipsis (<see cref="SkUiTextLineBreakers.WithEllipsis"/>),
+    /// shorter forms of the text such as a number with fewer decimals (<see cref="SkUiTextLineBreakers.FirstFit"/>), or
+    /// any <see cref="SkUiTextLineBreaker"/>. <c>null</c> (default): <see cref="LineBreakMode"/>. It runs when the text,
+    /// a text property or the width changes; call <see cref="InvalidateTextLayout"/> when its own inputs change.
+    /// </summary>
+    public SkUiTextLineBreaker? LineBreaker { get => (SkUiTextLineBreaker?)GetValue(LineBreakerProperty); set => SetValue(LineBreakerProperty, value); }
+    /// <summary>
+    /// The most lines drawn; -1 (default), 0 or less: no limit. Wrapped lines past it are dropped; with
+    /// <see cref="LineBreakMode.TailTruncation"/> the text wraps and the last line ends with the ellipsis, as on MAUI's Label.
+    /// </summary>
+    public int MaxLines { get => (int)GetValue(MaxLinesProperty); set => SetValue(MaxLinesProperty, value); }
+    /// <summary>Multiplier of the font's line spacing (1.5: half as much again); -1 (default), 0 or less: the font's. The extra space is split above and below each line.</summary>
+    public double LineHeight { get => (double)GetValue(LineHeightProperty); set => SetValue(LineHeightProperty, value); }
+    /// <summary>DIPs added after each character (negative: tighter). Wrapping and truncation account for it.</summary>
+    public double CharacterSpacing { get => (double)GetValue(CharacterSpacingProperty); set => SetValue(CharacterSpacingProperty, value); }
+    /// <summary>Underline and / or strikethrough, in the text color, under / through each line.</summary>
+    public TextDecorations TextDecorations { get => (TextDecorations)GetValue(TextDecorationsProperty); set => SetValue(TextDecorationsProperty, value); }
+    /// <summary>Displays <see cref="Text"/> in upper or lower case (invariant culture, as MAUI); <see cref="Text"/> keeps its value.</summary>
+    public TextTransform TextTransform { get => (TextTransform)GetValue(TextTransformProperty); set => SetValue(TextTransformProperty, value); }
     /// <summary>Horizontal text placement.</summary>
     public TextAlignment HorizontalTextAlignment { get => (TextAlignment)GetValue(HorizontalTextAlignmentProperty); set => SetValue(HorizontalTextAlignmentProperty, value); }
     /// <summary>Vertical text placement.</summary>
@@ -130,7 +174,7 @@ public class SkUiLabel : SkUiView
 
     /// <summary>Sets text (same as the property setter).</summary>
     public SkUiLabel SetText(string? value) { Text = value ?? string.Empty; return this; }
-    private void OnTextChanged(string? value) { value ??= string.Empty; if (_text == value) return; _text = value; InvalidateText(); }
+    private void OnTextChanged(string? value) { value ??= string.Empty; if (_text == value) return; _text = value; UpdateDisplayText(); }
     /// <summary>Sets text color (same as the property setter).</summary>
     public SkUiLabel SetTextColor(Color value) { ArgumentNullException.ThrowIfNull(value); TextColor = value; return this; }
     private void OnTextColorChanged(Color value) { if (_textColor == value) return; _textColor = value; InvalidatePaint(); }
@@ -146,9 +190,33 @@ public class SkUiLabel : SkUiView
     /// <summary>Sets line mode (same as the property setter).</summary>
     public SkUiLabel SetLineBreakMode(LineBreakMode value) { LineBreakMode = value; return this; }
     private void OnLineBreakModeChanged(LineBreakMode value) { _lineBreakMode = value; InvalidateText(); }
+    /// <summary>Sets the custom line breaker (same as the property setter).</summary>
+    public SkUiLabel SetLineBreaker(SkUiTextLineBreaker? value) { LineBreaker = value; return this; }
+    private void OnLineBreakerChanged(SkUiTextLineBreaker? value) { _lineBreaker = value; InvalidateText(); }
+    /// <summary>Sets the maximum number of lines (same as the property setter).</summary>
+    public SkUiLabel SetMaxLines(int value) { MaxLines = value; return this; }
+    private void OnMaxLinesChanged(int value) { if (_maxLines == value) return; _maxLines = value; InvalidateText(); }
+    /// <summary>Sets the line height multiplier (same as the property setter).</summary>
+    public SkUiLabel SetLineHeight(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); LineHeight = value; return this; }
+    private void OnLineHeightChanged(double value) { if (_lineHeight == value) return; _lineHeight = value; InvalidateText(); }
+    /// <summary>Sets the character spacing (same as the property setter).</summary>
+    public SkUiLabel SetCharacterSpacing(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); CharacterSpacing = value; return this; }
+    private void OnCharacterSpacingChanged(double value) { if (_characterSpacing == value) return; _characterSpacing = value; InvalidateText(); }
+    /// <summary>Sets the text decorations (same as the property setter).</summary>
+    public SkUiLabel SetTextDecorations(TextDecorations value) { TextDecorations = value; return this; }
+    private void OnTextDecorationsChanged(TextDecorations value) { if (_textDecorations == value) return; _textDecorations = value; InvalidatePaint(); }
+    /// <summary>Sets the text transform (same as the property setter).</summary>
+    public SkUiLabel SetTextTransform(TextTransform value) { TextTransform = value; return this; }
+    private void OnTextTransformChanged(TextTransform value) { if (_textTransform == value) return; _textTransform = value; UpdateDisplayText(); }
     /// <summary>Sets horizontal alignment (same as the property setter).</summary>
     public SkUiLabel SetHorizontalTextAlignment(TextAlignment value) { HorizontalTextAlignment = value; return this; }
-    private void OnHorizontalTextAlignmentChanged(TextAlignment value) { _horizontalTextAlignment = value; InvalidatePaint(); }
+    private void OnHorizontalTextAlignmentChanged(TextAlignment value)
+    {
+        // Justified lines are stretched by the layout (and measure as wide as the label); other alignments only paint.
+        var relayout = value == TextAlignment.Justify || _horizontalTextAlignment == TextAlignment.Justify;
+        _horizontalTextAlignment = value;
+        if (relayout) InvalidateText(); else InvalidatePaint();
+    }
     /// <summary>Sets vertical alignment (same as the property setter).</summary>
     public SkUiLabel SetVerticalTextAlignment(TextAlignment value) { VerticalTextAlignment = value; return this; }
     private void OnVerticalTextAlignmentChanged(TextAlignment value) { _verticalTextAlignment = value; InvalidatePaint(); }
@@ -191,6 +259,20 @@ public class SkUiLabel : SkUiView
 
     private void InvalidateText() { _layout.Invalidate(); InvalidateMeasureOverride(); }
 
+    /// <summary>Breaks the text again at the next measure, e.g. when what a custom <see cref="LineBreaker"/> reads has changed.</summary>
+    public void InvalidateTextLayout() => InvalidateText();
+
+    private void UpdateDisplayText()
+    {
+        var display = SkUiTextTransform.Apply(_text, _textTransform);
+        if (display == _displayText) return;
+        _displayText = display;
+        InvalidateText();
+    }
+
+    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), _fontSize, _lineBreakMode, _lineBreaker,
+        _maxLines, _lineHeight, _characterSpacing, TextDirection, _textRendering, _fontAttributes, _horizontalTextAlignment == TextAlignment.Justify);
+
     /// <summary>
     /// Paragraph direction from MAUI <see cref="VisualElement.FlowDirection"/>: an explicit or inherited right-to-left
     /// flow gives RTL paragraphs, an explicit left-to-right flow gives LTR, and the default (<c>MatchParent</c> under a
@@ -211,13 +293,12 @@ public class SkUiLabel : SkUiView
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
-        _layout.Measure(_text, SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), _fontSize, _padding, widthConstraint,
-            MauiSkiaUi.Core.SkUiCoreTextLineBreakers.For(_lineBreakMode), TextDirection, _textRendering);
+        _layout.Measure(_displayText, TextStyle, _padding, widthConstraint);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        if (_text.Length == 0) return;
+        if (_displayText.Length == 0) return;
         if (!SkUiCornerRadii.HasAny(_cornerRadii))
         {
             PaintText(canvas);
@@ -237,7 +318,7 @@ public class SkUiLabel : SkUiView
     {
         var paint = _textPaint ??= new SKPaint { IsAntialias = true };
         paint.Color = ToSkColor(_textColor);
-        _layout.Draw(canvas, _text, SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), _fontSize, _padding, Width, Height,
-            _horizontalTextAlignment, _verticalTextAlignment, paint, MauiSkiaUi.Core.SkUiCoreTextLineBreakers.For(_lineBreakMode), TextDirection, _textRendering);
+        _layout.Draw(canvas, _displayText, TextStyle, _padding, Width, Height,
+            _horizontalTextAlignment, _verticalTextAlignment, paint, _textDecorations);
     }
 }

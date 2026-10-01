@@ -13,7 +13,7 @@ public class TextRenderingModeTests
     private static bool LayoutIsSimple(string text, SkUiTextRendering rendering, SkUiTextDirection direction = SkUiTextDirection.Auto)
     {
         var layout = new SkUiTextLayout();
-        layout.Measure(text, Primary(), 16, default, 500, SkUiCoreTextLineBreakers.WordWrap, direction, rendering);
+        layout.Measure(text, new SkUiTextStyle(Primary(), 16, Direction: direction, Rendering: rendering), default, 500);
         return layout.LastLayoutSimple;
     }
 
@@ -54,8 +54,8 @@ public class TextRenderingModeTests
     [Fact]
     public void SimpleAndShapedMeasureLatinAlike()
     {
-        var simple = new SkUiTextLayout().Measure("Item 0001", Primary(), 16, default, double.PositiveInfinity, SkUiCoreTextLineBreakers.NoWrap, rendering: SkUiTextRendering.Simple);
-        var shaped = new SkUiTextLayout().Measure("Item 0001", Primary(), 16, default, double.PositiveInfinity, SkUiCoreTextLineBreakers.NoWrap, rendering: SkUiTextRendering.Shaped);
+        var simple = new SkUiTextLayout().Measure("Item 0001", new SkUiTextStyle(Primary(), 16, LineBreakMode.NoWrap, Rendering: SkUiTextRendering.Simple), default, double.PositiveInfinity);
+        var shaped = new SkUiTextLayout().Measure("Item 0001", new SkUiTextStyle(Primary(), 16, LineBreakMode.NoWrap, Rendering: SkUiTextRendering.Shaped), default, double.PositiveInfinity);
         Assert.InRange(simple.Width - shaped.Width, -0.5, 0.5);
         Assert.Equal(simple.Height, shaped.Height, 2);
     }
@@ -65,7 +65,7 @@ public class TextRenderingModeTests
     {
         using var font = new SKFont(Primary(), 16);
         var layout = new SkUiTextLayout();
-        var size = layout.Measure("alpha beta gamma delta epsilon", Primary(), 16, default, 100, SkUiCoreTextLineBreakers.WordWrap, rendering: SkUiTextRendering.Simple);
+        var size = layout.Measure("alpha beta gamma delta epsilon", new SkUiTextStyle(Primary(), 16, Rendering: SkUiTextRendering.Simple), default, 100);
         Assert.True(size.Width <= 100.5);
         Assert.True(size.Height > font.Spacing * 2);
     }
@@ -74,15 +74,15 @@ public class TextRenderingModeTests
     public void DrawingAtAWiderWidthReusesTheMeasuredLayout()
     {
         var layout = new SkUiTextLayout();
-        var typeface = Primary();
-        layout.Measure("Item 0001", typeface, 16, default, 300, SkUiCoreTextLineBreakers.WordWrap);
+        var style = new SkUiTextStyle(Primary(), 16);
+        layout.Measure("Item 0001", style, default, 300);
         using var bitmap = new SKBitmap(200, 30);
         using var canvas = new SKCanvas(bitmap);
         using var paint = new SKPaint();
-        layout.Draw(canvas, "Item 0001", typeface, 16, default, 200, 30, TextAlignment.Start, TextAlignment.Start, paint, SkUiCoreTextLineBreakers.WordWrap);
+        layout.Draw(canvas, "Item 0001", style, default, 200, 30, TextAlignment.Start, TextAlignment.Start, paint);
         Assert.Equal(1, layout.LayoutCount);
         // Narrower than the text forces a new wrap.
-        layout.Draw(canvas, "Item 0001", typeface, 16, default, 30, 30, TextAlignment.Start, TextAlignment.Start, paint, SkUiCoreTextLineBreakers.WordWrap);
+        layout.Draw(canvas, "Item 0001", style, default, 30, 30, TextAlignment.Start, TextAlignment.Start, paint);
         Assert.Equal(2, layout.LayoutCount);
     }
 

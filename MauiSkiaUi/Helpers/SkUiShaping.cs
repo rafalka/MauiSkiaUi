@@ -45,6 +45,8 @@ internal static class SkUiShaping
         public List<Run> Runs = [];
         public float[] Advances = [];
         public float Width;
+        /// <summary>Character spacing in DIPs added after each cluster (simple path: after each code point).</summary>
+        public float Spacing;
         /// <summary>
         /// Built by the simple path: no runs; lines are plain substrings measured / drawn by Skia directly (the
         /// pre-HarfBuzz renderer). <see cref="Advances"/> are only filled when line breaking needs them.
@@ -69,7 +71,7 @@ internal static class SkUiShaping
     /// left-to-right paragraph, needs no bidi, no fallback and (for UI text) no HarfBuzz — glyphs and advances come
     /// straight from Skia, like the pre-HarfBuzz renderer. Returns <c>null</c> when the text is not simple.
     /// </summary>
-    internal static Paragraph? TryShapeSimple(string text, SKFont font, SkUiTextDirection direction)
+    internal static Paragraph? TryShapeSimple(string text, SKFont font, SkUiTextDirection direction, float spacing = 0)
     {
         if (direction == SkUiTextDirection.RightToLeft)
             return null;
@@ -77,20 +79,30 @@ internal static class SkUiShaping
         foreach (var c in text)
             if (!IsSimpleChar(c) || !HasGlyph(typeface, c))
                 return null;
-        return ShapeSimple(text, font, direction);
+        return ShapeSimple(text, font, direction, spacing);
     }
 
     /// <summary>
     /// Simple (pre-HarfBuzz) paragraph: one Skia measure; missing glyphs draw as the font's .notdef. Glyphs stay in
     /// logical order (no bidi); the base direction still decides what Start / End alignment means.
     /// </summary>
-    internal static Paragraph ShapeSimple(string text, SKFont font, SkUiTextDirection direction) => new()
+    internal static Paragraph ShapeSimple(string text, SKFont font, SkUiTextDirection direction, float spacing = 0) => new()
     {
         Text = text,
         IsSimple = true,
+        Spacing = spacing,
         BaseLevel = SkUiBidi.BaseLevel(text, direction),
-        Width = text.Length == 0 ? 0 : font.MeasureText(text)
+        Width = text.Length == 0 ? 0 : font.MeasureText(text) + spacing * CodePoints(text, 0, text.Length)
     };
+
+    /// <summary>Code points in <c>text[start..end)</c> (the glyphs of a simple line).</summary>
+    private static int CodePoints(string text, int start, int end)
+    {
+        var count = 0;
+        for (var index = start; index < end; index++)
+            if (!char.IsLowSurrogate(text[index])) count++;
+        return count;
+    }
 
     /// <summary>Fills per-code-unit advances of a simple paragraph (only needed to wrap or truncate).</summary>
     internal static void EnsureAdvances(Paragraph paragraph, SKFont font)
@@ -100,6 +112,9 @@ internal static class SkUiShaping
         var widths = font.GetGlyphWidths(paragraph.Text.AsSpan());
         if (widths.Length == paragraph.Text.Length)
         {
+            if (paragraph.Spacing != 0)
+                for (var index = 0; index < widths.Length; index++)
+                    widths[index] += paragraph.Spacing;
             paragraph.Advances = widths;
             return;
         }
@@ -108,7 +123,7 @@ internal static class SkUiShaping
         var glyph = 0;
         for (var index = 0; index < paragraph.Text.Length && glyph < widths.Length; index++, glyph++)
         {
-            advances[index] = widths[glyph];
+            advances[index] = widths[glyph] + paragraph.Spacing;
             if (char.IsHighSurrogate(paragraph.Text[index])) index++;
         }
         paragraph.Advances = advances;
@@ -118,10 +133,10 @@ internal static class SkUiShaping
     private static bool IsSimpleChar(char c) =>
         c is >= ' ' and <= '~' or >= '\u00A0' and <= '\u017F' or >= '\u2010' and <= '\u2027' or >= '\u2030' and <= '\u205E' or >= '\u20A0' and <= '\u20C0';
 
-    /// <summary>Shapes <paramref name="text"/> (no line breaks inside) as one paragraph.</summary>
-    internal static Paragraph Shape(string text, SKTypeface primary, float size, SkUiTextDirection direction, Func<SKTypeface, SKFont> fonts)
+    /// <summary>Shapes <paramref name="text"/> (no line breaks inside) as one paragraph, <paramref name="spacing"/> DIPs added after each cluster.</summary>
+    internal static Paragraph Shape(string text, SKTypeface primary, float size, SkUiTextDirection direction, Func<SKTypeface, SKFont> fonts, float spacing = 0)
     {
-        var paragraph = new Paragraph { Text = text, BaseLevel = SkUiBidi.BaseLevel(text, direction) };
+        var paragraph = new Paragraph { Text = text, BaseLevel = SkUiBidi.BaseLevel(text, direction), Spacing = spacing };
         paragraph.Levels = SkUiBidi.ResolveLevels(text, paragraph.BaseLevel);
         paragraph.Advances = new float[text.Length];
         if (text.Length == 0)
@@ -129,7 +144,7 @@ internal static class SkUiShaping
         Itemize(paragraph, primary);
         foreach (var run in paragraph.Runs)
         {
-            ShapeRun(text, run.Start, run.Length, run, fonts(run.Typeface));
+            ShapeRun(text, run.Start, run.Length, run, fonts(run.Typeface), spacing);
             paragraph.Width += run.Width;
             // Per-code-unit advances for line breaking: each glyph's advance (next visual x − its x) goes to the
             // first code unit of its cluster; the other code units of a cluster (ligatures, marks) get 0.
@@ -226,7 +241,7 @@ internal static class SkUiShaping
     }
 
     /// <summary>Shapes <c>text[start..start+length)</c> with the whole string as context into <paramref name="run"/>.</summary>
-    private static void ShapeRun(string text, int start, int length, Run run, SKFont font)
+    private static void ShapeRun(string text, int start, int length, Run run, SKFont font, float spacing)
     {
         var buffer = t_buffer ??= new Buffer();
         buffer.ClearContents();
@@ -238,6 +253,7 @@ internal static class SkUiShaping
         if (Shaper(run.Typeface) is not { } shaper)
         {
             ShapeRunUnshaped(text, start, length, run, font);
+            AddSpacing(run, spacing);
             return;
         }
         var result = shaper.Shape(buffer, font);
@@ -248,6 +264,25 @@ internal static class SkUiShaping
         run.Width = result.Width;
         for (var index = 0; index < count; index++)
             run.Glyphs[index] = (ushort)result.Codepoints[index];
+        AddSpacing(run, spacing);
+    }
+
+    /// <summary>
+    /// Character spacing: <paramref name="spacing"/> DIPs after each cluster (a grapheme, or a ligature), in visual
+    /// order, so it widens the cluster's advance and every later glyph moves by it (as iOS kerning and CSS letter-spacing).
+    /// </summary>
+    private static void AddSpacing(Run run, float spacing)
+    {
+        if (spacing == 0 || run.Glyphs.Length == 0)
+            return;
+        var offset = 0f;
+        for (var glyph = 0; glyph < run.Glyphs.Length; glyph++)
+        {
+            run.Positions[glyph].X += offset;
+            if (glyph + 1 == run.Glyphs.Length || run.Clusters[glyph + 1] != run.Clusters[glyph])
+                offset += spacing;
+        }
+        run.Width += offset;
     }
 
     /// <summary>Run of a typeface HarfBuzz cannot read: one Skia glyph per code point with Skia advances, in visual order.</summary>
@@ -281,8 +316,11 @@ internal static class SkUiShaping
         run.Width = x;
     }
 
-    /// <summary>Builds the visual line for logical range <c>[start, end)</c> of <paramref name="paragraph"/>.</summary>
-    internal static Line BuildLine(Paragraph paragraph, int start, int end, SKFont primary, Func<SKTypeface, SKFont> fonts)
+    /// <summary>
+    /// Builds the visual line for logical range <c>[start, end)</c> of <paramref name="paragraph"/>; with
+    /// <paramref name="justifyWidth"/>, the spaces in it widen so the line is that wide (justified text).
+    /// </summary>
+    internal static Line BuildLine(Paragraph paragraph, int start, int end, SKFont primary, Func<SKTypeface, SKFont> fonts, float? justifyWidth = null)
     {
         var line = new Line { BaseLevel = paragraph.BaseLevel };
         var metrics = primary.Metrics;
@@ -292,6 +330,8 @@ internal static class SkUiShaping
             return line;
         if (paragraph.IsSimple)
         {
+            if (paragraph.Spacing != 0 || justifyWidth is not null)
+                return BuildSpacedSimpleLine(line, paragraph, start, end, primary, justifyWidth);
             line.Text = start == 0 && end == paragraph.Text.Length ? paragraph.Text : paragraph.Text[start..end];
             line.Width = ReferenceEquals(line.Text, paragraph.Text) ? paragraph.Width : primary.MeasureText(line.Text);
             return line;
@@ -310,14 +350,24 @@ internal static class SkUiShaping
                 continue;
             }
             var piece = new Run { Start = clipStart, Length = clipEnd - clipStart, Level = run.Level, Script = run.Script, Typeface = run.Typeface };
-            ShapeRun(paragraph.Text, piece.Start, piece.Length, piece, fonts(piece.Typeface));
+            ShapeRun(paragraph.Text, piece.Start, piece.Length, piece, fonts(piece.Typeface), paragraph.Spacing);
             pieces.Add(piece);
         }
 
         var order = SkUiBidi.VisualOrder(pieces.ConvertAll(piece => piece.Level));
+        var text = paragraph.Text;
+        var extra = 0f; // justification: added after each space glyph
+        if (justifyWidth is { } target)
+        {
+            var natural = 0f;
+            foreach (var piece in pieces)
+                natural += piece.Width;
+            extra = JustifySpace(text, start, end, natural, target);
+        }
         // Build() resets the builder, so one per thread is reused.
         var builder = t_builder ??= new SKTextBlobBuilder();
         var pen = 0f;
+        var shift = 0f;
         foreach (var index in order)
         {
             var piece = pieces[index];
@@ -334,9 +384,62 @@ internal static class SkUiShaping
                 buffer.SetGlyphs(piece.Glyphs);
                 var positions = buffer.Positions;
                 for (var glyph = 0; glyph < piece.Glyphs.Length; glyph++)
-                    positions[glyph] = new SKPoint(pen + piece.Positions[glyph].X, piece.Positions[glyph].Y);
+                {
+                    positions[glyph] = new SKPoint(pen + shift + piece.Positions[glyph].X, piece.Positions[glyph].Y);
+                    if (extra != 0 && text[Math.Clamp((int)piece.Clusters[glyph], 0, text.Length - 1)] == ' ')
+                        shift += extra;
+                }
             }
             pen += piece.Width;
+        }
+        line.Width = pen + shift;
+        line.Blob = builder.Build();
+        return line;
+    }
+
+    /// <summary>
+    /// Width added after each space of <c>text[start..end)</c> so a line <paramref name="natural"/> wide becomes
+    /// <paramref name="target"/> wide; 0 when it has no spaces or is not narrower.
+    /// </summary>
+    private static float JustifySpace(string text, int start, int end, float natural, float target)
+    {
+        if (natural >= target)
+            return 0;
+        var spaces = 0;
+        for (var index = start; index < end; index++)
+            if (text[index] == ' ') spaces++;
+        return spaces == 0 ? 0 : (target - natural) / spaces;
+    }
+
+    /// <summary>
+    /// Simple-path line with character spacing or justification: Skia glyphs and advances placed in a blob (still no
+    /// HarfBuzz). One glyph per code point.
+    /// </summary>
+    private static Line BuildSpacedSimpleLine(Line line, Paragraph paragraph, int start, int end, SKFont primary, float? justifyWidth)
+    {
+        var text = paragraph.Text;
+        var span = text.AsSpan(start, end - start);
+        var glyphs = primary.GetGlyphs(span);
+        var widths = primary.GetGlyphWidths(span);
+        var count = Math.Min(glyphs.Length, widths.Length);
+        var extra = 0f;
+        if (justifyWidth is { } target)
+        {
+            var natural = paragraph.Spacing * count;
+            for (var glyph = 0; glyph < count; glyph++)
+                natural += widths[glyph];
+            extra = JustifySpace(text, start, end, natural, target);
+        }
+        var builder = t_builder ??= new SKTextBlobBuilder();
+        var buffer = builder.AllocatePositionedRun(primary, count);
+        buffer.SetGlyphs(glyphs.AsSpan(0, count));
+        var positions = buffer.Positions;
+        var pen = 0f;
+        for (int glyph = 0, unit = start; glyph < count && unit < end; glyph++)
+        {
+            positions[glyph] = new SKPoint(pen, 0);
+            pen += widths[glyph] + paragraph.Spacing + (text[unit] == ' ' ? extra : 0);
+            unit += char.IsHighSurrogate(text[unit]) ? 2 : 1;
         }
         line.Width = pen;
         line.Blob = builder.Build();

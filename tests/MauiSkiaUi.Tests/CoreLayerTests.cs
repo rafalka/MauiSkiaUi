@@ -308,7 +308,7 @@ public class CoreLayerTests
     }
 
     [Fact]
-    public void CoreLabel_CustomLineBreakerIsUsedAndClearsMode()
+    public void CoreLabel_CustomLineBreakerReplacesTheModeAndCanApplyIt()
     {
         using var font = SkUiTestHelpers.UseBundledFont();
         var calls = 0;
@@ -316,27 +316,29 @@ public class CoreLayerTests
             .SetText("one two three")
             .SetFontSize(16)
             .SetFontFamily(SkUiTestHelpers.BundledFontFamily)
-            .SetLineBreaker((text, _, _) =>
+            .SetLineBreakMode(LineBreakMode.NoWrap)
+            .SetLineBreaker(context =>
             {
                 calls++;
-                return text.Split(' ');
+                Assert.Equal(LineBreakMode.NoWrap, context.LineBreakMode);
+                return context.Text.Split(' ');
             });
 
-        Assert.Null(label.LineBreakMode);
+        Assert.Equal(LineBreakMode.NoWrap, label.LineBreakMode);
         var size = label.Measure(400, double.PositiveInfinity);
         Assert.True(calls >= 1);
-        Assert.True(size.Height > 16);
+        Assert.True(size.Height > 16 * 2);
 
-        label.SetLineBreakMode(LineBreakMode.NoWrap);
-        Assert.Equal(LineBreakMode.NoWrap, label.LineBreakMode);
-        Assert.Same(SkUiCoreTextLineBreakers.NoWrap, label.LineBreaker);
+        label.SetLineBreaker(null);
+        Assert.Null(label.LineBreaker);
+        Assert.True(label.Measure(400, double.PositiveInfinity).Height < size.Height);
     }
 
     [Fact]
-    public void CoreTextLineBreakers_ForReturnsStableInstances()
+    public void TextLineBreakers_ForReturnsStableInstances()
     {
-        Assert.Same(SkUiCoreTextLineBreakers.WordWrap, SkUiCoreTextLineBreakers.For(LineBreakMode.WordWrap));
-        Assert.Same(SkUiCoreTextLineBreakers.TailTruncation, SkUiCoreTextLineBreakers.For(LineBreakMode.TailTruncation));
+        Assert.Same(SkUiTextLineBreakers.WordWrap, SkUiTextLineBreakers.For(LineBreakMode.WordWrap));
+        Assert.Same(SkUiTextLineBreakers.TailTruncation, SkUiTextLineBreakers.For(LineBreakMode.TailTruncation));
     }
 
     [Fact]

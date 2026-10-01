@@ -195,7 +195,7 @@ Minimum public Core primitives (expand as MAUI wrappers gain delegates):
 | --- | --- |
 | `SkUiCoreNode` / `ISkUiCoreNode` | Prototype |
 | `SkUiCoreAbsoluteLayout` | Prototype |
-| `SkUiCoreLabel` | Prototype (wrap/truncate via `LineBreaker` + `SetLineBreakMode`; still missing font attrs parity) |
+| `SkUiCoreLabel` | Shipped: the `SkUiLabel` text engine and properties (`LineBreakMode`, custom `LineBreaker`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`, `FontAttributes`) |
 | `SkUiCoreButton` | Prototype |
 | `SkUiCoreBox` / shape primitives | Prototype |
 | `SkUiCoreContentView` / `SkUiCoreBorder` | Prototype |

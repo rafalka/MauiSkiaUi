@@ -18,6 +18,14 @@ internal static class SkUiTestHelpers
     /// </summary>
     public static IDisposable UseTestDispatcher() => TestDispatcherProvider.Enable();
 
+    /// <summary>The lines the text engine breaks <paramref name="text"/> into for a stock <paramref name="mode"/>, as strings.</summary>
+    public static IReadOnlyList<string> BreakLines(string text, double width, LineBreakMode mode, SKTypeface typeface, double fontSize = 16, int maxLines = -1, double characterSpacing = 0)
+    {
+        IReadOnlyList<string> lines = [];
+        new SkUiTextLayout().Measure(text, new SkUiTextStyle(typeface, fontSize, mode, context => lines = context.Break(), maxLines, CharacterSpacing: characterSpacing), default, width);
+        return lines;
+    }
+
     private static readonly Dictionary<string, int> FontUsers = [];
 
     /// <summary>

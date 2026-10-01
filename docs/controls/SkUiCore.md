@@ -29,8 +29,8 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreGrid` | Auto / absolute / star grid + per-track min/max; see [SkUiCoreGrid.md](SkUiCoreGrid.md) |
 | `SkUiCoreTable` | Grid + row/column/cell backgrounds and span-aware separators; see [SkUiCoreTable.md](SkUiCoreTable.md) |
 | `SkUiCoreContentView` / `SkUiCoreBorder` | Single-child host; border adds rounded chrome with per-corner `CornerRadius` |
-| `SkUiCoreLabel` / `SkUiCoreButton` | Text (wrap/truncate via `LineBreakMode` or custom `LineBreaker`) with optional rounded chrome (`FillColor`, per-corner `CornerRadii`, `SetCornerRadius(double)` to set all four, `BorderColor`, `BorderWidth`: badges without a wrapping border), and the rounded tap button (`ICommand`) built on it |
-| `SkUiCoreTextLineBreaker` / `SkUiCoreTextLineBreakers` | Line-break delegate + stock MAUI-mode breakers for Core labels |
+| `SkUiCoreLabel` / `SkUiCoreButton` | Text with the text properties of `SkUiLabel` (`FontAttributes`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`; wrap / truncate via `LineBreakMode` or a custom `LineBreaker`) with optional rounded chrome (`FillColor`, per-corner `CornerRadii`, `SetCornerRadius(double)` to set all four, `BorderColor`, `BorderWidth`: badges without a wrapping border), and the rounded tap button (`ICommand`) built on it |
+| `SkUiTextLineBreaker` / `SkUiTextLineBreakers` | Custom line breaking for labels on both layers, and the stock breakers ([SkUiLabel.md](SkUiLabel.md#custom-line-breaking)) |
 | `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Toggles: `CheckState` (Unchecked / Checked / Indeterminate), `IsChecked` view, `IsThreeState`; Switch `IsToggled` / `Toggled`; radio buttons in the same parent exclude each other |
 | `SkUiCoreSlider` | Horizontal or vertical slider (`Minimum` / `Maximum` / `Value`, drag events) |
 | `SkUiCoreProgressBar` | Determinate or indeterminate (render-thread) progress bar, `ProgressTo` |
@@ -78,12 +78,12 @@ scroller.SetContent(host);
 
 ### Core label line breaking
 
-`SkUiCoreLabel` measures and paints through `LineBreaker` (`SkUiCoreTextLineBreaker`).
+`SkUiCoreLabel` shares the text engine of `SkUiLabel`, with the same properties as CLR properties and `Set*` setters ([SkUiLabel.md](SkUiLabel.md)).
 
-- `SetLineBreakMode(LineBreakMode)` installs a stock breaker from `SkUiCoreTextLineBreakers` (same modes as `SkUiLabel`).
-- `SetLineBreaker(...)` installs a custom policy and sets `LineBreakMode` to `null`.
-- Default is `WordWrap`.
-- Stock modes break on HarfBuzz-shaped widths; a custom breaker decides the logical lines and each line is then shaped.
+- `LineBreakMode` / `SetLineBreakMode(LineBreakMode)`: stock wrapping and truncation (default `WordWrap`), on HarfBuzz-shaped widths.
+- `MaxLines` / `SetMaxLines(int)`: the most lines drawn (-1, the default, or 0: no limit); with `TailTruncation` the text wraps and the last line ends with the ellipsis.
+- `LineBreaker` / `SetLineBreaker(SkUiTextLineBreaker?)`: a custom breaker that replaces `LineBreakMode` and can still apply it (`context.Break()`); `null` (default) uses `LineBreakMode`. Each returned line is shaped. Call `InvalidateTextLayout()` when the breaker's own inputs change.
+- `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`, `FontAttributes` (+ `Set*`): as on `SkUiLabel`.
 - `FlowDirection` / `SetFlowDirection` on any Core node sets the layout direction (`MatchParent` inherits from the Core parent, then from `SkUiCoreHost.FlowDirection`); RTL mirrors child frames, and labels in `Auto` follow it.
 - `TextRendering` / `SetTextRendering(SkUiTextRendering)`: `Auto` (fast path for plain Latin text, HarfBuzz otherwise), `Shaped`, `Simple` (never shapes, for dense plain text / numbers) — see [SkUiLabel.md](SkUiLabel.md).
 - `TextDirection` / `SetTextDirection(SkUiTextDirection)` sets the paragraph direction (`Auto` = first strong character, default). Shaping, bidi and font fallback are the same as on [`SkUiLabel`](SkUiLabel.md).

@@ -16,9 +16,18 @@ internal static class SkUiValidate
         _ => false
     };
 
+    public static bool Finite(BindableObject bindable, object? value) => value is double number && double.IsFinite(number);
+
     public static bool FinitePositive(BindableObject bindable, object? value) => value is double number && double.IsFinite(number) && number > 0;
 
     public static bool CornerRadii(BindableObject bindable, object? value) => value is CornerRadius radii && SkUiCornerRadii.IsValid(radii);
+
+    /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is finite.</summary>
+    public static void ThrowIfNotFinite(double value, string name)
+    {
+        if (!double.IsFinite(value))
+            throw new ArgumentOutOfRangeException(name, value, "The value must be finite.");
+    }
 
     /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is finite and positive.</summary>
     public static void ThrowIfNotFinitePositive(double value, string name)

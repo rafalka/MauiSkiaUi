@@ -18,7 +18,7 @@ public class TextAndImageTests
     {
         using var font = Font();
         const string text = "The quick brown fox jumps over the lazy dog again and again";
-        var lines = SkUiCoreTextLineBreakers.WordWrap(text, 100, font);
+        var lines = SkUiTestHelpers.BreakLines(text, 100, LineBreakMode.WordWrap, font.Typeface);
         Assert.True(lines.Count > 1);
         Assert.Equal(text.Replace(" ", ""), string.Concat(lines).Replace(" ", ""));
         foreach (var line in lines)
@@ -33,7 +33,7 @@ public class TextAndImageTests
     {
         using var font = Font();
         const string text = "ab👍🏽cd👩‍👩‍👧éfghijk";
-        var lines = SkUiCoreTextLineBreakers.CharacterWrap(text, 20, font);
+        var lines = SkUiTestHelpers.BreakLines(text, 20, LineBreakMode.CharacterWrap, font.Typeface);
         Assert.Equal(text, string.Concat(lines));
         foreach (var line in lines)
             Assert.False(char.IsLowSurrogate(line[0]) || line[0] == '́' || line[0] == '‍', $"line starts mid-grapheme: {line}");
@@ -45,7 +45,7 @@ public class TextAndImageTests
         using var font = Font();
         var text = string.Join(' ', Enumerable.Repeat("lorem ipsum dolor sit amet", 2000));
         var watch = Stopwatch.StartNew();
-        var lines = SkUiCoreTextLineBreakers.WordWrap(text, 300, font);
+        var lines = SkUiTestHelpers.BreakLines(text, 300, LineBreakMode.WordWrap, font.Typeface);
         watch.Stop();
         Assert.True(lines.Count > 100);
         // The previous per-grapheme re-measure was quadratic per line; this stays well under a frame budget per 50k chars.
@@ -56,7 +56,7 @@ public class TextAndImageTests
     public void TailTruncationFitsWidthAndEndsWithEllipsis()
     {
         using var font = Font();
-        var lines = SkUiCoreTextLineBreakers.TailTruncation("A fairly long single line of text", 120, font);
+        var lines = SkUiTestHelpers.BreakLines("A fairly long single line of text", 120, LineBreakMode.TailTruncation, font.Typeface);
         var line = Assert.Single(lines);
         Assert.EndsWith("...", line);
         Assert.True(font.MeasureText(line) <= 120);
