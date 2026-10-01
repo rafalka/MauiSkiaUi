@@ -10,13 +10,15 @@ public class SkUiVerticalStackLayout : SkUiLayout, IStackLayout
 
     /// <summary>Bindable gap between children in DIPs.</summary>
     public static readonly BindableProperty SpacingProperty = BindableProperty.Create(nameof(Spacing), typeof(double), typeof(SkUiVerticalStackLayout), 0d,
-        propertyChanged: (view, _, value) => ((SkUiVerticalStackLayout)view).SetSpacing((double)value));
+        validateValue: SkUiValidate.NonNegative,
+        propertyChanged: (view, _, value) => ((SkUiVerticalStackLayout)view).OnSpacingChanged((double)value));
 
     /// <summary>Gap between children in DIPs.</summary>
     public double Spacing { get => (double)GetValue(SpacingProperty); set => SetValue(SpacingProperty, value); }
 
     /// <summary>Sets spacing (same as the property setter).</summary>
-    public SkUiVerticalStackLayout SetSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(SpacingProperty, value)) return this; _spacing = value; InvalidateMeasureOverride(); return this; }
+    public SkUiVerticalStackLayout SetSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); Spacing = value; return this; }
+    private void OnSpacingChanged(double value) { _spacing = value; InvalidateMeasureOverride(); }
 
     /// <summary>Creates a stack with MAUI layout management.</summary>
     public SkUiVerticalStackLayout() => _manager = new VerticalStackLayoutManager(this);

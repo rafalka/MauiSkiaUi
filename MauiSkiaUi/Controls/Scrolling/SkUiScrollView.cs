@@ -31,7 +31,8 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
 
     /// <summary>Bindable enabled scroll axes.</summary>
     public static readonly BindableProperty OrientationProperty = BindableProperty.Create(nameof(Orientation), typeof(ScrollOrientation), typeof(SkUiScrollView), ScrollOrientation.Vertical,
-        propertyChanged: (view, _, value) => ((SkUiScrollView)view).SetOrientation((ScrollOrientation)value));
+        validateValue: (_, value) => Enum.IsDefined((ScrollOrientation)value),
+        propertyChanged: (view, _, value) => ((SkUiScrollView)view).OnOrientationChanged((ScrollOrientation)value));
     /// <summary>Enabled axes; Neither disables scrolling.</summary>
     public ScrollOrientation Orientation { get => (ScrollOrientation)GetValue(OrientationProperty); set => SetValue(OrientationProperty, value); }
     /// <summary>Current horizontal offset in DIPs (updated from the render thread during fling).</summary>
@@ -63,11 +64,15 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     public SkUiScrollView SetOrientation(ScrollOrientation value)
     {
         if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
-        if (WriteBindable(OrientationProperty, value)) return this;
+        Orientation = value;
+        return this;
+    }
+
+    private void OnOrientationChanged(ScrollOrientation value)
+    {
         CancelInteraction();
         _scroller.Orientation = value;
         InvalidateMeasureOverride();
-        return this;
     }
 
     /// <inheritdoc />

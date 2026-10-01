@@ -86,13 +86,47 @@ public class BindableStoreTests
     }
 
     [Fact]
-    public void StyleValuesStillApplyWhenADirectSetterPassesTheSameValue()
+    public void ADirectSetterIsALocalValueOverAStyle()
     {
         var style = new Style(typeof(SkUiLabel)) { Setters = { new Setter { Property = SkUiLabel.TextColorProperty, Value = Colors.Red } } };
         var label = new SkUiLabel { Style = style };
-        label.SetTextColor(Colors.Red); // same as the style: no local value over it
+        label.SetTextColor(Colors.Red); // as the property setter: a local value, also when it repeats the style's
         label.Style = new Style(typeof(SkUiLabel)) { Setters = { new Setter { Property = SkUiLabel.TextColorProperty, Value = Colors.Blue } } };
+        Assert.Equal(Colors.Red, label.TextColor);
+        label.ClearValue(SkUiLabel.TextColorProperty);
         Assert.Equal(Colors.Blue, label.TextColor);
+    }
+
+    [Fact]
+    public void InvalidValuesNeverReachTheControl()
+    {
+        var label = new SkUiLabel { FontSize = 20, BorderWidth = 2 };
+        // Fluent setters throw first.
+        Assert.Throws<ArgumentOutOfRangeException>(() => label.SetFontSize(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => label.SetBorderWidth(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => label.SetCornerRadii(new CornerRadius(-1, 0, 0, 0)));
+        Assert.Throws<ArgumentNullException>(() => label.SetTextColor(null!));
+        // Property setters, XAML, bindings and styles: MAUI ignores a value the property's validation rejects.
+        label.FontSize = double.NaN;
+        label.BorderWidth = -1;
+        label.TextColor = null!;
+        Assert.Equal((20d, 2d), (label.FontSize, label.BorderWidth));
+        Assert.NotNull(label.TextColor);
+
+        var grid = new SkUiGrid { RowSpacing = 4 };
+        grid.SetValue(SkUiGrid.RowSpacingProperty, -3d);
+        Assert.Equal(4d, grid.RowSpacing);
+        var scroll = new SkUiScrollView();
+        scroll.Orientation = (ScrollOrientation)42;
+        Assert.Equal(ScrollOrientation.Vertical, scroll.Orientation);
+        Assert.Throws<ArgumentOutOfRangeException>(() => scroll.SetOrientation((ScrollOrientation)42));
+
+        var host = new SkUiMauiContentView();
+        var entry = new Entry();
+        _ = new ContentView { Content = entry }; // already parented
+        Assert.Throws<InvalidOperationException>(() => host.SetContent(entry));
+        host.Content = entry;
+        Assert.Null(host.Content);
     }
 
     /// <summary>Painting and layout read private fields; after construction they must agree with the store on every control.</summary>

@@ -27,43 +27,45 @@ public class SkUiLabel : SkUiView
     private SkUiRoundedClip _textClip;
 
     /// <summary>Bindable text.</summary>
-    public static readonly BindableProperty TextProperty = BindableProperty.Create(nameof(Text), typeof(string), typeof(SkUiLabel), string.Empty, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetText((string?)value));
+    public static readonly BindableProperty TextProperty = BindableProperty.Create(nameof(Text), typeof(string), typeof(SkUiLabel), string.Empty, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextChanged((string?)value));
     /// <summary>Bindable foreground color.</summary>
-    public static readonly BindableProperty TextColorProperty = BindableProperty.Create(nameof(TextColor), typeof(Color), typeof(SkUiLabel), Colors.Black, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextColor, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetTextColor((Color)value));
+    public static readonly BindableProperty TextColorProperty = BindableProperty.Create(nameof(TextColor), typeof(Color), typeof(SkUiLabel), Colors.Black, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextColor, validateValue: SkUiValidate.NotNull, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextColorChanged((Color)value));
     /// <summary>Bindable font size in DIPs.</summary>
-    public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiLabel), 16d, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetFontSize((double)value));
+    public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiLabel), 16d, validateValue: SkUiValidate.FinitePositive, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontSizeChanged((double)value));
     /// <summary>Bindable system font family name.</summary>
-    public static readonly BindableProperty FontFamilyProperty = BindableProperty.Create(nameof(FontFamily), typeof(string), typeof(SkUiLabel), null, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetFontFamily((string?)value));
+    public static readonly BindableProperty FontFamilyProperty = BindableProperty.Create(nameof(FontFamily), typeof(string), typeof(SkUiLabel), null, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontFamilyChanged((string?)value));
     /// <summary>Bindable bold and italic attributes.</summary>
-    public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiLabel), FontAttributes.None, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetFontAttributes((FontAttributes)value));
+    public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiLabel), FontAttributes.None, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontAttributesChanged((FontAttributes)value));
     /// <summary>Bindable wrapping or truncation mode.</summary>
-    public static readonly BindableProperty LineBreakModeProperty = BindableProperty.Create(nameof(LineBreakMode), typeof(LineBreakMode), typeof(SkUiLabel), LineBreakMode.WordWrap, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetLineBreakMode((LineBreakMode)value));
+    public static readonly BindableProperty LineBreakModeProperty = BindableProperty.Create(nameof(LineBreakMode), typeof(LineBreakMode), typeof(SkUiLabel), LineBreakMode.WordWrap, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnLineBreakModeChanged((LineBreakMode)value));
     /// <summary>Bindable horizontal text alignment.</summary>
-    public static readonly BindableProperty HorizontalTextAlignmentProperty = BindableProperty.Create(nameof(HorizontalTextAlignment), typeof(TextAlignment), typeof(SkUiLabel), TextAlignment.Start, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextAlignment, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetHorizontalTextAlignment((TextAlignment)value));
+    public static readonly BindableProperty HorizontalTextAlignmentProperty = BindableProperty.Create(nameof(HorizontalTextAlignment), typeof(TextAlignment), typeof(SkUiLabel), TextAlignment.Start, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextAlignment, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnHorizontalTextAlignmentChanged((TextAlignment)value));
     /// <summary>Bindable vertical text alignment.</summary>
-    public static readonly BindableProperty VerticalTextAlignmentProperty = BindableProperty.Create(nameof(VerticalTextAlignment), typeof(TextAlignment), typeof(SkUiLabel), TextAlignment.Start, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextAlignment, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetVerticalTextAlignment((TextAlignment)value));
+    public static readonly BindableProperty VerticalTextAlignmentProperty = BindableProperty.Create(nameof(VerticalTextAlignment), typeof(TextAlignment), typeof(SkUiLabel), TextAlignment.Start, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextAlignment, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnVerticalTextAlignmentChanged((TextAlignment)value));
     /// <summary>
     /// Bindable text rendering mode: <see cref="SkUiTextRendering.Auto"/> (via <see cref="SkUiTextRendering.Default"/>) takes a
     /// fast path for plain Latin text and shapes everything else with HarfBuzz; <see cref="SkUiTextRendering.Simple"/> never
     /// shapes (fastest, for dense plain text / numbers); <see cref="SkUiTextRendering.Shaped"/> always shapes (kerning, ligatures).
     /// </summary>
     public static readonly BindableProperty TextRenderingProperty = BindableProperty.Create(nameof(TextRendering), typeof(SkUiTextRendering), typeof(SkUiLabel), SkUiTextRendering.Default,
-        propertyChanged: (view, _, value) => ((SkUiLabel)view).SetTextRendering((SkUiTextRendering)value));
+        propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextRenderingChanged((SkUiTextRendering)value));
     /// <summary>Bindable text inset.</summary>
-    public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiLabel), default(Thickness), defaultValueCreator: view => ((SkUiLabel)view).DefaultPadding, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetPadding((Thickness)value));
+    public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiLabel), default(Thickness), defaultValueCreator: view => ((SkUiLabel)view).DefaultPadding, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnPaddingChanged((Thickness)value));
 
     /// <summary>Bindable per-corner radii of the background and border (0: square).</summary>
     public static readonly BindableProperty CornerRadiiProperty = BindableProperty.Create(nameof(CornerRadii), typeof(Microsoft.Maui.CornerRadius), typeof(SkUiLabel), default(Microsoft.Maui.CornerRadius),
         defaultValueCreator: view => new Microsoft.Maui.CornerRadius(((SkUiLabel)view).DefaultCornerRadius),
-        propertyChanged: (view, _, value) => ((SkUiLabel)view).SetCornerRadii((Microsoft.Maui.CornerRadius)value));
+        validateValue: SkUiValidate.CornerRadii,
+        propertyChanged: (view, _, value) => ((SkUiLabel)view).OnCornerRadiiChanged((Microsoft.Maui.CornerRadius)value));
     /// <summary>Bindable uniform corner radius (MAUI Button's <c>int</c> <c>CornerRadius</c>): sets all four <see cref="CornerRadii"/>.</summary>
     public static readonly BindableProperty CornerRadiusProperty = BindableProperty.Create(nameof(CornerRadius), typeof(int), typeof(SkUiLabel), 0,
         defaultValueCreator: view => (int)Math.Round(((SkUiLabel)view).DefaultCornerRadius),
-        propertyChanged: (view, _, value) => ((SkUiLabel)view).SetCornerRadius((int)value));
+        validateValue: SkUiValidate.NonNegative,
+        propertyChanged: (view, _, value) => ((SkUiLabel)view).OnCornerRadiusChanged((int)value));
     /// <summary>Bindable border color.</summary>
-    public static readonly BindableProperty BorderColorProperty = BindableProperty.Create(nameof(BorderColor), typeof(Color), typeof(SkUiLabel), Colors.Transparent, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetBorderColor((Color)value));
+    public static readonly BindableProperty BorderColorProperty = BindableProperty.Create(nameof(BorderColor), typeof(Color), typeof(SkUiLabel), Colors.Transparent, validateValue: SkUiValidate.NotNull, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnBorderColorChanged((Color)value));
     /// <summary>Bindable border width.</summary>
-    public static readonly BindableProperty BorderWidthProperty = BindableProperty.Create(nameof(BorderWidth), typeof(double), typeof(SkUiLabel), 0d, propertyChanged: (view, _, value) => ((SkUiLabel)view).SetBorderWidth((double)value));
+    public static readonly BindableProperty BorderWidthProperty = BindableProperty.Create(nameof(BorderWidth), typeof(double), typeof(SkUiLabel), 0d, validateValue: SkUiValidate.NonNegative, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnBorderWidthChanged((double)value));
 
     /// <summary>
     /// Starts the applied state from the same defaults the bindable store reports (the <c>Default*</c> members, which
@@ -123,35 +125,49 @@ public class SkUiLabel : SkUiView
     /// <inheritdoc cref="TextRenderingProperty" />
     public SkUiTextRendering TextRendering { get => (SkUiTextRendering)GetValue(TextRenderingProperty); set => SetValue(TextRenderingProperty, value); }
     /// <summary>Sets <see cref="TextRendering"/> (same as the property setter).</summary>
-    public SkUiLabel SetTextRendering(SkUiTextRendering value) { if (WriteBindable(TextRenderingProperty, value)) return this; if (_textRendering == value) return this; _textRendering = value; InvalidateText(); return this; }
+    public SkUiLabel SetTextRendering(SkUiTextRendering value) { TextRendering = value; return this; }
+    private void OnTextRenderingChanged(SkUiTextRendering value) { if (_textRendering == value) return; _textRendering = value; InvalidateText(); }
 
     /// <summary>Sets text (same as the property setter).</summary>
-    public SkUiLabel SetText(string? value) { if (WriteBindable(TextProperty, value)) return this; value ??= string.Empty; if (_text == value) return this; _text = value; InvalidateText(); return this; }
+    public SkUiLabel SetText(string? value) { Text = value ?? string.Empty; return this; }
+    private void OnTextChanged(string? value) { value ??= string.Empty; if (_text == value) return; _text = value; InvalidateText(); }
     /// <summary>Sets text color (same as the property setter).</summary>
-    public SkUiLabel SetTextColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(TextColorProperty, value)) return this; if (_textColor == value) return this; _textColor = value; InvalidatePaint(); return this; }
+    public SkUiLabel SetTextColor(Color value) { ArgumentNullException.ThrowIfNull(value); TextColor = value; return this; }
+    private void OnTextColorChanged(Color value) { if (_textColor == value) return; _textColor = value; InvalidatePaint(); }
     /// <summary>Sets font size (same as the property setter).</summary>
-    public SkUiLabel SetFontSize(double value) { if (!double.IsFinite(value) || value <= 0) throw new ArgumentOutOfRangeException(nameof(value)); if (WriteBindable(FontSizeProperty, value)) return this; if (_fontSize == value) return this; _fontSize = value; InvalidateText(); return this; }
+    public SkUiLabel SetFontSize(double value) { if (!double.IsFinite(value) || value <= 0) throw new ArgumentOutOfRangeException(nameof(value)); FontSize = value; return this; }
+    private void OnFontSizeChanged(double value) { if (_fontSize == value) return; _fontSize = value; InvalidateText(); }
     /// <summary>Sets font family (same as the property setter).</summary>
-    public SkUiLabel SetFontFamily(string? value) { if (WriteBindable(FontFamilyProperty, value)) return this; if (_fontFamily == value) return this; _fontFamily = value; InvalidateText(); return this; }
+    public SkUiLabel SetFontFamily(string? value) { FontFamily = value; return this; }
+    private void OnFontFamilyChanged(string? value) { if (_fontFamily == value) return; _fontFamily = value; InvalidateText(); }
     /// <summary>Sets font attributes (same as the property setter).</summary>
-    public SkUiLabel SetFontAttributes(FontAttributes value) { if (WriteBindable(FontAttributesProperty, value)) return this; if (_fontAttributes == value) return this; _fontAttributes = value; InvalidateText(); return this; }
+    public SkUiLabel SetFontAttributes(FontAttributes value) { FontAttributes = value; return this; }
+    private void OnFontAttributesChanged(FontAttributes value) { if (_fontAttributes == value) return; _fontAttributes = value; InvalidateText(); }
     /// <summary>Sets line mode (same as the property setter).</summary>
-    public SkUiLabel SetLineBreakMode(LineBreakMode value) { if (WriteBindable(LineBreakModeProperty, value)) return this; _lineBreakMode = value; InvalidateText(); return this; }
+    public SkUiLabel SetLineBreakMode(LineBreakMode value) { LineBreakMode = value; return this; }
+    private void OnLineBreakModeChanged(LineBreakMode value) { _lineBreakMode = value; InvalidateText(); }
     /// <summary>Sets horizontal alignment (same as the property setter).</summary>
-    public SkUiLabel SetHorizontalTextAlignment(TextAlignment value) { if (WriteBindable(HorizontalTextAlignmentProperty, value)) return this; _horizontalTextAlignment = value; InvalidatePaint(); return this; }
+    public SkUiLabel SetHorizontalTextAlignment(TextAlignment value) { HorizontalTextAlignment = value; return this; }
+    private void OnHorizontalTextAlignmentChanged(TextAlignment value) { _horizontalTextAlignment = value; InvalidatePaint(); }
     /// <summary>Sets vertical alignment (same as the property setter).</summary>
-    public SkUiLabel SetVerticalTextAlignment(TextAlignment value) { if (WriteBindable(VerticalTextAlignmentProperty, value)) return this; _verticalTextAlignment = value; InvalidatePaint(); return this; }
+    public SkUiLabel SetVerticalTextAlignment(TextAlignment value) { VerticalTextAlignment = value; return this; }
+    private void OnVerticalTextAlignmentChanged(TextAlignment value) { _verticalTextAlignment = value; InvalidatePaint(); }
     /// <summary>Sets padding (same as the property setter).</summary>
-    public SkUiLabel SetPadding(Thickness value) { if (WriteBindable(PaddingProperty, value)) return this; _padding = value; InvalidateText(); return this; }
+    public SkUiLabel SetPadding(Thickness value) { Padding = value; return this; }
+    private void OnPaddingChanged(Thickness value) { _padding = value; InvalidateText(); }
 
     /// <summary>Sets the per-corner radii (same as the property setter).</summary>
-    public SkUiLabel SetCornerRadii(Microsoft.Maui.CornerRadius value) { SkUiCornerRadii.Validate(value, nameof(value)); if (WriteBindable(CornerRadiiProperty, value)) return this; if (_cornerRadii == value) return this; _cornerRadii = value; InvalidatePaint(); return this; }
+    public SkUiLabel SetCornerRadii(Microsoft.Maui.CornerRadius value) { SkUiCornerRadii.Validate(value, nameof(value)); CornerRadii = value; return this; }
+    private void OnCornerRadiiChanged(Microsoft.Maui.CornerRadius value) { if (_cornerRadii == value) return; _cornerRadii = value; InvalidatePaint(); }
     /// <summary>Sets all four corner radii to <paramref name="value"/> (same as the property setter).</summary>
-    public SkUiLabel SetCornerRadius(int value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(CornerRadiusProperty, value)) return this; return SetCornerRadii(new Microsoft.Maui.CornerRadius(value)); }
+    public SkUiLabel SetCornerRadius(int value) { ArgumentOutOfRangeException.ThrowIfNegative(value); CornerRadius = value; return this; }
+    private void OnCornerRadiusChanged(int value) => CornerRadii = new Microsoft.Maui.CornerRadius(value);
     /// <summary>Sets border color (same as the property setter).</summary>
-    public SkUiLabel SetBorderColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(BorderColorProperty, value)) return this; if (_borderColor == value) return this; _borderColor = value; InvalidatePaint(); return this; }
+    public SkUiLabel SetBorderColor(Color value) { ArgumentNullException.ThrowIfNull(value); BorderColor = value; return this; }
+    private void OnBorderColorChanged(Color value) { if (_borderColor == value) return; _borderColor = value; InvalidatePaint(); }
     /// <summary>Sets border width (same as the property setter).</summary>
-    public SkUiLabel SetBorderWidth(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(BorderWidthProperty, value)) return this; if (_borderWidth == value) return this; _borderWidth = value; InvalidatePaint(); return this; }
+    public SkUiLabel SetBorderWidth(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); BorderWidth = value; return this; }
+    private void OnBorderWidthChanged(double value) { if (_borderWidth == value) return; _borderWidth = value; InvalidatePaint(); }
 
     /// <inheritdoc />
     internal override Microsoft.Maui.CornerRadius PressEffectCornerRadii => _cornerRadii;

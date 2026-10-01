@@ -263,9 +263,9 @@ Goal: stay a near **drop-in replacement** for standard MAUI controls (XAML + bin
 
 - [x] Public stylable / bindable API surface uses **`BindableProperty`** (e.g. `BackgroundColor`) so XAML and data binding work like MAUI.
 - [x] For each such property, also expose a **direct setter** (e.g. `SetBackgroundColor(...)`), the property setter in fluent form.
-- [x] Bindable property change handlers **must call** the corresponding direct setter (single source of apply logic): a direct setter called directly writes the store (`WriteBindable`), whose change handler calls it again to apply the value.
+- [x] One update path: a direct setter sets its property (`SetFillColor(v)` is `FillColor = v`); the property's change handler (`OnFillColorChanged`) is the single place that applies a value to the control.
 - [x] Direct setters support a **fluent interface** (return `this` / the control type for method chaining).
-- [x] **Getters read the bindable store and direct setters write it**, as on MAUI's controls. *(Revised: direct setters used to skip the store, which desynced it from control state; worse, getters returned a field that the change handler updates after MAUI raises `PropertyChanged`, so bindings, triggers and `x:Reference` sources read the old value.)* Arguments are validated before the store changes; an equal value is not written, so a direct setter repeating a style's value leaves the style in charge. Paint and layout keep reading private fields that the change handlers keep in step with the store (tested on every control).
+- [x] **Getters read the bindable store and direct setters write it**, as on MAUI's controls. *(Revised: direct setters used to skip the store, which desynced it from control state; worse, getters returned a field that the change handler updates after MAUI raises `PropertyChanged`, so bindings, triggers and `x:Reference` sources read the old value.)* Each value check is the property's `validateValue` (MAUI then ignores an invalid value with a warning, on every path) and is repeated by the direct setter, which throws; invalid values never reach the store. A direct setter is a local value over a style's, as the property setter is. Paint and layout keep reading private fields that the change handlers keep in step with the store (tested on every control).
 - [x] Support **semi-transactions** via `StartUpdating()` → `EndUpdating()`: after `StartUpdating()`, setting values (via bindable properties or direct setters) must **not** invalidate measure / layout / paint immediately; coalesced invalidation runs when `EndUpdating()` is called. Nested start/end behavior (reentrancy / count) must be defined and documented.
 
 ### FR-11 — Clipping and masking
@@ -300,7 +300,7 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 - Core nodes are not `VisualElement`s: their state visuals come from the look and its transitions (FR-18, FR-26), not from VSM.
 - [x] Prefer FR-12 for **per-control** overrides (this button’s fill, that label’s font). Shared **default** palette across Core + MAUI controls is **FR-19** (color scheme); do not require apps to duplicate Accent/Background tokens only via MAUI resources for Core trees.
 - [x] Document sample `Style` resources for common controls in the demo or docs.
-- [x] Direct setters remain available (FR-10); styles and XAML setters go through bindable properties (and thus call direct setters). A direct setter is a local value, as the property setter is: it overrides a style's value (unless it repeats it).
+- [x] Direct setters remain available (FR-10); styles and XAML setters go through bindable properties (and thus call direct setters). A direct setter is a local value, as the property setter is: it overrides a style's value.
 - [x] Keep docs clear: **FR-12** = per-control MAUI Style/VSM; **FR-18** = shape / default sizes; **FR-19** = shared default colors.
 
 ### FR-13 — Dual-mode: `ISkUiView : IView`

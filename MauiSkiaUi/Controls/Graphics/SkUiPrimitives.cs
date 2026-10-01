@@ -52,7 +52,8 @@ public class SkUiBox : SkUiShape
 
     /// <summary>Bindable <see cref="CornerRadius"/>.</summary>
     public static readonly BindableProperty CornerRadiusProperty = BindableProperty.Create(nameof(CornerRadius), typeof(CornerRadius), typeof(SkUiBox), default(CornerRadius),
-        propertyChanged: (view, _, value) => ((SkUiBox)view).SetCornerRadius((CornerRadius)value));
+        validateValue: SkUiValidate.CornerRadii,
+        propertyChanged: (view, _, value) => ((SkUiBox)view).OnCornerRadiusChanged((CornerRadius)value));
 
     /// <summary>Per-corner radii (MAUI's BoxView <c>CornerRadius</c>; <c>"8"</c> or <c>"8,8,0,0"</c> in XAML). Larger radii than the box allows are scaled down.</summary>
     public CornerRadius CornerRadius { get => (CornerRadius)GetValue(CornerRadiusProperty); set => SetValue(CornerRadiusProperty, value); }
@@ -61,11 +62,15 @@ public class SkUiBox : SkUiShape
     public SkUiBox SetCornerRadius(CornerRadius value)
     {
         SkUiCornerRadii.Validate(value, nameof(value));
-        if (WriteBindable(CornerRadiusProperty, value)) return this;
-        if (_cornerRadius == value) return this;
+        CornerRadius = value;
+        return this;
+    }
+
+    private void OnCornerRadiusChanged(CornerRadius value)
+    {
+        if (_cornerRadius == value) return;
         _cornerRadius = value;
         InvalidatePaint();
-        return this;
     }
 
     /// <inheritdoc />

@@ -13,10 +13,12 @@ public class SkUiWrapLayout : SkUiLayout
 
     /// <summary>Bindable gap between items in a row, in DIPs.</summary>
     public static readonly BindableProperty SpacingProperty = BindableProperty.Create(nameof(Spacing), typeof(double), typeof(SkUiWrapLayout), 0d,
-        propertyChanged: (view, _, value) => ((SkUiWrapLayout)view).SetSpacing((double)value));
+        validateValue: SkUiValidate.NonNegative,
+        propertyChanged: (view, _, value) => ((SkUiWrapLayout)view).OnSpacingChanged((double)value));
     /// <summary>Bindable gap between rows, in DIPs.</summary>
     public static readonly BindableProperty RowSpacingProperty = BindableProperty.Create(nameof(RowSpacing), typeof(double), typeof(SkUiWrapLayout), 0d,
-        propertyChanged: (view, _, value) => ((SkUiWrapLayout)view).SetRowSpacing((double)value));
+        validateValue: SkUiValidate.NonNegative,
+        propertyChanged: (view, _, value) => ((SkUiWrapLayout)view).OnRowSpacingChanged((double)value));
 
     /// <summary>Gap between items in a row, in DIPs.</summary>
     public double Spacing { get => (double)GetValue(SpacingProperty); set => SetValue(SpacingProperty, value); }
@@ -24,9 +26,11 @@ public class SkUiWrapLayout : SkUiLayout
     public double RowSpacing { get => (double)GetValue(RowSpacingProperty); set => SetValue(RowSpacingProperty, value); }
 
     /// <summary>Sets <see cref="Spacing"/> (same as the property setter).</summary>
-    public SkUiWrapLayout SetSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(SpacingProperty, value)) return this; _spacing = value; InvalidateMeasureOverride(); return this; }
+    public SkUiWrapLayout SetSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); Spacing = value; return this; }
+    private void OnSpacingChanged(double value) { _spacing = value; InvalidateMeasureOverride(); }
     /// <summary>Sets <see cref="RowSpacing"/> (same as the property setter).</summary>
-    public SkUiWrapLayout SetRowSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(RowSpacingProperty, value)) return this; _rowSpacing = value; InvalidateMeasureOverride(); return this; }
+    public SkUiWrapLayout SetRowSpacing(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); RowSpacing = value; return this; }
+    private void OnRowSpacingChanged(double value) { _rowSpacing = value; InvalidateMeasureOverride(); }
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)

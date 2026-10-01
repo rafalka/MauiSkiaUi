@@ -27,7 +27,7 @@ public abstract class SkUiToggleControl : SkUiView
 
     /// <summary>Bindable <see cref="IsThreeState"/>.</summary>
     public static readonly BindableProperty IsThreeStateProperty = BindableProperty.Create(nameof(IsThreeState), typeof(bool), typeof(SkUiToggleControl), false,
-        propertyChanged: (view, _, value) => ((SkUiToggleControl)view).SetIsThreeState((bool)value));
+        propertyChanged: (view, _, value) => ((SkUiToggleControl)view).OnIsThreeStateChanged((bool)value));
 
     /// <summary>Unchecked, checked or indeterminate.</summary>
     public SkUiCheckState CheckState { get => (SkUiCheckState)GetValue(CheckStateProperty); set => SetValue(CheckStateProperty, value); }
@@ -65,19 +65,27 @@ public abstract class SkUiToggleControl : SkUiView
     /// <summary>Sets the state, as <see cref="CheckState"/> does (both bindable properties follow).</summary>
     public SkUiToggleControl SetCheckState(SkUiCheckState value)
     {
-        ApplyState(value);
+        CheckState = value;
         return this;
     }
 
     /// <summary>Sets Checked or Unchecked.</summary>
-    public SkUiToggleControl SetIsChecked(bool value) => SetCheckState(SkUiCheckStates.FromIsChecked(value));
+    public SkUiToggleControl SetIsChecked(bool value)
+    {
+        IsChecked = value;
+        return this;
+    }
 
     /// <summary>Sets <see cref="IsThreeState"/> (same as the property setter).</summary>
     public SkUiToggleControl SetIsThreeState(bool value)
     {
-        if (WriteBindable(IsThreeStateProperty, value)) return this;
-        _isThreeState = value;
+        IsThreeState = value;
         return this;
+    }
+
+    private void OnIsThreeStateChanged(bool value)
+    {
+        _isThreeState = value;
     }
 
     /// <summary>Which look transition animates state changes (<see cref="SkUiLook.GetTransition"/>).</summary>

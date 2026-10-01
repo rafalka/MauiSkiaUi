@@ -16,11 +16,12 @@ public class SkUiActivityIndicator : SkUiView
 
     /// <summary>Bindable running state; animates only while true.</summary>
     public static readonly BindableProperty IsRunningProperty = BindableProperty.Create(nameof(IsRunning), typeof(bool), typeof(SkUiActivityIndicator), false,
-        propertyChanged: (view, _, value) => ((SkUiActivityIndicator)view).SetIsRunning((bool)value));
+        propertyChanged: (view, _, value) => ((SkUiActivityIndicator)view).OnIsRunningChanged((bool)value));
     /// <summary>Bindable spinner color.</summary>
     public static readonly BindableProperty ColorProperty = BindableProperty.Create(nameof(Color), typeof(Color), typeof(SkUiActivityIndicator), null,
         defaultValueCreator: _ => SkUiColors.Muted,
-        propertyChanged: (view, _, value) => ((SkUiActivityIndicator)view).SetColor((Color)value));
+        validateValue: SkUiValidate.NotNull,
+        propertyChanged: (view, _, value) => ((SkUiActivityIndicator)view).OnColorChanged((Color)value));
 
     /// <summary>Whether the spinner is animating.</summary>
     public bool IsRunning { get => (bool)GetValue(IsRunningProperty); set => SetValue(IsRunningProperty, value); }
@@ -30,22 +31,30 @@ public class SkUiActivityIndicator : SkUiView
     /// <summary>Sets running state (same as the property setter).</summary>
     public SkUiActivityIndicator SetIsRunning(bool value)
     {
-        if (WriteBindable(IsRunningProperty, value)) return this;
-        if (_isRunning == value) return this;
+        IsRunning = value;
+        return this;
+    }
+
+    private void OnIsRunningChanged(bool value)
+    {
+        if (_isRunning == value) return;
         _isRunning = value;
         InvalidatePaint();
-        return this;
     }
     /// <summary>Sets color (same as the property setter).</summary>
     public SkUiActivityIndicator SetColor(Color value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        if (WriteBindable(ColorProperty, value)) return this;
+        Color = value;
+        return this;
+    }
+
+    private void OnColorChanged(Color value)
+    {
         _color = value;
         if (_strokePaint is not null)
             _strokePaint.Color = ToSkColor(value);
         InvalidatePaint();
-        return this;
     }
 
     /// <inheritdoc />

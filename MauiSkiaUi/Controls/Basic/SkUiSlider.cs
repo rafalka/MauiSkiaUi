@@ -40,19 +40,22 @@ public class SkUiSlider : SkUiView
 
     /// <summary>Bindable <see cref="Orientation"/>.</summary>
     public static readonly BindableProperty OrientationProperty = BindableProperty.Create(nameof(Orientation), typeof(StackOrientation), typeof(SkUiSlider),
-        StackOrientation.Horizontal, propertyChanged: (view, _, value) => ((SkUiSlider)view).SetOrientation((StackOrientation)value));
+        StackOrientation.Horizontal, propertyChanged: (view, _, value) => ((SkUiSlider)view).OnOrientationChanged((StackOrientation)value));
 
     /// <summary>Bindable <see cref="MinimumTrackColor"/>.</summary>
     public static readonly BindableProperty MinimumTrackColorProperty = BindableProperty.Create(nameof(MinimumTrackColor), typeof(Color), typeof(SkUiSlider), null,
-        defaultValueCreator: _ => SkUiColors.Accent, propertyChanged: (view, _, value) => ((SkUiSlider)view).SetMinimumTrackColor((Color)value));
+        defaultValueCreator: _ => SkUiColors.Accent, validateValue: SkUiValidate.NotNull,
+        propertyChanged: (view, _, value) => ((SkUiSlider)view).OnMinimumTrackColorChanged((Color)value));
 
     /// <summary>Bindable <see cref="MaximumTrackColor"/>.</summary>
     public static readonly BindableProperty MaximumTrackColorProperty = BindableProperty.Create(nameof(MaximumTrackColor), typeof(Color), typeof(SkUiSlider), null,
-        defaultValueCreator: _ => SkUiColors.TrackOff, propertyChanged: (view, _, value) => ((SkUiSlider)view).SetMaximumTrackColor((Color)value));
+        defaultValueCreator: _ => SkUiColors.TrackOff, validateValue: SkUiValidate.NotNull,
+        propertyChanged: (view, _, value) => ((SkUiSlider)view).OnMaximumTrackColorChanged((Color)value));
 
     /// <summary>Bindable <see cref="ThumbColor"/>.</summary>
     public static readonly BindableProperty ThumbColorProperty = BindableProperty.Create(nameof(ThumbColor), typeof(Color), typeof(SkUiSlider), null,
-        defaultValueCreator: _ => SkUiColors.Accent, propertyChanged: (view, _, value) => ((SkUiSlider)view).SetThumbColor((Color)value));
+        defaultValueCreator: _ => SkUiColors.Accent, validateValue: SkUiValidate.NotNull,
+        propertyChanged: (view, _, value) => ((SkUiSlider)view).OnThumbColorChanged((Color)value));
 
     /// <summary>Bindable <see cref="DragStartedCommand"/>.</summary>
     public static readonly BindableProperty DragStartedCommandProperty = BindableProperty.Create(nameof(DragStartedCommand), typeof(ICommand), typeof(SkUiSlider), null,
@@ -117,21 +120,28 @@ public class SkUiSlider : SkUiView
     /// <summary>Sets the orientation (same as the property setter).</summary>
     public SkUiSlider SetOrientation(StackOrientation value)
     {
-        if (WriteBindable(OrientationProperty, value)) return this;
-        if (_orientation == value) return this;
-        _orientation = value;
-        InvalidateMeasureOverride();
+        Orientation = value;
         return this;
     }
 
+    private void OnOrientationChanged(StackOrientation value)
+    {
+        if (_orientation == value) return;
+        _orientation = value;
+        InvalidateMeasureOverride();
+    }
+
     /// <summary>Sets the minimum-track color (same as the property setter).</summary>
-    public SkUiSlider SetMinimumTrackColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(MinimumTrackColorProperty, value)) return this; _minimumTrackColor = value; InvalidatePaint(); return this; }
+    public SkUiSlider SetMinimumTrackColor(Color value) { ArgumentNullException.ThrowIfNull(value); MinimumTrackColor = value; return this; }
+    private void OnMinimumTrackColorChanged(Color value) { _minimumTrackColor = value; InvalidatePaint(); }
 
     /// <summary>Sets the maximum-track color (same as the property setter).</summary>
-    public SkUiSlider SetMaximumTrackColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(MaximumTrackColorProperty, value)) return this; _maximumTrackColor = value; InvalidatePaint(); return this; }
+    public SkUiSlider SetMaximumTrackColor(Color value) { ArgumentNullException.ThrowIfNull(value); MaximumTrackColor = value; return this; }
+    private void OnMaximumTrackColorChanged(Color value) { _maximumTrackColor = value; InvalidatePaint(); }
 
     /// <summary>Sets the thumb color (same as the property setter).</summary>
-    public SkUiSlider SetThumbColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(ThumbColorProperty, value)) return this; _thumbColor = value; InvalidatePaint(); return this; }
+    public SkUiSlider SetThumbColor(Color value) { ArgumentNullException.ThrowIfNull(value); ThumbColor = value; return this; }
+    private void OnThumbColorChanged(Color value) { _thumbColor = value; InvalidatePaint(); }
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>

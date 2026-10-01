@@ -18,13 +18,14 @@ public class SkUiRadioButton : SkUiToggleControl
     /// <summary>Bindable dot/ring color while checked.</summary>
     public static readonly BindableProperty ColorProperty = BindableProperty.Create(nameof(Color), typeof(Color), typeof(SkUiRadioButton), null,
         defaultValueCreator: _ => SkUiColors.Accent,
-        propertyChanged: (view, _, value) => ((SkUiRadioButton)view).SetColor((Color)value));
+        validateValue: SkUiValidate.NotNull,
+        propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnColorChanged((Color)value));
     /// <summary>Bindable <see cref="GroupName"/>.</summary>
     public static readonly BindableProperty GroupNameProperty = BindableProperty.Create(nameof(GroupName), typeof(string), typeof(SkUiRadioButton), null,
-        propertyChanged: (view, _, value) => ((SkUiRadioButton)view).SetGroupName((string?)value));
+        propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnGroupNameChanged((string?)value));
     /// <summary>Bindable <see cref="Value"/>.</summary>
     public static readonly BindableProperty ValueProperty = BindableProperty.Create(nameof(Value), typeof(object), typeof(SkUiRadioButton), null,
-        propertyChanged: (view, _, value) => ((SkUiRadioButton)view).SetRadioValue(value));
+        propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnValueChanged(value));
 
     /// <summary>Ring/dot color while checked.</summary>
     public Color Color { get => (Color)GetValue(ColorProperty); set => SetValue(ColorProperty, value); }
@@ -37,28 +38,37 @@ public class SkUiRadioButton : SkUiToggleControl
     public object? Value { get => GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
 
     /// <summary>Sets the color (same as the property setter).</summary>
-    public SkUiRadioButton SetColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(ColorProperty, value)) return this; _color = value; InvalidatePaint(); return this; }
+    public SkUiRadioButton SetColor(Color value) { ArgumentNullException.ThrowIfNull(value); Color = value; return this; }
+    private void OnColorChanged(Color value) { _color = value; InvalidatePaint(); }
 
     /// <summary>Sets the group name (same as the property setter).</summary>
     public SkUiRadioButton SetGroupName(string? value)
     {
-        if (WriteBindable(GroupNameProperty, value)) return this;
+        GroupName = value;
+        return this;
+    }
+
+    private void OnGroupNameChanged(string? value)
+    {
         var old = _groupName;
-        if (old == value) return this;
+        if (old == value) return;
         _groupName = value;
         SkUiRadioGroups.OnGroupNameChanged(this, old);
-        return this;
     }
 
     /// <summary>Sets <see cref="Value"/> (same as the property setter).</summary>
     public SkUiRadioButton SetRadioValue(object? value)
     {
-        if (WriteBindable(ValueProperty, value)) return this;
-        if (Equals(_value, value)) return this;
+        Value = value;
+        return this;
+    }
+
+    private void OnValueChanged(object? value)
+    {
+        if (Equals(_value, value)) return;
         _value = value;
         if (IsChecked)
             SkUiRadioGroups.OnSelectionChanged(this);
-        return this;
     }
 
     /// <summary>Unlike the shared toggle base, a tap only selects (matching MAUI's RadioButton); it never unchecks.</summary>

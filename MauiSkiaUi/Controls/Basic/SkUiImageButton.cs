@@ -20,25 +20,29 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
 
     /// <summary>Bindable command executed on a valid release.</summary>
     public static readonly BindableProperty CommandProperty = BindableProperty.Create(nameof(Command), typeof(ICommand), typeof(SkUiImageButton), null,
-        propertyChanged: (view, _, value) => ((SkUiImageButton)view).SetCommand((ICommand?)value));
+        propertyChanged: (view, _, value) => ((SkUiImageButton)view).OnCommandChanged((ICommand?)value));
     /// <summary>Bindable command argument.</summary>
     public static readonly BindableProperty CommandParameterProperty = BindableProperty.Create(nameof(CommandParameter), typeof(object), typeof(SkUiImageButton), null,
-        propertyChanged: (view, _, value) => ((SkUiImageButton)view).SetCommandParameter(value));
+        propertyChanged: (view, _, value) => ((SkUiImageButton)view).OnCommandParameterChanged(value));
     /// <summary>Bindable per-corner radii (0: square).</summary>
     public static readonly BindableProperty CornerRadiiProperty = BindableProperty.Create(nameof(CornerRadii), typeof(CornerRadius), typeof(SkUiImageButton), default(CornerRadius),
-        propertyChanged: (view, _, value) => ((SkUiImageButton)view).SetCornerRadii((CornerRadius)value));
+        validateValue: SkUiValidate.CornerRadii,
+        propertyChanged: (view, _, value) => ((SkUiImageButton)view).OnCornerRadiiChanged((CornerRadius)value));
     /// <summary>Bindable uniform corner radius (MAUI ImageButton's <c>int</c> <c>CornerRadius</c>): sets all four <see cref="CornerRadii"/>.</summary>
     public static readonly BindableProperty CornerRadiusProperty = BindableProperty.Create(nameof(CornerRadius), typeof(int), typeof(SkUiImageButton), 0,
-        propertyChanged: (view, _, value) => ((SkUiImageButton)view).SetCornerRadius((int)value));
+        validateValue: SkUiValidate.NonNegative,
+        propertyChanged: (view, _, value) => ((SkUiImageButton)view).OnCornerRadiusChanged((int)value));
     /// <summary>Bindable <see cref="BorderColor"/>.</summary>
     public static readonly BindableProperty BorderColorProperty = BindableProperty.Create(nameof(BorderColor), typeof(Color), typeof(SkUiImageButton), Colors.Transparent,
-        propertyChanged: (view, _, value) => ((SkUiImageButton)view).SetBorderColor((Color)value));
+        validateValue: SkUiValidate.NotNull,
+        propertyChanged: (view, _, value) => ((SkUiImageButton)view).OnBorderColorChanged((Color)value));
     /// <summary>Bindable <see cref="BorderWidth"/>.</summary>
     public static readonly BindableProperty BorderWidthProperty = BindableProperty.Create(nameof(BorderWidth), typeof(double), typeof(SkUiImageButton), 0d,
-        propertyChanged: (view, _, value) => ((SkUiImageButton)view).SetBorderWidth((double)value));
+        validateValue: SkUiValidate.NonNegative,
+        propertyChanged: (view, _, value) => ((SkUiImageButton)view).OnBorderWidthChanged((double)value));
     /// <summary>Bindable <see cref="Padding"/>.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiImageButton), default(Thickness),
-        propertyChanged: (view, _, value) => ((SkUiImageButton)view).SetPadding((Thickness)value));
+        propertyChanged: (view, _, value) => ((SkUiImageButton)view).OnPaddingChanged((Thickness)value));
 
     /// <summary>Raised for a valid enabled tap, even without a command.</summary>
     public event EventHandler? Clicked;
@@ -68,8 +72,13 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     /// <summary>Sets command; command notifications use a weak target.</summary>
     public SkUiImageButton SetCommand(ICommand? value)
     {
-        if (WriteBindable(CommandProperty, value)) return this;
-        if (_command == value) return this;
+        Command = value;
+        return this;
+    }
+
+    private void OnCommandChanged(ICommand? value)
+    {
+        if (_command == value) return;
         if (_command is not null && _commandChanged is not null) _command.CanExecuteChanged -= _commandChanged;
         _command = value;
         if (value is not null)
@@ -85,21 +94,26 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
             value.CanExecuteChanged += listener;
         }
         UpdateState();
-        return this;
     }
     private EventHandler? _commandChanged;
     /// <summary>Sets command argument (same as the property setter).</summary>
-    public SkUiImageButton SetCommandParameter(object? value) { if (WriteBindable(CommandParameterProperty, value)) return this; _commandParameter = value; UpdateState(); return this; }
+    public SkUiImageButton SetCommandParameter(object? value) { CommandParameter = value; return this; }
+    private void OnCommandParameterChanged(object? value) { _commandParameter = value; UpdateState(); }
     /// <summary>Sets the per-corner radii (same as the property setter).</summary>
-    public SkUiImageButton SetCornerRadii(CornerRadius value) { SkUiCornerRadii.Validate(value, nameof(value)); if (WriteBindable(CornerRadiiProperty, value)) return this; if (_cornerRadii == value) return this; _cornerRadii = value; InvalidatePaint(); return this; }
+    public SkUiImageButton SetCornerRadii(CornerRadius value) { SkUiCornerRadii.Validate(value, nameof(value)); CornerRadii = value; return this; }
+    private void OnCornerRadiiChanged(CornerRadius value) { if (_cornerRadii == value) return; _cornerRadii = value; InvalidatePaint(); }
     /// <summary>Sets all four corner radii to <paramref name="value"/> (same as the property setter).</summary>
-    public SkUiImageButton SetCornerRadius(int value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(CornerRadiusProperty, value)) return this; return SetCornerRadii(new CornerRadius(value)); }
+    public SkUiImageButton SetCornerRadius(int value) { ArgumentOutOfRangeException.ThrowIfNegative(value); CornerRadius = value; return this; }
+    private void OnCornerRadiusChanged(int value) => CornerRadii = new CornerRadius(value);
     /// <summary>Sets the border color (same as the property setter).</summary>
-    public SkUiImageButton SetBorderColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(BorderColorProperty, value)) return this; if (_borderColor == value) return this; _borderColor = value; InvalidatePaint(); return this; }
+    public SkUiImageButton SetBorderColor(Color value) { ArgumentNullException.ThrowIfNull(value); BorderColor = value; return this; }
+    private void OnBorderColorChanged(Color value) { if (_borderColor == value) return; _borderColor = value; InvalidatePaint(); }
     /// <summary>Sets the border width (same as the property setter).</summary>
-    public SkUiImageButton SetBorderWidth(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); if (WriteBindable(BorderWidthProperty, value)) return this; if (_borderWidth == value) return this; _borderWidth = value; InvalidatePaint(); return this; }
+    public SkUiImageButton SetBorderWidth(double value) { ArgumentOutOfRangeException.ThrowIfNegative(value); BorderWidth = value; return this; }
+    private void OnBorderWidthChanged(double value) { if (_borderWidth == value) return; _borderWidth = value; InvalidatePaint(); }
     /// <summary>Sets the padding (same as the property setter).</summary>
-    public SkUiImageButton SetPadding(Thickness value) { if (WriteBindable(PaddingProperty, value)) return this; if (_padding == value) return this; _padding = value; InvalidateMeasureOverride(); return this; }
+    public SkUiImageButton SetPadding(Thickness value) { Padding = value; return this; }
+    private void OnPaddingChanged(Thickness value) { if (_padding == value) return; _padding = value; InvalidateMeasureOverride(); }
 
     /// <summary>Creates an image button with a press/disabled tint overlay painter.</summary>
     public SkUiImageButton() => SetPaintOverlay(PaintButtonOverlay);

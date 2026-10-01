@@ -21,10 +21,12 @@ public class SkUiSwitch : SkUiToggleControl
     /// <summary>Bindable track color while toggled on.</summary>
     public static readonly BindableProperty OnColorProperty = BindableProperty.Create(nameof(OnColor), typeof(Color), typeof(SkUiSwitch), null,
         defaultValueCreator: _ => SkUiColors.Accent,
-        propertyChanged: (view, _, value) => ((SkUiSwitch)view).SetOnColor((Color)value));
+        validateValue: SkUiValidate.NotNull,
+        propertyChanged: (view, _, value) => ((SkUiSwitch)view).OnOnColorChanged((Color)value));
     /// <summary>Bindable thumb color.</summary>
     public static readonly BindableProperty ThumbColorProperty = BindableProperty.Create(nameof(ThumbColor), typeof(Color), typeof(SkUiSwitch), Colors.White,
-        propertyChanged: (view, _, value) => ((SkUiSwitch)view).SetThumbColor((Color)value));
+        validateValue: SkUiValidate.NotNull,
+        propertyChanged: (view, _, value) => ((SkUiSwitch)view).OnThumbColorChanged((Color)value));
 
     /// <summary>
     /// Whether the switch is on (MAUI's name for <see cref="SkUiToggleControl.IsChecked"/>): <c>true</c> only for
@@ -52,11 +54,13 @@ public class SkUiSwitch : SkUiToggleControl
     public Color ThumbColor { get => (Color)GetValue(ThumbColorProperty); set => SetValue(ThumbColorProperty, value); }
 
     /// <summary>Sets <see cref="IsToggled"/>.</summary>
-    public SkUiSwitch SetIsToggled(bool value) { SetIsChecked(value); return this; }
+    public SkUiSwitch SetIsToggled(bool value) { IsToggled = value; return this; }
     /// <summary>Sets the on-color (same as the property setter).</summary>
-    public SkUiSwitch SetOnColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(OnColorProperty, value)) return this; _onColor = value; InvalidatePaint(); return this; }
+    public SkUiSwitch SetOnColor(Color value) { ArgumentNullException.ThrowIfNull(value); OnColor = value; return this; }
+    private void OnOnColorChanged(Color value) { _onColor = value; InvalidatePaint(); }
     /// <summary>Sets the thumb color (same as the property setter).</summary>
-    public SkUiSwitch SetThumbColor(Color value) { ArgumentNullException.ThrowIfNull(value); if (WriteBindable(ThumbColorProperty, value)) return this; _thumbColor = value; InvalidatePaint(); return this; }
+    public SkUiSwitch SetThumbColor(Color value) { ArgumentNullException.ThrowIfNull(value); ThumbColor = value; return this; }
+    private void OnThumbColorChanged(Color value) { _thumbColor = value; InvalidatePaint(); }
 
     /// <summary>The visual state while on (MAUI's <c>Switch.SwitchOnVisualState</c>).</summary>
     public const string SwitchOnVisualState = "On";

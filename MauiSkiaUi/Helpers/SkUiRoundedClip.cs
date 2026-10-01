@@ -31,9 +31,12 @@ internal static class SkUiCornerRadii
     public static bool HasAny(CornerRadius radii) =>
         radii.TopLeft > 0 || radii.TopRight > 0 || radii.BottomRight > 0 || radii.BottomLeft > 0;
 
+    public static bool IsValid(CornerRadius radii) =>
+        !(radii.TopLeft < 0 || radii.TopRight < 0 || radii.BottomRight < 0 || radii.BottomLeft < 0);
+
     public static CornerRadius Validate(CornerRadius radii, string name)
     {
-        if (radii.TopLeft < 0 || radii.TopRight < 0 || radii.BottomRight < 0 || radii.BottomLeft < 0)
+        if (!IsValid(radii))
             throw new ArgumentOutOfRangeException(name, radii, "Corner radii must be non-negative.");
         return radii;
     }

@@ -44,7 +44,8 @@ public partial class SkUiMauiContentView : SkUiView
     /// <summary>Bindable hosted MAUI control.</summary>
     public static readonly BindableProperty ContentProperty = BindableProperty.Create(
         nameof(Content), typeof(VisualElement), typeof(SkUiMauiContentView), null,
-        propertyChanged: (view, _, value) => ((SkUiMauiContentView)view).SetContent((VisualElement?)value));
+        validateValue: (bindable, value) => IsHostable((SkUiMauiContentView)bindable, (VisualElement?)value),
+        propertyChanged: (view, _, value) => ((SkUiMauiContentView)view).OnContentChanged((VisualElement?)value));
 
     /// <summary>The native MAUI control rendered over this node's arranged bounds.</summary>
     public VisualElement? Content { get => (VisualElement?)GetValue(ContentProperty); set => SetValue(ContentProperty, value); }
@@ -210,9 +211,18 @@ public partial class SkUiMauiContentView : SkUiView
     public SkUiMauiContentView SetContent(VisualElement? value)
     {
         if (ReferenceEquals(_content, value)) return this;
-        if (value is not null && (value.Parent is not null || value.Handler is not null))
+        if (!IsHostable(this, value))
             throw new InvalidOperationException("A hosted MAUI control must be unparented and have no handler.");
-        if (WriteBindable(ContentProperty, value)) return this;
+        Content = value;
+        return this;
+    }
+
+    /// <summary>A hosted control must be unparented and have no handler (the current content always passes).</summary>
+    private static bool IsHostable(SkUiMauiContentView host, VisualElement? value) =>
+        value is null || ReferenceEquals(host._content, value) || (value.Parent is null && value.Handler is null);
+
+    private void OnContentChanged(VisualElement? value)
+    {
         DetachOverlay();
         if (_content is not null)
         {
@@ -227,7 +237,6 @@ public partial class SkUiMauiContentView : SkUiView
         }
         InvalidateMeasureOverride();
         AttachOverlayIfPossible();
-        return this;
     }
 
     /// <inheritdoc />
