@@ -241,8 +241,12 @@ public class BrushShadowClipTests
         using var bitmap = Render(root, 80, 80);
         Assert.Equal(0, bitmap.GetPixel(68, 68).Alpha);
         Assert.True(IsDark(bitmap.GetPixel(50, 66)));
-        // Transparent text casts its glyphs' shadow.
-        var label = new SkUiLabel { Text = "IIII", FontSize = 30, TextColor = Colors.White, Shadow = Sharp(0, 20) };
+        // Transparent text casts its glyphs' shadow (in the bundled font: Linux agents may have no system fonts).
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var label = new SkUiLabel
+        {
+            Text = "IIII", FontSize = 30, FontFamily = SkUiTestHelpers.BundledFontFamily, TextColor = Colors.White, Shadow = Sharp(0, 20)
+        };
         using var text = Render(new SkUiContentView { Content = label }, 120, 80);
         var shadowed = 0;
         for (var x = 0; x < 120; x++)
