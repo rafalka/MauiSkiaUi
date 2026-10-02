@@ -1,6 +1,6 @@
 # SkUiLabel
 
-Drawn plain text with wrapping, truncation, fonts, alignment, padding and MAUI Label's text properties, with custom line breaking (shorter forms instead of an ellipsis) and optional rounded chrome for badges, chips and tags.
+Drawn text with wrapping, truncation, fonts, alignment, padding and MAUI Label's text properties, spans with their own styles and tap recognizers (`FormattedText`), HTML text (`TextType="Html"`) with tappable links, custom line breaking (shorter forms instead of an ellipsis) and optional rounded chrome for badges, chips and tags.
 
 **MAUI counterpart:** [`Label`](https://learn.microsoft.com/dotnet/maui/user-interface/controls/label)
 
@@ -82,6 +82,70 @@ people.LineBreaker = context =>
 
 The samples app shows these side by side (**Controls › Text that fits**).
 
+## Formatted text (spans)
+
+`FormattedText` takes MAUI's own `FormattedString` and `Span`s, so MAUI XAML ports by changing the label's prefix only:
+
+```xml
+<sk:SkUiLabel LineBreakMode="WordWrap">
+    <sk:SkUiLabel.FormattedText>
+        <FormattedString>
+            <Span Text="Red Bold, " TextColor="Red" FontAttributes="Bold" />
+            <Span Text="here" TextColor="Blue" TextDecorations="Underline">
+                <Span.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding TapCommand}" CommandParameter="https://learn.microsoft.com/dotnet/maui/" />
+                </Span.GestureRecognizers>
+            </Span>
+            <Span Text=" italic small." FontAttributes="Italic" FontSize="12" />
+        </FormattedString>
+    </sk:SkUiLabel.FormattedText>
+</sk:SkUiLabel>
+```
+
+- **One paragraph:** the spans' text is shaped, wrapped, truncated and aligned as one text. Bidi levels are resolved across span boundaries, so RTL and mixed text reorder as in a plain label; each span falls back from its own font for characters it lacks. Newlines inside spans start paragraphs.
+- **Per span:** `FontFamily`, `FontSize`, `FontAttributes`, `TextColor`, `BackgroundColor` (behind the span's glyphs, from the font's ascent to its descent), `TextDecorations` (in the span's color, at its font's positions), `CharacterSpacing`, `LineHeight` and `TextTransform`. As on MAUI, what a span does not set is the label's: its font, size, attributes, color, decorations, spacing, line height (a span's `LineHeight` of -1) and transform (a span's `Default`). Span `Style`s and bindings work: the label parents the formatted string and hands it its binding context.
+- **Line heights:** a line is as tall as its tallest span; each span's line height adds its extra space above and below that span's glyphs, as with a plain label.
+- **Label settings:** `LineBreakMode`, `MaxLines`, alignment (also `Justify`), padding, direction and the rounded chrome apply. Truncation keeps the spans' styles; the ellipsis takes the style of the text it replaces. `LineBreaker` and `TextRendering` do not apply: spans are always shaped with HarfBuzz.
+- **Taps:** a span's `TapGestureRecognizer`s run when that span is tapped: the command (when it can execute), then `Tapped` with the label as the sender and `GetPosition(label)` in the label's coordinates. `NumberOfTapsRequired` 1 and 2 work (primary button). A press on a tappable span takes the tap from the label's own `Tapped` and from its ancestors; a press beside it (other spans, empty space) leaves them as they are. A tap counts when it is released on the span it was pressed on. `SpanAt(point)` returns the span drawn at a point.
+- **Text and FormattedText:** setting `Text` clears `FormattedText`, and setting `FormattedText` clears `Text`, as on MAUI's Label.
+- **Updates:** adding, removing or changing spans updates the label. A change that only repaints (colors, backgrounds, decorations) keeps the shaped lines; the rest lays the text out again.
+
+Core labels take `SkUiCoreSpan`s with the same rules (`SetSpans`, `AddSpan`, a span's `Tapped` event); see [SkUiCore.md](SkUiCore.md#text-and-spans).
+
+## HTML text
+
+`TextType="Html"` (MAUI's) draws `Text` as HTML. SkiaUi parses the markup itself (`SkUiHtml`, no dependency) into styled runs drawn like spans, so the result is the same on every platform and does not need the platform's HTML importer (MAUI uses Android's `Html.fromHtml`, WebKit on iOS / Mac Catalyst and its own XHTML reader on Windows, which differ).
+
+```xml
+<sk:SkUiLabel TextType="Html" LinkTappedCommand="{Binding OpenCommand}">
+    <![CDATA[
+    <h3>Release notes</h3>
+    <p>Now with <b>bold</b>, <span style="color:red">color</span> and <a href="https://learn.microsoft.com/dotnet/maui/">a link</a>.</p>
+    <ul><li>One</li><li>Two</li></ul>
+    ]]>
+</sk:SkUiLabel>
+```
+
+| Markup | Drawn as |
+| --- | --- |
+| `b`, `strong` / `i`, `em`, `cite`, `dfn` | Bold / italic (added to the label's `FontAttributes`) |
+| `u`, `ins` / `s`, `strike`, `del` | Underline / strikethrough |
+| `h1`–`h6` | Bold paragraph, 1.5× … 1× the label's size |
+| `big`, `small`, `sub`, `sup` | 1.25×, 0.8×, 0.7×, 0.7× (no baseline shift for `sub` / `sup`) |
+| `tt`, `code`, `kbd`, `pre` | The platform's monospace font; `pre` keeps whitespace and line breaks |
+| `font color face size` | Color, family, HTML size 1–7 (or `+1` / `-1`) |
+| `style="…"` on any element | `color`, `background-color`, `font-size` (px, pt, em, %, keywords), `font-weight`, `font-style`, `font-family`, `text-decoration` |
+| `p`, `div`, `blockquote`, `br`, `hr` | Paragraphs (one line break between blocks, none at the edges) and line breaks |
+| `ul`, `ol`, `li` | "• " bullets, "1. " numbers, nested lists indented |
+| `a href` | Link: accent color, underline, tappable |
+| `img`, `script`, `style`, comments | Not shown; other tags show their content |
+
+- Whitespace collapses as in HTML and entities are decoded (`&amp;`, `&nbsp;`, `&#x1F600;`). Broken markup (unclosed, stray or misnested tags) is read leniently and never throws.
+- The label's font, size, attributes, color, decorations, character spacing, line height, alignment, `LineBreakMode`, `MaxLines`, padding and chrome are the defaults the markup overrides. `TextTransform`, `LineBreaker` and `TextRendering` do not apply. `FormattedText` wins over `TextType`, as on MAUI.
+- **Links:** a tap on an `<a href>` raises `LinkTapped` (`Href`, `Position`) and runs `LinkTappedCommand` with the href; nothing opens by itself (MAUI's HTML labels do not make links tappable at all). `LinkAt(point)` returns the href at a point. A press on a link takes the tap from the label and its ancestors.
+- To change the result, convert it to spans yourself: `SkUiHtml.ToFormattedString(html, fontSize, href => …)` (MAUI spans, links with tap recognizers) or `SkUiHtml.ToCoreSpans(...)`.
+- Core labels: `SetTextType(TextType.Html)` and the `LinkTapped` event.
+
 ## Shared conventions
 
 All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
@@ -129,13 +193,16 @@ Fonts registered with MAUI's `ConfigureFonts` (`fonts.AddFont("file.ttf", "Alias
 
 ## Key properties
 
-`Text`, `TextColor`, `FontSize`, `FontFamily`, `FontAttributes`, `LineBreakMode`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`, `LineBreaker`, `HorizontalTextAlignment`, `VerticalTextAlignment`, `TextRendering`, `Padding`, `CornerRadii`, `CornerRadius`, `BorderColor`, `BorderWidth` (+ matching `Set*` setters); `InvalidateTextLayout()`.
+`Text`, `FormattedText`, `TextType`, `LinkTappedCommand`, `TextColor`, `FontSize`, `FontFamily`, `FontAttributes`, `LineBreakMode`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`, `LineBreaker`, `HorizontalTextAlignment`, `VerticalTextAlignment`, `TextRendering`, `Padding`, `CornerRadii`, `CornerRadius`, `BorderColor`, `BorderWidth` (+ matching `Set*` setters); `InvalidateTextLayout()`, `SpanAt(point)`, `LinkAt(point)`; `LinkTapped`.
 
 ## Differences from MAUI Label
 
 | Topic | SkiaUi |
 | --- | --- |
-| Rich text / spans | Not supported yet (`FormattedText`, P5); `TextType="Html"` is not planned |
+| Spans (`FormattedText`) | Supported, with span tap recognizers. Spans ignore `LineBreaker` and `TextRendering` (always shaped). Only `TapGestureRecognizer` on spans (as MAUI); `TappedEventArgs.GetPosition` answers for the label only |
+| HTML (`TextType="Html"`) | Parsed by SkiaUi (the Android tag subset, plus inline `style`), the same on every platform; links are tappable (`LinkTapped`); no images, `sub` / `sup` baseline shift or block indents |
+| `<sk:SkUiLabel>text</sk:SkUiLabel>` | `Text` is the content property, as on MAUI |
+| Span decorations | A span without its own `TextDecorations` takes the label's (as MAUI on Android; iOS draws none) |
 | `HorizontalTextAlignment="Justify"` | Justified on every platform (MAUI's Android Label ignores it) |
 | `FontAttributes` without a bold / italic face | Synthetic bold and slant on every platform (MAUI synthesizes on Android only) |
 | `CharacterSpacing` | DIPs at every font size (as iOS); Android and Windows scale MAUI's value with the font size (1/16 em), so they match at 16 DIPs |

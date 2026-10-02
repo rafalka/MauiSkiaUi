@@ -27,7 +27,7 @@ public static class LeakScenarios
         new("ButtonsClicked", Controls, "Buttons with a long-lived command, clicked twice each, disabled and re-enabled, a cancelled press; an image button.", () => new ButtonsRun()),
         new("TogglesTapped", Controls, "Switch, check boxes (one three-state) and a radio group, each tapped several times.", () => new TogglesRun()),
         new("SlidersAndProgress", Controls, "Horizontal, vertical and Core sliders dragged and tapped; progress bars animating and indeterminate at close.", () => new SlidersRun()),
-        new("LabelsReshaped", Controls, "Wrapped, truncated, RTL, Arabic, emoji and Simple / Shaped labels; text and width changed repeatedly.", () => new LabelsRun()),
+        new("LabelsReshaped", Controls, "Wrapped, truncated, RTL, Arabic, emoji and Simple / Shaped labels; text and width changed repeatedly; formatted text (drawn and Core) with tappable spans bound to a long-lived command, tapped, restyled and replaced; HTML text with links (both layers), tapped and changed.", () => new LabelsRun()),
         new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image.", () => new ImagesRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
@@ -142,10 +142,33 @@ public static class LeakScenarios
         private readonly List<SkUiLabel> _labels = [];
         private readonly HashSet<double> _widths = [];
         private SkUiContentView? _root;
+        private SkUiLabel? _formatted;
+        private SkUiCoreLabel? _coreFormatted;
+        private SkUiLabel? _html;
+        private SkUiCoreLabel? _coreHtml;
+        private int _coreSpanTaps;
 
         public override View Build(LeakScenarioContext context)
         {
             var stack = new SkUiVerticalStackLayout { Spacing = 6, Padding = new Thickness(12) };
+            _formatted = new SkUiLabel { FormattedText = Formatted("Tap the link"), HorizontalTextAlignment = TextAlignment.Center, TextColor = LeakColors.Ink };
+            stack.Children.Add(_formatted);
+            var link = new SkUiCoreSpan("Core link").SetTextDecorations(TextDecorations.Underline);
+            link.Tapped += (_, _) => _coreSpanTaps++;
+            _coreFormatted = new SkUiCoreLabel().SetSpans(new SkUiCoreSpan("Core spans: ").SetFontAttributes(FontAttributes.Bold), link)
+                .SetHorizontalTextAlignment(TextAlignment.Center);
+            _coreFormatted.SetHeight(24);
+            stack.Children.Add(new SkUiCoreHost().SetContent(_coreFormatted));
+            _html = new SkUiLabel
+            {
+                Text = "<a href='https://example.com'><b>Open</b> the docs</a>", TextType = TextType.Html,
+                HorizontalTextAlignment = TextAlignment.Center, LinkTappedCommand = LeakCommands.Shared
+            };
+            stack.Children.Add(_html);
+            _coreHtml = new SkUiCoreLabel().SetTextType(TextType.Html).SetText("<a href='core'>Core <i>link</i></a>").SetHorizontalTextAlignment(TextAlignment.Center);
+            _coreHtml.LinkTapped += (_, _) => _coreSpanTaps++;
+            _coreHtml.SetHeight(24);
+            stack.Children.Add(new SkUiCoreHost().SetContent(_coreHtml));
             Add(stack, new SkUiLabel { Text = Long, LineBreakMode = LineBreakMode.WordWrap });
             Add(stack, new SkUiLabel { Text = Long, LineBreakMode = LineBreakMode.TailTruncation });
             Add(stack, new SkUiLabel { Text = "مرحبا بالعالم", FlowDirection = FlowDirection.RightToLeft });
@@ -154,6 +177,17 @@ public static class LeakScenarios
             Add(stack, new SkUiLabel { Text = "Simple path 0123456789", TextRendering = SkUiTextRendering.Simple });
             Add(stack, new SkUiLabel { Text = "System family, bold", FontFamily = "serif", FontAttributes = FontAttributes.Bold, FontSize = 18 });
             return _root = Root(stack);
+        }
+
+        /// <summary>One tappable span (bound to the long-lived command) between two styled ones.</summary>
+        private static FormattedString Formatted(string link)
+        {
+            var tappable = new Span { Text = link, TextDecorations = TextDecorations.Underline, FontAttributes = FontAttributes.Bold };
+            tappable.GestureRecognizers.Add(new TapGestureRecognizer { Command = LeakCommands.Shared, CommandParameter = link });
+            return new FormattedString
+            {
+                Spans = { new Span { Text = "Spans: ", FontSize = 18 }, tappable, new Span { Text = " (formatted)", FontAttributes = FontAttributes.Italic } }
+            };
         }
 
         private void Add(SkUiVerticalStackLayout stack, SkUiLabel label)
@@ -178,6 +212,26 @@ public static class LeakScenarios
                 await context.SettleAsync();
                 _widths.Add(Math.Round(_labels[0].Width));
             }
+            await context.TapAsync(_formatted!);
+            await context.TapAsync(_coreFormatted!);
+            var spans = _formatted!.FormattedText!.Spans;
+            spans[0].TextColor = LeakColors.Border;
+            spans[2].FontSize = 22;
+            spans.Add(new Span { Text = " added" });
+            await context.SettleAsync();
+            var replaced = _formatted.FormattedText;
+            _formatted.FormattedText = Formatted("Replaced link");
+            context.TrackDetached(replaced, "replaced FormattedString");
+            await context.SettleAsync();
+            await context.TapAsync(_formatted);
+            _coreFormatted!.Spans[0].SetTextColor(LeakColors.Border);
+            _coreFormatted.AddSpan(new SkUiCoreSpan(" more"));
+            await context.SettleAsync();
+            await context.TapAsync(_html!);
+            await context.TapAsync(_coreHtml!);
+            _html!.Text = "<p>Changed <u>markup</u></p><ul><li>one</li><li><a href='b'>two</a></li></ul>";
+            _coreHtml!.SetText("<s>gone</s> <a href='c'>again</a>");
+            await context.SettleAsync();
         }
 
         public override string? CheckInteraction()

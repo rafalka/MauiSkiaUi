@@ -14,7 +14,7 @@ namespace MauiSkiaUi;
 /// placement), and visual line assembly (UAX #9 L2) into <see cref="SKTextBlob"/>s.
 /// Runs on the UI thread during measure / record; the resulting blobs are immutable and replayed on the render thread.
 /// </summary>
-internal static class SkUiShaping
+internal static partial class SkUiShaping
 {
     private static readonly ConcurrentDictionary<(SKTypeface Primary, int CodePoint), SKTypeface> Fallbacks = new();
     [ThreadStatic] private static Dictionary<SKTypeface, SKShaper?>? t_shapers;
@@ -34,6 +34,10 @@ internal static class SkUiShaping
         public SKPoint[] Positions = [];
         public uint[] Clusters = [];
         public float Width;
+        /// <summary>Styled text: the span (style) index of the run; -1 for single-style text.</summary>
+        public int Span = -1;
+        /// <summary>Styled text: the font the run was shaped with (its span's size and attributes).</summary>
+        public SKFont? Font;
     }
 
     /// <summary>A shaped paragraph: text, levels, logical runs and per-code-unit advances (for line breaking).</summary>
@@ -52,6 +56,8 @@ internal static class SkUiShaping
         /// pre-HarfBuzz renderer). <see cref="Advances"/> are only filled when line breaking needs them.
         /// </summary>
         public bool IsSimple;
+        /// <summary>Styled text: the span index of each code unit (<c>null</c> for single-style text).</summary>
+        public int[]? Spans;
     }
 
     /// <summary>A laid-out visual line ready to draw at (x, baseline).</summary>
@@ -146,16 +152,23 @@ internal static class SkUiShaping
         {
             ShapeRun(text, run.Start, run.Length, run, fonts(run.Typeface), spacing);
             paragraph.Width += run.Width;
-            // Per-code-unit advances for line breaking: each glyph's advance (next visual x − its x) goes to the
-            // first code unit of its cluster; the other code units of a cluster (ligatures, marks) get 0.
-            for (var glyph = 0; glyph < run.Glyphs.Length; glyph++)
-            {
-                var next = glyph + 1 < run.Glyphs.Length ? run.Positions[glyph + 1].X : run.Width;
-                var cluster = Math.Clamp((int)run.Clusters[glyph], run.Start, run.Start + run.Length - 1);
-                paragraph.Advances[cluster] += next - run.Positions[glyph].X;
-            }
+            AddAdvances(paragraph, run);
         }
         return paragraph;
+    }
+
+    /// <summary>
+    /// Per-code-unit advances for line breaking: each glyph's advance (next visual x − its x) goes to the first code
+    /// unit of its cluster; the other code units of a cluster (ligatures, marks) get 0.
+    /// </summary>
+    private static void AddAdvances(Paragraph paragraph, Run run)
+    {
+        for (var glyph = 0; glyph < run.Glyphs.Length; glyph++)
+        {
+            var next = glyph + 1 < run.Glyphs.Length ? run.Positions[glyph + 1].X : run.Width;
+            var cluster = Math.Clamp((int)run.Clusters[glyph], run.Start, run.Start + run.Length - 1);
+            paragraph.Advances[cluster] += next - run.Positions[glyph].X;
+        }
     }
 
     private static void Itemize(Paragraph paragraph, SKTypeface primary)

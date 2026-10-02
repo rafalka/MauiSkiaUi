@@ -6,6 +6,16 @@ Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs
 
 ## Unreleased
 
+- **Label spans (P5)** on both layers ([SkUiLabel.md](docs/controls/SkUiLabel.md#formatted-text-spans)):
+  - **`FormattedText`** on `SkUiLabel` takes MAUI's `FormattedString` and `Span`s, so MAUI XAML ports by changing the label's prefix. Per span: `FontFamily`, `FontSize`, `FontAttributes`, `TextColor`, `BackgroundColor`, `TextDecorations`, `CharacterSpacing`, `LineHeight`, `TextTransform`; what a span does not set is the label's, as on MAUI. Span styles and bindings work. Setting `Text` clears `FormattedText` and the other way round, as on MAUI.
+  - **One paragraph:** spans are shaped, wrapped, truncated and aligned as one text (bidi across spans, font fallback per span); a line is as tall as its tallest span. The label's `LineBreakMode`, `MaxLines`, alignment, padding and chrome apply; `LineBreaker` and `TextRendering` do not (spans are always shaped).
+  - **Span taps:** a span's `TapGestureRecognizer`s (command, then `Tapped`; one or two taps) run when that span is tapped, also in RTL text. A press beside a tappable span leaves the tap to the label and its parents. `SkUiLabel.SpanAt(point)` returns the span at a point.
+  - **Core:** `SkUiCoreSpan` (nullable values: `null` is the label's; fluent setters; `Tapped`) on `SkUiCoreLabel.SetSpans(...)` / `AddSpan(span)` / `Spans` / `SpanAt(point)`.
+  - Changing a span's colors or decorations only repaints.
+- **`TextType="Html"`** on `SkUiLabel` and `SkUiCoreLabel` (`SetTextType`) ([SkUiLabel.md](docs/controls/SkUiLabel.md#html-text)): SkiaUi parses the markup itself, the same on every platform and with no dependency: Android's `Html.fromHtml` tag subset (bold, italic, underline, strike, headings, `big` / `small`, `code` / `pre`, `font`, paragraphs, line breaks, lists, links) plus inline `style` (`color`, `background-color`, `font-size`, `font-weight`, `font-style`, `font-family`, `text-decoration`). Broken markup never throws. The label's properties are the defaults the markup overrides.
+  - **Links:** a tap on `<a href>` raises `LinkTapped` and runs `LinkTappedCommand` (SkUi*) with the href; `LinkAt(point)`. Nothing opens by itself.
+  - `SkUiHtml.ToFormattedString(...)` / `ToCoreSpans(...)` convert HTML to spans for further changes.
+- `SkUiLabel` takes its `Text` as XAML content (`<sk:SkUiLabel>Hello</sk:SkUiLabel>`, CDATA for HTML), as MAUI's Label.
 - **MAUI image sources and a shared image cache (P4)** on `SkUiImage`, `SkUiImageButton` and `SkUiCoreImage` / `SkUiCoreImageButton` ([SkUiImage.md](docs/controls/SkUiImage.md)):
   - **`MauiImage`:** a relative `FileImageSource` (`Source="dotnet_bot.png"`) is the file Resizetizer made for the display density (Android drawable, iOS / Mac Catalyst `@2x` / `@3x`, Windows `.scale-NNN`; an SVG item by its `.png` name), laid out at its base size as in MAUI. Raw assets (Resources/Raw) are still found by name when there is no MauiImage of that name.
   - **`FontImageSource`:** the glyph is drawn through the text engine (fonts from `ConfigureFonts` / `SkUiFonts`, ligatures, fallback) at the display density, synchronously; white when `Color` is unset, as in MAUI.

@@ -8,7 +8,8 @@ namespace MauiSkiaUi.Core;
 /// Defaults come from <see cref="SkUiColorScheme"/> / <see cref="SkUiLook"/>.
 /// The text properties of <see cref="SkUiLabel"/> (one shared engine): <see cref="LineBreakMode"/>, a custom
 /// <see cref="LineBreaker"/>, <see cref="MaxLines"/>, <see cref="LineHeight"/>, <see cref="CharacterSpacing"/>,
-/// <see cref="TextDecorations"/>, <see cref="TextTransform"/> and <see cref="FontAttributes"/>.
+/// <see cref="TextDecorations"/>, <see cref="TextTransform"/> and <see cref="FontAttributes"/>; and spans
+/// (<see cref="SetSpans(IEnumerable{SkUiCoreSpan}?)"/>, MAUI's <c>FormattedText</c>) with their own styles and taps.
 /// Optional rounded chrome (a badge, a chip): <see cref="FillColor"/>, <see cref="CornerRadii"/> (<see cref="SetCornerRadius"/>
 /// sets all four), <see cref="BorderColor"/> and <see cref="BorderWidth"/>, drawn unless a <see cref="SkUiCoreNode.PaintBackground"/>
 /// painter replaces it.
@@ -41,6 +42,13 @@ public class SkUiCoreLabel : SkUiCoreNode
     private Microsoft.Maui.CornerRadius _cornerRadii;
     private bool _cornerRadiusExplicit;
     private SkUiRoundedClip _textClip;
+    private SkUiCoreSpan[] _spans = [];
+    private SkUiRichTextLayout? _richLayout;
+    private SkUiRichText? _richText; // _spans resolved against the label's defaults; null: rebuild
+    private SkUiSpanTapGestureRecognizer? _spanTap;
+    private TextType _textType;
+    private IReadOnlyList<SkUiHtmlRun>? _htmlRuns; // _text parsed as HTML; null: parse again
+    private EventHandler<SkUiLinkTappedEventArgs>? _linkTapped;
 
     /// <summary>Creates an empty word-wrapping label.</summary>
     public SkUiCoreLabel() => _layout = new SkUiTextLayout(this);
@@ -237,13 +245,165 @@ public class SkUiCoreLabel : SkUiCoreNode
         return this;
     }
 
-    /// <summary>Sets text and invalidates measure.</summary>
+    /// <summary>Sets text and invalidates measure. Clears <see cref="Spans"/> (text replaces formatted text, as on MAUI's Label).</summary>
     public SkUiCoreLabel SetText(string? value)
     {
         value ??= string.Empty;
+        ClearSpans();
         if (!SetProperty(ref _text, value, nameof(Text))) return this;
+        _htmlRuns = null;
+        if (IsHtml) InvalidateText();
         UpdateDisplayText();
         return this;
+    }
+
+    /// <summary>
+    /// How <see cref="Text"/> is read: <see cref="Microsoft.Maui.TextType.Html"/> draws it as HTML (see
+    /// <see cref="SkUiHtml"/> and <see cref="SkUiLabel.TextType"/>); links raise <see cref="LinkTapped"/>. Spans still win
+    /// when set.
+    /// </summary>
+    public TextType TextType
+    {
+        get => _textType;
+        set => SetTextType(value);
+    }
+
+    /// <summary>Sets <see cref="TextType"/>.</summary>
+    public SkUiCoreLabel SetTextType(TextType value)
+    {
+        if (!SetProperty(ref _textType, value, nameof(TextType))) return this;
+        _htmlRuns = null;
+        _spanTap?.Cancel();
+        InvalidateText();
+        return this;
+    }
+
+    /// <summary>A link (<c>&lt;a href&gt;</c>) of HTML text was tapped; nothing opens by itself.</summary>
+    public event EventHandler<SkUiLinkTappedEventArgs>? LinkTapped { add => _linkTapped += value; remove => _linkTapped -= value; }
+
+    /// <summary>The <c>href</c> of the HTML link drawn at <paramref name="point"/> (label coordinates), or <c>null</c>.</summary>
+    public string? LinkAt(Point point) =>
+        IsHtml && SpanIndexAt(point) is var index and >= 0 && index < HtmlRuns.Count ? HtmlRuns[index].Style.Href : null;
+
+    private bool IsHtml => _spans.Length == 0 && _textType == TextType.Html;
+
+    /// <summary>Whether the text is drawn by the formatted-text engine (spans or HTML).</summary>
+    private bool UsesRichText => _spans.Length > 0 || _textType == TextType.Html;
+
+    private IReadOnlyList<SkUiHtmlRun> HtmlRuns => _htmlRuns ??= SkUiHtml.Parse(_text);
+
+    /// <summary>
+    /// The spans drawn instead of <see cref="Text"/> (MAUI's <c>FormattedText</c>), wrapped and aligned as one paragraph;
+    /// empty: <see cref="Text"/>. Each span's unset values are the label's. The label's <see cref="LineBreakMode"/>,
+    /// <see cref="MaxLines"/>, alignment and padding apply; <see cref="LineBreaker"/> and <see cref="TextRendering"/> do not
+    /// (spans are always shaped).
+    /// </summary>
+    public IReadOnlyList<SkUiCoreSpan> Spans => _spans;
+
+    /// <summary>
+    /// Shows <paramref name="spans"/> instead of <see cref="Text"/>, which is cleared (as on MAUI's Label); <c>null</c> or
+    /// none: back to <see cref="Text"/>. A span belongs to one label at a time.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">A span is shown by another label, or appears twice.</exception>
+    public SkUiCoreLabel SetSpans(params IEnumerable<SkUiCoreSpan>? spans)
+    {
+        var next = spans?.ToArray() ?? [];
+        for (var index = 0; index < next.Length; index++)
+        {
+            var span = next[index] ?? throw new ArgumentNullException(nameof(spans), "Spans cannot be null.");
+            if ((span.Owner is { } owner && !ReferenceEquals(owner, this)) || Array.IndexOf(next, span, 0, index) >= 0)
+                throw new InvalidOperationException("A span can be shown by one label at a time, once.");
+        }
+        foreach (var span in _spans)
+            span.Owner = null;
+        foreach (var span in next)
+            span.Owner = this;
+        _spans = next;
+        if (next.Length > 0 && SetProperty(ref _text, string.Empty, nameof(Text)))
+            _displayText = string.Empty;
+        _spanTap?.Cancel();
+        OnPropertyChanged(nameof(Spans));
+        InvalidateText();
+        return this;
+    }
+
+    /// <summary>Appends <paramref name="span"/> to <see cref="Spans"/> (see <see cref="SetSpans(IEnumerable{SkUiCoreSpan}?)"/>).</summary>
+    public SkUiCoreLabel AddSpan(SkUiCoreSpan span)
+    {
+        ArgumentNullException.ThrowIfNull(span);
+        return SetSpans([.. _spans, span]);
+    }
+
+    private void ClearSpans()
+    {
+        if (_spans.Length > 0) SetSpans(null);
+    }
+
+    /// <summary>A span changed: lay out again, or only repaint for colors, backgrounds and decorations.</summary>
+    internal void OnSpanChanged(bool layout)
+    {
+        _richText = null;
+        if (layout) InvalidateText(); else InvalidatePaint();
+    }
+
+    /// <summary>The spans with the label's defaults applied.</summary>
+    private SkUiRichText RichText => _richText ??= BuildRichText();
+
+    private SkUiRichTextLayout RichLayout => _richLayout ??= new SkUiRichTextLayout();
+
+    private SkUiRichText BuildRichText()
+    {
+        if (IsHtml)
+            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, _fontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations);
+        if (_spans.Length == 0) return SkUiRichText.Empty;
+        var builder = new SkUiRichText.Builder();
+        foreach (var span in _spans)
+        {
+            var attributes = span.FontAttributes ?? _fontAttributes;
+            var transform = span.TextTransform != TextTransform.Default ? span.TextTransform : _textTransform;
+            builder.Add(SkUiTextTransform.Apply(span.Text, transform),
+                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(span.FontFamily ?? _fontFamily, attributes), span.FontSize ?? _fontSize, attributes,
+                    span.CharacterSpacing ?? _characterSpacing, span.LineHeight ?? _lineHeight),
+                new SkUiTextSpanPaint(ToSkColor(span.TextColor ?? _textColor), span.BackgroundColor is { } background ? ToSkColor(background) : default,
+                    span.TextDecorations ?? _textDecorations));
+        }
+        return builder.Build();
+    }
+
+    /// <summary>The span drawn at <paramref name="point"/> (label coordinates), or <c>null</c> (beside the text, or no spans).</summary>
+    public SkUiCoreSpan? SpanAt(Point point) =>
+        _spans.Length > 0 && SpanIndexAt(point) is var index and >= 0 && index < _spans.Length ? _spans[index] : null;
+
+    private int SpanIndexAt(Point point) =>
+        RichLayout.HitTest(RichText, TextStyle, _padding, Frame.Width, Frame.Height, _horizontal, _vertical, point);
+
+    /// <inheritdoc />
+    internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
+    {
+        if (_spans.Length > 0 ? Array.Exists(_spans, span => span.IsTappable) : IsHtml && SkUiHtml.HasLinks(HtmlRuns))
+            recognizers.Add(_spanTap ??= new SkUiSpanTapGestureRecognizer
+            {
+                TappableSpanAt = TappableSpanAt,
+                TapHandler = args =>
+                {
+                    if (_spanTap?.TappedSpan(args) is not (>= 0 and var index)) return;
+                    if (_spans.Length > 0)
+                    {
+                        if (index < _spans.Length) _spans[index].RaiseTapped(args);
+                    }
+                    else if (index < HtmlRuns.Count && HtmlRuns[index].Style.Href is { } href)
+                        _linkTapped?.Invoke(this, new SkUiLinkTappedEventArgs(href, args.Position));
+                }
+            });
+        base.CollectGestureRecognizers(recognizers);
+    }
+
+    private int TappableSpanAt(Point point)
+    {
+        if (!UsesRichText || SpanIndexAt(point) is not (>= 0 and var index)) return -1;
+        if (_spans.Length > 0)
+            return index < _spans.Length && _spans[index].IsTappable ? index : -1;
+        return index < HtmlRuns.Count && HtmlRuns[index].Style.Href is not null ? index : -1;
     }
 
     /// <summary>Sets bold and italic flags.</summary>
@@ -284,6 +444,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     public SkUiCoreLabel SetTextDecorations(TextDecorations value)
     {
         if (!SetProperty(ref _textDecorations, value, nameof(TextDecorations))) return this;
+        _richText = null;
         InvalidatePaint();
         return this;
     }
@@ -292,6 +453,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     public SkUiCoreLabel SetTextTransform(TextTransform value)
     {
         if (!SetProperty(ref _textTransform, value, nameof(TextTransform))) return this;
+        _richText = null;
         UpdateDisplayText();
         return this;
     }
@@ -301,6 +463,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     {
         ArgumentNullException.ThrowIfNull(value);
         if (!SetProperty(ref _textColor, value, nameof(TextColor))) return this;
+        _richText = null;
         InvalidatePaint();
         return this;
     }
@@ -426,8 +589,9 @@ public class SkUiCoreLabel : SkUiCoreNode
         _maxLines, _lineHeight, _characterSpacing, EffectiveTextDirection, _textRendering, _fontAttributes, _horizontal == TextAlignment.Justify);
 
     /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
-        _layout.Measure(_displayText, TextStyle, _padding, widthConstraint);
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => UsesRichText
+        ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint)
+        : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
@@ -435,7 +599,7 @@ public class SkUiCoreLabel : SkUiCoreNode
         var radii = EffectiveCornerRadii;
         if (PaintBackground is null && (_fillColor.Alpha > 0 || (_borderWidth > 0 && _borderColor.Alpha > 0)))
             PaintChrome(canvas, _fillColor);
-        if (_displayText.Length == 0) return;
+        if ((UsesRichText ? RichText.Text : _displayText).Length == 0) return;
         if (!SkUiCornerRadii.HasAny(radii))
         {
             PaintText(canvas);
@@ -457,6 +621,11 @@ public class SkUiCoreLabel : SkUiCoreNode
     private void PaintText(SKCanvas canvas)
     {
         var paint = _textPaint ??= new SKPaint { IsAntialias = true };
+        if (UsesRichText)
+        {
+            RichLayout.Draw(canvas, RichText, TextStyle, _padding, Frame.Width, Frame.Height, _horizontal, _vertical, paint);
+            return;
+        }
         paint.Color = ToSkColor(_textColor);
         _layout.Draw(canvas, _displayText, TextStyle, _padding, Frame.Width, Frame.Height,
             _horizontal, _vertical, paint, _textDecorations);
@@ -473,6 +642,8 @@ public class SkUiCoreLabel : SkUiCoreNode
     private void InvalidateText()
     {
         _layout.Invalidate();
+        _richText = null;
+        _richLayout?.Invalidate();
         InvalidateMeasure();
     }
 }

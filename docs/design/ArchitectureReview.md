@@ -29,7 +29,7 @@ Re-review of the implementation against the previous review (2026-09-25), checke
 | Enforced performance budget | Open | `PerformanceTests` logs numbers for the immediate painter, not the retained record / commit path |
 | Drawn `SkUiEntry` with an IME proxy | Decided against | FR-16: host native text input; revisit only if overlays block a real need |
 | Core as a separate assembly (FR-C1) | Open, re-decide | Core now uses MAUI Controls types (`IVisualElementController` for flow direction) |
-| Features (old §4) | Open | CollectionView, accessibility, spans / `FormattedText`, brushes and effects (non-solid `Background` is ignored), SwipeView / RefreshView / Carousel / Expander / Stepper / Picker, spring physics, SVG / Lottie, an on-screen diagnostics overlay, stored golden images. Slider and ProgressBar are now shipped |
+| Features (old §4) | Open | CollectionView, accessibility, brushes and effects (non-solid `Background` is ignored), SwipeView / RefreshView / Carousel / Expander / Stepper / Picker, spring physics, SVG / Lottie, an on-screen diagnostics overlay, stored golden images. Slider, ProgressBar and spans / `FormattedText` are now shipped |
 
 ## 2. New findings
 
@@ -66,7 +66,7 @@ Only **DrawnUi** solves the same problem (Uno and Avalonia can't be hosted insid
 | Layout | MAUI layout managers (drop-in parity) | Own system |
 | Rendering | Retained per-node pictures, render-thread compositing and animation; no raster cache yet | Rich, hand-tuned cache types |
 | GPU | Metal, GL thread, ANGLE | Metal, GL thread, ANGLE |
-| Text | HarfBuzz, bidi, fallback; no spans yet | HarfBuzz, spans |
+| Text | HarfBuzz, bidi, fallback; spans (P5) | HarfBuzz, spans |
 | Controls | ~20 per layer | ~70 |
 | Virtualization / accessibility | Not yet | Yes / Windows only |
 | Quality | ~16k LOC, headless suite, leak tests on devices, AOT-clean | ~132k LOC, few tests |
