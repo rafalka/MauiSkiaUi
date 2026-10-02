@@ -6,6 +6,8 @@ Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs
 
 ## Unreleased
 
+## 1.0.0-Prerelease07
+
 - **Gradient backgrounds, shadows and clips on every view (P7)**, both layers ([SkUiView.md](docs/controls/SkUiView.md#backgrounds-shadows-and-clips)); MAUI XAML that uses them ports by changing the prefix:
   - **`Background`** takes `LinearGradientBrush` and `RadialGradientBrush` (mapped onto the view's bounds) wherever a solid background was drawn: plain views and layouts, label and button chrome, border outlines, `SkUiBox` (when `Color` is null, as MAUI's BoxView), image buttons (now filled to their rounded corners). Brush and gradient-stop changes redraw; shared brushes never keep a view alive.
   - **`Shadow`:** MAUI's `Shadow` (`Brush`, solid or gradient, `Offset`, `Radius`, `Opacity`; also the `"4 4 16 Black 0.5"` markup). A view with an opaque fill casts it from the fill's shape (cheap), any other view from what it and its children draw (text, images, transparent shapes), as MAUI on Android. Drawn outside the view, not cut by its own `ClipToBounds` (a clipping parent still cuts it); it changes neither layout nor taps.
