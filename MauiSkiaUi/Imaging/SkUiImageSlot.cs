@@ -202,12 +202,15 @@ internal sealed class SkUiImageSlot
     /// <summary>Cancels the load in progress (raising its cancelled <see cref="LoadingFinished"/>); returns the new generation.</summary>
     private int CancelLoad()
     {
-        _loading?.Cancel();
-        _loading?.Dispose();
-        _loading = null;
+        // The generation moves first: cancelling can complete the load inline, and Complete must see it as replaced
+        // (not as the source's own cancellation, a failure).
         var generation = ++_generation;
+        var loading = _loading;
+        _loading = null;
         if (_pending is { } pending)
             Finish(pending, SkUiImageLoadStatus.Cancelled, origin: null, error: null);
+        loading?.Cancel();
+        loading?.Dispose();
         return generation;
     }
 
