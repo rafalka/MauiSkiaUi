@@ -33,7 +33,7 @@ MAUI page
 
 ## Benefits
 
-- **Faster trees** — one shared Skia surface instead of a platform view per control; Core avoids MAUI control identity for dense composition (see [stress results](#stress-results-device)).
+- **Faster trees** — one shared Skia surface instead of a platform view per control; Core avoids MAUI control identity for dense composition (see [stress results](#stress-results-device) and [performance](docs/Performance.md)).
 - **Drop-in replacement path** — `SkUi*` mirrors common MAUI controls/layouts with MAUI layout semantics so you can swap hot spots without reinventing measure/arrange.
 - **Composition substrate** — build custom chrome and complex controls from Core primitives, then expose a thin `SkUi*` or host them via `SkUiCoreHost`.
 - **XAML where you want it** — bindable properties, styles, VisualStateManager on `SkUi*`; batch updates with `StartUpdating` / `EndUpdating`.
@@ -120,21 +120,24 @@ Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](
 
 ## Sample app
 
-`MauiSkiaUiDemo` in this repo is a component gallery (editors, native side-by-side comparisons, look/color playground, stress page). It is for exploration and verification, not published with the NuGet package.
+`MauiSkiaUiDemo` in this repo is a component gallery (editors, native side-by-side comparisons, look/color playground, stress pages). It is for exploration and verification, not published with the NuGet package.
 
 `samples/MauiSkiaUiSamples` shows **how to** build things with SkiaUi, e.g. a custom look with its own check-box transition. Each example page explains what it presents and how to achieve it, lists the things to know, and shows its own source ([samples/README.md](samples/README.md)).
 
 ## Stress results (device)
 
-Average of **3 runs** each on a **Samsung Galaxy S9** (Android), stress page, **1 000 children**, animation **off**. SkUi* / Core used **HW acceleration on**. Times are milliseconds from the demo’s `[Stress]` console metrics.
+The demo's Stress page: **1,000 buttons** in a two-column grid under one scroll view, animation off; SkUi* and Core on a GPU surface. Release builds, average of 6 rounds (2 launches × 3 rounds after a warm-up round). Times in milliseconds.
 
-| Layer | Generate UI | Add to page | UI render (layout + first frame) | Overall (start → UI idle) |
-| --- | ---: | ---: | ---: | ---: |
-| Native MAUI | 387.9 | 5356.2 | 825.6 | 6570.3 |
-| SkUi* (GPU) | 202.3 | 47.8 | 262.2 | 517.2 |
-| Core (GPU) | 36.6 | 5.7 | 84.6 | 127.5 |
+| Device | Layer | Generate UI | Add to page | First frame | Overall (start → UI idle) | Scrolling |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| Galaxy S9 (Android 10) | Native MAUI | 415 | 4,798 | 774 | 5,988 | — |
+| | SkUi* | 241 | 28 | 214 | 484 | 59 fps |
+| | Core | 55 | 7 | 165 | 228 | 59 fps |
+| iPhone 8 (iOS 16) | Native MAUI | 240 | 1,649 | 927 | 2,816 | — |
+| | SkUi* | 73 | 14 | 48 | 135 | 59 fps |
+| | Core | 52 | 8 | 31 | 91 | 60 fps |
 
-On this device, overall idle time was about **13×** faster for SkUi* and **52×** faster for Core than native MAUI for the same child count.
+The drawn tree is ready **12× (SkUi\*) and 26× (Core) faster** than native MAUI on the S9, and **21× and 31× faster** on the iPhone 8, and scrolls at the display's 60 fps. What gradients, shadows, clips, shaped borders and animated content cost while scrolling, and which of them to avoid in long lists: **[docs/Performance.md](docs/Performance.md)**.
 
 ## Contributing / developing SkiaUi
 

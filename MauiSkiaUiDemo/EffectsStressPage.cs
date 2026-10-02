@@ -277,6 +277,16 @@ public sealed class EffectsStressPage : ContentPage
             rows.Add((effects, build, scroll));
         }
         _chrome.Report(MatrixSummary(rows), FormatMatrix(layer, count, hw, rows));
+        // One machine-readable line per row (key=value, ms) for scripted runs that average several launches.
+        foreach (var (effects, build, scroll) in rows)
+            Console.WriteLine(FormattableString.Invariant(
+                $"[EffectsStress] data layer={LayerName(layer).Replace(" ", "").Replace("*", "")} hw={(hw ? "on" : "off")} cards={count} effect={Short(effects).Replace(" ", "-")} ") +
+                FormattableString.Invariant(
+                $"generate={build.GenerateMs:F1} first={build.FirstFrameMs:F1} idleFps={scroll?.IdleFps ?? 0:F1} fps={scroll?.Fps ?? 0:F1} ") +
+                FormattableString.Invariant(
+                $"renderAvg={scroll?.RenderAverageMs ?? 0:F3} renderMax={scroll?.RenderMaxMs ?? 0:F2} scrollWall={scroll?.WallMs ?? 0:F0} ") +
+                FormattableString.Invariant(
+                $"recorded={scroll?.RecordedPictures ?? 0} rasterized={scroll?.ShadowRasterizations ?? 0} live={scroll?.LiveShadows ?? 0}"));
     }
 
     private async Task<BuildResult> BuildAsync(EffectsStressLayer layer, int count, StressEffects effects, bool hw)
@@ -626,6 +636,7 @@ public sealed class EffectsStressPage : ContentPage
                 }
             }
             Console.WriteLine("[EffectsStress] done");
+            StressPageChrome.ExitIfRequested();
         }));
     }
 

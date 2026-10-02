@@ -105,6 +105,7 @@ Architecture, requirements, and mechanism checklists live under **[docs/design/]
 | [Testing.md](docs/design/Testing.md) | Unit / mechanism / golden / device strategy; `device_verify.sh` |
 | [RenderingPipeline.md](docs/design/RenderingPipeline.md) | Retained compositor, UI vs render thread, Metal / GL surfaces, render-thread animation (NFR-6) |
 | [Benchmarks.md](docs/design/Benchmarks.md) | Headless + device benchmarks, before/after comparisons (`scripts/bench.sh`) |
+| [Performance.md](docs/Performance.md) | Device results of the stress pages (S9, iPhone 8): large trees vs native MAUI, the cost of each drawing effect, scripted runs |
 | [ArchitectureReview.md](docs/design/ArchitectureReview.md) | 2026-09 review vs DrawnUi / Flutter / Avalonia / Uno / Open-Maui and implementation status |
 
 Per-control user docs (NFR-5): [docs/controls/](docs/controls/README.md).

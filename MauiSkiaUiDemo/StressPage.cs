@@ -236,10 +236,22 @@ public sealed class StressPage : ContentPage
         yield return $"{ParseChildCount(_countEntry.Text):N0} children";
     }
 
-    private void OnRunClicked(object? sender, EventArgs e)
+    private void OnRunClicked(object? sender, EventArgs e) => _ = RunRoundAsync();
+
+    /// <summary>What one run measured (ms).</summary>
+    private sealed record RunResult(string Layer, int Children, double GenerateMs, double AddMs, double RenderMs, double OverallMs);
+
+    /// <summary>What one scroll probe measured: frames composited and their render-thread cost (ms).</summary>
+    private sealed record ScrollResult(double WallMs, long Frames, double RenderAverageMs, double RenderMaxMs)
+    {
+        public double Fps => WallMs > 0 ? Frames * 1000 / WallMs : 0;
+    }
+
+    /// <summary>Releases the previous tree, collects, then builds and measures a new one; <c>null</c> when it failed or another run was busy.</summary>
+    private async Task<RunResult?> RunRoundAsync()
     {
         if (_scrollProbeRunning)
-            return;
+            return null;
 
         _chrome.RunEnabled = false;
         _motion?.Dispose();
@@ -263,24 +275,23 @@ public sealed class StressPage : ContentPage
         _selected.Text = "No selection";
         _chrome.SetStatus("Releasing previous tree…");
 
-        Dispatcher.Dispatch(async () =>
+        await FlushUiFrameAsync().ConfigureAwait(true); // the click's own work stays out of the timings
+        try
         {
-            try
-            {
-                await SettleAfterDetachAsync().ConfigureAwait(true);
-                // Drop the last strong ref on the UI thread before collecting.
-                previous = null;
-                await CollectGarbageAsync().ConfigureAwait(true);
-                _chrome.SetStatus($"Starting in {RunDelayMilliseconds} ms…");
-                await Task.Delay(RunDelayMilliseconds).ConfigureAwait(true);
-                await RunTestAsync().ConfigureAwait(true);
-            }
-            catch (Exception ex)
-            {
-                _chrome.Report("Test failed", $"Test failed: {ex.Message}");
-                _chrome.RunEnabled = true;
-            }
-        });
+            await SettleAfterDetachAsync().ConfigureAwait(true);
+            // Drop the last strong ref on the UI thread before collecting.
+            previous = null;
+            await CollectGarbageAsync().ConfigureAwait(true);
+            _chrome.SetStatus($"Starting in {RunDelayMilliseconds} ms…");
+            await Task.Delay(RunDelayMilliseconds).ConfigureAwait(true);
+            return await RunTestAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _chrome.Report("Test failed", $"Test failed: {ex.Message}");
+            _chrome.RunEnabled = true;
+            return null;
+        }
     }
 
     /// <summary>
@@ -360,7 +371,7 @@ public sealed class StressPage : ContentPage
         GC.Collect();
     }
 
-    private async Task RunTestAsync()
+    private async Task<RunResult?> RunTestAsync()
     {
         try
         {
@@ -420,10 +431,13 @@ public sealed class StressPage : ContentPage
             _chrome.Report(
                 $"{layerLabel} · {childCount:N0} · overall {overall.Elapsed.TotalMilliseconds:F0} ms · first frame {render.Elapsed.TotalMilliseconds:F0} ms",
                 metrics);
+            return new RunResult(layerLabel, childCount, generate.Elapsed.TotalMilliseconds, add.Elapsed.TotalMilliseconds,
+                render.Elapsed.TotalMilliseconds, overall.Elapsed.TotalMilliseconds);
         }
         catch (Exception ex)
         {
             _chrome.Report("Test failed", $"Test failed: {ex.Message}");
+            return null;
         }
         finally
         {
@@ -709,25 +723,18 @@ public sealed class StressPage : ContentPage
     /// Animates a full scroll and reports average UI-thread cost.
     /// SkUi/Core use <c>RecordFrame</c> diagnostics when available; native MAUI reports wall-clock scroll only.
     /// </summary>
-    private async Task MeasureScrollAsync()
+    private async Task<ScrollResult?> MeasureScrollAsync()
     {
         if (_scrollProbeRunning)
-            return;
-
+            return null;
         if (_skUiScroller is not null)
-        {
-            await MeasureSkUiScrollAsync(_skUiScroller).ConfigureAwait(true);
-            return;
-        }
-
+            return await MeasureSkUiScrollAsync(_skUiScroller).ConfigureAwait(true);
         if (_nativeScroller is not null)
-        {
-            await MeasureNativeScrollAsync(_nativeScroller).ConfigureAwait(true);
-            return;
-        }
+            return await MeasureNativeScrollAsync(_nativeScroller).ConfigureAwait(true);
+        return null;
     }
 
-    private async Task MeasureSkUiScrollAsync(SkUiScrollView scroller)
+    private async Task<ScrollResult?> MeasureSkUiScrollAsync(SkUiScrollView scroller)
     {
         _scrollProbeRunning = true;
         _chrome.RunEnabled = false;
@@ -739,6 +746,7 @@ public sealed class StressPage : ContentPage
             await FlushUiFrameAsync().ConfigureAwait(true);
             await WhenUiThreadIdleAsync().ConfigureAwait(true);
 
+            scroller.ResetRenderStatistics();
 #if SKUI_DIAGNOSTICS
             scroller.ResetDiagnosticRecordStats();
 #endif
@@ -751,11 +759,15 @@ public sealed class StressPage : ContentPage
             await Task.Delay(ScrollProbeDuration).ConfigureAwait(true);
 
             if (!ReferenceEquals(_skUiScroller, scroller))
-                return;
+                return null;
 
             motion.Dispose();
             _motion = null;
             wall.Stop();
+            // Render-thread compositing (UI thread for software surfaces): what the scroll cost per frame.
+            var statistics = scroller.GetRenderStatistics();
+            var result = new ScrollResult(wall.Elapsed.TotalMilliseconds, statistics.Frames, statistics.AverageMilliseconds, statistics.MaxMilliseconds);
+            var renderLine = $"Render: {statistics.Frames} frames, {result.Fps:F1} fps, {statistics.AverageMilliseconds:F2} ms avg / {statistics.MaxMilliseconds:F2} ms max per frame\n";
 
 #if SKUI_DIAGNOSTICS
             var frames = scroller.DiagnosticRecordFrameCount;
@@ -763,21 +775,18 @@ public sealed class StressPage : ContentPage
             var avgMs = frames > 0 ? totalMs / frames : 0;
             var hw = scroller.HwAccelerated ? "on" : "off";
             var scrollMetrics =
-                $"Scroll probe ({ScrollProbeDuration.TotalSeconds:0}s): HW {hw}\n" +
+                $"Scroll probe ({ScrollProbeDuration.TotalSeconds:0}s): HW {hw}\n" + renderLine +
                 $"RecordFrame: {frames} frames, avg {avgMs:F2} ms, total {totalMs:F1} ms\n" +
                 $"Wall clock: {wall.Elapsed.TotalMilliseconds:F0} ms  |  ~{(frames > 0 ? 1000.0 * frames / wall.Elapsed.TotalMilliseconds : 0):F1} record FPS";
 #else
             var hw = scroller.HwAccelerated ? "on" : "off";
             var scrollMetrics =
-                $"Scroll probe ({ScrollProbeDuration.TotalSeconds:0}s): HW {hw}\n" +
+                $"Scroll probe ({ScrollProbeDuration.TotalSeconds:0}s): HW {hw}\n" + renderLine +
                 $"Wall clock: {wall.Elapsed.TotalMilliseconds:F0} ms\n" +
                 $"(RecordFrame stats require a SKUI_DIAGNOSTICS build)";
 #endif
-#if SKUI_DIAGNOSTICS
-            _chrome.Append($"Scroll · {frames} frames · record avg {avgMs:F2} ms · ~{(frames > 0 ? 1000.0 * frames / wall.Elapsed.TotalMilliseconds : 0):F0} fps", scrollMetrics);
-#else
-            _chrome.Append($"Scroll · {wall.Elapsed.TotalMilliseconds:F0} ms wall", scrollMetrics);
-#endif
+            _chrome.Append($"Scroll · {result.Fps:F0} fps · render {statistics.AverageMilliseconds:F2} / {statistics.MaxMilliseconds:F2} ms", scrollMetrics);
+            return result;
         }
         finally
         {
@@ -786,7 +795,7 @@ public sealed class StressPage : ContentPage
         }
     }
 
-    private async Task MeasureNativeScrollAsync(ScrollView scroller)
+    private async Task<ScrollResult?> MeasureNativeScrollAsync(ScrollView scroller)
     {
         _scrollProbeRunning = true;
         _chrome.RunEnabled = false;
@@ -805,12 +814,13 @@ public sealed class StressPage : ContentPage
             wall.Stop();
 
             if (!ReferenceEquals(_nativeScroller, scroller))
-                return;
+                return null;
 
             var scrollMetrics =
                 $"Scroll probe (native MAUI animate): wall {wall.Elapsed.TotalMilliseconds:F0} ms\n" +
                 $"(RecordFrame N/A — not a SkUi surface)";
             _chrome.Append($"Scroll (native) · {wall.Elapsed.TotalMilliseconds:F0} ms wall", scrollMetrics);
+            return new ScrollResult(wall.Elapsed.TotalMilliseconds, 0, 0, 0);
         }
         finally
         {
@@ -850,6 +860,51 @@ public sealed class StressPage : ContentPage
         var recordMetrics =
             $"CPU Paint (direct): {timer.Elapsed.TotalMilliseconds / 30:F2} ms / {bytes:N0} B per frame";
         _chrome.Append($"Paint · {timer.Elapsed.TotalMilliseconds / 30:F2} ms / frame · {bytes:N0} B", recordMetrics);
+    }
+
+    private bool _autoRunStarted;
+
+    /// <summary>
+    /// Scripted runs: <c>SKUI_STRESS=run</c> runs <c>SKUI_STRESS_ROUNDS</c> rounds (default 3) once the page shows, with
+    /// <c>SKUI_STRESS_LAYER</c> = <c>skui</c> | <c>core</c> | <c>native</c>, <c>SKUI_STRESS_COUNT</c>, <c>SKUI_STRESS_ANIMATE=1</c>,
+    /// <c>SKUI_STRESS_HW=0</c> and <c>SKUI_STRESS_SCROLL=1</c> (a scroll probe after each build). Each round prints one
+    /// <c>[Stress] data …</c> line (key=value, ms), then <c>[Stress] done</c>.
+    /// </summary>
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        if (_autoRunStarted || Environment.GetEnvironmentVariable("SKUI_STRESS") != "run")
+            return;
+        _autoRunStarted = true;
+        _layerPicker.SelectedIndex = Environment.GetEnvironmentVariable("SKUI_STRESS_LAYER")?.ToLowerInvariant() switch
+        {
+            "core" => 1,
+            "native" => 2,
+            _ => 0
+        };
+        _hwAcceleration.IsChecked = Environment.GetEnvironmentVariable("SKUI_STRESS_HW") != "0";
+        _animate.IsChecked = Environment.GetEnvironmentVariable("SKUI_STRESS_ANIMATE") == "1";
+        if (Environment.GetEnvironmentVariable("SKUI_STRESS_COUNT") is { Length: > 0 } count)
+            _countEntry.Text = count;
+        var rounds = int.TryParse(Environment.GetEnvironmentVariable("SKUI_STRESS_ROUNDS"), out var parsed) && parsed > 0 ? parsed : 3;
+        var scroll = Environment.GetEnvironmentVariable("SKUI_STRESS_SCROLL") == "1";
+        _chrome.RefreshChips();
+        Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(2), async () =>
+        {
+            for (var round = 1; round <= rounds; round++)
+            {
+                var run = await RunRoundAsync().ConfigureAwait(true);
+                if (run is null) continue;
+                var probe = scroll ? await MeasureScrollAsync().ConfigureAwait(true) : null;
+                var animate = _animate.IsChecked ? "on" : "off";
+                Console.WriteLine(FormattableString.Invariant(
+                    $"[Stress] data layer={run.Layer.Replace(" ", "")} round={round} children={run.Children} animate={animate} generate={run.GenerateMs:F1} add={run.AddMs:F1} render={run.RenderMs:F1} overall={run.OverallMs:F1}") +
+                    (probe is null ? "" : FormattableString.Invariant(
+                        $" scrollWall={probe.WallMs:F0} fps={probe.Fps:F1} renderAvg={probe.RenderAverageMs:F2} renderMax={probe.RenderMaxMs:F2}")));
+            }
+            Console.WriteLine("[Stress] done");
+            StressPageChrome.ExitIfRequested();
+        });
     }
 
     /// <inheritdoc />

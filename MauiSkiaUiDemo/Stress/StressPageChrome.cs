@@ -87,6 +87,18 @@ internal sealed class StressPageChrome
         RefreshChips();
     }
 
+    /// <summary>
+    /// Scripted runs with <c>SKUI_EXIT_WHEN_DONE=1</c>: quits the app after its results were printed, so launchers that
+    /// wait for the process to exit (mlaunch on iOS 16 and older) return.
+    /// </summary>
+    public static void ExitIfRequested()
+    {
+        if (Environment.GetEnvironmentVariable("SKUI_EXIT_WHEN_DONE") != "1")
+            return;
+        Console.Out.Flush();
+        Environment.Exit(0);
+    }
+
     /// <summary>The fixed-height header to place above the test area.</summary>
     public View Header { get; }
 
