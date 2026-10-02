@@ -630,7 +630,7 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
     /// painter; controls with shaped fills return their shape.
     /// </summary>
     internal virtual SKPath? CreateShadowOutline(float width, float height) =>
-        _paintBackground is null && SkUiShapePainter.IsOpaque(ResolveBackgroundPaint()) ? RectangleOutline(width, height) : null;
+        _paintBackground is null && ResolveBackgroundFill() is { IsOpaque: true } ? RectangleOutline(width, height) : null;
 
     /// <summary>A rectangle of the given size as a shadow outline.</summary>
     private protected static SKPath RectangleOutline(float width, float height)
@@ -805,21 +805,40 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
     }
 
     /// <summary>
+    /// <see cref="ResolveBackgroundPaint"/> as a resolved fill, without allocating for solid colors (controls resolve their
+    /// background on every recording); <c>null</c> without a background.
+    /// </summary>
+    internal SkUiFill? ResolveBackgroundFill()
+    {
+        switch (Background)
+        {
+            case SolidColorBrush { Color: { } color }:
+                return SkUiFill.From(color);
+            case GradientBrush { GradientStops.Count: > 0 } gradient:
+                return SkUiFill.From((Paint)gradient);
+        }
+        return BackgroundColor is { } background ? SkUiFill.From(background) : null;
+    }
+
+    /// <summary>
     /// Color used to clear the platform/backing surface before painting a frame: the root's resolved background when it is
     /// an opaque color; otherwise transparent (gradients, translucent colors, none) so rounded or translucent roots show
     /// host content underneath (FR-8 / FR-11), and a gradient never shows a <see cref="VisualElement.BackgroundColor"/> it
     /// replaces. The root draws its own background over the clear in every case.
     /// </summary>
     internal SKColor SurfaceClearColor =>
-        ResolveBackgroundPaint() is SolidPaint { Color: { Alpha: >= 1 } color } ? ToSkColor(color) : SKColors.Transparent;
+        ResolveBackgroundFill() is { Gradient: null, Color.Alpha: 255 } fill ? fill.Color : SKColors.Transparent;
 
     /// <summary>
     /// Default Background when <see cref="PaintBackground"/> is unset: the view's rectangle filled with
     /// <see cref="ResolveBackgroundPaint"/> (solid colors and gradients). Subclasses may call this from a custom
     /// <see cref="PaintBackground"/> painter.
     /// </summary>
-    protected void PaintDefaultBackground(SKCanvas canvas) =>
-        SkUiShapePainter.FillRect(canvas, new SKRect(0, 0, (float)Width, (float)Height), ResolveBackgroundPaint());
+    protected void PaintDefaultBackground(SKCanvas canvas)
+    {
+        if (ResolveBackgroundFill() is { } fill)
+            SkUiShapePainter.FillRect(canvas, new SKRect(0, 0, (float)Width, (float)Height), fill);
+    }
 
     /// <summary>
     /// Background paint phase when <see cref="PaintBackground"/> is unset.

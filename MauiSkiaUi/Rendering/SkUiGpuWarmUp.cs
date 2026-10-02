@@ -16,6 +16,12 @@ internal sealed class SkUiGpuWarmUp
     /// <summary>The offscreen surface: room for the large scale, where GPUs switch some shapes (blurs, paths) to other pipelines.</summary>
     private const int SurfaceSize = 3 * Size;
 
+    /// <summary>
+    /// How long a surface must have drawn nothing before a step runs: an app's first screens usually draw several frames
+    /// right after the first one (content arriving, layout settling), and those must not wait behind a step.
+    /// </summary>
+    internal static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(1);
+
     /// <summary>Turn off to skip the warm-up (diagnostics: measuring cold pipelines).</summary>
     internal static bool IsEnabled { get; set; } = true;
 

@@ -71,6 +71,24 @@ internal struct SkUiChromeState
     public readonly void Draw(SKCanvas canvas, float width, float height, CornerRadius radii, Paint? fill) =>
         SkUiLook.Current.DrawRoundedBox(canvas, new SKRect(0, 0, width, height), radii, fill, ToSkColor(BorderColor), (float)_borderWidth);
 
+    /// <summary>Draws the rounded fill (a resolved fill: solid colors allocate nothing) and the border through the look.</summary>
+    public readonly void Draw(SKCanvas canvas, float width, float height, CornerRadius radii, in SkUiFill fill)
+    {
+        if (fill.Gradient is { } gradient)
+            Draw(canvas, width, height, radii, (Paint)gradient);
+        else
+            SkUiLook.Current.DrawRoundedBox(canvas, new SKRect(0, 0, width, height), radii, fill.Color, ToSkColor(BorderColor), (float)_borderWidth);
+    }
+
+    /// <summary>Draws only the rounded fill (under content), as image buttons do.</summary>
+    public readonly void DrawFill(SKCanvas canvas, float width, float height, CornerRadius radii, in SkUiFill fill)
+    {
+        if (fill.Gradient is { } gradient)
+            SkUiLook.Current.DrawRoundedBox(canvas, new SKRect(0, 0, width, height), radii, gradient, SKColors.Transparent, 0);
+        else if (fill.Color.Alpha > 0)
+            SkUiLook.Current.DrawRoundedBox(canvas, new SKRect(0, 0, width, height), radii, fill.Color, SKColors.Transparent, 0);
+    }
+
     /// <summary>Draws only the rounded fill (under content), as image buttons do; <c>null</c>: none.</summary>
     public readonly void DrawFill(SKCanvas canvas, float width, float height, CornerRadius radii, Paint? fill)
     {

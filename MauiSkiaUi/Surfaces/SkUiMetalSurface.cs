@@ -674,20 +674,24 @@ internal static class SkUiMetalRenderLoop
 
     /// <summary>Pipeline warm-up of the shared context, one step per idle tick after the first frame.</summary>
     private static readonly SkUiGpuWarmUp WarmUp = new();
+    private static TimeSpan _lastBusy;
 
     private static void OnTick()
     {
         using var pool = new NSAutoreleasePool();
         var busy = RenderSurfaces();
-        // Idle: compile the next batch of GPU pipelines (keeps the link running until the warm-up is done).
-        if (!busy && !_suspended && _context is { } context && !WarmUp.IsDone)
+        if (busy)
+            _lastBusy = Clock.Elapsed;
+        // Idle for a while: compile the next batch of GPU pipelines, one step per tick.
+        var warmingUp = !_suspended && _context is not null && !WarmUp.IsDone;
+        if (!busy && warmingUp && Clock.Elapsed - _lastBusy >= SkUiGpuWarmUp.IdleDelay)
         {
-            try { busy = WarmUp.RunNext(context, SKColorType.Bgra8888); }
+            try { WarmUp.RunNext(_context!, SKColorType.Bgra8888); }
             catch (Exception exception) { Debug.WriteLine($"SkiaUi GPU warm-up failed: {exception}"); }
         }
-        // Pause after a short idle period; Wake() resumes it from any thread.
+        // Pause after a short idle period (not while a warm-up is pending); Wake() resumes it from any thread.
         _idleTicks = busy ? 0 : _idleTicks + 1;
-        if (_idleTicks > 2 && _link is { } link)
+        if (_idleTicks > 2 && !warmingUp && _link is { } link)
             link.Paused = true;
     }
 

@@ -50,6 +50,37 @@ internal static class SkUiShapePainter
         Release(paint);
     }
 
+    /// <summary>Fills <paramref name="rect"/> with a resolved fill (a solid color allocates nothing).</summary>
+    public static void FillRect(SKCanvas canvas, SKRect rect, in SkUiFill fill, bool antialias = false)
+    {
+        if (fill.Gradient is { } gradient)
+        {
+            FillRect(canvas, rect, gradient, antialias);
+            return;
+        }
+        if (fill.Color.Alpha == 0)
+            return;
+        var paint = Reset();
+        paint.IsAntialias = antialias;
+        paint.Color = fill.Color;
+        canvas.DrawRect(rect, paint);
+    }
+
+    /// <summary>Fills <paramref name="path"/> with a resolved fill mapped onto <paramref name="bounds"/> (a solid color allocates nothing).</summary>
+    public static void Fill(SKCanvas canvas, SKPath path, in SkUiFill fill, SKRect bounds)
+    {
+        if (fill.Gradient is { } gradient)
+        {
+            Fill(canvas, path, gradient, bounds);
+            return;
+        }
+        if (fill.Color.Alpha == 0)
+            return;
+        var paint = Reset();
+        paint.Color = fill.Color;
+        canvas.DrawPath(path, paint);
+    }
+
     /// <summary>Strokes <paramref name="path"/> with <paramref name="stroke"/> mapped onto <paramref name="bounds"/>.</summary>
     public static void Stroke(SKCanvas canvas, SKPath path, Paint? stroke, SKRect bounds, in SkUiStrokeStyle style)
     {
@@ -169,7 +200,7 @@ internal static class SkUiShapePainter
     /// Says once per paint type that it is not drawn (an <c>ImageBrush</c> arrives as an image paint), so a ported page with
     /// a missing image fill is easy to diagnose instead of silently empty.
     /// </summary>
-    private static void WarnUnsupported(Paint brush)
+    internal static void WarnUnsupported(Paint brush)
     {
         if (_warned.TryAdd(brush.GetType(), true))
             System.Diagnostics.Trace.TraceWarning(

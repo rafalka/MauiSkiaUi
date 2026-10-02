@@ -538,19 +538,19 @@ public class SkUiCoreLabel : SkUiCoreNode
         _chrome.Draw(canvas, (float)Frame.Width, (float)Frame.Height, EffectiveCornerRadii, fill);
 
     /// <summary>The chrome's fill: <see cref="SkUiCoreNode.Background"/>, else <see cref="FillColor"/> (<c>null</c> when transparent).</summary>
-    private Paint? ChromeFill => Background ?? (_fillColor.Alpha > 0 ? new SolidPaint(_fillColor) : null);
+    private SkUiFill ChromeFill => Background is { } background ? SkUiFill.From(background) : SkUiFill.From(_fillColor);
 
     /// <summary>The rounded chrome (fill and border), unless a <see cref="SkUiCoreNode.PaintBackground"/> painter replaces it.</summary>
     protected override void OnPaintBackground(SKCanvas canvas)
     {
         var fill = ChromeFill;
-        if (SkUiShapePainter.IsVisible(fill) || _chrome.HasBorder)
-            PaintChrome(canvas, fill);
+        if (fill.IsVisible || _chrome.HasBorder)
+            _chrome.Draw(canvas, (float)Frame.Width, (float)Frame.Height, EffectiveCornerRadii, fill);
     }
 
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height) =>
-        PaintBackground is null ? ChromeShadowOutline(width, height, EffectiveCornerRadii, ChromeFill) : null;
+        PaintBackground is null ? ChromeShadowOutline(width, height, EffectiveCornerRadii, ChromeFill.ToPaint()) : null;
 
     /// <summary>The shadow silhouette of the rounded chrome filled with <paramref name="fill"/> (<c>null</c> unless opaque).</summary>
     private protected SKPath? ChromeShadowOutline(float width, float height, Microsoft.Maui.CornerRadius radii, Paint? fill) =>

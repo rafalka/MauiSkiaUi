@@ -383,7 +383,7 @@ public class SkUiLabel : SkUiView
     protected override void OnPaintBackground(SKCanvas canvas)
     {
         if (HasChrome)
-            PaintChrome(canvas, ResolveBackgroundPaint());
+            _chrome.Draw(canvas, (float)Width, (float)Height, _chrome.Radii, ResolveBackgroundFill() ?? default);
         else
             base.OnPaintBackground(canvas);
     }

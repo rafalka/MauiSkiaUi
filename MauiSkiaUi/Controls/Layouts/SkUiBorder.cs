@@ -197,8 +197,7 @@ public class SkUiBorder : SkUiContentView
     /// </summary>
     protected void PaintBorderBackground(SKCanvas canvas)
     {
-        var fill = ResolveBackgroundPaint();
-        if (!SkUiShapePainter.IsVisible(fill)) return;
+        if (ResolveBackgroundFill() is not { IsVisible: true } fill) return;
         SkUiShapePainter.Fill(canvas, Outline(), fill, new SKRect(0, 0, (float)Width, (float)Height));
     }
 

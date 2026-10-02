@@ -178,7 +178,7 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
 
     /// <summary>The <see cref="SkUiCoreNode.Background"/> (solid or gradient) fills the rounded bounds.</summary>
     protected override void OnPaintBackground(SKCanvas canvas) =>
-        _chrome.DrawFill(canvas, (float)Frame.Width, (float)Frame.Height, _chrome.Radii, Background);
+        _chrome.DrawFill(canvas, (float)Frame.Width, (float)Frame.Height, _chrome.Radii, SkUiFill.From(Background));
 
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height) =>

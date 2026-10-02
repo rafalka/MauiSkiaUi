@@ -126,6 +126,10 @@ internal sealed class SkUiGlTextureView : GLTextureView
                 e.Surface.Canvas.Clear(SKColors.Transparent);
                 return;
             }
+            // A frame requested only to run the warm-up (see ScheduleWarmUp) is not a real frame.
+            var warmUpTurn = Interlocked.Exchange(ref _warmUpTurn, 0) == 1;
+            if (!warmUpTurn)
+                _lastFrame = System.Diagnostics.Stopwatch.GetTimestamp();
             var target = e.BackendRenderTarget;
             var info = new SKImageInfo(target.Width, target.Height, e.ColorType, SKAlphaType.Premul);
             // GL thread: composite only; continuous frames while render-thread animations run, paced by vsync.
@@ -133,18 +137,44 @@ internal sealed class SkUiGlTextureView : GLTextureView
             // Flush here (the base flushes again, cheaply) so statistics include GPU command submission.
             e.Surface.Flush();
             renderer.CompleteFrame();
-            // Between frames of an idle surface: compile the next batch of GPU pipelines of this view's GL context (one
-            // step per frame), so the first scroll or animation does not stall on them.
+            // Once the surface has drawn nothing for a while: compile the next batch of GPU pipelines of this view's GL
+            // context (one step per frame), so the first scroll or animation does not stall on them.
             if (!continuous && !_warmUp.IsDone && e.Surface.Context is { } context)
             {
-                try { continuous = _warmUp.RunNext(context, e.ColorType); }
-                catch (Exception exception) { System.Diagnostics.Debug.WriteLine($"SkiaUi GPU warm-up failed: {exception}"); }
+                var idle = System.Diagnostics.Stopwatch.GetElapsedTime(_lastFrame) >= SkUiGpuWarmUp.IdleDelay;
+                if (warmUpTurn && idle)
+                {
+                    try { _warmUp.RunNext(context, e.ColorType); }
+                    catch (Exception exception) { System.Diagnostics.Debug.WriteLine($"SkiaUi GPU warm-up failed: {exception}"); }
+                }
+                if (!_warmUp.IsDone)
+                    ScheduleWarmUp(idle && warmUpTurn);
             }
             if (continuous && Interlocked.Exchange(ref _framePending, 1) == 0)
                 SkUiVsync.Post(_vsync ??= new VsyncCallback(this));
         }
 
         private readonly SkUiGpuWarmUp _warmUp = new();
+        private long _lastFrame;
+        private int _warmUpTurn;
+        private int _warmUpScheduled;
+
+        /// <summary>Requests a warm-up turn: on the next vsync while warming up, else after the idle delay.</summary>
+        private void ScheduleWarmUp(bool next)
+        {
+            if (Interlocked.Exchange(ref _warmUpScheduled, 1) == 1)
+                return;
+            void Turn()
+            {
+                Interlocked.Exchange(ref _warmUpScheduled, 0);
+                Interlocked.Exchange(ref _warmUpTurn, 1);
+                owner.RequestRender();
+            }
+            if (next)
+                owner.Post(Turn);
+            else
+                owner.PostDelayed(Turn, (long)SkUiGpuWarmUp.IdleDelay.TotalMilliseconds);
+        }
         private int _framePending;
         private VsyncCallback? _vsync;
 

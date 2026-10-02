@@ -205,17 +205,17 @@ public class SkUiCoreBorder : SkUiCoreContentView
     protected void PaintBorderBackground(SKCanvas canvas)
     {
         var fill = BorderFill;
-        if (!SkUiShapePainter.IsVisible(fill)) return;
+        if (!fill.IsVisible) return;
         SkUiShapePainter.Fill(canvas, Outline(), fill, new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height));
     }
 
-    private Paint? BorderFill => Background ?? (_backgroundColor.Alpha > 0 ? new SolidPaint(_backgroundColor) : null);
+    private SkUiFill BorderFill => Background is { } background ? SkUiFill.From(background) : SkUiFill.From(_backgroundColor);
 
     /// <inheritdoc />
     /// <remarks>An opaque fill casts the shadow from the outline (with an opaque stroke, its outer edge), as MAUI on Android.</remarks>
     internal override SKPath? CreateShadowOutline(float width, float height) =>
         ReferenceEquals(PaintBackground, _backgroundPainter) && ReferenceEquals(PaintOverlay, _overlayPainter)
-            ? SkUiBorderGeometry.ShadowOutline(Outline(), BorderFill, _stroke, _strokeThickness)
+            ? SkUiBorderGeometry.ShadowOutline(Outline(), BorderFill.ToPaint(), _stroke, _strokeThickness)
             : null;
 
     /// <summary>

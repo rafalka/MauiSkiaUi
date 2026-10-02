@@ -151,16 +151,16 @@ public class SkUiButton : SkUiLabel
         var enabled = IsEnabled && CanReceiveTap;
         var fill = ButtonFill(enabled);
         SkUiLook.Current.DrawButton(canvas, new SkUiButtonPaint(new SKRect(0, 0, (float)Width, (float)Height), CornerRadii,
-            SkUiShapePainter.RepresentativeColor(fill), ToSkColor(BorderColor), (float)BorderWidth, _press?.Visual ?? SkUiPressVisual.None, enabled)
+            fill.Color, ToSkColor(BorderColor), (float)BorderWidth, _press?.Visual ?? SkUiPressVisual.None, enabled)
         {
-            FillPaint = fill as GradientPaint
+            FillPaint = fill.Gradient
         });
     }
 
     /// <summary>The fill: a set <see cref="VisualElement.Background"/> (solid or gradient), else <see cref="FillColor"/>; disabled, the disabled color.</summary>
-    private Paint ButtonFill(bool enabled) => enabled ? ResolveBackgroundPaint() ?? new SolidPaint(_fillColor) : new SolidPaint(SkUiColors.Disabled);
+    private SkUiFill ButtonFill(bool enabled) => enabled ? ResolveBackgroundFill() ?? SkUiFill.From(_fillColor) : SkUiFill.From(SkUiColors.Disabled);
 
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height) =>
-        ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(IsEnabled && CanReceiveTap)) : null;
+        ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(IsEnabled && CanReceiveTap).ToPaint()) : null;
 }

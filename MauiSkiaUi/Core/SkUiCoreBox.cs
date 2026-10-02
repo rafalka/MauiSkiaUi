@@ -54,12 +54,12 @@ public class SkUiCoreBox : SkUiCoreNode
     protected override void OnPaintBackground(SKCanvas canvas) { }
 
     /// <summary>The fill: <see cref="Color"/>, else <see cref="SkUiCoreNode.Background"/> (solid or gradient), as MAUI's BoxView.</summary>
-    private Paint? BoxFill => _color is { } color ? new SolidPaint(color) : Background;
+    private SkUiFill BoxFill => _color is { } color ? SkUiFill.From(color) : SkUiFill.From(Background);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        if (BoxFill is not { } fill)
+        if (BoxFill is not { IsVisible: true } fill)
             return;
         var width = (float)Frame.Width;
         var height = (float)Frame.Height;
@@ -72,7 +72,7 @@ public class SkUiCoreBox : SkUiCoreNode
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height)
     {
-        if (PaintBackground is not null || !SkUiShapePainter.IsOpaque(BoxFill))
+        if (PaintBackground is not null || !BoxFill.IsOpaque)
             return null;
         return SkUiCornerRadii.HasAny(_cornerRadius) ? new SKPath(_shape.Get(width, height, _cornerRadius)) : RectangleOutline(width, height);
     }

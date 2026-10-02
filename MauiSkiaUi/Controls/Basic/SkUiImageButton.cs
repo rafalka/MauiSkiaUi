@@ -178,7 +178,7 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     protected override void OnPaintBackground(SKCanvas canvas)
     {
         if (SkUiCornerRadii.HasAny(_chrome.Radii))
-            _chrome.DrawFill(canvas, (float)Width, (float)Height, _chrome.Radii, ResolveBackgroundPaint());
+            _chrome.DrawFill(canvas, (float)Width, (float)Height, _chrome.Radii, ResolveBackgroundFill() ?? default);
         else
             base.OnPaintBackground(canvas);
     }

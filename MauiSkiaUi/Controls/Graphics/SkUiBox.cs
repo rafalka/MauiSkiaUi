@@ -70,7 +70,7 @@ public class SkUiBox : SkUiView
     }
 
     /// <summary>The fill drawn by the box itself: <see cref="Color"/>, else (with rounded corners) the background, solid or gradient.</summary>
-    private Paint? BoxFill() => _color is { } color ? new SolidPaint(color) : SkUiCornerRadii.HasAny(_cornerRadius) ? ResolveBackgroundPaint() : null;
+    private SkUiFill? BoxFill() => _color is { } color ? SkUiFill.From(color) : SkUiCornerRadii.HasAny(_cornerRadius) ? ResolveBackgroundFill() : null;
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
@@ -88,7 +88,7 @@ public class SkUiBox : SkUiView
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height)
     {
-        if (PaintBackground is not null || !SkUiShapePainter.IsOpaque(BoxFill() ?? ResolveBackgroundPaint()))
+        if (PaintBackground is not null || (BoxFill() ?? ResolveBackgroundFill()) is not { IsOpaque: true })
             return null;
         return SkUiCornerRadii.HasAny(_cornerRadius) ? new SKPath(_shape.Get(width, height, _cornerRadius)) : RectangleOutline(width, height);
     }
