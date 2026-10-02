@@ -2,7 +2,8 @@ namespace MauiSkiaUi.Core;
 
 /// <summary>
 /// Core vertical stack: children arranged top-to-bottom with optional spacing.
-/// Cross-axis slots stretch to the content width (no MAUI layout manager).
+/// Each child gets the full content width and is placed in it by its <see cref="SkUiCoreNode.HorizontalAlignment"/>, as in
+/// MAUI's VerticalStackLayout (no MAUI layout manager).
 /// </summary>
 public class SkUiCoreVerticalStackLayout : SkUiCorePanel
 {

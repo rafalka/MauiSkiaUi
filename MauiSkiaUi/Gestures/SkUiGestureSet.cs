@@ -109,13 +109,13 @@ internal static class SkUiHover
 {
     // SkUi* views that are pointer-over now (0 on touch-only devices: detaching then walks nothing). Interlocked:
     // each surface's input runs on its UI thread, but headless tests drive surfaces from several threads.
-    private static int s_pointerOverCount;
+    private static int _pointerOverCount;
 
     /// <summary>A view became pointer-over (<paramref name="isOver"/>) or stopped being it.</summary>
     internal static void Changed(bool isOver)
     {
-        if (isOver) Interlocked.Increment(ref s_pointerOverCount);
-        else Interlocked.Decrement(ref s_pointerOverCount);
+        if (isOver) Interlocked.Increment(ref _pointerOverCount);
+        else Interlocked.Decrement(ref _pointerOverCount);
     }
 
     /// <summary>
@@ -124,7 +124,7 @@ internal static class SkUiHover
     /// </summary>
     public static void ClearSubtree(ISkUiRenderable node, List<ISkUiRenderable>? scratch = null)
     {
-        if (Volatile.Read(ref s_pointerOverCount) == 0)
+        if (Volatile.Read(ref _pointerOverCount) == 0)
             return;
         (node as ISkUiInputNode)?.SetPointerOver(false);
         scratch ??= [];

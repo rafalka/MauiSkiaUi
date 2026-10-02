@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using CommunityToolkit.Maui.Views;
 using MauiSkiaUi;
 using MauiSkiaUi.Core;
 using SkiaSharp;
@@ -8,7 +7,8 @@ namespace MauiSkiaUiDemo;
 
 /// <summary>
 /// Stress harness for a large hosted tree. Starts with configuration only; the heavy UI is built
-/// after a delayed UI-thread post so click/paint work is excluded from timings.
+/// after a delayed UI-thread post so click/paint work is excluded from timings. The description, configuration and
+/// full results open in popups (<see cref="StressPageChrome"/>), so the test area keeps the same size between runs.
 /// </summary>
 public sealed class StressPage : ContentPage
 {
@@ -31,8 +31,7 @@ public sealed class StressPage : ContentPage
     private readonly CheckBox _hwAcceleration;
     private readonly CheckBox _animate;
     private readonly Picker _layerPicker;
-    private readonly Button _runButton;
-    private readonly Label _metrics;
+    private readonly StressPageChrome _chrome;
     private readonly Label _selected;
     private readonly ContentView _stressHost;
     private SkUiScrollView? _skUiScroller;
@@ -111,18 +110,6 @@ public sealed class StressPage : ContentPage
             _hwAcceleration.IsEnabled = !native;
         };
 
-        _runButton = new Button
-        {
-            Text = "Run test",
-            AutomationId = "StressRunTest",
-            BackgroundColor = DemoColors.Accent,
-            TextColor = Colors.White,
-            FontFamily = DemoFonts.OpenSansSemibold,
-            Padding = new Thickness(14, 6),
-            HorizontalOptions = LayoutOptions.Start
-        };
-        _runButton.Clicked += OnRunClicked;
-
         var configurationContent = new VerticalStackLayout
         {
             Spacing = 8,
@@ -182,42 +169,22 @@ public sealed class StressPage : ContentPage
             }
         };
 
-        _metrics = new Label
-        {
-            Text = "Not run yet.",
-            TextColor = DemoColors.Caption,
-            FontFamily = DemoFonts.OpenSansRegular,
-            FontSize = 12,
-            LineBreakMode = LineBreakMode.WordWrap,
-            AutomationId = "StressMetrics"
-        };
-
         _selected = new Label
         {
             Text = "No selection",
             TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular,
             FontSize = 12,
+            MaxLines = 1,
             AutomationId = "StressSelection"
         };
 
         _stressHost = new ContentView { AutomationId = "StressHost" };
-
-        var descriptionExpander = CreateExpander("About this test", description, isExpanded: false);
-        var configurationExpander = CreateExpander("Test configuration", configurationContent, isExpanded: false);
-        var resultsExpander = CreateExpander("Test results", _metrics, isExpanded: true);
-
-        var config = new VerticalStackLayout
-        {
-            Spacing = 6,
-            Children =
-            {
-                descriptionExpander,
-                configurationExpander,
-                _runButton,
-                resultsExpander
-            }
-        };
+        _chrome = new StressPageChrome(this, "Stress", description, configurationContent, StatusChips, () => OnRunClicked(this, EventArgs.Empty), "Stress");
+        _countEntry.TextChanged += (_, _) => _chrome.RefreshChips();
+        _hwAcceleration.CheckedChanged += (_, _) => _chrome.RefreshChips();
+        _animate.CheckedChanged += (_, _) => _chrome.RefreshChips();
+        _layerPicker.SelectedIndexChanged += (_, _) => _chrome.RefreshChips();
 
         var layout = new Grid
         {
@@ -230,7 +197,7 @@ public sealed class StressPage : ContentPage
                 new(GridLength.Auto)
             ]
         };
-        layout.Add(config);
+        layout.Add(_chrome.Header);
         layout.Add(_stressHost, 0, 1);
         layout.Add(_selected, 0, 2);
         Content = layout;
@@ -253,70 +220,40 @@ public sealed class StressPage : ContentPage
         _ = _nativeScroller?.ScrollToAsync(0, 0, false);
     }
 
-    /// <summary>
-    /// Creates a Community Toolkit expander with a tinted header, title on the left, and a
-    /// right-aligned expand/collapse chevron that tracks <see cref="Expander.IsExpanded"/>.
-    /// </summary>
-    private static Expander CreateExpander(string headerText, View content, bool isExpanded)
+    /// <summary>Status chips of the current configuration: layer, HW / SW surface, animation, child count.</summary>
+    private IEnumerable<string> StatusChips()
     {
-        var indicator = new Label
+        yield return SelectedLayer switch
         {
-            Text = ExpandIndicator(isExpanded),
-            TextColor = DemoColors.Caption,
-            FontFamily = DemoFonts.OpenSansSemibold,
-            FontSize = 14,
-            VerticalOptions = LayoutOptions.Center,
-            HorizontalOptions = LayoutOptions.End,
-            Margin = new Thickness(8, 0, 0, 0)
+            StressLayer.Core => "CORE",
+            StressLayer.NativeMaui => "NATIVE",
+            _ => "SKUI"
         };
-
-        var title = new Label
-        {
-            Text = headerText,
-            TextColor = DemoColors.Ink,
-            FontFamily = DemoFonts.OpenSansSemibold,
-            FontSize = 13,
-            VerticalOptions = LayoutOptions.Center,
-            LineBreakMode = LineBreakMode.TailTruncation
-        };
-
-        var header = new Grid
-        {
-            BackgroundColor = DemoColors.SoftSurface,
-            Padding = new Thickness(10, 8),
-            ColumnSpacing = 8,
-            ColumnDefinitions =
-            [
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            ]
-        };
-        header.Add(title);
-        header.Add(indicator, 1, 0);
-
-        var expander = new Expander
-        {
-            IsExpanded = isExpanded,
-            Header = header,
-            Content = new ContentView
-            {
-                Padding = new Thickness(10, 8, 10, 4),
-                Content = content
-            }
-        };
-        expander.ExpandedChanged += (_, args) => indicator.Text = ExpandIndicator(args.IsExpanded);
-        return expander;
+        if (SelectedLayer != StressLayer.NativeMaui)
+            yield return _hwAcceleration.IsChecked ? "HW" : "SW";
+        if (_animate.IsChecked)
+            yield return "ANIM";
+        yield return $"{ParseChildCount(_countEntry.Text):N0} children";
     }
 
-    /// <summary>Chevron shown in an expander header for the current expanded state.</summary>
-    private static string ExpandIndicator(bool isExpanded) => isExpanded ? "▾" : "▸";
+    private void OnRunClicked(object? sender, EventArgs e) => _ = RunRoundAsync();
 
-    private void OnRunClicked(object? sender, EventArgs e)
+    /// <summary>What one run measured (ms).</summary>
+    private sealed record RunResult(string Layer, int Children, double GenerateMs, double AddMs, double RenderMs, double OverallMs);
+
+    /// <summary>What one scroll probe measured: frames composited and their render-thread cost (ms).</summary>
+    private sealed record ScrollResult(double WallMs, long Frames, double RenderAverageMs, double RenderMaxMs)
+    {
+        public double Fps => WallMs > 0 ? Frames * 1000 / WallMs : 0;
+    }
+
+    /// <summary>Releases the previous tree, collects, then builds and measures a new one; <c>null</c> when it failed or another run was busy.</summary>
+    private async Task<RunResult?> RunRoundAsync()
     {
         if (_scrollProbeRunning)
-            return;
+            return null;
 
-        _runButton.IsEnabled = false;
+        _chrome.RunEnabled = false;
         _motion?.Dispose();
         _motion = null;
         _skUiScroller = null;
@@ -336,27 +273,25 @@ public sealed class StressPage : ContentPage
         _stressHost.Content = null;
 
         _selected.Text = "No selection";
-        _metrics.Text = "Releasing previous tree…";
+        _chrome.SetStatus("Releasing previous tree…");
 
-        Dispatcher.Dispatch(async () =>
+        await FlushUiFrameAsync().ConfigureAwait(true); // the click's own work stays out of the timings
+        try
         {
-            try
-            {
-                await SettleAfterDetachAsync().ConfigureAwait(true);
-                // Drop the last strong ref on the UI thread before collecting.
-                previous = null;
-                await CollectGarbageAsync().ConfigureAwait(true);
-                _metrics.Text = $"Starting in {RunDelayMilliseconds} ms…";
-                await Task.Delay(RunDelayMilliseconds).ConfigureAwait(true);
-                await RunTestAsync().ConfigureAwait(true);
-            }
-            catch (Exception ex)
-            {
-                _metrics.Text = $"Test failed: {ex.Message}";
-                Console.WriteLine($"[Stress] {_metrics.Text}");
-                _runButton.IsEnabled = true;
-            }
-        });
+            await SettleAfterDetachAsync().ConfigureAwait(true);
+            // Drop the last strong ref on the UI thread before collecting.
+            previous = null;
+            await CollectGarbageAsync().ConfigureAwait(true);
+            _chrome.SetStatus($"Starting in {RunDelayMilliseconds} ms…");
+            await Task.Delay(RunDelayMilliseconds).ConfigureAwait(true);
+            return await RunTestAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _chrome.Report("Test failed", $"Test failed: {ex.Message}");
+            _chrome.RunEnabled = true;
+            return null;
+        }
     }
 
     /// <summary>
@@ -436,7 +371,7 @@ public sealed class StressPage : ContentPage
         GC.Collect();
     }
 
-    private async Task RunTestAsync()
+    private async Task<RunResult?> RunTestAsync()
     {
         try
         {
@@ -493,17 +428,20 @@ public sealed class StressPage : ContentPage
                 $"Add to page: {add.Elapsed.TotalMilliseconds:F1} ms\n" +
                 $"UI render (layout + first frame): {render.Elapsed.TotalMilliseconds:F1} ms\n" +
                 $"Overall (start → UI idle): {overall.Elapsed.TotalMilliseconds:F1} ms";
-            _metrics.Text = metrics;
-            Console.WriteLine($"[Stress] {metrics.Replace("\n", " | ")}");
+            _chrome.Report(
+                $"{layerLabel} · {childCount:N0} · overall {overall.Elapsed.TotalMilliseconds:F0} ms · first frame {render.Elapsed.TotalMilliseconds:F0} ms",
+                metrics);
+            return new RunResult(layerLabel, childCount, generate.Elapsed.TotalMilliseconds, add.Elapsed.TotalMilliseconds,
+                render.Elapsed.TotalMilliseconds, overall.Elapsed.TotalMilliseconds);
         }
         catch (Exception ex)
         {
-            _metrics.Text = $"Test failed: {ex.Message}";
-            Console.WriteLine($"[Stress] {_metrics.Text}");
+            _chrome.Report("Test failed", $"Test failed: {ex.Message}");
+            return null;
         }
         finally
         {
-            _runButton.IsEnabled = true;
+            _chrome.RunEnabled = true;
         }
     }
 
@@ -785,28 +723,21 @@ public sealed class StressPage : ContentPage
     /// Animates a full scroll and reports average UI-thread cost.
     /// SkUi/Core use <c>RecordFrame</c> diagnostics when available; native MAUI reports wall-clock scroll only.
     /// </summary>
-    private async Task MeasureScrollAsync()
+    private async Task<ScrollResult?> MeasureScrollAsync()
     {
         if (_scrollProbeRunning)
-            return;
-
+            return null;
         if (_skUiScroller is not null)
-        {
-            await MeasureSkUiScrollAsync(_skUiScroller).ConfigureAwait(true);
-            return;
-        }
-
+            return await MeasureSkUiScrollAsync(_skUiScroller).ConfigureAwait(true);
         if (_nativeScroller is not null)
-        {
-            await MeasureNativeScrollAsync(_nativeScroller).ConfigureAwait(true);
-            return;
-        }
+            return await MeasureNativeScrollAsync(_nativeScroller).ConfigureAwait(true);
+        return null;
     }
 
-    private async Task MeasureSkUiScrollAsync(SkUiScrollView scroller)
+    private async Task<ScrollResult?> MeasureSkUiScrollAsync(SkUiScrollView scroller)
     {
         _scrollProbeRunning = true;
-        _runButton.IsEnabled = false;
+        _chrome.RunEnabled = false;
         try
         {
             _motion?.Dispose();
@@ -815,6 +746,7 @@ public sealed class StressPage : ContentPage
             await FlushUiFrameAsync().ConfigureAwait(true);
             await WhenUiThreadIdleAsync().ConfigureAwait(true);
 
+            scroller.ResetRenderStatistics();
 #if SKUI_DIAGNOSTICS
             scroller.ResetDiagnosticRecordStats();
 #endif
@@ -827,11 +759,15 @@ public sealed class StressPage : ContentPage
             await Task.Delay(ScrollProbeDuration).ConfigureAwait(true);
 
             if (!ReferenceEquals(_skUiScroller, scroller))
-                return;
+                return null;
 
             motion.Dispose();
             _motion = null;
             wall.Stop();
+            // Render-thread compositing (UI thread for software surfaces): what the scroll cost per frame.
+            var statistics = scroller.GetRenderStatistics();
+            var result = new ScrollResult(wall.Elapsed.TotalMilliseconds, statistics.Frames, statistics.AverageMilliseconds, statistics.MaxMilliseconds);
+            var renderLine = $"Render: {statistics.Frames} frames, {result.Fps:F1} fps, {statistics.AverageMilliseconds:F2} ms avg / {statistics.MaxMilliseconds:F2} ms max per frame\n";
 
 #if SKUI_DIAGNOSTICS
             var frames = scroller.DiagnosticRecordFrameCount;
@@ -839,30 +775,30 @@ public sealed class StressPage : ContentPage
             var avgMs = frames > 0 ? totalMs / frames : 0;
             var hw = scroller.HwAccelerated ? "on" : "off";
             var scrollMetrics =
-                $"Scroll probe ({ScrollProbeDuration.TotalSeconds:0}s): HW {hw}\n" +
+                $"Scroll probe ({ScrollProbeDuration.TotalSeconds:0}s): HW {hw}\n" + renderLine +
                 $"RecordFrame: {frames} frames, avg {avgMs:F2} ms, total {totalMs:F1} ms\n" +
                 $"Wall clock: {wall.Elapsed.TotalMilliseconds:F0} ms  |  ~{(frames > 0 ? 1000.0 * frames / wall.Elapsed.TotalMilliseconds : 0):F1} record FPS";
 #else
             var hw = scroller.HwAccelerated ? "on" : "off";
             var scrollMetrics =
-                $"Scroll probe ({ScrollProbeDuration.TotalSeconds:0}s): HW {hw}\n" +
+                $"Scroll probe ({ScrollProbeDuration.TotalSeconds:0}s): HW {hw}\n" + renderLine +
                 $"Wall clock: {wall.Elapsed.TotalMilliseconds:F0} ms\n" +
                 $"(RecordFrame stats require a SKUI_DIAGNOSTICS build)";
 #endif
-            _metrics.Text = $"{_metrics.Text}\n{scrollMetrics}";
-            Console.WriteLine($"[Stress/Scroll] {scrollMetrics.Replace("\n", " | ")}");
+            _chrome.Append($"Scroll · {result.Fps:F0} fps · render {statistics.AverageMilliseconds:F2} / {statistics.MaxMilliseconds:F2} ms", scrollMetrics);
+            return result;
         }
         finally
         {
             _scrollProbeRunning = false;
-            _runButton.IsEnabled = true;
+            _chrome.RunEnabled = true;
         }
     }
 
-    private async Task MeasureNativeScrollAsync(ScrollView scroller)
+    private async Task<ScrollResult?> MeasureNativeScrollAsync(ScrollView scroller)
     {
         _scrollProbeRunning = true;
-        _runButton.IsEnabled = false;
+        _chrome.RunEnabled = false;
         try
         {
             await scroller.ScrollToAsync(0, 0, false).ConfigureAwait(true);
@@ -878,18 +814,18 @@ public sealed class StressPage : ContentPage
             wall.Stop();
 
             if (!ReferenceEquals(_nativeScroller, scroller))
-                return;
+                return null;
 
             var scrollMetrics =
                 $"Scroll probe (native MAUI animate): wall {wall.Elapsed.TotalMilliseconds:F0} ms\n" +
                 $"(RecordFrame N/A — not a SkUi surface)";
-            _metrics.Text = $"{_metrics.Text}\n{scrollMetrics}";
-            Console.WriteLine($"[Stress/Scroll] {scrollMetrics.Replace("\n", " | ")}");
+            _chrome.Append($"Scroll (native) · {wall.Elapsed.TotalMilliseconds:F0} ms wall", scrollMetrics);
+            return new ScrollResult(wall.Elapsed.TotalMilliseconds, 0, 0, 0);
         }
         finally
         {
             _scrollProbeRunning = false;
-            _runButton.IsEnabled = true;
+            _chrome.RunEnabled = true;
         }
     }
 
@@ -900,8 +836,7 @@ public sealed class StressPage : ContentPage
             if (_nativeScroller is not null)
             {
                 var note = "CPU Paint N/A for native MAUI (no SkUi Paint path).";
-                _metrics.Text = $"{_metrics.Text}\n{note}";
-                Console.WriteLine($"[Stress/Record] {note}");
+                _chrome.Append("Paint · n/a for native MAUI", note);
             }
             return;
         }
@@ -924,8 +859,52 @@ public sealed class StressPage : ContentPage
         var bytes = (GC.GetAllocatedBytesForCurrentThread() - allocated) / 30;
         var recordMetrics =
             $"CPU Paint (direct): {timer.Elapsed.TotalMilliseconds / 30:F2} ms / {bytes:N0} B per frame";
-        _metrics.Text = $"{_metrics.Text}\n{recordMetrics}";
-        Console.WriteLine($"[Stress/Record] {recordMetrics}");
+        _chrome.Append($"Paint · {timer.Elapsed.TotalMilliseconds / 30:F2} ms / frame · {bytes:N0} B", recordMetrics);
+    }
+
+    private bool _autoRunStarted;
+
+    /// <summary>
+    /// Scripted runs: <c>SKUI_STRESS=run</c> runs <c>SKUI_STRESS_ROUNDS</c> rounds (default 3) once the page shows, with
+    /// <c>SKUI_STRESS_LAYER</c> = <c>skui</c> | <c>core</c> | <c>native</c>, <c>SKUI_STRESS_COUNT</c>, <c>SKUI_STRESS_ANIMATE=1</c>,
+    /// <c>SKUI_STRESS_HW=0</c> and <c>SKUI_STRESS_SCROLL=1</c> (a scroll probe after each build). Each round prints one
+    /// <c>[Stress] data …</c> line (key=value, ms), then <c>[Stress] done</c>.
+    /// </summary>
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        if (_autoRunStarted || Environment.GetEnvironmentVariable("SKUI_STRESS") != "run")
+            return;
+        _autoRunStarted = true;
+        _layerPicker.SelectedIndex = Environment.GetEnvironmentVariable("SKUI_STRESS_LAYER")?.ToLowerInvariant() switch
+        {
+            "core" => 1,
+            "native" => 2,
+            _ => 0
+        };
+        _hwAcceleration.IsChecked = Environment.GetEnvironmentVariable("SKUI_STRESS_HW") != "0";
+        _animate.IsChecked = Environment.GetEnvironmentVariable("SKUI_STRESS_ANIMATE") == "1";
+        if (Environment.GetEnvironmentVariable("SKUI_STRESS_COUNT") is { Length: > 0 } count)
+            _countEntry.Text = count;
+        var rounds = int.TryParse(Environment.GetEnvironmentVariable("SKUI_STRESS_ROUNDS"), out var parsed) && parsed > 0 ? parsed : 3;
+        var scroll = Environment.GetEnvironmentVariable("SKUI_STRESS_SCROLL") == "1";
+        _chrome.RefreshChips();
+        Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(2), async () =>
+        {
+            for (var round = 1; round <= rounds; round++)
+            {
+                var run = await RunRoundAsync().ConfigureAwait(true);
+                if (run is null) continue;
+                var probe = scroll ? await MeasureScrollAsync().ConfigureAwait(true) : null;
+                var animate = _animate.IsChecked ? "on" : "off";
+                Console.WriteLine(FormattableString.Invariant(
+                    $"[Stress] data layer={run.Layer.Replace(" ", "")} round={round} children={run.Children} animate={animate} generate={run.GenerateMs:F1} add={run.AddMs:F1} render={run.RenderMs:F1} overall={run.OverallMs:F1}") +
+                    (probe is null ? "" : FormattableString.Invariant(
+                        $" scrollWall={probe.WallMs:F0} fps={probe.Fps:F1} renderAvg={probe.RenderAverageMs:F2} renderMax={probe.RenderMaxMs:F2}")));
+            }
+            Console.WriteLine("[Stress] done");
+            StressPageChrome.ExitIfRequested();
+        });
     }
 
     /// <inheritdoc />

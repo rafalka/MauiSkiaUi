@@ -32,7 +32,7 @@ public static class MemoryLeakRunner
     /// <summary>How long objects may take to be collected after the page closes (native peers are released asynchronously).</summary>
     public static TimeSpan CollectTimeout { get; set; } = TimeSpan.FromSeconds(10);
 
-    private static readonly Dictionary<string, LeakResult> s_results = [];
+    private static readonly Dictionary<string, LeakResult> _results = [];
 
     /// <summary>Raised on the UI thread whenever a scenario's result changes.</summary>
     public static event Action<LeakResult>? ResultChanged;
@@ -43,7 +43,7 @@ public static class MemoryLeakRunner
     public static Entry? FocusSink { get; set; }
 
     /// <summary>Latest result per scenario (not run yet when missing).</summary>
-    public static LeakResult ResultOf(string name) => s_results.TryGetValue(name, out var result) ? result : new(name, LeakStatus.NotRun);
+    public static LeakResult ResultOf(string name) => _results.TryGetValue(name, out var result) ? result : new(name, LeakStatus.NotRun);
 
     public static IReadOnlyList<LeakResult> Results => LeakScenarios.All.Select(scenario => ResultOf(scenario.Name)).ToList();
 
@@ -190,7 +190,7 @@ public static class MemoryLeakRunner
 
     private static void Report(LeakResult result)
     {
-        s_results[result.Name] = result;
+        _results[result.Name] = result;
         if (result.Status is LeakStatus.Pass or LeakStatus.Fail && result.Name != LeakScenarios.DeliberateLeak.Name)
             Console.WriteLine("SKUILEAK " + JsonSerializer.Serialize(result, LeakJson.Default.LeakResult));
         ResultChanged?.Invoke(result);

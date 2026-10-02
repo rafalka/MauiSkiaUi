@@ -14,7 +14,7 @@ public class SkUiCoreButton : SkUiCoreLabel
     private SkUiPressAnimator? _press;
     private ICommand? _command;
     private object? _commandParameter;
-    private EventHandler? _commandChanged;
+    private SkUiWeakListener<SkUiCoreButton>? _commandListener;
 
     /// <summary>Creates a centered white-on-accent button.</summary>
     public SkUiCoreButton()
@@ -24,8 +24,11 @@ public class SkUiCoreButton : SkUiCoreLabel
         SetHorizontalTextAlignment(TextAlignment.Center);
         SetVerticalTextAlignment(TextAlignment.Center);
         SetFillColor(SkUiColors.Accent);
-        SetPaintBackground(PaintButtonBackground);
+        _buttonPainter = PaintButtonBackground;
+        SetPaintBackground(_buttonPainter);
     }
+
+    private readonly Action<SKCanvas> _buttonPainter;
 
     /// <summary>Raised on a completed tap inside the button bounds (in addition to <see cref="Command"/>).</summary>
     public event EventHandler? Clicked;
@@ -78,31 +81,16 @@ public class SkUiCoreButton : SkUiCoreLabel
         return base.SetMinimumHeight(value);
     }
 
-    /// <summary>Sets the tap command. CanExecuteChanged uses a weak target so long-lived commands do not retain this node.</summary>
+    /// <summary>Sets the tap command. CanExecuteChanged is listened to weakly, so long-lived commands do not retain this node.</summary>
     public SkUiCoreButton SetCommand(ICommand? value)
     {
         if (ReferenceEquals(_command, value)) return this;
-        if (_command is not null && _commandChanged is not null)
-            _command.CanExecuteChanged -= _commandChanged;
         if (!SetProperty(ref _command, value, nameof(Command))) return this;
-        if (value is not null)
+        // A long-lived command must not keep the node alive.
+        (_commandListener ??= new(this, static (button, change) =>
         {
-            var weak = new WeakReference<SkUiCoreButton>(this);
-            EventHandler? listener = null;
-            listener = (sender, _) =>
-            {
-                if (weak.TryGetTarget(out var button))
-                    button.InvalidatePaint();
-                else if (sender is ICommand oldCommand)
-                    oldCommand.CanExecuteChanged -= listener;
-            };
-            _commandChanged = listener;
-            value.CanExecuteChanged += listener;
-        }
-        else
-        {
-            _commandChanged = null;
-        }
+            if (change.Kind == SkUiChangeKind.CanExecute) button.InvalidatePaint();
+        })).Listen(value);
         InvalidatePaint();
         return this;
     }
@@ -146,10 +134,22 @@ public class SkUiCoreButton : SkUiCoreLabel
     protected void PaintButtonBackground(SKCanvas canvas)
     {
         var enabled = CanExecuteCommand;
+        var fill = ButtonFill(enabled);
         SkUiLook.Current.DrawButton(canvas, new SkUiButtonPaint(new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height), CornerRadii,
-            ToSkColor(enabled ? FillColor : SkUiColors.Disabled), ToSkColor(BorderColor), (float)BorderWidth,
-            _press?.Visual ?? SkUiPressVisual.None, enabled));
+            fill.Color, ToSkColor(BorderColor), (float)BorderWidth,
+            _press?.Visual ?? SkUiPressVisual.None, enabled)
+        {
+            FillPaint = fill.Gradient
+        });
     }
+
+    /// <summary>The fill: a set <see cref="SkUiCoreNode.Background"/> (solid or gradient), else <see cref="SkUiCoreLabel.FillColor"/>; disabled, the disabled color.</summary>
+    private SkUiFill ButtonFill(bool enabled) =>
+        !enabled ? SkUiFill.From(SkUiColors.Disabled) : Background is { } background ? SkUiFill.From(background) : SkUiFill.From(FillColor);
+
+    /// <inheritdoc />
+    internal override SKPath? CreateShadowOutline(float width, float height) =>
+        ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(CanExecuteCommand).ToPaint()) : null;
 
     /// <inheritdoc />
     internal override bool HasIntrinsicTap => CanExecuteCommand;

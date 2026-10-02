@@ -21,8 +21,14 @@ public class SkUiButton : SkUiLabel
         validateValue: SkUiValidate.NotNull,
         propertyChanged: (view, _, value) => ((SkUiButton)view).OnFillColorChanged((Color)value));
 
+    private readonly Action<SKCanvas> _buttonPainter;
+
     /// <summary>Creates a centered, padded button (its defaults are the <c>Default*</c> overrides below).</summary>
-    public SkUiButton() => SetPaintBackground(PaintButtonBackground);
+    public SkUiButton()
+    {
+        _buttonPainter = PaintButtonBackground;
+        SetPaintBackground(_buttonPainter);
+    }
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
@@ -69,23 +75,15 @@ public class SkUiButton : SkUiLabel
     private void OnCommandChanged(ICommand? value)
     {
         if (_command == value) return;
-        if (_command is not null && _commandChanged is not null) _command.CanExecuteChanged -= _commandChanged;
         _command = value;
-        if (value is not null)
+        // A long-lived command must not keep the button alive.
+        (_commandListener ??= new(this, static (button, change) =>
         {
-            var weak = new WeakReference<SkUiButton>(this);
-            EventHandler? listener = null;
-            listener = (sender, _) =>
-            {
-                if (weak.TryGetTarget(out var button)) button.UpdateState();
-                else if (sender is ICommand oldCommand) oldCommand.CanExecuteChanged -= listener;
-            };
-            _commandChanged = listener;
-            value.CanExecuteChanged += listener;
-        }
+            if (change.Kind == SkUiChangeKind.CanExecute) button.UpdateState();
+        })).Listen(value);
         UpdateState();
     }
-    private EventHandler? _commandChanged;
+    private SkUiWeakListener<SkUiButton>? _commandListener;
     /// <summary>Sets command argument (same as the property setter).</summary>
     public SkUiButton SetCommandParameter(object? value) { CommandParameter = value; return this; }
     private void OnCommandParameterChanged(object? value) { _commandParameter = value; UpdateState(); }
@@ -151,8 +149,18 @@ public class SkUiButton : SkUiLabel
     protected void PaintButtonBackground(SKCanvas canvas)
     {
         var enabled = IsEnabled && CanReceiveTap;
-        var color = enabled ? ResolveSolidBackgroundColor() ?? _fillColor : SkUiColors.Disabled;
+        var fill = ButtonFill(enabled);
         SkUiLook.Current.DrawButton(canvas, new SkUiButtonPaint(new SKRect(0, 0, (float)Width, (float)Height), CornerRadii,
-            ToSkColor(color), ToSkColor(BorderColor), (float)BorderWidth, _press?.Visual ?? SkUiPressVisual.None, enabled));
+            fill.Color, ToSkColor(BorderColor), (float)BorderWidth, _press?.Visual ?? SkUiPressVisual.None, enabled)
+        {
+            FillPaint = fill.Gradient
+        });
     }
+
+    /// <summary>The fill: a set <see cref="VisualElement.Background"/> (solid or gradient), else <see cref="FillColor"/>; disabled, the disabled color.</summary>
+    private SkUiFill ButtonFill(bool enabled) => enabled ? ResolveBackgroundFill() ?? SkUiFill.From(_fillColor) : SkUiFill.From(SkUiColors.Disabled);
+
+    /// <inheritdoc />
+    internal override SKPath? CreateShadowOutline(float width, float height) =>
+        ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(IsEnabled && CanReceiveTap).ToPaint()) : null;
 }

@@ -28,7 +28,9 @@ public static class LeakScenarios
         new("TogglesTapped", Controls, "Switch, check boxes (one three-state) and a radio group, each tapped several times.", () => new TogglesRun()),
         new("SlidersAndProgress", Controls, "Horizontal, vertical and Core sliders dragged and tapped; progress bars animating and indeterminate at close.", () => new SlidersRun()),
         new("LabelsReshaped", Controls, "Wrapped, truncated, RTL, Arabic, emoji and Simple / Shaped labels; text and width changed repeatedly; formatted text (drawn and Core) with tappable spans bound to a long-lived command, tapped, restyled and replaced; HTML text with links (both layers), tapped and changed.", () => new LabelsRun()),
-        new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image.", () => new ImagesRun()),
+        new("ShapesRestyled", Controls, "Every shape (drawn and Core) and borders shaped by them, painted with long-lived shared brushes, dash arrays and a stroke shape; brushes, gradient stops, points, path data and stroke shapes changed; a border tapped.", () => new ShapesRun()),
+        new("EffectsRestyled", Controls, "Gradient backgrounds, shadows (outline and content shadows, on both layers) and clips from long-lived shared brushes, geometries and Core shadows; brushes, gradient stops, shadows and clips changed while shown; shadowed cards scrolled and animated.", () => new EffectsRun()),
+        new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image; a long-lived icon source shared by images that are never disposed, edited while shown.", () => new ImagesRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
@@ -245,6 +247,156 @@ public static class LeakScenarios
         }
     }
 
+    /// <summary>Resources that outlive every screen, as app-level styles and resources do.</summary>
+    private static class LeakShapes
+    {
+        public static readonly SolidColorBrush Solid = new(LeakColors.Accent);
+        public static readonly LinearGradientBrush Gradient = new(
+            [new GradientStop(LeakColors.SampleA, 0), new GradientStop(LeakColors.SampleB, 1)], new Point(0, 0), new Point(1, 1));
+        public static readonly Microsoft.Maui.Controls.Shapes.RoundRectangle StrokeShape = new() { CornerRadius = 12 };
+        public static readonly DoubleCollection Dashes = [4, 2];
+    }
+
+    private sealed class ShapesRun : LeakScenarioRun
+    {
+        private readonly List<SkUiShape> _shapes = [];
+        private SkUiBorder? _border;
+        private SkUiPolygon? _polygon;
+        private SkUiPath? _path;
+        private SkUiCoreBorder? _coreBorder;
+        private int _taps;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var stack = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12) };
+            var row = new SkUiHorizontalStackLayout { Spacing = 6, HeightRequest = 48 };
+            _polygon = new SkUiPolygon([new(0, 40), new(20, 0), new(40, 40)]);
+            _path = new SkUiPath { Aspect = Microsoft.Maui.Controls.Stretch.Uniform, WidthRequest = 48 }.SetData("M 0,20 C 10,0 30,40 40,20");
+            SkUiShape[] shapes =
+            [
+                new SkUiEllipse { WidthRequest = 40 }, new SkUiRectangle { WidthRequest = 40, RadiusX = 6 },
+                new SkUiRoundRectangle { WidthRequest = 40, CornerRadius = 10 }, new SkUiLine(0, 0, 40, 40),
+                _polygon, new SkUiPolyline([new(0, 0), new(20, 40), new(40, 0)]), _path,
+            ];
+            foreach (var shape in shapes)
+            {
+                shape.Fill = LeakShapes.Gradient;
+                shape.Stroke = LeakShapes.Solid;
+                shape.StrokeThickness = 2;
+                shape.StrokeDashArray = LeakShapes.Dashes;
+                _shapes.Add(shape);
+                row.Children.Add(shape);
+            }
+            _border = new SkUiBorder
+            {
+                StrokeShape = LeakShapes.StrokeShape, Stroke = LeakShapes.Gradient, StrokeThickness = 3, StrokeDashArray = LeakShapes.Dashes,
+                Padding = new Thickness(8), Content = Text("Shaped border"),
+            };
+            _border.Tapped += (_, _) => _taps++;
+            _coreBorder = new SkUiCoreBorder().SetStrokeShape(new SkUiCoreEllipse()).SetStroke(LeakColors.Accent).SetStrokeThickness(3)
+                .SetContent(new SkUiCorePath("M 0,0 L 20,10 L 0,20 Z").SetFill(LeakColors.SampleA));
+            _coreBorder.SetHeight(60);
+            stack.Children.Add(row);
+            stack.Children.Add(_border);
+            stack.Children.Add(new SkUiCoreHost().SetContent(_coreBorder));
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.TapAsync(_border!);
+            foreach (var shape in _shapes)
+                shape.Fill = shape.Fill == LeakShapes.Gradient ? LeakShapes.Solid : LeakShapes.Gradient;
+            LeakShapes.Gradient.GradientStops[0].Color = LeakColors.Surface; // a shared brush edited while shown
+            _polygon!.Points.Add(new Point(30, 10));
+            _path!.SetData("M 0,0 L 40,40 M 40,0 L 0,40");
+            await context.SettleAsync();
+            var replaced = new SkUiRoundRectangle { CornerRadius = 4 };
+            _border!.StrokeShape = replaced;
+            replaced.CornerRadius = 20;
+            await context.SettleAsync();
+            _border.StrokeShape = LeakShapes.StrokeShape;
+            context.TrackDetached(replaced, "replaced stroke shape");
+            _coreBorder!.SetStrokeShape(new SkUiCoreRoundRectangle().SetCornerRadius(10)).SetStrokeDashArray(2, 2);
+            await context.SettleAsync();
+            await context.TapAsync(_border);
+            LeakShapes.Gradient.GradientStops[0].Color = LeakColors.SampleA;
+        }
+
+        public override string? CheckInteraction()
+        {
+            if (_taps != 2)
+                return $"The border was tapped {_taps} times, expected 2.";
+            return _shapes.Any(shape => shape.Width <= 0) ? "A shape was not laid out." : null;
+        }
+    }
+
+    /// <summary>App-level resources for <see cref="EffectsRun"/>: they outlive every screen (MAUI's <c>Shadow</c> is per view, its brush shared).</summary>
+    private static class LeakEffects
+    {
+        public static readonly LinearGradientBrush Background = new(
+            [new GradientStop(LeakColors.SampleA, 0), new GradientStop(LeakColors.SampleB, 1)], new Point(0, 0), new Point(1, 0));
+        public static readonly SolidColorBrush ShadowBrush = new(Colors.Black);
+        public static readonly Microsoft.Maui.Controls.Shapes.EllipseGeometry Clip = new() { Center = new Point(24, 24), RadiusX = 24, RadiusY = 24 };
+        public static readonly SkUiCoreShadow CoreShadow = new(Colors.Black, new Point(0, 4), 10, 0.3f);
+        public static readonly SkUiCoreEllipse CoreClip = new();
+    }
+
+    private sealed class EffectsRun : LeakScenarioRun
+    {
+        private readonly List<SkUiView> _cards = [];
+        private SkUiScrollView? _scroll;
+        private SkUiLabel? _clipped;
+        private SkUiCoreBorder? _coreCard;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var stack = new SkUiVerticalStackLayout { Spacing = 12, Padding = new Thickness(16) };
+            for (var index = 0; index < 6; index++)
+            {
+                SkUiView card = index % 2 == 0
+                    ? new SkUiBorder { StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 }, Background = LeakEffects.Background, HeightRequest = 56, Content = Text($"Card {index}") }
+                    : new SkUiEllipse { Fill = LeakEffects.Background, StrokeThickness = 0, HeightRequest = 56 }; // a content shadow
+                card.Shadow = new Shadow { Brush = LeakEffects.ShadowBrush, Offset = new Point(0, 4), Radius = 10, Opacity = 0.3f };
+                _cards.Add(card);
+                stack.Children.Add(card);
+            }
+            _clipped = new SkUiLabel { Text = "AB", WidthRequest = 48, HeightRequest = 48, Background = LeakEffects.Background, Clip = LeakEffects.Clip };
+            stack.Children.Add(_clipped);
+            _coreCard = new SkUiCoreBorder().SetCornerRadius(new CornerRadius(12)).SetContent(new SkUiCoreLabel().SetText("Core card"));
+            _coreCard.SetBackground(new SolidPaint(LeakColors.Surface)).SetShadow(LeakEffects.CoreShadow).SetHeight(56);
+            var coreClipped = new SkUiCoreBox().SetColor(LeakColors.Accent).SetClip(LeakEffects.CoreClip).SetWidth(48).SetHeight(48);
+            stack.Children.Add(new SkUiCoreHost().SetContent(new SkUiCoreVerticalStackLayout().Add(_coreCard).Add(coreClipped)));
+            _scroll = new SkUiScrollView { Content = stack };
+            return Root(_scroll);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.SettleAsync();
+            LeakEffects.Background.GradientStops[0].Color = LeakColors.Surface; // shared brushes edited while shown
+            LeakEffects.ShadowBrush.Color = LeakColors.Accent;
+            LeakEffects.Clip.RadiusX = 20;
+            await context.SettleAsync();
+            _scroll!.ScrollTo(0, 120);
+            await context.WaitForAsync(_cards[1].AnimateAsync(SkUiAnimatableProperty.TranslationX, 12, 120));
+            _cards[0].Shadow = new Shadow { Brush = LeakEffects.Background, Radius = 4 };
+            _clipped!.Clip = null;
+            _coreCard!.SetShadow(new SkUiCoreShadow(LeakColors.Accent, new Point(2, 2), 4));
+            await context.SettleAsync();
+            _clipped.Clip = LeakEffects.Clip;
+            LeakEffects.Background.GradientStops[0].Color = LeakColors.SampleA;
+            LeakEffects.ShadowBrush.Color = Colors.Black;
+            LeakEffects.Clip.RadiusX = 24;
+        }
+
+        public override string? CheckInteraction() =>
+            _cards.Any(card => card.Width <= 0) ? "A card was not laid out." : null;
+    }
+
+    /// <summary>An app-level image resource, as <c>&lt;FontImageSource x:Key="Icon" …/&gt;</c>: it outlives every screen.</summary>
+    private static readonly FontImageSource SharedIcon = new() { Glyph = "+", Size = 20, Color = LeakColors.Accent };
+
     private sealed class ImagesRun : LeakScenarioRun
     {
         private readonly List<SkUiImage> _images = [];
@@ -297,7 +449,12 @@ public static class LeakScenarios
             Grid.SetColumnSpan(row, 2);
             grid.Children.Add(row);
 
-            _slider = new SkUiSlider { Value = 0.5, ThumbImageSource = LeakImages.Create(SKColors.Crimson) };
+            // The shared icon: images and an image button that are never disposed, and a slider thumb.
+            for (var index = 0; index < 2; index++)
+                row.Children.Add(new SkUiImage { Source = SharedIcon, WidthRequest = 24, HeightRequest = 24 });
+            row.Children.Add(new SkUiImageButton { Source = SharedIcon, WidthRequest = 32, HeightRequest = 32 });
+
+            _slider = new SkUiSlider { Value = 0.5, ThumbImageSource = SharedIcon };
             Grid.SetRow(_slider, 3);
             Grid.SetColumnSpan(_slider, 2);
             grid.Children.Add(_slider);
@@ -322,7 +479,10 @@ public static class LeakScenarios
                 await context.WaitForAsync(core.LoadingTask);
             _coreImages[0].SetTransformations(new SkUiGrayscaleTransformation());
             await context.WaitForAsync(_coreImages[0].LoadingTask);
+            SharedIcon.Glyph = SharedIcon.Glyph == "+" ? "-" : "+"; // the shared source edited while shown
+            await context.SettleAsync();
             _slider!.ThumbImageSource = LeakImages.Create(SKColors.Navy);
+            _slider.ThumbImageSource = SharedIcon;
             _reload = _images[0].ReloadAsync();
             await context.WaitForAsync(_reload);
         }

@@ -5,6 +5,7 @@ using CoreGraphics;
 using Foundation;
 using Metal;
 using ObjCRuntime;
+using MauiSkiaUi.Rendering;
 using SkiaSharp;
 using UIKit;
 
@@ -377,7 +378,7 @@ internal sealed class SkUiTouchDeliverer : UIGestureRecognizer
 /// </summary>
 internal sealed class SkUiOverlayDragRecognizer : UIGestureRecognizer
 {
-    private static long s_nextPointer = 1L << 40; // distinct from surface pointer ids
+    private static long _nextPointer = 1L << 40; // distinct from surface pointer ids
     private readonly UIView _space;
     private readonly Func<SkUiTouchEvent, SkUiNativeGestureState> _overlayTouch;
     private UITouch? _touch;
@@ -400,7 +401,7 @@ internal sealed class SkUiOverlayDragRecognizer : UIGestureRecognizer
         if (_touch is not null || touches.AnyObject is not UITouch touch)
             return;
         _touch = touch;
-        _pointer = ++s_nextPointer;
+        _pointer = ++_nextPointer;
         Update(Forward(SkUiTouchAction.Pressed), ended: false);
     }
 
@@ -556,6 +557,9 @@ internal sealed class SkUiMetalSurface : IDisposable
             var continuous = renderer.Render(surface.Canvas, new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul), now);
             surface.Flush();
             context.Flush();
+#if SKUI_DIAGNOSTICS
+            renderer.Compositor.FrameTrace?.Flushed();
+#endif
             var commands = queue.CommandBuffer();
             if (commands is not null)
             {
@@ -668,13 +672,26 @@ internal static class SkUiMetalRenderLoop
         }
     }
 
+    /// <summary>Pipeline warm-up of the shared context, one step per idle tick after the first frame.</summary>
+    private static readonly SkUiGpuWarmUp WarmUp = new();
+    private static TimeSpan _lastBusy;
+
     private static void OnTick()
     {
         using var pool = new NSAutoreleasePool();
         var busy = RenderSurfaces();
-        // Pause after a short idle period; Wake() resumes it from any thread.
+        if (busy)
+            _lastBusy = Clock.Elapsed;
+        // Idle for a while: compile the next batch of GPU pipelines, one step per tick.
+        var warmingUp = !_suspended && _context is not null && !WarmUp.IsDone;
+        if (!busy && warmingUp && Clock.Elapsed - _lastBusy >= SkUiGpuWarmUp.IdleDelay)
+        {
+            try { WarmUp.RunNext(_context!, SKColorType.Bgra8888); }
+            catch (Exception exception) { Debug.WriteLine($"SkiaUi GPU warm-up failed: {exception}"); }
+        }
+        // Pause after a short idle period (not while a warm-up is pending); Wake() resumes it from any thread.
         _idleTicks = busy ? 0 : _idleTicks + 1;
-        if (_idleTicks > 2 && _link is { } link)
+        if (_idleTicks > 2 && !warmingUp && _link is { } link)
             link.Paused = true;
     }
 

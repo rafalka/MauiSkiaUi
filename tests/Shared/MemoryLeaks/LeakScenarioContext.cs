@@ -9,7 +9,7 @@ namespace MauiSkiaUi.LeakTests;
 /// </summary>
 public sealed class LeakScenarioContext(Func<TimeSpan, Task> wait, bool isDevice)
 {
-    private static long s_nextPointer = long.MinValue / 4;
+    private static long _nextPointer = long.MinValue / 4;
     private readonly List<TrackedObject> _tracked = [];
     private readonly List<TrackedObject> _detached = [];
 
@@ -86,12 +86,12 @@ public sealed class LeakScenarioContext(Func<TimeSpan, Task> wait, bool isDevice
     public async Task DoubleTapAsync(object element)
     {
         var (root, center) = Locate(element);
-        var id = ++s_nextPointer;
+        var id = ++_nextPointer;
         var start = Now();
         Touch(root, id, SkUiTouchAction.Pressed, center, start);
         Touch(root, id, SkUiTouchAction.Released, center, start + TimeSpan.FromMilliseconds(40));
         await WaitAsync(60);
-        id = ++s_nextPointer;
+        id = ++_nextPointer;
         Touch(root, id, SkUiTouchAction.Pressed, center, start + TimeSpan.FromMilliseconds(100));
         Touch(root, id, SkUiTouchAction.Released, center, start + TimeSpan.FromMilliseconds(140));
         await SettleAsync();
@@ -101,7 +101,7 @@ public sealed class LeakScenarioContext(Func<TimeSpan, Task> wait, bool isDevice
     public async Task LongPressAsync(object element, bool release = true)
     {
         var (root, center) = Locate(element);
-        var id = ++s_nextPointer;
+        var id = ++_nextPointer;
         var start = Now();
         Touch(root, id, SkUiTouchAction.Pressed, center, start);
         await WaitAsync(SkUiGestureSettings.LongPressDuration.TotalMilliseconds + 150);
@@ -118,7 +118,7 @@ public sealed class LeakScenarioContext(Func<TimeSpan, Task> wait, bool isDevice
     public async Task DragAsync(object element, double dx, double dy, double durationMs = 240, int steps = 8, bool release = true)
     {
         var (root, center) = Locate(element);
-        var id = ++s_nextPointer;
+        var id = ++_nextPointer;
         var start = Now();
         Touch(root, id, SkUiTouchAction.Pressed, center, start);
         for (var step = 1; step <= steps; step++)
@@ -136,8 +136,8 @@ public sealed class LeakScenarioContext(Func<TimeSpan, Task> wait, bool isDevice
     public async Task PinchAsync(object element, double spread = 60, int steps = 6)
     {
         var (root, center) = Locate(element);
-        var first = ++s_nextPointer;
-        var second = ++s_nextPointer;
+        var first = ++_nextPointer;
+        var second = ++_nextPointer;
         var start = Now();
         Touch(root, first, SkUiTouchAction.Pressed, new Point(center.X - 20, center.Y), start);
         Touch(root, second, SkUiTouchAction.Pressed, new Point(center.X + 20, center.Y), start);

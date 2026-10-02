@@ -15,13 +15,21 @@ public class SkUiImage : SkUiView, IDisposable
     private ImageSource? _source;
     private Aspect _aspect = Aspect.AspectFit;
     private SkUiImageOptions _options;
-    private INotifyCollectionChanged? _observedTransformations;
+    // Image sources and transformation lists are often shared resources: listened to weakly, so they never keep the view alive.
+    private readonly SkUiWeakListener<SkUiImage> _sourceListener;
+    private readonly SkUiWeakListener<SkUiImage> _transformationsListener;
     private readonly SkUiImageSlot _slot;
     private bool _disposed;
 
     /// <summary>Creates an image.</summary>
     public SkUiImage()
     {
+        _sourceListener = new(this, static (image, change) =>
+        {
+            if (SkUiMauiImageSources.AffectsImage(change.PropertyName))
+                image.Reload();
+        });
+        _transformationsListener = new(this, static (image, _) => image.OnTransformationItemsChanged());
         _slot = new SkUiImageSlot(this, PublishState)
         {
             LoadingStarted = args => LoadingStarted?.Invoke(this, args),
@@ -181,31 +189,20 @@ public class SkUiImage : SkUiView, IDisposable
     private void OnSourceChanged(ImageSource? value)
     {
         if (ReferenceEquals(_source, value)) return;
-        if (_source is not null) _source.PropertyChanged -= OnSourceObjectChanged;
         _source = value;
-        if (_source is not null) _source.PropertyChanged += OnSourceObjectChanged;
+        _sourceListener.Listen(value);
         Reload();
     }
 
     private void OnAspectChanged(Aspect value) { _aspect = value; InvalidatePaint(); }
 
-    private void OnSourceObjectChanged(object? sender, PropertyChangedEventArgs args)
-    {
-        if (SkUiMauiImageSources.AffectsImage(args.PropertyName))
-            Reload();
-    }
-
     private void OnTransformationsChanged(IList<ISkUiImageTransformation>? value)
     {
-        if (_observedTransformations is not null)
-            _observedTransformations.CollectionChanged -= OnTransformationItemsChanged;
-        _observedTransformations = value as INotifyCollectionChanged;
-        if (_observedTransformations is not null)
-            _observedTransformations.CollectionChanged += OnTransformationItemsChanged;
-        OnTransformationItemsChanged(null, null);
+        _transformationsListener.Listen(value as INotifyCollectionChanged);
+        OnTransformationItemsChanged();
     }
 
-    private void OnTransformationItemsChanged(object? sender, NotifyCollectionChangedEventArgs? args)
+    private void OnTransformationItemsChanged()
     {
         // A snapshot: later edits of the list reload, edits of a transformation's settings apply on the next load.
         var list = (IList<ISkUiImageTransformation>?)GetValue(TransformationsProperty);
@@ -271,8 +268,8 @@ public class SkUiImage : SkUiView, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        if (_source is not null) _source.PropertyChanged -= OnSourceObjectChanged;
-        if (_observedTransformations is not null) _observedTransformations.CollectionChanged -= OnTransformationItemsChanged;
+        _sourceListener.Listen(null);
+        _transformationsListener.Listen(null);
         _slot.Dispose();
         PublishState();
         GC.SuppressFinalize(this);

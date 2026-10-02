@@ -92,13 +92,13 @@ public abstract class SamplePage : ContentPage
 /// </summary>
 public static class SampleLooks
 {
-    private static SkUiLook? s_appLook;
+    private static SkUiLook? _appLook;
 
     /// <summary>Makes <paramref name="look"/> current, or the app's look for <c>null</c>.</summary>
     public static void Show(SkUiLook? look)
     {
-        s_appLook ??= SkUiLook.Current;
-        var target = look ?? s_appLook;
+        _appLook ??= SkUiLook.Current;
+        var target = look ?? _appLook;
         if (!ReferenceEquals(SkUiLook.Current, target))
             SkUiLook.Current = target;
     }

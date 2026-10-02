@@ -197,8 +197,9 @@ Minimum public Core primitives (expand as MAUI wrappers gain delegates):
 | `SkUiCoreAbsoluteLayout` | Prototype |
 | `SkUiCoreLabel` | Shipped: the `SkUiLabel` text engine and properties (`LineBreakMode`, custom `LineBreaker`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`, `FontAttributes`) |
 | `SkUiCoreButton` | Prototype |
-| `SkUiCoreBox` / shape primitives | Prototype |
-| `SkUiCoreContentView` / `SkUiCoreBorder` | Prototype |
+| `SkUiCoreBox` / shapes | Shipped: MAUI's shape model on the engine shared with the SkUi* shapes (P6) |
+| `Background` / `Shadow` / `Clip` on every node | Shipped: `SetBackground(Paint)` (solid or gradient; filled controls fill their shape with it), `SetShadow(IShadow)` (`SkUiCoreShadow`), `SetClip(IShape)`; composited by the engine the SkUi* views use (P7) |
+| `SkUiCoreContentView` / `SkUiCoreBorder` | Shipped: border `StrokeShape`, paint stroke, dashes, stroke inset and shape clip on the SkUi* border's geometry (P6) |
 | Stack layouts (`Vertical` / `Horizontal` / `Overlay`) | Prototype |
 | Grid (`SkUiCoreGrid`) + Table (`SkUiCoreTable`) | Prototype |
 | Activity indicator / toggles / Image | Prototype |

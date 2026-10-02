@@ -93,7 +93,7 @@ public class CoreLayerTests
         stack.Measure(100, 100);
         stack.Arrange(new Rect(0, 0, 100, 100));
 
-        Assert.Equal(2, a.Frame.X, 1);
+        Assert.Equal(2 + (96 - 20) / 2, a.Frame.X, 1); // explicit Width: Fill centers on the cross axis, as MAUI
         Assert.Equal(2, a.Frame.Y, 1);
         Assert.Equal(20, a.Frame.Width, 1); // explicit Width wins over cross-axis stretch
         Assert.Equal(10, a.Frame.Height, 1);
@@ -132,8 +132,9 @@ public class CoreLayerTests
 
         border.Measure(100, 40);
         border.Arrange(new Rect(0, 0, 100, 40));
-        Assert.Equal(4, label.Frame.X, 1);
-        Assert.Equal(4, label.Frame.Y, 1);
+        // As MAUI's Border: inside the padding plus the (default 1 DIP) stroke.
+        Assert.Equal(5, label.Frame.X, 1);
+        Assert.Equal(5, label.Frame.Y, 1);
 
         using var bitmap = new SKBitmap(100, 40);
         using var canvas = new SKCanvas(bitmap);
@@ -536,5 +537,64 @@ public class CoreLayerTests
     private sealed class ContentPaintProbe(List<string> calls) : SkUiCoreNode
     {
         protected override void OnPaintContent(SKCanvas canvas) => calls.Add("content");
+    }
+}
+
+/// <summary>Core containers place children by their alignment exactly as the SkUi* (MAUI) containers do.</summary>
+public class CoreAlignmentParityTests
+{
+    public static TheoryData<LayoutAlignment, LayoutAlignment, bool> Alignments()
+    {
+        var data = new TheoryData<LayoutAlignment, LayoutAlignment, bool>();
+        foreach (var horizontal in Enum.GetValues<LayoutAlignment>())
+            foreach (var vertical in Enum.GetValues<LayoutAlignment>())
+            {
+                data.Add(horizontal, vertical, false);
+                data.Add(horizontal, vertical, true);
+            }
+        return data;
+    }
+
+    private static LayoutOptions Options(LayoutAlignment alignment) => new(alignment, false);
+
+    [Theory]
+    [MemberData(nameof(Alignments))]
+    public void StacksAndContentViewsAlignLikeMaui(LayoutAlignment horizontal, LayoutAlignment vertical, bool explicitSize)
+    {
+        // A box with margins (and, with explicitSize, a requested size) in a horizontal stack, a vertical stack and a
+        // content view of the same size on both layers.
+        SkUiBox SkUiChild() => new()
+        {
+            Color = Colors.Red, Margin = new Thickness(3, 2, 5, 4), HorizontalOptions = Options(horizontal), VerticalOptions = Options(vertical),
+            WidthRequest = explicitSize ? 30 : -1, HeightRequest = explicitSize ? 20 : -1
+        };
+        SkUiCoreBox CoreChild()
+        {
+            var box = new SkUiCoreBox().SetColor(Colors.Red);
+            box.SetMargin(new Thickness(3, 2, 5, 4)).SetHorizontalAlignment(horizontal).SetVerticalAlignment(vertical);
+            if (explicitSize) box.SetWidth(30).SetHeight(20);
+            return box;
+        }
+
+        var skUiRow = SkUiChild();
+        var coreRow = CoreChild();
+        Compare(new SkUiHorizontalStackLayout { Padding = 4, Children = { skUiRow } },
+            new SkUiCoreHorizontalStackLayout().SetPadding(new Thickness(4)).Add(coreRow), skUiRow, coreRow, "horizontal stack");
+        var skUiColumn = SkUiChild();
+        var coreColumn = CoreChild();
+        Compare(new SkUiVerticalStackLayout { Padding = 4, Children = { skUiColumn } },
+            new SkUiCoreVerticalStackLayout().SetPadding(new Thickness(4)).Add(coreColumn), skUiColumn, coreColumn, "vertical stack");
+        var skUiContent = SkUiChild();
+        var coreContent = CoreChild();
+        Compare(new SkUiContentView { Padding = 4, Content = skUiContent },
+            new SkUiCoreContentView().SetPadding(new Thickness(4)).SetContent(coreContent), skUiContent, coreContent, "content view");
+    }
+
+    private static void Compare(SkUiView skUiParent, SkUiCoreNode coreParent, SkUiView skUiChild, SkUiCoreNode coreChild, string name)
+    {
+        SkUiTestHelpers.Arrange(skUiParent, 120, 80);
+        coreParent.Measure(120, 80);
+        coreParent.Arrange(new Rect(0, 0, 120, 80));
+        Assert.True(skUiChild.Frame == coreChild.Frame, $"{name}: SkUi {skUiChild.Frame}, Core {coreChild.Frame}");
     }
 }

@@ -1,6 +1,13 @@
 namespace MauiSkiaUi;
 
 /// <summary>
+/// Cumulative counters of a surface (diagnostics): pictures recorded on the UI thread, and content shadows rasterized
+/// into the compositor's cache or drawn live because their subtree was changing. Read on the UI thread; the shadow
+/// counts are written by the render thread, so they may lag by a frame.
+/// </summary>
+internal readonly record struct SkUiRenderCounters(int RecordedPictures, int ShadowRasterizations, int LiveShadows);
+
+/// <summary>
 /// Render-thread compositing cost of a standalone SkiaUi surface (diagnostics / benchmarks): frames composited and
 /// their average / maximum duration in milliseconds, from the start of compositing until the frame was flushed and
 /// submitted / presented. Includes GPU command submission (and first-use shader compilation); excludes GPU execution

@@ -61,12 +61,12 @@ public class DefaultSkUiLook : SkUiLook
         canvas.DrawPath(strokePath, paint);
     }
 
-    [ThreadStatic] private static SKPaint? t_paint;
+    [ThreadStatic] private static SKPaint? _paint;
 
     /// <summary>Per-thread reusable fill paint (recording is single-threaded per surface; pictures copy paint state).</summary>
     private static SKPaint Paint(SKColor color)
     {
-        var paint = t_paint ??= new SKPaint();
+        var paint = _paint ??= new SKPaint();
         paint.Reset();
         paint.IsAntialias = true;
         paint.Color = color;
@@ -102,10 +102,18 @@ public class DefaultSkUiLook : SkUiLook
     /// <inheritdoc />
     protected override void DrawButtonCore(SKCanvas canvas, SkUiButtonPaint button)
     {
-        var fill = button.Fill;
-        if (PressEffect == SkUiPressEffect.Dim)
-            fill = fill.WithAlpha((byte)(fill.Alpha * (1 - 0.25f * button.Press.Pressed)));
-        DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, fill, button.Border, button.BorderWidth);
+        var dim = PressEffect == SkUiPressEffect.Dim ? 1 - 0.25f * button.Press.Pressed : 1;
+        if (button.FillPaint is { } gradient)
+        {
+            DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, SkUiShapePainter.WithOpacity(gradient, dim), button.Border, button.BorderWidth);
+        }
+        else
+        {
+            var fill = button.Fill;
+            if (dim < 1)
+                fill = fill.WithAlpha((byte)(fill.Alpha * dim));
+            DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, fill, button.Border, button.BorderWidth);
+        }
         if (PressEffect == SkUiPressEffect.Ripple && button.IsEnabled)
             DrawRipple(canvas, button.Bounds, button.CornerRadii, button.Press, RippleColor(button.Fill));
     }

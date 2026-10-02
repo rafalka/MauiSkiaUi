@@ -10,7 +10,7 @@ namespace MauiSkiaUi.Core;
 /// Implements <see cref="INotifyPropertyChanged"/>; fluent <c>Set*</c> methods are the single apply path
 /// and raise notifications via <see cref="SetProperty{T}"/>.
 /// </summary>
-public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost
+public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost, ISkUiShadowCaster
 {
     private bool _measureDirty = true;
     private bool _arrangeDirty = true;
@@ -110,8 +110,9 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     }
 
     /// <summary>
-    /// Horizontal alignment within the arrange slot given by a parent layout (same idea as MAUI
-    /// <c>HorizontalOptions</c> / <c>ComputeFrame</c>). Default is <see cref="LayoutAlignment.Fill"/>.
+    /// Horizontal alignment within the arrange slot given by a parent layout, as MAUI's <c>HorizontalOptions</c> /
+    /// <c>ComputeFrame</c>, in every container (a stack aligns on its cross axis). Default is <see cref="LayoutAlignment.Fill"/>;
+    /// with an explicit <see cref="Width"/> or a finite <see cref="MaximumWidth"/>, Fill centers, as in MAUI.
     /// </summary>
     public LayoutAlignment HorizontalAlignment
     {
@@ -120,8 +121,9 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     }
 
     /// <summary>
-    /// Vertical alignment within the arrange slot given by a parent layout (same idea as MAUI
-    /// <c>VerticalOptions</c> / <c>ComputeFrame</c>). Default is <see cref="LayoutAlignment.Fill"/>.
+    /// Vertical alignment within the arrange slot given by a parent layout, as MAUI's <c>VerticalOptions</c> /
+    /// <c>ComputeFrame</c>, in every container (a stack aligns on its cross axis). Default is <see cref="LayoutAlignment.Fill"/>;
+    /// with an explicit <see cref="Height"/> or a finite <see cref="MaximumHeight"/>, Fill centers, as in MAUI.
     /// </summary>
     public LayoutAlignment VerticalAlignment
     {
@@ -559,7 +561,11 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
                 MeasureInvalidated?.Invoke(this, EventArgs.Empty);
         }
         if (paint)
+        {
             render |= SkUiRenderDirty.Content;
+            if (_effects is { } effects)
+                effects.PaintVersion++; // the fill, and so the shadow's silhouette, may have changed
+        }
         if (render != SkUiRenderDirty.None)
             SkUiRenderInvalidation.Mark(this, render);
         if (paint)
@@ -619,12 +625,10 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
             return;
         _lastArrangeBounds = bounds;
 
-        var x = bounds.X + _margin.Left;
-        var y = bounds.Y + _margin.Top;
-        var width = Math.Max(0, bounds.Width - _margin.HorizontalThickness);
-        var height = Math.Max(0, bounds.Height - _margin.VerticalThickness);
-        if (!double.IsNaN(_width)) width = Math.Min(width, _width);
-        if (!double.IsNaN(_height)) height = Math.Min(height, _height);
+        var (x, width) = AlignInSlot(bounds.X, bounds.Width, _margin.Left, _margin.HorizontalThickness, _horizontalAlignment,
+            _width, _maximumWidth, _desiredSize.Width);
+        var (y, height) = AlignInSlot(bounds.Y, bounds.Height, _margin.Top, _margin.VerticalThickness, _verticalAlignment,
+            _height, _maximumHeight, _desiredSize.Height);
         var frame = new Rect(x, y, width, height);
         // RTL: mirror the final frame inside the parent's (or host's) coordinate space.
         var mirrorSpace = _parent is SkUiCoreNode parentNode ? parentNode.ChildrenSpaceWidth : HostOwner?.Width ?? 0;
@@ -639,6 +643,34 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         }
         ArrangeContent(_frame.Size);
         _arrangeDirty = false;
+    }
+
+    /// <summary>
+    /// Places the node in its slot along one axis as MAUI's <c>ComputeFrame</c> does, so every Core container honors the
+    /// alignment (stacks on the cross axis, content views and overlays on both): <see cref="LayoutAlignment.Fill"/> takes the
+    /// slot (up to the maximum); an explicit size or a finite maximum makes Fill center; Start / Center / End place the
+    /// desired size. Unlike MAUI, the frame never grows past the slot.
+    /// </summary>
+    private static (double Position, double Size) AlignInSlot(double start, double slot, double startMargin, double margins,
+        LayoutAlignment alignment, double explicitSize, double maximum, double desired)
+    {
+        var available = Math.Max(0, slot - margins);
+        double size;
+        if (!double.IsNaN(explicitSize))
+            size = Math.Min(available, explicitSize);
+        else if (alignment == LayoutAlignment.Fill)
+            size = Math.Min(available, maximum);
+        else
+            size = Math.Min(available, Math.Max(0, desired - margins));
+        if (alignment == LayoutAlignment.Fill && (!double.IsNaN(explicitSize) || !double.IsInfinity(maximum)))
+            alignment = LayoutAlignment.Center;
+        var offset = alignment switch
+        {
+            LayoutAlignment.Center => (available - size) / 2,
+            LayoutAlignment.End => available - size,
+            _ => 0
+        };
+        return (start + startMargin + offset, size);
     }
 
     /// <summary>Arranges hosted content in this node's local coordinate system.</summary>
@@ -668,6 +700,11 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         props.IsVisible = _isVisible;
         props.ClipToBounds = _clipToBounds;
         OnGetRenderProps(ref props);
+        if (_effects is { } effects)
+        {
+            props.ClipPath = effects.GetClipPath(_clip, props.Width, props.Height);
+            props.Shadow = effects.GetShadow(_shadow, this, props);
+        }
     }
 
     /// <summary>Sets the <see cref="ClipToBounds"/> default without notifications (constructors only).</summary>
@@ -678,7 +715,10 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
 
     void ISkUiRenderable.RecordContent(SKCanvas canvas)
     {
-        _paintBackground?.Invoke(canvas);
+        if (_paintBackground is { } paintBackground)
+            paintBackground(canvas);
+        else
+            OnPaintBackground(canvas);
         OnPaintContent(canvas);
     }
 
@@ -742,10 +782,118 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
 
     private Action<SKCanvas>? _paintBackground;
     private Action<SKCanvas>? _paintOverlay;
+    private Paint? _background;
+    private SkUiVisualEffects? _effects;
+    private IShape? _clip;
+    private IShadow? _shadow;
+    private SkUiWeakListener<SkUiCoreNode>? _clipListener;
+    private SkUiWeakListener<SkUiCoreNode>? _shadowListener;
 
     /// <summary>
-    /// Background-layer painter. When unset, the Background phase is a no-op.
-    /// Prefer this over subclassing for chrome customization.
+    /// The fill behind the node (MAUI's <c>Background</c>): a solid color or a linear or radial gradient, mapped onto the
+    /// node's bounds; <c>null</c> (default) draws none. Drawn by <see cref="OnPaintBackground"/> unless a
+    /// <see cref="PaintBackground"/> painter is set; filled controls (labels, buttons, borders, boxes) fill their own shape
+    /// with it instead of their color.
+    /// </summary>
+    public Paint? Background { get => _background; set => SetBackground(value); }
+
+    /// <summary>Sets <see cref="Background"/>.</summary>
+    public SkUiCoreNode SetBackground(Paint? value)
+    {
+        if (!SetProperty(ref _background, value, nameof(Background))) return this;
+        InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets a solid <see cref="Background"/>.</summary>
+    public SkUiCoreNode SetBackground(Color value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return _background is SolidPaint { Color: var color } && color == value ? this : SetBackground(new SolidPaint(value));
+    }
+
+    /// <summary>
+    /// Clips the node's content, children and overlay to a shape (MAUI's <c>Clip</c>): a Core shape (placed in the node's
+    /// bounds, as when it shapes a border), a MAUI geometry (in the node's coordinates) or any MAUI Graphics
+    /// <see cref="IShape"/>; <c>null</c> (default) for none. Applied when compositing, so it never re-records the node;
+    /// input still uses the rectangular bounds. Changes of the shape's properties re-clip.
+    /// </summary>
+    public IShape? Clip { get => _clip; set => SetClip(value); }
+
+    /// <summary>Sets <see cref="Clip"/>.</summary>
+    public SkUiCoreNode SetClip(IShape? value)
+    {
+        if (ReferenceEquals(_clip, value)) return this;
+        _clip = value;
+        // A shared shape must not keep the node alive.
+        (_clipListener ??= new(this, static (node, _) =>
+        {
+            if (node._effects is { } effects) effects.ClipVersion++;
+            node.InvalidateRender(SkUiRenderDirty.Props);
+        })).Listen(value);
+        (_effects ??= new()).ClipVersion++;
+        OnPropertyChanged(nameof(Clip));
+        InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
+    /// <summary>
+    /// The drop shadow (MAUI's <c>Shadow</c>, FR-20): paint (solid or gradient), offset, blur radius and opacity, e.g. a
+    /// <see cref="SkUiCoreShadow"/>; <c>null</c> (default) for none. A node with an opaque fill casts it from the fill's
+    /// shape, any other from everything it and its children draw (text, images). Drawn outside the node's own clip, before
+    /// the node, when compositing: it changes neither layout nor input, and moving, fading or transforming the node does
+    /// not redraw it. A parent that clips its children clips their shadows too.
+    /// </summary>
+    public IShadow? Shadow { get => _shadow; set => SetShadow(value); }
+
+    /// <summary>Sets <see cref="Shadow"/>.</summary>
+    public SkUiCoreNode SetShadow(IShadow? value)
+    {
+        if (ReferenceEquals(_shadow, value)) return this;
+        _shadow = value;
+        // A mutable shadow (MAUI's Shadow) redraws when it changes; a shared one must not keep the node alive.
+        (_shadowListener ??= new(this, static (node, _) =>
+        {
+            if (node._effects is { } effects) effects.ShadowVersion++;
+            node.InvalidateRender(SkUiRenderDirty.Props);
+        })).Listen(value);
+        (_effects ??= new()).ShadowVersion++;
+        OnPropertyChanged(nameof(Shadow));
+        InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
+    SKPath? ISkUiShadowCaster.CreateShadowOutline(float width, float height) => CreateShadowOutline(width, height);
+
+    /// <summary>
+    /// The silhouette of the node's own opaque fill, which its shadow is cast from, or <c>null</c> to cast it from everything
+    /// the node and its children draw. By default the rectangle of an opaque <see cref="Background"/> drawn by the default
+    /// painter; controls with shaped fills return their shape.
+    /// </summary>
+    internal virtual SKPath? CreateShadowOutline(float width, float height) =>
+        _paintBackground is null && SkUiShapePainter.IsOpaque(_background) ? RectangleOutline(width, height) : null;
+
+    /// <summary>A rectangle of the given size as a shadow outline.</summary>
+    private protected static SKPath RectangleOutline(float width, float height)
+    {
+        using var builder = new SKPathBuilder();
+        builder.AddRect(new SKRect(0, 0, width, height));
+        return builder.Detach();
+    }
+
+    /// <summary>
+    /// Background paint phase when <see cref="PaintBackground"/> is unset: by default <see cref="PaintDefaultBackground"/>.
+    /// Override for chrome that must stay virtual.
+    /// </summary>
+    protected virtual void OnPaintBackground(SKCanvas canvas) => PaintDefaultBackground(canvas);
+
+    /// <summary>Fills the node's rectangle with <see cref="Background"/>; painters may call it before their own chrome.</summary>
+    protected void PaintDefaultBackground(SKCanvas canvas) =>
+        SkUiShapePainter.FillRect(canvas, new SKRect(0, 0, (float)_frame.Width, (float)_frame.Height), _background);
+
+    /// <summary>
+    /// Background-layer painter. When unset, <see cref="OnPaintBackground"/> runs (by default it fills
+    /// <see cref="Background"/>). Prefer this over subclassing for chrome customization.
     /// </summary>
     public Action<SKCanvas>? PaintBackground
     {
@@ -762,7 +910,7 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         set => SetPaintOverlay(value);
     }
 
-    /// <summary>Sets the Background painter; <c>null</c> draws no background.</summary>
+    /// <summary>Sets the Background painter; <c>null</c> restores <see cref="OnPaintBackground"/>.</summary>
     public SkUiCoreNode SetPaintBackground(Action<SKCanvas>? value)
     {
         if (!SetProperty(ref _paintBackground, value, nameof(PaintBackground))) return this;
@@ -868,6 +1016,8 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     {
         _measureDirty = true;
         _arrangeDirty = true;
+        if (_effects is { } effects)
+            effects.PaintVersion++;
         SkUiRenderInvalidation.Mark(this, SkUiRenderDirty.Content);
     }
 

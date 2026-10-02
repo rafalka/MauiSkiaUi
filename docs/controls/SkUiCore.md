@@ -17,30 +17,43 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 
 | Type | Role |
 | --- | --- |
-| `ISkUiCoreNode` / `SkUiCoreNode` | Measure / arrange / paint / touch; fluent `Set*`; `INotifyPropertyChanged`; `PaintBackground`/`PaintOverlay` delegates + virtual `OnPaintContent`; `StartUpdating` / `EndUpdating`; `AnimationClock`; composite-time `Opacity` / `TranslationX/Y` / `Rotation` / `Scale` / `ClipToBounds` (transform-aware hit testing) and render-thread `AnimateAsync` |
+| `ISkUiCoreNode` / `SkUiCoreNode` | Measure / arrange / paint / touch; fluent `Set*`; `INotifyPropertyChanged`; `PaintBackground`/`PaintOverlay` delegates + virtual `OnPaintContent`; `StartUpdating` / `EndUpdating`; `AnimationClock`; composite-time `Opacity` / `TranslationX/Y` / `Rotation` / `Scale` / `ClipToBounds` (transform-aware hit testing) and render-thread `AnimateAsync`; `Background` (`Paint`: solid or gradient), `Shadow` (`IShadow`) and `Clip` (`IShape`), see [Backgrounds, shadows and clips](#backgrounds-shadows-and-clips) |
+| `SkUiCoreShadow` | Immutable drop shadow for `SetShadow`: `Paint` (or a `Color`), `Offset`, `Radius` (10), `Opacity` (1) |
 | `SkUiCorePanel` | Multi-child base (attach, padding, paint, hit-test) |
 | `SkUiCoreAttachedProperty<T>` | Typed per-child value a layout reads (grid row, absolute bounds, shrink factor); `node.GetValue` / `SetValue` / `ClearValue` / `IsSet`. See [Attached properties](#attached-properties) |
 | `SkUiCoreAbsoluteLayout` | Absolute (+ optional proportional) layout; MAUI-compatible proportional X/Y and child alignment |
 | `SkUiCoreAbsoluteLayoutFlags` | Same idea as MAUI `AbsoluteLayoutFlags` |
-| `SkUiCoreVerticalStackLayout` / `SkUiCoreHorizontalStackLayout` | Stack layouts (owned algorithms; no MAUI managers) |
+| `SkUiCoreVerticalStackLayout` / `SkUiCoreHorizontalStackLayout` | Stack layouts (owned algorithms; no MAUI managers); children align on the cross axis by `HorizontalAlignment` / `VerticalAlignment`, as MAUI's stacks (every Core container places nodes as MAUI's `ComputeFrame`, so Core and SkUi* frames match) |
 | `SkUiCoreOverlayLayout` | Children share one slot (like `SkUiLayout`) |
 | `SkUiCoreWrapLayout` | Children wrap onto new rows (`Spacing`, `RowSpacing`); same engine as `SkUiWrapLayout`, see [SkUiWrapLayout.md](SkUiWrapLayout.md) |
 | `SkUiCoreHorizontalShrinkLayout` / `SkUiCoreVerticalShrinkLayout` | Stacks whose children with a shrink factor (`ShrinkProperty`: `None`, `Auto` or a number; e.g. `Add(child, SkUiShrinkFactor.Auto)`) shrink to fit; see [SkUiShrinkLayout.md](SkUiShrinkLayout.md) |
 | `SkUiCoreGrid` | Auto / absolute / star grid + per-track min/max; see [SkUiCoreGrid.md](SkUiCoreGrid.md) |
 | `SkUiCoreTable` | Grid + row/column/cell backgrounds and span-aware separators; see [SkUiCoreTable.md](SkUiCoreTable.md) |
-| `SkUiCoreContentView` / `SkUiCoreBorder` | Single-child host; border adds rounded chrome with per-corner `CornerRadius` |
-| `SkUiCoreLabel` / `SkUiCoreButton` | Text with the text properties of `SkUiLabel` (`FontAttributes`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`; wrap / truncate via `LineBreakMode` or a custom `LineBreaker`; spans: `SkUiCoreSpan` via `SetSpans`) with optional rounded chrome (`FillColor`, per-corner `CornerRadii`, `SetCornerRadius(double)` to set all four, `BorderColor`, `BorderWidth`: badges without a wrapping border), and the rounded tap button (`ICommand`) built on it |
+| `SkUiCoreContentView` / `SkUiCoreBorder` | Single-child host; the border draws any `StrokeShape` (a Core shape or any MAUI Graphics `IShape`; without one a rectangle rounded by `CornerRadius`) with a `Paint` stroke, dashes, caps and joins, insets the content by the stroke and clips it to the shape ([SkUiBorder.md](SkUiBorder.md)) |
+| `SkUiCoreLabel` / `SkUiCoreButton` | Text with the text properties of `SkUiLabel` (`FontAttributes`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`; wrap / truncate via `LineBreakMode` or a custom `LineBreaker`; spans: `SkUiCoreSpan` via `SetSpans`) with optional rounded chrome (`FillColor`, or a `Background` paint which replaces it; per-corner `CornerRadii`, `SetCornerRadius(double)` to set all four, `BorderColor`, `BorderWidth`: badges without a wrapping border), and the rounded tap button (`ICommand`) built on it |
 | `SkUiTextLineBreaker` / `SkUiTextLineBreakers` | Custom line breaking for labels on both layers, and the stock breakers ([SkUiLabel.md](SkUiLabel.md#custom-line-breaking)) |
 | `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Toggles: `CheckState` (Unchecked / Checked / Indeterminate), `IsChecked` view, `IsThreeState`; Switch `IsToggled` / `Toggled`; radio buttons in the same parent exclude each other |
 | `SkUiCoreSlider` | Horizontal or vertical slider (`Minimum` / `Maximum` / `Value`, drag events, `SetThumbImageSource`) |
 | `SkUiCoreProgressBar` | Determinate or indeterminate (render-thread) progress bar, `ProgressTo` |
-| `SkUiCoreShape` / `Box` / `Ellipse` / `Line` | Drawing primitives; box `CornerRadius`, line `X1`…`Y2` (`SetPoints`) |
+| `SkUiCoreShape` / `Ellipse` / `Line` / `Rectangle` / `RoundRectangle` / `Path` / `Polygon` / `Polyline` | MAUI's shape model with MAUI Graphics types: `Fill` / `Stroke` paints (`SetFill(Color)`, gradients), `StrokeThickness`, dashes, `LineCap` / `LineJoin`, `SkUiCoreStretch` aspect; paths from `PathF` or markup ([SkUiShape.md](SkUiShape.md)) |
+| `SkUiCoreBox` | BoxView twin: `Color` (else `Background`), per-corner `CornerRadius`, 40 × 40 unless sized |
 | `SkUiCoreImage` / `SkUiCoreImageButton` | Image from an `SkUiImageSource` (`SetSource`, or `SetSourceFile` (`MauiImage` / raw asset / path), `SetSourceUri`, `SetSourceStream(open, cacheKey)`, `SetSourceFont`) or a decoded `SKImage` (`SetImage`), through the cache shared with SkUi* images; `SetTransformations`, `SetDownsample`, `SetCacheType`, `SetIsAnimationPlaying`, `SetLoadingPlaceholder` / `SetErrorPlaceholder`, `LoadingStarted` / `LoadingFinished` ([SkUiImage.md](SkUiImage.md)). The button adds tap/tint, `Pressed` / `Released`, `Padding`, `CornerRadii` clip (`SetCornerRadius(double)`), border. No MAUI `ImageSource` |
 | `SkUiCoreActivityIndicator` | Indeterminate spinner, rotated by the compositor on the render thread |
 | `SkUiCoreScrollView` | Scroller on the shared scroll engine: offsets, render-thread fling / animated scroll, wheel, nesting with Core and SkUi* scrollers |
 | `SkUiCoreHost` | `SkUiView` bridge that hosts one Core root |
 
 Core types intentionally do **not** implement `IView` and are **not** accepted by `SkUiLayout.Children`. Mixing requires `SkUiCoreHost`.
+
+## Layout: alignment
+
+Every Core container places a node in its slot by `HorizontalAlignment` / `VerticalAlignment` as MAUI's `ComputeFrame` places a view, so Core and SkUi* layouts give the same frames: stacks align their children on the cross axis, content views, borders, overlays and the host on both axes, grids and absolute layouts within their cells.
+
+- `Fill` (default) takes the slot, up to `MaximumWidth` / `MaximumHeight`.
+- With an explicit `Width` / `Height`, or a finite maximum, `Fill` **centers** the node in a larger slot, as MAUI does.
+- `Start` / `Center` / `End` place the node's desired size.
+- One difference from MAUI: a frame never grows past its slot (MAUI lets a view larger than its slot overflow it).
+
+**Migrating from earlier versions:** before P7 most Core containers ignored alignment (a `Center`ed node in a stack stretched or sat at the start) and anchored explicitly sized `Fill` nodes at the top-left. Set `Start` alignments where a layout relied on that.
 
 ## Attached properties
 
@@ -104,6 +117,58 @@ var consent = new SkUiCoreLabel()
     .SetSpans(new SkUiCoreSpan("I accept the "), link, new SkUiCoreSpan(".").SetFontAttributes(FontAttributes.Bold))
     .SetFontSize(15);
 ```
+
+## Backgrounds, shadows and clips
+
+Every Core node has MAUI's `Background`, `Shadow` and `Clip` with MAUI Graphics types, drawn by the same engine as the SkUi* views ([SkUiView.md](SkUiView.md#backgrounds-shadows-and-clips)):
+
+```csharp
+var card = new SkUiCoreBorder().SetCornerRadius(new CornerRadius(14)).SetStrokeThickness(0).SetContent(title);
+card.SetBackground(new LinearGradientPaint(
+        [new PaintGradientStop(0, Colors.SkyBlue), new PaintGradientStop(1, Colors.SlateBlue)], new Point(0, 0), new Point(1, 0)))
+    .SetShadow(new SkUiCoreShadow(Colors.Black, new Point(0, 4), radius: 12, opacity: 0.25f));
+avatar.SetClip(new SkUiCoreEllipse());
+```
+
+- **`SetBackground(Paint)`** / **`SetBackground(Color)`**: a solid color or a linear or radial gradient mapped onto the node's bounds, drawn by the virtual `OnPaintBackground` unless a `PaintBackground` painter is set (painters can call `PaintDefaultBackground`). Filled controls fill their own shape with it instead of their color: a label's or button's rounded chrome (over `FillColor`), a border's outline (over `BackgroundColor`), a box (when `Color` is null), an image button's rounded bounds, a table under its track fills.
+- **`SetShadow(IShadow)`**: a `SkUiCoreShadow` value, or any `IShadow` (MAUI's `Shadow` too, whose changes redraw). Same silhouette rules as the SkUi* layer: an opaque fill casts it from its shape, any other node from what it and its children draw.
+- **`SetClip(IShape)`**: a Core shape is placed in the node's bounds (as when it shapes a border: `new SkUiCoreEllipse()` is a circle that follows the size); a MAUI geometry (`EllipseGeometry`, `RectangleGeometry`, …) is in the node's coordinates. Changes of the shape's properties re-clip. Input keeps the rectangular bounds.
+- All three are composited: transforms, `AnimateAsync`, scrolling and shadow / clip edits record nothing.
+
+## Listening to shared sources (own controls)
+
+A custom node often follows something that outlives it: a view model, a shared `Paint` or command, an app-wide service. A plain `+=` on such a source keeps the node, and the screen it is part of, alive until it unsubscribes. The drawn controls never do that; use the same two public helpers (namespace `MauiSkiaUi`, both layers):
+
+- **`SkUiWeakListener<TTarget>`** for sources you listen to: `INotifyPropertyChanged` objects, `INotifyCollectionChanged` collections, `ICommand.CanExecuteChanged`, and MAUI's gradient brushes and geometry groups. One subscription per source however many nodes listen, held weakly. The callback gets the target and an `SkUiChange` (`Kind`: `Property`, `Collection`, `CanExecute`, `Invalidated`; `PropertyName`; `Sender`), so it can be `static`.
+- **`SkUiWeakEvent`** / **`SkUiWeakEvent<TArgs>`** for long-lived events you publish (a static service, an app setting): subscribers are not kept alive. Handlers on an object (method groups, lambdas that use only `this`) live as long as that object; static handlers and lambdas that capture locals are kept strongly, as by a plain event (a weak closure would stop firing at the next collection). `SkUiLook.CurrentChanged` and `SkUiColorScheme.CurrentChanged` work this way.
+
+```csharp
+public sealed class LegendNode : SkUiCoreNode
+{
+    // Store the listener: the source holds it only weakly, so one nobody keeps stops reporting.
+    private readonly SkUiWeakListener<LegendNode> _modelListener;
+
+    public LegendNode() => _modelListener = new(this, static (node, change) =>
+    {
+        if (change.PropertyName is nameof(ChartModel.Series)) node.InvalidateMeasure();
+    });
+
+    public LegendNode SetModel(ChartModel? model) { _modelListener.Listen(model); InvalidateMeasure(); return this; }
+}
+
+public static class Units
+{
+    private static readonly SkUiWeakEvent _changed = new();
+
+    public static event EventHandler? Changed { add => _changed.Add(value); remove => _changed.Remove(value); }
+
+    public static void Notify() => _changed.Raise(null, EventArgs.Empty);
+}
+```
+
+**When not to:** what a node owns (its children, its own sub-objects) shares its lifetime; subscribe to it plainly and unsubscribe when it is replaced. A weak reference there only hides a missing cleanup. Weak listening does not replace detach cleanup either: a removed node that is still referenced is alive and keeps listening.
+
+**Threads:** callbacks run on the thread that raised the change: a view model set from a background task, a command raising `CanExecuteChanged` from any thread. Nodes and views must be changed on the UI thread, so marshal first when the source may change elsewhere: `MainThread.BeginInvokeOnMainThread(() => node.InvalidateMeasure())`.
 
 ## Gestures
 

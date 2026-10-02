@@ -25,6 +25,7 @@ public class SkUiSlider : SkUiView
     private SkUiSliderVisual? _visual;
     private bool _animateThumb;
     private ImageSource? _thumbImageSource;
+    private SkUiWeakListener<SkUiSlider>? _thumbImageListener; // a shared image source must not keep the slider alive
     private SkUiImageSlot? _thumbImage;
 
     /// <summary>Bindable <see cref="Minimum"/>.</summary>
@@ -161,16 +162,13 @@ public class SkUiSlider : SkUiView
     private void OnThumbImageSourceChanged(ImageSource? value)
     {
         if (ReferenceEquals(_thumbImageSource, value)) return;
-        if (_thumbImageSource is not null) _thumbImageSource.PropertyChanged -= OnThumbImageObjectChanged;
         _thumbImageSource = value;
-        if (value is not null) value.PropertyChanged += OnThumbImageObjectChanged;
+        (_thumbImageListener ??= new(this, static (slider, change) =>
+        {
+            if (SkUiMauiImageSources.AffectsImage(change.PropertyName))
+                slider.LoadThumbImage();
+        })).Listen(value);
         LoadThumbImage();
-    }
-
-    private void OnThumbImageObjectChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
-    {
-        if (SkUiMauiImageSources.AffectsImage(args.PropertyName))
-            LoadThumbImage();
     }
 
     private void LoadThumbImage() =>

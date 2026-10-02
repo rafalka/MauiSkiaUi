@@ -156,7 +156,7 @@ internal static partial class SkUiShaping
                 natural += piece.Width;
             extraSpace = JustifySpace(text, start, end, natural, target);
         }
-        var builder = t_builder ??= new SKTextBlobBuilder();
+        var builder = _builder ??= new SKTextBlobBuilder();
         var result = new StyledPiece[pieces.Count];
         var (lineAscent, lineDescent) = (0f, 0f);
         var pen = 0f;

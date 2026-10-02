@@ -48,6 +48,15 @@ internal record struct SkUiRenderProps
     /// </summary>
     public SKRect Overflow;
 
+    /// <summary>
+    /// Shaped clip of the whole node: its content, children and overlay (MAUI's <c>Clip</c>), local coordinates; <c>null</c>
+    /// = none. Paint only: hit-testing keeps the layout rectangle. Treated as immutable once committed.
+    /// </summary>
+    public SKPath? ClipPath;
+
+    /// <summary>Drop shadow drawn before the node, outside its clips (FR-20); <c>null</c> = none. Immutable once committed.</summary>
+    public SkUiRenderShadow? Shadow;
+
     public static SkUiRenderProps Default => new()
     {
         ScaleX = 1, ScaleY = 1, AnchorX = 0.5f, AnchorY = 0.5f, Opacity = 1, IsVisible = true, ClipToBounds = true
@@ -58,6 +67,15 @@ internal record struct SkUiRenderProps
 
     /// <summary>Local ink rectangle including <see cref="Overflow"/>.</summary>
     public readonly SKRect VisualBounds => new(-Overflow.Left, -Overflow.Top, Width + Overflow.Right, Height + Overflow.Bottom);
+
+    /// <summary>Everything the node draws: <see cref="VisualBounds"/> and its <see cref="Shadow"/>.</summary>
+    public readonly SKRect InkBounds => Shadow is { } shadow ? SKRect.Union(VisualBounds, shadow.Bounds) : VisualBounds;
+
+    /// <summary>
+    /// The bounds of the node's opacity layer: the layout rectangle when it clips to it and casts no shadow, else everything
+    /// it draws.
+    /// </summary>
+    public readonly SKRect LayerBounds => ClipToBounds && Shadow is null ? Bounds : InkBounds;
 
     /// <summary>True when the node paints nothing and its subtree can be skipped.</summary>
     public readonly bool IsSkipped => !IsVisible || Opacity <= 0 || Width <= 0 || Height <= 0;

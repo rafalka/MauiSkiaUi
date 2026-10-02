@@ -6,46 +6,55 @@ namespace MauiSkiaUiDemo;
 /// <summary>Side-by-side property playground for <see cref="SkUiBorder"/>.</summary>
 public sealed class BorderDemoPage : ComponentDemoPage
 {
+    private static readonly string[] ShapeNames = ["CornerRadius", "Rectangle", "RoundRectangle 24,4,4,24", "Ellipse", "Ticket (path)"];
+    private static readonly string[] DashNames = ["Solid", "4 2", "0 2 (dots)"];
+    private const string Ticket = "M 0,10 A 10,10 0 0 0 10,0 L 90,0 A 10,10 0 0 0 100,10 L 100,40 A 10,10 0 0 0 100,60 L 100,90 A 10,10 0 0 0 90,100 L 10,100 A 10,10 0 0 0 0,90 L 0,60 A 10,10 0 0 0 0,40 Z";
+
+    private string _shape = "CornerRadius";
+    private double _cornerRadius = 10;
+
     public BorderDemoPage() : base(nameof(SkUiBorder), new SkUiBorder(), new Border())
     {
         var skia = (SkUiBorder)SkiaControl;
         var native = (Border)NativeControl!;
-        // Contrasting label fill so padding / content slot is visible against the border Background.
+        // Contrasting label fill so the padding and the stroke inset are visible against the border's background.
         var contentFill = DemoColors.SampleB;
-        var drawn = new SkUiLabel
+        skia.Content = new SkUiLabel
         {
-            Text = "Bordered",
-            Background = contentFill,
-            TextColor = Colors.White,
-            HorizontalTextAlignment = TextAlignment.Center,
-            VerticalTextAlignment = TextAlignment.Center,
+            Text = "Bordered", Background = contentFill, TextColor = Colors.White,
+            HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center,
         };
-        var standard = new Label
+        native.Content = new Label
         {
-            Text = "Bordered",
-            Background = contentFill,
-            TextColor = Colors.White,
-            HorizontalTextAlignment = TextAlignment.Center,
-            VerticalTextAlignment = TextAlignment.Center,
+            Text = "Bordered", Background = contentFill, TextColor = Colors.White,
+            HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center,
         };
-        skia.Content = drawn;
-        native.Content = standard;
-        native.Stroke = Accent;
-        native.StrokeThickness = 2;
-        ApplyCornerRadius(skia, native, new CornerRadius(10));
+        // The color is the solid fill; the brush editor below swaps it for a gradient.
+        var solid = DemoColors.SoftSurface;
         ColorEditor(nameof(VisualElement.Background), DemoColors.SoftSurface, value =>
         {
+            solid = value;
+            if (skia.Background is GradientBrush) return;
             skia.Background = value;
             native.Background = value;
-        }, () => ((SolidColorBrush)skia.Background).Color, () => ((SolidColorBrush)native.Background).Color);
-        ColorEditor(nameof(SkUiBorder.Stroke), Accent, value => { skia.Stroke = value; native.Stroke = new SolidColorBrush(value); }, () => skia.Stroke!, () => ((SolidColorBrush)native.Stroke).Color);
-        Number(nameof(SkUiBorder.StrokeThickness), 0, 8, 2, value => { skia.StrokeThickness = value; native.StrokeThickness = value; }, () => skia.StrokeThickness, () => native.StrokeThickness);
+        }, () => (skia.Background as SolidColorBrush)?.Color ?? solid, () => (native.Background as SolidColorBrush)?.Color ?? solid);
+        var gradient = new LinearGradientBrush([new GradientStop(Accent, 0), new GradientStop(DemoColors.SampleA, 1)], new Point(0, 0), new Point(1, 0));
+        Toggle("Stroke gradient", false, value =>
+        {
+            skia.Stroke = value ? gradient : Accent;
+            native.Stroke = value ? gradient : Accent;
+        }, () => skia.Stroke is LinearGradientBrush, () => native.Stroke is LinearGradientBrush);
+        Number(nameof(SkUiBorder.StrokeThickness), 0, 12, 3, value => { skia.StrokeThickness = value; native.StrokeThickness = value; }, () => skia.StrokeThickness, () => native.StrokeThickness);
         Number(nameof(SkUiBorder.Padding), 0, 28, 12, value => { skia.Padding = value; native.Padding = value; }, () => skia.Padding.Left, () => native.Padding.Left);
-        Number("CornerRadius (uniform)", 0, 30, 10, value => ApplyCornerRadius(skia, native, new CornerRadius(value)), () => skia.CornerRadius.TopLeft);
-        Number("TopLeft", 0, 30, 10, value => ApplyCorner(skia, native, tl: value), () => skia.CornerRadius.TopLeft);
-        Number("TopRight", 0, 30, 10, value => ApplyCorner(skia, native, tr: value), () => skia.CornerRadius.TopRight);
-        Number("BottomLeft", 0, 30, 10, value => ApplyCorner(skia, native, bl: value), () => skia.CornerRadius.BottomLeft);
-        Number("BottomRight", 0, 30, 10, value => ApplyCorner(skia, native, br: value), () => skia.CornerRadius.BottomRight);
+        Choice(nameof(SkUiBorder.StrokeShape), ShapeNames, _shape, name => { _shape = name; ApplyShape(skia, native); }, () => _shape, () => _shape);
+        Number("CornerRadius (shorthand)", 0, 40, _cornerRadius, value => { _cornerRadius = value; ApplyShape(skia, native); }, () => skia.CornerRadius.TopLeft);
+        Choice(nameof(SkUiBorder.StrokeDashArray), DashNames, "Solid", name => { skia.StrokeDashArray = Dashes(name); native.StrokeDashArray = Dashes(name); },
+            () => DashName(skia.StrokeDashArray), () => DashName(native.StrokeDashArray));
+        Choice(nameof(SkUiBorder.StrokeLineCap), Enum.GetValues<NativeShapes.PenLineCap>(), NativeShapes.PenLineCap.Flat,
+            value => { skia.StrokeLineCap = value; native.StrokeLineCap = value; }, () => skia.StrokeLineCap, () => native.StrokeLineCap);
+        Choice(nameof(SkUiBorder.StrokeLineJoin), Enum.GetValues<NativeShapes.PenLineJoin>(), NativeShapes.PenLineJoin.Miter,
+            value => { skia.StrokeLineJoin = value; native.StrokeLineJoin = value; }, () => skia.StrokeLineJoin, () => native.StrokeLineJoin);
+        EffectEditors(skia, native, (view, brush) => view.Background = brush ?? solid);
         // The border as one tappable card: the look's press feedback over it and its content, clipped to its corners.
         var taps = 0;
         skia.Tapped += (_, _) => Feedback($"Taps: {++taps}");
@@ -53,19 +62,42 @@ public sealed class BorderDemoPage : ComponentDemoPage
         OnReset(() => taps = 0);
     }
 
-    private static void ApplyCorner(SkUiBorder skia, Border native, double? tl = null, double? tr = null, double? bl = null, double? br = null)
+    /// <summary>The drawn border takes SkiaUi's shapes (or its CornerRadius shorthand); MAUI's takes its own.</summary>
+    private void ApplyShape(SkUiBorder skia, Border native)
     {
-        var current = skia.CornerRadius;
-        ApplyCornerRadius(skia, native, new CornerRadius(
-            tl ?? current.TopLeft,
-            tr ?? current.TopRight,
-            bl ?? current.BottomLeft,
-            br ?? current.BottomRight));
+        skia.CornerRadius = _cornerRadius;
+        switch (_shape)
+        {
+            case "Rectangle":
+                skia.StrokeShape = new SkUiRectangle();
+                native.StrokeShape = new NativeShapes.Rectangle();
+                break;
+            case "RoundRectangle 24,4,4,24":
+                skia.StrokeShape = new SkUiRoundRectangle { CornerRadius = new CornerRadius(24, 4, 4, 24) };
+                native.StrokeShape = new NativeShapes.RoundRectangle { CornerRadius = new CornerRadius(24, 4, 4, 24) };
+                break;
+            case "Ellipse":
+                skia.StrokeShape = new SkUiEllipse();
+                native.StrokeShape = new NativeShapes.Ellipse();
+                break;
+            case "Ticket (path)":
+                skia.StrokeShape = new SkUiPath { Aspect = Stretch.Fill }.SetData(Ticket);
+                native.StrokeShape = new NativeShapes.Path { Aspect = Stretch.Fill, Data = (NativeShapes.Geometry?)new NativeShapes.PathGeometryConverter().ConvertFromInvariantString(Ticket) };
+                break;
+            default:
+                skia.StrokeShape = null;
+                native.StrokeShape = new NativeShapes.RoundRectangle { CornerRadius = _cornerRadius };
+                break;
+        }
     }
 
-    private static void ApplyCornerRadius(SkUiBorder skia, Border native, CornerRadius radii)
+    private static DoubleCollection Dashes(string name) => name switch
     {
-        skia.CornerRadius = radii;
-        native.StrokeShape = new NativeShapes.RoundRectangle { CornerRadius = radii };
-    }
+        "4 2" => [4, 2],
+        "0 2 (dots)" => [0, 2],
+        _ => []
+    };
+
+    private static string DashName(DoubleCollection? dashes) =>
+        DashNames.FirstOrDefault(name => Dashes(name).SequenceEqual(dashes ?? [])) ?? "?";
 }

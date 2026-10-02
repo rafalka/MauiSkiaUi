@@ -12,12 +12,9 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
 {
     private ICommand? _command;
     private object? _commandParameter;
-    private CornerRadius _cornerRadii;
+    private SkUiChromeState _chrome;
     private bool _syncingCornerRadius;
-    private Color _borderColor = Colors.Transparent;
-    private double _borderWidth;
     private Thickness _padding;
-    private SkUiRoundedClip _clip;
 
     /// <summary>Bindable command executed on a valid release.</summary>
     public static readonly BindableProperty CommandProperty = BindableProperty.Create(nameof(Command), typeof(ICommand), typeof(SkUiImageButton), null,
@@ -80,23 +77,15 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     private void OnCommandChanged(ICommand? value)
     {
         if (_command == value) return;
-        if (_command is not null && _commandChanged is not null) _command.CanExecuteChanged -= _commandChanged;
         _command = value;
-        if (value is not null)
+        // A long-lived command must not keep the button alive.
+        (_commandListener ??= new(this, static (button, change) =>
         {
-            var weak = new WeakReference<SkUiImageButton>(this);
-            EventHandler? listener = null;
-            listener = (sender, _) =>
-            {
-                if (weak.TryGetTarget(out var button)) button.UpdateState();
-                else if (sender is ICommand oldCommand) oldCommand.CanExecuteChanged -= listener;
-            };
-            _commandChanged = listener;
-            value.CanExecuteChanged += listener;
-        }
+            if (change.Kind == SkUiChangeKind.CanExecute) button.UpdateState();
+        })).Listen(value);
         UpdateState();
     }
-    private EventHandler? _commandChanged;
+    private SkUiWeakListener<SkUiImageButton>? _commandListener;
     /// <summary>Sets command argument (same as the property setter).</summary>
     public SkUiImageButton SetCommandParameter(object? value) { CommandParameter = value; return this; }
     private void OnCommandParameterChanged(object? value) { _commandParameter = value; UpdateState(); }
@@ -104,8 +93,7 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     public SkUiImageButton SetCornerRadii(CornerRadius value) { SkUiCornerRadii.Validate(value, nameof(value)); CornerRadii = value; return this; }
     private void OnCornerRadiiChanged(CornerRadius value)
     {
-        if (_cornerRadii == value) return;
-        _cornerRadii = value;
+        if (!_chrome.SetRadii(value)) return;
         SyncCornerRadiusProperty();
         InvalidatePaint();
     }
@@ -116,7 +104,7 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     /// <summary>Keeps the <see cref="CornerRadius"/> store at the top-left radius, rounded, so its bindings see <see cref="CornerRadii"/> changes.</summary>
     private void SyncCornerRadiusProperty()
     {
-        var uniform = (int)Math.Round(_cornerRadii.TopLeft);
+        var uniform = (int)Math.Round(_chrome.Radii.TopLeft);
         if ((int)GetValue(CornerRadiusProperty) == uniform) return;
         _syncingCornerRadius = true; // the store follows the radii; it must not set all four corners back
         try { SetValue(CornerRadiusProperty, uniform); }
@@ -124,10 +112,10 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     }
     /// <summary>Sets the border color (same as the property setter).</summary>
     public SkUiImageButton SetBorderColor(Color value) { ArgumentNullException.ThrowIfNull(value); BorderColor = value; return this; }
-    private void OnBorderColorChanged(Color value) { if (_borderColor == value) return; _borderColor = value; InvalidatePaint(); }
+    private void OnBorderColorChanged(Color value) { if (_chrome.SetBorderColor(value)) InvalidatePaint(); }
     /// <summary>Sets the border width (same as the property setter).</summary>
     public SkUiImageButton SetBorderWidth(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); BorderWidth = value; return this; }
-    private void OnBorderWidthChanged(double value) { if (_borderWidth == value) return; _borderWidth = value; InvalidatePaint(); }
+    private void OnBorderWidthChanged(double value) { if (_chrome.SetBorderWidth(value)) InvalidatePaint(); }
     /// <summary>Sets the padding (same as the property setter).</summary>
     public SkUiImageButton SetPadding(Thickness value) { Padding = value; return this; }
     private void OnPaddingChanged(Thickness value) { if (_padding == value) return; _padding = value; InvalidateMeasureOverride(); }
@@ -176,7 +164,7 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     }
 
     /// <inheritdoc />
-    internal override CornerRadius PressEffectCornerRadii => _cornerRadii;
+    internal override CornerRadius PressEffectCornerRadii => _chrome.Radii;
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
@@ -184,15 +172,27 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>
-        SkUiImageButtonDrawing.PaintContent(canvas, this, (float)Width, (float)Height, _padding, _cornerRadii, ref _clip);
+        SkUiImageButtonDrawing.PaintContent(canvas, this, (float)Width, (float)Height, _padding, ref _chrome);
+
+    /// <summary>The background (solid or gradient) fills the rounded bounds.</summary>
+    protected override void OnPaintBackground(SKCanvas canvas)
+    {
+        if (SkUiCornerRadii.HasAny(_chrome.Radii))
+            _chrome.DrawFill(canvas, (float)Width, (float)Height, _chrome.Radii, ResolveBackgroundFill() ?? default);
+        else
+            base.OnPaintBackground(canvas);
+    }
+
+    /// <inheritdoc />
+    internal override SKPath? CreateShadowOutline(float width, float height) =>
+        PaintBackground is null ? _chrome.ShadowOutline(width, height, _chrome.Radii, ResolveBackgroundPaint()) : null;
 
     /// <summary>
     /// Draws press / disabled feedback (<see cref="SkUiLook.DrawPressOverlay"/>) and the border, registered as
     /// <see cref="SkUiView.PaintOverlay"/>. Subclasses may call or re-register this painter.
     /// </summary>
     protected void PaintButtonOverlay(SKCanvas canvas) =>
-        SkUiImageButtonDrawing.PaintOverlay(canvas, (float)Width, (float)Height, _cornerRadii, ToSkColor(_borderColor), (float)_borderWidth,
-            _press?.Visual ?? SkUiPressVisual.None, IsEnabled && CanReceiveTap);
+        SkUiImageButtonDrawing.PaintOverlay(canvas, (float)Width, (float)Height, _chrome, _press?.Visual ?? SkUiPressVisual.None, IsEnabled && CanReceiveTap);
 
     void SkUiImageButtonDrawing.IImage.Paint(SKCanvas canvas, SKRect area) => PaintImage(canvas, area);
 }

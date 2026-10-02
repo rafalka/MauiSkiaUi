@@ -38,7 +38,7 @@ Inherits Label text APIs (MAUI Button's `CharacterSpacing`, `TextTransform`, `Li
 | Image + text content | Text only (use [`SkUiImageButton`](SkUiImageButton.md) for images) |
 | Hit region | Rectangular arranged bounds (corners outside the round fill still hit) |
 | `TappedCommand` vs `Command` | On tap, only `Command` runs (plus `Clicked` / `Tapped` event). Do not rely on both commands. |
-| Chrome | `FillColor`; solid `Background` overrides fill |
+| Chrome | `FillColor`; a `Background` (solid or gradient) overrides it. Gradients reach the look as `SkUiButtonPaint.FillPaint` (`Fill` then holds the stops averaged, for looks that draw colors only); the default look dims them when pressed. An opaque fill casts the `Shadow` from the rounded chrome |
 | Visual states | MAUI's: `Normal`, `PointerOver` (hover), `Pressed`, `Disabled` (also when the command cannot execute) |
 
 ## Related

@@ -47,7 +47,7 @@ Every drawn node (`SkUiView`, `SkUiCoreNode`) implements `ISkUiRenderable`. It o
 | `Before` picture | Background + Content phases (`PaintBackground` / `OnPaintBackground`, `OnPaintContent`) | Re-record this node only |
 | `After` picture | Overlay phase | Re-record this node only |
 | Children | `GetRenderChildren` (paint order, ZIndex) | Children list resend, no re-record |
-| `SkUiRenderProps` | Frame offset/size, translation, rotation, scale, anchor, opacity, `ClipToBounds`, children offset and clip, content spin, ink overflow | Nothing is recorded; composite-time only |
+| `SkUiRenderProps` | Frame offset/size, translation, rotation, scale, anchor, opacity, `ClipToBounds`, clip path (`Clip`), shadow, children offset and clip, content spin, ink overflow | Nothing is recorded; composite-time only |
 
 Children are composited by the engine between the Content and Overlay pictures. Containers express how their children are drawn through properties instead of drawing them in `OnPaintContent`:
 
@@ -101,11 +101,28 @@ Input arrives on the UI thread and is hit-tested against UI-side state (frames, 
 
 The GPU surfaces deliver native multi-pointer touches (pointer ids, DIP coordinates) plus wheel / trackpad scroll. The software path uses SkiaSharp touch events.
 
-## Shadows (FR-20) — what the pipeline already provides
+## Shadows and clips (FR-20, FR-11)
 
-- `SkUiRenderProps.Overflow` / `VisualBounds`: ink bounds outside the layout rect. Culling, picture cull rects and opacity layers already use them.
-- `ClipToBounds` is opt-in for layouts (MAUI parity). A child's shadow is therefore not cut off by its parent unless the parent opts in, and a shadow can be drawn before the node's own clip.
-- A shadow's properties can become render-node properties, animated like opacity. Its blurred raster can be cached per node, keyed by shape / size / radius, independently of the content picture.
+Both are render-node properties (`SkUiRenderProps.Shadow`, `ClipPath`), resolved on the UI thread by `SkUiVisualEffects` (one per node that has either) and reused while nothing they depend on changes, so committing the same frame twice commits the same objects.
+
+Per node the compositor draws: transform → cull by `InkBounds` (visual bounds plus the shadow) → opacity layer (`LayerBounds`, which includes the shadow) → **shadow** → body (`ClipToBounds`, `ClipPath`, content, children, overlay). The shadow is outside the node's own clips; a parent's clips apply.
+
+| Shadow kind | When | How it is drawn |
+| --- | --- | --- |
+| Outline | The node's own fill is opaque (`ISkUiShadowCaster.CreateShadowOutline`: background rectangle, label / button chrome, border outline with its opaque stroke, box, a shape's opaque fill and undashed opaque stroke), intersected with `ClipPath` | The path blurred by a mask filter (Skia caches blur masks; analytic on the GPU for rounded rectangles) |
+| Content | Anything else (text, images, translucent or dashed shapes, layouts without an opaque background) | The alpha of the node's body (with its children) blurred and filled with the shadow's color or gradient (`SkUiShadowPainter`). The compositor rasterizes it into a per-node raster once the subtree has not changed since the last frame, and reuses it until the subtree's version, the shadow or the density changes; while the subtree changes from frame to frame (or has spinning content) it is drawn live through layers. A shadow drawn live because it just changed requests one more frame, so it is rasterized while idle instead of in the first frame of the next scroll; at most `MaxShadowRasterizationsPerFrame` (3) are rasterized per frame, the rest follow in the next frames |
+
+**Subtree versions.** On the render thread every applied update and animation tick bumps `SkUiRenderNode.Version` on the affected node and its ancestors (once per pass). A node's own offset, transform and opacity only bump its ancestors, since the cached raster is in the node's own coordinates: moving, fading or scaling a shadowed node, and scrolling the list around it, reuse its raster. `SkUiCompositor.ShadowRasterizations` / `LiveShadows` count both paths for tests.
+
+Shadow and clip changes are `Props` changes: no re-record. The compositor disposes the clip path and shadow objects (outline, shader, blur filters) a commit replaces, on the render thread between frames: the UI side keeps only its newest ones, so nothing else uses them.
+
+## GPU pipeline warm-up
+
+The first frame that uses a new GPU pipeline (a combination of shape, paint, clip and layer) stalls while the GPU compiles it: 25–65 ms on Metal, measured with the frame trace below, until the OS shader cache holds it. `SkUiGpuWarmUp` draws the operations SkiaUi uses (rectangles and rounded rectangles, gradients, paths, gradient and dashed strokes, arcs, text, images, clips, opacity and blur layers, blurred outlines; plain, rotated and scaled) into a small offscreen GPU surface and flushes it, one step per frame once the surface has drawn nothing for a second (Metal: the shared context, on idle display-link ticks; Android: each GL view's context, on renders it schedules). An app's first screens, which draw several frames in a row, never wait for it; a later interaction waits for at most one step. On a cold shader cache it removes the stalls of the common pipelines (rectangles, rounded rectangles, gradients, clips, card shadows); combinations it does not draw still compile on first use.
+
+## Frame trace (diagnostics builds)
+
+`SkUiView.StartFrameTrace()` / `StopFrameTrace()` (internal, `SKUI_DIAGNOSTICS`) record per frame: apply, animations, draw, Skia flush and present (Metal), batches and updates, garbage collections, content shadows rasterized, and the interval since the previous frame. The demo's **Effects stress** page reports each scroll's slowest frames with them. Radius converts to sigma as Android and Skia do (`SKMaskFilter.ConvertRadiusToSigma`). The immediate painter draws content shadows live, giving the same pixels (tested).
 
 ## Not done yet / next steps
 

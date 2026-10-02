@@ -46,7 +46,10 @@ public partial class MainPage : ContentPage
 	{
 		_tapCount++;
 		TapStatus.Text = $"Taps: {_tapCount}";
+		var color = _tapCount % 2 == 0 ? DemoColors.TapAlternate : DemoColors.Accent;
 		if (sender is SkUiShape shape)
-			shape.Color = _tapCount % 2 == 0 ? DemoColors.TapAlternate : DemoColors.Accent;
+			shape.Fill = color;
+		else if (sender is SkUiBox box)
+			box.Color = color;
 	}
 }

@@ -13,6 +13,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiCoreWrapLayout` / `SkUiCoreHorizontalShrinkLayout` / `SkUiCoreVerticalShrinkLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md), [SkUiShrinkLayout.md](SkUiShrinkLayout.md) | Same engines as the SkUi* twins (no Core flex layout) |
 | `SkUiCoreLabel` / `Button` / toggles / `Slider` / `ProgressBar` / Image / shapes / … | [SkUiCore.md](SkUiCore.md) | Core primitives & basic controls |
 | `SkUiCoreHost` | [SkUiCore.md](SkUiCore.md) | `SkUiView` bridge for Core roots |
+| `SkUiWeakListener<T>` / `SkUiWeakEvent` | [SkUiCore.md](SkUiCore.md#listening-to-shared-sources-own-controls) | Weak listening to shared sources and weak app-wide events, for your own controls (both layers) |
 
 ## Basic controls
 
@@ -51,10 +52,15 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 
 | Control | Doc | MAUI counterpart |
 | --- | --- | --- |
-| `SkUiShape` | [SkUiShape.md](SkUiShape.md) | — (abstract) |
+| `SkUiShape` | [SkUiShape.md](SkUiShape.md) | Shape (abstract): brushes, stroke model, `Aspect` |
 | `SkUiBox` | [SkUiBox.md](SkUiBox.md) | BoxView |
 | `SkUiEllipse` | [SkUiEllipse.md](SkUiEllipse.md) | Ellipse |
 | `SkUiLine` | [SkUiLine.md](SkUiLine.md) | Line |
+| `SkUiRectangle` | [SkUiRectangle.md](SkUiRectangle.md) | Rectangle |
+| `SkUiRoundRectangle` | [SkUiRoundRectangle.md](SkUiRoundRectangle.md) | RoundRectangle |
+| `SkUiPath` | [SkUiPath.md](SkUiPath.md) | Path |
+| `SkUiPolygon` | [SkUiPolygon.md](SkUiPolygon.md) | Polygon |
+| `SkUiPolyline` | [SkUiPolyline.md](SkUiPolyline.md) | Polyline |
 
 ## Scrolling
 

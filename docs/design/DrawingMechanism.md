@@ -222,7 +222,8 @@ Exact API: **Background / Overlay** use optional `PaintBackground` / `PaintOverl
 
 Favor shared primitives used by many Background/Content layers — the public, replaceable **control look** `SkUiLook.Current` (**FR-18** / [ControlLook.md](ControlLook.md)):
 
-- Rounded rectangle fill / stroke / clip path (`DrawRoundedBox`, `CreateRoundRectPath`) — uniform radius (Button, ImageButton tint) or per-corner `CornerRadius` (Border)
+- Rounded rectangle fill / stroke / clip path (`DrawRoundedBox`, `CreateRoundRectPath`) — uniform radius (Button, ImageButton tint) or per-corner radii (labels, buttons and image buttons through one chrome state, `SkUiChromeState`; borders with rectangle shapes)
+- Shapes and border outlines (`SkUiShapeGeometry`, `SkUiShapePainter`, `SkUiBorderGeometry`) — MAUI's shape measure / stretch / placement, MAUI Graphics paints (solid, gradients) and the stroke model (dashes, caps, joins), shared by both layers
 - Switch / CheckBox / RadioButton / ActivityIndicator / Image destination — one painter each for Core + MAUI-compatible controls
 - Pressed/disabled overlay (`DrawPressOverlay`; also any node with `ShowsPressEffect`)
 - Text layout for labels: one shared engine for `SkUiLabel` and `SkUiCoreLabel` (shaping, bidi, wrapping / truncation)
@@ -331,7 +332,7 @@ Exact signatures TBD (Requirements open decisions); intent:
 
 ### Clip / mask (FR-11)
 
-- [ ] Rectangle / rounded-rect / path mask constraints on paint. *(Partial: rectangle `ClipToBounds` and rounded-rect `ChildrenClipPath` done; path / mask open.)*
+- [x] Rectangle / rounded-rect / path mask constraints on paint: `ClipToBounds`, a border's `ChildrenClipPath`, and MAUI's `Clip` geometry on every node (`SkUiRenderProps.ClipPath`, composite-time, P7).
 - [x] Clip applied consistently across layers (`ClipToBounds` clips content, children and overlay; no per-layer opt-out).
 - [x] Demo: rounded control with transparent corners still hit-testing full layout rect.
 

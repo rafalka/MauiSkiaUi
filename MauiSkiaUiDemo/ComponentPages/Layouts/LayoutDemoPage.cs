@@ -8,8 +8,8 @@ public sealed class LayoutDemoPage : ComponentDemoPage
     public LayoutDemoPage() : base(nameof(SkUiLayout), new SkUiLayout())
     {
         var layout = (SkUiLayout)SkiaControl;
-        var first = new SkUiBox { Color = Accent, Margin = new Thickness(0, 0, 35, 25) };
-        var second = new SkUiEllipse { Color = DemoColors.SampleA, Margin = new Thickness(35, 25, 0, 0) };
+        var first = new SkUiBox { Color = Accent, WidthRequest = 48, HeightRequest = 48, Margin = new Thickness(0, 0, 35, 25) };
+        var second = new SkUiEllipse { Fill = DemoColors.SampleA, WidthRequest = 48, HeightRequest = 48, Margin = new Thickness(35, 25, 0, 0) };
         layout.Children.Add(first);
         layout.Children.Add(second);
         first.Tapped += (_, _) => Feedback("Tapped box");

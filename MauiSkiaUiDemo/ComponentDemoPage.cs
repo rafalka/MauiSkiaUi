@@ -372,6 +372,88 @@ public abstract class ComponentDemoPage : ContentPage
         apply(initial);
     }
 
+    private static readonly string[] BrushNames = ["Solid", "Linear gradient", "Radial gradient"];
+    private static readonly string[] ShadowNames = ["None", "Soft", "Sharp", "Gradient"];
+    private static readonly string[] ClipNames = ["None", "Ellipse", "Rounded rectangle"];
+
+    /// <summary>
+    /// MAUI parity P7 editors on both previews: a solid or gradient <c>Background</c> (<paramref name="setBackground"/> applies a
+    /// gradient, or <c>null</c> for the page's solid fill, e.g. a BoxView's color), a <c>Shadow</c> and a <c>Clip</c> geometry.
+    /// </summary>
+    protected void EffectEditors(VisualElement skia, VisualElement? native, Action<VisualElement, Brush?>? setBackground = null)
+    {
+        setBackground ??= (view, brush) => view.Background = brush;
+        Choice("Background brush", BrushNames, "Solid", name =>
+        {
+            setBackground(skia, CreateBrush(name));
+            if (native is not null) setBackground(native, CreateBrush(name));
+        }, () => BrushName(skia.Background), native is null ? null : () => BrushName(native.Background));
+        Choice(nameof(VisualElement.Shadow), ShadowNames, "None", name =>
+        {
+            skia.Shadow = CreateShadow(name)!;
+            if (native is not null) native.Shadow = CreateShadow(name)!;
+        }, () => ShadowName(skia.Shadow), native is null ? null : () => ShadowName(native.Shadow));
+        Choice(nameof(VisualElement.Clip), ClipNames, "None", name =>
+        {
+            skia.Clip = CreateClip(name, skia);
+            if (native is not null) native.Clip = CreateClip(name, native);
+        }, () => ClipName(skia.Clip), native is null ? null : () => ClipName(native.Clip));
+    }
+
+    private static Brush? CreateBrush(string name) => name switch
+    {
+        "Linear gradient" => new LinearGradientBrush([new GradientStop(Accent, 0), new GradientStop(DemoColors.SampleA, 1)], new Point(0, 0), new Point(1, 1)),
+        "Radial gradient" => new RadialGradientBrush([new GradientStop(DemoColors.SampleA, 0), new GradientStop(Accent, 1)], new Point(0.5, 0.5), 0.6),
+        _ => null
+    };
+
+    private static string BrushName(Brush? brush) => brush switch
+    {
+        LinearGradientBrush => "Linear gradient",
+        RadialGradientBrush => "Radial gradient",
+        _ => "Solid"
+    };
+
+    private static Shadow? CreateShadow(string name) => name switch
+    {
+        "Soft" => new Shadow { Brush = Colors.Black, Offset = new Point(6, 8), Radius = 14, Opacity = 0.45f },
+        "Sharp" => new Shadow { Brush = DemoColors.Ink, Offset = new Point(8, 8), Radius = 0, Opacity = 0.8f },
+        "Gradient" => new Shadow
+        {
+            Brush = new LinearGradientBrush([new GradientStop(DemoColors.SampleA, 0), new GradientStop(Accent, 1)], new Point(0, 0), new Point(1, 0)),
+            Offset = new Point(0, 10), Radius = 12, Opacity = 0.9f
+        },
+        _ => null
+    };
+
+    private static string ShadowName(Shadow? shadow) => shadow switch
+    {
+        null => "None",
+        { Brush: GradientBrush } => "Gradient",
+        { Radius: 0 } => "Sharp",
+        _ => "Soft"
+    };
+
+    /// <summary>A clip in the view's coordinates (MAUI geometries do not follow the size): sized from its current bounds.</summary>
+    private static Microsoft.Maui.Controls.Shapes.Geometry? CreateClip(string name, VisualElement view)
+    {
+        var width = view.Width > 0 ? view.Width : 160;
+        var height = view.Height > 0 ? view.Height : 100;
+        return name switch
+        {
+            "Ellipse" => new Microsoft.Maui.Controls.Shapes.EllipseGeometry { Center = new Point(width / 2, height / 2), RadiusX = width / 2, RadiusY = height / 2 },
+            "Rounded rectangle" => new Microsoft.Maui.Controls.Shapes.RoundRectangleGeometry(new CornerRadius(24, 4, 24, 4), new Rect(0, 0, width, height)),
+            _ => null
+        };
+    }
+
+    private static string ClipName(Microsoft.Maui.Controls.Shapes.Geometry? clip) => clip switch
+    {
+        Microsoft.Maui.Controls.Shapes.EllipseGeometry => "Ellipse",
+        Microsoft.Maui.Controls.Shapes.RoundRectangleGeometry => "Rounded rectangle",
+        _ => "None"
+    };
+
     protected void ActionButton(string title, Action action)
     {
         var button = new Button { Text = title, Background = Accent, TextColor = Colors.White, AutomationId = title.Replace(" ", "") };

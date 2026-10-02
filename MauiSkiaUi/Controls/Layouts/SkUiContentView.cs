@@ -64,15 +64,23 @@ public class SkUiContentView : SkUiView
     /// <inheritdoc />
     internal override IEnumerable<ISkUiView> SkiaChildren { get { if (_content is not null) yield return _content; } }
 
+    /// <summary>The space around the content: the padding (borders add their stroke).</summary>
+    private protected virtual Thickness ContentInset => _padding;
+
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        var size = Content?.Measure(Math.Max(0, widthConstraint - _padding.HorizontalThickness), Math.Max(0, heightConstraint - _padding.VerticalThickness)) ?? Size.Zero;
-        return new Size(size.Width + _padding.HorizontalThickness, size.Height + _padding.VerticalThickness);
+        var inset = ContentInset;
+        var size = Content?.Measure(Math.Max(0, widthConstraint - inset.HorizontalThickness), Math.Max(0, heightConstraint - inset.VerticalThickness)) ?? Size.Zero;
+        return new Size(size.Width + inset.HorizontalThickness, size.Height + inset.VerticalThickness);
     }
 
     /// <inheritdoc />
-    protected override void ArrangeContent(Size size) => Content?.Arrange(new Rect(_padding.Left, _padding.Top,
-        Math.Max(0, size.Width - _padding.HorizontalThickness), Math.Max(0, size.Height - _padding.VerticalThickness)));
+    protected override void ArrangeContent(Size size)
+    {
+        var inset = ContentInset;
+        Content?.Arrange(new Rect(inset.Left, inset.Top,
+            Math.Max(0, size.Width - inset.HorizontalThickness), Math.Max(0, size.Height - inset.VerticalThickness)));
+    }
 
 }

@@ -162,8 +162,9 @@ internal sealed class SkUiRenderRecorder : IDisposable
 /// </summary>
 internal static class SkUiImmediatePainter
 {
-    [ThreadStatic] private static SKPaint? t_layerPaint;
-    [ThreadStatic] private static List<ISkUiRenderable>? t_children;
+    [ThreadStatic] private static SKPaint? _layerPaint;
+    [ThreadStatic] private static SKPaint? _shadowPaint;
+    [ThreadStatic] private static List<ISkUiRenderable>? _children;
 
     internal static void Paint(ISkUiRenderable node, SKCanvas canvas, bool applyOffset)
     {
@@ -178,19 +179,43 @@ internal static class SkUiImmediatePainter
         {
             var matrix = props.Matrix;
             canvas.Concat(in matrix);
-            var visual = props.VisualBounds;
-            if (canvas.QuickReject(visual))
+            if (canvas.QuickReject(props.InkBounds))
                 return;
-            if (props.ClipToBounds)
-                canvas.ClipRect(props.Bounds);
             if (props.Opacity < 1)
             {
-                var paint = t_layerPaint ??= new SKPaint();
+                var paint = _layerPaint ??= new SKPaint();
                 paint.Color = SKColors.White.WithAlpha((byte)(255 * props.Opacity));
-                canvas.SaveLayer(props.ClipToBounds ? props.Bounds : visual, paint);
+                canvas.SaveLayer(props.LayerBounds, paint);
             }
+            if (props.Shadow is { } shadow)
+            {
+                // The compositor rasterizes content shadows; drawn live they give the same pixels.
+                var shadowPaint = _shadowPaint ??= new SKPaint();
+                if (shadow.Outline is not null)
+                    SkUiShadowPainter.DrawOutline(canvas, shadow, shadowPaint);
+                else
+                    SkUiShadowPainter.DrawFromContent(canvas, shadow, shadowPaint, (node, props), static (c, state) => PaintBody(state.node, c, state.props));
+            }
+            PaintBody(node, canvas, props);
+        }
+        finally
+        {
+            canvas.RestoreToCount(save);
+        }
+    }
+
+    /// <summary>The node in its own coordinates, inside its clips: content, children, overlay (the compositor's <c>DrawBody</c>).</summary>
+    private static void PaintBody(ISkUiRenderable node, SKCanvas canvas, in SkUiRenderProps props)
+    {
+        var save = canvas.Save();
+        try
+        {
+            if (props.ClipToBounds)
+                canvas.ClipRect(props.Bounds);
+            if (props.ClipPath is { } clipPath)
+                canvas.ClipPath(clipPath, antialias: true);
             node.RecordContent(canvas);
-            var children = t_children ??= [];
+            var children = _children ??= [];
             var start = children.Count;
             node.GetRenderChildren(children);
             var end = children.Count;
@@ -203,10 +228,16 @@ internal static class SkUiImmediatePainter
                     canvas.ClipPath(path, antialias: true);
                 if (props.ChildrenOffsetX != 0 || props.ChildrenOffsetY != 0)
                     canvas.Translate(-props.ChildrenOffsetX, -props.ChildrenOffsetY);
-                for (var index = start; index < end; index++)
-                    Paint(children[index], canvas, applyOffset: true);
-                canvas.RestoreToCount(childSave);
-                children.RemoveRange(start, end - start);
+                try
+                {
+                    for (var index = start; index < end; index++)
+                        Paint(children[index], canvas, applyOffset: true);
+                }
+                finally
+                {
+                    canvas.RestoreToCount(childSave);
+                    children.RemoveRange(start, end - start);
+                }
             }
             if (node.HasOverlay)
                 node.RecordOverlay(canvas);

@@ -11,7 +11,7 @@ namespace MauiSkiaUi.Tests;
 [Collection(GlobalStateCollection.Name)]
 public class TransitionTests
 {
-    private static long s_pointer = 70_000;
+    private static long _pointer = 70_000;
 
     /// <summary>Runs <paramref name="body"/> with <paramref name="look"/> as the current look and motion on.</summary>
     private static void WithLook(SkUiLook look, Action body)
@@ -40,7 +40,7 @@ public class TransitionTests
 
     private static void Tap(SkUiView root, Point at)
     {
-        var id = ++s_pointer;
+        var id = ++_pointer;
         root.Touch(new(id, SkUiTouchAction.Pressed, at, TimeSpan.FromSeconds(1)));
         root.Touch(new(id, SkUiTouchAction.Released, at, TimeSpan.FromSeconds(1.02)));
     }
@@ -156,7 +156,7 @@ public class TransitionTests
             var root = new SkUiContentView { Content = button, Background = Colors.White };
             using var surface = new SkUiTestSurface(root, 200, 44);
             surface.Frame();
-            var id = ++s_pointer;
+            var id = ++_pointer;
             root.Touch(new(id, SkUiTouchAction.Pressed, new Point(20, 22), TimeSpan.FromSeconds(1)));
             At(surface, 100);
             var bitmap = surface.Bitmap;
@@ -272,7 +272,7 @@ public class TransitionTests
             surface.Frame();
             Assert.Equal(new CornerRadius(12), overlays[^1].CornerRadii);
             Assert.Equal(0, overlays[^1].Press.Pressed);
-            var id = ++s_pointer;
+            var id = ++_pointer;
             root.Touch(new(id, SkUiTouchAction.Pressed, new Point(40, 30), TimeSpan.FromSeconds(1)));
             At(surface, 100);
             Assert.Equal(1, overlays[^1].Press.Pressed, 2);
@@ -302,7 +302,7 @@ public class TransitionTests
             using var surface = new SkUiTestSurface(host, 200, 40);
             surface.Frame();
 
-            var id = ++s_pointer;
+            var id = ++_pointer;
             host.Touch(new(id, SkUiTouchAction.Pressed, new Point(180, 20), TimeSpan.FromSeconds(1))); // on the inner button
             At(surface, 100);
             Assert.Equal(0, overlays[^1].Press.Pressed);
@@ -310,7 +310,7 @@ public class TransitionTests
             At(surface, 400);
             Assert.Equal(0, taps);
 
-            id = ++s_pointer;
+            id = ++_pointer;
             host.Touch(new(id, SkUiTouchAction.Pressed, new Point(30, 20), TimeSpan.FromSeconds(2))); // on the title label
             At(surface, 500);
             Assert.Equal(new CornerRadius(8), overlays[^1].CornerRadii);
@@ -332,7 +332,7 @@ public class TransitionTests
             var root = new SkUiContentView { Content = card };
             using var surface = new SkUiTestSurface(root, 100, 40);
             Assert.Equal(SKColors.White, surface.Frame().GetPixel(50, 20));
-            root.Touch(new(++s_pointer, SkUiTouchAction.Pressed, new Point(50, 20), TimeSpan.FromSeconds(1)));
+            root.Touch(new(++_pointer, SkUiTouchAction.Pressed, new Point(50, 20), TimeSpan.FromSeconds(1)));
             At(surface, 100);
             var pressed = surface.Bitmap.GetPixel(50, 20);
             Assert.True(pressed.Red < 240, $"pressed card pixel {pressed}");
@@ -390,7 +390,7 @@ public class TransitionTests
             Tap(root, new Point(160, y)); // glide towards 0.75
             surface.Frame(50);
             Assert.True(fractions[^1] < 0.7f);
-            var id = ++s_pointer;
+            var id = ++_pointer;
             root.Touch(new(id, SkUiTouchAction.Pressed, new Point(160, y), TimeSpan.FromSeconds(2)));
             root.Touch(new(id, SkUiTouchAction.Moved, new Point(172, y), TimeSpan.FromSeconds(2.05))); // a drag from the same value
             surface.Frame(50);

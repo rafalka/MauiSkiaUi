@@ -149,6 +149,14 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         }
     }
 
+    /// <summary>Pictures recorded and content shadows rasterized / drawn live on this surface since it was created.</summary>
+    internal SkUiRenderCounters RenderCounters => _renderer is { } renderer
+        ? new SkUiRenderCounters(renderer.RecordedPictures, renderer.Compositor.ShadowRasterizations, renderer.Compositor.LiveShadows)
+        : default;
+
+    /// <summary>The compositor of this surface (diagnostics), or <c>null</c> before the surface exists.</summary>
+    internal Rendering.SkUiCompositor? Compositor => _renderer?.Compositor;
+
     /// <summary>Clears <see cref="RenderStatistics"/>.</summary>
     internal void ResetRenderStatistics()
     {
@@ -215,7 +223,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     // SKSwapChainPanel's first frame calls GRGlInterface.Create(). Skia's Windows path (GrGLInterfaces::MakeWin)
     // loads opengl32.dll, keeps pointers into it and frees it again; once nothing else holds opengl32 it unloads and
     // the next GPU panel calls into the unloaded module (native crash, fail-fast). Keep it loaded for the process.
-    private static readonly Lazy<nint> s_openGlPin = new(() =>
+    private static readonly Lazy<nint> _openGlPin = new(() =>
         System.Runtime.InteropServices.NativeLibrary.TryLoad("opengl32.dll", out var handle) ? handle : 0);
 #endif
 
@@ -225,7 +233,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         if (gpu)
         {
 #if WINDOWS
-            _ = s_openGlPin.Value;
+            _ = _openGlPin.Value;
 #endif
             var view = new SKGLView { EnableTouchEvents = true, IgnorePixelScaling = false };
             view.PaintSurface += OnMauiGpuPaint;
@@ -926,7 +934,7 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
 /// </summary>
 internal sealed class SkUiOverlayClip : Android.Views.ViewGroup
 {
-    private static long s_nextPointer = 1L << 40; // distinct from surface pointer ids
+    private static long _nextPointer = 1L << 40; // distinct from surface pointer ids
     private int _pointerId = -1;
     private long _pointer;
 
@@ -943,7 +951,7 @@ internal sealed class SkUiOverlayClip : Android.Views.ViewGroup
         {
             case Android.Views.MotionEventActions.Down:
                 _pointerId = e.GetPointerId(0);
-                _pointer = ++s_nextPointer;
+                _pointer = ++_nextPointer;
                 // Claimed at once when the press stops a drawn fling: the native control never sees it.
                 return Forward(e, SkUiTouchAction.Pressed) == SkUiNativeGestureState.Claimed && TakeOver();
             case Android.Views.MotionEventActions.Move:
@@ -1159,7 +1167,7 @@ internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.
     /// </summary>
     private sealed class OverlayDragWatcher
     {
-        private static long s_nextPointer = 1L << 40; // distinct from surface pointer ids
+        private static long _nextPointer = 1L << 40; // distinct from surface pointer ids
         private readonly Microsoft.UI.Xaml.UIElement _space;
         private readonly Microsoft.UI.Xaml.Controls.Canvas _clip;
         private readonly Func<SkUiTouchEvent, SkUiNativeGestureState> _touch;
@@ -1255,7 +1263,7 @@ internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.
             if (_contact is not null || args.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
                 return;
             _contact = args.Pointer.PointerId;
-            _pointer = ++s_nextPointer;
+            _pointer = ++_nextPointer;
             _taken = false;
             WatchWindow(true);
             // Claimed at once when the press stops a drawn fling: the native control never keeps it.
@@ -1307,7 +1315,7 @@ internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.
             var point = args.GetCurrentPoint(_space);
             if (point.Properties.IsHorizontalMouseWheel)
                 return;
-            _touch(new SkUiTouchEvent(++s_nextPointer, SkUiTouchAction.Wheel, new Point(point.Position.X, point.Position.Y),
+            _touch(new SkUiTouchEvent(++_nextPointer, SkUiTouchAction.Wheel, new Point(point.Position.X, point.Position.Y),
                 null, point.Properties.MouseWheelDelta));
             args.Handled = true;
         }
