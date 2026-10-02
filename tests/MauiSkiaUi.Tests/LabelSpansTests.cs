@@ -138,6 +138,37 @@ public class LabelSpansTests
     }
 
     [Fact]
+    public void TheLabelsTextTransformRedrawsTheSpansThatInheritIt()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var label = Label(new Span { Text = "abc" }, new Span { Text = "def", TextTransform = TextTransform.None });
+        using var before = Render(label, 120, 30);
+        label.TextTransform = TextTransform.Uppercase;
+        using var after = Render(label, 120, 30);
+        var splitX = (int)(Advance() * 3);
+        bool Changed(int from, int to) =>
+            Enumerable.Range(from, to - from).Any(x => Enumerable.Range(0, 30).Any(y => before.GetPixel(x, y) != after.GetPixel(x, y)));
+        Assert.True(Changed(0, splitX - 1)); // "ABC"
+        Assert.False(Changed(splitX + 1, 120)); // "def" keeps its own transform
+
+        var core = Core(new SkUiCoreSpan("abc"));
+        SKBitmap Paint()
+        {
+            core.Measure(120, 30);
+            core.Arrange(new Rect(0, 0, 120, 30));
+            var bitmap = new SKBitmap(120, 30);
+            using var canvas = new SKCanvas(bitmap);
+            canvas.Clear(SKColors.White);
+            core.Paint(canvas);
+            return bitmap;
+        }
+        using var coreBefore = Paint();
+        core.SetTextTransform(TextTransform.Uppercase);
+        using var coreAfter = Paint();
+        Assert.NotEqual(coreBefore.Pixels, coreAfter.Pixels);
+    }
+
+    [Fact]
     public void TextAndFormattedTextReplaceEachOtherAsOnMaui()
     {
         var label = Label(new Span { Text = "spans" });

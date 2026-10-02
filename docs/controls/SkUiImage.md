@@ -116,7 +116,7 @@ image.LoadingFinished += (_, e) =>
 | `MemoryCacheBytes`, `MemoryCacheCount`, `ClearMemoryCache()` | Current use; empty the cache. It is also cleared when the OS reports memory pressure (Android `onTrimMemory`, iOS / Mac Catalyst memory warnings). |
 | `ClearAsync(caches)` | Empty the memory cache, the disk cache or both (default), e.g. for a "Clear cache" setting or at sign-out. Views keep their images; the next load decodes and downloads again. |
 | `GetDiskCacheBytesAsync()` | Size of the downloaded files (to show the cache size). |
-| `DiskCacheDirectory`, `DiskCacheMaxBytes` (100 MiB), `ClearDiskCacheAsync()` | Download cache in `FileSystem.CacheDirectory/SkiaUi.Images`. One file per URI. The oldest files are removed past the budget. |
+| `DiskCacheDirectory`, `DiskCacheMaxBytes` (100 MiB), `ClearDiskCacheAsync()` | Download cache in `FileSystem.CacheDirectory/SkiaUi.Images`. One file per URI, kept only when it decodes (an error page or a corrupt response is not cached; a cached file that no longer decodes is dropped). The oldest files are removed past the budget. Clearing deletes only the cache's own files (`*.img`), so the folder may be shared. |
 | `RemoveAsync(Uri)` / `RemoveAsync(SkUiImageSource)` | Forget one source (all its decode sizes and transformations, and its download), so the next load fetches it again. Call `ReloadAsync()` on views that should refresh. |
 | `CacheKeyFactory` | App-wide cache identity: a source → key delegate, `null` for the default key ([below](#custom-cache-keys)). |
 | `HttpClient` | The client that downloads images (set one with your headers, handler or timeout). |
@@ -143,6 +143,9 @@ SkUiImageCache.CacheKeyFactory = source => source switch
 
 - Sources with the same key share the decoded image in memory (per decode size and transformations) and the
   downloaded file on disk. Images are still downloaded from the source's own URL.
+- **Make sure the URLs are one image.** A shared key means one file for all of them: whichever URL downloaded it
+  first is what the others show, and `CacheValidity` counts from when that file was written, not per URL. Give CDN
+  variants that really differ (sizes, formats, crops) their own keys, e.g. keep the query parameters that select them.
 - A key for a stream source makes it cacheable, which otherwise it is not.
 - The factory sees SkiaUi's source records (`SkUiUriImageSource`, `SkUiFileImageSource`, `SkUiStreamImageSource`,
   `SkUiFontImageSource`), on both layers: MAUI's `ImageSource` is converted first.
@@ -166,7 +169,7 @@ SkUiImageCache.CacheKeyFactory = source => source switch
 | `SkUiTintTransformation` | `Color` with a `BlendMode` (default `SrcIn`: recolors monochrome icons) |
 | `SkUiColorMatrixTransformation`, `SkUiGrayscaleTransformation`, `SkUiSepiaTransformation` | 4 × 5 color matrix |
 
-Write your own by implementing `ISkUiImageTransformation` (`Key` + `Transform(SKImage, pixelsPerDip)`), or deriving from `SkUiImageTransformation` for the raster-canvas helper. The `Key` must identify every setting: it is part of the cache key. Settings are read when a load starts, so changing a property of a transformation in use applies on the next load.
+Write your own by implementing `ISkUiImageTransformation` (`Key` + `Transform(SKImage, pixelsPerDip)`), or deriving from `SkUiImageTransformation` for the raster-canvas helper. The `Key` must identify every setting: it is part of the cache key. Settings are read when a load starts, so changing a property of a transformation in use applies on the next load: the stock ones are copied for each load. A custom transformation is used as it is: keep its settings fixed while it is in use, or replace it; if its `Key` changes during a load, that result is shown but not cached. A load that is cancelled stops between frames and transformations.
 
 Transformations change the decoded pixels once. For clipping that follows the layout (rounded corners at the view's size), use `SkUiImageButton`'s `CornerRadii` or a `SkUiBorder` instead.
 

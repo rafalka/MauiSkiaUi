@@ -130,15 +130,18 @@ internal static class SkUiImageLoader
             return Task.FromException<SkUiCachedImage>(new InvalidOperationException("SkUiImageCache.CacheKeyFactory failed.", error));
         }
         var context = new SkUiImageLoadContext(scale, options.CacheType is SkUiImageCacheType.All or SkUiImageCacheType.Disk, maxPixels, sourceKey);
-        var key = options.CacheType is SkUiImageCacheType.All or SkUiImageCacheType.Memory ? KeyFor(sourceKey, options, maxPixels) : null;
+        // The key and the work use the same settings: copies taken now.
+        var transformations = SkUiImageTransformation.Snapshot(options.Transformations);
+        var key = options.CacheType is SkUiImageCacheType.All or SkUiImageCacheType.Memory
+            ? KeyFor(sourceKey, options with { Transformations = transformations }, maxPixels) : null;
         if (key is null)
-            return LoadCoreAsync(source, options.Transformations, context, null, token);
+            return LoadCoreAsync(source, transformations, context, null, token);
         if (SkUiImageMemoryCache.TryGet(key) is { } hit)
         {
             cached = true;
             return Task.FromResult(hit);
         }
-        return LoadSharedAsync(source, options.Transformations, context, key, token);
+        return LoadSharedAsync(source, transformations, context, key, token);
     }
 
     private static int Pixels(double dips, float scale) =>
@@ -270,11 +273,16 @@ internal static class SkUiImageLoader
         if (transformations is { Count: > 0 })
         {
             var input = decoded;
-            // Glyphs stay synchronous; decoded bitmaps are transformed off the UI thread. Either way Transform
-            // consumes the input, also when it fails.
+            var keys = key is null ? null : Keys(transformations);
+            // Glyphs stay synchronous; decoded bitmaps are transformed off the UI thread. Either way Transform consumes
+            // the input, also when it fails or is cancelled (between frames and transformations; Task.Run itself is not
+            // cancelled, so the input always reaches Transform).
             decoded = synchronous
-                ? Transform(input, transformations)
-                : await Task.Run(() => Transform(input, transformations), CancellationToken.None).ConfigureAwait(false);
+                ? Transform(input, transformations, token)
+                : await Task.Run(() => Transform(input, transformations, token), CancellationToken.None).ConfigureAwait(false);
+            // A custom transformation changed its settings meanwhile: the result is not what the key describes.
+            if (keys is not null && keys != Keys(transformations))
+                key = null;
         }
         if (token.IsCancellationRequested)
         {
@@ -284,6 +292,14 @@ internal static class SkUiImageLoader
         var image = new SkUiCachedImage(decoded, key, origin: context.Origin);
         SkUiImageMemoryCache.Add(image);
         return image;
+    }
+
+    private static string Keys(IReadOnlyList<ISkUiImageTransformation> transformations)
+    {
+        var keys = new StringBuilder();
+        foreach (var transformation in transformations)
+            keys.Append(transformation.Key).Append(SkUiImageMemoryCache.OptionsSeparator);
+        return keys.ToString();
     }
 
     private static void Dispose(SKImage?[] frames)
@@ -296,7 +312,8 @@ internal static class SkUiImageLoader
     /// Applies <paramref name="transformations"/> to every frame. Consumes <paramref name="decoded"/>: its frames are
     /// disposed when replaced, and all of them when a transformation fails.
     /// </summary>
-    internal static SkUiDecodedImage Transform(SkUiDecodedImage decoded, IReadOnlyList<ISkUiImageTransformation> transformations)
+    internal static SkUiDecodedImage Transform(SkUiDecodedImage decoded, IReadOnlyList<ISkUiImageTransformation> transformations,
+        CancellationToken token = default)
     {
         var first = decoded.Frames[0];
         var pixelsPerDip = (float)(first.Width / decoded.Size.Width);
@@ -313,6 +330,7 @@ internal static class SkUiImageLoader
                 {
                     foreach (var transformation in transformations)
                     {
+                        token.ThrowIfCancellationRequested();
                         var next = transformation.Transform(current, pixelsPerDip) ?? throw new InvalidOperationException(
                             $"Image transformation '{transformation.Key}' returned null.");
                         if (!ReferenceEquals(next, current))

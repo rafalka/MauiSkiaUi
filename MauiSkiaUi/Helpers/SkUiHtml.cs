@@ -8,8 +8,8 @@ namespace MauiSkiaUi;
 /// <summary>
 /// The style of a run of HTML text, relative to the label that shows it: what the markup sets; the rest is the label's.
 /// </summary>
-/// <param name="FontAttributes">Bold / italic added to the label's.</param>
-/// <param name="Decorations">Underline / strikethrough added to the label's.</param>
+/// <param name="FontAttributes">Bold / italic the markup turns on (over the label's).</param>
+/// <param name="Decorations">Underline / strikethrough the markup turns on (over the label's).</param>
 /// <param name="TextColor">Color, or <c>null</c> for the label's.</param>
 /// <param name="Background">Fill behind the run, or <c>null</c>.</param>
 /// <param name="SizeScale">Multiplier of the label's font size (headings, <c>big</c>, <c>em</c> sizes).</param>
@@ -26,6 +26,37 @@ internal readonly record struct SkUiHtmlStyle(
     string? FontFamily = null,
     string? Href = null)
 {
+    /// <summary>Bold / italic the markup turns off (<c>font-weight: normal</c>), also when the label sets them.</summary>
+    internal FontAttributes FontAttributesOff { get; init; }
+
+    /// <summary>Decorations the markup turns off (<c>text-decoration: none</c>), also when the label sets them.</summary>
+    internal TextDecorations DecorationsOff { get; init; }
+
+    /// <summary>Whether the markup sets the attributes either way (spans then carry them).</summary>
+    internal bool SetsAttributes => FontAttributes != FontAttributes.None || FontAttributesOff != FontAttributes.None;
+
+    /// <summary>Whether the markup sets decorations either way.</summary>
+    internal bool SetsDecorations => Decorations != TextDecorations.None || DecorationsOff != TextDecorations.None;
+
+    /// <summary>The label's <paramref name="attributes"/> with what the markup turns on and off.</summary>
+    internal FontAttributes Attributes(FontAttributes attributes) => (attributes | FontAttributes) & ~FontAttributesOff;
+
+    /// <summary>The label's <paramref name="decorations"/> with what the markup turns on and off.</summary>
+    internal TextDecorations DecorationsOver(TextDecorations decorations) => (decorations | Decorations) & ~DecorationsOff;
+
+    /// <summary>Turns <paramref name="attribute"/> on or off.</summary>
+    internal SkUiHtmlStyle With(FontAttributes attribute, bool on) => on
+        ? this with { FontAttributes = FontAttributes | attribute, FontAttributesOff = FontAttributesOff & ~attribute }
+        : this with { FontAttributes = FontAttributes & ~attribute, FontAttributesOff = FontAttributesOff | attribute };
+
+    /// <summary>Adds <paramref name="decoration"/> (tags).</summary>
+    internal SkUiHtmlStyle With(TextDecorations decoration) =>
+        this with { Decorations = Decorations | decoration, DecorationsOff = DecorationsOff & ~decoration };
+
+    /// <summary>Exactly <paramref name="decorations"/> (CSS <c>text-decoration</c>, which replaces them).</summary>
+    internal SkUiHtmlStyle WithOnly(TextDecorations decorations) =>
+        this with { Decorations = decorations, DecorationsOff = (TextDecorations.Underline | TextDecorations.Strikethrough) & ~decorations };
+
     /// <summary>Text the markup does not style (<c>default</c> would scale sizes by 0).</summary>
     internal static SkUiHtmlStyle Plain { get; } = new(SizeScale: 1);
 
@@ -65,8 +96,8 @@ public static class SkUiHtml
         {
             var style = run.Style;
             var span = new Span { Text = run.Text };
-            if (style.FontAttributes != FontAttributes.None) span.FontAttributes = style.FontAttributes;
-            if (style.Decorations != TextDecorations.None) span.TextDecorations = style.Decorations;
+            if (style.SetsAttributes) span.FontAttributes = style.FontAttributes;
+            if (style.SetsDecorations) span.TextDecorations = style.Decorations;
             if (style.TextColor is { } color) span.TextColor = color;
             if (style.Background is { } background) span.BackgroundColor = background;
             if (style.FontSize is not null || style.SizeScale != 1) span.FontSize = style.Size(fontSize);
@@ -92,8 +123,8 @@ public static class SkUiHtml
                 .SetTextColor(style.TextColor)
                 .SetBackgroundColor(style.Background)
                 .SetFontFamily(style.FontFamily)
-                .SetFontAttributes(style.FontAttributes == FontAttributes.None ? null : style.FontAttributes)
-                .SetTextDecorations(style.Decorations == TextDecorations.None ? null : style.Decorations)
+                .SetFontAttributes(style.SetsAttributes ? style.FontAttributes : null)
+                .SetTextDecorations(style.SetsDecorations ? style.Decorations : null)
                 .SetFontSize(style.FontSize is not null || style.SizeScale != 1 ? style.Size(fontSize) : null);
             if (style.Href is { } href && linkTapped is not null)
                 span.Tapped += (_, _) => linkTapped(href);
@@ -137,11 +168,11 @@ public static class SkUiHtml
         var builder = new SkUiRichText.Builder();
         foreach (var (text, style) in runs)
         {
-            var attributes = fontAttributes | style.FontAttributes;
+            var attributes = style.Attributes(fontAttributes);
             builder.Add(text,
                 new SkUiTextSpanStyle(SkUiTypefaces.Resolve(style.FontFamily ?? fontFamily, attributes), style.Size(fontSize), attributes, characterSpacing, lineHeight),
                 new SkUiTextSpanPaint(SkUiToggleDrawing.ToSkColor(style.TextColor ?? textColor),
-                    style.Background is { } background ? SkUiToggleDrawing.ToSkColor(background) : default, decorations | style.Decorations));
+                    style.Background is { } background ? SkUiToggleDrawing.ToSkColor(background) : default, style.DecorationsOver(decorations)));
         }
         return builder.Build();
     }
@@ -455,16 +486,16 @@ public static class SkUiHtml
             switch (name)
             {
                 case "b" or "strong":
-                    style = style with { FontAttributes = style.FontAttributes | FontAttributes.Bold };
+                    style = style.With(FontAttributes.Bold, on: true);
                     break;
                 case "i" or "em" or "cite" or "dfn" or "var":
-                    style = style with { FontAttributes = style.FontAttributes | FontAttributes.Italic };
+                    style = style.With(FontAttributes.Italic, on: true);
                     break;
                 case "u" or "ins":
-                    style = style with { Decorations = style.Decorations | TextDecorations.Underline };
+                    style = style.With(TextDecorations.Underline);
                     break;
                 case "s" or "strike" or "del":
-                    style = style with { Decorations = style.Decorations | TextDecorations.Strikethrough };
+                    style = style.With(TextDecorations.Strikethrough);
                     break;
                 case "big":
                     style = Scaled(style, 1.25);
@@ -476,15 +507,10 @@ public static class SkUiHtml
                     style = style with { FontFamily = MonospaceFamily };
                     break;
                 case "h1" or "h2" or "h3" or "h4" or "h5" or "h6":
-                    style = Scaled(style, HeadingScales[name[1] - '1']) with { FontAttributes = style.FontAttributes | FontAttributes.Bold };
+                    style = Scaled(style, HeadingScales[name[1] - '1']).With(FontAttributes.Bold, on: true);
                     break;
                 case "a" when attributes.TryGetValue("href", out var href):
-                    style = style with
-                    {
-                        Href = href,
-                        TextColor = SkUiColors.Accent,
-                        Decorations = style.Decorations | TextDecorations.Underline
-                    };
+                    style = style.With(TextDecorations.Underline) with { Href = href, TextColor = SkUiColors.Accent };
                     break;
                 case "font":
                     if (attributes.TryGetValue("color", out var color) && ParseColor(color) is { } fontColor)
@@ -522,17 +548,17 @@ public static class SkUiHtml
                         break;
                     case "font-weight":
                         var bold = lower is "bold" or "bolder" || (int.TryParse(lower, NumberStyles.Integer, CultureInfo.InvariantCulture, out var weight) && weight >= 600);
-                        style = style with { FontAttributes = bold ? style.FontAttributes | FontAttributes.Bold : style.FontAttributes & ~FontAttributes.Bold };
+                        style = style.With(FontAttributes.Bold, bold);
                         break;
                     case "font-style":
                         var italic = lower is "italic" or "oblique";
-                        style = style with { FontAttributes = italic ? style.FontAttributes | FontAttributes.Italic : style.FontAttributes & ~FontAttributes.Italic };
+                        style = style.With(FontAttributes.Italic, italic);
                         break;
                     case "text-decoration" or "text-decoration-line":
                         var decorations = TextDecorations.None;
                         if (lower.Contains("underline")) decorations |= TextDecorations.Underline;
                         if (lower.Contains("line-through")) decorations |= TextDecorations.Strikethrough;
-                        style = style with { Decorations = decorations };
+                        style = style.WithOnly(decorations);
                         break;
                     case "font-family" when Family(value) is { } family:
                         style = style with { FontFamily = family };

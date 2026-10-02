@@ -314,7 +314,13 @@ public class SkUiLabel : SkUiView
     private void OnTextDecorationsChanged(TextDecorations value) { if (_textDecorations == value) return; _textDecorations = value; _richText = null; InvalidatePaint(); }
     /// <summary>Sets the text transform (same as the property setter).</summary>
     public SkUiLabel SetTextTransform(TextTransform value) { TextTransform = value; return this; }
-    private void OnTextTransformChanged(TextTransform value) { if (_textTransform == value) return; _textTransform = value; _richText = null; UpdateDisplayText(); }
+    private void OnTextTransformChanged(TextTransform value)
+    {
+        if (_textTransform == value) return;
+        _textTransform = value;
+        if (UsesRichText) InvalidateText(); // spans inherit it; the (empty) plain text would not change
+        UpdateDisplayText();
+    }
     /// <summary>Sets horizontal alignment (same as the property setter).</summary>
     public SkUiLabel SetHorizontalTextAlignment(TextAlignment value) { HorizontalTextAlignment = value; return this; }
     private void OnHorizontalTextAlignmentChanged(TextAlignment value)
@@ -448,7 +454,7 @@ public class SkUiLabel : SkUiView
     }
 
     /// <summary>The <see cref="FormattedText"/> span drawn at <paramref name="point"/> (label coordinates), or <c>null</c>.</summary>
-    internal Span? SpanAt(Point point) =>
+    public Span? SpanAt(Point point) =>
         _formattedText is { } formatted && SpanIndexAt(point) is var index and >= 0 && index < formatted.Spans.Count ? formatted.Spans[index] : null;
 
     /// <summary>The <c>href</c> of the HTML link drawn at <paramref name="point"/> (label coordinates), or <c>null</c>.</summary>

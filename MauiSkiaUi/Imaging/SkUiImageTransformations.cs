@@ -26,11 +26,25 @@ public interface ISkUiImageTransformation
 
 /// <summary>Base for the stock transformations: a raster canvas helper and invariant key formatting.</summary>
 /// <remarks>
-/// Settings are read when a load starts: changing a property of a transformation already in use applies on the next
-/// load (<c>ReloadAsync</c>, or a new source or transformation list).
+/// Settings are read when a load starts (each load works on a copy): changing a property of a transformation already
+/// in use applies on the next load (<c>ReloadAsync</c>, or a new source or transformation list).
 /// </remarks>
 public abstract class SkUiImageTransformation : ISkUiImageTransformation
 {
+    /// <summary>
+    /// <paramref name="transformations"/> as a load uses them: copies of the stock ones, so settings changed during the
+    /// load cannot mix into its result (custom <see cref="ISkUiImageTransformation"/>s are used as they are).
+    /// </summary>
+    internal static IReadOnlyList<ISkUiImageTransformation>? Snapshot(IReadOnlyList<ISkUiImageTransformation>? transformations)
+    {
+        if (transformations is not { Count: > 0 })
+            return transformations;
+        var copies = new ISkUiImageTransformation[transformations.Count];
+        for (var index = 0; index < copies.Length; index++)
+            copies[index] = transformations[index] is SkUiImageTransformation stock ? (ISkUiImageTransformation)stock.MemberwiseClone() : transformations[index];
+        return copies;
+    }
+
     /// <inheritdoc />
     public abstract string Key { get; }
 

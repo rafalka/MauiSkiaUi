@@ -48,12 +48,44 @@ public static class SkUiImageDecoder
         var targetEncoded = swaps ? new SKSizeI(target.Height, target.Width) : target;
         var size = new Size(oriented.Width / (double)sourceScale, oriented.Height / (double)sourceScale);
 
-        if (codec.FrameCount > 1 && (long)target.Width * target.Height * 4 * codec.FrameCount <= MaxAnimationBytes)
+        if (codec.FrameCount > 1 && AnimationBytes(codec, target) <= MaxAnimationBytes)
             return DecodeFrames(codec, targetEncoded, origin, size);
 
         using var decoded = DecodeStill(codec, encoded, targetEncoded);
         using var upright = Orient(decoded, origin);
         return new SkUiDecodedImage([ToImage(upright ?? decoded)], [], size);
+    }
+
+    /// <summary>
+    /// Memory an animation takes while it decodes: every frame at <paramref name="target"/> size, plus the full-size
+    /// frames kept at once for later frames that are composed over them (<see cref="LastUses"/>).
+    /// </summary>
+    internal static long AnimationBytes(SKCodec codec, SKSizeI target)
+    {
+        var infos = codec.FrameInfo;
+        var lastUse = LastUses(infos);
+        var (live, peak) = (0, 0);
+        for (var index = 0; index < infos.Length; index++)
+        {
+            peak = Math.Max(peak, ++live);
+            for (var earlier = 0; earlier <= index; earlier++)
+                if (lastUse[earlier] == index)
+                    live--;
+        }
+        return ((long)target.Width * target.Height * infos.Length + (long)codec.Info.Width * codec.Info.Height * peak) * 4;
+    }
+
+    /// <summary>For each frame, the last frame composed over it (its own index when none is).</summary>
+    private static int[] LastUses(SKCodecFrameInfo[] infos)
+    {
+        var lastUse = new int[infos.Length];
+        for (var index = 0; index < infos.Length; index++)
+        {
+            lastUse[index] = index;
+            if (infos[index].RequiredFrame is var required && required >= 0 && required < index)
+                lastUse[required] = Math.Max(lastUse[required], index);
+        }
+        return lastUse;
     }
 
     /// <summary>An image sharing the bitmap's pixels (an immutable bitmap is not copied); the bitmap may be disposed after.</summary>
@@ -99,11 +131,13 @@ public static class SkUiImageDecoder
 
     /// <summary>
     /// All frames of an animation, each composed over the frame it depends on (<c>RequiredFrame</c>), at the full
-    /// encoded size and then resized. Durations follow browsers: 10 ms or less shows for 100 ms.
+    /// encoded size and then resized; a full-size frame is kept only until the last frame composed over it.
+    /// Durations follow browsers: 10 ms or less shows for 100 ms.
     /// </summary>
     private static SkUiDecodedImage DecodeFrames(SKCodec codec, SKSizeI target, SKEncodedOrigin origin, Size size)
     {
         var infos = codec.FrameInfo;
+        var lastUse = LastUses(infos);
         var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
         var full = new SKBitmap?[infos.Length];
         var frames = new SKImage[infos.Length];
@@ -129,6 +163,12 @@ public static class SkUiImageDecoder
                 if (!ReferenceEquals(fitted, bitmap))
                     fitted.Dispose();
                 durations[index] = infos[index].Duration <= 10 ? 100 : infos[index].Duration;
+                for (var earlier = 0; earlier <= index; earlier++)
+                {
+                    if (lastUse[earlier] != index) continue;
+                    full[earlier]?.Dispose();
+                    full[earlier] = null;
+                }
             }
             return new SkUiDecodedImage(frames, durations, size);
         }

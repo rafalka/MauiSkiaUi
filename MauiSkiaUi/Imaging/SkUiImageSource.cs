@@ -141,14 +141,23 @@ public sealed record SkUiUriImageSource : SkUiImageSource
         var useDisk = CachingEnabled && context.UseDiskCache;
         var diskKey = context.SourceKey ?? CacheKey; // a custom key shares the download between URLs
         var bytes = useDisk ? await SkUiImageDiskCache.TryReadAsync(diskKey, CacheValidity, token).ConfigureAwait(false) : null;
-        context.Origin = bytes is null ? SkUiImageOrigin.Network : SkUiImageOrigin.DiskCache;
-        if (bytes is null)
+        var fromDisk = bytes is not null;
+        context.Origin = fromDisk ? SkUiImageOrigin.DiskCache : SkUiImageOrigin.Network;
+        bytes ??= await SkUiImageLoader.DownloadAsync(Uri, token).ConfigureAwait(false);
+        SkUiDecodedImage decoded;
+        try
         {
-            bytes = await SkUiImageLoader.DownloadAsync(Uri, token).ConfigureAwait(false);
-            if (useDisk)
-                SkUiImageDiskCache.Write(diskKey, bytes);
+            decoded = await context.DecodeAsync(bytes, sourceScale: 1, token).ConfigureAwait(false);
         }
-        return await context.DecodeAsync(bytes, sourceScale: 1, token).ConfigureAwait(false);
+        catch (Exception) when (fromDisk && !token.IsCancellationRequested)
+        {
+            _ = SkUiImageDiskCache.RemoveAsync(diskKey); // an unreadable cached file is downloaded again next time
+            throw;
+        }
+        // Only bytes that decode are kept: a corrupt response must not stay in the cache for its validity.
+        if (useDisk && !fromDisk)
+            SkUiImageDiskCache.Write(diskKey, bytes);
+        return decoded;
     }
 }
 

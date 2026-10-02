@@ -107,7 +107,10 @@ internal static class SkUiImageDiskCache
         var directory = SkUiImageCache.DiskCacheDirectory;
         if (!Directory.Exists(directory))
             return;
-        foreach (var file in Directory.EnumerateFiles(directory))
+        // Only the cache's own files (and leftover temporary writes): the folder is configurable and may hold others.
+        foreach (var file in Directory.EnumerateFiles(directory, "*" + Extension))
+            Delete(file);
+        foreach (var file in Directory.EnumerateFiles(directory, "*" + Extension + ".*.tmp"))
             Delete(file);
         lock (Gate)
             _bytes = 0;

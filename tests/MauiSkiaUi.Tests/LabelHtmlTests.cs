@@ -75,6 +75,22 @@ public class LabelHtmlTests
     }
 
     [Fact]
+    public void CssResetsOverrideTheLabelsDefaults()
+    {
+        var runs = SkUiHtml.Parse("<span style='font-weight:normal; text-decoration:none'>plain</span> <i>italic</i>");
+        var text = SkUiHtml.ToRichText(runs, null, 16, FontAttributes.Bold, 0, -1, Colors.Black, TextDecorations.Underline);
+        Assert.Equal(FontAttributes.None, text.Styles[0].FontAttributes); // the label is bold: the markup turns it off
+        Assert.Equal(TextDecorations.None, text.Paints[0].Decorations);
+        Assert.Equal(FontAttributes.Bold, text.Styles[1].FontAttributes); // " " keeps the label's
+        Assert.Equal(FontAttributes.Bold | FontAttributes.Italic, text.Styles[2].FontAttributes);
+        Assert.Equal(TextDecorations.Underline, text.Paints[2].Decorations);
+        // Spans for the label carry the reset too.
+        var span = SkUiHtml.ToFormattedString("<span style='font-weight:normal'>x</span>").Spans[0];
+        Assert.True(span.IsSet(Span.FontAttributesProperty));
+        Assert.Equal(FontAttributes.None, span.FontAttributes);
+    }
+
+    [Fact]
     public void WhitespaceCollapsesAndEntitiesDecode()
     {
         Assert.Equal("a b c", Flat("  a \n\t b   <b> c </b>  "));

@@ -312,6 +312,49 @@ public sealed class ImageLoadingTests : IDisposable
         foreach (var frame in decoded.Frames) frame.Dispose();
     }
 
+    [Fact]
+    public void TheAnimationBudgetCountsTheFullSizeFramesKeptWhileDecoding()
+    {
+        // Shown as a thumbnail, the frames are small, but each is composed at the full 48×48 size first.
+        using var data = SKData.CreateCopy(MauiSkiaUiDemo.DemoGif.Spinner(48));
+        using var codec = SKCodec.Create(data);
+        var thumbnails = 8L * 8 * 4 * codec.FrameCount;
+        var bytes = SkUiImageDecoder.AnimationBytes(codec, new SKSizeI(8, 8));
+        Assert.InRange(bytes, thumbnails + 48 * 48 * 4, thumbnails + 2L * 48 * 48 * 4 * codec.FrameCount);
+        // Frames that later frames are not composed over are not kept: fewer than all of them at full size.
+        Assert.True(bytes < thumbnails + 48L * 48 * 4 * codec.FrameCount);
+        var decoded = SkUiImageDecoder.Decode(MauiSkiaUiDemo.DemoGif.Spinner(48), maxPixels: new SKSizeI(8, 8));
+        Assert.Equal(codec.FrameCount, decoded.Frames.Length);
+        foreach (var frame in decoded.Frames) frame.Dispose();
+    }
+
+    [Fact]
+    public async Task ATransformationsSettingsAreReadWhenTheLoadStarts()
+    {
+        using var source = new SKBitmap(2, 1);
+        source.SetPixel(0, 0, SKColors.Red);
+        source.SetPixel(1, 0, SKColors.Blue);
+        using var encoded = source.Encode(SKEncodedImageFormat.Png, 100);
+        var bytes = encoded.ToArray();
+        var flip = new SkUiFlipTransformation { Horizontal = true };
+        var gate = new TaskCompletionSource();
+        using var image = new SkUiCoreImage().SetTransformations([flip]);
+        var loading = image.SetSourceStream(async token => { await gate.Task.WaitAsync(token); return new MemoryStream(bytes); }, Key()).LoadingTask;
+        flip.Horizontal = false; // during the load: applies on the next one
+        gate.SetResult();
+        await loading;
+        image.Measure(double.PositiveInfinity, double.PositiveInfinity);
+        image.Arrange(new Rect(0, 0, 2, 1));
+        using var bitmap = new SKBitmap(2, 1);
+        using (var canvas = new SKCanvas(bitmap))
+            image.Paint(canvas);
+        Assert.Equal(SKColors.Blue, bitmap.GetPixel(0, 0)); // flipped, as the key the result is cached under says
+
+        var copies = SkUiImageTransformation.Snapshot([flip])!;
+        Assert.NotSame(flip, copies[0]);
+        Assert.Equal(flip.Key, copies[0].Key);
+    }
+
     /// <summary>A looping 1×1 GIF: a red frame, then a blue one, 100 ms each.</summary>
     internal static byte[] TwoFrameGif()
     {
@@ -484,9 +527,13 @@ public sealed class ImageLoadingTests : IDisposable
 
         using (var image = new SkUiCoreImage().SetSourceStream(Open(bytes), Key()))
             await image.LoadingTask;
+        var unrelated = Path.Combine(SkUiImageCache.DiskCacheDirectory, "notes.txt");
+        await File.WriteAllTextAsync(unrelated, "the folder is the app's choice");
         await SkUiImageCache.ClearAsync(); // both
         Assert.Equal(0, SkUiImageCache.MemoryCacheCount);
         Assert.Equal(0, await SkUiImageCache.GetDiskCacheBytesAsync());
+        Assert.Empty(Directory.GetFiles(SkUiImageCache.DiskCacheDirectory, "*.img"));
+        Assert.True(File.Exists(unrelated)); // only the cache's own files are deleted
     }
 
     private static SKColor PixelAt(SkUiCoreImage image, int x, int y)
@@ -631,10 +678,17 @@ public sealed class ImageLoadingTests : IDisposable
     [Fact]
     public async Task NonImageResponsesAndHttpErrorsFail()
     {
-        SkUiImageCache.HttpClient = new HttpClient(new StubHandler("<html></html>"u8.ToArray(), "text/html"));
-        using var html = new SkUiCoreImage().SetSourceUri(new Uri($"https://images.test/{Key()}.png"));
+        var handler = new StubHandler("<html></html>"u8.ToArray(), "text/html");
+        SkUiImageCache.HttpClient = new HttpClient(handler);
+        var page = new Uri($"https://images.test/{Key()}.png");
+        using var html = new SkUiCoreImage().SetSourceUri(page);
         await html.LoadingTask;
         Assert.IsType<InvalidDataException>(html.LoadError);
+        // Bytes that do not decode are not kept: the next load asks the server again.
+        await Task.Delay(100);
+        Assert.False(Directory.Exists(SkUiImageCache.DiskCacheDirectory) && Directory.GetFiles(SkUiImageCache.DiskCacheDirectory, "*.img").Length > 0);
+        await html.ReloadAsync();
+        Assert.Equal(2, handler.Requests);
 
         SkUiImageCache.HttpClient = new HttpClient(new StubHandler([], status: HttpStatusCode.NotFound));
         using var missing = new SkUiImage { Source = ImageSource.FromUri(new Uri($"https://images.test/{Key()}.png")) };

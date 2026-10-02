@@ -453,7 +453,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     public SkUiCoreLabel SetTextTransform(TextTransform value)
     {
         if (!SetProperty(ref _textTransform, value, nameof(TextTransform))) return this;
-        _richText = null;
+        if (UsesRichText) InvalidateText(); // spans inherit it; the (empty) plain text would not change
         UpdateDisplayText();
         return this;
     }
