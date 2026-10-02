@@ -106,6 +106,39 @@ var consent = new SkUiCoreLabel()
     .SetFontSize(15);
 ```
 
+## Listening to shared sources (own controls)
+
+A custom node often follows something that outlives it: a view model, a shared `Paint` or command, an app-wide service. A plain `+=` on such a source keeps the node, and the screen it is part of, alive until it unsubscribes. The drawn controls never do that; use the same two public helpers (namespace `MauiSkiaUi`, both layers):
+
+- **`SkUiWeakListener<TTarget>`** for sources you listen to: `INotifyPropertyChanged` objects, `INotifyCollectionChanged` collections, `ICommand.CanExecuteChanged`, and MAUI's gradient brushes and geometry groups. One subscription per source however many nodes listen, held weakly. The callback gets the target and an `SkUiChange` (`Kind`: `Property`, `Collection`, `CanExecute`, `Invalidated`; `PropertyName`; `Sender`), so it can be `static`.
+- **`SkUiWeakEvent`** / **`SkUiWeakEvent<TArgs>`** for long-lived events you publish (a static service, an app setting): subscribers are not kept alive. Handlers on an object (method groups, lambdas that use only `this`) live as long as that object; static handlers and lambdas that capture locals are kept strongly, as by a plain event (a weak closure would stop firing at the next collection). `SkUiLook.CurrentChanged` and `SkUiColorScheme.CurrentChanged` work this way.
+
+```csharp
+public sealed class LegendNode : SkUiCoreNode
+{
+    // Store the listener: the source holds it only weakly, so one nobody keeps stops reporting.
+    private readonly SkUiWeakListener<LegendNode> _modelListener;
+
+    public LegendNode() => _modelListener = new(this, static (node, change) =>
+    {
+        if (change.PropertyName is nameof(ChartModel.Series)) node.InvalidateMeasure();
+    });
+
+    public LegendNode SetModel(ChartModel? model) { _modelListener.Listen(model); InvalidateMeasure(); return this; }
+}
+
+public static class Units
+{
+    private static readonly SkUiWeakEvent _changed = new();
+
+    public static event EventHandler? Changed { add => _changed.Add(value); remove => _changed.Remove(value); }
+
+    public static void Notify() => _changed.Raise(null, EventArgs.Empty);
+}
+```
+
+**When not to:** what a node owns (its children, its own sub-objects) shares its lifetime; subscribe to it plainly and unsubscribe when it is replaced. A weak reference there only hides a missing cleanup. Weak listening does not replace detach cleanup either: a removed node that is still referenced is alive and keeps listening. Callbacks run on the thread that raised the change (commands may raise on any thread).
+
 ## Gestures
 
 Core nodes take part in the same gesture arena as SkUi* views:

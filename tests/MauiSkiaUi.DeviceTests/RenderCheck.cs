@@ -54,8 +54,9 @@ internal static class RenderCheck
             if (SkUiFonts.TryResolve(MauiFontAlias) is null || wide <= 0 || Math.Abs(narrow - wide) > wide * 0.02)
                 problems.Add($"drawn text in ConfigureFonts alias '{MauiFontAlias}' is not monospaced (i×10 {narrow:F1} vs M×10 {wide:F1}): the font did not resolve");
             var images = await CheckImagesAsync(problems);
+            CheckWeakEvents(problems);
             return new LeakResult("RenderCheck", problems.Count == 0 ? LeakStatus.Pass : LeakStatus.Fail,
-                problems.Count == 0 ? $"overlay layer, label and button drawn; ConfigureFonts font resolved; {images}" : string.Join(" · ", problems));
+                problems.Count == 0 ? $"overlay layer, label and button drawn; ConfigureFonts font resolved; {images}; weak events keep closures" : string.Join(" · ", problems));
         }
         catch (Exception exception)
         {
@@ -115,6 +116,41 @@ internal static class RenderCheck
         {
             renderer.Dispose();
         }
+    }
+
+    /// <summary>
+    /// <see cref="SkUiWeakEvent"/> tells a closure from an object by its compiler-generated type name: in a trimmed or
+    /// Native AOT build a lambda that captures a local must still fire after a collection, and an object's handler must
+    /// not keep it alive.
+    /// </summary>
+    private static void CheckWeakEvents(List<string> problems)
+    {
+        var weakEvent = new SkUiWeakEvent();
+        var raised = 0;
+        weakEvent.Add((_, _) => raised++);
+        var forgotten = Subscribe(weakEvent);
+        for (var attempt = 0; attempt < 3 && forgotten.IsAlive; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+        weakEvent.Raise(null, EventArgs.Empty);
+        if (raised != 1)
+            problems.Add("a weak event lost a lambda that captures a local");
+        if (forgotten.IsAlive)
+            problems.Add("a weak event kept its subscriber alive");
+
+        static WeakReference Subscribe(SkUiWeakEvent weakEvent)
+        {
+            var subscriber = new WeakEventSubscriber();
+            weakEvent.Add(subscriber.OnRaised);
+            return new WeakReference(subscriber);
+        }
+    }
+
+    private sealed class WeakEventSubscriber
+    {
+        public void OnRaised(object? sender, EventArgs args) { }
     }
 
     private static bool Any(SKBitmap bitmap, Rect bounds, Func<SKColor, bool> match)

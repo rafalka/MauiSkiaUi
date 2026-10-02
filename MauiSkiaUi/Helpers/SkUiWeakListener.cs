@@ -3,12 +3,11 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
-using Microsoft.Maui.Controls.Shapes;
 
 namespace MauiSkiaUi;
 
-/// <summary>What kind of change a <see cref="SkUiChangeHub"/> reports.</summary>
-internal enum SkUiChangeKind
+/// <summary>What kind of change a <see cref="SkUiWeakListener{TTarget}"/> reports.</summary>
+public enum SkUiChangeKind
 {
     /// <summary><see cref="INotifyPropertyChanged.PropertyChanged"/>; the name is in <see cref="SkUiChange.PropertyName"/>.</summary>
     Property,
@@ -16,31 +15,67 @@ internal enum SkUiChangeKind
     Collection,
     /// <summary><see cref="ICommand.CanExecuteChanged"/>.</summary>
     CanExecute,
-    /// <summary>A gradient brush's stops or a geometry group's children changed.</summary>
+    /// <summary>A change a source reports by its own event: a MAUI gradient brush's stops, a geometry group's children.</summary>
     Invalidated
 }
 
-/// <summary>One change reported by a <see cref="SkUiChangeHub"/>.</summary>
-internal readonly record struct SkUiChange(object? Sender, SkUiChangeKind Kind, string? PropertyName = null);
+/// <summary>One change reported by a <see cref="SkUiWeakListener{TTarget}"/>.</summary>
+/// <param name="Sender">The object that raised the change (the source, or an item of it).</param>
+/// <param name="Kind">The kind of change.</param>
+/// <param name="PropertyName">The changed property, for <see cref="SkUiChangeKind.Property"/>.</param>
+public readonly record struct SkUiChange(object? Sender, SkUiChangeKind Kind, string? PropertyName = null);
 
 /// <summary>
-/// Listens to the changes of one source that may outlive the view listening (a brush, dash array, point collection,
-/// geometry, stroke shape, image source, transformation list or command; often a shared resource), without the source
-/// keeping the view alive. <paramref name="onChanged"/> must not capture: it receives the target. The view owns its
-/// listener; the source reaches it only weakly, through the source's <see cref="SkUiChangeHub"/>.
+/// Listens to the changes of a source that may outlive the listening view, without the source keeping that view alive:
+/// a brush, geometry or image source from app resources, a view model's command or <see cref="INotifyPropertyChanged"/>
+/// object, a shared collection. It reports property changes, collection changes, <see cref="ICommand.CanExecuteChanged"/>,
+/// and MAUI's gradient-brush and geometry-group changes. The drawn controls use it for every source they do not own; use
+/// it in your own controls (Core nodes or <c>SkUiView</c>s) the same way.
 /// </summary>
 /// <remarks>
-/// For sources the view does not own. Owned and structural subscriptions (a parent and its children, a handler and its
+/// <para>
+/// <b>Store the listener</b> in a field of <paramref name="target"/> (or of something that lives as long). The source
+/// references it only weakly, so a listener nobody keeps is collected and stops reporting. The target is held weakly too:
+/// <paramref name="onChanged"/> receives it, so the callback can be <c>static</c>.
+/// </para>
+/// <para>
+/// One subscription per source, however many views listen to it, and the listeners of collected views are dropped as
+/// listeners come and go. <paramref name="onChanged"/> runs on the thread that raised the change (commands may raise on
+/// any thread).
+/// </para>
+/// <para>
+/// For sources the view does not own. Owned and structural subscriptions (a node and its children, a handler and its
 /// platform view) stay ordinary events with explicit cleanup: their lifetimes are the same, and a weak reference would
-/// only hide a missing cleanup.
+/// only hide a missing cleanup. Weak listening does not replace detach cleanup either: a removed view that is still
+/// referenced is alive and keeps listening.
+/// </para>
 /// </remarks>
-internal sealed class SkUiWeakListener<TTarget>(TTarget target, Action<TTarget, SkUiChange> onChanged) : ISkUiChangeListener
+/// <example>
+/// <code>
+/// public sealed class LegendNode : SkUiCoreNode
+/// {
+///     private readonly SkUiWeakListener&lt;LegendNode&gt; _modelListener;
+///
+///     public LegendNode() =&gt; _modelListener = new(this, static (node, change) =&gt;
+///     {
+///         if (change.PropertyName is nameof(ChartModel.Series)) node.InvalidateMeasure();
+///     });
+///
+///     public LegendNode SetModel(ChartModel? model) { _modelListener.Listen(model); InvalidateMeasure(); return this; }
+/// }
+/// </code>
+/// </example>
+/// <typeparam name="TTarget">The object notified (usually the view that owns the listener).</typeparam>
+/// <param name="target">The object notified; held weakly.</param>
+/// <param name="onChanged">Called with the target for each change while the target lives.</param>
+public sealed class SkUiWeakListener<TTarget>(TTarget target, Action<TTarget, SkUiChange> onChanged) : ISkUiChangeListener
     where TTarget : class
 {
-    private readonly WeakReference<TTarget> _target = new(target);
+    private readonly WeakReference<TTarget> _target = new(target ?? throw new ArgumentNullException(nameof(target)));
+    private readonly Action<TTarget, SkUiChange> _onChanged = onChanged ?? throw new ArgumentNullException(nameof(onChanged));
     private SkUiChangeHub? _hub;
 
-    /// <summary>The source listened to.</summary>
+    /// <summary>The source listened to (<c>null</c>: none).</summary>
     public object? Source => _hub?.Source;
 
     /// <summary>Stops listening to the previous source and listens to <paramref name="source"/> (<c>null</c>: none).</summary>
@@ -55,7 +90,7 @@ internal sealed class SkUiWeakListener<TTarget>(TTarget target, Action<TTarget, 
     void ISkUiChangeListener.OnChanged(in SkUiChange change)
     {
         if (_target.TryGetTarget(out var target))
-            onChanged(target, change);
+            _onChanged(target, change);
     }
 }
 
@@ -73,6 +108,12 @@ internal interface ISkUiChangeListener
 /// </summary>
 internal sealed class SkUiChangeHub
 {
+    /// <summary>
+    /// Subscribes to source events beyond the standard interfaces (MAUI Controls' gradient brushes and geometry groups,
+    /// <see cref="SkUiMauiChangeSources"/>): the layer-agnostic hub knows no MAUI Controls type.
+    /// </summary>
+    private static readonly Action<object, EventHandler> SubscribeOtherEvents = SkUiMauiChangeSources.Subscribe;
+
     private static readonly ConditionalWeakTable<object, SkUiChangeHub> Hubs = new();
     private readonly List<WeakReference<ISkUiChangeListener>> _listeners = [];
     private readonly WeakReference<object> _source;
@@ -85,8 +126,7 @@ internal sealed class SkUiChangeHub
         if (source is INotifyPropertyChanged properties) properties.PropertyChanged += OnPropertyChanged;
         if (source is INotifyCollectionChanged collection) collection.CollectionChanged += OnCollectionChanged;
         if (source is ICommand command) command.CanExecuteChanged += OnCanExecuteChanged;
-        if (source is GradientBrush gradient) gradient.InvalidateGradientBrushRequested += OnInvalidated;
-        if (source is GeometryGroup group) group.InvalidateGeometryRequested += OnInvalidated;
+        SubscribeOtherEvents(source, OnInvalidated);
     }
 
     /// <summary>The source, while it is alive.</summary>
