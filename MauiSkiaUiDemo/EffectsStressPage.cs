@@ -51,6 +51,16 @@ public sealed class EffectsStressPage : ContentPage
 
         /// <summary>Compositor time per idle frame (ms).</summary>
         public double IdleRenderAverageMs { get; init; }
+
+        /// <summary>Per-frame timings while scrolling (diagnostics builds; empty otherwise).</summary>
+        public FrameSample[] Frames { get; init; } = [];
+    }
+
+    /// <summary>One scroll frame (copied from the library's diagnostics trace): start and phases in ms.</summary>
+    private readonly record struct FrameSample(double StartMs, double IntervalMs, double ApplyMs, double AnimationsMs, double DrawMs,
+        double FlushMs, int Batches, int Updates, int Collections, int FullCollections, int ShadowRasterizations, double PresentMs)
+    {
+        public double TotalMs => ApplyMs + AnimationsMs + DrawMs + FlushMs + PresentMs;
     }
 
     /// <summary>Builds the configuration UI; the scene is created only when a test runs.</summary>
@@ -325,6 +335,9 @@ public sealed class EffectsStressPage : ContentPage
 #if SKUI_DIAGNOSTICS
         scroller.ResetDiagnosticRecordStats();
 #endif
+#if SKUI_DIAGNOSTICS
+        var trace = scroller.StartFrameTrace();
+#endif
         var wall = Stopwatch.StartNew();
         // Render thread: the compositor moves the content, nothing is recorded. UI thread: every frame sets the
         // offset, as a drag does, so each frame also commits from the UI thread.
@@ -336,6 +349,13 @@ public sealed class EffectsStressPage : ContentPage
         }
         wall.Stop();
         await WhenIdleAsync().ConfigureAwait(true);
+        FrameSample[] frames = [];
+#if SKUI_DIAGNOSTICS
+        scroller.StopFrameTrace();
+        if (trace is not null)
+            frames = [.. trace.Snapshot().Select(f => new FrameSample(f.StartMs, f.IntervalMs, f.ApplyMs, f.AnimationsMs, f.DrawMs,
+                f.FlushMs, f.Batches, f.Updates, f.Collections, f.FullCollections, f.ShadowRasterizations, f.PresentMs))];
+#endif
         var statistics = scroller.GetRenderStatistics();
         var after = scroller.GetRenderCounters();
         var recordFrames = 0;
@@ -350,7 +370,8 @@ public sealed class EffectsStressPage : ContentPage
             after.LiveShadows - before.LiveShadows)
         {
             IdleFps = idle.Frames * 1000 / idleWall.Elapsed.TotalMilliseconds,
-            IdleRenderAverageMs = idle.AverageMilliseconds
+            IdleRenderAverageMs = idle.AverageMilliseconds,
+            Frames = frames
         };
     }
 
@@ -398,7 +419,28 @@ public sealed class EffectsStressPage : ContentPage
             $"Render {scroll.RenderAverageMs:F2} ms avg / {scroll.RenderMaxMs:F2} ms max per frame\n" +
             (UiThreadScroll ? $"UI frames {scroll.UiFrames}: {scroll.UiAverageMs:F2} ms avg / {scroll.UiMaxMs:F2} ms max\n" : "") +
             $"Record during scroll: {scroll.RecordedPictures} pictures ({scroll.RecordFrames} frames, {scroll.RecordAverageMs:F2} ms avg)\n" +
-            $"Content shadows: {scroll.ShadowRasterizations} rasterized, {scroll.LiveShadows} drawn live";
+            $"Content shadows: {scroll.ShadowRasterizations} rasterized, {scroll.LiveShadows} drawn live" +
+            FormatSlowFrames(scroll.Frames, 5);
+    }
+
+    /// <summary>
+    /// The slowest scroll frames with their phases (diagnostics builds): where a hitch comes from (compositing, flush /
+    /// present, a garbage collection) and when in the scroll it happened; and gaps between frames (missed vsyncs).
+    /// </summary>
+    private static string FormatSlowFrames(FrameSample[] frames, int count)
+    {
+        if (frames.Length < 3) return "";
+        var intervals = frames.Skip(1).Select(frame => frame.IntervalMs).Order().ToArray();
+        var typical = intervals[intervals.Length / 2];
+        var gaps = intervals.Count(interval => interval > typical * 1.5);
+        var text = new StringBuilder();
+        text.Append($"\nFrames: {frames.Length}, typical interval {typical:F1} ms, {gaps} gaps over {typical * 1.5:F0} ms, longest gap {intervals[^1]:F1} ms");
+        text.Append($"\nGCs during frames: {frames.Sum(frame => frame.Collections)} ({frames.Sum(frame => frame.FullCollections)} full)");
+        text.Append("\nSlowest frames (at ms into the scroll: total = apply + animations + draw + flush + present):");
+        foreach (var frame in frames.OrderByDescending(frame => frame.TotalMs).Take(count))
+            text.Append($"\n  @{frame.StartMs,6:F0}: {frame.TotalMs,6:F2} = {frame.ApplyMs:F2} + {frame.AnimationsMs:F2} + {frame.DrawMs:F2} + {frame.FlushMs:F2} + {frame.PresentMs:F2}" +
+                $"  batches {frame.Batches} ({frame.Updates} updates)" + (frame.ShadowRasterizations > 0 ? $"  {frame.ShadowRasterizations} shadows rasterized" : "") + (frame.Collections > 0 ? $"  GC {frame.Collections}{(frame.FullCollections > 0 ? " full" : "")}" : ""));
+        return text.ToString();
     }
 
     private string FormatMatrix(EffectsStressLayer layer, int count, bool hw, List<(StressEffects Effects, BuildResult Build, ScrollResult? Scroll)> rows)
@@ -424,6 +466,22 @@ public sealed class EffectsStressPage : ContentPage
         }
         text.Append("gen / 1st: build and first frame (ms) · idle: frames per second with nothing scrolling (animated content) · " +
             "render: compositor ms per scroll frame · rec: pictures recorded while scrolling");
+        if (rows.Any(row => row.Scroll?.Frames.Length > 0))
+        {
+            text.Append("\nSlowest frame per run (@ms into the scroll: total = apply + animations + draw + flush + present):");
+            foreach (var (effects, _, scroll) in rows)
+            {
+                if (scroll?.Frames is not { Length: > 0 } frames) continue;
+                var slowest = frames.MaxBy(frame => frame.TotalMs);
+                var gaps = frames.Count(frame => frame.IntervalMs > 25);
+                text.Append($"\n{Short(effects),-15} @{slowest.StartMs,5:F0}: {slowest.TotalMs,6:F2} = {slowest.ApplyMs:F2} + {slowest.AnimationsMs:F2} + " +
+                    $"{slowest.DrawMs:F2} + {slowest.FlushMs:F2} + {slowest.PresentMs:F2}, batches {slowest.Batches}/{slowest.Updates}" +
+                    (slowest.ShadowRasterizations > 0 ? $", {slowest.ShadowRasterizations} rasterized" : "") +
+                    (slowest.Collections > 0 ? $", GC {slowest.Collections}{(slowest.FullCollections > 0 ? " full" : "")}" : "") +
+                    $"; {gaps} gaps > 25 ms; GCs {frames.Sum(frame => frame.Collections)}" +
+                    $"; max rasterized/frame {frames.Max(frame => frame.ShadowRasterizations)}");
+            }
+        }
         return text.ToString();
     }
 
@@ -522,14 +580,17 @@ public sealed class EffectsStressPage : ContentPage
     private bool _autoRunStarted;
 
     /// <summary>
-    /// Scripted runs: <c>SKUI_EFFECTS_STRESS=matrix</c> runs the matrix once the page shows (with
+    /// Scripted runs: <c>SKUI_EFFECTS_STRESS=matrix</c> runs the matrix once the page shows; <c>SKUI_EFFECTS_STRESS=repeat</c>
+    /// builds the effects in <c>SKUI_EFFECTS_STRESS_EFFECTS</c> (comma-separated <see cref="StressEffects"/> names) once and
+    /// scrolls <c>SKUI_EFFECTS_STRESS_REPEAT</c> times (default 8), reporting each scroll's slowest frames (with
     /// <c>SKUI_EFFECTS_STRESS_LAYER</c> = <c>skui</c> | <c>core</c> | <c>native</c>, <c>SKUI_EFFECTS_STRESS_HW=0</c> for software,
     /// <c>SKUI_EFFECTS_STRESS_SCROLL=ui</c>, <c>SKUI_EFFECTS_STRESS_COUNT</c>); results go to the console (<c>[EffectsStress]</c>).
     /// </summary>
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        if (_autoRunStarted || Environment.GetEnvironmentVariable("SKUI_EFFECTS_STRESS") != "matrix")
+        var mode = Environment.GetEnvironmentVariable("SKUI_EFFECTS_STRESS");
+        if (_autoRunStarted || mode is not ("matrix" or "repeat"))
             return;
         _autoRunStarted = true;
         _layerPicker.SelectedIndex = Environment.GetEnvironmentVariable("SKUI_EFFECTS_STRESS_LAYER")?.ToLowerInvariant() switch
@@ -543,9 +604,27 @@ public sealed class EffectsStressPage : ContentPage
         if (Environment.GetEnvironmentVariable("SKUI_EFFECTS_STRESS_COUNT") is { Length: > 0 } count)
             _countEntry.Text = count;
         _chrome.RefreshChips();
+        if (Environment.GetEnvironmentVariable("SKUI_EFFECTS_STRESS_EFFECTS") is { Length: > 0 } names)
+            foreach (var name in names.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                if (Enum.TryParse<StressEffects>(name, ignoreCase: true, out var effect) && _featureBoxes.TryGetValue(effect, out var box))
+                    box.IsChecked = true;
+        var repeat = int.TryParse(Environment.GetEnvironmentVariable("SKUI_EFFECTS_STRESS_REPEAT"), out var times) && times > 0 ? times : 8;
+        _chrome.RefreshChips();
         Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(1), () => _ = RunExclusiveAsync(async () =>
         {
-            await RunMatrixAsync().ConfigureAwait(true);
+            if (mode == "matrix")
+            {
+                await RunMatrixAsync().ConfigureAwait(true);
+            }
+            else
+            {
+                await BuildSelectedAsync().ConfigureAwait(true);
+                for (var run = 1; run <= repeat; run++)
+                {
+                    var scroll = await ScrollAsync(MatrixScrollDuration).ConfigureAwait(true);
+                    _chrome.Report($"Scroll {run}/{repeat}", $"Scroll {run}/{repeat}: {ScrollSummary(scroll)}" + FormatSlowFrames(scroll?.Frames ?? [], 3));
+                }
+            }
             Console.WriteLine("[EffectsStress] done");
         }));
     }

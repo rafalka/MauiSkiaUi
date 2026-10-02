@@ -154,6 +154,9 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         ? new SkUiRenderCounters(renderer.RecordedPictures, renderer.Compositor.ShadowRasterizations, renderer.Compositor.LiveShadows)
         : default;
 
+    /// <summary>The compositor of this surface (diagnostics), or <c>null</c> before the surface exists.</summary>
+    internal Rendering.SkUiCompositor? Compositor => _renderer?.Compositor;
+
     /// <summary>Clears <see cref="RenderStatistics"/>.</summary>
     internal void ResetRenderStatistics()
     {

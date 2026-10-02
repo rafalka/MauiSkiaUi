@@ -131,6 +131,11 @@ internal sealed class SkUiCompositor : IDisposable
     /// <summary>Frames drawn (diagnostics / tests).</summary>
     internal long FrameCount { get; private set; }
 
+#if SKUI_DIAGNOSTICS
+    /// <summary>Per-frame timings while set (diagnostics, stress pages); set from any thread, written on the render thread.</summary>
+    internal volatile SkUiFrameTrace? FrameTrace;
+#endif
+
     /// <summary>Content shadows rasterized into a cache since creation (diagnostics / tests).</summary>
     internal int ShadowRasterizations { get; private set; }
 
@@ -194,6 +199,9 @@ internal sealed class SkUiCompositor : IDisposable
     /// </summary>
     internal void RecordFrameStatistics(long elapsed)
     {
+#if SKUI_DIAGNOSTICS
+        FrameTrace?.End();
+#endif
         Interlocked.Increment(ref _statFrames);
         Interlocked.Add(ref _statTicks, elapsed);
         long max;
@@ -211,9 +219,19 @@ internal sealed class SkUiCompositor : IDisposable
                 canvas.Clear(SKColors.Transparent);
                 return false;
             }
+#if SKUI_DIAGNOSTICS
+            var trace = FrameTrace;
+            trace?.Begin(ShadowRasterizations);
+            var (batches, updates) = ApplyPending();
+            trace?.Applied(batches, updates);
+#else
             ApplyPending();
+#endif
             _now = now;
             var reports = TickAnimations(now);
+#if SKUI_DIAGNOSTICS
+            trace?.Animated();
+#endif
             if (_rootWidth > 0)
                 _scale = pixelWidth / _rootWidth;
 
@@ -227,6 +245,9 @@ internal sealed class SkUiCompositor : IDisposable
                 DrawNode(canvas, root, isRoot: true);
                 canvas.RestoreToCount(save);
             }
+#if SKUI_DIAGNOSTICS
+            trace?.Drawn(ShadowRasterizations);
+#endif
             FrameCount++;
             _continuous = _spinning || _animations.Count > 0;
             if (reports is not null)
@@ -246,16 +267,23 @@ internal sealed class SkUiCompositor : IDisposable
         canvas.ResetMatrix();
     }
 
-    private void ApplyPending()
+    /// <summary>Applies the committed batches; returns how many, and their node updates (diagnostics).</summary>
+    private (int Batches, int Updates) ApplyPending()
     {
         lock (_pendingLock)
         {
             (_pending, _applying) = (_applying, _pending);
             _hasPending = false;
         }
+        var batches = _applying.Count;
+        var updates = 0;
         foreach (var batch in _applying)
+        {
+            updates += batch.Updates.Count;
             Apply(batch);
+        }
         _applying.Clear();
+        return (batches, updates);
     }
 
     private void Apply(SkUiRenderBatch batch)

@@ -284,6 +284,34 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
 #endif
     }
 
+#if SKUI_DIAGNOSTICS
+    /// <summary>
+    /// Starts recording per-frame timings of this view's surface (diagnostics, stress pages); returns the trace, or
+    /// <c>null</c> without a surface. Replaces a running trace. Stop with <see cref="StopFrameTrace"/>.
+    /// </summary>
+    internal SkUiFrameTrace? StartFrameTrace()
+    {
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+        if (Handler is not SkUiViewHandler { Compositor: { } compositor })
+            return null;
+        var trace = new SkUiFrameTrace();
+        compositor.FrameTrace = trace;
+        return trace;
+#else
+        return null;
+#endif
+    }
+
+    /// <summary>Stops recording frame timings (see <see cref="StartFrameTrace"/>).</summary>
+    internal void StopFrameTrace()
+    {
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+        if (Handler is SkUiViewHandler { Compositor: { } compositor })
+            compositor.FrameTrace = null;
+#endif
+    }
+#endif
+
     /// <summary>Resets <see cref="GetRenderStatistics"/> for this view's surface.</summary>
     public void ResetRenderStatistics()
     {

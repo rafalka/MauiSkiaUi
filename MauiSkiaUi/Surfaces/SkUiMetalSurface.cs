@@ -556,6 +556,9 @@ internal sealed class SkUiMetalSurface : IDisposable
             var continuous = renderer.Render(surface.Canvas, new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul), now);
             surface.Flush();
             context.Flush();
+#if SKUI_DIAGNOSTICS
+            renderer.Compositor.FrameTrace?.Flushed();
+#endif
             var commands = queue.CommandBuffer();
             if (commands is not null)
             {
