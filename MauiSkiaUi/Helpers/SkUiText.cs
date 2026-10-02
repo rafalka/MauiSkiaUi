@@ -162,7 +162,7 @@ internal sealed class SkUiTextLayout
     /// A line before shaping: a range of a shaped paragraph, or a synthesized string (a truncation).
     /// <paramref name="Wrapped"/>: the paragraph continues on the next line (what justification stretches).
     /// </summary>
-    private readonly record struct LineSpec(SkUiShaping.Paragraph? Paragraph, int Start, int End, string? Text, bool Wrapped = false);
+    internal readonly record struct LineSpec(SkUiShaping.Paragraph? Paragraph, int Start, int End, string? Text, bool Wrapped = false);
 
     /// <param name="owner">The label, handed to custom breakers as <see cref="SkUiTextLineBreakContext.Owner"/>.</param>
     internal SkUiTextLayout(object? owner = null)
@@ -215,17 +215,22 @@ internal sealed class SkUiTextLayout
     private SKFont FontFor(SKTypeface typeface)
     {
         if (!_fonts.TryGetValue(typeface, out var font))
-        {
-            // Linear (unhinted) metrics: Skia measures like HarfBuzz shapes, so simple and shaped text agree on FreeType
-            // hosts (Android, Linux) too, where hinted advances would otherwise differ by a fraction of a pixel per glyph.
-            _fonts[typeface] = font = new SKFont(typeface, _fontSize) { LinearMetrics = true };
-            // Synthetic styles for a face that lacks them (a registered font without a bold / italic file), as
-            // Android's Typeface.create does: emboldened outlines and a 14° slant. Per face, so fallback fonts too.
-            if (_fontAttributes.HasFlag(FontAttributes.Bold) && !SkUiTypefaces.HasBold(typeface))
-                font.Embolden = true;
-            if (_fontAttributes.HasFlag(FontAttributes.Italic) && !SkUiTypefaces.HasItalic(typeface))
-                font.SkewX = -0.25f;
-        }
+            _fonts[typeface] = font = CreateFont(typeface, _fontSize, _fontAttributes);
+        return font;
+    }
+
+    /// <summary>A font for drawn text: <paramref name="typeface"/> at <paramref name="size"/>, synthesizing the requested attributes it lacks.</summary>
+    internal static SKFont CreateFont(SKTypeface typeface, float size, FontAttributes attributes)
+    {
+        // Linear (unhinted) metrics: Skia measures like HarfBuzz shapes, so simple and shaped text agree on FreeType
+        // hosts (Android, Linux) too, where hinted advances would otherwise differ by a fraction of a pixel per glyph.
+        var font = new SKFont(typeface, size) { LinearMetrics = true };
+        // Synthetic styles for a face that lacks them (a registered font without a bold / italic file), as
+        // Android's Typeface.create does: emboldened outlines and a 14° slant. Per face, so fallback fonts too.
+        if (attributes.HasFlag(FontAttributes.Bold) && !SkUiTypefaces.HasBold(typeface))
+            font.Embolden = true;
+        if (attributes.HasFlag(FontAttributes.Italic) && !SkUiTypefaces.HasItalic(typeface))
+            font.SkewX = -0.25f;
         return font;
     }
 
@@ -421,12 +426,14 @@ internal sealed class SkUiTextLayout
 
     /// <summary>
     /// Greedy line breaking over shaped advances (grapheme-safe; words, hyphens and CJK boundaries), adding lines until
-    /// <paramref name="specs"/> holds <paramref name="limit"/>.
+    /// <paramref name="specs"/> holds <paramref name="limit"/>. <paramref name="primary"/> fills a simple paragraph's advances
+    /// on demand (<c>null</c> for shaped paragraphs).
     /// </summary>
     /// <returns>Whether text was left over at the limit.</returns>
-    private static bool Wrap(SkUiShaping.Paragraph paragraph, double width, bool words, SKFont primary, List<LineSpec> specs, int limit)
+    internal static bool Wrap(SkUiShaping.Paragraph paragraph, double width, bool words, SKFont? primary, List<LineSpec> specs, int limit)
     {
-        SkUiShaping.EnsureAdvances(paragraph, primary);
+        if (primary is not null)
+            SkUiShaping.EnsureAdvances(paragraph, primary);
         var text = paragraph.Text;
         var advances = paragraph.Advances;
         var boundary = GraphemeStarts(text);
@@ -476,7 +483,7 @@ internal sealed class SkUiTextLayout
         return false;
     }
 
-    private static bool[] GraphemeStarts(string text)
+    internal static bool[] GraphemeStarts(string text)
     {
         var starts = new bool[text.Length + 1];
         foreach (var index in System.Globalization.StringInfo.ParseCombiningCharacters(text))
@@ -583,24 +590,13 @@ internal sealed class SkUiTextLayout
         var total = 0f;
         foreach (var line in _lines)
             total += line.Height;
-        var free = height - padding.VerticalThickness - total;
-        var offset = vertical == TextAlignment.Center ? free / 2 : vertical == TextAlignment.End ? free : 0;
-        var gap = vertical == TextAlignment.Justify && _lines.Count > 1 && free > 0 ? (float)(free / (_lines.Count - 1)) : 0;
-        var top = (float)(padding.Top + Math.Max(0, offset));
+        var (top, gap) = PlaceVertically(total, _lines.Count, padding, height, vertical);
         var metrics = decorations == TextDecorations.None ? default : primary.Metrics;
         foreach (var line in _lines)
         {
             if (line.Blob is not null || line.Text is not null)
             {
-                var rtl = line.BaseLevel % 2 == 1;
-                var alignment = horizontal switch
-                {
-                    TextAlignment.Start or TextAlignment.Justify => rtl ? TextAlignment.End : TextAlignment.Start,
-                    TextAlignment.End => rtl ? TextAlignment.Start : TextAlignment.End,
-                    _ => horizontal
-                };
-                var left = (float)(padding.Left + (alignment == TextAlignment.Center ? (available - line.Width) / 2
-                    : alignment == TextAlignment.End ? available - line.Width : 0));
+                var left = LineLeft(line.BaseLevel, line.Width, horizontal, padding, available);
                 var baseline = top + line.Ascent;
                 if (line.Blob is { } blob)
                     canvas.DrawText(blob, left, baseline, paint);
@@ -614,10 +610,40 @@ internal sealed class SkUiTextLayout
     }
 
     /// <summary>
+    /// Where the first line starts (<paramref name="vertical"/> alignment of <paramref name="total"/> DIPs of lines in the
+    /// padded <paramref name="height"/>) and the gap added between lines (vertical Justify; one line: Start).
+    /// </summary>
+    internal static (float Top, float Gap) PlaceVertically(float total, int lineCount, Thickness padding, double height, TextAlignment vertical)
+    {
+        var free = height - padding.VerticalThickness - total;
+        var offset = vertical == TextAlignment.Center ? free / 2 : vertical == TextAlignment.End ? free : 0;
+        var gap = vertical == TextAlignment.Justify && lineCount > 1 && free > 0 ? (float)(free / (lineCount - 1)) : 0;
+        return ((float)(padding.Top + Math.Max(0, offset)), gap);
+    }
+
+    /// <summary>
+    /// Left edge of a line <paramref name="lineWidth"/> wide in the <paramref name="available"/> content width:
+    /// <see cref="TextAlignment.Start"/> and <see cref="TextAlignment.End"/> follow the line's paragraph direction (Start
+    /// is the right edge for RTL); justified lines were stretched by the layout and sit at Start.
+    /// </summary>
+    internal static float LineLeft(byte baseLevel, float lineWidth, TextAlignment horizontal, Thickness padding, double available)
+    {
+        var rtl = baseLevel % 2 == 1;
+        var alignment = horizontal switch
+        {
+            TextAlignment.Start or TextAlignment.Justify => rtl ? TextAlignment.End : TextAlignment.Start,
+            TextAlignment.End => rtl ? TextAlignment.Start : TextAlignment.End,
+            _ => horizontal
+        };
+        return (float)(padding.Left + (alignment == TextAlignment.Center ? (available - lineWidth) / 2
+            : alignment == TextAlignment.End ? available - lineWidth : 0));
+    }
+
+    /// <summary>
     /// Underline / strikethrough across a line (all its bidi runs, in visual order) at the primary font's positions,
     /// or at proportional ones for fonts that report none.
     /// </summary>
-    private static void DrawDecorations(SKCanvas canvas, TextDecorations decorations, float left, float baseline, float width, float size, in SKFontMetrics metrics, SKPaint paint)
+    internal static void DrawDecorations(SKCanvas canvas, TextDecorations decorations, float left, float baseline, float width, float size, in SKFontMetrics metrics, SKPaint paint)
     {
         if (decorations.HasFlag(TextDecorations.Underline))
         {

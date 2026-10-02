@@ -1,15 +1,18 @@
 using SkiaSharp;
+using System.Windows.Input;
 
 namespace MauiSkiaUi;
 
 /// <summary>
 /// Drawn text with wrapping, alignment, and MAUI-style bindable properties: MAUI Label's text properties
 /// (<see cref="MaxLines"/>, <see cref="LineHeight"/>, <see cref="CharacterSpacing"/>, <see cref="TextDecorations"/>,
-/// <see cref="TextTransform"/>), plus a custom <see cref="LineBreaker"/> that can shorten text its own way. Optional
+/// <see cref="TextTransform"/>), spans (<see cref="FormattedText"/>) with their own styles and tap recognizers, plus a
+/// custom <see cref="LineBreaker"/> that can shorten text its own way. Optional
 /// rounded chrome (a badge, a chip, a tag): <see cref="CornerRadii"/> (or the uniform <see cref="CornerRadius"/>),
 /// <see cref="BorderColor"/> and <see cref="BorderWidth"/> shape the <see cref="VisualElement.Background"/> fill without
 /// wrapping the label in a border.
 /// </summary>
+[ContentProperty(nameof(Text))]
 public class SkUiLabel : SkUiView
 {
     private string _text = string.Empty;
@@ -36,6 +39,13 @@ public class SkUiLabel : SkUiView
     private Color _borderColor = Colors.Transparent;
     private double _borderWidth;
     private SkUiRoundedClip _textClip;
+    private FormattedString? _formattedText;
+    private SkUiRichTextLayout? _richLayout;
+    private SkUiRichText? _richText; // _formattedText resolved against the label's defaults; null: rebuild
+    private SkUiSpanTapGestureRecognizer? _spanTap;
+    private TextType _textType;
+    private IReadOnlyList<SkUiHtmlRun>? _htmlRuns; // _text parsed as HTML; null: parse again
+    private ICommand? _linkTappedCommand;
 
     /// <summary>Bindable text.</summary>
     public static readonly BindableProperty TextProperty = BindableProperty.Create(nameof(Text), typeof(string), typeof(SkUiLabel), string.Empty, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextChanged((string?)value));
@@ -72,6 +82,16 @@ public class SkUiLabel : SkUiView
     public static readonly BindableProperty TextDecorationsProperty = BindableProperty.Create(nameof(TextDecorations), typeof(TextDecorations), typeof(SkUiLabel), TextDecorations.None, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextDecorationsChanged((TextDecorations)value));
     /// <summary>Bindable case transform of the displayed text.</summary>
     public static readonly BindableProperty TextTransformProperty = BindableProperty.Create(nameof(TextTransform), typeof(TextTransform), typeof(SkUiLabel), TextTransform.Default, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextTransformChanged((TextTransform)value));
+    /// <summary>Bindable formatted text (MAUI's <see cref="Microsoft.Maui.Controls.FormattedString"/> of <see cref="Span"/>s).</summary>
+    public static readonly BindableProperty FormattedTextProperty = BindableProperty.Create(nameof(FormattedText), typeof(FormattedString), typeof(SkUiLabel), null,
+        propertyChanging: (view, value, _) => ((SkUiLabel)view).DetachFormattedText((FormattedString?)value),
+        propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFormattedTextChanged((FormattedString?)value));
+    /// <summary>Bindable text type: <see cref="TextType.Html"/> draws <see cref="Text"/> as HTML.</summary>
+    public static readonly BindableProperty TextTypeProperty = BindableProperty.Create(nameof(TextType), typeof(TextType), typeof(SkUiLabel), TextType.Text,
+        propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextTypeChanged((TextType)value));
+    /// <summary>Bindable command run with the <c>href</c> of a tapped HTML link.</summary>
+    public static readonly BindableProperty LinkTappedCommandProperty = BindableProperty.Create(nameof(LinkTappedCommand), typeof(ICommand), typeof(SkUiLabel), null,
+        propertyChanged: (view, _, value) => ((SkUiLabel)view)._linkTappedCommand = (ICommand?)value);
     /// <summary>Bindable text inset.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiLabel), default(Thickness), defaultValueCreator: view => ((SkUiLabel)view).DefaultPadding, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnPaddingChanged((Thickness)value));
 
@@ -112,8 +132,16 @@ public class SkUiLabel : SkUiView
     /// <summary>Default inset used by derived controls and bindable value clearing.</summary>
     protected virtual Thickness DefaultPadding => default;
 
-    /// <summary>Text displayed by the control.</summary>
+    /// <summary>Text displayed by the control. Setting it (to any string) clears <see cref="FormattedText"/>, as on MAUI's Label.</summary>
     public string Text { get => (string?)GetValue(TextProperty) ?? string.Empty; set => SetValue(TextProperty, value); }
+    /// <summary>
+    /// Text made of <see cref="Span"/>s, each with its own font, size, attributes, colors, decorations, character spacing,
+    /// line height and text transform (unset ones are the label's), wrapped and aligned as one paragraph; a span's
+    /// <see cref="TapGestureRecognizer"/>s run when it is tapped. Setting it clears <see cref="Text"/>, as on MAUI's Label.
+    /// The label's <see cref="LineBreakMode"/>, <see cref="MaxLines"/>, alignment and padding apply; <see cref="LineBreaker"/>
+    /// and <see cref="TextRendering"/> do not (spans are always shaped).
+    /// </summary>
+    public FormattedString? FormattedText { get => (FormattedString?)GetValue(FormattedTextProperty); set => SetValue(FormattedTextProperty, value); }
     /// <summary>Foreground color.</summary>
     public Color TextColor { get => (Color)GetValue(TextColorProperty); set => SetValue(TextColorProperty, value); }
     /// <summary>Font size in DIPs.</summary>
@@ -175,10 +203,88 @@ public class SkUiLabel : SkUiView
 
     /// <summary>Sets text (same as the property setter).</summary>
     public SkUiLabel SetText(string? value) { Text = value ?? string.Empty; return this; }
-    private void OnTextChanged(string? value) { value ??= string.Empty; if (_text == value) return; _text = value; UpdateDisplayText(); }
+    private void OnTextChanged(string? value)
+    {
+        if (value is not null) FormattedText = null; // as MAUI: text replaces formatted text
+        value ??= string.Empty;
+        if (_text == value) return;
+        _text = value;
+        _htmlRuns = null;
+        if (IsHtml) InvalidateText();
+        UpdateDisplayText();
+    }
+    /// <summary>Sets formatted text (same as the property setter).</summary>
+    public SkUiLabel SetFormattedText(FormattedString? value) { FormattedText = value; return this; }
+
+    /// <summary>
+    /// How <see cref="Text"/> is read (MAUI's): <see cref="TextType.Html"/> draws it as HTML (<see cref="SkUiHtml"/> lists
+    /// the tags) with the label's values as the defaults the markup overrides, through the formatted-text engine; links
+    /// raise <see cref="LinkTapped"/>. <see cref="FormattedText"/> still wins when set; <see cref="TextTransform"/>,
+    /// <see cref="LineBreaker"/> and <see cref="TextRendering"/> do not apply to HTML.
+    /// </summary>
+    public TextType TextType { get => (TextType)GetValue(TextTypeProperty); set => SetValue(TextTypeProperty, value); }
+    /// <summary>Sets the text type (same as the property setter).</summary>
+    public SkUiLabel SetTextType(TextType value) { TextType = value; return this; }
+    private void OnTextTypeChanged(TextType value) { if (_textType == value) return; _textType = value; _htmlRuns = null; _spanTap?.Cancel(); InvalidateText(); }
+
+    /// <summary>Command run with the <c>href</c> of a tapped HTML link (<see cref="TextType.Html"/>), after <see cref="LinkTapped"/>.</summary>
+    public ICommand? LinkTappedCommand { get => (ICommand?)GetValue(LinkTappedCommandProperty); set => SetValue(LinkTappedCommandProperty, value); }
+    /// <summary>Sets the link command (same as the property setter).</summary>
+    public SkUiLabel SetLinkTappedCommand(ICommand? value) { LinkTappedCommand = value; return this; }
+
+    /// <summary>
+    /// A link (<c>&lt;a href&gt;</c>) of HTML text was tapped. Nothing opens by itself: open the <c>Href</c> here or in
+    /// <see cref="LinkTappedCommand"/>. A press on a link takes the tap from the label and its ancestors.
+    /// </summary>
+    public event EventHandler<SkUiLinkTappedEventArgs>? LinkTapped;
+
+    private bool IsHtml => _formattedText is null && _textType == TextType.Html;
+
+    /// <summary>Whether the text is drawn by the formatted-text engine (spans or HTML).</summary>
+    private bool UsesRichText => _formattedText is not null || _textType == TextType.Html;
+
+    private IReadOnlyList<SkUiHtmlRun> HtmlRuns => _htmlRuns ??= SkUiHtml.Parse(_text);
+
+    private void DetachFormattedText(FormattedString? old)
+    {
+        if (old is null) return;
+        old.PropertyChanged -= OnFormattedTextPropertyChanged;
+        if (ReferenceEquals(old.Parent, this)) old.Parent = null;
+    }
+
+    private void OnFormattedTextChanged(FormattedString? value)
+    {
+        _formattedText = value;
+        if (value is not null)
+        {
+            // As MAUI's Label: the label parents the formatted string (binding context, styles); spans follow it.
+            value.Parent = this;
+            value.PropertyChanged += OnFormattedTextPropertyChanged;
+            Text = null!; // as MAUI: formatted text replaces text
+        }
+        _spanTap?.Cancel();
+        InvalidateText();
+    }
+
+    /// <summary>A span was added, removed or changed (<see cref="FormattedString"/> reports all of them as <c>Spans</c>).</summary>
+    private void OnFormattedTextPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(FormattedString.Spans)) return;
+        if (_richText is not { } previous) { InvalidateText(); return; }
+        // A color, background or decoration change repaints the lines it already has.
+        _richText = null;
+        if (RichText.SameLayout(previous)) InvalidatePaint(); else InvalidateText();
+    }
+
+    /// <inheritdoc />
+    protected override void OnBindingContextChanged()
+    {
+        base.OnBindingContextChanged();
+        if (_formattedText is { } formatted) SetInheritedBindingContext(formatted, BindingContext);
+    }
     /// <summary>Sets text color (same as the property setter).</summary>
     public SkUiLabel SetTextColor(Color value) { ArgumentNullException.ThrowIfNull(value); TextColor = value; return this; }
-    private void OnTextColorChanged(Color value) { if (_textColor == value) return; _textColor = value; InvalidatePaint(); }
+    private void OnTextColorChanged(Color value) { if (_textColor == value) return; _textColor = value; _richText = null; InvalidatePaint(); }
     /// <summary>Sets font size (same as the property setter).</summary>
     public SkUiLabel SetFontSize(double value) { if (!double.IsFinite(value) || value <= 0) throw new ArgumentOutOfRangeException(nameof(value)); FontSize = value; return this; }
     private void OnFontSizeChanged(double value) { if (_fontSize == value) return; _fontSize = value; InvalidateText(); }
@@ -205,10 +311,16 @@ public class SkUiLabel : SkUiView
     private void OnCharacterSpacingChanged(double value) { if (_characterSpacing == value) return; _characterSpacing = value; InvalidateText(); }
     /// <summary>Sets the text decorations (same as the property setter).</summary>
     public SkUiLabel SetTextDecorations(TextDecorations value) { TextDecorations = value; return this; }
-    private void OnTextDecorationsChanged(TextDecorations value) { if (_textDecorations == value) return; _textDecorations = value; InvalidatePaint(); }
+    private void OnTextDecorationsChanged(TextDecorations value) { if (_textDecorations == value) return; _textDecorations = value; _richText = null; InvalidatePaint(); }
     /// <summary>Sets the text transform (same as the property setter).</summary>
     public SkUiLabel SetTextTransform(TextTransform value) { TextTransform = value; return this; }
-    private void OnTextTransformChanged(TextTransform value) { if (_textTransform == value) return; _textTransform = value; UpdateDisplayText(); }
+    private void OnTextTransformChanged(TextTransform value)
+    {
+        if (_textTransform == value) return;
+        _textTransform = value;
+        if (UsesRichText) InvalidateText(); // spans inherit it; the (empty) plain text would not change
+        UpdateDisplayText();
+    }
     /// <summary>Sets horizontal alignment (same as the property setter).</summary>
     public SkUiLabel SetHorizontalTextAlignment(TextAlignment value) { HorizontalTextAlignment = value; return this; }
     private void OnHorizontalTextAlignmentChanged(TextAlignment value)
@@ -274,7 +386,13 @@ public class SkUiLabel : SkUiView
             base.OnPaintBackground(canvas);
     }
 
-    private void InvalidateText() { _layout.Invalidate(); InvalidateMeasureOverride(); }
+    private void InvalidateText()
+    {
+        _layout.Invalidate();
+        _richText = null;
+        _richLayout?.Invalidate();
+        InvalidateMeasureOverride();
+    }
 
     /// <summary>Breaks the text again at the next measure, e.g. when what a custom <see cref="LineBreaker"/> reads has changed.</summary>
     public void InvalidateTextLayout() => InvalidateText();
@@ -308,14 +426,102 @@ public class SkUiLabel : SkUiView
     /// <inheritdoc />
     internal override void OnEffectiveFlowDirectionChanged() => InvalidateText();
 
+    /// <summary>The spans with the label's defaults applied (MAUI's rule: a span's own value when set, else the label's).</summary>
+    private SkUiRichText RichText => _richText ??= BuildRichText();
+
+    private SkUiRichTextLayout RichLayout => _richLayout ??= new SkUiRichTextLayout();
+
+    private SkUiRichText BuildRichText()
+    {
+        if (IsHtml)
+            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, _fontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations);
+        if (_formattedText is not { Spans.Count: > 0 } formatted) return SkUiRichText.Empty;
+        var builder = new SkUiRichText.Builder();
+        foreach (var span in formatted.Spans)
+        {
+            var family = span.IsSet(Span.FontFamilyProperty) ? span.FontFamily : _fontFamily;
+            var size = span.IsSet(Span.FontSizeProperty) && double.IsFinite(span.FontSize) && span.FontSize > 0 ? span.FontSize : _fontSize;
+            var attributes = span.IsSet(Span.FontAttributesProperty) ? span.FontAttributes : _fontAttributes;
+            var spacing = span.IsSet(Span.CharacterSpacingProperty) && double.IsFinite(span.CharacterSpacing) ? span.CharacterSpacing : _characterSpacing;
+            var lineHeight = span.LineHeight >= 0 ? span.LineHeight : _lineHeight;
+            var decorations = span.IsSet(Span.TextDecorationsProperty) ? span.TextDecorations : _textDecorations;
+            var transform = span.TextTransform != TextTransform.Default ? span.TextTransform : _textTransform;
+            builder.Add(SkUiTextTransform.Apply(span.Text ?? string.Empty, transform),
+                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(family, attributes), size, attributes, spacing, lineHeight),
+                new SkUiTextSpanPaint(ToSkColor(span.TextColor ?? _textColor), span.BackgroundColor is { } background ? ToSkColor(background) : default, decorations));
+        }
+        return builder.Build();
+    }
+
+    /// <summary>The <see cref="FormattedText"/> span drawn at <paramref name="point"/> (label coordinates), or <c>null</c>.</summary>
+    public Span? SpanAt(Point point) =>
+        _formattedText is { } formatted && SpanIndexAt(point) is var index and >= 0 && index < formatted.Spans.Count ? formatted.Spans[index] : null;
+
+    /// <summary>The <c>href</c> of the HTML link drawn at <paramref name="point"/> (label coordinates), or <c>null</c>.</summary>
+    public string? LinkAt(Point point) =>
+        IsHtml && SpanIndexAt(point) is var index and >= 0 && index < HtmlRuns.Count ? HtmlRuns[index].Style.Href : null;
+
+    private int SpanIndexAt(Point point) =>
+        RichLayout.HitTest(RichText, TextStyle, _padding, Width, Height, _horizontalTextAlignment, _verticalTextAlignment, point);
+
     /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
-        _layout.Measure(_displayText, TextStyle, _padding, widthConstraint);
+    internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
+    {
+        if (_formattedText is { } formatted ? HasSpanTaps(formatted) : IsHtml && SkUiHtml.HasLinks(HtmlRuns))
+            recognizers.Add(_spanTap ??= new SkUiSpanTapGestureRecognizer
+            {
+                TappableSpanAt = TappableSpanAt,
+                WantsDoubleTap = () => _formattedText?.Spans.Any(span => SkUiMauiTaps.Has(span, 2)) == true,
+                TapHandler = args => RaiseSpanTap(args, 1),
+                DoubleTapHandler = args => RaiseSpanTap(args, 2)
+            });
+        base.CollectGestureRecognizers(recognizers);
+    }
+
+    private static bool HasSpanTaps(FormattedString formatted)
+    {
+        foreach (var span in formatted.Spans)
+            if (IsTappable(span))
+                return true;
+        return false;
+    }
+
+    private static bool IsTappable(Span span) => SkUiMauiTaps.Has(span, 1) || SkUiMauiTaps.Has(span, 2);
+
+    private int TappableSpanAt(Point point)
+    {
+        if (!UsesRichText || SpanIndexAt(point) is not (>= 0 and var index)) return -1;
+        if (_formattedText is { } formatted)
+            return index < formatted.Spans.Count && IsTappable(formatted.Spans[index]) ? index : -1;
+        return index < HtmlRuns.Count && HtmlRuns[index].Style.Href is not null ? index : -1;
+    }
+
+    private void RaiseSpanTap(SkUiTappedEventArgs args, int taps)
+    {
+        if (_spanTap?.TappedSpan(args) is not (>= 0 and var index)) return;
+        if (_formattedText is { } formatted)
+        {
+            if (index < formatted.Spans.Count)
+                SkUiMauiTaps.Raise(formatted.Spans[index], taps, this, args.Position);
+            return;
+        }
+        if (taps == 1 && index < HtmlRuns.Count && HtmlRuns[index].Style.Href is { } href)
+        {
+            LinkTapped?.Invoke(this, new SkUiLinkTappedEventArgs(href, args.Position));
+            if (_linkTappedCommand?.CanExecute(href) == true)
+                _linkTappedCommand.Execute(href);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => UsesRichText
+        ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint)
+        : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        if (_displayText.Length == 0) return;
+        if ((UsesRichText ? RichText.Text : _displayText).Length == 0) return;
         if (!SkUiCornerRadii.HasAny(_cornerRadii))
         {
             PaintText(canvas);
@@ -334,6 +540,11 @@ public class SkUiLabel : SkUiView
     private void PaintText(SKCanvas canvas)
     {
         var paint = _textPaint ??= new SKPaint { IsAntialias = true };
+        if (UsesRichText)
+        {
+            RichLayout.Draw(canvas, RichText, TextStyle, _padding, Width, Height, _horizontalTextAlignment, _verticalTextAlignment, paint);
+            return;
+        }
         paint.Color = ToSkColor(_textColor);
         _layout.Draw(canvas, _displayText, TextStyle, _padding, Width, Height,
             _horizontalTextAlignment, _verticalTextAlignment, paint, _textDecorations);

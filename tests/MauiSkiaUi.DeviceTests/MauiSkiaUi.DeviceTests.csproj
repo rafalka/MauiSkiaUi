@@ -27,6 +27,8 @@
     <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#FFFFFF" BaseSize="128,128" />
     <!-- Registered only with ConfigureFonts (no SkUiFonts.Register): RenderCheck checks drawn text resolves it. -->
     <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/RobotoMono-Regular.ttf" />
+    <!-- An SVG MauiImage: RenderCheck loads its generated density PNG by name (P4). -->
+    <MauiImage Include="../../MauiSkiaUiDemo/Resources/Images/skui_badge.svg" />
     <!-- Scenarios shared with the headless tests (tests/MauiSkiaUi.Tests/MemoryLeakTests.cs). -->
     <Compile Include="../Shared/MemoryLeaks/*.cs" Link="Shared/MemoryLeaks/%(Filename)%(Extension)" />
     <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />

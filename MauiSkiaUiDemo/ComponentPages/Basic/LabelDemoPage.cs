@@ -17,6 +17,8 @@ public sealed class LabelDemoPage : ComponentDemoPage
         ["Devanagari"] = "नमस्ते दुनिया। पृथ्वी हमारा घर है।",
         ["CJK"] = "地球は私たちの家です。海は表面の71％を覆っています。",
         ["Emoji"] = "Launch 🚀 ready 👍🏽 family 👩‍👩‍👧 flag 🇵🇱 done ✅",
+        // For TextType = Html (as plain text it shows the markup).
+        ["HTML"] = "<h3>Release notes</h3><p>Now with <b>bold</b>, <i>italic</i>, <u>underline</u>, <s>strike</s>, <span style=\"color:#C62828\">color</span> and <code>code</code>.</p><ul><li>One</li><li>Two with <a href=\"https://learn.microsoft.com/dotnet/maui/\">a link</a></li></ul>",
     };
 
     private const string NoLineBreaker = "None (LineBreakMode)";
@@ -40,6 +42,57 @@ public sealed class LabelDemoPage : ComponentDemoPage
         },
     };
 
+    private const string NoFormattedText = "None (Text)";
+
+    private static readonly string[] FormattedSamples = [NoFormattedText, "Styles", "Links", "Sizes", "Mixed RTL"];
+
+    /// <summary>
+    /// MAUI spans for <paramref name="sample"/>, built once per side (a formatted string belongs to one label); the
+    /// tappable spans call <paramref name="tapped"/> with their text.
+    /// </summary>
+    private static FormattedString? Formatted(string sample, Action<string> tapped)
+    {
+        Span Link(string text)
+        {
+            var span = new Span { Text = text, TextColor = DemoColors.Accent, TextDecorations = TextDecorations.Underline };
+            span.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => tapped(text)) });
+            return span;
+        }
+        return sample switch
+        {
+            "Styles" => new FormattedString
+            {
+                Spans =
+                {
+                    new Span { Text = "Red bold, ", TextColor = Colors.Red, FontAttributes = FontAttributes.Bold },
+                    new Span { Text = "highlighted, ", BackgroundColor = Colors.Yellow },
+                    new Span { Text = "struck through, ", TextDecorations = TextDecorations.Strikethrough },
+                    new Span { Text = "spaced out, ", CharacterSpacing = 4 },
+                    new Span { Text = "upper case, ", TextTransform = TextTransform.Uppercase },
+                    new Span { Text = "italic and small.", FontAttributes = FontAttributes.Italic, FontSize = 12 }
+                }
+            },
+            "Links" => new FormattedString
+            {
+                Spans = { new Span { Text = "By continuing you accept the " }, Link("terms of use"), new Span { Text = " and the " }, Link("privacy policy"), new Span { Text = "." } }
+            },
+            "Sizes" => new FormattedString
+            {
+                Spans =
+                {
+                    new Span { Text = "Big words ", FontSize = 30, FontAttributes = FontAttributes.Bold },
+                    new Span { Text = "and small ones wrap together in one paragraph; each line is as tall as its tallest span. " },
+                    new Span { Text = "This span has its own line height.", LineHeight = 1.8, FontSize = 13 }
+                }
+            },
+            "Mixed RTL" => new FormattedString
+            {
+                Spans = { new Span { Text = "Order " }, new Span { Text = "הזמנה 1234", FontAttributes = FontAttributes.Bold }, new Span { Text = " — " }, Link("مدفوع"), new Span { Text = " today." } }
+            },
+            _ => null
+        };
+    }
+
     private static string LineBreakerName(SkUiTextLineBreaker? breaker) =>
         LineBreakers.FirstOrDefault(entry => ReferenceEquals(entry.Value, breaker)).Key ?? NoLineBreaker;
 
@@ -47,7 +100,10 @@ public sealed class LabelDemoPage : ComponentDemoPage
     {
         var skia = (SkUiLabel)SkiaControl;
         var native = (Label)NativeControl!;
-        var textEditor = MultilineText(nameof(SkUiLabel.Text), "Earth is our home.\nOceans cover 71 percent of its surface.", value => { skia.Text = value; native.Text = value; }, () => skia.Text, () => native.Text);
+        // With FormattedText set, Text is empty on both sides (as on MAUI): the editor's text waits for "None (Text)".
+        Editor textEditor = null!;
+        textEditor = MultilineText(nameof(SkUiLabel.Text), "Earth is our home.\nOceans cover 71 percent of its surface.", value => { skia.Text = value; native.Text = value; },
+            () => skia.FormattedText is null ? skia.Text : textEditor.Text, () => native.FormattedText is null ? native.Text : textEditor.Text);
         Choice(nameof(SkUiLabel.FontFamily), new[] { DefaultFontFamily }.Concat(DemoFonts.RegisteredFamilies).ToArray(), DefaultFontFamily,
             value => { var family = value == DefaultFontFamily ? null : value; skia.FontFamily = family; native.FontFamily = family; },
             () => skia.FontFamily ?? DefaultFontFamily, () => native.FontFamily ?? DefaultFontFamily);
@@ -74,6 +130,24 @@ public sealed class LabelDemoPage : ComponentDemoPage
             script = value;
             textEditor.Text = ScriptSamples[value];
         }, () => script, () => script);
+        // HTML (MAUI's TextType): both labels parse Text; the drawn one raises LinkTapped for <a href>.
+        skia.LinkTapped += (_, e) => Feedback($"Link tapped: {e.Href}");
+        Choice(nameof(SkUiLabel.TextType), Enum.GetValues<TextType>(), TextType.Text, value => { skia.TextType = value; native.TextType = value; }, () => skia.TextType, () => native.TextType);
+        // Spans (MAUI's FormattedText): both labels get the same spans; setting Text (None) clears them, as on MAUI.
+        var formatted = NoFormattedText;
+        var (skiaTaps, nativeTaps) = (0, 0);
+        Choice(nameof(SkUiLabel.FormattedText), FormattedSamples, NoFormattedText, value =>
+        {
+            formatted = value;
+            if (value == NoFormattedText)
+            {
+                skia.Text = textEditor.Text;
+                native.Text = textEditor.Text;
+                return;
+            }
+            skia.FormattedText = Formatted(value, text => Feedback($"Span tapped: {text} ({++skiaTaps})", $"Span tapped: {text} ({nativeTaps})"));
+            native.FormattedText = Formatted(value, text => Feedback($"Span tapped: {text} ({skiaTaps})", $"Span tapped: {text} ({++nativeTaps})"));
+        }, () => formatted, () => formatted);
         Number(nameof(SkUiLabel.Padding), 0, 24, 0, value => { skia.Padding = value; native.Padding = value; }, () => skia.Padding.Left, () => native.Padding.Left);
         // Badge / chip chrome without a wrapping border (MAUI's Label has none: the native side shows only the fill).
         ColorEditor(nameof(SkUiLabel.BackgroundColor), Colors.Transparent, value => { skia.BackgroundColor = value; native.BackgroundColor = value; }, () => skia.BackgroundColor, () => native.BackgroundColor);

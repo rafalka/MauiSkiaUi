@@ -29,8 +29,9 @@ internal static class SkUiSliderMath
 
     /// <summary>Draws through the look in horizontal left-to-right coordinates (rotated / mirrored as needed).</summary>
     public static void Draw(SKCanvas canvas, float width, float height, StackOrientation orientation, bool rightToLeft,
-        float fraction, SKColor minimumTrack, SKColor maximumTrack, SKColor thumb, float pressed, bool enabled)
+        float fraction, SKColor minimumTrack, SKColor maximumTrack, SKColor thumb, float pressed, bool enabled, SkUiImageSlot? thumbImage = null)
     {
+        var hasImage = thumbImage?.Image is not null;
         var save = canvas.Save();
         SKRect bounds;
         if (orientation == StackOrientation.Vertical)
@@ -46,7 +47,35 @@ internal static class SkUiSliderMath
                 canvas.Scale(-1, 1, width / 2, 0);
             bounds = new SKRect(0, 0, width, height);
         }
-        SkUiLook.Current.DrawSlider(canvas, new SkUiSliderPaint(bounds, fraction, orientation, minimumTrack, maximumTrack, thumb, pressed, enabled));
+        SkUiLook.Current.DrawSlider(canvas, new SkUiSliderPaint(bounds, fraction, orientation, minimumTrack, maximumTrack, thumb, pressed, enabled)
+        {
+            HasThumbImage = hasImage
+        });
+        canvas.RestoreToCount(save);
+        if (hasImage)
+            DrawThumbImage(canvas, width, height, orientation, rightToLeft, fraction, enabled, thumbImage!);
+    }
+
+    /// <summary>
+    /// The thumb image at its intrinsic size, centered where the look's thumb travels (inset by
+    /// <see cref="SkUiLook.SliderThumbRadius"/>, as input maps touches), upright in every orientation and direction.
+    /// </summary>
+    private static void DrawThumbImage(SKCanvas canvas, float width, float height, StackOrientation orientation, bool rightToLeft,
+        float fraction, bool enabled, SkUiImageSlot image)
+    {
+        var vertical = orientation == StackOrientation.Vertical;
+        var length = vertical ? height : width;
+        var radius = SkUiLook.Current.SliderThumbRadius;
+        var start = radius;
+        var end = Math.Max(start, length - radius);
+        var along = start + (end - start) * Math.Clamp(fraction, 0, 1);
+        var center = vertical ? new SKPoint(width / 2, height - along)
+            : new SKPoint(rightToLeft ? width - along : along, height / 2);
+        var size = image.Size;
+        var area = SKRect.Create(center.X - (float)size.Width / 2, center.Y - (float)size.Height / 2, (float)size.Width, (float)size.Height);
+        using var dim = enabled ? null : new SKPaint { Color = SKColors.Black.WithAlpha(128) }; // disabled: half opacity, as the colors
+        var save = dim is null ? canvas.Save() : canvas.SaveLayer(area, dim);
+        image.Paint(canvas, area, Aspect.Fill);
         canvas.RestoreToCount(save);
     }
 }

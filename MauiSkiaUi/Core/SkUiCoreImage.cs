@@ -3,19 +3,72 @@ using SkiaSharp;
 namespace MauiSkiaUi.Core;
 
 /// <summary>
-/// Core image node loaded from <see cref="SKImage"/>, file path, or stream.
+/// Core image node: an <see cref="SkUiImageSource"/> (file / <c>MauiImage</c>, URI, stream, font glyph) loaded through
+/// the image cache shared with the SkUi* controls (<see cref="SkUiImageCache"/>), or a decoded <see cref="SKImage"/>.
+/// Supports transformations, downsampling, EXIF orientation and animated GIF / WebP, as <c>SkUiImage</c>.
 /// Does not use MAUI <c>ImageSource</c> — keep decoding outside Controls/XAML.
 /// </summary>
 public class SkUiCoreImage : SkUiCoreNode, IDisposable
 {
-    private static readonly HttpClient Http = new();
-    private SKImage? _image;
-    private SKSizeI? _decodedSourceSize;
+    private readonly SkUiImageSlot _slot;
+    private SkUiImageSource? _source;
+    private SkUiImageOptions _options;
     private Aspect _aspect = Aspect.AspectFit;
-    private CancellationTokenSource? _loading;
-    private int _generation;
     private bool _disposed;
-    private bool _ownsImage = true;
+
+    /// <summary>Creates an image node.</summary>
+    public SkUiCoreImage() => _slot = new SkUiImageSlot(this, PublishState)
+    {
+        LoadingStarted = args => LoadingStarted?.Invoke(this, args),
+        LoadingFinished = args => LoadingFinished?.Invoke(this, args)
+    };
+
+    /// <summary>Raised when a load of <see cref="Source"/> starts (also for a memory-cache hit, which finishes at once).</summary>
+    public event EventHandler<SkUiImageLoadStartedEventArgs>? LoadingStarted;
+
+    /// <summary>
+    /// Raised once for every <see cref="LoadingStarted"/>, after the state is updated: succeeded (with where the image
+    /// came from), failed or cancelled (see <c>SkUiImage.LoadingFinished</c>).
+    /// </summary>
+    public event EventHandler<SkUiImageLoadFinishedEventArgs>? LoadingFinished;
+
+    private SkUiImageSource? _loadingPlaceholder;
+    private SkUiImageSource? _errorPlaceholder;
+    private bool _transformPlaceholders = true;
+
+    /// <summary>Shown while <see cref="Source"/> loads (see <c>SkUiImage.LoadingPlaceholder</c>).</summary>
+    public SkUiImageSource? LoadingPlaceholder { get => _loadingPlaceholder; set => SetLoadingPlaceholder(value); }
+
+    /// <summary>Shown when <see cref="Source"/> failed to load.</summary>
+    public SkUiImageSource? ErrorPlaceholder { get => _errorPlaceholder; set => SetErrorPlaceholder(value); }
+
+    /// <summary>Whether placeholders get the image's transformations and downsampling (default <c>true</c>).</summary>
+    public bool TransformPlaceholders { get => _transformPlaceholders; set => SetTransformPlaceholders(value); }
+
+    /// <summary>Whether a loading or error placeholder is drawn instead of the image.</summary>
+    public bool IsShowingPlaceholder => _slot.IsShowingPlaceholder;
+
+    /// <summary>Sets the loading placeholder.</summary>
+    public SkUiCoreImage SetLoadingPlaceholder(SkUiImageSource? value) => SetPlaceholder(ref _loadingPlaceholder, value, nameof(LoadingPlaceholder));
+
+    /// <summary>Sets the error placeholder.</summary>
+    public SkUiCoreImage SetErrorPlaceholder(SkUiImageSource? value) => SetPlaceholder(ref _errorPlaceholder, value, nameof(ErrorPlaceholder));
+
+    /// <summary>Sets whether placeholders get the image's transformations and downsampling.</summary>
+    public SkUiCoreImage SetTransformPlaceholders(bool value)
+    {
+        if (SetProperty(ref _transformPlaceholders, value, nameof(TransformPlaceholders)))
+            _slot.SetPlaceholders(_loadingPlaceholder, _errorPlaceholder, value);
+        return this;
+    }
+
+    private SkUiCoreImage SetPlaceholder(ref SkUiImageSource? field, SkUiImageSource? value, string name)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (SetProperty(ref field, value, name))
+            _slot.SetPlaceholders(_loadingPlaceholder, _errorPlaceholder, _transformPlaceholders);
+        return this;
+    }
 
     /// <summary>Fit, fill, stretch or center (unscaled) within the arranged bounds.</summary>
     public Aspect Aspect
@@ -24,19 +77,50 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
         set => SetAspect(value);
     }
 
+    /// <summary>The source being shown, or <c>null</c> (also after <see cref="SetImage"/>).</summary>
+    public SkUiImageSource? Source => _source;
+
+    /// <summary>Whether an animated GIF / WebP plays (default <c>false</c>: the first frame shows).</summary>
+    public bool IsAnimationPlaying
+    {
+        get => _slot.IsAnimationPlaying;
+        set => SetIsAnimationPlaying(value);
+    }
+
+    /// <summary>Transformations applied in order to the decoded image (see <c>SkUiImage.Transformations</c>).</summary>
+    public IReadOnlyList<ISkUiImageTransformation> Transformations => _options.Transformations ?? [];
+
+    /// <summary>Which caches the load may use (default <see cref="SkUiImageCacheType.All"/>).</summary>
+    public SkUiImageCacheType CacheType
+    {
+        get => _options.CacheType;
+        set => SetCacheType(value);
+    }
+
+    /// <summary>Decode at most this wide, in DIPs at the display density (0: no bound).</summary>
+    public double DownsampleWidth => _options.DownsampleWidth;
+
+    /// <summary>Decode at most this high, in DIPs at the display density (0: no bound).</summary>
+    public double DownsampleHeight => _options.DownsampleHeight;
+
     /// <summary>Current asynchronous load task (completed when idle).</summary>
-    public Task LoadingTask { get; private set; } = Task.CompletedTask;
+    public Task LoadingTask => _slot.LoadingTask;
 
     /// <summary>Whether the current source is loading.</summary>
-    public bool IsLoading { get; private set; }
+    public bool IsLoading => _slot.IsLoading;
 
     /// <summary>Last load error for the current source, or <c>null</c> on success.</summary>
-    public Exception? LoadError { get; private set; }
+    public Exception? LoadError => _slot.LoadError;
 
-    /// <summary>Decoded source dimensions; one source pixel maps to one intrinsic DIP.</summary>
-    /// <remarks>Large sources are decoded at reduced resolution (<see cref="SkUiImageDecoder.MaxDecodeDimension"/>); this still reports the original size.</remarks>
-    public Size ImageSize => _image is null ? Size.Zero
-        : _decodedSourceSize is { } source ? new Size(source.Width, source.Height) : new Size(_image.Width, _image.Height);
+    /// <summary>
+    /// Intrinsic size in DIPs: source pixels divided by the source's density (a MauiImage lays out at its base size,
+    /// other bitmaps one pixel per DIP; a font glyph at its font size).
+    /// </summary>
+    /// <remarks>Large sources are decoded at reduced resolution (<see cref="SkUiImageDecoder.MaxDecodeDimension"/>, downsampling); this still reports the source size.</remarks>
+    public Size ImageSize => _slot.Size;
+
+    /// <summary>The shown cache entry (tests: views of one source share it).</summary>
+    internal SkUiCachedImage? CachedImage => _slot.Entry;
 
     /// <summary>Sets aspect mode.</summary>
     public SkUiCoreImage SetAspect(Aspect value)
@@ -46,139 +130,108 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
         return this;
     }
 
+    /// <summary>Plays or pauses an animated image.</summary>
+    public SkUiCoreImage SetIsAnimationPlaying(bool value)
+    {
+        if (_slot.IsAnimationPlaying == value) return this;
+        _slot.IsAnimationPlaying = value;
+        OnPropertyChanged(nameof(IsAnimationPlaying));
+        return this;
+    }
+
     /// <summary>
     /// Assigns a decoded image. When <paramref name="ownsImage"/> is <c>true</c>, this node disposes it on replace/dispose.
     /// </summary>
     public SkUiCoreImage SetImage(SKImage? image, bool ownsImage = true)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        CancelLoad();
-        ReplaceImage(image, ownsImage);
-        LoadError = null;
-        IsLoading = false;
-        PublishState();
+        _source = null;
+        _slot.SetImage(image, ownsImage);
         return this;
     }
 
-    /// <summary>Loads an image from an absolute or app-package-relative file path.</summary>
-    public SkUiCoreImage SetSourceFile(string path)
+    /// <summary>Loads <paramref name="source"/> (<c>null</c> clears); an equal source already shown does not reload.</summary>
+    public SkUiCoreImage SetSource(SkUiImageSource? source)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ObjectDisposedException.ThrowIf(_disposed, this);
-        LoadingTask = LoadAsync(async token =>
-        {
-            if (Path.IsPathRooted(path))
-                return File.OpenRead(path);
-            return await FileSystem.Current.OpenAppPackageFileAsync(path);
-        });
+        if (source is not null && Equals(_source, source) && (_slot.Entry is not null || _slot.IsLoading))
+            return this;
+        _source = source;
+        _slot.Load(source, _options);
         return this;
     }
 
-    /// <summary>Loads an image from a stream factory. The returned stream is disposed after decode.</summary>
-    public SkUiCoreImage SetSourceStream(Func<CancellationToken, Task<Stream>> open)
+    /// <summary>
+    /// Loads an absolute file, or a package name: the <c>MauiImage</c> for the display density, else a raw package
+    /// asset (see <see cref="SkUiImageSource.FromFile"/>).
+    /// </summary>
+    public SkUiCoreImage SetSourceFile(string path) => SetSource(SkUiImageSource.FromFile(path));
+
+    /// <summary>
+    /// Loads an image from a stream factory. The returned stream is disposed after decode. Without
+    /// <paramref name="cacheKey"/> each load decodes (not cached); with one, nodes with the same key share the image.
+    /// </summary>
+    public SkUiCoreImage SetSourceStream(Func<CancellationToken, Task<Stream>> open, string? cacheKey = null) =>
+        SetSource(SkUiImageSource.FromStream(open, cacheKey));
+
+    /// <summary>
+    /// Loads an image from an HTTP(S) URI (plain http needs the platform's cleartext permission), kept in the disk
+    /// cache for <paramref name="cacheValidity"/> (default one day) when <paramref name="cachingEnabled"/>.
+    /// </summary>
+    public SkUiCoreImage SetSourceUri(Uri uri, bool cachingEnabled = true, TimeSpan? cacheValidity = null) =>
+        SetSource(SkUiImageSource.FromUri(uri, cachingEnabled, cacheValidity));
+
+    /// <summary>Shows a font glyph (MAUI's <c>FontImageSource</c>; see <see cref="SkUiImageSource.FromFont"/>).</summary>
+    public SkUiCoreImage SetSourceFont(string glyph, string? fontFamily = null, double size = SkUiFontImageSource.DefaultSize, Color? color = null,
+        FontAttributes fontAttributes = FontAttributes.None) =>
+        SetSource(SkUiImageSource.FromFont(glyph, fontFamily, size, color, fontAttributes));
+
+    /// <summary>Replaces the transformations (reloads the source).</summary>
+    public SkUiCoreImage SetTransformations(params ISkUiImageTransformation[] transformations)
     {
-        ArgumentNullException.ThrowIfNull(open);
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        LoadingTask = LoadAsync(open);
-        return this;
+        ArgumentNullException.ThrowIfNull(transformations);
+        var list = transformations.Length == 0 ? null : (ISkUiImageTransformation[])transformations.Clone();
+        if (list is not null && Array.IndexOf(list, null) >= 0)
+            throw new ArgumentException("Transformations cannot be null.", nameof(transformations));
+        return SetOptions(_options with { Transformations = list }, nameof(Transformations));
     }
 
-    /// <summary>Loads an image from an HTTP(S) URI (plain http needs the platform's cleartext permission).</summary>
-    public SkUiCoreImage SetSourceUri(Uri uri)
+    /// <summary>Sets the caches the load may use (reloads the source).</summary>
+    public SkUiCoreImage SetCacheType(SkUiImageCacheType value) => SetOptions(_options with { CacheType = value }, nameof(CacheType));
+
+    /// <summary>Sets the decode bounds in DIPs (0: no bound; reloads the source).</summary>
+    public SkUiCoreImage SetDownsample(double width, double height)
     {
-        ArgumentNullException.ThrowIfNull(uri);
-        if (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp)
-            throw new NotSupportedException("Only HTTP(S) image URIs are supported.");
+        SkUiValidate.ThrowIfNegativeOrNotFinite(width, nameof(width));
+        SkUiValidate.ThrowIfNegativeOrNotFinite(height, nameof(height));
+        return SetOptions(_options with { DownsampleWidth = width, DownsampleHeight = height }, nameof(DownsampleWidth));
+    }
+
+    private SkUiCoreImage SetOptions(SkUiImageOptions options, string property)
+    {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        LoadingTask = LoadAsync(token => Http.GetStreamAsync(uri, token));
+        if (_options == options) return this;
+        _options = options;
+        OnPropertyChanged(property);
+        if (_source is not null)
+            _slot.Load(_source, _options);
         return this;
     }
 
-    /// <summary>Reloads are driven by the SetSource* helpers; this clears the current image.</summary>
+    /// <summary>Loads the current source again (for example after <see cref="SkUiImageCache.RemoveAsync(SkUiImageSource)"/>).</summary>
+    public Task ReloadAsync()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return _source is null ? Task.CompletedTask : _slot.Load(_source, _options);
+    }
+
+    /// <summary>Clears the current image and source.</summary>
     public SkUiCoreImage Clear()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        CancelLoad();
-        ReplaceImage(null, ownsImage: true);
-        LoadError = null;
-        IsLoading = false;
-        PublishState();
+        _source = null;
+        _slot.Load(null, _options);
         return this;
-    }
-
-    private async Task LoadAsync(Func<CancellationToken, Task<Stream>> open)
-    {
-        var version = ++_generation;
-        _loading?.Cancel();
-        _loading?.Dispose();
-        _loading = new CancellationTokenSource();
-        var token = _loading.Token;
-        ReplaceImage(null, ownsImage: true);
-        LoadError = null;
-        IsLoading = true;
-        PublishState();
-
-        SKImage? decoded = null;
-        SKSizeI sourceSize = default;
-        Exception? failure = null;
-        var cancelled = false;
-        try
-        {
-            await using var stream = await open(token);
-            using var bytes = new MemoryStream();
-            var buffer = new byte[81920];
-            int read;
-            while ((read = await stream.ReadAsync(buffer, token)) != 0)
-            {
-                if (bytes.Length + read > 32 * 1024 * 1024)
-                    throw new InvalidDataException("Image exceeds the 32 MiB encoded limit.");
-                bytes.Write(buffer, 0, read);
-            }
-            var data = bytes.ToArray();
-            (decoded, sourceSize) = await Task.Run(() => SkUiImageDecoder.Decode(data), token);
-            token.ThrowIfCancellationRequested();
-        }
-        catch (OperationCanceledException) { cancelled = true; }
-        catch (Exception error) { failure = error; }
-
-        if (cancelled || version != _generation || _disposed)
-        {
-            decoded?.Dispose();
-            return;
-        }
-
-        if (failure is not null) LoadError = failure;
-        else
-        {
-            ReplaceImage(decoded, ownsImage: true);
-            _decodedSourceSize = sourceSize;
-        }
-        IsLoading = false;
-        PublishState();
-    }
-
-
-    private void CancelLoad()
-    {
-        _generation++;
-        _loading?.Cancel();
-        _loading?.Dispose();
-        _loading = null;
-    }
-
-    private void ReplaceImage(SKImage? image, bool ownsImage)
-    {
-        if (ReferenceEquals(_image, image))
-        {
-            _ownsImage = ownsImage;
-            return;
-        }
-
-        if (_ownsImage)
-            _image?.Dispose();
-        _image = image;
-        _decodedSourceSize = null;
-        _ownsImage = ownsImage;
     }
 
     private void PublishState()
@@ -186,30 +239,27 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
         OnPropertyChanged(nameof(IsLoading));
         OnPropertyChanged(nameof(LoadError));
         OnPropertyChanged(nameof(ImageSize));
+        OnPropertyChanged(nameof(IsShowingPlaceholder));
         InvalidateMeasure();
     }
 
     /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => ImageSize;
+    /// <remarks>The image's size, else the placeholder's while one shows.</remarks>
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => _slot.DisplayedSize;
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) => PaintImage(canvas, new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height));
 
-    /// <summary>Draws the image into <paramref name="area"/> (local DIPs) with <see cref="Aspect"/>; nothing while none is set.</summary>
-    protected void PaintImage(SKCanvas canvas, SKRect area)
-    {
-        if (_image is null) return;
-        SkUiImageDrawing.Draw(canvas, _image, ImageSize, area, _aspect);
-    }
+    /// <summary>Draws the current image (frame) into <paramref name="area"/> (local DIPs) with <see cref="Aspect"/>; nothing while none is set.</summary>
+    protected void PaintImage(SKCanvas canvas, SKRect area) => _slot.Paint(canvas, area, _aspect);
 
     /// <summary>Cancels loading and releases owned image resources; a disposed node cannot be reused.</summary>
     public virtual void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        CancelLoad();
-        ReplaceImage(null, ownsImage: true);
-        IsLoading = false;
+        _source = null;
+        _slot.Dispose();
         PublishState();
         GC.SuppressFinalize(this);
     }

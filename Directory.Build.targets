@@ -1,0 +1,28 @@
+<Project>
+  <!--
+    Apple app heads (iOS, Mac Catalyst): after a SkiaSharp bump, drop the extracted native frameworks and the app bundle once.
+    The SDK re-extracts libSkiaSharp.framework.zip (and HarfBuzzSharp's) only when the zip is newer than the stamp it left in obj
+    (xamarin-macios CompressionHelper.TryDecompress), and copies into the .app by date as well. NuGet keeps the file dates inside
+    the package, so a newer SkiaSharp can ship an older-dated zip: the previous native library stays in obj and in the bundle,
+    and the app fails at the first Skia call with "The version of the native libSkiaSharp library (152.0) is incompatible".
+    This target remembers $(SkiaSharpVersion) per intermediate folder and clears both when it changes.
+  -->
+  <Target Name="_SkUiDropStaleNativeSkia" BeforeTargets="BeforeBuild"
+          Condition="'$(SkiaSharpVersion)' != '' and '$(OutputType)' == 'Exe' and ('$(TargetPlatformIdentifier)' == 'ios' or '$(TargetPlatformIdentifier)' == 'maccatalyst')">
+    <PropertyGroup>
+      <_SkUiSkiaVersionFile>$(IntermediateOutputPath)skiasharp-native.version</_SkUiSkiaVersionFile>
+      <_SkUiBuiltSkiaVersion Condition="Exists('$(_SkUiSkiaVersionFile)')">$([System.IO.File]::ReadAllText('$(_SkUiSkiaVersionFile)').Trim())</_SkUiBuiltSkiaVersion>
+      <_SkUiSkiaChanged Condition="'$(_SkUiBuiltSkiaVersion)' != '$(SkiaSharpVersion)'">true</_SkUiSkiaChanged>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(_SkUiSkiaChanged)' == 'true'">
+      <_SkUiStaleNativeDir Include="$([System.IO.Directory]::GetDirectories('$(IntermediateOutputPath)', '*.framework.zip'))" Condition="Exists('$(IntermediateOutputPath)')" />
+      <_SkUiStaleNativeDir Include="$(IntermediateOutputPath)codesign" />
+      <_SkUiStaleNativeDir Include="$([System.IO.Directory]::GetDirectories('$(OutDir)', '*.app'))" Condition="Exists('$(OutDir)')" />
+    </ItemGroup>
+    <Message Importance="high" Condition="'$(_SkUiSkiaChanged)' == 'true' and '@(_SkUiStaleNativeDir)' != ''"
+             Text="SkiaSharp changed ('$(_SkUiBuiltSkiaVersion)' -> '$(SkiaSharpVersion)'): removing extracted native frameworks and the app bundle so they are rebuilt." />
+    <RemoveDir Directories="@(_SkUiStaleNativeDir)" Condition="'$(_SkUiSkiaChanged)' == 'true'" />
+    <MakeDir Directories="$(IntermediateOutputPath)" Condition="'$(_SkUiSkiaChanged)' == 'true'" />
+    <WriteLinesToFile File="$(_SkUiSkiaVersionFile)" Lines="$(SkiaSharpVersion)" Overwrite="true" Condition="'$(_SkUiSkiaChanged)' == 'true'" />
+  </Target>
+</Project>

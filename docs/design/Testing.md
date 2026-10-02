@@ -93,7 +93,7 @@ It prints a table and exits non-zero on any failure. Logs go to `artifacts/devic
 - **`--aot`:** builds the app with Native AOT (which implies full trimming).
 - **`--trim`:** builds it fully trimmed, without AOT.
 - Either way, the script fails when the app build reports a trim or AOT warning for SkiaUi code.
-- **Render check:** before the scenarios, the app draws a label, a button and an app-defined view with an overlay layer offscreen, and checks their pixels (`SKUILEAK_RENDER`). Leak scenarios alone would not notice a build where drawing silently breaks.
+- **Render check:** before the scenarios, the app draws a label, a button and an app-defined view with an overlay layer offscreen, and checks their pixels (`SKUILEAK_RENDER`). Leak scenarios alone would not notice a build where drawing silently breaks. It also loads a `MauiImage` (an SVG item, by its generated PNG name) and checks it lays out at its 48 × 48 base size from the display-density file, and that a `FontImageSource` glyph renders synchronously in a `ConfigureFonts` font: the platform-specific image lookups of P4.
 - **CI** runs the Mac Catalyst device tests with `--aot`. iOS devices below iOS 17 (not supported by `devicectl`) are launched through `mlaunch` (`dotnet build -t:Run`).
 
 Launched normally, the app shows the test page: **Run all**, **Rerun failed**, **Self-checks** (detector and render check), and **Run** per scenario, with results and survivors inline.

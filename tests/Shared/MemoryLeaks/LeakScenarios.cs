@@ -27,8 +27,8 @@ public static class LeakScenarios
         new("ButtonsClicked", Controls, "Buttons with a long-lived command, clicked twice each, disabled and re-enabled, a cancelled press; an image button.", () => new ButtonsRun()),
         new("TogglesTapped", Controls, "Switch, check boxes (one three-state) and a radio group, each tapped several times.", () => new TogglesRun()),
         new("SlidersAndProgress", Controls, "Horizontal, vertical and Core sliders dragged and tapped; progress bars animating and indeterminate at close.", () => new SlidersRun()),
-        new("LabelsReshaped", Controls, "Wrapped, truncated, RTL, Arabic, emoji and Simple / Shaped labels; text and width changed repeatedly.", () => new LabelsRun()),
-        new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed.", () => new ImagesRun()),
+        new("LabelsReshaped", Controls, "Wrapped, truncated, RTL, Arabic, emoji and Simple / Shaped labels; text and width changed repeatedly; formatted text (drawn and Core) with tappable spans bound to a long-lived command, tapped, restyled and replaced; HTML text with links (both layers), tapped and changed.", () => new LabelsRun()),
+        new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image.", () => new ImagesRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
@@ -142,10 +142,33 @@ public static class LeakScenarios
         private readonly List<SkUiLabel> _labels = [];
         private readonly HashSet<double> _widths = [];
         private SkUiContentView? _root;
+        private SkUiLabel? _formatted;
+        private SkUiCoreLabel? _coreFormatted;
+        private SkUiLabel? _html;
+        private SkUiCoreLabel? _coreHtml;
+        private int _coreSpanTaps;
 
         public override View Build(LeakScenarioContext context)
         {
             var stack = new SkUiVerticalStackLayout { Spacing = 6, Padding = new Thickness(12) };
+            _formatted = new SkUiLabel { FormattedText = Formatted("Tap the link"), HorizontalTextAlignment = TextAlignment.Center, TextColor = LeakColors.Ink };
+            stack.Children.Add(_formatted);
+            var link = new SkUiCoreSpan("Core link").SetTextDecorations(TextDecorations.Underline);
+            link.Tapped += (_, _) => _coreSpanTaps++;
+            _coreFormatted = new SkUiCoreLabel().SetSpans(new SkUiCoreSpan("Core spans: ").SetFontAttributes(FontAttributes.Bold), link)
+                .SetHorizontalTextAlignment(TextAlignment.Center);
+            _coreFormatted.SetHeight(24);
+            stack.Children.Add(new SkUiCoreHost().SetContent(_coreFormatted));
+            _html = new SkUiLabel
+            {
+                Text = "<a href='https://example.com'><b>Open</b> the docs</a>", TextType = TextType.Html,
+                HorizontalTextAlignment = TextAlignment.Center, LinkTappedCommand = LeakCommands.Shared
+            };
+            stack.Children.Add(_html);
+            _coreHtml = new SkUiCoreLabel().SetTextType(TextType.Html).SetText("<a href='core'>Core <i>link</i></a>").SetHorizontalTextAlignment(TextAlignment.Center);
+            _coreHtml.LinkTapped += (_, _) => _coreSpanTaps++;
+            _coreHtml.SetHeight(24);
+            stack.Children.Add(new SkUiCoreHost().SetContent(_coreHtml));
             Add(stack, new SkUiLabel { Text = Long, LineBreakMode = LineBreakMode.WordWrap });
             Add(stack, new SkUiLabel { Text = Long, LineBreakMode = LineBreakMode.TailTruncation });
             Add(stack, new SkUiLabel { Text = "مرحبا بالعالم", FlowDirection = FlowDirection.RightToLeft });
@@ -154,6 +177,17 @@ public static class LeakScenarios
             Add(stack, new SkUiLabel { Text = "Simple path 0123456789", TextRendering = SkUiTextRendering.Simple });
             Add(stack, new SkUiLabel { Text = "System family, bold", FontFamily = "serif", FontAttributes = FontAttributes.Bold, FontSize = 18 });
             return _root = Root(stack);
+        }
+
+        /// <summary>One tappable span (bound to the long-lived command) between two styled ones.</summary>
+        private static FormattedString Formatted(string link)
+        {
+            var tappable = new Span { Text = link, TextDecorations = TextDecorations.Underline, FontAttributes = FontAttributes.Bold };
+            tappable.GestureRecognizers.Add(new TapGestureRecognizer { Command = LeakCommands.Shared, CommandParameter = link });
+            return new FormattedString
+            {
+                Spans = { new Span { Text = "Spans: ", FontSize = 18 }, tappable, new Span { Text = " (formatted)", FontAttributes = FontAttributes.Italic } }
+            };
         }
 
         private void Add(SkUiVerticalStackLayout stack, SkUiLabel label)
@@ -178,6 +212,26 @@ public static class LeakScenarios
                 await context.SettleAsync();
                 _widths.Add(Math.Round(_labels[0].Width));
             }
+            await context.TapAsync(_formatted!);
+            await context.TapAsync(_coreFormatted!);
+            var spans = _formatted!.FormattedText!.Spans;
+            spans[0].TextColor = LeakColors.Border;
+            spans[2].FontSize = 22;
+            spans.Add(new Span { Text = " added" });
+            await context.SettleAsync();
+            var replaced = _formatted.FormattedText;
+            _formatted.FormattedText = Formatted("Replaced link");
+            context.TrackDetached(replaced, "replaced FormattedString");
+            await context.SettleAsync();
+            await context.TapAsync(_formatted);
+            _coreFormatted!.Spans[0].SetTextColor(LeakColors.Border);
+            _coreFormatted.AddSpan(new SkUiCoreSpan(" more"));
+            await context.SettleAsync();
+            await context.TapAsync(_html!);
+            await context.TapAsync(_coreHtml!);
+            _html!.Text = "<p>Changed <u>markup</u></p><ul><li>one</li><li><a href='b'>two</a></li></ul>";
+            _coreHtml!.SetText("<s>gone</s> <a href='c'>again</a>");
+            await context.SettleAsync();
         }
 
         public override string? CheckInteraction()
@@ -194,12 +248,15 @@ public static class LeakScenarios
     private sealed class ImagesRun : LeakScenarioRun
     {
         private readonly List<SkUiImage> _images = [];
+        private readonly List<SkUiCoreImage> _coreImages = [];
+        private SkUiSlider? _slider;
+        private int _finished;
 
         public override View Build(LeakScenarioContext context)
         {
             var grid = new SkUiGrid { RowSpacing = 8, ColumnSpacing = 8, Padding = new Thickness(12) };
             grid.ColumnDefinitions = [new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star)];
-            grid.RowDefinitions = [new RowDefinition(new GridLength(120)), new RowDefinition(new GridLength(120))];
+            grid.RowDefinitions = [new RowDefinition(new GridLength(120)), new RowDefinition(new GridLength(120)), new RowDefinition(new GridLength(80)), new RowDefinition(new GridLength(40))];
             SKColor[] colors = [SKColors.Coral, SKColors.SteelBlue, SKColors.Olive];
             for (var index = 0; index < 3; index++)
             {
@@ -214,6 +271,36 @@ public static class LeakScenarios
             Grid.SetColumn(button, 1);
             _images.Add(button);
             grid.Children.Add(button);
+
+            // One cached source in three views (memory-cache leases), circle-cropped, plus a playing animation.
+            var shared = LeakImages.Cached(SKColors.Teal);
+            var row = new SkUiHorizontalStackLayout { Spacing = 8 };
+            for (var index = 0; index < 2; index++)
+            {
+                var avatar = new SkUiImage { Source = shared, WidthRequest = 64, HeightRequest = 64 };
+                avatar.Transformations.Add(new SkUiCircleTransformation(2, Colors.White));
+                _images.Add(avatar);
+                row.Children.Add(avatar);
+            }
+            var animated = new SkUiImage { Source = ImageSource.FromStream(() => new MemoryStream(LeakImages.AnimatedGif())), IsAnimationPlaying = true, WidthRequest = 64, HeightRequest = 64, Aspect = Aspect.Fill };
+            // Placeholders (an animated loading one) and load events on the first image.
+            _images[0].LoadingPlaceholder = ImageSource.FromStream(() => new MemoryStream(LeakImages.AnimatedGif()));
+            _images[0].ErrorPlaceholder = LeakImages.Create(SKColors.Black);
+            _images[0].LoadingFinished += (_, args) => _finished += args.IsSuccess ? 1 : 0;
+            _images.Add(animated);
+            row.Children.Add(animated);
+            var core = new SkUiCoreImage().SetTransformations(new SkUiRoundedTransformation(12)).SetSourceStream(LeakImages.CachedStream(SKColors.Teal), "leak-teal");
+            core.SetWidth(64).SetHeight(64);
+            _coreImages.Add(core);
+            row.Children.Add(new SkUiCoreHost().SetContent(core));
+            Grid.SetRow(row, 2);
+            Grid.SetColumnSpan(row, 2);
+            grid.Children.Add(row);
+
+            _slider = new SkUiSlider { Value = 0.5, ThumbImageSource = LeakImages.Create(SKColors.Crimson) };
+            Grid.SetRow(_slider, 3);
+            Grid.SetColumnSpan(_slider, 2);
+            grid.Children.Add(_slider);
             return Root(grid);
         }
 
@@ -231,6 +318,11 @@ public static class LeakScenarios
                 foreach (var image in _images)
                     await context.WaitForAsync(image.LoadingTask);
             }
+            foreach (var core in _coreImages)
+                await context.WaitForAsync(core.LoadingTask);
+            _coreImages[0].SetTransformations(new SkUiGrayscaleTransformation());
+            await context.WaitForAsync(_coreImages[0].LoadingTask);
+            _slider!.ThumbImageSource = LeakImages.Create(SKColors.Navy);
             _reload = _images[0].ReloadAsync();
             await context.WaitForAsync(_reload);
         }
@@ -242,6 +334,10 @@ public static class LeakScenarios
             if (_reload is not { IsCompletedSuccessfully: true })
                 return "The reload did not complete.";
             var failed = _images.Where(image => !image.LoadingTask.IsCompletedSuccessfully || image.LoadError is not null || image.IsLoading).ToList();
+            if (_finished == 0)
+                return "The first image raised no successful LoadingFinished.";
+            if (_coreImages.FirstOrDefault(image => image.LoadError is not null || image.IsLoading) is { } core)
+                return $"A Core image did not load: {core.LoadError?.Message ?? "still loading"}.";
             return failed.Count == 0 ? null : $"{failed.Count} image(s) did not load: {failed[0].LoadError?.Message ?? "still loading"}.";
         }
     }
@@ -931,6 +1027,51 @@ public static class LeakCommands
 /// <summary>Small in-memory PNG sources (no files or network, so they work headless too).</summary>
 public static class LeakImages
 {
+    /// <summary>A stream source with a cache key: views of it share one decoded image.</summary>
+    public static Func<CancellationToken, Task<Stream>> CachedStream(SKColor color)
+    {
+        var bytes = Png(color);
+        return _ => Task.FromResult<Stream>(new MemoryStream(bytes));
+    }
+
+    /// <summary>A file source in the cache folder (absolute path: memory-cached by path).</summary>
+    public static ImageSource Cached(SKColor color)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"skiaui-leak-{(uint)color:X8}.png");
+        if (!File.Exists(path))
+            File.WriteAllBytes(path, Png(color));
+        return ImageSource.FromFile(path);
+    }
+
+    /// <summary>A looping 1×1 GIF of two frames (red, blue), 100 ms each.</summary>
+    public static byte[] AnimatedGif()
+    {
+        static byte[] Frame(byte lzw) =>
+        [
+            0x21, 0xF9, 0x04, 0x00, 0x0A, 0x00, 0x00, 0x00,
+            0x2C, 0, 0, 0, 0, 0x01, 0x00, 0x01, 0x00, 0x00,
+            0x02, 0x02, lzw, 0x01, 0x00
+        ];
+        return
+        [
+            .. "GIF89a"u8.ToArray(),
+            0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00,
+            0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF,
+            0x21, 0xFF, 0x0B, .. "NETSCAPE2.0"u8.ToArray(), 0x03, 0x01, 0x00, 0x00, 0x00,
+            .. Frame(0x44),
+            .. Frame(0x4C),
+            0x3B
+        ];
+    }
+
+    private static byte[] Png(SKColor color)
+    {
+        using var bitmap = new SKBitmap(64, 48);
+        bitmap.Erase(color);
+        using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
+    }
+
     public static ImageSource Create(SKColor color)
     {
         using var bitmap = new SKBitmap(64, 48);

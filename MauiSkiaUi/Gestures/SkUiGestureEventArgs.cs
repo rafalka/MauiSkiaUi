@@ -10,6 +10,16 @@ public sealed class SkUiTappedEventArgs(Point position, int numberOfTaps = 1) : 
     public int NumberOfTaps { get; } = numberOfTaps;
 }
 
+/// <summary>A tapped link of HTML text (<c>TextType="Html"</c>).</summary>
+public sealed class SkUiLinkTappedEventArgs(string href, Point position) : EventArgs
+{
+    /// <summary>The link's <c>href</c>, as written in the markup (entities decoded).</summary>
+    public string Href { get; } = href;
+
+    /// <summary>The release position relative to the label.</summary>
+    public Point Position { get; } = position;
+}
+
 /// <summary>A long press (the pointer was held within the touch slop for <see cref="SkUiGestureSettings.LongPressDuration"/>).</summary>
 public sealed class SkUiLongPressedEventArgs(Point position) : EventArgs
 {

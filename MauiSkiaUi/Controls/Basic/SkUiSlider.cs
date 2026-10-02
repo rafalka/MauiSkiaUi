@@ -24,6 +24,8 @@ public class SkUiSlider : SkUiView
     private bool _recoercing;
     private SkUiSliderVisual? _visual;
     private bool _animateThumb;
+    private ImageSource? _thumbImageSource;
+    private SkUiImageSlot? _thumbImage;
 
     /// <summary>Bindable <see cref="Minimum"/>.</summary>
     public static readonly BindableProperty MinimumProperty = BindableProperty.Create(nameof(Minimum), typeof(double), typeof(SkUiSlider), 0d,
@@ -57,6 +59,10 @@ public class SkUiSlider : SkUiView
         defaultValueCreator: _ => SkUiColors.Accent, validateValue: SkUiValidate.NotNull,
         propertyChanged: (view, _, value) => ((SkUiSlider)view).OnThumbColorChanged((Color)value));
 
+    /// <summary>Bindable <see cref="ThumbImageSource"/>.</summary>
+    public static readonly BindableProperty ThumbImageSourceProperty = BindableProperty.Create(nameof(ThumbImageSource), typeof(ImageSource), typeof(SkUiSlider), null,
+        propertyChanged: (view, _, value) => ((SkUiSlider)view).OnThumbImageSourceChanged((ImageSource?)value));
+
     /// <summary>Bindable <see cref="DragStartedCommand"/>.</summary>
     public static readonly BindableProperty DragStartedCommandProperty = BindableProperty.Create(nameof(DragStartedCommand), typeof(ICommand), typeof(SkUiSlider), null,
         propertyChanged: (view, _, value) => ((SkUiSlider)view)._dragStartedCommand = (ICommand?)value);
@@ -89,6 +95,12 @@ public class SkUiSlider : SkUiView
 
     /// <summary>Thumb color.</summary>
     public Color ThumbColor { get => (Color)GetValue(ThumbColorProperty); set => SetValue(ThumbColorProperty, value); }
+
+    /// <summary>
+    /// Image drawn instead of the look's thumb, at its intrinsic size, upright (MAUI's <c>ThumbImageSource</c>); loaded
+    /// through the shared image cache like <see cref="SkUiImage.Source"/>. The thumb's travel and touch mapping stay the look's.
+    /// </summary>
+    public ImageSource? ThumbImageSource { get => (ImageSource?)GetValue(ThumbImageSourceProperty); set => SetValue(ThumbImageSourceProperty, value); }
 
     /// <summary>Executed when a drag starts.</summary>
     public ICommand? DragStartedCommand { get => (ICommand?)GetValue(DragStartedCommandProperty); set => SetValue(DragStartedCommandProperty, value); }
@@ -143,6 +155,27 @@ public class SkUiSlider : SkUiView
     public SkUiSlider SetThumbColor(Color value) { ArgumentNullException.ThrowIfNull(value); ThumbColor = value; return this; }
     private void OnThumbColorChanged(Color value) { _thumbColor = value; InvalidatePaint(); }
 
+    /// <summary>Sets the thumb image (same as the property setter).</summary>
+    public SkUiSlider SetThumbImageSource(ImageSource? value) { ThumbImageSource = value; return this; }
+
+    private void OnThumbImageSourceChanged(ImageSource? value)
+    {
+        if (ReferenceEquals(_thumbImageSource, value)) return;
+        if (_thumbImageSource is not null) _thumbImageSource.PropertyChanged -= OnThumbImageObjectChanged;
+        _thumbImageSource = value;
+        if (value is not null) value.PropertyChanged += OnThumbImageObjectChanged;
+        LoadThumbImage();
+    }
+
+    private void OnThumbImageObjectChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        if (SkUiMauiImageSources.AffectsImage(args.PropertyName))
+            LoadThumbImage();
+    }
+
+    private void LoadThumbImage() =>
+        (_thumbImage ??= new SkUiImageSlot(this, () => InvalidatePaint())).Load(SkUiMauiImageSources.Convert(_thumbImageSource), default);
+
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
         SkUiLook.Current.MeasureSlider(widthConstraint, heightConstraint, _orientation);
@@ -161,7 +194,7 @@ public class SkUiSlider : SkUiView
         }
         var fraction = SkUiSliderMath.Fraction(_value, _minimum, _maximum);
         SkUiSliderMath.Draw(canvas, (float)Width, (float)Height, _orientation, IsRightToLeft, _visual?.Fraction(fraction) ?? fraction,
-            ToSkColor(minimumTrack), ToSkColor(maximumTrack), ToSkColor(thumb), _visual?.Pressed ?? 0, IsEnabled);
+            ToSkColor(minimumTrack), ToSkColor(maximumTrack), ToSkColor(thumb), _visual?.Pressed ?? 0, IsEnabled, _thumbImage);
     }
 
     /// <inheritdoc />

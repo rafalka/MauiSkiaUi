@@ -77,7 +77,7 @@ public static class MemoryLeakRunner
         {
             var scenarios = options.SelectedScenarios();
             Console.WriteLine($"SKUILEAK_START scenarios={scenarios.Count} platform={DeviceInfo.Platform} {DeviceInfo.VersionString} model={DeviceInfo.Model}");
-            var render = RenderCheck.Run();
+            var render = await RenderCheck.RunAsync();
             Console.WriteLine("SKUILEAK_RENDER " + JsonSerializer.Serialize(render, LeakJson.Default.LeakResult));
             if (render.Status != LeakStatus.Pass)
                 failed++;

@@ -29,13 +29,13 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreGrid` | Auto / absolute / star grid + per-track min/max; see [SkUiCoreGrid.md](SkUiCoreGrid.md) |
 | `SkUiCoreTable` | Grid + row/column/cell backgrounds and span-aware separators; see [SkUiCoreTable.md](SkUiCoreTable.md) |
 | `SkUiCoreContentView` / `SkUiCoreBorder` | Single-child host; border adds rounded chrome with per-corner `CornerRadius` |
-| `SkUiCoreLabel` / `SkUiCoreButton` | Text with the text properties of `SkUiLabel` (`FontAttributes`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`; wrap / truncate via `LineBreakMode` or a custom `LineBreaker`) with optional rounded chrome (`FillColor`, per-corner `CornerRadii`, `SetCornerRadius(double)` to set all four, `BorderColor`, `BorderWidth`: badges without a wrapping border), and the rounded tap button (`ICommand`) built on it |
+| `SkUiCoreLabel` / `SkUiCoreButton` | Text with the text properties of `SkUiLabel` (`FontAttributes`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`; wrap / truncate via `LineBreakMode` or a custom `LineBreaker`; spans: `SkUiCoreSpan` via `SetSpans`) with optional rounded chrome (`FillColor`, per-corner `CornerRadii`, `SetCornerRadius(double)` to set all four, `BorderColor`, `BorderWidth`: badges without a wrapping border), and the rounded tap button (`ICommand`) built on it |
 | `SkUiTextLineBreaker` / `SkUiTextLineBreakers` | Custom line breaking for labels on both layers, and the stock breakers ([SkUiLabel.md](SkUiLabel.md#custom-line-breaking)) |
 | `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Toggles: `CheckState` (Unchecked / Checked / Indeterminate), `IsChecked` view, `IsThreeState`; Switch `IsToggled` / `Toggled`; radio buttons in the same parent exclude each other |
-| `SkUiCoreSlider` | Horizontal or vertical slider (`Minimum` / `Maximum` / `Value`, drag events) |
+| `SkUiCoreSlider` | Horizontal or vertical slider (`Minimum` / `Maximum` / `Value`, drag events, `SetThumbImageSource`) |
 | `SkUiCoreProgressBar` | Determinate or indeterminate (render-thread) progress bar, `ProgressTo` |
 | `SkUiCoreShape` / `Box` / `Ellipse` / `Line` | Drawing primitives; box `CornerRadius`, line `X1`…`Y2` (`SetPoints`) |
-| `SkUiCoreImage` / `SkUiCoreImageButton` | Decoded image (+ tap/tint, `Pressed` / `Released`, `Padding`, `CornerRadii` clip (`SetCornerRadius(double)`), border); no MAUI `ImageSource` |
+| `SkUiCoreImage` / `SkUiCoreImageButton` | Image from an `SkUiImageSource` (`SetSource`, or `SetSourceFile` (`MauiImage` / raw asset / path), `SetSourceUri`, `SetSourceStream(open, cacheKey)`, `SetSourceFont`) or a decoded `SKImage` (`SetImage`), through the cache shared with SkUi* images; `SetTransformations`, `SetDownsample`, `SetCacheType`, `SetIsAnimationPlaying`, `SetLoadingPlaceholder` / `SetErrorPlaceholder`, `LoadingStarted` / `LoadingFinished` ([SkUiImage.md](SkUiImage.md)). The button adds tap/tint, `Pressed` / `Released`, `Padding`, `CornerRadii` clip (`SetCornerRadius(double)`), border. No MAUI `ImageSource` |
 | `SkUiCoreActivityIndicator` | Indeterminate spinner, rotated by the compositor on the render thread |
 | `SkUiCoreScrollView` | Scroller on the shared scroll engine: offsets, render-thread fling / animated scroll, wheel, nesting with Core and SkUi* scrollers |
 | `SkUiCoreHost` | `SkUiView` bridge that hosts one Core root |
@@ -87,6 +87,23 @@ scroller.SetContent(host);
 - `FlowDirection` / `SetFlowDirection` on any Core node sets the layout direction (`MatchParent` inherits from the Core parent, then from `SkUiCoreHost.FlowDirection`); RTL mirrors child frames, and labels in `Auto` follow it.
 - `TextRendering` / `SetTextRendering(SkUiTextRendering)`: `Auto` (fast path for plain Latin text, HarfBuzz otherwise), `Shaped`, `Simple` (never shapes, for dense plain text / numbers) — see [SkUiLabel.md](SkUiLabel.md).
 - `TextDirection` / `SetTextDirection(SkUiTextDirection)` sets the paragraph direction (`Auto` = first strong character, default). Shaping, bidi and font fallback are the same as on [`SkUiLabel`](SkUiLabel.md).
+
+### Text and spans
+
+`SetSpans(...)` / `AddSpan(span)` show `SkUiCoreSpan`s instead of `Text` (MAUI's `FormattedText`, [SkUiLabel.md](SkUiLabel.md#formatted-text-spans)): one paragraph through the same engine, with the label's `LineBreakMode`, `MaxLines`, alignment, padding, direction and chrome. `SetText` clears the spans and `SetSpans` clears `Text`; `SetSpans(null)` goes back to `Text`.
+
+- **Span values** are nullable: `null` is the label's (`TextColor`, `BackgroundColor` (none), `FontFamily`, `FontSize`, `FontAttributes`, `CharacterSpacing`, `LineHeight`, `TextDecorations`); `TextTransform.Default` is the label's transform. Fluent `Set*` setters and `PropertyChanged`; a color, background or decoration change only repaints.
+- **Taps:** `span.Tapped += …` makes a span tappable (the sender is the span, the position in the label's coordinates). A press on it takes the tap from the label and its ancestors; a press beside it does not. `label.SpanAt(point)` returns the span drawn at a point.
+- **HTML:** `SetTextType(TextType.Html)` draws `Text` as HTML ([SkUiLabel.md](SkUiLabel.md#html-text)); `LinkTapped` reports tapped links, `LinkAt(point)` the href at a point. `SkUiHtml.ToCoreSpans(html)` gives the spans to adjust them.
+- **Ownership:** a span belongs to one label at a time (`Owner`); showing it in a second label, or twice, throws. `SetSpans(null)` frees the spans.
+
+```csharp
+var link = new SkUiCoreSpan("terms").SetTextColor(Colors.Blue).SetTextDecorations(TextDecorations.Underline);
+link.Tapped += (_, _) => OpenTerms();
+var consent = new SkUiCoreLabel()
+    .SetSpans(new SkUiCoreSpan("I accept the "), link, new SkUiCoreSpan(".").SetFontAttributes(FontAttributes.Bold))
+    .SetFontSize(15);
+```
 
 ## Gestures
 

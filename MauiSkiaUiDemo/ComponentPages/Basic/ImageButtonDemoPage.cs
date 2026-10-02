@@ -5,7 +5,8 @@ namespace MauiSkiaUiDemo;
 /// <summary>Side-by-side property playground for <see cref="SkUiImageButton"/>.</summary>
 public sealed class ImageButtonDemoPage : ComponentDemoPage
 {
-    public ImageButtonDemoPage() : base(nameof(SkUiImageButton), new SkUiImageButton(), new ImageButton())
+    // Explicit preview sizes: a cached Earth photo (2048 × 2048) is measured at once when the page loads.
+    public ImageButtonDemoPage() : base(nameof(SkUiImageButton), new SkUiImageButton(), new ImageButton(), widthRange: (40, 480, 220), heightRange: (40, 480, 150))
     {
         var skia = (SkUiImageButton)SkiaControl;
         var native = (ImageButton)NativeControl!;
