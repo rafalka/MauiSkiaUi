@@ -10,7 +10,8 @@ namespace MauiSkiaUi.Core;
 /// <see cref="LineBreaker"/>, <see cref="MaxLines"/>, <see cref="LineHeight"/>, <see cref="CharacterSpacing"/>,
 /// <see cref="TextDecorations"/>, <see cref="TextTransform"/> and <see cref="FontAttributes"/>; and spans
 /// (<see cref="SetSpans(IEnumerable{SkUiCoreSpan}?)"/>, MAUI's <c>FormattedText</c>) with their own styles and taps.
-/// Optional rounded chrome (a badge, a chip): <see cref="FillColor"/>, <see cref="CornerRadii"/> (<see cref="SetCornerRadius"/>
+/// Optional rounded chrome (a badge, a chip): <see cref="FillColor"/> (or a <see cref="SkUiCoreNode.Background"/>, solid or
+/// gradient, which replaces it), <see cref="CornerRadii"/> (<see cref="SetCornerRadius"/>
 /// sets all four), <see cref="BorderColor"/> and <see cref="BorderWidth"/>, drawn unless a <see cref="SkUiCoreNode.PaintBackground"/>
 /// painter replaces it.
 /// </summary>
@@ -119,7 +120,7 @@ public class SkUiCoreLabel : SkUiCoreNode
         set => SetTextTransform(value);
     }
 
-    /// <summary>Background fill of the rounded chrome (transparent by default).</summary>
+    /// <summary>Background fill of the rounded chrome (transparent by default); a set <see cref="SkUiCoreNode.Background"/> replaces it.</summary>
     public Color FillColor
     {
         get => _fillColor;
@@ -529,6 +530,32 @@ public class SkUiCoreLabel : SkUiCoreNode
     protected void PaintChrome(SKCanvas canvas, Color fill) =>
         _chrome.Draw(canvas, (float)Frame.Width, (float)Frame.Height, EffectiveCornerRadii, ToSkColor(fill));
 
+    /// <summary>
+    /// Draws the rounded fill (a solid color or a gradient, <c>null</c>: none) and border through
+    /// <see cref="SkUiLook.DrawRoundedBox(SKCanvas, SKRect, Microsoft.Maui.CornerRadius, Paint, SKColor, float)"/>.
+    /// </summary>
+    protected void PaintChrome(SKCanvas canvas, Paint? fill) =>
+        _chrome.Draw(canvas, (float)Frame.Width, (float)Frame.Height, EffectiveCornerRadii, fill);
+
+    /// <summary>The chrome's fill: <see cref="SkUiCoreNode.Background"/>, else <see cref="FillColor"/> (<c>null</c> when transparent).</summary>
+    private Paint? ChromeFill => Background ?? (_fillColor.Alpha > 0 ? new SolidPaint(_fillColor) : null);
+
+    /// <summary>The rounded chrome (fill and border), unless a <see cref="SkUiCoreNode.PaintBackground"/> painter replaces it.</summary>
+    protected override void OnPaintBackground(SKCanvas canvas)
+    {
+        var fill = ChromeFill;
+        if (SkUiShapePainter.IsVisible(fill) || _chrome.HasBorder)
+            PaintChrome(canvas, fill);
+    }
+
+    /// <inheritdoc />
+    internal override SKPath? CreateShadowOutline(float width, float height) =>
+        PaintBackground is null ? ChromeShadowOutline(width, height, EffectiveCornerRadii, ChromeFill) : null;
+
+    /// <summary>The shadow silhouette of the rounded chrome filled with <paramref name="fill"/> (<c>null</c> unless opaque).</summary>
+    private protected SKPath? ChromeShadowOutline(float width, float height, Microsoft.Maui.CornerRadius radii, Paint? fill) =>
+        _chrome.ShadowOutline(width, height, radii, fill);
+
     /// <summary>Sets text inset in DIPs.</summary>
     public SkUiCoreLabel SetPadding(Thickness value)
     {
@@ -585,8 +612,6 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        if (PaintBackground is null && (_fillColor.Alpha > 0 || _chrome.HasBorder))
-            PaintChrome(canvas, _fillColor);
         if ((UsesRichText ? RichText.Text : _displayText).Length == 0) return;
         // Glyphs never bleed past the rounded corners.
         var saveCount = _chrome.ClipToRadii(canvas, (float)Frame.Width, (float)Frame.Height, EffectiveCornerRadii);

@@ -29,6 +29,7 @@ public static class LeakScenarios
         new("SlidersAndProgress", Controls, "Horizontal, vertical and Core sliders dragged and tapped; progress bars animating and indeterminate at close.", () => new SlidersRun()),
         new("LabelsReshaped", Controls, "Wrapped, truncated, RTL, Arabic, emoji and Simple / Shaped labels; text and width changed repeatedly; formatted text (drawn and Core) with tappable spans bound to a long-lived command, tapped, restyled and replaced; HTML text with links (both layers), tapped and changed.", () => new LabelsRun()),
         new("ShapesRestyled", Controls, "Every shape (drawn and Core) and borders shaped by them, painted with long-lived shared brushes, dash arrays and a stroke shape; brushes, gradient stops, points, path data and stroke shapes changed; a border tapped.", () => new ShapesRun()),
+        new("EffectsRestyled", Controls, "Gradient backgrounds, shadows (outline and content shadows, on both layers) and clips from long-lived shared brushes, geometries and Core shadows; brushes, gradient stops, shadows and clips changed while shown; shadowed cards scrolled and animated.", () => new EffectsRun()),
         new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image; a long-lived icon source shared by images that are never disposed, edited while shown.", () => new ImagesRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
@@ -328,6 +329,69 @@ public static class LeakScenarios
                 return $"The border was tapped {_taps} times, expected 2.";
             return _shapes.Any(shape => shape.Width <= 0) ? "A shape was not laid out." : null;
         }
+    }
+
+    /// <summary>App-level resources for <see cref="EffectsRun"/>: they outlive every screen (MAUI's <c>Shadow</c> is per view, its brush shared).</summary>
+    private static class LeakEffects
+    {
+        public static readonly LinearGradientBrush Background = new(
+            [new GradientStop(LeakColors.SampleA, 0), new GradientStop(LeakColors.SampleB, 1)], new Point(0, 0), new Point(1, 0));
+        public static readonly SolidColorBrush ShadowBrush = new(Colors.Black);
+        public static readonly Microsoft.Maui.Controls.Shapes.EllipseGeometry Clip = new() { Center = new Point(24, 24), RadiusX = 24, RadiusY = 24 };
+        public static readonly SkUiCoreShadow CoreShadow = new(Colors.Black, new Point(0, 4), 10, 0.3f);
+        public static readonly SkUiCoreEllipse CoreClip = new();
+    }
+
+    private sealed class EffectsRun : LeakScenarioRun
+    {
+        private readonly List<SkUiView> _cards = [];
+        private SkUiScrollView? _scroll;
+        private SkUiLabel? _clipped;
+        private SkUiCoreBorder? _coreCard;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var stack = new SkUiVerticalStackLayout { Spacing = 12, Padding = new Thickness(16) };
+            for (var index = 0; index < 6; index++)
+            {
+                SkUiView card = index % 2 == 0
+                    ? new SkUiBorder { StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 }, Background = LeakEffects.Background, HeightRequest = 56, Content = Text($"Card {index}") }
+                    : new SkUiEllipse { Fill = LeakEffects.Background, StrokeThickness = 0, HeightRequest = 56 }; // a content shadow
+                card.Shadow = new Shadow { Brush = LeakEffects.ShadowBrush, Offset = new Point(0, 4), Radius = 10, Opacity = 0.3f };
+                _cards.Add(card);
+                stack.Children.Add(card);
+            }
+            _clipped = new SkUiLabel { Text = "AB", WidthRequest = 48, HeightRequest = 48, Background = LeakEffects.Background, Clip = LeakEffects.Clip };
+            stack.Children.Add(_clipped);
+            _coreCard = new SkUiCoreBorder().SetCornerRadius(new CornerRadius(12)).SetContent(new SkUiCoreLabel().SetText("Core card"));
+            _coreCard.SetBackground(new SolidPaint(LeakColors.Surface)).SetShadow(LeakEffects.CoreShadow).SetHeight(56);
+            var coreClipped = new SkUiCoreBox().SetColor(LeakColors.Accent).SetClip(LeakEffects.CoreClip).SetWidth(48).SetHeight(48);
+            stack.Children.Add(new SkUiCoreHost().SetContent(new SkUiCoreVerticalStackLayout().Add(_coreCard).Add(coreClipped)));
+            _scroll = new SkUiScrollView { Content = stack };
+            return Root(_scroll);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.SettleAsync();
+            LeakEffects.Background.GradientStops[0].Color = LeakColors.Surface; // shared brushes edited while shown
+            LeakEffects.ShadowBrush.Color = LeakColors.Accent;
+            LeakEffects.Clip.RadiusX = 20;
+            await context.SettleAsync();
+            _scroll!.ScrollTo(0, 120);
+            await context.WaitForAsync(_cards[1].AnimateAsync(SkUiAnimatableProperty.TranslationX, 12, 120));
+            _cards[0].Shadow = new Shadow { Brush = LeakEffects.Background, Radius = 4 };
+            _clipped!.Clip = null;
+            _coreCard!.SetShadow(new SkUiCoreShadow(LeakColors.Accent, new Point(2, 2), 4));
+            await context.SettleAsync();
+            _clipped.Clip = LeakEffects.Clip;
+            LeakEffects.Background.GradientStops[0].Color = LeakColors.SampleA;
+            LeakEffects.ShadowBrush.Color = Colors.Black;
+            LeakEffects.Clip.RadiusX = 24;
+        }
+
+        public override string? CheckInteraction() =>
+            _cards.Any(card => card.Width <= 0) ? "A card was not laid out." : null;
     }
 
     /// <summary>An app-level image resource, as <c>&lt;FontImageSource x:Key="Icon" …/&gt;</c>: it outlives every screen.</summary>

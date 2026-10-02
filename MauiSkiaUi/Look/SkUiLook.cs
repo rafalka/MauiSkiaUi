@@ -140,6 +140,44 @@ public class SkUiLook
         DrawRoundedBoxCore(canvas, bounds, radii, fill, border, width);
     }
 
+    /// <summary>
+    /// Fills a rounded rectangle with a MAUI Graphics paint (a solid color or a linear or radial gradient, mapped onto
+    /// <paramref name="bounds"/>) and strokes its border. Solid fills (and <c>null</c>: none) take the color overload, so
+    /// <see cref="RoundedBoxPainter"/> / <see cref="RoundedBoxCornersPainter"/> still draw them; gradients go to
+    /// <see cref="DrawRoundedBoxCore(SKCanvas, SKRect, CornerRadius, Paint, SKColor, float)"/>.
+    /// </summary>
+    public void DrawRoundedBox(SKCanvas canvas, SKRect bounds, CornerRadius radii, Paint? fill, SKColor border, float width)
+    {
+        if (fill is not GradientPaint gradient)
+        {
+            DrawRoundedBox(canvas, bounds, radii, SkUiShapePainter.RepresentativeColor(fill), border, width);
+            return;
+        }
+        DrawRoundedBoxCore(canvas, bounds, radii, gradient, border, width);
+    }
+
+    /// <summary>
+    /// Default gradient rounded box: the gradient fills the look's rounded geometry (<see cref="CreateRoundRectPath(SKRect, CornerRadius)"/>),
+    /// then the border is drawn as with a transparent fill.
+    /// </summary>
+    protected virtual void DrawRoundedBoxCore(SKCanvas canvas, SKRect bounds, CornerRadius radii, Paint fill, SKColor border, float width)
+    {
+        if (SkUiCornerRadii.HasAny(radii))
+        {
+            using var path = CreateRoundRectPath(bounds, radii);
+            SkUiShapePainter.Fill(canvas, path, fill, bounds);
+        }
+        else
+        {
+            using var builder = new SKPathBuilder();
+            builder.AddRect(bounds);
+            using var path = builder.Detach();
+            SkUiShapePainter.Fill(canvas, path, fill, bounds);
+        }
+        if (width > 0 && border.Alpha > 0)
+            DrawRoundedBox(canvas, bounds, radii, SKColors.Transparent, border, width);
+    }
+
     /// <summary>Default rounded-box geometry (uniform radius).</summary>
     /// <remarks>
     /// Base implementation forwards to the per-corner virtual so subclasses that only override
@@ -190,9 +228,17 @@ public class SkUiLook
         DrawButtonCore(canvas, button);
     }
 
-    /// <summary>Default Button chrome: the rounded fill and border (<see cref="DrawRoundedBox(SKCanvas, SKRect, CornerRadius, SKColor, SKColor, float)"/>).</summary>
-    protected virtual void DrawButtonCore(SKCanvas canvas, SkUiButtonPaint button) =>
-        DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, button.Fill, button.Border, button.BorderWidth);
+    /// <summary>
+    /// Default Button chrome: the rounded fill (<see cref="SkUiButtonPaint.FillPaint"/> when set, else
+    /// <see cref="SkUiButtonPaint.Fill"/>) and border.
+    /// </summary>
+    protected virtual void DrawButtonCore(SKCanvas canvas, SkUiButtonPaint button)
+    {
+        if (button.FillPaint is { } fill)
+            DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, fill, button.Border, button.BorderWidth);
+        else
+            DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, button.Fill, button.Border, button.BorderWidth);
+    }
 
     #endregion
 

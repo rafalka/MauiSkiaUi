@@ -372,14 +372,29 @@ public class SkUiLabel : SkUiView
     protected void PaintChrome(SKCanvas canvas, Color fill) =>
         _chrome.Draw(canvas, (float)Width, (float)Height, _chrome.Radii, ToSkColor(fill));
 
+    /// <summary>
+    /// Draws the rounded fill (a solid color or a gradient, <c>null</c>: none) and border through
+    /// <see cref="SkUiLook.DrawRoundedBox(SKCanvas, SKRect, Microsoft.Maui.CornerRadius, Paint, SKColor, float)"/>.
+    /// </summary>
+    protected void PaintChrome(SKCanvas canvas, Paint? fill) =>
+        _chrome.Draw(canvas, (float)Width, (float)Height, _chrome.Radii, fill);
+
     /// <inheritdoc />
     protected override void OnPaintBackground(SKCanvas canvas)
     {
         if (HasChrome)
-            PaintChrome(canvas, ResolveSolidBackgroundColor() ?? Colors.Transparent);
+            PaintChrome(canvas, ResolveBackgroundPaint());
         else
             base.OnPaintBackground(canvas);
     }
+
+    /// <inheritdoc />
+    internal override SKPath? CreateShadowOutline(float width, float height) =>
+        PaintBackground is null && HasChrome ? ChromeShadowOutline(width, height, _chrome.Radii, ResolveBackgroundPaint()) : base.CreateShadowOutline(width, height);
+
+    /// <summary>The shadow silhouette of the rounded chrome filled with <paramref name="fill"/> (<c>null</c> unless opaque).</summary>
+    private protected SKPath? ChromeShadowOutline(float width, float height, Microsoft.Maui.CornerRadius radii, Paint? fill) =>
+        _chrome.ShadowOutline(width, height, radii, fill);
 
     private void InvalidateText()
     {

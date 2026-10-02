@@ -276,6 +276,7 @@ public class SkUiCoreTable : SkUiCoreGrid
     /// <summary>Draws track fills, then cell fills, then separators.</summary>
     protected void PaintTableBackground(SKCanvas canvas)
     {
+        PaintDefaultBackground(canvas);
         // Track geometry is computed left-to-right; in RTL the cells are mirrored, so mirror the chrome too.
         var rtlSave = canvas.Save();
         if (IsRightToLeft)

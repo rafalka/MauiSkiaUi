@@ -6,7 +6,7 @@ using System.Windows.Input;
 namespace MauiSkiaUi;
 
 /// <summary>Base for Skia-drawn views, with layout that does not require a handler.</summary>
-public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost
+public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost, ISkUiShadowCaster
 {
     private bool _measureDirty = true;
     private bool _arrangeDirty = true;
@@ -98,6 +98,8 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
     {
         _measureDirty = true;
         _arrangeDirty = true;
+        if (_effects is { } effects)
+            effects.PaintVersion++;
         SkUiRenderInvalidation.Mark(this, SkUiRenderDirty.Content);
     }
 
@@ -267,6 +269,16 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
     {
 #if ANDROID || IOS || MACCATALYST || WINDOWS
         return Handler is SkUiViewHandler handler ? handler.RenderStatistics : default;
+#else
+        return default;
+#endif
+    }
+
+    /// <summary>Recording and shadow counters of this view's surface since it was created (diagnostics, stress pages).</summary>
+    internal SkUiRenderCounters GetRenderCounters()
+    {
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+        return Handler is SkUiViewHandler handler ? handler.RenderCounters : default;
 #else
         return default;
 #endif
@@ -442,7 +454,11 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
                 base.InvalidateMeasureOverride();
         }
         if (invalidatePaint)
+        {
             render |= SkUiRenderDirty.Content;
+            if (_effects is { } effects)
+                effects.PaintVersion++; // the fill, and so the shadow's silhouette, may have changed
+        }
         if (render != SkUiRenderDirty.None)
             SkUiRenderInvalidation.Mark(this, render);
         if (invalidatePaint)
@@ -486,6 +502,14 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
                 break;
             case nameof(ZIndex):
                 (SkiaParent)?.InvalidateRender(SkUiRenderDirty.Children);
+                break;
+            case nameof(Clip):
+                // Also raised by MAUI when the geometry's properties change.
+                OnClipChanged(Clip);
+                break;
+            case nameof(Shadow):
+                // Also raised by MAUI when the shadow's properties change.
+                OnShadowChanged(Shadow);
                 break;
             case nameof(IsVisible):
             case nameof(ClipToBounds):
@@ -535,6 +559,57 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
         props.IsVisible = IsVisible;
         props.ClipToBounds = ClipToBounds;
         OnGetRenderProps(ref props);
+        if (_effects is { } effects)
+        {
+            props.ClipPath = effects.GetClipPath(_clip, props.Width, props.Height);
+            props.Shadow = effects.GetShadow(_shadow, this, props);
+        }
+    }
+
+    private SkUiVisualEffects? _effects;
+    private Microsoft.Maui.Controls.Shapes.Geometry? _clip;
+    private Shadow? _shadow;
+    private SkUiWeakListener<SkUiView>? _shadowBrushListener;
+
+    private void OnClipChanged(Microsoft.Maui.Controls.Shapes.Geometry? value)
+    {
+        _clip = value;
+        if (value is null && _effects is null) return;
+        (_effects ??= new()).ClipVersion++;
+        InvalidateRender(SkUiRenderDirty.Props);
+    }
+
+    private void OnShadowChanged(Shadow? value)
+    {
+        _shadow = value;
+        if (value is null && _effects is null) return;
+        (_effects ??= new()).ShadowVersion++;
+        // MAUI forwards the shadow's own changes, not its gradient's stops.
+        (_shadowBrushListener ??= new(this, static (view, _) =>
+        {
+            if (view._effects is { } effects) effects.ShadowVersion++;
+            view.InvalidateRender(SkUiRenderDirty.Props);
+        })).Listen(value?.Brush);
+        InvalidateRender(SkUiRenderDirty.Props);
+    }
+
+    SKPath? ISkUiShadowCaster.CreateShadowOutline(float width, float height) => CreateShadowOutline(width, height);
+
+    /// <summary>
+    /// The silhouette of the view's own opaque fill, which its shadow is cast from (MAUI on Android draws the shadow of a view
+    /// with an opaque background from the background's shape), or <c>null</c> to cast it from everything the view and its
+    /// children draw. By default the rectangle of an opaque <see cref="VisualElement.Background"/> drawn by the default
+    /// painter; controls with shaped fills return their shape.
+    /// </summary>
+    internal virtual SKPath? CreateShadowOutline(float width, float height) =>
+        _paintBackground is null && SkUiShapePainter.IsOpaque(ResolveBackgroundPaint()) ? RectangleOutline(width, height) : null;
+
+    /// <summary>A rectangle of the given size as a shadow outline.</summary>
+    private protected static SKPath RectangleOutline(float width, float height)
+    {
+        using var builder = new SKPathBuilder();
+        builder.AddRect(new SKRect(0, 0, width, height));
+        return builder.Detach();
     }
 
     /// <summary>Lets containers add children offset / clip, spinning content, or ink overflow.</summary>
@@ -628,12 +703,11 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
         }
     }
 
-    [ThreadStatic] private static SKPaint? _fillPaint;
     private Action<SKCanvas>? _paintBackground;
     private Action<SKCanvas>? _paintOverlay;
 
     /// <summary>
-    /// Background-layer painter. When set, replaces the default solid <see cref="VisualElement.Background"/> /
+    /// Background-layer painter. When set, replaces the default <see cref="VisualElement.Background"/> /
     /// <see cref="VisualElement.BackgroundColor"/> fill. Clear to restore that default.
     /// Prefer this over subclassing for chrome customization.
     /// </summary>
@@ -653,7 +727,7 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
         set => SetPaintOverlay(value);
     }
 
-    /// <summary>Sets the Background painter; <c>null</c> restores the default solid fill via <see cref="OnPaintBackground"/>.</summary>
+    /// <summary>Sets the Background painter; <c>null</c> restores the default fill via <see cref="OnPaintBackground"/>.</summary>
     public SkUiView SetPaintBackground(Action<SKCanvas>? value)
     {
         if (ReferenceEquals(_paintBackground, value)) return this;
@@ -675,13 +749,31 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
     /// Resolves a solid fill from <see cref="VisualElement.Background"/> or <see cref="VisualElement.BackgroundColor"/>.
     /// MAUI's default <see cref="Brush"/> is an empty <see cref="SolidColorBrush"/> with a null color; that empty
     /// brush must not hide a set <see cref="VisualElement.BackgroundColor"/> (same rule as <see cref="IView.Background"/>).
-    /// Non-solid brushes are ignored in v1 and fall through to <see cref="VisualElement.BackgroundColor"/>.
+    /// Other brushes fall through to <see cref="VisualElement.BackgroundColor"/>; <see cref="ResolveBackgroundPaint"/> also
+    /// returns gradients.
     /// </summary>
     protected Color? ResolveSolidBackgroundColor()
     {
         if (Background is SolidColorBrush brush && brush.Color is not null)
             return brush.Color;
         return BackgroundColor;
+    }
+
+    /// <summary>
+    /// The fill of the background: a solid or gradient <see cref="VisualElement.Background"/> (linear and radial gradients,
+    /// mapped onto the view's bounds), else <see cref="VisualElement.BackgroundColor"/>, else <c>null</c>. An empty brush (MAUI's
+    /// default, a gradient without stops) does not hide <see cref="VisualElement.BackgroundColor"/>; image brushes are not drawn.
+    /// </summary>
+    protected Paint? ResolveBackgroundPaint()
+    {
+        switch (Background)
+        {
+            case SolidColorBrush { Color: { } color }:
+                return new SolidPaint(color);
+            case GradientBrush { GradientStops.Count: > 0 } gradient:
+                return gradient;
+        }
+        return BackgroundColor is { } background ? new SolidPaint(background) : null;
     }
 
     /// <summary>
@@ -695,18 +787,12 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
         ResolveSolidBackgroundColor() is { } color ? ToSkColor(color) : SKColors.Transparent;
 
     /// <summary>
-    /// Default Background when <see cref="PaintBackground"/> is unset. Solid MAUI fill only; other brush types are deferred.
-    /// Subclasses may call this from a custom <see cref="PaintBackground"/> painter.
+    /// Default Background when <see cref="PaintBackground"/> is unset: the view's rectangle filled with
+    /// <see cref="ResolveBackgroundPaint"/> (solid colors and gradients). Subclasses may call this from a custom
+    /// <see cref="PaintBackground"/> painter.
     /// </summary>
-    protected void PaintDefaultBackground(SKCanvas canvas)
-    {
-        var color = ResolveSolidBackgroundColor();
-        if (color is null)
-            return;
-        var paint = _fillPaint ??= new SKPaint();
-        paint.Color = ToSkColor(color);
-        canvas.DrawRect(0, 0, (float)Width, (float)Height, paint);
-    }
+    protected void PaintDefaultBackground(SKCanvas canvas) =>
+        SkUiShapePainter.FillRect(canvas, new SKRect(0, 0, (float)Width, (float)Height), ResolveBackgroundPaint());
 
     /// <summary>
     /// Background paint phase when <see cref="PaintBackground"/> is unset.

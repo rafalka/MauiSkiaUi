@@ -64,6 +64,31 @@ internal struct SkUiChromeState
     public readonly void Draw(SKCanvas canvas, float width, float height, CornerRadius radii, SKColor fill) =>
         SkUiLook.Current.DrawRoundedBox(canvas, new SKRect(0, 0, width, height), radii, fill, ToSkColor(BorderColor), (float)_borderWidth);
 
+    /// <summary>
+    /// Draws the rounded fill (a solid color or a gradient mapped onto the bounds; <c>null</c>: none) and the border through
+    /// the look.
+    /// </summary>
+    public readonly void Draw(SKCanvas canvas, float width, float height, CornerRadius radii, Paint? fill) =>
+        SkUiLook.Current.DrawRoundedBox(canvas, new SKRect(0, 0, width, height), radii, fill, ToSkColor(BorderColor), (float)_borderWidth);
+
+    /// <summary>Draws only the rounded fill (under content), as image buttons do; <c>null</c>: none.</summary>
+    public readonly void DrawFill(SKCanvas canvas, float width, float height, CornerRadius radii, Paint? fill)
+    {
+        if (SkUiShapePainter.IsVisible(fill))
+            SkUiLook.Current.DrawRoundedBox(canvas, new SKRect(0, 0, width, height), radii, fill, SKColors.Transparent, 0);
+    }
+
+    /// <summary>
+    /// The shadow silhouette of chrome filled with <paramref name="fill"/>: the rounded bounds when the fill is opaque (an
+    /// opaque border sits on it), else <c>null</c> (the shadow follows what is drawn).
+    /// </summary>
+    public readonly SKPath? ShadowOutline(float width, float height, CornerRadius radii, Paint? fill)
+    {
+        if (!SkUiShapePainter.IsOpaque(fill) || (HasBorder && BorderColor.Alpha < 1))
+            return null;
+        return SkUiLook.Current.CreateRoundRectPath(new SKRect(0, 0, width, height), radii);
+    }
+
     /// <summary>Draws only the border (over content), as image buttons do.</summary>
     public readonly void DrawBorder(SKCanvas canvas, float width, float height, CornerRadius radii)
     {

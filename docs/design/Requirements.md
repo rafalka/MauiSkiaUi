@@ -275,7 +275,7 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 
 **Decision (hit-test vs paint):** match common iOS / Android / MAUI control behavior. **Clip / rounded corners / masks constrain painting.** Default **hit-testing uses the arranged layout bounds** (rectangle). A tap in a visually empty rounded corner that is still inside the layout rect **still hits that control** — it does **not** fall through to siblings underneath. Shape-aware hit-testing (path / mask contains-point) is an **optional opt-in** for special controls later, not the v1 default (avoids non-standard complexity).
 
-- [ ] Support **clipping / masking** so painted content is constrained to a shape (rectangle, rounded rectangle, path/mask, and similar), not only the layout bounds. *(Partial: rectangle via `ClipToBounds`, rounded rectangle via button chrome, and any shape via a border's `StrokeShape` (`SkUiBorder` / `SkUiCoreBorder`, P6) are done; MAUI `Clip` geometry on every view is P7.)*
+- [x] Support **clipping / masking** so painted content is constrained to a shape (rectangle, rounded rectangle, path/mask, and similar), not only the layout bounds. *(Rectangle via `ClipToBounds`, rounded rectangle via button chrome, any shape via a border's `StrokeShape` (P6), and MAUI's `Clip` geometry on every view of both layers (`SkUiCoreNode.SetClip`, P7), composite-time. Alpha masks beyond shapes are not planned.)*
 - [x] Outside the clip, the control must not paint (those pixels remain transparent / show content underneath) — e.g. a button with rounded corners does not fill the rectangular corner regions outside the round rect.
 - [x] **Default hit-testing uses arranged bounds**, independent of clip/mask paint shape (same as typical UIKit / Android / MAUI buttons).
 - [x] Document that shape-limited hits are **opt-in / future** (e.g. virtual hit-test override), not required for rounded buttons in v1.
@@ -420,17 +420,17 @@ Design details: [ColorScheme.md](ColorScheme.md).
 - [x] Document naming; tests cover swap light/dark + change Accent; Core and MAUI-compatible share scheme accessors.
 - [x] Gallery sample: swap light/dark + change Accent only (`LookAndColorSchemePage`).
 
-### FR-20 — Shadows (future)
+### FR-20 — Shadows
 
-**Status:** planned, not implemented. Architectural work must not preclude it (see [ArchitectureReview.md](ArchitectureReview.md)).
+**Status:** implemented (P7 in [ImplementationPlan.md](ImplementationPlan.md)), except render-thread tweening of shadow properties.
 
-- [ ] Drop shadows on any Skia-drawn node (Core and `SkUi*`): color, offset, blur radius, opacity; MAUI `VisualElement.Shadow` (`IShadow`) parity on `SkUi*`.
-- [ ] Shadow follows the node's shape (rounded rect / path / ellipse / text alpha), not only its rectangle.
-- [ ] Shadow paints **outside** the node's arranged bounds: nodes expose **visual (ink) bounds** distinct from layout bounds; culling, dirty regions, and retained caches use visual bounds.
-- [ ] Clip-to-bounds is **opt-in** per node, so a child's shadow is not cut by its own clip; a parent's opt-in clip still applies.
-- [ ] Shadow does not affect layout or hit-testing.
-- [ ] Shadow blur is expensive: rasterized shadow output is cacheable independently of content (keyed by shape, size, radius, density) and survives offset/opacity/transform animation without re-blur.
-- [ ] Shadow properties are animatable on the render thread like opacity/transform.
+- [x] Drop shadows on any Skia-drawn node (Core and `SkUi*`): color, offset, blur radius, opacity; MAUI `VisualElement.Shadow` (`IShadow`) parity on `SkUi*` (`Shadow` element and markup; gradient brushes); `SkUiCoreNode.SetShadow(IShadow)` with `SkUiCoreShadow`.
+- [x] Shadow follows the node's shape (rounded rect / path / ellipse / text alpha), not only its rectangle: an opaque fill casts from its outline (MAUI's Android fast path), anything else from the alpha of the drawn subtree; a `Clip` shapes the shadow too.
+- [x] Shadow paints **outside** the node's arranged bounds: the render node's ink bounds (`SkUiRenderProps.InkBounds`: visual bounds plus the shadow) drive culling and opacity layers; recording cull rects stay the visual bounds (a shadow is never recorded).
+- [x] Clip-to-bounds is **opt-in** per node, so a child's shadow is not cut by its own clip; a parent's opt-in clip still applies.
+- [x] Shadow does not affect layout or hit-testing.
+- [x] Shadow blur is expensive: outline shadows are blurred by Skia's cached mask filters; content shadows are rasterized on the render thread once their subtree is stable and reused (keyed by subtree version, shadow, size, density), so offset / opacity / transform animation and scrolling never blur again.
+- [ ] Shadow properties are animatable on the render thread like opacity/transform. *(Changes are composite-time — no re-record — but not tweened on the render thread.)*
 
 Initial controls, layouts, and scroll are delivered with headless tests. Device checks cover gestures, scrolling and native overlays (Galaxy S9, iPhone / iOS simulator, Windows 11) and memory-leak scenarios; checked items do not imply full visual / contrast acceptance on every platform. See [Development.md](../../Development.md) for the precise v1 API limits.
 
@@ -664,7 +664,7 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - **Documentation (NFR-5):** XML + comments for non-obvious code; **one `.md` per control** (how it works / how to use). MAUI reimplementations: link to official MAUI docs for baseline behavior; document **differences and extensions** only (do not duplicate full MAUI manuals).
 - **Paint caching (NFR-2) — retained compositor (supersedes v1 full-tree redraw):** per-node `SKPicture`s re-recorded only on content change; composite-time properties never re-record; the full frame is cleared and composited each present (no dependence on retained GPU backbuffers). No per-node bitmaps by default. Details: [RenderingPipeline.md](RenderingPipeline.md).
 - **Threading (NFR-6):** record on the UI thread, composite + animate on a render thread (Metal on Apple, GL thread on Android). Details: [RenderingPipeline.md](RenderingPipeline.md).
-- **Clip default:** `ClipToBounds` is on for leaf controls and off for layouts / content hosts (MAUI `Layout.IsClippedToBounds` parity) so children and future shadows (FR-20) can overflow.
+- **Clip default:** `ClipToBounds` is on for leaf controls and off for layouts / content hosts (MAUI `Layout.IsClippedToBounds` parity) so children and their shadows (FR-20) can overflow.
 - **Gestures (FR-15) — SkiaUi-owned:** do **not** use MAUI `GestureRecognizers` as the primary API for the drawn tree. One shared gesture arena (one arena per pointer, so multi-touch is independent) classifies tap / double-tap / long-press / swipe / pan / pinch for SkUi* views and Core nodes alike; `ISkUiView.Paint(SKCanvas)` and `ISkUiView.Touch(SkUiTouchEvent)` are the surface entry points. Passive-by-default (e.g. label) vs intrinsic handlers (e.g. button); honor `InputTransparent`. Details: [EventMechanism.md](EventMechanism.md).
 - **Clip vs hit-test (FR-11):** clip/mask/rounded corners affect **paint** only by default. Hit-testing uses **arranged bounds** (iOS / Android / MAUI-like). Shape-aware hit-testing is optional/future opt-in, not v1 default.
 - **Animation (FR-7):** two tiers — render-thread composite animations (`AnimateAsync`, fling, animated scroll, spin; preferred) and the UI-thread `SkUiAnimationClock` ticked by a UI vsync ticker for arbitrary property callbacks; **time-based** progress; no layout dirty. Details: [AnimationMechanism.md](AnimationMechanism.md), [RenderingPipeline.md](RenderingPipeline.md).

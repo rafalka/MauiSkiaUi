@@ -24,8 +24,11 @@ public class SkUiCoreButton : SkUiCoreLabel
         SetHorizontalTextAlignment(TextAlignment.Center);
         SetVerticalTextAlignment(TextAlignment.Center);
         SetFillColor(SkUiColors.Accent);
-        SetPaintBackground(PaintButtonBackground);
+        _buttonPainter = PaintButtonBackground;
+        SetPaintBackground(_buttonPainter);
     }
+
+    private readonly Action<SKCanvas> _buttonPainter;
 
     /// <summary>Raised on a completed tap inside the button bounds (in addition to <see cref="Command"/>).</summary>
     public event EventHandler? Clicked;
@@ -131,10 +134,21 @@ public class SkUiCoreButton : SkUiCoreLabel
     protected void PaintButtonBackground(SKCanvas canvas)
     {
         var enabled = CanExecuteCommand;
+        var fill = ButtonFill(enabled);
         SkUiLook.Current.DrawButton(canvas, new SkUiButtonPaint(new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height), CornerRadii,
-            ToSkColor(enabled ? FillColor : SkUiColors.Disabled), ToSkColor(BorderColor), (float)BorderWidth,
-            _press?.Visual ?? SkUiPressVisual.None, enabled));
+            SkUiShapePainter.RepresentativeColor(fill), ToSkColor(BorderColor), (float)BorderWidth,
+            _press?.Visual ?? SkUiPressVisual.None, enabled)
+        {
+            FillPaint = fill as GradientPaint
+        });
     }
+
+    /// <summary>The fill: a set <see cref="SkUiCoreNode.Background"/> (solid or gradient), else <see cref="SkUiCoreLabel.FillColor"/>; disabled, the disabled color.</summary>
+    private Paint ButtonFill(bool enabled) => enabled ? Background ?? new SolidPaint(FillColor) : new SolidPaint(SkUiColors.Disabled);
+
+    /// <inheritdoc />
+    internal override SKPath? CreateShadowOutline(float width, float height) =>
+        ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(CanExecuteCommand)) : null;
 
     /// <inheritdoc />
     internal override bool HasIntrinsicTap => CanExecuteCommand;

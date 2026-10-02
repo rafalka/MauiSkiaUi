@@ -74,6 +74,24 @@ internal sealed class SkUiBorderGeometry
         return _clip = outline.Op(strokeArea, SKPathOp.Difference) ?? new SKPath(outline);
     }
 
+    /// <summary>
+    /// The shadow silhouette of a border (as MAUI's Android border): with an opaque <paramref name="fill"/>, the
+    /// <paramref name="outline"/>, grown to the stroke's outer edge when an opaque stroke is drawn; <c>null</c> when the fill
+    /// is not opaque or the stroke is translucent (the shadow then follows what is drawn). A new path the caller owns.
+    /// </summary>
+    public static SKPath? ShadowOutline(SKPath outline, Paint? fill, Paint? stroke, double thickness)
+    {
+        if (!SkUiShapePainter.IsOpaque(fill))
+            return null;
+        if (thickness <= 0 || !SkUiShapePainter.IsVisible(stroke))
+            return new SKPath(outline);
+        if (!SkUiShapePainter.IsOpaque(stroke))
+            return null;
+        using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = (float)thickness };
+        using var strokeArea = paint.GetFillPath(outline);
+        return outline.Op(strokeArea, SKPathOp.Union) ?? new SKPath(outline);
+    }
+
     private static SKPath Create(IShape? shape, CornerRadius radii, SKRect bounds)
     {
         if (RoundRectRadii(shape, radii) is { } rounded)

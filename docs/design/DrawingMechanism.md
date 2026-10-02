@@ -332,7 +332,7 @@ Exact signatures TBD (Requirements open decisions); intent:
 
 ### Clip / mask (FR-11)
 
-- [ ] Rectangle / rounded-rect / path mask constraints on paint. *(Partial: rectangle `ClipToBounds` and rounded-rect `ChildrenClipPath` done; path / mask open.)*
+- [x] Rectangle / rounded-rect / path mask constraints on paint: `ClipToBounds`, a border's `ChildrenClipPath`, and MAUI's `Clip` geometry on every node (`SkUiRenderProps.ClipPath`, composite-time, P7).
 - [x] Clip applied consistently across layers (`ClipToBounds` clips content, children and overlay; no per-layer opt-out).
 - [x] Demo: rounded control with transparent corners still hit-testing full layout rect.
 

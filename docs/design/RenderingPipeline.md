@@ -47,7 +47,7 @@ Every drawn node (`SkUiView`, `SkUiCoreNode`) implements `ISkUiRenderable`. It o
 | `Before` picture | Background + Content phases (`PaintBackground` / `OnPaintBackground`, `OnPaintContent`) | Re-record this node only |
 | `After` picture | Overlay phase | Re-record this node only |
 | Children | `GetRenderChildren` (paint order, ZIndex) | Children list resend, no re-record |
-| `SkUiRenderProps` | Frame offset/size, translation, rotation, scale, anchor, opacity, `ClipToBounds`, children offset and clip, content spin, ink overflow | Nothing is recorded; composite-time only |
+| `SkUiRenderProps` | Frame offset/size, translation, rotation, scale, anchor, opacity, `ClipToBounds`, clip path (`Clip`), shadow, children offset and clip, content spin, ink overflow | Nothing is recorded; composite-time only |
 
 Children are composited by the engine between the Content and Overlay pictures. Containers express how their children are drawn through properties instead of drawing them in `OnPaintContent`:
 
@@ -101,11 +101,20 @@ Input arrives on the UI thread and is hit-tested against UI-side state (frames, 
 
 The GPU surfaces deliver native multi-pointer touches (pointer ids, DIP coordinates) plus wheel / trackpad scroll. The software path uses SkiaSharp touch events.
 
-## Shadows (FR-20) — what the pipeline already provides
+## Shadows and clips (FR-20, FR-11)
 
-- `SkUiRenderProps.Overflow` / `VisualBounds`: ink bounds outside the layout rect. Culling, picture cull rects and opacity layers already use them.
-- `ClipToBounds` is opt-in for layouts (MAUI parity). A child's shadow is therefore not cut off by its parent unless the parent opts in, and a shadow can be drawn before the node's own clip.
-- A shadow's properties can become render-node properties, animated like opacity. Its blurred raster can be cached per node, keyed by shape / size / radius, independently of the content picture.
+Both are render-node properties (`SkUiRenderProps.Shadow`, `ClipPath`), resolved on the UI thread by `SkUiVisualEffects` (one per node that has either) and reused while nothing they depend on changes, so committing the same frame twice commits the same objects.
+
+Per node the compositor draws: transform → cull by `InkBounds` (visual bounds plus the shadow) → opacity layer (`LayerBounds`, which includes the shadow) → **shadow** → body (`ClipToBounds`, `ClipPath`, content, children, overlay). The shadow is outside the node's own clips; a parent's clips apply.
+
+| Shadow kind | When | How it is drawn |
+| --- | --- | --- |
+| Outline | The node's own fill is opaque (`ISkUiShadowCaster.CreateShadowOutline`: background rectangle, label / button chrome, border outline with its opaque stroke, box), intersected with `ClipPath` | The path blurred by a mask filter (Skia caches blur masks; analytic on the GPU for rounded rectangles) |
+| Content | Anything else (text, images, transparent shapes, layouts without an opaque background) | The alpha of the node's body (with its children) blurred and filled with the shadow's color or gradient (`SkUiShadowPainter`). The compositor rasterizes it into a per-node raster once the subtree has not changed since the last frame, and reuses it until the subtree's version, the shadow or the density changes; while the subtree changes from frame to frame (or has spinning content) it is drawn live through layers |
+
+**Subtree versions.** On the render thread every applied update and animation tick bumps `SkUiRenderNode.Version` on the affected node and its ancestors (once per pass). A node's own offset, transform and opacity only bump its ancestors, since the cached raster is in the node's own coordinates: moving, fading or scaling a shadowed node, and scrolling the list around it, reuse its raster. `SkUiCompositor.ShadowRasterizations` / `LiveShadows` count both paths for tests.
+
+Shadow and clip changes are `Props` changes: no re-record. Radius converts to sigma as Android and Skia do (`SKMaskFilter.ConvertRadiusToSigma`). The immediate painter draws content shadows live, giving the same pixels (tested).
 
 ## Not done yet / next steps
 

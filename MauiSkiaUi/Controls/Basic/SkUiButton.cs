@@ -21,8 +21,14 @@ public class SkUiButton : SkUiLabel
         validateValue: SkUiValidate.NotNull,
         propertyChanged: (view, _, value) => ((SkUiButton)view).OnFillColorChanged((Color)value));
 
+    private readonly Action<SKCanvas> _buttonPainter;
+
     /// <summary>Creates a centered, padded button (its defaults are the <c>Default*</c> overrides below).</summary>
-    public SkUiButton() => SetPaintBackground(PaintButtonBackground);
+    public SkUiButton()
+    {
+        _buttonPainter = PaintButtonBackground;
+        SetPaintBackground(_buttonPainter);
+    }
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
@@ -143,8 +149,18 @@ public class SkUiButton : SkUiLabel
     protected void PaintButtonBackground(SKCanvas canvas)
     {
         var enabled = IsEnabled && CanReceiveTap;
-        var color = enabled ? ResolveSolidBackgroundColor() ?? _fillColor : SkUiColors.Disabled;
+        var fill = ButtonFill(enabled);
         SkUiLook.Current.DrawButton(canvas, new SkUiButtonPaint(new SKRect(0, 0, (float)Width, (float)Height), CornerRadii,
-            ToSkColor(color), ToSkColor(BorderColor), (float)BorderWidth, _press?.Visual ?? SkUiPressVisual.None, enabled));
+            SkUiShapePainter.RepresentativeColor(fill), ToSkColor(BorderColor), (float)BorderWidth, _press?.Visual ?? SkUiPressVisual.None, enabled)
+        {
+            FillPaint = fill as GradientPaint
+        });
     }
+
+    /// <summary>The fill: a set <see cref="VisualElement.Background"/> (solid or gradient), else <see cref="FillColor"/>; disabled, the disabled color.</summary>
+    private Paint ButtonFill(bool enabled) => enabled ? ResolveBackgroundPaint() ?? new SolidPaint(_fillColor) : new SolidPaint(SkUiColors.Disabled);
+
+    /// <inheritdoc />
+    internal override SKPath? CreateShadowOutline(float width, float height) =>
+        ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(IsEnabled && CanReceiveTap)) : null;
 }

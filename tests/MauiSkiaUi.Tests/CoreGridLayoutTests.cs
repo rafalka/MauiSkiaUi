@@ -76,8 +76,8 @@ public class CoreGridLayoutTests
         Assert.Equal(80, grid.GetColumnWidth(0), 1);
         Assert.Equal(30, grid.GetColumnWidth(1), 1);
         Assert.Equal(40, grid.GetRowHeight(0), 1);
-        // Explicit sizes keep desired frame; Fill does not stretch past Width/Height.
-        Assert.Equal(new Rect(0, 0, 80, 20), wide.Frame);
+        // Explicit sizes keep their size; Fill then centers them in the cell, as MAUI's ComputeFrame.
+        Assert.Equal(new Rect(0, 10, 80, 20), wide.Frame);
         Assert.Equal(new Rect(80, 0, 30, 40), tall.Frame);
         Assert.Equal(new Rect(0, 0, 80, 40), grid.GetCellBounds(0, 0));
     }

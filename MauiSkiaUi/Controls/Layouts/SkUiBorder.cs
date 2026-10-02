@@ -67,9 +67,14 @@ public class SkUiBorder : SkUiContentView
         _strokeListener = new(this, static (border, _) => border.InvalidatePaint());
         _dashListener = new(this, static (border, _) => border.InvalidatePaint());
         _shapeListener = new(this, static (border, change) => border.OnStrokeShapeEdited(change.PropertyName));
-        SetPaintBackground(PaintBorderBackground);
-        SetPaintOverlay(PaintBorderOverlay);
+        _backgroundPainter = PaintBorderBackground;
+        _overlayPainter = PaintBorderOverlay;
+        SetPaintBackground(_backgroundPainter);
+        SetPaintOverlay(_overlayPainter);
     }
+
+    private readonly Action<SKCanvas> _backgroundPainter;
+    private readonly Action<SKCanvas> _overlayPainter;
 
     /// <summary>
     /// The shape of the outline: a shape of either drawn layer (<see cref="SkUiRoundRectangle"/>, <see cref="SkUiEllipse"/>,
@@ -186,11 +191,25 @@ public class SkUiBorder : SkUiContentView
     /// <summary>As MAUI's Border, the content sits inside the padding plus the stroke.</summary>
     private protected override Thickness ContentInset => Padding + _strokeThickness;
 
-    /// <summary>Fills the outline with the solid background (registered as <see cref="SkUiView.PaintBackground"/>). Subclasses may call or re-register this painter.</summary>
+    /// <summary>
+    /// Fills the outline with the background (a solid color or a gradient; registered as <see cref="SkUiView.PaintBackground"/>).
+    /// Subclasses may call or re-register this painter.
+    /// </summary>
     protected void PaintBorderBackground(SKCanvas canvas)
     {
-        if (ResolveSolidBackgroundColor() is not { } fill || fill.Alpha <= 0) return;
-        SkUiShapePainter.Fill(canvas, Outline(), new SolidPaint(fill), new SKRect(0, 0, (float)Width, (float)Height));
+        var fill = ResolveBackgroundPaint();
+        if (!SkUiShapePainter.IsVisible(fill)) return;
+        SkUiShapePainter.Fill(canvas, Outline(), fill, new SKRect(0, 0, (float)Width, (float)Height));
+    }
+
+    /// <inheritdoc />
+    /// <remarks>An opaque background casts the shadow from the outline (with an opaque stroke, its outer edge), as MAUI on Android.</remarks>
+    internal override SKPath? CreateShadowOutline(float width, float height)
+    {
+        if (!ReferenceEquals(PaintBackground, _backgroundPainter) || !ReferenceEquals(PaintOverlay, _overlayPainter))
+            return null;
+        Paint? stroke = _stroke;
+        return SkUiBorderGeometry.ShadowOutline(Outline(), ResolveBackgroundPaint(), stroke, _strokeThickness);
     }
 
     /// <summary>

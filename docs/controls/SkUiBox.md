@@ -6,7 +6,7 @@ A filled rectangle with optional rounded corners, as MAUI's `BoxView`.
 
 ## How it works
 
-Fills with `Color`, or, when no color is set, with a solid `Background` / `BackgroundColor` (as MAUI's BoxView); `CornerRadius` rounds each corner independently (radii larger than the box allows are scaled down), with the look's rounded-rect geometry like [`SkUiBorder`](SkUiBorder.md). Measures 40 × 40 DIPs unless sized, as in MAUI. Hit region is the arranged rectangle. It is not a [shape](SkUiShape.md) (no stroke), as in MAUI. Core twin: `SkUiCoreBox` (`SetColor`, `SetCornerRadius`).
+Fills with `Color`, or, when no color is set, with `Background` (solid or gradient) / `BackgroundColor` (as MAUI's BoxView); `CornerRadius` rounds each corner independently (radii larger than the box allows are scaled down), with the look's rounded-rect geometry like [`SkUiBorder`](SkUiBorder.md). Measures 40 × 40 DIPs unless sized, as in MAUI. Hit region is the arranged rectangle. It is not a [shape](SkUiShape.md) (no stroke), as in MAUI. Core twin: `SkUiCoreBox` (`SetColor`, `SetCornerRadius`; `SetBackground` fills when no color is set). An opaque box casts its `Shadow` from its rounded shape ([SkUiView.md](SkUiView.md#backgrounds-shadows-and-clips)).
 
 ## Shared conventions
 

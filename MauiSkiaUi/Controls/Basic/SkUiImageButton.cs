@@ -174,6 +174,19 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     protected override void OnPaintContent(SKCanvas canvas) =>
         SkUiImageButtonDrawing.PaintContent(canvas, this, (float)Width, (float)Height, _padding, ref _chrome);
 
+    /// <summary>The background (solid or gradient) fills the rounded bounds.</summary>
+    protected override void OnPaintBackground(SKCanvas canvas)
+    {
+        if (SkUiCornerRadii.HasAny(_chrome.Radii))
+            _chrome.DrawFill(canvas, (float)Width, (float)Height, _chrome.Radii, ResolveBackgroundPaint());
+        else
+            base.OnPaintBackground(canvas);
+    }
+
+    /// <inheritdoc />
+    internal override SKPath? CreateShadowOutline(float width, float height) =>
+        PaintBackground is null ? _chrome.ShadowOutline(width, height, _chrome.Radii, ResolveBackgroundPaint()) : null;
+
     /// <summary>
     /// Draws press / disabled feedback (<see cref="SkUiLook.DrawPressOverlay"/>) and the border, registered as
     /// <see cref="SkUiView.PaintOverlay"/>. Subclasses may call or re-register this painter.

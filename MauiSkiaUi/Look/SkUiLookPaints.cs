@@ -82,13 +82,21 @@ public readonly record struct SkUiRadioButtonPaint(float Size, SkUiToggleVisual 
 /// </summary>
 /// <param name="Bounds">The button's rectangle.</param>
 /// <param name="CornerRadii">Corner radii of the fill, border and press feedback.</param>
-/// <param name="Fill">Fill color (unpressed).</param>
+/// <param name="Fill">Fill color (unpressed); for a gradient <see cref="FillPaint"/>, its stops averaged.</param>
 /// <param name="Border">Border color.</param>
 /// <param name="BorderWidth">Border width (drawn inside the bounds).</param>
 /// <param name="Press">Press amount, press point and ripple.</param>
 /// <param name="IsEnabled">The button is enabled and its command can execute.</param>
 public readonly record struct SkUiButtonPaint(
-    SKRect Bounds, CornerRadius CornerRadii, SKColor Fill, SKColor Border, float BorderWidth, SkUiPressVisual Press, bool IsEnabled);
+    SKRect Bounds, CornerRadius CornerRadii, SKColor Fill, SKColor Border, float BorderWidth, SkUiPressVisual Press, bool IsEnabled)
+{
+    /// <summary>
+    /// The fill as a gradient (a <see cref="LinearGradientPaint"/> or <see cref="RadialGradientPaint"/> from a gradient
+    /// <c>Background</c>, mapped onto <see cref="Bounds"/>), or <c>null</c> for the solid <see cref="Fill"/>. Looks that draw
+    /// colors only can ignore it: <see cref="Fill"/> then holds the stops averaged.
+    /// </summary>
+    public Paint? FillPaint { get; init; }
+}
 
 /// <summary>
 /// What a look draws over a pressable control's content (<see cref="SkUiLook.DrawPressOverlay"/>): press feedback over

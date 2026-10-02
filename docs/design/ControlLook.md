@@ -38,7 +38,7 @@ public class SkUiLook
     public void DrawSwitch(SKCanvas canvas, SkUiSwitchPaint toggle) { … }            // → SwitchPainter ?? DrawSwitchCore
     public void DrawCheckBox(SKCanvas canvas, SkUiCheckBoxPaint box) { … }           // → CheckBoxPainter ?? DrawCheckBoxCore
     public void DrawRadioButton(SKCanvas canvas, SkUiRadioButtonPaint radio) { … }   // → RadioButtonPainter ?? DrawRadioButtonCore
-    public void DrawButton(SKCanvas canvas, SkUiButtonPaint button) { … }            // fill, border, press feedback → ButtonPainter ?? DrawButtonCore
+    public void DrawButton(SKCanvas canvas, SkUiButtonPaint button) { … }            // fill (FillPaint: a gradient Background), border, press feedback → ButtonPainter ?? DrawButtonCore
     public void DrawPressOverlay(SKCanvas canvas, SkUiPressOverlayPaint overlay) { … } // over content: ImageButton, ShowsPressEffect → PressOverlayPainter ?? DrawPressOverlayCore
     // Slider / ProgressBar draw in horizontal left-to-right coordinates: the controls rotate the canvas for
     // vertical sliders and mirror RTL.
@@ -49,7 +49,8 @@ public class SkUiLook
     public virtual float IndeterminateProgressSegment => 0.35f;
     public virtual float IndeterminateProgressPeriod => 1.5f; // seconds; the compositor slides the bar on the render thread
     public virtual float GetProgressBarCornerRadius(float height) => height / 2;
-    public void DrawRoundedBox(…) { … }      // float radius and CornerRadius overloads → DrawRoundedBoxCore
+    public void DrawRoundedBox(…) { … }      // float radius and CornerRadius overloads → DrawRoundedBoxCore;
+                                             // a Paint fill (gradients) → DrawRoundedBoxCore(…, Paint, …), solid paints take the color path
     public virtual SKPath? CreateCustomRoundRectPath(SKRect bounds, CornerRadius radii) => null; // custom corner geometry (null = plain)
     public SKPath CreateRoundRectPath(…) { … } // uniform or per-corner: custom geometry, else plain corners
     public void DrawImage(…) { … }           // → ImagePainter ?? DrawImageCore
@@ -93,6 +94,8 @@ Controls call **`SkUiLook.Current` (or an inherited / attached look)** for both 
 ### State-change transitions (FR-26)
 
 Looks draw every point of a transition, not only the resting states. Switches, check boxes and radio buttons slide or draw in between states; buttons dim or ripple while pressed; slider thumbs glide to tapped values; progress bars can smooth `Progress` changes.
+
+**Gradient fills (P7).** A gradient `Background` reaches the look as a MAUI Graphics `Paint`: `SkUiButtonPaint.FillPaint` (with `Fill` holding the stops averaged, so color-only painters keep working), and the `DrawRoundedBox(canvas, bounds, radii, Paint? fill, border, width)` overload used by label, button and image-button chrome. The base look fills its rounded geometry (`CreateRoundRectPath`, so custom corners apply) with the gradient and draws the border as with a transparent fill; `DefaultSkUiLook` dims gradients as it dims colors when pressed. Shadows and clips are not look entry points: the compositor draws them from MAUI's `Shadow` / `Clip` and the control's silhouette.
 
 **What a painter receives.**
 

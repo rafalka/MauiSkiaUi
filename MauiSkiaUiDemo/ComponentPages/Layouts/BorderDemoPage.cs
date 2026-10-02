@@ -29,11 +29,15 @@ public sealed class BorderDemoPage : ComponentDemoPage
             Text = "Bordered", Background = contentFill, TextColor = Colors.White,
             HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center,
         };
+        // The color is the solid fill; the brush editor below swaps it for a gradient.
+        var solid = DemoColors.SoftSurface;
         ColorEditor(nameof(VisualElement.Background), DemoColors.SoftSurface, value =>
         {
+            solid = value;
+            if (skia.Background is GradientBrush) return;
             skia.Background = value;
             native.Background = value;
-        }, () => ((SolidColorBrush)skia.Background).Color, () => ((SolidColorBrush)native.Background).Color);
+        }, () => (skia.Background as SolidColorBrush)?.Color ?? solid, () => (native.Background as SolidColorBrush)?.Color ?? solid);
         var gradient = new LinearGradientBrush([new GradientStop(Accent, 0), new GradientStop(DemoColors.SampleA, 1)], new Point(0, 0), new Point(1, 0));
         Toggle("Stroke gradient", false, value =>
         {
@@ -50,6 +54,7 @@ public sealed class BorderDemoPage : ComponentDemoPage
             value => { skia.StrokeLineCap = value; native.StrokeLineCap = value; }, () => skia.StrokeLineCap, () => native.StrokeLineCap);
         Choice(nameof(SkUiBorder.StrokeLineJoin), Enum.GetValues<NativeShapes.PenLineJoin>(), NativeShapes.PenLineJoin.Miter,
             value => { skia.StrokeLineJoin = value; native.StrokeLineJoin = value; }, () => skia.StrokeLineJoin, () => native.StrokeLineJoin);
+        EffectEditors(skia, native, (view, brush) => view.Background = brush ?? solid);
         // The border as one tappable card: the look's press feedback over it and its content, clipped to its corners.
         var taps = 0;
         skia.Tapped += (_, _) => Feedback($"Taps: {++taps}");

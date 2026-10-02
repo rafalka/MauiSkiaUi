@@ -6,7 +6,7 @@ A single-child host with a drawn outline of any shape, as MAUI's `Border`: backg
 
 ## How it works
 
-Extends [`SkUiContentView`](SkUiContentView.md). The background (solid `Background`, then `BackgroundColor`) fills the outline in the Background layer; the stroke paints in the Overlay layer (after content), so opaque children cannot cover it.
+Extends [`SkUiContentView`](SkUiContentView.md). The background (`Background`, solid or gradient, then `BackgroundColor`) fills the outline in the Background layer; the stroke paints in the Overlay layer (after content), so opaque children cannot cover it.
 
 - **`StrokeShape`:** any shape of either drawn layer ([`SkUiRoundRectangle`](SkUiRoundRectangle.md), [`SkUiEllipse`](SkUiEllipse.md), [`SkUiPath`](SkUiPath.md), …), MAUI's own (`RoundRectangle`, `Ellipse`, `Path`, …) or any `IShape`. XAML takes MAUI's markup: `StrokeShape="RoundRectangle 10"`, `"RoundRectangle 40,0,0,40"`, `"Ellipse"`, `"Path M 0,0 …"`, `"Polygon …"`. Without a shape the outline is a rectangle rounded by the SkiaUi shorthand `CornerRadius` (0 by default: MAUI's default rectangle). Rectangles and rounded rectangles draw with the look's rounded geometry (`SkUiLook.CreateRoundRectPath`); changing a property of the shape redraws.
 - **Stroke geometry:** as MAUI on Android and Windows, the stroke is centered on the shape fitted into the bounds inset by half the stroke, so it stays inside the bounds; dashes start at the top-left (below the corner when rounded) and run clockwise, as MAUI's paths.
@@ -77,7 +77,8 @@ core.SetStrokeShape(new SkUiCoreEllipse()).SetStroke(Colors.Teal).SetStrokeThick
 | `CornerRadius` | SkiaUi shorthand for `StrokeShape="RoundRectangle …"` |
 | `StrokeShape` default | `null` (a rectangle rounded by `CornerRadius`); MAUI returns a `Rectangle` instance |
 | Stroke position | Inside the bounds, centered on the inset shape (MAUI's Android and Windows; iOS strokes the full-size shape from inside) |
-| Gradient backgrounds | Not drawn yet (P7); the stroke takes gradients |
+| Gradient backgrounds | Fill the outline (P7) |
+| `Shadow` | With an opaque background (and an opaque or no stroke), cast from the outline's outer edge, as MAUI on Android; otherwise from what the border draws ([SkUiView.md](SkUiView.md#backgrounds-shadows-and-clips)) |
 | Hit testing | Rectangular arranged bounds |
 
 **Breaking (P6):** `Stroke` is a `Brush` (was `Color?`; `Stroke = Colors.Red` still compiles), `CornerRadius` defaults to 0 (was 6), and the content is inset by `StrokeThickness` as well as `Padding`. Core: `SkUiCoreBorder.Stroke` is a MAUI Graphics `Paint` (`SetStroke(Color)` still works).

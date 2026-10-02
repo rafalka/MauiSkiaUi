@@ -149,6 +149,11 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         }
     }
 
+    /// <summary>Pictures recorded and content shadows rasterized / drawn live on this surface since it was created.</summary>
+    internal SkUiRenderCounters RenderCounters => _renderer is { } renderer
+        ? new SkUiRenderCounters(renderer.RecordedPictures, renderer.Compositor.ShadowRasterizations, renderer.Compositor.LiveShadows)
+        : default;
+
     /// <summary>Clears <see cref="RenderStatistics"/>.</summary>
     internal void ResetRenderStatistics()
     {

@@ -38,6 +38,18 @@ internal static class SkUiShapePainter
         Release(paint);
     }
 
+    /// <summary>Fills <paramref name="rect"/> (by default not antialiased, as a plain background) with <paramref name="fill"/> mapped onto it.</summary>
+    public static void FillRect(SKCanvas canvas, SKRect rect, Paint? fill, bool antialias = false)
+    {
+        if (fill is null)
+            return;
+        var paint = Reset();
+        paint.IsAntialias = antialias;
+        if (Apply(paint, fill, rect))
+            canvas.DrawRect(rect, paint);
+        Release(paint);
+    }
+
     /// <summary>Strokes <paramref name="path"/> with <paramref name="stroke"/> mapped onto <paramref name="bounds"/>.</summary>
     public static void Stroke(SKCanvas canvas, SKPath path, Paint? stroke, SKRect bounds, in SkUiStrokeStyle style)
     {
@@ -70,16 +82,30 @@ internal static class SkUiShapePainter
     /// </summary>
     public static bool Apply(SKPaint paint, Paint? brush, SKRect bounds)
     {
+        if (!TryCreate(brush, bounds, out var color, out var shader))
+            return false;
+        paint.Color = color;
+        paint.Shader = shader;
+        return true;
+    }
+
+    /// <summary>
+    /// The color or gradient shader of a MAUI Graphics paint mapped onto <paramref name="bounds"/> (see <see cref="Apply"/>):
+    /// a solid paint gives its color and no shader, a gradient white and a shader the caller owns.
+    /// </summary>
+    public static bool TryCreate(Paint? brush, SKRect bounds, out SKColor color, out SKShader? shader)
+    {
+        shader = null;
         switch (brush)
         {
-            case SolidPaint { Color: { } color }:
-                paint.Color = ToSkColor(color);
-                return color.Alpha > 0;
+            case SolidPaint { Color: { } solid }:
+                color = ToSkColor(solid);
+                return solid.Alpha > 0;
             case LinearGradientPaint { GradientStops.Length: > 0 } linear:
             {
                 var (colors, offsets) = Stops(linear);
-                paint.Color = SKColors.White;
-                paint.Shader = SKShader.CreateLinearGradient(
+                color = SKColors.White;
+                shader = SKShader.CreateLinearGradient(
                     new SKPoint(bounds.Left + (float)linear.StartPoint.X * bounds.Width, bounds.Top + (float)linear.StartPoint.Y * bounds.Height),
                     new SKPoint(bounds.Left + (float)linear.EndPoint.X * bounds.Width, bounds.Top + (float)linear.EndPoint.Y * bounds.Height),
                     colors, offsets, SKShaderTileMode.Clamp);
@@ -91,13 +117,14 @@ internal static class SkUiShapePainter
                 var radius = (float)radial.Radius * Math.Max(bounds.Width, bounds.Height);
                 if (radius <= 0)
                     radius = SKPoint.Distance(new SKPoint(bounds.Left, bounds.Top), new SKPoint(bounds.Right, bounds.Bottom));
-                paint.Color = SKColors.White;
-                paint.Shader = SKShader.CreateRadialGradient(
+                color = SKColors.White;
+                shader = SKShader.CreateRadialGradient(
                     new SKPoint(bounds.Left + (float)radial.Center.X * bounds.Width, bounds.Top + (float)radial.Center.Y * bounds.Height),
                     Math.Max(radius, 0.001f), colors, offsets, SKShaderTileMode.Clamp);
                 return true;
             }
             default:
+                color = default;
                 return false;
         }
     }
@@ -109,6 +136,73 @@ internal static class SkUiShapePainter
         GradientPaint { GradientStops.Length: > 0 } => true,
         _ => false
     };
+
+    /// <summary>Whether <paramref name="brush"/> covers what it fills: an opaque color, or a gradient whose stops are all opaque.</summary>
+    public static bool IsOpaque(Paint? brush)
+    {
+        switch (brush)
+        {
+            case SolidPaint { Color: { } color }:
+                return color.Alpha >= 1;
+            case GradientPaint { GradientStops.Length: > 0 } gradient:
+                foreach (var stop in gradient.GradientStops)
+                    if (stop is not null && (stop.Color?.Alpha ?? 0) < 1)
+                        return false;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// One color for a paint, for looks that draw colors only and for contrast decisions (a ripple over a gradient): a
+    /// solid paint's color, a gradient's stops averaged; transparent for none.
+    /// </summary>
+    public static SKColor RepresentativeColor(Paint? brush)
+    {
+        switch (brush)
+        {
+            case SolidPaint { Color: { } color }:
+                return ToSkColor(color);
+            case GradientPaint { GradientStops.Length: > 0 } gradient:
+            {
+                float red = 0, green = 0, blue = 0, alpha = 0;
+                var count = 0;
+                foreach (var stop in gradient.GradientStops)
+                {
+                    if (stop?.Color is not { } color) continue;
+                    red += color.Red; green += color.Green; blue += color.Blue; alpha += color.Alpha;
+                    count++;
+                }
+                return count == 0 ? SKColors.Transparent : ToSkColor(new Color(red / count, green / count, blue / count, alpha / count));
+            }
+            default:
+                return SKColors.Transparent;
+        }
+    }
+
+    /// <summary>A copy of <paramref name="brush"/> with every color's alpha multiplied by <paramref name="opacity"/> (0–1).</summary>
+    public static Paint? WithOpacity(Paint? brush, float opacity)
+    {
+        if (opacity >= 1 || brush is null)
+            return brush;
+        opacity = Math.Max(0, opacity);
+        switch (brush)
+        {
+            case SolidPaint { Color: { } color }:
+                return new SolidPaint(color.WithAlpha(color.Alpha * opacity));
+            case LinearGradientPaint linear:
+                return new LinearGradientPaint(FadedStops(linear, opacity), linear.StartPoint, linear.EndPoint);
+            case RadialGradientPaint radial:
+                return new RadialGradientPaint(FadedStops(radial, opacity), radial.Center, radial.Radius);
+            default:
+                return brush;
+        }
+
+        static PaintGradientStop[] FadedStops(GradientPaint gradient, float opacity) =>
+            [.. gradient.GradientStops.Where(stop => stop is not null)
+                .Select(stop => new PaintGradientStop(stop.Offset, (stop.Color ?? Colors.Transparent).WithAlpha((stop.Color?.Alpha ?? 0) * opacity)))];
+    }
 
     /// <summary>
     /// The dash effect of <paramref name="style"/>: the pattern scaled by the thickness (an odd-length pattern repeats once

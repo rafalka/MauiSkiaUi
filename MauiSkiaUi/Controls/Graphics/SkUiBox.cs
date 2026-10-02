@@ -3,8 +3,8 @@ using SkiaSharp;
 namespace MauiSkiaUi;
 
 /// <summary>
-/// A filled rectangle with optional rounded corners, as MAUI's <c>BoxView</c>: it fills with <see cref="Color"/>, or with a
-/// solid <see cref="VisualElement.Background"/> when no color is set, rounded by <see cref="CornerRadius"/>, and measures
+/// A filled rectangle with optional rounded corners, as MAUI's <c>BoxView</c>: it fills with <see cref="Color"/>, or with
+/// <see cref="VisualElement.Background"/> (solid or gradient) when no color is set, rounded by <see cref="CornerRadius"/>, and measures
 /// 40 × 40 DIPs unless sized.
 /// </summary>
 public class SkUiBox : SkUiView
@@ -69,17 +69,27 @@ public class SkUiBox : SkUiView
             base.OnPaintBackground(canvas);
     }
 
+    /// <summary>The fill drawn by the box itself: <see cref="Color"/>, else (with rounded corners) the background, solid or gradient.</summary>
+    private Paint? BoxFill() => _color is { } color ? new SolidPaint(color) : SkUiCornerRadii.HasAny(_cornerRadius) ? ResolveBackgroundPaint() : null;
+
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        if ((_color ?? (SkUiCornerRadii.HasAny(_cornerRadius) ? ResolveSolidBackgroundColor() : null)) is not { } color)
+        if (BoxFill() is not { } fill)
             return;
-        using var paint = new SKPaint { Color = ToSkColor(color), IsAntialias = true };
         var width = (float)Width;
         var height = (float)Height;
         if (SkUiCornerRadii.HasAny(_cornerRadius))
-            canvas.DrawPath(_shape.Get(width, height, _cornerRadius), paint);
+            SkUiShapePainter.Fill(canvas, _shape.Get(width, height, _cornerRadius), fill, new SKRect(0, 0, width, height));
         else
-            canvas.DrawRect(0, 0, width, height, paint);
+            SkUiShapePainter.FillRect(canvas, new SKRect(0, 0, width, height), fill, antialias: true);
+    }
+
+    /// <inheritdoc />
+    internal override SKPath? CreateShadowOutline(float width, float height)
+    {
+        if (PaintBackground is not null || !SkUiShapePainter.IsOpaque(BoxFill() ?? ResolveBackgroundPaint()))
+            return null;
+        return SkUiCornerRadii.HasAny(_cornerRadius) ? new SKPath(_shape.Get(width, height, _cornerRadius)) : RectangleOutline(width, height);
     }
 }

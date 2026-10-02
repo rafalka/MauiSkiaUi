@@ -102,10 +102,18 @@ public class DefaultSkUiLook : SkUiLook
     /// <inheritdoc />
     protected override void DrawButtonCore(SKCanvas canvas, SkUiButtonPaint button)
     {
-        var fill = button.Fill;
-        if (PressEffect == SkUiPressEffect.Dim)
-            fill = fill.WithAlpha((byte)(fill.Alpha * (1 - 0.25f * button.Press.Pressed)));
-        DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, fill, button.Border, button.BorderWidth);
+        var dim = PressEffect == SkUiPressEffect.Dim ? 1 - 0.25f * button.Press.Pressed : 1;
+        if (button.FillPaint is { } gradient)
+        {
+            DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, SkUiShapePainter.WithOpacity(gradient, dim), button.Border, button.BorderWidth);
+        }
+        else
+        {
+            var fill = button.Fill;
+            if (dim < 1)
+                fill = fill.WithAlpha((byte)(fill.Alpha * dim));
+            DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, fill, button.Border, button.BorderWidth);
+        }
         if (PressEffect == SkUiPressEffect.Ripple && button.IsEnabled)
             DrawRipple(canvas, button.Bounds, button.CornerRadii, button.Press, RippleColor(button.Fill));
     }
