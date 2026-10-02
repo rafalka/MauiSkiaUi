@@ -45,7 +45,7 @@ Ordered by severity. File references are to the code at the time of the review.
 | N6 | Medium — **partly fixed** | Swapping `SkUiLook.Current` / `SkUiColorScheme.Current` left retained pictures stale; some controls snapshot scheme colors at construction | Fixed: live surfaces re-measure and redraw their drawn tree on `CurrentChanged` (`SkUiLook.NotifyChanged()` for looks changed in place). Open: resolve scheme defaults at paint time ("not explicitly set") instead of snapshots; hook `RequestedThemeChanged` |
 | N7 | Medium | Any running render-thread animation (a 36-DIP spinner, an indeterminate bar) re-composites the whole surface at display rate | Raster-cache stable siblings (§4) |
 | N8 | Medium | No OS font scaling (`FontAutoScalingEnabled`), no semantics tree, no keyboard focus / activation | Accessibility work (§4) |
-| N9 | Medium | No shared image cache: every instance re-loads and re-decodes the same source and holds several copies of the encoded bytes; duplicated between SkUi\* and Core | One loader + decoded-image cache keyed by source and decode size, shared by both layers; needed before virtualization |
+| N9 | Medium — **fixed** | No shared image cache: every instance re-loads and re-decodes the same source and holds several copies of the encoded bytes; duplicated between SkUi\* and Core | Fixed (P4): one loader (`SkUiImageLoader`) and one image slot for both layers; decoded images in a memory LRU keyed by source, decode size and transformations, leased by the views that show them; shared in-flight loads; a download disk cache (`ImageLoadingTests`) |
 | N10 | Low–Medium | Android overlays allocate `Rect` Java peers per offset report and look overlays up with LINQ per child; clip computation walks ancestors per ancestor (O(depth²)) | Reuse rectangles, key overlays by clip view, one ancestor walk |
 | N11 | Low | Fling stop test ignores direction (a flick inward from an edge stops at once); `maxX` / `maxY` are frozen at fling start | Direction-aware stop; live extent updates (also needed by FR-21) |
 | N12 | Low | `NotifyMoved` walks whole subtrees on every offset change even without overlays | Gate on a "subtree has overlays" counter |
@@ -97,7 +97,7 @@ The spinner and fling cases (N7) are the benchmark.
   - recycle without reparenting, which today resets and re-records the subtree;
   - keep item re-measure local to the list (a relayout boundary) and correct the scroll anchor;
   - live extent updates for the fling (N11);
-  - the shared image cache (N9).
+  - ~~the shared image cache (N9)~~ (shipped with P4).
 
 **Overlay masks (2.8).** The practical need is drawn popups over hosted controls and rounded clipping.
 - Compute each overlay's occluding region from higher-z drawn nodes that opt in, plus ancestor clip paths.

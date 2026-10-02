@@ -13,6 +13,7 @@
     <Compile Include="../../MauiSkiaUiDemo/DemoColors.cs" Link="Demo/DemoColors.cs" />
     <Compile Include="../../MauiSkiaUiDemo/DemoAssets.cs" Link="Demo/DemoAssets.cs" />
     <Compile Include="../../MauiSkiaUiDemo/DemoFonts.cs" Link="Demo/DemoFonts.cs" />
+    <Compile Include="../../MauiSkiaUiDemo/DemoGif.cs" Link="Demo/DemoGif.cs" />
     <Compile Include="../../MauiSkiaUiDemo/ComponentPages/**/*.cs" Link="Demo/ComponentPages/%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Samples app examples (samples/MauiSkiaUiSamples): built and exercised headlessly; sources embedded as in the app. -->
     <Compile Include="../../samples/MauiSkiaUiSamples/Infrastructure/*.cs" Link="Samples/Infrastructure/%(Filename)%(Extension)" />

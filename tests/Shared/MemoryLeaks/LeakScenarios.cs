@@ -28,7 +28,7 @@ public static class LeakScenarios
         new("TogglesTapped", Controls, "Switch, check boxes (one three-state) and a radio group, each tapped several times.", () => new TogglesRun()),
         new("SlidersAndProgress", Controls, "Horizontal, vertical and Core sliders dragged and tapped; progress bars animating and indeterminate at close.", () => new SlidersRun()),
         new("LabelsReshaped", Controls, "Wrapped, truncated, RTL, Arabic, emoji and Simple / Shaped labels; text and width changed repeatedly.", () => new LabelsRun()),
-        new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed.", () => new ImagesRun()),
+        new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image.", () => new ImagesRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
@@ -194,12 +194,15 @@ public static class LeakScenarios
     private sealed class ImagesRun : LeakScenarioRun
     {
         private readonly List<SkUiImage> _images = [];
+        private readonly List<SkUiCoreImage> _coreImages = [];
+        private SkUiSlider? _slider;
+        private int _finished;
 
         public override View Build(LeakScenarioContext context)
         {
             var grid = new SkUiGrid { RowSpacing = 8, ColumnSpacing = 8, Padding = new Thickness(12) };
             grid.ColumnDefinitions = [new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star)];
-            grid.RowDefinitions = [new RowDefinition(new GridLength(120)), new RowDefinition(new GridLength(120))];
+            grid.RowDefinitions = [new RowDefinition(new GridLength(120)), new RowDefinition(new GridLength(120)), new RowDefinition(new GridLength(80)), new RowDefinition(new GridLength(40))];
             SKColor[] colors = [SKColors.Coral, SKColors.SteelBlue, SKColors.Olive];
             for (var index = 0; index < 3; index++)
             {
@@ -214,6 +217,36 @@ public static class LeakScenarios
             Grid.SetColumn(button, 1);
             _images.Add(button);
             grid.Children.Add(button);
+
+            // One cached source in three views (memory-cache leases), circle-cropped, plus a playing animation.
+            var shared = LeakImages.Cached(SKColors.Teal);
+            var row = new SkUiHorizontalStackLayout { Spacing = 8 };
+            for (var index = 0; index < 2; index++)
+            {
+                var avatar = new SkUiImage { Source = shared, WidthRequest = 64, HeightRequest = 64 };
+                avatar.Transformations.Add(new SkUiCircleTransformation(2, Colors.White));
+                _images.Add(avatar);
+                row.Children.Add(avatar);
+            }
+            var animated = new SkUiImage { Source = ImageSource.FromStream(() => new MemoryStream(LeakImages.AnimatedGif())), IsAnimationPlaying = true, WidthRequest = 64, HeightRequest = 64, Aspect = Aspect.Fill };
+            // Placeholders (an animated loading one) and load events on the first image.
+            _images[0].LoadingPlaceholder = ImageSource.FromStream(() => new MemoryStream(LeakImages.AnimatedGif()));
+            _images[0].ErrorPlaceholder = LeakImages.Create(SKColors.Black);
+            _images[0].LoadingFinished += (_, args) => _finished += args.IsSuccess ? 1 : 0;
+            _images.Add(animated);
+            row.Children.Add(animated);
+            var core = new SkUiCoreImage().SetTransformations(new SkUiRoundedTransformation(12)).SetSourceStream(LeakImages.CachedStream(SKColors.Teal), "leak-teal");
+            core.SetWidth(64).SetHeight(64);
+            _coreImages.Add(core);
+            row.Children.Add(new SkUiCoreHost().SetContent(core));
+            Grid.SetRow(row, 2);
+            Grid.SetColumnSpan(row, 2);
+            grid.Children.Add(row);
+
+            _slider = new SkUiSlider { Value = 0.5, ThumbImageSource = LeakImages.Create(SKColors.Crimson) };
+            Grid.SetRow(_slider, 3);
+            Grid.SetColumnSpan(_slider, 2);
+            grid.Children.Add(_slider);
             return Root(grid);
         }
 
@@ -231,6 +264,11 @@ public static class LeakScenarios
                 foreach (var image in _images)
                     await context.WaitForAsync(image.LoadingTask);
             }
+            foreach (var core in _coreImages)
+                await context.WaitForAsync(core.LoadingTask);
+            _coreImages[0].SetTransformations(new SkUiGrayscaleTransformation());
+            await context.WaitForAsync(_coreImages[0].LoadingTask);
+            _slider!.ThumbImageSource = LeakImages.Create(SKColors.Navy);
             _reload = _images[0].ReloadAsync();
             await context.WaitForAsync(_reload);
         }
@@ -242,6 +280,10 @@ public static class LeakScenarios
             if (_reload is not { IsCompletedSuccessfully: true })
                 return "The reload did not complete.";
             var failed = _images.Where(image => !image.LoadingTask.IsCompletedSuccessfully || image.LoadError is not null || image.IsLoading).ToList();
+            if (_finished == 0)
+                return "The first image raised no successful LoadingFinished.";
+            if (_coreImages.FirstOrDefault(image => image.LoadError is not null || image.IsLoading) is { } core)
+                return $"A Core image did not load: {core.LoadError?.Message ?? "still loading"}.";
             return failed.Count == 0 ? null : $"{failed.Count} image(s) did not load: {failed[0].LoadError?.Message ?? "still loading"}.";
         }
     }
@@ -931,6 +973,51 @@ public static class LeakCommands
 /// <summary>Small in-memory PNG sources (no files or network, so they work headless too).</summary>
 public static class LeakImages
 {
+    /// <summary>A stream source with a cache key: views of it share one decoded image.</summary>
+    public static Func<CancellationToken, Task<Stream>> CachedStream(SKColor color)
+    {
+        var bytes = Png(color);
+        return _ => Task.FromResult<Stream>(new MemoryStream(bytes));
+    }
+
+    /// <summary>A file source in the cache folder (absolute path: memory-cached by path).</summary>
+    public static ImageSource Cached(SKColor color)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"skiaui-leak-{(uint)color:X8}.png");
+        if (!File.Exists(path))
+            File.WriteAllBytes(path, Png(color));
+        return ImageSource.FromFile(path);
+    }
+
+    /// <summary>A looping 1×1 GIF of two frames (red, blue), 100 ms each.</summary>
+    public static byte[] AnimatedGif()
+    {
+        static byte[] Frame(byte lzw) =>
+        [
+            0x21, 0xF9, 0x04, 0x00, 0x0A, 0x00, 0x00, 0x00,
+            0x2C, 0, 0, 0, 0, 0x01, 0x00, 0x01, 0x00, 0x00,
+            0x02, 0x02, lzw, 0x01, 0x00
+        ];
+        return
+        [
+            .. "GIF89a"u8.ToArray(),
+            0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00,
+            0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF,
+            0x21, 0xFF, 0x0B, .. "NETSCAPE2.0"u8.ToArray(), 0x03, 0x01, 0x00, 0x00, 0x00,
+            .. Frame(0x44),
+            .. Frame(0x4C),
+            0x3B
+        ];
+    }
+
+    private static byte[] Png(SKColor color)
+    {
+        using var bitmap = new SKBitmap(64, 48);
+        bitmap.Erase(color);
+        using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
+    }
+
     public static ImageSource Create(SKColor color)
     {
         using var bitmap = new SKBitmap(64, 48);

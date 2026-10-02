@@ -31,14 +31,16 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`Minimum`, `Maximum`, `Value` (two-way; clamped to the range, also when the range changes; as in MAUI 10 the requested value is kept and comes back when the range widens, so XAML property order doesn't matter; an empty range gives `Minimum`), `Orientation`, `MinimumTrackColor`, `MaximumTrackColor`, `ThumbColor`, `IsDragging`, `DragStartedCommand`, `DragCompletedCommand`. Events: `ValueChanged` (MAUI `ValueChangedEventArgs`), `DragStarted`, `DragCompleted`. Fluent: `SetSliderValue` (not `SetValue`, which is `BindableObject`'s), `SetMinimum`, `SetMaximum`, `SetOrientation`, color setters.
+`Minimum`, `Maximum`, `Value` (two-way; clamped to the range, also when the range changes; as in MAUI 10 the requested value is kept and comes back when the range widens, so XAML property order doesn't matter; an empty range gives `Minimum`), `Orientation`, `MinimumTrackColor`, `MaximumTrackColor`, `ThumbColor`, `IsDragging`, `DragStartedCommand`, `DragCompletedCommand`, `ThumbImageSource`. Events: `ValueChanged` (MAUI `ValueChangedEventArgs`), `DragStarted`, `DragCompleted`. Fluent: `SetSliderValue` (not `SetValue`, which is `BindableObject`'s), `SetMinimum`, `SetMaximum`, `SetOrientation`, color setters, `SetThumbImageSource`.
+
+`ThumbImageSource` (MAUI's) replaces the look's thumb with an image at its intrinsic size, loaded like [`SkUiImage.Source`](SkUiImage.md#sources) through the shared cache: the look draws the track only (`SkUiSliderPaint.HasThumbImage`), and the control draws the image upright, centered where the thumb would be, also on vertical and right-to-left sliders. The thumb's travel and touch mapping stay the look's (`SliderThumbRadius`). Disabled sliders draw it at half opacity. `SkUiCoreSlider.SetThumbImageSource` takes an `SkUiImageSource`.
 
 ## Differences from MAUI Slider
 
 | Topic | SkiaUi |
 | --- | --- |
 | Orientation | `Horizontal` (default) or `Vertical` |
-| `ThumbImageSource` | Not supported — customize the thumb through `SkUiLook` |
+| `ThumbImageSource` | Drawn upright at its intrinsic size; the travel stays the look's thumb inset |
 | Tap on the track | Moves the value there (no drag events) |
 
 ## Related

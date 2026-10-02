@@ -137,7 +137,7 @@ public sealed class MemoryLeaksPage : ContentPage
 
     private async Task CheckDetector()
     {
-        var render = RenderCheck.Run();
+        var render = await RenderCheck.RunAsync();
         var result = await MemoryLeakRunner.CheckDetectorAsync();
         _detector.IsVisible = true;
         _detector.TextColor = result.Status == LeakStatus.Pass && render.Status == LeakStatus.Pass ? LeakColors.Pass : LeakColors.Fail;

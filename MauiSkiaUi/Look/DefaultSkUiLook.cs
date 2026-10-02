@@ -212,6 +212,8 @@ public class DefaultSkUiLook : SkUiLook
         DrawRoundedBox(canvas, new SKRect(start, top, end, top + track), track / 2, slider.MaximumTrack, SKColors.Transparent, 0);
         if (thumbX > start)
             DrawRoundedBox(canvas, new SKRect(start, top, thumbX, top + track), track / 2, slider.MinimumTrack, SKColors.Transparent, 0);
+        if (slider.HasThumbImage)
+            return; // the control draws the image
         if (slider.Pressed > 0)
             canvas.DrawCircle(thumbX, bounds.MidY, radius * (1 + 0.8f * slider.Pressed),
                 Paint(slider.Thumb.WithAlpha((byte)(slider.Thumb.Alpha / 5 * slider.Pressed))));

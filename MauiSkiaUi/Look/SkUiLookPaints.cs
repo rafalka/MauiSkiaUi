@@ -17,7 +17,14 @@ namespace MauiSkiaUi;
 /// <remarks><see cref="Fraction"/> is the drawn position: after a tap it follows the <see cref="SkUiTransitionKind.SliderThumb"/> transition.</remarks>
 public readonly record struct SkUiSliderPaint(
     SKRect Bounds, float Fraction, StackOrientation Orientation, SKColor MinimumTrack, SKColor MaximumTrack, SKColor Thumb,
-    float Pressed, bool IsEnabled);
+    float Pressed, bool IsEnabled)
+{
+    /// <summary>
+    /// The slider has a thumb image (<c>ThumbImageSource</c>): the look draws the track only, and the control draws the
+    /// image, upright, centered where the look's thumb would be.
+    /// </summary>
+    public bool HasThumbImage { get; init; }
+}
 
 /// <summary>
 /// What a look draws for a ProgressBar (<see cref="SkUiLook.DrawProgressBar"/>), in left-to-right coordinates.

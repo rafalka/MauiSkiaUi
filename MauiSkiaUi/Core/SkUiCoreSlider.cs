@@ -19,6 +19,8 @@ public class SkUiCoreSlider : SkUiCoreNode
     private double _requestedValue;
     private SkUiSliderVisual? _visual;
     private bool _animateThumb;
+    private SkUiImageSource? _thumbImageSource;
+    private SkUiImageSlot? _thumbImage;
 
     /// <summary>Smallest value (default 0).</summary>
     public double Minimum { get => _minimum; set => SetMinimum(value); }
@@ -43,6 +45,12 @@ public class SkUiCoreSlider : SkUiCoreNode
 
     /// <summary>Thumb color.</summary>
     public Color ThumbColor { get => _thumbColor; set => SetThumbColor(value); }
+
+    /// <summary>
+    /// Image drawn instead of the look's thumb, at its intrinsic size, upright (MAUI's <c>ThumbImageSource</c>); loaded
+    /// through the shared image cache.
+    /// </summary>
+    public SkUiImageSource? ThumbImageSource { get => _thumbImageSource; set => SetThumbImageSource(value); }
 
     /// <summary>Whether the thumb is being dragged.</summary>
     public bool IsDragging => _gesture?.IsDragging == true;
@@ -107,6 +115,14 @@ public class SkUiCoreSlider : SkUiCoreNode
     /// <summary>Sets the thumb color.</summary>
     public SkUiCoreSlider SetThumbColor(Color value) => SetColor(ref _thumbColor, value, nameof(ThumbColor));
 
+    /// <summary>Sets the thumb image (<c>null</c>: the look's thumb).</summary>
+    public SkUiCoreSlider SetThumbImageSource(SkUiImageSource? value)
+    {
+        if (!SetProperty(ref _thumbImageSource, value, nameof(ThumbImageSource))) return this;
+        (_thumbImage ??= new SkUiImageSlot(this, () => InvalidatePaint())).Load(value, default);
+        return this;
+    }
+
     private SkUiCoreSlider SetColor(ref Color field, Color value, string name)
     {
         ArgumentNullException.ThrowIfNull(value);
@@ -124,7 +140,7 @@ public class SkUiCoreSlider : SkUiCoreNode
     {
         var fraction = SkUiSliderMath.Fraction(_value, _minimum, _maximum);
         SkUiSliderMath.Draw(canvas, (float)Frame.Width, (float)Frame.Height, _orientation, IsRightToLeft, _visual?.Fraction(fraction) ?? fraction,
-            ToSkColor(_minimumTrackColor), ToSkColor(_maximumTrackColor), ToSkColor(_thumbColor), _visual?.Pressed ?? 0, enabled: true);
+            ToSkColor(_minimumTrackColor), ToSkColor(_maximumTrackColor), ToSkColor(_thumbColor), _visual?.Pressed ?? 0, enabled: true, _thumbImage);
     }
 
     private SkUiSliderVisual SliderVisual => _visual ??= new SkUiSliderVisual(this);

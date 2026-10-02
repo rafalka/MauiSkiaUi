@@ -11,6 +11,7 @@ public static class SampleCatalog
     [
         SampleEntry.For<AppFontsSample>(),
         SampleEntry.For<TextThatFitsSample>(),
+        SampleEntry.For<CachedAvatarsSample>(),
         SampleEntry.For<CrossCheckBoxSample>(),
     ];
 

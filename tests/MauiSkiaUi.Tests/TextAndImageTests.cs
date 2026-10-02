@@ -92,12 +92,10 @@ public class TextAndImageTests
             var image = new SkUiCoreImage().SetSourceStream(_ => Task.FromResult<Stream>(new MemoryStream(bytes)));
             await image.LoadingTask;
             Assert.Equal(new Size(1200, 600), image.ImageSize);
-            var (decoded, source) = SkUiImageDecoder.Decode(bytes);
-            using (decoded)
-            {
-                Assert.Equal(new SKSizeI(1200, 600), source);
-                Assert.True(decoded.Width <= 256 && decoded.Height <= 256);
-            }
+            var decoded = SkUiImageDecoder.Decode(bytes);
+            using var frame = Assert.Single(decoded.Frames);
+            Assert.Equal(new Size(1200, 600), decoded.Size);
+            Assert.True(frame.Width <= 256 && frame.Height <= 256);
         }
         finally
         {
