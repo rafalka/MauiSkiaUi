@@ -28,6 +28,7 @@ public static class LeakScenarios
         new("TogglesTapped", Controls, "Switch, check boxes (one three-state) and a radio group, each tapped several times.", () => new TogglesRun()),
         new("SlidersAndProgress", Controls, "Horizontal, vertical and Core sliders dragged and tapped; progress bars animating and indeterminate at close.", () => new SlidersRun()),
         new("LabelsReshaped", Controls, "Wrapped, truncated, RTL, Arabic, emoji and Simple / Shaped labels; text and width changed repeatedly; formatted text (drawn and Core) with tappable spans bound to a long-lived command, tapped, restyled and replaced; HTML text with links (both layers), tapped and changed.", () => new LabelsRun()),
+        new("ShapesRestyled", Controls, "Every shape (drawn and Core) and borders shaped by them, painted with long-lived shared brushes, dash arrays and a stroke shape; brushes, gradient stops, points, path data and stroke shapes changed; a border tapped.", () => new ShapesRun()),
         new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image.", () => new ImagesRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
@@ -242,6 +243,90 @@ public static class LeakScenarios
             if (_labels.Any(label => label.Width <= 0))
                 return "A label was not laid out.";
             return _widths.Count >= 3 ? null : $"The labels were laid out at {_widths.Count} widths, expected at least 3.";
+        }
+    }
+
+    /// <summary>Resources that outlive every screen, as app-level styles and resources do.</summary>
+    private static class LeakShapes
+    {
+        public static readonly SolidColorBrush Solid = new(LeakColors.Accent);
+        public static readonly LinearGradientBrush Gradient = new(
+            [new GradientStop(LeakColors.SampleA, 0), new GradientStop(LeakColors.SampleB, 1)], new Point(0, 0), new Point(1, 1));
+        public static readonly Microsoft.Maui.Controls.Shapes.RoundRectangle StrokeShape = new() { CornerRadius = 12 };
+        public static readonly DoubleCollection Dashes = [4, 2];
+    }
+
+    private sealed class ShapesRun : LeakScenarioRun
+    {
+        private readonly List<SkUiShape> _shapes = [];
+        private SkUiBorder? _border;
+        private SkUiPolygon? _polygon;
+        private SkUiPath? _path;
+        private SkUiCoreBorder? _coreBorder;
+        private int _taps;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var stack = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12) };
+            var row = new SkUiHorizontalStackLayout { Spacing = 6, HeightRequest = 48 };
+            _polygon = new SkUiPolygon([new(0, 40), new(20, 0), new(40, 40)]);
+            _path = new SkUiPath { Aspect = Microsoft.Maui.Controls.Stretch.Uniform, WidthRequest = 48 }.SetData("M 0,20 C 10,0 30,40 40,20");
+            SkUiShape[] shapes =
+            [
+                new SkUiEllipse { WidthRequest = 40 }, new SkUiRectangle { WidthRequest = 40, RadiusX = 6 },
+                new SkUiRoundRectangle { WidthRequest = 40, CornerRadius = 10 }, new SkUiLine(0, 0, 40, 40),
+                _polygon, new SkUiPolyline([new(0, 0), new(20, 40), new(40, 0)]), _path,
+            ];
+            foreach (var shape in shapes)
+            {
+                shape.Fill = LeakShapes.Gradient;
+                shape.Stroke = LeakShapes.Solid;
+                shape.StrokeThickness = 2;
+                shape.StrokeDashArray = LeakShapes.Dashes;
+                _shapes.Add(shape);
+                row.Children.Add(shape);
+            }
+            _border = new SkUiBorder
+            {
+                StrokeShape = LeakShapes.StrokeShape, Stroke = LeakShapes.Gradient, StrokeThickness = 3, StrokeDashArray = LeakShapes.Dashes,
+                Padding = new Thickness(8), Content = Text("Shaped border"),
+            };
+            _border.Tapped += (_, _) => _taps++;
+            _coreBorder = new SkUiCoreBorder().SetStrokeShape(new SkUiCoreEllipse()).SetStroke(LeakColors.Accent).SetStrokeThickness(3)
+                .SetContent(new SkUiCorePath("M 0,0 L 20,10 L 0,20 Z").SetFill(LeakColors.SampleA));
+            _coreBorder.SetHeight(60);
+            stack.Children.Add(row);
+            stack.Children.Add(_border);
+            stack.Children.Add(new SkUiCoreHost().SetContent(_coreBorder));
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.TapAsync(_border!);
+            foreach (var shape in _shapes)
+                shape.Fill = shape.Fill == LeakShapes.Gradient ? LeakShapes.Solid : LeakShapes.Gradient;
+            LeakShapes.Gradient.GradientStops[0].Color = LeakColors.Surface; // a shared brush edited while shown
+            _polygon!.Points.Add(new Point(30, 10));
+            _path!.SetData("M 0,0 L 40,40 M 40,0 L 0,40");
+            await context.SettleAsync();
+            var replaced = new SkUiRoundRectangle { CornerRadius = 4 };
+            _border!.StrokeShape = replaced;
+            replaced.CornerRadius = 20;
+            await context.SettleAsync();
+            _border.StrokeShape = LeakShapes.StrokeShape;
+            context.TrackDetached(replaced, "replaced stroke shape");
+            _coreBorder!.SetStrokeShape(new SkUiCoreRoundRectangle().SetCornerRadius(10)).SetStrokeDashArray(2, 2);
+            await context.SettleAsync();
+            await context.TapAsync(_border);
+            LeakShapes.Gradient.GradientStops[0].Color = LeakColors.SampleA;
+        }
+
+        public override string? CheckInteraction()
+        {
+            if (_taps != 2)
+                return $"The border was tapped {_taps} times, expected 2.";
+            return _shapes.Any(shape => shape.Width <= 0) ? "A shape was not laid out." : null;
         }
     }
 

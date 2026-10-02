@@ -17,7 +17,7 @@ public static class SkUiMotion
     public static bool IsMotionReduced => ReduceMotion ?? IsSystemMotionReduced();
 
 #if WINDOWS
-    private static Windows.UI.ViewManagement.UISettings? s_settings;
+    private static Windows.UI.ViewManagement.UISettings? _settings;
 #endif
 
     private static bool IsSystemMotionReduced()
@@ -30,7 +30,7 @@ public static class SkUiMotion
 #elif WINDOWS
         try
         {
-            return !(s_settings ??= new Windows.UI.ViewManagement.UISettings()).AnimationsEnabled;
+            return !(_settings ??= new Windows.UI.ViewManagement.UISettings()).AnimationsEnabled;
         }
         catch (Exception)
         {

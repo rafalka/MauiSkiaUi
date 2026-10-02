@@ -67,7 +67,7 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 	<sk:SkUiLayout>
 		<sk:SkUiBox WidthRequest="80" HeightRequest="60" Color="Crimson"
 					HorizontalOptions="Start" VerticalOptions="Start" Margin="16" />
-		<sk:SkUiEllipse WidthRequest="60" HeightRequest="60" Color="Teal"
+		<sk:SkUiEllipse WidthRequest="60" HeightRequest="60" Fill="Teal"
 						HorizontalOptions="End" VerticalOptions="End" Margin="16" />
 	</sk:SkUiLayout>
 </sk:SkUiContentView>
@@ -94,7 +94,7 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 | Hosts & layout | `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiScrollView`, `SkUiBorder` |
 | Text & chrome | `SkUiLabel`, `SkUiButton`, `SkUiImage`, `SkUiImageButton`, `SkUiActivityIndicator` |
 | Toggles | `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton` |
-| Shapes | `SkUiBox`, `SkUiEllipse`, `SkUiLine` |
+| Shapes | `SkUiBox` (BoxView), MAUI's shapes with brushes, dashes and stretch: `SkUiEllipse`, `SkUiLine`, `SkUiRectangle`, `SkUiRoundRectangle`, `SkUiPath`, `SkUiPolygon`, `SkUiPolyline`; `SkUiBorder.StrokeShape` takes any of them |
 | Native overlay | `SkUiMauiContentView` (Entry, Editor, WebView, …) |
 
 ### Core (compose / custom controls)

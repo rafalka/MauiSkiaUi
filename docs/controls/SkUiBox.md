@@ -1,13 +1,12 @@
 # SkUiBox
 
-Filled rectangle primitive.
+A filled rectangle with optional rounded corners, as MAUI's `BoxView`.
 
 **MAUI counterpart:** [`BoxView`](https://learn.microsoft.com/dotnet/maui/user-interface/controls/boxview)
 
 ## How it works
 
-[`SkUiShape`](SkUiShape.md) subclass. Default intrinsic size 48×48. `CornerRadius` rounds each corner independently (MAUI's `CornerRadius`; radii larger than the box allows are scaled down), with the look's rounded-rect geometry like [`SkUiBorder`](SkUiBorder.md). Hit region is the arranged rectangle.
-
+Fills with `Color`, or, when no color is set, with a solid `Background` / `BackgroundColor` (as MAUI's BoxView); `CornerRadius` rounds each corner independently (radii larger than the box allows are scaled down), with the look's rounded-rect geometry like [`SkUiBorder`](SkUiBorder.md). Measures 40 × 40 DIPs unless sized, as in MAUI. Hit region is the arranged rectangle. It is not a [shape](SkUiShape.md) (no stroke), as in MAUI. Core twin: `SkUiCoreBox` (`SetColor`, `SetCornerRadius`).
 
 ## Shared conventions
 
@@ -19,7 +18,6 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 - **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`), not MAUI `GestureRecognizers`. See [EventMechanism.md](../design/EventMechanism.md).
 - **Hosted vs standalone:** when nested under another SkiaUi parent, the node has no platform handler and paints into the root surface. See [LayoutSystem.md](../design/LayoutSystem.md).
 
-
 ## How to use
 
 ```xml
@@ -29,11 +27,13 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`Color`, `CornerRadius` (+ `SetCornerRadius`), `StrokeWidth` (ignored for filled box), plus base view layout/transform props.
+`Color` (`null` by default), `CornerRadius` (+ `SetColor`, `SetCornerRadius`), plus the base view's layout and transform properties.
 
 ## Differences from MAUI BoxView
 
-Drawn with Skia. Default intrinsic size is 48×48 (MAUI: 40×40). Passive unless `Tapped` subscribed.
+Drawn with Skia; passive unless `Tapped` is subscribed. Gradient backgrounds are not drawn yet (P7).
+
+**Breaking (P6):** `SkUiBox` no longer derives from `SkUiShape`; `Color` defaults to `null` (was teal) and the default size is 40 × 40 (was 48 × 48), as in MAUI.
 
 ## Related
 

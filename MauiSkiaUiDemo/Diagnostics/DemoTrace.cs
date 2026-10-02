@@ -11,8 +11,8 @@ namespace MauiSkiaUiDemo;
 /// </summary>
 internal static class DemoTrace
 {
-    private static readonly BlockingCollection<string> s_lines = new(new ConcurrentQueue<string>(), 100_000);
-    private static readonly Stopwatch s_clock = Stopwatch.StartNew();
+    private static readonly BlockingCollection<string> _lines = new(new ConcurrentQueue<string>(), 100_000);
+    private static readonly Stopwatch _clock = Stopwatch.StartNew();
 
     public static string? LogPath { get; private set; }
 
@@ -47,15 +47,15 @@ internal static class DemoTrace
     }
 
     public static void Enqueue(string message) =>
-        s_lines.TryAdd($"{s_clock.Elapsed.TotalMilliseconds,10:F1} [{Environment.CurrentManagedThreadId,2}] {message}");
+        _lines.TryAdd($"{_clock.Elapsed.TotalMilliseconds,10:F1} [{Environment.CurrentManagedThreadId,2}] {message}");
 
     private static void WriteLoop(StreamWriter writer)
     {
-        foreach (var line in s_lines.GetConsumingEnumerable())
+        foreach (var line in _lines.GetConsumingEnumerable())
         {
             writer.WriteLine(line);
             // Flush when the queue drains, so the file is current if the app is closed or crashes.
-            if (s_lines.Count == 0)
+            if (_lines.Count == 0)
                 writer.Flush();
         }
     }

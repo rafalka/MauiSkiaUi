@@ -377,7 +377,7 @@ internal sealed class SkUiTouchDeliverer : UIGestureRecognizer
 /// </summary>
 internal sealed class SkUiOverlayDragRecognizer : UIGestureRecognizer
 {
-    private static long s_nextPointer = 1L << 40; // distinct from surface pointer ids
+    private static long _nextPointer = 1L << 40; // distinct from surface pointer ids
     private readonly UIView _space;
     private readonly Func<SkUiTouchEvent, SkUiNativeGestureState> _overlayTouch;
     private UITouch? _touch;
@@ -400,7 +400,7 @@ internal sealed class SkUiOverlayDragRecognizer : UIGestureRecognizer
         if (_touch is not null || touches.AnyObject is not UITouch touch)
             return;
         _touch = touch;
-        _pointer = ++s_nextPointer;
+        _pointer = ++_nextPointer;
         Update(Forward(SkUiTouchAction.Pressed), ended: false);
     }
 

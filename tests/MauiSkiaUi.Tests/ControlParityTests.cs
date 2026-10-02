@@ -160,11 +160,12 @@ public class ControlParityTests
     [Fact]
     public void LineMeasuresAndDrawsItsPointsLikeMaui()
     {
-        var line = new SkUiLine(10, 5, 50, 25) { StrokeWidth = 2 };
+        var line = new SkUiLine(10, 5, 50, 25) { StrokeThickness = 2 };
         Assert.Equal(new Size(52, 27), ((IView)line).Measure(double.PositiveInfinity, double.PositiveInfinity));
-        Assert.Equal(new Size(2, 2), ((IView)new SkUiLine()).Measure(double.PositiveInfinity, double.PositiveInfinity));
+        // MAUI's default stroke is 1 DIP.
+        Assert.Equal(new Size(1, 1), ((IView)new SkUiLine()).Measure(double.PositiveInfinity, double.PositiveInfinity));
 
-        var horizontal = new SkUiLine(0, 10, 40, 10) { Color = Colors.Red, StrokeWidth = 4 };
+        var horizontal = new SkUiLine(0, 10, 40, 10) { Stroke = Colors.Red, StrokeThickness = 4 };
         SkUiTestHelpers.Arrange(horizontal, 44, 20);
         using (var bitmap = Render(horizontal.Paint, 44, 20))
         {
@@ -175,7 +176,7 @@ public class ControlParityTests
         }
 
         var core = new SkUiCoreLine(10, 5, 50, 25);
-        core.SetStrokeWidth(2);
+        core.SetStrokeThickness(2);
         Assert.Equal(new Size(52, 27), core.Measure(double.PositiveInfinity, double.PositiveInfinity));
         core.SetY2(45);
         Assert.Equal(new Size(52, 47), core.Measure(double.PositiveInfinity, double.PositiveInfinity));
@@ -260,6 +261,40 @@ public class ControlParityTests
         Assert.Equal(SKColors.Blue, bitmap.GetPixel(50, 0)); // border, inside the bounds
         Assert.Equal(0, bitmap.GetPixel(1, 1).Alpha); // rounded corner: neither image nor border
         Assert.Equal(0, bitmap.GetPixel(7, 7).Alpha); // inside the padding, but outside the 30-DIP corner arc: the image is clipped too
+    }
+
+    [Fact]
+    public void RoundedChromeIsDrawnTheSameOnBothLayers()
+    {
+        // Labels, buttons and image buttons of both layers share one chrome state and its drawing (SkUiChromeState).
+        var radii = new CornerRadius(14, 4, 0, 9);
+        var label = new SkUiLabel { BackgroundColor = Colors.Yellow, CornerRadii = radii, BorderColor = Colors.Blue, BorderWidth = 3 };
+        var coreLabel = new SkUiCoreLabel().SetFillColor(Colors.Yellow).SetCornerRadii(radii).SetBorderColor(Colors.Blue).SetBorderWidth(3);
+        AssertSamePixels(label, coreLabel);
+
+        // Buttons: the look's default radius until one is set, then the explicit radii.
+        var button = new SkUiButton { FillColor = Colors.Green, BorderColor = Colors.Blue, BorderWidth = 2 };
+        var coreButton = new SkUiCoreButton().SetFillColor(Colors.Green).SetBorderColor(Colors.Blue).SetBorderWidth(2);
+        AssertSamePixels(button, coreButton);
+        button.CornerRadii = radii;
+        coreButton.SetCornerRadii(radii);
+        AssertSamePixels(button, coreButton);
+
+        var imageButton = new SkUiImageButton { CornerRadii = radii, BorderColor = Colors.Red, BorderWidth = 4, Padding = new Thickness(2) };
+        var coreImageButton = new SkUiCoreImageButton().SetCornerRadii(radii).SetBorderColor(Colors.Red).SetBorderWidth(4).SetPadding(new Thickness(2));
+        AssertSamePixels(imageButton, coreImageButton);
+        imageButton.Dispose();
+
+        static void AssertSamePixels(SkUiView view, SkUiCoreNode node)
+        {
+            SkUiTestHelpers.Arrange(view, 60, 34);
+            node.Measure(60, 34);
+            node.Arrange(new Rect(0, 0, 60, 34));
+            using var expected = Render(view.Paint, 60, 34);
+            using var actual = Render(node.Paint, 60, 34);
+            Assert.NotEqual(0, expected.GetPixel(30, 0).Alpha); // something was drawn
+            Assert.Equal(expected.Pixels, actual.Pixels);
+        }
     }
 
     [Fact]

@@ -314,7 +314,7 @@ public class PipelineTests
         IView node = new SkUiBox();
         Assert.Equal(double.PositiveInfinity, node.MaximumWidth);
         Assert.Equal(double.PositiveInfinity, node.MaximumHeight);
-        Assert.Equal(new Size(48, 48), node.Measure(double.PositiveInfinity, double.PositiveInfinity));
+        Assert.Equal(new Size(40, 40), node.Measure(double.PositiveInfinity, double.PositiveInfinity)); // MAUI's BoxView size
     }
 
     [Theory]
@@ -328,7 +328,7 @@ public class PipelineTests
             MaximumWidthRequest = unsetWidth ? double.NaN : 80,
             MaximumHeightRequest = unsetHeight ? double.NaN : 90
         };
-        Assert.Equal(new Size(48, 48), ((IView)node).Measure(100, 120));
+        Assert.Equal(new Size(40, 40), ((IView)node).Measure(100, 120));
         Assert.Equal(new Size(unsetWidth ? 100 : 80, unsetHeight ? 120 : 90), node.LastConstraint);
     }
 
@@ -369,7 +369,7 @@ public class PipelineTests
     [Fact]
     public void PrimitivesPaintEllipseAndLineGeometry()
     {
-        var ellipse = new SkUiEllipse { Color = Colors.Blue, WidthRequest = 40, HeightRequest = 40 };
+        var ellipse = new SkUiEllipse { Fill = Colors.Blue, WidthRequest = 40, HeightRequest = 40 };
         SkUiTestHelpers.Arrange(ellipse, 40, 40);
         using var bitmap = new SKBitmap(40, 40);
         using var canvas = new SKCanvas(bitmap);
@@ -378,7 +378,7 @@ public class PipelineTests
         Assert.Equal(SKColors.Blue, bitmap.GetPixel(20, 20));
         Assert.Equal(0, bitmap.GetPixel(0, 0).Alpha);
 
-        var line = new SkUiLine(0, 0, 36, 36) { Color = Colors.Red, StrokeWidth = 4 };
+        var line = new SkUiLine(0, 0, 36, 36) { Stroke = Colors.Red, StrokeThickness = 4 };
         SkUiTestHelpers.Arrange(line, 40, 40);
         canvas.Clear(SKColors.Transparent);
         line.Paint(canvas);

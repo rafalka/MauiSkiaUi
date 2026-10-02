@@ -17,9 +17,9 @@ namespace MauiSkiaUi;
 internal static partial class SkUiShaping
 {
     private static readonly ConcurrentDictionary<(SKTypeface Primary, int CodePoint), SKTypeface> Fallbacks = new();
-    [ThreadStatic] private static Dictionary<SKTypeface, SKShaper?>? t_shapers;
-    [ThreadStatic] private static SKTextBlobBuilder? t_builder;
-    [ThreadStatic] private static Buffer? t_buffer;
+    [ThreadStatic] private static Dictionary<SKTypeface, SKShaper?>? _shapers;
+    [ThreadStatic] private static SKTextBlobBuilder? _builder;
+    [ThreadStatic] private static Buffer? _buffer;
     private static readonly ConcurrentDictionary<SKTypeface, byte[]> Coverage = new();
 
     /// <summary>One shaped run of a paragraph in logical order.</summary>
@@ -243,7 +243,7 @@ internal static partial class SkUiShaping
     /// default typeface on a Linux host without fonts).</summary>
     private static SKShaper? Shaper(SKTypeface typeface)
     {
-        var shapers = t_shapers ??= [];
+        var shapers = _shapers ??= [];
         if (!shapers.TryGetValue(typeface, out var shaper))
         {
             using (var data = typeface.OpenStream())
@@ -256,7 +256,7 @@ internal static partial class SkUiShaping
     /// <summary>Shapes <c>text[start..start+length)</c> with the whole string as context into <paramref name="run"/>.</summary>
     private static void ShapeRun(string text, int start, int length, Run run, SKFont font, float spacing)
     {
-        var buffer = t_buffer ??= new Buffer();
+        var buffer = _buffer ??= new Buffer();
         buffer.ClearContents();
         buffer.AddUtf16(text.AsSpan(), start, length);
         buffer.Direction = run.Level % 2 == 1 ? Direction.RightToLeft : Direction.LeftToRight;
@@ -378,7 +378,7 @@ internal static partial class SkUiShaping
             extra = JustifySpace(text, start, end, natural, target);
         }
         // Build() resets the builder, so one per thread is reused.
-        var builder = t_builder ??= new SKTextBlobBuilder();
+        var builder = _builder ??= new SKTextBlobBuilder();
         var pen = 0f;
         var shift = 0f;
         foreach (var index in order)
@@ -443,7 +443,7 @@ internal static partial class SkUiShaping
                 natural += widths[glyph];
             extra = JustifySpace(text, start, end, natural, target);
         }
-        var builder = t_builder ??= new SKTextBlobBuilder();
+        var builder = _builder ??= new SKTextBlobBuilder();
         var buffer = builder.AllocatePositionedRun(primary, count);
         buffer.SetGlyphs(glyphs.AsSpan(0, count));
         var positions = buffer.Positions;

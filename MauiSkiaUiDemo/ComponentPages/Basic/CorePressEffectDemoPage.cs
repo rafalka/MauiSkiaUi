@@ -127,7 +127,7 @@ public sealed class CorePressEffectDemoPage : ComponentDemoPage
     private static SkUiCoreEllipse Icon(Color color)
     {
         var icon = new SkUiCoreEllipse();
-        icon.SetColor(color);
+        icon.SetFill(color);
         icon.SetWidth(36);
         icon.SetHeight(36);
         return icon;

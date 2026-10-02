@@ -61,12 +61,12 @@ public class DefaultSkUiLook : SkUiLook
         canvas.DrawPath(strokePath, paint);
     }
 
-    [ThreadStatic] private static SKPaint? t_paint;
+    [ThreadStatic] private static SKPaint? _paint;
 
     /// <summary>Per-thread reusable fill paint (recording is single-threaded per surface; pictures copy paint state).</summary>
     private static SKPaint Paint(SKColor color)
     {
-        var paint = t_paint ??= new SKPaint();
+        var paint = _paint ??= new SKPaint();
         paint.Reset();
         paint.IsAntialias = true;
         paint.Color = color;

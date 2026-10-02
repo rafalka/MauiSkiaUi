@@ -3,53 +3,71 @@ using SkiaSharp;
 namespace MauiSkiaUi.Core;
 
 /// <summary>
-/// Single-child host with a drawn rounded fill/border (Core analogue of <c>SkUiBorder</c>).
-/// Shape is a rounded rectangle with independent per-corner radii; arbitrary MAUI <c>IShape</c> is not supported.
+/// Single-child host with a drawn outline (Core analogue of <c>SkUiBorder</c>, MAUI's <c>Border</c>): the background fills
+/// the <see cref="StrokeShape"/> (a Core shape such as <see cref="SkUiCoreRoundRectangle"/>, or any MAUI Graphics
+/// <see cref="IShape"/>; without one, a rectangle rounded by <see cref="CornerRadius"/>), the <see cref="Stroke"/> paint
+/// outlines it with dashes, caps and joins, and the content sits inside <see cref="SkUiCoreContentView.Padding"/> plus the
+/// stroke and is clipped to the stroke's inner edge. Drawn by the same geometry as the SkUi* border.
 /// </summary>
 public class SkUiCoreBorder : SkUiCoreContentView
 {
-    private Color? _stroke;
+    private Paint? _stroke;
     private double _strokeThickness = 1;
-    private CornerRadius _cornerRadius = new(6);
+    private double[] _strokeDashArray = [];
+    private double _strokeDashOffset;
+    private LineCap _strokeLineCap = LineCap.Butt;
+    private LineJoin _strokeLineJoin = LineJoin.Miter;
+    private double _strokeMiterLimit = 10;
+    private CornerRadius _cornerRadius;
+    private IShape? _strokeShape;
     private Color _backgroundColor = Colors.Transparent;
+    private readonly SkUiBorderGeometry _geometry = new();
+    private readonly SkUiWeakListener<SkUiCoreBorder> _shapeListener;
 
     /// <summary>Creates a border that paints fill in <see cref="SkUiCoreNode.PaintBackground"/> and stroke in <see cref="SkUiCoreNode.PaintOverlay"/> (after content).</summary>
     public SkUiCoreBorder()
     {
+        _shapeListener = new(this, static (border, _, _) => { border._geometry.Invalidate(); border.InvalidateShape(); });
         SetPaintBackground(PaintBorderBackground);
         SetPaintOverlay(PaintBorderOverlay);
     }
 
-    /// <summary>Solid fill behind content; transparent by default.</summary>
-    public Color BackgroundColor
-    {
-        get => _backgroundColor;
-        set => SetBackgroundColor(value);
-    }
-
-    /// <summary>Border color; <c>null</c> paints no border.</summary>
-    public Color? Stroke
-    {
-        get => _stroke;
-        set => SetStroke(value);
-    }
-
-    /// <summary>Border thickness in DIPs.</summary>
-    public double StrokeThickness
-    {
-        get => _strokeThickness;
-        set => SetStrokeThickness(value);
-    }
+    /// <summary>Solid fill of the outline; transparent by default.</summary>
+    public Color BackgroundColor { get => _backgroundColor; set => SetBackgroundColor(value); }
 
     /// <summary>
-    /// Per-corner radii in DIPs (top-left, top-right, bottom-left, bottom-right).
-    /// A uniform <see cref="double"/> assigns implicitly via <see cref="CornerRadius"/>.
+    /// The shape of the outline: a Core shape (<see cref="SkUiCoreRoundRectangle"/>, <see cref="SkUiCoreEllipse"/>,
+    /// <see cref="SkUiCorePath"/>, …) or any MAUI Graphics <see cref="IShape"/>. <c>null</c> (default): a rectangle rounded by
+    /// <see cref="CornerRadius"/>. Changes of a Core shape's properties redraw the border.
     /// </summary>
-    public CornerRadius CornerRadius
-    {
-        get => _cornerRadius;
-        set => SetCornerRadius(value);
-    }
+    public IShape? StrokeShape { get => _strokeShape; set => SetStrokeShape(value); }
+
+    /// <summary>The paint of the outline (<c>null</c>: none).</summary>
+    public Paint? Stroke { get => _stroke; set => SetStroke(value); }
+
+    /// <summary>The outline width in DIPs (1 by default, as MAUI); the content is inset by it.</summary>
+    public double StrokeThickness { get => _strokeThickness; set => SetStrokeThickness(value); }
+
+    /// <summary>Dashes and gaps of the outline, in multiples of <see cref="StrokeThickness"/> (empty: solid).</summary>
+    public IReadOnlyList<double> StrokeDashArray { get => _strokeDashArray; set => SetStrokeDashArray([.. value]); }
+
+    /// <summary>Where the dash pattern starts, in multiples of <see cref="StrokeThickness"/>.</summary>
+    public double StrokeDashOffset { get => _strokeDashOffset; set => SetStrokeDashOffset(value); }
+
+    /// <summary>The caps of the dashes (<see cref="LineCap.Butt"/>: MAUI's <c>Flat</c>).</summary>
+    public LineCap StrokeLineCap { get => _strokeLineCap; set => SetStrokeLineCap(value); }
+
+    /// <summary>The joins at the corners of the outline.</summary>
+    public LineJoin StrokeLineJoin { get => _strokeLineJoin; set => SetStrokeLineJoin(value); }
+
+    /// <summary>The limit on the ratio of a miter join's length to half the stroke thickness (10 by default).</summary>
+    public double StrokeMiterLimit { get => _strokeMiterLimit; set => SetStrokeMiterLimit(value); }
+
+    /// <summary>
+    /// Per-corner radii in DIPs (top-left, top-right, bottom-left, bottom-right) of the outline when no
+    /// <see cref="StrokeShape"/> is set; 0 by default (a rectangle, as MAUI's default shape).
+    /// </summary>
+    public CornerRadius CornerRadius { get => _cornerRadius; set => SetCornerRadius(value); }
 
     /// <inheritdoc cref="SkUiCoreContentView.SetPadding" />
     public new SkUiCoreBorder SetPadding(Thickness value)
@@ -65,9 +83,6 @@ public class SkUiCoreBorder : SkUiCoreContentView
         return this;
     }
 
-    /// <inheritdoc />
-    internal override CornerRadius PressEffectCornerRadii => _cornerRadius;
-
     /// <summary>Sets the fill color.</summary>
     public SkUiCoreBorder SetBackgroundColor(Color value)
     {
@@ -77,84 +92,128 @@ public class SkUiCoreBorder : SkUiCoreContentView
         return this;
     }
 
-    /// <summary>Sets the border color; <c>null</c> paints no border.</summary>
-    public SkUiCoreBorder SetStroke(Color? value)
+    /// <summary>Sets the outline shape (<c>null</c>: a rectangle rounded by <see cref="CornerRadius"/>).</summary>
+    public SkUiCoreBorder SetStrokeShape(IShape? value)
+    {
+        if (ReferenceEquals(_strokeShape, value)) return this;
+        _strokeShape = value;
+        _shapeListener.Listen(value); // a shared shape must not keep the border alive
+        OnPropertyChanged(nameof(StrokeShape));
+        InvalidateShape();
+        return this;
+    }
+
+    /// <summary>Sets the outline paint (<c>null</c>: none).</summary>
+    public SkUiCoreBorder SetStroke(Paint? value)
     {
         if (!SetProperty(ref _stroke, value, nameof(Stroke))) return this;
         InvalidatePaint();
         return this;
     }
 
-    /// <summary>Sets the border thickness in DIPs.</summary>
+    /// <summary>Sets a solid outline color.</summary>
+    public SkUiCoreBorder SetStroke(Color value) => _stroke is SolidPaint { Color: var color } && color == value ? this : SetStroke(new SolidPaint(value));
+
+    /// <summary>Sets the outline width in DIPs.</summary>
     public SkUiCoreBorder SetStrokeThickness(double value)
     {
         SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
         if (!SetProperty(ref _strokeThickness, value, nameof(StrokeThickness))) return this;
+        InvalidateMeasure(); // the content is inset by the stroke
+        InvalidateRender(Rendering.SkUiRenderDirty.Props);
+        return this;
+    }
+
+    /// <summary>Sets the dash pattern, in multiples of the stroke thickness (no values: solid).</summary>
+    public SkUiCoreBorder SetStrokeDashArray(params double[] value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (_strokeDashArray.AsSpan().SequenceEqual(value)) return this;
+        _strokeDashArray = [.. value];
+        OnPropertyChanged(nameof(StrokeDashArray));
         InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets the dash offset, in multiples of the stroke thickness.</summary>
+    public SkUiCoreBorder SetStrokeDashOffset(double value)
+    {
+        SkUiValidate.ThrowIfNotFinite(value, nameof(value));
+        if (SetProperty(ref _strokeDashOffset, value, nameof(StrokeDashOffset))) InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets the dash caps.</summary>
+    public SkUiCoreBorder SetStrokeLineCap(LineCap value)
+    {
+        if (SetProperty(ref _strokeLineCap, value, nameof(StrokeLineCap))) InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets the corner joins.</summary>
+    public SkUiCoreBorder SetStrokeLineJoin(LineJoin value)
+    {
+        if (SetProperty(ref _strokeLineJoin, value, nameof(StrokeLineJoin))) InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets the miter limit.</summary>
+    public SkUiCoreBorder SetStrokeMiterLimit(double value)
+    {
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        if (SetProperty(ref _strokeMiterLimit, value, nameof(StrokeMiterLimit))) InvalidatePaint();
         return this;
     }
 
     /// <summary>Sets a uniform corner radius in DIPs for all four corners.</summary>
-    public SkUiCoreBorder SetCornerRadius(double uniformRadius) =>
-        SetCornerRadius(new CornerRadius(uniformRadius));
+    public SkUiCoreBorder SetCornerRadius(double uniformRadius) => SetCornerRadius(new CornerRadius(uniformRadius));
 
     /// <summary>Sets independent corner radii in DIPs.</summary>
     public SkUiCoreBorder SetCornerRadius(CornerRadius value)
     {
-        ValidateCornerRadius(value);
-        if (!SetProperty(ref _cornerRadius, value, nameof(CornerRadius))) return this;
-        InvalidatePaint();
+        SkUiCornerRadii.Validate(value, nameof(value));
+        if (SetProperty(ref _cornerRadius, value, nameof(CornerRadius))) InvalidateShape();
         return this;
     }
 
-    /// <summary>Draws the rounded fill registered as <see cref="SkUiCoreNode.PaintBackground"/>. Subclasses may call or re-register this painter.</summary>
+    private void InvalidateShape()
+    {
+        InvalidatePaint();
+        InvalidateRender(Rendering.SkUiRenderDirty.Props);
+    }
+
+    /// <summary>As MAUI's Border, the content sits inside the padding plus the stroke.</summary>
+    private protected override Thickness ContentInset => Padding + _strokeThickness;
+
+    /// <inheritdoc />
+    internal override CornerRadius PressEffectCornerRadii => _strokeShape switch
+    {
+        null => _cornerRadius,
+        SkUiCoreRoundRectangle shape => shape.CornerRadius,
+        _ => default
+    };
+
+    /// <summary>Fills the outline with <see cref="BackgroundColor"/> (registered as <see cref="SkUiCoreNode.PaintBackground"/>). Subclasses may call or re-register this painter.</summary>
     protected void PaintBorderBackground(SKCanvas canvas)
     {
-        var bounds = new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height);
-        SkUiLook.Current.DrawRoundedBox(
-            canvas,
-            bounds,
-            _cornerRadius,
-            ToSkColor(_backgroundColor),
-            SKColors.Transparent,
-            0);
+        if (_backgroundColor.Alpha <= 0) return;
+        SkUiShapePainter.Fill(canvas, Outline(), new SolidPaint(_backgroundColor), new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height));
     }
 
     /// <summary>
-    /// Draws the stroke registered as <see cref="SkUiCoreNode.PaintOverlay"/> so opaque content cannot cover the border.
+    /// Strokes the outline, registered as <see cref="SkUiCoreNode.PaintOverlay"/> so opaque content cannot cover the border.
     /// </summary>
     protected void PaintBorderOverlay(SKCanvas canvas)
     {
-        if (_stroke is null || _strokeThickness <= 0) return;
-        var bounds = new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height);
-        SkUiLook.Current.DrawRoundedBox(
-            canvas,
-            bounds,
-            _cornerRadius,
-            SKColors.Transparent,
-            ToSkColor(_stroke),
-            (float)_strokeThickness);
+        if (_strokeThickness <= 0 || !SkUiShapePainter.IsVisible(_stroke)) return;
+        float[]? dashes = _strokeDashArray.Length == 0 ? null : Array.ConvertAll(_strokeDashArray, value => (float)value);
+        SkUiShapePainter.Stroke(canvas, Outline(), _stroke, new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
+            new SkUiStrokeStyle(_strokeThickness, dashes, _strokeDashOffset, _strokeLineCap, _strokeLineJoin, _strokeMiterLimit));
     }
 
-    private SKPath? _childrenClip;
-    private (float Width, float Height, CornerRadius Radius, SkUiLook Look) _childrenClipKey;
+    private SKPath Outline() => _geometry.Outline(_strokeShape, _cornerRadius, (float)Frame.Width, (float)Frame.Height, _strokeThickness);
 
-    /// <summary>Clips children to the same rounded-rect geometry as the fill/border (applied by the compositor).</summary>
-    internal override void OnGetRenderProps(ref MauiSkiaUi.Rendering.SkUiRenderProps props)
-    {
-        var key = (props.Width, props.Height, _cornerRadius, SkUiLook.Current);
-        if (_childrenClip is null || key != _childrenClipKey)
-        {
-            // Never dispose a committed path: the render thread may still be drawing with it (GC finalizes it).
-            _childrenClip = SkUiLook.Current.CreateRoundRectPath(new SKRect(0, 0, props.Width, props.Height), _cornerRadius);
-            _childrenClipKey = key;
-        }
-        props.ChildrenClipPath = _childrenClip;
-    }
-
-    private static void ValidateCornerRadius(CornerRadius value)
-    {
-        if (value.TopLeft < 0 || value.TopRight < 0 || value.BottomLeft < 0 || value.BottomRight < 0)
-            throw new ArgumentOutOfRangeException(nameof(value), value, "Corner radii must be non-negative.");
-    }
+    /// <summary>Clips children to the inside of the stroke (applied by the compositor).</summary>
+    internal override void OnGetRenderProps(ref MauiSkiaUi.Rendering.SkUiRenderProps props) =>
+        props.ChildrenClipPath = _geometry.ContentClip(_strokeShape, _cornerRadius, props.Width, props.Height, _strokeThickness);
 }

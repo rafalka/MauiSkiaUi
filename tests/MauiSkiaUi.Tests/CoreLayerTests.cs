@@ -132,8 +132,9 @@ public class CoreLayerTests
 
         border.Measure(100, 40);
         border.Arrange(new Rect(0, 0, 100, 40));
-        Assert.Equal(4, label.Frame.X, 1);
-        Assert.Equal(4, label.Frame.Y, 1);
+        // As MAUI's Border: inside the padding plus the (default 1 DIP) stroke.
+        Assert.Equal(5, label.Frame.X, 1);
+        Assert.Equal(5, label.Frame.Y, 1);
 
         using var bitmap = new SKBitmap(100, 40);
         using var canvas = new SKCanvas(bitmap);

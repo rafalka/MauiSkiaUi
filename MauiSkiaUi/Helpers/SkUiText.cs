@@ -145,7 +145,7 @@ internal sealed class SkUiTextLayout
     private readonly Dictionary<SKTypeface, SKFont> _fonts = [];
     private readonly Func<SKTypeface, SKFont> _fontFor;
     // Stock breaking scratch, shared per thread (layout runs on the UI thread and never nests a stock break).
-    [ThreadStatic] private static List<LineSpec>? t_specs;
+    [ThreadStatic] private static List<LineSpec>? _specs;
     private SKTypeface? _typeface;
     private float _fontSize;
     private FontAttributes _fontAttributes;
@@ -281,7 +281,7 @@ internal sealed class SkUiTextLayout
             }
             else
             {
-                var specs = t_specs ??= [];
+                var specs = _specs ??= [];
                 specs.Clear();
                 try
                 {

@@ -26,7 +26,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 <sk:SkUiLayout>
   <sk:SkUiBox Color="Crimson" WidthRequest="80" HeightRequest="60"
               HorizontalOptions="Start" VerticalOptions="Start" Margin="16" />
-  <sk:SkUiEllipse Color="Teal" WidthRequest="60" HeightRequest="60"
+  <sk:SkUiEllipse Fill="Teal" WidthRequest="60" HeightRequest="60"
                   HorizontalOptions="End" VerticalOptions="End" Margin="16" />
 </sk:SkUiLayout>
 ```

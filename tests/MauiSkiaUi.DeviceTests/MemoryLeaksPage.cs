@@ -68,14 +68,14 @@ public sealed class MemoryLeaksPage : ContentPage
         UpdateSummary();
     }
 
-    private static bool s_autorunStarted;
+    private static bool _autorunStarted;
 
     private async void OnLoaded(object? sender, EventArgs e)
     {
         MemoryLeakRunner.ResultChanged += OnResultChanged;
-        if (!DeviceTestOptions.Current.Autorun || s_autorunStarted)
+        if (!DeviceTestOptions.Current.Autorun || _autorunStarted)
             return;
-        s_autorunStarted = true;
+        _autorunStarted = true;
         SetBusy(true);
         await Task.Delay(500); // first frames of the page before the first scenario
         await MemoryLeakRunner.RunForAutomationAsync(DeviceTestOptions.Current);

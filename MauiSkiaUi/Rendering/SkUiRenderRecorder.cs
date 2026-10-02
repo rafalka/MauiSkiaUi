@@ -162,8 +162,8 @@ internal sealed class SkUiRenderRecorder : IDisposable
 /// </summary>
 internal static class SkUiImmediatePainter
 {
-    [ThreadStatic] private static SKPaint? t_layerPaint;
-    [ThreadStatic] private static List<ISkUiRenderable>? t_children;
+    [ThreadStatic] private static SKPaint? _layerPaint;
+    [ThreadStatic] private static List<ISkUiRenderable>? _children;
 
     internal static void Paint(ISkUiRenderable node, SKCanvas canvas, bool applyOffset)
     {
@@ -185,12 +185,12 @@ internal static class SkUiImmediatePainter
                 canvas.ClipRect(props.Bounds);
             if (props.Opacity < 1)
             {
-                var paint = t_layerPaint ??= new SKPaint();
+                var paint = _layerPaint ??= new SKPaint();
                 paint.Color = SKColors.White.WithAlpha((byte)(255 * props.Opacity));
                 canvas.SaveLayer(props.ClipToBounds ? props.Bounds : visual, paint);
             }
             node.RecordContent(canvas);
-            var children = t_children ??= [];
+            var children = _children ??= [];
             var start = children.Count;
             node.GetRenderChildren(children);
             var end = children.Count;

@@ -12,11 +12,8 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
 {
     private ICommand? _command;
     private object? _commandParameter;
-    private CornerRadius _cornerRadii;
-    private Color _borderColor = Colors.Transparent;
-    private double _borderWidth;
+    private SkUiChromeState _chrome;
     private Thickness _padding;
-    private SkUiRoundedClip _clip;
     private bool _isPressed;
     private SkUiPressAnimator? _press;
     private EventHandler? _commandChanged;
@@ -50,21 +47,21 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
     /// <summary>Per-corner radii in DIPs: they clip the image, the press / disabled tint and the border.</summary>
     public CornerRadius CornerRadii
     {
-        get => _cornerRadii;
+        get => _chrome.Radii;
         set => SetCornerRadii(value);
     }
 
     /// <summary>Border color; the border is drawn inside the bounds, over the image.</summary>
     public Color BorderColor
     {
-        get => _borderColor;
+        get => _chrome.BorderColor;
         set => SetBorderColor(value);
     }
 
     /// <summary>Border width in DIPs (0: no border).</summary>
     public double BorderWidth
     {
-        get => _borderWidth;
+        get => _chrome.BorderWidth;
         set => SetBorderWidth(value);
     }
 
@@ -132,8 +129,10 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
     /// <summary>Sets the per-corner radii in DIPs.</summary>
     public SkUiCoreImageButton SetCornerRadii(CornerRadius value)
     {
-        SkUiCornerRadii.Validate(value, nameof(value));
-        if (!SetProperty(ref _cornerRadii, value, nameof(CornerRadii))) return this;
+        var changed = value != _chrome.Radii;
+        _chrome.SetRadii(value);
+        if (!changed) return this;
+        OnPropertyChanged(nameof(CornerRadii));
         InvalidatePaint();
         return this;
     }
@@ -149,8 +148,8 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
     /// <summary>Sets the border color.</summary>
     public SkUiCoreImageButton SetBorderColor(Color value)
     {
-        ArgumentNullException.ThrowIfNull(value);
-        if (!SetProperty(ref _borderColor, value, nameof(BorderColor))) return this;
+        if (!_chrome.SetBorderColor(value)) return this;
+        OnPropertyChanged(nameof(BorderColor));
         InvalidatePaint();
         return this;
     }
@@ -158,8 +157,8 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
     /// <summary>Sets the border width in DIPs.</summary>
     public SkUiCoreImageButton SetBorderWidth(double value)
     {
-        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
-        if (!SetProperty(ref _borderWidth, value, nameof(BorderWidth))) return this;
+        if (!_chrome.SetBorderWidth(value)) return this;
+        OnPropertyChanged(nameof(BorderWidth));
         InvalidatePaint();
         return this;
     }
@@ -182,7 +181,7 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
     private bool CanExecuteCommand => _command?.CanExecute(_commandParameter) ?? true;
 
     /// <inheritdoc />
-    internal override CornerRadius PressEffectCornerRadii => _cornerRadii;
+    internal override CornerRadius PressEffectCornerRadii => _chrome.Radii;
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
@@ -190,15 +189,14 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>
-        SkUiImageButtonDrawing.PaintContent(canvas, this, (float)Frame.Width, (float)Frame.Height, _padding, _cornerRadii, ref _clip);
+        SkUiImageButtonDrawing.PaintContent(canvas, this, (float)Frame.Width, (float)Frame.Height, _padding, ref _chrome);
 
     /// <summary>
     /// Draws press / disabled feedback (<see cref="SkUiLook.DrawPressOverlay"/>) and the border, registered as
     /// <see cref="SkUiCoreNode.PaintOverlay"/>. Subclasses may call or re-register this painter.
     /// </summary>
     protected void PaintButtonOverlay(SKCanvas canvas) =>
-        SkUiImageButtonDrawing.PaintOverlay(canvas, (float)Frame.Width, (float)Frame.Height, _cornerRadii, ToSkColor(_borderColor), (float)_borderWidth,
-            _press?.Visual ?? SkUiPressVisual.None, CanExecuteCommand);
+        SkUiImageButtonDrawing.PaintOverlay(canvas, (float)Frame.Width, (float)Frame.Height, _chrome, _press?.Visual ?? SkUiPressVisual.None, CanExecuteCommand);
 
     void SkUiImageButtonDrawing.IImage.Paint(SKCanvas canvas, SKRect area) => PaintImage(canvas, area);
 

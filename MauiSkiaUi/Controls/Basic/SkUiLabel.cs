@@ -34,11 +34,8 @@ public class SkUiLabel : SkUiView
     private readonly SkUiTextLayout _layout;
     private SkUiTextRendering _textRendering;
     private SKPaint? _textPaint;
-    private Microsoft.Maui.CornerRadius _cornerRadii;
+    private SkUiChromeState _chrome;
     private bool _syncingCornerRadius;
-    private Color _borderColor = Colors.Transparent;
-    private double _borderWidth;
-    private SkUiRoundedClip _textClip;
     private FormattedString? _formattedText;
     private SkUiRichTextLayout? _richLayout;
     private SkUiRichText? _richText; // _formattedText resolved against the label's defaults; null: rebuild
@@ -120,7 +117,7 @@ public class SkUiLabel : SkUiView
         _textColor = DefaultTextColor;
         _horizontalTextAlignment = _verticalTextAlignment = DefaultTextAlignment;
         _padding = DefaultPadding;
-        _cornerRadii = new Microsoft.Maui.CornerRadius(DefaultCornerRadius);
+        _chrome.SetRadii(new Microsoft.Maui.CornerRadius(DefaultCornerRadius));
     }
 
     /// <summary>Default (uniform) corner radius used by derived controls and bindable value clearing.</summary>
@@ -341,8 +338,7 @@ public class SkUiLabel : SkUiView
     public SkUiLabel SetCornerRadii(Microsoft.Maui.CornerRadius value) { SkUiCornerRadii.Validate(value, nameof(value)); CornerRadii = value; return this; }
     private void OnCornerRadiiChanged(Microsoft.Maui.CornerRadius value)
     {
-        if (_cornerRadii == value) return;
-        _cornerRadii = value;
+        if (!_chrome.SetRadii(value)) return;
         SyncCornerRadiusProperty();
         InvalidatePaint();
     }
@@ -353,7 +349,7 @@ public class SkUiLabel : SkUiView
     /// <summary>Keeps the <see cref="CornerRadius"/> store at the top-left radius, rounded, so its bindings see <see cref="CornerRadii"/> changes.</summary>
     private void SyncCornerRadiusProperty()
     {
-        var uniform = (int)Math.Round(_cornerRadii.TopLeft);
+        var uniform = (int)Math.Round(_chrome.Radii.TopLeft);
         if ((int)GetValue(CornerRadiusProperty) == uniform) return;
         _syncingCornerRadius = true; // the store follows the radii; it must not set all four corners back
         try { SetValue(CornerRadiusProperty, uniform); }
@@ -361,21 +357,20 @@ public class SkUiLabel : SkUiView
     }
     /// <summary>Sets border color (same as the property setter).</summary>
     public SkUiLabel SetBorderColor(Color value) { ArgumentNullException.ThrowIfNull(value); BorderColor = value; return this; }
-    private void OnBorderColorChanged(Color value) { if (_borderColor == value) return; _borderColor = value; InvalidatePaint(); }
+    private void OnBorderColorChanged(Color value) { if (_chrome.SetBorderColor(value)) InvalidatePaint(); }
     /// <summary>Sets border width (same as the property setter).</summary>
     public SkUiLabel SetBorderWidth(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); BorderWidth = value; return this; }
-    private void OnBorderWidthChanged(double value) { if (_borderWidth == value) return; _borderWidth = value; InvalidatePaint(); }
+    private void OnBorderWidthChanged(double value) { if (_chrome.SetBorderWidth(value)) InvalidatePaint(); }
 
     /// <inheritdoc />
-    internal override Microsoft.Maui.CornerRadius PressEffectCornerRadii => _cornerRadii;
+    internal override Microsoft.Maui.CornerRadius PressEffectCornerRadii => _chrome.Radii;
 
     /// <summary>Whether the label draws rounded chrome instead of the plain rectangular background.</summary>
-    private bool HasChrome => SkUiCornerRadii.HasAny(_cornerRadii) || (_borderWidth > 0 && _borderColor.Alpha > 0);
+    private bool HasChrome => SkUiCornerRadii.HasAny(_chrome.Radii) || _chrome.HasBorder;
 
     /// <summary>Draws the rounded fill (<paramref name="fill"/>) and border through <see cref="SkUiLook.DrawRoundedBox(SKCanvas, SKRect, Microsoft.Maui.CornerRadius, SKColor, SKColor, float)"/>.</summary>
     protected void PaintChrome(SKCanvas canvas, Color fill) =>
-        SkUiLook.Current.DrawRoundedBox(canvas, new SKRect(0, 0, (float)Width, (float)Height), _cornerRadii,
-            ToSkColor(fill), ToSkColor(_borderColor), (float)_borderWidth);
+        _chrome.Draw(canvas, (float)Width, (float)Height, _chrome.Radii, ToSkColor(fill));
 
     /// <inheritdoc />
     protected override void OnPaintBackground(SKCanvas canvas)
@@ -522,19 +517,10 @@ public class SkUiLabel : SkUiView
     protected override void OnPaintContent(SKCanvas canvas)
     {
         if ((UsesRichText ? RichText.Text : _displayText).Length == 0) return;
-        if (!SkUiCornerRadii.HasAny(_cornerRadii))
-        {
-            PaintText(canvas);
-            return;
-        }
         // Glyphs never bleed past the rounded corners.
-        var saveCount = canvas.Save();
-        try
-        {
-            canvas.ClipPath(_textClip.Get((float)Width, (float)Height, _cornerRadii), antialias: true);
-            PaintText(canvas);
-        }
-        finally { canvas.RestoreToCount(saveCount); }
+        var saveCount = _chrome.ClipToRadii(canvas, (float)Width, (float)Height, _chrome.Radii);
+        try { PaintText(canvas); }
+        finally { SkUiChromeState.EndClip(canvas, saveCount); }
     }
 
     private void PaintText(SKCanvas canvas)

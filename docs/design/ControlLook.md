@@ -116,7 +116,7 @@ Drawing the blend makes interruptions free: a switch toggled back mid-way revers
 | SliderThumb | 150 ms, cubic out (taps only; drags and code follow at once) |
 | Progress | None, as MAUI's `ProgressBar` (`ProgressTo` animates on its own) |
 
-**Press feedback on any control.** `ShowsPressEffect` (every `SkUiView` and Core node) draws the look's press overlay (`DrawPressOverlay`) over the node and its children while it is pressed, clipped to its rounded shape (a label's `CornerRadii`, a border's `CornerRadius`). This is for containers that act as one button: a card, or a composite button built from several Core nodes. The node needs a tap handler (`Tapped`, or `TappedCommand` on SkUi*) to be pressed. A button inside it still takes its own presses. `DefaultSkUiLook` dims the content or spreads a dark ripple.
+**Press feedback on any control.** `ShowsPressEffect` (every `SkUiView` and Core node) draws the look's press overlay (`DrawPressOverlay`) over the node and its children while it is pressed, clipped to its rounded shape (a label's `CornerRadii`, a border's `CornerRadius` or rounded-rectangle `StrokeShape`). This is for containers that act as one button: a card, or a composite button built from several Core nodes. The node needs a tap handler (`Tapped`, or `TappedCommand` on SkUi*) to be pressed. A button inside it still takes its own presses. `DefaultSkUiLook` dims the content or spreads a dark ripple.
 
 Override `GetTransitionCore` in a subclass, or set `TransitionProvider` on a look instance. `DefaultSkUiLook.PressEffect` picks `Dim` (default: the fill fades by a quarter) or `Ripple` (a circle spreads from the press point, clipped to the button's rounded shape, and fades after the release).
 

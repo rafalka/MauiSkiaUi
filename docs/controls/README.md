@@ -51,10 +51,15 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 
 | Control | Doc | MAUI counterpart |
 | --- | --- | --- |
-| `SkUiShape` | [SkUiShape.md](SkUiShape.md) | — (abstract) |
+| `SkUiShape` | [SkUiShape.md](SkUiShape.md) | Shape (abstract): brushes, stroke model, `Aspect` |
 | `SkUiBox` | [SkUiBox.md](SkUiBox.md) | BoxView |
 | `SkUiEllipse` | [SkUiEllipse.md](SkUiEllipse.md) | Ellipse |
 | `SkUiLine` | [SkUiLine.md](SkUiLine.md) | Line |
+| `SkUiRectangle` | [SkUiRectangle.md](SkUiRectangle.md) | Rectangle |
+| `SkUiRoundRectangle` | [SkUiRoundRectangle.md](SkUiRoundRectangle.md) | RoundRectangle |
+| `SkUiPath` | [SkUiPath.md](SkUiPath.md) | Path |
+| `SkUiPolygon` | [SkUiPolygon.md](SkUiPolygon.md) | Polygon |
+| `SkUiPolyline` | [SkUiPolyline.md](SkUiPolyline.md) | Polyline |
 
 ## Scrolling
 

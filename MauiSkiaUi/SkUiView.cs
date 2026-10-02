@@ -628,7 +628,7 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
         }
     }
 
-    [ThreadStatic] private static SKPaint? t_fillPaint;
+    [ThreadStatic] private static SKPaint? _fillPaint;
     private Action<SKCanvas>? _paintBackground;
     private Action<SKCanvas>? _paintOverlay;
 
@@ -703,7 +703,7 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
         var color = ResolveSolidBackgroundColor();
         if (color is null)
             return;
-        var paint = t_fillPaint ??= new SKPaint();
+        var paint = _fillPaint ??= new SKPaint();
         paint.Color = ToSkColor(color);
         canvas.DrawRect(0, 0, (float)Width, (float)Height, paint);
     }

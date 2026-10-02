@@ -124,29 +124,29 @@ internal sealed class SkUiTestSurface : IDisposable
 /// <summary>Dispatcher provider that answers only on threads that enabled it (see <see cref="SkUiTestHelpers.UseTestDispatcher"/>).</summary>
 internal sealed class TestDispatcherProvider : IDispatcherProvider
 {
-    [ThreadStatic] private static TestDispatcher? t_dispatcher;
+    [ThreadStatic] private static TestDispatcher? _dispatcher;
     private static readonly object Gate = new();
-    private static bool s_installed;
+    private static bool _installed;
 
-    public IDispatcher? GetForCurrentThread() => t_dispatcher;
+    public IDispatcher? GetForCurrentThread() => _dispatcher;
 
     public static IDisposable Enable()
     {
         lock (Gate)
         {
-            if (!s_installed)
+            if (!_installed)
             {
                 DispatcherProvider.SetCurrent(new TestDispatcherProvider());
-                s_installed = true;
+                _installed = true;
             }
         }
-        t_dispatcher = new TestDispatcher();
+        _dispatcher = new TestDispatcher();
         return new Scope();
     }
 
     private sealed class Scope : IDisposable
     {
-        public void Dispose() => t_dispatcher = null;
+        public void Dispose() => _dispatcher = null;
     }
 
     /// <summary>Runs dispatched work inline; delayed work (gesture timers) is dropped.</summary>

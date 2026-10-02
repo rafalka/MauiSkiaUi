@@ -8,12 +8,12 @@ namespace MauiSkiaUi.Tests;
 /// <summary><see cref="SkUiSlider"/> / <see cref="SkUiCoreSlider"/>: range, input along either axis, scroll competition, drawing.</summary>
 public class SliderTests
 {
-    private static long s_pointer = 9_000;
+    private static long _pointer = 9_000;
 
     /// <summary>A drag from <paramref name="from"/> to <paramref name="to"/> (root coordinates) in 8 steps over 160 ms.</summary>
     private static void Drag(SkUiView root, Point from, Point to)
     {
-        var id = ++s_pointer;
+        var id = ++_pointer;
         var start = TimeSpan.FromSeconds(10);
         root.Touch(new(id, SkUiTouchAction.Pressed, from, start));
         for (var step = 1; step <= 8; step++)
@@ -26,7 +26,7 @@ public class SliderTests
 
     private static void Tap(SkUiView root, Point at)
     {
-        var id = ++s_pointer;
+        var id = ++_pointer;
         root.Touch(new(id, SkUiTouchAction.Pressed, at, TimeSpan.FromSeconds(20)));
         root.Touch(new(id, SkUiTouchAction.Released, at, TimeSpan.FromSeconds(20.05)));
     }

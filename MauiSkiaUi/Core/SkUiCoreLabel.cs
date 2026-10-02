@@ -37,11 +37,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     private SkUiTextRendering _textRendering;
     private SKPaint? _textPaint;
     private Color _fillColor = Colors.Transparent;
-    private Color _borderColor = Colors.Transparent;
-    private double _borderWidth;
-    private Microsoft.Maui.CornerRadius _cornerRadii;
-    private bool _cornerRadiusExplicit;
-    private SkUiRoundedClip _textClip;
+    private SkUiChromeState _chrome;
     private SkUiCoreSpan[] _spans = [];
     private SkUiRichTextLayout? _richLayout;
     private SkUiRichText? _richText; // _spans resolved against the label's defaults; null: rebuild
@@ -133,14 +129,14 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Border color (drawn inside the bounds; <see cref="Padding"/> is not adjusted).</summary>
     public Color BorderColor
     {
-        get => _borderColor;
+        get => _chrome.BorderColor;
         set => SetBorderColor(value);
     }
 
     /// <summary>Border width in DIPs.</summary>
     public double BorderWidth
     {
-        get => _borderWidth;
+        get => _chrome.BorderWidth;
         set => SetBorderWidth(value);
     }
 
@@ -161,8 +157,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <inheritdoc />
     internal override Microsoft.Maui.CornerRadius PressEffectCornerRadii => EffectiveCornerRadii;
 
-    private Microsoft.Maui.CornerRadius EffectiveCornerRadii =>
-        _cornerRadiusExplicit ? _cornerRadii : new Microsoft.Maui.CornerRadius(DefaultCornerRadius);
+    private Microsoft.Maui.CornerRadius EffectiveCornerRadii => _chrome.ResolveRadii(DefaultCornerRadius);
 
     /// <summary>Text inset in DIPs.</summary>
     public Thickness Padding
@@ -497,8 +492,8 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Sets border color.</summary>
     public SkUiCoreLabel SetBorderColor(Color value)
     {
-        ArgumentNullException.ThrowIfNull(value);
-        if (!SetProperty(ref _borderColor, value, nameof(BorderColor))) return this;
+        if (!_chrome.SetBorderColor(value)) return this;
+        OnPropertyChanged(nameof(BorderColor));
         InvalidatePaint();
         return this;
     }
@@ -506,8 +501,8 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Sets border width in DIPs.</summary>
     public SkUiCoreLabel SetBorderWidth(double value)
     {
-        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
-        if (!SetProperty(ref _borderWidth, value, nameof(BorderWidth))) return this;
+        if (!_chrome.SetBorderWidth(value)) return this;
+        OnPropertyChanged(nameof(BorderWidth));
         InvalidatePaint();
         return this;
     }
@@ -515,14 +510,9 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Sets the per-corner radii in DIPs (marks them as app-explicit so look swaps do not replace them).</summary>
     public SkUiCoreLabel SetCornerRadii(Microsoft.Maui.CornerRadius value)
     {
-        SkUiCornerRadii.Validate(value, nameof(value));
-        var wasExplicit = _cornerRadiusExplicit;
-        _cornerRadiusExplicit = true;
-        if (!SetProperty(ref _cornerRadii, value, nameof(CornerRadii)))
-        {
-            if (wasExplicit) return this;
-            OnPropertyChanged(nameof(CornerRadii)); // the effective radii changed from the default to the stored value
-        }
+        // Also a change from the default radii to the same stored value: they are explicit from now on.
+        if (!_chrome.SetRadii(value)) return this;
+        OnPropertyChanged(nameof(CornerRadii));
         InvalidatePaint();
         return this;
     }
@@ -537,8 +527,7 @@ public class SkUiCoreLabel : SkUiCoreNode
 
     /// <summary>Draws the rounded fill (<paramref name="fill"/>) and border through <see cref="SkUiLook.DrawRoundedBox(SKCanvas, SKRect, Microsoft.Maui.CornerRadius, SKColor, SKColor, float)"/>.</summary>
     protected void PaintChrome(SKCanvas canvas, Color fill) =>
-        SkUiLook.Current.DrawRoundedBox(canvas, new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height), EffectiveCornerRadii,
-            ToSkColor(fill), ToSkColor(_borderColor), (float)_borderWidth);
+        _chrome.Draw(canvas, (float)Frame.Width, (float)Frame.Height, EffectiveCornerRadii, ToSkColor(fill));
 
     /// <summary>Sets text inset in DIPs.</summary>
     public SkUiCoreLabel SetPadding(Thickness value)
@@ -596,26 +585,13 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        var radii = EffectiveCornerRadii;
-        if (PaintBackground is null && (_fillColor.Alpha > 0 || (_borderWidth > 0 && _borderColor.Alpha > 0)))
+        if (PaintBackground is null && (_fillColor.Alpha > 0 || _chrome.HasBorder))
             PaintChrome(canvas, _fillColor);
         if ((UsesRichText ? RichText.Text : _displayText).Length == 0) return;
-        if (!SkUiCornerRadii.HasAny(radii))
-        {
-            PaintText(canvas);
-            return;
-        }
         // Glyphs never bleed past the rounded corners.
-        var saveCount = canvas.Save();
-        try
-        {
-            canvas.ClipPath(_textClip.Get((float)Frame.Width, (float)Frame.Height, radii), antialias: true);
-            PaintText(canvas);
-        }
-        finally
-        {
-            canvas.RestoreToCount(saveCount);
-        }
+        var saveCount = _chrome.ClipToRadii(canvas, (float)Frame.Width, (float)Frame.Height, EffectiveCornerRadii);
+        try { PaintText(canvas); }
+        finally { SkUiChromeState.EndClip(canvas, saveCount); }
     }
 
     private void PaintText(SKCanvas canvas)

@@ -1,19 +1,22 @@
 # SkUiLine
 
-Straight stroke between two points, like MAUI's `Line`.
+A straight stroke between two points, as MAUI's `Line`.
 
-**MAUI counterpart:** [`Line`](https://learn.microsoft.com/dotnet/maui/user-interface/shapes/line) shape
+**MAUI counterpart:** [`Line`](https://learn.microsoft.com/dotnet/maui/user-interface/shapes/line)
 
 ## How it works
 
-Draws from (`X1`, `Y1`) to (`X2`, `Y2`) in local DIPs with `StrokeWidth` and `Color` (butt caps). As MAUI's `Line` (no stretch):
+Draws from (`X1`, `Y1`) to (`X2`, `Y2`) in local DIPs with the `Stroke` brush. As MAUI's `Line` (no stretch by default):
 
-- **Measure:** the intrinsic size reaches the far end points plus the stroke (`max(X1, X2) + StrokeWidth` × `max(Y1, Y2) + StrokeWidth`), so a line sizes itself without `WidthRequest` / `HeightRequest`.
-- **Placement:** the drawing area is the bounds inset by half the stroke; the line moves only to bring an end that sticks out over the left / top (or else the right / bottom) edge back in, so a line starting at 0 is not cut in half.
-- Points are not mirrored in right-to-left layouts. With no points set (all 0) nothing is drawn.
+- **Measure:** the intrinsic size reaches the far end points plus the stroke (`max(X1, X2) + StrokeThickness` × `max(Y1, Y2) + StrokeThickness`), so a line sizes itself.
+- **Placement:** the drawing area is the bounds inset by half the stroke; the line moves only to bring an end that sticks out back in, so a line starting at 0 is not cut in half. `Aspect` stretches it like any shape.
+- Points are not mirrored in right-to-left layouts. Round and square caps reach past the ends.
 
 Hit region is the full arranged rectangle. `SkUiCoreLine` is the same on the Core layer (`SetPoints`, `SetX1` …).
 
+## Shape model (all shapes)
+
+The MAUI `Shape` API, from [`SkUiShape`](SkUiShape.md): `Fill` and `Stroke` brushes (solid colors and gradients), `StrokeThickness` (1 by default), `StrokeDashArray` / `StrokeDashOffset` (in multiples of the thickness), `StrokeLineCap`, `StrokeLineJoin`, `StrokeMiterLimit`, `Aspect`. A shape without `Fill` and `Stroke` draws nothing, as in MAUI.
 
 ## Shared conventions
 
@@ -25,21 +28,17 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 - **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`), not MAUI `GestureRecognizers`. See [EventMechanism.md](../design/EventMechanism.md).
 - **Hosted vs standalone:** when nested under another SkiaUi parent, the node has no platform handler and paints into the root surface. See [LayoutSystem.md](../design/LayoutSystem.md).
 
-
 ## How to use
 
 ```xml
-<sk:SkUiLine X1="0" Y1="0" X2="175" Y2="47" Color="#263D43" StrokeWidth="5" />
-<sk:SkUiLine X2="200" Color="#D0D7D8" StrokeWidth="1" />  <!-- a separator -->
+<sk:SkUiLine X1="0" Y1="0" X2="175" Y2="47" Stroke="#263D43" StrokeThickness="5" />
+<sk:SkUiLine X2="200" Stroke="#D0D7D8" />  <!-- a 1-DIP separator -->
+<sk:SkUiLine X1="40" Y1="0" X2="0" Y2="120" Stroke="DarkBlue" StrokeDashArray="1,1" StrokeDashOffset="6" StrokeLineCap="Round" />
 ```
 
 ## Differences from MAUI Line
 
-| Topic | SkiaUi |
-| --- | --- |
-| Stroke | `Color` + `StrokeWidth` (MAUI: `Stroke` brush + `StrokeThickness`, default 1; SkiaUi default 2) |
-| `Aspect` (stretch), dashes, caps | Not supported yet (P6 in [ImplementationPlan.md](../design/ImplementationPlan.md)) |
-| Hit testing | Rectangular arranged bounds |
+Same API and geometry. Hit testing uses the arranged rectangle.
 
 ## Related
 

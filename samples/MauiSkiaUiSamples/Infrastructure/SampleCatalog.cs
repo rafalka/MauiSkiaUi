@@ -13,6 +13,7 @@ public static class SampleCatalog
         SampleEntry.For<TextThatFitsSample>(),
         SampleEntry.For<TextWithLinksSample>(),
         SampleEntry.For<CachedAvatarsSample>(),
+        SampleEntry.For<ShapesAndBordersSample>(),
         SampleEntry.For<CrossCheckBoxSample>(),
     ];
 

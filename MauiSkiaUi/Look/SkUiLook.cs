@@ -95,7 +95,9 @@ public class SkUiLook
             new SKPoint(bl, bl),
         ]);
         using var builder = new SKPathBuilder();
-        builder.AddRoundRect(roundRect);
+        // Start where MAUI's rectangle paths start, clockwise: on the left edge below the top-left corner (at the corner
+        // when it is square), so dashed borders lay out their pattern as MAUI's.
+        builder.AddRoundRect(roundRect, SKPathDirection.Clockwise, 7);
         return builder.Detach();
     }
 
