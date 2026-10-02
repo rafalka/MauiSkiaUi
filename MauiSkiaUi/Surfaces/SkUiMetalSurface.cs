@@ -5,6 +5,7 @@ using CoreGraphics;
 using Foundation;
 using Metal;
 using ObjCRuntime;
+using MauiSkiaUi.Rendering;
 using SkiaSharp;
 using UIKit;
 
@@ -671,10 +672,19 @@ internal static class SkUiMetalRenderLoop
         }
     }
 
+    /// <summary>Pipeline warm-up of the shared context, one step per idle tick after the first frame.</summary>
+    private static readonly SkUiGpuWarmUp WarmUp = new();
+
     private static void OnTick()
     {
         using var pool = new NSAutoreleasePool();
         var busy = RenderSurfaces();
+        // Idle: compile the next batch of GPU pipelines (keeps the link running until the warm-up is done).
+        if (!busy && !_suspended && _context is { } context && !WarmUp.IsDone)
+        {
+            try { busy = WarmUp.RunNext(context, SKColorType.Bgra8888); }
+            catch (Exception exception) { Debug.WriteLine($"SkiaUi GPU warm-up failed: {exception}"); }
+        }
         // Pause after a short idle period; Wake() resumes it from any thread.
         _idleTicks = busy ? 0 : _idleTicks + 1;
         if (_idleTicks > 2 && _link is { } link)

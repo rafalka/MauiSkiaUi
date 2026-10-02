@@ -64,6 +64,38 @@ internal static class SkUiShapePainter
         Release(paint);
     }
 
+    /// <summary>
+    /// The shadow silhouette of a shape drawn along <paramref name="path"/> (which it takes over): the fill area when the
+    /// fill is opaque, grown by the stroke when an opaque, undashed stroke is drawn (or the stroke area alone without a
+    /// fill); <c>null</c> when anything visible is translucent or dashed, so the shadow is cast from what is drawn instead.
+    /// </summary>
+    public static SKPath? ShapeShadowOutline(SKPath path, Paint? fill, Paint? stroke, in SkUiStrokeStyle style)
+    {
+        var filled = IsVisible(fill);
+        var stroked = style.Thickness > 0 && IsVisible(stroke);
+        if ((!filled && !stroked) || (filled && !IsOpaque(fill)) || (stroked && (!IsOpaque(stroke) || style.Dashes is { Length: > 0 })))
+        {
+            path.Dispose();
+            return null;
+        }
+        if (!stroked)
+            return path;
+        using var paint = new SKPaint();
+        ApplyStroke(paint, style);
+        var area = paint.GetFillPath(path);
+        if (!filled)
+        {
+            path.Dispose();
+            return area;
+        }
+        using (area)
+        {
+            var union = path.Op(area, SKPathOp.Union) ?? new SKPath(path);
+            path.Dispose();
+            return union;
+        }
+    }
+
     /// <summary>Configures <paramref name="paint"/> as a stroke of <paramref name="style"/> (width, caps, joins, miter, dashes).</summary>
     public static void ApplyStroke(SKPaint paint, in SkUiStrokeStyle style)
     {
@@ -125,8 +157,23 @@ internal static class SkUiShapePainter
             }
             default:
                 color = default;
+                if (brush is not null && brush is not SolidPaint and not GradientPaint)
+                    WarnUnsupported(brush);
                 return false;
         }
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, bool> _warned = new();
+
+    /// <summary>
+    /// Says once per paint type that it is not drawn (an <c>ImageBrush</c> arrives as an image paint), so a ported page with
+    /// a missing image fill is easy to diagnose instead of silently empty.
+    /// </summary>
+    private static void WarnUnsupported(Paint brush)
+    {
+        if (_warned.TryAdd(brush.GetType(), true))
+            System.Diagnostics.Trace.TraceWarning(
+                $"SkiaUi: {brush.GetType().Name} is not drawn (ImageBrush is not supported yet); the fill or stroke stays empty.");
     }
 
     /// <summary>Whether <paramref name="brush"/> draws anything (see <see cref="Apply"/>).</summary>

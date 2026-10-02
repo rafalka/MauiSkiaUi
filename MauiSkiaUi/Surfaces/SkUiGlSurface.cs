@@ -1,6 +1,7 @@
 #if ANDROID
 using Android.Content;
 using Android.Views;
+using MauiSkiaUi.Rendering;
 using SkiaSharp;
 using SkiaSharp.Views.Android;
 
@@ -132,10 +133,18 @@ internal sealed class SkUiGlTextureView : GLTextureView
             // Flush here (the base flushes again, cheaply) so statistics include GPU command submission.
             e.Surface.Flush();
             renderer.CompleteFrame();
+            // Between frames of an idle surface: compile the next batch of GPU pipelines of this view's GL context (one
+            // step per frame), so the first scroll or animation does not stall on them.
+            if (!continuous && !_warmUp.IsDone && e.Surface.Context is { } context)
+            {
+                try { continuous = _warmUp.RunNext(context, e.ColorType); }
+                catch (Exception exception) { System.Diagnostics.Debug.WriteLine($"SkiaUi GPU warm-up failed: {exception}"); }
+            }
             if (continuous && Interlocked.Exchange(ref _framePending, 1) == 0)
                 SkUiVsync.Post(_vsync ??= new VsyncCallback(this));
         }
 
+        private readonly SkUiGpuWarmUp _warmUp = new();
         private int _framePending;
         private VsyncCallback? _vsync;
 

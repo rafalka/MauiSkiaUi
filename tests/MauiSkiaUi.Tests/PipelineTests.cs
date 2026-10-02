@@ -770,3 +770,19 @@ public class PipelineTests
         Assert.Null(node.Handler);
     }
 }
+public class GpuWarmUpTests
+{
+    [Fact]
+    public void EveryWarmUpStepDrawsOnAnyCanvas()
+    {
+        // The GPU surfaces run these on an offscreen GPU surface between frames; a raster canvas checks the drawing itself.
+        using var bitmap = new SKBitmap(128, 128);
+        using var canvas = new SKCanvas(bitmap);
+        for (var step = 0; step < Rendering.SkUiGpuWarmUp.StepCount; step++)
+        {
+            Rendering.SkUiGpuWarmUp.Draw(canvas, step);
+            Assert.Equal(1, canvas.SaveCount);
+        }
+        Assert.True(new Rendering.SkUiGpuWarmUp() is { IsDone: false });
+    }
+}

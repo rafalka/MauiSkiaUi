@@ -46,7 +46,8 @@ internal sealed class SkUiVisualEffects
         if (_clipPath is not null && key == _clipKey)
             return _clipPath;
         _clipKey = key;
-        // Committed to the compositor: never disposed here (the render thread may still clip with it; the GC finalizes it).
+        // Committed to the compositor, which disposes it once a commit replaces it (the render thread may still clip with it
+        // until then): never disposed here.
         return _clipPath = SkUiClipGeometry.CreatePath(clip, width, height);
     }
 

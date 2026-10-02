@@ -196,6 +196,20 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
         SkUiShapePainter.Draw(canvas, path, fill, new SKRect(0, 0, (float)Width, (float)Height), stroked ? stroke : null, StrokeStyle());
     }
 
+    /// <inheritdoc />
+    /// <remarks>An opaque background casts from the rectangle, else an opaque fill (and stroke) from the shape itself.</remarks>
+    internal override SKPath? CreateShadowOutline(float width, float height)
+    {
+        if (base.CreateShadowOutline(width, height) is { } background)
+            return background;
+        if (PaintBackground is not null)
+            return null;
+        Paint? fill = _fill;
+        Paint? stroke = _stroke;
+        var path = SkUiShapeGeometry.ToSkia(PlacedPath(new Rect(0, 0, width, height), _strokeThickness), Winding, GeometryTransform);
+        return SkUiShapePainter.ShapeShadowOutline(path, fill, stroke, StrokeStyle());
+    }
+
     private SkUiStrokeStyle StrokeStyle()
     {
         var dashArray = StrokeDashArray;

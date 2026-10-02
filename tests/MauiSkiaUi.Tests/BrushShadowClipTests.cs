@@ -55,6 +55,9 @@ public class BrushShadowClipTests
         Assert.True(right.Blue > 200 && right.Red < 60, $"{name}: right {right}");
     }
 
+    /// <summary>A fill just short of opaque: shapes with it cast their shadow from what they draw (content shadows).</summary>
+    private static readonly Color Translucent = Colors.White.WithAlpha(0.98f);
+
     private static bool IsDark(SKColor color) => color.Alpha > 200 && color.Red < 40 && color.Green < 40 && color.Blue < 40;
 
     public static TheoryData<string> GradientViews => ["view", "layout", "label", "chip", "button", "border", "box", "roundedBox", "imageButton", "image"];
@@ -117,6 +120,29 @@ public class BrushShadowClipTests
         // A Core label's Background replaces its FillColor.
         using (var bitmap = Render(new SkUiCoreLabel().SetFillColor(Colors.Lime).SetBackground(RedToBluePaint()), 100, 40))
             AssertRedToBlue(bitmap, "core label");
+    }
+
+    [Fact]
+    public void RootSurfacesClearOnlyWithAnOpaqueBackground()
+    {
+        // A gradient from transparent wins over BackgroundColor: no red under its transparent end.
+        var gradient = new LinearGradientBrush
+        {
+            EndPoint = new Point(1, 0),
+            GradientStops = { new GradientStop(Colors.Transparent, 0), new GradientStop(Colors.Blue, 1) }
+        };
+        using (var surface = new SkUiTestSurface(new SkUiContentView { BackgroundColor = Colors.Red, Background = gradient }, 100, 20))
+        {
+            var bitmap = surface.Frame();
+            Assert.True(bitmap.GetPixel(1, 10).Alpha < 10, bitmap.GetPixel(1, 10).ToString());
+            Assert.True(bitmap.GetPixel(98, 10).Blue > 200);
+        }
+        // A translucent color is drawn once, not over a clear of the same color.
+        using (var surface = new SkUiTestSurface(new SkUiContentView { Background = Colors.Red.WithAlpha(0.5f) }, 20, 20))
+            Assert.InRange(surface.Frame().GetPixel(10, 10).Alpha, 120, 135);
+        // An opaque root still clears with its color.
+        using (var surface = new SkUiTestSurface(new SkUiContentView { BackgroundColor = Colors.Lime }, 20, 20))
+            Assert.Equal(SKColors.Lime, surface.Frame().GetPixel(10, 10));
     }
 
     [Fact]
@@ -236,7 +262,7 @@ public class BrushShadowClipTests
     [Fact]
     public void ShadowWithoutAnOpaqueFillFollowsTheDrawnContent()
     {
-        var ellipse = new SkUiEllipse { Fill = Colors.White, StrokeThickness = 0, WidthRequest = 40, HeightRequest = 40, Shadow = Sharp() };
+        var ellipse = new SkUiEllipse { Fill = Translucent, StrokeThickness = 0, WidthRequest = 40, HeightRequest = 40, Shadow = Sharp() };
         var root = new SkUiContentView { Padding = 20, Content = ellipse };
         using var bitmap = Render(root, 80, 80);
         Assert.Equal(0, bitmap.GetPixel(68, 68).Alpha);
@@ -253,6 +279,31 @@ public class BrushShadowClipTests
             for (var y = 40; y < 80; y++)
                 if (IsDark(text.GetPixel(x, y))) shadowed++;
         Assert.InRange(shadowed, 20, 120 * 40 / 2);
+    }
+
+    [Fact]
+    public void OpaqueShapesCastFromTheirOutline()
+    {
+        var ellipse = new SkUiEllipse { Fill = Colors.White, StrokeThickness = 0, WidthRequest = 40, HeightRequest = 40, Shadow = Sharp() };
+        var ring = new SkUiEllipse { Stroke = Colors.White, StrokeThickness = 6, WidthRequest = 40, HeightRequest = 40, Shadow = Sharp() };
+        var dashed = new SkUiEllipse { Stroke = Colors.White, StrokeThickness = 6, StrokeDashArray = [2, 2], WidthRequest = 40, HeightRequest = 40, Shadow = Sharp() };
+        var core = new SkUiCoreEllipse().SetFill(Colors.White).SetStrokeThickness(0).SetShadow(new SkUiCoreShadow(Colors.Black, new Point(10, 10), 0));
+        foreach (var (view, outline) in new (ISkUiShadowCaster Caster, bool Outline)[] { (ellipse, true), (ring, true), (dashed, false), (core, true) }.Select(pair => (pair.Caster, pair.Outline)))
+        {
+            using var path = view.CreateShadowOutline(40, 40);
+            Assert.Equal(outline, path is not null);
+        }
+        // Drawn from the outline: the circle's silhouette, and no content raster.
+        using var surface = new SkUiTestSurface(new SkUiContentView { Padding = 20, Content = ellipse }, 80, 80);
+        surface.Frame();
+        var bitmap = surface.Frame(16);
+        Assert.Equal(0, bitmap.GetPixel(68, 68).Alpha);
+        Assert.True(IsDark(bitmap.GetPixel(50, 66)));
+        Assert.Equal(0, surface.Renderer.Compositor.ShadowRasterizations + surface.Renderer.Compositor.LiveShadows);
+        // A stroke-only ring's shadow is a ring too.
+        using var rings = Render(new SkUiContentView { Padding = 20, Content = ring }, 80, 80);
+        Assert.Equal(0, rings.GetPixel(56, 56).Alpha); // in the hole of the ring's shadow, outside the ring itself
+        Assert.True(IsDark(rings.GetPixel(50, 67)));
     }
 
     [Fact]
@@ -356,7 +407,7 @@ public class BrushShadowClipTests
     [Fact]
     public void ScrollingAndTransformsNeitherRecordNorBlurAgain()
     {
-        var card = new SkUiEllipse { Fill = Colors.White, StrokeThickness = 0, HeightRequest = 40, Shadow = new Shadow { Brush = Colors.Black, Radius = 8 } };
+        var card = new SkUiEllipse { Fill = Translucent, StrokeThickness = 0, HeightRequest = 40, Shadow = new Shadow { Brush = Colors.Black, Radius = 8 } };
         var clipped = new SkUiBox { Color = Colors.Red, HeightRequest = 40, Clip = new EllipseGeometry { Center = new Point(20, 20), RadiusX = 20, RadiusY = 20 } };
         var stack = new SkUiVerticalStackLayout { Padding = 20, Spacing = 20 };
         stack.Children.Add(card);
@@ -385,7 +436,7 @@ public class BrushShadowClipTests
         Assert.Equal(1, compositor.LiveShadows);
 
         // A content change rasterizes again, once it is stable.
-        card.Fill = Colors.Yellow;
+        card.Fill = Colors.Yellow.WithAlpha(0.98f); // still translucent: still a content shadow
         surface.Frame(216);
         surface.Frame(232);
         surface.Frame(248);
@@ -393,9 +444,56 @@ public class BrushShadowClipTests
     }
 
     [Fact]
+    public void ReplacedShadowsAndClipsReleaseTheirNativeObjects()
+    {
+        var shadow = new Shadow { Brush = RedToBlue(), Offset = new Point(4, 4), Radius = 6 };
+        var clip = new EllipseGeometry { Center = new Point(20, 20), RadiusX = 20, RadiusY = 20 };
+        var box = new SkUiBox { Color = Colors.White, Shadow = shadow, Clip = clip, WidthRequest = 40, HeightRequest = 40 };
+        using var surface = new SkUiTestSurface(new SkUiContentView { Padding = 20, Content = box }, 80, 80);
+        surface.Frame();
+        var committed = box.RenderState.Node.Props;
+        var style = committed.Shadow!.Style;
+        var oldClip = committed.ClipPath!;
+        Assert.NotEqual(IntPtr.Zero, style.Shader!.Handle);
+        shadow.Radius = 10; // a new style
+        clip.RadiusX = 18; // a new clip path
+        surface.Frame(16);
+        Assert.Equal(IntPtr.Zero, style.Shader.Handle);
+        Assert.Equal(IntPtr.Zero, style.Blur!.Handle);
+        Assert.Equal(IntPtr.Zero, oldClip.Handle);
+        // The current ones stay alive and keep drawing.
+        Assert.NotEqual(IntPtr.Zero, box.RenderState.Node.Props.Shadow!.Style.Shader!.Handle);
+        Assert.NotEqual(IntPtr.Zero, box.RenderState.Node.Props.ClipPath!.Handle);
+        Assert.True(surface.Frame(32).GetPixel(44, 66).Alpha > 0); // below the clipped box, in its shadow
+    }
+
+    [Fact]
+    public void ContentShadowsRasterizeOnIdleFramesWithinABudget()
+    {
+        var stack = new SkUiVerticalStackLayout { Padding = 10, Spacing = 10 };
+        for (var index = 0; index < 8; index++)
+            stack.Children.Add(new SkUiEllipse { Fill = Translucent, StrokeThickness = 0, HeightRequest = 30, Shadow = Sharp(3, 3) });
+        using var surface = new SkUiTestSurface(new SkUiContentView { Content = stack }, 120, 420);
+        var compositor = surface.Renderer.Compositor;
+        surface.Frame();
+        Assert.Equal(8, compositor.LiveShadows); // new subtrees: drawn live…
+        Assert.True(surface.NeedsFrame); // …and a follow-up frame is requested, not left for the next scroll
+        var counts = new List<int>();
+        for (var frame = 1; frame <= 5 && surface.NeedsFrame; frame++)
+        {
+            var before = compositor.ShadowRasterizations;
+            surface.Frame(frame * 16);
+            counts.Add(compositor.ShadowRasterizations - before);
+        }
+        Assert.Equal([3, 3, 2], counts); // spread over frames by the per-frame budget
+        Assert.False(surface.NeedsFrame); // then idle
+        Assert.Equal(8, compositor.ShadowRasterizations);
+    }
+
+    [Fact]
     public void RenderThreadAnimationsDoNotBlurAgain()
     {
-        var card = new SkUiEllipse { Fill = Colors.White, StrokeThickness = 0, Shadow = new Shadow { Brush = Colors.Black, Radius = 8 } };
+        var card = new SkUiEllipse { Fill = Translucent, StrokeThickness = 0, Shadow = new Shadow { Brush = Colors.Black, Radius = 8 } };
         using var surface = new SkUiTestSurface(new SkUiContentView { Padding = 30, Content = card }, 120, 120);
         var compositor = surface.Renderer.Compositor;
         surface.Frame();
@@ -455,7 +553,7 @@ public class BrushShadowClipTests
                 Assert.Equal(expected.GetPixel(x, y), actual.GetPixel(x, y));
 
         // A content shadow on Core: an ellipse's silhouette.
-        var ellipse = new SkUiCoreEllipse().SetFill(Colors.White).SetStrokeThickness(0).SetShadow(new SkUiCoreShadow(Colors.Black, new Point(10, 10), 0));
+        var ellipse = new SkUiCoreEllipse().SetFill(Translucent).SetStrokeThickness(0).SetShadow(new SkUiCoreShadow(Colors.Black, new Point(10, 10), 0));
         ellipse.SetWidth(40).SetHeight(40);
         using var silhouette = Render(new SkUiCoreContentView().SetPadding(new Thickness(20)).SetContent(ellipse), 80, 80);
         Assert.Equal(0, silhouette.GetPixel(68, 68).Alpha);

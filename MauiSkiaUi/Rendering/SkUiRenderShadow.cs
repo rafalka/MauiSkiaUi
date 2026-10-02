@@ -7,7 +7,7 @@ namespace MauiSkiaUi.Rendering;
 /// A node keeps one while its shadow and size stay the same, so the native shader and blur filters are made once.
 /// Immutable once committed: the render thread draws with it.
 /// </summary>
-internal sealed class SkUiShadowStyle
+internal sealed class SkUiShadowStyle : IDisposable
 {
     /// <summary>The look of <paramref name="shadow"/> (a gradient maps onto <paramref name="bounds"/>), or <c>null</c> when it draws nothing.</summary>
     public static SkUiShadowStyle? Create(IShadow shadow, SKRect bounds)
@@ -63,6 +63,14 @@ internal sealed class SkUiShadowStyle
 
     /// <summary>The blur of a shadow from the node's content; <c>null</c> without blur.</summary>
     public SKImageFilter? LayerBlur { get; }
+
+    /// <summary>Releases the native shader and filters (render thread, once no committed frame uses this style).</summary>
+    public void Dispose()
+    {
+        Shader?.Dispose();
+        Blur?.Dispose();
+        LayerBlur?.Dispose();
+    }
 
     /// <summary>Sets <paramref name="paint"/> to the shadow's color or gradient and opacity.</summary>
     public void Apply(SKPaint paint)

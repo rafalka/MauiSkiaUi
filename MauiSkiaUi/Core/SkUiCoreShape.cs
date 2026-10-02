@@ -166,9 +166,25 @@ public abstract class SkUiCoreShape : SkUiCoreNode, IShape, ISkUiShapeOutline
         if (!stroked && !SkUiShapePainter.IsVisible(_fill)) return;
         var bounds = new Rect(0, 0, Frame.Width, Frame.Height);
         using var path = SkUiShapeGeometry.ToSkia(PlacedPath(bounds, _strokeThickness), Winding, GeometryTransform);
+        SkUiShapePainter.Draw(canvas, path, _fill, new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height), stroked ? _stroke : null, StrokeStyle());
+    }
+
+    private SkUiStrokeStyle StrokeStyle()
+    {
         float[]? dashes = _strokeDashArray.Length == 0 ? null : Array.ConvertAll(_strokeDashArray, value => (float)value);
-        SkUiShapePainter.Draw(canvas, path, _fill, new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height), stroked ? _stroke : null,
-            new SkUiStrokeStyle(_strokeThickness, dashes, _strokeDashOffset, _strokeLineCap, _strokeLineJoin, _strokeMiterLimit));
+        return new SkUiStrokeStyle(_strokeThickness, dashes, _strokeDashOffset, _strokeLineCap, _strokeLineJoin, _strokeMiterLimit);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>An opaque background casts from the rectangle, else an opaque fill (and stroke) from the shape itself.</remarks>
+    internal override SKPath? CreateShadowOutline(float width, float height)
+    {
+        if (base.CreateShadowOutline(width, height) is { } background)
+            return background;
+        if (PaintBackground is not null)
+            return null;
+        var path = SkUiShapeGeometry.ToSkia(PlacedPath(new Rect(0, 0, width, height), _strokeThickness), Winding, GeometryTransform);
+        return SkUiShapePainter.ShapeShadowOutline(path, _fill, _stroke, StrokeStyle());
     }
 
     /// <summary>The geometry placed in <paramref name="bounds"/> inset by half the stroke, as MAUI's <c>IShape.PathForBounds</c>.</summary>

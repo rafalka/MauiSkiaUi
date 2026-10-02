@@ -489,3 +489,33 @@ public class ShapeTests
         }
     }
 }
+
+/// <summary>Bindings inside a path's geometry and render transform resolve against the path, as in MAUI.</summary>
+public class PathBindingContextTests
+{
+    private sealed class Model : System.ComponentModel.INotifyPropertyChanged
+    {
+        private double _radius = 10;
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+        public double Radius { get => _radius; set { _radius = value; PropertyChanged?.Invoke(this, new(nameof(Radius))); } }
+    }
+
+    [Fact]
+    public void DataAndRenderTransformBindAgainstThePath()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher(); // bindings need one
+        var geometry = new Microsoft.Maui.Controls.Shapes.EllipseGeometry { Center = new Point(20, 20) };
+        geometry.SetBinding(Microsoft.Maui.Controls.Shapes.EllipseGeometry.RadiusXProperty, nameof(Model.Radius));
+        var transform = new Microsoft.Maui.Controls.Shapes.TranslateTransform();
+        transform.SetBinding(Microsoft.Maui.Controls.Shapes.TranslateTransform.XProperty, nameof(Model.Radius));
+        var model = new Model();
+        var path = new SkUiPath { BindingContext = model, Data = geometry, RenderTransform = transform }; // assigned after the context
+        Assert.Equal(10, geometry.RadiusX);
+        Assert.Equal(10, transform.X);
+        model.Radius = 15;
+        Assert.Equal(15, geometry.RadiusX);
+        path.BindingContext = new Model { Radius = 7 }; // a new context reaches both
+        Assert.Equal(7, geometry.RadiusX);
+        Assert.Equal(7, transform.X);
+    }
+}

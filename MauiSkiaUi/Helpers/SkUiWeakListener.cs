@@ -40,8 +40,14 @@ public readonly record struct SkUiChange(object? Sender, SkUiChangeKind Kind, st
 /// </para>
 /// <para>
 /// One subscription per source, however many views listen to it, and the listeners of collected views are dropped as
-/// listeners come and go. <paramref name="onChanged"/> runs on the thread that raised the change (commands may raise on
-/// any thread).
+/// listeners come and go.
+/// </para>
+/// <para>
+/// <b>Threads:</b> <paramref name="onChanged"/> runs on the thread that raised the change: a view model set from a
+/// background task, or a command's <see cref="ICommand.CanExecuteChanged"/> raised from any thread. Drawn views and Core
+/// nodes must be changed on the UI thread, so a callback that touches them from such a source marshals first, e.g.
+/// <c>MainThread.BeginInvokeOnMainThread(() =&gt; node.InvalidateMeasure())</c>, or <c>node.Dispatcher</c> on a
+/// <c>SkUiView</c>. The drawn controls' own listeners only follow sources changed on the UI thread (brushes, geometries).
 /// </para>
 /// <para>
 /// For sources the view does not own. Owned and structural subscriptions (a node and its children, a handler and its

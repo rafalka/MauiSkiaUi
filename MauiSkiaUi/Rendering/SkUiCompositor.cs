@@ -111,6 +111,14 @@ internal sealed class SkUiCompositor : IDisposable
     private SKColor _clearColor = SKColors.Transparent;
     private TimeSpan _now;
     private bool _spinning;
+    private bool _rasterizePending;
+    private int _rasterizedThisFrame;
+
+    /// <summary>
+    /// Content shadows rasterized per frame at most; the others are drawn live and rasterized in the next frames, so
+    /// many shadows appearing at once (a list scrolled into view) spread their CPU cost instead of stalling one frame.
+    /// </summary>
+    internal const int MaxShadowRasterizationsPerFrame = 3;
     private float _scale = 1;
     private int _touchStamp;
     private int _epoch;
@@ -238,6 +246,8 @@ internal sealed class SkUiCompositor : IDisposable
             _clearPaint.Color = _clearColor;
             canvas.DrawRect(SKRect.Create(pixelWidth, pixelHeight), _clearPaint);
             _spinning = false;
+            _rasterizePending = false;
+            _rasterizedThisFrame = 0;
             if (_root is { } root && _rootWidth > 0 && _rootHeight > 0 && pixelWidth > 0 && pixelHeight > 0)
             {
                 var save = canvas.Save();
@@ -249,7 +259,9 @@ internal sealed class SkUiCompositor : IDisposable
             trace?.Drawn(ShadowRasterizations);
 #endif
             FrameCount++;
-            _continuous = _spinning || _animations.Count > 0;
+            // A content shadow drawn live because it just changed (or over the budget) is rasterized on the next frame,
+            // while idle, instead of at the start of the next scroll.
+            _continuous = _spinning || _animations.Count > 0 || _rasterizePending;
             if (reports is not null)
                 _postToUi(() =>
                 {
@@ -314,6 +326,7 @@ internal sealed class SkUiCompositor : IDisposable
                         if ((keep & (1 << property)) != 0)
                             incoming.Set((SkUiRenderProperty)property, node.Props.Get((SkUiRenderProperty)property));
                 }
+                ReleaseReplacedEffects(node.Props, incoming);
                 node.Props = incoming;
             }
             if (update.HasContent)
@@ -373,6 +386,25 @@ internal sealed class SkUiCompositor : IDisposable
             _animations.Add(animation);
             Interlocked.Increment(ref _activeAnimations);
         }
+    }
+
+    /// <summary>
+    /// Disposes the clip path and shadow objects a commit replaced. The UI side keeps only its newest ones and never commits
+    /// a replaced one again, so once the render thread stops drawing with them (here, between frames) nothing uses them:
+    /// clip or shadow edits (theme toggles, animated brushes) do not pile up native Skia objects until the GC finalizes
+    /// them. Objects of batches never applied, or of nodes reset by a detach (whose UI side commits them again), are left
+    /// to the GC.
+    /// </summary>
+    private static void ReleaseReplacedEffects(in SkUiRenderProps current, in SkUiRenderProps incoming)
+    {
+        if (current.ClipPath is { } clip && !ReferenceEquals(clip, incoming.ClipPath))
+            clip.Dispose();
+        if (current.Shadow is not { } shadow || ReferenceEquals(shadow, incoming.Shadow))
+            return;
+        if (shadow.Outline is { } outline && !ReferenceEquals(outline, incoming.Shadow?.Outline))
+            outline.Dispose();
+        if (!ReferenceEquals(shadow.Style, incoming.Shadow?.Style))
+            shadow.Style.Dispose();
     }
 
     /// <summary>
@@ -516,6 +548,15 @@ internal sealed class SkUiCompositor : IDisposable
     /// the masks); a content shadow is rasterized once its subtree stopped changing and reused while it stays the same, and
     /// drawn live while the subtree changes from frame to frame or has spinning content.
     /// </summary>
+    /// <remarks>
+    /// The raster is in the node's own coordinates and keyed by the node's subtree <see cref="SkUiRenderNode.Version"/>,
+    /// the shadow's style and source area and the density (<see cref="SkUiShadowCache.Matches"/>); it lives on the node,
+    /// so it is never shared between nodes. Moving, fading or transforming the node (or scrolling its parent) bumps only
+    /// the ancestors' versions, and a new shadow object with the same style (a repaint) keeps the raster: none of these
+    /// blur again. Content, children or size changes bump the node's version: the shadow is drawn live in that frame and
+    /// rasterized in the next one, which is requested for it (at most <see cref="MaxShadowRasterizationsPerFrame"/> per
+    /// frame).
+    /// </remarks>
     private void DrawShadow(SKCanvas canvas, SkUiRenderNode node, SkUiRenderShadow shadow)
     {
         if (shadow.Outline is not null)
@@ -534,7 +575,11 @@ internal sealed class SkUiCompositor : IDisposable
                 return;
             }
         }
-        else if (node.ChangedFrame != FrameCount)
+        else if (node.ChangedFrame == FrameCount || _rasterizedThisFrame >= MaxShadowRasterizationsPerFrame)
+        {
+            _rasterizePending = true;
+        }
+        else
         {
             // Unchanged since the last frame: rasterize once (spinning content is only seen while drawing it).
             DisposeShadowCache(node);
@@ -544,6 +589,7 @@ internal sealed class SkUiCompositor : IDisposable
             var moving = _spinning;
             _spinning |= spinning;
             ShadowRasterizations++;
+            _rasterizedThisFrame++;
             if (moving)
             {
                 image?.Dispose();

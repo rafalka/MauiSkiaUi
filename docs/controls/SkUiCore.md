@@ -44,6 +44,17 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 
 Core types intentionally do **not** implement `IView` and are **not** accepted by `SkUiLayout.Children`. Mixing requires `SkUiCoreHost`.
 
+## Layout: alignment
+
+Every Core container places a node in its slot by `HorizontalAlignment` / `VerticalAlignment` as MAUI's `ComputeFrame` places a view, so Core and SkUi* layouts give the same frames: stacks align their children on the cross axis, content views, borders, overlays and the host on both axes, grids and absolute layouts within their cells.
+
+- `Fill` (default) takes the slot, up to `MaximumWidth` / `MaximumHeight`.
+- With an explicit `Width` / `Height`, or a finite maximum, `Fill` **centers** the node in a larger slot, as MAUI does.
+- `Start` / `Center` / `End` place the node's desired size.
+- One difference from MAUI: a frame never grows past its slot (MAUI lets a view larger than its slot overflow it).
+
+**Migrating from earlier versions:** before P7 most Core containers ignored alignment (a `Center`ed node in a stack stretched or sat at the start) and anchored explicitly sized `Fill` nodes at the top-left. Set `Start` alignments where a layout relied on that.
+
 ## Attached properties
 
 Core has no bindable properties, but layouts need per-child data (a grid cell, absolute bounds, a shrink factor). That data is stored on the child as a **Core attached property**: the Core counterpart of a MAUI attached property, without bindings or styles.
@@ -155,7 +166,9 @@ public static class Units
 }
 ```
 
-**When not to:** what a node owns (its children, its own sub-objects) shares its lifetime; subscribe to it plainly and unsubscribe when it is replaced. A weak reference there only hides a missing cleanup. Weak listening does not replace detach cleanup either: a removed node that is still referenced is alive and keeps listening. Callbacks run on the thread that raised the change (commands may raise on any thread).
+**When not to:** what a node owns (its children, its own sub-objects) shares its lifetime; subscribe to it plainly and unsubscribe when it is replaced. A weak reference there only hides a missing cleanup. Weak listening does not replace detach cleanup either: a removed node that is still referenced is alive and keeps listening.
+
+**Threads:** callbacks run on the thread that raised the change: a view model set from a background task, a command raising `CanExecuteChanged` from any thread. Nodes and views must be changed on the UI thread, so marshal first when the source may change elsewhere: `MainThread.BeginInvokeOnMainThread(() => node.InvalidateMeasure())`.
 
 ## Gestures
 

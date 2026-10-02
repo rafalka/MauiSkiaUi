@@ -235,6 +235,9 @@ public class SkUiPath : SkUiShape
     {
         _dataListener.Listen(value);
         ListenToFigures();
+        // Bindings inside the geometry (a bound radius, center or figure) resolve against the path, as in MAUI.
+        if (value is not null)
+            SetInheritedBindingContext(value, BindingContext);
         InvalidateMeasureOverride();
     }
 
@@ -243,7 +246,19 @@ public class SkUiPath : SkUiShape
     private void OnRenderTransformChanged(Transform? value)
     {
         _transformListener.Listen(value);
+        if (value is not null)
+            SetInheritedBindingContext(value, BindingContext);
         InvalidatePaint();
+    }
+
+    /// <inheritdoc />
+    protected override void OnBindingContextChanged()
+    {
+        base.OnBindingContextChanged();
+        if (Data is { } data)
+            SetInheritedBindingContext(data, BindingContext);
+        if (RenderTransform is { } transform)
+            SetInheritedBindingContext(transform, BindingContext);
     }
 
     /// <summary>As MAUI: the fill rule of a path or group geometry, else even-odd.</summary>
