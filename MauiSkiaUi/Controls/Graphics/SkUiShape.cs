@@ -64,9 +64,9 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
     protected SkUiShape()
     {
         _aspect = DefaultAspect;
-        _fillListener = new(this, static (shape, _, _) => shape.InvalidatePaint());
-        _strokeListener = new(this, static (shape, _, _) => shape.InvalidatePaint());
-        _dashListener = new(this, static (shape, _, _) => shape.InvalidatePaint());
+        _fillListener = new(this, static (shape, _) => shape.InvalidatePaint());
+        _strokeListener = new(this, static (shape, _) => shape.InvalidatePaint());
+        _dashListener = new(this, static (shape, _) => shape.InvalidatePaint());
     }
 
     /// <summary>The brush that paints the interior (<c>null</c>: none). XAML accepts colors and gradients (<c>Fill="Red"</c>).</summary>

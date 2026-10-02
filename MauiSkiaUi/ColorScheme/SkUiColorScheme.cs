@@ -22,11 +22,24 @@ public class SkUiColorScheme
     private Color _trackOff = Color.FromArgb("#C5D4D6");
     private Color _disabled = Color.FromArgb("#596467");
 
+    private static readonly SkUiWeakEvent _currentChanged = new();
+    private readonly SkUiWeakEvent _changed = new();
+
     /// <summary>Raised after <see cref="Current"/> is replaced.</summary>
-    public static event EventHandler? CurrentChanged;
+    /// <remarks>Subscribers are not kept alive by the event (a page that forgets to unsubscribe can still be collected).</remarks>
+    public static event EventHandler? CurrentChanged
+    {
+        add => _currentChanged.Add(value);
+        remove => _currentChanged.Remove(value);
+    }
 
     /// <summary>Raised after any token on this instance changes.</summary>
-    public event EventHandler? Changed;
+    /// <remarks>Subscribers are not kept alive by the event: the built-in schemes live for the whole app.</remarks>
+    public event EventHandler? Changed
+    {
+        add => _changed.Add(value);
+        remove => _changed.Remove(value);
+    }
 
     /// <summary>
     /// Active app-wide scheme. Defaults to <see cref="LightSkUiColorScheme.Instance"/>.
@@ -40,7 +53,7 @@ public class SkUiColorScheme
             ArgumentNullException.ThrowIfNull(value);
             if (ReferenceEquals(_current, value)) return;
             _current = value;
-            CurrentChanged?.Invoke(null, EventArgs.Empty);
+            _currentChanged.Raise(null, EventArgs.Empty);
         }
     }
 
@@ -103,7 +116,7 @@ public class SkUiColorScheme
         ArgumentNullException.ThrowIfNull(value);
         if (Equals(field, value)) return;
         field = value;
-        Changed?.Invoke(this, EventArgs.Empty);
+        _changed.Raise(this, EventArgs.Empty);
     }
 }
 

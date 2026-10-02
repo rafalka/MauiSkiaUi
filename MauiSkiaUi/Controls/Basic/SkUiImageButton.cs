@@ -77,23 +77,15 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     private void OnCommandChanged(ICommand? value)
     {
         if (_command == value) return;
-        if (_command is not null && _commandChanged is not null) _command.CanExecuteChanged -= _commandChanged;
         _command = value;
-        if (value is not null)
+        // A long-lived command must not keep the button alive.
+        (_commandListener ??= new(this, static (button, change) =>
         {
-            var weak = new WeakReference<SkUiImageButton>(this);
-            EventHandler? listener = null;
-            listener = (sender, _) =>
-            {
-                if (weak.TryGetTarget(out var button)) button.UpdateState();
-                else if (sender is ICommand oldCommand) oldCommand.CanExecuteChanged -= listener;
-            };
-            _commandChanged = listener;
-            value.CanExecuteChanged += listener;
-        }
+            if (change.Kind == SkUiChangeKind.CanExecute) button.UpdateState();
+        })).Listen(value);
         UpdateState();
     }
-    private EventHandler? _commandChanged;
+    private SkUiWeakListener<SkUiImageButton>? _commandListener;
     /// <summary>Sets command argument (same as the property setter).</summary>
     public SkUiImageButton SetCommandParameter(object? value) { CommandParameter = value; return this; }
     private void OnCommandParameterChanged(object? value) { _commandParameter = value; UpdateState(); }

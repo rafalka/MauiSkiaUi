@@ -16,7 +16,7 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
     private Thickness _padding;
     private bool _isPressed;
     private SkUiPressAnimator? _press;
-    private EventHandler? _commandChanged;
+    private SkUiWeakListener<SkUiCoreImageButton>? _commandListener;
 
     /// <summary>Creates an image button with a press/disabled tint overlay painter.</summary>
     public SkUiCoreImageButton() => SetPaintOverlay(PaintButtonOverlay);
@@ -89,31 +89,16 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
         return this;
     }
 
-    /// <summary>Sets the tap command. CanExecuteChanged uses a weak target so long-lived commands do not retain this node after dispose.</summary>
+    /// <summary>Sets the tap command. CanExecuteChanged is listened to weakly, so long-lived commands do not retain this node.</summary>
     public SkUiCoreImageButton SetCommand(ICommand? value)
     {
         if (ReferenceEquals(_command, value)) return this;
-        if (_command is not null && _commandChanged is not null)
-            _command.CanExecuteChanged -= _commandChanged;
         if (!SetProperty(ref _command, value, nameof(Command))) return this;
-        if (value is not null)
+        // A long-lived command must not keep the node alive.
+        (_commandListener ??= new(this, static (button, change) =>
         {
-            var weak = new WeakReference<SkUiCoreImageButton>(this);
-            EventHandler? listener = null;
-            listener = (sender, _) =>
-            {
-                if (weak.TryGetTarget(out var button))
-                    button.InvalidatePaint();
-                else if (sender is ICommand oldCommand)
-                    oldCommand.CanExecuteChanged -= listener;
-            };
-            _commandChanged = listener;
-            value.CanExecuteChanged += listener;
-        }
-        else
-        {
-            _commandChanged = null;
-        }
+            if (change.Kind == SkUiChangeKind.CanExecute) button.InvalidatePaint();
+        })).Listen(value);
         InvalidatePaint();
         return this;
     }
@@ -227,10 +212,8 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
     /// <inheritdoc />
     public override void Dispose()
     {
-        if (_command is not null && _commandChanged is not null)
-            _command.CanExecuteChanged -= _commandChanged;
+        _commandListener?.Listen(null);
         _command = null;
-        _commandChanged = null;
         base.Dispose();
     }
 }

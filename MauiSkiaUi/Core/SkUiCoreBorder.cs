@@ -27,7 +27,7 @@ public class SkUiCoreBorder : SkUiCoreContentView
     /// <summary>Creates a border that paints fill in <see cref="SkUiCoreNode.PaintBackground"/> and stroke in <see cref="SkUiCoreNode.PaintOverlay"/> (after content).</summary>
     public SkUiCoreBorder()
     {
-        _shapeListener = new(this, static (border, _, _) => { border._geometry.Invalidate(); border.InvalidateShape(); });
+        _shapeListener = new(this, static (border, _) => { border._geometry.Invalidate(); border.InvalidateShape(); });
         SetPaintBackground(PaintBorderBackground);
         SetPaintOverlay(PaintBorderOverlay);
     }

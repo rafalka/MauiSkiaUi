@@ -29,7 +29,7 @@ public static class LeakScenarios
         new("SlidersAndProgress", Controls, "Horizontal, vertical and Core sliders dragged and tapped; progress bars animating and indeterminate at close.", () => new SlidersRun()),
         new("LabelsReshaped", Controls, "Wrapped, truncated, RTL, Arabic, emoji and Simple / Shaped labels; text and width changed repeatedly; formatted text (drawn and Core) with tappable spans bound to a long-lived command, tapped, restyled and replaced; HTML text with links (both layers), tapped and changed.", () => new LabelsRun()),
         new("ShapesRestyled", Controls, "Every shape (drawn and Core) and borders shaped by them, painted with long-lived shared brushes, dash arrays and a stroke shape; brushes, gradient stops, points, path data and stroke shapes changed; a border tapped.", () => new ShapesRun()),
-        new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image.", () => new ImagesRun()),
+        new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image; a long-lived icon source shared by images that are never disposed, edited while shown.", () => new ImagesRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
@@ -330,6 +330,9 @@ public static class LeakScenarios
         }
     }
 
+    /// <summary>An app-level image resource, as <c>&lt;FontImageSource x:Key="Icon" …/&gt;</c>: it outlives every screen.</summary>
+    private static readonly FontImageSource SharedIcon = new() { Glyph = "+", Size = 20, Color = LeakColors.Accent };
+
     private sealed class ImagesRun : LeakScenarioRun
     {
         private readonly List<SkUiImage> _images = [];
@@ -382,7 +385,12 @@ public static class LeakScenarios
             Grid.SetColumnSpan(row, 2);
             grid.Children.Add(row);
 
-            _slider = new SkUiSlider { Value = 0.5, ThumbImageSource = LeakImages.Create(SKColors.Crimson) };
+            // The shared icon: images and an image button that are never disposed, and a slider thumb.
+            for (var index = 0; index < 2; index++)
+                row.Children.Add(new SkUiImage { Source = SharedIcon, WidthRequest = 24, HeightRequest = 24 });
+            row.Children.Add(new SkUiImageButton { Source = SharedIcon, WidthRequest = 32, HeightRequest = 32 });
+
+            _slider = new SkUiSlider { Value = 0.5, ThumbImageSource = SharedIcon };
             Grid.SetRow(_slider, 3);
             Grid.SetColumnSpan(_slider, 2);
             grid.Children.Add(_slider);
@@ -407,7 +415,10 @@ public static class LeakScenarios
                 await context.WaitForAsync(core.LoadingTask);
             _coreImages[0].SetTransformations(new SkUiGrayscaleTransformation());
             await context.WaitForAsync(_coreImages[0].LoadingTask);
+            SharedIcon.Glyph = SharedIcon.Glyph == "+" ? "-" : "+"; // the shared source edited while shown
+            await context.SettleAsync();
             _slider!.ThumbImageSource = LeakImages.Create(SKColors.Navy);
+            _slider.ThumbImageSource = SharedIcon;
             _reload = _images[0].ReloadAsync();
             await context.WaitForAsync(_reload);
         }

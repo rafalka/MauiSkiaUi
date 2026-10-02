@@ -146,7 +146,7 @@ public abstract class SkUiPolyShape : SkUiShape
     public static readonly BindableProperty FillRuleProperty = BindableProperty.Create(nameof(FillRule), typeof(FillRule), typeof(SkUiPolyShape), FillRule.EvenOdd,
         propertyChanged: (view, _, _) => ((SkUiPolyShape)view).InvalidatePaint());
 
-    private protected SkUiPolyShape() => _pointsListener = new(this, static (shape, _, _) => shape.InvalidateMeasureOverride());
+    private protected SkUiPolyShape() => _pointsListener = new(this, static (shape, _) => shape.InvalidateMeasureOverride());
 
     /// <summary>The vertices in local DIPs (<c>"0,0 40,0 20,30"</c> in XAML). Edits of the collection redraw.</summary>
     public PointCollection Points { get => (PointCollection)GetValue(PointsProperty); set => SetValue(PointsProperty, value); }
@@ -201,13 +201,13 @@ public class SkUiPath : SkUiShape
     /// <summary>Creates an empty path.</summary>
     public SkUiPath()
     {
-        _dataListener = new(this, static (path, _, property) =>
+        _dataListener = new(this, static (path, change) =>
         {
-            if (property == nameof(PathGeometry.Figures)) path.ListenToFigures();
+            if (change.PropertyName == nameof(PathGeometry.Figures)) path.ListenToFigures();
             path.InvalidateMeasureOverride();
         });
-        _figuresListener = new(this, static (path, _, _) => path.InvalidateMeasureOverride());
-        _transformListener = new(this, static (path, _, _) => path.InvalidatePaint());
+        _figuresListener = new(this, static (path, _) => path.InvalidateMeasureOverride());
+        _transformListener = new(this, static (path, _) => path.InvalidatePaint());
     }
 
     /// <summary>Creates a path drawing <paramref name="data"/>.</summary>

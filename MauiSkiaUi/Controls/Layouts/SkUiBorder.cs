@@ -64,9 +64,9 @@ public class SkUiBorder : SkUiContentView
     /// <summary>Creates a border that paints fill in <see cref="SkUiView.PaintBackground"/> and stroke in <see cref="SkUiView.PaintOverlay"/> (after content).</summary>
     public SkUiBorder()
     {
-        _strokeListener = new(this, static (border, _, _) => border.InvalidatePaint());
-        _dashListener = new(this, static (border, _, _) => border.InvalidatePaint());
-        _shapeListener = new(this, static (border, _, property) => border.OnStrokeShapeEdited(property));
+        _strokeListener = new(this, static (border, _) => border.InvalidatePaint());
+        _dashListener = new(this, static (border, _) => border.InvalidatePaint());
+        _shapeListener = new(this, static (border, change) => border.OnStrokeShapeEdited(change.PropertyName));
         SetPaintBackground(PaintBorderBackground);
         SetPaintOverlay(PaintBorderOverlay);
     }
