@@ -27,6 +27,9 @@
 		<IsAotCompatible>true</IsAotCompatible>
 		<_MauiDoNotConfigureTrimAnalyzer>true</_MauiDoNotConfigureTrimAnalyzer>
 		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+		<!-- CsWinRT generates unsafe vtable code for types that implement generic WinRT interfaces (e.g. arrays exposed as
+		     IReadOnlyList<T>) so they stay trim / AOT safe across the WinRT ABI; without unsafe blocks it reports CsWinRT1030. -->
+		<AllowUnsafeBlocks Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</AllowUnsafeBlocks>
 
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
