@@ -26,6 +26,12 @@ internal interface ISkUiRenderable
     /// <summary>Records the Overlay phase (after children) in local DIPs.</summary>
     void RecordOverlay(SKCanvas canvas);
 
+    /// <summary>
+    /// Records its content even while fully transparent (opacity 0), so that showing it later (a render-thread fade, a
+    /// scroll bar appearing when scrolling starts) records nothing.
+    /// </summary>
+    bool RecordsWhenTransparent => false;
+
     /// <summary>Appends drawn children in paint (back-to-front) order.</summary>
     void GetRenderChildren(List<ISkUiRenderable> children);
 

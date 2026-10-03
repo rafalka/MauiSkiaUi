@@ -103,14 +103,20 @@ internal sealed class SkUiGlTextureView : GLTextureView
     {
         if (e is not null && e.ActionMasked == MotionEventActions.Scroll && TouchHandler is { } touch)
         {
-            // One wheel notch ≈ 64 DIPs; positive AXIS_VSCROLL scrolls content up.
-            var delta = e.GetAxisValue(Axis.Vscroll) * 64;
-            if (delta != 0)
+            var (x, y) = WheelDeltas(e);
+            if (x != 0 || y != 0)
                 return touch(new SkUiTouchEvent(0, SkUiTouchAction.Wheel, new Point(e.GetX() / _density, e.GetY() / _density),
-                    TimeSpan.FromMilliseconds(e.EventTime), delta));
+                    TimeSpan.FromMilliseconds(e.EventTime), y, x));
         }
         return base.OnGenericMotionEvent(e);
     }
+
+    /// <summary>
+    /// An <c>ACTION_SCROLL</c> event as SkiaUi wheel deltas in DIPs (positive towards the start): one wheel notch is about
+    /// 64 DIPs; positive AXIS_VSCROLL scrolls the content up, positive AXIS_HSCROLL scrolls it to the right.
+    /// </summary>
+    internal static (double X, double Y) WheelDeltas(MotionEvent e) =>
+        (-e.GetAxisValue(Axis.Hscroll) * 64, e.GetAxisValue(Axis.Vscroll) * 64);
 
     private SkUiTouchEvent Event(MotionEvent e, int index, SkUiTouchAction action, TimeSpan time) =>
         new(e.GetPointerId(index), action, new Point(e.GetX(index) / _density, e.GetY(index) / _density), time);

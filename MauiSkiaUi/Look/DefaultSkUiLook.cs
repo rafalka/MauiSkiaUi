@@ -16,6 +16,21 @@ public class DefaultSkUiLook : SkUiLook
     /// <summary>Button and ImageButton press feedback (default <see cref="SkUiPressEffect.Dim"/>). Repaint after changing it.</summary>
     public SkUiPressEffect PressEffect { get; set; } = SkUiPressEffect.Dim;
 
+    /// <summary>
+    /// Overscroll of scrollers that do not set their own: the platform's by default (<see cref="SkUiOverscrollMode.Bounce"/> on
+    /// iOS and Mac Catalyst, <see cref="SkUiOverscrollMode.Stretch"/> on Android, none elsewhere).
+    /// </summary>
+    public SkUiOverscrollMode Overscroll { get; set; } = PlatformOverscroll;
+
+    /// <summary>The platform's overscroll: iOS and Mac Catalyst bounce, Android 12+ stretches, Windows stops at the edge.</summary>
+    public static SkUiOverscrollMode PlatformOverscroll =>
+        OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst() ? SkUiOverscrollMode.Bounce
+        : OperatingSystem.IsAndroid() ? SkUiOverscrollMode.Stretch
+        : SkUiOverscrollMode.None;
+
+    /// <inheritdoc />
+    public override SkUiOverscrollMode DefaultOverscroll => Overscroll == SkUiOverscrollMode.Default ? SkUiOverscrollMode.None : Overscroll;
+
     /// <inheritdoc />
     protected override SkUiTransition GetTransitionCore(SkUiTransitionKind kind) => kind switch
     {
@@ -274,6 +289,23 @@ public class DefaultSkUiLook : SkUiLook
     {
         var destination = ComputeImageDestination(viewWidth, viewHeight, image.Width, image.Height, aspect);
         canvas.DrawImage(image, destination, new SKSamplingOptions(SKFilterMode.Linear));
+    }
+
+    /// <inheritdoc />
+    /// <remarks>A rounded bar, fully rounded across its thickness; darker while dragged.</remarks>
+    protected override void DrawScrollBarCore(SKCanvas canvas, SkUiScrollBarPaint bar)
+    {
+        var radius = Math.Min(bar.Bounds.Width, bar.Bounds.Height) / 2;
+        var color = bar.IsPressed ? bar.Color.WithAlpha((byte)Math.Min(255, bar.Color.Alpha * 1.6f)) : bar.Color;
+        canvas.DrawRoundRect(bar.Bounds, radius, radius, Paint(color));
+    }
+
+    /// <inheritdoc />
+    /// <remarks>A rounded strip in the thumb's color at a quarter of its opacity.</remarks>
+    protected override void DrawScrollBarTrackCore(SKCanvas canvas, SkUiScrollBarTrackPaint track)
+    {
+        var radius = Math.Min(track.Bounds.Width, track.Bounds.Height) / 2;
+        canvas.DrawRoundRect(track.Bounds, radius, radius, Paint(track.Color.WithAlpha((byte)(track.Color.Alpha / 4))));
     }
 
     /// <inheritdoc />

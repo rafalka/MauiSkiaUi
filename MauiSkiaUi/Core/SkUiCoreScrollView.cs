@@ -7,7 +7,9 @@ namespace MauiSkiaUi.Core;
 /// composite-time children translation (scrolling never re-records content), render-thread fling and animated
 /// scrolls, wheel input, and the shared scroll gesture — content taps win unless the pointer moves past the touch
 /// slop in a direction this scroller can move; nested scrollers (Core or SkUi*) get the drags of their own axis and
-/// hand over at their edges. It clips its content to the viewport.
+/// hand over at their edges. It clips its content to the viewport. Past the outermost edge the content overscrolls
+/// (<see cref="Overscroll"/>); look-drawn scroll bars show while scrolling (<see cref="VerticalScrollBarVisibility"/>,
+/// <see cref="HorizontalScrollBarVisibility"/>).
 /// </summary>
 public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
 {
@@ -19,6 +21,107 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
     {
         InitClipToBounds(true);
         _scroller = new SkUiScrollController(this, InvalidateRender, OnOffsetChanged);
+    }
+
+    /// <summary>The horizontal scroll bar: shown while scrolling (<see cref="ScrollBarVisibility.Default"/>), always, or never.</summary>
+    public ScrollBarVisibility HorizontalScrollBarVisibility
+    {
+        get => _scroller.HorizontalScrollBarVisibility;
+        set => SetHorizontalScrollBarVisibility(value);
+    }
+
+    /// <summary>The vertical scroll bar (on the left in right-to-left layouts); see <see cref="HorizontalScrollBarVisibility"/>.</summary>
+    public ScrollBarVisibility VerticalScrollBarVisibility
+    {
+        get => _scroller.VerticalScrollBarVisibility;
+        set => SetVerticalScrollBarVisibility(value);
+    }
+
+    /// <summary>What a drag or fling past the content's edge does (<see cref="SkUiOverscrollMode.Default"/>: the look's).</summary>
+    public SkUiOverscrollMode Overscroll
+    {
+        get => _scroller.Overscroll;
+        set => SetOverscroll(value);
+    }
+
+    /// <summary>The vertical scroll bar (a Core node drawn by the look along the viewport edge); shown by <see cref="VerticalScrollBarVisibility"/>.</summary>
+    public SkUiCoreScrollBar VerticalScrollBar => _scroller.ScrollBar(ScrollOrientation.Vertical);
+
+    /// <summary>The horizontal scroll bar; see <see cref="VerticalScrollBar"/>.</summary>
+    public SkUiCoreScrollBar HorizontalScrollBar => _scroller.ScrollBar(ScrollOrientation.Horizontal);
+
+    /// <summary>
+    /// Whether drags, flings and wheel scrolling end with a child of the content lined up with the viewport (see
+    /// <see cref="SkUiScrollView.SnapPointsType"/>).
+    /// </summary>
+    public SnapPointsType SnapPointsType
+    {
+        get => _scroller.SnapPointsType;
+        set => SetSnapPointsType(value);
+    }
+
+    /// <summary>Which edge (or the center) of a content child lines up with the viewport's at a snap point.</summary>
+    public SnapPointsAlignment SnapPointsAlignment
+    {
+        get => _scroller.SnapPointsAlignment;
+        set => SetSnapPointsAlignment(value);
+    }
+
+    /// <summary>Sets <see cref="SnapPointsType"/>.</summary>
+    public SkUiCoreScrollView SetSnapPointsType(SnapPointsType value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        if (_scroller.SnapPointsType == value) return this;
+        _scroller.SnapPointsType = value;
+        OnPropertyChanged(nameof(SnapPointsType));
+        return this;
+    }
+
+    /// <summary>Sets <see cref="SnapPointsAlignment"/>.</summary>
+    public SkUiCoreScrollView SetSnapPointsAlignment(SnapPointsAlignment value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        if (_scroller.SnapPointsAlignment == value) return this;
+        _scroller.SnapPointsAlignment = value;
+        OnPropertyChanged(nameof(SnapPointsAlignment));
+        return this;
+    }
+
+    /// <summary>Sets <see cref="HorizontalScrollBarVisibility"/>.</summary>
+    public SkUiCoreScrollView SetHorizontalScrollBarVisibility(ScrollBarVisibility value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        if (_scroller.HorizontalScrollBarVisibility == value) return this;
+        _scroller.HorizontalScrollBarVisibility = value;
+        // Always reserves a gutter: the content is laid out again.
+        InvalidateMeasure();
+        _scroller.ArrangeScrollBars(IsRightToLeft);
+        OnPropertyChanged(nameof(HorizontalScrollBarVisibility));
+        return this;
+    }
+
+    /// <summary>Sets <see cref="VerticalScrollBarVisibility"/>.</summary>
+    public SkUiCoreScrollView SetVerticalScrollBarVisibility(ScrollBarVisibility value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        if (_scroller.VerticalScrollBarVisibility == value) return this;
+        _scroller.VerticalScrollBarVisibility = value;
+        InvalidateMeasure();
+        _scroller.ArrangeScrollBars(IsRightToLeft);
+        OnPropertyChanged(nameof(VerticalScrollBarVisibility));
+        return this;
+    }
+
+    /// <summary>Sets <see cref="Overscroll"/>.</summary>
+    public SkUiCoreScrollView SetOverscroll(SkUiOverscrollMode value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        if (_scroller.Overscroll == value) return this;
+        _scroller.ClearOverscroll();
+        _scroller.Overscroll = value;
+        InvalidateRender(SkUiRenderDirty.Props);
+        OnPropertyChanged(nameof(Overscroll));
+        return this;
     }
 
     SkUiScrollController ISkUiScrollHost.Scroller => _scroller;
@@ -55,6 +158,7 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
         if (_scroller.Orientation == value) return this;
         _scroller.StopMotion();
         _scroller.Gesture.Cancel();
+        _scroller.ClearOverscroll();
         _scroller.Orientation = value;
         OnPropertyChanged(nameof(Orientation));
         InvalidateMeasure();
@@ -65,6 +169,7 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
     public SkUiCoreScrollView ScrollTo(double horizontalOffset, double verticalOffset)
     {
         _scroller.StopMotion();
+        _scroller.ClearOverscroll();
         _scroller.SetOffset(horizontalOffset, verticalOffset);
         return this;
     }
@@ -75,25 +180,52 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
 
     /// <summary>Scrolls immediately or animates over 300 ms on the render thread; a newer scroll or gesture cancels the task.</summary>
     public Task ScrollToAsync(double horizontalOffset, double verticalOffset, bool animated = true) =>
-        _scroller.ScrollToAsync(horizontalOffset, verticalOffset, animated);
+        Orientation == ScrollOrientation.Neither ? Task.CompletedTask : _scroller.ScrollToAsync(horizontalOffset, verticalOffset, animated);
+
+    /// <summary>
+    /// Scrolls so that <paramref name="node"/>, a descendant, is at <paramref name="position"/> of the viewport (as
+    /// <see cref="SkUiScrollView.ScrollToAsync(Element, ScrollToPosition, bool)"/>); before the first layout the request
+    /// waits for it.
+    /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="node"/> is not inside this scroll view, or <paramref name="position"/> is not defined.</exception>
+    public Task ScrollToAsync(SkUiCoreNode node, ScrollToPosition position, bool animated = true)
+    {
+        if (Orientation == ScrollOrientation.Neither)
+            return Task.CompletedTask;
+        ArgumentNullException.ThrowIfNull(node);
+        if (!Enum.IsDefined(position))
+            throw new ArgumentException("position is not a valid ScrollToPosition", nameof(position));
+        if (SkUiScrollController.GetContentBounds(this, node) is null)
+            throw new ArgumentException("The node does not belong to this scroll view.", nameof(node));
+        return _scroller.ScrollToTargetAsync(() => GetScrollPositionForNode(node, position), animated);
+    }
+
+    /// <summary>The offset that puts <paramref name="node"/> at <paramref name="position"/> of the viewport (not clamped).</summary>
+    public Point GetScrollPositionForNode(SkUiCoreNode node, ScrollToPosition position) =>
+        SkUiScrollController.GetContentBounds(this, node) is { } bounds
+            ? _scroller.GetOffsetFor(bounds, position)
+            : new Point(ScrollX, ScrollY);
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
+        // Scroll bars that always show reserve gutters beside the content.
+        var (left, right, bottom) = _scroller.Gutters(IsRightToLeft);
         var extent = base.MeasureContent(
-            _scroller.Horizontal ? double.PositiveInfinity : widthConstraint,
-            _scroller.Vertical ? double.PositiveInfinity : heightConstraint);
+            _scroller.Horizontal ? double.PositiveInfinity : Math.Max(0, widthConstraint - left - right),
+            _scroller.Vertical ? double.PositiveInfinity : Math.Max(0, heightConstraint - bottom));
         _scroller.Extent = extent;
-        return new Size(Math.Min(widthConstraint, extent.Width), Math.Min(heightConstraint, extent.Height));
+        return new Size(Math.Min(widthConstraint, extent.Width + left + right), Math.Min(heightConstraint, extent.Height + bottom));
     }
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
-        _scroller.Viewport = size;
+        _scroller.Layout(size, IsRightToLeft);
+        var viewport = _scroller.Viewport;
         var extent = _scroller.Extent;
         // Content keeps its layout origin; the offset is a composite-time children translation.
-        base.ArrangeContent(new Size(Math.Max(extent.Width, size.Width), Math.Max(extent.Height, size.Height)));
+        base.ArrangeContent(new Size(Math.Max(extent.Width, viewport.Width), Math.Max(extent.Height, viewport.Height)));
         InvalidateRender(SkUiRenderDirty.Props);
         if (!_rtlStartApplied && IsRightToLeft && _scroller.Horizontal && _scroller.MaxX > 0)
         {
@@ -104,17 +236,22 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
         {
             _scroller.Clamp();
         }
+        _scroller.ArrangeScrollBars(IsRightToLeft);
+        _scroller.OnArranged();
     }
 
     /// <inheritdoc />
-    internal override double ChildrenSpaceWidth => Math.Max(_scroller.Extent.Width, _scroller.Viewport.Width);
+    /// <remarks>Includes a gutter on the left (right-to-left), so mirrored content lands right of it.</remarks>
+    internal override double ChildrenSpaceWidth => Math.Max(_scroller.Extent.Width, _scroller.Viewport.Width) + _scroller.ScrollportLeft;
 
     /// <inheritdoc />
-    internal override void OnGetRenderProps(ref SkUiRenderProps props)
+    internal override void OnGetRenderProps(ref SkUiRenderProps props) => _scroller.FillRenderProps(ref props);
+
+    /// <inheritdoc />
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
     {
-        props.ChildrenOffsetX = (float)_scroller.X;
-        props.ChildrenOffsetY = (float)_scroller.Y;
-        props.ChildrenClipRect = new SkiaSharp.SKRect(0, 0, (float)_scroller.Viewport.Width, (float)_scroller.Viewport.Height);
+        base.AddRenderChildren(children);
+        _scroller?.AddScrollBars(children);
     }
 
     /// <inheritdoc />
@@ -131,6 +268,7 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
         base.CancelGestures();
         _scroller?.StopMotion();
         _scroller?.Gesture.Cancel();
+        _scroller?.ClearOverscroll();
     }
 
     /// <inheritdoc />

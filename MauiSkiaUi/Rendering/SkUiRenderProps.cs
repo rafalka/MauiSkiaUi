@@ -20,6 +20,29 @@ internal record struct SkUiRenderProps
     /// <summary>Translation applied to children only (scroll offset), subtracted from child positions.</summary>
     public float ChildrenOffsetX, ChildrenOffsetY;
 
+    /// <summary>
+    /// Scale applied to children only, about <see cref="ChildrenScaleOrigin"/>, after <see cref="ChildrenOffsetX"/> /
+    /// <see cref="ChildrenOffsetY"/> (a scroller's stretch overscroll); 1 = none.
+    /// </summary>
+    public float ChildrenScaleX, ChildrenScaleY;
+
+    /// <summary>Fixed point of <see cref="ChildrenScaleX"/> / <see cref="ChildrenScaleY"/>, in local coordinates.</summary>
+    public SKPoint ChildrenScaleOrigin;
+
+    /// <summary>
+    /// The node is placed in its parent's local coordinates instead of the parent's children space: the parent's children
+    /// offset, scale and clip (<see cref="ChildrenClipRect"/>, <see cref="ChildrenClipPath"/>) do not apply to it, only the
+    /// parent's own clips (scroll bars, also in a gutter beside a scroller's viewport; pinned headers). Pinned children draw
+    /// after (above) their unpinned siblings.
+    /// </summary>
+    public bool Pinned;
+
+    /// <summary>
+    /// Makes <see cref="TranslationX"/> / <see cref="TranslationY"/> follow an ancestor's children offset on the render thread
+    /// (scroll-linked placement); <c>null</c> = none. Immutable once committed.
+    /// </summary>
+    public SkUiRenderLink? Link;
+
     /// <summary>Optional rectangular clip for children (local coordinates, before children offset); empty = none.</summary>
     public SKRect ChildrenClipRect;
 
@@ -59,7 +82,8 @@ internal record struct SkUiRenderProps
 
     public static SkUiRenderProps Default => new()
     {
-        ScaleX = 1, ScaleY = 1, AnchorX = 0.5f, AnchorY = 0.5f, Opacity = 1, IsVisible = true, ClipToBounds = true
+        ScaleX = 1, ScaleY = 1, AnchorX = 0.5f, AnchorY = 0.5f, Opacity = 1, IsVisible = true, ClipToBounds = true,
+        ChildrenScaleX = 1, ChildrenScaleY = 1
     };
 
     /// <summary>Local layout rectangle.</summary>
@@ -81,19 +105,53 @@ internal record struct SkUiRenderProps
     public readonly bool IsSkipped => !IsVisible || Opacity <= 0 || Width <= 0 || Height <= 0;
 
     /// <summary>Parent-space matrix: layout offset, then render transform about the anchor.</summary>
-    public readonly SKMatrix Matrix
+    public readonly SKMatrix Matrix => GetMatrix(TranslationX, TranslationY);
+
+    /// <summary><see cref="Matrix"/> with another translation (a <see cref="Link"/> evaluated on the render thread).</summary>
+    public readonly SKMatrix GetMatrix(float translationX, float translationY)
+    {
+        if (translationX == 0 && translationY == 0 && Rotation == 0 && ScaleX == 1 && ScaleY == 1)
+            return SKMatrix.CreateTranslation(X, Y);
+        var anchorX = Width * AnchorX;
+        var anchorY = Height * AnchorY;
+        return SKMatrix.CreateTranslation(X + translationX + anchorX, Y + translationY + anchorY)
+            .PreConcat(SKMatrix.CreateRotationDegrees(Rotation))
+            .PreConcat(SKMatrix.CreateScale(ScaleX, ScaleY))
+            .PreConcat(SKMatrix.CreateTranslation(-anchorX, -anchorY));
+    }
+
+    /// <summary>Whether children are scaled (<see cref="ChildrenScaleX"/> / <see cref="ChildrenScaleY"/> other than 1).</summary>
+    public readonly bool HasChildrenScale => ChildrenScaleX != 1 || ChildrenScaleY != 1;
+
+    /// <summary>Applies the children transform (scale about its origin, then the children offset) to <paramref name="canvas"/>.</summary>
+    public readonly void TransformChildren(SKCanvas canvas)
+    {
+        if (HasChildrenScale)
+            canvas.Scale(ChildrenScaleX, ChildrenScaleY, ChildrenScaleOrigin.X, ChildrenScaleOrigin.Y);
+        if (ChildrenOffsetX != 0 || ChildrenOffsetY != 0)
+            canvas.Translate(-ChildrenOffsetX, -ChildrenOffsetY);
+    }
+
+    /// <summary>Children space to local coordinates: the children scale about its origin after the children offset.</summary>
+    public readonly SKMatrix ChildrenMatrix
     {
         get
         {
-            if (TranslationX == 0 && TranslationY == 0 && Rotation == 0 && ScaleX == 1 && ScaleY == 1)
-                return SKMatrix.CreateTranslation(X, Y);
-            var anchorX = Width * AnchorX;
-            var anchorY = Height * AnchorY;
-            return SKMatrix.CreateTranslation(X + TranslationX + anchorX, Y + TranslationY + anchorY)
-                .PreConcat(SKMatrix.CreateRotationDegrees(Rotation))
-                .PreConcat(SKMatrix.CreateScale(ScaleX, ScaleY))
-                .PreConcat(SKMatrix.CreateTranslation(-anchorX, -anchorY));
+            var offset = SKMatrix.CreateTranslation(-ChildrenOffsetX, -ChildrenOffsetY);
+            return HasChildrenScale
+                ? SKMatrix.CreateScale(ChildrenScaleX, ChildrenScaleY, ChildrenScaleOrigin.X, ChildrenScaleOrigin.Y).PreConcat(offset)
+                : offset;
         }
+    }
+
+    /// <summary>Maps a local point into the children space (inverse of <see cref="TransformChildren"/>); a pinned child uses <paramref name="local"/>.</summary>
+    public readonly SKPoint MapToChildren(SKPoint local)
+    {
+        if (HasChildrenScale && ChildrenScaleX != 0 && ChildrenScaleY != 0)
+            local = new SKPoint(
+                ChildrenScaleOrigin.X + (local.X - ChildrenScaleOrigin.X) / ChildrenScaleX,
+                ChildrenScaleOrigin.Y + (local.Y - ChildrenScaleOrigin.Y) / ChildrenScaleY);
+        return new SKPoint(local.X + ChildrenOffsetX, local.Y + ChildrenOffsetY);
     }
 
     /// <summary>Reads an animatable property.</summary>
@@ -107,6 +165,8 @@ internal record struct SkUiRenderProps
         SkUiRenderProperty.Opacity => Opacity,
         SkUiRenderProperty.ChildrenOffsetX => ChildrenOffsetX,
         SkUiRenderProperty.ChildrenOffsetY => ChildrenOffsetY,
+        SkUiRenderProperty.ChildrenScaleX => ChildrenScaleX,
+        SkUiRenderProperty.ChildrenScaleY => ChildrenScaleY,
         _ => throw new ArgumentOutOfRangeException(nameof(property))
     };
 
@@ -123,6 +183,8 @@ internal record struct SkUiRenderProps
             case SkUiRenderProperty.Opacity: Opacity = value; break;
             case SkUiRenderProperty.ChildrenOffsetX: ChildrenOffsetX = value; break;
             case SkUiRenderProperty.ChildrenOffsetY: ChildrenOffsetY = value; break;
+            case SkUiRenderProperty.ChildrenScaleX: ChildrenScaleX = value; break;
+            case SkUiRenderProperty.ChildrenScaleY: ChildrenScaleY = value; break;
             default: throw new ArgumentOutOfRangeException(nameof(property));
         }
     }
@@ -148,10 +210,30 @@ internal enum SkUiRenderProperty
     ScaleY,
     Opacity,
     ChildrenOffsetX,
-    ChildrenOffsetY
+    ChildrenOffsetY,
+    ChildrenScaleX,
+    ChildrenScaleY
 }
 
 internal static class SkUiRenderPropertyCount
 {
-    public const int Value = 8;
+    public const int Value = 10;
+}
+
+/// <summary>
+/// Scroll-linked placement (<see cref="SkUiRenderProps.Link"/>): per axis, the node's translation is
+/// <c>clamp(Factor · offset + Base, Min, Max)</c>, with <c>offset</c> the children offset of <see cref="Source"/>, an ancestor
+/// render node. The compositor evaluates it every frame, so a node placed by a scroll offset (a scroll bar thumb, a pinned
+/// header, parallax) follows render-thread flings without UI-thread work; the UI side writes the same value into the
+/// node's translation for hit-testing and immediate painting.
+/// </summary>
+internal sealed record SkUiRenderLink(
+    SkUiRenderNode Source,
+    float FactorX, float BaseX, float MinX, float MaxX,
+    float FactorY, float BaseY, float MinY, float MaxY)
+{
+    /// <summary>The translation for an ancestor children offset.</summary>
+    public SKPoint Evaluate(float offsetX, float offsetY) => new(
+        Math.Clamp(FactorX * offsetX + BaseX, MinX, Math.Max(MinX, MaxX)),
+        Math.Clamp(FactorY * offsetY + BaseY, MinY, Math.Max(MinY, MaxY)));
 }

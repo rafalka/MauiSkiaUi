@@ -329,8 +329,9 @@ public partial class SkUiMauiContentView : SkUiView
             y += ancestor.Frame.Y + ancestor.TranslationY;
             if (ancestor is SkUiScrollView scroll)
             {
-                x -= scroll.ScrollX;
-                y -= scroll.ScrollY;
+                var offset = scroll.VisualScrollOffset;
+                x -= offset.X;
+                y -= offset.Y;
             }
         }
         return new Rect(x, y, Frame.Width, Frame.Height);
@@ -349,6 +350,9 @@ public partial class SkUiMauiContentView : SkUiView
             if (ancestor is not SkUiScrollView && !ancestor.ClipToBounds)
                 continue;
             var rect = RootRelativeFrame(ancestor);
+            // A scroller shows its content in its scrollport only (not in a reserved scroll bar gutter).
+            if (ancestor is SkUiScrollView scroller)
+                rect = new Rect(rect.X + scroller.Scrollport.X, rect.Y + scroller.Scrollport.Y, scroller.Scrollport.Width, scroller.Scrollport.Height);
             clip = clipped ? clip.Intersect(rect) : rect;
             clipped = true;
             if (clip.Width <= 0 || clip.Height <= 0)
@@ -367,8 +371,9 @@ public partial class SkUiMauiContentView : SkUiView
             y += ancestor.Frame.Y + ancestor.TranslationY;
             if (ancestor is SkUiScrollView scroll)
             {
-                x -= scroll.ScrollX;
-                y -= scroll.ScrollY;
+                var offset = scroll.VisualScrollOffset;
+                x -= offset.X;
+                y -= offset.Y;
             }
         }
         return new Rect(x, y, node.Frame.Width, node.Frame.Height);

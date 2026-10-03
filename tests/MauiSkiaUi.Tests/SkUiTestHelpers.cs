@@ -149,9 +149,22 @@ internal sealed class TestDispatcherProvider : IDispatcherProvider
         public void Dispose() => _dispatcher = null;
     }
 
-    /// <summary>Runs dispatched work inline; delayed work (gesture timers) is dropped.</summary>
+    /// <summary>Runs the delayed work queued on this thread's test dispatcher so far (it never runs by itself).</summary>
+    public static void RunDelayed()
+    {
+        if (_dispatcher is not { } dispatcher)
+            return;
+        var pending = dispatcher.Delayed.ToArray();
+        dispatcher.Delayed.Clear();
+        foreach (var action in pending)
+            action();
+    }
+
+    /// <summary>Runs dispatched work inline; delayed work (gesture timers) is queued, and runs only on <see cref="RunDelayed"/>.</summary>
     private sealed class TestDispatcher : IDispatcher
     {
+        public readonly List<Action> Delayed = [];
+
         public bool IsDispatchRequired => false;
 
         public bool Dispatch(Action action)
@@ -160,7 +173,11 @@ internal sealed class TestDispatcherProvider : IDispatcherProvider
             return true;
         }
 
-        public bool DispatchDelayed(TimeSpan delay, Action action) => true;
+        public bool DispatchDelayed(TimeSpan delay, Action action)
+        {
+            Delayed.Add(action);
+            return true;
+        }
 
         public IDispatcherTimer CreateTimer() => throw new NotSupportedException("No timers in headless tests.");
     }

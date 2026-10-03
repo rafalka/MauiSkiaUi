@@ -44,9 +44,9 @@ public static class SkUiDiagnostics
         var matrix = SKMatrix.Identity;
         for (var current = node; current.RenderParent is { } parent; current = parent)
         {
-            var parentProps = GetProps(parent);
-            matrix = SKMatrix.CreateTranslation(-parentProps.ChildrenOffsetX, -parentProps.ChildrenOffsetY)
-                .PreConcat(GetProps(current).Matrix)
+            var currentProps = GetProps(current);
+            matrix = (currentProps.Pinned ? SKMatrix.Identity : GetProps(parent).ChildrenMatrix)
+                .PreConcat(currentProps.Matrix)
                 .PreConcat(matrix);
         }
         var rect = matrix.MapRect(props.Bounds);
@@ -122,28 +122,36 @@ public static class SkUiDiagnostics
         if (props.ClipToBounds && !inside)
             return null;
         var childrenClip = props.ChildrenClipRect;
-        if (childrenClip.IsEmpty || childrenClip.Contains(local.X, local.Y))
+        var start = scratch.Count;
+        node.GetRenderChildren(scratch);
+        var childPoint = props.MapToChildren(local);
+        try
         {
-            var start = scratch.Count;
-            node.GetRenderChildren(scratch);
-            var childPoint = new SKPoint(local.X + props.ChildrenOffsetX, local.Y + props.ChildrenOffsetY);
-            try
+            // Paint order is back-to-front, pinned children above the others (and outside the children clip): test the
+            // topmost child first.
+            for (var index = scratch.Count - 1; index >= start; index--)
             {
-                // Paint order is back-to-front: test the topmost child first.
+                var child = scratch[index];
+                var childProps = GetProps(child);
+                if (!childProps.Pinned || childProps.IsSkipped || !childProps.Matrix.TryInvert(out var inverse))
+                    continue;
+                if (HitTest(child, childProps, inverse.MapPoint(local), scratch) is { } hit)
+                    return hit;
+            }
+            if (childrenClip.IsEmpty || childrenClip.Contains(local.X, local.Y))
                 for (var index = scratch.Count - 1; index >= start; index--)
                 {
                     var child = scratch[index];
                     var childProps = GetProps(child);
-                    if (childProps.IsSkipped || !childProps.Matrix.TryInvert(out var inverse))
+                    if (childProps.Pinned || childProps.IsSkipped || !childProps.Matrix.TryInvert(out var inverse))
                         continue;
                     if (HitTest(child, childProps, inverse.MapPoint(childPoint), scratch) is { } hit)
                         return hit;
                 }
-            }
-            finally
-            {
-                scratch.RemoveRange(start, scratch.Count - start);
-            }
+        }
+        finally
+        {
+            scratch.RemoveRange(start, scratch.Count - start);
         }
         return inside ? node : null;
     }

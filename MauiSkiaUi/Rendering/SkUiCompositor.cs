@@ -428,13 +428,15 @@ internal sealed class SkUiCompositor : IDisposable
     private static bool BodyChanged(in SkUiRenderProps a, in SkUiRenderProps b) =>
         a.Width != b.Width || a.Height != b.Height || a.IsVisible != b.IsVisible || a.ClipToBounds != b.ClipToBounds
         || a.ChildrenOffsetX != b.ChildrenOffsetX || a.ChildrenOffsetY != b.ChildrenOffsetY || a.ChildrenClipRect != b.ChildrenClipRect
+        || a.ChildrenScaleX != b.ChildrenScaleX || a.ChildrenScaleY != b.ChildrenScaleY || a.ChildrenScaleOrigin != b.ChildrenScaleOrigin
         || !ReferenceEquals(a.ChildrenClipPath, b.ChildrenClipPath) || !ReferenceEquals(a.ClipPath, b.ClipPath)
         || a.ContentSpinPeriod != b.ContentSpinPeriod || a.ContentSlidePeriod != b.ContentSlidePeriod
         || a.ContentSlideDistance != b.ContentSlideDistance || !ReferenceEquals(a.ContentClipPath, b.ContentClipPath)
         || a.Overflow != b.Overflow;
 
-    /// <summary>Children offsets change how the animated node draws its children; the other properties only its place.</summary>
-    private const int BodyAnimatedMask = (1 << (int)SkUiRenderProperty.ChildrenOffsetX) | (1 << (int)SkUiRenderProperty.ChildrenOffsetY);
+    /// <summary>Children offsets and scales change how the animated node draws its children; the other properties only its place.</summary>
+    private const int BodyAnimatedMask = (1 << (int)SkUiRenderProperty.ChildrenOffsetX) | (1 << (int)SkUiRenderProperty.ChildrenOffsetY)
+        | (1 << (int)SkUiRenderProperty.ChildrenScaleX) | (1 << (int)SkUiRenderProperty.ChildrenScaleY);
 
     private void CancelAnimations(SkUiRenderNode node, int mask)
     {
@@ -521,7 +523,7 @@ internal sealed class SkUiCompositor : IDisposable
         if (props.IsSkipped)
             return;
         var save = canvas.Save();
-        var matrix = props.Matrix;
+        var matrix = props.Link is { } link ? Follow(props, link) : props.Matrix;
         if (isRoot)
             matrix = matrix.PostConcat(SKMatrix.CreateTranslation(-props.X, -props.Y));
         canvas.Concat(in matrix);
@@ -541,6 +543,19 @@ internal sealed class SkUiCompositor : IDisposable
             DisposeShadowCache(node);
         DrawBody(canvas, node, ownSave: false); // inside this node's save
         canvas.RestoreToCount(save);
+    }
+
+    /// <summary>
+    /// The matrix of a scroll-linked node: its translation from the source's current (possibly render-thread animated)
+    /// children offset. A disposed source (detached) leaves the committed translation.
+    /// </summary>
+    private static SKMatrix Follow(in SkUiRenderProps props, SkUiRenderLink link)
+    {
+        if (link.Source.Disposed)
+            return props.Matrix;
+        ref readonly var source = ref link.Source.Props;
+        var translation = link.Evaluate(source.ChildrenOffsetX, source.ChildrenOffsetY);
+        return props.GetMatrix(translation.X, translation.Y);
     }
 
     /// <summary>
@@ -668,11 +683,21 @@ internal sealed class SkUiCompositor : IDisposable
                 canvas.ClipRect(props.ChildrenClipRect);
             if (props.ChildrenClipPath is { } path)
                 canvas.ClipPath(path, antialias: true);
-            if (props.ChildrenOffsetX != 0 || props.ChildrenOffsetY != 0)
-                canvas.Translate(-props.ChildrenOffsetX, -props.ChildrenOffsetY);
+            var pinned = false;
+            props.TransformChildren(canvas);
             foreach (var child in children)
-                DrawNode(canvas, child, isRoot: false);
+            {
+                if (child.Props.Pinned)
+                    pinned = true;
+                else
+                    DrawNode(canvas, child, isRoot: false);
+            }
             canvas.RestoreToCount(childSave);
+            // Pinned children: in local coordinates, outside the children clip.
+            if (pinned)
+                foreach (var child in children)
+                    if (child.Props.Pinned)
+                        DrawNode(canvas, child, isRoot: false);
         }
         if (node.After is { } after)
             canvas.DrawPicture(after);

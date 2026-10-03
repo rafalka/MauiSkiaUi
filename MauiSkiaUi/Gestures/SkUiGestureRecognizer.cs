@@ -40,6 +40,9 @@ public readonly struct SkUiPointer
 
     /// <summary>Maps any surface-root point into <paramref name="element"/>'s local coordinates.</summary>
     public Point MapToElement(object element, Point surfacePoint) => _router?.MapToNode(element, surfacePoint) ?? surfacePoint;
+
+    /// <summary>The router that dispatched this sample.</summary>
+    internal SkUiPointerRouter? Router => _router;
 }
 
 /// <summary>

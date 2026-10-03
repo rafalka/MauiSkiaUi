@@ -383,20 +383,36 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         return false;
     }
 
+    /// <summary>
+    /// Wheel and trackpad scrolling, from the innermost scroller under the pointer outwards: each scroller uses the axes it
+    /// can move that way, and the rest goes on to the outer ones.
+    /// </summary>
     private bool DispatchWheel(SkUiTouchEvent touch)
     {
+        var rest = new Point(touch.WheelDeltaX, touch.WheelDelta);
         for (var node = FindTarget(root, ToSk(touch.Position), isRoot: true, requireParticipant: false);
              node is not null; node = node.RenderParent as ISkUiInputNode)
         {
             if (!node.IsInputEnabled)
                 return true;
-            if (node is ISkUiScrollHost host && host.Scroller.Wheel(touch.WheelDelta))
-                return true;
+            if (node is ISkUiScrollHost host)
+            {
+                rest = host.Scroller.Wheel(rest.X, rest.Y);
+                if (rest.X == 0 && rest.Y == 0)
+                    return true;
+            }
             if (ReferenceEquals(node, root))
                 break;
         }
-        return false;
+        return rest.X != touch.WheelDeltaX || rest.Y != touch.WheelDelta;
     }
+
+    /// <summary>
+    /// Set by the platform handler: whether a native ancestor of the surface (a MAUI ScrollView around it) can scroll by an
+    /// offset delta (positive: towards the end). A drawn scroller at its edge then leaves the drag to it instead of
+    /// overscrolling.
+    /// </summary>
+    internal Func<double, double, bool>? NativeAncestorCanScroll { get; set; }
 
     /// <summary>
     /// Topmost node under <paramref name="local"/> that reacts (has recognizers) or blocks (disabled); passive nodes
@@ -412,27 +428,29 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         if (!node.IsInputEnabled)
             return node;
         var clip = props.ChildrenClipRect;
-        if (clip.IsEmpty || clip.Contains(local.X, local.Y))
+        var insideClip = clip.IsEmpty || clip.Contains(local.X, local.Y);
+        var start = _children.Count;
+        node.GetRenderChildren(_children);
+        var childrenPoint = props.MapToChildren(local);
+        try
         {
-            var start = _children.Count;
-            node.GetRenderChildren(_children);
-            var childrenPoint = new SKPoint(local.X + props.ChildrenOffsetX, local.Y + props.ChildrenOffsetY);
-            try
-            {
+            // Pinned children draw above the others, in local coordinates and outside the children clip: they are hit
+            // first; the others only inside the clip.
+            for (var pass = 0; pass < (insideClip ? 2 : 1); pass++)
                 for (var index = _children.Count - 1; index >= start; index--)
                 {
                     if (_children[index] is not ISkUiInputNode child || !child.IsHitTestVisible)
                         continue;
-                    if (!GetProps(child).Matrix.TryInvert(out var inverse))
+                    var childProps = GetProps(child);
+                    if (childProps.Pinned != (pass == 0) || !childProps.Matrix.TryInvert(out var inverse))
                         continue;
-                    if (FindTarget(child, inverse.MapPoint(childrenPoint), isRoot: false, requireParticipant) is { } hit)
+                    if (FindTarget(child, inverse.MapPoint(childProps.Pinned ? local : childrenPoint), isRoot: false, requireParticipant) is { } hit)
                         return hit;
                 }
-            }
-            finally
-            {
-                _children.RemoveRange(start, _children.Count - start);
-            }
+        }
+        finally
+        {
+            _children.RemoveRange(start, _children.Count - start);
         }
         if (!requireParticipant)
             return node;
@@ -457,9 +475,10 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         ISkUiRenderable parent = root;
         for (var index = chain.Count - 1; index >= 0; index--)
         {
-            var parentProps = GetProps(parent);
-            point = new SKPoint(point.X + parentProps.ChildrenOffsetX, point.Y + parentProps.ChildrenOffsetY);
-            if (GetProps(chain[index]).Matrix.TryInvert(out var inverse))
+            var props = GetProps(chain[index]);
+            if (!props.Pinned)
+                point = GetProps(parent).MapToChildren(point);
+            if (props.Matrix.TryInvert(out var inverse))
                 point = inverse.MapPoint(point);
             parent = chain[index];
         }

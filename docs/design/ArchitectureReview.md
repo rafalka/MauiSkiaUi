@@ -47,7 +47,7 @@ Ordered by severity. File references are to the code at the time of the review.
 | N8 | Medium | No OS font scaling (`FontAutoScalingEnabled`), no semantics tree, no keyboard focus / activation | Accessibility work (§4) |
 | N9 | Medium — **fixed** | No shared image cache: every instance re-loads and re-decodes the same source and holds several copies of the encoded bytes; duplicated between SkUi\* and Core | Fixed (P4): one loader (`SkUiImageLoader`) and one image slot for both layers; decoded images in a memory LRU keyed by source, decode size and transformations, leased by the views that show them; shared in-flight loads; a download disk cache (`ImageLoadingTests`) |
 | N10 | Low–Medium | Android overlays allocate `Rect` Java peers per offset report and look overlays up with LINQ per child; clip computation walks ancestors per ancestor (O(depth²)) | Reuse rectangles, key overlays by clip view, one ancestor walk |
-| N11 | Low | Fling stop test ignores direction (a flick inward from an edge stops at once); `maxX` / `maxY` are frozen at fling start | Direction-aware stop; live extent updates (also needed by FR-21) |
+| N11 | Low — **fixed** | Fling stop test ignores direction (a flick inward from an edge stops at once); `maxX` / `maxY` are frozen at fling start | Fixed (P8): an axis stops only at the edge it moves towards (with overscroll it bounces from it), and the fling follows extent and viewport changes while it runs (`ScrollViewParityTests`) |
 | N12 | Low | `NotifyMoved` walks whole subtrees on every offset change even without overlays | Gate on a "subtree has overlays" counter |
 | N13 | Low | SkUi vs Core drift: button padding defaults, corner radius resolution, Core label without `FontAttributes`, Core without `IsEnabled` / anchor / `ScaleX`/`ScaleY`, some SkUi setters without equality early-outs | Shared defaults and parity tests |
 | N14 | Low | Per-label native objects (`SKPaint`, an `SKFont` per fallback typeface) freed by finalizers | Share fonts by (typeface, size); one recording paint |
@@ -96,7 +96,7 @@ The spinner and fling cases (N7) are the benchmark.
   - realize items from the fling's predicted target offset, since UI-side offsets arrive late;
   - recycle without reparenting, which today resets and re-records the subtree;
   - keep item re-measure local to the list (a relayout boundary) and correct the scroll anchor;
-  - live extent updates for the fling (N11);
+  - ~~live extent updates for the fling (N11)~~ (shipped with P8);
   - ~~the shared image cache (N9)~~ (shipped with P4).
 
 **Overlay masks (2.8).** The practical need is drawn popups over hosted controls and rounded clipping.

@@ -47,11 +47,13 @@ Every drawn node (`SkUiView`, `SkUiCoreNode`) implements `ISkUiRenderable`. It o
 | `Before` picture | Background + Content phases (`PaintBackground` / `OnPaintBackground`, `OnPaintContent`) | Re-record this node only |
 | `After` picture | Overlay phase | Re-record this node only |
 | Children | `GetRenderChildren` (paint order, ZIndex) | Children list resend, no re-record |
-| `SkUiRenderProps` | Frame offset/size, translation, rotation, scale, anchor, opacity, `ClipToBounds`, clip path (`Clip`), shadow, children offset and clip, content spin, ink overflow | Nothing is recorded; composite-time only |
+| `SkUiRenderProps` | Frame offset/size, translation, rotation, scale, anchor, opacity, `ClipToBounds`, clip path (`Clip`), shadow, children offset, scale and clip, pinned flag, scroll link, content spin, ink overflow | Nothing is recorded; composite-time only |
 
 Children are composited by the engine between the Content and Overlay pictures. Containers express how their children are drawn through properties instead of drawing them in `OnPaintContent`:
 
-- **Scroll offset:** `SkUiScrollView` sets `ChildrenOffset` and a viewport `ChildrenClipRect`.
+- **Scroll offset:** `SkUiScrollView` sets `ChildrenOffset` and a viewport `ChildrenClipRect`. Overscroll uses the same children transform: a bounce is an offset past its range, a stretch is a `ChildrenScaleX` / `ChildrenScaleY` about `ChildrenScaleOrigin` (both animatable on the render thread).
+- **Pinned children:** a child with `Pinned` is placed in its parent's local coordinates, so the children offset, scale and clip do not apply to it (only the parent's own clips); pinned children draw above, and are hit before, their siblings. Scroll bars are pinned Core nodes, also in a scroller's reserved gutter outside its children clip.
+- **Scroll-linked children:** a `Link` (`SkUiRenderLink`) makes a node's translation `clamp(factor · offset + base, min, max)` of an ancestor's children offset, evaluated by the compositor every frame. A scroll bar thumb follows a render-thread fling this way with no UI-thread work; the UI side writes the same translation for hit-testing and the immediate painter. Pinned headers and parallax can use the same mechanism.
 - **Rounded clip:** `SkUiBorder` / `SkUiCoreBorder` set `ChildrenClipPath`.
 - **Spinning content:** activity indicators set `ContentSpinPeriod`, and the compositor rotates the recorded arc.
 
