@@ -192,7 +192,7 @@ Animated GIF / WebP play on the view's UI clock while `IsAnimationPlaying` is tr
 | `IsOpaque` | Not available (no effect on drawn images) |
 | SVG at runtime | Not yet: an SVG `MauiImage` works (as the PNG generated at build time); drawing `.svg` files at runtime is planned ([ImplementationPlan.md](../design/ImplementationPlan.md)) |
 | Size limits | 32 MiB encoded; decoded edge ≤ `MaxDecodeDimension` (2048 px) |
-| Disposal | Call `Dispose()` when permanently removing |
+| Disposal | Optional: a collected image releases its reference on the shared cache by itself; `Dispose()` releases it (and cancels loading) at once |
 
 ## Related
 

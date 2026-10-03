@@ -214,32 +214,57 @@ public class ContentAndTemplateTests
     }
 
     [Fact]
-    public async Task DisposingAButtonReleasesItsImage()
+    public async Task ButtonsReleaseTheirImageWhenClearedOrCollected()
     {
         using var font = SkUiTestHelpers.UseBundledFont();
-        var button = await ImageButton("Go", ImagePosition.Left);
-        var entry = button.CachedImage!;
-        Assert.False(entry.IsReleased);
-        button.Dispose();
-        Assert.True(entry.IsReleased); // a stream image is not cached: the button's lease was the last reference
-        Assert.Equal(TextSize("Go"), ((IView)button).Measure(double.PositiveInfinity, double.PositiveInfinity)); // a text button now
-        button.ImageSource = RedSquare();
-        await button.ImageLoadingTask;
-        Assert.Null(button.CachedImage); // not loaded after disposal
-        button.Dispose(); // twice: nothing
-
         var cleared = await ImageButton("Go", ImagePosition.Left);
         var clearedEntry = cleared.CachedImage!;
         cleared.ImageSource = null;
-        Assert.True(clearedEntry.IsReleased);
+        Assert.True(clearedEntry.IsReleased); // a stream image is not cached: the button's lease was the only reference
 
-        var core = new SkUiCoreButton();
-        core.SetImageSource(SkUiImageSource.FromStream(_ => Task.FromResult<Stream>(new MemoryStream(ImageBytes(SKColors.Red, 20, 20)))));
-        await core.ImageLoadingTask;
-        var coreEntry = core.CachedImage!;
-        core.Dispose();
-        Assert.True(coreEntry.IsReleased);
+        // Never disposed, just dropped: the lease goes with the button. (Plain helpers: an async method's state machine
+        // would keep the button alive.)
+        Task? loads = Task.WhenAll(StartSkUiButton(out var skiaButton), StartCoreButton(out var coreButton));
+        await loads;
+        loads = null; // a load task references its image slot
+        var entries = new[] { CachedImage(skiaButton), CachedImage(coreButton) };
+        skiaButton = null;
+        coreButton = null;
+        Assert.All(entries, entry => Assert.False(entry.IsReleased));
+        for (var attempt = 0; attempt < 5 && !entries.All(entry => entry.IsReleased); attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+        Assert.All(entries, entry => Assert.True(entry.IsReleased));
     }
+
+    private static ImageSource RedStream() => ImageSource.FromStream(() => new MemoryStream(ImageBytes(SKColors.Red, 20, 20)));
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static Task StartSkUiButton(out WeakReference<SkUiButton>? button)
+    {
+        var created = new SkUiButton { Text = "Go", ImageSource = RedStream() };
+        button = new WeakReference<SkUiButton>(created);
+        return created.ImageLoadingTask;
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static Task StartCoreButton(out WeakReference<SkUiCoreButton>? button)
+    {
+        var created = new SkUiCoreButton();
+        created.SetImageSource(SkUiImageSource.FromStream(_ => Task.FromResult<Stream>(new MemoryStream(ImageBytes(SKColors.Red, 20, 20)))));
+        button = new WeakReference<SkUiCoreButton>(created);
+        return created.ImageLoadingTask;
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static SkUiCachedImage CachedImage(WeakReference<SkUiButton>? button) =>
+        button!.TryGetTarget(out var target) ? target.CachedImage! : throw new InvalidOperationException("Collected too early.");
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static SkUiCachedImage CachedImage(WeakReference<SkUiCoreButton>? button) =>
+        button!.TryGetTarget(out var target) ? target.CachedImage! : throw new InvalidOperationException("Collected too early.");
 
     [Fact]
     public async Task CoreButtonDrawsTheImageAsTheSkUiButton()

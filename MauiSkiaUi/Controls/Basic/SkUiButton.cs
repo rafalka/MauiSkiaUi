@@ -7,7 +7,7 @@ namespace MauiSkiaUi;
 /// A drawn text button with intrinsic taps, commands, and press/disabled feedback. Like MAUI's Button, it can show an
 /// image (<see cref="ImageSource"/>) beside its text, placed by <see cref="ContentLayout"/>.
 /// </summary>
-public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText, IDisposable
+public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
 {
     private ICommand? _command;
     private object? _commandParameter;
@@ -17,7 +17,6 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText, IDisposable
     private SkUiWeakListener<SkUiButton>? _imageSourceListener; // a shared image source must not keep the button alive
     private SkUiImageSlot? _image;
     private Button.ButtonContentLayout _contentLayout = DefaultContentLayout;
-    private bool _disposed;
 
     /// <summary>MAUI Button's default <see cref="ContentLayout"/>: the image on the left, 10 DIPs from the text (before the bindable properties, which use it).</summary>
     internal static readonly Button.ButtonContentLayout DefaultContentLayout = new(Button.ButtonContentLayout.ImagePosition.Left, 10);
@@ -148,7 +147,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText, IDisposable
 
     private void LoadImage()
     {
-        if (_disposed || (_imageSource is null && _image is null)) return;
+        if (_imageSource is null && _image is null) return;
         (_image ??= new SkUiImageSlot(this, InvalidateMeasureOverride)).Load(SkUiMauiImageSources.Convert(_imageSource), default);
     }
 
@@ -162,22 +161,6 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText, IDisposable
 
     /// <summary>The loaded image's size in DIPs (zero without one or while it loads).</summary>
     internal Size ImageSize => _image?.DisplayedSize ?? Size.Zero;
-
-    /// <summary>
-    /// Releases the image (its lease on the shared decoded-image cache) and stops loading, as <see cref="SkUiImage.Dispose"/>;
-    /// call it when permanently removing a button that shows an <see cref="ImageSource"/> (setting it to <c>null</c> also
-    /// releases the image). The button keeps working as a text button; later images are not loaded.
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        _imageSourceListener?.Listen(null);
-        _image?.Dispose();
-        _image = null;
-        InvalidateMeasureOverride();
-        GC.SuppressFinalize(this);
-    }
 
     /// <summary>The shown image's cache entry (tests: leases).</summary>
     internal SkUiCachedImage? CachedImage => _image?.Entry;

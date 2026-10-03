@@ -48,7 +48,7 @@ What MAUI's buttons do on every platform:
 
 `SkUiCoreButton` has `ImageSource` (an `SkUiImageSource`) and `ContentLayout` (`SetImageSource`, `SetContentLayout`), drawn by the same layout engine.
 
-**Disposal:** as image views, both buttons are `IDisposable`: `Dispose()` releases the image's lease on the shared decoded-image cache and stops loading (the button keeps working with its text). Call it when permanently removing a button that shows an image; setting `ImageSource` to `null` also releases it.
+The image's reference on the shared decoded-image cache is released when `ImageSource` changes or is cleared, and when the button is collected: nothing needs disposing.
 
 ## Key properties
 

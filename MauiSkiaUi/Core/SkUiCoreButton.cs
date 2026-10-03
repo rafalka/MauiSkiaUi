@@ -8,11 +8,10 @@ namespace MauiSkiaUi.Core;
 /// <see cref="ICommand"/>. Like MAUI's Button, it can show an image (<see cref="ImageSource"/>) beside its text, placed
 /// by <see cref="ContentLayout"/>.
 /// </summary>
-public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText, IDisposable
+public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
 {
     private SkUiImageSource? _imageSource;
     private SkUiImageSlot? _image;
-    private bool _disposed;
     private Button.ButtonContentLayout _contentLayout = SkUiButton.DefaultContentLayout;
     private bool _minimumHeightExplicit;
     private bool _isPressed;
@@ -85,7 +84,7 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText, IDispo
     /// <summary>Sets <see cref="ImageSource"/> (<c>null</c>: no image).</summary>
     public SkUiCoreButton SetImageSource(SkUiImageSource? value)
     {
-        if (!SetProperty(ref _imageSource, value, nameof(ImageSource)) || _disposed) return this;
+        if (!SetProperty(ref _imageSource, value, nameof(ImageSource))) return this;
         if (value is not null || _image is not null)
             (_image ??= new SkUiImageSlot(this, InvalidateMeasure)).Load(value, default);
         return this;
@@ -102,21 +101,6 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText, IDispo
 
     /// <summary>The loaded image's size in DIPs (zero without one or while it loads).</summary>
     internal Size ImageSize => _image?.DisplayedSize ?? Size.Zero;
-
-    /// <summary>
-    /// Releases the image (its lease on the shared decoded-image cache) and stops loading, as <see cref="SkUiCoreImage.Dispose"/>;
-    /// call it when permanently removing a button that shows an <see cref="ImageSource"/> (<c>SetImageSource(null)</c> also
-    /// releases the image). The button keeps working as a text button; later images are not loaded.
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        _image?.Dispose();
-        _image = null;
-        InvalidateMeasure();
-        GC.SuppressFinalize(this);
-    }
 
     /// <summary>The shown image's cache entry (tests: leases).</summary>
     internal SkUiCachedImage? CachedImage => _image?.Entry;

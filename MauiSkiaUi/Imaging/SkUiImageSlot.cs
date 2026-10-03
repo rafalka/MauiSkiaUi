@@ -8,13 +8,15 @@ namespace MauiSkiaUi;
 /// <see cref="SkUiImageLoader"/>, holds the lease on the cached image, publishes loading / error state, raises the
 /// load events, shows the loading / error placeholders, and plays animated images on the node's UI clock. A cached
 /// source applies synchronously (no empty frame); otherwise the image clears (the loading placeholder shows) while
-/// loading and the result is applied on the dispatcher that started the load. UI thread only.
+/// loading and the result is applied on the dispatcher that started the load. UI thread only. The shown image's reference
+/// is a <see cref="SkUiImageLease"/>: views that are collected without being disposed still release it.
 /// </summary>
 internal sealed class SkUiImageSlot
 {
     private readonly ISkUiTransitionHost _host;
     private readonly Action _changed;
     private SkUiCachedImage? _image;
+    private SkUiImageLease? _lease; // the reference on _image; released by the finalizer when the view is collected
     private CancellationTokenSource? _loading;
     private int _generation;
     private bool _disposed;
@@ -299,10 +301,12 @@ internal sealed class SkUiImageSlot
             return;
         }
         StopAnimation();
+        var oldLease = _lease;
         _image = image;
+        _lease = image is null ? null : new SkUiImageLease(image);
         _frame = 0;
         _frameOffset = 0;
-        old?.Release();
+        oldLease?.Release();
     }
 
     private void StartAnimation(SkUiCachedImage image)
