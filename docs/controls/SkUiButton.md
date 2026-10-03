@@ -27,15 +27,36 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
                FillColor="#087F83" TextColor="White" CornerRadius="6" />
 ```
 
+## Image and content layout
+
+As MAUI's Button, a button can show an image beside its text: `ImageSource` (MAUI's `ImageSource`: files, `MauiImage` resources, `FontImageSource` glyphs, URIs, streams, through the [shared image loader and cache](SkUiImage.md)) placed by `ContentLayout`, MAUI's own `Button.ButtonContentLayout` (`Position`: `Left`, `Top`, `Right`, `Bottom`; `Spacing`, default 10 DIPs). XAML takes MAUI's markup: `ContentLayout="Top"`, `"Right, 20"`, `"20"` (left, 20 DIPs).
+
+```xml
+<sk:SkUiButton Text="Settings" ImageSource="settings.png" ContentLayout="Top, 8" />
+<sk:SkUiButton Text="Add" ContentLayout="Left, 6">
+  <sk:SkUiButton.ImageSource>
+    <FontImageSource Glyph="+" FontFamily="OpenSansRegular" Size="20" Color="White" />
+  </sk:SkUiButton.ImageSource>
+</sk:SkUiButton>
+```
+
+What MAUI's buttons do on every platform:
+- **Size:** the image keeps its intrinsic size (DIPs) and is scaled down uniformly (never up) to fit inside the `Padding`, leaving the text the rest; the button measures image + spacing + text along the layout axis, the larger of the two across it.
+- **Placement:** image and text are one group, centered in the button (SkiaUi places the group by `HorizontalTextAlignment` / `VerticalTextAlignment`, centered by default); across the axis each is centered against the other. Without text the image is centered and there is no spacing.
+- **Direction:** `Left` is the start side, so in right-to-left layouts the image sits on the right (as on Android and iOS).
+- **Not tinted** by `TextColor` (a `FontImageSource` has its own `Color`); drawn under the press feedback and clipped to the corner radii with the text.
+
+`SkUiCoreButton` has `ImageSource` (an `SkUiImageSource`) and `ContentLayout` (`SetImageSource`, `SetContentLayout`), drawn by the same layout engine.
+
 ## Key properties
 
-Inherits Label text APIs (MAUI Button's `CharacterSpacing`, `TextTransform`, `LineBreakMode`, plus the label's `MaxLines`, `LineHeight`, `TextDecorations` and a custom `LineBreaker`) and its rounded chrome: per-corner `CornerRadii`, and `CornerRadius` as in MAUI (an `int` that sets all four corners; use `CornerRadii` for fractional radii), both defaulting to the look's `DefaultButtonCornerRadius` (`SkUiCoreButton` has only `CornerRadii`, plus `SetCornerRadius(double)` for all four); `BorderColor`, `BorderWidth`. Adds `Command`, `CommandParameter`, `Clicked`, `Pressed`, `Released`, `FillColor`. As in MAUI, a tap raises `Pressed`, `Released`, then `Clicked`; a cancelled press (a scroll took over, the pointer left) raises `Released` without `Clicked`.
+Inherits Label text APIs (MAUI Button's `CharacterSpacing`, `TextTransform`, `LineBreakMode`, which defaults to `NoWrap` as in MAUI: text that does not fit is cut at the padding, from its start, plus the label's `MaxLines`, `LineHeight`, `TextDecorations` and a custom `LineBreaker`) and its rounded chrome: per-corner `CornerRadii`, and `CornerRadius` as in MAUI (an `int` that sets all four corners; use `CornerRadii` for fractional radii), both defaulting to the look's `DefaultButtonCornerRadius` (`SkUiCoreButton` has only `CornerRadii`, plus `SetCornerRadius(double)` for all four); `BorderColor`, `BorderWidth`. Adds `Command`, `CommandParameter`, `Clicked`, `Pressed`, `Released`, `FillColor`, `ImageSource`, `ContentLayout`. As in MAUI, a tap raises `Pressed`, `Released`, then `Clicked`; a cancelled press (a scroll took over, the pointer left) raises `Released` without `Clicked`.
 
 ## Differences from MAUI Button
 
 | Topic | SkiaUi |
 | --- | --- |
-| Image + text content | Text only (use [`SkUiImageButton`](SkUiImageButton.md) for images) |
+| Image + text content | `ImageSource` + `ContentLayout` as MAUI (above); the group follows the text alignments, which MAUI's Button does not have |
 | Hit region | Rectangular arranged bounds (corners outside the round fill still hit) |
 | `TappedCommand` vs `Command` | On tap, only `Command` runs (plus `Clicked` / `Tapped` event). Do not rely on both commands. |
 | Chrome | `FillColor`; a `Background` (solid or gradient) overrides it. Gradients reach the look as `SkUiButtonPaint.FillPaint` (`Fill` then holds the stops averaged, for looks that draw colors only); the default look dims them when pressed. An opaque fill casts the `Shadow` from the rounded chrome |

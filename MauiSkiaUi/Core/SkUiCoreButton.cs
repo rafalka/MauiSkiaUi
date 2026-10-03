@@ -5,10 +5,14 @@ namespace MauiSkiaUi.Core;
 
 /// <summary>
 /// Minimal Core button: rounded fill, single-line label, intrinsic tap handling, and optional
-/// <see cref="ICommand"/>.
+/// <see cref="ICommand"/>. Like MAUI's Button, it can show an image (<see cref="ImageSource"/>) beside its text, placed
+/// by <see cref="ContentLayout"/>.
 /// </summary>
-public class SkUiCoreButton : SkUiCoreLabel
+public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
 {
+    private SkUiImageSource? _imageSource;
+    private SkUiImageSlot? _image;
+    private Button.ButtonContentLayout _contentLayout = SkUiButton.DefaultContentLayout;
     private bool _minimumHeightExplicit;
     private bool _isPressed;
     private SkUiPressAnimator? _press;
@@ -16,9 +20,10 @@ public class SkUiCoreButton : SkUiCoreLabel
     private object? _commandParameter;
     private SkUiWeakListener<SkUiCoreButton>? _commandListener;
 
-    /// <summary>Creates a centered white-on-accent button.</summary>
+    /// <summary>Creates a centered white-on-accent button whose text does not wrap (as MAUI's Button).</summary>
     public SkUiCoreButton()
     {
+        SetLineBreakMode(Microsoft.Maui.LineBreakMode.NoWrap);
         SetTextColor(Colors.White);
         SetPadding(new Thickness(6));
         SetHorizontalTextAlignment(TextAlignment.Center);
@@ -56,8 +61,78 @@ public class SkUiCoreButton : SkUiCoreLabel
     /// <summary>Whether an eligible pointer is currently pressed inside this button.</summary>
     public bool IsPressed => _isPressed;
 
+    /// <summary>
+    /// Image drawn beside the text (see <see cref="SkUiButton.ImageSource"/>): intrinsic size, scaled down (never up) to
+    /// fit inside <see cref="SkUiCoreLabel.Padding"/>, not tinted.
+    /// </summary>
+    public SkUiImageSource? ImageSource
+    {
+        get => _imageSource;
+        set => SetImageSource(value);
+    }
+
+    /// <summary>
+    /// Where the image sits relative to the text, and the spacing between them (MAUI's type; default: left, 10 DIPs). See
+    /// <see cref="SkUiButton.ContentLayout"/>.
+    /// </summary>
+    public Button.ButtonContentLayout ContentLayout
+    {
+        get => _contentLayout;
+        set => SetContentLayout(value);
+    }
+
+    /// <summary>Sets <see cref="ImageSource"/> (<c>null</c>: no image).</summary>
+    public SkUiCoreButton SetImageSource(SkUiImageSource? value)
+    {
+        if (!SetProperty(ref _imageSource, value, nameof(ImageSource))) return this;
+        if (value is not null || _image is not null)
+            (_image ??= new SkUiImageSlot(this, InvalidateMeasure)).Load(value, default);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="ContentLayout"/>.</summary>
+    public SkUiCoreButton SetContentLayout(Button.ButtonContentLayout value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (!SetProperty(ref _contentLayout, value, nameof(ContentLayout))) return this;
+        if (ImageSize.Width > 0) InvalidateMeasure();
+        return this;
+    }
+
+    /// <summary>The loaded image's size in DIPs (zero without one or while it loads).</summary>
+    internal Size ImageSize => _image?.DisplayedSize ?? Size.Zero;
+
+    /// <summary>The load of the current <see cref="ImageSource"/> (completed when idle; tests).</summary>
+    internal Task ImageLoadingTask => _image?.LoadingTask ?? Task.CompletedTask;
+
+    /// <summary>Where the image and the text sit in the arranged button.</summary>
+    private SkUiButtonImageLayout.Placement ImagePlacement => SkUiButtonImageLayout.Arrange(this, ImageSize, _contentLayout, Padding, Frame.Width, Frame.Height,
+        HorizontalTextAlignment, VerticalTextAlignment, IsRightToLeft);
+
+    /// <inheritdoc />
+    private protected override Thickness TextInset => ImageSize.Width > 0 ? ImagePlacement.TextInset : base.TextInset;
+
+    /// <inheritdoc />
+    private protected override bool HasIcon => ImageSize.Width > 0;
+
+    /// <inheritdoc />
+    private protected override void PaintIcon(SKCanvas canvas)
+    {
+        if (_image is null) return;
+        var area = ImagePlacement.Image;
+        if (area.Width > 0 && area.Height > 0)
+            _image.Paint(canvas, new SKRect((float)area.Left, (float)area.Top, (float)area.Right, (float)area.Bottom), Aspect.AspectFit);
+    }
+
+    bool SkUiButtonImageLayout.IText.HasText => HasText;
+
+    Size SkUiButtonImageLayout.IText.MeasureText(double widthConstraint) => MeasureText(widthConstraint);
+
     /// <inheritdoc />
     protected override double DefaultCornerRadius => SkUiLook.Current.DefaultButtonCornerRadius;
+
+    /// <inheritdoc />
+    private protected override bool ClipsTextToInset => true;
 
     /// <summary>Sets fill color.</summary>
     public new SkUiCoreButton SetFillColor(Color value) { base.SetFillColor(value); return this; }
@@ -118,7 +193,9 @@ public class SkUiCoreButton : SkUiCoreLabel
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        var size = base.MeasureContent(widthConstraint, heightConstraint);
+        var size = ImageSize is { Width: > 0 } image
+            ? SkUiButtonImageLayout.Measure(this, image, _contentLayout, Padding, widthConstraint, heightConstraint)
+            : base.MeasureContent(widthConstraint, heightConstraint);
         if (!_minimumHeightExplicit)
         {
             var min = SkUiLook.Current.DefaultButtonMinimumHeight;

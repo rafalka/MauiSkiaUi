@@ -371,7 +371,7 @@ public class SkUiCoreLabel : SkUiCoreNode
         _spans.Length > 0 && SpanIndexAt(point) is var index and >= 0 && index < _spans.Length ? _spans[index] : null;
 
     private int SpanIndexAt(Point point) =>
-        RichLayout.HitTest(RichText, TextStyle, _padding, Frame.Width, Frame.Height, _horizontal, _vertical, point);
+        RichLayout.HitTest(RichText, TextStyle, TextInset, Frame.Width, Frame.Height, _horizontal, _vertical, point);
 
     /// <inheritdoc />
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
@@ -609,26 +609,64 @@ public class SkUiCoreLabel : SkUiCoreNode
         ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint)
         : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint);
 
+    /// <summary>The text's size without padding when wrapped to <paramref name="widthConstraint"/> (buttons place an image beside it).</summary>
+    private protected Size MeasureText(double widthConstraint) => UsesRichText
+        ? RichLayout.Measure(RichText, TextStyle, default, widthConstraint)
+        : _layout.Measure(_displayText, TextStyle, default, widthConstraint);
+
+    /// <summary>Whether there is text to draw (plain, spans or HTML).</summary>
+    private protected bool HasText => (UsesRichText ? RichText.Text : _displayText).Length > 0;
+
+    /// <summary>The text's slot in the arranged label, as an inset from its edges: <see cref="Padding"/> (buttons: beside their image).</summary>
+    private protected virtual Thickness TextInset => _padding;
+
+    /// <summary>Whether glyphs are clipped to the text's slot (<see cref="TextInset"/>), not only to the bounds: buttons keep text that does not fit out of their padding and image.</summary>
+    private protected virtual bool ClipsTextToInset => false;
+
+    /// <summary>Whether <see cref="PaintIcon"/> draws something (a button's image).</summary>
+    private protected virtual bool HasIcon => false;
+
+    /// <summary>Draws content beside the text (a button's image), clipped with it to the rounded corners.</summary>
+    private protected virtual void PaintIcon(SKCanvas canvas) { }
+
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        if ((UsesRichText ? RichText.Text : _displayText).Length == 0) return;
+        var hasText = HasText;
+        if (!hasText && !HasIcon) return;
         // Glyphs never bleed past the rounded corners.
         var saveCount = _chrome.ClipToRadii(canvas, (float)Frame.Width, (float)Frame.Height, EffectiveCornerRadii);
-        try { PaintText(canvas); }
+        try
+        {
+            PaintIcon(canvas);
+            if (hasText)
+            {
+                if (ClipsTextToInset)
+                {
+                    var inset = TextInset;
+                    canvas.Save();
+                    canvas.ClipRect(new SKRect((float)inset.Left, (float)inset.Top, (float)(Frame.Width - inset.Right), (float)(Frame.Height - inset.Bottom)));
+                    PaintText(canvas);
+                    canvas.Restore();
+                }
+                else
+                    PaintText(canvas);
+            }
+        }
         finally { SkUiChromeState.EndClip(canvas, saveCount); }
     }
 
     private void PaintText(SKCanvas canvas)
     {
         var paint = _textPaint ??= new SKPaint { IsAntialias = true };
+        var inset = TextInset;
         if (UsesRichText)
         {
-            RichLayout.Draw(canvas, RichText, TextStyle, _padding, Frame.Width, Frame.Height, _horizontal, _vertical, paint);
+            RichLayout.Draw(canvas, RichText, TextStyle, inset, Frame.Width, Frame.Height, _horizontal, _vertical, paint);
             return;
         }
         paint.Color = ToSkColor(_textColor);
-        _layout.Draw(canvas, _displayText, TextStyle, _padding, Frame.Width, Frame.Height,
+        _layout.Draw(canvas, _displayText, TextStyle, inset, Frame.Width, Frame.Height,
             _horizontal, _vertical, paint, _textDecorations);
     }
 

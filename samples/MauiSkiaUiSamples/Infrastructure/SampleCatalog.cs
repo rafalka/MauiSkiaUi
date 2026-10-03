@@ -15,6 +15,7 @@ public static class SampleCatalog
         SampleEntry.For<CachedAvatarsSample>(),
         SampleEntry.For<ShapesAndBordersSample>(),
         SampleEntry.For<CardsWithShadowsSample>(),
+        SampleEntry.For<PlanPickerSample>(),
         SampleEntry.For<CrossCheckBoxSample>(),
     ];
 

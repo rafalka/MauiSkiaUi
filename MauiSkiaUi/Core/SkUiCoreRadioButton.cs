@@ -3,8 +3,10 @@ using SkiaSharp;
 namespace MauiSkiaUi.Core;
 
 /// <summary>
-/// Drawn radio button (Core analogue of <c>SkUiRadioButton</c>). The radio buttons in the same parent form a group:
-/// checking one unchecks the others.
+/// Drawn radio button (Core analogue of <c>SkUiRadioButton</c>): a circle that a tap checks (never unchecks). It does not
+/// group itself: checking it leaves other radio buttons alone. Group radio buttons with
+/// <see cref="SkUiCoreRadioButtons.Group"/>, or uncheck them with <see cref="SkUiCoreRadioButtons.Uncheck"/> /
+/// <see cref="SkUiCoreRadioButtons.UncheckRadioButtons"/>.
 /// </summary>
 public class SkUiCoreRadioButton : SkUiCoreToggleControl
 {
@@ -28,12 +30,6 @@ public class SkUiCoreRadioButton : SkUiCoreToggleControl
 
     /// <summary>A tap only selects (never unchecks), matching MAUI RadioButton.</summary>
     protected override void OnToggled() => SetCheckState(SkUiCheckState.Checked);
-
-    private protected override void OnCheckStateApplied(SkUiCheckState oldState, SkUiCheckState newState)
-    {
-        if (newState == SkUiCheckState.Checked)
-            SkUiRadioGroups.UncheckSiblings(this);
-    }
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>

@@ -341,6 +341,12 @@ public class SkUiLook
     /// <summary>Default RadioButton intrinsic size in DIPs (square side length on both axes).</summary>
     public virtual Size DefaultRadioButtonSize => new(24, 24);
 
+    /// <summary>
+    /// Space in DIPs between a RadioButton's circle and its <c>Content</c> (text or a drawn view); 8 by default (MAUI's
+    /// default template: 6 between a 21-DIP circle and the content).
+    /// </summary>
+    public virtual double DefaultRadioButtonContentSpacing => 8;
+
     /// <summary>Optional RadioButton intrinsic measure override.</summary>
     public Func<double, double, Size>? RadioButtonMeasure { get; set; }
 

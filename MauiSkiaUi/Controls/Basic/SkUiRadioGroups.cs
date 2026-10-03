@@ -3,7 +3,8 @@ using System.Runtime.CompilerServices;
 namespace MauiSkiaUi;
 
 /// <summary>
-/// Radio button groups for <see cref="SkUiRadioButton"/> (MAUI's rules) and <see cref="Core.SkUiCoreRadioButton"/> (siblings).
+/// Radio button groups for <see cref="SkUiRadioButton"/> (MAUI's rules). Core radio buttons do not group themselves
+/// (<see cref="Core.SkUiCoreRadioButtons"/>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -76,18 +77,6 @@ internal static class SkUiRadioGroups
         {
             if (other != radio && other.GroupName == groupName && other.IsChecked)
                 other.SetCheckedByGroup(false);
-        }
-    }
-
-    /// <summary>Core radio buttons: the radio buttons in the same parent form the group.</summary>
-    internal static void UncheckSiblings(Core.SkUiCoreRadioButton radio)
-    {
-        if (radio.Parent is not Core.SkUiCoreNode parent)
-            return;
-        foreach (var sibling in parent.VisualChildren)
-        {
-            if (sibling is Core.SkUiCoreRadioButton other && other != radio && other.IsChecked)
-                other.SetIsChecked(false);
         }
     }
 

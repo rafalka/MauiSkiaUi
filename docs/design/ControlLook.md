@@ -70,6 +70,7 @@ public class SkUiLook
     public virtual Size DefaultSwitchSize => new(51, 31);
     public virtual Size DefaultCheckBoxSize => new(24, 24);
     public virtual Size DefaultRadioButtonSize => new(24, 24);
+    public virtual double DefaultRadioButtonContentSpacing => 8;   // circle to Content (text or a drawn view)
     public virtual Size DefaultActivityIndicatorSize => new(36, 36);
     public virtual double DefaultSliderThickness => 32;   // and DefaultSliderLength when unconstrained
     public virtual double DefaultProgressBarHeight => 4;  // and DefaultProgressBarLength

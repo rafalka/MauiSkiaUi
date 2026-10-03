@@ -25,6 +25,7 @@ A label measured at one width and drawn at a wider one reuses its lines when not
 
 | Property | Behavior |
 | --- | --- |
+| `LineBreakMode` | `WordWrap` (default; buttons: `NoWrap`, as MAUI), `CharacterWrap`, `NoWrap`, head / middle / tail truncation. A `NoWrap` line wider than the label starts at the start side whatever the alignment, and is cut at the end, as native labels show it |
 | `MaxLines` | The most lines drawn; `-1` (default) or `0`: no limit. Wrapped lines past it are dropped. With `TailTruncation` the text wraps and the last line ends with the ellipsis, as on MAUI; without `MaxLines`, tail truncation keeps one line per paragraph. Explicit newlines count as lines |
 | `LineHeight` | Multiplier of the font's line spacing (`1.8`: 80 % more); `-1` (default) or `0`: the font's. The extra space is split above and below each line (CSS half-leading), so a single line stays centered in its taller box |
 | `CharacterSpacing` | DIPs added after each character (grapheme, or ligature), negative for tighter; measure, wrapping and truncation count it. Plain Latin text keeps the `Auto` fast path |
