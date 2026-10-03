@@ -33,6 +33,19 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     public ScrollOrientation Orientation { get; set; } = ScrollOrientation.Vertical;
 
+    /// <summary>
+    /// The measure constraint of an axis this scroller does not scroll: at least the content's explicit size. As MAUI's
+    /// ScrollView, which arranges its content at the content's desired size (platform measures return an explicit
+    /// <c>WidthRequest</c> / <c>HeightRequest</c> even when it is larger than the viewport), a 400 DIP wide content of a
+    /// vertical scroller with a 300 DIP viewport stays 400 wide and is clipped (not scrolled).
+    /// </summary>
+    /// <param name="constraint">The viewport's constraint on this axis (inside the padding).</param>
+    /// <param name="explicitSize">The content's explicit size (negative or NaN: none).</param>
+    /// <param name="maximum">The content's maximum size.</param>
+    /// <param name="margin">The content's margin on this axis.</param>
+    public static double CrossConstraint(double constraint, double explicitSize, double maximum, double margin) =>
+        explicitSize >= 0 ? Math.Max(constraint, Math.Min(explicitSize, maximum) + margin) : constraint;
+
     /// <summary>Measured content extent (a running fling follows changes).</summary>
     public Size Extent
     {

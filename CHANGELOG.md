@@ -16,6 +16,7 @@ Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs
   - **Desktop scroll bars:** a hovering mouse, trackpad or pen expands the bar (`SkUiLook.ScrollBarExpandedThickness`, `ScrollBarHitThickness`) with its track (`DrawScrollBarTrack`, `SkUiScrollBarTrackPaint`); drag the thumb to scroll, press the track to page. Touches on the bar still scroll the content. `SkUiScrollBarPaint` gains `IsExpanded` and `IsPressed`.
   - **Snap points** (beyond MAUI's ScrollView): `SnapPointsType` (`Mandatory`, `MandatorySingle`) and `SnapPointsAlignment` (MAUI's enums; Core: `SetSnapPointsType`, `SetSnapPointsAlignment`) line the content's children up with the viewport at the end of drags, flings and wheel scrolling; `MandatorySingle` moves one child per swipe (carousels).
   - **Changed:** `ScrollToAsync(double, double, bool)` does nothing when `Orientation` is `Neither`, as in MAUI.
+  - **Changed:** across the scroll axis, explicitly sized content keeps its size when it is larger than the viewport and is clipped (a 400 DIP wide content of a 300 DIP vertical scroller was squeezed to 300), as MAUI's ScrollView; both layers.
   - **Fixed:** a fling that starts at an edge and moves away from it stopped at once; a fling ignored content that grew (or shrank) while it ran.
 
 ## 1.0.0-Prerelease07

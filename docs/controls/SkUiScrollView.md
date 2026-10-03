@@ -6,7 +6,9 @@ Single-surface scroller with pan, fling, wheel, overscroll, scroll bars, and pro
 
 ## How it works
 
-Extends [`SkUiContentView`](SkUiContentView.md). Measures content unconstrained on enabled axes; content keeps a stable arranged frame (`max(measured extent, viewport)`). With an effective right-to-left `FlowDirection`, content is mirrored and a horizontal scroller starts at the right end (`ScrollX` stays a physical offset, 0 = left).
+Extends [`SkUiContentView`](SkUiContentView.md). Measures content unconstrained on enabled axes; content keeps a stable arranged frame (`max(measured extent, viewport)`). Across the scroll axis, content with an explicit size (`WidthRequest` of a vertical scroller's content, `HeightRequest` of a horizontal one's) keeps it even when it is larger than the viewport, and is clipped, not scrolled, as MAUI's ScrollView does on its platforms (same on `SkUiCoreScrollView`). With an effective right-to-left `FlowDirection`, content is mirrored and a horizontal scroller starts at the right end (`ScrollX` stays a physical offset, 0 = left).
+
+**Sizing:** without a `HeightRequest` (`WidthRequest` for horizontal scrolling), a scroll view is as large as its content until a limit stops it: the parent's constraint or `MaximumHeightRequest` / `MaximumWidthRequest`. Below the limit it behaves as if it were not there (nothing to scroll); at the limit it stops growing and scrolls. Typical limits: a page or `ContentView` of a fixed size, a star row with `VerticalOptions="Start"` (the scroller then takes its content's height up to the row's), or a maximum size inside a stack. A vertical stack or an `Auto` grid row gives no limit along its axis (MAUI's layouts measure their children there with infinite space), so a scroller placed directly in one takes its whole content, as MAUI's ScrollView does; give it a maximum size there.
 
 **The scroll offset is a composite-time children translation.** Scrolling never re-records content. Each child keeps its own retained picture, so an animating child re-records only itself, and off-screen children are culled by the compositor.
 

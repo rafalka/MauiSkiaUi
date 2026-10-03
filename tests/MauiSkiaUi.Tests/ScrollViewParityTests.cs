@@ -40,6 +40,127 @@ public class ScrollViewParityTests
             root.Touch(new(id, SkUiTouchAction.Released, to, TimeSpan.FromMilliseconds(startMs + steps * 100 + 300)));
     }
 
+    #region Content size
+
+    [Fact]
+    public void AScrollViewWithoutASizeFollowsItsContentUntilAConstraintStopsIt()
+    {
+        // Content that fits: the scroller is as tall as the content (nothing to scroll), and grows with it.
+        var content = new SkUiBox { HeightRequest = 100 };
+        var scroll = new SkUiScrollView { Content = content };
+        var column = new SkUiVerticalStackLayout();
+        column.Children.Add(scroll);
+        column.Children.Add(new SkUiBox { HeightRequest = 20 });
+        SkUiTestHelpers.Arrange(column, 300, double.PositiveInfinity);
+        Assert.Equal(100, scroll.Frame.Height);
+        Assert.Equal(0, Scroller(scroll).MaxY);
+        content.HeightRequest = 300;
+        SkUiTestHelpers.Arrange(column, 300, double.PositiveInfinity);
+        Assert.Equal(300, scroll.Frame.Height);
+
+        // MaximumHeightRequest: it grows up to it, then scrolls.
+        scroll.MaximumHeightRequest = 200;
+        SkUiTestHelpers.Arrange(column, 300, double.PositiveInfinity);
+        Assert.Equal(200, scroll.Frame.Height);
+        Assert.Equal(100, Scroller(scroll).MaxY);
+        content.HeightRequest = 150;
+        SkUiTestHelpers.Arrange(column, 300, double.PositiveInfinity);
+        Assert.Equal(150, scroll.Frame.Height);
+        Assert.Equal(0, Scroller(scroll).MaxY);
+
+        // A parent's constraint: below a 50 DIP header, a star row of a 250 DIP grid leaves 200; aligned to the start, the
+        // scroller is as tall as its content up to that, then scrolls.
+        var grown = new SkUiBox { HeightRequest = 100 };
+        var limited = new SkUiScrollView { Content = grown, VerticalOptions = LayoutOptions.Start };
+        var grid = new SkUiGrid { RowDefinitions = [new(new GridLength(50)), new(GridLength.Star)] };
+        grid.Children.Add(limited);
+        Grid.SetRow(limited, 1);
+        SkUiTestHelpers.Arrange(grid, 300, 250);
+        Assert.Equal(new Rect(0, 50, 300, 100), limited.Frame);
+        grown.HeightRequest = 400;
+        SkUiTestHelpers.Arrange(grid, 300, 250);
+        Assert.Equal(new Rect(0, 50, 300, 200), limited.Frame);
+        Assert.Equal(200, Scroller(limited).MaxY);
+
+        // An Auto row does not constrain its cells (MAUI's grid measures them with infinite height): the scroller takes its
+        // whole content there, as MAUI's ScrollView does.
+        var auto = new SkUiScrollView { Content = new SkUiBox { HeightRequest = 400 } };
+        var autoGrid = new SkUiGrid { RowDefinitions = [new(GridLength.Auto), new(GridLength.Star)] };
+        autoGrid.Children.Add(auto);
+        SkUiTestHelpers.Arrange(autoGrid, 300, 250);
+        Assert.Equal(400, auto.Frame.Height);
+
+        // Horizontal scrollers follow their content's width the same way.
+        var wide = new SkUiBox { WidthRequest = 120, HeightRequest = 40 };
+        var horizontal = new SkUiScrollView { Content = wide, Orientation = ScrollOrientation.Horizontal, MaximumWidthRequest = 200 };
+        var row = new SkUiHorizontalStackLayout();
+        row.Children.Add(horizontal);
+        SkUiTestHelpers.Arrange(row, double.PositiveInfinity, 100);
+        Assert.Equal(120, horizontal.Frame.Width);
+        wide.WidthRequest = 500;
+        SkUiTestHelpers.Arrange(row, double.PositiveInfinity, 100);
+        Assert.Equal(200, horizontal.Frame.Width);
+        Assert.Equal(300, Scroller(horizontal).MaxX);
+    }
+
+    [Fact]
+    public void ACoreScrollViewWithoutASizeFollowsItsContentUntilItsMaximum()
+    {
+        var content = new SkUiCoreBox().SetHeight(100);
+        var scroll = new SkUiCoreScrollView();
+        scroll.SetContent(content);
+        scroll.SetMaximumHeight(200);
+        var column = new SkUiCoreVerticalStackLayout().Add(scroll).Add(new SkUiCoreBox().SetHeight(20));
+        var host = new SkUiCoreHost().SetContent(column);
+        SkUiTestHelpers.Arrange(host, 300, 600);
+        Assert.Equal(100, scroll.Frame.Height);
+        content.SetHeight(300);
+        SkUiTestHelpers.Arrange(host, 300, 600);
+        Assert.Equal(200, scroll.Frame.Height);
+        Assert.Equal(100, Scroller(scroll).MaxY);
+    }
+
+    [Fact]
+    public void ExplicitlySizedContentKeepsItsSizeAcrossTheScrollAxisAndIsClipped()
+    {
+        // As MAUI's ScrollView: a 400 DIP wide content of a 300 DIP vertical scroller stays 400 wide (clipped, not scrolled).
+        var content = new SkUiBox { Color = Colors.White, WidthRequest = 400, HeightRequest = 640 };
+        var scroll = new SkUiScrollView { Content = content, Padding = new Thickness(4, 0) };
+        Assert.Equal(new Size(300, 200), ((IView)scroll).Measure(300, 200));
+        using var surface = new SkUiTestSurface(scroll, 300, 200);
+        Assert.Equal(new Rect(4, 0, 400, 640), content.Frame);
+        Assert.Equal(new Size(408, 640), scroll.ContentSize);
+        Assert.Equal(0, Scroller(scroll).MaxX);
+        scroll.Touch(new(1, SkUiTouchAction.Wheel, new Point(50, 50), WheelDeltaX: -50));
+        Assert.Equal(0, scroll.ScrollX);
+        var bitmap = surface.Frame(0);
+        Assert.Equal(SKColors.White, bitmap.GetPixel(299, 100));
+
+        // Within the viewport, or without an explicit size, the content fills it as before.
+        content.WidthRequest = 200;
+        SkUiTestHelpers.Arrange(scroll, 300, 200);
+        Assert.Equal(200, content.Frame.Width);
+        content.WidthRequest = -1;
+        SkUiTestHelpers.Arrange(scroll, 300, 200);
+        Assert.Equal(292, content.Frame.Width);
+
+        // A horizontal scroller keeps an explicit height the same way; Core scrollers too.
+        var row = new SkUiBox { WidthRequest = 600, HeightRequest = 300 };
+        var horizontal = new SkUiScrollView { Content = row, Orientation = ScrollOrientation.Horizontal };
+        SkUiTestHelpers.Arrange(horizontal, 300, 200);
+        Assert.Equal(new Size(600, 300), row.Frame.Size);
+        Assert.Equal(0, Scroller(horizontal).MaxY);
+
+        var coreContent = new SkUiCoreBox().SetWidth(400).SetHeight(640);
+        var core = new SkUiCoreScrollView();
+        core.SetContent(coreContent);
+        SkUiTestHelpers.Arrange(new SkUiCoreHost().SetContent(core), 300, 200);
+        Assert.Equal(new Size(400, 640), coreContent.Frame.Size);
+        Assert.Equal(0, Scroller(core).MaxX);
+    }
+
+    #endregion
+
     #region Scroll bars
 
     [Fact]

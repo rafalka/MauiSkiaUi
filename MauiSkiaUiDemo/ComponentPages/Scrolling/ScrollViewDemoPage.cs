@@ -40,7 +40,7 @@ public sealed class ScrollViewDemoPage : ComponentDemoPage
         _native.Content = standard;
         _skia.Scrolled += (_, _) => Status();
         _native.Scrolled += (_, _) => Status();
-        Choice(nameof(SkUiScrollView.Orientation), Enum.GetValues<ScrollOrientation>(), ScrollOrientation.Vertical, value => { _skia.Orientation = value; _native.Orientation = value; }, () => _skia.Orientation, () => _native.Orientation);
+        Choice(nameof(SkUiScrollView.Orientation), Enum.GetValues<ScrollOrientation>(), ScrollOrientation.Both, value => { _skia.Orientation = value; _native.Orientation = value; }, () => _skia.Orientation, () => _native.Orientation);
         // Content size is distinct from the host WidthRequest/HeightRequest editors.
         Number("ContentHeight", 200, 1200, 640, value => { drawn.HeightRequest = value; standard.HeightRequest = value; }, () => drawn.HeightRequest, () => standard.HeightRequest);
         Number("ContentWidth", 200, 800, 400, value => { drawn.WidthRequest = value; standard.WidthRequest = value; }, () => drawn.WidthRequest, () => standard.WidthRequest);

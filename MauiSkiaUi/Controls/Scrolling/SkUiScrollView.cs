@@ -204,9 +204,16 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     {
         // Scroll bars that always show reserve gutters beside the content.
         var (left, right, bottom) = _scroller.Gutters(IsRightToLeft);
-        var extent = base.MeasureContent(
-            _scroller.Horizontal ? double.PositiveInfinity : Math.Max(0, widthConstraint - left - right),
-            _scroller.Vertical ? double.PositiveInfinity : Math.Max(0, heightConstraint - bottom));
+        var width = Math.Max(0, widthConstraint - left - right);
+        var height = Math.Max(0, heightConstraint - bottom);
+        // Across the scroll axis an explicitly sized content keeps its size (clipped), as in MAUI.
+        if (Content is { } content)
+        {
+            var inset = ContentInset;
+            width = SkUiScrollController.CrossConstraint(width, content.Width, content.MaximumWidth, content.Margin.HorizontalThickness + inset.HorizontalThickness);
+            height = SkUiScrollController.CrossConstraint(height, content.Height, content.MaximumHeight, content.Margin.VerticalThickness + inset.VerticalThickness);
+        }
+        var extent = base.MeasureContent(_scroller.Horizontal ? double.PositiveInfinity : width, _scroller.Vertical ? double.PositiveInfinity : height);
         _scroller.Extent = extent;
         return new Size(Math.Min(widthConstraint, extent.Width + left + right), Math.Min(heightConstraint, extent.Height + bottom));
     }
