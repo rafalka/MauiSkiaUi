@@ -2,7 +2,7 @@ namespace MauiSkiaUi;
 
 /// <summary>
 /// One view's reference on a <see cref="SkUiCachedImage"/>, held by its <see cref="SkUiImageSlot"/>. The slot releases it
-/// when it shows something else; when the view is collected without letting go (views are rarely disposed), the
+/// when it shows something else; when the view is collected (views are not disposable), the
 /// finalizer releases it, like a <see cref="System.Runtime.InteropServices.SafeHandle"/>, so the shared entry's frames are
 /// freed once nothing else holds them. Cached frames are raster images, safe to free on the finalizer thread.
 /// </summary>

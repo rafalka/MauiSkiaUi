@@ -8,13 +8,12 @@ namespace MauiSkiaUi.Core;
 /// Supports transformations, downsampling, EXIF orientation and animated GIF / WebP, as <c>SkUiImage</c>.
 /// Does not use MAUI <c>ImageSource</c> — keep decoding outside Controls/XAML.
 /// </summary>
-public class SkUiCoreImage : SkUiCoreNode, IDisposable
+public class SkUiCoreImage : SkUiCoreNode
 {
     private readonly SkUiImageSlot _slot;
     private SkUiImageSource? _source;
     private SkUiImageOptions _options;
     private Aspect _aspect = Aspect.AspectFit;
-    private bool _disposed;
 
     /// <summary>Creates an image node.</summary>
     public SkUiCoreImage() => _slot = new SkUiImageSlot(this, PublishState)
@@ -64,7 +63,6 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
 
     private SkUiCoreImage SetPlaceholder(ref SkUiImageSource? field, SkUiImageSource? value, string name)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
         if (SetProperty(ref field, value, name))
             _slot.SetPlaceholders(_loadingPlaceholder, _errorPlaceholder, _transformPlaceholders);
         return this;
@@ -140,11 +138,10 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
     }
 
     /// <summary>
-    /// Assigns a decoded image. When <paramref name="ownsImage"/> is <c>true</c>, this node disposes it on replace/dispose.
+    /// Assigns a decoded image. When <paramref name="ownsImage"/> is <c>true</c>, this node disposes it when it is replaced or cleared, or when the node is collected.
     /// </summary>
     public SkUiCoreImage SetImage(SKImage? image, bool ownsImage = true)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
         _source = null;
         _slot.SetImage(image, ownsImage);
         return this;
@@ -153,7 +150,6 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
     /// <summary>Loads <paramref name="source"/> (<c>null</c> clears); an equal source already shown does not reload.</summary>
     public SkUiCoreImage SetSource(SkUiImageSource? source)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
         if (source is not null && Equals(_source, source) && (_slot.Entry is not null || _slot.IsLoading))
             return this;
         _source = source;
@@ -209,7 +205,6 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
 
     private SkUiCoreImage SetOptions(SkUiImageOptions options, string property)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
         if (_options == options) return this;
         _options = options;
         OnPropertyChanged(property);
@@ -221,14 +216,12 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
     /// <summary>Loads the current source again (for example after <see cref="SkUiImageCache.RemoveAsync(SkUiImageSource)"/>).</summary>
     public Task ReloadAsync()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
         return _source is null ? Task.CompletedTask : _slot.Load(_source, _options);
     }
 
     /// <summary>Clears the current image and source.</summary>
     public SkUiCoreImage Clear()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
         _source = null;
         _slot.Load(null, _options);
         return this;
@@ -252,15 +245,4 @@ public class SkUiCoreImage : SkUiCoreNode, IDisposable
 
     /// <summary>Draws the current image (frame) into <paramref name="area"/> (local DIPs) with <see cref="Aspect"/>; nothing while none is set.</summary>
     protected void PaintImage(SKCanvas canvas, SKRect area) => _slot.Paint(canvas, area, _aspect);
-
-    /// <summary>Cancels loading and releases owned image resources; a disposed node cannot be reused.</summary>
-    public virtual void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        _source = null;
-        _slot.Dispose();
-        PublishState();
-        GC.SuppressFinalize(this);
-    }
 }

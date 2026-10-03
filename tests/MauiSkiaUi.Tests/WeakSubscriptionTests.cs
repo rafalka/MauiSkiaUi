@@ -36,7 +36,6 @@ public class WeakSubscriptionTests
         image.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(SkUiImage.ImageSize)) changes++; };
         icon.Glyph = "WW";
         Assert.True(changes > 0);
-        image.Dispose();
 
         static WeakReference[] Create(ImageSource icon)
         {

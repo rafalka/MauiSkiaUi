@@ -503,7 +503,6 @@ public class CoreLayerTests
         var node = new SkUiCoreImage().SetImage(image, ownsImage: true);
         node.SetImage(image, ownsImage: true);
         Assert.Equal(8, node.ImageSize.Width);
-        node.Dispose();
     }
 
     [Fact]

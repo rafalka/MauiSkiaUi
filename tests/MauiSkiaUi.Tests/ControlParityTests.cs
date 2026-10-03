@@ -106,14 +106,13 @@ public class ControlParityTests
             view.Touch(new(2, SkUiTouchAction.Cancelled, Inside));
             Assert.Equal(["pressed", "released", "clicked", "pressed", "released"], events);
         }
-        image.Dispose();
     }
 
     [Fact]
     public void CoreButtonsRaisePressedReleasedThenClicked()
     {
         var button = new SkUiCoreButton();
-        using var image = new SkUiCoreImageButton();
+        var image = new SkUiCoreImageButton();
         var buttonEvents = new List<string>();
         var imageEvents = new List<string>();
         button.Pressed += (_, _) => buttonEvents.Add("pressed");
@@ -185,7 +184,7 @@ public class ControlParityTests
     [Fact]
     public async Task ImageAspectCenterDrawsAtSourceSize()
     {
-        using var image = new SkUiImage { Source = ImageSource.FromStream(() => new MemoryStream(ImageBytes(SKColors.Red))), Aspect = Aspect.Center };
+        var image = new SkUiImage { Source = ImageSource.FromStream(() => new MemoryStream(ImageBytes(SKColors.Red))), Aspect = Aspect.Center };
         await image.LoadingTask;
         SkUiTestHelpers.Arrange(image, 100, 100);
         using var bitmap = Render(image.Paint, 100, 100);
@@ -217,10 +216,10 @@ public class ControlParityTests
     {
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
         // Nothing listens on the discard port: the load fails in the HTTP client, not as an unsupported source.
-        using var image = new SkUiImage { Source = ImageSource.FromUri(new Uri("http://127.0.0.1:9/image.png")) };
+        var image = new SkUiImage { Source = ImageSource.FromUri(new Uri("http://127.0.0.1:9/image.png")) };
         await image.LoadingTask;
         Assert.IsNotType<NotSupportedException>(image.LoadError);
-        using var core = new SkUiCoreImage().SetSourceUri(new Uri("http://127.0.0.1:9/image.png"));
+        var core = new SkUiCoreImage().SetSourceUri(new Uri("http://127.0.0.1:9/image.png"));
         await core.LoadingTask;
         Assert.IsNotType<NotSupportedException>(core.LoadError);
     }
@@ -228,7 +227,7 @@ public class ControlParityTests
     [Fact]
     public async Task ImageButtonPadsClipsAndBordersTheImageOnBothLayers()
     {
-        using var button = new SkUiImageButton
+        var button = new SkUiImageButton
         {
             Source = ImageSource.FromStream(() => new MemoryStream(ImageBytes(SKColors.Red))),
             Aspect = Aspect.Fill,
@@ -243,7 +242,7 @@ public class ControlParityTests
         using (var bitmap = Render(button.Paint, 100, 60))
             AssertImageButtonPixels(bitmap);
 
-        using var core = new SkUiCoreImageButton()
+        var core = new SkUiCoreImageButton()
             .SetCornerRadius(30).SetBorderColor(Colors.Blue).SetBorderWidth(2).SetPadding(new Thickness(5));
         core.SetAspect(Aspect.Fill);
         core.SetSourceStream(_ => Task.FromResult<Stream>(new MemoryStream(ImageBytes(SKColors.Red))));
@@ -283,7 +282,6 @@ public class ControlParityTests
         var imageButton = new SkUiImageButton { CornerRadii = radii, BorderColor = Colors.Red, BorderWidth = 4, Padding = new Thickness(2) };
         var coreImageButton = new SkUiCoreImageButton().SetCornerRadii(radii).SetBorderColor(Colors.Red).SetBorderWidth(4).SetPadding(new Thickness(2));
         AssertSamePixels(imageButton, coreImageButton);
-        imageButton.Dispose();
 
         static void AssertSamePixels(SkUiView view, SkUiCoreNode node)
         {
@@ -321,7 +319,6 @@ public class ControlParityTests
         var imageButton = (SkUiImageButton)children[3];
         Assert.Equal((8, 2d, new Thickness(4), Aspect.Center), (imageButton.CornerRadius, imageButton.BorderWidth, imageButton.Padding, imageButton.Aspect));
         Assert.Equal("Basic", ((SkUiRadioButton)children[4]).Value);
-        imageButton.Dispose();
     }
 
     private sealed class ToggleModel : INotifyPropertyChanged

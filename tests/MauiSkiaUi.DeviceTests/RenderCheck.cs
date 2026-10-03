@@ -70,7 +70,7 @@ internal static class RenderCheck
     /// </summary>
     private static async Task<string> CheckImagesAsync(List<string> problems)
     {
-        using var image = new SkUiImage { Source = ImageSource.FromFile(MauiImageName) };
+        var image = new SkUiImage { Source = ImageSource.FromFile(MauiImageName) };
         await Task.WhenAny(image.LoadingTask, Task.Delay(TimeSpan.FromSeconds(10)));
         var density = DeviceDisplay.Current.MainDisplayInfo.Density;
         var pixels = image.CachedImage?.Frames[0].Width ?? 0;
@@ -81,7 +81,7 @@ internal static class RenderCheck
         else if (density >= 1.5 && pixels <= 48)
             problems.Add($"MauiImage '{MauiImageName}' decoded at {pixels} px on a {density:F2}× display: not the density file");
 
-        using var glyph = new SkUiImage { Source = new FontImageSource { Glyph = "M", FontFamily = MauiFontAlias, Size = 20, Color = Colors.Black } };
+        var glyph = new SkUiImage { Source = new FontImageSource { Glyph = "M", FontFamily = MauiFontAlias, Size = 20, Color = Colors.Black } };
         if (glyph.LoadError is not null || !glyph.LoadingTask.IsCompleted)
             problems.Add($"font glyph image failed: {glyph.LoadError?.Message ?? "not synchronous"}");
         else if (Math.Abs(glyph.ImageSize.Width - 12) > 1.5)

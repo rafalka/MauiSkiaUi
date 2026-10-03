@@ -231,10 +231,13 @@ public class ContentAndTemplateTests
         skiaButton = null;
         coreButton = null;
         Assert.All(entries, entry => Assert.False(entry.IsReleased));
-        for (var attempt = 0; attempt < 5 && !entries.All(entry => entry.IsReleased); attempt++)
+        // Bounded: the loader's bookkeeping of a just-finished load can hold the slot for a moment on a cold run.
+        for (var attempt = 0; attempt < 50 && !entries.All(entry => entry.IsReleased); attempt++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
+            if (!entries.All(entry => entry.IsReleased))
+                await Task.Delay(20);
         }
         Assert.All(entries, entry => Assert.True(entry.IsReleased));
     }

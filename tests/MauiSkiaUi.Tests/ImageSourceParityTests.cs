@@ -69,15 +69,13 @@ public class ImageSourceParityTests
         var placeholders = (SkUiImage)children[6];
         Assert.Equal(("loading.png", "error.png", false), (((FileImageSource)placeholders.LoadingPlaceholder!).File,
             ((FileImageSource)placeholders.ErrorPlaceholder!).File, placeholders.TransformPlaceholders));
-        foreach (var child in children.OfType<SkUiImage>())
-            child.Dispose();
     }
 
     [Fact]
     public void EachImageHasItsOwnTransformationList()
     {
-        using var a = new SkUiImage();
-        using var b = new SkUiImage();
+        var a = new SkUiImage();
+        var b = new SkUiImage();
         a.Transformations.Add(new SkUiCircleTransformation());
         Assert.Empty(b.Transformations);
     }

@@ -10,7 +10,7 @@ namespace MauiSkiaUi;
 /// sources, loaded through the shared image cache (<see cref="SkUiImageCache"/>), with FFImageLoading-style
 /// <see cref="Transformations"/> and downsampling, EXIF orientation and animated GIF / WebP.
 /// </summary>
-public class SkUiImage : SkUiView, IDisposable
+public class SkUiImage : SkUiView
 {
     private ImageSource? _source;
     private Aspect _aspect = Aspect.AspectFit;
@@ -19,7 +19,6 @@ public class SkUiImage : SkUiView, IDisposable
     private readonly SkUiWeakListener<SkUiImage> _sourceListener;
     private readonly SkUiWeakListener<SkUiImage> _transformationsListener;
     private readonly SkUiImageSlot _slot;
-    private bool _disposed;
 
     /// <summary>Creates an image.</summary>
     public SkUiImage()
@@ -142,7 +141,6 @@ public class SkUiImage : SkUiView, IDisposable
     /// <summary>Sets source (same as the property setter). Call on the UI thread; streams are owned and disposed by this control.</summary>
     public SkUiImage SetSource(ImageSource? value)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
         Source = value;
         return this;
     }
@@ -230,14 +228,13 @@ public class SkUiImage : SkUiView, IDisposable
 
     private void Reload()
     {
-        if (!_disposed && _slot is not null) // property defaults apply before the constructor body
+        if (_slot is not null) // property defaults apply before the constructor body
             _slot.Load(SkUiMauiImageSources.Convert(_source), _options);
     }
 
     /// <summary>Reloads the current source; errors are exposed through LoadError, cancellation is not an error.</summary>
     public Task ReloadAsync()
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
         return _slot.Load(SkUiMauiImageSources.Convert(_source), _options);
     }
 
@@ -262,16 +259,4 @@ public class SkUiImage : SkUiView, IDisposable
 
     /// <summary>Draws the current image (frame) into <paramref name="area"/> (local DIPs) with <see cref="Aspect"/>; nothing while none is loaded.</summary>
     protected void PaintImage(SKCanvas canvas, SKRect area) => _slot.Paint(canvas, area, _aspect);
-
-    /// <summary>Cancels loading and releases decoded image resources; a disposed control cannot be reused.</summary>
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        _sourceListener.Listen(null);
-        _transformationsListener.Listen(null);
-        _slot.Dispose();
-        PublishState();
-        GC.SuppressFinalize(this);
-    }
 }

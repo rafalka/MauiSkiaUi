@@ -59,7 +59,6 @@ public class ComponentDemoTests
             page.ResetProperties();
             Assert.Empty(page.CheckProperties());
             Assert.Null(page.SkiaControl.Handler);
-            if (page.SkiaControl is SkUiImage image) image.Dispose();
         }
     }
 

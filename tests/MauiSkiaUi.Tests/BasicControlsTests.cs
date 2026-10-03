@@ -127,7 +127,7 @@ public class BasicControlsTests
     [Fact]
     public async Task ImageLoadsStreamsFitsAndReportsErrors()
     {
-        using var image = new SkUiImage { Source = ImageSource.FromStream(() => new MemoryStream(ImageBytes(SKColors.Red))) };
+        var image = new SkUiImage { Source = ImageSource.FromStream(() => new MemoryStream(ImageBytes(SKColors.Red))) };
         await image.LoadingTask;
         Assert.Null(image.LoadError);
         Assert.False(image.IsLoading);
@@ -152,7 +152,7 @@ public class BasicControlsTests
     public async Task SupersededImageLoadCannotReplaceNewSource()
     {
         var completion = new TaskCompletionSource<Stream>();
-        using var image = new SkUiImage { Source = new StreamImageSource { Stream = _ => completion.Task } };
+        var image = new SkUiImage { Source = new StreamImageSource { Stream = _ => completion.Task } };
         var previousLoad = image.LoadingTask;
         image.Source = ImageSource.FromStream(() => new MemoryStream(ImageBytes(SKColors.Blue)));
         await image.LoadingTask;
@@ -281,14 +281,14 @@ public class BasicControlsTests
     [Fact]
     public void ImageButtonCornersAreSetSeparatelyOrAllAtOnce()
     {
-        using var button = new SkUiImageButton { CornerRadius = 10 };
+        var button = new SkUiImageButton { CornerRadius = 10 };
         Assert.Equal(new CornerRadius(10), button.CornerRadii);
         button.CornerRadii = new CornerRadius(1, 2, 3, 4);
         Assert.Equal(1, button.CornerRadius);
         button.CornerRadius = 5;
         Assert.Equal(new CornerRadius(5), button.CornerRadii);
 
-        using var core = new SkUiCoreImageButton().SetCornerRadius(4.5);
+        var core = new SkUiCoreImageButton().SetCornerRadius(4.5);
         Assert.Equal(new CornerRadius(4.5), core.CornerRadii);
         core.SetCornerRadii(new CornerRadius(8, 8, 0, 0));
         Assert.Equal(new CornerRadius(8, 8, 0, 0), core.CornerRadii);
