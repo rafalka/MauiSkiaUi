@@ -233,6 +233,9 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         SetOffset(useX ? X + dx : X, useY ? Y + dy : Y);
         if (SnapPointsType != SnapPointsType.None)
             SnapAfterWheel();
+        // An axis this scroller moved is used up, also when its edge cut the step short: the rest is not handed to the
+        // outer scrollers, so a list reaching its end does not jerk the page with the same step (as browsers do); the
+        // next wheel event chains outwards (GestureTests.WheelScrollsInnermostScrollerThatCanMove).
         return mapped ? Point.Zero : new Point(useX ? 0 : deltaX, useY ? 0 : deltaY);
     }
 
@@ -325,7 +328,8 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// <summary>
     /// The offset that shows <paramref name="target"/> (in content coordinates) at <paramref name="position"/>, as MAUI's
     /// <c>ScrollView.GetScrollPositionForElement</c>: <see cref="ScrollToPosition.MakeVisible"/> keeps the offset when the
-    /// target is fully visible and otherwise aligns the nearer edge. Not clamped (scrolling clamps).
+    /// target is fully visible and otherwise aligns its start or end (End when it begins after the viewport's start), so a
+    /// target larger than the viewport moves even when part of it shows, exactly as MAUI 10's. Not clamped (scrolling clamps).
     /// </summary>
     public Point GetOffsetFor(Rect target, ScrollToPosition position)
     {

@@ -5,8 +5,10 @@ namespace MauiSkiaUi;
 /// <summary>
 /// Places a button's image next to its text (MAUI's <see cref="Button.ContentLayout"/>), for the buttons of both layers.
 /// As MAUI's buttons on every platform: the image keeps its intrinsic size and is scaled down uniformly (never up) to fit
-/// the content area, the text gets the space left beside it, and image and text are placed as one group; the spacing
-/// applies only when there is text. Left and Right follow the reading direction (Left is the start side in RTL).
+/// the content area, and image and text are placed as one group; the spacing applies only when there is text. Beside the
+/// text (Left, Right) the image is fitted first and the text gets the width left (it wraps or is cut); above or below it
+/// (Top, Bottom) the text's lines are measured first and the image gets the height left, so a constrained button shows
+/// both. Left and Right follow the reading direction (Left is the start side in RTL).
 /// </summary>
 internal static class SkUiButtonImageLayout
 {
@@ -40,8 +42,8 @@ internal static class SkUiButtonImageLayout
         }
         else
         {
-            var fitted = Fit(image, width, height - spacing);
             var textSize = text.HasText ? text.MeasureText(width) : Size.Zero;
+            var fitted = Fit(image, width, height - spacing - textSize.Height);
             return new Size(padding.HorizontalThickness + Math.Max(fitted.Width, textSize.Width),
                 padding.VerticalThickness + fitted.Height + spacing + textSize.Height);
         }
@@ -75,8 +77,8 @@ internal static class SkUiButtonImageLayout
         }
         else
         {
-            var fitted = Fit(image, contentWidth, contentHeight - spacing);
             var textSize = text.HasText ? text.MeasureText(contentWidth) : Size.Zero;
+            var fitted = Fit(image, contentWidth, contentHeight - spacing - textSize.Height);
             var groupWidth = Math.Max(fitted.Width, Math.Min(contentWidth, textSize.Width));
             var groupHeight = fitted.Height + spacing + textSize.Height;
             var x = padding.Left + Offset(contentWidth - groupWidth, horizontal);

@@ -41,12 +41,14 @@ As MAUI's Button, a button can show an image beside its text: `ImageSource` (MAU
 ```
 
 What MAUI's buttons do on every platform:
-- **Size:** the image keeps its intrinsic size (DIPs) and is scaled down uniformly (never up) to fit inside the `Padding`, leaving the text the rest; the button measures image + spacing + text along the layout axis, the larger of the two across it.
+- **Size:** the image keeps its intrinsic size (DIPs) and is scaled down uniformly (never up) to fit inside the `Padding`; the button measures image + spacing + text along the layout axis, the larger of the two across it. Beside the text (`Left`, `Right`) the image is fitted first and the text gets the width left; above or below it (`Top`, `Bottom`) the text's lines come first and the image gets the height left, so a button of fixed height shows both.
 - **Placement:** image and text are one group, centered in the button (SkiaUi places the group by `HorizontalTextAlignment` / `VerticalTextAlignment`, centered by default); across the axis each is centered against the other. Without text the image is centered and there is no spacing.
 - **Direction:** `Left` is the start side, so in right-to-left layouts the image sits on the right (as on Android and iOS).
 - **Not tinted** by `TextColor` (a `FontImageSource` has its own `Color`); drawn under the press feedback and clipped to the corner radii with the text.
 
 `SkUiCoreButton` has `ImageSource` (an `SkUiImageSource`) and `ContentLayout` (`SetImageSource`, `SetContentLayout`), drawn by the same layout engine.
+
+**Disposal:** as image views, both buttons are `IDisposable`: `Dispose()` releases the image's lease on the shared decoded-image cache and stops loading (the button keeps working with its text). Call it when permanently removing a button that shows an image; setting `ImageSource` to `null` also releases it.
 
 ## Key properties
 

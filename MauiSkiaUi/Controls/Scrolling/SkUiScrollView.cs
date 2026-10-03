@@ -308,7 +308,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
             throw new ArgumentOutOfRangeException(nameof(horizontalOffset));
         if (!double.IsFinite(verticalOffset))
             throw new ArgumentOutOfRangeException(nameof(verticalOffset));
-        ScrollToRequested?.Invoke(this, CreatePositionRequest(horizontalOffset, verticalOffset, animated));
+        RaiseScrollToRequested(() => CreatePositionRequest(horizontalOffset, verticalOffset, animated));
         return _scroller.ScrollToAsync(horizontalOffset, verticalOffset, animated);
     }
 
@@ -335,7 +335,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         if (SkUiScrollController.GetContentBounds(this, target) is null)
             throw new ArgumentException("The element does not belong to this scroll view.", nameof(target));
         if (target is Element element)
-            ScrollToRequested?.Invoke(this, CreateElementRequest(element, position, animated));
+            RaiseScrollToRequested(() => CreateElementRequest(element, position, animated));
         return _scroller.ScrollToTargetAsync(() => GetScrollPosition(target, position), animated);
     }
 
@@ -350,6 +350,26 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         SkUiScrollController.GetContentBounds(this, target) is { } bounds
             ? _scroller.GetOffsetFor(bounds, position)
             : new Point(ScrollX, ScrollY);
+
+    /// <summary>
+    /// Raises <see cref="ScrollToRequested"/> when someone listens. A MAUI version without the internal constructors
+    /// (<see cref="MissingMethodException"/>) skips the event; the scroll still runs.
+    /// </summary>
+    private void RaiseScrollToRequested(Func<ScrollToRequestedEventArgs> create)
+    {
+        if (ScrollToRequested is not { } handler)
+            return;
+        ScrollToRequestedEventArgs args;
+        try
+        {
+            args = create();
+        }
+        catch (MissingMethodException)
+        {
+            return;
+        }
+        handler(this, args);
+    }
 
     // MAUI's ScrollToRequestedEventArgs has internal constructors only; the accessors are trimming- and Native-AOT-safe.
     [UnsafeAccessor(UnsafeAccessorKind.Constructor)]

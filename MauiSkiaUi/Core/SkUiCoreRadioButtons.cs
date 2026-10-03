@@ -34,8 +34,9 @@ public static class SkUiCoreRadioButtons
 
     /// <summary>
     /// Makes <paramref name="buttons"/> exclude each other, wherever they are in the tree: when one is checked (by a tap,
-    /// code or a binding), the others are unchecked, then <paramref name="onChecked"/> runs with it. Dispose the result to
-    /// stop (it removes the handlers; disposing twice does nothing).
+    /// code or a binding), the others are unchecked, then <paramref name="onChecked"/> runs with it. If several are checked
+    /// already, the last of them in <paramref name="buttons"/> stays checked (without calling <paramref name="onChecked"/>).
+    /// Dispose the result to stop (it removes the handlers; disposing twice does nothing).
     /// </summary>
     /// <remarks>
     /// The handlers live on the radio buttons and hold the list and <paramref name="onChecked"/>, so the group keeps
@@ -62,6 +63,9 @@ public static class SkUiCoreRadioButtons
         {
             _members = members;
             _onChecked = onChecked;
+            // Already several checked (restored or bound state): one selection from the start.
+            if (Array.FindLast(members, member => member.IsChecked) is { } selected)
+                UncheckOthers(selected);
             foreach (var member in members)
                 member.CheckedChanged += OnCheckedChanged;
         }
@@ -70,10 +74,15 @@ public static class SkUiCoreRadioButtons
         {
             if (!args.Value || sender is not SkUiCoreRadioButton radio)
                 return;
-            foreach (var member in _members)
-                if (!ReferenceEquals(member, radio))
-                    member.SetIsChecked(false);
+            UncheckOthers(radio);
             _onChecked?.Invoke(radio);
+        }
+
+        private void UncheckOthers(SkUiCoreRadioButton selected)
+        {
+            foreach (var member in _members)
+                if (!ReferenceEquals(member, selected))
+                    member.SetIsChecked(false);
         }
 
         public void Dispose()

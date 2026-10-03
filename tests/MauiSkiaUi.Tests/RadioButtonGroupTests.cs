@@ -249,6 +249,16 @@ public class RadioButtonGroupTests
         Assert.Throws<ArgumentException>(() => SkUiCoreRadioButtons.Group([radios[0], null!]));
     }
 
+    [Fact]
+    public void CoreRadioGroupStartsWithOneSelection()
+    {
+        SkUiCoreRadioButton a = new() { IsChecked = true }, b = new(), c = new() { IsChecked = true };
+        var calls = 0;
+        using var group = SkUiCoreRadioButtons.Group([a, b, c], _ => calls++);
+        Assert.Equal([false, false, true], new[] { a.IsChecked, b.IsChecked, c.IsChecked }); // the last checked one stays
+        Assert.Equal(0, calls); // no new selection
+    }
+
     private sealed class SelectionModel : INotifyPropertyChanged
     {
         private object? _selection;

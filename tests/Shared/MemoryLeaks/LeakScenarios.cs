@@ -1272,7 +1272,6 @@ public static class LeakScenarios
     }
 }
 
-/// <summary>A command that outlives every page, like one on an app-wide view model.</summary>
 /// <summary>A long-lived selection store, as a view model or service that outlives screens.</summary>
 public sealed class LeakSelection
 {
@@ -1283,6 +1282,7 @@ public sealed class LeakSelection
     public void Record(SkUiCoreRadioButton radio) => Count++;
 }
 
+/// <summary>A command that outlives every page, like one on an app-wide view model.</summary>
 public static class LeakCommands
 {
     public static SharedCommand Shared { get; } = new();

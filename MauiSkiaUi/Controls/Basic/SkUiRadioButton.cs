@@ -333,8 +333,10 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
             return;
         }
         foreach (var presenter in presenters)
+        {
             presenter.PresentText(_content is null ? null : _content.ToString());
-        StylePresentedText();
+            StyleText(presenter); // styled as it is created, whatever happens next
+        }
     }
 
     private void ReleasePresentedContent()
@@ -349,20 +351,23 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
     {
         if (_presenters is null) return;
         foreach (var presenter in _presenters)
+            StyleText(presenter);
+    }
+
+    private void StyleText(SkUiContentPresenter presenter)
+    {
+        if (presenter.TextLabel is not { } label) return;
+        label.StartUpdating();
+        try
         {
-            if (presenter.TextLabel is not { } label) continue;
-            label.StartUpdating();
-            try
-            {
-                label.TextColor = _textColor;
-                label.FontSize = _fontSize;
-                label.FontFamily = _fontFamily;
-                label.FontAttributes = _fontAttributes;
-                label.CharacterSpacing = _characterSpacing;
-                label.TextTransform = _textTransform;
-            }
-            finally { label.EndUpdating(); }
+            label.TextColor = _textColor;
+            label.FontSize = _fontSize;
+            label.FontFamily = _fontFamily;
+            label.FontAttributes = _fontAttributes;
+            label.CharacterSpacing = _characterSpacing;
+            label.TextTransform = _textTransform;
         }
+        finally { label.EndUpdating(); }
     }
 
     /// <summary>Unlike the shared toggle base, a tap only selects (matching MAUI's RadioButton); it never unchecks.</summary>

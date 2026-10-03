@@ -198,6 +198,50 @@ public class ContentAndTemplateTests
     }
 
     [Fact]
+    public async Task TopAndBottomImagesLeaveRoomForTheText()
+    {
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var text = TextSize("Go");
+        var button = await ImageButton("Go", ImagePosition.Top, RedSquare(40));
+        // Height for the text, the spacing and a 20-DIP image: the image shrinks, the text stays.
+        var height = text.Height + Spacing + 20;
+        Assert.Equal(new Size(Math.Max(20, text.Width), height), ((IView)button).Measure(double.PositiveInfinity, height));
+        SkUiTestHelpers.Arrange(button, 100, height);
+        using var bitmap = Render(button.Paint, 100, (int)Math.Ceiling(height));
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(50, 10));
+        Assert.Equal(0, bitmap.GetPixel(50 + 12, 10).Alpha); // 20 DIPs wide, not 40
+        Assert.True(HasText(bitmap, 0, 100)); // the text is still drawn below
+    }
+
+    [Fact]
+    public async Task DisposingAButtonReleasesItsImage()
+    {
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var button = await ImageButton("Go", ImagePosition.Left);
+        var entry = button.CachedImage!;
+        Assert.False(entry.IsReleased);
+        button.Dispose();
+        Assert.True(entry.IsReleased); // a stream image is not cached: the button's lease was the last reference
+        Assert.Equal(TextSize("Go"), ((IView)button).Measure(double.PositiveInfinity, double.PositiveInfinity)); // a text button now
+        button.ImageSource = RedSquare();
+        await button.ImageLoadingTask;
+        Assert.Null(button.CachedImage); // not loaded after disposal
+        button.Dispose(); // twice: nothing
+
+        var cleared = await ImageButton("Go", ImagePosition.Left);
+        var clearedEntry = cleared.CachedImage!;
+        cleared.ImageSource = null;
+        Assert.True(clearedEntry.IsReleased);
+
+        var core = new SkUiCoreButton();
+        core.SetImageSource(SkUiImageSource.FromStream(_ => Task.FromResult<Stream>(new MemoryStream(ImageBytes(SKColors.Red, 20, 20)))));
+        await core.ImageLoadingTask;
+        var coreEntry = core.CachedImage!;
+        core.Dispose();
+        Assert.True(coreEntry.IsReleased);
+    }
+
+    [Fact]
     public async Task CoreButtonDrawsTheImageAsTheSkUiButton()
     {
         using var font = SkUiTestHelpers.UseBundledFont();
@@ -309,6 +353,17 @@ public class ContentAndTemplateTests
         radio.Content = "Text";
         Assert.Null(content.Parent);
         Assert.Empty(((IVisualTreeElement)radio).GetVisualChildren());
+    }
+
+    [Fact]
+    public void RadioButtonContentFollowsACircleArrangedSmallerThanMeasured()
+    {
+        var spacing = SkUiLook.Current.DefaultRadioButtonContentSpacing;
+        var content = new SkUiBox { WidthRequest = 30, HorizontalOptions = LayoutOptions.Start };
+        var radio = new SkUiRadioButton { Content = content };
+        radio.Measure(200, 12);
+        radio.Arrange(new Rect(0, 0, 200, 12)); // 12 DIPs high: a 12-DIP circle instead of the look's 24
+        Assert.Equal(12 + spacing, content.Frame.X);
     }
 
     [Fact]

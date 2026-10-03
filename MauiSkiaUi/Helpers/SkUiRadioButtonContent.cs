@@ -54,9 +54,12 @@ internal sealed class SkUiRadioButtonContent(object owner)
             return new Placement(new Rect(inner.X, inner.Y, side, side), Rect.Zero);
         }
         var circle = CircleSize(inner.Width, inner.Height);
-        var diameter = Math.Min(Math.Min(circle.Width, circle.Height), Math.Min(inner.Width, inner.Height));
-        var circleRect = new Rect(inner.X + (circle.Width - diameter) / 2, inner.Y + (inner.Height - diameter) / 2, diameter, diameter);
-        var start = inner.X + circle.Width + SkUiLook.Current.DefaultRadioButtonContentSpacing;
+        var natural = Math.Min(circle.Width, circle.Height);
+        var diameter = Math.Min(natural, Math.Min(inner.Width, inner.Height));
+        // Arranged smaller than measured, the circle's slot shrinks with it: the content follows the circle drawn.
+        var slot = natural > 0 ? circle.Width * diameter / natural : 0;
+        var circleRect = new Rect(inner.X + (slot - diameter) / 2, inner.Y + (inner.Height - diameter) / 2, diameter, diameter);
+        var start = inner.X + slot + SkUiLook.Current.DefaultRadioButtonContentSpacing;
         return new Placement(circleRect, new Rect(start, inner.Y, Math.Max(0, inner.Right - start), inner.Height));
     }
 
