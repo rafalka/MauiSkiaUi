@@ -9,7 +9,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | Type | Doc | Notes |
 | --- | --- | --- |
 | `SkUiCoreNode` / `ISkUiCoreNode` | [SkUiCore.md](SkUiCore.md) | Public Core tree; fluent + INPC |
-| `SkUiCorePanel` / stacks / absolute / overlay / **grid** / **table** / **scroll view** | [SkUiCore.md](SkUiCore.md), [SkUiCoreGrid.md](SkUiCoreGrid.md), [SkUiCoreTable.md](SkUiCoreTable.md) | Core-only layouts; `SkUiCoreScrollView` shares the `SkUiScrollView` engine |
+| `SkUiCorePanel` / stacks / absolute / overlay / **grid** / **table** / **scroll view** | [SkUiCore.md](SkUiCore.md), [SkUiCoreGrid.md](SkUiCoreGrid.md), [SkUiCoreTable.md](SkUiCoreTable.md) | Core-only layouts; `SkUiCoreScrollView` shares the `SkUiScrollView` engine; `SkUiCoreScrollBar` is the scroll bar of both scroll views |
 | `SkUiCoreWrapLayout` / `SkUiCoreHorizontalShrinkLayout` / `SkUiCoreVerticalShrinkLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md), [SkUiShrinkLayout.md](SkUiShrinkLayout.md) | Same engines as the SkUi* twins (no Core flex layout) |
 | `SkUiCoreLabel` / `Button` / toggles / `Slider` / `ProgressBar` / Image / shapes / … | [SkUiCore.md](SkUiCore.md) | Core primitives & basic controls |
 | `SkUiCoreHost` | [SkUiCore.md](SkUiCore.md) | `SkUiView` bridge for Core roots |
@@ -27,7 +27,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiActivityIndicator` | [SkUiActivityIndicator.md](SkUiActivityIndicator.md) | ActivityIndicator |
 | `SkUiSwitch` | [SkUiSwitch.md](SkUiSwitch.md) | Switch |
 | `SkUiCheckBox` | [SkUiCheckBox.md](SkUiCheckBox.md) | CheckBox |
-| `SkUiRadioButton` | [SkUiRadioButton.md](SkUiRadioButton.md) | RadioButton (MAUI's `RadioButtonGroup` works on drawn layouts) |
+| `SkUiRadioButton` | [SkUiRadioButton.md](SkUiRadioButton.md) | RadioButton (`Content`, `ControlTemplate`; MAUI's `RadioButtonGroup` works on drawn layouts) |
 | `SkUiSlider` | [SkUiSlider.md](SkUiSlider.md) | Slider (plus vertical) |
 | `SkUiProgressBar` | [SkUiProgressBar.md](SkUiProgressBar.md) | ProgressBar (plus indeterminate) |
 | `SkUiToggleControl` | [SkUiToggleControl.md](SkUiToggleControl.md) | — (abstract) |
@@ -37,6 +37,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | Control | Doc | MAUI counterpart |
 | --- | --- | --- |
 | `SkUiContentView` | [SkUiContentView.md](SkUiContentView.md) | ContentView |
+| `SkUiContentPresenter` | [SkUiContentPresenter.md](SkUiContentPresenter.md) | ContentPresenter (in drawn `ControlTemplate`s) |
 | `SkUiMauiContentView` | [SkUiMauiContentView.md](SkUiMauiContentView.md) | — (native host) |
 | `SkUiBorder` | [SkUiBorder.md](SkUiBorder.md) | Border |
 | `SkUiLayout` | [SkUiLayout.md](SkUiLayout.md) | — (overlay) |

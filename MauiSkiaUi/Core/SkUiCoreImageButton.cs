@@ -216,12 +216,4 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
         InvalidatePaint();
         (value ? Pressed : Released)?.Invoke(this, EventArgs.Empty);
     }
-
-    /// <inheritdoc />
-    public override void Dispose()
-    {
-        _commandListener?.Listen(null);
-        _command = null;
-        base.Dispose();
-    }
 }

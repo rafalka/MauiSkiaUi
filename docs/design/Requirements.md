@@ -377,7 +377,8 @@ Design details and checklist: [ScrollingAndCollectionViews.md](ScrollingAndColle
   - the wheel goes to the innermost scroller that can move;
   - native ancestors take over at a drawn scroller's edge.
 - [x] **Overlays:** `SkUiMauiContentView` overlays sync and clip while scrolling. On Android / Windows the FR-16 snapshot freeze applies (Apple live sync), with the `ScrollMode` opt-out. Demo: "Native overlays in ScrollView".
-- [ ] **Polish:** scrollbars, snap points, overscroll / bounce.
+- [x] **Scroll bars and overscroll (P8):** look-drawn scroll bars with MAUI's `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility` (fade, RTL side), bounce / stretch overscroll per look that keeps nested chaining, `ScrollToAsync(Element, ScrollToPosition, bool)` / `ScrollToRequested`, the horizontal wheel and trackpad on `Both`, direction-aware flings with live extents.
+- [x] **Polish (P8):** snap points (`SnapPointsType`, `SnapPointsAlignment`); draggable, hover-expanded scroll bars (desktop); public `SkUiCoreScrollBar` that apps can style or place.
 - [x] **Demo gallery:** long content, nested carousels, Core scroll view (`ScrollViewDemoPage`, Core "ScrollView + gestures", "Native overlays in ScrollView", "Native nesting").
 - [x] **Compat:** MAUI `ScrollView` / `CollectionView` nesting is documented as **compat only** (standalone cells keep `HwAccelerated = false` per FR-14).
 
@@ -641,7 +642,7 @@ When borrowing an idea, note the source briefly in design discussion or code com
 ## Open decisions
 
 - Exact public names for animation helpers / `ISkUiAnimator` (tier APIs sketched in [AnimationMechanism.md](AnimationMechanism.md)).
-- Scroll details still open in [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#open-items): overscroll (clamp vs bounce), scrollbars, the horizontal wheel for `Orientation = Both`, and how FR-21 / FR-22 provide their extent inside an outer scroller.
+- Scroll details still open in [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#open-items): how FR-21 / FR-22 provide their extent inside an outer scroller.
 - **Control look (FR-18)** remaining: per-tree look attachment (vs process-wide `Current`), and optional OS theme sync helpers. Type names, `Current`, virtual/delegate painters, and default size tokens are decided — see Decided and [ControlLook.md](ControlLook.md).
 - **Color scheme (FR-19)** remaining: optional OS light/dark synchronization helpers. Type names, light/dark packs, `Current`, and construction-snapshot vs paint-time token reads are decided — see Decided and [ColorScheme.md](ColorScheme.md).
 

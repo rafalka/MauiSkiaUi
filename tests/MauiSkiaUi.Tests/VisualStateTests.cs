@@ -59,7 +59,7 @@ public class VisualStateTests
         Assert.Equal(maui, skui);
         Assert.Equal("press: Pressed Unfocused -", skui[1]);
 
-        using var image = new SkUiImageButton();
+        var image = new SkUiImageButton();
         var (mauiImage, skuiImage) = Run(new ImageButton(), image, isCheckedState: true,
             ("press", b => ((IButtonController)b).SendPressed(), Press),
             ("release", b => ((IButtonController)b).SendReleased(), Release),

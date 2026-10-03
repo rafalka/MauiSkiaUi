@@ -67,7 +67,7 @@ internal sealed class SkUiRenderRecorder : IDisposable
             }
             if ((dirty & SkUiRenderDirty.Content) != 0 || sizeChanged)
             {
-                if (props.IsSkipped && !FadesIn(state, props))
+                if (props.IsSkipped && !FadesIn(state, props) && !RecordsTransparent(node, props))
                 {
                     // Nothing visible to record; keep the request until the node can paint again.
                     state.Dirty |= SkUiRenderDirty.Content;
@@ -136,6 +136,10 @@ internal sealed class SkUiRenderRecorder : IDisposable
         return false;
     }
 
+    /// <summary>A node hidden only by <c>Opacity == 0</c> that asks to be recorded ahead of being shown.</summary>
+    private static bool RecordsTransparent(ISkUiRenderable node, in SkUiRenderProps props) =>
+        props.IsVisible && props.Width > 0 && props.Height > 0 && node.RecordsWhenTransparent;
+
     private SKPicture? Record(ISkUiRenderable node, SKRect cull, bool overlay)
     {
         var canvas = _recorder.BeginRecording(cull);
@@ -166,21 +170,30 @@ internal static class SkUiImmediatePainter
     [ThreadStatic] private static SKPaint? _shadowPaint;
     [ThreadStatic] private static List<ISkUiRenderable>? _children;
 
-    internal static void Paint(ISkUiRenderable node, SKCanvas canvas, bool applyOffset)
+    internal static void Paint(ISkUiRenderable node, SKCanvas canvas, bool applyOffset) =>
+        Paint(node, canvas, applyOffset, pinned: null);
+
+    /// <summary>
+    /// Paints <paramref name="node"/> when its <see cref="SkUiRenderProps.Pinned"/> matches <paramref name="pinned"/> (any
+    /// when <c>null</c>); returns <c>true</c> when it was left out because it is pinned.
+    /// </summary>
+    private static bool Paint(ISkUiRenderable node, SKCanvas canvas, bool applyOffset, bool? pinned)
     {
         var props = SkUiRenderProps.Default;
         node.GetRenderProps(ref props);
+        if (pinned is { } expected && props.Pinned != expected)
+            return props.Pinned;
         if (!applyOffset)
             props.X = props.Y = 0;
         if (props.IsSkipped)
-            return;
+            return false;
         var save = canvas.Save();
         try
         {
             var matrix = props.Matrix;
             canvas.Concat(in matrix);
             if (canvas.QuickReject(props.InkBounds))
-                return;
+                return false;
             if (props.Opacity < 1)
             {
                 var paint = _layerPaint ??= new SKPaint();
@@ -197,6 +210,7 @@ internal static class SkUiImmediatePainter
                     SkUiShadowPainter.DrawFromContent(canvas, shadow, shadowPaint, (node, props), static (c, state) => PaintBody(state.node, c, state.props));
             }
             PaintBody(node, canvas, props);
+            return false;
         }
         finally
         {
@@ -226,12 +240,18 @@ internal static class SkUiImmediatePainter
                     canvas.ClipRect(props.ChildrenClipRect);
                 if (props.ChildrenClipPath is { } path)
                     canvas.ClipPath(path, antialias: true);
-                if (props.ChildrenOffsetX != 0 || props.ChildrenOffsetY != 0)
-                    canvas.Translate(-props.ChildrenOffsetX, -props.ChildrenOffsetY);
                 try
                 {
+                    // Unpinned children in the children space, then pinned ones (in local coordinates, outside the
+                    // children clip) above them.
+                    props.TransformChildren(canvas);
+                    var pinned = false;
                     for (var index = start; index < end; index++)
-                        Paint(children[index], canvas, applyOffset: true);
+                        pinned |= Paint(children[index], canvas, applyOffset: true, pinned: false);
+                    canvas.RestoreToCount(childSave);
+                    if (pinned)
+                        for (var index = start; index < end; index++)
+                            Paint(children[index], canvas, applyOffset: true, pinned: true);
                 }
                 finally
                 {

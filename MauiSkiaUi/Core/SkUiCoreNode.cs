@@ -348,8 +348,17 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     /// <summary>Width of the coordinate space children are arranged in (RTL mirroring axis); scrollers use their extent.</summary>
     internal virtual double ChildrenSpaceWidth => _frame.Width;
 
-    /// <summary>Host that exclusively owns this node as a Core tree root, if any.</summary>
-    internal SkUiCoreHost? HostOwner { get; set; }
+    /// <summary>
+    /// The SkUi* view that owns this node as a Core tree root, if any: a <see cref="SkUiCoreHost"/>, or a control drawing
+    /// internal Core parts (a scroll view's scroll bars).
+    /// </summary>
+    internal SkUiView? HostOwner { get; set; }
+
+    /// <summary>
+    /// The node is pinned to its parent's viewport (<see cref="Rendering.SkUiRenderProps.Pinned"/>): its frame is in the parent's
+    /// local coordinates, physical (not mirrored in right-to-left layouts), and the parent's scroll offset does not move it.
+    /// </summary>
+    internal virtual bool IsPinned => false;
 
     /// <summary>Visual tree children for diagnostics tools (called by tools only; may allocate).</summary>
     internal virtual IReadOnlyList<IVisualTreeElement> VisualChildren => [];
@@ -632,7 +641,7 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         var frame = new Rect(x, y, width, height);
         // RTL: mirror the final frame inside the parent's (or host's) coordinate space.
         var mirrorSpace = _parent is SkUiCoreNode parentNode ? parentNode.ChildrenSpaceWidth : HostOwner?.Width ?? 0;
-        if (mirrorSpace > 0 && (_parent is SkUiCoreNode rtlParent ? rtlParent.IsRightToLeft : HostOwner?.IsRightToLeft == true))
+        if (!IsPinned && mirrorSpace > 0 && (_parent is SkUiCoreNode rtlParent ? rtlParent.IsRightToLeft : HostOwner?.IsRightToLeft == true))
             frame = new Rect(mirrorSpace - frame.Right, frame.Y, frame.Width, frame.Height);
         if (_frame != frame)
         {
@@ -699,6 +708,7 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         props.Opacity = (float)_opacity;
         props.IsVisible = _isVisible;
         props.ClipToBounds = _clipToBounds;
+        props.Pinned = IsPinned;
         OnGetRenderProps(ref props);
         if (_effects is { } effects)
         {
@@ -709,6 +719,11 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
 
     /// <summary>Sets the <see cref="ClipToBounds"/> default without notifications (constructors only).</summary>
     internal void InitClipToBounds(bool value) => _clipToBounds = value;
+
+    bool ISkUiRenderable.RecordsWhenTransparent => RecordsWhenTransparent;
+
+    /// <inheritdoc cref="ISkUiRenderable.RecordsWhenTransparent" />
+    internal virtual bool RecordsWhenTransparent => false;
 
     /// <summary>Lets containers add children clip / offset, spinning content, or ink overflow.</summary>
     internal virtual void OnGetRenderProps(ref SkUiRenderProps props) { }
@@ -942,6 +957,11 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     bool ISkUiInputNode.IsHitTestVisible => _isVisible;
 
     bool ISkUiInputNode.IsInputEnabled => true;
+
+    void ISkUiInputNode.SetPointerOver(bool isOver) => OnPointerOverChanged(isOver);
+
+    /// <summary>A hovering pointer entered (<c>true</c>) or left this node or one of its descendants.</summary>
+    internal virtual void OnPointerOverChanged(bool isOver) { }
 
     void ISkUiInputNode.CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers) => CollectGestureRecognizers(recognizers);
 

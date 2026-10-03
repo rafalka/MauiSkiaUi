@@ -22,6 +22,9 @@ Apps should be able to:
 | Offset model | A composite-time children translation. Scrolling never re-records content, and fling and animated scrolls run on the render thread, which reports offsets back ([RenderingPipeline.md](RenderingPipeline.md)). |
 | Gestures | Scroll drags take part in the **gesture arena** ([EventMechanism.md](EventMechanism.md)). Content taps win unless the pointer moves past the touch slop along a direction the scroller can move. |
 | Nested scrolling | Axis-aware claims, inner scrollers first. The part of a drag an inner scroller cannot absorb chains to outer scrollers on the same axis, and a fling goes to the innermost scroller that can move. |
+| Overscroll | Per look (`SkUiLook.DefaultOverscroll`; the default look follows the platform) or per scroller (`Overscroll`): bounce (rubber band, iOS) or stretch (Android 12+). Drawn through the generic children transform (offset past its range, or children scale), so a render-thread fling bounces with no UI work. Only what no scroller can use overscrolls, so chaining is unchanged. |
+| Scroll bars | Public Core nodes (`SkUiCoreScrollBar`): the bar is the track (pinned to the viewport, or placed by the app), its thumb a scroll-linked child drawn by the look once per length; the compositor moves it from the offset and the UI starts render-thread fades. A hovering pointer expands the bar for dragging and paging. Fading bars (`Default`) draw over the content; bars that always show reserve a gutter, and the content gets the rest (the scrollport). Reused by FR-21 / FR-22 through the shared controller. |
+| Snap points | `SnapPointsType` / `SnapPointsAlignment` (MAUI's CollectionView enums) on the content's children; drags, flings and paused wheel input settle with a render-thread spring (`SkUiRenderScrollSpring`) that never passes its target. FR-22's `ItemsLayout` snap points can reuse it. |
 | Native ancestors | Drawn continuous gestures hold native parents back while they may claim. Once none can claim, the native parent may take over (Android `RequestDisallowInterceptTouchEvent`; iOS gate recognizer). |
 | On-demand items (FR-21) | **`SkUiVirtualStackLayout`**: a layout that *requests* its children from a provider as its visible window (plus prefetch) grows. It sits inside any drawn scroller. `SkUiVirtualScrollView` is the combined convenience control. |
 | Collections (FR-22) | **`SkUiCollectionView`**, built on the FR-21 engine with template recycling: MAUI `CollectionView` API parity plus sticky header / footer, selection background, and item tap event / command. |
@@ -110,7 +113,11 @@ SkUiScrollView (SkUi*) ─┐                      ┌─ SkUiCoreScrollView (Co
 | **Offset** | `(ScrollX, ScrollY)`, clamped to `[0, max(0, extent − viewport)]`. It is a children translation, so there is no re-record, remeasure or rearrange. |
 | **Motion** | Tweens and flings run on the render thread with exponential decay. The last shown offset is reported back when motion stops, and a press during motion stops it. |
 | **RTL** | Horizontal scrollers start at their logical start (the right end). Children are mirrored inside the extent (`ChildrenSpaceWidth`). |
-| **Overlays** | `SkUiScrollView` syncs registered `SkUiMauiContentView` descendants on each offset change. |
+| **Overlays** | `SkUiScrollView` syncs registered `SkUiMauiContentView` descendants on each offset change (and bounce). |
+| **Overscroll** | A drag's leftover after chaining pulls the dragged scroller past its edge through a rubber band (shown = `(1 − 1 / (pull · 0.55 / viewport + 1)) · viewport`); a drag back takes the pull back first; the release springs back (critically damped, on the render thread). A fling that reaches an edge runs past it with its velocity there (peaking within 15 % of the viewport) and settles. At an edge a scroller claims an outward drag only when no outer drawn scroller and no native ancestor (`SkUiPointerRouter.NativeAncestorCanScroll`) can scroll that way. |
+| **Scroll bars** | MAUI's `ScrollBarVisibility` per axis: `Default` shows while the offset changes and fades out after the look's delay, `Always` while the content overflows, `Never` hides. The vertical bar is on the left in RTL; both bars leave the corner free. |
+| **Scroll to a target** | `ScrollToAsync(Element / Core node, ScrollToPosition, animated)` with MAUI's `GetScrollPositionForElement` arithmetic (nested scrollers' offsets included), waiting for the first layout; `ScrollToRequested` with MAUI's arguments. |
+| **Wheel** | Two axes (`WheelDelta`, `WheelDeltaX`); each axis is used up by the innermost scroller that can move that way. |
 
 ### Gestures and nesting rules (implemented)
 
@@ -293,7 +300,9 @@ A virtualizing, recycling list / grid built on the FR-21 engine.
 | FR-22 | `SkUiCollectionView` linear layout: templates, selection, header / footer (sticky), item tap, empty view | Later |
 | FR-22 | Grouping (sticky group headers), grid layout, incremental loading, updating scroll modes, pull to refresh | Later |
 | FR-22 | Reordering, candidate extras | Later |
-| Polish | Scrollbars, snap points, overscroll / bounce, keyboard / focus bring-into-view, horizontal wheel for `Both` | Later |
+| Polish | Scroll bars, overscroll / bounce, scroll to element, horizontal wheel for `Both` | **Done** (P8) |
+| Polish | Snap points, draggable scroll bars, placed scroll bars | **Done** (P8) |
+| Polish | Keyboard / focus bring-into-view | Later |
 
 ## Implementation checklist
 
@@ -308,7 +317,8 @@ A virtualizing, recycling list / grid built on the FR-21 engine.
 - [x] Native ancestors: Android disallow-intercept while pending / claimed; iOS gate recognizer.
 - [x] `SkUiCoreScrollView` sharing the engine; Core ↔ SkUi* nesting.
 - [x] FR-16: Android / Windows snapshot freeze while scrolling (Apple live sync); `ScrollMode` opt-out / opt-in; scroll start / end signals; overlay clipping to viewports.
-- [ ] Scrollbars, snap points, overscroll / bounce.
+- [x] Scroll bars, overscroll / bounce / stretch, scroll to element, horizontal wheel on `Both`, direction-aware flings with live extents (P8).
+- [x] Snap points; draggable (hover-expanded) scroll bars; scroll bars placed by the app (P8).
 - [x] Demo pages: nested carousels, Core scroll view, gestures (Core "ScrollView + gestures", "Native overlays in ScrollView", "Native nesting").
 
 ### FR-21 / FR-22
@@ -317,9 +327,8 @@ See the requirement sections above; check items off in [Requirements.md](Require
 
 ## Open items
 
-- Scrollbar visuals (look, FR-18) and auto-hide policy.
-- Overscroll: clamp (current) versus rubber-band bounce per platform.
-- The horizontal wheel for `Orientation = Both` (needs an axis-aware wheel event).
+- The thumb does not shrink during a bounce (iOS shrinks it); a held press on the track pages once (desktop scroll bars repeat).
+- Native overlays follow a bounce, not a stretch (Android and Windows snapshot them while scrolling anyway).
 - Accessibility / semantics for scrollable regions and collections (platform automation peers).
 
 ## References

@@ -111,8 +111,9 @@ internal sealed class SkUiMetalView : UIView
         var translation = recognizer.TranslationInView(this);
         recognizer.SetTranslation(CGPoint.Empty, this);
         var location = recognizer.LocationInView(this);
-        if (translation.Y != 0)
-            TouchHandler?.Invoke(new SkUiTouchEvent(0, SkUiTouchAction.Wheel, new Point(location.X, location.Y), null, translation.Y));
+        // Trackpad / wheel scrolls in both axes; positive translation moves the content right / down (towards the start).
+        if (translation.X != 0 || translation.Y != 0)
+            TouchHandler?.Invoke(new SkUiTouchEvent(0, SkUiTouchAction.Wheel, new Point(location.X, location.Y), null, translation.Y, translation.X));
     }
 
     protected override void Dispose(bool disposing)

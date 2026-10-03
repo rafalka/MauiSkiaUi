@@ -3,13 +3,23 @@ using SkiaSharp;
 
 namespace MauiSkiaUi;
 
-/// <summary>A drawn text button with intrinsic taps, commands, and press/disabled feedback.</summary>
-public class SkUiButton : SkUiLabel
+/// <summary>
+/// A drawn text button with intrinsic taps, commands, and press/disabled feedback. Like MAUI's Button, it can show an
+/// image (<see cref="ImageSource"/>) beside its text, placed by <see cref="ContentLayout"/>.
+/// </summary>
+public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
 {
     private ICommand? _command;
     private object? _commandParameter;
     private Color _fillColor = SkUiColors.Accent;
     private SkUiPressAnimator? _press;
+    private ImageSource? _imageSource;
+    private SkUiWeakListener<SkUiButton>? _imageSourceListener; // a shared image source must not keep the button alive
+    private SkUiImageSlot? _image;
+    private Button.ButtonContentLayout _contentLayout = DefaultContentLayout;
+
+    /// <summary>MAUI Button's default <see cref="ContentLayout"/>: the image on the left, 10 DIPs from the text (before the bindable properties, which use it).</summary>
+    internal static readonly Button.ButtonContentLayout DefaultContentLayout = new(Button.ButtonContentLayout.ImagePosition.Left, 10);
 
     /// <summary>Bindable command executed on a valid release.</summary>
     public static readonly BindableProperty CommandProperty = BindableProperty.Create(nameof(Command), typeof(ICommand), typeof(SkUiButton), null, propertyChanged: (view, _, value) => ((SkUiButton)view).OnCommandChanged((ICommand?)value));
@@ -20,6 +30,14 @@ public class SkUiButton : SkUiLabel
         defaultValueCreator: _ => SkUiColors.Accent,
         validateValue: SkUiValidate.NotNull,
         propertyChanged: (view, _, value) => ((SkUiButton)view).OnFillColorChanged((Color)value));
+    /// <summary>Bindable <see cref="ImageSource"/>.</summary>
+    public static readonly BindableProperty ImageSourceProperty = BindableProperty.Create(nameof(ImageSource), typeof(ImageSource), typeof(SkUiButton), null,
+        propertyChanged: (view, _, value) => ((SkUiButton)view).OnImageSourceChanged((ImageSource?)value));
+    /// <summary>Bindable <see cref="ContentLayout"/> (MAUI's default: the image on the left, 10 DIPs from the text).</summary>
+    public static readonly BindableProperty ContentLayoutProperty = BindableProperty.Create(nameof(ContentLayout), typeof(Button.ButtonContentLayout), typeof(SkUiButton), DefaultContentLayout,
+        validateValue: SkUiValidate.NotNull,
+        propertyChanged: (view, _, value) => ((SkUiButton)view).OnContentLayoutChanged((Button.ButtonContentLayout)value));
+
 
     private readonly Action<SKCanvas> _buttonPainter;
 
@@ -33,7 +51,9 @@ public class SkUiButton : SkUiLabel
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        var size = base.MeasureContent(widthConstraint, heightConstraint);
+        var size = ImageSize is { Width: > 0 } image
+            ? SkUiButtonImageLayout.Measure(this, image, _contentLayout, Padding, widthConstraint, heightConstraint)
+            : base.MeasureContent(widthConstraint, heightConstraint);
         // MinimumHeightRequest default is -1; only then resolve the active look's button minimum.
         if (MinimumHeightRequest < 0)
         {
@@ -51,6 +71,10 @@ public class SkUiButton : SkUiLabel
     protected override Thickness DefaultPadding => new(18, 12);
     /// <inheritdoc />
     protected override double DefaultCornerRadius => SkUiLook.Current.DefaultButtonCornerRadius;
+    /// <inheritdoc />
+    protected override LineBreakMode DefaultLineBreakMode => LineBreakMode.NoWrap;
+    /// <inheritdoc />
+    private protected override bool ClipsTextToInset => true;
 
     /// <summary>Raised for a valid enabled tap, even without a command.</summary>
     public event EventHandler? Clicked;
@@ -64,6 +88,18 @@ public class SkUiButton : SkUiLabel
     public object? CommandParameter { get => GetValue(CommandParameterProperty); set => SetValue(CommandParameterProperty, value); }
     /// <summary>Button background fill.</summary>
     public Color FillColor { get => (Color)GetValue(FillColorProperty); set => SetValue(FillColorProperty, value); }
+    /// <summary>
+    /// Image drawn beside the text (MAUI's <c>ImageSource</c>), loaded through the shared image loader and cache (files,
+    /// <c>MauiImage</c> resources, <see cref="FontImageSource"/> glyphs, URIs, streams). It keeps its intrinsic size and
+    /// is scaled down (never up) to fit inside <see cref="SkUiLabel.Padding"/>; it is not tinted.
+    /// </summary>
+    public ImageSource? ImageSource { get => (ImageSource?)GetValue(ImageSourceProperty); set => SetValue(ImageSourceProperty, value); }
+    /// <summary>
+    /// Where the image sits relative to the text, and the spacing between them (MAUI's type; XAML: <c>"Top, 10"</c>).
+    /// Image and text are placed as one group by the text alignments (centered by default); the spacing applies only
+    /// when there is text. <c>Left</c> is the start side: the right in right-to-left layouts.
+    /// </summary>
+    public Button.ButtonContentLayout ContentLayout { get => (Button.ButtonContentLayout)GetValue(ContentLayoutProperty); set => SetValue(ContentLayoutProperty, value); }
 
     /// <summary>Sets command; command notifications use a weak target.</summary>
     public SkUiButton SetCommand(ICommand? value)
@@ -94,6 +130,67 @@ public class SkUiButton : SkUiLabel
     /// <summary>Sets fill (same as the property setter).</summary>
     public SkUiButton SetFillColor(Color value) { ArgumentNullException.ThrowIfNull(value); FillColor = value; return this; }
     private void OnFillColorChanged(Color value) { _fillColor = value; InvalidatePaint(); }
+    /// <summary>Sets the image (same as the property setter).</summary>
+    public SkUiButton SetImageSource(ImageSource? value) { ImageSource = value; return this; }
+
+    private void OnImageSourceChanged(ImageSource? value)
+    {
+        if (ReferenceEquals(_imageSource, value)) return;
+        _imageSource = value;
+        (_imageSourceListener ??= new(this, static (button, change) =>
+        {
+            if (SkUiMauiImageSources.AffectsImage(change.PropertyName))
+                button.LoadImage();
+        })).Listen(value);
+        LoadImage();
+    }
+
+    private void LoadImage()
+    {
+        if (_imageSource is null && _image is null) return;
+        (_image ??= new SkUiImageSlot(this, InvalidateMeasureOverride)).Load(SkUiMauiImageSources.Convert(_imageSource), default);
+    }
+
+    /// <summary>Sets the content layout (same as the property setter).</summary>
+    public SkUiButton SetContentLayout(Button.ButtonContentLayout value) { ArgumentNullException.ThrowIfNull(value); ContentLayout = value; return this; }
+    private void OnContentLayoutChanged(Button.ButtonContentLayout value)
+    {
+        _contentLayout = value;
+        if (ImageSize.Width > 0) InvalidateMeasureOverride();
+    }
+
+    /// <summary>The loaded image's size in DIPs (zero without one or while it loads).</summary>
+    internal Size ImageSize => _image?.DisplayedSize ?? Size.Zero;
+
+    /// <summary>The shown image's cache entry (tests: leases).</summary>
+    internal SkUiCachedImage? CachedImage => _image?.Entry;
+
+    /// <summary>The load of the current <see cref="ImageSource"/> (completed when idle; tests).</summary>
+    internal Task ImageLoadingTask => _image?.LoadingTask ?? Task.CompletedTask;
+
+    /// <summary>Where the image and the text sit in the arranged button.</summary>
+    private SkUiButtonImageLayout.Placement ImagePlacement => SkUiButtonImageLayout.Arrange(this, ImageSize, _contentLayout, Padding, Width, Height,
+        HorizontalTextAlignment, VerticalTextAlignment, IsRightToLeft);
+
+    /// <inheritdoc />
+    private protected override Thickness TextInset => ImageSize.Width > 0 ? ImagePlacement.TextInset : base.TextInset;
+
+    /// <inheritdoc />
+    private protected override bool HasIcon => ImageSize.Width > 0;
+
+    /// <inheritdoc />
+    private protected override void PaintIcon(SKCanvas canvas)
+    {
+        if (_image is null) return;
+        var area = ImagePlacement.Image;
+        if (area.Width > 0 && area.Height > 0)
+            _image.Paint(canvas, new SKRect((float)area.Left, (float)area.Top, (float)area.Right, (float)area.Bottom), Aspect.AspectFit);
+    }
+
+    bool SkUiButtonImageLayout.IText.HasText => HasText;
+
+    Size SkUiButtonImageLayout.IText.MeasureText(double widthConstraint) => MeasureText(widthConstraint);
+
     /// <summary>Sets border color (same as the property setter).</summary>
     public new SkUiButton SetBorderColor(Color value) { base.SetBorderColor(value); return this; }
     /// <summary>Sets border width (same as the property setter).</summary>

@@ -139,10 +139,11 @@ public class RadioButtonGroupTests
     [Fact]
     public void DemoPageShowsTheGroupsSelectedValueOnBothSides()
     {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher(); // MAUI's template binds its content labels
         var page = new MauiSkiaUiDemo.RadioButtonDemoPage();
         var skia = (SkUiVerticalStackLayout)page.SkiaControl;
         var native = (VerticalStackLayout)page.NativeControl!;
-        var radios = skia.Children.OfType<SkUiHorizontalStackLayout>().Select(row => (SkUiRadioButton)row.Children[0]).ToArray();
+        var radios = skia.Children.OfType<SkUiRadioButton>().ToArray();
         var skiaLabel = (SkUiLabel)skia.Children[^1];
         var nativeLabel = (Label)native.Children[^1];
         Assert.Equal([false, true, false], radios.Select(radio => radio.IsChecked));
@@ -161,28 +162,101 @@ public class RadioButtonGroupTests
     }
 
     [Fact]
-    public void CoreRadioButtonsExcludeTheirSiblings()
+    public void CoreRadioButtonsDoNotGroupThemselves()
     {
-        SkUiCoreRadioButton a = new(), b = new(), other = new();
-        var left = new SkUiCoreVerticalStackLayout();
-        left.Add(a);
-        left.Add(b);
-        var right = new SkUiCoreVerticalStackLayout();
-        right.Add(other);
-        var root = new SkUiCoreVerticalStackLayout();
-        root.Add(left);
-        root.Add(right);
-        other.IsChecked = true;
+        SkUiCoreRadioButton a = new(), b = new();
+        var stack = new SkUiCoreVerticalStackLayout();
+        stack.Add(a);
+        stack.Add(b);
         a.IsChecked = true;
         b.IsChecked = true;
-        Assert.Equal([false, true, true], new[] { a.IsChecked, b.IsChecked, other.IsChecked }); // another parent: another group
+        Assert.Equal([true, true], new[] { a.IsChecked, b.IsChecked });
 
-        root.Measure(100, 200);
-        root.Arrange(new Rect(0, 0, 100, 200));
-        var tap = new Point(a.Frame.X + 4, a.Frame.Y + 4);
-        root.Touch(new SkUiTouchEvent(1, SkUiTouchAction.Pressed, tap));
-        root.Touch(new SkUiTouchEvent(1, SkUiTouchAction.Released, tap));
-        Assert.Equal([true, false, true], new[] { a.IsChecked, b.IsChecked, other.IsChecked });
+        SkUiCoreRadioButtons.Uncheck(a); // one radio button: the list overload, not the host one
+        Assert.Equal([false, true], new[] { a.IsChecked, b.IsChecked });
+        a.IsChecked = true;
+        SkUiCoreRadioButtons.Uncheck([a, b]);
+        Assert.Equal([false, false], new[] { a.IsChecked, b.IsChecked });
+    }
+
+    [Fact]
+    public void CoreUncheckRadioButtonsUnderAHost()
+    {
+        // The column holds a radio button and rows with radio buttons; another radio button sits outside it.
+        var first = new SkUiCoreRadioButton { IsChecked = true };
+        var nested = new[] { new SkUiCoreRadioButton { IsChecked = true }, new SkUiCoreRadioButton { IsChecked = true } };
+        var column = new SkUiCoreVerticalStackLayout();
+        column.Add(first);
+        foreach (var radio in nested)
+        {
+            var row = new SkUiCoreHorizontalStackLayout();
+            row.Add(radio);
+            row.Add(new SkUiCoreLabel().SetText("Option"));
+            column.Add(row);
+        }
+        var outside = new SkUiCoreRadioButton { IsChecked = true };
+        var root = new SkUiCoreVerticalStackLayout();
+        root.Add(column);
+        root.Add(outside);
+
+        column.UncheckRadioButtons(excluded: first);
+        Assert.True(first.IsChecked);
+        Assert.All(nested, radio => Assert.True(radio.IsChecked)); // only the host's children
+        column.UncheckRadioButtons(excluded: first, recursive: true);
+        Assert.All(nested, radio => Assert.False(radio.IsChecked)); // its whole subtree
+        Assert.True(first.IsChecked);
+        Assert.True(outside.IsChecked);
+        column.UncheckRadioButtons();
+        Assert.False(first.IsChecked);
+    }
+
+    [Fact]
+    public void CoreRadioGroupExcludesAcrossParentsUntilDisposed()
+    {
+        // Each radio button in its own row, as composed with a label.
+        var column = new SkUiCoreVerticalStackLayout();
+        var radios = new SkUiCoreRadioButton[3];
+        for (var index = 0; index < radios.Length; index++)
+        {
+            var row = new SkUiCoreHorizontalStackLayout();
+            row.Add(radios[index] = new SkUiCoreRadioButton());
+            row.Add(new SkUiCoreLabel().SetText("Option " + index));
+            column.Add(row);
+        }
+        var selected = new List<SkUiCoreRadioButton>();
+        var group = SkUiCoreRadioButtons.Group(radios, selected.Add);
+
+        radios[0].IsChecked = true;
+        radios[1].IsChecked = true;
+        Assert.Equal([false, true, false], radios.Select(radio => radio.IsChecked));
+        Assert.Equal([radios[0], radios[1]], selected);
+
+        // A tap checks through the same handler.
+        column.Measure(200, 200);
+        column.Arrange(new Rect(0, 0, 200, 200));
+        var row2 = (SkUiCoreNode)radios[2].Parent!;
+        var tap = new Point(row2.Frame.X + radios[2].Frame.X + 4, row2.Frame.Y + radios[2].Frame.Y + 4);
+        column.Touch(new SkUiTouchEvent(1, SkUiTouchAction.Pressed, tap));
+        column.Touch(new SkUiTouchEvent(1, SkUiTouchAction.Released, tap));
+        Assert.Equal([false, false, true], radios.Select(radio => radio.IsChecked));
+        Assert.Same(radios[2], selected[^1]);
+
+        group.Dispose();
+        group.Dispose(); // twice: nothing
+        radios[0].IsChecked = true;
+        Assert.Equal([true, false, true], radios.Select(radio => radio.IsChecked)); // no longer grouped
+        Assert.Equal(3, selected.Count);
+        Assert.Throws<ArgumentException>(() => SkUiCoreRadioButtons.Group([radios[0], null!]));
+    }
+
+    [Fact]
+    public void CoreRadioGroupStartsWithOneSelection()
+    {
+        SkUiCoreRadioButton a = new() { IsChecked = true }, b = new(), c = new() { IsChecked = true };
+        var calls = 0;
+        using var group = SkUiCoreRadioButtons.Group([a, b, c], _ => calls++);
+        Assert.Equal([false, false, true], new[] { a.IsChecked, b.IsChecked, c.IsChecked }); // the last checked one stays
+        Assert.Equal(0, calls); // no new selection
     }
 
     private sealed class SelectionModel : INotifyPropertyChanged

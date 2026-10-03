@@ -108,3 +108,29 @@ public readonly record struct SkUiButtonPaint(
 /// <param name="Press">Press amount, press point and ripple.</param>
 /// <param name="IsEnabled">The control is enabled (and its command can execute).</param>
 public readonly record struct SkUiPressOverlayPaint(SKRect Bounds, CornerRadius CornerRadii, SkUiPressVisual Press, bool IsEnabled);
+
+/// <summary>
+/// What a look draws for a scroll bar thumb (<see cref="SkUiLook.DrawScrollBar"/>): a rectangle at the origin, as long as
+/// the thumb along <see cref="Orientation"/> and <see cref="SkUiLook.ScrollBarThickness"/> across. The compositor places it
+/// on the track and fades it.
+/// </summary>
+/// <param name="Bounds">The thumb's rectangle.</param>
+/// <param name="Orientation">Which bar: <see cref="ScrollOrientation.Vertical"/> or <see cref="ScrollOrientation.Horizontal"/>.</param>
+/// <param name="Color">Thumb color (the color scheme's foreground, translucent, unless the bar sets <c>ThumbColor</c>).</param>
+public readonly record struct SkUiScrollBarPaint(SKRect Bounds, ScrollOrientation Orientation, SKColor Color)
+{
+    /// <summary>A pointer hovers or drags the bar: it is <see cref="SkUiLook.ScrollBarExpandedThickness"/> thick and shows its track.</summary>
+    public bool IsExpanded { get; init; }
+
+    /// <summary>The thumb is being dragged.</summary>
+    public bool IsPressed { get; init; }
+}
+
+/// <summary>
+/// What a look draws behind an expanded scroll bar's thumb (<see cref="SkUiLook.DrawScrollBarTrack"/>): the track, while a
+/// pointer hovers or drags the bar.
+/// </summary>
+/// <param name="Bounds">The track's rectangle (as thick as the expanded thumb).</param>
+/// <param name="Orientation">Which bar: <see cref="ScrollOrientation.Vertical"/> or <see cref="ScrollOrientation.Horizontal"/>.</param>
+/// <param name="Color">The thumb's color (the look derives the track's from it).</param>
+public readonly record struct SkUiScrollBarTrackPaint(SKRect Bounds, ScrollOrientation Orientation, SKColor Color);

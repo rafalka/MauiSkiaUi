@@ -341,6 +341,12 @@ public class SkUiLook
     /// <summary>Default RadioButton intrinsic size in DIPs (square side length on both axes).</summary>
     public virtual Size DefaultRadioButtonSize => new(24, 24);
 
+    /// <summary>
+    /// Space in DIPs between a RadioButton's circle and its <c>Content</c> (text or a drawn view); 8 by default (MAUI's
+    /// default template: 6 between a 21-DIP circle and the content).
+    /// </summary>
+    public virtual double DefaultRadioButtonContentSpacing => 8;
+
     /// <summary>Optional RadioButton intrinsic measure override.</summary>
     public Func<double, double, Size>? RadioButtonMeasure { get; set; }
 
@@ -515,6 +521,87 @@ public class SkUiLook
 
     /// <summary>Default ProgressBar geometry.</summary>
     protected virtual void DrawProgressBarCore(SKCanvas canvas, SkUiProgressBarPaint bar) { }
+
+    #endregion
+
+    #region ScrollView
+
+    /// <summary>Scroll bar thickness in DIPs.</summary>
+    public virtual double ScrollBarThickness => 4;
+
+    /// <summary>Scroll bar thickness while a pointer hovers or drags it (desktop), in DIPs; the track shows then.</summary>
+    public virtual double ScrollBarExpandedThickness => 8;
+
+    /// <summary>
+    /// Width of the strip along a scroller's edge where a hovering pointer expands its scroll bar (and can drag the thumb or
+    /// page), in DIPs. Touches there still scroll the content.
+    /// </summary>
+    public virtual double ScrollBarHitThickness => 16;
+
+    /// <summary>
+    /// Room a scroller reserves beside its content for a scroll bar with <see cref="ScrollBarVisibility.Always"/>, in DIPs
+    /// (default: the expanded bar and its margins). Fading bars draw over the content instead.
+    /// </summary>
+    public virtual double ScrollBarReservedThickness => ScrollBarExpandedThickness + 2 * ScrollBarMargin;
+
+    /// <summary>Gap between a scroll bar and the viewport edges, in DIPs.</summary>
+    public virtual double ScrollBarMargin => 2;
+
+    /// <summary>Shortest scroll bar thumb, in DIPs (long content would otherwise shrink it to a dot).</summary>
+    public virtual double ScrollBarMinimumThumbLength => 24;
+
+    /// <summary>How long scroll bars with <see cref="ScrollBarVisibility.Default"/> stay visible after scrolling stops.</summary>
+    public virtual TimeSpan ScrollBarFadeDelay => TimeSpan.FromMilliseconds(500);
+
+    /// <summary>How long scroll bars with <see cref="ScrollBarVisibility.Default"/> take to fade out after <see cref="ScrollBarFadeDelay"/>.</summary>
+    public virtual TimeSpan ScrollBarFadeDuration => TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
+    /// What scrollers whose <c>Overscroll</c> is <see cref="SkUiOverscrollMode.Default"/> do past their edges: <see cref="SkUiOverscrollMode.None"/>
+    /// (stop at the edge), <see cref="SkUiOverscrollMode.Bounce"/> or <see cref="SkUiOverscrollMode.Stretch"/>.
+    /// </summary>
+    public virtual SkUiOverscrollMode DefaultOverscroll => SkUiOverscrollMode.None;
+
+    /// <summary>Optional scroll bar painter; when set, replaces <see cref="DrawScrollBarCore"/>.</summary>
+    public Action<SKCanvas, SkUiScrollBarPaint>? ScrollBarPainter { get; set; }
+
+    /// <summary>
+    /// Draws a scroll bar thumb (delegate or <see cref="DrawScrollBarCore"/>) into <see cref="SkUiScrollBarPaint.Bounds"/>.
+    /// It is drawn once per thumb length and color, and the compositor moves and fades the picture on the render thread
+    /// while the content scrolls, so it must not depend on the scroll offset.
+    /// </summary>
+    public void DrawScrollBar(SKCanvas canvas, SkUiScrollBarPaint bar)
+    {
+        if (ScrollBarPainter is { } painter)
+        {
+            painter(canvas, bar);
+            return;
+        }
+        DrawScrollBarCore(canvas, bar);
+    }
+
+    /// <summary>Default scroll bar thumb geometry.</summary>
+    protected virtual void DrawScrollBarCore(SKCanvas canvas, SkUiScrollBarPaint bar) { }
+
+    /// <summary>Optional scroll bar track painter; when set, replaces <see cref="DrawScrollBarTrackCore"/>.</summary>
+    public Action<SKCanvas, SkUiScrollBarTrackPaint>? ScrollBarTrackPainter { get; set; }
+
+    /// <summary>
+    /// Draws the track behind an expanded scroll bar's thumb (delegate or <see cref="DrawScrollBarTrackCore"/>), while a
+    /// pointer hovers or drags the bar.
+    /// </summary>
+    public void DrawScrollBarTrack(SKCanvas canvas, SkUiScrollBarTrackPaint track)
+    {
+        if (ScrollBarTrackPainter is { } painter)
+        {
+            painter(canvas, track);
+            return;
+        }
+        DrawScrollBarTrackCore(canvas, track);
+    }
+
+    /// <summary>Default scroll bar track geometry.</summary>
+    protected virtual void DrawScrollBarTrackCore(SKCanvas canvas, SkUiScrollBarTrackPaint track) { }
 
     #endregion
 

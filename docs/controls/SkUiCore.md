@@ -30,16 +30,17 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreGrid` | Auto / absolute / star grid + per-track min/max; see [SkUiCoreGrid.md](SkUiCoreGrid.md) |
 | `SkUiCoreTable` | Grid + row/column/cell backgrounds and span-aware separators; see [SkUiCoreTable.md](SkUiCoreTable.md) |
 | `SkUiCoreContentView` / `SkUiCoreBorder` | Single-child host; the border draws any `StrokeShape` (a Core shape or any MAUI Graphics `IShape`; without one a rectangle rounded by `CornerRadius`) with a `Paint` stroke, dashes, caps and joins, insets the content by the stroke and clips it to the shape ([SkUiBorder.md](SkUiBorder.md)) |
-| `SkUiCoreLabel` / `SkUiCoreButton` | Text with the text properties of `SkUiLabel` (`FontAttributes`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`; wrap / truncate via `LineBreakMode` or a custom `LineBreaker`; spans: `SkUiCoreSpan` via `SetSpans`) with optional rounded chrome (`FillColor`, or a `Background` paint which replaces it; per-corner `CornerRadii`, `SetCornerRadius(double)` to set all four, `BorderColor`, `BorderWidth`: badges without a wrapping border), and the rounded tap button (`ICommand`) built on it |
+| `SkUiCoreLabel` / `SkUiCoreButton` | Text with the text properties of `SkUiLabel` (`FontAttributes`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`; wrap / truncate via `LineBreakMode` or a custom `LineBreaker`; spans: `SkUiCoreSpan` via `SetSpans`) with optional rounded chrome (`FillColor`, or a `Background` paint which replaces it; per-corner `CornerRadii`, `SetCornerRadius(double)` to set all four, `BorderColor`, `BorderWidth`: badges without a wrapping border), and the rounded tap button (`ICommand`) built on it, with an optional image beside its text (`ImageSource`, `ContentLayout`, as [`SkUiButton`](SkUiButton.md#image-and-content-layout)) |
 | `SkUiTextLineBreaker` / `SkUiTextLineBreakers` | Custom line breaking for labels on both layers, and the stock breakers ([SkUiLabel.md](SkUiLabel.md#custom-line-breaking)) |
-| `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Toggles: `CheckState` (Unchecked / Checked / Indeterminate), `IsChecked` view, `IsThreeState`; Switch `IsToggled` / `Toggled`; radio buttons in the same parent exclude each other |
+| `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Toggles: `CheckState` (Unchecked / Checked / Indeterminate), `IsChecked` view, `IsThreeState`; Switch `IsToggled` / `Toggled`; radio buttons only check on tap and do not group themselves: `SkUiCoreRadioButtons.Group(buttons, onChecked)` makes a list exclude each other (dispose to stop), `Uncheck(buttons)` and `node.UncheckRadioButtons(excluded, recursive)` uncheck them. A bare circle: compose labels and borders around it (`SkUiRadioButton` has MAUI's `Content`) |
 | `SkUiCoreSlider` | Horizontal or vertical slider (`Minimum` / `Maximum` / `Value`, drag events, `SetThumbImageSource`) |
 | `SkUiCoreProgressBar` | Determinate or indeterminate (render-thread) progress bar, `ProgressTo` |
 | `SkUiCoreShape` / `Ellipse` / `Line` / `Rectangle` / `RoundRectangle` / `Path` / `Polygon` / `Polyline` | MAUI's shape model with MAUI Graphics types: `Fill` / `Stroke` paints (`SetFill(Color)`, gradients), `StrokeThickness`, dashes, `LineCap` / `LineJoin`, `SkUiCoreStretch` aspect; paths from `PathF` or markup ([SkUiShape.md](SkUiShape.md)) |
 | `SkUiCoreBox` | BoxView twin: `Color` (else `Background`), per-corner `CornerRadius`, 40 × 40 unless sized |
 | `SkUiCoreImage` / `SkUiCoreImageButton` | Image from an `SkUiImageSource` (`SetSource`, or `SetSourceFile` (`MauiImage` / raw asset / path), `SetSourceUri`, `SetSourceStream(open, cacheKey)`, `SetSourceFont`) or a decoded `SKImage` (`SetImage`), through the cache shared with SkUi* images; `SetTransformations`, `SetDownsample`, `SetCacheType`, `SetIsAnimationPlaying`, `SetLoadingPlaceholder` / `SetErrorPlaceholder`, `LoadingStarted` / `LoadingFinished` ([SkUiImage.md](SkUiImage.md)). The button adds tap/tint, `Pressed` / `Released`, `Padding`, `CornerRadii` clip (`SetCornerRadius(double)`), border. No MAUI `ImageSource` |
 | `SkUiCoreActivityIndicator` | Indeterminate spinner, rotated by the compositor on the render thread |
-| `SkUiCoreScrollView` | Scroller on the shared scroll engine: offsets, render-thread fling / animated scroll, wheel, nesting with Core and SkUi* scrollers |
+| `SkUiCoreScrollView` | Scroller on the shared scroll engine: offsets, render-thread fling / animated scroll, wheel (both axes), nesting with Core and SkUi* scrollers; scroll bars (`SetHorizontalScrollBarVisibility`, `SetVerticalScrollBarVisibility`), overscroll (`SetOverscroll`), snap points (`SetSnapPointsType`, `SetSnapPointsAlignment`), `ScrollToAsync(SkUiCoreNode, ScrollToPosition, bool)` / `GetScrollPositionForNode` ([SkUiScrollView.md](SkUiScrollView.md)) |
+| `SkUiCoreScrollBar` | A scroll bar of a drawn scroller ([below](#scroll-bars)) |
 | `SkUiCoreHost` | `SkUiView` bridge that hosts one Core root |
 
 Core types intentionally do **not** implement `IView` and are **not** accepted by `SkUiLayout.Children`. Mixing requires `SkUiCoreHost`.
@@ -199,3 +200,22 @@ Demo **Stress test** page: toggle **Core layer** to build the same two-column gr
 - `SkUiLabel` / `SkUiButton` delegate measure & paint to Core instances (today they are separate types that share the internal text engine and the `SkUiLook` chrome)
 
 Already shipped: hand-rolled INPC on `SkUiCoreNode` with `ICommand` commands (`SkUiCoreCommand` helper); fluent `Set*` as the single apply path, with CLR setters calling `Set*`; shared painters, default sizes and state-change transitions via **`SkUiLook`** (FR-18, FR-26: Core toggles, buttons, sliders and progress bars animate like their SkUi* counterparts, through the same internal animators; `ShowsPressEffect` on any node gives a composite button, e.g. a `SkUiCoreBorder` holding an icon and labels, the look's press feedback: see the "Composite buttons" demo) and the shared palette via **`SkUiColorScheme`** / **`SkUiColors`** (FR-19) — neither is MAUI Style/VSM (FR-12); Grid, Table and ScrollView layouts.
+
+## Scroll bars
+
+`SkUiCoreScrollBar` is the scroll bar of `SkUiScrollView` and `SkUiCoreScrollView`: both expose theirs as `VerticalScrollBar` / `HorizontalScrollBar` (shown by `VerticalScrollBarVisibility` / `HorizontalScrollBarVisibility`). The bar is the track, a Core node pinned to the viewport edge; its thumb is a child placed by a scroll link, so the compositor moves it from the scroll offset during render-thread flings and fades it, with nothing recorded.
+
+| Member | Meaning |
+| --- | --- |
+| `SkUiCoreScrollBar(SkUiScrollView, ScrollOrientation)`, `SkUiCoreScrollBar(SkUiCoreScrollView, ScrollOrientation)` | A bar placed by the app that follows the scroller from anywhere in the same surface (held weakly by the scroller) |
+| `Orientation` | `Vertical` or `Horizontal` |
+| `Visibility` / `SetVisibility` | `Default` (shows while scrolling, fades out), `Always`, `Never`; a scroller's own bar follows the scroller's property (setting it throws) |
+| `ThumbColor` / `SetThumbColor` | `null`: the scheme's foreground at 40 % |
+| `IsInteractive` / `SetIsInteractive` | A hovering pointer expands the bar and can drag the thumb or page (default `true`) |
+| `IsExpanded`, `IsDragging` | Hovered or dragged (thicker, with its track); the thumb is being dragged |
+
+```csharp
+var list = new SkUiCoreScrollView().SetVerticalScrollBarVisibility(ScrollBarVisibility.Never);
+var bar = new SkUiCoreScrollBar(list, ScrollOrientation.Vertical).SetVisibility(ScrollBarVisibility.Always);
+var row = new SkUiCoreHorizontalStackLayout().Add(list).Add(bar); // the bar beside the list
+```

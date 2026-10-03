@@ -61,18 +61,18 @@ public sealed class ImageLoadingTests : IDisposable
         await File.WriteAllBytesAsync(path, Png(SKColors.Red));
         var loads = SkUiImageLoader.LoadCount;
 
-        using var first = new SkUiImage { Source = ImageSource.FromFile(path) };
+        var first = new SkUiImage { Source = ImageSource.FromFile(path) };
         await first.LoadingTask;
         Assert.Equal(new Size(40, 20), first.ImageSize);
         Assert.Equal(loads + 1, SkUiImageLoader.LoadCount);
 
-        using var second = new SkUiImage { Source = ImageSource.FromFile(path) };
+        var second = new SkUiImage { Source = ImageSource.FromFile(path) };
         Assert.True(second.LoadingTask.IsCompleted); // a memory hit applies synchronously: no empty frame
         Assert.False(second.IsLoading);
         Assert.Equal(new Size(40, 20), second.ImageSize);
         Assert.Same(first.CachedImage, second.CachedImage);
 
-        using var core = new SkUiCoreImage().SetSourceFile(path); // Core shares the cache
+        var core = new SkUiCoreImage().SetSourceFile(path); // Core shares the cache
         Assert.Same(first.CachedImage, core.CachedImage);
         Assert.Equal(loads + 1, SkUiImageLoader.LoadCount);
     }
@@ -90,8 +90,8 @@ public sealed class ImageLoadingTests : IDisposable
             return new MemoryStream(bytes);
         }, Key());
 
-        using var leaving = new SkUiCoreImage().SetSource(source);
-        using var staying = new SkUiCoreImage().SetSource(source);
+        var leaving = new SkUiCoreImage().SetSource(source);
+        var staying = new SkUiCoreImage().SetSource(source);
         Assert.True(leaving.IsLoading && staying.IsLoading);
         leaving.Clear(); // one waiter leaves: the shared load goes on for the other
         gate.SetResult();
@@ -114,7 +114,7 @@ public sealed class ImageLoadingTests : IDisposable
             throw new InvalidOperationException("not reached");
         }, Key());
 
-        using var image = new SkUiCoreImage().SetSource(source);
+        var image = new SkUiCoreImage().SetSource(source);
         var loadToken = await token.Task;
         image.Clear();
         await WaitUntil(() => loadToken.IsCancellationRequested); // the last waiter leaving cancels the shared work
@@ -125,7 +125,7 @@ public sealed class ImageLoadingTests : IDisposable
     [Fact]
     public async Task EntriesLiveWhileShownAndAreDisposedAfterEvictionAndRelease()
     {
-        using var shown = new SkUiCoreImage().SetSourceStream(Open(Png(SKColors.Red)), Key());
+        var shown = new SkUiCoreImage().SetSourceStream(Open(Png(SKColors.Red)), Key());
         await shown.LoadingTask;
         var entry = shown.CachedImage!;
         Assert.Equal(1, SkUiImageCache.MemoryCacheCount);
@@ -134,13 +134,13 @@ public sealed class ImageLoadingTests : IDisposable
         SkUiImageCache.ClearMemoryCache();
         Assert.Equal(0, SkUiImageCache.MemoryCacheCount);
         Assert.False(entry.IsReleased); // the view still shows it
-        shown.Dispose();
+        shown.Clear(); // releases its reference
         Assert.True(entry.IsReleased);
 
         var cached = new SkUiCoreImage().SetSourceStream(Open(Png(SKColors.Blue)), Key());
         await cached.LoadingTask;
         var kept = cached.CachedImage!;
-        cached.Dispose();
+        cached.Clear();
         Assert.False(kept.IsReleased); // the cache keeps it for the next view
         SkUiImageCache.ClearMemoryCache();
         Assert.True(kept.IsReleased);
@@ -158,16 +158,16 @@ public sealed class ImageLoadingTests : IDisposable
             await image.LoadingTask;
             images.Add(image);
             if (key == keys[1])
-                new SkUiCoreImage().SetSourceStream(Open(Png(SKColors.Red)), keys[0]).Dispose(); // touch the first
+                new SkUiCoreImage().SetSourceStream(Open(Png(SKColors.Red)), keys[0]).Clear(); // touch the first
         }
         Assert.Equal(2, SkUiImageCache.MemoryCacheCount);
         var loads = SkUiImageLoader.LoadCount;
-        using var first = new SkUiCoreImage().SetSourceStream(Open(Png(SKColors.Red)), keys[0]);
+        var first = new SkUiCoreImage().SetSourceStream(Open(Png(SKColors.Red)), keys[0]);
         Assert.Equal(loads, SkUiImageLoader.LoadCount); // recently used: still cached
-        using var second = new SkUiCoreImage().SetSourceStream(Open(Png(SKColors.Red)), keys[1]);
+        var second = new SkUiCoreImage().SetSourceStream(Open(Png(SKColors.Red)), keys[1]);
         await second.LoadingTask;
         Assert.Equal(loads + 1, SkUiImageLoader.LoadCount); // the least recently used went
-        images.ForEach(image => image.Dispose());
+        images.ForEach(image => image.Clear());
     }
 
     [Fact]
@@ -175,15 +175,15 @@ public sealed class ImageLoadingTests : IDisposable
     {
         var opens = 0;
         var bytes = Png(SKColors.Red);
-        using var a = new SkUiCoreImage().SetSourceStream(Open(bytes, () => opens++));
-        using var b = new SkUiCoreImage().SetSourceStream(Open(bytes, () => opens++));
+        var a = new SkUiCoreImage().SetSourceStream(Open(bytes, () => opens++));
+        var b = new SkUiCoreImage().SetSourceStream(Open(bytes, () => opens++));
         await Task.WhenAll(a.LoadingTask, b.LoadingTask);
         Assert.Equal(2, opens);
         Assert.NotSame(a.CachedImage, b.CachedImage);
 
         var key = Key();
-        using var c = new SkUiCoreImage().SetCacheType(SkUiImageCacheType.None).SetSourceStream(Open(bytes, () => opens++), key);
-        using var d = new SkUiCoreImage().SetCacheType(SkUiImageCacheType.Disk).SetSourceStream(Open(bytes, () => opens++), key);
+        var c = new SkUiCoreImage().SetCacheType(SkUiImageCacheType.None).SetSourceStream(Open(bytes, () => opens++), key);
+        var d = new SkUiCoreImage().SetCacheType(SkUiImageCacheType.Disk).SetSourceStream(Open(bytes, () => opens++), key);
         await Task.WhenAll(c.LoadingTask, d.LoadingTask);
         Assert.Equal(4, opens);
         Assert.Equal(0, SkUiImageCache.MemoryCacheCount);
@@ -194,15 +194,15 @@ public sealed class ImageLoadingTests : IDisposable
     {
         var key = Key();
         var bytes = Png(SKColors.Red, 400, 200);
-        using var full = new SkUiCoreImage().SetSourceStream(Open(bytes), key);
-        using var thumb = new SkUiCoreImage().SetDownsample(100, 0).SetSourceStream(Open(bytes), key);
+        var full = new SkUiCoreImage().SetSourceStream(Open(bytes), key);
+        var thumb = new SkUiCoreImage().SetDownsample(100, 0).SetSourceStream(Open(bytes), key);
         await Task.WhenAll(full.LoadingTask, thumb.LoadingTask);
         Assert.Equal(400, full.CachedImage!.Frames[0].Width);
         Assert.Equal((100, 50), (thumb.CachedImage!.Frames[0].Width, thumb.CachedImage.Frames[0].Height));
         Assert.Equal(new Size(400, 200), thumb.ImageSize);
         Assert.Equal(2, SkUiImageCache.MemoryCacheCount);
 
-        using var bounded = new SkUiImage { DownsampleHeight = 20, Source = ImageSource.FromStream(() => new MemoryStream(bytes)) };
+        var bounded = new SkUiImage { DownsampleHeight = 20, Source = ImageSource.FromStream(() => new MemoryStream(bytes)) };
         await bounded.LoadingTask;
         Assert.Equal((40, 20), (bounded.CachedImage!.Frames[0].Width, bounded.CachedImage.Frames[0].Height));
         Assert.Equal(new Size(400, 200), bounded.ImageSize);
@@ -213,8 +213,8 @@ public sealed class ImageLoadingTests : IDisposable
     {
         var key = Key();
         var bytes = Png(SKColors.Red);
-        using var plain = new SkUiCoreImage().SetSourceStream(Open(bytes), key);
-        using var circle = new SkUiCoreImage().SetTransformations(new SkUiCircleTransformation(2, Colors.Blue)).SetSourceStream(Open(bytes), key);
+        var plain = new SkUiCoreImage().SetSourceStream(Open(bytes), key);
+        var circle = new SkUiCoreImage().SetTransformations(new SkUiCircleTransformation(2, Colors.Blue)).SetSourceStream(Open(bytes), key);
         await Task.WhenAll(plain.LoadingTask, circle.LoadingTask);
         Assert.Equal(new Size(40, 20), plain.ImageSize);
         Assert.Equal(new Size(20, 20), circle.ImageSize); // cropped to the centered square
@@ -226,7 +226,7 @@ public sealed class ImageLoadingTests : IDisposable
         Assert.True(bitmap.GetPixel(10, 0).Blue > 200); // border inside the circle
 
         // The SkUi* list: adding an item reloads with it.
-        using var image = new SkUiImage { Source = ImageSource.FromStream(() => new MemoryStream(bytes)) };
+        var image = new SkUiImage { Source = ImageSource.FromStream(() => new MemoryStream(bytes)) };
         await image.LoadingTask;
         image.Transformations.Add(new SkUiRotateTransformation(90));
         await image.LoadingTask;
@@ -245,7 +245,7 @@ public sealed class ImageLoadingTests : IDisposable
             canvas.Clear(SKColors.Blue);
             canvas.DrawRect(0, 0, 20, 20, new SKPaint { Color = SKColors.Red });
         }
-        using var image = new SkUiCoreImage().SetSourceStream(Open(JpegWithOrientation(bitmap, orientation: 6)));
+        var image = new SkUiCoreImage().SetSourceStream(Open(JpegWithOrientation(bitmap, orientation: 6)));
         await image.LoadingTask;
         Assert.Null(image.LoadError);
         Assert.Equal(new Size(20, 40), image.ImageSize); // turned a quarter clockwise: the left (red) half is on top
@@ -280,7 +280,7 @@ public sealed class ImageLoadingTests : IDisposable
         Assert.Equal([100, 100], decoded.Durations);
         foreach (var frame in decoded.Frames) frame.Dispose();
 
-        using var image = new SkUiImage { Aspect = Aspect.Fill, Source = ImageSource.FromStream(() => new MemoryStream(gif)) };
+        var image = new SkUiImage { Aspect = Aspect.Fill, Source = ImageSource.FromStream(() => new MemoryStream(gif)) };
         await image.LoadingTask;
         using var surface = new SkUiTestSurface(image, 10, 10);
         Assert.Equal(SKColors.Red, surface.Frame().GetPixel(5, 5)); // not playing: the first frame
@@ -338,7 +338,7 @@ public sealed class ImageLoadingTests : IDisposable
         var bytes = encoded.ToArray();
         var flip = new SkUiFlipTransformation { Horizontal = true };
         var gate = new TaskCompletionSource();
-        using var image = new SkUiCoreImage().SetTransformations([flip]);
+        var image = new SkUiCoreImage().SetTransformations([flip]);
         var loading = image.SetSourceStream(async token => { await gate.Task.WaitAsync(token); return new MemoryStream(bytes); }, Key()).LoadingTask;
         flip.Horizontal = false; // during the load: applies on the next one
         gate.SetResult();
@@ -380,7 +380,7 @@ public sealed class ImageLoadingTests : IDisposable
     public void FontGlyphImagesRenderSynchronouslyThroughTheFontPipeline()
     {
         using var font = SkUiTestHelpers.UseBundledFont();
-        using var image = new SkUiImage
+        var image = new SkUiImage
         {
             Source = new FontImageSource { Glyph = "M", FontFamily = SkUiTestHelpers.BundledFontFamily, Size = 20, Color = Colors.Red }
         };
@@ -395,10 +395,10 @@ public sealed class ImageLoadingTests : IDisposable
                 red = bitmap.GetPixel(x, y) is { Alpha: > 200, Red: > 200, Blue: < 60 };
         Assert.True(red);
 
-        using var core = new SkUiCoreImage().SetSourceFont("M", SkUiTestHelpers.BundledFontFamily, 20, Colors.Red);
+        var core = new SkUiCoreImage().SetSourceFont("M", SkUiTestHelpers.BundledFontFamily, 20, Colors.Red);
         Assert.Same(image.CachedImage, core.CachedImage);
 
-        using var white = new SkUiCoreImage().SetSourceFont("M", SkUiTestHelpers.BundledFontFamily, 40);
+        var white = new SkUiCoreImage().SetSourceFont("M", SkUiTestHelpers.BundledFontFamily, 40);
         Assert.InRange(white.ImageSize.Height, 40, 64); // MAUI's default color is white
         Assert.NotSame(image.CachedImage, white.CachedImage);
     }
@@ -411,32 +411,40 @@ public sealed class ImageLoadingTests : IDisposable
         var uri = new Uri($"https://images.test/{Key()}.png");
         var directory = SkUiImageCache.DiskCacheDirectory;
 
-        using (var first = new SkUiCoreImage().SetSourceUri(uri))
         {
+            var first = new SkUiCoreImage().SetSourceUri(uri);
             await first.LoadingTask;
             Assert.Null(first.LoadError);
             Assert.Equal(new Size(40, 20), first.ImageSize);
+            first.Clear();
         }
         Assert.Equal(1, handler.Requests);
         var file = await WaitForSingleFile(directory);
 
         SkUiImageCache.ClearMemoryCache();
-        using (var fromDisk = new SkUiCoreImage().SetSourceUri(uri))
         {
+            var fromDisk = new SkUiCoreImage().SetSourceUri(uri);
             await fromDisk.LoadingTask;
             Assert.Equal(new Size(40, 20), fromDisk.ImageSize);
+            fromDisk.Clear();
         }
         Assert.Equal(1, handler.Requests);
 
         SkUiImageCache.ClearMemoryCache();
-        using (var uncached = new SkUiImage { Source = new UriImageSource { Uri = uri, CachingEnabled = false } })
+        {
+            var uncached = new SkUiImage { Source = new UriImageSource { Uri = uri, CachingEnabled = false } };
             await uncached.LoadingTask;
+            uncached.Source = null;
+        }
         Assert.Equal(2, handler.Requests);
 
         SkUiImageCache.ClearMemoryCache();
         File.SetLastWriteTimeUtc(file, DateTime.UtcNow - TimeSpan.FromDays(2)); // older than the default day
-        using (var expired = new SkUiCoreImage().SetSourceUri(uri))
+        {
+            var expired = new SkUiCoreImage().SetSourceUri(uri);
             await expired.LoadingTask;
+            expired.Clear();
+        }
         Assert.Equal(3, handler.Requests);
         await WaitUntil(() => File.Exists(file) && DateTime.UtcNow - File.GetLastWriteTimeUtc(file) < TimeSpan.FromHours(1));
 
@@ -453,21 +461,27 @@ public sealed class ImageLoadingTests : IDisposable
         SkUiImageCache.CacheKeyFactory = SkUiImageCacheKeys.IgnoreQueryParameters("token");
         var path = $"https://images.test/{Key()}.png";
 
-        using var first = new SkUiImage { Source = ImageSource.FromUri(new Uri(path + "?size=s&token=aaa")) };
+        var first = new SkUiImage { Source = ImageSource.FromUri(new Uri(path + "?size=s&token=aaa")) };
         await first.LoadingTask;
-        using var second = new SkUiCoreImage().SetSourceUri(new Uri(path + "?token=bbb&size=s"));
+        var second = new SkUiCoreImage().SetSourceUri(new Uri(path + "?token=bbb&size=s"));
         await second.LoadingTask;
         Assert.Equal(1, handler.Requests);
         Assert.Same(first.CachedImage, second.CachedImage);
         var file = await WaitForSingleFile(SkUiImageCache.DiskCacheDirectory);
 
         SkUiImageCache.ClearMemoryCache();
-        using (var fromDisk = new SkUiCoreImage().SetSourceUri(new Uri(path + "?token=ccc&size=s")))
+        {
+            var fromDisk = new SkUiCoreImage().SetSourceUri(new Uri(path + "?token=ccc&size=s"));
             await fromDisk.LoadingTask;
+            fromDisk.Clear();
+        }
         Assert.Equal(1, handler.Requests); // a new token, the same download on disk
 
-        using (var otherSize = new SkUiCoreImage().SetSourceUri(new Uri(path + "?size=l&token=aaa")))
+        {
+            var otherSize = new SkUiCoreImage().SetSourceUri(new Uri(path + "?size=l&token=aaa"));
             await otherSize.LoadingTask;
+            otherSize.Clear();
+        }
         Assert.Equal(2, handler.Requests); // parameters that are not ignored still count
 
         await SkUiImageCache.RemoveAsync(new Uri(path + "?size=s&token=zzz"));
@@ -480,19 +494,19 @@ public sealed class ImageLoadingTests : IDisposable
         var bytes = Png(SKColors.Red);
         var opens = 0;
         SkUiImageCache.CacheKeyFactory = source => source is SkUiStreamImageSource ? "avatar-7" : null;
-        using var a = new SkUiImage { Source = ImageSource.FromStream(() => { opens++; return new MemoryStream(bytes); }) };
+        var a = new SkUiImage { Source = ImageSource.FromStream(() => { opens++; return new MemoryStream(bytes); }) };
         await a.LoadingTask;
-        using var b = new SkUiImage { Source = ImageSource.FromStream(() => { opens++; return new MemoryStream(bytes); }) };
+        var b = new SkUiImage { Source = ImageSource.FromStream(() => { opens++; return new MemoryStream(bytes); }) };
         Assert.Equal(1, opens); // keyed by the factory: the second stream view is a cache hit
         Assert.Same(a.CachedImage, b.CachedImage);
 
         using var font = SkUiTestHelpers.UseBundledFont();
-        using var glyph = new SkUiCoreImage().SetSourceFont("M", SkUiTestHelpers.BundledFontFamily, 20); // null: default key
-        using var same = new SkUiCoreImage().SetSourceFont("M", SkUiTestHelpers.BundledFontFamily, 20);
+        var glyph = new SkUiCoreImage().SetSourceFont("M", SkUiTestHelpers.BundledFontFamily, 20); // null: default key
+        var same = new SkUiCoreImage().SetSourceFont("M", SkUiTestHelpers.BundledFontFamily, 20);
         Assert.Same(glyph.CachedImage, same.CachedImage);
 
         SkUiImageCache.CacheKeyFactory = _ => throw new FormatException("bad key");
-        using var failed = new SkUiCoreImage().SetSourceStream(Open(bytes));
+        var failed = new SkUiCoreImage().SetSourceStream(Open(bytes));
         await failed.LoadingTask;
         Assert.IsType<FormatException>(Assert.IsType<InvalidOperationException>(failed.LoadError).InnerException);
     }
@@ -515,8 +529,11 @@ public sealed class ImageLoadingTests : IDisposable
         var bytes = Png(SKColors.Red);
         SkUiImageCache.HttpClient = new HttpClient(new StubHandler(bytes));
         Assert.Equal(0, await SkUiImageCache.GetDiskCacheBytesAsync());
-        using (var image = new SkUiCoreImage().SetSourceUri(new Uri($"https://images.test/{Key()}.png")))
+        {
+            var image = new SkUiCoreImage().SetSourceUri(new Uri($"https://images.test/{Key()}.png"));
             await image.LoadingTask;
+            image.Clear();
+        }
         await WaitForSingleFile(SkUiImageCache.DiskCacheDirectory);
         Assert.Equal(bytes.Length, await SkUiImageCache.GetDiskCacheBytesAsync());
         Assert.Equal(1, SkUiImageCache.MemoryCacheCount);
@@ -525,8 +542,11 @@ public sealed class ImageLoadingTests : IDisposable
         Assert.Equal(0, SkUiImageCache.MemoryCacheCount);
         Assert.Equal(bytes.Length, await SkUiImageCache.GetDiskCacheBytesAsync());
 
-        using (var image = new SkUiCoreImage().SetSourceStream(Open(bytes), Key()))
+        {
+            var image = new SkUiCoreImage().SetSourceStream(Open(bytes), Key());
             await image.LoadingTask;
+            image.Clear();
+        }
         var unrelated = Path.Combine(SkUiImageCache.DiskCacheDirectory, "notes.txt");
         await File.WriteAllTextAsync(unrelated, "the folder is the app's choice");
         await SkUiImageCache.ClearAsync(); // both
@@ -554,7 +574,7 @@ public sealed class ImageLoadingTests : IDisposable
     {
         var gate = new TaskCompletionSource();
         var bytes = Png(SKColors.Red, 40, 40);
-        using var image = new SkUiCoreImage()
+        var image = new SkUiCoreImage()
             .SetLoadingPlaceholder(SkUiImageSource.FromStream(Open(Png(SKColors.Blue, 10, 10)), Key()))
             .SetErrorPlaceholder(SkUiImageSource.FromStream(Open(Png(SKColors.Black, 30, 30)), Key()));
         image.SetSourceStream(async token => { await gate.Task.WaitAsync(token); return new MemoryStream(bytes); });
@@ -575,7 +595,7 @@ public sealed class ImageLoadingTests : IDisposable
     public async Task TheErrorPlaceholderShowsAfterAFailureAndGoesWithTheNextSource()
     {
         var error = Png(SKColors.Black, 30, 30);
-        using var image = new SkUiImage
+        var image = new SkUiImage
         {
             ErrorPlaceholder = ImageSource.FromStream(() => new MemoryStream(error)),
             Source = ImageSource.FromStream(() => new MemoryStream([1, 2, 3]))
@@ -597,7 +617,7 @@ public sealed class ImageLoadingTests : IDisposable
     {
         var key = Key();
         var placeholder = SkUiImageSource.FromStream(Open(Png(SKColors.Blue)), key); // 40 × 20
-        using var image = new SkUiCoreImage().SetTransformations(new SkUiCircleTransformation()).SetErrorPlaceholder(placeholder);
+        var image = new SkUiCoreImage().SetTransformations(new SkUiCircleTransformation()).SetErrorPlaceholder(placeholder);
         await image.SetSourceStream(Open([1, 2, 3])).LoadingTask;
         await WaitUntil(() => image.IsShowingPlaceholder);
         Assert.Equal(new Size(20, 20), image.Measure(double.PositiveInfinity, double.PositiveInfinity)); // circle-cropped too
@@ -616,13 +636,13 @@ public sealed class ImageLoadingTests : IDisposable
         }
         var key = Key();
         var bytes = Png(SKColors.Red);
-        using var first = new SkUiCoreImage();
+        var first = new SkUiCoreImage();
         Track(first);
         await first.SetSourceStream(Open(bytes), key).LoadingTask;
         Assert.Equal(["start loading=True", "Succeeded Stream  40x20 loading=False"], events);
 
         events.Clear();
-        using var second = new SkUiCoreImage();
+        var second = new SkUiCoreImage();
         Track(second);
         second.SetSourceStream(Open(bytes), key); // memory hit: both events at once
         Assert.Equal(["start loading=False", "Succeeded MemoryCache  40x20 loading=False"], events);
@@ -638,7 +658,7 @@ public sealed class ImageLoadingTests : IDisposable
         var never = new SkUiCoreImage();
         Track(never);
         never.SetSourceStream(async token => { await Task.Delay(Timeout.Infinite, token); return Stream.Null; });
-        never.Dispose();
+        never.Clear(); // cancels the load
         Assert.Equal(["start loading=True", "Cancelled   0x0 loading=True"], events);
     }
 
@@ -651,19 +671,19 @@ public sealed class ImageLoadingTests : IDisposable
         var path = Path.Combine(_testDirectory, "origin.png");
         Directory.CreateDirectory(_testDirectory);
         await File.WriteAllBytesAsync(path, Png(SKColors.Red));
-        using var file = new SkUiImage();
+        var file = new SkUiImage();
         Track(file);
         file.Source = ImageSource.FromFile(path);
         await file.LoadingTask;
 
         using var font = SkUiTestHelpers.UseBundledFont();
-        using var glyph = new SkUiImage();
+        var glyph = new SkUiImage();
         Track(glyph);
         glyph.Source = new FontImageSource { Glyph = "Q", FontFamily = SkUiTestHelpers.BundledFontFamily, Size = 17 };
 
         SkUiImageCache.HttpClient = new HttpClient(new StubHandler(Png(SKColors.Red)));
         var uri = new Uri($"https://images.test/{Key()}.png");
-        using var web = new SkUiImage();
+        var web = new SkUiImage();
         Track(web);
         web.Source = ImageSource.FromUri(uri);
         await web.LoadingTask;
@@ -681,7 +701,7 @@ public sealed class ImageLoadingTests : IDisposable
         var handler = new StubHandler("<html></html>"u8.ToArray(), "text/html");
         SkUiImageCache.HttpClient = new HttpClient(handler);
         var page = new Uri($"https://images.test/{Key()}.png");
-        using var html = new SkUiCoreImage().SetSourceUri(page);
+        var html = new SkUiCoreImage().SetSourceUri(page);
         await html.LoadingTask;
         Assert.IsType<InvalidDataException>(html.LoadError);
         // Bytes that do not decode are not kept: the next load asks the server again.
@@ -691,7 +711,7 @@ public sealed class ImageLoadingTests : IDisposable
         Assert.Equal(2, handler.Requests);
 
         SkUiImageCache.HttpClient = new HttpClient(new StubHandler([], status: HttpStatusCode.NotFound));
-        using var missing = new SkUiImage { Source = ImageSource.FromUri(new Uri($"https://images.test/{Key()}.png")) };
+        var missing = new SkUiImage { Source = ImageSource.FromUri(new Uri($"https://images.test/{Key()}.png")) };
         await missing.LoadingTask;
         Assert.IsType<HttpRequestException>(missing.LoadError);
         Assert.False(missing.IsLoading);

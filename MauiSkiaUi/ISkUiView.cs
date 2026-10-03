@@ -23,7 +23,10 @@ public enum SkUiTouchAction
     Released,
     /// <summary>The platform cancelled the interaction.</summary>
     Cancelled,
-    /// <summary>A desktop wheel delta, positive towards the start of the scroll axis.</summary>
+    /// <summary>
+    /// A desktop wheel or trackpad scroll: <see cref="SkUiTouchEvent.WheelDelta"/> (vertical) and
+    /// <see cref="SkUiTouchEvent.WheelDeltaX"/> (horizontal), positive towards the start of each axis.
+    /// </summary>
     Wheel,
     /// <summary>
     /// A pointer moved over the surface without contact (mouse, trackpad, pen or iPad pointer hover): updates
@@ -35,4 +38,11 @@ public enum SkUiTouchAction
 }
 
 /// <summary>A pointer sample with a stable id and a local position in DIPs.</summary>
-public readonly record struct SkUiTouchEvent(long Id, SkUiTouchAction Action, Point Position, TimeSpan? Timestamp = null, double WheelDelta = 0);
+/// <param name="Id">Stable pointer id.</param>
+/// <param name="Action">The phase.</param>
+/// <param name="Position">Local position in DIPs.</param>
+/// <param name="Timestamp">Sample time (now when <c>null</c>).</param>
+/// <param name="WheelDelta">Vertical wheel / trackpad scroll in DIPs, positive towards the top (<see cref="SkUiTouchAction.Wheel"/>).</param>
+/// <param name="WheelDeltaX">Horizontal wheel / trackpad scroll in DIPs, positive towards the left (<see cref="SkUiTouchAction.Wheel"/>).</param>
+public readonly record struct SkUiTouchEvent(long Id, SkUiTouchAction Action, Point Position, TimeSpan? Timestamp = null, double WheelDelta = 0,
+    double WheelDeltaX = 0);

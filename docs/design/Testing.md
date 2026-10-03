@@ -23,6 +23,7 @@ Run `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj`. The library's 
 | `ToggleStateTests`, `SliderTests`, `ProgressBarTests` | Three-state toggles and binding write-back, slider range / input / scroll competition, progress fill / indeterminate slide / `ProgressTo` |
 | `TransitionTests` | FR-26 state-change transitions on a deterministic clock: switch slide and mid-way reversal (one re-record per frame), no animation before the first frame or with reduced motion, stopped clock jumps to the end, quick-tap press and ripple origin, ripple pixels, slider glide, progress smoothing, Core parity |
 | `AnimationClockTests` | Callbacks that dispose animations or stop the clock mid-tick; the internal stopped callback |
+| `ContentAndTemplateTests` | P9: button image measure and placement per `ContentLayout` (RTL, scaled-down images, Core pixels, MAUI markup); radio button text / view content, chrome; MAUI's RadioButton `ControlTemplate` sample with drawn views and `SkUiContentPresenter` |
 | `ComponentDemoTests` | One demo page per concrete control (editors/reset contract) |
 | `MemoryLeakTests` | Leak scenarios (below): nothing a scenario built survives its surfaces; the detector self-test; long-lived commands drop listeners |
 
@@ -51,6 +52,7 @@ One scenario catalog, [`tests/Shared/MemoryLeaks`](../../tests/Shared/MemoryLeak
 | `TogglesTapped` | Switch, check boxes (one three-state), radio group, tapped several times |
 | `SlidersAndProgress` | Horizontal, vertical and Core sliders dragged and tapped; progress bars animating and indeterminate at close |
 | `LabelsReshaped` | Wrapped, truncated, RTL, Arabic, emoji, Simple / Shaped labels; text and width changed repeatedly |
+| `ContentTemplated` | Buttons with images (a long-lived shared icon edited while shown); radio buttons with text and view content and a long-lived shared `ControlTemplate`: tapped, content swapped, template removed and applied again; Core radio buttons grouped by `SkUiCoreRadioButtons.Group` with a long-lived callback |
 | `ImagesReloaded` | Stream images: sources swapped, reloaded, aspect changed |
 | `LayoutsRelayout` | Grid, stacks, absolute layout, border: resized; children added, removed, reordered, hidden; definitions changed |
 | `ScrollFling` | Vertical list with a nested carousel: drags, flings, animated scroll; closed mid-fling |

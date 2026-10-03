@@ -260,6 +260,18 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         _mauiDeliverer = new SkUiTouchDeliverer(_mauiGate) { TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState };
         platformSurface.AddGestureRecognizer(_mauiGate);
         platformSurface.AddGestureRecognizer(_mauiDeliverer);
+        // Wheel and trackpad scrolling (the Metal view has its own). Weak: the view retains the recognizer natively.
+        var weak = new WeakReference<SkUiViewHandler>(this);
+        platformSurface.AddGestureRecognizer(new UIKit.UIPanGestureRecognizer(recognizer =>
+        {
+            if (weak.TryGetTarget(out var handler))
+                handler.OnAppleScroll(recognizer);
+        })
+        {
+            AllowedScrollTypesMask = UIKit.UIScrollTypeMask.All,
+            AllowedTouchTypes = [],
+            CancelsTouchesInView = false
+        });
         platformSurface.UserInteractionEnabled = true;
 #endif
 #if WINDOWS
@@ -270,13 +282,40 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             new Microsoft.UI.Xaml.Input.PointerEventHandler(OnSurfacePointerMoved), true);
         platformSurface.AddHandler(Microsoft.UI.Xaml.UIElement.PointerCaptureLostEvent,
             new Microsoft.UI.Xaml.Input.PointerEventHandler(OnSurfacePointerCaptureLost), true);
+        platformSurface.AddHandler(Microsoft.UI.Xaml.UIElement.PointerWheelChangedEvent,
+            new Microsoft.UI.Xaml.Input.PointerEventHandler(OnSurfaceWheel), true);
 #endif
         return platformSurface;
     }
 
+#if WINDOWS
+    /// <summary>Wheel and touchpad scrolling on the surface, with both axes (SkiaSharp reports one delta without its axis).</summary>
+    private void OnSurfaceWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+    {
+        if (args.Handled || sender is not Microsoft.UI.Xaml.UIElement element)
+            return;
+        // WinUI positions are in DIPs relative to the surface.
+        var point = args.GetCurrentPoint(element);
+        var (x, y) = SkUiOverlayContainer.WheelDeltas(point, args.KeyModifiers);
+        args.Handled = _renderer?.TouchDips(new(point.PointerId, SkUiTouchAction.Wheel,
+            new Point(point.Position.X, point.Position.Y), null, y, x)) == true;
+    }
+#endif
+
 #if IOS || MACCATALYST
     private SkUiNativeGestureGate? _mauiGate;
     private SkUiTouchDeliverer? _mauiDeliverer;
+
+    private void OnAppleScroll(UIKit.UIPanGestureRecognizer recognizer)
+    {
+        if (recognizer.View is not { } view)
+            return;
+        var translation = recognizer.TranslationInView(view);
+        recognizer.SetTranslation(CoreGraphics.CGPoint.Empty, view);
+        var location = recognizer.LocationInView(view);
+        if (translation.X != 0 || translation.Y != 0)
+            OnSurfaceTouch(new SkUiTouchEvent(0, SkUiTouchAction.Wheel, new Point(location.X, location.Y), null, translation.Y, translation.X));
+    }
 #endif
 
 #if WINDOWS
@@ -405,13 +444,53 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         SkUiLook.CurrentChanged += OnLookChanged;
         SkUiColorScheme.CurrentChanged += OnLookChanged;
         OnClockRunningChanged(this, EventArgs.Empty);
+        VirtualView.Router.NativeAncestorCanScroll = NativeAncestorCanScroll;
         QueueFrame();
         NotifyRootAttached(VirtualView);
+    }
+
+    /// <summary>
+    /// Whether a native scroller around the surface (a MAUI ScrollView, a list) can still scroll by this offset delta
+    /// (positive: towards the end): drawn scrollers at their edge leave such drags to it instead of overscrolling.
+    /// </summary>
+    private bool NativeAncestorCanScroll(double dx, double dy)
+    {
+#if ANDROID
+        for (var parent = _container?.Parent; parent is not null; parent = parent.Parent)
+            if (parent is Android.Views.View view
+                && ((dy != 0 && view.CanScrollVertically(dy > 0 ? 1 : -1)) || (dx != 0 && view.CanScrollHorizontally(dx > 0 ? 1 : -1))))
+                return true;
+#elif IOS || MACCATALYST
+        for (var parent = _container?.Superview; parent is not null; parent = parent.Superview)
+        {
+            if (parent is not UIKit.UIScrollView { ScrollEnabled: true } scroller)
+                continue;
+            var inset = scroller.AdjustedContentInset;
+            var offset = scroller.ContentOffset;
+            var maxX = scroller.ContentSize.Width - scroller.Bounds.Width + inset.Right;
+            var maxY = scroller.ContentSize.Height - scroller.Bounds.Height + inset.Bottom;
+            if ((dy > 0 && offset.Y < maxY - 0.5) || (dy < 0 && offset.Y > -inset.Top + 0.5)
+                || (dx > 0 && offset.X < maxX - 0.5) || (dx < 0 && offset.X > -inset.Left + 0.5))
+                return true;
+        }
+#elif WINDOWS
+        for (var parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(PlatformView); parent is not null;
+             parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(parent))
+        {
+            if (parent is not Microsoft.UI.Xaml.Controls.ScrollViewer viewer)
+                continue;
+            if ((dy > 0 && viewer.VerticalOffset < viewer.ScrollableHeight - 0.5) || (dy < 0 && viewer.VerticalOffset > 0.5)
+                || (dx > 0 && viewer.HorizontalOffset < viewer.ScrollableWidth - 0.5) || (dx < 0 && viewer.HorizontalOffset > 0.5))
+                return true;
+        }
+#endif
+        return false;
     }
 
     /// <inheritdoc />
     protected override void DisconnectHandler(PlatformView platformView)
     {
+        VirtualView.Router.NativeAncestorCanScroll = null;
         DetachHover();
         NotifyRootDetached(VirtualView);
         VirtualView.AnimationClock.RunningChanged -= OnClockRunningChanged;
@@ -724,6 +803,9 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #if ANDROID
         _hoverView = surface;
         surface.Hover += OnAndroidHover;
+        // Wheel and trackpad scrolling on the software surface (the GL view handles its own).
+        if (_gpu is null)
+            surface.GenericMotion += OnAndroidGenericMotion;
 #elif IOS || MACCATALYST
         // Weak: the view retains the recognizer natively, which would root this handler through the callback.
         var weak = new WeakReference<SkUiViewHandler>(this);
@@ -741,7 +823,10 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     {
 #if ANDROID
         if (_hoverView is not null)
+        {
             _hoverView.Hover -= OnAndroidHover;
+            _hoverView.GenericMotion -= OnAndroidGenericMotion;
+        }
         _hoverView = null;
 #elif IOS || MACCATALYST
         if (_hover is not null)
@@ -755,6 +840,16 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     }
 
 #if ANDROID
+    private void OnAndroidGenericMotion(object? sender, Android.Views.View.GenericMotionEventArgs args)
+    {
+        args.Handled = false;
+        if (args.Event is not { ActionMasked: Android.Views.MotionEventActions.Scroll } motion)
+            return;
+        var (x, y) = SkUiGlTextureView.WheelDeltas(motion);
+        if (x != 0 || y != 0)
+            args.Handled = _renderer?.TouchPixels(new(0, SkUiTouchAction.Wheel, new Point(motion.GetX(), motion.GetY()), null, y, x)) == true;
+    }
+
     private void OnAndroidHover(object? sender, Android.Views.View.HoverEventArgs args)
     {
         args.Handled = false;
@@ -802,6 +897,11 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         };
         if (action is null)
             return;
+#if WINDOWS
+        // SkiaSharp drops the wheel's axis: OnSurfaceWheel (after this handler) dispatches it with both axes.
+        if (action == SkUiTouchAction.Wheel)
+            return;
+#endif
         args.Handled = _renderer?.TouchPixels(new(args.Id, action.Value,
             new Point(args.Location.X, args.Location.Y), null, args.WheelDelta)) == true;
         if (SkUiDiagnostics.TraceOn)
@@ -1136,6 +1236,19 @@ internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.
 
     public SkUiOverlayContainer() => SizeChanged += OnSizeChanged;
 
+    /// <summary>
+    /// A WinUI wheel event as SkiaUi wheel deltas (positive towards the start): a tilt wheel or a touchpad's horizontal
+    /// scroll is horizontal (WinUI: positive scrolls right), and Shift turns a vertical wheel horizontal (the Windows
+    /// convention).
+    /// </summary>
+    internal static (double X, double Y) WheelDeltas(Microsoft.UI.Input.PointerPoint point, Windows.System.VirtualKeyModifiers modifiers)
+    {
+        var delta = point.Properties.MouseWheelDelta;
+        if (point.Properties.IsHorizontalMouseWheel)
+            return (-delta, 0);
+        return modifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift) ? (delta, 0) : (0, delta);
+    }
+
     private void OnSizeChanged(object sender, Microsoft.UI.Xaml.SizeChangedEventArgs args)
     {
         if (Children.Count > 0 && Children[0] is Microsoft.UI.Xaml.FrameworkElement surface && !_overlays.Values.Any(o => ReferenceEquals(o.Clip, surface)))
@@ -1313,10 +1426,8 @@ internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.
             if (args.Handled)
                 return;
             var point = args.GetCurrentPoint(_space);
-            if (point.Properties.IsHorizontalMouseWheel)
-                return;
-            _touch(new SkUiTouchEvent(++_nextPointer, SkUiTouchAction.Wheel, new Point(point.Position.X, point.Position.Y),
-                null, point.Properties.MouseWheelDelta));
+            var (x, y) = WheelDeltas(point, args.KeyModifiers);
+            _touch(new SkUiTouchEvent(++_nextPointer, SkUiTouchAction.Wheel, new Point(point.Position.X, point.Position.Y), null, y, x));
             args.Handled = true;
         }
 

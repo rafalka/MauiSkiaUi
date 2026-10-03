@@ -45,6 +45,14 @@ public class SkUiLook
     public void DrawSlider(SKCanvas canvas, SkUiSliderPaint slider) { … }            // → SliderPainter ?? DrawSliderCore
     public void DrawProgressBar(SKCanvas canvas, SkUiProgressBarPaint bar) { … }     // → ProgressBarPainter ?? DrawProgressBarCore
     public void DrawActivityIndicator(…) { … }                                      // → ActivityIndicatorPainter ?? DrawActivityIndicatorCore
+    // Scroll bar thumbs: drawn once per length and color into a Core node; the compositor moves and fades it.
+    public void DrawScrollBar(SKCanvas canvas, SkUiScrollBarPaint bar) { … }         // → ScrollBarPainter ?? DrawScrollBarCore
+    public void DrawScrollBarTrack(SKCanvas canvas, SkUiScrollBarTrackPaint track) { … } // expanded bars (hover) → ScrollBarTrackPainter ?? DrawScrollBarTrackCore
+    public virtual double ScrollBarThickness => 4;         // and ScrollBarMargin (2), ScrollBarMinimumThumbLength (24),
+                                                           // ScrollBarExpandedThickness (8), ScrollBarHitThickness (16),
+                                                           // ScrollBarReservedThickness (12: the gutter of a bar that always shows)
+    public virtual TimeSpan ScrollBarFadeDelay => TimeSpan.FromMilliseconds(500);     // and ScrollBarFadeDuration (250 ms)
+    public virtual SkUiOverscrollMode DefaultOverscroll => SkUiOverscrollMode.None; // DefaultSkUiLook: the platform's (Bounce on Apple, Stretch on Android)
     public virtual float SliderThumbRadius => 10;         // input maps touches to the thumb's center
     public virtual float IndeterminateProgressSegment => 0.35f;
     public virtual float IndeterminateProgressPeriod => 1.5f; // seconds; the compositor slides the bar on the render thread
@@ -62,6 +70,7 @@ public class SkUiLook
     public virtual Size DefaultSwitchSize => new(51, 31);
     public virtual Size DefaultCheckBoxSize => new(24, 24);
     public virtual Size DefaultRadioButtonSize => new(24, 24);
+    public virtual double DefaultRadioButtonContentSpacing => 8;   // circle to Content (text or a drawn view)
     public virtual Size DefaultActivityIndicatorSize => new(36, 36);
     public virtual double DefaultSliderThickness => 32;   // and DefaultSliderLength when unconstrained
     public virtual double DefaultProgressBarHeight => 4;  // and DefaultProgressBarLength

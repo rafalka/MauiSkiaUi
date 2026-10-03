@@ -61,7 +61,8 @@ public class ScrollViewTests
         var blue = new SkUiBox { Color = Colors.Blue };
         Grid.SetRow(blue, 1);
         grid.Children.Add(blue);
-        var scroll = new SkUiScrollView { Content = grid };
+        // Scroll bars would cover most of this 8 DIP viewport.
+        var scroll = new SkUiScrollView { Content = grid, VerticalScrollBarVisibility = ScrollBarVisibility.Never };
         SkUiTestHelpers.Arrange(scroll, 8, 8);
         scroll.ScrollTo(0, 4);
         using var bitmap = new SKBitmap(8 * density, 8 * density);
@@ -102,7 +103,7 @@ public class ScrollViewTests
         Grid.SetRow(blue, 1);
         grid.Children.Add(red);
         grid.Children.Add(blue);
-        var scroll = new SkUiScrollView { Content = grid };
+        var scroll = new SkUiScrollView { Content = grid, VerticalScrollBarVisibility = ScrollBarVisibility.Never };
         using var surface = new SkUiTestSurface(scroll, 8, 8);
 
         var bitmap = surface.Frame();
@@ -295,6 +296,12 @@ public class ScrollViewTests
         Assert.True(scroll.ScrollY > 60);
         surface.Frame(9000);
         Assert.False(scroll.IsMotionRunning);
+        // The scroll bar fades out on the render thread after the fling.
+        surface.Frame(9010);
+        surface.Frame(10000);
+        var bar = ((ISkUiScrollHost)scroll).Scroller.ScrollBars.Vertical!;
+        Assert.Equal(0, bar.Opacity);
+        surface.Frame(10010);
         Assert.False(surface.NeedsFrame);
         Assert.Equal(1, clicks);
     }

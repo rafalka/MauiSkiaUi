@@ -30,6 +30,7 @@ public static class LeakScenarios
         new("LabelsReshaped", Controls, "Wrapped, truncated, RTL, Arabic, emoji and Simple / Shaped labels; text and width changed repeatedly; formatted text (drawn and Core) with tappable spans bound to a long-lived command, tapped, restyled and replaced; HTML text with links (both layers), tapped and changed.", () => new LabelsRun()),
         new("ShapesRestyled", Controls, "Every shape (drawn and Core) and borders shaped by them, painted with long-lived shared brushes, dash arrays and a stroke shape; brushes, gradient stops, points, path data and stroke shapes changed; a border tapped.", () => new ShapesRun()),
         new("EffectsRestyled", Controls, "Gradient backgrounds, shadows (outline and content shadows, on both layers) and clips from long-lived shared brushes, geometries and Core shadows; brushes, gradient stops, shadows and clips changed while shown; shadowed cards scrolled and animated.", () => new EffectsRun()),
+        new("ContentTemplated", Controls, "Buttons with images (a long-lived shared icon, edited while shown; stream images; content layouts changed) on both layers; radio buttons with text and view content, bordered, and with a long-lived shared ControlTemplate whose presenters show the content; tapped, content swapped, the template removed and applied again; Core radio buttons in their own rows grouped by `SkUiCoreRadioButtons.Group` with a long-lived callback, tapped.", () => new ContentRun()),
         new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image; a long-lived icon source shared by images that are never disposed, edited while shown.", () => new ImagesRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
@@ -328,6 +329,115 @@ public static class LeakScenarios
             if (_taps != 2)
                 return $"The border was tapped {_taps} times, expected 2.";
             return _shapes.Any(shape => shape.Width <= 0) ? "A shape was not laid out." : null;
+        }
+    }
+
+    /// <summary>An app-level radio button template, as <c>&lt;ControlTemplate x:Key="Tile"&gt;</c> in a style: it outlives every screen.</summary>
+    private static readonly ControlTemplate SharedRadioTemplate = new(() =>
+    {
+        var root = new SkUiBorder { Stroke = LeakColors.Accent, StrokeThickness = 2, Padding = new Thickness(6), Content = new SkUiContentPresenter() };
+        var isChecked = new VisualState { Name = SkUiRadioButton.CheckedVisualState };
+        isChecked.Setters.Add(new Setter { Property = SkUiBorder.StrokeThicknessProperty, Value = 4d });
+        var isUnchecked = new VisualState { Name = SkUiRadioButton.UncheckedVisualState };
+        var group = new VisualStateGroup { Name = "CheckedStates" };
+        group.States.Add(isChecked);
+        group.States.Add(isUnchecked);
+        VisualStateManager.SetVisualStateGroups(root, [group]);
+        return root;
+    });
+
+    private sealed class ContentRun : LeakScenarioRun
+    {
+        private readonly List<SkUiButton> _buttons = [];
+        private readonly List<SkUiRadioButton> _radios = [];
+        private SkUiCoreButton? _coreButton;
+        private readonly SkUiCoreRadioButton[] _coreRadios = [new(), new(), new()];
+        private int _clicks;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var stack = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12) };
+            var buttons = new SkUiHorizontalStackLayout { Spacing = 8 };
+            foreach (var (image, position) in new (ImageSource, Button.ButtonContentLayout.ImagePosition)[]
+                     {
+                         (SharedIcon, Button.ButtonContentLayout.ImagePosition.Left), (LeakImages.Create(SKColors.Teal), Button.ButtonContentLayout.ImagePosition.Top),
+                     })
+            {
+                var button = new SkUiButton { Text = "Icon", ImageSource = image, ContentLayout = new Button.ButtonContentLayout(position, 6), Command = LeakCommands.Shared };
+                button.Clicked += (_, _) => _clicks++;
+                _buttons.Add(button);
+                buttons.Children.Add(button);
+            }
+            _coreButton = new SkUiCoreButton().SetImageSource(SkUiImageSource.FromStream(LeakImages.CachedStream(SKColors.Gold), "leak-gold"));
+            _coreButton.SetText("Core");
+            buttons.Children.Add(new SkUiCoreHost().SetContent(_coreButton));
+            stack.Children.Add(buttons);
+
+            var group = new SkUiVerticalStackLayout { Spacing = 4 };
+            RadioButtonGroup.SetGroupName(group, "leak-content");
+            _radios.Add(new SkUiRadioButton { Content = "Text content", Value = 1, BorderColor = LeakColors.Accent, BorderWidth = 1, CornerRadius = 6, Padding = new Thickness(4) });
+            _radios.Add(new SkUiRadioButton { Content = Text("View content"), Value = 2 });
+            _radios.Add(new SkUiRadioButton { Content = Text("Templated"), Value = 3, ControlTemplate = SharedRadioTemplate });
+            _radios.Add(new SkUiRadioButton { Content = "Templated text", Value = 4, ControlTemplate = SharedRadioTemplate });
+            foreach (var radio in _radios)
+                group.Children.Add(radio);
+            stack.Children.Add(group);
+
+            // Core radio buttons in their own rows, grouped by the helper; its callback belongs to a long-lived object
+            // and the group is never disposed: neither may keep the screen alive.
+            var coreColumn = new SkUiCoreVerticalStackLayout();
+            foreach (var radio in _coreRadios)
+            {
+                var row = new SkUiCoreHorizontalStackLayout().SetSpacing(6);
+                row.Add(radio);
+                row.Add(new SkUiCoreLabel().SetText("Core option"));
+                coreColumn.Add(row);
+            }
+            SkUiCoreRadioButtons.Group(_coreRadios, LeakSelection.Shared.Record);
+            stack.Children.Add(new SkUiCoreHost().SetContent(coreColumn));
+
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            foreach (var button in _buttons)
+                await context.WaitForAsync(button.ImageLoadingTask);
+            await context.WaitForAsync(_coreButton!.ImageLoadingTask);
+            await context.TapAsync(_buttons[0]);
+            SharedIcon.Glyph = SharedIcon.Glyph == "+" ? "-" : "+"; // the shared source edited while shown
+            _buttons[1].ContentLayout = new Button.ButtonContentLayout(Button.ButtonContentLayout.ImagePosition.Right, 10);
+            _buttons[1].ImageSource = LeakImages.Create(SKColors.Purple);
+            await context.WaitForAsync(_buttons[1].ImageLoadingTask);
+            foreach (var radio in _radios)
+                await context.TapAsync(radio);
+            await context.SettleAsync();
+
+            var replaced = Text("Replaced");
+            _radios[1].Content = replaced;
+            _radios[1].Content = "Text again";
+            context.TrackDetached(replaced, "replaced radio content");
+            _radios[2].ControlTemplate = null; // the content moves back beside the circle
+            await context.SettleAsync();
+            _radios[2].ControlTemplate = SharedRadioTemplate;
+            _radios[3].Content = Text("Templated view");
+            await context.SettleAsync();
+            foreach (var radio in _coreRadios)
+                await context.TapAsync(radio);
+            await context.TapAsync(_buttons[0]);
+        }
+
+        public override string? CheckInteraction()
+        {
+            if (_clicks != 2)
+                return $"The image button was clicked {_clicks} times, expected 2.";
+            if (_buttons.Concat<SkUiView>(_radios).Any(view => view.Width <= 0))
+                return "A button or radio button was not laid out.";
+            if (_radios[2].TemplateRoot is null || !_radios[3].IsChecked)
+                return "The template was not applied again, or the last radio button is not checked.";
+            if (!_coreRadios.Select(radio => radio.IsChecked).SequenceEqual([false, false, true]))
+                return "The grouped Core radio buttons did not exclude each other.";
+            return _buttons.Any(button => button.ImageLoadingTask is not { IsCompletedSuccessfully: true }) ? "A button image did not load." : null;
         }
     }
 
@@ -1160,6 +1270,16 @@ public static class LeakScenarios
             return root;
         }
     }
+}
+
+/// <summary>A long-lived selection store, as a view model or service that outlives screens.</summary>
+public sealed class LeakSelection
+{
+    public static LeakSelection Shared { get; } = new();
+
+    public int Count { get; private set; }
+
+    public void Record(SkUiCoreRadioButton radio) => Count++;
 }
 
 /// <summary>A command that outlives every page, like one on an app-wide view model.</summary>

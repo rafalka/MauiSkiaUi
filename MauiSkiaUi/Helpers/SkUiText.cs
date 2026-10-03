@@ -624,11 +624,15 @@ internal sealed class SkUiTextLayout
     /// <summary>
     /// Left edge of a line <paramref name="lineWidth"/> wide in the <paramref name="available"/> content width:
     /// <see cref="TextAlignment.Start"/> and <see cref="TextAlignment.End"/> follow the line's paragraph direction (Start
-    /// is the right edge for RTL); justified lines were stretched by the layout and sit at Start.
+    /// is the right edge for RTL); justified lines were stretched by the layout and sit at Start. A line wider than the
+    /// content (<see cref="LineBreakMode.NoWrap"/>) starts at Start whatever the alignment, as native labels and buttons
+    /// show it: its beginning stays visible.
     /// </summary>
     internal static float LineLeft(byte baseLevel, float lineWidth, TextAlignment horizontal, Thickness padding, double available)
     {
         var rtl = baseLevel % 2 == 1;
+        if (lineWidth > available)
+            horizontal = TextAlignment.Start;
         var alignment = horizontal switch
         {
             TextAlignment.Start or TextAlignment.Justify => rtl ? TextAlignment.End : TextAlignment.Start,

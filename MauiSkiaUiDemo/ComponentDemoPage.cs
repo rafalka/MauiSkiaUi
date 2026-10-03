@@ -55,7 +55,8 @@ public abstract class ComponentDemoPage : ContentPage
         _comparisons.Add(_skiaPanel);
         if (native is not null)
         {
-            _nativeArea = new Grid { Children = { native } };
+            // Clipped like the drawn host, so a native control larger than its area cannot cover the other panel or the editors.
+            _nativeArea = new Grid { IsClippedToBounds = true, Children = { native } };
             _nativePanel = MakePanel("MAUI", _nativeArea, out var status);
             _nativeStatus = status;
             _comparisons.Add(_nativePanel);
@@ -116,7 +117,8 @@ public abstract class ComponentDemoPage : ContentPage
         SkiaControl.WidthRequest = -1;
         SkiaControl.HeightRequest = -1;
         var natural = ((IView)SkiaControl).Measure(double.PositiveInfinity, double.PositiveInfinity);
-        // Controls without a natural size (empty views, layouts, scrollers) keep the old defaults.
+        // Controls without a natural size (empty views, layouts) keep the old defaults. Scrollers measure to their whole
+        // content, so their pages pass explicit size ranges instead.
         var width = natural.Width >= 1 ? Math.Ceiling(natural.Width) : 220;
         var height = natural.Height >= 1 ? Math.Ceiling(natural.Height) : 120;
         SetNumberInitial(nameof(View.WidthRequest), width, Math.Max(8, Math.Floor(width / 4)), Math.Max(width * 2, 320));
@@ -195,7 +197,9 @@ public abstract class ComponentDemoPage : ContentPage
             Grid.SetColumn(_nativePanel, IsWide ? 1 : 0);
             Grid.SetRow(_nativePanel, IsWide ? 0 : 1);
         }
-        _comparisons.HeightRequest = _areaHeight > 0 ? -1 : _nativePanel is not null && !IsWide ? 424 : _singlePanelHeight;
+        // Narrow screens stack the two panels, each as tall as a single one.
+        _comparisons.HeightRequest = _areaHeight > 0 ? -1
+            : _nativePanel is not null && !IsWide ? 2 * _singlePanelHeight + _comparisons.RowSpacing : _singlePanelHeight;
     }
 
     private double _singlePanelHeight = 206;

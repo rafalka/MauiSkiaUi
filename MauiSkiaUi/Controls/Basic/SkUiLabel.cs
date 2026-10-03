@@ -55,7 +55,7 @@ public class SkUiLabel : SkUiView
     /// <summary>Bindable bold and italic attributes.</summary>
     public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiLabel), FontAttributes.None, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontAttributesChanged((FontAttributes)value));
     /// <summary>Bindable wrapping or truncation mode.</summary>
-    public static readonly BindableProperty LineBreakModeProperty = BindableProperty.Create(nameof(LineBreakMode), typeof(LineBreakMode), typeof(SkUiLabel), LineBreakMode.WordWrap, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnLineBreakModeChanged((LineBreakMode)value));
+    public static readonly BindableProperty LineBreakModeProperty = BindableProperty.Create(nameof(LineBreakMode), typeof(LineBreakMode), typeof(SkUiLabel), LineBreakMode.WordWrap, defaultValueCreator: view => ((SkUiLabel)view).DefaultLineBreakMode, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnLineBreakModeChanged((LineBreakMode)value));
     /// <summary>Bindable horizontal text alignment.</summary>
     public static readonly BindableProperty HorizontalTextAlignmentProperty = BindableProperty.Create(nameof(HorizontalTextAlignment), typeof(TextAlignment), typeof(SkUiLabel), TextAlignment.Start, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextAlignment, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnHorizontalTextAlignmentChanged((TextAlignment)value));
     /// <summary>Bindable vertical text alignment.</summary>
@@ -117,6 +117,7 @@ public class SkUiLabel : SkUiView
         _textColor = DefaultTextColor;
         _horizontalTextAlignment = _verticalTextAlignment = DefaultTextAlignment;
         _padding = DefaultPadding;
+        _lineBreakMode = DefaultLineBreakMode;
         _chrome.SetRadii(new Microsoft.Maui.CornerRadius(DefaultCornerRadius));
     }
 
@@ -128,6 +129,8 @@ public class SkUiLabel : SkUiView
     protected virtual TextAlignment DefaultTextAlignment => TextAlignment.Start;
     /// <summary>Default inset used by derived controls and bindable value clearing.</summary>
     protected virtual Thickness DefaultPadding => default;
+    /// <summary>Default wrapping used by derived controls and bindable value clearing (labels wrap words; buttons, as MAUI's, do not wrap).</summary>
+    protected virtual LineBreakMode DefaultLineBreakMode => LineBreakMode.WordWrap;
 
     /// <summary>Text displayed by the control. Setting it (to any string) clears <see cref="FormattedText"/>, as on MAUI's Label.</summary>
     public string Text { get => (string?)GetValue(TextProperty) ?? string.Empty; set => SetValue(TextProperty, value); }
@@ -472,7 +475,7 @@ public class SkUiLabel : SkUiView
         IsHtml && SpanIndexAt(point) is var index and >= 0 && index < HtmlRuns.Count ? HtmlRuns[index].Style.Href : null;
 
     private int SpanIndexAt(Point point) =>
-        RichLayout.HitTest(RichText, TextStyle, _padding, Width, Height, _horizontalTextAlignment, _verticalTextAlignment, point);
+        RichLayout.HitTest(RichText, TextStyle, TextInset, Width, Height, _horizontalTextAlignment, _verticalTextAlignment, point);
 
     /// <inheritdoc />
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
@@ -528,26 +531,64 @@ public class SkUiLabel : SkUiView
         ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint)
         : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint);
 
+    /// <summary>The text's size without padding when wrapped to <paramref name="widthConstraint"/> (buttons place an image beside it).</summary>
+    private protected Size MeasureText(double widthConstraint) => UsesRichText
+        ? RichLayout.Measure(RichText, TextStyle, default, widthConstraint)
+        : _layout.Measure(_displayText, TextStyle, default, widthConstraint);
+
+    /// <summary>Whether there is text to draw (plain, spans or HTML).</summary>
+    private protected bool HasText => (UsesRichText ? RichText.Text : _displayText).Length > 0;
+
+    /// <summary>The text's slot in the arranged label, as an inset from its edges: <see cref="Padding"/> (buttons: beside their image).</summary>
+    private protected virtual Thickness TextInset => _padding;
+
+    /// <summary>Whether glyphs are clipped to the text's slot (<see cref="TextInset"/>), not only to the bounds: buttons keep text that does not fit out of their padding and image.</summary>
+    private protected virtual bool ClipsTextToInset => false;
+
+    /// <summary>Whether <see cref="PaintIcon"/> draws something (a button's image).</summary>
+    private protected virtual bool HasIcon => false;
+
+    /// <summary>Draws content beside the text (a button's image), clipped with it to the rounded corners.</summary>
+    private protected virtual void PaintIcon(SKCanvas canvas) { }
+
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        if ((UsesRichText ? RichText.Text : _displayText).Length == 0) return;
+        var hasText = HasText;
+        if (!hasText && !HasIcon) return;
         // Glyphs never bleed past the rounded corners.
         var saveCount = _chrome.ClipToRadii(canvas, (float)Width, (float)Height, _chrome.Radii);
-        try { PaintText(canvas); }
+        try
+        {
+            PaintIcon(canvas);
+            if (hasText)
+            {
+                if (ClipsTextToInset)
+                {
+                    var inset = TextInset;
+                    canvas.Save();
+                    canvas.ClipRect(new SKRect((float)inset.Left, (float)inset.Top, (float)(Width - inset.Right), (float)(Height - inset.Bottom)));
+                    PaintText(canvas);
+                    canvas.Restore();
+                }
+                else
+                    PaintText(canvas);
+            }
+        }
         finally { SkUiChromeState.EndClip(canvas, saveCount); }
     }
 
     private void PaintText(SKCanvas canvas)
     {
         var paint = _textPaint ??= new SKPaint { IsAntialias = true };
+        var inset = TextInset;
         if (UsesRichText)
         {
-            RichLayout.Draw(canvas, RichText, TextStyle, _padding, Width, Height, _horizontalTextAlignment, _verticalTextAlignment, paint);
+            RichLayout.Draw(canvas, RichText, TextStyle, inset, Width, Height, _horizontalTextAlignment, _verticalTextAlignment, paint);
             return;
         }
         paint.Color = ToSkColor(_textColor);
-        _layout.Draw(canvas, _displayText, TextStyle, _padding, Width, Height,
+        _layout.Draw(canvas, _displayText, TextStyle, inset, Width, Height,
             _horizontalTextAlignment, _verticalTextAlignment, paint, _textDecorations);
     }
 }

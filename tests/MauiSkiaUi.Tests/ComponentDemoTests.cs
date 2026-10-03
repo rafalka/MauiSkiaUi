@@ -44,6 +44,7 @@ public class ComponentDemoTests
     [Fact]
     public void AllPagesHaveWorkingEditorsAndResetWithoutHandlers()
     {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher(); // MAUI's RadioButton template binds its content labels
         foreach (var demo in ComponentDemos.All)
         {
             var page = demo.Create();
@@ -58,7 +59,6 @@ public class ComponentDemoTests
             page.ResetProperties();
             Assert.Empty(page.CheckProperties());
             Assert.Null(page.SkiaControl.Handler);
-            if (page.SkiaControl is SkUiImage image) image.Dispose();
         }
     }
 

@@ -9,7 +9,7 @@ Asynchronously loaded, Skia-drawn image with MAUI's sources and aspect modes, a 
 Changing `Source` (or a property of the source object) starts a load through the image loader that both layers share:
 
 1. **Memory cache.** If the same source with the same decode size and transformations was decoded before, the view shows it **synchronously**: no empty frame and no decode. Views of one source share one decoded image.
-2. **Shared load.** Views that ask for the same image at the same time share one download and one decode. The work is cancelled only when every one of them has let go (source changed, view disposed).
+2. **Shared load.** Views that ask for the same image at the same time share one download and one decode. The work is cancelled only when every one of them has let go (source changed or cleared).
 3. **Source.** The bytes come from the disk cache (downloads), the network, the app package, a file or a stream. Font glyphs are drawn through the text engine.
 4. **Decode** happens off the UI thread, a few images at a time. EXIF orientation is applied. Large images are decoded at reduced size (`SkUiImageDecoder.MaxDecodeDimension`, `DownsampleWidth` / `DownsampleHeight`). Animated GIF / WebP decode to all their frames.
 5. **Transformations** run off the UI thread. The result goes into the memory cache.
@@ -96,7 +96,7 @@ image.LoadingFinished += (_, e) =>
 
 | `SkUiImageLoadFinishedEventArgs` | Meaning |
 | --- | --- |
-| `Status` / `IsSuccess` | `Succeeded`, `Failed`, or `Cancelled` (the source changed, or the view was cleared or disposed, before the load finished) |
+| `Status` / `IsSuccess` | `Succeeded`, `Failed`, or `Cancelled` (the source changed or was cleared before the load finished) |
 | `Origin` | Where a successful image came from: `MemoryCache`, `DiskCache`, `Network`, `MauiImage`, `PackageAsset`, `File`, `Stream`, `Font`. A view that joined another view's load of the same image reports that load's origin |
 | `Error` | Why it failed |
 | `ImageSize`, `Elapsed`, `Source` | The image's intrinsic size, the load time, and the `SkUiImageSource` that was loaded (SkUi* views convert MAUI's `ImageSource`; read `image.Source` for the MAUI object) |
@@ -175,7 +175,7 @@ Transformations change the decoded pixels once. For clipping that follows the la
 
 ## Key properties
 
-`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `DownsampleWidth`, `DownsampleHeight`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `IsLoading`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`, `Dispose()`. Events: `LoadingStarted`, `LoadingFinished`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)`, `SetCacheType`, `SetDownsample(width, height)`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
+`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `DownsampleWidth`, `DownsampleHeight`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `IsLoading`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`. Events: `LoadingStarted`, `LoadingFinished`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)`, `SetCacheType`, `SetDownsample(width, height)`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
 
 `DownsampleWidth` / `DownsampleHeight` are DIPs at the display density (FFImageLoading's with `DownsampleUseDipUnits`). The image is decoded no larger than that, aspect kept, never upscaled. Use them for thumbnails of large photos.
 
@@ -192,7 +192,7 @@ Animated GIF / WebP play on the view's UI clock while `IsAnimationPlaying` is tr
 | `IsOpaque` | Not available (no effect on drawn images) |
 | SVG at runtime | Not yet: an SVG `MauiImage` works (as the PNG generated at build time); drawing `.svg` files at runtime is planned ([ImplementationPlan.md](../design/ImplementationPlan.md)) |
 | Size limits | 32 MiB encoded; decoded edge ≤ `MaxDecodeDimension` (2048 px) |
-| Disposal | Call `Dispose()` when permanently removing |
+| Disposal | Not needed (images are not `IDisposable`): a collected image releases its reference on the shared cache by itself; set `Source` to `null` (Core: `Clear()`) to release it at once |
 
 ## Related
 
