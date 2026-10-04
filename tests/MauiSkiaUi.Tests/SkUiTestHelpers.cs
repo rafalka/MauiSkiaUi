@@ -121,14 +121,18 @@ internal sealed class SkUiTestSurface : IDisposable
     }
 }
 
-/// <summary>Dispatcher provider that answers only on threads that enabled it (see <see cref="SkUiTestHelpers.UseTestDispatcher"/>).</summary>
+/// <summary>
+/// Dispatcher provider that answers only in the test flow that enabled it (see <see cref="SkUiTestHelpers.UseTestDispatcher"/>).
+/// Async-local, not thread-static: an async test resumes on another thread, and a thread-static dispatcher would stay on
+/// the first one, holding its queued work (and the views it captures) for the tests run there later.
+/// </summary>
 internal sealed class TestDispatcherProvider : IDispatcherProvider
 {
-    [ThreadStatic] private static TestDispatcher? _dispatcher;
+    private static readonly AsyncLocal<TestDispatcher?> _dispatcher = new();
     private static readonly object Gate = new();
     private static bool _installed;
 
-    public IDispatcher? GetForCurrentThread() => _dispatcher;
+    public IDispatcher? GetForCurrentThread() => _dispatcher.Value;
 
     public static IDisposable Enable()
     {
@@ -140,19 +144,19 @@ internal sealed class TestDispatcherProvider : IDispatcherProvider
                 _installed = true;
             }
         }
-        _dispatcher = new TestDispatcher();
+        _dispatcher.Value = new TestDispatcher();
         return new Scope();
     }
 
     private sealed class Scope : IDisposable
     {
-        public void Dispose() => _dispatcher = null;
+        public void Dispose() => _dispatcher.Value = null;
     }
 
-    /// <summary>Runs the delayed work queued on this thread's test dispatcher so far (it never runs by itself).</summary>
+    /// <summary>Runs the delayed work queued on this flow's test dispatcher so far (it never runs by itself).</summary>
     public static void RunDelayed()
     {
-        if (_dispatcher is not { } dispatcher)
+        if (_dispatcher.Value is not { } dispatcher)
             return;
         var pending = dispatcher.Delayed.ToArray();
         dispatcher.Delayed.Clear();
