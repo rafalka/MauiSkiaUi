@@ -13,6 +13,7 @@ Internal guide for working **on** SkiaUi (library + demo + tests). Library **use
 | `tests/MauiSkiaUi.DeviceTests` | .NET MAUI application (`net10.0-*`) | On-device memory-leak scenarios with real handlers and platform views (`scripts/device_tests.sh`) |
 | `benchmarks/MauiSkiaUi.Benchmarks` | Console app (`net10.0`) | Headless benchmark runner (layout / text / recording / compositing) |
 | `benchmarks/MauiSkiaUiBench` | .NET MAUI application (`net10.0-*`) | On-device benchmark app (Release); shares `benchmarks/Scenarios` with the headless runner |
+| `plugins/skiaui-migration` | Claude Code plugin (Agent Skills) | Migration skills for app developers (`skiaui-audit`, `skiaui-migrate`) with their Python checkers; listed by the repo marketplace `.claude-plugin/marketplace.json` ([README](plugins/skiaui-migration/README.md)) |
 
 Solution file: `SkiaUi.slnx`
 
@@ -110,6 +111,8 @@ Architecture, requirements, and mechanism checklists live under **[docs/design/]
 | [ArchitectureReview.md](docs/design/ArchitectureReview.md) | 2026-09 review vs DrawnUi / Flutter / Avalonia / Uno / Open-Maui and implementation status |
 
 Per-control user docs (NFR-5): [docs/controls/](docs/controls/README.md).
+
+Migration guide for app developers: [docs/Migration.md](docs/Migration.md). It and the migration skills (`plugins/skiaui-migration`: skill references and the control / gap tables in both scripts) describe the current MAUI parity and gaps: update them when a change adds parity, a control, or closes a gap.
 
 Cursor rule for public reference sources: [`.cursor/rules/reference-sources.mdc`](.cursor/rules/reference-sources.mdc).
 

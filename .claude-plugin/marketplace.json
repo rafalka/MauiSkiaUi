@@ -1,0 +1,12 @@
+{
+  "name": "skiaui",
+  "owner": { "name": "Rafal Kukla", "url": "https://github.com/rafalka" },
+  "description": "Agent skills for SkiaUi (SkiaUi.Maui), the Skia-drawn UI library for .NET MAUI.",
+  "plugins": [
+    {
+      "name": "skiaui-migration",
+      "source": "./plugins/skiaui-migration",
+      "description": "Audit a .NET MAUI app for a SkiaUi migration and convert pages, custom controls and gestures to drawn controls."
+    }
+  ]
+}
