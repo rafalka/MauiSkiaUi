@@ -292,4 +292,15 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
         OnPropertyChanged(nameof(ScrollY));
         Scrolled?.Invoke(this, new ScrolledEventArgs(ScrollX, ScrollY));
     }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        SkUiSemantics.PopulateScroller(info, _scroller);
+    }
+
+    /// <inheritdoc />
+    protected override bool OnSemanticsAction(SkUiSemanticsActions action) =>
+        SkUiSemantics.PerformScroll(_scroller, action) || base.OnSemanticsAction(action);
 }

@@ -721,4 +721,12 @@ public class SkUiCoreLabel : SkUiCoreNode
         _richLayout?.Invalidate();
         InvalidateMeasure();
     }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.Text;
+        info.Text = UsesRichText ? RichText.Text : _displayText;
+    }
 }

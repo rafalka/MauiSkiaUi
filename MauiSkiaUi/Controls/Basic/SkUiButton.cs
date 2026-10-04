@@ -260,4 +260,11 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height) =>
         ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(IsEnabled && CanReceiveTap).ToPaint()) : null;
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.Button;
+    }
 }

@@ -110,6 +110,21 @@ public readonly record struct SkUiButtonPaint(
 public readonly record struct SkUiPressOverlayPaint(SKRect Bounds, CornerRadius CornerRadii, SkUiPressVisual Press, bool IsEnabled);
 
 /// <summary>
+/// What a look draws around the drawn control that has keyboard focus (<see cref="SkUiLook.DrawFocusRing"/>), while focus
+/// came from the keyboard. Drawn over the control, inside its rectangle (leaf controls clip to their bounds).
+/// </summary>
+/// <param name="Bounds">The control's rectangle.</param>
+/// <param name="CornerRadii">The control's corner radii (its rounded shape).</param>
+/// <param name="Color">Ring color (the color scheme's foreground).</param>
+/// <param name="Contrast">Inner contrast line, so the ring shows on any fill (the color scheme's background).</param>
+public readonly record struct SkUiFocusRingPaint(SKRect Bounds, CornerRadius CornerRadii, SKColor Color, SKColor Contrast)
+{
+    /// <summary>A ring in the current color scheme's colors.</summary>
+    internal static SkUiFocusRingPaint For(SKRect bounds, CornerRadius radii) =>
+        new(bounds, radii, SkUiToggleDrawing.ToSkColor(SkUiColors.DefaultForeground), SkUiToggleDrawing.ToSkColor(SkUiColors.DefaultBackground));
+}
+
+/// <summary>
 /// What a look draws for a scroll bar thumb (<see cref="SkUiLook.DrawScrollBar"/>): a rectangle at the origin, as long as
 /// the thumb along <see cref="Orientation"/> and <see cref="SkUiLook.ScrollBarThickness"/> across. The compositor places it
 /// on the track and fades it.

@@ -622,4 +622,12 @@ public class SkUiLabel : SkUiView
         _layout.Draw(canvas, _displayText, TextStyle, inset, Width, Height,
             _horizontalTextAlignment, _verticalTextAlignment, paint, _textDecorations);
     }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.Text;
+        info.Text = UsesRichText ? RichText.Text : _displayText;
+    }
 }

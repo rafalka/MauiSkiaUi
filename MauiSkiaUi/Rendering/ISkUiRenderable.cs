@@ -68,6 +68,8 @@ internal sealed class SkUiRenderState
     public ISkUiRenderable[] CommittedSources = [];
     public List<SkUiRenderAnimation>? PendingAnimations;
     public List<SkUiRenderAnimation>? ActiveAnimations;
+    /// <summary>The node's id in semantics trees (0 until it first is an element); kept by <see cref="Reset"/>.</summary>
+    public int SemanticsId;
 
     /// <summary>
     /// Records a value the render thread already shows (animation report / completion) as committed, so the next

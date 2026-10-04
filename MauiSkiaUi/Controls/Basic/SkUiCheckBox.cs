@@ -61,4 +61,11 @@ public class SkUiCheckBox : SkUiToggleControl
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>
         SkUiToggleDrawing.DrawCheckBox(canvas, (float)Width, (float)Height, IsRightToLeft, ToggleVisual, _color, IsEnabled);
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.CheckBox;
+    }
 }

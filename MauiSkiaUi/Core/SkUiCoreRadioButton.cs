@@ -41,4 +41,11 @@ public class SkUiCoreRadioButton : SkUiCoreToggleControl
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>
         SkUiToggleDrawing.DrawRadioButton(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, ToggleVisual, _color, enabled: true);
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.RadioButton;
+    }
 }

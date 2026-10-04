@@ -512,4 +512,14 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
         var area = rightToLeft ? SkUiRadioButtonContent.Mirror(placement.Content, Width) : placement.Content;
         TextContent.DrawText(canvas, _text, TextStyle, area, ToSkColor(IsEnabled ? _textColor : _textColor.MultiplyAlpha(0.5f)));
     }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.RadioButton;
+        // Text content is read as the name; view content and templates are drawn children, read through them.
+        if (_controlTemplate is null && _content is not null and not ISkUiView)
+            info.Text = SkUiTextTransform.Apply(_content.ToString() ?? string.Empty, _textTransform);
+    }
 }

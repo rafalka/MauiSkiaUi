@@ -178,4 +178,35 @@ public class SkUiCoreSlider : SkUiCoreNode
 
     private void SetValueAt(Point position) =>
         SetValue(SkUiSliderMath.ValueAt(position, Frame.Size, _orientation, IsRightToLeft, _minimum, _maximum));
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.Slider;
+        info.Range = new SkUiSemanticsRange(_minimum, _maximum, _value);
+        info.IsHorizontal = _orientation == StackOrientation.Horizontal;
+        info.Actions |= SkUiSemanticsActions.Increment | SkUiSemanticsActions.Decrement;
+    }
+
+    /// <inheritdoc />
+    protected override bool OnSemanticsAction(SkUiSemanticsActions action) => action switch
+    {
+        SkUiSemanticsActions.Increment => OnSemanticsSetValue(_value + SkUiSemantics.RangeStep(_minimum, _maximum)),
+        SkUiSemanticsActions.Decrement => OnSemanticsSetValue(_value - SkUiSemantics.RangeStep(_minimum, _maximum)),
+        _ => base.OnSemanticsAction(action)
+    };
+
+    /// <inheritdoc />
+    protected override bool OnSemanticsSetValue(double value)
+    {
+        var clamped = Math.Clamp(value, _minimum, _maximum);
+        if (clamped == _value)
+            return false;
+        SetValue(clamped);
+        return true;
+    }
+
+    /// <inheritdoc />
+    internal override bool TakesKeyboardFocus => true;
 }

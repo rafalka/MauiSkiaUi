@@ -254,4 +254,14 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
         InvalidatePaint();
         (value ? Pressed : Released)?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.Button;
+    }
+
+    /// <inheritdoc />
+    internal override bool IsSemanticsEnabled => CanExecuteCommand;
 }

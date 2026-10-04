@@ -195,4 +195,11 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
         SkUiImageButtonDrawing.PaintOverlay(canvas, (float)Width, (float)Height, _chrome, _press?.Visual ?? SkUiPressVisual.None, IsEnabled && CanReceiveTap);
 
     void SkUiImageButtonDrawing.IImage.Paint(SKCanvas canvas, SKRect area) => PaintImage(canvas, area);
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.Button;
+    }
 }

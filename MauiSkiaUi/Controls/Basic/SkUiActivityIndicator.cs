@@ -85,4 +85,13 @@ public class SkUiActivityIndicator : SkUiView
         base.OnPropertyChanged(propertyName);
         if (propertyName == nameof(IsVisible) && !IsVisible) SetIsRunning(false);
     }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        // Running: busy, read like a native indeterminate progress indicator; stopped, it shows nothing.
+        if (_isRunning)
+            info.Role = SkUiSemanticsRole.ProgressBar;
+    }
 }

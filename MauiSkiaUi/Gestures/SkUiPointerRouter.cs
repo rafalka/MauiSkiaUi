@@ -199,6 +199,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
                 ClearHover();
                 return false;
             case SkUiTouchAction.Pressed:
+                SkUiFocusManager.NotePointerInput();
                 return overlay is null ? Press(touch, time) : PressFromOverlay(touch, time, overlay);
         }
         if (!_arenas.TryGetValue(touch.Id, out var arena))
@@ -287,6 +288,8 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
             EndArena(stale, cancelled: true);
         if (FindTarget(root, ToSk(touch.Position), isRoot: true, requireParticipant: true) is not { } leaf)
             return false;
+        if (root is SkUiView { FocusManagerIfCreated: { PointerPressFocuses: true } focus })
+            focus.OnPointerPressed(leaf);
         var arena = new SkUiGestureArena(touch.Id, this, touch.Position);
         if (!leaf.IsInputEnabled)
         {

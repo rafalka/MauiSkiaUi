@@ -6,7 +6,7 @@ using System.Windows.Input;
 namespace MauiSkiaUi;
 
 /// <summary>Base for Skia-drawn views, with layout that does not require a handler.</summary>
-public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost, ISkUiShadowCaster
+public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost, ISkUiShadowCaster
 {
     private bool _measureDirty = true;
     private bool _arrangeDirty = true;
@@ -235,6 +235,8 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
         // the pointer: no PointerOver state sticks to it until the next hover move.
         SkUiGestureSet.CancelSubtree(this);
         SkUiHover.ClearSubtree(this);
+        // A focused node that left its surface is no longer focused.
+        SkUiFocusManager.ValidateAll();
     }
 
     /// <summary>
@@ -515,7 +517,10 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
             || (propertyName == nameof(InputTransparent) && InputTransparent))
         {
             CancelGestures();
+            SkUiFocusManager.ValidateAll();
         }
+        if (IsSemanticProperty(propertyName))
+            SkUiSemantics.Invalidate(this);
         if (propertyName == nameof(IsVisible))
             InvalidateMeasureOverride();
         // MAUI raises FlowDirection on every descendant whose effective direction changes.
@@ -665,7 +670,7 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
         OnPaintContent(canvas);
     }
 
-    bool ISkUiRenderable.HasOverlay => _paintOverlay is not null || _showsPressEffect;
+    bool ISkUiRenderable.HasOverlay => _paintOverlay is not null || _showsPressEffect || _focusRingVisible;
 
     void ISkUiRenderable.RecordOverlay(SKCanvas canvas)
     {
@@ -673,6 +678,8 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
         if (_showsPressEffect)
             SkUiLook.Current.DrawPressOverlay(canvas, new SkUiPressOverlayPaint(new SKRect(0, 0, (float)Width, (float)Height),
                 PressEffectCornerRadii, _pressEffect?.Visual ?? SkUiPressVisual.None, IsEnabled: true)); // a disabled view is not pressed; no veil
+        if (_focusRingVisible)
+            DrawFocusRing(canvas);
     }
 
     void ISkUiRenderable.GetRenderChildren(List<ISkUiRenderable> children) => AddRenderChildren(children);

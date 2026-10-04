@@ -116,4 +116,11 @@ public abstract class SkUiCoreToggleControl : SkUiCoreNode
         (_press ??= new SkUiPressAnimator(this, ripple: false)).SetPressed(value, PressPosition);
         InvalidatePaint();
     }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.CheckState = _state;
+    }
 }

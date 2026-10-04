@@ -688,5 +688,25 @@ public class SkUiLook
     /// <summary>Default press-overlay geometry.</summary>
     protected virtual void DrawPressOverlayCore(SKCanvas canvas, SkUiPressOverlayPaint overlay) { }
 
+    /// <summary>Optional focus-ring painter; replaces <see cref="DrawFocusRingCore"/>.</summary>
+    public Action<SKCanvas, SkUiFocusRingPaint>? FocusRingPainter { get; set; }
+
+    /// <summary>
+    /// Draws the keyboard focus ring over the focused drawn control (any control of either layer that takes keyboard focus),
+    /// while focus came from the keyboard (Tab, or programmatic focus after a key press).
+    /// </summary>
+    public void DrawFocusRing(SKCanvas canvas, SkUiFocusRingPaint ring)
+    {
+        if (FocusRingPainter is { } painter)
+        {
+            painter(canvas, ring);
+            return;
+        }
+        DrawFocusRingCore(canvas, ring);
+    }
+
+    /// <summary>Default focus-ring geometry.</summary>
+    protected virtual void DrawFocusRingCore(SKCanvas canvas, SkUiFocusRingPaint ring) { }
+
     #endregion
 }

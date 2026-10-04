@@ -38,6 +38,7 @@ public static class LeakScenarios
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
         new("SurfaceReplaced", Rendering, "A page replaces its GPU surface with a software one and back; the discarded surfaces are disconnected.", () => new SurfaceReplacedRun()),
         new("MovedBetweenSurfaces", Rendering, "A subtree with gestures, a scroller and a native Entry moves between two surfaces and back.", () => new MoveRun()),
+        new("AccessibleFocused", Input, "Drawn and Core controls with semantic properties, read through a semantics tree that reports changes; focused by Focus() and Tab, activated by Space / Enter and screen-reader actions, a slider stepped; a focused row removed; a button given a long-lived Tag.", () => new AccessibilityRun()),
         new("CoreControls", Core, "Core buttons (long-lived command), toggles, a table and a scroll view: clicked, scrolled, rows removed, columns changed.", () => new CoreRun()),
         new("NativeOverlays", Native, "Entry / Editor overlays in a drawn scroller (snapshot mode): scrolled, an Entry focused, overlay content replaced.", () => new OverlaysRun()),
         new("NativeNesting", Native, "GPU and software surfaces inside a native ScrollView: drawn list, carousel and Core scroller dragged.", () => new NestingRun())
@@ -1065,6 +1066,83 @@ public static class LeakScenarios
     }
 
     // ---- Core -------------------------------------------------------------------------------------------------
+
+    private sealed class AccessibilityRun : LeakScenarioRun
+    {
+        /// <summary>Long-lived object kept in a tag: the tag must not keep the view alive.</summary>
+        private static readonly object _sharedTag = new();
+        private readonly List<SkUiButton> _buttons = [];
+        private SkUiVerticalStackLayout? _rows;
+        private SkUiSlider? _slider;
+        private SkUiCoreButton? _core;
+        private int _clicks;
+        private int _reports;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var stack = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12) };
+            var heading = Text("Accessible form", 18);
+            SemanticProperties.SetHeadingLevel(heading, SemanticHeadingLevel.Level1);
+            stack.Children.Add(heading);
+            _rows = new SkUiVerticalStackLayout { Spacing = 4 };
+            for (var index = 1; index <= 4; index++)
+            {
+                var button = new SkUiButton { Text = $"Row {index}", HeightRequest = 40, Tag = _sharedTag, TabIndex = index };
+                SemanticProperties.SetHint(button, "Opens the row");
+                button.Clicked += OnClicked;
+                _buttons.Add(button);
+                _rows.Children.Add(button);
+            }
+            stack.Children.Add(_rows);
+            _slider = new SkUiSlider { Maximum = 10, Value = 5 };
+            SemanticProperties.SetDescription(_slider, "Volume");
+            stack.Children.Add(_slider);
+            _core = new SkUiCoreButton { Text = "Core", Tag = _sharedTag };
+            _core.SetSemanticHint("Core hint").SetHeight(40);
+            _core.Tapped += (_, _) => _clicks++;
+            stack.Children.Add(new SkUiCoreHost().SetContent(_core));
+            return Root(stack);
+        }
+
+        private void OnClicked(object? sender, EventArgs e) => _clicks++;
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            if (SkUiSemantics.RootOf(_buttons[0]) is not { } root)
+                return;
+            // A semantics tree reporting its changes, as a screen reader's bridge keeps one.
+            var owner = root.SemanticsOwner ?? new SkUiSemanticsOwner(root);
+            owner.Changed += OnSemanticsChanged;
+            var focus = root.FocusManager;
+            _buttons[0].Focus();
+            focus.KeyDown(SkUiKey.Space);
+            focus.KeyDown(SkUiKey.Tab);
+            focus.KeyDown(SkUiKey.Enter);
+            _slider!.Focus();
+            focus.KeyDown(SkUiKey.Right);
+            focus.KeyDown(SkUiKey.Left);
+            _core!.Focus();
+            focus.KeyDown(SkUiKey.Space);
+            if (owner.Tree.Find(_buttons[3]) is { } element)
+                owner.Perform(element.Id, SkUiSemanticsActions.Activate);
+            _buttons[3].SetSemanticFocus();
+            await context.SettleAsync();
+            // Remove the focused row: focus is cleared and the row must be collectable.
+            _buttons[2].Focus();
+            _rows!.Children.Remove(_buttons[2]);
+            context.TrackDetached(_buttons[2]);
+            _buttons.RemoveAt(2);
+            owner.Invalidate();
+            owner.Flush();
+            await context.SettleAsync();
+            owner.Changed -= OnSemanticsChanged;
+        }
+
+        private void OnSemanticsChanged(bool structure, IReadOnlyList<int> changed) => _reports++;
+
+        public override string? CheckInteraction() =>
+            _clicks < 4 ? $"Expected at least 4 activations, got {_clicks}." : _reports == 0 ? "The semantics tree reported no change." : null;
+    }
 
     private sealed class CoreRun : LeakScenarioRun
     {

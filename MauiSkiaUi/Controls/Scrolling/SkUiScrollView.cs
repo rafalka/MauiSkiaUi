@@ -447,4 +447,15 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
             CancelInteraction();
         base.OnParentSet();
     }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        SkUiSemantics.PopulateScroller(info, _scroller);
+    }
+
+    /// <inheritdoc />
+    protected override bool OnSemanticsAction(SkUiSemanticsActions action) =>
+        SkUiSemantics.PerformScroll(_scroller, action) || base.OnSemanticsAction(action);
 }

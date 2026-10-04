@@ -114,4 +114,11 @@ public class SkUiSwitch : SkUiToggleControl
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>
         SkUiToggleDrawing.DrawSwitch(canvas, (float)Width, (float)Height, IsRightToLeft, ToggleVisual, _onColor, _thumbColor, IsEnabled);
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.Switch;
+    }
 }

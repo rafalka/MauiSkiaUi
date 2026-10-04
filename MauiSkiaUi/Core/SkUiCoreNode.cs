@@ -10,7 +10,7 @@ namespace MauiSkiaUi.Core;
 /// Implements <see cref="INotifyPropertyChanged"/>; fluent <c>Set*</c> methods are the single apply path
 /// and raise notifications via <see cref="SetProperty{T}"/>.
 /// </summary>
-public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost, ISkUiShadowCaster
+public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost, ISkUiShadowCaster
 {
     private bool _measureDirty = true;
     private bool _arrangeDirty = true;
@@ -412,7 +412,10 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         if (parent is null && _renderState is not null)
             SkUiRenderInvalidation.ResetSubtree(this);
         if (parent is null)
+        {
             SkUiGestureSet.CancelSubtree(this);
+            SkUiFocusManager.ValidateAll();
+        }
         var detached = parent is null && !HasInheritedHostClock;
         OnAnimationRootChanged(detached);
         PropagateAnimationRootChanged(detached);
@@ -447,6 +450,8 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
     public SkUiCoreNode SetIsVisible(bool value)
     {
         if (!SetProperty(ref _isVisible, value, nameof(IsVisible))) return this;
+        if (!value)
+            SkUiFocusManager.ValidateAll();
         OnIsVisibleChanged();
         InvalidateMeasure();
         return this;
@@ -750,7 +755,7 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         OnPaintContent(canvas);
     }
 
-    bool ISkUiRenderable.HasOverlay => _paintOverlay is not null || _showsPressEffect;
+    bool ISkUiRenderable.HasOverlay => _paintOverlay is not null || _showsPressEffect || _focusRingVisible;
 
     void ISkUiRenderable.RecordOverlay(SKCanvas canvas)
     {
@@ -758,6 +763,8 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         if (_showsPressEffect)
             SkUiLook.Current.DrawPressOverlay(canvas, new SkUiPressOverlayPaint(new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
                 PressEffectCornerRadii, _pressEffect?.Visual ?? SkUiPressVisual.None, IsEnabled: true));
+        if (_focusRingVisible)
+            DrawFocusRing(canvas);
     }
 
     void ISkUiRenderable.GetRenderChildren(List<ISkUiRenderable> children) => AddRenderChildren(children);

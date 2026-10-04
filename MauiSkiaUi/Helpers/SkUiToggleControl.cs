@@ -179,4 +179,11 @@ public abstract class SkUiToggleControl : SkUiView
         if (SkUiCheckStates.IsChecked(old) != isChecked)
             RaiseCheckedChanged(isChecked);
     }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.CheckState = _state;
+    }
 }

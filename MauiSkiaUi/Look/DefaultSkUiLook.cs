@@ -330,6 +330,41 @@ public class DefaultSkUiLook : SkUiLook
             DrawRipple(canvas, overlay.Bounds, overlay.CornerRadii, overlay.Press, new SKColor(0, 0, 0, 56));
     }
 
+    /// <summary>Thickness of the default focus ring's outer line, DIPs.</summary>
+    public virtual float FocusRingThickness => 2;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Two lines inside the bounds, following the control's corners: the foreground color outside and a one-DIP line of the
+    /// background color inside it, so the ring shows on light, dark and accent fills alike (as Windows' focus visuals).
+    /// </remarks>
+    protected override void DrawFocusRingCore(SKCanvas canvas, SkUiFocusRingPaint ring)
+    {
+        var width = FocusRingThickness;
+        var bounds = ring.Bounds;
+        if (bounds.Width <= 2 * width || bounds.Height <= 2 * width)
+            return;
+        var paint = Paint(ring.Color);
+        DrawRingLine(canvas, paint, bounds, ring.CornerRadii, width, 0, ring.Color);
+        DrawRingLine(canvas, paint, bounds, ring.CornerRadii, 1, width, ring.Contrast);
+    }
+
+    private void DrawRingLine(SKCanvas canvas, SKPaint paint, SKRect bounds, CornerRadius radii, float width, float inset, SKColor color)
+    {
+        var outset = inset + width / 2;
+        bounds.Inflate(-outset, -outset);
+        Stroke(paint, color, width);
+        var shrunk = new CornerRadius(Math.Max(0, radii.TopLeft - outset), Math.Max(0, radii.TopRight - outset),
+            Math.Max(0, radii.BottomLeft - outset), Math.Max(0, radii.BottomRight - outset));
+        if (IsUniformCornerRadius(shrunk))
+        {
+            canvas.DrawRoundRect(bounds, (float)shrunk.TopLeft, (float)shrunk.TopLeft, paint);
+            return;
+        }
+        using var path = CreateRoundRectPath(bounds, shrunk);
+        canvas.DrawPath(path, paint);
+    }
+
     /// <summary>
     /// A Material-like ripple: a circle spreading from the press point to the farthest corner, fading after the
     /// release, over a light press overlay; clipped to the control's rounded shape.
