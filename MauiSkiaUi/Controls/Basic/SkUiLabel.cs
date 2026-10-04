@@ -515,7 +515,7 @@ public class SkUiLabel : SkUiView
             recognizers.Add(_spanTap ??= new SkUiSpanTapGestureRecognizer
             {
                 TappableSpanAt = TappableSpanAt,
-                WantsDoubleTap = () => _formattedText?.Spans.Any(span => SkUiMauiTaps.Has(span, 2)) == true,
+                WantsDoubleTap = () => _formattedText?.Spans.Any(span => SkUiMauiTaps.Has(span.GestureRecognizers, 2)) == true,
                 TapHandler = args => RaiseSpanTap(args, 1),
                 DoubleTapHandler = args => RaiseSpanTap(args, 2)
             });
@@ -530,7 +530,7 @@ public class SkUiLabel : SkUiView
         return false;
     }
 
-    private static bool IsTappable(Span span) => SkUiMauiTaps.Has(span, 1) || SkUiMauiTaps.Has(span, 2);
+    private static bool IsTappable(Span span) => SkUiMauiTaps.Has(span.GestureRecognizers, 1) || SkUiMauiTaps.Has(span.GestureRecognizers, 2);
 
     private int TappableSpanAt(Point point)
     {
@@ -546,7 +546,7 @@ public class SkUiLabel : SkUiView
         if (_formattedText is { } formatted)
         {
             if (index < formatted.Spans.Count)
-                SkUiMauiTaps.Raise(formatted.Spans[index], taps, this, args.Position);
+                SkUiMauiTaps.Raise(formatted.Spans[index].GestureRecognizers, taps, this, args.Position);
             return;
         }
         if (taps == 1 && index < HtmlRuns.Count && HtmlRuns[index].Style.Href is { } href)

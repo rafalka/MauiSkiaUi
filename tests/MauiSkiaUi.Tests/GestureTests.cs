@@ -363,6 +363,131 @@ public class GestureTests
         Assert.Equal(1, pans);
     }
 
+    [Fact]
+    public void MauiTapRecognizersRunOnDrawnTapsAndActivation()
+    {
+        var box = Box(100, 100);
+        SemanticProperties.SetDescription(box, "Card");
+        var order = new List<string>();
+        var recognizer = new TapGestureRecognizer { Command = new Command<object?>(parameter => order.Add($"command {parameter}")), CommandParameter = "p" };
+        recognizer.Tapped += (sender, args) =>
+        {
+            Assert.Same(box, sender);
+            Assert.Equal("p", args.Parameter);
+            Assert.Equal(ButtonsMask.Primary, args.Buttons);
+            order.Add($"recognizer {args.GetPosition(box)}");
+        };
+        box.Tapped += (_, _) => order.Add("event");
+        box.GestureRecognizers.Add(recognizer);
+        var root = new SkUiContentView { Content = box };
+        SkUiTestHelpers.Arrange(root, 200, 200);
+
+        Tap(root, new Point(30, 40), 0);
+        Assert.Equal(["event", "command p", $"recognizer {new Point(30, 40)}"], order);
+
+        // Screen readers and the keyboard run the same tap.
+        order.Clear();
+        var owner = new SkUiSemanticsOwner(root);
+        Assert.True(owner.Perform(owner.Tree.Find(box)!.Id, SkUiSemanticsActions.Activate));
+        Assert.Equal(["event", "command p", $"recognizer {new Point(50, 50)}"], order);
+    }
+
+    [Fact]
+    public void MauiTapRecognizersTakeTapsFromWhatIsUnderneathAndCanChangeAnyTime()
+    {
+        var outerTaps = 0;
+        var box = Box(100, 100);
+        var root = new SkUiContentView { Content = box };
+        root.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => outerTaps++) });
+        SkUiTestHelpers.Arrange(root, 200, 200);
+
+        Tap(root, new Point(10, 10), 0);
+        Assert.Equal(1, outerTaps); // the passive box leaves the tap to its parent's recognizer
+
+        box.GestureRecognizers.Add(new TapGestureRecognizer { Buttons = ButtonsMask.Secondary, Command = new Command(() => throw new InvalidOperationException()) });
+        Tap(root, new Point(10, 10), 1000);
+        Assert.Equal(2, outerTaps); // drawn taps are primary-button taps
+
+        // As on MAUI, a recognizer without a command that can execute still takes the tap: the innermost one wins.
+        var blocker = new TapGestureRecognizer { Command = new Command(() => throw new InvalidOperationException(), () => false) };
+        box.GestureRecognizers.Add(blocker);
+        Tap(root, new Point(10, 10), 2000);
+        Assert.Equal(2, outerTaps);
+
+        box.GestureRecognizers.Remove(blocker);
+        Tap(root, new Point(10, 10), 3000);
+        Assert.Equal(3, outerTaps);
+    }
+
+    [Fact]
+    public void MauiDoubleTapRecognizersDelaySingleTaps()
+    {
+        using var clock = new ManualGestureClock();
+        var box = Box(100, 100);
+        var singles = 0;
+        var doubles = 0;
+        box.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => singles++) });
+        box.GestureRecognizers.Add(new TapGestureRecognizer { NumberOfTapsRequired = 2, Command = new Command(() => doubles++) });
+        var root = new SkUiContentView { Content = box };
+        SkUiTestHelpers.Arrange(root, 200, 200);
+
+        Tap(root, new Point(10, 10), 0);
+        Tap(root, new Point(12, 12), 150);
+        Assert.Equal(1, doubles);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(0, singles);
+
+        Tap(root, new Point(10, 10), 2000);
+        Assert.Equal(0, singles);
+        clock.Advance(SkUiGestureSettings.DoubleTapTimeout);
+        Assert.Equal(1, singles);
+    }
+
+    [Fact]
+    public void MauiGestureInputDrawnViewsDoNotRunIsReportedOncePerView()
+    {
+        var box = Box(100, 100);
+        box.AutomationId = "unsupported-gestures";
+        box.GestureRecognizers.Add(new TapGestureRecognizer());
+        box.GestureRecognizers.Add(new TapGestureRecognizer { NumberOfTapsRequired = 3 });
+        box.GestureRecognizers.Add(new PanGestureRecognizer());
+        box.Behaviors.Add(new TestPlatformBehavior());
+        var root = new SkUiContentView { Content = box };
+        SkUiTestHelpers.Arrange(root, 200, 200);
+        var listener = new RecordingTraceListener("'unsupported-gestures'");
+        System.Diagnostics.Trace.Listeners.Add(listener);
+        try
+        {
+            Tap(root, new Point(10, 10), 0);
+            Tap(root, new Point(10, 10), 1000);
+        }
+        finally
+        {
+            System.Diagnostics.Trace.Listeners.Remove(listener);
+        }
+
+        Assert.Collection(listener.Messages,
+            message => Assert.StartsWith("SkiaUi: TapGestureRecognizer on SkUiBox 'unsupported-gestures' is not run", message),
+            message => Assert.StartsWith("SkiaUi: PanGestureRecognizer on SkUiBox 'unsupported-gestures' is not run", message),
+            message => Assert.StartsWith("SkiaUi: TestPlatformBehavior on SkUiBox 'unsupported-gestures' is not run", message));
+    }
+
+    private sealed class TestPlatformBehavior : PlatformBehavior<View>;
+
+    private sealed class RecordingTraceListener(string filter) : System.Diagnostics.TraceListener
+    {
+        public List<string> Messages { get; } = [];
+
+        public override void Write(string? message) { }
+
+        public override void WriteLine(string? message)
+        {
+            if (message?.Contains(filter) == true)
+                lock (Messages)
+                    Messages.Add(message);
+        }
+    }
+
     private static void Tap(ISkUiView root, Point point, double ms)
     {
         Assert.True(root.Touch(new(100 + (long)ms, SkUiTouchAction.Pressed, point, TimeSpan.FromMilliseconds(ms))));

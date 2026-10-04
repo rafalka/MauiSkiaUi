@@ -26,6 +26,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private SkUiGestureSet? _gestures;
     private SkUiPointerRouter? _router;
     private SkUiTapGestureRecognizer? _tap;
+    private bool _mauiGesturesReported;
     private SkUiAnimationClock? _animationClock;
     private ICommand? _tappedCommand;
     private object? _tappedCommandParameter;
@@ -190,7 +191,10 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <inheritdoc cref="ClipToBoundsProperty" />
     public bool ClipToBounds { get => (bool)GetValue(ClipToBoundsProperty); set => SetValue(ClipToBoundsProperty, value); }
 
-    /// <summary>Opts this node into single taps. MAUI GestureRecognizers are not used.</summary>
+    /// <summary>
+    /// Opts this node into single taps. MAUI <c>GestureRecognizers</c> also work for taps: a <see cref="TapGestureRecognizer"/>
+    /// (1 or 2 taps, primary button) runs on drawn taps, after this event.
+    /// </summary>
     public event EventHandler<SkUiTappedEventArgs>? Tapped;
 
     /// <summary>The clock shared by this node and its surface-owning ancestor.</summary>
@@ -949,12 +953,19 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <summary>Appends this view's recognizers: built-in tap, long press, swipe, pan, pinch, custom, then intrinsic ones.</summary>
     internal virtual void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
     {
-        if (WantsSingleTap || _gestures?.WantsDoubleTap == true)
+        // Called for the views under a press: MAUI gesture input a drawn view does not run is reported then, once.
+        if (!_mauiGesturesReported && (GestureRecognizers.Count > 0 || IsSet(BehaviorsProperty)))
+            _mauiGesturesReported = SkUiMauiTaps.ReportUnsupported(this, native: !RunsMauiTaps);
+        if (WantsSingleTap || WantsDoubleTap)
             recognizers.Add(_tap ??= new SkUiTapGestureRecognizer
             {
                 TapHandler = args => { if (WantsSingleTap) OnTapped(args); },
-                WantsDoubleTap = () => _gestures?.WantsDoubleTap == true,
-                DoubleTapHandler = args => _gestures?.RaiseDoubleTapped(args),
+                WantsDoubleTap = () => WantsDoubleTap,
+                DoubleTapHandler = args =>
+                {
+                    _gestures?.RaiseDoubleTapped(args);
+                    RaiseMauiTaps(args, 2);
+                },
                 PressedHandler = (pressed, position) =>
                 {
                     PressPosition = position;
@@ -964,7 +975,27 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         _gestures?.Collect(recognizers);
     }
 
-    private bool WantsSingleTap => Tapped is not null || HandlesTap || (_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false);
+    private bool WantsSingleTap => Tapped is not null || HandlesTap || (_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false) || HasMauiTaps(1);
+
+    private bool WantsDoubleTap => _gestures?.WantsDoubleTap == true || HasMauiTaps(2);
+
+    /// <summary>
+    /// Whether drawn taps run this view's MAUI tap recognizers: views inside a surface, which have no native view. A surface
+    /// root has one, and MAUI runs its recognizers on it.
+    /// </summary>
+    private bool RunsMauiTaps => Handler is null;
+
+    /// <summary>
+    /// Whether a MAUI tap recognizer wants <paramref name="taps"/> taps. As on MAUI, it takes part whether or not its command
+    /// can execute (an empty recognizer keeps taps from what is underneath).
+    /// </summary>
+    private bool HasMauiTaps(int taps) => GestureRecognizers.Count > 0 && RunsMauiTaps && SkUiMauiTaps.Has(GestureRecognizers, taps);
+
+    private void RaiseMauiTaps(SkUiTappedEventArgs args, int taps)
+    {
+        if (GestureRecognizers.Count > 0 && RunsMauiTaps)
+            SkUiMauiTaps.Raise(GestureRecognizers, taps, this, args.Position);
+    }
 
     void ISkUiGestureElement.CancelGestures() => CancelGestures();
 
@@ -1050,8 +1081,15 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         ExecuteTappedCommand();
     }
 
-    /// <summary>Raises the shared <see cref="Tapped"/> event only, without executing <see cref="TappedCommand"/>.</summary>
-    protected void RaiseTapped(SkUiTappedEventArgs args) => Tapped?.Invoke(this, args);
+    /// <summary>
+    /// Raises the shared <see cref="Tapped"/> event, then the single-tap MAUI <see cref="TapGestureRecognizer"/>s in
+    /// <see cref="View.GestureRecognizers"/>, without executing <see cref="TappedCommand"/>.
+    /// </summary>
+    protected void RaiseTapped(SkUiTappedEventArgs args)
+    {
+        Tapped?.Invoke(this, args);
+        RaiseMauiTaps(args, 1);
+    }
 
     /// <summary>
     /// Executes <see cref="TappedCommand"/> if eligible. Separated from <see cref="RaiseTapped"/> so controls with their

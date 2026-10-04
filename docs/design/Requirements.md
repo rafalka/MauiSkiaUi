@@ -635,7 +635,7 @@ Ship **well-documented** library code and user-facing docs:
 - Custom Skia reimplementations of **Entry**, **Editor**, **WebView** (and similar IME/browser controls) — use `SkUiMauiContentView` instead (FR-16)
 - Blazor Hybrid / multi-project MAUI host
 - Software-only fallback host (unless needed when `HwAccelerated` is true but GL is unavailable — then fall back per Acceleration)
-- Using MAUI `GestureRecognizers` / `GesturePlatformManager` as the gesture system for SkiaUi trees (optional future compatibility bridge only — see [EventMechanism.md](EventMechanism.md))
+- Using MAUI `GestureRecognizers` / `GesturePlatformManager` as the gesture system for SkiaUi trees (a compatibility bridge runs `TapGestureRecognizer` on the arena; other recognizers are reported — see [EventMechanism.md](EventMechanism.md#maui-gesture-recognizers))
 
 ## Reference sources
 
