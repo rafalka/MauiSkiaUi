@@ -1127,15 +1127,16 @@ public static class LeakScenarios
                 owner.Perform(element.Id, SkUiSemanticsActions.Activate);
             _buttons[3].SetSemanticFocus();
             await context.SettleAsync();
-            // Remove the focused row: focus is cleared and the row must be collectable.
             _buttons[2].Focus();
+            owner.Invalidate();
+            owner.Flush();
+            // The reader goes away, the tree it read stays cached; then the focused row is removed. Focus is cleared, and
+            // the row must be collectable while the surface lives (no cached tree may keep it).
+            owner.Changed -= OnSemanticsChanged;
             _rows!.Children.Remove(_buttons[2]);
             context.TrackDetached(_buttons[2]);
             _buttons.RemoveAt(2);
-            owner.Invalidate();
-            owner.Flush();
             await context.SettleAsync();
-            owner.Changed -= OnSemanticsChanged;
         }
 
         private void OnSemanticsChanged(bool structure, IReadOnlyList<int> changed) => _reports++;

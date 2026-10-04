@@ -44,10 +44,14 @@ internal sealed class SkUiSemanticsOwner
             {
                 _tree = SkUiSemanticsTree.Build(_root, _root.FocusManagerIfCreated);
                 _dirty = false;
+                Version++;
             }
             return _tree;
         }
     }
+
+    /// <summary>Increments with every rebuild: bridges compare it instead of keeping a tree (which holds its nodes).</summary>
+    public int Version { get; private set; }
 
     /// <summary>
     /// Raised (UI thread, coalesced over <see cref="ReportDelay"/>) when the tree differs from the last one reported:
@@ -60,7 +64,13 @@ internal sealed class SkUiSemanticsOwner
             _changed += value;
             _reported ??= Tree;
         }
-        remove => _changed -= value;
+        remove
+        {
+            _changed -= value;
+            // Nobody compares with it any more: a kept tree would keep removed nodes alive.
+            if (_changed is null)
+                _reported = null;
+        }
     }
 
     /// <summary>Detaches from the root (the bridge went away).</summary>
@@ -69,12 +79,15 @@ internal sealed class SkUiSemanticsOwner
         if (ReferenceEquals(_root.SemanticsOwner, this))
             _root.SemanticsOwner = null;
         _changed = null;
+        _tree = _reported = null;
     }
 
     /// <summary>The drawn tree changed: rebuild on the next read, and report the change when listened to.</summary>
     public void Invalidate()
     {
         _dirty = true;
+        // Rebuilt on the next read; dropped now, so nodes removed from the drawn tree are not kept by it.
+        _tree = null;
         if (_changed is null)
             return;
         _lastChange = Environment.TickCount64;

@@ -61,7 +61,7 @@ internal sealed class SkUiAccessibilityBridge
     {
         var tree = Tree;
         Listen(UIAccessibility.IsVoiceOverRunning);
-        if (_array is { } array && ReferenceEquals(_built, tree))
+        if (_array is { } array && _builtVersion == _owner!.Version)
             return array;
         var items = new List<NSObject>();
         var live = new HashSet<int>();
@@ -84,11 +84,12 @@ internal sealed class SkUiAccessibilityBridge
         }
         foreach (var id in _elements.Keys.Where(id => !live.Contains(id)).ToList())
             _elements.Remove(id);
-        _built = tree;
+        _builtVersion = _owner!.Version;
         return _array = NSArray.FromNSObjects(items.ToArray());
     }
 
-    private SkUiSemanticsTree? _built;
+    /// <summary>The tree version the element array was built from (not the tree: it would keep its nodes alive).</summary>
+    private int _builtVersion = -1;
 
     private void OnSemanticsChanged(bool structureChanged, IReadOnlyList<int> changed)
     {
@@ -108,7 +109,7 @@ internal sealed class SkUiAccessibilityBridge
         foreach (var id in changed)
             if (_elements.TryGetValue(id, out var element) && tree.Find(id) is { } node)
                 Apply(element, node);
-        _built = tree;
+        _builtVersion = _owner!.Version;
     }
 
     private void Apply(SkUiAccessibilityElement element, SkUiSemanticsNode node)
