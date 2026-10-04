@@ -2,9 +2,18 @@
 
 Release notes for the NuGet package **SkiaUi.Maui**.
 
-Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) renames that section to the new version, and the pack workflows copy a version's section into the package `PackageReleaseNotes` field shown on nuget.org, with a link back to this file. Newest section first; headings are exactly `## <version>`.
+Add entries under `## Unreleased`, grouped under these subsections (only the ones that have entries, in this order):
+
+- `### New features`: one bullet per feature, led by a bold title (`- **Title:** details`); nested bullets for the details.
+- `### Breaking changes`: what callers must change, one bullet each.
+- `### Fixes`
+- `### Other`: behavior changes that are not breaking, performance, samples and demo.
+
+Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) renames `## Unreleased` to the new version. The package's `PackageReleaseNotes`, shown on nuget.org as plain text, gets a link to the version's section, the titles of its new features and its breaking changes; the GitHub release gets the whole section. Newest section first; headings are exactly `## <version>`. Sections up to 1.0.0-Prerelease07 predate the subsections.
 
 ## Unreleased
+
+### New features
 
 - **Migration guide and agent skills:** [docs/Migration.md](docs/Migration.md) explains how to move MAUI screens to drawn controls (surface placement, control mapping, styles, gestures, custom controls, gaps). The `skiaui-migration` Claude Code plugin (`/plugin marketplace add rafalka/MauiSkiaUi`, `/plugin install skiaui-migration@skiaui`; the folders also work as plain Agent Skills) adds `skiaui-audit`, which surveys an app and writes a migration plan, and `skiaui-migrate`, which converts pages and checks the result with a XAML checker ([plugins/skiaui-migration](plugins/skiaui-migration/README.md)).
 - **MAUI tap recognizers on drawn views (P11a):** a `TapGestureRecognizer` in any drawn view's `GestureRecognizers` now runs on drawn taps, as on MAUI: `Command` / `CommandParameter`, then `Tapped` with `GetPosition`; `NumberOfTapsRequired="2"` for double taps. Tap XAML ports by changing the prefix. They follow the gesture arena (the innermost tap wins, scrolling beats taps) and also run for screen-reader activation and Space / Enter. MAUI gesture input drawn views do not run (pan, swipe, pinch, pointer, drag and drop recognizers; platform behaviors such as the toolkit's `TouchBehavior`; recognizers on a surface root, which MAUI runs natively) is reported once per view as a `Trace` line naming the replacement ([EventMechanism.md](docs/design/EventMechanism.md#maui-gesture-recognizers)).
@@ -24,11 +33,6 @@ Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs
   - **RadioButton chrome:** MAUI's `BorderColor`, `BorderWidth`, `CornerRadius` around the whole control, with the `Background` filling the rounded shape, plus `Padding` (MAUI's, from `TemplatedView`). `SkUiCoreRadioButton` stays a basic circle: compose it with Core labels and borders.
   - **RadioButton `ControlTemplate`:** a MAUI `ControlTemplate` of drawn views replaces the circle, content and chrome; the new `SkUiContentPresenter` shows the radio button's content in it (a view, or text as a label styled by the text properties). The template root gets the `Checked` / `Unchecked` visual states, as in MAUI, so the docs' tile templates work with drawn borders, grids and ellipses. `TemplateRoot`, `OnApplyTemplate`, `GetTemplateChild`. Unlike MAUI, `TemplateBinding` / `RelativeSource TemplatedParent` do not reach drawn controls (MAUI resolves them only for its own templated views): bind with `RelativeSource AncestorType` instead; the template root inherits the radio button's binding context ([SkUiRadioButton.md](docs/controls/SkUiRadioButton.md#controltemplate)).
   - New leak scenario `ContentTemplated`.
-- Image views that are collected (images, image buttons, slider thumbs, button images) now release their reference on the shared decoded-image cache, so the decoded frames are freed once nothing else uses them.
-- **Breaking:** `SkUiImage` / `SkUiImageButton` and `SkUiCoreImage` / `SkUiCoreImageButton` are no longer `IDisposable`: UI elements are rarely disposed, and a collected image now releases its cache reference by itself. Remove `Dispose()` calls and `using` declarations; to release an image at once, set `Source` to `null` (Core: `Clear()`). A Core image's `SetImage(image, ownsImage: true)` disposes the image when it is replaced, cleared or the node is collected.
-- **Changed:** buttons no longer wrap their text by default: `SkUiButton.LineBreakMode` defaults to `NoWrap`, as MAUI's Button (it inherited the label's `WordWrap`, so a narrow button grew to several lines); `SkUiCoreButton` too. Text that does not fit is cut at the padding and never runs over the image. Set `LineBreakMode="WordWrap"` for multi-line buttons.
-- **Changed:** a line wider than its label or button (`NoWrap`) starts at the start side whatever the horizontal alignment, as native labels and buttons show it, instead of being centered and cut on both sides; both layers, plain and formatted text.
-- **Breaking:** `SkUiCoreRadioButton` no longer unchecks the other radio buttons in its parent when it is checked; Core radio buttons do not group themselves. Group them with the new `SkUiCoreRadioButtons` helpers: `Group(buttons, onChecked)` makes a list exclude each other wherever the buttons sit (each in a row with its label) and calls back with the checked one (if several are checked already, the last one in the list stays checked); it returns an `IDisposable` that removes the handlers (a closed screen is collected with its group, so disposing is only needed to stop grouping while the buttons stay). `Uncheck(params buttons)` unchecks a list, `node.UncheckRadioButtons(excluded, recursive)` the radio buttons among a node's children or in its subtree.
 - **ScrollView parity (P8)** on `SkUiScrollView` and `SkUiCoreScrollView` ([SkUiScrollView.md](docs/controls/SkUiScrollView.md)); MAUI ScrollView XAML ports by changing the prefix:
   - **Scroll bars:** MAUI's `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility` (`Default` shows while scrolling and fades out, `Always`, `Never`; Core: `SetHorizontalScrollBarVisibility` / `SetVerticalScrollBarVisibility`). Drawn by the look (`SkUiLook.DrawScrollBar` with the new `SkUiScrollBarPaint`, `ScrollBarPainter`, `ScrollBarThickness`, `ScrollBarMargin`, `ScrollBarMinimumThumbLength`, `ScrollBarFadeDelay`, `ScrollBarFadeDuration`), on the left in right-to-left layouts. Scrolling, flinging and fading record nothing and need no UI-thread work.
   - **Overscroll:** new `Overscroll` (`SkUiOverscrollMode`: `Default`, `None`, `Bounce`, `Stretch`; Core: `SetOverscroll`) and `SkUiLook.DefaultOverscroll` (`DefaultSkUiLook.Overscroll`: bounce on iOS / Mac Catalyst, stretch on Android, none on Windows). Drags past the edge pull with resistance and spring back; flings bounce from the edge. Only what no scroller can scroll overscrolls, and a native scroller around the surface still takes over at the drawn edge.
@@ -41,6 +45,20 @@ Add entries under `## Unreleased`. Publishing (the NuGet publish workflow, [docs
   - **Changed:** `ScrollToAsync(double, double, bool)` does nothing when `Orientation` is `Neither`, as in MAUI.
   - **Changed:** across the scroll axis, explicitly sized content keeps its size when it is larger than the viewport and is clipped (a 400 DIP wide content of a 300 DIP vertical scroller was squeezed to 300), as MAUI's ScrollView; both layers.
   - **Fixed:** a fling that starts at an edge and moves away from it stopped at once; a fling ignored content that grew (or shrank) while it ran.
+
+### Breaking changes
+
+- `SkUiImage` / `SkUiImageButton` and `SkUiCoreImage` / `SkUiCoreImageButton` are no longer `IDisposable`: UI elements are rarely disposed, and a collected image now releases its cache reference by itself. Remove `Dispose()` calls and `using` declarations; to release an image at once, set `Source` to `null` (Core: `Clear()`). A Core image's `SetImage(image, ownsImage: true)` disposes the image when it is replaced, cleared or the node is collected.
+- `SkUiCoreRadioButton` no longer unchecks the other radio buttons in its parent when it is checked; Core radio buttons do not group themselves. Group them with the new `SkUiCoreRadioButtons` helpers: `Group(buttons, onChecked)` makes a list exclude each other wherever the buttons sit (each in a row with its label) and calls back with the checked one (if several are checked already, the last one in the list stays checked); it returns an `IDisposable` that removes the handlers (a closed screen is collected with its group, so disposing is only needed to stop grouping while the buttons stay). `Uncheck(params buttons)` unchecks a list, `node.UncheckRadioButtons(excluded, recursive)` the radio buttons among a node's children or in its subtree.
+
+### Fixes
+
+- Image views that are collected (images, image buttons, slider thumbs, button images) now release their reference on the shared decoded-image cache, so the decoded frames are freed once nothing else uses them.
+
+### Other
+
+- **Changed:** buttons no longer wrap their text by default: `SkUiButton.LineBreakMode` defaults to `NoWrap`, as MAUI's Button (it inherited the label's `WordWrap`, so a narrow button grew to several lines); `SkUiCoreButton` too. Text that does not fit is cut at the padding and never runs over the image. Set `LineBreakMode="WordWrap"` for multi-line buttons.
+- **Changed:** a line wider than its label or button (`NoWrap`) starts at the start side whatever the horizontal alignment, as native labels and buttons show it, instead of being centered and cut on both sides; both layers, plain and formatted text.
 
 ## 1.0.0-Prerelease07
 

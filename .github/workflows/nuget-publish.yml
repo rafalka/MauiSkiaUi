@@ -356,7 +356,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/extract-release-notes.py "$VERSION" CHANGELOG.md artifacts/release-notes.txt
+          python3 scripts/extract-release-notes.py --format markdown "$VERSION" CHANGELOG.md artifacts/release-notes.md
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             echo "Release v$VERSION exists"
             exit 0
@@ -364,7 +364,7 @@ jobs:
           flags=()
           [[ "$VERSION" == *-* ]] && flags+=(--prerelease)
           gh release create "v$VERSION" --verify-tag --title "SkiaUi.Maui $VERSION" \
-            --notes-file artifacts/release-notes.txt "${flags[@]}" artifacts/nuget/*.nupkg
+            --notes-file artifacts/release-notes.md "${flags[@]}" artifacts/nuget/*.nupkg
 
       - name: Dry run notice
         if: needs.prepare.outputs.push != 'true'

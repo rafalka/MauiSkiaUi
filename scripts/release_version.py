@@ -13,7 +13,7 @@ Versions are ``X.Y.Z`` (stable) or ``X.Y.Z-PrereleaseNN`` (two-digit NN). Bumps:
 
 Branch rules: devel publishes prereleases only; master publishes stable versions only, except while no stable
 version exists yet (current version still a prerelease), when prereleases come from master too.
-``apply`` renames CHANGELOG.md's ``## Unreleased`` section to the version (refusing an empty one) and opens a new
+``apply`` renames CHANGELOG.md's ``## Unreleased`` section to the version (refusing one without entries) and opens a new
 empty ``## Unreleased`` above it.
 """
 
@@ -101,7 +101,7 @@ def apply(version: str) -> None:
     except StopIteration:
         fail(f"CHANGELOG.md has no '{UNRELEASED}' section")
     end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
-    if not any(line.strip() for line in lines[start + 1:end]):
+    if not any(line.strip() and not line.startswith("### ") for line in lines[start + 1:end]):
         fail(f"the '{UNRELEASED}' section of CHANGELOG.md is empty: nothing to release")
     lines[start:start + 1] = [UNRELEASED, "", f"## {version}"]
     CHANGELOG.write_text("\n".join(lines) + "\n", encoding="utf-8")

@@ -19,7 +19,12 @@ Version format: `X.Y.Z`, or `X.Y.Z-PrereleaseNN` with a two-digit `NN`. `Version
 
 ## Changelog
 
-Write entries under `## Unreleased` at the top of [CHANGELOG.md](../CHANGELOG.md). Releasing renames that section to the new version and opens a new empty `## Unreleased` above it, so nobody needs to know the next version number while working. A release with an empty `## Unreleased` is refused.
+Write entries under `## Unreleased` at the top of [CHANGELOG.md](../CHANGELOG.md), grouped under `### New features`, `### Breaking changes`, `### Fixes` and `### Other` (other headings are refused). Releasing renames that section to the new version and opens a new empty `## Unreleased` above it, so nobody needs to know the next version number while working. A release whose `## Unreleased` has no entries is refused.
+
+[`scripts/extract-release-notes.py`](../scripts/extract-release-notes.py) turns the section into release notes:
+
+- **NuGet** (`PackageReleaseNotes`, shown on nuget.org as plain text): a link to the section at the release tag, the titles of the new features (a feature bullet's text up to its first `:` or `;`) and the breaking changes in full, with the Markdown stripped. Fixes and Other are left to the link.
+- **GitHub release** (`--format markdown`): the whole section.
 
 ## Publishing
 

@@ -85,7 +85,7 @@ Demo app icon/splash SVGs intentionally omit SVG `<filter>` elements: MAUI **10.
 
 Versions and releases: branches, version format, bumps and the publish procedure are in [docs/Releasing.md](docs/Releasing.md). `nuget-pack.yml` (artifacts only) still accepts an optional version input, or takes it from a `v*` tag or [Directory.Build.props](Directory.Build.props).
 
-Release notes: write entries under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md); publishing renames the section to the version. Workflows run [`scripts/extract-release-notes.py`](scripts/extract-release-notes.py) and the library packs the section as `PackageReleaseNotes` (shown on nuget.org), with a link back to the changelog.
+Release notes: write entries under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md), in its `### New features` / `### Breaking changes` / `### Fixes` / `### Other` subsections; publishing renames the section to the version. Workflows run [`scripts/extract-release-notes.py`](scripts/extract-release-notes.py): the library packs a plain-text summary as `PackageReleaseNotes` (shown on nuget.org: a link to the section, new feature titles, breaking changes), and the GitHub release gets the whole section ([docs/Releasing.md](docs/Releasing.md#changelog)).
 
 ## Design documentation
 
