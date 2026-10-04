@@ -5,7 +5,8 @@ namespace MauiSkiaUi.Tests;
 
 /// <summary>
 /// Semantics trees of drawn surfaces (P10 in ImplementationPlan.md): which drawn nodes of either layer screen readers
-/// read, what they read, where they are, and the actions they perform.
+/// read, what they read, where they are, and the actions they perform. Labels get a fixed size: without an installed
+/// font (Linux CI) text measures empty, and zero-size views are not elements.
 /// </summary>
 public class AccessibilityTests
 {
@@ -38,7 +39,7 @@ public class AccessibilityTests
     public void ControlsAreElementsWithTheirRolesAndText()
     {
         var root = Stack(
-            new SkUiLabel { Text = "Title" },
+            new SkUiLabel { Text = "Title", WidthRequest = 80, HeightRequest = 20 },
             new SkUiButton { Text = "Save" },
             new SkUiCheckBox { IsChecked = true },
             new SkUiSwitch(),
@@ -64,12 +65,12 @@ public class AccessibilityTests
     {
         var image = new SkUiImage { HeightRequest = 20 };
         SemanticProperties.SetDescription(image, "Company logo");
-        var heading = new SkUiLabel { Text = "Settings" };
+        var heading = new SkUiLabel { Text = "Settings", WidthRequest = 80, HeightRequest = 20 };
         SemanticProperties.SetHeadingLevel(heading, SemanticHeadingLevel.Level1);
         var button = new SkUiButton { Text = "→" };
         SemanticProperties.SetDescription(button, "Next page");
         SemanticProperties.SetHint(button, "Shows the next results");
-        var hidden = new SkUiLabel { Text = "Decoration" };
+        var hidden = new SkUiLabel { Text = "Decoration", WidthRequest = 80, HeightRequest = 20 };
         AutomationProperties.SetIsInAccessibleTree(hidden, false);
         var excluded = Stack(new SkUiButton { Text = "Hidden" });
         AutomationProperties.SetExcludedWithChildren(excluded, true);
@@ -87,8 +88,8 @@ public class AccessibilityTests
         var card = new SkUiBorder
         {
             Content = Stack(
-                new SkUiLabel { Text = "Order 42" },
-                new SkUiLabel { Text = "Shipped" },
+                new SkUiLabel { Text = "Order 42", WidthRequest = 80, HeightRequest = 20 },
+                new SkUiLabel { Text = "Shipped", WidthRequest = 80, HeightRequest = 20 },
                 new SkUiButton { Text = "Track" })
         };
         card.Tapped += (_, _) => { };
@@ -106,7 +107,7 @@ public class AccessibilityTests
     [Fact]
     public void DescribedContainerReplacesItsText()
     {
-        var group = Row(new SkUiLabel { Text = "4.5" }, new SkUiLabel { Text = "★★★★☆" });
+        var group = Row(new SkUiLabel { Text = "4.5", WidthRequest = 80, HeightRequest = 20 }, new SkUiLabel { Text = "★★★★☆", WidthRequest = 80, HeightRequest = 20 });
         SemanticProperties.SetDescription(group, "Rated 4.5 of 5");
         var tree = Tree(Stack(group));
 
@@ -116,7 +117,7 @@ public class AccessibilityTests
     [Fact]
     public void RadioButtonReadsItsViewContent()
     {
-        var radio = new SkUiRadioButton { Content = new SkUiLabel { Text = "Yearly plan" } };
+        var radio = new SkUiRadioButton { Content = new SkUiLabel { Text = "Yearly plan", WidthRequest = 80, HeightRequest = 20 } };
         var tree = Tree(Stack(radio));
 
         Assert.Equal("RadioButton:Yearly plan", Describe(tree));
@@ -128,7 +129,7 @@ public class AccessibilityTests
         var button = new SkUiCoreButton { Text = "Core action" };
         var described = new SkUiCoreImage().SetSemanticDescription("Avatar").SetHeight(20);
         var stack = new SkUiCoreVerticalStackLayout();
-        stack.Add(new SkUiCoreLabel().SetText("Core text"));
+        stack.Add(new SkUiCoreLabel().SetText("Core text").SetHeight(20));
         stack.Add(button);
         stack.Add(described);
         stack.Add(new SkUiCoreSwitch().SetIsChecked(true));
@@ -297,7 +298,7 @@ public class AccessibilityTests
     [Fact]
     public void IdsStayAcrossRebuildsAndChangesAreReported()
     {
-        var label = new SkUiLabel { Text = "One" };
+        var label = new SkUiLabel { Text = "One", WidthRequest = 80, HeightRequest = 20 };
         var root = Stack(label, new SkUiButton { Text = "Two" });
         SkUiTestHelpers.Arrange(root, 300, 400);
         var owner = new SkUiSemanticsOwner(root);
@@ -313,7 +314,7 @@ public class AccessibilityTests
         Assert.False(report.Structure);
         Assert.Equal([first.Find(label)!.Id], report.Ids);
 
-        root.Children.Add(new SkUiLabel { Text = "Three" });
+        root.Children.Add(new SkUiLabel { Text = "Three", WidthRequest = 80, HeightRequest = 20 });
         SkUiTestHelpers.Arrange(root, 300, 400);
         owner.Invalidate();
         owner.Flush();

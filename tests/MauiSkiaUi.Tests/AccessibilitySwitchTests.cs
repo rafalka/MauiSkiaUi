@@ -89,7 +89,7 @@ public sealed class AccessibilitySwitchTests : IDisposable
     public void ChangesAreReportedOnceTheTreeIsQuiet()
     {
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
-        var label = new SkUiLabel { Text = "A" };
+        var label = new SkUiLabel { Text = "A", WidthRequest = 80, HeightRequest = 20 };
         var root = Stack(label);
         var owner = new SkUiSemanticsOwner(root);
         var reports = 0;
