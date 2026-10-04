@@ -50,11 +50,13 @@ public abstract record SkUiImageSource
     /// <summary>
     /// A glyph of a font (MAUI's <c>FontImageSource</c>), drawn through the text engine: fonts registered with
     /// <c>ConfigureFonts</c> or <see cref="SkUiFonts"/>, ligatures (icon names in Material Symbols) and fallback.
-    /// <paramref name="size"/> is the font size in DIPs; <paramref name="color"/> defaults to white, as in MAUI.
+    /// <paramref name="size"/> is the font size in DIPs; <paramref name="color"/> defaults to white, as in MAUI. With
+    /// <paramref name="fontAutoScalingEnabled"/> (default, as MAUI's) the glyph follows the system text size
+    /// (<see cref="SkUiFontScaling"/>) when the source is created.
     /// </summary>
     public static SkUiImageSource FromFont(string glyph, string? fontFamily = null, double size = SkUiFontImageSource.DefaultSize,
-        Color? color = null, FontAttributes fontAttributes = FontAttributes.None) =>
-        new SkUiFontImageSource(glyph, fontFamily, size, color, fontAttributes);
+        Color? color = null, FontAttributes fontAttributes = FontAttributes.None, bool fontAutoScalingEnabled = true) =>
+        new SkUiFontImageSource(glyph, fontFamily, size, color, fontAttributes, fontAutoScalingEnabled);
 }
 
 /// <summary>An absolute file path or a name in the app package (see <see cref="SkUiImageSource.FromFile"/>).</summary>
@@ -195,9 +197,9 @@ public sealed record SkUiFontImageSource : SkUiImageSource
     /// <summary>MAUI's default <c>FontImageSource.Size</c>.</summary>
     public const double DefaultSize = 30;
 
-    /// <summary>Creates a font glyph source.</summary>
+    /// <summary>Creates a font glyph source; see <see cref="SkUiImageSource.FromFont"/>.</summary>
     public SkUiFontImageSource(string glyph, string? fontFamily = null, double size = DefaultSize, Color? color = null,
-        FontAttributes fontAttributes = FontAttributes.None)
+        FontAttributes fontAttributes = FontAttributes.None, bool fontAutoScalingEnabled = true)
     {
         ArgumentException.ThrowIfNullOrEmpty(glyph);
         if (!double.IsFinite(size) || size <= 0)
@@ -207,6 +209,8 @@ public sealed record SkUiFontImageSource : SkUiImageSource
         Size = size;
         Color = color;
         FontAttributes = fontAttributes;
+        FontAutoScalingEnabled = fontAutoScalingEnabled;
+        DrawnSize = SkUiFontScaling.ScaleFontSize(size, fontAutoScalingEnabled);
     }
 
     /// <summary>The text to draw: usually one icon code point, or a ligature name.</summary>
@@ -224,8 +228,14 @@ public sealed record SkUiFontImageSource : SkUiImageSource
     /// <summary>Bold / italic.</summary>
     public FontAttributes FontAttributes { get; }
 
+    /// <summary>Whether the glyph follows the system text size (as MAUI's <c>FontImageSource.FontAutoScalingEnabled</c>).</summary>
+    public bool FontAutoScalingEnabled { get; }
+
+    /// <summary>The font size drawn: <see cref="Size"/> with the system text size at creation when auto scaling.</summary>
+    internal double DrawnSize { get; }
+
     internal override string CacheKey =>
-        FormattableString.Invariant($"font:{FontFamily}|{FontAttributes}|{Size}|{(Color ?? Colors.White).ToArgbHex(includeAlpha: true)}|{Glyph}");
+        FormattableString.Invariant($"font:{FontFamily}|{FontAttributes}|{DrawnSize}|{(Color ?? Colors.White).ToArgbHex(includeAlpha: true)}|{Glyph}");
 
     internal override Task<SkUiDecodedImage> LoadAsync(SkUiImageLoadContext context, CancellationToken token)
     {

@@ -58,6 +58,33 @@ public class SkUiLook
 
     #endregion
 
+    #region Text
+
+    private double _fontScale = 1;
+
+    /// <summary>
+    /// App-wide prescale of every drawn text size (labels, buttons, radio button text, spans, HTML, font images; both
+    /// layers), whatever its <c>FontAutoScalingEnabled</c>: a font size is multiplied by it first, then the system text size
+    /// applies to text that auto scales (<see cref="SkUiFontScaling"/>), so the drawn size is prescale × system scale.
+    /// Default 1. Changing it on the current look re-measures and redraws live surfaces; font images take it when their
+    /// source is created.
+    /// </summary>
+    public double FontScale
+    {
+        get => _fontScale;
+        set
+        {
+            if (!double.IsFinite(value) || value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value), value, "The font scale must be finite and positive.");
+            if (_fontScale == value) return;
+            _fontScale = value;
+            if (ReferenceEquals(_current, this))
+                NotifyChanged();
+        }
+    }
+
+    #endregion
+
     #region Shared geometry
 
     /// <summary>Optional uniform rounded-box painter (single radius for all corners).</summary>

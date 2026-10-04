@@ -443,6 +443,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         VirtualView.Loaded += OnLoaded;
         SkUiLook.CurrentChanged += OnLookChanged;
         SkUiColorScheme.CurrentChanged += OnLookChanged;
+        SkUiFontScaling.Changed += OnLookChanged;
         OnClockRunningChanged(this, EventArgs.Empty);
         VirtualView.Router.NativeAncestorCanScroll = NativeAncestorCanScroll;
         QueueFrame();
@@ -497,6 +498,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         VirtualView.Loaded -= OnLoaded;
         SkUiLook.CurrentChanged -= OnLookChanged;
         SkUiColorScheme.CurrentChanged -= OnLookChanged;
+        SkUiFontScaling.Changed -= OnLookChanged;
         VirtualView.AnimationClock.StopAll();
         _ticker?.Dispose();
         _ticker = null;
@@ -694,7 +696,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     }
 #endif
 
-    /// <summary>The look or color scheme changed: re-measure and redraw this surface's drawn tree with it.</summary>
+    /// <summary>The look, color scheme or system text size changed: re-measure and redraw this surface's drawn tree with it.</summary>
     private void OnLookChanged(object? sender, EventArgs args)
     {
         if (VirtualView is not { } root)

@@ -19,6 +19,8 @@ public class SkUiLabel : SkUiView
     private string _displayText = string.Empty; // _text after _textTransform
     private Color _textColor = SkUiColors.DefaultForeground;
     private double _fontSize = 16;
+    private bool _fontAutoScalingEnabled = true;
+    private int _fontScaleVersion; // SkUiFontScaling.Version the rich text was built at
     private string? _fontFamily;
     private FontAttributes _fontAttributes;
     private LineBreakMode _lineBreakMode = LineBreakMode.WordWrap;
@@ -50,6 +52,8 @@ public class SkUiLabel : SkUiView
     public static readonly BindableProperty TextColorProperty = BindableProperty.Create(nameof(TextColor), typeof(Color), typeof(SkUiLabel), Colors.Black, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextColor, validateValue: SkUiValidate.NotNull, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextColorChanged((Color)value));
     /// <summary>Bindable font size in DIPs.</summary>
     public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiLabel), 16d, validateValue: SkUiValidate.FinitePositive, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontSizeChanged((double)value));
+    /// <summary>Bindable <see cref="FontAutoScalingEnabled"/>.</summary>
+    public static readonly BindableProperty FontAutoScalingEnabledProperty = BindableProperty.Create(nameof(FontAutoScalingEnabled), typeof(bool), typeof(SkUiLabel), true, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontAutoScalingEnabledChanged((bool)value));
     /// <summary>Bindable system font family name.</summary>
     public static readonly BindableProperty FontFamilyProperty = BindableProperty.Create(nameof(FontFamily), typeof(string), typeof(SkUiLabel), null, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontFamilyChanged((string?)value));
     /// <summary>Bindable bold and italic attributes.</summary>
@@ -146,6 +150,11 @@ public class SkUiLabel : SkUiView
     public Color TextColor { get => (Color)GetValue(TextColorProperty); set => SetValue(TextColorProperty, value); }
     /// <summary>Font size in DIPs.</summary>
     public double FontSize { get => (double)GetValue(FontSizeProperty); set => SetValue(FontSizeProperty, value); }
+    /// <summary>
+    /// Whether the text follows the system text size (<see cref="SkUiFontScaling"/>), as MAUI's: <see cref="FontSize"/> and
+    /// span sizes are scaled when drawn. Default <c>true</c>.
+    /// </summary>
+    public bool FontAutoScalingEnabled { get => (bool)GetValue(FontAutoScalingEnabledProperty); set => SetValue(FontAutoScalingEnabledProperty, value); }
     /// <summary>System font family, or a name registered via <see cref="SkUiFonts.Register"/> for app-embedded MAUI fonts. Complex-script shaping is not supported.</summary>
     public string? FontFamily { get => (string?)GetValue(FontFamilyProperty); set => SetValue(FontFamilyProperty, value); }
     /// <summary>Bold and italic flags.</summary>
@@ -288,6 +297,9 @@ public class SkUiLabel : SkUiView
     /// <summary>Sets font size (same as the property setter).</summary>
     public SkUiLabel SetFontSize(double value) { if (!double.IsFinite(value) || value <= 0) throw new ArgumentOutOfRangeException(nameof(value)); FontSize = value; return this; }
     private void OnFontSizeChanged(double value) { if (_fontSize == value) return; _fontSize = value; InvalidateText(); }
+    /// <summary>Sets <see cref="FontAutoScalingEnabled"/> (same as the property setter).</summary>
+    public SkUiLabel SetFontAutoScalingEnabled(bool value) { FontAutoScalingEnabled = value; return this; }
+    private void OnFontAutoScalingEnabledChanged(bool value) { if (_fontAutoScalingEnabled == value) return; _fontAutoScalingEnabled = value; InvalidateText(); }
     /// <summary>Sets font family (same as the property setter).</summary>
     public SkUiLabel SetFontFamily(string? value) { FontFamily = value; return this; }
     private void OnFontFamilyChanged(string? value) { if (_fontFamily == value) return; _fontFamily = value; InvalidateText(); }
@@ -418,7 +430,7 @@ public class SkUiLabel : SkUiView
         InvalidateText();
     }
 
-    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), _fontSize, _lineBreakMode, _lineBreaker,
+    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), ScaledFontSize(_fontSize), _lineBreakMode, _lineBreaker,
         _maxLines, _lineHeight, _characterSpacing, TextDirection, _textRendering, _fontAttributes, _horizontalTextAlignment == TextAlignment.Justify);
 
     /// <summary>
@@ -439,15 +451,34 @@ public class SkUiLabel : SkUiView
     /// <inheritdoc />
     internal override void OnEffectiveFlowDirectionChanged() => InvalidateText();
 
-    /// <summary>The spans with the label's defaults applied (MAUI's rule: a span's own value when set, else the label's).</summary>
-    private SkUiRichText RichText => _richText ??= BuildRichText();
+    /// <summary>A font size as drawn: scaled by the system text size when <see cref="FontAutoScalingEnabled"/>.</summary>
+    private double ScaledFontSize(double size) => SkUiFontScaling.ScaleFontSize(size, _fontAutoScalingEnabled);
+
+    /// <summary>
+    /// The spans with the label's defaults applied (MAUI's rule: a span's own value when set, else the label's), rebuilt
+    /// when the system text size changed since.
+    /// </summary>
+    private SkUiRichText RichText
+    {
+        get
+        {
+            var version = SkUiFontScaling.Version;
+            if (_richText is null || _fontScaleVersion != version)
+            {
+                _fontScaleVersion = version;
+                _richText = BuildRichText();
+            }
+            return _richText;
+        }
+    }
 
     private SkUiRichTextLayout RichLayout => _richLayout ??= new SkUiRichTextLayout();
 
     private SkUiRichText BuildRichText()
     {
         if (IsHtml)
-            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, _fontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations);
+            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, _fontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations,
+                _fontAutoScalingEnabled);
         if (_formattedText is not { Spans.Count: > 0 } formatted) return SkUiRichText.Empty;
         var builder = new SkUiRichText.Builder();
         foreach (var span in formatted.Spans)
@@ -460,7 +491,7 @@ public class SkUiLabel : SkUiView
             var decorations = span.IsSet(Span.TextDecorationsProperty) ? span.TextDecorations : _textDecorations;
             var transform = span.TextTransform != TextTransform.Default ? span.TextTransform : _textTransform;
             builder.Add(SkUiTextTransform.Apply(span.Text ?? string.Empty, transform),
-                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(family, attributes), size, attributes, spacing, lineHeight),
+                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(family, attributes), ScaledFontSize(size), attributes, spacing, lineHeight),
                 new SkUiTextSpanPaint(ToSkColor(span.TextColor ?? _textColor), span.BackgroundColor is { } background ? ToSkColor(background) : default, decorations));
         }
         return builder.Build();

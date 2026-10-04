@@ -78,7 +78,7 @@ public class LabelHtmlTests
     public void CssResetsOverrideTheLabelsDefaults()
     {
         var runs = SkUiHtml.Parse("<span style='font-weight:normal; text-decoration:none'>plain</span> <i>italic</i>");
-        var text = SkUiHtml.ToRichText(runs, null, 16, FontAttributes.Bold, 0, -1, Colors.Black, TextDecorations.Underline);
+        var text = SkUiHtml.ToRichText(runs, null, 16, FontAttributes.Bold, 0, -1, Colors.Black, TextDecorations.Underline, fontAutoScalingEnabled: false);
         Assert.Equal(FontAttributes.None, text.Styles[0].FontAttributes); // the label is bold: the markup turns it off
         Assert.Equal(TextDecorations.None, text.Paints[0].Decorations);
         Assert.Equal(FontAttributes.Bold, text.Styles[1].FontAttributes); // " " keeps the label's

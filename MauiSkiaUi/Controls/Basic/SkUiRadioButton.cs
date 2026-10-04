@@ -26,6 +26,7 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
     private string _text = string.Empty; // string Content after the text transform
     private Color _textColor = SkUiColors.DefaultForeground;
     private double _fontSize = 16;
+    private bool _fontAutoScalingEnabled = true;
     private string? _fontFamily;
     private FontAttributes _fontAttributes;
     private double _characterSpacing;
@@ -67,6 +68,9 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
     public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiRadioButton), 16d,
         validateValue: SkUiValidate.FinitePositive,
         propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnTextStyleChanged(radio => radio._fontSize = (double)value));
+    /// <summary>Bindable <see cref="FontAutoScalingEnabled"/>.</summary>
+    public static readonly BindableProperty FontAutoScalingEnabledProperty = BindableProperty.Create(nameof(FontAutoScalingEnabled), typeof(bool), typeof(SkUiRadioButton), true,
+        propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnTextStyleChanged(radio => radio._fontAutoScalingEnabled = (bool)value));
     /// <summary>Bindable <see cref="FontFamily"/>.</summary>
     public static readonly BindableProperty FontFamilyProperty = BindableProperty.Create(nameof(FontFamily), typeof(string), typeof(SkUiRadioButton), null,
         propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnTextStyleChanged(radio => radio._fontFamily = (string?)value));
@@ -119,6 +123,8 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
     public Color TextColor { get => (Color)GetValue(TextColorProperty); set => SetValue(TextColorProperty, value); }
     /// <summary>Font size of text content in DIPs.</summary>
     public double FontSize { get => (double)GetValue(FontSizeProperty); set => SetValue(FontSizeProperty, value); }
+    /// <summary>Whether text content follows the system text size (<see cref="SkUiFontScaling"/>), as MAUI's. Default <c>true</c>.</summary>
+    public bool FontAutoScalingEnabled { get => (bool)GetValue(FontAutoScalingEnabledProperty); set => SetValue(FontAutoScalingEnabledProperty, value); }
     /// <summary>Font family of text content (system font, or a name registered via <see cref="SkUiFonts.Register"/>).</summary>
     public string? FontFamily { get => (string?)GetValue(FontFamilyProperty); set => SetValue(FontFamilyProperty, value); }
     /// <summary>Bold and italic flags of text content.</summary>
@@ -227,6 +233,8 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
 
     /// <summary>Sets the font size (same as the property setter).</summary>
     public SkUiRadioButton SetFontSize(double value) { SkUiValidate.ThrowIfNotFinitePositive(value, nameof(value)); FontSize = value; return this; }
+    /// <summary>Sets <see cref="FontAutoScalingEnabled"/> (same as the property setter).</summary>
+    public SkUiRadioButton SetFontAutoScalingEnabled(bool value) { FontAutoScalingEnabled = value; return this; }
     /// <summary>Sets the font family (same as the property setter).</summary>
     public SkUiRadioButton SetFontFamily(string? value) { FontFamily = value; return this; }
     /// <summary>Sets the font attributes (same as the property setter).</summary>
@@ -362,6 +370,7 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
         {
             label.TextColor = _textColor;
             label.FontSize = _fontSize;
+            label.FontAutoScalingEnabled = _fontAutoScalingEnabled;
             label.FontFamily = _fontFamily;
             label.FontAttributes = _fontAttributes;
             label.CharacterSpacing = _characterSpacing;
@@ -418,7 +427,8 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
 
     private SkUiRadioButtonContent TextContent => _textContent ??= new SkUiRadioButtonContent(this);
 
-    private SkUiTextStyle TextStyle => SkUiRadioButtonContent.TextStyle(_fontFamily, _fontSize, _fontAttributes, _characterSpacing, TextDirection);
+    private SkUiTextStyle TextStyle => SkUiRadioButtonContent.TextStyle(_fontFamily,
+        SkUiFontScaling.ScaleFontSize(_fontSize, _fontAutoScalingEnabled), _fontAttributes, _characterSpacing, TextDirection);
 
     /// <summary>Paragraph direction from MAUI's flow direction, as <see cref="SkUiLabel"/>'s.</summary>
     private SkUiTextDirection TextDirection
