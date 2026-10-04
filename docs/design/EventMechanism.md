@@ -163,7 +163,7 @@ A native control hosted by `SkUiMauiContentView` sits above the drawn surface, s
 
 - A dedicated SkUi* gesture demo page. Gestures and nested scrollers are shown today on the Core "ScrollView + gestures" page, `ViewDemoPage` (`InputTransparent`) and "Native nesting".
 - Hover / pointer-over events and an axis-aware wheel (desktop).
-- Keyboard and accessibility actions (activation of focused elements) — later.
+- Keyboard focus and accessibility actions shipped with P10 ([Accessibility.md](Accessibility.md)): keys go to the focused drawn node through the surface's focus manager, not through the gesture arena; screen-reader actions call the nodes' tap paths. Still open: public key events for app controls.
 - Shape-aware hit-testing (opt-in), if needed.
 
 ## References

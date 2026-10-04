@@ -48,6 +48,8 @@ public class SkUiLook
     // Scroll bar thumbs: drawn once per length and color into a Core node; the compositor moves and fades it.
     public void DrawScrollBar(SKCanvas canvas, SkUiScrollBarPaint bar) { … }         // → ScrollBarPainter ?? DrawScrollBarCore
     public void DrawScrollBarTrack(SKCanvas canvas, SkUiScrollBarTrackPaint track) { … } // expanded bars (hover) → ScrollBarTrackPainter ?? DrawScrollBarTrackCore
+    // Keyboard focus ring over the focused drawn control (P10), inside its bounds, while focus came from the keyboard.
+    public void DrawFocusRing(SKCanvas canvas, SkUiFocusRingPaint ring) { … }        // → FocusRingPainter ?? DrawFocusRingCore
     public virtual double ScrollBarThickness => 4;         // and ScrollBarMargin (2), ScrollBarMinimumThumbLength (24),
                                                            // ScrollBarExpandedThickness (8), ScrollBarHitThickness (16),
                                                            // ScrollBarReservedThickness (12: the gutter of a bar that always shows)
@@ -139,6 +141,14 @@ Override `GetTransitionCore` in a subclass, or set `TransitionProvider` on a loo
 - Controls animate only after they have been drawn on a surface. A state set before a page appears (a constructor, a binding) shows at once.
 - Stopping the clock (the page closes, the surface is replaced) jumps every transition to its end state.
 - The decision and its measurements: [ArchitectureReview.md](ArchitectureReview.md#state-change-animations).
+
+### Text prescale
+
+`FontScale` (default 1, settable on any look) multiplies every drawn text size of the app: labels, buttons, radio button text, spans, HTML and font images on both layers, with or without `FontAutoScalingEnabled` (an app's own text size setting). Text that auto scales then gets the system text size on top ([Accessibility.md](Accessibility.md#font-scaling)). Setting it on the current look redraws live surfaces; a look swap applies the new look's value.
+
+### Focus ring
+
+The control with keyboard focus (either layer: buttons, toggles, sliders, views with a tap handler) gets the look's ring in its overlay layer while focus came from the keyboard: `DrawFocusRing(canvas, SkUiFocusRingPaint)` with the control's rectangle, its corner radii (labels, buttons, borders: their own; others square) and two colors from the color scheme (`Color`: foreground, `Contrast`: background). `DefaultSkUiLook` draws a `FocusRingThickness` (2 DIP) line of the foreground with a 1 DIP background line inside it, both inside the bounds (leaf controls clip to them), following the corners, so the ring shows on light, dark and accent fills, as Windows' focus visuals. Replace it with `FocusRingPainter` or by overriding `DrawFocusRingCore`. Showing or hiding the ring re-records the control once; see [Accessibility.md](Accessibility.md#keyboard-focus).
 
 ### Default width / height
 

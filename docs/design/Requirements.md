@@ -287,7 +287,7 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 
 **Naming:** this is **MAUI styling** of individual controls. It is **not** control look (FR-18) and **not** the shared SkiaUi **color scheme** (FR-19).
 
-**Status:** implemented (P2 in [ImplementationPlan.md](ImplementationPlan.md)) except the states that wait for keyboard focus and collection views.
+**Status:** implemented (P2 in [ImplementationPlan.md](ImplementationPlan.md); `Focused` / `Unfocused` with P10) except the collection views' `Selected`.
 
 - [x] Style SkiaUi controls with standard **MAUI** mechanisms: `Style` (implicit and explicit), `Setter`s on `BindableProperty`s, resource dictionaries, and `VisualStateManager` visual state groups with setters.
 - [x] `Normal` / `Disabled` on every `SkUi*` view (MAUI's `VisualElement` raises them on `IsEnabled` changes); `SkUiButton` raises `Normal` / `Pressed` / `Disabled`, including Disabled when its command cannot execute.
@@ -295,7 +295,7 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
   - [x] `Pressed` on `SkUiImageButton`.
   - [x] Toggle states: `IsChecked` (CheckBox), `On` / `Off` (Switch), `Checked` / `Unchecked` (RadioButton).
   - [x] `PointerOver` from hover tracking in the pointer router (mouse, trackpad, pen, iPad pointer); MAUI's `IsPointerOver` is internal, so SkiaUi keeps its own flag (`SkUiView.IsPointerOver`).
-  - [ ] `Focused` / `Unfocused`, once drawn controls take keyboard focus (N8).
+  - [x] `Focused` / `Unfocused` from keyboard focus of drawn controls (P10, FR-28).
   - [ ] `Selected` on collection items (FR-22).
 - [x] State triggers (`StateTrigger`, `AdaptiveTrigger`, `CompareStateTrigger`) verified on drawn controls.
 - Core nodes are not `VisualElement`s: their state visuals come from the look and its transitions (FR-18, FR-26), not from VSM.
@@ -511,7 +511,8 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--s
 - [x] Look-customizable: `SkUiLook.DrawSlider(SkUiSliderPaint)`, `MeasureSlider`, `SliderThumbRadius`, delegates; looks draw only the horizontal case (the control rotates the canvas).
 - [x] Headless tests (`SliderTests`), demo page, leak scenario.
 - [x] `ThumbImageSource` (P4): drawn upright at its intrinsic size in place of the look's thumb (`SkUiSliderPaint.HasThumbImage`), through the shared image loader.
-- [ ] Step / snapping; accessibility (with the accessibility work).
+- [x] Accessibility (P10): a slider element with its range; screen readers and arrow keys step it by 5 %.
+- [ ] Step / snapping.
 
 ### FR-25 — ProgressBar
 
@@ -550,6 +551,19 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--s
 - [x] **Wrap layout** (`SkUiWrapLayout`, `SkUiCoreWrapLayout`): children flow left to right and wrap to new rows; `Spacing` between items, `RowSpacing` between rows; children align vertically inside their row. One engine for both layers.
 - [x] **Shrink stacks** (`SkUiHorizontalShrinkLayout`, `SkUiVerticalShrinkLayout` and their Core twins): a stack that fits its content on the main axis. Without overflow it is a plain stack. On overflow, children share the overflow by their shrink factor (`SkUiShrinkFactor`): `None` (default) keeps its size; `Auto` shrinks in proportion to its natural size, only when above the average; a number `f` shrinks by `f` × natural size (CSS `flex-shrink`). No child goes below its minimum size; the rest is shared again. One engine for both layers and axes.
 - [x] RTL through the standard frame mirroring; attached-property changes relayout; headless tests (`FlexLayoutTests` with a MAUI `FlexLayout` parity sweep, `WrapLayoutTests`, `ShrinkLayoutTests`), demo pages, docs, leak scenario (`LayoutsRelayout`).
+
+### FR-28 — Accessibility, keyboard focus and font scaling
+
+**Status:** implemented (P10 in [ImplementationPlan.md](ImplementationPlan.md), N8). Design: [Accessibility.md](Accessibility.md); docs: [SkUiView.md](../controls/SkUiView.md#accessibility-and-keyboard), [SkUiCore.md](../controls/SkUiCore.md#accessibility-and-keyboard).
+
+- [x] A semantics tree per surface from both layers: MAUI's `SemanticProperties` (`Description`, `Hint`, `HeadingLevel`) and `AutomationProperties` (`IsInAccessibleTree`, `ExcludedWithChildren`, `Name`, `HelpText`) on SkUi* views, the same as Core node properties; roles, states, ranges and actions from the controls; tappable groups read as one element; visible bounds through transforms, scrolling and clips; stable ids.
+- [x] Platform accessibility: Android `ExploreByTouchHelper` (virtual views), iOS / Mac Catalyst accessibility elements, Windows automation peers; actions (activate, long press, increment / decrement, set value, scroll by page); change notifications; hosted native views read natively; `SetSemanticFocus` for drawn nodes.
+- [x] Keyboard focus: MAUI's `Focus()` / `Unfocus()` / `IsFocused` / `Focused` / `Unfocused` on drawn views, Core focus API, `IsTabStop` / `TabIndex`, Tab / Shift+Tab within the surface and on to native controls, Space / Enter activation, arrow / page / home / end keys, a look-drawn focus ring (focus-visible), scroll into view.
+- [x] OS font scaling: `FontAutoScalingEnabled` (labels, buttons, radio buttons, spans, HTML, font images; both layers), system text size per platform, `SkUiFontScaling.Factor` override, live surfaces re-measure on change.
+- [x] Extensible: `OnPopulateSemantics` / `OnSemanticsAction` / `OnSemanticsSetValue` on both layers for own controls.
+- [x] Headless tests (`AccessibilityTests`, `KeyboardFocusTests`, `FontScalingTests`), leak scenario (`AccessibleFocused`), demo page (**Accessibility**), Mac Catalyst checked through the accessibility API and a hardware keyboard.
+- [ ] Device runs with TalkBack, VoiceOver (iOS) and Narrator; keyboards on Android and Windows.
+- [ ] Links inside text as elements, custom actions, live regions, arrow keys within radio groups.
 
 ## Non-functional requirements
 

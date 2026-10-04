@@ -188,7 +188,8 @@ Animated GIF / WebP play on the view's UI clock while `IsAnimationPlaying` is tr
 | Caching | Memory cache of decoded images shared by all views; download cache with MAUI's `CachingEnabled` / `CacheValidity`; plus `CacheType` per view |
 | Transformations, downsampling, placeholders, load events | SkiaUi extensions (from FFImageLoading); MAUI has only `IsLoading` |
 | `MauiImage` lookup | The file Resizetizer generated for the display density; Android vector (XML) drawables are not decoded |
-| `FontImageSource.FontAutoScalingEnabled` | Ignored (font scaling arrives with P10) |
+| `FontImageSource.FontAutoScalingEnabled` | As MAUI's: the glyph follows the system text size (default `true`), at the size of when the source is set |
+| Screen readers | An image is read only with `SemanticProperties.Description` (or `AutomationProperties.IsInAccessibleTree="True"`); an image button is a button named by its description |
 | `IsOpaque` | Not available (no effect on drawn images) |
 | SVG at runtime | Not yet: an SVG `MauiImage` works (as the PNG generated at build time); drawing `.svg` files at runtime is planned ([ImplementationPlan.md](../design/ImplementationPlan.md)) |
 | Size limits | 32 MiB encoded; decoded edge ≤ `MaxDecodeDimension` (2048 px) |

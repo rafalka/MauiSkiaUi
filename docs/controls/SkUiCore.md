@@ -17,7 +17,7 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 
 | Type | Role |
 | --- | --- |
-| `ISkUiCoreNode` / `SkUiCoreNode` | Measure / arrange / paint / touch; fluent `Set*`; `INotifyPropertyChanged`; `PaintBackground`/`PaintOverlay` delegates + virtual `OnPaintContent`; `StartUpdating` / `EndUpdating`; `AnimationClock`; composite-time `Opacity` / `TranslationX/Y` / `Rotation` / `Scale` / `ClipToBounds` (transform-aware hit testing) and render-thread `AnimateAsync`; `Background` (`Paint`: solid or gradient), `Shadow` (`IShadow`) and `Clip` (`IShape`), see [Backgrounds, shadows and clips](#backgrounds-shadows-and-clips) |
+| `ISkUiCoreNode` / `SkUiCoreNode` | Measure / arrange / paint / touch; fluent `Set*`; `INotifyPropertyChanged`; `PaintBackground`/`PaintOverlay` delegates + virtual `OnPaintContent`; `StartUpdating` / `EndUpdating`; `AnimationClock`; composite-time `Opacity` / `TranslationX/Y` / `Rotation` / `Scale` / `ClipToBounds` (transform-aware hit testing) and render-thread `AnimateAsync`; `Background` (`Paint`: solid or gradient), `Shadow` (`IShadow`) and `Clip` (`IShape`), see [Backgrounds, shadows and clips](#backgrounds-shadows-and-clips); semantic properties and keyboard focus ([below](#accessibility-and-keyboard)); `Tag` (any app object, never read by SkiaUi) |
 | `SkUiCoreShadow` | Immutable drop shadow for `SetShadow`: `Paint` (or a `Color`), `Offset`, `Radius` (10), `Opacity` (1) |
 | `SkUiCorePanel` | Multi-child base (attach, padding, paint, hit-test) |
 | `SkUiCoreAttachedProperty<T>` | Typed per-child value a layout reads (grid row, absolute bounds, shrink factor); `node.GetValue` / `SetValue` / `ClearValue` / `IsSet`. See [Attached properties](#attached-properties) |
@@ -179,6 +179,31 @@ Core nodes take part in the same gesture arena as SkUi* views:
 - **Buttons and toggles** handle taps intrinsically.
 - **Cost:** recognizers exist only while used, so passive nodes carry a single null field.
 - **Entry point:** `Touch` is a dispatch entry point (usually called by `SkUiCoreHost`'s surface), not an override point.
+
+## Accessibility and keyboard
+
+Core nodes are read by screen readers and take keyboard focus like SkUi* views ([SkUiView.md](SkUiView.md#accessibility-and-keyboard), [Accessibility.md](../design/Accessibility.md)); their semantic properties are CLR properties with fluent setters instead of MAUI's attached `SemanticProperties`:
+
+```csharp
+var title = new SkUiCoreLabel { Text = "Orders" }.SetSemanticHeadingLevel(SemanticHeadingLevel.Level1);
+var avatar = new SkUiCoreImage().SetSemanticDescription("Profile picture");
+var sms = new SkUiCoreSwitch().SetSemanticDescription("Notify me by SMS").SetSemanticHint("Texts you when it ships");
+var divider = new SkUiCoreBox().SetIsInAccessibleTree(false);
+var save = new SkUiCoreButton { Text = "Save" }.SetTabIndex(1);
+save.Focus();
+```
+
+| Member | Role |
+| --- | --- |
+| `SemanticDescription` / `SemanticHint` / `SemanticHeadingLevel` | MAUI's `SemanticProperties`: the name (replaces the node's text), what is read after it, a heading level |
+| `IsInAccessibleTree` (`bool?`) / `ExcludedWithChildren` | MAUI's `AutomationProperties`: force the node in or out (children still read), or hide the whole subtree |
+| `Focus()` / `Unfocus()` / `IsFocused` / `Focused` / `Unfocused` | Keyboard focus; interactive nodes (buttons, toggles, sliders, nodes with a `Tapped` handler) take it |
+| `IsTabStop` / `TabIndex` | Tab order within the surface, shared with the SkUi* views around the host |
+| `SetSemanticFocus()` | Moves the screen reader to the node |
+| `OnPopulateSemantics` / `OnSemanticsAction` / `OnSemanticsSetValue` | What own nodes report and do (`SkUiSemanticsInfo`) |
+| `Tag` / `SetTag` | Any object the app keeps with the node; SkiaUi never reads it |
+
+Core labels and buttons follow the system text size like SkUi* ones (`FontAutoScalingEnabled` / `SetFontAutoScalingEnabled`); `SkUiImageSource.FromFont(…, fontAutoScalingEnabled)` for glyph images.
 
 ## Diagnostics and automation
 

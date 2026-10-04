@@ -194,7 +194,7 @@ Fonts registered with MAUI's `ConfigureFonts` (`fonts.AddFont("file.ttf", "Alias
 
 ## Key properties
 
-`Text`, `FormattedText`, `TextType`, `LinkTappedCommand`, `TextColor`, `FontSize`, `FontFamily`, `FontAttributes`, `LineBreakMode`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`, `LineBreaker`, `HorizontalTextAlignment`, `VerticalTextAlignment`, `TextRendering`, `Padding`, `CornerRadii`, `CornerRadius`, `BorderColor`, `BorderWidth` (+ matching `Set*` setters); `InvalidateTextLayout()`, `SpanAt(point)`, `LinkAt(point)`; `LinkTapped`.
+`Text`, `FormattedText`, `TextType`, `LinkTappedCommand`, `TextColor`, `FontSize`, `FontAutoScalingEnabled`, `FontFamily`, `FontAttributes`, `LineBreakMode`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`, `LineBreaker`, `HorizontalTextAlignment`, `VerticalTextAlignment`, `TextRendering`, `Padding`, `CornerRadii`, `CornerRadius`, `BorderColor`, `BorderWidth` (+ matching `Set*` setters); `InvalidateTextLayout()`, `SpanAt(point)`, `LinkAt(point)`; `LinkTapped`.
 
 ## Differences from MAUI Label
 
@@ -213,7 +213,9 @@ Fonts registered with MAUI's `ConfigureFonts` (`fonts.AddFont("file.ttf", "Alias
 | Bidi / complex scripts | Supported (HarfBuzz + UAX #9 implicit levels). Explicit embedding / isolate control characters (LRE…PDI) are treated as neutral; LRM / RLM / ALM work |
 | Fallback fonts | Chosen by Skia's font manager per character; may differ from the native text stack's choice (e.g. a different Hebrew face on iOS) |
 | Selection / copy | Not supported |
-| Fonts | System names, `ConfigureFonts` aliases or `SkUiFonts.Register`; not the MAUI font scaling pipeline |
+| Fonts | System names, `ConfigureFonts` aliases or `SkUiFonts.Register`, through SkiaUi's text engine (not MAUI's font manager) |
+| System text size | Followed as MAUI's (`FontAutoScalingEnabled`, default `true`; spans and HTML sizes too): Android's font scale (non-linear on Android 14+), Dynamic Type, Windows text scaling (applied linearly); `SkUiLook.FontScale` prescales all text app-wide, also with auto scaling off |
+| Accessibility | Read as text (its `Text`, the spans' or the HTML's text); a heading with `SemanticProperties.HeadingLevel`; links inside are read as part of the text, not as their own elements |
 | Gestures | Opt-in `Tapped` / `TappedCommand` only |
 | Rounded background / border | Built in (`CornerRadii` / `CornerRadius`, `BorderColor`, `BorderWidth`); MAUI needs a `Border` around the label |
 

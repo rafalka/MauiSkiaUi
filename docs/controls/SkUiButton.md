@@ -62,7 +62,8 @@ Inherits Label text APIs (MAUI Button's `CharacterSpacing`, `TextTransform`, `Li
 | Hit region | Rectangular arranged bounds (corners outside the round fill still hit) |
 | `TappedCommand` vs `Command` | On tap, only `Command` runs (plus `Clicked` / `Tapped` event). Do not rely on both commands. |
 | Chrome | `FillColor`; a `Background` (solid or gradient) overrides it. Gradients reach the look as `SkUiButtonPaint.FillPaint` (`Fill` then holds the stops averaged, for looks that draw colors only); the default look dims them when pressed. An opaque fill casts the `Shadow` from the rounded chrome |
-| Visual states | MAUI's: `Normal`, `PointerOver` (hover), `Pressed`, `Disabled` (also when the command cannot execute) |
+| Visual states | MAUI's: `Normal`, `PointerOver` (hover), `Pressed`, `Disabled` (also when the command cannot execute), `Focused` / `Unfocused` |
+| Keyboard and screen readers | A button element named by its text (or `SemanticProperties.Description`; an image-only button needs one); Space / Enter and a screen reader's double tap raise `Clicked` and run the command, without `Pressed` / `Released` (as native buttons activated by assistive technology) |
 
 ## Related
 

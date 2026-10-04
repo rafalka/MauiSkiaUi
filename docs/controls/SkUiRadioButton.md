@@ -117,7 +117,7 @@ This is the template of MAUI's docs with only the prefixes changed. The template
 
 ## Key properties
 
-`Content`, `TextColor`, `FontSize`, `FontFamily`, `FontAttributes`, `CharacterSpacing`, `TextTransform`, `BorderColor`, `BorderWidth`, `CornerRadius`, `Padding`, `ControlTemplate` (+ `TemplateRoot`), `IsChecked`, `CheckedChanged` (`CheckedChangedEventArgs`), `Color`, `GroupName`, `Value` (+ `SetRadioValue`). `CheckState` (Indeterminate draws a bar; taps only select) comes from [`SkUiToggleControl`](SkUiToggleControl.md). On the parent layout: MAUI's `RadioButtonGroup.GroupName`, `RadioButtonGroup.SelectedValue`.
+`Content`, `TextColor`, `FontSize`, `FontAutoScalingEnabled`, `FontFamily`, `FontAttributes`, `CharacterSpacing`, `TextTransform`, `BorderColor`, `BorderWidth`, `CornerRadius`, `Padding`, `ControlTemplate` (+ `TemplateRoot`), `IsChecked`, `CheckedChanged` (`CheckedChangedEventArgs`), `Color`, `GroupName`, `Value` (+ `SetRadioValue`). `CheckState` (Indeterminate draws a bar; taps only select) comes from [`SkUiToggleControl`](SkUiToggleControl.md). On the parent layout: MAUI's `RadioButtonGroup.GroupName`, `RadioButtonGroup.SelectedValue`.
 
 `SkUiCoreRadioButton` stays a basic circle (no content, chrome or templates): compose it with Core labels and borders.
 
@@ -129,7 +129,8 @@ This is the template of MAUI's docs with only the prefixes changed. The template
 | `ControlTemplate` | Drawn views; `TemplateBinding` / `RelativeSource TemplatedParent` do not resolve (use `AncestorType`); the root inherits the binding context |
 | View content without a template | Drawn beside the circle (MAUI on Android shows its type name; iOS always uses the template) |
 | `BorderWidth` / `CornerRadius` defaults | 0 (MAUI: -1) |
-| `FontAutoScalingEnabled` | Not yet (P10) |
+| `FontAutoScalingEnabled` | As MAUI's: text content follows the system text size unless `False` |
+| Screen readers | A radio button element named by its text content (view content and templates: the text inside them) |
 | Visual states | As MAUI's RadioButton: `Checked` / `Unchecked` (also on the template root), then the common states |
 
 ## Related

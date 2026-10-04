@@ -112,10 +112,10 @@ Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](
 - **Coordinates** are MAUI DIPs; the handler maps to surface pixels.
 - **`HwAccelerated`** is set before the handler attaches (ContentView/Layout default GPU; leaves default software). Hosted children ignore it.
 - **Gestures** use SkiaUi’s own tap model (`Tapped` / `TappedCommand`), not MAUI `GestureRecognizers`.
-- **Styles / VisualStateManager** work on bindable `SkUi*` properties like other MAUI views, with MAUI's states: `Normal`, `Disabled`, `PointerOver` (mouse / trackpad / pen / iPad pointer hover), buttons' `Pressed`, CheckBox `IsChecked`, Switch `On` / `Off`, RadioButton `Checked` / `Unchecked`. `Focused` waits for keyboard focus on drawn views.
+- **Styles / VisualStateManager** work on bindable `SkUi*` properties like other MAUI views, with MAUI's states: `Normal`, `Disabled`, `PointerOver` (mouse / trackpad / pen / iPad pointer hover), buttons' `Pressed`, CheckBox `IsChecked`, Switch `On` / `Off`, RadioButton `Checked` / `Unchecked`, `Focused` / `Unfocused` from keyboard focus.
 - **`StartUpdating` / `EndUpdating`** batch layout and paint invalidation when changing many properties.
 - Fluent `Set*` setters are the property setters in chainable form: they write the bindable store, so bindings and triggers see them.
-- Drawn nodes are not yet full accessibility / keyboard targets; native overlays keep their platform a11y.
+- **Accessibility:** drawn controls are read by TalkBack, VoiceOver and Narrator (MAUI's `SemanticProperties` / `AutomationProperties` apply), take keyboard focus (MAUI's `Focus()`, Tab order, Space / Enter, a focus ring), and text follows the system text size (`FontAutoScalingEnabled`). Native overlays keep their platform accessibility ([docs](docs/controls/SkUiView.md#accessibility-and-keyboard)).
 - **Trimming and Native AOT:** the library is trimmable and AOT-compatible (no reflection; trim / AOT analyzers fail its build). Checked with Native AOT on iOS and Mac Catalyst and full trimming on Android. Android Native AOT (experimental in .NET 10): software surfaces (`HwAccelerated = false`) fail, because SkiaSharp's Android `SKCanvasView` needs an assembly that build doesn't include; GPU surfaces work.
 
 ## Sample app
