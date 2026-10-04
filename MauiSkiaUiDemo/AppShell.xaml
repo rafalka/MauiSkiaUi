@@ -42,6 +42,13 @@
             Route="look" />
     </FlyoutItem>
 
+    <FlyoutItem Title="Accessibility">
+        <ShellContent
+            Title="Accessibility"
+            ContentTemplate="{DataTemplate local:AccessibilityPage}"
+            Route="accessibility" />
+    </FlyoutItem>
+
     <FlyoutItem Title="Stress">
         <ShellContent
             Title="Stress"
