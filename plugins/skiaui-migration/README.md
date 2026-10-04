@@ -7,7 +7,7 @@ Agent skills that help an AI coding agent move .NET MAUI screens to SkiaUi's dra
 | `skiaui-audit` | Read-only survey of a MAUI app: controls by migration path, blockers, gesture and `TouchBehavior` work, custom handlers, third-party and custom controls, pages ranked by size. Ends with a migration plan |
 | `skiaui-migrate` | Converts a page, view or custom control: places the drawn surface, renames controls, wraps native-only controls, moves styles, converts gestures; checks the result with a XAML checker and a build |
 
-Both include a Python 3 script (standard library only): `audit_maui_app.py` writes the inventory, `check_xaml.py` reports MAUI content that drawn trees do not run (native views, unsupported gesture recognizers, platform behaviors, effects, `BindableLayout`, styles targeting MAUI types, lone drawn controls).
+Both include a Python 3 script (standard library only): `audit_maui_app.py` writes the inventory, `check_xaml.py` reports MAUI content that drawn trees do not run (native views, unsupported gesture recognizers, platform behaviors, effects, `BindableLayout`, styles targeting MAUI types (keyed, and implicit ones the drawn replacements no longer get), lone drawn controls).
 
 ## Install in Claude Code
 

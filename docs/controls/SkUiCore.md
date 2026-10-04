@@ -203,7 +203,7 @@ save.Focus();
 | `OnPopulateSemantics` / `OnSemanticsAction` / `OnSemanticsSetValue` | What own nodes report and do (`SkUiSemanticsInfo`) |
 | `Tag` / `SetTag` | Any object the app keeps with the node; SkiaUi never reads it |
 
-Core labels and buttons follow the system text size like SkUi* ones (`FontAutoScalingEnabled` / `SetFontAutoScalingEnabled`); `SkUiImageSource.FromFont(…, fontAutoScalingEnabled)` for glyph images.
+Core labels and buttons follow the system text size like SkUi* ones (`FontAutoScalingEnabled` / `SetFontAutoScalingEnabled`; a `SkUiCoreSpan`'s own `FontAutoScalingEnabled`, `null` by default, overrides the label's for that span); `SkUiImageSource.FromFont(…, fontAutoScalingEnabled)` for glyph images.
 
 ## Diagnostics and automation
 

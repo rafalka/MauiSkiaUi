@@ -11,7 +11,9 @@ A drawn tree is everything inside a SkiaUi view (an element from the MauiSkiaUi 
 - custom controls that do not derive from a SkiaUi view;
 - gesture recognizers drawn views do not run (all but TapGestureRecognizer with 1 or 2 taps and the primary button);
 - behaviors (platform behaviors such as TouchBehavior do not run) and effects (never run);
-- BindableLayout (not supported on drawn layouts), IsClippedToBounds (ClipToBounds), and styles that target MAUI types.
+- BindableLayout (not supported on drawn layouts), IsClippedToBounds (ClipToBounds), and styles that target MAUI types:
+  keyed styles a drawn view uses, and implicit styles (no x:Key) of the MAUI type a drawn view replaces when no implicit
+  style targets the drawn type (warned once per file and type; styles are indexed project-wide, so App.xaml's count).
 """
 
 import argparse
@@ -77,6 +79,11 @@ GESTURE_ADVICE = {
     "DropGestureRecognizer": "drag and drop is not available on drawn views",
 }
 SKIA_BASE_RE = re.compile(r"^(SkUi\w+|ISkUiView)$")
+# Drawn view -> the MAUI types it replaces (implicit styles of those no longer reach it).
+REPLACED_BY = {}
+for maui_name, advice in REPLACE.items():
+    for drawn_name in re.findall(r"SkUi\w+", advice):
+        REPLACED_BY.setdefault(drawn_name, []).append(maui_name)
 CONTENT_PROPERTIES = {"Content", "Children"}
 # Drawn views that make good surface roots: a region of the page. Any other drawn view directly in MAUI content is a
 # surface of its own.
@@ -154,13 +161,16 @@ def clr_namespace(uri):
 
 
 class ProjectIndex:
-    """Class name -> base type name, from C# declarations and XAML x:Class roots; style keys -> target types."""
+    """Class name -> base type name, from C# declarations and XAML x:Class roots; style keys -> target types; the target
+    types of implicit styles."""
 
     CLASS_RE = re.compile(r"\bclass\s+(\w+)\s*(?:<[^>{]*>)?\s*:\s*([\w.]+)")
 
     def __init__(self, root):
+        self.root = root
         self.bases = {}
         self.styles = {}
+        self.implicit_styles = {}  # target type (no prefix) -> first "path:line" declaring one
         for folder, dirs, files in os.walk(root):
             dirs[:] = [d for d in dirs if d not in ("bin", "obj", ".git", "node_modules") and not d.startswith(".")]
             for file in files:
@@ -194,8 +204,12 @@ class ProjectIndex:
         while stack:
             node = stack.pop()
             stack.extend(node.children)
-            if node.name == "Style" and node.attr("Key", X_NS) and node.attr("TargetType"):
-                self.styles[node.attr("Key", X_NS)] = node.attr("TargetType")
+            if node.name == "Style" and node.attr("TargetType"):
+                if node.attr("Key", X_NS):
+                    self.styles[node.attr("Key", X_NS)] = node.attr("TargetType")
+                else:
+                    target = node.attr("TargetType").split(":")[-1].strip()
+                    self.implicit_styles.setdefault(target, f"{os.path.relpath(path, self.root)}:{node.line}")
 
     def drawn(self, name, seen=None):
         """True when `name` derives from a SkiaUi view, False when from something else, None when unknown."""
@@ -225,6 +239,7 @@ class Checker:
         self.index = index
         self.errors = 0
         self.warnings = 0
+        self.implicit_reported = set()  # (path, drawn type) already warned
 
     def report(self, path, node, severity, message):
         if severity == "error":
@@ -272,6 +287,7 @@ class Checker:
             if not drawn and owner is not None and not is_skia_uri(owner.uri) and node.name not in REGION_ROOTS:
                 self.report(path, node, "warning", f"{node.name} directly in MAUI content is a surface of its own: put the drawn region under one SkUiContentView or drawn layout instead of many single drawn views")
             self.check_attributes(path, node)
+            self.check_implicit_styles(path, node)
             if node.name == "SkUiMauiContentView":
                 for child in node.children:
                     if child.is_property_element:
@@ -314,6 +330,16 @@ class Checker:
                 target = self.index.styles.get(key.group(1)) if key else None
                 if target and "SkUi" not in target:
                     self.report(path, node, "error", f"style {key.group(1)} targets {target}, which does not apply to {node.name}: add a style with TargetType=\"sk:{node.name}\"")
+
+    def check_implicit_styles(self, path, node):
+        if node.name in self.index.implicit_styles or (path, node.name) in self.implicit_reported:
+            return
+        for maui_name in REPLACED_BY.get(node.name, ()):
+            declared = self.index.implicit_styles.get(maui_name)
+            if declared:
+                self.implicit_reported.add((path, node.name))
+                self.report(path, node, "warning", f"the implicit {maui_name} style ({declared}) does not apply to {node.name}: add <Style TargetType=\"sk:{node.name}\"> with the same setters")
+                return
 
     def check_gesture(self, path, node):
         name = node.name

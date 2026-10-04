@@ -184,8 +184,14 @@ public class SkUiCoreSlider : SkUiCoreNode
     {
         base.OnPopulateSemantics(info);
         info.Role = SkUiSemanticsRole.Slider;
-        info.Range = new SkUiSemanticsRange(_minimum, _maximum, _value);
         info.IsHorizontal = _orientation == StackOrientation.Horizontal;
+        // Maximum <= Minimum is a slider fixed at Minimum: an ordered, empty range that cannot be stepped.
+        if (_maximum <= _minimum)
+        {
+            info.Range = new SkUiSemanticsRange(_minimum, _minimum, _minimum);
+            return;
+        }
+        info.Range = new SkUiSemanticsRange(_minimum, _maximum, SkUiSliderMath.Clamp(_value, _minimum, _maximum));
         info.Actions |= SkUiSemanticsActions.Increment | SkUiSemanticsActions.Decrement;
     }
 
@@ -200,7 +206,7 @@ public class SkUiCoreSlider : SkUiCoreNode
     /// <inheritdoc />
     protected override bool OnSemanticsSetValue(double value)
     {
-        var clamped = Math.Clamp(value, _minimum, _maximum);
+        var clamped = SkUiSliderMath.Clamp(value, _minimum, _maximum);
         if (clamped == _value)
             return false;
         SetValue(clamped);

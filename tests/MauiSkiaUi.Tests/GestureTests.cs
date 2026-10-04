@@ -420,6 +420,21 @@ public class GestureTests
     }
 
     [Fact]
+    public void AnAppsMissingMethodExceptionDoesNotRunTheTapCommandAgain()
+    {
+        var runs = 0;
+        var box = Box(100, 100);
+        box.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => { runs++; throw new MissingMethodException("app"); }) });
+        var root = new SkUiContentView { Content = box };
+        SkUiTestHelpers.Arrange(root, 200, 200);
+
+        var error = Record.Exception(() => Tap(root, new Point(10, 10), 0));
+
+        Assert.Equal(1, runs);
+        Assert.Equal("app", Assert.IsType<MissingMethodException>(error).Message);
+    }
+
+    [Fact]
     public void MauiDoubleTapRecognizersDelaySingleTaps()
     {
         using var clock = new ManualGestureClock();

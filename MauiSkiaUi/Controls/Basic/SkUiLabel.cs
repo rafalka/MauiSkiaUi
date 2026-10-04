@@ -490,8 +490,10 @@ public class SkUiLabel : SkUiView
             var lineHeight = span.LineHeight >= 0 ? span.LineHeight : _lineHeight;
             var decorations = span.IsSet(Span.TextDecorationsProperty) ? span.TextDecorations : _textDecorations;
             var transform = span.TextTransform != TextTransform.Default ? span.TextTransform : _textTransform;
+            // As MAUI: the span's own FontAutoScalingEnabled when set, else the label's.
+            var autoScaling = span.IsSet(Span.FontAutoScalingEnabledProperty) ? span.FontAutoScalingEnabled : _fontAutoScalingEnabled;
             builder.Add(SkUiTextTransform.Apply(span.Text ?? string.Empty, transform),
-                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(family, attributes), ScaledFontSize(size), attributes, spacing, lineHeight),
+                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(family, attributes), SkUiFontScaling.ScaleFontSize(size, autoScaling), attributes, spacing, lineHeight),
                 new SkUiTextSpanPaint(ToSkColor(span.TextColor ?? _textColor), span.BackgroundColor is { } background ? ToSkColor(background) : default, decorations));
         }
         return builder.Build();

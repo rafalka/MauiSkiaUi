@@ -283,6 +283,25 @@ public class AccessibilityTests
     }
 
     [Fact]
+    public void SlidersWithMaximumNotAboveMinimumAreFixedAtMinimum()
+    {
+        var slider = new SkUiSlider { Maximum = 1, Minimum = 5 };
+        var core = new SkUiCoreSlider().SetMaximum(1).SetMinimum(5);
+        var root = Stack(slider, new SkUiCoreHost().SetContent(core));
+        SkUiTestHelpers.Arrange(root, 300, 400);
+        var owner = new SkUiSemanticsOwner(root);
+
+        foreach (var node in new ISkUiAccessibleNode[] { slider, core })
+        {
+            var element = owner.Tree.Find(node)!;
+            Assert.Equal(new SkUiSemanticsRange(5, 5, 5), element.Range);
+            Assert.Equal(SkUiSemanticsActions.None, element.Actions & (SkUiSemanticsActions.Increment | SkUiSemanticsActions.Decrement));
+            Assert.False(owner.SetValue(element.Id, 3)); // no Math.Clamp with an inverted range
+            Assert.False(owner.Perform(element.Id, SkUiSemanticsActions.Increment));
+        }
+    }
+
+    [Fact]
     public void HitTestFindsTheFrontmostInnermostElement()
     {
         var button = new SkUiButton { Text = "Inner", HeightRequest = 40 };

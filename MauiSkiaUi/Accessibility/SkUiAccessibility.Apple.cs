@@ -135,7 +135,13 @@ internal sealed class SkUiAccessibilityBridge
             case SkUiSemanticsRole.CheckBox or SkUiSemanticsRole.Switch:
                 // As MAUI's check box: UISwitch's traits (VoiceOver reads "switch button, on / off") and its 1 / 0 value.
                 traits |= SwitchTraits | UIAccessibilityTrait.Button;
-                value = node.CheckState == SkUiCheckState.Checked ? "1" : "0";
+                // A mixed state has no switch value: "mixed", as AppKit reads a mixed check box (a control's own value wins).
+                value = node.CheckState switch
+                {
+                    SkUiCheckState.Checked => "1",
+                    SkUiCheckState.Indeterminate => node.Value ?? "mixed",
+                    _ => "0"
+                };
                 break;
             case SkUiSemanticsRole.RadioButton:
                 traits |= UIAccessibilityTrait.Button;

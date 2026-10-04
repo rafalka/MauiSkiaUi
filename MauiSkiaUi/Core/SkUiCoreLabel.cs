@@ -386,7 +386,7 @@ public class SkUiCoreLabel : SkUiCoreNode
             var attributes = span.FontAttributes ?? _fontAttributes;
             var transform = span.TextTransform != TextTransform.Default ? span.TextTransform : _textTransform;
             builder.Add(SkUiTextTransform.Apply(span.Text, transform),
-                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(span.FontFamily ?? _fontFamily, attributes), ScaledFontSize(span.FontSize ?? _fontSize), attributes,
+                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(span.FontFamily ?? _fontFamily, attributes), SkUiFontScaling.ScaleFontSize(span.FontSize ?? _fontSize, span.FontAutoScalingEnabled ?? _fontAutoScalingEnabled), attributes,
                     span.CharacterSpacing ?? _characterSpacing, span.LineHeight ?? _lineHeight),
                 new SkUiTextSpanPaint(ToSkColor(span.TextColor ?? _textColor), span.BackgroundColor is { } background ? ToSkColor(background) : default,
                     span.TextDecorations ?? _textDecorations));

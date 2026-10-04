@@ -38,17 +38,33 @@ internal static class SkUiMauiTaps
             if (!IsBridged(recognizer, taps))
                 continue;
             var tap = (TapGestureRecognizer)recognizer;
-            try
-            {
+            if (CanSendTapped(sender))
                 SendTapped(tap, sender, PositionRelativeTo);
-            }
-            catch (MissingMethodException)
-            {
-                // A MAUI version without the internal SendTapped: the command at least.
-                if (tap.Command is { } command && command.CanExecute(tap.CommandParameter))
-                    command.Execute(tap.CommandParameter);
-            }
+            else if (tap.Command is { } command && command.CanExecute(tap.CommandParameter))
+                command.Execute(tap.CommandParameter); // a MAUI version without the internal SendTapped: the command at least
         }
+    }
+
+    private static bool? _canSendTapped;
+
+    /// <summary>
+    /// Whether this MAUI has the internal <c>SendTapped</c>: probed once on a new recognizer (no command, no handlers, so no
+    /// app code runs), so a <see cref="MissingMethodException"/> from an app's command or handler is never taken for it.
+    /// </summary>
+    private static bool CanSendTapped(View sender)
+    {
+        if (_canSendTapped is { } known)
+            return known;
+        try
+        {
+            SendTapped(new TapGestureRecognizer(), sender, null);
+            _canSendTapped = true;
+        }
+        catch (MissingMethodException)
+        {
+            _canSendTapped = false;
+        }
+        return _canSendTapped.Value;
     }
 
     // MAUI raises Tapped only from its internal SendTapped (command, then the event); the accessor is trimming- and

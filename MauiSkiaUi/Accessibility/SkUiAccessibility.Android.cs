@@ -199,12 +199,20 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         {
             node.Checkable = true;
             node.Checked = state == SkUiCheckState.Checked;
+            if (state == SkUiCheckState.Indeterminate && OperatingSystem.IsAndroidVersionAtLeast(36) && node.Unwrap() is AccessibilityNodeInfo info)
+                info.CheckedState = CheckedState.Partial;
         }
         if (element.Range is { } range)
             node.RangeInfo = AccessibilityNodeInfoCompat.RangeInfoCompat.Obtain(
                 AccessibilityNodeInfoCompat.RangeInfoCompat.RangeTypeFloat, (float)range.Minimum, (float)range.Maximum, (float)range.Value);
-        if (element.Value is { } value && OperatingSystem.IsAndroidVersionAtLeast(30))
-            node.StateDescription = value;
+        if (OperatingSystem.IsAndroidVersionAtLeast(30))
+        {
+            // Before Android 16's partial state a mixed check box would be read as unchecked: say it (unless the control does).
+            if (element.Value is { } value)
+                node.StateDescription = value;
+            else if (element.CheckState == SkUiCheckState.Indeterminate && !OperatingSystem.IsAndroidVersionAtLeast(36))
+                node.StateDescription = MixedStateDescription;
+        }
 
         var actions = element.EnabledActions;
         if ((actions & SkUiSemanticsActions.Activate) != 0)
@@ -304,6 +312,9 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         if (!_syncingKeyboardFocus && hasFocus && _owner?.Tree.Find(virtualViewId)?.Source is { } source)
             _root.FocusManager.Focus(source);
     }
+
+    /// <summary>What TalkBack reads for a mixed (indeterminate) check box before Android 16 (English; a control's own value wins).</summary>
+    internal const string MixedStateDescription = "partially checked";
 
     /// <summary>The framework class whose behavior TalkBack announces for a role.</summary>
     private static string ClassName(SkUiSemanticsNode node) => node.Role switch

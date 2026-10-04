@@ -59,6 +59,39 @@ public sealed class FontScalingTests : IDisposable
     }
 
     [Fact]
+    public void SpansCanOverrideTheLabelsAutoScaling()
+    {
+        SkUiLabel Drawn(bool labelScales, bool? spanScales)
+        {
+            var span = new Span { Text = "Fixed" };
+            if (spanScales is { } value)
+                span.FontAutoScalingEnabled = value;
+            return new SkUiLabel
+            {
+                FontFamily = SkUiTestHelpers.BundledFontFamily, FontAutoScalingEnabled = labelScales,
+                FormattedText = new FormattedString { Spans = { new Span { Text = "Label " }, span } }
+            };
+        }
+        SkUiCoreLabel Core(bool labelScales, bool? spanScales) =>
+            new SkUiCoreLabel().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetFontAutoScalingEnabled(labelScales)
+                .SetSpans([new SkUiCoreSpan("Label "), new SkUiCoreSpan("Fixed").SetFontAutoScalingEnabled(spanScales)]);
+        double Width(IView view) => Measure(view).Width;
+        double CoreWidth(SkUiCoreLabel label) => label.Measure(double.PositiveInfinity, double.PositiveInfinity).Width;
+        var first = Width(new SkUiLabel { Text = "Label ", FontFamily = SkUiTestHelpers.BundledFontFamily });
+        var second = Width(new SkUiLabel { Text = "Fixed", FontFamily = SkUiTestHelpers.BundledFontFamily });
+
+        SkUiFontScaling.Factor = 2;
+
+        // As MAUI: the span's own setting when set, else the label's (whole DIPs: shaping joins the measured pieces).
+        Assert.Equal(first * 2 + second, Width(Drawn(labelScales: true, spanScales: false)), 0);
+        Assert.Equal(first + second * 2, Width(Drawn(labelScales: false, spanScales: true)), 0);
+        Assert.Equal((first + second) * 2, Width(Drawn(labelScales: true, spanScales: null)), 0);
+        Assert.Equal(first * 2 + second, CoreWidth(Core(labelScales: true, spanScales: false)), 0);
+        Assert.Equal(first + second * 2, CoreWidth(Core(labelScales: false, spanScales: true)), 0);
+        Assert.Equal((first + second) * 2, CoreWidth(Core(labelScales: true, spanScales: null)), 0);
+    }
+
+    [Fact]
     public void SpansAndHtmlAreRebuiltAtTheNewScale()
     {
         var spans = new SkUiLabel { FontFamily = SkUiTestHelpers.BundledFontFamily };

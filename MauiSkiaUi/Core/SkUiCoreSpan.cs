@@ -17,6 +17,7 @@ public sealed class SkUiCoreSpan : INotifyPropertyChanged
     private string? _fontFamily;
     private double? _fontSize;
     private FontAttributes? _fontAttributes;
+    private bool? _fontAutoScalingEnabled;
     private double? _characterSpacing;
     private double? _lineHeight;
     private TextDecorations? _textDecorations;
@@ -46,6 +47,12 @@ public sealed class SkUiCoreSpan : INotifyPropertyChanged
 
     /// <summary>Bold and italic; <c>null</c>: the label's.</summary>
     public FontAttributes? FontAttributes { get => _fontAttributes; set => SetFontAttributes(value); }
+
+    /// <summary>
+    /// Whether the span's size follows the system text size (MAUI's <c>Span.FontAutoScalingEnabled</c>); <c>null</c>: the
+    /// label's <see cref="SkUiCoreLabel.FontAutoScalingEnabled"/>.
+    /// </summary>
+    public bool? FontAutoScalingEnabled { get => _fontAutoScalingEnabled; set => SetFontAutoScalingEnabled(value); }
 
     /// <summary>DIPs added after each character; <c>null</c>: the label's.</summary>
     public double? CharacterSpacing { get => _characterSpacing; set => SetCharacterSpacing(value); }
@@ -94,6 +101,9 @@ public sealed class SkUiCoreSpan : INotifyPropertyChanged
 
     /// <summary>Sets <see cref="FontAttributes"/>.</summary>
     public SkUiCoreSpan SetFontAttributes(FontAttributes? value) => Set(ref _fontAttributes, value, layout: true);
+
+    /// <summary>Sets <see cref="FontAutoScalingEnabled"/>.</summary>
+    public SkUiCoreSpan SetFontAutoScalingEnabled(bool? value) => Set(ref _fontAutoScalingEnabled, value, layout: true);
 
     /// <summary>Sets <see cref="CharacterSpacing"/> (finite, or <c>null</c>).</summary>
     public SkUiCoreSpan SetCharacterSpacing(double? value)
