@@ -48,6 +48,19 @@ public class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, I
     /// <summary>Sets the tap parameter (same as the property setter).</summary>
     public SkUiView SetTappedCommandParameter(object? value) { TappedCommandParameter = value; return this; }
     private void OnTappedCommandParameterChanged(object? value) { _tappedCommandParameter = value; }
+    /// <summary>
+    /// Any object the app wants to keep with this view (an id, a model, a cache). SkiaUi never reads or changes it. Not a
+    /// bindable property: it raises no change notification and takes no part in layout, drawing or input.
+    /// </summary>
+    public object? Tag { get; set; }
+
+    /// <summary>Sets <see cref="Tag"/> (same as the property setter).</summary>
+    public SkUiView SetTag(object? value)
+    {
+        Tag = value;
+        return this;
+    }
+
     /// <summary>Whether an eligible captured pointer is currently pressed inside this node.</summary>
     public bool IsPressed { get; private set; }
 

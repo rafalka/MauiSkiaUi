@@ -430,6 +430,19 @@ public class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderab
         return this;
     }
 
+    /// <summary>
+    /// Any object the app wants to keep with this node (an id, a model, a cache). SkiaUi never reads or changes it. It
+    /// raises no <see cref="PropertyChanged"/> and takes no part in layout, drawing or input.
+    /// </summary>
+    public object? Tag { get; set; }
+
+    /// <summary>Sets <see cref="Tag"/>.</summary>
+    public SkUiCoreNode SetTag(object? value)
+    {
+        Tag = value;
+        return this;
+    }
+
     /// <summary>Sets visibility; raises <see cref="System.ComponentModel.INotifyPropertyChanged"/> when changed.</summary>
     public SkUiCoreNode SetIsVisible(bool value)
     {
