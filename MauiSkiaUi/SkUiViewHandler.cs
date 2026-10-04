@@ -578,6 +578,33 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         // Windows has no way to drop focus without moving it elsewhere: the container keeps it (Tab goes on from there).
     }
 
+    /// <summary>
+    /// Native scrollers around the surface show <paramref name="bounds"/> (surface DIPs) of the newly focused drawn node, as
+    /// they do for a focused native control (a surface taller than its scroller would otherwise leave it out of view).
+    /// </summary>
+    private void RequestNativeReveal(Rect bounds)
+    {
+        if (_container is not { } container || bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+#if ANDROID
+        var density = container.Resources?.DisplayMetrics?.Density ?? 1;
+        container.RequestRectangleOnScreen(new Android.Graphics.Rect(
+            (int)Math.Floor(bounds.Left * density), (int)Math.Floor(bounds.Top * density),
+            (int)Math.Ceiling(bounds.Right * density), (int)Math.Ceiling(bounds.Bottom * density)));
+#elif IOS || MACCATALYST
+        var rect = new CoreGraphics.CGRect(bounds.X, bounds.Y, bounds.Width, bounds.Height);
+        for (var view = container.Superview; view is not null; view = view.Superview)
+            if (view is UIKit.UIScrollView scroller)
+                scroller.ScrollRectToVisible(scroller.ConvertRectFromView(rect, container), animated: true);
+#elif WINDOWS
+        container.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions
+        {
+            TargetRect = new Windows.Foundation.Rect(bounds.X, bounds.Y, bounds.Width, bounds.Height),
+            AnimationDesired = true
+        });
+#endif
+    }
+
     /// <inheritdoc />
     protected override void ConnectHandler(PlatformView platformView)
     {
@@ -585,6 +612,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         var focus = VirtualView.FocusManager;
         focus.RequestNativeFocus = RequestNativeFocus;
         focus.ReleaseNativeFocus = ReleaseNativeFocus;
+        focus.RequestNativeReveal = RequestNativeReveal;
         // As WinUI's controls: a click focuses the drawn control it hits (without the ring). Not on Apple or Android, where a
         // click or tap does not move keyboard focus.
         focus.PointerPressFocuses = OperatingSystem.IsWindows();

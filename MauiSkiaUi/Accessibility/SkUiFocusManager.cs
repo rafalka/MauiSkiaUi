@@ -67,6 +67,12 @@ internal sealed class SkUiFocusManager(SkUiView root)
     public Action? ReleaseNativeFocus { get; set; }
 
     /// <summary>
+    /// Set by the platform handler: native scrollers around the surface show this rectangle of it (surface DIPs: the newly
+    /// focused node, where drawn scrollers move it), as they do for a focused native control.
+    /// </summary>
+    public Action<Rect>? RequestNativeReveal { get; set; }
+
+    /// <summary>
     /// Whether a pointer press focuses the interactive node it hits (the node or its nearest focusable ancestor), without
     /// the ring: on Windows, as WinUI's controls. Off by default.
     /// </summary>
@@ -167,6 +173,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
         SetFocused(null, ring: false);
         RequestNativeFocus = null;
         ReleaseNativeFocus = null;
+        RequestNativeReveal = null;
         _hasNativeFocus = true;
     }
 
@@ -189,7 +196,8 @@ internal sealed class SkUiFocusManager(SkUiView root)
             return false;
         }
         SetFocused(node, ring ?? !_lastInputWasPointer);
-        SkUiSemantics.BringIntoView(node);
+        if (SkUiSemantics.BringIntoView(node) is { } bounds)
+            RequestNativeReveal?.Invoke(bounds);
         return true;
     }
 

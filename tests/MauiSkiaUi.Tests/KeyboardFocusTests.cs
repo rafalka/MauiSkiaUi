@@ -296,6 +296,29 @@ public class KeyboardFocusTests
     }
 
     [Fact]
+    public void FocusAsksNativeScrollersToShowTheNodeWhereDrawnScrollersMoveIt()
+    {
+        var content = new SkUiVerticalStackLayout();
+        for (var index = 0; index < 10; index++)
+            content.Children.Add(new SkUiLabel { Text = $"Row {index}", HeightRequest = 50 });
+        var inScroller = new SkUiButton { Text = "In scroller", HeightRequest = 50 };
+        content.Children.Add(inScroller);
+        var below = new SkUiButton { Text = "Below", HeightRequest = 50 };
+        // A surface taller than a native scroller around it would show: the label pushes the second button down.
+        var root = Stack(new SkUiScrollView { Content = content, HeightRequest = 200 }, new SkUiLabel { Text = "Spacer", HeightRequest = 300 }, below);
+        using var surface = new SkUiTestSurface(root, 300, 600);
+        surface.Frame();
+        var reveals = new List<Rect>();
+        root.FocusManager.RequestNativeReveal = reveals.Add;
+
+        Assert.True(inScroller.Focus());
+        Assert.True(below.Focus());
+
+        // The drawn scroller moves its button to the viewport's bottom (0..200): the native scroller is asked for that place.
+        Assert.Equal([new Rect(0, 150, 300, 50), new Rect(0, 500, 300, 50)], reveals);
+    }
+
+    [Fact]
     public void HiddenDisabledOrDetachedFocusIsCleared()
     {
         var a = new SkUiButton { Text = "A" };

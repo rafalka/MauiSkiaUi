@@ -185,27 +185,38 @@ internal static class SkUiSemantics
     /// <summary>
     /// Scrolls every drawn scroller around <paramref name="node"/> so it shows (keyboard focus, screen reader focus),
     /// innermost first; only the outermost move animates, so the inner offsets are final when the outer ones are computed.
+    /// Returns where the node ends up in its surface (DIPs, once the scrollers have moved), for native scrollers around the
+    /// surface to show; <c>null</c> when it is not in a surface.
     /// </summary>
-    public static void BringIntoView(ISkUiRenderable node)
+    public static Rect? BringIntoView(ISkUiRenderable node)
     {
-        List<ISkUiScrollHost>? hosts = null;
+        if (RootOf(node) is not { } root || SkUiScrollController.GetContentBounds(root, node) is not { } inRoot)
+            return null;
         for (var current = node.RenderParent; current is not null; current = current.RenderParent)
-            if (current is ISkUiScrollHost host)
-                (hosts ??= []).Add(host);
-        if (hosts is null)
-            return;
-        for (var index = 0; index < hosts.Count; index++)
         {
-            var scroller = hosts[index].Scroller;
-            if (SkUiScrollController.GetContentBounds(hosts[index], node) is not { } bounds)
+            if (current is not ISkUiScrollHost host)
+                continue;
+            var scroller = host.Scroller;
+            if (SkUiScrollController.GetContentBounds(host, node) is not { } bounds)
                 continue;
             var target = scroller.GetOffsetFor(bounds, ScrollToPosition.MakeVisible);
             var x = Math.Clamp(target.X, 0, scroller.MaxX);
             var y = Math.Clamp(target.Y, 0, scroller.MaxY);
             if (Math.Abs(x - scroller.X) < 0.5 && Math.Abs(y - scroller.Y) < 0.5)
                 continue;
-            _ = scroller.ScrollToAsync(x, y, animated: index == hosts.Count - 1);
+            // The node moves against the scroll; outer scrollers then measure it at its new place.
+            inRoot = inRoot.Offset(scroller.X - x, scroller.Y - y);
+            _ = scroller.ScrollToAsync(x, y, animated: !HasScrollHostAbove(current));
         }
+        return inRoot;
+    }
+
+    private static bool HasScrollHostAbove(ISkUiRenderable node)
+    {
+        for (var current = node.RenderParent; current is not null; current = current.RenderParent)
+            if (current is ISkUiScrollHost)
+                return true;
+        return false;
     }
 
     /// <summary>Scrolls a scroller one page (a screen reader's scroll action); returns whether it moved.</summary>
