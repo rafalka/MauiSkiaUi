@@ -186,6 +186,16 @@ public partial class SkUiView : ISkUiAccessibleNode
 
     bool ISkUiAccessibleNode.IsKeyboardFocusable => IsVisible && IsTabStop && IsVisualStateEnabled && TakesKeyboardFocus;
 
+    /// <summary>
+    /// Something the node's focusability depends on changed (a command's <c>CanExecute</c> or parameter): a focused node that
+    /// no longer takes keyboard focus loses it, as a disabled native control does.
+    /// </summary>
+    private protected void RevalidateFocus()
+    {
+        if (IsFocused)
+            SkUiFocusManager.ValidateAll();
+    }
+
     int ISkUiAccessibleNode.TabIndex => TabIndex;
 
     bool ISkUiAccessibleNode.IsFocused => IsFocused;

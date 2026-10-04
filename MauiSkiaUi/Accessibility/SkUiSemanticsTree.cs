@@ -60,6 +60,8 @@ internal sealed class SkUiSemanticsNode
     public bool IsFocused;
     /// <summary>A hosted native view: not read through this tree (the platform reads the native view).</summary>
     public bool IsNative;
+    /// <summary><see cref="Bounds"/> and every descendant's (set for hit-testing: subtrees away from the point are skipped).</summary>
+    internal Rect Extent;
 
     /// <summary>Actions that do something now (none while disabled).</summary>
     public SkUiSemanticsActions EnabledActions => IsEnabled ? Actions : SkUiSemanticsActions.None;
@@ -123,13 +125,35 @@ internal sealed class SkUiSemanticsTree
         source.RenderState.SemanticsId is var id and > 0 && Find(id) is { } node && ReferenceEquals(node.Source, source) ? node : null;
 
     /// <summary>The front-most, innermost element at <paramref name="point"/> (surface DIPs), or <c>null</c> (the surface).</summary>
-    public SkUiSemanticsNode? HitTest(Point point) => HitTest(Root, point);
+    public SkUiSemanticsNode? HitTest(Point point)
+    {
+        // The tree does not change once built: extents are computed on the first hit-test (hover asks many times).
+        if (!_hasExtents)
+        {
+            ComputeExtent(Root);
+            _hasExtents = true;
+        }
+        return HitTest(Root, point);
+    }
+
+    private bool _hasExtents;
+
+    private static Rect ComputeExtent(SkUiSemanticsNode node)
+    {
+        var extent = node.Bounds;
+        foreach (var child in node.Children)
+            if (ComputeExtent(child) is { IsEmpty: false } inner)
+                extent = extent.IsEmpty ? inner : extent.Union(inner);
+        return node.Extent = extent;
+    }
 
     private static SkUiSemanticsNode? HitTest(SkUiSemanticsNode node, Point point)
     {
         for (var index = node.Children.Count - 1; index >= 0; index--)
         {
             var child = node.Children[index];
+            if (!child.Extent.Contains(point))
+                continue;
             if (child.Bounds.Contains(point))
                 return HitTest(child, point) ?? child;
             // A child that does not clip may hold elements outside its own bounds.

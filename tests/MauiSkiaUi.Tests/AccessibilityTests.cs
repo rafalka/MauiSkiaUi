@@ -296,6 +296,21 @@ public class AccessibilityTests
     }
 
     [Fact]
+    public void HitTestFindsElementsOverflowingAnUnclippedParent()
+    {
+        // Translated past the group's right edge; the group does not clip.
+        var button = new SkUiButton { Text = "Overflow", HeightRequest = 40, TranslationX = 60 };
+        var group = new SkUiContentView { Content = button, WidthRequest = 50, HeightRequest = 40, HorizontalOptions = LayoutOptions.Start };
+        group.Tapped += (_, _) => { };
+        var tree = Tree(Stack(group, new SkUiLabel { Text = "Below", HeightRequest = 40 }));
+
+        Assert.NotEqual("Overflow", tree.HitTest(new Point(10, 10))?.Label); // moved away from its layout slot
+        Assert.Equal("Overflow", tree.HitTest(new Point(75, 10))?.Label); // right of the group, on its unclipped button
+        Assert.Equal("Below", tree.HitTest(new Point(10, 50))?.Label);
+        Assert.Null(tree.HitTest(new Point(150, 10)));
+    }
+
+    [Fact]
     public void IdsStayAcrossRebuildsAndChangesAreReported()
     {
         var label = new SkUiLabel { Text = "One", WidthRequest = 80, HeightRequest = 20 };

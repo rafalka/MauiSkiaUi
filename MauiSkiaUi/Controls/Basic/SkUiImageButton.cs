@@ -141,6 +141,7 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     {
         ChangeVisualState();
         InvalidatePaint();
+        RevalidateFocus();
     }
 
     /// <summary>MAUI's image button states: <c>Pressed</c> while an enabled press is held, otherwise the common states.</summary>

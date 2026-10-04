@@ -42,8 +42,9 @@ public static class SkUiFontScaling
 
     /// <summary>
     /// Raised when the text size changes (the system setting, or <see cref="Factor"/>); live surfaces then re-measure and
-    /// redraw. Raised on the UI thread for system changes on Android and Apple, on a background thread on Windows.
-    /// Subscribers are not kept alive by the event.
+    /// redraw. Raised on the UI thread for system changes (on Windows, whose setting changes arrive on a background thread:
+    /// on the thread that first read the text size, when it has a dispatcher, which is the UI thread of a drawn surface), and
+    /// on the setting thread for <see cref="Factor"/>. Subscribers are not kept alive by the event.
     /// </summary>
     public static event EventHandler? Changed
     {
@@ -121,8 +122,16 @@ public static class SkUiFontScaling
         {
             if (_settings is null)
             {
+                // UISettings raises on a background thread: report on the reading (UI) thread, where surfaces re-measure.
+                var dispatcher = Microsoft.Maui.Dispatching.Dispatcher.GetForCurrentThread();
                 _settings = new Windows.UI.ViewManagement.UISettings();
-                _settings.TextScaleFactorChanged += (_, _) => NotifyChanged();
+                _settings.TextScaleFactorChanged += (_, _) =>
+                {
+                    if (dispatcher is { IsDispatchRequired: true })
+                        dispatcher.Dispatch(NotifyChanged);
+                    else
+                        NotifyChanged();
+                };
             }
             return fontSize * _settings.TextScaleFactor;
         }

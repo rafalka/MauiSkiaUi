@@ -101,6 +101,42 @@ public class KeyboardFocusTests
     }
 
     [Fact]
+    public void ButtonsLoseFocusWhenTheirCommandStopsExecuting()
+    {
+        var canExecute = true;
+        var command = new Command(() => { }, () => canExecute);
+        var button = new SkUiButton { Text = "Drawn", Command = command };
+        var parameterized = new SkUiImageButton { Command = new Command<int>(_ => { }, value => value > 0), CommandParameter = 1, WidthRequest = 40, HeightRequest = 40 };
+        var core = new SkUiCoreButton { Text = "Core" }.SetCommand(command);
+        var coreImage = new SkUiCoreImageButton().SetCommand(new Command<int>(_ => { }, value => value > 0)).SetCommandParameter(1);
+        var stack = new SkUiCoreVerticalStackLayout();
+        stack.Add(core);
+        stack.Add(coreImage);
+        Stack(button, parameterized, new SkUiCoreHost().SetContent(stack));
+
+        Assert.True(button.Focus());
+        canExecute = false;
+        command.ChangeCanExecute();
+        Assert.False(button.IsFocused);
+        Assert.False(button.Focus());
+
+        canExecute = true;
+        command.ChangeCanExecute();
+        Assert.True(core.Focus());
+        canExecute = false;
+        command.ChangeCanExecute();
+        Assert.False(core.IsFocused);
+
+        // A parameter the command does not take.
+        Assert.True(parameterized.Focus());
+        parameterized.CommandParameter = 0;
+        Assert.False(parameterized.IsFocused);
+        Assert.True(coreImage.Focus());
+        coreImage.SetCommandParameter(0);
+        Assert.False(coreImage.IsFocused);
+    }
+
+    [Fact]
     public void TabMovesThroughTheSurfaceAndLeavesAtTheEnds()
     {
         var a = new SkUiButton { Text = "A" };

@@ -231,7 +231,10 @@ public sealed record SkUiFontImageSource : SkUiImageSource
     /// <summary>Whether the glyph follows the system text size (as MAUI's <c>FontImageSource.FontAutoScalingEnabled</c>).</summary>
     public bool FontAutoScalingEnabled { get; }
 
-    /// <summary>The font size drawn: <see cref="Size"/> with the system text size at creation when auto scaling.</summary>
+    /// <summary>
+    /// The font size drawn: <see cref="Size"/> with <see cref="SkUiLook.FontScale"/> and (auto scaling) the system text size,
+    /// both at creation; a later change does not resize an existing source (a new one is needed).
+    /// </summary>
     internal double DrawnSize { get; }
 
     internal override string CacheKey =>

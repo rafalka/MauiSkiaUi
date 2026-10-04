@@ -210,6 +210,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     {
         ChangeVisualState();
         InvalidatePaint();
+        RevalidateFocus();
     }
     /// <summary>MAUI's button states: <c>Pressed</c> while an enabled press is held, otherwise the common states.</summary>
     protected override void ChangeVisualState()

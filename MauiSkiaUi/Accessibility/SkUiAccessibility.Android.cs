@@ -11,7 +11,9 @@ namespace MauiSkiaUi;
 /// <summary>
 /// TalkBack (and every Android accessibility service) over a drawn surface: the surface's semantics tree as virtual views of
 /// its container, with explore-by-touch, actions, scrolling and change events. The tree is built only while a service is on.
-/// Hosted native views stay real children of the container and are read natively.
+/// Hosted native views are read natively, as real children placed where they are in the semantics tree (as Flutter embeds
+/// platform views): the container's own node is built here, since <see cref="ExploreByTouchHelper"/> refuses a host with
+/// both real and virtual children.
 /// </summary>
 internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
 {
@@ -20,6 +22,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
     private readonly AccessibilityManager? _manager;
     private SkUiSemanticsOwner? _owner;
     private readonly int[] _location = new int[2];
+    private HostNodeProvider? _provider;
 
     public SkUiAccessibilityHelper(AView host, SkUiView root) : base(host)
     {
@@ -115,12 +118,54 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
     /// <inheritdoc />
     protected override void GetVisibleVirtualViews(IList<Java.Lang.Integer>? virtualViewIds)
     {
+        // Every element, nested ones too (the helper's own focus search walks this list; the host's children are set by
+        // CreateHostNode).
         if (virtualViewIds is null || Tree is not { } tree)
             return;
-        foreach (var node in tree.Root.Children)
+        foreach (var node in tree.Flatten())
             if (!node.IsNative)
                 virtualViewIds.Add(Java.Lang.Integer.ValueOf(node.Id));
     }
+
+    /// <inheritdoc />
+    public override AccessibilityNodeProviderCompat? GetAccessibilityNodeProvider(AView? host) =>
+        _provider ??= base.GetAccessibilityNodeProvider(host) is { } inner ? new HostNodeProvider(this, inner) : null;
+
+    /// <summary>
+    /// The container's node: its own state (as the helper sets it), then the surface's top-level elements in tree order,
+    /// hosted native views among them.
+    /// </summary>
+    internal AccessibilityNodeInfoCompat CreateHostNodeForProvider() => CreateHostNode();
+
+    private AccessibilityNodeInfoCompat CreateHostNode()
+    {
+#pragma warning disable CS0618 // Obtain / OnInitializeAccessibilityNodeInfo: what ExploreByTouchHelper itself does for the host
+        var info = AccessibilityNodeInfoCompat.Obtain(_host)!;
+        ViewCompat.OnInitializeAccessibilityNodeInfo(_host, info);
+#pragma warning restore CS0618
+        if (Tree is not { } tree)
+            return info;
+        // The container may have listed hosted views as its own children: each goes where the tree has it instead.
+        foreach (var node in tree.Flatten())
+            if (node.IsNative && NativeView(node) is { } native)
+                info.RemoveChild(native);
+        foreach (var node in tree.Root.Children)
+            AddChild(info, node);
+        return info;
+    }
+
+    /// <summary>Adds <paramref name="child"/> to <paramref name="info"/>: a virtual view, or the hosted native view.</summary>
+    private void AddChild(AccessibilityNodeInfoCompat info, SkUiSemanticsNode child)
+    {
+        if (!child.IsNative)
+            info.AddChild(_host, child.Id);
+        else if (NativeView(child) is { } native)
+            info.AddChild(native);
+    }
+
+    /// <summary>The native view a hosted-content element stands for (read by Android itself).</summary>
+    private static AView? NativeView(SkUiSemanticsNode node) =>
+        (node.Source as SkUiMauiContentView)?.Content?.Handler?.PlatformView as AView;
 
     /// <inheritdoc />
     protected override void OnPopulateNodeForVirtualView(int virtualViewId, AccessibilityNodeInfoCompat? node)
@@ -187,8 +232,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         if (element.Parent is { Id: not SkUiSemanticsNode.RootId } parent)
             node.SetParent(_host, parent.Id);
         foreach (var child in element.Children)
-            if (!child.IsNative)
-                node.AddChild(_host, child.Id);
+            AddChild(node, child);
 
         // Bounds: the host's pixels, and the screen's (so nested virtual parents need no offsets).
         var bounds = element.Bounds;
@@ -275,6 +319,23 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         SkUiSemanticsRole.ScrollView => node.IsHorizontal ? "android.widget.HorizontalScrollView" : "android.widget.ScrollView",
         _ => "android.view.View"
     };
+}
+
+/// <summary>
+/// The helper's node provider, except for the host's node (<see cref="SkUiAccessibilityHelper"/> builds it: the helper's own
+/// throws when the container has real accessible children, i.e. hosted native views).
+/// </summary>
+internal sealed class HostNodeProvider(SkUiAccessibilityHelper helper, AccessibilityNodeProviderCompat inner) : AccessibilityNodeProviderCompat
+{
+    public override AccessibilityNodeInfoCompat? CreateAccessibilityNodeInfo(int virtualViewId) =>
+        virtualViewId == ExploreByTouchHelper.HostId ? helper.CreateHostNodeForProvider() : inner.CreateAccessibilityNodeInfo(virtualViewId);
+
+    public override bool PerformAction(int virtualViewId, int action, Bundle? arguments) => inner.PerformAction(virtualViewId, action, arguments);
+
+    public override AccessibilityNodeInfoCompat? FindFocus(int focus) => inner.FindFocus(focus);
+
+    public override IList<AccessibilityNodeInfoCompat>? FindAccessibilityNodeInfosByText(string? text, int virtualViewId) =>
+        inner.FindAccessibilityNodeInfosByText(text, virtualViewId);
 }
 
 /// <summary>Android key events of a focused surface container as <see cref="SkUiKey"/>s.</summary>

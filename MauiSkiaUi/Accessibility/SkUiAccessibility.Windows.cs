@@ -11,7 +11,7 @@ namespace MauiSkiaUi;
 /// <summary>
 /// Narrator (and every UI Automation client) over a drawn surface: the surface container's automation peer has one peer per
 /// semantics element, with the Invoke, Toggle, SelectionItem and RangeValue patterns, hit-testing and keyboard focus.
-/// Hosted native views keep their own peers. The tree is built when a client first asks.
+/// Hosted native views keep their own peers, placed where they are in the semantics tree. The tree is built when a client first asks.
 /// </summary>
 internal sealed class SkUiAccessibilityBridge
 {
@@ -85,15 +85,33 @@ internal sealed class SkUiAccessibilityBridge
         return peer;
     }
 
-    /// <summary>The peers of <paramref name="node"/>'s child elements; native children are added by the surface peer.</summary>
+    /// <summary>The peers of <paramref name="node"/>'s child elements in tree order, hosted native views' own peers among them.</summary>
     internal List<AutomationPeer> ChildPeers(SkUiSemanticsNode node)
     {
         var peers = new List<AutomationPeer>(node.Children.Count);
         foreach (var child in node.Children)
             if (!child.IsNative)
                 peers.Add(PeerOf(child.Id));
+            else if (NativePeer(child) is { } native)
+                peers.Add(native);
         return peers;
     }
+
+    /// <summary>The native peers <see cref="ChildPeers"/> places (anywhere in the tree).</summary>
+    internal HashSet<AutomationPeer> PlacedNativePeers()
+    {
+        var placed = new HashSet<AutomationPeer>();
+        foreach (var node in Tree.Flatten())
+            if (node.IsNative && NativePeer(node) is { } native)
+                placed.Add(native);
+        return placed;
+    }
+
+    /// <summary>The automation peer of the native view a hosted-content element stands for (none for a plain panel).</summary>
+    private static AutomationPeer? NativePeer(SkUiSemanticsNode node) =>
+        (node.Source as SkUiMauiContentView)?.Content?.Handler?.PlatformView is UIElement native
+            ? FrameworkElementAutomationPeer.CreatePeerForElement(native)
+            : null;
 
     /// <summary>Window DIPs of a surface rectangle (what WinUI's own peers report).</summary>
     internal WinRect ToWindow(Rect bounds)
@@ -143,7 +161,8 @@ internal sealed class SkUiAccessibilityBridge
 }
 
 /// <summary>
-/// The surface container's peer: the drawn elements, then the hosted native views' peers. WinUI creates it once per
+/// The surface container's peer: the drawn elements and hosted native views in tree order, then native peers the tree does
+/// not place (a hosted panel without a peer of its own: its children's peers). WinUI creates it once per
 /// container, so it asks the container for its current bridge each time: without one (accessibility switched off for the
 /// surface) it is a plain container peer.
 /// </summary>
@@ -156,8 +175,13 @@ internal sealed partial class SkUiSurfaceAutomationPeer(FrameworkElement owner, 
             return base.GetChildrenCore();
         current.UpdateListening();
         var children = current.ChildPeers(current.Tree.Root);
-        if (base.GetChildrenCore() is { } native)
-            children.AddRange(native);
+        if (base.GetChildrenCore() is { Count: > 0 } native)
+        {
+            var placed = current.PlacedNativePeers();
+            foreach (var peer in native)
+                if (!placed.Contains(peer))
+                    children.Add(peer);
+        }
         return children;
     }
 
@@ -320,12 +344,13 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
     public void Invoke() => Perform(SkUiSemanticsActions.Activate);
 
     // Toggle
-    public ToggleState ToggleState => ToToggleState(Node?.CheckState);
+    // Cached as read, so the next change raises the value the client saw (as the name).
+    public ToggleState ToggleState => _toggle = ToToggleState(Node?.CheckState);
 
     public void Toggle() => Perform(SkUiSemanticsActions.Activate);
 
     // RangeValue
-    public double Value => Node?.Range?.Value ?? 0;
+    public double Value => _value = Node?.Range?.Value ?? 0;
 
     public double Minimum => Node?.Range?.Minimum ?? 0;
 
