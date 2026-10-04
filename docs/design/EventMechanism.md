@@ -32,7 +32,7 @@ Design and status of **FR-15** in [Requirements.md](Requirements.md): one shared
 | Raw touch | `ISkUiView.Touch` / `SkUiCoreNode.Touch` is the **entry point** for a surface root. Custom interaction uses `SkUiPointerGestureRecognizer`, not a `Touch` override (**breaking**: `Touch` is no longer virtual) |
 | Native ancestors | Coordinated at the surface: native parents are held back while a drawn continuous gesture may claim or owns the touch |
 | Hover | Outside the arena: `HoverMoved` / `HoverExited` samples set `SkUiView.IsPointerOver` on the hovered view and its ancestors (MAUI's `PointerOver` visual state); see **Hover** |
-| MAUI recognizer bridge | Not planned |
+| MAUI `GestureRecognizers` | `TapGestureRecognizer` (1 or 2 taps, primary button) runs on drawn taps of drawn views, so tap XAML ports unchanged; other recognizers and platform behaviors are reported, not run. See **MAUI gesture recognizers** |
 
 ## Architecture
 
@@ -81,6 +81,16 @@ Recognizers raise events / commands on their owner (UI thread)
 - **Controls:** `SkUiButton.Clicked` / `Command`, toggles and Core buttons use the intrinsic tap.
 - **`SkUiGestureSettings`:** app-wide thresholds.
 - **`SkUiDiagnostics.SimulateTap` / `HitTest`:** for tests and automation.
+
+## MAUI gesture recognizers
+
+MAUI connects `View.GestureRecognizers` only to views with a native view. Drawn views inside a surface have none, so SkiaUi runs the common part itself, on the arena:
+
+- **Taps (P11a):** a `TapGestureRecognizer` in a drawn view's `GestureRecognizers` with `NumberOfTapsRequired` 1 or 2 and the primary button runs on that view's drawn taps, as MAUI raises it: its `Command` (when it can execute), then `Tapped` with the view as sender, `CommandParameter` as `Parameter` and `GetPosition(view)`. Single taps run after the view's own `Tapped` and before `TappedCommand`; a double-tap recognizer makes single taps wait, as `DoubleTapped` does. The same path serves span taps (`Span.GestureRecognizers`), screen-reader activation and Space / Enter.
+- **Arena rules apply:** a view with a tap recognizer takes part like one with `Tapped`, whether or not its command can execute (as on MAUI, an empty recognizer keeps taps from the views underneath), and the innermost one wins. Recognizers added or removed at any time apply from the next press.
+- **Not run (reported):** pan, swipe, pinch, pointer, drag and drop recognizers, taps with other counts or buttons, and platform behaviors (`PlatformBehavior<,>`, e.g. the toolkit's `TouchBehavior`), which attach to a native view. The first press on such a view writes one `Trace` line naming it (`AutomationId` when set) and the gesture event to use instead. A **surface root** has a native view: MAUI runs its recognizers natively, outside the arena, so taps that drawn controls handle reach them too; they are reported as well.
+
+Drawn views keep their own API for everything else (`LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, `Gestures`). A bridge for the other recognizer types is possible (MAUI exposes `IPanGestureController`, `ISwipeGestureController`, `IPinchGestureController`) and stays open (P11b).
 
 ## Hover
 
@@ -163,7 +173,7 @@ A native control hosted by `SkUiMauiContentView` sits above the drawn surface, s
 
 - A dedicated SkUi* gesture demo page. Gestures and nested scrollers are shown today on the Core "ScrollView + gestures" page, `ViewDemoPage` (`InputTransparent`) and "Native nesting".
 - Hover / pointer-over events and an axis-aware wheel (desktop).
-- Keyboard and accessibility actions (activation of focused elements) — later.
+- Keyboard focus and accessibility actions shipped with P10 ([Accessibility.md](Accessibility.md)): keys go to the focused drawn node through the surface's focus manager, not through the gesture arena; screen-reader actions call the nodes' tap paths. Still open: public key events for app controls.
 - Shape-aware hit-testing (opt-in), if needed.
 
 ## References

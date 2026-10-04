@@ -141,6 +141,15 @@ public class SkUiProgressBar : SkUiView
         if (propertyName == nameof(FlowDirection))
             InvalidateRender(SkUiRenderDirty.Props);
     }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.ProgressBar;
+        if (!_isIndeterminate)
+            info.Range = new SkUiSemanticsRange(0, 1, _progress);
+    }
 }
 
 /// <summary>Drawing and render-thread slide shared by <see cref="SkUiProgressBar"/> and <see cref="Core.SkUiCoreProgressBar"/>.</summary>

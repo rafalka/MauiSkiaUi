@@ -25,7 +25,7 @@ Re-review of the implementation against the previous review (2026-09-25), checke
 | Virtualization (2.7) | Open | FR-21 / FR-22 recorded; readiness gaps in §4 |
 | Masked native overlays (2.8) | Open | Overlays clip to rectangles only; drawn content can't cover them |
 | `ITicker` / reduce motion (2.9) | Open | Own `SkUiUiTicker`; the OS reduce-motion setting is not honored |
-| Accessibility, keyboard focus, OS font scaling | Open | No semantics tree; drawn UI is invisible to TalkBack / VoiceOver (N8) |
+| Accessibility, keyboard focus, OS font scaling | Done (P10) | A semantics tree per surface mapped to TalkBack, VoiceOver and Narrator; keyboard focus with a look-drawn ring; `FontAutoScalingEnabled` (N8, [Accessibility.md](Accessibility.md)) |
 | Enforced performance budget | Open | `PerformanceTests` logs numbers for the immediate painter, not the retained record / commit path |
 | Drawn `SkUiEntry` with an IME proxy | Decided against | FR-16: host native text input; revisit only if overlays block a real need |
 | Core as a separate assembly (FR-C1) | Open, re-decide | Core now uses MAUI Controls types (`IVisualElementController` for flow direction) |
@@ -44,7 +44,7 @@ Ordered by severity. File references are to the code at the time of the review.
 | N5 | Medium | `InvalidateMeasure` walks to the root without an early-out, and each level calls `InvalidatePaint`: every ancestor re-records its picture (e.g. `SkUiCoreTable` redraws all track backgrounds on a cell text change) | Propagate layout without content dirtiness (size changes already re-record); stop at measure-dirty parents; relayout boundaries (§4) |
 | N6 | Medium — **partly fixed** | Swapping `SkUiLook.Current` / `SkUiColorScheme.Current` left retained pictures stale; some controls snapshot scheme colors at construction | Fixed: live surfaces re-measure and redraw their drawn tree on `CurrentChanged` (`SkUiLook.NotifyChanged()` for looks changed in place). Open: resolve scheme defaults at paint time ("not explicitly set") instead of snapshots; hook `RequestedThemeChanged` |
 | N7 | Medium | Any running render-thread animation (a 36-DIP spinner, an indeterminate bar) re-composites the whole surface at display rate | Raster-cache stable siblings (§4) |
-| N8 | Medium | No OS font scaling (`FontAutoScalingEnabled`), no semantics tree, no keyboard focus / activation | Accessibility work (§4) |
+| N8 | Medium — **fixed** | No OS font scaling (`FontAutoScalingEnabled`), no semantics tree, no keyboard focus / activation | Fixed (P10): a semantics tree built lazily from the render tree (both layers), rebuilt after committed frames and scrolls only while a platform bridge reads it; `ExploreByTouchHelper`, accessibility elements, automation peers; a per-surface focus manager; OS text size in the text styles ([Accessibility.md](Accessibility.md)) |
 | N9 | Medium — **fixed** | No shared image cache: every instance re-loads and re-decodes the same source and holds several copies of the encoded bytes; duplicated between SkUi\* and Core | Fixed (P4): one loader (`SkUiImageLoader`) and one image slot for both layers; decoded images in a memory LRU keyed by source, decode size and transformations, leased by the views that show them; shared in-flight loads; a download disk cache (`ImageLoadingTests`) |
 | N10 | Low–Medium | Android overlays allocate `Rect` Java peers per offset report and look overlays up with LINQ per child; clip computation walks ancestors per ancestor (O(depth²)) | Reuse rectangles, key overlays by clip view, one ancestor walk |
 | N11 | Low — **fixed** | Fling stop test ignores direction (a flick inward from an edge stops at once); `maxX` / `maxY` are frozen at fling start | Fixed (P8): an axis stops only at the edge it moves towards (with overscroll it bounces from it), and the fling follows extent and viewport changes while it runs (`ScrollViewParityTests`) |
@@ -68,10 +68,10 @@ Only **DrawnUi** solves the same problem (Uno and Avalonia can't be hosted insid
 | GPU | Metal, GL thread, ANGLE | Metal, GL thread, ANGLE |
 | Text | HarfBuzz, bidi, fallback; spans (P5) | HarfBuzz, spans |
 | Controls | ~20 per layer | ~70 |
-| Virtualization / accessibility | Not yet | Yes / Windows only |
+| Virtualization / accessibility | Not yet / yes (Android, Apple, Windows) | Yes / Windows only |
 | Quality | ~16k LOC, headless suite, leak tests on devices, AOT-clean | ~132k LOC, few tests |
 
-**Verdict:** the engine now has the speed foundations. The gap to DrawnUi is breadth (lists, containers, effects) plus accessibility, not architecture — provided the structural items below land before the control count grows further.
+**Verdict:** the engine now has the speed foundations. The gap to DrawnUi is breadth (lists, containers, effects), not architecture — provided the structural items below land before the control count grows further.
 
 ## 4. Recommendations
 
@@ -104,10 +104,10 @@ The spinner and fling cases (N7) are the benchmark.
 - Apply it as a mask: `CAShapeLayer` on iOS, a path clip on Android, a geometric clip on Windows.
 - Fall back to the snapshot mode while an occluder overlaps.
 
-**Accessibility.**
-- Build a semantics tree during recording (own dirty flag), from MAUI `SemanticProperties` / `AutomationProperties` on SkUi\* and a semantics API on Core.
-- Expose it through `ExploreByTouchHelper` (Android), accessibility elements on the surface view (iOS) and an automation peer (Windows). Reuse the router's hit-testing and `SkUiDiagnostics.SimulateTap` for bounds and actions.
-- Add OS font scaling, desktop keyboard focus / activation and reduce-motion.
+**Accessibility** (done in P10, [Accessibility.md](Accessibility.md)).
+- A semantics tree from MAUI `SemanticProperties` / `AutomationProperties` on SkUi\* and semantic properties on Core, built lazily from the render tree when a platform bridge reads it (not during recording: most frames have no reader).
+- Exposed through `ExploreByTouchHelper` (Android), accessibility elements on the surface container (iOS / Mac Catalyst) and automation peers (Windows); actions call the nodes' tap paths directly (a simulated touch could hit a child instead).
+- OS font scaling and keyboard focus / activation; reduce motion was already followed (`SkUiMotion`).
 
 ## State-change animations
 

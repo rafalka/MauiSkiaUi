@@ -58,6 +58,33 @@ public class SkUiLook
 
     #endregion
 
+    #region Text
+
+    private double _fontScale = 1;
+
+    /// <summary>
+    /// App-wide prescale of every drawn text size (labels, buttons, radio button text, spans, HTML, font images; both
+    /// layers), whatever its <c>FontAutoScalingEnabled</c>: a font size is multiplied by it first, then the system text size
+    /// applies to text that auto scales (<see cref="SkUiFontScaling"/>), so the drawn size is prescale × system scale.
+    /// Default 1. Changing it on the current look re-measures and redraws live surfaces; font images take it when their
+    /// source is created.
+    /// </summary>
+    public double FontScale
+    {
+        get => _fontScale;
+        set
+        {
+            if (!double.IsFinite(value) || value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value), value, "The font scale must be finite and positive.");
+            if (_fontScale == value) return;
+            _fontScale = value;
+            if (ReferenceEquals(_current, this))
+                NotifyChanged();
+        }
+    }
+
+    #endregion
+
     #region Shared geometry
 
     /// <summary>Optional uniform rounded-box painter (single radius for all corners).</summary>
@@ -660,6 +687,26 @@ public class SkUiLook
 
     /// <summary>Default press-overlay geometry.</summary>
     protected virtual void DrawPressOverlayCore(SKCanvas canvas, SkUiPressOverlayPaint overlay) { }
+
+    /// <summary>Optional focus-ring painter; replaces <see cref="DrawFocusRingCore"/>.</summary>
+    public Action<SKCanvas, SkUiFocusRingPaint>? FocusRingPainter { get; set; }
+
+    /// <summary>
+    /// Draws the keyboard focus ring over the focused drawn control (any control of either layer that takes keyboard focus),
+    /// while focus came from the keyboard (Tab, or programmatic focus after a key press).
+    /// </summary>
+    public void DrawFocusRing(SKCanvas canvas, SkUiFocusRingPaint ring)
+    {
+        if (FocusRingPainter is { } painter)
+        {
+            painter(canvas, ring);
+            return;
+        }
+        DrawFocusRingCore(canvas, ring);
+    }
+
+    /// <summary>Default focus-ring geometry.</summary>
+    protected virtual void DrawFocusRingCore(SKCanvas canvas, SkUiFocusRingPaint ring) { }
 
     #endregion
 }

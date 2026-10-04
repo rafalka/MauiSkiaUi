@@ -167,9 +167,9 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
         // A long-lived command must not keep the node alive.
         (_commandListener ??= new(this, static (button, change) =>
         {
-            if (change.Kind == SkUiChangeKind.CanExecute) button.InvalidatePaint();
+            if (change.Kind == SkUiChangeKind.CanExecute) button.OnCommandStateChanged();
         })).Listen(value);
-        InvalidatePaint();
+        OnCommandStateChanged();
         return this;
     }
 
@@ -177,8 +177,15 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     public SkUiCoreButton SetCommandParameter(object? value)
     {
         if (!SetProperty(ref _commandParameter, value, nameof(CommandParameter))) return this;
-        InvalidatePaint();
+        OnCommandStateChanged();
         return this;
+    }
+
+    /// <summary>Whether the command can execute may have changed: repaint (enabled look) and re-check keyboard focus.</summary>
+    private void OnCommandStateChanged()
+    {
+        InvalidatePaint();
+        RevalidateFocus();
     }
 
     /// <summary>
@@ -254,4 +261,14 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
         InvalidatePaint();
         (value ? Pressed : Released)?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.Button;
+    }
+
+    /// <inheritdoc />
+    internal override bool IsSemanticsEnabled => CanExecuteCommand;
 }

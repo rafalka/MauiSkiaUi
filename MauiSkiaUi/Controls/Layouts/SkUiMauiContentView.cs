@@ -421,4 +421,12 @@ public partial class SkUiMauiContentView : SkUiView
     partial void SyncOverlayBounds();
     partial void StartCapture(Action<SKImage?> done, ref bool started);
     partial void SetNativeHidden(bool hidden);
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        // The hosted native view is read by the platform itself.
+        info.IsNative = true;
+    }
 }

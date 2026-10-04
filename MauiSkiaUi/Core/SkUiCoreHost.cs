@@ -38,6 +38,7 @@ public class SkUiCoreHost : SkUiView, IVisualTreeElement
         }
 
         _content = value;
+        SkUiFocusManager.ValidateAll();
 
         if (_content is not null)
         {

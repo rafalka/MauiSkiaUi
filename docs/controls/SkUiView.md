@@ -16,7 +16,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 - **Coordinates** use DIPs. Paint and touch share the same local space as measure/arrange.
 - **BindableProperty + fluent `Set*` setters:** a `Set*` setter is the property setter in fluent form (`label.SetText("a").SetFontSize(20)`): getters read the bindable store, as in MAUI, so bindings, triggers and `x:Reference` see every change (FR-10). Invalid values: `Set*` throws; XAML, bindings, styles and the property setter ignore them with a logged warning, as MAUI does.
 - **`StartUpdating` / `EndUpdating`** batch layout and paint invalidation.
-- **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`), not MAUI `GestureRecognizers`. See [EventMechanism.md](../design/EventMechanism.md).
+- **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`). Of MAUI's `GestureRecognizers`, `TapGestureRecognizer` (1 or 2 taps) runs on the arena, so tap XAML ports unchanged; other recognizers and platform behaviors such as `TouchBehavior` are not run and are reported once as a `Trace` line. See [EventMechanism.md](../design/EventMechanism.md#maui-gesture-recognizers).
 - **Hosted vs standalone:** when nested under another SkiaUi parent, the node has no platform handler and paints into the root surface. See [LayoutSystem.md](../design/LayoutSystem.md).
 
 
@@ -53,6 +53,12 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 | `Background` / `BackgroundColor` | MAUI's: a color, `LinearGradientBrush` or `RadialGradientBrush` (see below) |
 | `Shadow` / `Clip` | MAUI's drop shadow and clip geometry, composited (see below) |
 | `AnimationClock` | Shared clock of the topmost SkiaUi ancestor; local clocks are abandoned when the subtree is reparented (`OnAnimationRootChanged`) |
+| `Tag` / `SetTag` | Any object the app keeps with the view (an id, a model). Plain CLR property, not bindable; SkiaUi never reads it |
+| `Focus()` / `Unfocus()` / `IsFocused` / `Focused` / `Unfocused` | MAUI's keyboard focus, on drawn views too (see below) |
+| `IsTabStop` / `TabIndex` | Tab order within the surface (SkiaUi's own: MAUI 10 has none) |
+| `SetSemanticFocus()` | Moves the screen reader to the view (MAUI's `SetSemanticFocus` needs a native view) |
+| `IsAccessibilityEnabled` | `false`: the subtree is hidden from screen readers and keyboard focus (on a surface root: no platform bridge). App-wide: `SkUiAccessibility.IsEnabled` |
+| `OnPopulateSemantics` / `OnSemanticsAction` | What the view reports to screen readers and what their actions do (own controls) |
 | `Paint` / `Touch` | `ISkUiView` surface |
 
 ## Differences / extensions
@@ -60,7 +66,7 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 - Not a MAUI `SKGLView` subclass; surface comes from `SkUiViewHandler` (Metal on Apple, GL thread on Android, `SKCanvasView` for software).
 - Defaults: leaf controls `HwAccelerated = false`; hosts/layouts default `true`.
 - Hit-testing uses **arranged bounds** (shape-aware hits deferred).
-- **Visual states:** MAUI's `VisualStateManager` groups and setters work; `SkUiView` raises the states from SkiaUi's input state: `Disabled` (also while a control cannot be tapped, e.g. a command that cannot execute), else `PointerOver` while `IsPointerOver` (mouse, trackpad, pen or iPad pointer hover; see [EventMechanism.md](../design/EventMechanism.md#hover)), else `Normal`; `Focused` / `Unfocused` in a focus group (no keyboard focus on drawn views yet). Controls add their MAUI states (buttons `Pressed`, toggles their checked states). State triggers (`StateTrigger`, `CompareStateTrigger`, `AdaptiveTrigger`) work as in MAUI.
+- **Visual states:** MAUI's `VisualStateManager` groups and setters work; `SkUiView` raises the states from SkiaUi's input state: `Disabled` (also while a control cannot be tapped, e.g. a command that cannot execute), else `PointerOver` while `IsPointerOver` (mouse, trackpad, pen or iPad pointer hover; see [EventMechanism.md](../design/EventMechanism.md#hover)), else `Normal`; `Focused` / `Unfocused` in a focus group, from keyboard focus (see below). Controls add their MAUI states (buttons `Pressed`, toggles their checked states). State triggers (`StateTrigger`, `CompareStateTrigger`, `AdaptiveTrigger`) work as in MAUI.
 - `ImageBrush` backgrounds are not drawn. Empty MAUI brushes (the default brush, a gradient without stops) do not hide `BackgroundColor`.
 
 ## Backgrounds, shadows and clips
@@ -93,7 +99,29 @@ MAUI's `Background`, `Shadow` and `Clip` work on every drawn view, so MAUI XAML 
 - Core nodes have the same three: `SetBackground(Paint)`, `SetShadow(IShadow)` (e.g. `SkUiCoreShadow`), `SetClip(IShape)` ([SkUiCore.md](SkUiCore.md#backgrounds-shadows-and-clips)).
 - Not drawn: `ImageBrush`; shape-aware hit-testing stays opt-in for later.
 
+## Accessibility and keyboard
+
+Drawn views are read by TalkBack, VoiceOver and Narrator, take keyboard focus, and follow the system text size (MAUI parity P10, [Accessibility.md](../design/Accessibility.md)). MAUI's accessibility XAML ports by changing the prefix:
+
+```xml
+<sk:SkUiLabel Text="Settings" SemanticProperties.HeadingLevel="Level1" />
+<sk:SkUiImage Source="logo.png" SemanticProperties.Description="Company logo" />
+<sk:SkUiImageButton Source="share.png" SemanticProperties.Description="Share"
+                    SemanticProperties.Hint="Shares the order" />
+<sk:SkUiCheckBox SemanticProperties.Description="Gift wrap" />
+<sk:SkUiLabel Text="Gift wrap" AutomationProperties.IsInAccessibleTree="False" />
+```
+
+- **What is read.** Controls are elements with their role, name and state (buttons, check boxes, switches, radio buttons with their text content, sliders and progress bars with their value, labels with their text). Images and containers are read only with a `SemanticProperties.Description`, a `HeadingLevel` or a tap handler. A view with a tap handler (a card with `Tapped`, `TappedCommand`) is one button whose name is the text inside it; buttons inside it stay separate. A description replaces a view's text (on a container: the text inside is not read). `SemanticProperties.Hint` is read after the name. MAUI's `AutomationProperties.IsInAccessibleTree` (`False`: skip the view, not its children) and `ExcludedWithChildren` (skip the whole subtree) apply; `AutomationProperties.Name` / `HelpText` are read when no description / hint is set. `AutomationId` is exposed to UI tests.
+- **Actions.** A screen reader's double tap (Narrator: invoke) runs the view's tap: `Tapped`, `TappedCommand`, a button's `Clicked` and command, a toggle's toggle. Sliders step by 5 % (swipe up / down, Narrator's range value), scroll views scroll by page, a long press handler gets the long-press action. Elements scrolled out of view are not read until scrolled in; a screen reader's focus scrolls a partly hidden element into view.
+- **Keyboard focus.** MAUI's `Focus()`, `Unfocus()`, `IsFocused`, `Focused` / `Unfocused` and the `Focused` / `Unfocused` visual states work on drawn views. Interactive views take focus (buttons, image buttons, toggles, sliders, views with a tap handler) while visible and enabled; `Focus()` on a label returns `false`; on a surface root that is not focusable itself (a layout) it focuses the first focusable view. Tab / Shift+Tab move by `TabIndex`, then tree order (`IsTabStop="False"` leaves a view out) and on to native controls at either end; Space / Enter activate the focused view, arrows adjust a slider or scroll, Page Up / Down and Home / End scroll. The look draws a focus ring around the focused view while the keyboard is in use (`SkUiLook.DrawFocusRing`, [ControlLook.md](../design/ControlLook.md#focus-ring)); a pointer press hides it. Focusing a view scrolls it into view.
+- **Text size.** Labels, buttons, radio button text, spans, HTML text and font images follow the system text size (Android font scale, iOS / Mac Catalyst Dynamic Type, Windows text scaling) unless `FontAutoScalingEnabled="False"`, as in MAUI. `SkUiLook.FontScale` is an app-wide prescale of all drawn text (also with auto scaling off): the drawn size is font size × `FontScale` × the system scale (for text that auto scales).
+- **Switching it off:** `IsAccessibilityEnabled="False"` hides a view's subtree from screen readers and keyboard focus; on a surface root, the surface is read as one native view (its own `SemanticProperties` apply to it, as to any MAUI view). For decorative or self-described surfaces (charts, game canvases). `SkUiAccessibility.IsEnabled = false` does it app-wide (kiosks, games). Unused, accessibility costs next to nothing; text scaling stays either way.
+- **Own controls** describe themselves by overriding `OnPopulateSemantics(SkUiSemanticsInfo)` (role, text, value, check state, range, actions; call the base first) and `OnSemanticsAction` / `OnSemanticsSetValue`; call `InvalidateSemantics()` when something they read changes without a redraw. Their keyboard focus follows their tap handler.
+- **Reaching a surface with Tab** follows each platform's rule for buttons: always on Windows and Android; on Mac Catalyst only with System Settings › Keyboard › Keyboard navigation on (otherwise macOS tabs between text fields only), on iPad with a hardware keyboard. A click focuses the drawn control on Windows only (as WinUI); on Apple and Android pointer input does not move keyboard focus. Once a drawn control has focus (`Focus()`), Tab, Space / Enter and arrows work everywhere.
+- Not yet: links inside HTML / span text as separate elements, custom actions, arrow-key moves within a radio group.
+
 ## Related
 
-- [DrawingMechanism.md](../design/DrawingMechanism.md) · [EventMechanism.md](../design/EventMechanism.md) · [LayoutSystem.md](../design/LayoutSystem.md)
-- Gallery: `ViewDemoPage`; `BoxDemoPage` and `BorderDemoPage` compare backgrounds, shadows and clips with MAUI's own controls. Samples app: **Controls › Cards with shadows**.
+- [DrawingMechanism.md](../design/DrawingMechanism.md) · [EventMechanism.md](../design/EventMechanism.md) · [LayoutSystem.md](../design/LayoutSystem.md) · [Accessibility.md](../design/Accessibility.md)
+- Demo: the **Accessibility** flyout page (semantics tree, keyboard focus, text scale). Gallery: `ViewDemoPage`; `BoxDemoPage` and `BorderDemoPage` compare backgrounds, shadows and clips with MAUI's own controls. Samples app: **Controls › Cards with shadows**.

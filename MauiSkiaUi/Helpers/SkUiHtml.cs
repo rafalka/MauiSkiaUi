@@ -159,10 +159,11 @@ public static class SkUiHtml
 
     /// <summary>
     /// <paramref name="runs"/> resolved against a label's values (what the markup leaves unset, and the base of its
-    /// relative sizes) for the formatted-text engine; one engine span per run.
+    /// relative sizes) for the formatted-text engine; one engine span per run. With <paramref name="fontAutoScalingEnabled"/>,
+    /// every resolved size follows the system text size.
     /// </summary>
     internal static SkUiRichText ToRichText(IReadOnlyList<SkUiHtmlRun> runs, string? fontFamily, double fontSize, FontAttributes fontAttributes,
-        double characterSpacing, double lineHeight, Color textColor, TextDecorations decorations)
+        double characterSpacing, double lineHeight, Color textColor, TextDecorations decorations, bool fontAutoScalingEnabled)
     {
         if (runs.Count == 0) return SkUiRichText.Empty;
         var builder = new SkUiRichText.Builder();
@@ -170,7 +171,8 @@ public static class SkUiHtml
         {
             var attributes = style.Attributes(fontAttributes);
             builder.Add(text,
-                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(style.FontFamily ?? fontFamily, attributes), style.Size(fontSize), attributes, characterSpacing, lineHeight),
+                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(style.FontFamily ?? fontFamily, attributes),
+                    SkUiFontScaling.ScaleFontSize(style.Size(fontSize), fontAutoScalingEnabled), attributes, characterSpacing, lineHeight),
                 new SkUiTextSpanPaint(SkUiToggleDrawing.ToSkColor(style.TextColor ?? textColor),
                     style.Background is { } background ? SkUiToggleDrawing.ToSkColor(background) : default, style.DecorationsOver(decorations)));
         }

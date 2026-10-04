@@ -210,6 +210,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     {
         ChangeVisualState();
         InvalidatePaint();
+        RevalidateFocus();
     }
     /// <summary>MAUI's button states: <c>Pressed</c> while an enabled press is held, otherwise the common states.</summary>
     protected override void ChangeVisualState()
@@ -260,4 +261,11 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height) =>
         ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(IsEnabled && CanReceiveTap).ToPaint()) : null;
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.Button;
+    }
 }

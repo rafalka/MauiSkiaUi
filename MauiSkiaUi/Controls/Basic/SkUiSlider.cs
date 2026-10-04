@@ -279,4 +279,41 @@ public class SkUiSlider : SkUiView
         InvalidatePaint();
         ValueChanged?.Invoke(this, new ValueChangedEventArgs(old, value));
     }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.Slider;
+        info.IsHorizontal = _orientation == StackOrientation.Horizontal;
+        // Maximum <= Minimum is a slider fixed at Minimum: an ordered, empty range that cannot be stepped.
+        if (_maximum <= _minimum)
+        {
+            info.Range = new SkUiSemanticsRange(_minimum, _minimum, _minimum);
+            return;
+        }
+        info.Range = new SkUiSemanticsRange(_minimum, _maximum, SkUiSliderMath.Clamp(_value, _minimum, _maximum));
+        info.Actions |= SkUiSemanticsActions.Increment | SkUiSemanticsActions.Decrement;
+    }
+
+    /// <inheritdoc />
+    protected override bool OnSemanticsAction(SkUiSemanticsActions action) => action switch
+    {
+        SkUiSemanticsActions.Increment => OnSemanticsSetValue(_value + SkUiSemantics.RangeStep(_minimum, _maximum)),
+        SkUiSemanticsActions.Decrement => OnSemanticsSetValue(_value - SkUiSemantics.RangeStep(_minimum, _maximum)),
+        _ => base.OnSemanticsAction(action)
+    };
+
+    /// <inheritdoc />
+    protected override bool OnSemanticsSetValue(double value)
+    {
+        var clamped = SkUiSliderMath.Clamp(value, _minimum, _maximum);
+        if (clamped == _value)
+            return false;
+        Value = clamped;
+        return true;
+    }
+
+    /// <inheritdoc />
+    internal override bool TakesKeyboardFocus => true;
 }

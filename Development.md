@@ -13,6 +13,7 @@ Internal guide for working **on** SkiaUi (library + demo + tests). Library **use
 | `tests/MauiSkiaUi.DeviceTests` | .NET MAUI application (`net10.0-*`) | On-device memory-leak scenarios with real handlers and platform views (`scripts/device_tests.sh`) |
 | `benchmarks/MauiSkiaUi.Benchmarks` | Console app (`net10.0`) | Headless benchmark runner (layout / text / recording / compositing) |
 | `benchmarks/MauiSkiaUiBench` | .NET MAUI application (`net10.0-*`) | On-device benchmark app (Release); shares `benchmarks/Scenarios` with the headless runner |
+| `plugins/skiaui-migration` | Claude Code plugin (Agent Skills) | Migration skills for app developers (`skiaui-audit`, `skiaui-migrate`) with their Python checkers; listed by the repo marketplace `.claude-plugin/marketplace.json` ([README](plugins/skiaui-migration/README.md)) |
 
 Solution file: `SkiaUi.slnx`
 
@@ -100,6 +101,7 @@ Architecture, requirements, and mechanism checklists live under **[docs/design/]
 | [ControlLook.md](docs/design/ControlLook.md) | Control look packs / default sizes (FR-18) |
 | [ColorScheme.md](docs/design/ColorScheme.md) | Shared default palette (FR-19) |
 | [EventMechanism.md](docs/design/EventMechanism.md) | SkiaUi-owned gestures (FR-15) |
+| [Accessibility.md](docs/design/Accessibility.md) | Semantics tree and platform accessibility bridges, keyboard focus, OS font scaling (FR-28, P10) |
 | [AnimationMechanism.md](docs/design/AnimationMechanism.md) | Vsync clock, paint / transform animation (FR-7) |
 | [ScrollingAndCollectionViews.md](docs/design/ScrollingAndCollectionViews.md) | `SkUiScrollView` / collections (FR-17) |
 | [Testing.md](docs/design/Testing.md) | Unit / mechanism / golden / device strategy; `device_verify.sh` |
@@ -109,6 +111,8 @@ Architecture, requirements, and mechanism checklists live under **[docs/design/]
 | [ArchitectureReview.md](docs/design/ArchitectureReview.md) | 2026-09 review vs DrawnUi / Flutter / Avalonia / Uno / Open-Maui and implementation status |
 
 Per-control user docs (NFR-5): [docs/controls/](docs/controls/README.md).
+
+Migration guide for app developers: [docs/Migration.md](docs/Migration.md). It and the migration skills (`plugins/skiaui-migration`: skill references and the control / gap tables in both scripts) describe the current MAUI parity and gaps: update them when a change adds parity, a control, or closes a gap.
 
 Cursor rule for public reference sources: [`.cursor/rules/reference-sources.mdc`](.cursor/rules/reference-sources.mdc).
 
@@ -135,7 +139,7 @@ When a requirement ships, check it off in the relevant design doc and summarize 
 
 ### Demo (`MauiSkiaUiDemo`)
 
-- The Shell flyout opens **Components** (MAUI-compatible `SkUi*` demos under Basic controls / Layouts / Graphics / Scrolling), **Core** (`SkUiCoreGrid`, `SkUiCoreTable`, `SkUiCoreScrollView`, … hosted in `SkUiCoreHost`), **Composition**, **Native nesting** (drawn surfaces inside a native MAUI `ScrollView`), **Look & colors**, **Stress**, and **Primitives**.
+- The Shell flyout opens **Components** (MAUI-compatible `SkUi*` demos under Basic controls / Layouts / Graphics / Scrolling), **Core** (`SkUiCoreGrid`, `SkUiCoreTable`, `SkUiCoreScrollView`, … hosted in `SkUiCoreHost`), **Composition**, **Native nesting** (drawn surfaces inside a native MAUI `ScrollView`), **Look & colors**, **Accessibility** (a drawn form for screen readers and the keyboard, its live semantics tree, an app-wide text scale), **Stress**, and **Primitives**.
 - The other flyout pages: **Composition** (a XAML control sample with Grid, wrapping Label, an offline NASA image, command-bound Buttons, MAUI styles/visual states, and scrollable content), **Look & colors** (FR-18/19 playground: light/dark/custom accent, Default/Chunky/Minimal look packs, size scale; preview includes SkUi* and Core), **Stress** (two-column grid of buttons under one scroll surface — toggle **Core layer** to compare MAUI-compatible `SkUiGrid` vs `SkUiCoreGrid`; **Animate** uses spinners in the 2nd column on either layer; **Scroll** animates, **Top** resets, **Record** reports CPU picture-recording time), and **Primitives** (box/ellipse/line under one GPU-default `SkUiContentView`, a four-second transform animation with a native status label, tap-to-recolor, and a standalone software-rendered box).
 - Conditional MauiDevFlow initialization and Mac Catalyst server entitlement are wired for runtime inspection.
 
@@ -156,7 +160,8 @@ Register `builder.UseSkiaUi()` in `MauiProgram`, then compose in XAML (see [READ
 - **Shadows and clips** (P7, FR-20 / FR-11): MAUI's `Shadow` and `Clip` on every SkUi* view, `SetShadow(IShadow)` (`SkUiCoreShadow`) / `SetClip(IShape)` on Core nodes, resolved by `SkUiVisualEffects` into render-node properties ([RenderingPipeline.md](docs/design/RenderingPipeline.md#shadows-and-clips-fr-20-fr-11)). A node with an opaque fill casts its shadow from the fill's outline (MAUI's Android rule); others from the alpha of their drawn subtree, rasterized once on the render thread and reused while the subtree is unchanged. Shadows draw outside the node's own clip and change neither layout nor input; clips are paint-only. Transforms, scrolling and `AnimateAsync` record nothing and blur nothing again.
 - Hosted implementations must also be MAUI `Element` instances for logical ownership.
 - **Event subscriptions:** a view listens to sources it does not own and that may outlive it (brushes, dash arrays, points, geometries, stroke shapes, image sources, transformation lists, commands) through the public `SkUiWeakListener<T>` (one internal `SkUiChangeHub` per source, weak listeners, pruned as they come and go; MAUI Controls sources plug in through `SkUiMauiChangeSources`, so the hub stays layer-agnostic), never with a plain `+=`. App-wide events SkiaUi publishes (`SkUiLook.CurrentChanged`, `SkUiColorScheme.CurrentChanged` / `Changed`) hold their subscribers weakly through the public `SkUiWeakEvent` (lambdas that capture locals stay strong, or they would stop firing). Apps use both for their own controls ([SkUiCore.md](docs/controls/SkUiCore.md#listening-to-shared-sources-own-controls)). Owned and structural subscriptions (parent and child, handler and platform view, renderer) stay plain events with explicit cleanup: a weak reference there only hides a missing cleanup. Weak listeners do not replace detach cleanup (animations, image loads, pictures): a removed view that is still referenced is alive.
-- Drawn controls are not individual native accessibility elements and do not yet provide keyboard activation. Native status/navigation controls remain available. Full drawn-tree accessibility and device frame-rate targets are not claimed.
+- **Accessibility, keyboard and text size** (P10, [Accessibility.md](docs/design/Accessibility.md)): every surface has a semantics tree built from the render tree (both layers) by `SkUiSemanticsTree` from MAUI's `SemanticProperties` / `AutomationProperties` (Core: semantic properties) and the controls' `OnPopulateSemantics`; `SkUiSemanticsOwner` keeps it only while a platform bridge reads it (rebuilt lazily after committed frames and scroll changes, changes reported coalesced). Bridges on the surface container: `SkUiAccessibilityHelper` (Android `ExploreByTouchHelper`), `SkUiAccessibilityBridge` (iOS / Mac Catalyst accessibility elements; Windows automation peers). `SkUiFocusManager` (one per root) gives MAUI's `Focus()` / `Unfocus()` / `IsFocused` to drawn views (through `FocusChangeRequested`) and Core nodes, walks the tab order (`IsTabStop` / `TabIndex`), turns keys from the container into activation, stepping and scrolling, and draws the look's ring while focus came from the keyboard. `SkUiFontScaling` scales font sizes where text styles are built (`FontAutoScalingEnabled`). Checked headlessly and on Mac Catalyst through the accessibility API and a keyboard; TalkBack, VoiceOver on iOS and Narrator are not run yet. Device frame-rate targets are not claimed.
+- `Tag` (`SkUiView`, `SkUiCoreNode`): an app-owned object, plain CLR property; SkiaUi never reads it.
 
 ### Controls & scroll APIs
 

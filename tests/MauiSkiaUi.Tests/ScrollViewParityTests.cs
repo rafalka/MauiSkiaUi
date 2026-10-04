@@ -261,7 +261,7 @@ public class ScrollViewParityTests
         Assert.Equal(8, ThumbFrame(horizontal!).X);
         // RTL horizontal scrollers start at the right end: so does the thumb.
         Assert.Equal(300, rtl.ScrollX);
-        Assert.Equal(90 - 24, Props(horizontal.ThumbNode).TranslationX, 3);
+        Assert.Equal(90 - 24, Props(horizontal!.ThumbNode).TranslationX, 3);
     }
 
     [Fact]

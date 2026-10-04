@@ -18,7 +18,8 @@ internal static class SkUiMauiImageSources
                 FileImageSource file => SkUiImageSource.FromFile(file.File),
                 UriImageSource uri => SkUiImageSource.FromUri(uri.Uri, uri.CachingEnabled, uri.CacheValidity),
                 StreamImageSource stream => SkUiImageSource.FromStream(stream.Stream),
-                FontImageSource font => SkUiImageSource.FromFont(font.Glyph, font.FontFamily, font.Size, font.Color),
+                FontImageSource font => SkUiImageSource.FromFont(font.Glyph, font.FontFamily, font.Size, font.Color,
+                    fontAutoScalingEnabled: font.FontAutoScalingEnabled),
                 _ => new SkUiFailedImageSource(new NotSupportedException(
                     $"{source.GetType().Name} is not supported: use a file, MauiImage, raw package asset, stream, font or HTTP(S) source."))
             };
@@ -33,7 +34,8 @@ internal static class SkUiMauiImageSources
     internal static bool AffectsImage(string? propertyName) => propertyName is
         nameof(FileImageSource.File) or nameof(StreamImageSource.Stream)
         or nameof(UriImageSource.Uri) or nameof(UriImageSource.CachingEnabled) or nameof(UriImageSource.CacheValidity)
-        or nameof(FontImageSource.Glyph) or nameof(FontImageSource.FontFamily) or nameof(FontImageSource.Size) or nameof(FontImageSource.Color);
+        or nameof(FontImageSource.Glyph) or nameof(FontImageSource.FontFamily) or nameof(FontImageSource.Size) or nameof(FontImageSource.Color)
+        or nameof(FontImageSource.FontAutoScalingEnabled);
 }
 
 /// <summary>A source that could not be mapped: loading it reports the error.</summary>

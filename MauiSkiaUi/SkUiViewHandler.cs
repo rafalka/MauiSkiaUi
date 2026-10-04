@@ -125,6 +125,17 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             nameof(IView.AnchorX), nameof(IView.AnchorY)
         })
             mapper[property] = static (handler, _) => handler.QueueFrame();
+        // The root's semantics are part of the drawn tree's (SkUiSemanticsTree). Mapped onto the native container, they would
+        // make it a single element (iOS) hiding the drawn elements.
+        // With accessibility off for the surface, they apply to the native view, as for any MAUI view.
+        mapper[nameof(IView.Semantics)] = static (handler, view) =>
+        {
+            if (handler.IsAccessibilityActive)
+                SkUiSemantics.Invalidate(view);
+            else
+                ViewHandler.MapSemantics(handler, view);
+        };
+        mapper[nameof(SkUiView.IsAccessibilityEnabled)] = static (handler, _) => handler.UpdateAccessibility();
 #if WINDOWS
         // The drawn tree mirrors itself for RTL. WinUI FlowDirection (inherited through the XAML tree) would mirror
         // the surface's pixels on top of that (mirrored text, LTR order), so the container stays LeftToRight.
@@ -216,6 +227,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         _container = new SkUiOverlayContainer { FlowDirection = Microsoft.UI.Xaml.FlowDirection.LeftToRight };
         _container.Children.Add(surfaceNative);
 #endif
+        AttachAccessibility(surfaceNative);
         return _container!;
     }
 
@@ -427,10 +439,187 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     }
 #endif
 
+    /// <summary>
+    /// Screen readers read the drawn tree through the container (TalkBack: virtual views, VoiceOver: accessibility elements,
+    /// Narrator: automation peers); the surface view itself is not an element.
+    /// </summary>
+    private void AttachAccessibility(PlatformView surface)
+    {
+        if (_container is not { } container)
+            return;
+#if ANDROID
+        surface.ImportantForAccessibility = Android.Views.ImportantForAccessibility.No;
+        if (OperatingSystem.IsAndroidVersionAtLeast(26))
+            container.DefaultFocusHighlightEnabled = false;
+#elif IOS || MACCATALYST
+        surface.IsAccessibilityElement = false;
+#elif WINDOWS
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAccessibilityView(surface, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
+#endif
+        UpdateAccessibility();
+    }
+
+    /// <summary>Whether the surface takes part in accessibility now (app-wide and for this root).</summary>
+    private bool IsAccessibilityActive => SkUiAccessibility.IsEnabled && VirtualView is { IsAccessibilityEnabled: true };
+
+    /// <summary>
+    /// Attaches or removes the platform bridge and the container's keyboard participation to match
+    /// <see cref="SkUiAccessibility.IsEnabled"/> and the root's <see cref="SkUiView.IsAccessibilityEnabled"/>.
+    /// </summary>
+    private void UpdateAccessibility()
+    {
+        if (_container is not { } container)
+            return;
+        var active = IsAccessibilityActive;
+#if ANDROID
+        // Keyboard focus for drawn controls; focusable in touch mode only while one is focused (else a tap would take focus
+        // from a hosted Entry).
+        container.Focusable = active;
+        if (!active)
+            container.FocusableInTouchMode = false;
+#elif WINDOWS
+        container.IsTabStop = active;
+#endif
+        if (active == container.Accessibility is not null)
+            return;
+        if (active)
+        {
+#if ANDROID
+            container.Accessibility = new SkUiAccessibilityHelper(container, VirtualView);
+            AndroidX.Core.View.ViewCompat.SetAccessibilityDelegate(container, container.Accessibility);
+#elif IOS || MACCATALYST
+            // MAUI's mapping of the root's semantics (while off) could have made the container one element hiding the drawn ones.
+            container.IsAccessibilityElement = false;
+            container.AccessibilityLabel = null;
+            container.AccessibilityHint = null;
+            container.Accessibility = new SkUiAccessibilityBridge(container, VirtualView);
+#elif WINDOWS
+            container.Accessibility = new SkUiAccessibilityBridge(container, VirtualView);
+#endif
+        }
+        else
+        {
+            container.Accessibility!.Detach();
+#if ANDROID
+            AndroidX.Core.View.ViewCompat.SetAccessibilityDelegate(container, null);
+#endif
+            container.Accessibility = null;
+        }
+        // The root's own semantics: part of the drawn tree while on, mapped onto the native view while off.
+        UpdateValue(nameof(IView.Semantics));
+        // Clients cache the container's children: tell them they changed.
+#if ANDROID
+        if (container.Accessibility is { } helper)
+            helper.InvalidateRoot();
+        else
+            container.SendAccessibilityEvent(Android.Views.Accessibility.EventTypes.WindowContentChanged);
+#elif IOS || MACCATALYST
+        UIKit.UIAccessibility.PostNotification(UIKit.UIAccessibilityPostNotification.ScreenChanged, null);
+#elif WINDOWS
+        if (Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(container) is { } peer)
+            peer.RaiseStructureChangedEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationStructureChangeType.ChildrenInvalidated, peer);
+#endif
+    }
+
+    private void OnAccessibilitySwitched(object? sender, EventArgs args)
+    {
+        if (VirtualView is not { } root)
+            return;
+        if (root.Dispatcher.IsDispatchRequired)
+            root.Dispatcher.Dispatch(UpdateAccessibility);
+        else
+            UpdateAccessibility();
+    }
+
+    /// <summary>Removes what <see cref="AttachAccessibility"/> and the focus hooks added.</summary>
+    private void DetachAccessibility()
+    {
+        SkUiAccessibility.Changed -= OnAccessibilitySwitched;
+        VirtualView.FocusManager.Disconnect();
+        if (_container is not { } container)
+            return;
+        container.KeyboardFocus = null;
+        container.Accessibility?.Detach();
+#if ANDROID
+        AndroidX.Core.View.ViewCompat.SetAccessibilityDelegate(container, null);
+#endif
+        container.Accessibility = null;
+    }
+
+    /// <summary>The container takes the platform's keyboard focus for a focused drawn node; returns whether it has it.</summary>
+    private bool RequestNativeFocus()
+    {
+#if ANDROID
+        return _container?.RequestDrawnFocus() == true;
+#elif IOS || MACCATALYST
+        if (_container is not { } container)
+            return false;
+        // Also UIKit's focus system, so the next Tab goes on from the surface.
+        if (!container.Focused && container.CanBecomeFocused)
+            UIKit.UIFocusSystem.Create(container)?.RequestFocusUpdate(container);
+        return container.IsFirstResponder || container.BecomeFirstResponder();
+#elif WINDOWS
+        return _container is { } container
+            && (container.FocusState != Microsoft.UI.Xaml.FocusState.Unfocused || container.Focus(Microsoft.UI.Xaml.FocusState.Programmatic));
+#else
+        return false;
+#endif
+    }
+
+    /// <summary>The focused drawn node was unfocused: the container gives the platform's keyboard focus up.</summary>
+    private void ReleaseNativeFocus()
+    {
+#if ANDROID
+        _container?.ReleaseDrawnFocus();
+#elif IOS || MACCATALYST
+        if (_container is { IsFirstResponder: true } container)
+            container.ResignFirstResponder();
+#endif
+        // Windows has no way to drop focus without moving it elsewhere: the container keeps it (Tab goes on from there).
+    }
+
+    /// <summary>
+    /// Native scrollers around the surface show <paramref name="bounds"/> (surface DIPs) of the newly focused drawn node, as
+    /// they do for a focused native control (a surface taller than its scroller would otherwise leave it out of view).
+    /// </summary>
+    private void RequestNativeReveal(Rect bounds)
+    {
+        if (_container is not { } container || bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+#if ANDROID
+        var density = container.Resources?.DisplayMetrics?.Density ?? 1;
+        container.RequestRectangleOnScreen(new Android.Graphics.Rect(
+            (int)Math.Floor(bounds.Left * density), (int)Math.Floor(bounds.Top * density),
+            (int)Math.Ceiling(bounds.Right * density), (int)Math.Ceiling(bounds.Bottom * density)));
+#elif IOS || MACCATALYST
+        var rect = new CoreGraphics.CGRect(bounds.X, bounds.Y, bounds.Width, bounds.Height);
+        for (var view = container.Superview; view is not null; view = view.Superview)
+            if (view is UIKit.UIScrollView scroller)
+                scroller.ScrollRectToVisible(scroller.ConvertRectFromView(rect, container), animated: true);
+#elif WINDOWS
+        container.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions
+        {
+            TargetRect = new Windows.Foundation.Rect(bounds.X, bounds.Y, bounds.Width, bounds.Height),
+            AnimationDesired = true
+        });
+#endif
+    }
+
     /// <inheritdoc />
     protected override void ConnectHandler(PlatformView platformView)
     {
         base.ConnectHandler(platformView);
+        var focus = VirtualView.FocusManager;
+        focus.RequestNativeFocus = RequestNativeFocus;
+        focus.ReleaseNativeFocus = ReleaseNativeFocus;
+        focus.RequestNativeReveal = RequestNativeReveal;
+        // As WinUI's controls: a click focuses the drawn control it hits (without the ring). Not on Apple or Android, where a
+        // click or tap does not move keyboard focus.
+        focus.PointerPressFocuses = OperatingSystem.IsWindows();
+        focus.Connect();
+        if (_container is { } container)
+            container.KeyboardFocus = focus;
+        SkUiAccessibility.Changed += OnAccessibilitySwitched;
         _renderer = new SkUiFrameRenderer(VirtualView,
             action => VirtualView.Dispatcher.Dispatch(action), RequestRender, beforeFrame: static () => { });
 #if ANDROID
@@ -443,6 +632,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         VirtualView.Loaded += OnLoaded;
         SkUiLook.CurrentChanged += OnLookChanged;
         SkUiColorScheme.CurrentChanged += OnLookChanged;
+        SkUiFontScaling.Changed += OnLookChanged;
         OnClockRunningChanged(this, EventArgs.Empty);
         VirtualView.Router.NativeAncestorCanScroll = NativeAncestorCanScroll;
         QueueFrame();
@@ -490,6 +680,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     /// <inheritdoc />
     protected override void DisconnectHandler(PlatformView platformView)
     {
+        DetachAccessibility();
         VirtualView.Router.NativeAncestorCanScroll = null;
         DetachHover();
         NotifyRootDetached(VirtualView);
@@ -497,6 +688,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         VirtualView.Loaded -= OnLoaded;
         SkUiLook.CurrentChanged -= OnLookChanged;
         SkUiColorScheme.CurrentChanged -= OnLookChanged;
+        SkUiFontScaling.Changed -= OnLookChanged;
         VirtualView.AnimationClock.StopAll();
         _ticker?.Dispose();
         _ticker = null;
@@ -694,7 +886,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     }
 #endif
 
-    /// <summary>The look or color scheme changed: re-measure and redraw this surface's drawn tree with it.</summary>
+    /// <summary>The look, color scheme or system text size changed: re-measure and redraw this surface's drawn tree with it.</summary>
     private void OnLookChanged(object? sender, EventArgs args)
     {
         if (VirtualView is not { } root)
@@ -947,6 +1139,83 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
     /// <summary>JNI activation constructor, used if Java calls back after the managed peer was released.</summary>
     public SkUiOverlayContainer(IntPtr handle, Android.Runtime.JniHandleOwnership transfer) : base(handle, transfer) { }
 
+    /// <summary>TalkBack's view of the drawn tree: virtual children of this container.</summary>
+    internal SkUiAccessibilityHelper? Accessibility { get; set; }
+
+    /// <summary>The surface's keyboard focus; this container holds the platform focus while a drawn node is focused.</summary>
+    internal SkUiFocusManager? KeyboardFocus { get; set; }
+
+    private readonly HashSet<Android.Views.Keycode> _handledKeys = [];
+    private bool _requestingFocus;
+
+    /// <summary>Takes keyboard focus for a drawn node (focusable in touch mode until it is given up).</summary>
+    internal bool RequestDrawnFocus()
+    {
+        FocusableInTouchMode = true;
+        if (IsFocused)
+            return true;
+        // requestFocus() reports FOCUS_DOWN, which must not read as Tab into the surface (that focuses its first node).
+        _requestingFocus = true;
+        try
+        {
+            return RequestFocus();
+        }
+        finally
+        {
+            _requestingFocus = false;
+        }
+    }
+
+    /// <summary>Gives keyboard focus up after the drawn node was unfocused.</summary>
+    internal void ReleaseDrawnFocus()
+    {
+        if (IsFocused)
+            ClearFocus();
+        FocusableInTouchMode = false;
+    }
+
+    /// <summary>Explore by touch: hover over drawn elements goes to TalkBack's helper; over hosted views, on to them.</summary>
+    protected override bool DispatchHoverEvent(Android.Views.MotionEvent? e) =>
+        (e is not null && Accessibility?.DispatchHoverEvent(e) == true) || base.DispatchHoverEvent(e);
+
+    /// <summary>Keys go to the drawn tree while this container itself has focus; what it does not use goes on (Tab past the end).</summary>
+    public override bool DispatchKeyEvent(Android.Views.KeyEvent? e)
+    {
+        if (e is not null && IsFocused && KeyboardFocus is { } focus)
+        {
+            if (e.Action == Android.Views.KeyEventActions.Down)
+            {
+                var key = SkUiAndroidKeys.Map(e.KeyCode);
+                if (key != SkUiKey.None && focus.KeyDown(key, SkUiAndroidKeys.Modifiers(e), isRepeat: e.RepeatCount > 0))
+                {
+                    _handledKeys.Add(e.KeyCode);
+                    return true;
+                }
+            }
+            else if (e.Action == Android.Views.KeyEventActions.Up && _handledKeys.Remove(e.KeyCode))
+            {
+                return true;
+            }
+        }
+        return base.DispatchKeyEvent(e);
+    }
+
+    protected override void OnFocusChanged(bool gainFocus, Android.Views.FocusSearchDirection direction, Android.Graphics.Rect? previouslyFocusedRect)
+    {
+        base.OnFocusChanged(gainFocus, direction, previouslyFocusedRect);
+        if (!gainFocus)
+            FocusableInTouchMode = false;
+        bool? forward = _requestingFocus ? null : direction switch
+        {
+            Android.Views.FocusSearchDirection.Forward or Android.Views.FocusSearchDirection.Down or Android.Views.FocusSearchDirection.Right => true,
+            Android.Views.FocusSearchDirection.Backward or Android.Views.FocusSearchDirection.Up or Android.Views.FocusSearchDirection.Left => false,
+            _ => null
+        };
+        // Tabbed into a surface with nothing to focus: pass focus on.
+        if (KeyboardFocus?.OnNativeFocusChanged(gainFocus, forward) == false && gainFocus && forward is not null)
+            FocusSearch(direction)?.RequestFocus(direction);
+    }
+
     private readonly Dictionary<Android.Views.View, OverlayState> _overlays = [];
 
     private sealed class OverlayState(SkUiOverlayClip clip)
@@ -1157,6 +1426,178 @@ internal sealed class SkUiOverlayClip : Android.Views.ViewGroup
 internal sealed class SkUiOverlayContainer : MauiView
 {
     private readonly Dictionary<UIKit.UIView, OverlayState> _overlays = [];
+    private readonly HashSet<UIKit.UIKeyboardHidUsage> _handledKeys = [];
+
+    public SkUiOverlayContainer()
+    {
+        // A keyboard focus item for UIKit's focus system (Tab from native controls): its own focus group, so Tab stops on
+        // the surface and arrows stay inside it, and no system halo around the whole surface: the look draws its ring
+        // around the focused drawn control.
+        FocusGroupIdentifier = "skiaui.surface." + Guid.NewGuid().ToString("N");
+        FocusEffect = null;
+    }
+
+    /// <summary>VoiceOver's view of the drawn tree: this container's accessibility elements.</summary>
+    internal SkUiAccessibilityBridge? Accessibility { get; set; }
+
+    /// <summary>The surface's keyboard focus; this container is first responder while a drawn node is focused.</summary>
+    internal SkUiFocusManager? KeyboardFocus { get; set; }
+
+    /// <summary>The drawn elements in reading order, hosted native views in their place (UIAccessibilityContainer).</summary>
+    [Foundation.Export("accessibilityElements")]
+    public Foundation.NSArray? DrawnAccessibilityElements() => Accessibility?.Elements();
+
+    public override bool CanBecomeFirstResponder => KeyboardFocus is { } focus && (focus.Focused is not null || focus.HasFocusableNodes);
+
+    /// <summary>In UIKit's keyboard focus loop (Tab / Shift+Tab) while a drawn node can take focus.</summary>
+    public override bool CanBecomeFocused => KeyboardFocus is { } focus && (focus.Focused is not null || focus.HasFocusableNodes);
+
+    private static readonly ObjCRuntime.Selector _tabForward = new("skuiTabForward:");
+    private static readonly ObjCRuntime.Selector _tabBackward = new("skuiTabBackward:");
+    private UIKit.UIKeyCommand[]? _tabCommands;
+
+    /// <summary>
+    /// Tab / Shift+Tab while the container is first responder, ahead of UIKit's focus movement (which reports no heading
+    /// for Tab on Mac Catalyst): while <see cref="CanPerform"/> accepts them, UIKit leaves the key to the container
+    /// (it arrives in <see cref="PressesBegan"/>, or as the command's action) and the drawn focus moves. Past the last /
+    /// first node it declines them and UIKit moves focus on to the next native control.
+    /// </summary>
+    public override UIKit.UIKeyCommand[] KeyCommands => _tabCommands ??= [TabCommand(0, _tabForward), TabCommand(UIKit.UIKeyModifierFlags.Shift, _tabBackward)];
+
+    private static UIKit.UIKeyCommand TabCommand(UIKit.UIKeyModifierFlags modifiers, ObjCRuntime.Selector action)
+    {
+        var command = UIKit.UIKeyCommand.Create(new Foundation.NSString("\t"), modifiers, action);
+        command.WantsPriorityOverSystemBehavior = true;
+        return command;
+    }
+
+    public override bool CanPerform(ObjCRuntime.Selector action, Foundation.NSObject? withSender)
+    {
+        if (action.Handle == _tabForward.Handle || action.Handle == _tabBackward.Handle)
+            return KeyboardFocus?.CanMoveFocus(forward: action.Handle == _tabForward.Handle) == true;
+        return base.CanPerform(action, withSender);
+    }
+
+    [Foundation.Export("skuiTabForward:")]
+    private void TabForward(Foundation.NSObject sender) => KeyboardFocus?.KeyDown(SkUiKey.Tab);
+
+    [Foundation.Export("skuiTabBackward:")]
+    private void TabBackward(Foundation.NSObject sender) => KeyboardFocus?.KeyDown(SkUiKey.Tab, SkUiKeyModifiers.Shift);
+
+    /// <summary>Focus about to leave the surface with an arrow a drawn node uses (a slider, a scroller): it stays.</summary>
+    public override bool ShouldUpdateFocus(UIKit.UIFocusUpdateContext context)
+    {
+        if (KeyboardFocus is { } focus && ReferenceEquals(context.PreviouslyFocusedView, this) && !ReferenceEquals(context.NextFocusedView, this)
+            && ArrowOf(context.FocusHeading) is { } arrow && focus.KeyDown(arrow))
+            return false;
+        return base.ShouldUpdateFocus(context);
+    }
+
+    /// <summary>UIKit's focus system moved focus to the surface (Tab: its first or last node) or away from it.</summary>
+    public override void DidUpdateFocus(UIKit.UIFocusUpdateContext context, UIKit.UIFocusAnimationCoordinator coordinator)
+    {
+        base.DidUpdateFocus(context, coordinator);
+        if (KeyboardFocus is not { } focus)
+            return;
+        if (ReferenceEquals(context.NextFocusedView, this))
+        {
+            // First responder too, so Space / Enter and the other keys reach PressesBegan.
+            if (!IsFirstResponder)
+                BecomeFirstResponder();
+            focus.OnNativeFocusChanged(true, EntersForward(context));
+        }
+        else if (ReferenceEquals(context.PreviouslyFocusedView, this))
+        {
+            focus.OnNativeFocusChanged(false);
+        }
+    }
+
+    /// <summary>
+    /// Whether focus arrives from before the surface (Tab: its first node) or after it (Shift+Tab: its last). From the
+    /// heading when UIKit reports one; Mac Catalyst reports none for Tab, so from where the previously focused view is:
+    /// below the surface, or level with it and to its right, is after it.
+    /// </summary>
+    private bool EntersForward(UIKit.UIFocusUpdateContext context)
+    {
+        var heading = context.FocusHeading;
+        if (heading.HasFlag(UIKit.UIFocusHeading.Previous) || heading.HasFlag(UIKit.UIFocusHeading.Up)
+            || heading.HasFlag(UIKit.UIFocusHeading.Left) || heading.HasFlag(UIKit.UIFocusHeading.Last))
+            return false;
+        if (heading != UIKit.UIFocusHeading.None || context.PreviouslyFocusedView is not { Window: not null } previous || Window is null)
+            return true;
+        var from = previous.ConvertRectToView(previous.Bounds, null);
+        var surface = ConvertRectToView(Bounds, null);
+        return !(from.Top >= surface.Bottom || (from.Top >= surface.Top && from.Left >= surface.Right));
+    }
+
+    private static SkUiKey? ArrowOf(UIKit.UIFocusHeading heading) =>
+        heading.HasFlag(UIKit.UIFocusHeading.Up) ? SkUiKey.Up
+        : heading.HasFlag(UIKit.UIFocusHeading.Down) ? SkUiKey.Down
+        : heading.HasFlag(UIKit.UIFocusHeading.Left) ? SkUiKey.Left
+        : heading.HasFlag(UIKit.UIFocusHeading.Right) ? SkUiKey.Right
+        : null;
+
+    public override bool BecomeFirstResponder()
+    {
+        var became = base.BecomeFirstResponder();
+        if (became)
+            KeyboardFocus?.OnNativeFocusChanged(true);
+        return became;
+    }
+
+    public override bool ResignFirstResponder()
+    {
+        var resigned = base.ResignFirstResponder();
+        if (resigned)
+            KeyboardFocus?.OnNativeFocusChanged(false);
+        return resigned;
+    }
+
+    /// <summary>Hardware keyboard keys go to the drawn tree; what it does not use goes on up the responder chain.</summary>
+    public override void PressesBegan(Foundation.NSSet<UIKit.UIPress> presses, UIKit.UIPressesEvent evt)
+    {
+        // Only while the container itself is first responder: presses a hosted native view does not use bubble up here.
+        if (!IsFirstResponder)
+        {
+            base.PressesBegan(presses, evt);
+            return;
+        }
+        var unused = false;
+        foreach (var press in presses)
+        {
+            // Tab normally arrives through the key commands (ahead of UIKit's focus movement); a press that gets here anyway
+            // is handled the same way.
+            if (press.Key is { } key && KeyboardFocus is { } focus && SkUiAppleKeys.Map(key) is var mapped && mapped != SkUiKey.None
+                && focus.KeyDown(mapped, SkUiAppleKeys.Modifiers(key)))
+                _handledKeys.Add(key.KeyCode);
+            else
+                unused = true;
+        }
+        if (unused)
+            base.PressesBegan(presses, evt);
+    }
+
+    public override void PressesEnded(Foundation.NSSet<UIKit.UIPress> presses, UIKit.UIPressesEvent evt)
+    {
+        if (!EndPresses(presses))
+            base.PressesEnded(presses, evt);
+    }
+
+    public override void PressesCancelled(Foundation.NSSet<UIKit.UIPress> presses, UIKit.UIPressesEvent evt)
+    {
+        if (!EndPresses(presses))
+            base.PressesCancelled(presses, evt);
+    }
+
+    /// <summary>Forgets presses the drawn tree used; returns whether all of them were.</summary>
+    private bool EndPresses(Foundation.NSSet<UIKit.UIPress> presses)
+    {
+        var all = true;
+        foreach (var press in presses)
+            if (press.Key is not { } key || !_handledKeys.Remove(key.KeyCode))
+                all = false;
+        return all;
+    }
 
     private sealed class OverlayState(UIKit.UIView clip)
     {
@@ -1234,7 +1675,75 @@ internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.
         public bool Empty;
     }
 
-    public SkUiOverlayContainer() => SizeChanged += OnSizeChanged;
+    public SkUiOverlayContainer()
+    {
+        SizeChanged += OnSizeChanged;
+        // Keyboard focus for drawn controls: the container takes it. No system focus rectangle around the whole surface:
+        // the look draws its ring around the focused drawn control.
+        IsTabStop = true;
+        UseSystemFocusVisuals = false;
+        KeyDown += OnContainerKeyDown;
+        GettingFocus += OnContainerGettingFocus;
+        GotFocus += OnContainerGotFocus;
+        // Synchronous, unlike LostFocus: a drawn node focused right after another control took focus must not be unfocused
+        // by the late event.
+        LosingFocus += OnContainerLosingFocus;
+    }
+
+    /// <summary>Narrator's view of the drawn tree: this container's automation peer and its element peers.</summary>
+    internal SkUiAccessibilityBridge? Accessibility { get; set; }
+
+    /// <summary>The surface's keyboard focus; this container holds the platform focus while a drawn node is focused.</summary>
+    internal SkUiFocusManager? KeyboardFocus { get; set; }
+
+    private bool? _focusDirection;
+
+    protected override Microsoft.UI.Xaml.Automation.Peers.AutomationPeer OnCreateAutomationPeer() =>
+        new SkUiSurfaceAutomationPeer(this, () => Accessibility);
+
+    private void OnContainerGettingFocus(Microsoft.UI.Xaml.UIElement sender, Microsoft.UI.Xaml.Input.GettingFocusEventArgs args)
+    {
+        if (!ReferenceEquals(args.NewFocusedElement, this))
+            return;
+        _focusDirection = args.Direction switch
+        {
+            Microsoft.UI.Xaml.Input.FocusNavigationDirection.Next or Microsoft.UI.Xaml.Input.FocusNavigationDirection.Down
+                or Microsoft.UI.Xaml.Input.FocusNavigationDirection.Right => true,
+            Microsoft.UI.Xaml.Input.FocusNavigationDirection.Previous or Microsoft.UI.Xaml.Input.FocusNavigationDirection.Up
+                or Microsoft.UI.Xaml.Input.FocusNavigationDirection.Left => false,
+            _ => null
+        };
+    }
+
+    private void OnContainerGotFocus(object sender, Microsoft.UI.Xaml.RoutedEventArgs args)
+    {
+        // GotFocus is raised asynchronously: ignore it once focus has moved on again.
+        if (!ReferenceEquals(args.OriginalSource, this) || FocusState == Microsoft.UI.Xaml.FocusState.Unfocused)
+            return;
+        var direction = _focusDirection;
+        _focusDirection = null;
+        // Tabbed into a surface with nothing to focus: pass focus on.
+        if (KeyboardFocus?.OnNativeFocusChanged(true, direction) == false && direction is { } forward && XamlRoot?.Content is { } root)
+            Microsoft.UI.Xaml.Input.FocusManager.TryMoveFocus(
+                forward ? Microsoft.UI.Xaml.Input.FocusNavigationDirection.Next : Microsoft.UI.Xaml.Input.FocusNavigationDirection.Previous,
+                new Microsoft.UI.Xaml.Input.FindNextElementOptions { SearchRoot = root });
+    }
+
+    private void OnContainerLosingFocus(Microsoft.UI.Xaml.UIElement sender, Microsoft.UI.Xaml.Input.LosingFocusEventArgs args)
+    {
+        if (ReferenceEquals(args.OldFocusedElement, this) && !ReferenceEquals(args.NewFocusedElement, this))
+            KeyboardFocus?.OnNativeFocusChanged(false);
+    }
+
+    /// <summary>Keys go to the drawn tree while the container itself has focus; what it does not use goes on (Tab past the end).</summary>
+    private void OnContainerKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs args)
+    {
+        if (args.Handled || !ReferenceEquals(args.OriginalSource, this) || KeyboardFocus is not { } focus)
+            return;
+        var key = SkUiWindowsKeys.Map(args.Key);
+        if (key != SkUiKey.None && focus.KeyDown(key, SkUiWindowsKeys.Modifiers(), isRepeat: args.KeyStatus.WasKeyDown))
+            args.Handled = true;
+    }
 
     /// <summary>
     /// A WinUI wheel event as SkiaUi wheel deltas (positive towards the start): a tilt wheel or a touchpad's horizontal

@@ -102,4 +102,13 @@ public class SkUiCoreProgressBar : SkUiCoreNode
     /// <inheritdoc />
     internal override void OnGetRenderProps(ref SkUiRenderProps props) =>
         SkUiProgressBarDrawing.SetSlide(ref props, _isIndeterminate, IsRightToLeft, ref _clip, ref _clipSize);
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.ProgressBar;
+        if (!_isIndeterminate)
+            info.Range = new SkUiSemanticsRange(0, 1, _progress);
+    }
 }

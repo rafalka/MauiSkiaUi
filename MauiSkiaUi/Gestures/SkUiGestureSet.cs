@@ -34,10 +34,12 @@ internal sealed class SkUiGestureSet(object owner)
 
     public bool WantsDoubleTap => DoubleTapped is not null || DoubleTappedCommand?.CanExecute(DoubleTappedCommandParameter) == true;
 
+    public bool WantsLongPress => LongPressed is not null || LongPressedCommand?.CanExecute(LongPressedCommandParameter) == true;
+
     /// <summary>Appends the non-tap recognizers in use (long press, swipe, pan, pinch, then custom ones).</summary>
     public void Collect(List<SkUiGestureRecognizer> recognizers)
     {
-        if (LongPressed is not null || LongPressedCommand?.CanExecute(LongPressedCommandParameter) == true)
+        if (WantsLongPress)
             recognizers.Add(_longPress ??= new SkUiLongPressGestureRecognizer { Handler = RaiseLongPressed });
         if (Swiped is not null || SwipedCommand?.CanExecute(SwipedCommandParameter) == true)
             recognizers.Add(_swipe ??= new SkUiSwipeGestureRecognizer { Handler = RaiseSwiped, DirectionProvider = () => SwipeDirections });
@@ -60,7 +62,7 @@ internal sealed class SkUiGestureSet(object owner)
             DoubleTappedCommand.Execute(DoubleTappedCommandParameter);
     }
 
-    private void RaiseLongPressed(SkUiLongPressedEventArgs args)
+    public void RaiseLongPressed(SkUiLongPressedEventArgs args)
     {
         LongPressed?.Invoke(owner, args);
         if (LongPressedCommand?.CanExecute(LongPressedCommandParameter) == true)

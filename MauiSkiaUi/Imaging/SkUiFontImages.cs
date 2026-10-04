@@ -12,7 +12,7 @@ internal static class SkUiFontImages
     internal static SkUiDecodedImage Render(SkUiFontImageSource source, float displayScale)
     {
         var typeface = SkUiTypefaces.Resolve(source.FontFamily, source.FontAttributes);
-        var style = new SkUiTextStyle(typeface, source.Size, LineBreakMode.NoWrap, FontAttributes: source.FontAttributes);
+        var style = new SkUiTextStyle(typeface, source.DrawnSize, LineBreakMode.NoWrap, FontAttributes: source.FontAttributes);
         var layout = new SkUiTextLayout();
         var size = layout.Measure(source.Glyph, style, default, double.PositiveInfinity);
         if (size.Width <= 0 || size.Height <= 0)

@@ -71,4 +71,13 @@ public class SkUiCoreActivityIndicator : SkUiCoreNode
         if (!IsVisible)
             SetIsRunning(false);
     }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        // Running: busy, read like a native indeterminate progress indicator; stopped, it shows nothing.
+        if (IsRunning)
+            info.Role = SkUiSemanticsRole.ProgressBar;
+    }
 }

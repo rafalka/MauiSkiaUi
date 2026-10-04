@@ -24,6 +24,7 @@ Run `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj`. The library's 
 | `TransitionTests` | FR-26 state-change transitions on a deterministic clock: switch slide and mid-way reversal (one re-record per frame), no animation before the first frame or with reduced motion, stopped clock jumps to the end, quick-tap press and ripple origin, ripple pixels, slider glide, progress smoothing, Core parity |
 | `AnimationClockTests` | Callbacks that dispose animations or stop the clock mid-tick; the internal stopped callback |
 | `ContentAndTemplateTests` | P9: button image measure and placement per `ContentLayout` (RTL, scaled-down images, Core pixels, MAUI markup); radio button text / view content, chrome; MAUI's RadioButton `ControlTemplate` sample with drawn views and `SkUiContentPresenter` |
+| `AccessibilityTests`, `KeyboardFocusTests`, `FontScalingTests`, `AccessibilitySwitchTests` | P10: semantics trees of both layers (MAUI semantic properties, merged tappable groups, visible bounds through scrolling and clips, actions per control, ids and change reports, hit-testing); MAUI `Focus()` / `Unfocus()` and visual states on drawn views, Core focus, tab order, keys, focus ring pixels, native focus hooks; `FontAutoScalingEnabled` on labels, buttons, radio text, spans, HTML, font images (global: `SkUiFontScaling.Factor`, focus-visible state) |
 | `ComponentDemoTests` | One demo page per concrete control (editors/reset contract) |
 | `MemoryLeakTests` | Leak scenarios (below): nothing a scenario built survives its surfaces; the detector self-test; long-lived commands drop listeners |
 
@@ -57,6 +58,7 @@ One scenario catalog, [`tests/Shared/MemoryLeaks`](../../tests/Shared/MemoryLeak
 | `LayoutsRelayout` | Grid, stacks, absolute layout, border: resized; children added, removed, reordered, hidden; definitions changed |
 | `ScrollFling` | Vertical list with a nested carousel: drags, flings, animated scroll; closed mid-fling |
 | `GesturesMixed` | Tap, double tap, long press, swipe, pan, pinch (drawn and Core); closed with a finger down |
+| `AccessibleFocused` | Drawn and Core controls with semantic properties, read through a semantics tree that reports changes; focused by `Focus()` and Tab, activated by keys and screen-reader actions; a focused row removed; buttons tagged with a long-lived object |
 | `AnimationsRunning` | Render-thread animations and a spinner running at close; nodes detached mid-animation |
 | `SurfaceReplaced` | A page replaces its GPU surface with a software one and back (device only) |
 | `MovedBetweenSurfaces` | A subtree with gestures, a scroller and a native Entry moves between two surfaces |
@@ -136,7 +138,7 @@ Automated device inspection is blocked by `MSB4099` in the installed MAUI extens
 - Confirm offline Earth image, text wrapping, Grid columns, style colors, pressed/disabled feedback, observation count binding and reset command.
 - Pan from a button: no click after threshold; fling settles; new press interrupts. Tap after scrolling must hit the translated control. Exercise Back to top and desktop wheel input.
 - Navigate to Stress, confirm config-only UI, Run test (default 1,000 children / HW on), note timings, scroll to the last button, tap it, run Record/Scroll/Top, and navigate back. No stale animations or extra surfaces should survive navigation.
-- Query actual runtime foreground/background colors and inspect screenshots. Drawn-tree native accessibility/keyboard support is not implemented.
+- Query actual runtime foreground/background colors and inspect screenshots. Accessibility and keyboard: see [below](#accessibility-and-keyboard-p10).
 
 ### Native overlay (`SkUiMauiContentView`)
 
@@ -145,7 +147,16 @@ Automated device inspection is blocked by `MSB4099` in the installed MAUI extens
 - Inspect Basic controls' rendered colors/contrast (Switch/CheckBox/RadioButton especially) and the Border's rounded-clip content.
 - Verify Stack/Absolute layouts' native-vs-drawn spacing and positions visually match at a few sizes/orientations.
 
-Android, iOS simulator, and Mac Catalyst diagnostic builds pass for the completed surface. Windows compilation is not verified (no Windows host available here).
+### Accessibility and keyboard (P10)
+
+Page: **Accessibility** in the demo flyout (`SKUI_DEMO_ROUTE=accessibility` opens it at launch). Its right column (below on phones) shows the semantics tree the platform gets, refreshed every second.
+
+- **Screen readers:** with TalkBack (Android), VoiceOver (iOS / Mac Catalyst) and Narrator (Windows): swipe / move through the form; every control is read with its role, name, state and hint (the check box and switch by their descriptions, the decorative labels beside them skipped), headings are headings, the card is one button "Order 42, Shipped yesterday · tap for details", the Entry is read natively in its place, the Core section too. Double tap (Narrator: Enter / Space on the item) activates: the status line shows the button's `Tag`. Swipe up / down on the slider steps it by 5 %. Move past the third time slot: TalkBack scrolls the drawn list; VoiceOver: three-finger swipe up scrolls it by a page. "Read Continue" moves the screen reader to the Continue button.
+- **Keyboard:** "Focus Continue" focuses it (no ring after a click); Tab / Shift+Tab walk all interactive drawn controls of both layers with the ring; Space / Enter activate; arrows step the slider; Tab past "Share order" moves to the next native control (Android, Windows); Page Down over the time slots scrolls them. Text scale: the picker grows all drawn text at once, also on other pages.
+- **Keyboard into the surface:** Mac Catalyst needs System Settings › Keyboard › Keyboard navigation on (else Tab only moves between text fields, as on macOS; restart the app after switching it, UIKit reads it at launch); iPad: a hardware keyboard (Full Keyboard Access for everything). Tab from the page's buttons reaches the first drawn control; Tab past "Share order" goes on to the text-scale picker (last on the page: MAUI's Catalyst picker opens its sheet on focus and keeps Tab there). Windows: a click on a drawn button focuses it (no ring); Tab continues from it.
+- **Checked on Mac Catalyst (2026-10-03)** through the macOS accessibility API, which is what VoiceOver reads (`AXUIElementCreateApplication(pid)`: roles, descriptions, values, hints; `AXPress`, `AXIncrement`, `AXScrollDownByPage`), and with key events posted to the app (Tab, Shift+Tab, Space, Enter; the ring in a window screenshot). Not yet run: TalkBack, VoiceOver on iOS, Narrator, Android and Windows keyboards.
+
+Android, iOS simulator, and Mac Catalyst diagnostic builds pass for the completed surface. The Windows library also compiles on macOS against the WinAppSDK references (no PRI / MRT tooling): `dotnet build MauiSkiaUi/MauiSkiaUi.csproj -f net10.0-windows10.0.19041.0 -p:TargetFrameworks=net10.0-windows10.0.19041.0 -p:EnableWindowsTargeting=true -p:AppxGeneratePriEnabled=false -p:EnableCoreMrtTooling=false -p:EnableMsixTooling=false`; running it needs a Windows host.
 
 ## How to verify device rendering / live-update behavior
 

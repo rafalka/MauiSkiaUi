@@ -141,6 +141,7 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     {
         ChangeVisualState();
         InvalidatePaint();
+        RevalidateFocus();
     }
 
     /// <summary>MAUI's image button states: <c>Pressed</c> while an enabled press is held, otherwise the common states.</summary>
@@ -195,4 +196,11 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
         SkUiImageButtonDrawing.PaintOverlay(canvas, (float)Width, (float)Height, _chrome, _press?.Visual ?? SkUiPressVisual.None, IsEnabled && CanReceiveTap);
 
     void SkUiImageButtonDrawing.IImage.Paint(SKCanvas canvas, SKRect area) => PaintImage(canvas, area);
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        info.Role = SkUiSemanticsRole.Button;
+    }
 }

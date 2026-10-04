@@ -911,6 +911,8 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         if (showScrollBars)
             OnScrolled();
         offsetChanged();
+        // Elements scrolled into or out of view (also during render-thread motion, which commits no frame).
+        SkUiSemantics.Invalidate(owner);
         return true;
     }
 

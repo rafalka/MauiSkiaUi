@@ -103,6 +103,8 @@ internal sealed class SkUiFrameRenderer : IDisposable
                 _committedOnce = true;
                 Compositor.Commit(batch);
                 _requestRender();
+                // What screen readers read may have moved or changed with the frame.
+                _root.SemanticsOwner?.Invalidate();
             }
         }
         finally
