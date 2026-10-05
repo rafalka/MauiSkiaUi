@@ -233,6 +233,8 @@ public class SkUiPath : SkUiShape
 
     private void OnDataChanged(Geometry? value)
     {
+        if (!ReferenceEquals(_dataListener.Source, value))
+            ReleaseBindingContext(_dataListener.Source as BindableObject);
         _dataListener.Listen(value);
         ListenToFigures();
         // Bindings inside the geometry (a bound radius, center or figure) resolve against the path, as in MAUI.
@@ -245,6 +247,8 @@ public class SkUiPath : SkUiShape
 
     private void OnRenderTransformChanged(Transform? value)
     {
+        if (!ReferenceEquals(_transformListener.Source, value))
+            ReleaseBindingContext(_transformListener.Source as BindableObject);
         _transformListener.Listen(value);
         if (value is not null)
             SetInheritedBindingContext(value, BindingContext);

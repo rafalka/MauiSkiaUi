@@ -112,7 +112,7 @@ Architecture, requirements, and mechanism checklists live under **[docs/design/]
 
 Per-control user docs (NFR-5): [docs/controls/](docs/controls/README.md).
 
-Migration guide for app developers: [docs/Migration.md](docs/Migration.md). It and the migration skills (`plugins/skiaui-migration`: skill references and the control / gap tables in both scripts) describe the current MAUI parity and gaps: update them when a change adds parity, a control, or closes a gap.
+Migration guide for app developers: [docs/Migration.md](docs/Migration.md). It and the migration skills (`plugins/skiaui-migration`: skill references and the control / gap tables in both scripts) describe the current MAUI parity and gaps: update them when a change adds parity, a control, or closes a gap. Parity never costs performance or architecture: where a MAUI API works against them, SkiaUi ships its own shape plus a conversion path in those documents ([parity rules](docs/design/ImplementationPlan.md#phase-p--maui-parity-of-shipped-controls)).
 
 Cursor rule for public reference sources: [`.cursor/rules/reference-sources.mdc`](.cursor/rules/reference-sources.mdc).
 

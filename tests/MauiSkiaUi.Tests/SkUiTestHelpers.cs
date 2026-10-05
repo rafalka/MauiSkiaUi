@@ -186,3 +186,52 @@ internal sealed class TestDispatcherProvider : IDispatcherProvider
         public IDispatcherTimer CreateTimer() => throw new NotSupportedException("No timers in headless tests.");
     }
 }
+
+/// <summary>
+/// The UI thread's synchronization context for headless tests: continuations of library async code (an animated state
+/// change awaiting render-thread animations) are queued and run by <see cref="RunPending"/> on the test thread, between
+/// frames, as the app's UI thread runs them, instead of on pool threads racing the frames the test drives. Install it
+/// before starting the async work, and do not await unfinished tasks while it is installed (pump instead).
+/// </summary>
+internal sealed class TestUiContext : SynchronizationContext, IDisposable
+{
+    private readonly Queue<(SendOrPostCallback Callback, object? State)> _queue = new();
+    private readonly SynchronizationContext? _previous;
+
+    private TestUiContext(SynchronizationContext? previous) => _previous = previous;
+
+    public static TestUiContext Install()
+    {
+        var context = new TestUiContext(Current);
+        SetSynchronizationContext(context);
+        return context;
+    }
+
+    public override void Post(SendOrPostCallback d, object? state)
+    {
+        lock (_queue)
+        {
+            _queue.Enqueue((d, state));
+        }
+    }
+
+    public override void Send(SendOrPostCallback d, object? state) => d(state);
+
+    /// <summary>Runs queued continuations (and any they queue) on the calling thread.</summary>
+    public void RunPending()
+    {
+        while (true)
+        {
+            (SendOrPostCallback Callback, object? State) item;
+            lock (_queue)
+            {
+                if (_queue.Count == 0)
+                    return;
+                item = _queue.Dequeue();
+            }
+            item.Callback(item.State);
+        }
+    }
+
+    public void Dispose() => SetSynchronizationContext(_previous);
+}

@@ -6,7 +6,7 @@ Single-child Skia composition host. Typical outer bridge into a SkiaUi tree.
 
 ## How it works
 
-`[ContentProperty(nameof(Content))]` hosts one `ISkUiView`. Defaults `HwAccelerated = true`. Forwards measure/arrange/paint/touch to `Content` and owns a touch router for capture.
+`[ContentProperty(nameof(Content))]` hosts one `ISkUiView` (`Content`, or one created from `ContentTemplate`). Defaults `HwAccelerated = true`. Forwards measure/arrange/paint/touch to the content and owns a touch router for capture. The content can wait until the view is first shown ([below](#loading-content-when-shown)).
 
 
 ## Shared conventions
@@ -30,7 +30,33 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`Content`, `Padding` (+ `SetContent` / `SetPadding`).
+`Content`, `ContentTemplate`, `Padding` (+ `SetContent` / `SetPadding`); `ContentLoading`, `ContentLoadingDelay`, `ContentLoadedAnimation`, `IsContentLoaded`, `ContentLoaded`, `LoadContent()`.
+
+## ContentTemplate
+
+`ContentTemplate` (bindable `DataTemplate` of drawn views) creates the content when `Content` is not set. A `DataTemplateSelector` chooses by the view's `BindingContext`, again whenever it changes (a different template replaces the content; the same one keeps it, rebound). The template runs once the view is in a tree (so properties set before, such as `ContentLoading`, apply first) and its result is assigned to `Content`; a new template replaces it, and explicit `Content` wins. Templates that create native views throw: put them inside an `SkUiMauiContentView`.
+
+## Loading content when shown
+
+`ContentLoading="WhenShown"` attaches the content, and runs `ContentTemplate`, only once the view is first shown, so sections that are never shown (other tabs, hidden panes, collapsed areas) cost nothing: no views created from the template, no measure, no recording, no bindings resolved.
+
+```xml
+<sk:SkUiContentView IsVisible="{Binding IsChartTab}" ContentLoading="WhenShown" ContentLoadingDelay="0:0:0.15"
+                    ContentLoadedAnimation="FadeIn 200">
+  <sk:SkUiContentView.ContentTemplate>
+    <DataTemplate>
+      <local:SalesChart />
+    </DataTemplate>
+  </sk:SkUiContentView.ContentTemplate>
+</sk:SkUiContentView>
+```
+
+- **Shown** is [`SkUiView.IsShown`](SkUiView.md#isshown): the view and its ancestors are `IsVisible` and its tree is on a live surface. Position does not count: a view scrolled out of a scroll view is shown (loading when a view scrolls into the viewport is left to a dedicated control).
+- **Before it loads** the view measures as its size requests (`HeightRequest`, `MinimumHeightRequest`).
+- `ContentLoadingDelay`: the view must stay shown that long first, so tabs that are only passed through are never created. `ContentLoadedAnimation`: a render-thread `SkUiViewAnimation` run on the new content (`"FadeIn 200"`), so it does not pop in; content shown from a page's first frame loads before anything is drawn and does not animate.
+- Explicit `Content` is held (set, not attached) until then; a template is not run at all. `IsContentLoaded` (bindable, read-only) turns `true` once the content is attached and `ContentLoaded` is raised once (a template that fails leaves the view waiting and the exception surfaces; a failing load animation ends at its end values); `LoadContent()` loads at once, and setting `ContentLoading` back to `Immediate` too.
+- Set `ContentLoading` before the view is first drawn: on a view already drawn it has no effect. Content stays loaded once loaded.
+- Works on every content view (`SkUiBorder`, `SkUiScrollView`). These properties are plain CLR properties (not bindable): set them in XAML or code, not with bindings or styles.
 
 ## Differences from MAUI ContentView
 
@@ -42,4 +68,4 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Related
 
-[LayoutSystem.md](../design/LayoutSystem.md) · Gallery: `ContentViewDemoPage`
+[LayoutSystem.md](../design/LayoutSystem.md) · Gallery: `ContentViewDemoPage` (tabs of sections loaded when shown, bindings through templates) · Tests: `DeferredContentTests`; leak scenario `ContentDeferred`

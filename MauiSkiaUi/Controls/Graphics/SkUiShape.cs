@@ -112,6 +112,8 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
 
     private void OnFillChanged(Brush? value)
     {
+        if (!ReferenceEquals(_fill, _stroke)) // a brush used for both keeps the context while the stroke uses it
+            ReleaseBrush(_fill, value);
         _fill = value;
         _fillListener.Listen(value);
         InheritBindingContext(value);
@@ -120,6 +122,8 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
 
     private void OnStrokeChanged(Brush? value)
     {
+        if (!ReferenceEquals(_stroke, _fill))
+            ReleaseBrush(_stroke, value);
         _stroke = value;
         _strokeListener.Listen(value);
         InheritBindingContext(value);
@@ -150,6 +154,12 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
     {
         if (brush is GradientBrush || brush?.GetType() == typeof(SolidColorBrush))
             SetInheritedBindingContext(brush, BindingContext);
+    }
+
+    private static void ReleaseBrush(Brush? oldBrush, Brush? newBrush)
+    {
+        if (!ReferenceEquals(oldBrush, newBrush) && (oldBrush is GradientBrush || oldBrush?.GetType() == typeof(SolidColorBrush)))
+            ReleaseBindingContext(oldBrush);
     }
 
     /// <summary>The <see cref="Aspect"/> until one is set (<see cref="Stretch.Fill"/> for rectangles and ellipses).</summary>

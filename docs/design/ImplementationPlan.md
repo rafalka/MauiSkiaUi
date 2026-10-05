@@ -13,7 +13,7 @@ Headless-tested; device-verified on a Galaxy S9, iPhone / iOS simulator, Mac Cat
 | Area | Delivered |
 | --- | --- |
 | Host and rendering | `ISkUiView : IView`, `SkUiView`, `SkUiContentView`, custom handler + `HwAccelerated`; retained compositor with UI-thread recording and render-thread compositing: Metal (Apple), GL thread (Android), ANGLE / software (Windows) — [RenderingPipeline.md](RenderingPipeline.md) |
-| Layouts | `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiBorder`, `SkUiContentView` on MAUI's layout managers; **`SkUiFlexLayout`** (MAUI `FlexLayoutManager` over a ported flex engine, frames checked against MAUI's `FlexLayout`); **`SkUiWrapLayout`** and **shrink stacks** on engines shared with Core (FR-27, A1–A3); RTL mirroring |
+| Layouts | `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiBorder`, `SkUiContentView` on MAUI's layout managers; **`SkUiFlexLayout`** (MAUI `FlexLayoutManager` over a ported flex engine, frames checked against MAUI's `FlexLayout`); **`SkUiWrapLayout`** and **shrink stacks** on engines shared with Core (FR-27, A1–A3); RTL mirroring; MAUI's `BindableLayout` on every drawn layout |
 | Scrolling | `SkUiScrollView` / `SkUiCoreScrollView` on one engine: render-thread fling and animated scroll, wheel, nested and same-axis chaining, native-parent coordination |
 | Input | Per-pointer gesture arena for SkUi* and Core: tap, double tap, long press, pan, swipe, pinch, pointer recognizers — [EventMechanism.md](EventMechanism.md) |
 | Text | Shared engine: HarfBuzz shaping, bidi / RTL, per-character font fallback, wrap / truncation, `TextRendering` fast path |
@@ -51,6 +51,7 @@ Phase 0 (state-change animations, FR-26) is shipped: looks draw from continuous 
 Every shipped control gets the MAUI API it is missing. P1–P10 and P11a are shipped (see **Shipped**); P11b is open. Most controls are still partial: they draw and behave like their MAUI counterpart for the common properties, but miss secondary API that real pages use (renamed state properties, text styling, image sources, brushes, shape geometry, scrollbars, accessibility).
 
 **Parity rules:**
+- **Performance and architecture come before literal parity.** MAUI parity is the goal, but not at the cost of SkiaUi's performance or architecture. When a MAUI (or toolkit) API works against them (UI-thread animation callbacks, per-frame bindable property churn, native-view assumptions), ship the SkiaUi-shaped equivalent instead and give a short, mechanical conversion path in [Migration.md](../Migration.md) and the migration skills (`plugins/skiaui-migration`), so a person or an agent converts the code without redesigning it. Keep the MAUI shape when it is cheap and harmless (an `int CornerRadius` next to `CornerRadii`, an extra overload that forwards). Example: `SkUiStateContainer.ChangeStateWithAnimation` takes render-thread `SkUiViewAnimation`s instead of MAUI `Animation`s, which tick on the UI thread; the conversion is one line per animated property.
 - **MAUI names and signatures win.** Where SkiaUi diverged (`IsChecked` on Switch, `EventHandler<bool>` for `CheckedChanged`, `StrokeWidth` on shapes), the MAUI member is added and the SkiaUi one is renamed or removed before 1.0, marked **Breaking** in the changelog. SkiaUi extensions stay (`CheckState` / `IsThreeState`, vertical `Slider`, `IsIndeterminate`, label chrome, `ShowsPressEffect`).
 - **Both layers.** A property lands on the SkUi* control and on its Core twin through the shared engine or painter (fluent `Set*` + CLR property on Core; no attached-property XAML there). Core-only drift found on the way is fixed in the same item (N13).
 - **Drawn by the look.** New visuals (scrollbars, decorations, shadows, radio content) get `SkUiLook` entry points and paint structs, as in **Suggested order for a new control**.
@@ -76,14 +77,14 @@ P1–P3 are small and unblock the most XAML (P2's hover tracking is the only new
 
 ### Phase A — Page shells: composition layouts and containers
 
-A1–A3 are shipped (see **Shipped**); A4 onwards follows Phase P.
+A1–A3 are shipped (see **Shipped**); A4 onwards follows Phase P. MAUI's `BindableLayout` works on every drawn layout (shipped before A4), so A4 / A5 content and pages built from collections can use it.
 
 | # | Deliverable | Layer | Why |
 | --- | --- | --- | --- |
 | A1 | **`SkUiFlexLayout`** (MAUI `FlexLayoutManager` over a ported flex engine; MAUI's engine is internal) | SkUi* only (Core flex not planned) | MAUI parity; wrapping rows, grow / shrink / basis without a Grid |
 | A2 | **Wrap layout** (`SkUiCoreWrapLayout` + `SkUiWrapLayout`, one shared engine) | Core + SkUi* | Chips, tag and filter rows; `Spacing` / `RowSpacing` without the flex model |
 | A3 | **Shrink stacks** (`SkUi[Core]HorizontalShrinkLayout`, `SkUi[Core]VerticalShrinkLayout`) | Core + SkUi* | Rows that fit: on overflow, children shrink by their shrink factor (`None`, `Auto`, or a number as CSS `flex-shrink`; truncating / wrapping labels next to fixed icons) |
-| A4 | **`SkUiStateContainer`** (loading / empty / error / content) | Core + SkUi* | Community Toolkit parity; busy and skeleton screens |
+| A4 | **`SkUiStateContainer`** (loading / empty / error / content) | SkUi* (shipped); Core open | Community Toolkit parity; busy and skeleton screens. Shipped: `SkUiStateContainer` / `SkUiStateView` attached properties on every drawn layout with the toolkit's API (`StateViews`, `CurrentState`, `CanStateChange`, `ChangeStateWithAnimation` with a render-thread fade, `SkUiViewAnimation`s instead of MAUI `Animation`s, or functions; beyond the toolkit, `BeforeStateChangeAnimation` / `AfterStateChangeAnimation` animate every bound change, newest state wins) ([SkUiStateContainer.md](../controls/SkUiStateContainer.md)). Shipped too: `SkUiView.IsShown` / `IsShownChanged` (visible down the drawn ancestors and on a live surface; free while unused, state in a side table only for watched branches), `SkUiContentView.ContentTemplate`, and content deferred until the view is first shown (`ContentLoading="WhenShown"`, `ContentLoadingDelay`, `ContentLoadedAnimation`). Loading when a view scrolls into a viewport is left to a dedicated control. And `SkUiAlternateContentView` (`ShowsAlternate`: `Content`, `AlternateContent` or nothing; each side's template runs on first show; animated switches sharing the state container's transition code). Next: `SkUiTwoStateView` (a second content set chosen by a `bool?`, nothing for `null`). Core when a Core screen needs it (Core nodes are not bindable, so a node with keyed states instead of attached properties) |
 | A5 | **`SkUiExpander`** (header + animated collapsible content) | Core + SkUi* | Community Toolkit parity; also hosts native content (e.g. a WebView) |
 | A6 | **Hosted-control regression suite** | Tests + device checklist | Entry / Editor / WebView in drawn scrollers: focus, IME, scroll nesting, snapshots |
 | A7 | **Hardening from adoption** | Both | Label, Grid, Border, ScrollView bugs found while porting real pages |
@@ -161,7 +162,8 @@ Checked against `Microsoft.Maui.Controls` 10.0.110 (the pinned version). **Parti
 | ScrollView | SkUi* + Core | Done (P8): scroll bars (draggable on desktop, `SkUiCoreScrollBar`), overscroll (bounce, stretch), scroll to element, both wheel axes, plus snap points |
 | Grid, VerticalStackLayout, HorizontalStackLayout, AbsoluteLayout, ContentView | SkUi* + Core | Done |
 | FlexLayout | `SkUiFlexLayout` (SkUi* only) | Done (A1) |
-| StackLayout, BindableLayout | Stacks; templated items via CollectionView | Map |
+| StackLayout | Stacks | Map |
+| BindableLayout | Every `SkUiLayout` (grid, stacks, absolute, flex, wrap, shrink) | Done: MAUI's controller over `IBindableLayout`; templates and empty views must be drawn (a string `EmptyView` throws); no virtualization (Phase B) |
 | Every view: visual states | MAUI's states per control, `PointerOver` from hover, `Focused` from keyboard focus, state triggers | Done (P2, P10); `Selected` waits for CollectionView (B2) |
 | Every view: `Shadow`, gradient `Background`, `Clip` | SkUi* + Core | Done (P7); `ImageBrush` not drawn |
 | Every view: `SemanticProperties`, focus, font scaling | SkUi* + Core | Done (P10): TalkBack, VoiceOver, Narrator; keyboard focus and ring; `FontAutoScalingEnabled`; plus `IsTabStop` / `TabIndex` (gone from MAUI) |

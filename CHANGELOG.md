@@ -13,6 +13,32 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **State container (A4, Community Toolkit parity):** `SkUiStateContainer` / `SkUiStateView` attached properties make any drawn layout state-aware, with the toolkit's `StateContainer` API, so toolkit XAML ports by changing the prefixes ([SkUiStateContainer.md](docs/controls/SkUiStateContainer.md)).
+  - `StateViews` (drawn views named by `SkUiStateView.StateKey`), `CurrentState` (`null` / empty shows the layout's own children), `CanStateChange` (one way to source), `ChangeStateWithAnimation` (a render-thread fade, `SkUiViewAnimation`s, or your own functions), `SkUiStateContainerException`. On a grid, state views span every cell.
+  - The toolkit's overload with MAUI `Animation`s (UI-thread callbacks) is replaced by one with `SkUiViewAnimation`s; [Migration.md](docs/Migration.md#7-animations) converts each `Animation` in one line.
+  - Beyond the toolkit: `BeforeStateChangeAnimation` / `AfterStateChangeAnimation` animate every change of `CurrentState` (bindings included) without code. The value changes at once and the views follow; changes made while views animate never throw, and the newest state wins.
+  - Unlike the toolkit, invalid changes are refused before the value is stored (the toolkit's exception from a property-changing callback leaves MAUI dropping every later `CurrentState` value), an empty state before any state keeps the children, and the fade restores every view's own opacity.
+  - Migration guide, skill reference and `check_xaml.py` (toolkit `StateContainer` on drawn layouts); demo page **Community Toolkit StateContainer**; leak scenario `StatesSwitched`.
+- **`IsShown` on every drawn view:** `SkUiView.IsShown` is `true` while the view and its drawn ancestors are visible and its tree is on a live surface; `IsShownChanged` reports changes (shown or hidden, moved into or out of a shown tree, surface attached or released). Free while no view has handlers (no per-view fields, one count read per change); with handlers, only their branch is walked ([SkUiView.md](docs/controls/SkUiView.md#isshown)).
+- **Content loaded when shown (A4):** `SkUiContentView` (and `SkUiBorder`, `SkUiScrollView`) can wait to attach its content until it is first shown, so tabs and panes that are never shown cost nothing ([SkUiContentView.md](docs/controls/SkUiContentView.md#loading-content-when-shown)).
+  - New `ContentTemplate` (bindable `DataTemplate` / `DataTemplateSelector` of drawn views): creates the content when `Content` is not set, once the view is in a tree.
+  - `ContentLoading="WhenShown"`: the content is attached, and the template run, on the first `IsShown`. `ContentLoadingDelay` (must stay shown that long), `ContentLoadedAnimation` (a render-thread fade-in or any `SkUiViewAnimation`), `IsContentLoaded` (bindable, read-only), `ContentLoaded`, `LoadContent()`.
+  - The **ContentView** demo page now shows tabs of sections loaded when shown (counts and logs the sections created, bindings through templates); leak scenario `ContentDeferred`.
+- **`SkUiAlternateContentView` (A4):** a content view with a second content. `ShowsAlternate` (`bool?`) shows `Content` (`false`), `AlternateContent` (`true`) or nothing (`null`); each side can come from a template (`ContentTemplate`, `AlternateContentTemplate`) that runs only when that side is first shown, and the hidden side is kept. `BeforeStateChangeAnimation` / `AfterStateChangeAnimation` animate every switch on the render thread (newest value wins; `IsSwitching`). Works with `ContentLoading="WhenShown"` ([SkUiAlternateContentView.md](docs/controls/SkUiAlternateContentView.md)). Demo page; leak scenario `AlternateSwitched`.
+- **`SkUiViewAnimation`:** a reusable description of a render-thread animation of a drawn view's opacity, translation, rotation and scale (`SkUiPropertyAnimation` entries with optional start and end values, length, easing; `FadeOut()` / `FadeIn()`; `RunAsync(view)` ends at exact values). Usable in XAML (`"FadeIn 300 CubicOut"`, or an element listing the entries) and shareable: read-only once used. The SkiaUi replacement for MAUI `Animation`s where an API takes one. The migration guide and skills now list one-line conversions of MAUI view animations (`FadeTo`, `TranslateTo`, `new Animation`), and the audit script counts them.
+
+- **BindableLayout on drawn layouts:** MAUI's `BindableLayout` (`ItemsSource` with collection changes, `ItemTemplate`, `ItemTemplateSelector`, `EmptyView`, `EmptyViewTemplate`) now works on `SkUiLayout` and every layout built on it (grid, stacks, absolute, flex, wrap and shrink layouts), so MAUI XAML ports by changing the prefix of the layout and the template content ([SkUiLayout.md](docs/controls/SkUiLayout.md#bindablelayout)).
+  - Templates and the empty view must create drawn views; a native view throws an `ArgumentException` that says so. A string `EmptyView` is not supported (MAUI turns it into its own `Label`): use a drawn view or `EmptyViewTemplate`.
+  - Without a template, items show as centered `SkUiLabel`s with the item's text, like MAUI's default template.
+  - The migration guide, the `skiaui-migration` skills and their scripts no longer treat `BindableLayout` as a blocker; `check_xaml.py` checks the templates and empty views like other drawn content and reports string empty views.
+  - Demo: the `SkUiVerticalStackLayout` page binds the drawn and the native stack to one collection (add, remove, clear, empty view); new leak scenario `BindableLayoutItems`.
+
+### Fixes
+
+- **Binding context, as in MAUI:** nested bindings in image sources now resolve (`<sk:SkUiImage.Source><FontImageSource Glyph="{Binding Icon}"/></sk:SkUiImage.Source>`, the same on `SkUiButton.ImageSource` and `SkUiImageButton`, and on `LoadingPlaceholder` / `ErrorPlaceholder` and `SkUiSlider.ThumbImageSource`, which also reload when such a binding changes); the source becomes the view's element child through a weak link, so shared sources keep no view alive. `SkUiGrid` row and column definitions bind against the grid (`<RowDefinition Height="{Binding …}"/>`). Content shown by `SkUiContentPresenter` binds against the templated control even when the template sets another context above it. Replaced brushes, stroke shapes and path geometries give the view's context back ([SkUiView.md](docs/controls/SkUiView.md#binding-context)).
+
 ## 1.0.0-Prerelease08
 
 ### New features

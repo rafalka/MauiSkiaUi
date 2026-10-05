@@ -136,6 +136,8 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     private void OnImageSourceChanged(ImageSource? value)
     {
         if (ReferenceEquals(_imageSource, value)) return;
+        // Bindings inside the source (a font glyph, a URI) resolve against the button, as in MAUI.
+        AdoptImageSource(_imageSource, value);
         _imageSource = value;
         (_imageSourceListener ??= new(this, static (button, change) =>
         {
@@ -143,6 +145,13 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
                 button.LoadImage();
         })).Listen(value);
         LoadImage();
+    }
+
+    /// <inheritdoc />
+    protected override void OnBindingContextChanged()
+    {
+        base.OnBindingContextChanged();
+        InheritBindingContext(_imageSource);
     }
 
     private void LoadImage()

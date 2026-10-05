@@ -118,7 +118,7 @@ Pick the subtree and put it in a surface root. Keep the outer page, toolbar and 
 </ContentPage>
 ```
 
-Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `FlexLayout.Grow`, `SemanticProperties.Description`, `RadioButtonGroup.GroupName`).
+Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `FlexLayout.Grow`, `SemanticProperties.Description`, `RadioButtonGroup.GroupName`). `BindableLayout` (`ItemsSource`, `ItemTemplate`, `ItemTemplateSelector`, `EmptyView`, `EmptyViewTemplate`) works on every drawn layout; the templates and the empty view must create drawn views, and a string `EmptyView` is not supported ([SkUiLayout.md](controls/SkUiLayout.md#bindablelayout)).
 
 ### 2. Rename the controls
 
@@ -130,6 +130,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `StackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | Pick by `Orientation`; keep `Spacing` |
 | `AbsoluteLayout` | `SkUiAbsoluteLayout` | |
 | `FlexLayout` | `SkUiFlexLayout` | Also `SkUiWrapLayout` for chips and tags |
+| Toolkit `StateContainer` / `StateView` (attached properties) | `SkUiStateContainer` / `SkUiStateView` | Same properties and `ChangeStateWithAnimation` overloads, on any drawn layout ([SkUiStateContainer.md](controls/SkUiStateContainer.md)) |
 | `ScrollView` | `SkUiScrollView` | Plus snap points and overscroll |
 | `Border` | `SkUiBorder` | `StrokeShape`, brush strokes, dashes |
 | `Frame` (obsolete) | `SkUiBorder` | `CornerRadius` → `StrokeShape="RoundRectangle N"`, `HasShadow` → `Shadow`, `BorderColor` → `Stroke` |
@@ -231,6 +232,19 @@ Custom handlers registered for MAUI types (`Label`, `Button`, …) do not affect
 
 `SkUiView.AnimateAsync(SkUiAnimatableProperty.Opacity, 0, 250, Easing.CubicOut)` animates opacity, translation, rotation and scale on the render thread, so it stays smooth while the UI thread works. Prefer it to MAUI's `FadeTo` / `TranslateTo`, which change the same bindable properties from the UI thread every frame. State changes of the built-in controls (press, check, toggle) already animate through the look.
 
+APIs that take a reusable animation take a `SkUiViewAnimation` (render thread) instead of a MAUI `Animation` (UI-thread callbacks). Convert each child animation whose callback sets a composite property: its start and end become `From` / `To`, its easing and length move to the description.
+
+| MAUI | SkiaUi |
+| --- | --- |
+| `element.FadeToAsync(0, 250, Easing.CubicIn)` | `view.AnimateAsync(SkUiAnimatableProperty.Opacity, 0, 250, Easing.CubicIn)` |
+| `element.TranslateToAsync(0, 40, 300)` | `view.AnimateAsync(SkUiAnimatableProperty.TranslationY, 40, 300)` (one call per axis) |
+| `element.ScaleToAsync(0.9)` / `RotateToAsync(90)` | `view.AnimateAsync(SkUiAnimatableProperty.Scale, 0.9)` / `(…Rotation, 90)` |
+| `new Animation(v => view.Opacity = v, 1, 0, Easing.CubicIn)` | `new SkUiViewAnimation([new(SkUiAnimatableProperty.Opacity, from: 1, to: 0)], 250, Easing.CubicIn)` |
+| Parent `Animation` with children over the same span | One `SkUiViewAnimation` listing every property (they run together) |
+| Toolkit `StateContainer.ChangeStateWithAnimation(layout, state, before, after)` with `Animation`s | `SkUiStateContainer.ChangeStateWithAnimation(layout, state, before, after)` with `SkUiViewAnimation`s; `SkUiViewAnimation.FadeOut()` / `FadeIn()` cover the common case, no `to` ends at the view's own value. Or set `sk:SkUiStateContainer.BeforeStateChangeAnimation="FadeOut"` / `AfterStateChangeAnimation="FadeIn"` once and drop the call: every `CurrentState` change animates |
+
+Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and child animations with staggered spans have no render-thread form: keep them as MAUI or `SkUiAnimationClock` callbacks (they re-lay out every frame), or redesign them as transforms.
+
 ### 8. Verify
 
 - **Build and run the screen.** Compare it with the native version side by side; check light and dark themes and a large OS text size.
@@ -238,6 +252,7 @@ Custom handlers registered for MAUI types (`Label`, `Button`, …) do not affect
 - **Tap everything** that had a gesture recognizer or behavior; test taps inside scrollers and drags that start on buttons.
 - **Accessibility.** Drawn controls are read by TalkBack, VoiceOver and Narrator from MAUI's `SemanticProperties`, and take keyboard focus. Check that tappable containers have a description or readable text inside.
 - **UI tests.** `AutomationId` is exposed to UI test frameworks through the accessibility tree. In unit tests, `SkUiDiagnostics.SimulateTap(element)` and `HitTest` drive drawn input without a device.
+- **Defer what is not shown.** Other tabs and hidden or collapsed panes can wait: wrap them in `SkUiContentView ContentLoading="WhenShown"` with a `ContentTemplate` ([SkUiContentView.md](controls/SkUiContentView.md#loading-content-when-shown)).
 - **Measure.** Time the page from navigation to first frame before and after; [Performance.md](Performance.md) lists what costs most while scrolling (shadows, gradients and clips in long lists).
 
 ## Not available yet
@@ -245,7 +260,6 @@ Custom handlers registered for MAUI types (`Label`, `Button`, …) do not affect
 | MAUI | Status | Meanwhile |
 | --- | --- | --- |
 | `CollectionView` | Planned (Phase B: virtualized `SkUiCollectionView`) | Keep the MAUI `CollectionView` with native item templates, or, for up to a few hundred items, a drawn stack inside `SkUiScrollView` |
-| `BindableLayout` on drawn layouts | Not supported: drawn layouts do not implement MAUI's `IBindableLayout` yet | Create the items in code (`layout.Children.Add(...)` from the collection), or keep that part native |
 | `SwipeView` | Planned (C1) | `Swiped` / `PanUpdated` on the row for simple cases, or keep the list native |
 | `RefreshView` | Planned (C2) | A MAUI `RefreshView` around the surface root: the drawn scroller hands the drag to native parents at its top edge, as inside a native `ScrollView` (this combination is not covered by tests yet) |
 | `CarouselView`, `IndicatorView` | Planned (D1) | `SkUiScrollView Orientation="Horizontal"` with `SnapPointsType="MandatorySingle"` |
@@ -266,6 +280,6 @@ Swipe, pan and pinch *recognizers* may later run on drawn views like taps do (P1
 - [ ] Styles copied with `sk:` target types; visual states checked.
 - [ ] Gesture recognizers other than taps, `TouchBehavior`s and effects converted; no `SkiaUi:` lines left in the debug output.
 - [ ] Custom controls ported or hosted; custom handler tweaks replaced by properties.
-- [ ] No `BindableLayout` on drawn layouts.
+- [ ] `BindableLayout` templates and empty views on drawn layouts create drawn views.
 - [ ] Light / dark, large text, screen reader and keyboard checked.
 - [ ] Page-open time and scrolling measured against the native version.

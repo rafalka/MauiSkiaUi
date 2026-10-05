@@ -6,6 +6,7 @@ Usage: audit_maui_app.py [--top N] APP_FOLDER
 Reads every .xaml and .cs file under APP_FOLDER (skipping bin, obj and hidden folders). Reports:
 - MAUI controls by migration path (drawn equivalent, native island, no drawn equivalent yet);
 - gesture input (recognizers by type, toolkit TouchBehavior, other behaviors, effects), in XAML and in code;
+- MAUI view animations in code (render-thread conversions);
 - BindableLayout, templates, custom handlers / renderers / effects, canvas views, third-party XAML namespaces;
 - custom controls by how often they are used;
 - pages and views ranked by size, with the blockers each one contains.
@@ -46,6 +47,8 @@ CS_PATTERNS = {
     "platform behaviors (PlatformBehavior subclasses)": re.compile(r":\s*PlatformBehavior\s*<"),
     "canvas views (SKCanvasView / SKGLView / GraphicsView / IDrawable)": re.compile(r"\b(SKCanvasView|SKGLView|GraphicsView|IDrawable)\b"),
     "BindableLayout in code": re.compile(r"\bBindableLayout\.Set\w+"),
+    "MAUI view animations (FadeTo / TranslateTo / ScaleTo / RotateTo / new Animation; convert to AnimateAsync / SkUiViewAnimation)":
+        re.compile(r"\b(Fade|Translate|Scale|Rotate|RelScale|RelRotate)To(Async)?\s*\(|\bnew\s+Animation\s*\("),
 }
 
 
@@ -117,15 +120,12 @@ class FileInfo:
         self.gestures = collections.Counter()
         self.touch_behaviors = 0
         self.effects = 0
-        self.bindable_layouts = 0
         self.third_party = collections.Counter()
         self.custom = collections.Counter()
 
     @property
     def blockers(self):
         items = [f"{name} ×{count}" for name, count in self.not_yet.most_common()]
-        if self.bindable_layouts:
-            items.append(f"BindableLayout ×{self.bindable_layouts}")
         items += [f"{name} ×{count}" for name, count in self.third_party.most_common()]
         return items
 
@@ -258,7 +258,6 @@ def main():
             for (_, local) in node.attrs:
                 if local.startswith("BindableLayout.ItemsSource"):
                     bindable_layouts += 1
-                    info.bindable_layouts += 1
             if node.uri == MAUI_NS:
                 name = node.name
                 if name in GESTURES:
@@ -344,7 +343,7 @@ def main():
                    ", ".join(f"{name} {count}" for name, count in sorted(other_behaviors.items(), key=lambda item: -item[1])) + ".\n")
 
     out.append("## Structure and platform code\n")
-    out.append(f"- BindableLayout in XAML: {bindable_layouts} (not supported on drawn layouts yet)")
+    out.append(f"- BindableLayout in XAML: {bindable_layouts} (works on drawn layouts; item templates and empty views are converted like the rest of the page)")
     out.append(f"- DataTemplate: {data_templates}; ControlTemplate: {control_templates} (drawn ControlTemplate: SkUiRadioButton only)")
     for label in CS_PATTERNS:
         if code[label] and not label.startswith(("gesture recognizers", "TouchBehavior")):

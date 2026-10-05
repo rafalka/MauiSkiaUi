@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Windows.Input;
 using MauiSkiaUi;
 using MauiSkiaUi.Core;
@@ -33,6 +34,10 @@ public static class LeakScenarios
         new("ContentTemplated", Controls, "Buttons with images (a long-lived shared icon, edited while shown; stream images; content layouts changed) on both layers; radio buttons with text and view content, bordered, and with a long-lived shared ControlTemplate whose presenters show the content; tapped, content swapped, the template removed and applied again; Core radio buttons in their own rows grouped by `SkUiCoreRadioButtons.Group` with a long-lived callback, tapped.", () => new ContentRun()),
         new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image; a long-lived icon source shared by images that are never disposed, edited while shown.", () => new ImagesRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
+        new("BindableLayoutItems", Layouts, "MAUI BindableLayout on a wrap layout bound to a long-lived collection and on a stack with a template selector and an empty view: items added, inserted, replaced, moved and removed, the collection cleared to the empty view and refilled, the items source swapped.", () => new BindableLayoutRun()),
+        new("StatesSwitched", Layouts, "SkUiStateContainer on a grid and a stack: loading (spinner running), error (retry button with a long-lived command) and empty states switched directly and with the fade, a change rejected while one runs; hidden state views removed; automatic state change animations (one shared long-lived animation) retargeted while running; closed while one runs.", () => new StatesRun()),
+        new("ContentDeferred", Layouts, "Three tabs of SkUiContentView sections that load when shown (explicit content and templates with a long-lived command, some with a delay or a fade-in): tabs switched so some load, a waiting section removed, closed with sections still waiting and delay timers pending.", () => new DeferredRun()),
+        new("AlternateSwitched", Layouts, "SkUiAlternateContentView cards (explicit content and templates with a long-lived command, shared long-lived animations): switched directly and animated, retargeted while switching, an alternate replaced while hidden; closed mid-switch.", () => new AlternateRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
@@ -827,6 +832,305 @@ public static class LeakScenarios
 
     // ---- Scrolling --------------------------------------------------------------------------------------------
 
+    private sealed class BindableLayoutRun : LeakScenarioRun
+    {
+        private readonly ObservableCollection<string> _rows = [];
+        private SkUiWrapLayout? _chips;
+        private SkUiVerticalStackLayout? _list;
+        private string? _problem;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 6; index++)
+                LeakItems.Shared.Add($"Chip {index}");
+            _chips = new SkUiWrapLayout { Spacing = 4, RowSpacing = 4 };
+            BindableLayout.SetItemTemplate(_chips, new DataTemplate(() =>
+            {
+                var chip = Text("", 12);
+                chip.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+                return chip;
+            }));
+            BindableLayout.SetItemsSource(_chips, LeakItems.Shared);
+            _list = new SkUiVerticalStackLayout { Spacing = 2 };
+            BindableLayout.SetItemTemplateSelector(_list, new RowTemplateSelector());
+            BindableLayout.SetEmptyView(_list, Text("Nothing here"));
+            BindableLayout.SetItemsSource(_list, _rows);
+            return Root(new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12), Children = { _chips, _list } });
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            // Removed item views must go while the layouts and the long-lived collection live on.
+            void Removed(SkUiLayout layout, int index) => context.TrackDetached(layout.Children[index], $"item {index} of {layout.GetType().Name}");
+            for (var round = 0; round < 2; round++)
+            {
+                for (var index = 0; index < 4; index++)
+                    LeakItems.Shared.Add($"Added {round}.{index}");
+                LeakItems.Shared.Insert(1, $"Inserted {round}");
+                await context.SettleAsync();
+                Removed(_chips!, 1);
+                LeakItems.Shared.RemoveAt(1);
+                LeakItems.Shared.Move(0, 3);
+                LeakItems.Shared[2] = $"Replaced {round}"; // same template: the view is reused
+                for (var index = 0; index < 3; index++)
+                    _rows.Add(index % 2 == 0 ? $"Row {round}.{index}" : $"Accent {round}.{index}");
+                await context.SettleAsync();
+                foreach (var child in _list!.Children)
+                    context.TrackDetached(child, "row before clear");
+                _rows.Clear();
+                await context.SettleAsync();
+                if (_list.Children.Count != 1 || BindableLayout.GetEmptyView(_list) != _list.Children[0])
+                    _problem = "the empty view was not shown after the rows were cleared";
+            }
+            // A new source reuses the first views (same template) and removes the rest.
+            for (var index = 2; index < _chips!.Children.Count; index++)
+                Removed(_chips, index);
+            BindableLayout.SetItemsSource(_chips, new[] { "Swapped A", "Swapped B" });
+            _rows.Add("Row after empty");
+            await context.SettleAsync();
+            if (_chips.Children.Count != 2 || ((SkUiLabel)_chips.Children[1]).Text != "Swapped B")
+                _problem ??= "swapping the items source did not regenerate the chips";
+        }
+
+        public override string? CheckInteraction() => _problem;
+
+        private sealed class RowTemplateSelector : DataTemplateSelector
+        {
+            private readonly DataTemplate _plain = Template(LeakColors.Surface);
+            private readonly DataTemplate _accent = Template(LeakColors.SurfaceAlt);
+
+            private static DataTemplate Template(Color background) => new(() =>
+            {
+                var row = Text("", 12);
+                row.Background = background;
+                row.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+                return row;
+            });
+
+            protected override DataTemplate OnSelectTemplate(object item, BindableObject container) =>
+                item is string text && text.StartsWith("Accent", StringComparison.Ordinal) ? _accent : _plain;
+        }
+    }
+
+    private sealed class StatesRun : LeakScenarioRun
+    {
+        private SkUiGrid? _grid;
+        private SkUiVerticalStackLayout? _stack;
+        private string? _problem;
+
+        // Long-lived, shared by every run (and frozen by the first one).
+        private static readonly SkUiViewAnimation StatesSlideIn = new([new(SkUiAnimatableProperty.TranslationY, from: 20), new(SkUiAnimatableProperty.Opacity, from: 0)], 160, Easing.CubicOut);
+
+        private static T State<T>(T view, string key) where T : SkUiView
+        {
+            SkUiStateView.SetStateKey(view, key);
+            return view;
+        }
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _grid = new SkUiGrid { RowDefinitions = [new RowDefinition(40), new RowDefinition(40)], ColumnDefinitions = [new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star)] };
+            for (var index = 0; index < 4; index++)
+            {
+                var cell = Text($"Cell {index}", 12);
+                Grid.SetRow(cell, index / 2);
+                Grid.SetColumn(cell, index % 2);
+                _grid.Children.Add(cell);
+            }
+            var views = SkUiStateContainer.GetStateViews(_grid);
+            views.Add(State(new SkUiActivityIndicator { IsRunning = true, HeightRequest = 32, WidthRequest = 32 }, "Loading"));
+            views.Add(State(new SkUiButton { Text = "Retry", Command = LeakCommands.Shared }, "Error"));
+            views.Add(State(Text("Nothing here"), "Empty"));
+            _stack = new SkUiVerticalStackLayout { Spacing = 4, Children = { Text("Row A"), Text("Row B") } };
+            SkUiStateContainer.GetStateViews(_stack).Add(State(Text("Loading rows"), "Loading"));
+            return Root(new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12), Children = { _grid, _stack } });
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            foreach (var state in new[] { "Loading", "Error", "Empty", null, "Error" })
+            {
+                SkUiStateContainer.SetCurrentState(_grid!, state);
+                await context.SettleAsync();
+            }
+            await context.TapAsync(SkUiStateContainer.GetStateViews(_grid!)[1]);
+            var fade = SkUiStateContainer.ChangeStateWithAnimation(_grid!, "Loading");
+            try
+            {
+                SkUiStateContainer.SetCurrentState(_grid!, "Empty");
+                _problem = "a state change was accepted while an animated one ran";
+            }
+            catch (SkUiStateContainerException)
+            {
+            }
+            await context.WaitForAsync(fade);
+            await context.WaitForAsync(SkUiStateContainer.ChangeStateWithAnimation(_stack!, "Loading"));
+            await context.WaitForAsync(SkUiStateContainer.ChangeStateWithAnimation(_stack!, null));
+            // Hidden state views that are removed must go while the layout lives on. (Edit the list: a list set with
+            // SetStateViews replaces the default one, which MAUI keeps with the layout.)
+            var stackStates = SkUiStateContainer.GetStateViews(_stack!);
+            foreach (var view in stackStates)
+                context.TrackDetached(view, $"removed state view {SkUiStateView.GetStateKey(view)}");
+            stackStates.Clear();
+            stackStates.Add(State(Text("New loading"), "Loading"));
+            SkUiStateContainer.SetCurrentState(_stack!, "Loading");
+            await context.SettleAsync();
+            // Automatic state change animations, retargeted while running and left running at close.
+            SkUiStateContainer.SetBeforeStateChangeAnimation(_stack!, SkUiViewAnimation.FadeOut(120));
+            SkUiStateContainer.SetAfterStateChangeAnimation(_stack!, StatesSlideIn);
+            SkUiStateContainer.SetCurrentState(_stack!, null);
+            SkUiStateContainer.SetCurrentState(_stack!, "Loading");
+            SkUiStateContainer.SetCurrentState(_stack!, null);
+            for (var wait = 0; wait < 60 && !SkUiStateContainer.GetCanStateChange(_stack!); wait++)
+                await context.SettleAsync();
+            if (SkUiStateContainer.GetCurrentState(_stack!) is not null || _stack!.Children.Count != 2)
+                _problem ??= "the stack did not end with its own children after automatic changes";
+            SkUiStateContainer.SetCurrentState(_stack!, "Loading");
+            if (SkUiStateContainer.GetCurrentState(_grid!) != "Loading" || _grid!.Children.Count != 1)
+                _problem ??= "the grid did not end in the loading state";
+        }
+
+        public override string? CheckInteraction() => _problem;
+    }
+
+    private sealed class DeferredRun : LeakScenarioRun
+    {
+        private readonly List<SkUiVerticalStackLayout> _tabs = [];
+        private readonly List<SkUiContentView> _sections = [];
+        private string? _problem;
+
+        // Long-lived, shared by every run (and frozen by the first one).
+        private static readonly SkUiViewAnimation SectionFadeIn = SkUiViewAnimation.FadeIn(150);
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var host = new SkUiGrid();
+            for (var tab = 0; tab < 3; tab++)
+            {
+                var pane = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12), IsVisible = tab == 0 };
+                for (var index = 0; index < 4; index++)
+                {
+                    var label = $"Tab {tab} section {index}";
+                    var section = new SkUiContentView
+                    {
+                        ContentLoading = SkUiContentLoading.WhenShown,
+                        HeightRequest = 90,
+                        ContentLoadingDelay = index % 2 == 1 ? TimeSpan.FromMilliseconds(120) : TimeSpan.Zero,
+                        ContentLoadedAnimation = index % 2 == 0 ? SectionFadeIn : null
+                    };
+                    if (index % 2 == 0)
+                        section.Content = new SkUiBorder { Stroke = LeakColors.Accent, StrokeThickness = 1, Content = Text(label) };
+                    else
+                        section.ContentTemplate = new DataTemplate(() => new SkUiVerticalStackLayout
+                        {
+                            Children = { Text(label), new SkUiButton { Text = "Open", Command = LeakCommands.Shared, CommandParameter = label } }
+                        });
+                    _sections.Add(section);
+                    pane.Children.Add(section);
+                }
+                _tabs.Add(pane);
+                host.Children.Add(pane);
+            }
+            return Root(host);
+        }
+
+        private void Show(int tab)
+        {
+            for (var index = 0; index < _tabs.Count; index++)
+                _tabs[index].IsVisible = index == tab;
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.SettleAsync();
+            await context.WaitAsync(200); // the first tab's delays elapse
+            Show(1);
+            await context.SettleAsync(); // passed through: tab 1's delayed sections never load
+            // A waiting section (in the tab never shown) must go once removed, with its IsShownChanged handler.
+            var waiting = _tabs[2].Children[0] as SkUiContentView;
+            if (waiting is null || waiting.IsContentLoaded)
+            {
+                _problem = "a section of a tab never shown loaded";
+                return;
+            }
+            _sections.Remove(waiting);
+            _tabs[2].Children.Remove(waiting);
+            context.TrackDetached(waiting, "removed waiting section");
+            context.TrackDetached(waiting.Content!, "removed waiting section's content");
+            Show(0); // closed with tab 1's delay timers pending
+        }
+
+        public override string? CheckInteraction()
+        {
+            if (_problem is not null)
+                return _problem;
+            if (!_sections.Take(4).All(section => section.IsContentLoaded))
+                return "the shown tab's sections did not all load";
+            return _sections.Skip(8).Any(section => section.IsContentLoaded) ? "a section of a tab never shown loaded" : null;
+        }
+    }
+
+    private sealed class AlternateRun : LeakScenarioRun
+    {
+        private readonly List<SkUiAlternateContentView> _cards = [];
+        private string? _problem;
+
+        // Long-lived, shared by every run (and frozen by the first one).
+        private static readonly SkUiViewAnimation CardOut = SkUiViewAnimation.FadeOut(100);
+        private static readonly SkUiViewAnimation CardIn = new([new(SkUiAnimatableProperty.TranslationY, from: 16), new(SkUiAnimatableProperty.Opacity, from: 0)], 140, Easing.CubicOut);
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var stack = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12) };
+            for (var index = 0; index < 4; index++)
+            {
+                var label = $"Card {index}";
+                var card = new SkUiAlternateContentView
+                {
+                    HeightRequest = 70,
+                    ShowsAlternate = false,
+                    Content = new SkUiBorder { Stroke = LeakColors.Accent, StrokeThickness = 1, Content = Text(label) },
+                    AlternateContentTemplate = new DataTemplate(() => new SkUiHorizontalStackLayout
+                    {
+                        Children = { Text($"Editing {label}"), new SkUiButton { Text = "Save", Command = LeakCommands.Shared, CommandParameter = label } }
+                    }),
+                    BeforeStateChangeAnimation = index % 2 == 0 ? CardOut : null,
+                    AfterStateChangeAnimation = index % 2 == 0 ? CardIn : null
+                };
+                _cards.Add(card);
+                stack.Children.Add(card);
+            }
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.SettleAsync();
+            foreach (var card in _cards)
+                card.ShowsAlternate = true;
+            _cards[0].ShowsAlternate = null; // retargeted while switching
+            _cards[0].ShowsAlternate = true;
+            for (var wait = 0; wait < 60 && _cards.Any(card => card.IsSwitching); wait++)
+                await context.SettleAsync();
+            if (_cards.Any(card => card.AlternateContent is null || ((Element)card.AlternateContent).Parent != card))
+                _problem = "a card does not show its alternate content after switching";
+            await context.TapAsync(((SkUiHorizontalStackLayout)_cards[1].AlternateContent!).Children[1]);
+
+            // An alternate replaced while hidden must go while the card lives on.
+            _cards[2].ShowsAlternate = false;
+            for (var wait = 0; wait < 60 && _cards[2].IsSwitching; wait++)
+                await context.SettleAsync(); // a running switch holds the view it animates until it ends
+            var replaced = _cards[2].AlternateContent!;
+            _cards[2].AlternateContent = Text("Replaced");
+            context.TrackDetached(replaced, "replaced alternate content");
+            await context.SettleAsync();
+            _cards[0].ShowsAlternate = false; // closed mid-switch
+        }
+
+        public override string? CheckInteraction() => _problem;
+    }
+
     private sealed class ScrollRun : LeakScenarioRun
     {
         private SkUiScrollView? _scroll;
@@ -1381,6 +1685,12 @@ public static class LeakCommands
 
         public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
     }
+}
+
+/// <summary>A collection that outlives every scenario, like a view model's list: bound layouts must not stay reachable from it.</summary>
+public static class LeakItems
+{
+    public static ObservableCollection<string> Shared { get; } = [];
 }
 
 /// <summary>Small in-memory PNG sources (no files or network, so they work headless too).</summary>

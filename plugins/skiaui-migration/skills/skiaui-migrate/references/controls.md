@@ -6,7 +6,7 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 
 | MAUI | SkiaUi | Notes |
 | --- | --- | --- |
-| `ContentView` | `sk:SkUiContentView` | Surface root (one child) or a hosted container; base class for drawn custom controls |
+| `ContentView` | `sk:SkUiContentView` | Surface root (one child) or a hosted container; base class for drawn custom controls. Also `ContentTemplate`, and `ContentLoading="WhenShown"` (+ `ContentLoadingDelay`, `ContentLoadedAnimation`) to create a pane only when first shown: use it for heavy tabs and hidden or collapsed panes |
 | `Grid` | `sk:SkUiGrid` | `RowDefinitions`, `ColumnDefinitions`, spacing, `Grid.Row` / `Grid.Column` / spans as in MAUI |
 | `VerticalStackLayout` | `sk:SkUiVerticalStackLayout` | |
 | `HorizontalStackLayout` | `sk:SkUiHorizontalStackLayout` | |
@@ -14,6 +14,8 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 | `AbsoluteLayout` | `sk:SkUiAbsoluteLayout` | MAUI's `AbsoluteLayout.LayoutBounds` / `LayoutFlags` |
 | `FlexLayout` | `sk:SkUiFlexLayout` | MAUI's attached `FlexLayout.*` properties |
 | — | `sk:SkUiWrapLayout` | Chips and tags (wrapping rows) |
+| Two views toggled by `IsVisible`, or a `DataTrigger` swapping `Content` | `sk:SkUiAlternateContentView` | `ShowsAlternate="{Binding …}"` shows `Content` (`false`), `AlternateContent` (`true`) or nothing (`null`); templates run on first show; optional switch animations |
+| Toolkit `mct:StateContainer.*` / `mct:StateView.StateKey` | `sk:SkUiStateContainer.*` / `sk:SkUiStateView.StateKey` | Attached properties on any drawn layout: `StateViews` (drawn views), `CurrentState`, `CanStateChange`; `SkUiStateContainer.ChangeStateWithAnimation` in code (MAUI `Animation` arguments → `SkUiViewAnimation`, see below), or `sk:SkUiStateContainer.BeforeStateChangeAnimation="FadeOut"` / `AfterStateChangeAnimation="FadeIn"` in XAML to animate every bound change without code; `StateContainerException` → `SkUiStateContainerException` |
 | — | `sk:SkUiLayout` | Overlay: children share one slot |
 | `ScrollView` | `sk:SkUiScrollView` | Same API (`Orientation`, `ScrollToAsync`, `Scrolled`, scroll bar visibility); plus `SnapPointsType`, `Overscroll` |
 | `Border` | `sk:SkUiBorder` | `StrokeShape` (string `RoundRectangle 8` or a shape element), `Stroke`, `StrokeThickness`, dashes |
@@ -21,6 +23,8 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 | `ContentPresenter` | `sk:SkUiContentPresenter` | Only inside a `SkUiRadioButton` `ControlTemplate` |
 
 `IsClippedToBounds` → `ClipToBounds` (leaf controls clip by default, layouts do not). Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `FlexLayout.Grow`, `SemanticProperties.*`, `AutomationProperties.*`, `RadioButtonGroup.GroupName`, `VisualStateManager.VisualStateGroups`).
+
+`BindableLayout` works on every drawn layout (`ItemsSource`, `ItemTemplate`, `ItemTemplateSelector`, `EmptyView`, `EmptyViewTemplate`): convert the template content and the empty view to drawn controls like the rest of the region (native ones go inside `sk:SkUiMauiContentView`). A string `EmptyView` throws: replace it with `<BindableLayout.EmptyView><sk:SkUiLabel Text="..." /></BindableLayout.EmptyView>`. No virtualization: fine for tens to a few hundred items.
 
 ## Controls
 
@@ -62,3 +66,17 @@ The wrapper is measured and arranged like a drawn view; the native control sits 
 - Fonts registered with `ConfigureFonts` by alias; `FontAutoScalingEnabled` follows the OS text size.
 - Not drawn: `ImageBrush`.
 - Drawn controls are drawn by the look (`SkUiLook`): close to, not identical with, native widgets. Set colors explicitly where the design depends on them.
+
+## Animations (code-behind)
+
+Drawn views animate opacity, translation, rotation and scale on the render thread. Convert MAUI's UI-thread animations; each is one line:
+
+| MAUI | SkiaUi |
+| --- | --- |
+| `view.FadeToAsync(0, 250, easing)` | `view.AnimateAsync(SkUiAnimatableProperty.Opacity, 0, 250, easing)` |
+| `view.TranslateToAsync(x, y, 250)` | `AnimateAsync(SkUiAnimatableProperty.TranslationX, x, 250)` and `(…TranslationY, y, 250)`, awaited together |
+| `view.ScaleToAsync(s)` / `RotateToAsync(d)` | `AnimateAsync(SkUiAnimatableProperty.Scale, s)` / `(…Rotation, d)` |
+| `new Animation(v => view.Opacity = v, start, end, easing)` passed to an API | `new SkUiViewAnimation([new(SkUiAnimatableProperty.Opacity, from: start, to: end)], length, easing)` |
+| Parent `Animation` with children over the same span | One `SkUiViewAnimation` listing every property |
+
+Leave as MAUI animations (and say so in the report): animations of `WidthRequest` / `HeightRequest` / `Margin` and staggered child spans; they re-lay out every frame on drawn views too.

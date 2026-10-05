@@ -42,6 +42,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
         _beforeFrame = beforeFrame;
         Compositor = new SkUiCompositor(dispatch);
         root.RenderRootDirty += OnRootDirty;
+        SkUiShownTracker.OnSurfaceChanged(root);
     }
 
     /// <summary>Retained compositor fed by this renderer.</summary>
@@ -200,6 +201,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
             return;
         _disposed = true;
         _root.RenderRootDirty -= OnRootDirty;
+        SkUiShownTracker.OnSurfaceChanged(_root);
         _root.AnimationClock.StopAll();
         Compositor.Dispose();
         _recorder.Dispose();

@@ -1,6 +1,6 @@
 ---
 name: skiaui-audit
-description: Surveys a .NET MAUI app for a migration to SkiaUi's drawn controls (SkiaUi.Maui) and writes a migration plan - which screens to port first, what blocks them (CollectionView, SwipeView, BindableLayout, third-party controls, custom handlers), which shared custom controls to port, and how much gesture and TouchBehavior code needs converting. Read-only. Use when asked whether, where or how much of a MAUI app to move to SkiaUi, or to estimate a SkiaUi migration.
+description: Surveys a .NET MAUI app for a migration to SkiaUi's drawn controls (SkiaUi.Maui) and writes a migration plan - which screens to port first, what blocks them (CollectionView, SwipeView, third-party controls, custom handlers), which shared custom controls to port, and how much gesture and TouchBehavior code needs converting. Read-only. Use when asked whether, where or how much of a MAUI app to move to SkiaUi, or to estimate a SkiaUi migration.
 argument-hint: "[app folder]"
 ---
 
@@ -10,7 +10,7 @@ Produce a migration plan the team can act on. Do not change any code.
 
 ## Background
 
-SkiaUi replaces a **subtree** of a MAUI page with controls drawn on one Skia surface; pages, Shell, navigation and view models stay. It pays off on screens with many views (deep layouts, cards, dashboards, forms), where native MAUI spends time creating a handler and a platform view per control. Most MAUI layouts and basic controls have drawn equivalents with MAUI's property names. Native-only controls (Entry, Editor, pickers, WebView, third-party controls) stay native inside a `SkUiMauiContentView`. Not available yet: `CollectionView`, `BindableLayout` on drawn layouts, `SwipeView`, `RefreshView`, `CarouselView`, `IndicatorView`, `Stepper`. `TapGestureRecognizer` runs on drawn views; other recognizers, `TouchBehavior` (a platform behavior) and effects must be converted to drawn gesture events.
+SkiaUi replaces a **subtree** of a MAUI page with controls drawn on one Skia surface; pages, Shell, navigation and view models stay. It pays off on screens with many views (deep layouts, cards, dashboards, forms), where native MAUI spends time creating a handler and a platform view per control. Most MAUI layouts and basic controls have drawn equivalents with MAUI's property names. Native-only controls (Entry, Editor, pickers, WebView, third-party controls) stay native inside a `SkUiMauiContentView`. `BindableLayout` works on drawn layouts (templates and empty views must be drawn views too). Not available yet: `CollectionView`, `SwipeView`, `RefreshView`, `CarouselView`, `IndicatorView`, `Stepper`. `TapGestureRecognizer` runs on drawn views; other recognizers, `TouchBehavior` (a platform behavior) and effects must be converted to drawn gesture events.
 
 ## Steps
 
@@ -28,12 +28,12 @@ SkiaUi replaces a **subtree** of a MAUI page with controls drawn on one Skia sur
    - code-behind that creates views, adds gestures or uses `BindableLayout` in code;
    - custom handlers / mapper changes that affect controls inside the region (find them through the inventory's "Structure and platform code" section).
 4. **Check shared building blocks.** The most used custom controls decide the cost: a `ContentView` composite ports to a `SkUiContentView` subclass cheaply; a control with a custom handler, renderer, effect or third-party base needs redrawing or stays native. Port shared controls before pages.
-5. **Size the gesture work** from the inventory: taps need nothing; each swipe / pan / pinch recognizer, `TouchBehavior` (and subclass) use and effect is a conversion. Long presses usually come from `TouchBehavior` `LongPressCommand` or platform code.
+5. **Size the gesture work** from the inventory: taps need nothing; each swipe / pan / pinch recognizer, `TouchBehavior` (and subclass) use and effect is a conversion. Long presses usually come from `TouchBehavior` `LongPressCommand` or platform code. MAUI view animations (`FadeTo`, `TranslateTo`, `new Animation`) convert one line each to render-thread `AnimateAsync` / `SkUiViewAnimation`; size animations stay MAUI.
 6. **Write the plan** (Markdown, in the conversation or a file the user names) with these sections:
    - **Summary:** is a migration worthwhile, and where; the main blockers.
    - **First screens:** 3–5 pages in order, each with its drawn region, what stays native, blockers, gesture conversions and custom controls to port. Prefer large pages without lists.
    - **Shared controls to port first:** name, uses, base type, approach (drawn composite, drawn from scratch, Core nodes, stays native).
-   - **Blocked until SkiaUi adds:** screens that depend on `CollectionView`, `BindableLayout`, `SwipeView`, `RefreshView`, `CarouselView`, with counts.
+   - **Blocked until SkiaUi adds:** screens that depend on `CollectionView`, `SwipeView`, `RefreshView`, `CarouselView`, with counts.
    - **Gesture and behavior conversions:** counts per kind and the files with the non-trivial ones (pan, pinch, swipe paging).
    - **Platform code to revisit:** custom handlers and mapper changes whose effect must be reproduced with drawn properties.
    - **Risks and checks:** native islands that drawn content would need to cover, third-party controls inside candidate regions, measuring before / after.

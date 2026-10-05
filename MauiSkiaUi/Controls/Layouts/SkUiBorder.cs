@@ -128,6 +128,8 @@ public class SkUiBorder : SkUiContentView
 
     private void OnStrokeShapeChanged(IShape? value)
     {
+        if (!ReferenceEquals(_strokeShape, value))
+            ReleaseBindingContext(_strokeShape as BindableObject);
         _strokeShape = value;
         _shapeListener.Listen(value);
         if (value is BindableObject bindable)
@@ -145,6 +147,9 @@ public class SkUiBorder : SkUiContentView
 
     private void OnStrokeChanged(Brush? value)
     {
+        // A brush that is also the background keeps the context (MAUI gives the background one too).
+        if (!ReferenceEquals(_stroke, value) && !ReferenceEquals(_stroke, Background) && (_stroke is GradientBrush || _stroke?.GetType() == typeof(SolidColorBrush)))
+            ReleaseBindingContext(_stroke);
         _stroke = value;
         _strokeListener.Listen(value);
         if (value is GradientBrush || value?.GetType() == typeof(SolidColorBrush))

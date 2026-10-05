@@ -18,6 +18,8 @@ public class SkUiImage : SkUiView
     // Image sources and transformation lists are often shared resources: listened to weakly, so they never keep the view alive.
     private readonly SkUiWeakListener<SkUiImage> _sourceListener;
     private readonly SkUiWeakListener<SkUiImage> _transformationsListener;
+    private SkUiWeakListener<SkUiImage>? _loadingPlaceholderListener;
+    private SkUiWeakListener<SkUiImage>? _errorPlaceholderListener;
     private readonly SkUiImageSlot _slot;
 
     /// <summary>Creates an image.</summary>
@@ -65,10 +67,10 @@ public class SkUiImage : SkUiView
 
     /// <summary>Bindable <see cref="LoadingPlaceholder"/>.</summary>
     public static readonly BindableProperty LoadingPlaceholderProperty = BindableProperty.Create(nameof(LoadingPlaceholder), typeof(ImageSource), typeof(SkUiImage), null,
-        propertyChanged: (view, _, _) => ((SkUiImage)view).UpdatePlaceholders());
+        propertyChanged: (view, old, value) => ((SkUiImage)view).OnPlaceholderChanged((ImageSource?)old, (ImageSource?)value));
     /// <summary>Bindable <see cref="ErrorPlaceholder"/>.</summary>
     public static readonly BindableProperty ErrorPlaceholderProperty = BindableProperty.Create(nameof(ErrorPlaceholder), typeof(ImageSource), typeof(SkUiImage), null,
-        propertyChanged: (view, _, _) => ((SkUiImage)view).UpdatePlaceholders());
+        propertyChanged: (view, old, value) => ((SkUiImage)view).OnPlaceholderChanged((ImageSource?)old, (ImageSource?)value));
     /// <summary>Bindable <see cref="TransformPlaceholders"/>.</summary>
     public static readonly BindableProperty TransformPlaceholdersProperty = BindableProperty.Create(nameof(TransformPlaceholders), typeof(bool), typeof(SkUiImage), true,
         propertyChanged: (view, _, _) => ((SkUiImage)view).UpdatePlaceholders());
@@ -155,6 +157,34 @@ public class SkUiImage : SkUiView
     /// <summary>Sets <see cref="TransformPlaceholders"/> (same as the property setter).</summary>
     public SkUiImage SetTransformPlaceholders(bool value) { TransformPlaceholders = value; return this; }
 
+    // Bindings inside a placeholder (a font glyph, a URI) resolve against the image, and their changes reload it.
+    private void OnPlaceholderChanged(ImageSource? oldValue, ImageSource? newValue)
+    {
+        AdoptImageSource(UsesSource(oldValue) ? null : oldValue, newValue);
+        (_loadingPlaceholderListener ??= new(this, OnPlaceholderEdited)).Listen(LoadingPlaceholder);
+        (_errorPlaceholderListener ??= new(this, OnPlaceholderEdited)).Listen(ErrorPlaceholder);
+        UpdatePlaceholders();
+    }
+
+    // A source shared by several slots (the source and a placeholder) stays this image's child while any still uses it.
+    private bool UsesSource(ImageSource? source) => source is not null
+        && (ReferenceEquals(source, _source) || ReferenceEquals(source, LoadingPlaceholder) || ReferenceEquals(source, ErrorPlaceholder));
+
+    private static void OnPlaceholderEdited(SkUiImage image, SkUiChange change)
+    {
+        if (SkUiMauiImageSources.AffectsImage(change.PropertyName))
+            image.UpdatePlaceholders();
+    }
+
+    /// <inheritdoc />
+    protected override void OnBindingContextChanged()
+    {
+        base.OnBindingContextChanged();
+        InheritBindingContext(_source);
+        InheritBindingContext(LoadingPlaceholder);
+        InheritBindingContext(ErrorPlaceholder);
+    }
+
     private void UpdatePlaceholders()
     {
         if (_slot is null) return; // property defaults apply before the constructor body
@@ -187,7 +217,10 @@ public class SkUiImage : SkUiView
     private void OnSourceChanged(ImageSource? value)
     {
         if (ReferenceEquals(_source, value)) return;
+        // Bindings inside the source (a font glyph, a URI) resolve against the image, as in MAUI.
+        var previous = _source;
         _source = value;
+        AdoptImageSource(UsesSource(previous) ? null : previous, value);
         _sourceListener.Listen(value);
         Reload();
     }

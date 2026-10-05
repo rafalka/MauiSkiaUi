@@ -38,6 +38,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | --- | --- | --- |
 | `SkUiContentView` | [SkUiContentView.md](SkUiContentView.md) | ContentView |
 | `SkUiContentPresenter` | [SkUiContentPresenter.md](SkUiContentPresenter.md) | ContentPresenter (in drawn `ControlTemplate`s) |
+| `SkUiAlternateContentView` | [SkUiAlternateContentView.md](SkUiAlternateContentView.md) | — (content or alternate content, animated switches) |
 | `SkUiMauiContentView` | [SkUiMauiContentView.md](SkUiMauiContentView.md) | — (native host) |
 | `SkUiBorder` | [SkUiBorder.md](SkUiBorder.md) | Border |
 | `SkUiLayout` | [SkUiLayout.md](SkUiLayout.md) | — (overlay) |
@@ -48,6 +49,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiFlexLayout` | [SkUiFlexLayout.md](SkUiFlexLayout.md) | FlexLayout |
 | `SkUiWrapLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md) | — (chips / tags) |
 | `SkUiHorizontalShrinkLayout` / `SkUiVerticalShrinkLayout` | [SkUiShrinkLayout.md](SkUiShrinkLayout.md) | — (stacks whose children shrink to fit) |
+| `SkUiStateContainer` / `SkUiStateView` (attached properties on any drawn layout) | [SkUiStateContainer.md](SkUiStateContainer.md) | Community Toolkit `StateContainer` / `StateView` |
 
 ## Graphics
 

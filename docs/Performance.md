@@ -104,6 +104,7 @@ First frame of the 400-card list (ms):
 - Avoid **text shadows** on many list items on mid-range Android devices; put the shadow on an opaque card behind the text instead.
 - Avoid **dashed strokes on complex paths** on many list items; a rounded rectangle, solid stroke or simpler path is much cheaper.
 - Use **running spinners** only while something loads: they keep the surface drawing every frame.
+- **Defer expensive panes** (other tabs, hidden or collapsed sections): `SkUiContentView ContentLoading="WhenShown"` with a `ContentTemplate` creates a pane only when it is first shown (optionally after a delay, so tabs passed through are not created) ([SkUiContentView.md](controls/SkUiContentView.md#loading-content-when-shown)).
 - Check on the slowest device you support. The iPhone 8 absorbs every single effect; the S9 shows where the limits are.
 
 ## Reproducing
