@@ -8,7 +8,9 @@ Hosts a real MAUI `VisualElement` (Entry, Editor, WebView, …) as a **native ov
 
 The placeholder participates in SkiaUi measure/arrange. The wrapped control's platform view is added as a sibling of the Skia surface inside `SkUiOverlayContainer`. The node never takes drawn pointers, so taps and text input go to the native control (drags are the exception, below). Position uses `ComputeRootRelativeFrame()` (Frame offsets + `TranslationX`/`TranslationY` up the hosted ancestor chain, minus scroll offsets).
 
-**Clipping:** the overlay is clipped to the viewports of ancestor scrollers and to ancestors with `ClipToBounds`, so a scrolled control never covers drawn content around the scroller and cannot be touched outside it.
+**Clipping:** the overlay is clipped to the viewports of ancestor scrollers and to ancestors with `ClipToBounds`, so a scrolled control never covers drawn content around the scroller and cannot be touched outside it. While an [`SkUiExpander`](SkUiExpander.md) animates, it clips its native content too.
+
+**Visibility:** the native view is hidden while the host or any drawn ancestor is invisible (`IsVisible="False"`, the collapsed content of an expander), and shown again when they are.
 
 **Drags that start on the native control** also reach the drawn scroll view around it. Once the drag is clearly a scroll (past the touch slop along the scroller's axis), the native touch is cancelled and the drawn list scrolls. Taps, text selection and cursor placement stay native. Controls that scroll their own content (WebView, Android Editor) keep their native scrolling. Implemented on Android and iOS / Mac Catalyst. On Windows it applies to touch and pen only; mouse drags keep text selection.
 

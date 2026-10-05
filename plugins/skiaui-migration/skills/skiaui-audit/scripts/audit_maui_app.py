@@ -4,7 +4,8 @@
 Usage: audit_maui_app.py [--top N] APP_FOLDER
 
 Reads every .xaml and .cs file under APP_FOLDER (skipping bin, obj and hidden folders). Reports:
-- MAUI controls by migration path (drawn equivalent, native island, no drawn equivalent yet);
+- MAUI controls by migration path (drawn equivalent, native island, no drawn equivalent yet), with the Community
+  Toolkit controls SkiaUi draws (Expander);
 - gesture input (recognizers by type, toolkit TouchBehavior, other behaviors, effects), in XAML and in code;
 - MAUI view animations in code (render-thread conversions);
 - BindableLayout, templates, custom handlers / renderers / effects, canvas views, third-party XAML namespaces;
@@ -31,6 +32,8 @@ DRAWN = {
     "RoundRectangle", "Path", "Polygon", "Polyline", "CheckBox", "Switch", "RadioButton", "Slider", "ProgressBar",
     "ActivityIndicator", "GraphicsView",
 }
+# Community Toolkit controls with a drawn equivalent, counted as "Toolkit <name>".
+TOOLKIT_DRAWN = {"Expander"}
 NATIVE_ISLAND = {"Entry", "Editor", "SearchBar", "Picker", "DatePicker", "TimePicker", "WebView", "HybridWebView", "BlazorWebView", "Map"}
 NOT_YET = {"CollectionView", "ListView", "TableView", "CarouselView", "IndicatorView", "SwipeView", "RefreshView", "Stepper"}
 PAGES = {"ContentPage", "TabbedPage", "FlyoutPage", "NavigationPage", "Shell"}
@@ -179,6 +182,10 @@ class ClassIndex:
         return names
 
 
+def is_toolkit(uri):
+    return "maui/toolkit" in uri or "CommunityToolkit.Maui" in uri
+
+
 def is_third_party(uri, own_assemblies):
     if uri in (MAUI_NS, X_NS, "") or "MauiSkiaUi" in uri:
         return False
@@ -280,6 +287,9 @@ def main():
                         info.native_islands[name] += 1
                     elif name in NOT_YET:
                         info.not_yet[name] += 1
+            elif is_toolkit(node.uri) and node.name in TOOLKIT_DRAWN:
+                totals[f"Toolkit {node.name}"] += 1
+                info.views += 1
             elif is_third_party(node.uri, own_assemblies):
                 owner = node.owner()
                 # Count a third-party control once, not its parts (chart series, axes, …).
@@ -315,7 +325,8 @@ def main():
 
     out.append("## MAUI controls in XAML\n")
     out.append("| Path | Control | Count |\n| --- | --- | ---: |")
-    for group, names in (("Drawn equivalent", DRAWN), ("Native island (SkUiMauiContentView)", NATIVE_ISLAND), ("No drawn equivalent yet", NOT_YET)):
+    drawn_names = DRAWN | {f"Toolkit {name}" for name in TOOLKIT_DRAWN}
+    for group, names in (("Drawn equivalent", drawn_names), ("Native island (SkUiMauiContentView)", NATIVE_ISLAND), ("No drawn equivalent yet", NOT_YET)):
         for name, count in sorted(((n, totals[n]) for n in names if totals[n]), key=lambda item: -item[1]):
             out.append(f"| {group} | {name} | {count} |")
     out.append("")

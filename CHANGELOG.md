@@ -34,10 +34,20 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - Without a template, items show as centered `SkUiLabel`s with the item's text, like MAUI's default template.
   - The migration guide, the `skiaui-migration` skills and their scripts no longer treat `BindableLayout` as a blocker; `check_xaml.py` checks the templates and empty views like other drawn content and reports string empty views.
   - Demo: the `SkUiVerticalStackLayout` page binds the drawn and the native stack to one collection (add, remove, clear, empty view); new leak scenario `BindableLayoutItems`.
+- **`SkUiExpander` (A5, Community Toolkit parity):** a header that shows or hides its content when tapped, with the toolkit's `Expander` API, so toolkit XAML ports by changing the prefix ([SkUiExpander.md](docs/controls/SkUiExpander.md)).
+  - `Header`, `Content`, `IsExpanded` (two-way by default, so bound models see header taps), `Direction` (`SkUiExpandDirection.Down` / `Up`), `Command` / `CommandParameter`, `ExpandedChanged` (`SkUiExpandedChangedEventArgs`), `Padding`. Tappable views in the header keep their taps; for screen readers and the keyboard the header is a button with an "Expanded" / "Collapsed" value.
+  - Beyond the toolkit: `ContentTemplate`; `LazyContentExpansion`, which keeps the content (or the template's) in the tree only while expanded (a template runs on the first expand and its content is kept); `AnimationLength` (milliseconds, 0 by default): the content scales from the header's side while the expander's height follows, so the views around it move along, and a change while animating reverses from where it is (`IsAnimating`). Not animated while the system reduces motion.
+  - Hosted native content is hidden while collapsed and clipped to the expander while it animates.
+  - Migration guide, skill reference and `check_xaml.py` (toolkit `Expander` inside drawn content); demo page **Community Toolkit Expander**; leak scenario `ExpanderToggled`.
 
 ### Fixes
 
+- **Native views under hidden drawn views:** an `SkUiMauiContentView` whose drawn ancestor (or itself) has `IsVisible="False"` now hides its native view; before, the native control stayed on screen over the surface.
 - **Binding context, as in MAUI:** nested bindings in image sources now resolve (`<sk:SkUiImage.Source><FontImageSource Glyph="{Binding Icon}"/></sk:SkUiImage.Source>`, the same on `SkUiButton.ImageSource` and `SkUiImageButton`, and on `LoadingPlaceholder` / `ErrorPlaceholder` and `SkUiSlider.ThumbImageSource`, which also reload when such a binding changes); the source becomes the view's element child through a weak link, so shared sources keep no view alive. `SkUiGrid` row and column definitions bind against the grid (`<RowDefinition Height="{Binding …}"/>`). Content shown by `SkUiContentPresenter` binds against the templated control even when the template sets another context above it. Replaced brushes, stroke shapes and path geometries give the view's context back ([SkUiView.md](docs/controls/SkUiView.md#binding-context)).
+
+### Other
+
+- **Cheaper relayouts:** when a drawn view's size request or content changes, its ancestors are measured and arranged again but no longer re-record their pictures (nor re-rasterize their shadows); only views whose size changed re-record. Relayouts every frame (an animating expander) and containers that re-measure often benefit most.
 
 ## 1.0.0-Prerelease08
 
