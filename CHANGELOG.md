@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.0.0-Prerelease08
+
 ### New features
 
 - **Migration guide and agent skills:** [docs/Migration.md](docs/Migration.md) explains how to move MAUI screens to drawn controls (surface placement, control mapping, styles, gestures, custom controls, gaps). The `skiaui-migration` Claude Code plugin (`/plugin marketplace add rafalka/MauiSkiaUi`, `/plugin install skiaui-migration@skiaui`; the folders also work as plain Agent Skills) adds `skiaui-audit`, which surveys an app and writes a migration plan, and `skiaui-migrate`, which converts pages and checks the result with a XAML checker ([plugins/skiaui-migration](plugins/skiaui-migration/README.md)).
