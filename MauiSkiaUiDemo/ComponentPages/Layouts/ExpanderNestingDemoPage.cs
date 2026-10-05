@@ -16,9 +16,10 @@ public sealed class ExpanderNestingDemoPage : ComponentDemoPage
     private int _clicks;
 
     public ExpanderNestingDemoPage()
-        : base("SkUiExpander (nested, in a scroller)", new SkUiScrollView(), widthRange: (220, 420, 340), heightRange: (240, 900, 520))
+        : base("SkUiExpander (nested, in a scroller)", new SkUiScrollView(), widthRange: (220, 420, 340), heightRange: (200, 900, 360))
     {
-        SinglePanelHeight = 560;
+        // Phones: the preview leaves room for the editors below it.
+        SinglePanelHeight = 420;
         var stack = new SkUiVerticalStackLayout { Spacing = 10, Padding = new Thickness(10) };
         for (var index = 0; index < Sections; index++)
             stack.Children.Add(Section($"Section {index + 1}", level: 1));
@@ -26,12 +27,23 @@ public sealed class ExpanderNestingDemoPage : ComponentDemoPage
         foreach (var expander in _expanders)
             expander.ExpandedChanged += (_, _) => Report();
 
+        // First, so they are on screen without scrolling the editors.
+        AddEditor("All expanders", new HorizontalStackLayout
+        {
+            Spacing = 8,
+            Children = { ActionButton("Expand all", () => ForAll(e => e.IsExpanded = true)), ActionButton("Collapse all", () => ForAll(e => e.IsExpanded = false)) }
+        });
         Number(nameof(SkUiExpander.AnimationLength), 0, 800, 300, value => ForAll(e => e.AnimationLength = (uint)value), () => _expanders[0].AnimationLength, whole: true);
         Choice(nameof(SkUiExpander.AnimationEasing), DemoExpanders.EasingNames, "CubicInOut",
             value => ForAll(e => e.AnimationEasing = DemoExpanders.EasingNamed(value)), () => DemoExpanders.NameOf(_expanders[0].AnimationEasing));
         Toggle(nameof(SkUiExpander.LazyContentExpansion), false, value => ForAll(e => e.LazyContentExpansion = value), () => _expanders[0].LazyContentExpansion);
-        ActionButton("Expand all", () => ForAll(e => e.IsExpanded = true));
-        ActionButton("Collapse all", () => ForAll(e => e.IsExpanded = false));
+    }
+
+    private static Button ActionButton(string title, Action action)
+    {
+        var button = new Button { Text = title, Background = Accent, TextColor = Colors.White, AutomationId = title.Replace(" ", "") };
+        button.Clicked += (_, _) => action();
+        return button;
     }
 
     private void ForAll(Action<SkUiExpander> apply)
