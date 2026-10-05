@@ -399,6 +399,9 @@ public sealed class NestedExpanders(bool scroll = false) : BenchScenario
         : "36 nested SkUiExpander (12 bordered sections x 3 levels, controls inside); motion = 3 sections expanding / collapsing (300 ms)";
     public override bool DeviceOnly => true;
 
+    // Release builds trim: keep the reflected expander's constructor and properties.
+    [System.Diagnostics.CodeAnalysis.DynamicDependency(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties, "MauiSkiaUi.SkUiExpander", "MauiSkiaUi")]
     public override View Build()
     {
         var stack = new SkUiVerticalStackLayout { Spacing = 10, Padding = new Thickness(10) };
