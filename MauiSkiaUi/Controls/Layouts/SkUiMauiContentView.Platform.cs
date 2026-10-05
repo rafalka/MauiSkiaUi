@@ -30,6 +30,8 @@ public partial class SkUiMauiContentView
         _nativeView = _content.ToPlatform(root.MauiContext!);
         root.AttachOverlay(_nativeView, this);
         SyncOverlayBounds();
+        if (IsNativeHidden)
+            SetNativeHidden(true);
     }
 
     partial void DetachOverlay()
