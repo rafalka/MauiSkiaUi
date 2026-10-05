@@ -402,7 +402,7 @@ public class SkUiExpander : SkUiView
         }
         // Native views in the content are clipped to the expander while it animates (they cannot be scaled): follow
         // the clip as the height changes, and drop it after the last frame.
-        if (_contentPart.IsVisible)
+        if (_contentPart.IsVisible && SkUiMauiContentView.HostsNativeViews)
             _contentPart.NotifyMoved();
     }
 

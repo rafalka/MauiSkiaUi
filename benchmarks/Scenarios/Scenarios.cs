@@ -28,6 +28,9 @@ public static class Scenarios
         new NativeLabels(),
         new NestedExpanders(),
         new NestedExpanders(scroll: true),
+        new NestedExpanders(variant: "noshadow"),
+        new NestedExpanders(variant: "square"),
+        new NestedExpanders(variant: "plain"),
     ];
 
     public static BenchScenario? Find(string name) =>
@@ -389,11 +392,13 @@ public sealed class ToggleTransitions(bool busy = false) : BenchScenario
 /// below follows every frame), or with <c>scroll</c> everything is expanded and the view scrolls. <c>SkUiExpander</c> is
 /// created by reflection so the catalog builds against libraries without it (they get plain stacks and no animation).
 /// </summary>
-public sealed class NestedExpanders(bool scroll = false) : BenchScenario
+/// Variants (cost breakdown): <c>noshadow</c> without card shadows, <c>square</c> with square corners (rectangular
+/// clips), <c>plain</c> without borders.
+public sealed class NestedExpanders(bool scroll = false, string? variant = null) : BenchScenario
 {
     private static readonly Type? ExpanderType = typeof(SkUiView).Assembly.GetType("MauiSkiaUi.SkUiExpander");
 
-    public override string Name => scroll ? "expanders-scroll" : "expanders";
+    public override string Name => (scroll ? "expanders-scroll" : "expanders") + (variant is null ? "" : "-" + variant);
     public override string Description => scroll
         ? "36 nested SkUiExpander (12 bordered sections x 3 levels, controls inside) all expanded; motion = animated scroll"
         : "36 nested SkUiExpander (12 bordered sections x 3 levels, controls inside); motion = 3 sections expanding / collapsing (300 ms)";
@@ -410,7 +415,7 @@ public sealed class NestedExpanders(bool scroll = false) : BenchScenario
         return Scenarios.Scroll(stack);
     }
 
-    private SkUiBorder Section(string title, int level)
+    private SkUiView Section(string title, int level)
     {
         var content = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12, 4, 12, 12) };
         content.Children.Add(new SkUiLabel { Text = $"{title}: level {level} of 3. Everything below moves while this opens.", FontSize = 13, LineBreakMode = LineBreakMode.WordWrap });
@@ -437,10 +442,12 @@ public sealed class NestedExpanders(bool scroll = false) : BenchScenario
         }
         else
             body = new SkUiVerticalStackLayout { Children = { header, content } };
+        if (variant == "plain")
+            return new SkUiContentView { Background = Colors.White, Content = body };
         return new SkUiBorder
         {
-            Stroke = Colors.SteelBlue, StrokeThickness = 1, CornerRadius = 10, Background = Colors.White, Content = body,
-            Shadow = level == 1 ? new Shadow { Brush = Colors.Black, Opacity = 0.15f, Radius = 6, Offset = new Point(0, 2) } : null
+            Stroke = Colors.SteelBlue, StrokeThickness = 1, CornerRadius = variant == "square" ? 0 : 10, Background = Colors.White, Content = body,
+            Shadow = level == 1 && variant != "noshadow" ? new Shadow { Brush = Colors.Black, Opacity = 0.15f, Radius = 6, Offset = new Point(0, 2) } : null
         };
     }
 
@@ -454,7 +461,7 @@ public sealed class NestedExpanders(bool scroll = false) : BenchScenario
             return animate?.Invoke(scrollView, [0d, scrollView.ContentSize.Height, duration]) as IDisposable;
         }
         // Sections 1, 4 and 7 (and their first nested level) toggle every 400 ms: an animation is always running.
-        var sections = ((SkUiVerticalStackLayout)scrollView.Content!).Children.OfType<SkUiBorder>().Where((_, index) => index % 3 == 0).Take(3)
+        var sections = ((SkUiVerticalStackLayout)scrollView.Content!).Children.OfType<SkUiContentView>().Where((_, index) => index % 3 == 0).Take(3)
             .Select(border => border.Content as SkUiView).Where(view => view?.GetType() == ExpanderType).ToList();
         var expanded = false;
         void ToggleAll()

@@ -239,6 +239,41 @@ public class PipelineTests
     }
 
     [Fact]
+    public void ASurfaceRootLaysOutADescendantChangeItselfBeforeTheNextFrame()
+    {
+        // Relayout boundary: the root re-measures and re-arranges with its last constraint and bounds while presenting
+        // the frame, so the frame shows the change (no native layout pass, no frame recorded with the stale layout).
+        var child = new SkUiBox { Color = Colors.Red, WidthRequest = 80, HeightRequest = 40, HorizontalOptions = LayoutOptions.Start };
+        var below = new SkUiBox { HeightRequest = 10 };
+        var host = new SkUiContentView { Background = Colors.White, Content = new SkUiVerticalStackLayout { Children = { child, below } } };
+        using var surface = new SkUiTestSurface(host, 200, 100);
+        surface.Frame();
+        child.HeightRequest = 60;
+        child.WidthRequest = 40;
+        surface.Frame();
+        Assert.Equal(new Rect(0, 0, 40, 60), child.Frame);
+        Assert.Equal(60, below.Frame.Y);
+        Assert.Equal(new Rect(0, 0, 200, 100), host.Frame); // the root keeps its bounds
+    }
+
+    [Fact]
+    public void ASurfaceRootWhoseSizeChangesIsArrangedInItsOldBoundsUntilTheNativeLayoutRuns()
+    {
+        var child = new SkUiBox { HeightRequest = 40 };
+        var root = new SkUiVerticalStackLayout { Children = { child } };
+        using var surface = new SkUiTestSurface(root, 100, 40);
+        // Sized to its content, as in a native stack: measured with an unbounded height.
+        ((IView)root).Measure(100, double.PositiveInfinity);
+        ((IView)root).Arrange(new Rect(0, 0, 100, 40));
+        surface.Frame();
+        child.HeightRequest = 70;
+        surface.Frame();
+        Assert.Equal(70, ((IView)root).DesiredSize.Height); // measured with its last constraint (the native layout is asked too)
+        Assert.Equal(70, child.Frame.Height);
+        Assert.Equal(40, root.Frame.Height); // the native parent decides the root's new bounds
+    }
+
+    [Fact]
     public void ZeroSizedRootCanRenderAfterLayoutInvalidation()
     {
         var root = new SkUiBox();

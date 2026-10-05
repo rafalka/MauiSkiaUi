@@ -22,11 +22,13 @@ public class ExpanderTests
         root.Touch(new(id, SkUiTouchAction.Released, at, TimeSpan.FromSeconds(1.02)));
     }
 
-    /// <summary>Ticks the root's UI clock to <paramref name="milliseconds"/>, lays the surface out and renders a frame.</summary>
+    /// <summary>
+    /// Ticks the root's UI clock to <paramref name="milliseconds"/> and renders a frame, as the platform UI tick does:
+    /// the surface lays itself out again before recording (no native layout pass).
+    /// </summary>
     private static void At(SkUiTestSurface surface, double milliseconds)
     {
         surface.Root.AnimationClock.Tick(TimeSpan.FromMilliseconds(milliseconds));
-        SkUiTestHelpers.Arrange(surface.Root, surface.Bitmap.Width, surface.Bitmap.Height);
         surface.Frame(milliseconds);
     }
 

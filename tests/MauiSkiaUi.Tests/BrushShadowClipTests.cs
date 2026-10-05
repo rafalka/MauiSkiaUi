@@ -620,6 +620,79 @@ public class BrushShadowClipTests
 }
 
 /// <summary>Gradients and shadows across look and color scheme swaps (P7 acceptance).</summary>
+/// <summary>Shadow silhouettes of stroked simple shapes stay simple shapes (Skia blurs them analytically on the GPU).</summary>
+public class ShadowOutlineShapeTests
+{
+    private static SKPath Union(SKPath path, float thickness, SKStrokeJoin join)
+    {
+        using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = thickness, StrokeJoin = join };
+        using var area = paint.GetFillPath(path);
+        return path.Op(area, SKPathOp.Union)!;
+    }
+
+    // Same coverage when filled (antialiased edges may differ slightly along curves).
+    private static void AssertSameArea(SKPath expected, SKPath actual)
+    {
+        static SKBitmap Fill(SKPath path)
+        {
+            var bitmap = new SKBitmap(new SKImageInfo(120, 80, SKColorType.Alpha8));
+            using var canvas = new SKCanvas(bitmap);
+            canvas.Clear(SKColors.Transparent);
+            using var paint = new SKPaint { IsAntialias = true };
+            canvas.DrawPath(path, paint);
+            return bitmap;
+        }
+        using var a = Fill(expected);
+        using var b = Fill(actual);
+        var different = 0;
+        for (var x = 0; x < a.Width; x++)
+            for (var y = 0; y < a.Height; y++)
+                if (Math.Abs(a.GetPixel(x, y).Alpha - b.GetPixel(x, y).Alpha) > 48)
+                    different++;
+        Assert.Equal(0, different);
+    }
+
+    [Fact]
+    public void StrokedRectanglesOvalsAndRoundedRectanglesGrowIntoTheSameShape()
+    {
+        using var roundRect = new SKPath();
+        roundRect.AddRoundRect(new SKRect(1, 1, 101, 61), 10, 10);
+        using var grownRoundRect = SkUiShapePainter.GrownByStroke(roundRect, 2, SKStrokeJoin.Miter)!;
+        Assert.True(grownRoundRect.IsRoundRect);
+        Assert.Equal(new SKRect(0, 0, 102, 62), grownRoundRect.Bounds);
+        using (var union = Union(roundRect, 2, SKStrokeJoin.Miter))
+            AssertSameArea(union, grownRoundRect);
+
+        using var oval = new SKPath();
+        oval.AddOval(new SKRect(2, 2, 42, 22));
+        using var grownOval = SkUiShapePainter.GrownByStroke(oval, 4, SKStrokeJoin.Bevel)!;
+        Assert.True(grownOval.IsOval);
+        Assert.Equal(new SKRect(0, 0, 44, 24), grownOval.Bounds);
+
+        using var rect = new SKPath();
+        rect.AddRect(new SKRect(2, 2, 42, 22));
+        using var mitered = SkUiShapePainter.GrownByStroke(rect, 4, SKStrokeJoin.Miter)!;
+        Assert.True(mitered.IsRect);
+        using (var union = Union(rect, 4, SKStrokeJoin.Miter))
+            AssertSameArea(union, mitered);
+        using var rounded = SkUiShapePainter.GrownByStroke(rect, 4, SKStrokeJoin.Round)!;
+        Assert.True(rounded.IsRoundRect);
+        using (var union = Union(rect, 4, SKStrokeJoin.Round))
+            AssertSameArea(union, rounded);
+        Assert.Null(SkUiShapePainter.GrownByStroke(rect, 4, SKStrokeJoin.Bevel)); // cut corners: the union stays
+    }
+
+    [Fact]
+    public void ARoundedBorderWithAnOpaqueStrokeCastsARoundedRectangle()
+    {
+        var border = new SkUiBorder { Background = Colors.White, Stroke = Colors.Black, StrokeThickness = 2, CornerRadius = 10 };
+        SkUiTestHelpers.Arrange(new SkUiContentView { Content = border }, 100, 60);
+        using var outline = ((ISkUiShadowCaster)border).CreateShadowOutline(100, 60)!;
+        Assert.True(outline.IsRoundRect);
+        Assert.Equal(new SKRect(0, 0, 100, 60), outline.Bounds);
+    }
+}
+
 [Collection(GlobalStateCollection.Name)]
 public class BrushLookSwapTests
 {

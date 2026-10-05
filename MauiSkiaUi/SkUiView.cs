@@ -17,6 +17,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private int _updateDepth;
     private bool _paintPending;
     private bool _layoutPending;
+    private bool _ownLayoutPending; // this node's own measure changed (not only a descendant's)
+    private bool _laidOut;          // measured and arranged at least once
+    private bool _relayoutPending;  // surface roots: a descendant's measure changed, relaid out before the next frame
     private SkUiRenderDirty _renderPending;
     private SkUiRenderState? _renderState;
 #if SKUI_DIAGNOSTICS
@@ -447,11 +450,12 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         if (_arrangeDirty || previousSize != Frame.Size)
             ArrangeContent(Frame.Size);
         // Descendants keep their cached frames, but their root-relative position changed (native overlays follow).
-        if (previousFrame.Location != Frame.Location && Handler is null)
+        if (previousFrame.Location != Frame.Location && Handler is null && SkUiMauiContentView.HostsNativeViews)
             NotifyMoved();
         var frameChanged = _lastArrangeBounds != bounds || previousFrame != Frame;
         _lastArrangeBounds = bounds;
         _arrangeDirty = false;
+        _laidOut = true;
         Handler?.PlatformArrange(Frame);
         // Offset-only changes are composite-time; the recorder re-records content only when the size changed.
         if (frameChanged)
@@ -468,6 +472,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         _measureDirty = true;
         _arrangeDirty = true;
         _layoutPending = true;
+        _ownLayoutPending = true;
         InvalidatePaint();
     }
 
@@ -483,6 +488,25 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         _layoutPending = true;
         if (_updateDepth == 0)
             FlushInvalidation();
+    }
+
+    /// <summary>
+    /// Surface roots, before recording a frame: lays the tree out again after a descendant's measure changed, with the
+    /// constraint and bounds the native layout last gave the root (they have not changed, or the native layout would
+    /// have measured the root itself). When the root's own size changes, the native layout is asked as well, and the
+    /// tree is arranged in the old bounds until it runs.
+    /// </summary>
+    internal void RelayoutIfNeeded()
+    {
+        if (!_relayoutPending)
+            return;
+        _relayoutPending = false;
+        IView view = this;
+        var previous = view.DesiredSize;
+        var size = view.Measure(_lastConstraint.Width, _lastConstraint.Height);
+        if (size != previous)
+            base.InvalidateMeasureOverride();
+        view.Arrange(_lastArrangeBounds);
     }
 
     /// <summary>Coalesces layout and paint notifications until the matching EndUpdating call.</summary>
@@ -516,14 +540,23 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private void FlushInvalidation()
     {
         var invalidateLayout = _layoutPending;
+        var ownLayout = _ownLayoutPending;
         var invalidatePaint = _paintPending;
         var render = _renderPending;
-        _layoutPending = _paintPending = false;
+        _layoutPending = _ownLayoutPending = _paintPending = false;
         _renderPending = SkUiRenderDirty.None;
         if (invalidateLayout)
         {
             if (SkiaParent is { } parent)
                 parent.InvalidateMeasureFromChild();
+            else if (!ownLayout && _laidOut && HasLiveSurface)
+            {
+                // Relayout boundary: a descendant changed, so this surface root is laid out again in place right
+                // before its next frame (RelayoutIfNeeded), as one frame with the change. The native layout is
+                // only asked when the root's own size changes. The frame is requested by the change's origin, which
+                // always re-records itself (its mark reaches this root after this layout walk).
+                _relayoutPending = true;
+            }
             else
                 base.InvalidateMeasureOverride();
             LayoutInvalidated?.Invoke(this, EventArgs.Empty);

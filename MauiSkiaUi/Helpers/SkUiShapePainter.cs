@@ -121,10 +121,49 @@ internal static class SkUiShapePainter
         }
         using (area)
         {
-            var union = path.Op(area, SKPathOp.Union) ?? new SKPath(path);
+            var union = GrownByStroke(path, (float)style.Thickness, paint.StrokeJoin) ?? path.Op(area, SKPathOp.Union) ?? new SKPath(path);
             path.Dispose();
             return union;
         }
+    }
+
+    /// <summary>
+    /// The outer edge of <paramref name="path"/> stroked <paramref name="thickness"/> wide (centered), as the same simple
+    /// shape when the path is a rectangle (miter or round joins), an oval or a rounded rectangle; <c>null</c> otherwise.
+    /// Shadow silhouettes stay simple shapes this way: Skia blurs them analytically on the GPU, while the general path a
+    /// union returns is rasterized and blurred on the CPU each time it changes size (a card growing frame by frame).
+    /// </summary>
+    public static SKPath? GrownByStroke(SKPath path, float thickness, SKStrokeJoin join)
+    {
+        var grow = thickness / 2;
+        var grown = new SKPath();
+        if (path.IsRoundRect)
+        {
+            using var roundRect = path.GetRoundRect();
+            roundRect.Inflate(grow, grow);
+            grown.AddRoundRect(roundRect);
+        }
+        else if (path.IsOval)
+        {
+            var oval = path.GetOvalBounds();
+            oval.Inflate(grow, grow);
+            grown.AddOval(oval);
+        }
+        else if (path.IsRect && join is SKStrokeJoin.Miter or SKStrokeJoin.Round)
+        {
+            var rect = path.GetRect();
+            rect.Inflate(grow, grow);
+            if (join == SKStrokeJoin.Miter)
+                grown.AddRect(rect);
+            else
+                grown.AddRoundRect(rect, grow, grow);
+        }
+        else
+        {
+            grown.Dispose();
+            return null;
+        }
+        return grown;
     }
 
     /// <summary>Configures <paramref name="paint"/> as a stroke of <paramref name="style"/> (width, caps, joins, miter, dashes).</summary>

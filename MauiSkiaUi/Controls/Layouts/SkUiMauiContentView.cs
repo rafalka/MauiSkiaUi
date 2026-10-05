@@ -78,6 +78,13 @@ public partial class SkUiMauiContentView : SkUiView
     private int _movingScrollers;
     private SKImage? _snapshot;
     private bool _watchingShown;
+    private static int _parented; // hosts in a drawn tree, app-wide (UI thread)
+
+    /// <summary>
+    /// Whether any host is in a drawn tree: until one is, views that move skip walking their subtree for native views
+    /// to reposition (<see cref="SkUiView.NotifyMoved"/>).
+    /// </summary>
+    internal static bool HostsNativeViews => _parented > 0;
     private bool _notShown; // this view or a drawn ancestor is invisible (or the tree has no live surface)
     private bool _capturing;
     // Bumped whenever an in-flight capture becomes stale (restore, mode change, reset): its completion is ignored.
@@ -331,6 +338,7 @@ public partial class SkUiMauiContentView : SkUiView
         if (watch == _watchingShown)
             return;
         _watchingShown = watch;
+        _parented += watch ? 1 : -1;
         if (watch)
             IsShownChanged += OnIsShownChanged;
         else
