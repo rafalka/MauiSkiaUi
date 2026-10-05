@@ -155,6 +155,7 @@ public class StateContainerTests
     [Fact]
     public async Task TheDefaultAnimationFadesOutAndInAndRestoresOpacity()
     {
+        using var ui = TestUiContext.Install(); // continuations run between the frames this test drives
         var (layout, first, second, loading, _) = Container();
         second.Opacity = 0.5;
         loading.Opacity = 0.8;
@@ -190,6 +191,7 @@ public class StateContainerTests
     [Fact]
     public async Task ViewAnimationsRunOnTheLeavingAndTheNewViewsAndEndExactly()
     {
+        using var ui = TestUiContext.Install(); // continuations run between the frames this test drives
         var (layout, first, second, loading, _) = Container();
         first.TranslationX = 5;
         var root = new SkUiContentView { Content = layout };
@@ -220,6 +222,7 @@ public class StateContainerTests
     [Fact]
     public async Task AViewAnimationOnScreenEndsAtItsExactValues()
     {
+        using var ui = TestUiContext.Install(); // continuations run between the frames this test drives
         var box = new SkUiBox { WidthRequest = 20, HeightRequest = 20 };
         using var surface = new SkUiTestSurface(new SkUiContentView { Content = box }, 40, 40);
         surface.Frame(0);
@@ -326,14 +329,16 @@ public class StateContainerTests
     // Frames until the change completes: each frame advances the fades; its continuation runs between frames.
     private static Task Drive(SkUiTestSurface surface, Task change) => Drive(surface, () => change.IsCompleted);
 
-    private static async Task Drive(SkUiTestSurface surface, Func<bool> done)
+    private static Task Drive(SkUiTestSurface surface, Func<bool> done)
     {
+        var ui = SynchronizationContext.Current as TestUiContext ?? throw new InvalidOperationException("Install a TestUiContext first.");
         for (var frame = 1; frame <= 200 && !done(); frame++)
         {
             surface.Frame(_time += 50);
-            await Task.Delay(5);
+            ui.RunPending(TimeSpan.FromMilliseconds(5));
         }
         Assert.True(done(), "The animated state change did not finish.");
+        return Task.CompletedTask;
     }
 
     private static double _time;
@@ -351,6 +356,7 @@ public class StateContainerTests
     [Fact]
     public async Task WithStateChangeAnimationsEveryChangeAnimatesAndTheNewestStateWins()
     {
+        using var ui = TestUiContext.Install(); // continuations run between the frames this test drives
         var (layout, first, second, loading, error, surface) = Animated();
         using var _ = surface;
         var loadingParents = 0;
@@ -371,6 +377,7 @@ public class StateContainerTests
     [Fact]
     public async Task AStateSetWhileTheNewViewsAnimateInFollows()
     {
+        using var ui = TestUiContext.Install(); // continuations run between the frames this test drives
         var (layout, first, second, _, error, surface) = Animated();
         using var _ = surface;
         SkUiStateContainer.SetCurrentState(layout, "Error");
@@ -385,6 +392,7 @@ public class StateContainerTests
     [Fact]
     public async Task ExplicitChangesWaitForAutomaticOnes()
     {
+        using var ui = TestUiContext.Install(); // continuations run between the frames this test drives
         var (layout, _, _, _, _, surface) = Animated();
         using var _ = surface;
         SkUiStateContainer.SetCurrentState(layout, "Loading");
@@ -409,6 +417,7 @@ public class StateContainerTests
     [Fact]
     public async Task ABoundStateChangingQuicklyNeverThrows()
     {
+        using var ui = TestUiContext.Install(); // continuations run between the frames this test drives
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
         var (layout, first, second, _, _, surface) = Animated();
         using var _ = surface;

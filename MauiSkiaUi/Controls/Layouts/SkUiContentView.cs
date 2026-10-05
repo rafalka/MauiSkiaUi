@@ -14,9 +14,7 @@ public class SkUiContentView : SkUiView
     private ISkUiView? _content;
     private Thickness _padding;
     private bool _loaded = true;
-    private bool _contentFromTemplate;
-    private DataTemplate? _selectedTemplate;
-    private bool _settingTemplateContent;
+    private readonly SkUiContentSlot _main;
     private SkUiContentLoading _contentLoading;
     private TimeSpan _contentLoadingDelay;
     private SkUiViewAnimation? _contentLoadedAnimation;
@@ -54,7 +52,11 @@ public class SkUiContentView : SkUiView
     public static readonly BindableProperty IsContentLoadedProperty = IsContentLoadedPropertyKey.BindableProperty;
 
     /// <summary>Creates a GPU-backed composition root when used in the MAUI visual tree.</summary>
-    public SkUiContentView() => HwAccelerated = true;
+    public SkUiContentView()
+    {
+        _main = new SkUiContentSlot(this, ContentProperty, ContentTemplateProperty);
+        HwAccelerated = true;
+    }
 
     /// <summary>The handlerless child painted into this host's surface.</summary>
     public ISkUiView? Content
@@ -128,16 +130,36 @@ public class SkUiContentView : SkUiView
     /// <summary>The attached child: <see cref="Content"/> once it is loaded.</summary>
     private protected ISkUiView? LoadedContent => _content;
 
+    /// <summary>The content to attach once loaded: <see cref="Content"/> here, another content in views that switch.</summary>
+    private protected virtual ISkUiView? ContentToShow => Content;
+
+    /// <summary>Creates the content to show from its template when needed (loaded, in a tree, no explicit content).</summary>
+    private protected virtual void EnsureContentToShow()
+    {
+        if (_loaded && Parent is not null)
+            _main.Ensure();
+    }
+
+    /// <summary>Removes content created from templates (deferring again).</summary>
+    private protected virtual void ClearTemplateContent() => _main.Clear();
+
+    /// <summary>Attaches <see cref="ContentToShow"/> (created from its template if needed), once loaded.</summary>
+    private protected void RefreshContent()
+    {
+        if (!_loaded)
+            return;
+        EnsureContentToShow();
+        AttachContent(ContentToShow);
+    }
+
     private void OnContentPropertyChanged(ISkUiView? value)
     {
-        if (!_settingTemplateContent)
-            _contentFromTemplate = false;
-        if (!_loaded)
-            return; // attached on load
-        AttachContent(value);
+        _main.OnContentChanged();
         // Cleared by the app: the template (if any) provides the content again.
-        if (value is null && !_settingTemplateContent && Parent is not null)
-            EnsureTemplateContent();
+        if (value is null && !_main.IsSetting)
+            RefreshContent();
+        else if (_loaded)
+            AttachContent(ContentToShow);
     }
 
     private void AttachContent(ISkUiView? value)
@@ -162,37 +184,13 @@ public class SkUiContentView : SkUiView
         // Template content is created once the view is in a tree, so every property set before (XAML attributes,
         // object initializers, ContentLoading) applies first.
         if (Parent is not null)
-            EnsureTemplateContent();
+            RefreshContent();
     }
 
     private void OnContentTemplateChanged()
     {
-        if (_contentFromTemplate)
-        {
-            SetTemplateContent(null);
-            _contentFromTemplate = false;
-        }
-        if (Parent is not null)
-            EnsureTemplateContent();
-    }
-
-    private void EnsureTemplateContent()
-    {
-        if (!_loaded || Content is not null || ContentTemplate is not { } template)
-            return;
-        if (template is DataTemplateSelector selector)
-            template = selector.SelectTemplate(BindingContext, this);
-        _selectedTemplate = template;
-        var content = template?.CreateContent() switch
-        {
-            null => null,
-            ISkUiView view => view,
-            var other => throw new InvalidOperationException($"{nameof(ContentTemplate)} of {GetType().Name} created a {other.GetType().Name}: templates must create drawn (SkUi*) views; put native views inside an SkUiMauiContentView.")
-        };
-        if (content is null)
-            return;
-        SetTemplateContent(content);
-        _contentFromTemplate = true;
+        _main.OnTemplateChanged();
+        RefreshContent();
     }
 
     /// <inheritdoc />
@@ -201,26 +199,8 @@ public class SkUiContentView : SkUiView
         base.OnBindingContextChanged();
         // A selector picks by the binding context: a new context may need another template (as items of MAUI's
         // CollectionView and BindableLayout get). The same template keeps its content, which just rebinds.
-        if (_contentFromTemplate && ContentTemplate is DataTemplateSelector selector
-            && !ReferenceEquals(selector.SelectTemplate(BindingContext, this), _selectedTemplate))
-        {
-            SetTemplateContent(null);
-            _contentFromTemplate = false;
-            EnsureTemplateContent();
-        }
-    }
-
-    private void SetTemplateContent(ISkUiView? content)
-    {
-        _settingTemplateContent = true;
-        try
-        {
-            Content = content;
-        }
-        finally
-        {
-            _settingTemplateContent = false;
-        }
+        if (_main.Reselect())
+            RefreshContent();
     }
 
     private void SetContentLoading(SkUiContentLoading value)
@@ -241,11 +221,7 @@ public class SkUiContentView : SkUiView
     {
         _loaded = false;
         AttachContent(null);
-        if (_contentFromTemplate)
-        {
-            SetTemplateContent(null);
-            _contentFromTemplate = false;
-        }
+        ClearTemplateContent();
         SetValue(IsContentLoadedPropertyKey, false);
         IsShownChanged += OnShownChangedForLoading;
         OnShownChangedForLoading(this, EventArgs.Empty);
@@ -258,10 +234,7 @@ public class SkUiContentView : SkUiView
         _loaded = true;
         StopWaiting();
         SetValue(IsContentLoadedPropertyKey, true);
-        if (Content is { } content)
-            AttachContent(content);
-        else if (Parent is not null)
-            EnsureTemplateContent();
+        RefreshContent();
         if (animate && _contentLoadedAnimation is { } animation && _content is SkUiView view)
             _ = animation.RunAsync(view);
         ContentLoaded?.Invoke(this, EventArgs.Empty);

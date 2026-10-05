@@ -14,6 +14,7 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 | `AbsoluteLayout` | `sk:SkUiAbsoluteLayout` | MAUI's `AbsoluteLayout.LayoutBounds` / `LayoutFlags` |
 | `FlexLayout` | `sk:SkUiFlexLayout` | MAUI's attached `FlexLayout.*` properties |
 | — | `sk:SkUiWrapLayout` | Chips and tags (wrapping rows) |
+| Two views toggled by `IsVisible`, or a `DataTrigger` swapping `Content` | `sk:SkUiAlternateContentView` | `ShowsAlternate="{Binding …}"` shows `Content` (`false`), `AlternateContent` (`true`) or nothing (`null`); templates run on first show; optional switch animations |
 | Toolkit `mct:StateContainer.*` / `mct:StateView.StateKey` | `sk:SkUiStateContainer.*` / `sk:SkUiStateView.StateKey` | Attached properties on any drawn layout: `StateViews` (drawn views), `CurrentState`, `CanStateChange`; `SkUiStateContainer.ChangeStateWithAnimation` in code (MAUI `Animation` arguments → `SkUiViewAnimation`, see below), or `sk:SkUiStateContainer.BeforeStateChangeAnimation="FadeOut"` / `AfterStateChangeAnimation="FadeIn"` in XAML to animate every bound change without code; `StateContainerException` → `SkUiStateContainerException` |
 | — | `sk:SkUiLayout` | Overlay: children share one slot |
 | `ScrollView` | `sk:SkUiScrollView` | Same API (`Orientation`, `ScrollToAsync`, `Scrolled`, scroll bar visibility); plus `SnapPointsType`, `Overscroll` |

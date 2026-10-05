@@ -67,6 +67,8 @@ public class MemoryLeakTests
     private static (List<TrackedObject> Tracked, IReadOnlyList<string> DetachedSurvivors) Run(LeakScenario scenario)
     {
         using var clock = new ManualGestureClock();
+        // Continuations of animated changes run here, between frames, as on the app's UI thread.
+        using var ui = TestUiContext.Install();
         var surfaces = new List<(SkUiTestSurface Surface, int Width, int Height)>();
         var time = TimeSpan.Zero;
         void Frames(TimeSpan delay)
@@ -85,6 +87,7 @@ public class MemoryLeakTests
                     SkUiTestHelpers.Arrange(surface.Root, width, height);
                     surface.Frame(time);
                 }
+                ui.RunPending(TimeSpan.FromMilliseconds(1));
             }
             while (delay > TimeSpan.Zero);
         }

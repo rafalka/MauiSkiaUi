@@ -161,40 +161,8 @@ public static class SkUiStateContainer
         }
     }
 
-    // One animated change: `before` on the shown views, the change, `after` on the new ones. Views that left get their own
-    // values back and new views end at the animation's end values, exactly, also when the change is cancelled.
-    private static async Task Transition(SkUiLayout layout, Action change, SkUiViewAnimation? before, SkUiViewAnimation? after, CancellationToken token)
-    {
-        var animate = layout.RenderState.HasCommitted && (before is not null || after is not null);
-        var shown = animate ? layout.Children.OfType<SkUiView>().ToDictionary(view => view, SkUiViewAnimation.Snapshot.Of) : [];
-        var incoming = new Dictionary<SkUiView, SkUiViewAnimation.Snapshot>();
-        try
-        {
-            if (before is not null && shown.Count > 0)
-                await Task.WhenAll(shown.Keys.Select(before.RunAsync)).WaitAsync(token);
-            change();
-            if (animate && after is not null)
-            {
-                foreach (var view in layout.Children.OfType<SkUiView>())
-                {
-                    // A view that stays (the same state) starts the second animation from its own values again.
-                    if (shown.TryGetValue(view, out var own))
-                        own.Restore(view);
-                    incoming[view] = SkUiViewAnimation.Snapshot.Of(view);
-                }
-                if (incoming.Count > 0)
-                    await Task.WhenAll(incoming.Keys.Select(after.RunAsync)).WaitAsync(token);
-            }
-        }
-        finally
-        {
-            foreach (var (view, own) in shown)
-                if (!incoming.ContainsKey(view))
-                    own.Restore(view);
-            foreach (var (view, own) in incoming)
-                after!.ApplyEnd(view, own);
-        }
-    }
+    private static Task Transition(SkUiLayout layout, Action change, SkUiViewAnimation? before, SkUiViewAnimation? after, CancellationToken token) =>
+        SkUiStateTransition.RunAsync(layout, () => layout.Children.OfType<SkUiView>(), change, before, after, token);
 
     // Changes from CurrentState with state change animations: the value is already the target; the views catch up one
     // transition at a time, and each switch goes to the newest target (a target set during the "before" animation

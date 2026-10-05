@@ -22,6 +22,7 @@ public static class ComponentDemos
         new(typeof(SkUiRadioButton), typeof(RadioButtonDemoPage), nameof(RadioButton), ComponentCategory.BasicControls, () => new RadioButtonDemoPage()),
         new(typeof(SkUiContentPresenter), typeof(RadioButtonTemplateDemoPage), "RadioButton ControlTemplate (ContentPresenter)", ComponentCategory.BasicControls, () => new RadioButtonTemplateDemoPage()),
         new(typeof(SkUiContentView), typeof(ContentViewDemoPage), nameof(ContentView), ComponentCategory.Layouts, () => new ContentViewDemoPage()),
+        new(typeof(SkUiAlternateContentView), typeof(AlternateContentViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new AlternateContentViewDemoPage()),
         new(typeof(SkUiMauiContentView), typeof(MauiContentViewDemoPage), "Editor / WebView (hosted natively)", ComponentCategory.Layouts, () => new MauiContentViewDemoPage()),
         new(typeof(SkUiBorder), typeof(BorderDemoPage), nameof(Border), ComponentCategory.Layouts, () => new BorderDemoPage()),
         new(typeof(SkUiLayout), typeof(LayoutDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new LayoutDemoPage()),

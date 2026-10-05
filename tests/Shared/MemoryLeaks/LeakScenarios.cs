@@ -37,6 +37,7 @@ public static class LeakScenarios
         new("BindableLayoutItems", Layouts, "MAUI BindableLayout on a wrap layout bound to a long-lived collection and on a stack with a template selector and an empty view: items added, inserted, replaced, moved and removed, the collection cleared to the empty view and refilled, the items source swapped.", () => new BindableLayoutRun()),
         new("StatesSwitched", Layouts, "SkUiStateContainer on a grid and a stack: loading (spinner running), error (retry button with a long-lived command) and empty states switched directly and with the fade, a change rejected while one runs; hidden state views removed; automatic state change animations (one shared long-lived animation) retargeted while running; closed while one runs.", () => new StatesRun()),
         new("ContentDeferred", Layouts, "Three tabs of SkUiContentView sections that load when shown (explicit content and templates with a long-lived command, some with a delay or a fade-in): tabs switched so some load, a waiting section removed, closed with sections still waiting and delay timers pending.", () => new DeferredRun()),
+        new("AlternateSwitched", Layouts, "SkUiAlternateContentView cards (explicit content and templates with a long-lived command, shared long-lived animations): switched directly and animated, retargeted while switching, an alternate replaced while hidden; closed mid-switch.", () => new AlternateRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
@@ -1068,6 +1069,66 @@ public static class LeakScenarios
                 return "the shown tab's sections did not all load";
             return _sections.Skip(8).Any(section => section.IsContentLoaded) ? "a section of a tab never shown loaded" : null;
         }
+    }
+
+    private sealed class AlternateRun : LeakScenarioRun
+    {
+        private readonly List<SkUiAlternateContentView> _cards = [];
+        private string? _problem;
+
+        // Long-lived, shared by every run (and frozen by the first one).
+        private static readonly SkUiViewAnimation CardOut = SkUiViewAnimation.FadeOut(100);
+        private static readonly SkUiViewAnimation CardIn = new([new(SkUiAnimatableProperty.TranslationY, from: 16), new(SkUiAnimatableProperty.Opacity, from: 0)], 140, Easing.CubicOut);
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var stack = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12) };
+            for (var index = 0; index < 4; index++)
+            {
+                var label = $"Card {index}";
+                var card = new SkUiAlternateContentView
+                {
+                    HeightRequest = 70,
+                    ShowsAlternate = false,
+                    Content = new SkUiBorder { Stroke = LeakColors.Accent, StrokeThickness = 1, Content = Text(label) },
+                    AlternateContentTemplate = new DataTemplate(() => new SkUiHorizontalStackLayout
+                    {
+                        Children = { Text($"Editing {label}"), new SkUiButton { Text = "Save", Command = LeakCommands.Shared, CommandParameter = label } }
+                    }),
+                    BeforeStateChangeAnimation = index % 2 == 0 ? CardOut : null,
+                    AfterStateChangeAnimation = index % 2 == 0 ? CardIn : null
+                };
+                _cards.Add(card);
+                stack.Children.Add(card);
+            }
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.SettleAsync();
+            foreach (var card in _cards)
+                card.ShowsAlternate = true;
+            _cards[0].ShowsAlternate = null; // retargeted while switching
+            _cards[0].ShowsAlternate = true;
+            for (var wait = 0; wait < 60 && _cards.Any(card => card.IsSwitching); wait++)
+                await context.SettleAsync();
+            if (_cards.Any(card => card.AlternateContent is null || ((Element)card.AlternateContent).Parent != card))
+                _problem = "a card does not show its alternate content after switching";
+            await context.TapAsync(((SkUiHorizontalStackLayout)_cards[1].AlternateContent!).Children[1]);
+
+            // An alternate replaced while hidden must go while the card lives on.
+            _cards[2].ShowsAlternate = false;
+            for (var wait = 0; wait < 60 && _cards[2].IsSwitching; wait++)
+                await context.SettleAsync(); // a running switch holds the view it animates until it ends
+            var replaced = _cards[2].AlternateContent!;
+            _cards[2].AlternateContent = Text("Replaced");
+            context.TrackDetached(replaced, "replaced alternate content");
+            await context.SettleAsync();
+            _cards[0].ShowsAlternate = false; // closed mid-switch
+        }
+
+        public override string? CheckInteraction() => _problem;
     }
 
     private sealed class ScrollRun : LeakScenarioRun
