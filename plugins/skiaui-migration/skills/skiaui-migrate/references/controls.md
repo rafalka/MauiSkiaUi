@@ -22,6 +22,8 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 
 `IsClippedToBounds` → `ClipToBounds` (leaf controls clip by default, layouts do not). Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `FlexLayout.Grow`, `SemanticProperties.*`, `AutomationProperties.*`, `RadioButtonGroup.GroupName`, `VisualStateManager.VisualStateGroups`).
 
+`BindableLayout` works on every drawn layout (`ItemsSource`, `ItemTemplate`, `ItemTemplateSelector`, `EmptyView`, `EmptyViewTemplate`): convert the template content and the empty view to drawn controls like the rest of the region (native ones go inside `sk:SkUiMauiContentView`). A string `EmptyView` throws: replace it with `<BindableLayout.EmptyView><sk:SkUiLabel Text="..." /></BindableLayout.EmptyView>`. No virtualization: fine for tens to a few hundred items.
+
 ## Controls
 
 | MAUI | SkiaUi | Notes |

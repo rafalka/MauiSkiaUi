@@ -13,6 +13,14 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **BindableLayout on drawn layouts:** MAUI's `BindableLayout` (`ItemsSource` with collection changes, `ItemTemplate`, `ItemTemplateSelector`, `EmptyView`, `EmptyViewTemplate`) now works on `SkUiLayout` and every layout built on it (grid, stacks, absolute, flex, wrap and shrink layouts), so MAUI XAML ports by changing the prefix of the layout and the template content ([SkUiLayout.md](docs/controls/SkUiLayout.md#bindablelayout)).
+  - Templates and the empty view must create drawn views; a native view throws an `ArgumentException` that says so. A string `EmptyView` is not supported (MAUI turns it into its own `Label`): use a drawn view or `EmptyViewTemplate`.
+  - Without a template, items show as centered `SkUiLabel`s with the item's text, like MAUI's default template.
+  - The migration guide, the `skiaui-migration` skills and their scripts no longer treat `BindableLayout` as a blocker; `check_xaml.py` checks the templates and empty views like other drawn content and reports string empty views.
+  - Demo: the `SkUiVerticalStackLayout` page binds the drawn and the native stack to one collection (add, remove, clear, empty view); new leak scenario `BindableLayoutItems`.
+
 ## 1.0.0-Prerelease08
 
 ### New features

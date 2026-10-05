@@ -118,7 +118,7 @@ Pick the subtree and put it in a surface root. Keep the outer page, toolbar and 
 </ContentPage>
 ```
 
-Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `FlexLayout.Grow`, `SemanticProperties.Description`, `RadioButtonGroup.GroupName`).
+Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `FlexLayout.Grow`, `SemanticProperties.Description`, `RadioButtonGroup.GroupName`). `BindableLayout` (`ItemsSource`, `ItemTemplate`, `ItemTemplateSelector`, `EmptyView`, `EmptyViewTemplate`) works on every drawn layout; the templates and the empty view must create drawn views, and a string `EmptyView` is not supported ([SkUiLayout.md](controls/SkUiLayout.md#bindablelayout)).
 
 ### 2. Rename the controls
 
@@ -245,7 +245,6 @@ Custom handlers registered for MAUI types (`Label`, `Button`, …) do not affect
 | MAUI | Status | Meanwhile |
 | --- | --- | --- |
 | `CollectionView` | Planned (Phase B: virtualized `SkUiCollectionView`) | Keep the MAUI `CollectionView` with native item templates, or, for up to a few hundred items, a drawn stack inside `SkUiScrollView` |
-| `BindableLayout` on drawn layouts | Not supported: drawn layouts do not implement MAUI's `IBindableLayout` yet | Create the items in code (`layout.Children.Add(...)` from the collection), or keep that part native |
 | `SwipeView` | Planned (C1) | `Swiped` / `PanUpdated` on the row for simple cases, or keep the list native |
 | `RefreshView` | Planned (C2) | A MAUI `RefreshView` around the surface root: the drawn scroller hands the drag to native parents at its top edge, as inside a native `ScrollView` (this combination is not covered by tests yet) |
 | `CarouselView`, `IndicatorView` | Planned (D1) | `SkUiScrollView Orientation="Horizontal"` with `SnapPointsType="MandatorySingle"` |
@@ -266,6 +265,6 @@ Swipe, pan and pinch *recognizers* may later run on drawn views like taps do (P1
 - [ ] Styles copied with `sk:` target types; visual states checked.
 - [ ] Gesture recognizers other than taps, `TouchBehavior`s and effects converted; no `SkiaUi:` lines left in the debug output.
 - [ ] Custom controls ported or hosted; custom handler tweaks replaced by properties.
-- [ ] No `BindableLayout` on drawn layouts.
+- [ ] `BindableLayout` templates and empty views on drawn layouts create drawn views.
 - [ ] Light / dark, large text, screen reader and keyboard checked.
 - [ ] Page-open time and scrolling measured against the native version.

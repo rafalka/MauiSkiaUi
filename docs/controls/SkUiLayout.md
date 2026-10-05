@@ -35,6 +35,29 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 `Children`, `Padding`.
 
+## BindableLayout
+
+MAUI's `BindableLayout` works on `SkUiLayout` and every layout built on it (`SkUiGrid`, the stacks, `SkUiAbsoluteLayout`, `SkUiFlexLayout`, `SkUiWrapLayout`, the shrink stacks): `ItemsSource` (collection changes add, insert, replace, move and remove children), `ItemTemplate`, `ItemTemplateSelector`, `EmptyView`, `EmptyViewTemplate`. MAUI XAML ports by changing the prefix of the layout and the template content:
+
+```xml
+<sk:SkUiWrapLayout Spacing="4" BindableLayout.ItemsSource="{Binding Tags}">
+  <BindableLayout.ItemTemplate>
+    <DataTemplate>
+      <sk:SkUiLabel Text="{Binding}" Padding="8,4" />
+    </DataTemplate>
+  </BindableLayout.ItemTemplate>
+  <BindableLayout.EmptyView>
+    <sk:SkUiLabel Text="No tags" />
+  </BindableLayout.EmptyView>
+</sk:SkUiWrapLayout>
+```
+
+- Templates must create drawn views (put native ones inside an [`SkUiMauiContentView`](SkUiMauiContentView.md)); a native view throws an `ArgumentException` that says so.
+- Without a template, items show as centered `SkUiLabel`s with the item's text, like MAUI's default template (also briefly when `ItemsSource` is set before `ItemTemplate`).
+- `EmptyView` must be a drawn view, or come from `EmptyViewTemplate`: a string `EmptyView` throws, because MAUI turns it into its own `Label`.
+- Templates can set attached properties (`Grid.Row`, `FlexLayout.Grow`, …); they re-lay out the layout like any child's.
+- Every item gets a view, as in MAUI: no virtualization. For long lists use a scroller with a few hundred items at most, until the virtualized collection view (Phase B).
+
 ## Notes
 
 - Measure takes the max of children desired sizes.

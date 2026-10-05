@@ -8,7 +8,7 @@ namespace MauiSkiaUi;
 
 /// <summary>A minimal overlay layout. Children share its slot and use MAUI margins and alignment.</summary>
 [ContentProperty(nameof(Children))]
-public class SkUiLayout : SkUiView, ILayout
+public class SkUiLayout : SkUiView, ILayout, IBindableLayout
 {
     private Thickness _padding;
     private ISkUiView[]? _paintOrder;
@@ -64,7 +64,31 @@ public class SkUiLayout : SkUiView, ILayout
     void IList<IView>.RemoveAt(int index) => Children.RemoveAt(index);
     IEnumerator<IView> IEnumerable<IView>.GetEnumerator() => Children.GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => Children.GetEnumerator();
-    private static ISkUiView RequireSkia(IView view) => view as ISkUiView ?? throw new ArgumentException("Only SkiaUi children are supported.", nameof(view));
+    // MAUI's BindableLayout casts to IBindableLayout; it writes through ILayout above and reads Children only by index.
+    IList IBindableLayout.Children => (IList)Children;
+    private ISkUiView RequireSkia(IView view)
+    {
+        if (view is ISkUiView child)
+            return child;
+        if (view is Label label && IsBindableLayoutDefaultItem(label))
+            return CreateDefaultItem(label.BindingContext);
+        throw new ArgumentException(
+            $"SkiaUi layouts only host drawn (SkUi*) views, not {view?.GetType().Name ?? "null"}; put native views inside an SkUiMauiContentView. " +
+            "With BindableLayout, the ItemTemplate / ItemTemplateSelector must create SkUi* views, and EmptyView must be an SkUi* view or come " +
+            "from an EmptyViewTemplate (a string EmptyView creates a MAUI Label).", nameof(view));
+    }
+
+    // MAUI's BindableLayout uses its default template (a native Label bound to the item) while no template is set, which also
+    // happens briefly when ItemsSource is set before ItemTemplate; those children are replaced once the template arrives.
+    // Item views get their item as a local BindingContext, unlike the Label MAUI makes from a string EmptyView, which stays
+    // an error: MAUI finds the empty view again by reference.
+    private bool IsBindableLayoutDefaultItem(Label label) =>
+        IsSet(BindableLayout.ItemsSourceProperty) && BindableLayout.GetItemTemplate(this) is null &&
+        BindableLayout.GetItemTemplateSelector(this) is null && label.IsSet(BindingContextProperty);
+
+    // MAUI binds its label's text to the item; MAUI never reuses these children (it replaces them), so the text is set once.
+    private static SkUiLabel CreateDefaultItem(object item) =>
+        new() { HorizontalTextAlignment = TextAlignment.Center, BindingContext = item, Text = item?.ToString() ?? string.Empty };
 
     private void OnChildPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {

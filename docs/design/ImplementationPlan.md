@@ -13,7 +13,7 @@ Headless-tested; device-verified on a Galaxy S9, iPhone / iOS simulator, Mac Cat
 | Area | Delivered |
 | --- | --- |
 | Host and rendering | `ISkUiView : IView`, `SkUiView`, `SkUiContentView`, custom handler + `HwAccelerated`; retained compositor with UI-thread recording and render-thread compositing: Metal (Apple), GL thread (Android), ANGLE / software (Windows) — [RenderingPipeline.md](RenderingPipeline.md) |
-| Layouts | `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiBorder`, `SkUiContentView` on MAUI's layout managers; **`SkUiFlexLayout`** (MAUI `FlexLayoutManager` over a ported flex engine, frames checked against MAUI's `FlexLayout`); **`SkUiWrapLayout`** and **shrink stacks** on engines shared with Core (FR-27, A1–A3); RTL mirroring |
+| Layouts | `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiBorder`, `SkUiContentView` on MAUI's layout managers; **`SkUiFlexLayout`** (MAUI `FlexLayoutManager` over a ported flex engine, frames checked against MAUI's `FlexLayout`); **`SkUiWrapLayout`** and **shrink stacks** on engines shared with Core (FR-27, A1–A3); RTL mirroring; MAUI's `BindableLayout` on every drawn layout |
 | Scrolling | `SkUiScrollView` / `SkUiCoreScrollView` on one engine: render-thread fling and animated scroll, wheel, nested and same-axis chaining, native-parent coordination |
 | Input | Per-pointer gesture arena for SkUi* and Core: tap, double tap, long press, pan, swipe, pinch, pointer recognizers — [EventMechanism.md](EventMechanism.md) |
 | Text | Shared engine: HarfBuzz shaping, bidi / RTL, per-character font fallback, wrap / truncation, `TextRendering` fast path |
@@ -76,7 +76,7 @@ P1–P3 are small and unblock the most XAML (P2's hover tracking is the only new
 
 ### Phase A — Page shells: composition layouts and containers
 
-A1–A3 are shipped (see **Shipped**); A4 onwards follows Phase P.
+A1–A3 are shipped (see **Shipped**); A4 onwards follows Phase P. MAUI's `BindableLayout` works on every drawn layout (shipped before A4), so A4 / A5 content and pages built from collections can use it.
 
 | # | Deliverable | Layer | Why |
 | --- | --- | --- | --- |
@@ -161,7 +161,8 @@ Checked against `Microsoft.Maui.Controls` 10.0.110 (the pinned version). **Parti
 | ScrollView | SkUi* + Core | Done (P8): scroll bars (draggable on desktop, `SkUiCoreScrollBar`), overscroll (bounce, stretch), scroll to element, both wheel axes, plus snap points |
 | Grid, VerticalStackLayout, HorizontalStackLayout, AbsoluteLayout, ContentView | SkUi* + Core | Done |
 | FlexLayout | `SkUiFlexLayout` (SkUi* only) | Done (A1) |
-| StackLayout, BindableLayout | Stacks; templated items via CollectionView | Map |
+| StackLayout | Stacks | Map |
+| BindableLayout | Every `SkUiLayout` (grid, stacks, absolute, flex, wrap, shrink) | Done: MAUI's controller over `IBindableLayout`; templates and empty views must be drawn (a string `EmptyView` throws); no virtualization (Phase B) |
 | Every view: visual states | MAUI's states per control, `PointerOver` from hover, `Focused` from keyboard focus, state triggers | Done (P2, P10); `Selected` waits for CollectionView (B2) |
 | Every view: `Shadow`, gradient `Background`, `Clip` | SkUi* + Core | Done (P7); `ImageBrush` not drawn |
 | Every view: `SemanticProperties`, focus, font scaling | SkUi* + Core | Done (P10): TalkBack, VoiceOver, Narrator; keyboard focus and ring; `FontAutoScalingEnabled`; plus `IsTabStop` / `TabIndex` (gone from MAUI) |

@@ -56,6 +56,7 @@ One scenario catalog, [`tests/Shared/MemoryLeaks`](../../tests/Shared/MemoryLeak
 | `ContentTemplated` | Buttons with images (a long-lived shared icon edited while shown); radio buttons with text and view content and a long-lived shared `ControlTemplate`: tapped, content swapped, template removed and applied again; Core radio buttons grouped by `SkUiCoreRadioButtons.Group` with a long-lived callback |
 | `ImagesReloaded` | Stream images: sources swapped, reloaded, aspect changed |
 | `LayoutsRelayout` | Grid, stacks, absolute layout, border: resized; children added, removed, reordered, hidden; definitions changed |
+| `BindableLayoutItems` | MAUI `BindableLayout` on a wrap layout bound to a long-lived collection and on a stack with a template selector and an empty view: items added, inserted, replaced, moved, removed; cleared to the empty view and refilled; items source swapped |
 | `ScrollFling` | Vertical list with a nested carousel: drags, flings, animated scroll; closed mid-fling |
 | `GesturesMixed` | Tap, double tap, long press, swipe, pan, pinch (drawn and Core); closed with a finger down |
 | `AccessibleFocused` | Drawn and Core controls with semantic properties, read through a semantics tree that reports changes; focused by `Focus()` and Tab, activated by keys and screen-reader actions; a focused row removed; buttons tagged with a long-lived object |

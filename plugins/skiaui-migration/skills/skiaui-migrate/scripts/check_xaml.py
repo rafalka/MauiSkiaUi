@@ -11,7 +11,8 @@ A drawn tree is everything inside a SkiaUi view (an element from the MauiSkiaUi 
 - custom controls that do not derive from a SkiaUi view;
 - gesture recognizers drawn views do not run (all but TapGestureRecognizer with 1 or 2 taps and the primary button);
 - behaviors (platform behaviors such as TouchBehavior do not run) and effects (never run);
-- BindableLayout (not supported on drawn layouts), IsClippedToBounds (ClipToBounds), and styles that target MAUI types:
+- BindableLayout content that is not drawn (item and empty view templates are checked like other drawn content; a string
+  EmptyView becomes a MAUI Label), IsClippedToBounds (ClipToBounds), and styles that target MAUI types:
   keyed styles a drawn view uses, and implicit styles (no x:Key) of the MAUI type a drawn view replaces when no implicit
   style targets the drawn type (warned once per file and type; styles are indexed project-wide, so App.xaml's count).
 """
@@ -273,7 +274,7 @@ class Checker:
                 return
             # Children of other property elements (StrokeShape, Shadow, Resources, VisualStateGroups, …) are values,
             # not content: only Content / Children (and templates) carry drawn content.
-            if prop not in CONTENT_PROPERTIES and prop not in ("ControlTemplate", "ItemTemplate"):
+            if prop not in CONTENT_PROPERTIES and prop not in ("ControlTemplate", "ItemTemplate", "EmptyView", "EmptyViewTemplate"):
                 for child in node.children:
                     self.visit(path, child, drawn=False)
                 return
@@ -321,8 +322,8 @@ class Checker:
 
     def check_attributes(self, path, node):
         for (uri, local), value in node.attrs.items():
-            if local.startswith("BindableLayout."):
-                self.report(path, node, "error", f"{local} on {node.name}: BindableLayout is not supported on drawn layouts; add the items in code or keep this part native")
+            if local == "BindableLayout.EmptyView" and not value.lstrip().startswith("{"):
+                self.report(path, node, "error", f"BindableLayout.EmptyView=\"{value}\" on {node.name}: a string empty view becomes a MAUI Label; use <BindableLayout.EmptyView><sk:SkUiLabel Text=\"{value}\" /></BindableLayout.EmptyView>")
             elif local == "IsClippedToBounds":
                 self.report(path, node, "error", f"IsClippedToBounds on {node.name}: use ClipToBounds")
             elif local == "Style":

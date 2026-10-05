@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Windows.Input;
 using MauiSkiaUi;
 using MauiSkiaUi.Core;
@@ -33,6 +34,7 @@ public static class LeakScenarios
         new("ContentTemplated", Controls, "Buttons with images (a long-lived shared icon, edited while shown; stream images; content layouts changed) on both layers; radio buttons with text and view content, bordered, and with a long-lived shared ControlTemplate whose presenters show the content; tapped, content swapped, the template removed and applied again; Core radio buttons in their own rows grouped by `SkUiCoreRadioButtons.Group` with a long-lived callback, tapped.", () => new ContentRun()),
         new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image; a long-lived icon source shared by images that are never disposed, edited while shown.", () => new ImagesRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
+        new("BindableLayoutItems", Layouts, "MAUI BindableLayout on a wrap layout bound to a long-lived collection and on a stack with a template selector and an empty view: items added, inserted, replaced, moved and removed, the collection cleared to the empty view and refilled, the items source swapped.", () => new BindableLayoutRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
@@ -827,6 +829,87 @@ public static class LeakScenarios
 
     // ---- Scrolling --------------------------------------------------------------------------------------------
 
+    private sealed class BindableLayoutRun : LeakScenarioRun
+    {
+        private readonly ObservableCollection<string> _rows = [];
+        private SkUiWrapLayout? _chips;
+        private SkUiVerticalStackLayout? _list;
+        private string? _problem;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 6; index++)
+                LeakItems.Shared.Add($"Chip {index}");
+            _chips = new SkUiWrapLayout { Spacing = 4, RowSpacing = 4 };
+            BindableLayout.SetItemTemplate(_chips, new DataTemplate(() =>
+            {
+                var chip = Text("", 12);
+                chip.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+                return chip;
+            }));
+            BindableLayout.SetItemsSource(_chips, LeakItems.Shared);
+            _list = new SkUiVerticalStackLayout { Spacing = 2 };
+            BindableLayout.SetItemTemplateSelector(_list, new RowTemplateSelector());
+            BindableLayout.SetEmptyView(_list, Text("Nothing here"));
+            BindableLayout.SetItemsSource(_list, _rows);
+            return Root(new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12), Children = { _chips, _list } });
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            // Removed item views must go while the layouts and the long-lived collection live on.
+            void Removed(SkUiLayout layout, int index) => context.TrackDetached(layout.Children[index], $"item {index} of {layout.GetType().Name}");
+            for (var round = 0; round < 2; round++)
+            {
+                for (var index = 0; index < 4; index++)
+                    LeakItems.Shared.Add($"Added {round}.{index}");
+                LeakItems.Shared.Insert(1, $"Inserted {round}");
+                await context.SettleAsync();
+                Removed(_chips!, 1);
+                LeakItems.Shared.RemoveAt(1);
+                LeakItems.Shared.Move(0, 3);
+                LeakItems.Shared[2] = $"Replaced {round}"; // same template: the view is reused
+                for (var index = 0; index < 3; index++)
+                    _rows.Add(index % 2 == 0 ? $"Row {round}.{index}" : $"Accent {round}.{index}");
+                await context.SettleAsync();
+                foreach (var child in _list!.Children)
+                    context.TrackDetached(child, "row before clear");
+                _rows.Clear();
+                await context.SettleAsync();
+                if (_list.Children.Count != 1 || BindableLayout.GetEmptyView(_list) != _list.Children[0])
+                    _problem = "the empty view was not shown after the rows were cleared";
+            }
+            // A new source reuses the first views (same template) and removes the rest.
+            for (var index = 2; index < _chips!.Children.Count; index++)
+                Removed(_chips, index);
+            BindableLayout.SetItemsSource(_chips, new[] { "Swapped A", "Swapped B" });
+            _rows.Add("Row after empty");
+            await context.SettleAsync();
+            if (_chips.Children.Count != 2 || ((SkUiLabel)_chips.Children[1]).Text != "Swapped B")
+                _problem ??= "swapping the items source did not regenerate the chips";
+        }
+
+        public override string? CheckInteraction() => _problem;
+
+        private sealed class RowTemplateSelector : DataTemplateSelector
+        {
+            private readonly DataTemplate _plain = Template(LeakColors.Surface);
+            private readonly DataTemplate _accent = Template(LeakColors.SurfaceAlt);
+
+            private static DataTemplate Template(Color background) => new(() =>
+            {
+                var row = Text("", 12);
+                row.Background = background;
+                row.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+                return row;
+            });
+
+            protected override DataTemplate OnSelectTemplate(object item, BindableObject container) =>
+                item is string text && text.StartsWith("Accent", StringComparison.Ordinal) ? _accent : _plain;
+        }
+    }
+
     private sealed class ScrollRun : LeakScenarioRun
     {
         private SkUiScrollView? _scroll;
@@ -1381,6 +1464,12 @@ public static class LeakCommands
 
         public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
     }
+}
+
+/// <summary>A collection that outlives every scenario, like a view model's list: bound layouts must not stay reachable from it.</summary>
+public static class LeakItems
+{
+    public static ObservableCollection<string> Shared { get; } = [];
 }
 
 /// <summary>Small in-memory PNG sources (no files or network, so they work headless too).</summary>

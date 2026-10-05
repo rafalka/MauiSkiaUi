@@ -5,7 +5,6 @@ Check the region for these before converting. If one is central to the page (the
 | MAUI | Status | Do instead |
 | --- | --- | --- |
 | `CollectionView` | Planned (virtualized `SkUiCollectionView`) | Keep the native `CollectionView` (outside the drawn region; its item templates stay native), or for up to a few hundred items: a drawn stack inside `SkUiScrollView` with items added in code |
-| `BindableLayout.ItemsSource` / `ItemTemplate` on a drawn layout | Not supported (drawn layouts do not implement MAUI's `IBindableLayout`) | Add the children in code from the collection (handle `INotifyCollectionChanged` if it changes), or keep that part native |
 | `SwipeView` | Planned | `Swiped` / `PanUpdated` on the row for simple reveal actions, or keep the list native |
 | `RefreshView` | Planned | Put a MAUI `RefreshView` around the surface root; a drawn scroller hands the drag to native parents at its top edge (verify on device) |
 | `CarouselView`, `IndicatorView` | Planned | `SkUiScrollView Orientation="Horizontal" SnapPointsType="MandatorySingle"`; dots with `SkUiEllipse` |
