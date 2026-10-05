@@ -102,9 +102,10 @@ public class SkUiExpander : SkUiView
         nameof(Padding), typeof(Thickness), typeof(SkUiExpander), default(Thickness),
         propertyChanged: (bindable, _, newValue) => ((SkUiExpander)bindable).OnPaddingChanged((Thickness)newValue));
 
-    /// <summary>Creates a collapsed expander.</summary>
+    /// <summary>Creates a collapsed expander (GPU-backed when it is a surface of its own, as content views are).</summary>
     public SkUiExpander()
     {
+        HwAccelerated = true;
         _slot = new SkUiContentSlot(this, ContentProperty, ContentTemplateProperty);
         _reveal = new SkUiTween(new RevealHost(this));
         _headerPart = new HeaderPart(this);
