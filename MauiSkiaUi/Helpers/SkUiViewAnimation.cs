@@ -153,7 +153,12 @@ public sealed class SkUiViewAnimation
                 Set(view, property.Property, from);
             runs[index] = view.AnimateAsync(property.Property, property.To ?? own.Get(property.Property), _length, _easing);
         }
-        var completed = (await Task.WhenAll(runs)).All(result => result);
+        // Awaited in turn rather than with Task.WhenAll: render-thread animations complete their tasks asynchronously, so
+        // WhenAll would finish on a pool thread and reach the UI thread a hop later (late when the pool is busy); each
+        // await here is posted straight to the UI thread.
+        var completed = true;
+        foreach (var run in runs)
+            completed &= await run;
         if (completed)
             ApplyEnd(view, own);
         return completed;

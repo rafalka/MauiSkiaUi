@@ -223,7 +223,7 @@ public class DeferredContentTests
         for (var frame = 0; frame < 40 && box.Opacity < 1; frame++)
         {
             surface.Frame(100 + frame * 50);
-            ui.RunPending(TimeSpan.FromMilliseconds(5));
+            ui.RunPending();
         }
         Assert.Equal(1, box.Opacity);
         Assert.True(view.ContentLoadedAnimation.IsFrozen);

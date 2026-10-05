@@ -17,7 +17,7 @@ internal static class SkUiStateTransition
         try
         {
             if (before is not null && shown.Count > 0)
-                await Task.WhenAll(shown.Keys.Select(before.RunAsync)).WaitAsync(token);
+                await AllAsync(shown.Keys.Select(before.RunAsync), token);
             change();
             if (animate && after is not null)
             {
@@ -29,7 +29,7 @@ internal static class SkUiStateTransition
                     incoming[view] = SkUiViewAnimation.Snapshot.Of(view);
                 }
                 if (incoming.Count > 0)
-                    await Task.WhenAll(incoming.Keys.Select(after.RunAsync)).WaitAsync(token);
+                    await AllAsync(incoming.Keys.Select(after.RunAsync), token);
             }
         }
         finally
@@ -40,5 +40,13 @@ internal static class SkUiStateTransition
             foreach (var (view, own) in incoming)
                 after!.ApplyEnd(view, own);
         }
+    }
+
+    // Starts every animation, then awaits them in turn (each continuation goes straight to the UI thread; Task.WhenAll
+    // would finish on a pool thread first).
+    private static async Task AllAsync(IEnumerable<Task<bool>> runs, CancellationToken token)
+    {
+        foreach (var run in runs.ToList())
+            await run.WaitAsync(token);
     }
 }

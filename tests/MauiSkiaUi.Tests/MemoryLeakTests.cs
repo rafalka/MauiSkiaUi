@@ -87,7 +87,7 @@ public class MemoryLeakTests
                     SkUiTestHelpers.Arrange(surface.Root, width, height);
                     surface.Frame(time);
                 }
-                ui.RunPending(TimeSpan.FromMilliseconds(1));
+                ui.RunPending();
             }
             while (delay > TimeSpan.Zero);
         }

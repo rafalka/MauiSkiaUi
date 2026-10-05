@@ -16,7 +16,7 @@ public class AlternateContentViewTests
         for (var frame = 1; frame <= 200 && !done(); frame++)
         {
             surface.Frame(_time += 50);
-            ui.RunPending(TimeSpan.FromMilliseconds(5));
+            ui.RunPending();
         }
         Assert.True(done(), "The switch did not finish.");
         return Task.CompletedTask;

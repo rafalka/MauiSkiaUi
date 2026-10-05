@@ -212,22 +212,14 @@ internal sealed class TestUiContext : SynchronizationContext, IDisposable
         lock (_queue)
         {
             _queue.Enqueue((d, state));
-            Monitor.PulseAll(_queue);
         }
     }
 
     public override void Send(SendOrPostCallback d, object? state) => d(state);
 
-    /// <summary>
-    /// Runs queued continuations (and any they queue) on the calling thread. With <paramref name="wait"/>, first waits up
-    /// to that long for one to arrive: a task completed with <c>RunContinuationsAsynchronously</c> (a finished render
-    /// animation) completes <c>Task.WhenAll</c> on a pool thread, which posts the await's continuation here a moment later.
-    /// </summary>
-    public void RunPending(TimeSpan wait = default)
+    /// <summary>Runs queued continuations (and any they queue) on the calling thread.</summary>
+    public void RunPending()
     {
-        lock (_queue)
-            if (_queue.Count == 0 && wait > TimeSpan.Zero)
-                Monitor.Wait(_queue, wait);
         while (true)
         {
             (SendOrPostCallback Callback, object? State) item;
