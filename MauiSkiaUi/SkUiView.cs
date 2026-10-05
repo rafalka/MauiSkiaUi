@@ -176,6 +176,12 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// </summary>
     public event EventHandler? PaintInvalidated;
 
+    /// <summary>
+    /// Raised when this node's measure is invalidated, by its own change or a descendant's, once per update batch
+    /// (tests, diagnostics). Ancestors are not re-recorded for it (<see cref="PaintInvalidated"/> may not follow).
+    /// </summary>
+    internal event EventHandler? LayoutInvalidated;
+
     /// <summary>Raised on a render root when its subtree needs a new frame (first change per frame only).</summary>
     internal event EventHandler? RenderRootDirty;
 
@@ -459,6 +465,20 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         InvalidatePaint();
     }
 
+    /// <summary>
+    /// A child's measure changed: this node is measured and arranged again, but its own content is not re-recorded
+    /// (a size change re-records it when arranged; moved children are composite-time). So a relayout every frame (an
+    /// expanding expander) records nothing above the changed node and leaves ancestor shadows alone.
+    /// </summary>
+    private void InvalidateMeasureFromChild()
+    {
+        _measureDirty = true;
+        _arrangeDirty = true;
+        _layoutPending = true;
+        if (_updateDepth == 0)
+            FlushInvalidation();
+    }
+
     /// <summary>Coalesces layout and paint notifications until the matching EndUpdating call.</summary>
     public void StartUpdating() => _updateDepth++;
 
@@ -497,9 +517,10 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         if (invalidateLayout)
         {
             if (SkiaParent is { } parent)
-                ((IView)parent).InvalidateMeasure();
+                parent.InvalidateMeasureFromChild();
             else
                 base.InvalidateMeasureOverride();
+            LayoutInvalidated?.Invoke(this, EventArgs.Empty);
         }
         if (invalidatePaint)
         {
