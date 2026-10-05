@@ -28,7 +28,7 @@ SkiaUi replaces a **subtree** of a MAUI page with controls drawn on one Skia sur
    - code-behind that creates views, adds gestures or uses `BindableLayout` in code;
    - custom handlers / mapper changes that affect controls inside the region (find them through the inventory's "Structure and platform code" section).
 4. **Check shared building blocks.** The most used custom controls decide the cost: a `ContentView` composite ports to a `SkUiContentView` subclass cheaply; a control with a custom handler, renderer, effect or third-party base needs redrawing or stays native. Port shared controls before pages.
-5. **Size the gesture work** from the inventory: taps need nothing; each swipe / pan / pinch recognizer, `TouchBehavior` (and subclass) use and effect is a conversion. Long presses usually come from `TouchBehavior` `LongPressCommand` or platform code.
+5. **Size the gesture work** from the inventory: taps need nothing; each swipe / pan / pinch recognizer, `TouchBehavior` (and subclass) use and effect is a conversion. Long presses usually come from `TouchBehavior` `LongPressCommand` or platform code. MAUI view animations (`FadeTo`, `TranslateTo`, `new Animation`) convert one line each to render-thread `AnimateAsync` / `SkUiViewAnimation`; size animations stay MAUI.
 6. **Write the plan** (Markdown, in the conversation or a file the user names) with these sections:
    - **Summary:** is a migration worthwhile, and where; the main blockers.
    - **First screens:** 3–5 pages in order, each with its drawn region, what stays native, blockers, gesture conversions and custom controls to port. Prefer large pages without lists.

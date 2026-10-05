@@ -130,6 +130,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `StackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | Pick by `Orientation`; keep `Spacing` |
 | `AbsoluteLayout` | `SkUiAbsoluteLayout` | |
 | `FlexLayout` | `SkUiFlexLayout` | Also `SkUiWrapLayout` for chips and tags |
+| Toolkit `StateContainer` / `StateView` (attached properties) | `SkUiStateContainer` / `SkUiStateView` | Same properties and `ChangeStateWithAnimation` overloads, on any drawn layout ([SkUiStateContainer.md](controls/SkUiStateContainer.md)) |
 | `ScrollView` | `SkUiScrollView` | Plus snap points and overscroll |
 | `Border` | `SkUiBorder` | `StrokeShape`, brush strokes, dashes |
 | `Frame` (obsolete) | `SkUiBorder` | `CornerRadius` → `StrokeShape="RoundRectangle N"`, `HasShadow` → `Shadow`, `BorderColor` → `Stroke` |
@@ -230,6 +231,19 @@ Custom handlers registered for MAUI types (`Label`, `Button`, …) do not affect
 ### 7. Animations
 
 `SkUiView.AnimateAsync(SkUiAnimatableProperty.Opacity, 0, 250, Easing.CubicOut)` animates opacity, translation, rotation and scale on the render thread, so it stays smooth while the UI thread works. Prefer it to MAUI's `FadeTo` / `TranslateTo`, which change the same bindable properties from the UI thread every frame. State changes of the built-in controls (press, check, toggle) already animate through the look.
+
+APIs that take a reusable animation take a `SkUiViewAnimation` (render thread) instead of a MAUI `Animation` (UI-thread callbacks). Convert each child animation whose callback sets a composite property: its start and end become `From` / `To`, its easing and length move to the description.
+
+| MAUI | SkiaUi |
+| --- | --- |
+| `element.FadeToAsync(0, 250, Easing.CubicIn)` | `view.AnimateAsync(SkUiAnimatableProperty.Opacity, 0, 250, Easing.CubicIn)` |
+| `element.TranslateToAsync(0, 40, 300)` | `view.AnimateAsync(SkUiAnimatableProperty.TranslationY, 40, 300)` (one call per axis) |
+| `element.ScaleToAsync(0.9)` / `RotateToAsync(90)` | `view.AnimateAsync(SkUiAnimatableProperty.Scale, 0.9)` / `(…Rotation, 90)` |
+| `new Animation(v => view.Opacity = v, 1, 0, Easing.CubicIn)` | `new SkUiViewAnimation([new(SkUiAnimatableProperty.Opacity, from: 1, to: 0)], 250, Easing.CubicIn)` |
+| Parent `Animation` with children over the same span | One `SkUiViewAnimation` listing every property (they run together) |
+| Toolkit `StateContainer.ChangeStateWithAnimation(layout, state, before, after)` with `Animation`s | `SkUiStateContainer.ChangeStateWithAnimation(layout, state, before, after)` with `SkUiViewAnimation`s; `SkUiViewAnimation.FadeOut()` / `FadeIn()` cover the common case, no `to` ends at the view's own value. Or set `sk:SkUiStateContainer.BeforeStateChangeAnimation="FadeOut"` / `AfterStateChangeAnimation="FadeIn"` once and drop the call: every `CurrentState` change animates |
+
+Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and child animations with staggered spans have no render-thread form: keep them as MAUI or `SkUiAnimationClock` callbacks (they re-lay out every frame), or redesign them as transforms.
 
 ### 8. Verify
 

@@ -6,6 +6,7 @@ Usage: audit_maui_app.py [--top N] APP_FOLDER
 Reads every .xaml and .cs file under APP_FOLDER (skipping bin, obj and hidden folders). Reports:
 - MAUI controls by migration path (drawn equivalent, native island, no drawn equivalent yet);
 - gesture input (recognizers by type, toolkit TouchBehavior, other behaviors, effects), in XAML and in code;
+- MAUI view animations in code (render-thread conversions);
 - BindableLayout, templates, custom handlers / renderers / effects, canvas views, third-party XAML namespaces;
 - custom controls by how often they are used;
 - pages and views ranked by size, with the blockers each one contains.
@@ -46,6 +47,8 @@ CS_PATTERNS = {
     "platform behaviors (PlatformBehavior subclasses)": re.compile(r":\s*PlatformBehavior\s*<"),
     "canvas views (SKCanvasView / SKGLView / GraphicsView / IDrawable)": re.compile(r"\b(SKCanvasView|SKGLView|GraphicsView|IDrawable)\b"),
     "BindableLayout in code": re.compile(r"\bBindableLayout\.Set\w+"),
+    "MAUI view animations (FadeTo / TranslateTo / ScaleTo / RotateTo / new Animation; convert to AnimateAsync / SkUiViewAnimation)":
+        re.compile(r"\b(Fade|Translate|Scale|Rotate|RelScale|RelRotate)To(Async)?\s*\(|\bnew\s+Animation\s*\("),
 }
 
 

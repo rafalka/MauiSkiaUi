@@ -35,6 +35,7 @@ public static class LeakScenarios
         new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image; a long-lived icon source shared by images that are never disposed, edited while shown.", () => new ImagesRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
         new("BindableLayoutItems", Layouts, "MAUI BindableLayout on a wrap layout bound to a long-lived collection and on a stack with a template selector and an empty view: items added, inserted, replaced, moved and removed, the collection cleared to the empty view and refilled, the items source swapped.", () => new BindableLayoutRun()),
+        new("StatesSwitched", Layouts, "SkUiStateContainer on a grid and a stack: loading (spinner running), error (retry button with a long-lived command) and empty states switched directly and with the fade, a change rejected while one runs; hidden state views removed; automatic state change animations (one shared long-lived animation) retargeted while running; closed while one runs.", () => new StatesRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
@@ -908,6 +909,87 @@ public static class LeakScenarios
             protected override DataTemplate OnSelectTemplate(object item, BindableObject container) =>
                 item is string text && text.StartsWith("Accent", StringComparison.Ordinal) ? _accent : _plain;
         }
+    }
+
+    private sealed class StatesRun : LeakScenarioRun
+    {
+        private SkUiGrid? _grid;
+        private SkUiVerticalStackLayout? _stack;
+        private string? _problem;
+
+        // Long-lived, shared by every run (and frozen by the first one).
+        private static readonly SkUiViewAnimation StatesSlideIn = new([new(SkUiAnimatableProperty.TranslationY, from: 20), new(SkUiAnimatableProperty.Opacity, from: 0)], 160, Easing.CubicOut);
+
+        private static T State<T>(T view, string key) where T : SkUiView
+        {
+            SkUiStateView.SetStateKey(view, key);
+            return view;
+        }
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _grid = new SkUiGrid { RowDefinitions = [new RowDefinition(40), new RowDefinition(40)], ColumnDefinitions = [new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star)] };
+            for (var index = 0; index < 4; index++)
+            {
+                var cell = Text($"Cell {index}", 12);
+                Grid.SetRow(cell, index / 2);
+                Grid.SetColumn(cell, index % 2);
+                _grid.Children.Add(cell);
+            }
+            var views = SkUiStateContainer.GetStateViews(_grid);
+            views.Add(State(new SkUiActivityIndicator { IsRunning = true, HeightRequest = 32, WidthRequest = 32 }, "Loading"));
+            views.Add(State(new SkUiButton { Text = "Retry", Command = LeakCommands.Shared }, "Error"));
+            views.Add(State(Text("Nothing here"), "Empty"));
+            _stack = new SkUiVerticalStackLayout { Spacing = 4, Children = { Text("Row A"), Text("Row B") } };
+            SkUiStateContainer.GetStateViews(_stack).Add(State(Text("Loading rows"), "Loading"));
+            return Root(new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12), Children = { _grid, _stack } });
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            foreach (var state in new[] { "Loading", "Error", "Empty", null, "Error" })
+            {
+                SkUiStateContainer.SetCurrentState(_grid!, state);
+                await context.SettleAsync();
+            }
+            await context.TapAsync(SkUiStateContainer.GetStateViews(_grid!)[1]);
+            var fade = SkUiStateContainer.ChangeStateWithAnimation(_grid!, "Loading");
+            try
+            {
+                SkUiStateContainer.SetCurrentState(_grid!, "Empty");
+                _problem = "a state change was accepted while an animated one ran";
+            }
+            catch (SkUiStateContainerException)
+            {
+            }
+            await context.WaitForAsync(fade);
+            await context.WaitForAsync(SkUiStateContainer.ChangeStateWithAnimation(_stack!, "Loading"));
+            await context.WaitForAsync(SkUiStateContainer.ChangeStateWithAnimation(_stack!, null));
+            // Hidden state views that are removed must go while the layout lives on. (Edit the list: a list set with
+            // SetStateViews replaces the default one, which MAUI keeps with the layout.)
+            var stackStates = SkUiStateContainer.GetStateViews(_stack!);
+            foreach (var view in stackStates)
+                context.TrackDetached(view, $"removed state view {SkUiStateView.GetStateKey(view)}");
+            stackStates.Clear();
+            stackStates.Add(State(Text("New loading"), "Loading"));
+            SkUiStateContainer.SetCurrentState(_stack!, "Loading");
+            await context.SettleAsync();
+            // Automatic state change animations, retargeted while running and left running at close.
+            SkUiStateContainer.SetBeforeStateChangeAnimation(_stack!, SkUiViewAnimation.FadeOut(120));
+            SkUiStateContainer.SetAfterStateChangeAnimation(_stack!, StatesSlideIn);
+            SkUiStateContainer.SetCurrentState(_stack!, null);
+            SkUiStateContainer.SetCurrentState(_stack!, "Loading");
+            SkUiStateContainer.SetCurrentState(_stack!, null);
+            for (var wait = 0; wait < 60 && !SkUiStateContainer.GetCanStateChange(_stack!); wait++)
+                await context.SettleAsync();
+            if (SkUiStateContainer.GetCurrentState(_stack!) is not null || _stack!.Children.Count != 2)
+                _problem ??= "the stack did not end with its own children after automatic changes";
+            SkUiStateContainer.SetCurrentState(_stack!, "Loading");
+            if (SkUiStateContainer.GetCurrentState(_grid!) != "Loading" || _grid!.Children.Count != 1)
+                _problem ??= "the grid did not end in the loading state";
+        }
+
+        public override string? CheckInteraction() => _problem;
     }
 
     private sealed class ScrollRun : LeakScenarioRun

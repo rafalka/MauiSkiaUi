@@ -25,7 +25,7 @@ SkiaUi draws a subtree of a MAUI page on one Skia surface. Pages, Shell, navigat
 5. **Gestures and behaviors** with [gestures.md](references/gestures.md): `TapGestureRecognizer` (1 or 2 taps) stays; swipe, pan, pinch, pointer recognizers, `TouchBehavior` (and subclasses) and effects are converted.
 6. **Styles:** for every implicit or keyed style the region uses that targets a MAUI type, add a style with `TargetType="sk:SkUi…"` and the same setters (keep the MAUI style if native controls still use it). Visual state groups move with the style.
 7. **Custom controls** with [custom-controls.md](references/custom-controls.md): port shared ones first (they convert every page that uses them), or wrap them in `SkUiMauiContentView`.
-8. **Code-behind:** update element types of named fields used in code (`Label` → `SkUiLabel`), views created in code inside the region (`new Label` → `new SkUiLabel`), gesture code (`new PanGestureRecognizer` → `PanUpdated`), and `DataTemplate`s created in code for `BindableLayout` (their content → drawn views).
+8. **Code-behind:** update element types of named fields used in code (`Label` → `SkUiLabel`), views created in code inside the region (`new Label` → `new SkUiLabel`), gesture code (`new PanGestureRecognizer` → `PanUpdated`), animations (`FadeToAsync` / `TranslateToAsync` / MAUI `Animation` → `AnimateAsync` / `SkUiViewAnimation`, [controls.md](references/controls.md#animations-code-behind)), and `DataTemplate`s created in code for `BindableLayout` (their content → drawn views).
 9. **Check:** run the checker on the changed files, then build.
 
    ```bash

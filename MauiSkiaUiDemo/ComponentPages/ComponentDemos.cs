@@ -26,6 +26,8 @@ public static class ComponentDemos
         new(typeof(SkUiBorder), typeof(BorderDemoPage), nameof(Border), ComponentCategory.Layouts, () => new BorderDemoPage()),
         new(typeof(SkUiLayout), typeof(LayoutDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new LayoutDemoPage()),
         new(typeof(SkUiGrid), typeof(GridDemoPage), nameof(Grid), ComponentCategory.Layouts, () => new GridDemoPage()),
+        new(typeof(SkUiGrid), typeof(StateContainerDemoPage), "Community Toolkit StateContainer", ComponentCategory.Layouts,
+            () => new StateContainerDemoPage(), Key: "SkUiStateContainer"),
         new(typeof(SkUiVerticalStackLayout), typeof(VerticalStackLayoutDemoPage), nameof(VerticalStackLayout), ComponentCategory.Layouts, () => new VerticalStackLayoutDemoPage()),
         new(typeof(SkUiHorizontalStackLayout), typeof(HorizontalStackLayoutDemoPage), nameof(HorizontalStackLayout), ComponentCategory.Layouts, () => new HorizontalStackLayoutDemoPage()),
         new(typeof(SkUiAbsoluteLayout), typeof(AbsoluteLayoutDemoPage), nameof(AbsoluteLayout), ComponentCategory.Layouts, () => new AbsoluteLayoutDemoPage()),

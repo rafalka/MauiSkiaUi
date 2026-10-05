@@ -48,6 +48,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiFlexLayout` | [SkUiFlexLayout.md](SkUiFlexLayout.md) | FlexLayout |
 | `SkUiWrapLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md) | — (chips / tags) |
 | `SkUiHorizontalShrinkLayout` / `SkUiVerticalShrinkLayout` | [SkUiShrinkLayout.md](SkUiShrinkLayout.md) | — (stacks whose children shrink to fit) |
+| `SkUiStateContainer` / `SkUiStateView` (attached properties on any drawn layout) | [SkUiStateContainer.md](SkUiStateContainer.md) | Community Toolkit `StateContainer` / `StateView` |
 
 ## Graphics
 
