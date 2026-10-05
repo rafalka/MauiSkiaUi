@@ -382,7 +382,7 @@ public partial class SkUiMauiContentView : SkUiView
         var clipped = false;
         for (var ancestor = Parent as SkUiView; ancestor is not null && ancestor.Handler is null; ancestor = ancestor.Parent as SkUiView)
         {
-            if (ancestor is not SkUiScrollView && !ancestor.ClipToBounds)
+            if (ancestor is not SkUiScrollView && !ancestor.ClipsHostedViews)
                 continue;
             var rect = RootRelativeFrame(ancestor);
             // A scroller shows its content in its scrollport only (not in a reserved scroll bar gutter).

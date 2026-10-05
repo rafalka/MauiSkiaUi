@@ -192,10 +192,16 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// </summary>
     public static readonly BindableProperty ClipToBoundsProperty = BindableProperty.Create(
         nameof(ClipToBounds), typeof(bool), typeof(SkUiView), true,
-        defaultValueCreator: view => view is not (SkUiLayout or SkUiContentView or Core.SkUiCoreHost));
+        defaultValueCreator: view => view is not (SkUiLayout or SkUiContentView or SkUiExpander or Core.SkUiCoreHost));
 
     /// <inheritdoc cref="ClipToBoundsProperty" />
     public bool ClipToBounds { get => (bool)GetValue(ClipToBoundsProperty); set => SetValue(ClipToBoundsProperty, value); }
+
+    /// <summary>
+    /// Whether hosted native views below are clipped to this node's arranged rectangle: <see cref="ClipToBounds"/>, or
+    /// while drawn content is revealed in a band native views cannot be scaled into (an animating expander).
+    /// </summary>
+    internal virtual bool ClipsHostedViews => ClipToBounds;
 
     /// <summary>
     /// Opts this node into single taps. MAUI <c>GestureRecognizers</c> also work for taps: a <see cref="TapGestureRecognizer"/>
