@@ -252,6 +252,7 @@ Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and 
 - **Tap everything** that had a gesture recognizer or behavior; test taps inside scrollers and drags that start on buttons.
 - **Accessibility.** Drawn controls are read by TalkBack, VoiceOver and Narrator from MAUI's `SemanticProperties`, and take keyboard focus. Check that tappable containers have a description or readable text inside.
 - **UI tests.** `AutomationId` is exposed to UI test frameworks through the accessibility tree. In unit tests, `SkUiDiagnostics.SimulateTap(element)` and `HitTest` drive drawn input without a device.
+- **Defer what is not shown.** Other tabs and hidden or collapsed panes can wait: wrap them in `SkUiContentView ContentLoading="WhenShown"` with a `ContentTemplate` ([SkUiContentView.md](controls/SkUiContentView.md#loading-content-when-shown)).
 - **Measure.** Time the page from navigation to first frame before and after; [Performance.md](Performance.md) lists what costs most while scrolling (shadows, gradients and clips in long lists).
 
 ## Not available yet

@@ -49,6 +49,7 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 | `InvalidatePaint` | Re-record this node's content (not its children) without remeasure. Transform / opacity / offset changes need no call: they are composite-time |
 | `ClipToBounds` | Clip content, children and overlay to the arranged rect. Defaults: `true` for leaves, `false` for `SkUiLayout` / `SkUiContentView` / `SkUiCoreHost` |
 | `AnimateAsync(property, to, length, easing)` | Animates `Opacity`, translation, `Rotation` or scale **on the render thread**; the bindable is updated to the final value. Setting the property meanwhile cancels it |
+| `IsShown` / `IsShownChanged` | Whether the view is shown: it and its drawn ancestors are `IsVisible` and its tree is on a live surface ([below](#isshown)) |
 | `SkUiViewAnimation` | A reusable, shareable description of such an animation: `SkUiPropertyAnimation` entries (property, optional `From`, optional `To`; no `To` returns to the view's own value) run together over `Length` ms with `Easing`. `RunAsync(view)` ends at exact values (off screen it jumps there). XAML: `"FadeIn"` / `"FadeOut"` [length] [easing], or an element listing the entries. Read-only once used. Containers take it for their transitions ([SkUiStateContainer](SkUiStateContainer.md#animating-every-change)); it replaces MAUI `Animation`s ([Migration.md](../Migration.md#7-animations)) |
 | `PaintBackground` / `PaintOverlay` | Chrome layer delegates (`SetPaintBackground` / `SetPaintOverlay`). Without a Background delegate the virtual `OnPaintBackground` runs; the overlay is delegate-only (no `OnPaintOverlay`). Content is virtual `OnPaintContent` only. Control chrome painters (e.g. `PaintButtonBackground`) are `protected` for subclass reuse; `PaintDefaultBackground` fills the rectangle with `ResolveBackgroundPaint()` (solid or gradient). |
 | `Background` / `BackgroundColor` | MAUI's: a color, `LinearGradientBrush` or `RadialGradientBrush` (see below) |
@@ -69,6 +70,23 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 - Hit-testing uses **arranged bounds** (shape-aware hits deferred).
 - **Visual states:** MAUI's `VisualStateManager` groups and setters work; `SkUiView` raises the states from SkiaUi's input state: `Disabled` (also while a control cannot be tapped, e.g. a command that cannot execute), else `PointerOver` while `IsPointerOver` (mouse, trackpad, pen or iPad pointer hover; see [EventMechanism.md](../design/EventMechanism.md#hover)), else `Normal`; `Focused` / `Unfocused` in a focus group, from keyboard focus (see below). Controls add their MAUI states (buttons `Pressed`, toggles their checked states). State triggers (`StateTrigger`, `CompareStateTrigger`, `AdaptiveTrigger`) work as in MAUI.
 - `ImageBrush` backgrounds are not drawn. Empty MAUI brushes (the default brush, a gradient without stops) do not hide `BackgroundColor`.
+
+## Binding context
+
+As in MAUI, everything a drawn view binds through gets its `BindingContext` (and follows later changes), so `{Binding}` resolves wherever MAUI resolves it:
+
+- **Children** of layouts and content views (also a radio button's view content, template roots, native views in `SkUiMauiContentView`) inherit it when attached and lose it when removed. Views attached later (deferred content, state views, template content) get it when they join the tree.
+- **Values that are not children:** image sources (`SkUiImage.Source`, `SkUiButton.ImageSource`, `SkUiImageButton.Source`; beyond MAUI also `LoadingPlaceholder` / `ErrorPlaceholder` and `SkUiSlider.ThumbImageSource`) become the view's element child, as MAUI's image views make them, so a nested `<FontImageSource Glyph="{Binding Icon}"/>` binds; the link is weak, so a shared source keeps no view alive. Grid row and column definitions, shape and border brushes, border stroke shapes, path data and transforms, and label spans bind against their view. Replaced values give the context back.
+- **Templates:** `SkUiContentView.ContentTemplate` content inherits the view's context, and a `DataTemplateSelector` chooses again when the context changes. Content shown by an `SkUiContentPresenter` binds against the templated control's context, even when the template sets another one above the presenter. Unlike MAUI, a radio button's template root inherits the radio button's context (templates bind by `AncestorType`, see [SkUiRadioButton](SkUiRadioButton.md#controltemplate)).
+- Not bindable, so out of scope: Core nodes, `SkUiGestureRecognizer`s, image transformations, `SkUiViewAnimation`s.
+
+## IsShown
+
+`IsShown` is `true` while the view and every drawn ancestor are `IsVisible` and the top of its drawn tree is on a live surface (a handler's surface, or a test surface). `IsShownChanged` is raised when that changes: the view or an ancestor is shown or hidden, the view moves into or out of a shown tree, or the surface is attached or released. Use it to start work only while a view can be seen (animations, polling, media) or to create content late ([`SkUiContentView.ContentLoading`](SkUiContentView.md#loading-content-when-shown)).
+
+- Position does not count: a view scrolled out of a scroll view, clipped away or fully transparent is still shown.
+- Free while unused: views carry no fields for it, and while no view in the app has handlers every hook (a parent change, an `IsVisible` change, a surface attach) returns after reading one count. `IsShown` without handlers is computed on demand (a walk up the ancestors). Watched views and their ancestors keep a small entry in a side table (gone when the handlers are removed), so a change walks only the branches that have handlers below them.
+- Handlers run on the UI thread, inside the change (the `IsVisible` set, the `Children.Add`, the handler connect).
 
 ## Backgrounds, shadows and clips
 

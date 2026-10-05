@@ -162,6 +162,8 @@ public class SkUiSlider : SkUiView
     private void OnThumbImageSourceChanged(ImageSource? value)
     {
         if (ReferenceEquals(_thumbImageSource, value)) return;
+        // Bindings inside the source resolve against the slider (MAUI's Slider leaves them unresolved).
+        AdoptImageSource(_thumbImageSource, value);
         _thumbImageSource = value;
         (_thumbImageListener ??= new(this, static (slider, change) =>
         {
@@ -169,6 +171,13 @@ public class SkUiSlider : SkUiView
                 slider.LoadThumbImage();
         })).Listen(value);
         LoadThumbImage();
+    }
+
+    /// <inheritdoc />
+    protected override void OnBindingContextChanged()
+    {
+        base.OnBindingContextChanged();
+        InheritBindingContext(_thumbImageSource);
     }
 
     private void LoadThumbImage() =>

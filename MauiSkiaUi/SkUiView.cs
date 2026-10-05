@@ -241,6 +241,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         SkUiHover.ClearSubtree(this);
         // A focused node that left its surface is no longer focused.
         SkUiFocusManager.ValidateAll();
+        SkUiShownTracker.OnParentSet(this);
     }
 
     /// <summary>
@@ -526,7 +527,10 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         if (IsSemanticProperty(propertyName))
             SkUiSemantics.Invalidate(this);
         if (propertyName == nameof(IsVisible))
+        {
             InvalidateMeasureOverride();
+            SkUiShownTracker.OnVisibilityChanged(this);
+        }
         // MAUI raises FlowDirection on every descendant whose effective direction changes.
         if (propertyName == nameof(FlowDirection))
         {
@@ -931,6 +935,33 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         RemoveLogicalChild((Element)child);
         InvalidateRender(SkUiRenderDirty.Children);
         InvalidateMeasureOverride();
+    }
+
+    /// <summary>
+    /// Makes an image source that this view shows bind against it, as MAUI's image views do: the source becomes this
+    /// view's element child (a weak link, so a shared source keeps no view alive), so it inherits the binding context
+    /// and resources; the old source is released. Call <see cref="InheritBindingContext"/> for it on context changes.
+    /// </summary>
+    private protected void AdoptImageSource(ImageSource? oldValue, ImageSource? newValue)
+    {
+        if (oldValue is not null && !ReferenceEquals(oldValue, newValue) && ReferenceEquals(oldValue.Parent, this))
+            oldValue.Parent = null;
+        if (newValue is not null)
+            newValue.Parent = this;
+    }
+
+    /// <summary>Gives a bindable value that is not a child (a source, brush, geometry, definition) this view's binding context.</summary>
+    private protected void InheritBindingContext(BindableObject? value)
+    {
+        if (value is not null)
+            SetInheritedBindingContext(value, BindingContext);
+    }
+
+    /// <summary>Takes this view's binding context back from a value it no longer uses (a context set on the value itself stays).</summary>
+    private protected static void ReleaseBindingContext(BindableObject? value)
+    {
+        if (value is not null)
+            SetInheritedBindingContext(value, null);
     }
 
     /// <summary>

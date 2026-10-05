@@ -107,7 +107,24 @@ public class SkUiGrid : SkUiLayout, IGridLayout
     {
         _rowSnapshot = null;
         _columnSnapshot = null;
+        UpdateDefinitionBindingContexts();
         InvalidateMeasureOverride();
+    }
+
+    /// <inheritdoc />
+    protected override void OnBindingContextChanged()
+    {
+        base.OnBindingContextChanged();
+        UpdateDefinitionBindingContexts();
+    }
+
+    // Definitions bind against the grid (<RowDefinition Height="{Binding …}"/>), as in MAUI's Grid.
+    private void UpdateDefinitionBindingContexts()
+    {
+        foreach (var row in _rows)
+            InheritBindingContext(row);
+        foreach (var column in _columns)
+            InheritBindingContext(column);
     }
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => _manager.Measure(widthConstraint, heightConstraint);

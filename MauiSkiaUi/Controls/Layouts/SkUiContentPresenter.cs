@@ -54,11 +54,29 @@ public class SkUiContentPresenter : SkUiContentView
         var previous = _templatedParent;
         _templatedParent = parent;
         previous?.RemovePresenter(this);
+        FollowBindingContext(previous as BindableObject, parent as BindableObject);
         if (parent is null)
             Present(null);
         else
             parent.AddPresenter(this);
     }
+
+    // The control's content belongs to the control: it binds against the control's context, as in MAUI, even when the
+    // template gives an element above this presenter a context of its own.
+    private void FollowBindingContext(BindableObject? previous, BindableObject? parent)
+    {
+        if (previous is not null)
+        {
+            previous.BindingContextChanged -= OnTemplatedParentBindingContextChanged;
+            ClearValue(BindingContextProperty);
+        }
+        if (parent is null)
+            return;
+        parent.BindingContextChanged += OnTemplatedParentBindingContextChanged;
+        BindingContext = parent.BindingContext;
+    }
+
+    private void OnTemplatedParentBindingContextChanged(object? sender, EventArgs e) => BindingContext = ((BindableObject)sender!).BindingContext;
 
     private ISkUiTemplatedContent? FindTemplatedParent()
     {
