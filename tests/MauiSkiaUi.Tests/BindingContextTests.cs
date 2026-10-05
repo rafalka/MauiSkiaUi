@@ -195,4 +195,54 @@ public class BindingContextTests
 
         protected override DataTemplate OnSelectTemplate(object item, BindableObject container) => item is int number && number % 2 == 0 ? _ellipse : _box;
     }
+
+    [Fact]
+    public void ASourceSharedBySlotsKeepsTheContextWhileAnySlotUsesIt()
+    {
+        var shared = new FontImageSource { Glyph = "x", FontFamily = "Arial" };
+        var image = new SkUiImage { LoadingPlaceholder = shared, ErrorPlaceholder = shared, BindingContext = "model" };
+        image.LoadingPlaceholder = null;
+        Assert.Same(image, shared.Parent); // still the error placeholder
+        Assert.Equal("model", shared.BindingContext);
+        image.ErrorPlaceholder = null;
+        Assert.Null(shared.Parent);
+
+        var brush = new LinearGradientBrush();
+        var shape = new SkUiRectangle { Fill = brush, Stroke = brush, BindingContext = "model" };
+        shape.Fill = null;
+        Assert.Equal("model", brush.BindingContext); // still the stroke
+        shape.Stroke = null;
+        Assert.Null(brush.BindingContext);
+    }
+
+    [Fact]
+    public void RemovedGridDefinitionsGiveTheContextBack()
+    {
+        var row = new RowDefinition();
+        var grid = new SkUiGrid { RowDefinitions = [row], BindingContext = "model" };
+        Assert.Equal("model", row.BindingContext);
+        grid.RowDefinitions.Remove(row);
+        Assert.Null(row.BindingContext);
+
+        var column = new ColumnDefinition();
+        grid.ColumnDefinitions = [column];
+        grid.ColumnDefinitions = [new ColumnDefinition()]; // replaced collection
+        Assert.Null(column.BindingContext);
+    }
+
+    [Fact]
+    public void AThrowingIsShownHandlerDoesNotStopTheRestOfTheBranch()
+    {
+        SkUiBox throwing = new(), sibling = new();
+        var fail = true;
+        throwing.IsShownChanged += (_, _) => { if (fail) throw new InvalidOperationException("handler"); };
+        var siblingShown = false;
+        sibling.IsShownChanged += (_, _) => siblingShown = sibling.IsShown;
+        var pane = new SkUiVerticalStackLayout { IsVisible = false, Children = { throwing, sibling } };
+        using var surface = new SkUiTestSurface(new SkUiContentView { Content = pane }, 100, 100);
+        var error = Assert.Throws<InvalidOperationException>(() => pane.IsVisible = true);
+        Assert.Equal("handler", error.Message); // still reported
+        Assert.True(siblingShown); // after the sibling was updated
+        fail = false; // the surface's release at the end hides them again
+    }
 }

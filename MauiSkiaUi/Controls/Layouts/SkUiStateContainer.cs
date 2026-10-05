@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Diagnostics;
 
 namespace MauiSkiaUi;
@@ -16,9 +18,15 @@ public static class SkUiStateContainer
     private const string CanStateChangeName = "CanStateChange";
     private const string CurrentStateName = "CurrentState";
 
-    /// <summary>The state views of a layout: drawn views, each with a unique <see cref="SkUiStateView.StateKeyProperty"/>.</summary>
+    /// <summary>
+    /// The state views of a layout: drawn views, each with a unique <see cref="SkUiStateView.StateKeyProperty"/>. Set them
+    /// before <see cref="CurrentStateProperty"/> names one (naming a state that is not there throws). Edits are observed
+    /// when the list raises collection changes (the default list does): a state view replaced while shown is shown, and a
+    /// state that could not be shown is shown once its view is added.
+    /// </summary>
     public static readonly BindableProperty StateViewsProperty = BindableProperty.CreateAttached(
-        "StateViews", typeof(IList<View>), typeof(SkUiStateContainer), null, defaultValueCreator: _ => new List<View>());
+        "StateViews", typeof(IList<View>), typeof(SkUiStateContainer), null, defaultValueCreator: _ => new ObservableCollection<View>(),
+        propertyChanged: (bindable, _, newValue) => ObserveStateViews(bindable, newValue as IList<View>));
 
     /// <summary>
     /// The state shown: the key of a state view, or <c>null</c> / empty for the layout's own children. With state change
@@ -181,13 +189,50 @@ public static class SkUiStateContainer
         }
         catch (Exception exception)
         {
-            Trace.WriteLine($"SkiaUi: {nameof(SkUiStateContainer)} could not show state '{controller.Target}' on {controller.Layout.GetType().Name}: {exception.Message}");
+            // The views must still follow CurrentState: switch without animating (an animation failed), or report that the
+            // state cannot be shown yet (its view left StateViews); it is shown once StateViews has it again.
+            controller.Animating = false;
+            if (!TrySwitch(bindable, controller))
+                Trace.WriteLine($"SkiaUi: {nameof(SkUiStateContainer)} could not animate to state '{controller.Target}' on {controller.Layout.GetType().Name}: {exception.Message}");
         }
         finally
         {
             controller.Animating = false;
             SetCanStateChange(bindable, true);
         }
+    }
+
+    // Shows the target state at once; false (and a trace line) when its view is not in StateViews.
+    private static bool TrySwitch(BindableObject bindable, SkUiStateContainerController controller)
+    {
+        try
+        {
+            controller.Switch(controller.Target, GetStateViews(bindable));
+            return true;
+        }
+        catch (SkUiStateContainerException exception)
+        {
+            Trace.WriteLine($"SkiaUi: {nameof(SkUiStateContainer)} cannot show state '{controller.Target}' on {controller.Layout.GetType().Name} yet: {exception.Message}");
+            return false;
+        }
+    }
+
+    // StateViews edited: show a state view that replaced the shown one, or a state that could not be shown before.
+    private static void OnStateViewsChanged(BindableObject bindable)
+    {
+        var controller = GetController(bindable);
+        if (controller.Animating || controller.ExplicitChange || (controller.Target is null && controller.Shown is null))
+            return;
+        TrySwitch(bindable, controller);
+    }
+
+    private static void ObserveStateViews(BindableObject bindable, IList<View>? views)
+    {
+        if (bindable is not SkUiLayout)
+            return;
+        var controller = GetController(bindable);
+        controller.StateViewsListener.Listen(views as INotifyCollectionChanged);
+        OnStateViewsChanged(bindable);
     }
 
     // Invalid changes throw here, before MAUI starts setting the value: an exception thrown from a property-changing or
@@ -232,7 +277,7 @@ public static class SkUiStateContainer
     private static SkUiStateContainerController GetController(BindableObject bindable) => (SkUiStateContainerController)bindable.GetValue(ControllerProperty);
 
     private static object CreateController(BindableObject bindable) => bindable is SkUiLayout layout
-        ? new SkUiStateContainerController(layout)
+        ? new SkUiStateContainerController(layout, (layout, _) => OnStateViewsChanged(layout), GetStateViews(layout))
         : throw new SkUiStateContainerException($"{nameof(SkUiStateContainer)} needs a drawn layout ({nameof(SkUiLayout)} or a layout built on it), not {bindable.GetType().FullName}.");
 
     private static void ValidateCanStateChange(BindableObject bindable)
@@ -260,12 +305,25 @@ public static class SkUiStateView
 public sealed class SkUiStateContainerException(string message, Exception? innerException = null) : InvalidOperationException(message, innerException);
 
 /// <summary>Swaps a layout's children for a state view and back.</summary>
-internal sealed class SkUiStateContainerController(SkUiLayout layout)
+internal sealed class SkUiStateContainerController
 {
+    // Spans every row and column of a grid, also ones added while the state shows (MAUI's grid clamps spans).
+    private const int AllCells = short.MaxValue;
     private string? _state;
-    private ISkUiView[] _content = [];
+    private ISkUiView? _stateView;
+    private List<ISkUiView> _content = [];
 
-    public SkUiLayout Layout { get; } = layout;
+    public SkUiStateContainerController(SkUiLayout layout, Action<SkUiLayout, SkUiChange> onStateViewsChanged, IList<View> stateViews)
+    {
+        Layout = layout;
+        StateViewsListener = new SkUiWeakListener<SkUiLayout>(layout, onStateViewsChanged); // a shared list keeps no layout alive
+        StateViewsListener.Listen(stateViews as INotifyCollectionChanged);
+    }
+
+    public SkUiLayout Layout { get; }
+
+    /// <summary>Observes the state view list.</summary>
+    public SkUiWeakListener<SkUiLayout> StateViewsListener { get; }
 
     /// <summary>The state on screen (<c>null</c>: the layout's own children).</summary>
     public string? Shown => _state;
@@ -292,11 +350,22 @@ internal sealed class SkUiStateContainerController(SkUiLayout layout)
     {
         if (_state is null)
             return;
+        KeepAddedChildren();
         _state = null;
+        _stateView = null;
         Layout.Children.Clear();
         foreach (var child in _content)
             Layout.Children.Add(child);
         _content = [];
+    }
+
+    // Children added while a state shows (code adding to the layout) join the content restored afterwards, after the
+    // original children. (A BindableLayout on the same layout is not supported: it addresses children by index.)
+    private void KeepAddedChildren()
+    {
+        foreach (var child in Layout.Children)
+            if (!ReferenceEquals(child, _stateView) && !_content.Contains(child))
+                _content.Add(child);
     }
 
     public void SwitchToState(string state, IList<View> stateViews)
@@ -307,15 +376,16 @@ internal sealed class SkUiStateContainerController(SkUiLayout layout)
         // The layout's own children wait here until the state is cleared.
         if (_state is null)
             _content = [.. Layout.Children];
+        else
+            KeepAddedChildren();
         _state = state;
+        _stateView = view;
         Layout.Children.Clear();
         // On a grid, the state view covers every cell instead of the first one.
-        if (Layout is SkUiGrid grid)
+        if (Layout is SkUiGrid)
         {
-            if (grid.RowDefinitions.Count > 0)
-                Grid.SetRowSpan((BindableObject)view, grid.RowDefinitions.Count);
-            if (grid.ColumnDefinitions.Count > 0)
-                Grid.SetColumnSpan((BindableObject)view, grid.ColumnDefinitions.Count);
+            Grid.SetRowSpan((BindableObject)view, AllCells);
+            Grid.SetColumnSpan((BindableObject)view, AllCells);
         }
         Layout.Children.Add(view);
     }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -232,12 +233,37 @@ public class SkUiContentView : SkUiView
         if (_loaded)
             return;
         _loaded = true;
+        try
+        {
+            RefreshContent();
+        }
+        catch
+        {
+            _loaded = false; // a template that fails leaves the view waiting, not "loaded" without content
+            throw;
+        }
         StopWaiting();
+        // Published once the content is attached, so observers see it in place.
         SetValue(IsContentLoadedPropertyKey, true);
-        RefreshContent();
         if (animate && _contentLoadedAnimation is { } animation && _content is SkUiView view)
-            _ = animation.RunAsync(view);
+            _ = RunLoadedAnimation(animation, view);
         ContentLoaded?.Invoke(this, EventArgs.Empty);
+    }
+
+    // Observed: a failing animation is reported and the content ends at the animation's end values instead of staying
+    // half faded. ContentLoaded does not wait for it (it reports the attachment).
+    private static async Task RunLoadedAnimation(SkUiViewAnimation animation, SkUiView view)
+    {
+        var own = SkUiViewAnimation.Snapshot.Of(view);
+        try
+        {
+            await animation.RunAsync(view);
+        }
+        catch (Exception exception)
+        {
+            animation.ApplyEnd(view, own);
+            Trace.WriteLine($"SkiaUi: the content loaded animation of {view.GetType().Name} failed: {exception.Message}");
+        }
     }
 
     private void StopWaiting()

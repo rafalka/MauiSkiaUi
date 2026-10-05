@@ -147,7 +147,8 @@ public class SkUiBorder : SkUiContentView
 
     private void OnStrokeChanged(Brush? value)
     {
-        if (!ReferenceEquals(_stroke, value) && (_stroke is GradientBrush || _stroke?.GetType() == typeof(SolidColorBrush)))
+        // A brush that is also the background keeps the context (MAUI gives the background one too).
+        if (!ReferenceEquals(_stroke, value) && !ReferenceEquals(_stroke, Background) && (_stroke is GradientBrush || _stroke?.GetType() == typeof(SolidColorBrush)))
             ReleaseBindingContext(_stroke);
         _stroke = value;
         _strokeListener.Listen(value);

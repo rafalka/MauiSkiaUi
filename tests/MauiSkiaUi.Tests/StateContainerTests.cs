@@ -494,4 +494,60 @@ public class StateContainerTests
 
         private void Raise([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
+
+    [Fact]
+    public async Task AStateWhoseViewLeftStateViewsIsShownOnceItIsBack()
+    {
+        using var ui = TestUiContext.Install(); // continuations run between the frames this test drives
+        var (layout, first, second, loading, _, surface) = Animated();
+        using var _ = surface;
+        SkUiStateContainer.SetCurrentState(layout, "Loading");
+        SkUiStateContainer.GetStateViews(layout).Remove(loading); // gone before the switch
+        await Drive(surface, () => SkUiStateContainer.GetCanStateChange(layout));
+        Assert.Equal([first, second], layout.Children); // could not be shown: the content stays
+        Assert.Equal((1d, 1d), (first.Opacity, second.Opacity)); // and is not left faded out
+
+        SkUiStateContainer.GetStateViews(layout).Add(loading);
+        Assert.Same(loading, Assert.Single(layout.Children));
+    }
+
+    [Fact]
+    public void AStateViewReplacedWhileShownIsShown()
+    {
+        var (layout, _, _, loading, _) = Container();
+        SkUiStateContainer.SetCurrentState(layout, "Loading");
+        var views = SkUiStateContainer.GetStateViews(layout);
+        var replacement = State("Loading", "new");
+        views[views.IndexOf(loading)] = replacement;
+        Assert.Same(replacement, Assert.Single(layout.Children));
+        Assert.Null(loading.Parent);
+    }
+
+    [Fact]
+    public void ChildrenAddedWhileAStateShowsAreRestoredWithTheContent()
+    {
+        var (layout, first, second, loading, _) = Container();
+        SkUiStateContainer.SetCurrentState(layout, "Loading");
+        var added = new SkUiBox();
+        layout.Children.Add(added);
+        SkUiStateContainer.SetCurrentState(layout, "Error");
+        SkUiStateContainer.SetCurrentState(layout, null);
+        Assert.Equal([first, second, added], layout.Children);
+        Assert.Null(loading.Parent);
+    }
+
+    [Fact]
+    public void OnAGridTheStateViewStillCoversRowsAddedWhileShown()
+    {
+        var grid = new SkUiGrid { RowDefinitions = [new RowDefinition(30)], ColumnDefinitions = [new ColumnDefinition(40)] };
+        grid.Children.Add(new SkUiBox());
+        var state = new SkUiBox();
+        SkUiStateView.SetStateKey(state, "Replace");
+        SkUiStateContainer.GetStateViews(grid).Add(state);
+        SkUiStateContainer.SetCurrentState(grid, "Replace");
+        grid.RowDefinitions.Add(new RowDefinition(30));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(40));
+        SkUiTestHelpers.Arrange(grid, 80, 60);
+        Assert.Equal(new Rect(0, 0, 80, 60), state.Frame);
+    }
 }

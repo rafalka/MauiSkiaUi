@@ -176,7 +176,11 @@ public class SkUiAlternateContentView : SkUiContentView
         }
         catch (Exception exception)
         {
-            Trace.WriteLine($"SkiaUi: {nameof(SkUiAlternateContentView)} could not switch to {(_target is { } target ? target ? "the alternate content" : "the content" : "nothing")}: {exception.Message}");
+            // The content must still follow ShowsAlternate: switch without animating (a later value equal to this one would
+            // be no change, so nothing else would fix it).
+            Trace.WriteLine($"SkiaUi: {nameof(SkUiAlternateContentView)} could not animate the switch to {(_target is { } target ? target ? "the alternate content" : "the content" : "nothing")}: {exception.Message}");
+            _animating = false;
+            Switch();
         }
         finally
         {

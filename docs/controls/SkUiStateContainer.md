@@ -95,8 +95,10 @@ await SkUiStateContainer.ChangeStateWithAnimation(layout, null, leave, enter);
 
 ## Notes
 
-- Edit the state views with `GetStateViews(layout)` (add, remove, clear). A list set with `SetStateViews` replaces the default list, which MAUI keeps with the layout.
-- Children added while a state is shown (code, `BindableLayout`) sit next to the state view and are not restored with the original children, as in the toolkit: put a bindable layout inside the content instead of on the state container itself.
+- Set `StateViews` before `CurrentState` names one of them: naming a state that is not there throws, as in the toolkit.
+- Edit the state views with `GetStateViews(layout)` (add, remove, clear, replace); the default list is observed (a list you set is observed when it raises collection changes). A state view replaced while shown is shown, and a state that could not be shown (its view had left the list during an animated change) is shown once its view is back. A list set with `SetStateViews` replaces the default list, which MAUI keeps with the layout.
+- Children added to the layout while a state is shown are kept and restored after the original children. Do not put a `BindableLayout` on the state container itself (it addresses children by index): put it inside the content.
+- An animated automatic change that fails (an animation error, a state view removed meanwhile) still ends with the views following `CurrentState`, switched without animating.
 - Native views as states go inside a `SkUiMauiContentView`.
 
 ## Related

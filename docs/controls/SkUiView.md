@@ -86,7 +86,7 @@ As in MAUI, everything a drawn view binds through gets its `BindingContext` (and
 
 - Position does not count: a view scrolled out of a scroll view, clipped away or fully transparent is still shown.
 - Free while unused: views carry no fields for it, and while no view in the app has handlers every hook (a parent change, an `IsVisible` change, a surface attach) returns after reading one count. `IsShown` without handlers is computed on demand (a walk up the ancestors). Watched views and their ancestors keep a small entry in a side table (gone when the handlers are removed), so a change walks only the branches that have handlers below them.
-- Handlers run on the UI thread, inside the change (the `IsVisible` set, the `Children.Add`, the handler connect).
+- Handlers run on the UI thread, inside the change (the `IsVisible` set, the `Children.Add`, the handler connect). A handler that throws does not stop the others: every watched view of the branch is updated, then the first exception is rethrown from the change.
 
 ## Backgrounds, shadows and clips
 

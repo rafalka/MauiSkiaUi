@@ -53,7 +53,8 @@ MAUI's `BindableLayout` works on `SkUiLayout` and every layout built on it (`SkU
 ```
 
 - Templates must create drawn views (put native ones inside an [`SkUiMauiContentView`](SkUiMauiContentView.md)); a native view throws an `ArgumentException` that says so.
-- Without a template, items show as centered `SkUiLabel`s with the item's text, like MAUI's default template (also briefly when `ItemsSource` is set before `ItemTemplate`).
+- Without a template, items show as centered `SkUiLabel`s with the item's text, like MAUI's default template (also briefly when `ItemsSource` is set before `ItemTemplate`). As in MAUI, the text is the item's `ToString()` when the item is shown or replaced; changes inside the item are not tracked (MAUI's `{Binding .}` does not observe them either): use an `ItemTemplate` that binds the item's properties for live items.
+- Writes through `IBindableLayout.Children` go through the same checks as writes through `ILayout`.
 - `EmptyView` must be a drawn view, or come from `EmptyViewTemplate`: a string `EmptyView` throws, because MAUI turns it into its own `Label`.
 - Templates can set attached properties (`Grid.Row`, `FlexLayout.Grow`, …); they re-lay out the layout like any child's.
 - Every item gets a view, as in MAUI: no virtualization. For long lists use a scroller with a few hundred items at most, until the virtualized collection view (Phase B).

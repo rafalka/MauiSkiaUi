@@ -112,7 +112,8 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
 
     private void OnFillChanged(Brush? value)
     {
-        ReleaseBrush(_fill, value);
+        if (!ReferenceEquals(_fill, _stroke)) // a brush used for both keeps the context while the stroke uses it
+            ReleaseBrush(_fill, value);
         _fill = value;
         _fillListener.Listen(value);
         InheritBindingContext(value);
@@ -121,7 +122,8 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
 
     private void OnStrokeChanged(Brush? value)
     {
-        ReleaseBrush(_stroke, value);
+        if (!ReferenceEquals(_stroke, _fill))
+            ReleaseBrush(_stroke, value);
         _stroke = value;
         _strokeListener.Listen(value);
         InheritBindingContext(value);

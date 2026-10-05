@@ -160,11 +160,15 @@ public class SkUiImage : SkUiView
     // Bindings inside a placeholder (a font glyph, a URI) resolve against the image, and their changes reload it.
     private void OnPlaceholderChanged(ImageSource? oldValue, ImageSource? newValue)
     {
-        AdoptImageSource(oldValue, newValue);
+        AdoptImageSource(UsesSource(oldValue) ? null : oldValue, newValue);
         (_loadingPlaceholderListener ??= new(this, OnPlaceholderEdited)).Listen(LoadingPlaceholder);
         (_errorPlaceholderListener ??= new(this, OnPlaceholderEdited)).Listen(ErrorPlaceholder);
         UpdatePlaceholders();
     }
+
+    // A source shared by several slots (the source and a placeholder) stays this image's child while any still uses it.
+    private bool UsesSource(ImageSource? source) => source is not null
+        && (ReferenceEquals(source, _source) || ReferenceEquals(source, LoadingPlaceholder) || ReferenceEquals(source, ErrorPlaceholder));
 
     private static void OnPlaceholderEdited(SkUiImage image, SkUiChange change)
     {
@@ -214,8 +218,9 @@ public class SkUiImage : SkUiView
     {
         if (ReferenceEquals(_source, value)) return;
         // Bindings inside the source (a font glyph, a URI) resolve against the image, as in MAUI.
-        AdoptImageSource(_source, value);
+        var previous = _source;
         _source = value;
+        AdoptImageSource(UsesSource(previous) ? null : previous, value);
         _sourceListener.Listen(value);
         Reload();
     }

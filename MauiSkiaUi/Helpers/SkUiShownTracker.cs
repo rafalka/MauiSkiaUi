@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 
 namespace MauiSkiaUi;
 
@@ -104,19 +105,35 @@ internal static class SkUiShownTracker
         }
     }
 
-    private static void Refresh(SkUiView view, State state) =>
-        Refresh(view, state, view.SkiaParent is { } parent ? Compute(parent) : view.HasLiveSurface);
+    // A handler that throws does not stop the walk: every watched view of the branch is updated (deferred content of
+    // its siblings still loads), then the first exception is rethrown.
+    private static void Refresh(SkUiView view, State state)
+    {
+        ExceptionDispatchInfo? failure = null;
+        Refresh(view, state, view.SkiaParent is { } parent ? Compute(parent) : view.HasLiveSurface, ref failure);
+        failure?.Throw();
+    }
 
-    private static void Refresh(SkUiView node, State state, bool parentShown)
+    private static void Refresh(SkUiView node, State state, bool parentShown, ref ExceptionDispatchInfo? failure)
     {
         var shown = parentShown && node.IsVisible;
         if (state.Handlers is { } handlers && shown != state.IsShown)
         {
             state.IsShown = shown;
-            handlers.Invoke(node, EventArgs.Empty);
+            foreach (EventHandler handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler(node, EventArgs.Empty);
+                }
+                catch (Exception exception)
+                {
+                    failure ??= ExceptionDispatchInfo.Capture(exception);
+                }
+            }
         }
         foreach (var child in node.SkiaChildren.ToArray())
             if (child is SkUiView view && _states.TryGetValue(view, out var childState) && childState.Watchers > 0)
-                Refresh(view, childState, shown);
+                Refresh(view, childState, shown, ref failure);
     }
 }

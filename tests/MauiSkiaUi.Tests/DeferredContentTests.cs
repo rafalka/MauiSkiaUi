@@ -338,4 +338,28 @@ public class DeferredContentTests
         protected override DataTemplate OnSelectTemplate(object item, BindableObject container) =>
             item is 2 ? new DataTemplate(() => new SkUiEllipse()) : new DataTemplate(() => new SkUiBox());
     }
+
+    [Fact]
+    public void IsContentLoadedTurnsTrueOnceTheContentIsAttached()
+    {
+        var box = Box();
+        var view = Deferred(box);
+        Element? parentWhenLoaded = null;
+        view.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SkUiContentView.IsContentLoaded))
+                parentWhenLoaded = box.Parent;
+        };
+        view.LoadContent();
+        Assert.Same(view, parentWhenLoaded);
+    }
+
+    [Fact]
+    public void AFailingTemplateLeavesTheViewWaiting()
+    {
+        var view = new SkUiContentView { ContentLoading = SkUiContentLoading.WhenShown, ContentTemplate = new DataTemplate(() => new Label()) };
+        _ = new SkUiVerticalStackLayout { Children = { view } };
+        Assert.Throws<InvalidOperationException>(view.LoadContent);
+        Assert.False(view.IsContentLoaded);
+    }
 }

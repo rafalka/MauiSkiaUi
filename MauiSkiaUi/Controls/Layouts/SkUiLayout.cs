@@ -64,8 +64,10 @@ public class SkUiLayout : SkUiView, ILayout, IBindableLayout
     void IList<IView>.RemoveAt(int index) => Children.RemoveAt(index);
     IEnumerator<IView> IEnumerable<IView>.GetEnumerator() => Children.GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => Children.GetEnumerator();
-    // MAUI's BindableLayout casts to IBindableLayout; it writes through ILayout above and reads Children only by index.
-    IList IBindableLayout.Children => (IList)Children;
+    // MAUI's BindableLayout casts to IBindableLayout. It writes through ILayout above today; writes through this list take
+    // the same path, so a MAUI change (or app code) using it gets the same conversion and errors.
+    IList IBindableLayout.Children => _bindableChildren ??= new BindableChildren(this);
+    private BindableChildren? _bindableChildren;
     private ISkUiView RequireSkia(IView view)
     {
         if (view is ISkUiView child)
@@ -146,6 +148,28 @@ public class SkUiLayout : SkUiView, ILayout, IBindableLayout
         foreach (var child in PaintOrder)
             if (child is ISkUiRenderable renderable)
                 children.Add(renderable);
+    }
+
+    /// <summary><see cref="IBindableLayout.Children"/>: reads <see cref="Children"/>, writes through <see cref="ILayout"/>.</summary>
+    private sealed class BindableChildren(SkUiLayout owner) : IList
+    {
+        private IList<IView> Layout => owner;
+        public object? this[int index] { get => owner.Children[index]; set => Layout[index] = AsView(value); }
+        public bool IsFixedSize => false;
+        public bool IsReadOnly => false;
+        public int Count => owner.Children.Count;
+        public bool IsSynchronized => false;
+        public object SyncRoot => this;
+        public int Add(object? value) { Layout.Add(AsView(value)); return owner.Children.Count - 1; }
+        public void Clear() => Layout.Clear();
+        public bool Contains(object? value) => value is ISkUiView child && owner.Children.Contains(child);
+        public int IndexOf(object? value) => value is ISkUiView child ? owner.Children.IndexOf(child) : -1;
+        public void Insert(int index, object? value) => Layout.Insert(index, AsView(value));
+        public void Remove(object? value) { if (value is IView view) Layout.Remove(view); }
+        public void RemoveAt(int index) => Layout.RemoveAt(index);
+        public void CopyTo(Array array, int index) => ((ICollection)owner.Children).CopyTo(array, index);
+        public IEnumerator GetEnumerator() => owner.Children.GetEnumerator();
+        private static IView AsView(object? value) => value as IView ?? throw new ArgumentException($"SkiaUi layouts only host drawn (SkUi*) views, not {value?.GetType().Name ?? "null"}.", nameof(value));
     }
 
     private sealed class ChildCollection(SkUiLayout owner) : Collection<ISkUiView>

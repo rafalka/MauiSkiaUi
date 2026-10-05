@@ -241,4 +241,28 @@ public class BindableLayoutTests
     {
         protected override DataTemplate OnSelectTemplate(object item, BindableObject container) => (int)item % 2 == 0 ? even : odd;
     }
+
+    [Fact]
+    public void WithoutATemplateAReplacedItemShowsItsText()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var items = new ObservableCollection<string> { "a", "b" };
+        var stack = new SkUiVerticalStackLayout();
+        BindableLayout.SetItemsSource(stack, items);
+        items[1] = "replaced"; // MAUI rebinds its default label; the drawn one is replaced
+        Assert.Equal(["a", "replaced"], Texts(stack));
+    }
+
+    [Fact]
+    public void WritesThroughTheBindableChildrenListAreCheckedLikeLayoutWrites()
+    {
+        var stack = new SkUiVerticalStackLayout();
+        var children = ((IBindableLayout)stack).Children;
+        children.Add(new SkUiBox());
+        Assert.Single(stack.Children);
+        Assert.Throws<ArgumentException>(() => children.Add(new Entry()));
+        Assert.Throws<ArgumentException>(() => children.Add("text"));
+        children.RemoveAt(0);
+        Assert.Empty(stack.Children);
+    }
 }
