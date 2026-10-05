@@ -2,7 +2,7 @@
 
 A header that shows or hides its content when tapped. FAQ answers, settings groups, details rows, nested menus.
 
-**MAUI counterpart:** Community Toolkit `Expander` (`mct:Expander`). Its XAML ports by changing the prefix, with drawn views as `Header` and `Content`. Beyond the toolkit: `ContentTemplate`, `LazyContentExpansion` and an expand / collapse animation (`AnimationLength`).
+**MAUI counterpart:** Community Toolkit `Expander` (`mct:Expander`). Its XAML ports by changing the prefix, with drawn views as `Header` and `Content`. Beyond the toolkit: `ContentTemplate`, `LazyContentExpansion` and an expand / collapse animation (`AnimationLength`, `AnimationEasing`).
 
 ## How it works
 
@@ -18,7 +18,8 @@ A header that shows or hides its content when tapped. FAQ answers, settings grou
 ### Animation
 
 - `AnimationLength` (milliseconds, default `0` = none) animates every change of `IsExpanded`.
-- **The content grows from the header's side.** It is scaled vertically, anchored at its top for `Down` and its bottom for `Up`, while the expander's height follows it. The views around the expander (the rest of a stack, a scroll view's extent) move along. The easing is fixed (`CubicInOut`).
+- **The content grows from the header's side.** It is scaled vertically, anchored at its top for `Down` and its bottom for `Up`, while the expander's height follows it. The views around the expander (the rest of a stack, a scroll view's extent) move along.
+- **`AnimationEasing`** (default `CubicInOut`; `null` is linear; XAML takes MAUI's easing names, `AnimationEasing="SpringOut"`) shapes both directions. Easings that overshoot (`SpringOut`, `SpringIn`) stretch the content past its size for a moment; the content never shows less than nothing (no flipped content, the height never drops below the header's).
 - **`IsExpanded` changes at once and the content follows.** A change while it animates reverses from where it is, taking the remaining part of the length. `IsAnimating` is `true` meanwhile. When a collapse ends, the content is hidden (or removed when lazy).
 - **Where it runs.** The height is laid out again on every frame on the UI thread, while the scale is composite-time. Each frame re-records only the views whose size changed (the expander, and ancestors that size to their content, such as a scroller's stack); its content, the views that only move and the shadows of ancestors are not recorded again.
 - **When it does not animate:** before the expander is first drawn, while the system reduces motion ([`SkUiMotion`](../design/AnimationMechanism.md)), or with a length of 0. The change then applies at once.
@@ -38,7 +39,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 ## How to use
 
 ```xml
-<sk:SkUiExpander IsExpanded="{Binding ShowDetails}" AnimationLength="250" LazyContentExpansion="True">
+<sk:SkUiExpander IsExpanded="{Binding ShowDetails}" AnimationLength="250" AnimationEasing="CubicOut" LazyContentExpansion="True">
   <sk:SkUiExpander.Header>
     <sk:SkUiLabel Text="Details" FontAttributes="Bold" />
   </sk:SkUiExpander.Header>
@@ -63,10 +64,11 @@ From the toolkit, change `mct:Expander` to `sk:SkUiExpander` and the header and 
 | `Command` / `CommandParameter` | — | Run on every change of `IsExpanded` |
 | `LazyContentExpansion` | `false` | Content in the tree only while expanded |
 | `AnimationLength` | `0` | Milliseconds; `0` shows and hides at once |
+| `AnimationEasing` | `CubicInOut` | MAUI `Easing`; `null` is linear |
 | `Padding` | `0` | Inset around header and content |
 | `IsAnimating` | `false` | Expanding or collapsing (read-only) |
 | `ExpandedChanged` (event) | — | After `Command`, at each change |
 
 ## Related
 
-[SkUiAlternateContentView](SkUiAlternateContentView.md) (one of two contents) · [SkUiContentView](SkUiContentView.md) (content loaded when shown) · Gallery: `ExpanderDemoPage` · Tests: `ExpanderTests`, `ExpanderXamlTests`; leak scenario `ExpanderToggled`
+[SkUiAlternateContentView](SkUiAlternateContentView.md) (one of two contents) · [SkUiContentView](SkUiContentView.md) (content loaded when shown) · Gallery: `ExpanderDemoPage` (a header chevron that turns with the expander's length and easing), `ExpanderNestingDemoPage` (bordered expanders three levels deep in a scroll view) · Tests: `ExpanderTests`, `ExpanderXamlTests`; leak scenario `ExpanderToggled`

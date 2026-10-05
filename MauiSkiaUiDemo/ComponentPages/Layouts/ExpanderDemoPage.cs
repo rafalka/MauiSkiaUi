@@ -7,7 +7,8 @@ namespace MauiSkiaUiDemo;
 /// Property playground for <see cref="SkUiExpander"/> (Community Toolkit <c>Expander</c>): tap the header to expand.
 /// The content is a card, a card created from <c>ContentTemplate</c> (creations are counted, so
 /// <c>LazyContentExpansion</c> shows when it runs), or a native Editor hosted in the drawn tree. A line below the
-/// expander shows the views around it moving with the animation.
+/// expander shows the views around it moving with the animation; the header's chevron turns with the expander's
+/// length and easing.
 /// </summary>
 public sealed class ExpanderDemoPage : ComponentDemoPage
 {
@@ -21,7 +22,11 @@ public sealed class ExpanderDemoPage : ComponentDemoPage
     {
         _expander = expander;
         SinglePanelHeight = 320;
-        expander.Header = Header();
+        expander.Header = new SkUiBorder
+        {
+            Background = Accent, CornerRadius = 8, StrokeThickness = 0,
+            Content = DemoExpanders.Header(expander, "Details (tap me)", Colors.White, Colors.Transparent)
+        };
         expander.ExpandedChanged += (_, e) => Report(e.IsExpanded);
         SetContent("Card");
 
@@ -29,6 +34,8 @@ public sealed class ExpanderDemoPage : ComponentDemoPage
         Choice(nameof(SkUiExpander.Direction), [SkUiExpandDirection.Down, SkUiExpandDirection.Up], SkUiExpandDirection.Down,
             value => expander.Direction = value, () => expander.Direction);
         Number(nameof(SkUiExpander.AnimationLength), 0, 600, 250, value => expander.AnimationLength = (uint)value, () => expander.AnimationLength, whole: true);
+        Choice(nameof(SkUiExpander.AnimationEasing), DemoExpanders.EasingNames, "CubicInOut",
+            value => expander.AnimationEasing = DemoExpanders.EasingNamed(value), () => DemoExpanders.NameOf(expander.AnimationEasing));
         Toggle(nameof(SkUiExpander.LazyContentExpansion), false, value => expander.LazyContentExpansion = value, () => expander.LazyContentExpansion);
         Choice("Content", Contents, "Card", SetContent, () => _content);
     }
@@ -46,12 +53,6 @@ public sealed class ExpanderDemoPage : ComponentDemoPage
             }
         };
     }
-
-    private static SkUiBorder Header() => new()
-    {
-        Background = Accent, CornerRadius = 8, Padding = new Thickness(12, 10), StrokeThickness = 0,
-        Content = new SkUiLabel { Text = "Details (tap me)", TextColor = Colors.White, FontSize = 16, FontAttributes = FontAttributes.Bold }
-    };
 
     private static SkUiBorder Card(string text) => new()
     {

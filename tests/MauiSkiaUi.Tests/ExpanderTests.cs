@@ -280,6 +280,53 @@ public class ExpanderTests
     }
 
     [Fact]
+    public void AnimationEasingShapesTheRevealAndOvershootNeverGoesBelowNothing()
+    {
+        WithMotion(() =>
+        {
+            var expander = new SkUiExpander { Header = Box(20), Content = Box(40), AnimationLength = 200 };
+            Assert.Same(Easing.CubicInOut, expander.AnimationEasing);
+            var root = new SkUiContentView { Content = new SkUiVerticalStackLayout { Children = { expander } } };
+            using var surface = new SkUiTestSurface(root, 100, 200);
+            At(surface, 0);
+
+            expander.AnimationEasing = Easing.Linear;
+            expander.IsExpanded = true;
+            At(surface, 50);
+            Assert.Equal(0.25, expander.Reveal, 3);
+            Assert.Equal(30, expander.Height, 3);
+            At(surface, 200);
+
+            // SpringIn dips below its start: collapsing from expanded overshoots past 1 (stretched), and expanding
+            // starts below 0, which shows nothing instead of a flipped content or a height below the header's.
+            expander.AnimationEasing = Easing.SpringIn;
+            var reveals = new List<double>();
+            expander.IsExpanded = false;
+            for (var time = 210; time <= 400; time += 10)
+            {
+                At(surface, time);
+                reveals.Add(expander.Reveal);
+                Assert.True(expander.ContentHost.ScaleY >= 0);
+                Assert.True(expander.Height >= 20);
+            }
+            Assert.Contains(reveals, reveal => reveal > 1);
+            expander.IsExpanded = true;
+            for (var time = 410; time <= 600; time += 10)
+            {
+                At(surface, time);
+                Assert.True(expander.Reveal >= 0);
+                Assert.True(expander.Height >= 20);
+            }
+            Assert.Equal(60, expander.Height);
+
+            expander.AnimationEasing = null; // linear
+            expander.IsExpanded = false;
+            At(surface, 650);
+            Assert.Equal(0.75, expander.Reveal, 3);
+        });
+    }
+
+    [Fact]
     public void CollapsingHidesOrDetachesTheContentWhenItEndsAndReversesFromWhereItIs()
     {
         WithMotion(() =>
@@ -460,7 +507,7 @@ public class ExpanderXamlTests
                     </sk:SkUiExpander>
                   </sk:SkUiExpander.Content>
                 </sk:SkUiExpander>
-                <sk:SkUiExpander x:Name="Bound" IsExpanded="{Binding Open}" LazyContentExpansion="True" AnimationLength="250">
+                <sk:SkUiExpander x:Name="Bound" IsExpanded="{Binding Open}" LazyContentExpansion="True" AnimationLength="250" AnimationEasing="SpringOut">
                   <sk:SkUiExpander.Header>
                     <sk:SkUiLabel Text="{Binding Name}" HeightRequest="20" />
                   </sk:SkUiExpander.Header>
@@ -489,6 +536,7 @@ public class ExpanderXamlTests
         Assert.Equal(60, ((IView)multi).Measure(300, 500).Height);
 
         Assert.Equal(250u, bound.AnimationLength);
+        Assert.Same(Easing.SpringOut, bound.AnimationEasing);
         Assert.Null(bound.Content); // lazy: the template waits for the first expand
         model.Open = true;
         var label = Assert.IsType<SkUiLabel>(bound.Content);

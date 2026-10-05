@@ -29,8 +29,6 @@ public sealed class SkUiExpandedChangedEventArgs(bool isExpanded) : EventArgs
 [ContentProperty(nameof(Content))]
 public class SkUiExpander : SkUiView
 {
-    private static readonly Easing AnimationEasing = Easing.CubicInOut;
-
     private readonly HeaderPart _headerPart;
     private readonly ContentPart _contentPart;
     private readonly SkUiContentSlot _slot;
@@ -40,6 +38,7 @@ public class SkUiExpander : SkUiView
     private bool _expanded;
     private bool _lazy;
     private uint _animationLength;
+    private Easing? _animationEasing = Easing.CubicInOut;
 
     /// <summary>Bindable <see cref="Header"/>.</summary>
     public static readonly BindableProperty HeaderProperty = BindableProperty.Create(
@@ -96,6 +95,11 @@ public class SkUiExpander : SkUiView
     public static readonly BindableProperty AnimationLengthProperty = BindableProperty.Create(
         nameof(AnimationLength), typeof(uint), typeof(SkUiExpander), 0u,
         propertyChanged: (bindable, _, newValue) => ((SkUiExpander)bindable)._animationLength = (uint)newValue);
+
+    /// <summary>Bindable <see cref="AnimationEasing"/> (XAML: an easing name, e.g. <c>"SpringOut"</c>).</summary>
+    public static readonly BindableProperty AnimationEasingProperty = BindableProperty.Create(
+        nameof(AnimationEasing), typeof(Easing), typeof(SkUiExpander), Easing.CubicInOut,
+        propertyChanged: (bindable, _, newValue) => ((SkUiExpander)bindable)._animationEasing = (Easing?)newValue);
 
     /// <summary>Bindable <see cref="Padding"/>.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(
@@ -181,13 +185,26 @@ public class SkUiExpander : SkUiView
 
     /// <summary>
     /// Length of the expand and collapse animation in milliseconds; 0 (default) shows and hides the content at once. The
-    /// content is scaled vertically from the header's side and the expander's height follows it. Not animated while
+    /// content is scaled vertically from the header's side and the expander's height follows it, with
+    /// <see cref="AnimationEasing"/>. Not animated while
     /// the system reduces motion (<see cref="SkUiMotion"/>) or before the expander is first drawn.
     /// </summary>
     public uint AnimationLength
     {
         get => (uint)GetValue(AnimationLengthProperty);
         set => SetValue(AnimationLengthProperty, value);
+    }
+
+    /// <summary>
+    /// Easing of the expand and collapse animation (default <see cref="Easing.CubicInOut"/>; <c>null</c> is linear),
+    /// applied the same way in both directions. Easings that overshoot (<see cref="Easing.SpringOut"/>,
+    /// <see cref="Easing.BounceOut"/>) stretch the content past its size for a moment; the content never shows less
+    /// than nothing.
+    /// </summary>
+    public Easing? AnimationEasing
+    {
+        get => (Easing?)GetValue(AnimationEasingProperty);
+        set => SetValue(AnimationEasingProperty, value);
     }
 
     /// <summary>Inset around the header and content.</summary>
@@ -239,8 +256,8 @@ public class SkUiExpander : SkUiView
     /// <summary>The content's host, scaled while animating (tests).</summary>
     internal SkUiView ContentHost => _contentPart;
 
-    /// <summary>How far the content is shown, from 0 (collapsed) to 1 (expanded).</summary>
-    internal double Reveal => _reveal.Value;
+    /// <summary>How far the content is shown, from 0 (collapsed) to 1 (expanded); past 1 while an easing overshoots, never below 0.</summary>
+    internal double Reveal => Math.Max(0, _reveal.Value);
 
     // The content is in the tree (non-lazy), or expanded or still collapsing (lazy); visible while expanded or collapsing.
     private bool ShowsContent => _expanded || _reveal.Value > 0;
@@ -283,7 +300,7 @@ public class SkUiExpander : SkUiView
         RefreshContent();
         var length = SkUiMotion.IsMotionReduced ? 0 : _animationLength;
         var target = value ? 1f : 0f;
-        _reveal.AnimateTo(target, length == 0 ? SkUiTransition.None : SkUiTransition.FromMilliseconds(length, AnimationEasing),
+        _reveal.AnimateTo(target, length == 0 ? SkUiTransition.None : SkUiTransition.FromMilliseconds(length, _animationEasing ?? Easing.Linear),
             _ => RefreshContent(), durationScale: Math.Abs(target - _reveal.Value));
         _headerPart.OnExpandedChanged();
         if (Command is { } command && command.CanExecute(CommandParameter))
@@ -309,7 +326,7 @@ public class SkUiExpander : SkUiView
     // expander and its ancestors, which re-records only what changed size).
     private void OnRevealChanged()
     {
-        _contentPart.ScaleY = _reveal.Value;
+        _contentPart.ScaleY = Reveal;
         InvalidateMeasureOverride();
     }
 
@@ -360,7 +377,7 @@ public class SkUiExpander : SkUiView
         var body = _contentPart.IsVisible ? ((IView)_contentPart).Measure(width, double.PositiveInfinity) : Size.Zero;
         return new Size(
             Math.Max(header.Width, body.Width) + _padding.HorizontalThickness,
-            header.Height + body.Height * _reveal.Value + _padding.VerticalThickness);
+            header.Height + body.Height * Reveal + _padding.VerticalThickness);
     }
 
     /// <inheritdoc />
@@ -372,7 +389,7 @@ public class SkUiExpander : SkUiView
         var width = Math.Max(0, size.Width - _padding.HorizontalThickness);
         var headerHeight = ((IView)_headerPart).DesiredSize.Height;
         var bodyHeight = _contentPart.IsVisible ? ((IView)_contentPart).DesiredSize.Height : 0;
-        var shown = bodyHeight * _reveal.Value;
+        var shown = bodyHeight * Reveal;
         if (_direction == SkUiExpandDirection.Down)
         {
             ((IView)_headerPart).Arrange(new Rect(x, _padding.Top, width, headerHeight));
