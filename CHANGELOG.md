@@ -48,6 +48,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### Other
 
 - **Cheaper relayouts:** when a drawn view's size request or content changes, its ancestors are measured and arranged again but no longer re-record their pictures (nor re-rasterize their shadows); only views whose size changed re-record. Relayouts every frame (an animating expander) and containers that re-measure often benefit most.
+- **Layout changes stay inside the surface:** when a drawn view's size changes, its surface lays itself out again right before the next frame (with the size the page gave it) instead of asking the native page to lay out again; the native layout runs only when the surface's own size changes. Each animation frame of an expander now records once, with the scale and the layout in step.
+- **Faster rounded shadows:** shadows of rounded borders and stroked rectangles, ovals and rounded rectangles stay simple shapes that Skia blurs on the GPU; before, the stroke made them a general path blurred on the CPU at every size change. On a Galaxy S9, nested expanders with shadowed cards composite in 10 ms per frame instead of 17 ms while animating, and in 4 ms instead of about 11 ms while scrolling.
 
 ## 1.0.0-Prerelease08
 
