@@ -138,10 +138,11 @@ public sealed class MemoryLeaksPage : ContentPage
     private async Task CheckDetector()
     {
         var render = await RenderCheck.RunAsync();
+        var hosted = await HostedControlsCheck.RunAsync();
         var result = await MemoryLeakRunner.CheckDetectorAsync();
         _detector.IsVisible = true;
-        _detector.TextColor = result.Status == LeakStatus.Pass && render.Status == LeakStatus.Pass ? LeakColors.Pass : LeakColors.Fail;
-        _detector.Text = $"Detector: {result.Details}\nRendering: {render.Details}";
+        _detector.TextColor = result.Status == LeakStatus.Pass && render.Status == LeakStatus.Pass && hosted.Status == LeakStatus.Pass ? LeakColors.Pass : LeakColors.Fail;
+        _detector.Text = $"Detector: {result.Details}\nRendering: {render.Details}\nHosted controls: {hosted.Details}";
     }
 
     private static Task Run(IEnumerable<LeakScenario> scenarios) => MemoryLeakRunner.RunAsync(scenarios);

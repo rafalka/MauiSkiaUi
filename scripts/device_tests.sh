@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Run the on-device tests (tests/MauiSkiaUi.DeviceTests: memory leak scenarios with real handlers and platform views)
-# and report the results. Builds the app (Release by default), installs it, launches it with --autorun --exit,
+# Run the on-device tests (tests/MauiSkiaUi.DeviceTests: a render check, the hosted-control check and memory leak
+# scenarios with real handlers and platform views) and report the results. Builds the app (Release by default), installs it, launches it with --autorun --exit,
 # collects its "SKUILEAK" console lines and exits non-zero when anything failed.
 # Results: artifacts/device-tests/<timestamp>/{<target>.log,build.log}.
 #
@@ -192,7 +192,11 @@ run_android() {
     until adb -s "$DEVICE" logcat -d | grep -q "${PREFIX}_DONE"; do
         sleep 2; waited=$((waited + 2))
         if [[ $waited -ge $TIMEOUT ]]; then log "timeout"; break; fi
-        if [[ $waited -ge 20 ]] && ! adb -s "$DEVICE" shell pidof "$APP_ID" >/dev/null; then log "the app is not running (crash?)"; break; fi
+        if [[ $waited -ge 20 ]] && ! adb -s "$DEVICE" shell pidof "$APP_ID" >/dev/null; then
+            # It may have finished and exited since the check above.
+            adb -s "$DEVICE" logcat -d | grep -q "${PREFIX}_DONE" || log "the app is not running (crash?)"
+            break
+        fi
     done
     adb -s "$DEVICE" logcat -d | filter >"$LOG" || true
     adb -s "$DEVICE" shell am force-stop "$APP_ID"
@@ -231,7 +235,7 @@ log "running on $TARGET${DEVICE:+ ($DEVICE)}"
 python3 - "$LOG" <<'PY'
 import json, sys
 lines = open(sys.argv[1]).read().splitlines()
-results, detector, render, done, errors = [], None, None, None, []
+results, detector, render, hosted, done, errors = [], None, None, None, None, []
 for line in lines:
     tag, _, payload = line.partition(" ")
     if tag == "SKUILEAK":
@@ -240,13 +244,15 @@ for line in lines:
         detector = json.loads(payload)
     elif tag == "SKUILEAK_RENDER":
         render = json.loads(payload)
+    elif tag == "SKUILEAK_HOSTED":
+        hosted = json.loads(payload)
     elif tag == "SKUILEAK_DONE":
         done = payload
     elif tag == "SKUILEAK_START":
         print(payload)
     elif tag == "SKUILEAK_ERROR":
         errors.append(payload)
-for check, name in ((render, "rendering"), (detector, "detector")):
+for check, name in ((render, "rendering"), (hosted, "hosted"), (detector, "detector")):
     if check:
         print(f"{name:9} {check['Status']:4}  {check['Details']}")
 for r in results:
@@ -257,7 +263,7 @@ for e in errors:
 if done is None:
     print("the run did not finish (crash or timeout); see the log")
 ok = (done is not None and not failed and not errors
-      and all(check is not None and check["Status"] == "Pass" for check in (detector, render)))
+      and all(check is not None and check["Status"] == "Pass" for check in (detector, render, hosted)))
 print(f"\n{len(results) - len(failed)}/{len(results)} passed" + ("" if ok else " — FAILED"))
 sys.exit(0 if ok else 1)
 PY

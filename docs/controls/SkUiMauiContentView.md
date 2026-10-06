@@ -59,4 +59,4 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Related
 
-[ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) · Gallery: `MauiContentViewDemoPage`, "Native overlays in ScrollView" (`OverlayScrollingDemoPage`)
+[ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) · Regression suite and device checklist: [Testing.md](../design/Testing.md#hosted-controls-a6) · Gallery: `MauiContentViewDemoPage`, "Native overlays in ScrollView" (`OverlayScrollingDemoPage`)

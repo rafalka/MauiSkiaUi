@@ -18,6 +18,13 @@ public enum SkUiOverlayScrollMode
 }
 
 /// <summary>
+/// Where the platform placed a hosted native view (<see cref="SkUiMauiContentView.GetNativePlacement"/>), in
+/// root-relative DIPs: its <paramref name="Frame"/>, the <paramref name="Visible"/> part its clip wrapper shows, and
+/// whether it <paramref name="IsShown"/> (not hidden for a snapshot or an invisible ancestor, not clipped away).
+/// </summary>
+internal readonly record struct SkUiOverlayPlacement(Rect Frame, Rect Visible, bool IsShown);
+
+/// <summary>
 /// Hosts a real MAUI <see cref="VisualElement"/> (e.g. Entry, Editor, WebView) as a native overlay positioned
 /// over this node's arranged bounds, instead of a Skia reimplementation (FR-16). The platform view renders and
 /// receives native input directly, so SkiaUi touch routing never consumes hits over this region. The overlay is
@@ -239,6 +246,10 @@ public partial class SkUiMauiContentView : SkUiView
         }
         InvalidateMeasureOverride();
         AttachOverlayIfPossible();
+        // A snapshot shows the old control: drop it, and capture the new one if a scroller still moves.
+        RestoreLive();
+        if (_movingScrollers > 0)
+            BeginSnapshot();
     }
 
     /// <inheritdoc />
@@ -458,6 +469,20 @@ public partial class SkUiMauiContentView : SkUiView
     partial void SyncOverlayBounds();
     partial void StartCapture(Action<SKImage?> done, ref bool started);
     partial void SetNativeHidden(bool hidden);
+
+    /// <summary>
+    /// Where the platform placed the native view, read back from it (root-relative DIPs); null when it is not attached
+    /// (no platform root, or the headless target). Diagnostics and the device tests' hosted check compare it with
+    /// <see cref="ComputeRootRelativeFrame"/> and <see cref="ComputeRootRelativeClip"/>.
+    /// </summary>
+    internal SkUiOverlayPlacement? GetNativePlacement()
+    {
+        SkUiOverlayPlacement? placement = null;
+        ReadNativePlacement(ref placement);
+        return placement;
+    }
+
+    partial void ReadNativePlacement(ref SkUiOverlayPlacement? placement);
 
     /// <inheritdoc />
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)

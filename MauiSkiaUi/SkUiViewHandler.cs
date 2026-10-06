@@ -819,6 +819,23 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     internal void SetOverlayHidden(PlatformView child, bool hidden) => _container?.SetOverlayHidden(child, hidden);
 
     /// <summary>
+    /// Where the platform placed a native overlay, read back from the native views (diagnostics and device checks):
+    /// root-relative DIPs. Null when the overlay is not attached to this surface.
+    /// </summary>
+    internal SkUiOverlayPlacement? GetOverlayPlacement(PlatformView child)
+    {
+#if ANDROID
+        if (_container?.GetOverlayPlacementPx(child) is not { } placement)
+            return null;
+        var context = MauiContext!.Context!;
+        Rect Dips(Rect px) => new(context.FromPixels(px.X), context.FromPixels(px.Y), context.FromPixels(px.Width), context.FromPixels(px.Height));
+        return placement with { Frame = Dips(placement.Frame), Visible = Dips(placement.Visible) };
+#else
+        return _container?.GetOverlayPlacement(child);
+#endif
+    }
+
+    /// <summary>
     /// Positions a native overlay at root-relative DIP <paramref name="bounds"/>, visible and touchable only inside
     /// <paramref name="clip"/> (ancestor scroll viewports / clipping ancestors).
     /// </summary>
@@ -1289,6 +1306,18 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
     private static void UpdateVisibility(OverlayState overlay) =>
         overlay.Clip.Visibility = overlay.Hidden || overlay.ClipRect.IsEmpty ? Android.Views.ViewStates.Invisible : Android.Views.ViewStates.Visible;
 
+    /// <summary>The overlay's laid-out frame and visible (clip view) rectangle in container pixels.</summary>
+    public SkUiOverlayPlacement? GetOverlayPlacementPx(Android.Views.View child)
+    {
+        if (!_overlays.TryGetValue(child, out var overlay))
+            return null;
+        var clip = overlay.Clip;
+        return new SkUiOverlayPlacement(
+            new Rect(clip.Left + child.Left, clip.Top + child.Top, child.Width, child.Height),
+            new Rect(clip.Left, clip.Top, clip.Width, clip.Height),
+            clip.Visibility == Android.Views.ViewStates.Visible && clip.Width > 0 && clip.Height > 0);
+    }
+
     protected override void OnLayout(bool changed, int left, int top, int right, int bottom)
     {
         for (var index = 0; index < ChildCount; index++)
@@ -1642,6 +1671,20 @@ internal sealed class SkUiOverlayContainer : MauiView
         if (!_overlays.TryGetValue(child, out var overlay)) return;
         overlay.Hidden = hidden;
         overlay.Clip.Hidden = hidden || overlay.ClipRect.IsEmpty;
+    }
+
+    /// <summary>The overlay's laid-out frame and visible (clip view) rectangle in container points.</summary>
+    public SkUiOverlayPlacement? GetOverlayPlacement(UIKit.UIView child)
+    {
+        if (!_overlays.TryGetValue(child, out var overlay))
+            return null;
+        LayoutIfNeeded();
+        var clip = overlay.Clip.Frame;
+        var frame = child.Frame;
+        return new SkUiOverlayPlacement(
+            new Rect(clip.X + frame.X, clip.Y + frame.Y, frame.Width, frame.Height),
+            new Rect(clip.X, clip.Y, clip.Width, clip.Height),
+            !overlay.Clip.Hidden && clip.Width > 0 && clip.Height > 0);
     }
 
     public void SetOverlayBounds(UIKit.UIView child, CoreGraphics.CGRect bounds, CoreGraphics.CGRect clip)
@@ -2037,6 +2080,18 @@ internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.
     {
         var hidden = overlay.Hidden && !overlay.Watcher.HasContact;
         overlay.Clip.Visibility = hidden || overlay.Empty ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
+    }
+
+    /// <summary>The overlay's frame and visible (clip canvas) rectangle in container DIPs.</summary>
+    public SkUiOverlayPlacement? GetOverlayPlacement(Microsoft.UI.Xaml.FrameworkElement child)
+    {
+        if (!_overlays.TryGetValue(child, out var overlay))
+            return null;
+        double left = GetLeft(overlay.Clip), top = GetTop(overlay.Clip);
+        return new SkUiOverlayPlacement(
+            new Rect(left + GetLeft(child), top + GetTop(child), child.Width, child.Height),
+            new Rect(left, top, overlay.Clip.Width, overlay.Clip.Height),
+            overlay.Clip.Visibility == Microsoft.UI.Xaml.Visibility.Visible && !overlay.Empty);
     }
 
     public void SetOverlayBounds(Microsoft.UI.Xaml.FrameworkElement child, Rect bounds, Rect clip)
