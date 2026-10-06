@@ -115,29 +115,22 @@ public sealed class OverlayScrollingDemoPage : ComponentDemoPage
         Feedback($"{(_scroll.IsScrolling || _nested.IsScrolling ? "Scrolling" : "Idle")} · mode {mode} · frozen {frozen}/{_overlays.Count} · offset {_scroll.ScrollY:F0}");
     }
 
-    /// <summary>Reads every native view back from the platform and reports any that is not where the drawn tree places it.</summary>
+    /// <summary>
+    /// Reads every native view back from the platform and reports any that is not where the drawn tree places it (the
+    /// device tests' hosted check uses the same comparison: shown / hidden, frame and visible rectangle).
+    /// </summary>
     private void CheckPlacement()
     {
-        var problems = new List<string>();
-        var attached = 0;
-        foreach (var overlay in _overlays)
+        if (_overlays.All(overlay => overlay.GetNativePlacement() is null))
         {
-            if (overlay.GetNativePlacement() is not { } placement)
-                continue;
-            attached++;
-            var frame = overlay.ComputeRootRelativeFrame();
-            var visible = frame.Intersect(overlay.ComputeRootRelativeClip());
-            var shown = visible.Width > 0 && visible.Height > 0 && !overlay.IsNativeHidden;
-            var name = overlay.Content?.GetType().Name ?? "overlay";
-            if (placement.IsShown != shown)
-                problems.Add($"{name} {(placement.IsShown ? "shown" : "hidden")}, expected {(shown ? "shown" : "hidden")}");
-            else if (shown && (Math.Abs(placement.Frame.X - frame.X) > 1.01 || Math.Abs(placement.Frame.Y - frame.Y) > 1.01
-                     || Math.Abs(placement.Frame.Width - frame.Width) > 1.01 || Math.Abs(placement.Frame.Height - frame.Height) > 1.01))
-                problems.Add($"{name} at {placement.Frame.X:F0},{placement.Frame.Y:F0}, expected {frame.X:F0},{frame.Y:F0}");
+            Feedback("No native views attached (run on a device).");
+            return;
         }
-        Feedback(attached == 0 ? "No native views attached (run on a device)."
-            : problems.Count == 0 ? $"All {attached} native views are where the drawn tree places them."
-            : string.Join(" · ", problems));
+        var problems = _overlays
+            .Select(overlay => overlay.FindNativePlacementMismatch() is { } mismatch ? $"{overlay.Content?.GetType().Name ?? "overlay"} {mismatch}" : null)
+            .OfType<string>()
+            .ToList();
+        Feedback(problems.Count == 0 ? $"All {_overlays.Count} native views are where the drawn tree places them." : string.Join(" · ", problems));
     }
 
     private SkUiMauiContentView Host(View control, double height, double? width = null)

@@ -144,7 +144,8 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `CheckBox`, `Switch`, `RadioButton` | `SkUiCheckBox`, `SkUiSwitch`, `SkUiRadioButton` | Optional third state; radio `Content` and `ControlTemplate` |
 | `Slider`, `ProgressBar`, `ActivityIndicator` | `SkUiSlider`, `SkUiProgressBar`, `SkUiActivityIndicator` | Vertical slider, indeterminate progress |
 | `GraphicsView`, `SKCanvasView` | A `SkUiView` subclass | Override `MeasureContent` and `OnPaintContent(SKCanvas)` |
-| `Entry`, `Editor`, `SearchBar`, `Picker`, `DatePicker`, `TimePicker`, `WebView`, maps, media | Wrapped in `SkUiMauiContentView` | Native by design |
+| `Entry`, `Editor`, `SearchBar` | Wrapped in `SkUiMauiContentView` | Native for now; drawn `SkUiEntry` / `SkUiEditor` / `SkUiSearchBar` using the platform keyboard are planned ([Phase T](design/ImplementationPlan.md#phase-t--drawn-text-input-fr-16-amended)) |
+| `Picker`, `DatePicker`, `TimePicker`, `WebView`, maps, media | Wrapped in `SkUiMauiContentView` | Native by design |
 | `Layout.IsClippedToBounds` | `ClipToBounds` | Leaves clip by default, layouts do not |
 
 Per-control differences: [docs/controls/](controls/README.md).

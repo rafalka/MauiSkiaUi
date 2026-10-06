@@ -21,6 +21,8 @@ The placeholder participates in SkiaUi measure/arrange. The wrapped control's pl
 - **Snapshot:** while an ancestor scroller moves, the native view is hidden and a bitmap of it is drawn, so it moves exactly with the drawn content (even during render-thread flings while the UI thread is busy). It is restored `SnapshotRestoreDelay` after scrolling stops. A focused control stays live.
 - **Live:** the native view is repositioned on every offset change.
 
+Replacing `Content` while a snapshot shows drops it and captures the new control (or shows it live when it cannot be captured yet). On Windows captures are asynchronous: a capture of an earlier control that completes after a replacement, a restore or a mode change is discarded, never drawn.
+
 
 ## Shared conventions
 

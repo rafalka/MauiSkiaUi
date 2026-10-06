@@ -12,6 +12,7 @@
 #   scripts/device_tests.sh -t ios -s <device-udid>            # physical device (devicectl, or mlaunch below iOS 17)
 #   scripts/device_tests.sh -t maccatalyst --aot               # Native AOT (fully trimmed) build of the app
 #   scripts/device_tests.sh -t android --trim                  # fully trimmed build (no AOT)
+#   scripts/device_tests.sh -t maccatalyst -S NativeOverlays --placement-tolerance -1   # the hosted check must fail
 #
 set -euo pipefail
 
@@ -31,6 +32,7 @@ TIMEOUT=900
 BUILD=true
 AOT=false
 TRIM=false
+PLACEMENT_TOLERANCE=""
 
 usage() {
     cat <<'EOF'
@@ -44,6 +46,8 @@ Usage: scripts/device_tests.sh -t TARGET [options]
   --timeout SEC    give up after SEC seconds (default 900)
   --aot            publish the app with Native AOT (implies full trimming); fails on trim / AOT warnings from SkiaUi
   --trim           build the app fully trimmed (TrimMode=full, no AOT); fails on trim warnings from SkiaUi
+  --placement-tolerance DIPS
+                   override the hosted-control check's tolerance (default 1.01; a negative value must make it fail)
   --no-build       reuse the last build
   -h, --help       this help
 EOF
@@ -60,6 +64,7 @@ while [[ $# -gt 0 ]]; do
         --no-build) BUILD=false; shift ;;
         --aot) AOT=true; shift ;;
         --trim) TRIM=true; shift ;;
+        --placement-tolerance) PLACEMENT_TOLERANCE="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option $1" >&2; usage; exit 2 ;;
     esac
@@ -176,6 +181,7 @@ output() { # glob below bin/<config>/<tfm> (or its <rid> folder, where a publish
 
 app_args=(--autorun --exit)
 [[ -n "$SCENARIOS" ]] && app_args+=(--scenarios "$SCENARIOS")
+[[ -n "$PLACEMENT_TOLERANCE" ]] && app_args+=(--placement-tolerance "$PLACEMENT_TOLERANCE")
 
 filter() { grep "$PREFIX" | sed "s/.*$PREFIX/$PREFIX/"; }
 
@@ -187,6 +193,7 @@ run_android() {
     adb -s "$DEVICE" logcat -c
     local extras=(--ez autorun true --ez exit true)
     [[ -n "$SCENARIOS" ]] && extras+=(--es scenarios "$SCENARIOS")
+    [[ -n "$PLACEMENT_TOLERANCE" ]] && extras+=(--es placementTolerance "$PLACEMENT_TOLERANCE")
     adb -s "$DEVICE" shell am start -n "$ACTIVITY" "${extras[@]}" >/dev/null
     local waited=0
     until adb -s "$DEVICE" logcat -d | grep -q "${PREFIX}_DONE"; do

@@ -10,13 +10,12 @@ namespace MauiSkiaUi.DeviceTests;
 /// Steps: first layout, instant scrolls of both scrollers, an animated scroll (snapshots on Android / Windows, live on
 /// Apple) and the restore after it, a focused Entry staying live while scrolling, expanding and collapsing, and
 /// replacing a hosted control. What it cannot see (the soft keyboard, IME composition, touch nesting in a WebView)
-/// is on the manual checklist in docs/design/Testing.md.
+/// is on the manual checklist in docs/design/Testing.md. The comparison is
+/// <see cref="SkUiMauiContentView.FindNativePlacementMismatch"/> (shared with the overlay demo page); its tolerance can
+/// be overridden (<c>--placement-tolerance</c>) to prove the check fails on real mismatches.
 /// </summary>
 internal static class HostedControlsCheck
 {
-    /// <summary>Platform rounding: Android places views on whole pixels (less than one DIP on any density).</summary>
-    private const double Tolerance = 1.01;
-
     public static async Task<LeakResult> RunAsync()
     {
         var navigation = Shell.Current?.Navigation ?? Application.Current?.Windows.FirstOrDefault()?.Page?.Navigation;
@@ -26,6 +25,9 @@ internal static class HostedControlsCheck
         var problems = new List<string>();
         var steps = 0;
         ContentPage? page = null;
+        var tolerance = SkUiMauiContentView.NativePlacementTolerance;
+        if (DeviceTestOptions.Current.PlacementTolerance is { } overridden)
+            SkUiMauiContentView.NativePlacementTolerance = overridden;
         try
         {
             var form = new Form();
@@ -37,7 +39,7 @@ internal static class HostedControlsCheck
             {
                 steps++;
                 foreach (var (name, host) in form.Hosts)
-                    if (Mismatch(host) is { } mismatch)
+                    if (host.FindNativePlacementMismatch() is { } mismatch)
                         problems.Add($"{step}: {name} {mismatch}");
             }
 
@@ -52,57 +54,86 @@ internal static class HostedControlsCheck
             await Task.Delay(150);
             Check("inner scroll");
 
-            // An animated scroll: snapshot mode (Android / Windows) hides the visible native views and draws bitmaps.
-            var visibleBefore = form.Hosts.Where(item => !Visible(item.Host).IsEmpty && !item.Host.IsNativeHidden).ToList();
-            var scrolled = form.Scroll.ScrollToAsync(0, 40, animated: true);
-            await Task.Delay(60);
-            if (form.Scroll.IsScrolling)
+            // An animated scroll to the end: snapshot mode (Android / Windows) hides the visible native views and
+            // draws bitmaps; live mode (Apple) keeps them placed. The motion must be seen, else nothing was checked.
+            var visibleBefore = form.Hosts.Where(item => Visible(item.Host) && !item.Host.IsNativeHidden).ToList();
+            var motion = await WatchMotionAsync(form.Scroll.ScrollToAsync(0, form.MaxScrollY, animated: true), form.Scroll, () =>
             {
-                steps++;
+                var pending = false;
                 foreach (var (name, host) in visibleBefore)
                 {
-                    if (host.UsesSnapshotWhileScrolling && !host.IsShowingSnapshot)
-                        problems.Add($"animated scroll: {name} shows no snapshot while scrolling");
-                    if (!host.UsesSnapshotWhileScrolling && Mismatch(host) is { } live)
-                        problems.Add($"animated scroll (live): {name} {live}");
+                    if (!host.UsesSnapshotWhileScrolling)
+                    {
+                        if (host.FindNativePlacementMismatch() is { } live)
+                            problems.Add($"animated scroll (live): {name} {live}");
+                    }
+                    else if (!host.IsShowingSnapshot)
+                    {
+                        pending = true; // Windows captures asynchronously
+                    }
                 }
-            }
-            await scrolled;
+                return pending;
+            });
+            if (!motion.Seen)
+                problems.Add("animated scroll: no motion observed, nothing was checked");
+            else if (motion.Pending)
+                problems.Add($"animated scroll: {string.Join(", ", visibleBefore.Where(item => item.Host.UsesSnapshotWhileScrolling && !item.Host.IsShowingSnapshot).Select(item => item.Name))} showed no snapshot while scrolling");
+            steps++;
             await Task.Delay((int)SkUiMauiContentView.SnapshotRestoreDelay.TotalMilliseconds + 250);
             foreach (var (name, host) in form.Hosts)
                 if (host.IsShowingSnapshot)
                     problems.Add($"after the animated scroll: {name} still shows its snapshot");
             Check("after the animated scroll");
 
-            // A focused text field stays live while its scroller moves (no typing into a hidden field).
+            // A focused text field keeps its focus and stays live while its scroller moves (no typing into a hidden field).
+            await form.Scroll.ScrollToAsync(0, 0, animated: false);
+            await Task.Delay(150);
             form.Entry.Focus();
             await Task.Delay(500);
             if (!form.Entry.IsFocused)
+            {
                 problems.Add("focus: the hosted Entry did not take focus");
-            var moved = form.Scroll.ScrollToAsync(0, 0, animated: true);
-            await Task.Delay(60);
-            if (form.Entry.IsFocused && form.EntryHost.IsShowingSnapshot)
-                problems.Add("focus: the focused Entry shows a snapshot while scrolling");
-            await moved;
-            await Task.Delay(300);
-            Check("focused Entry scrolled");
+            }
+            else
+            {
+                var lostFocus = false;
+                var focusMotion = await WatchMotionAsync(form.Scroll.ScrollToAsync(0, 160, animated: true), form.Scroll, () =>
+                {
+                    if (!form.Entry.IsFocused)
+                        lostFocus = true;
+                    else if (form.EntryHost.IsShowingSnapshot)
+                        problems.Add("focus: the focused Entry shows a snapshot while scrolling");
+                    return true; // watch the whole motion
+                });
+                if (!focusMotion.Seen)
+                    problems.Add("focus: no motion observed, nothing was checked");
+                if (lostFocus || !form.Entry.IsFocused)
+                    problems.Add("focus: the Entry lost focus while its scroller moved");
+                await form.Scroll.ScrollToAsync(0, 0, animated: false);
+                await Task.Delay(300);
+                Check("focused Entry scrolled");
+            }
             form.Entry.Unfocus();
+
+            // The same tree on a new page: overlays detach with the closed page's surface and attach to the new one.
+            var closed = page;
+            page = null;
+            await navigation.PopAsync(animated: false);
+            closed.Content = null;
             if (MemoryLeakRunner.FocusSink is { } sink)
             {
-                // Hand text focus to the test page's own field once this page closes (see LeakScenarioContext.FocusAsync).
-                // The same tree on a new page also checks that overlays re-attach when their surface reconnects.
-                var closed = page;
-                page = null;
-                await navigation.PopAsync(animated: false);
-                closed.Content = null;
+                // Hand text focus to the test page's own field (see LeakScenarioContext.FocusAsync).
                 sink.Focus();
                 await Task.Delay(300);
                 sink.Unfocus();
-                page = new ContentPage { Title = "Hosted controls", BackgroundColor = Colors.White, Content = form.Root };
-                await navigation.PushAsync(page, animated: false);
-                await Task.Delay(600);
-                Check("page shown again");
             }
+            foreach (var (name, host) in form.Hosts)
+                if (host.GetNativePlacement() is not null)
+                    problems.Add($"page closed: {name} is still attached");
+            page = new ContentPage { Title = "Hosted controls", BackgroundColor = Colors.White, Content = form.Root };
+            await navigation.PushAsync(page, animated: false);
+            await Task.Delay(600);
+            Check("page shown again");
 
             form.Expander.IsExpanded = true;
             await Task.Delay((int)form.Expander.AnimationLength + 400);
@@ -124,45 +155,42 @@ internal static class HostedControlsCheck
         }
         finally
         {
+            SkUiMauiContentView.NativePlacementTolerance = tolerance;
             if (page is not null)
                 await navigation.PopAsync(animated: false);
         }
         var platform = OperatingSystem.IsAndroid() || OperatingSystem.IsWindows() ? "snapshots while scrolling" : "live while scrolling";
         return new LeakResult("HostedControls", problems.Count == 0 ? LeakStatus.Pass : LeakStatus.Fail,
-            problems.Count == 0 ? $"{steps} steps: native frames, clips and visibility match the drawn tree ({platform})" : string.Join(" · ", problems.Take(8)),
+            problems.Count == 0 ? $"{steps} steps: native frames, clips and visibility match the drawn tree ({platform})" : string.Join(" · ", problems.Distinct().Take(8)),
             watch.Elapsed.TotalSeconds);
     }
 
-    /// <summary>Where the platform shows the native view, against where the drawn tree places it; null when they agree.</summary>
-    private static string? Mismatch(SkUiMauiContentView host)
+    /// <summary>
+    /// Runs <paramref name="check"/> at once (the scroll starts synchronously) and on every frame while
+    /// <paramref name="scroll"/> moves, until it returns false or the motion ends; then awaits the scroll.
+    /// <c>Seen</c>: the scroller was seen moving; <c>Pending</c>: the last check still waited for something.
+    /// </summary>
+    private static async Task<(bool Seen, bool Pending)> WatchMotionAsync(Task scrolled, SkUiScrollView scroll, Func<bool> check)
     {
-        if (host.GetNativePlacement() is not { } placement)
-            return "is not attached to the surface";
-        var frame = host.ComputeRootRelativeFrame();
-        var visible = Visible(host);
-        var shown = !visible.IsEmpty && !host.IsNativeHidden;
-        if (placement.IsShown != shown)
-            return $"is {(placement.IsShown ? "shown" : "hidden")}, expected {(shown ? "shown" : "hidden")} (visible {Format(visible)}, snapshot {host.IsShowingSnapshot})";
-        if (visible.IsEmpty)
-            return null;
-        if (!Near(placement.Frame, frame))
-            return $"frame {Format(placement.Frame)}, expected {Format(frame)}";
-        if (!Near(placement.Visible, visible))
-            return $"visible {Format(placement.Visible)}, expected {Format(visible)}";
-        return null;
+        var seen = false;
+        var pending = false;
+        for (var waited = 0; scroll.IsScrolling && waited < 2000; waited += 16)
+        {
+            seen = true;
+            pending = check();
+            if (!pending)
+                break;
+            await Task.Delay(16);
+        }
+        await scrolled;
+        return (seen, pending);
     }
 
-    private static Rect Visible(SkUiMauiContentView host)
+    private static bool Visible(SkUiMauiContentView host)
     {
         var visible = host.ComputeRootRelativeFrame().Intersect(host.ComputeRootRelativeClip());
-        return visible.Width <= 0 || visible.Height <= 0 ? Rect.Zero : visible;
+        return visible.Width > 0 && visible.Height > 0;
     }
-
-    private static bool Near(Rect actual, Rect expected) =>
-        Math.Abs(actual.X - expected.X) <= Tolerance && Math.Abs(actual.Y - expected.Y) <= Tolerance
-        && Math.Abs(actual.Right - expected.Right) <= Tolerance && Math.Abs(actual.Bottom - expected.Bottom) <= Tolerance;
-
-    private static string Format(Rect rect) => $"({rect.X:F1}, {rect.Y:F1}, {rect.Width:F1} × {rect.Height:F1})";
 
     /// <summary>
     /// The check page: a drawn scroller with an Entry, an Editor, a horizontal scroller holding an Entry, a collapsed
@@ -195,12 +223,18 @@ internal static class HostedControlsCheck
                 Spacing = 10, Padding = new Thickness(12),
                 Children = { EntryHost, Row(0, 120), editor, Row(0, 80), Inner, Row(0, 80), Expander, Row(0, 80), web, Row(0, 80), Replaced, Row(0, 900) }
             };
+            _column = stack;
             Scroll = new SkUiScrollView { Content = stack };
             Root = new SkUiContentView { Background = Colors.White, Content = Scroll };
             Hosts = [("Entry", EntryHost), ("Editor", editor), ("inner Entry", inInner), ("expander Entry", InExpander), ("WebView", web), ("replaced Entry", Replaced)];
         }
 
+        private readonly SkUiVerticalStackLayout _column;
+
         public SkUiContentView Root { get; }
+
+        /// <summary>The scroll offset of the column's end.</summary>
+        public double MaxScrollY => Math.Max(0, _column.Height - Scroll.Height);
         public SkUiScrollView Scroll { get; }
         public SkUiScrollView Inner { get; }
         public SkUiExpander Expander { get; }
