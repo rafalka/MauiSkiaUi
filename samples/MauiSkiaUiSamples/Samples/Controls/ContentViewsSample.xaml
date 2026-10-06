@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  SkUiContentView in XAML: a templated control (ControlTemplate + SkUiContentPresenter, set by a style), swapping its
+  template, content picked by a DataTemplateSelector (ContentTemplate), and a card created only once it is shown.
+  The code-behind (ContentViewsSample.xaml.cs) has the page's description, the InfoCard control, the selector and the
+  view model.
+-->
+<samples:SamplePage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                    xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+                    xmlns:samples="clr-namespace:MauiSkiaUiSamples"
+                    xmlns:local="clr-namespace:MauiSkiaUiSamples.Samples.Controls"
+                    x:Class="MauiSkiaUiSamples.Samples.Controls.ContentViewsSample"
+                    x:DataType="local:ContentViewsModel">
+
+    <samples:SamplePage.Resources>
+        <!--
+          The card's look: a colored header with the card's Title, and the content below it. TemplateBinding does not
+          reach drawn controls: bind to the card by ancestor type (a compiled binding, InfoCard is its source type).
+        -->
+        <ControlTemplate x:Key="CardTemplate">
+            <sk:SkUiBorder Stroke="{x:Static samples:SampleColors.Border}" StrokeThickness="1" StrokeShape="RoundRectangle 12"
+                           BackgroundColor="{x:Static samples:SampleColors.Surface}">
+                <sk:SkUiGrid RowDefinitions="Auto,*">
+                    <sk:SkUiBorder StrokeThickness="0" Padding="14,8"
+                                   BackgroundColor="{Binding Accent, Source={RelativeSource AncestorType={x:Type local:InfoCard}}}">
+                        <sk:SkUiLabel Text="{Binding Title, Source={RelativeSource AncestorType={x:Type local:InfoCard}}}"
+                                      TextColor="White" FontSize="14" FontAttributes="Bold" />
+                    </sk:SkUiBorder>
+                    <!-- Each card's own content goes here. -->
+                    <sk:SkUiContentPresenter Grid.Row="1" Padding="14,12" />
+                </sk:SkUiGrid>
+            </sk:SkUiBorder>
+        </ControlTemplate>
+
+        <!-- Another look for the same cards: the title beside the content, an accent bar instead of the header. -->
+        <ControlTemplate x:Key="CompactCardTemplate">
+            <sk:SkUiBorder Stroke="{x:Static samples:SampleColors.Border}" StrokeThickness="1" StrokeShape="RoundRectangle 6"
+                           BackgroundColor="{x:Static samples:SampleColors.Surface}">
+                <sk:SkUiGrid ColumnDefinitions="4,96,*" ColumnSpacing="10">
+                    <sk:SkUiBox Color="{Binding Accent, Source={RelativeSource AncestorType={x:Type local:InfoCard}}}" />
+                    <sk:SkUiLabel Grid.Column="1" Margin="0,10" VerticalOptions="Center"
+                                  Text="{Binding Title, Source={RelativeSource AncestorType={x:Type local:InfoCard}}}"
+                                  TextColor="{x:Static samples:SampleColors.Ink}" FontSize="13" FontAttributes="Bold" />
+                    <sk:SkUiContentPresenter Grid.Column="2" Padding="0,10,12,10" VerticalOptions="Center" />
+                </sk:SkUiGrid>
+            </sk:SkUiBorder>
+        </ControlTemplate>
+
+        <!-- Every InfoCard gets the card template, unless it sets its own. -->
+        <Style TargetType="local:InfoCard">
+            <Setter Property="ControlTemplate" Value="{StaticResource CardTemplate}" />
+        </Style>
+
+        <Style x:Key="Heading" TargetType="sk:SkUiLabel">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontAttributes" Value="Bold" />
+            <Setter Property="TextTransform" Value="Uppercase" />
+            <Setter Property="TextColor" Value="{x:Static samples:SampleColors.Caption}" />
+            <Setter Property="Margin" Value="0,8,0,0" />
+        </Style>
+
+        <Style x:Key="Body" TargetType="sk:SkUiLabel">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="TextColor" Value="{x:Static samples:SampleColors.Ink}" />
+        </Style>
+
+        <!-- Content templates chosen by the card's binding context: one per order status type. -->
+        <local:OrderStatusTemplateSelector x:Key="StatusTemplates">
+            <local:OrderStatusTemplateSelector.Packing>
+                <DataTemplate x:DataType="local:PackingStatus">
+                    <sk:SkUiVerticalStackLayout Spacing="8">
+                        <sk:SkUiLabel Text="{Binding Text}" Style="{StaticResource Body}" />
+                        <sk:SkUiProgressBar Progress="{Binding Progress}" ProgressColor="{x:Static samples:SampleColors.Accent}" />
+                    </sk:SkUiVerticalStackLayout>
+                </DataTemplate>
+            </local:OrderStatusTemplateSelector.Packing>
+            <local:OrderStatusTemplateSelector.Shipped>
+                <DataTemplate x:DataType="local:ShippedStatus">
+                    <sk:SkUiVerticalStackLayout Spacing="2">
+                        <sk:SkUiLabel Text="{Binding Carrier}" Style="{StaticResource Body}" FontAttributes="Bold" />
+                        <sk:SkUiLabel Text="{Binding TrackingNumber, StringFormat='Tracking number {0}'}" Style="{StaticResource Body}" />
+                    </sk:SkUiVerticalStackLayout>
+                </DataTemplate>
+            </local:OrderStatusTemplateSelector.Shipped>
+        </local:OrderStatusTemplateSelector>
+    </samples:SamplePage.Resources>
+
+    <!-- One drawn surface for the whole example. -->
+    <sk:SkUiVerticalStackLayout Spacing="12">
+
+        <!-- 1. A templated control: the style gives each card the template, each card sets its own content. -->
+        <sk:SkUiLabel Text="Templated control" Style="{StaticResource Heading}" />
+        <local:InfoCard Title="Delivery">
+            <sk:SkUiLabel Text="Arrives tomorrow between 9:00 and 12:00." Style="{StaticResource Body}" />
+        </local:InfoCard>
+        <local:InfoCard Title="Payment" Accent="#9A3412">
+            <sk:SkUiHorizontalStackLayout Spacing="10">
+                <sk:SkUiBox Color="#1F2933" WidthRequest="34" HeightRequest="22" CornerRadius="4" VerticalOptions="Center" />
+                <sk:SkUiLabel Text="Visa •••• 4242" Style="{StaticResource Body}" VerticalOptions="Center" />
+            </sk:SkUiHorizontalStackLayout>
+        </local:InfoCard>
+
+        <!-- 2. Another template for the same card (a trigger replaces the style's): the content moves, it is not recreated. -->
+        <sk:SkUiLabel Text="Swapping the template" Style="{StaticResource Heading}" />
+        <sk:SkUiHorizontalStackLayout Spacing="10">
+            <sk:SkUiSwitch x:Name="compactSwitch" OnColor="{x:Static samples:SampleColors.Accent}" VerticalOptions="Center" />
+            <sk:SkUiLabel Text="Compact cards" Style="{StaticResource Body}" VerticalOptions="Center" />
+        </sk:SkUiHorizontalStackLayout>
+        <local:InfoCard Title="Address">
+            <local:InfoCard.Triggers>
+                <DataTrigger TargetType="local:InfoCard" Binding="{Binding IsToggled, Source={x:Reference compactSwitch}, x:DataType=sk:SkUiSwitch}" Value="True">
+                    <Setter Property="ControlTemplate" Value="{StaticResource CompactCardTemplate}" />
+                </DataTrigger>
+            </local:InfoCard.Triggers>
+            <sk:SkUiLabel Text="Main Street 12, 00-950 Warsaw" Style="{StaticResource Body}" />
+        </local:InfoCard>
+
+        <!--
+          3. ContentTemplate + ControlTemplate: the card's binding context is the order status; the selector picks the
+          content template by its type. The same template keeps its content (rebound), another one replaces it.
+        -->
+        <sk:SkUiLabel Text="Content from a template selector" Style="{StaticResource Heading}" />
+        <local:InfoCard BindingContext="{Binding Status}" x:DataType="local:OrderStatus"
+                        Title="{Binding Title}" ContentTemplate="{StaticResource StatusTemplates}" />
+        <sk:SkUiButton Text="Next status" Command="{Binding NextStatusCommand}" FillColor="{x:Static samples:SampleColors.Accent}"
+                       CornerRadius="8" HorizontalOptions="Start" />
+
+        <!--
+          4. Created when shown: nothing of this card (template or content) exists until it is first visible; then it
+          fades in.
+        -->
+        <sk:SkUiLabel Text="Created when shown" Style="{StaticResource Heading}" />
+        <sk:SkUiHorizontalStackLayout Spacing="10">
+            <sk:SkUiSwitch x:Name="detailsSwitch" OnColor="{x:Static samples:SampleColors.Accent}" VerticalOptions="Center" />
+            <sk:SkUiLabel Text="{Binding IsContentLoaded, Source={x:Reference details}, x:DataType=local:InfoCard, StringFormat='Show details (created: {0})'}"
+                          Style="{StaticResource Body}" VerticalOptions="Center" />
+        </sk:SkUiHorizontalStackLayout>
+        <local:InfoCard x:Name="details" Title="Order details" ContentLoading="WhenShown" ContentLoadedAnimation="FadeIn 250"
+                        IsVisible="{Binding IsToggled, Source={x:Reference detailsSwitch}, x:DataType=sk:SkUiSwitch}">
+            <local:InfoCard.ContentTemplate>
+                <DataTemplate>
+                    <sk:SkUiVerticalStackLayout Spacing="2">
+                        <sk:SkUiLabel Text="3 items, 1.4 kg" Style="{StaticResource Body}" />
+                        <sk:SkUiLabel Text="Ordered on 2 October" Style="{StaticResource Body}" />
+                    </sk:SkUiVerticalStackLayout>
+                </DataTemplate>
+            </local:InfoCard.ContentTemplate>
+        </local:InfoCard>
+    </sk:SkUiVerticalStackLayout>
+</samples:SamplePage>

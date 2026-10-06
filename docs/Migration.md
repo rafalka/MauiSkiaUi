@@ -124,7 +124,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 
 | MAUI | SkiaUi | Notes |
 | --- | --- | --- |
-| `ContentView` | `SkUiContentView` | Also the base class for drawn custom controls |
+| `ContentView` | `SkUiContentView` | Also the base class for drawn custom controls; `ControlTemplate` of drawn views ([templated controls](#templated-controls)) |
 | `Grid` | `SkUiGrid` | |
 | `VerticalStackLayout` / `HorizontalStackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | |
 | `StackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | Pick by `Orientation`; keep `Spacing` |
@@ -225,10 +225,41 @@ Platform behaviors (any `PlatformBehavior`, such as `TouchBehavior`) and effects
 | A `ContentView` composing other views in XAML or code | A `SkUiContentView` subclass composing drawn views (`x:Class` XAML or C#). Bindable properties carry over |
 | A control drawn with `GraphicsView` / `SKCanvasView` | A `SkUiView` subclass: `MeasureContent` for its size, `OnPaintContent(SKCanvas)` for drawing, gesture events for input |
 | A control with a custom handler or renderer, an `Effect`, or platform code | Redraw it as above, or keep it native inside `SkUiMauiContentView`. Common effects have drawn equivalents: rounded corners → `SkUiBorder StrokeShape` or `Clip`, shadows → `Shadow` |
-| A templated control (`ControlTemplate`) | Only `SkUiRadioButton` takes a drawn `ControlTemplate` today; compose the parts in a `SkUiContentView` subclass instead. `TemplateBinding` does not reach drawn controls: bind with `RelativeSource AncestorType` |
+| A templated control (`ControlTemplate`) | A `SkUiContentView` subclass (or a style on `SkUiContentView`) with a `ControlTemplate` of drawn views and an `SkUiContentPresenter`; `TemplateBinding` becomes `RelativeSource AncestorType` ([below](#templated-controls)) |
 | Many small repeated parts (cells, tiles, chips) where allocation matters | Core nodes (`SkUiCore*`) under a `SkUiCoreHost`: no `BindableObject` per part ([SkUiCore.md](controls/SkUiCore.md)) |
 
 Custom handlers registered for MAUI types (`Label`, `Button`, …) do not affect the drawn controls. Check what each one did (for example removing Android's button padding or the iOS text field border) and set the equivalent properties on the drawn control.
+
+#### Templated controls
+
+`SkUiContentView` (and the content views built on it, such as `SkUiBorder`) and `SkUiRadioButton` take a `ControlTemplate` of drawn views; `ContentPresenter` becomes `SkUiContentPresenter`. MAUI resolves `{TemplateBinding}` and `RelativeSource TemplatedParent` only for its own templated views, so they do not reach drawn controls: bind to the control by ancestor type.
+
+```xml
+<!-- Before -->
+<ControlTemplate x:Key="CardTemplate">
+    <Border Padding="12">
+        <VerticalStackLayout>
+            <Label Text="{TemplateBinding Title}" />
+            <ContentPresenter />
+        </VerticalStackLayout>
+    </Border>
+</ControlTemplate>
+
+<!-- After -->
+<ControlTemplate x:Key="CardTemplate">
+    <sk:SkUiBorder Padding="12">
+        <sk:SkUiVerticalStackLayout>
+            <sk:SkUiLabel Text="{Binding Title, Source={RelativeSource AncestorType={x:Type local:CardView}}}" />
+            <sk:SkUiContentPresenter />
+        </sk:SkUiVerticalStackLayout>
+    </sk:SkUiBorder>
+</ControlTemplate>
+```
+
+- `{TemplateBinding X}` and `{Binding X, Source={RelativeSource TemplatedParent}}` both become `{Binding X, Source={RelativeSource AncestorType={x:Type local:CardView}}}`, naming the templated control's type (`local:CardView` here, which now derives from `SkUiContentView`). Keep `Mode`, `Converter` and `StringFormat`.
+- This is a compiled binding (XAML source generator, or XamlC with `x:DataType` in scope): no reflection, safe for trimming and NativeAOT. A custom markup extension imitating `TemplateBinding` could not be compiled.
+- The template root inherits the control's binding context (MAUI's does not), so `{Binding X}` inside the template reaches the view model directly.
+- The template is created when the content loads: with `ContentLoading="WhenShown"`, only once shown. Details: [SkUiContentView.md](controls/SkUiContentView.md#controltemplate).
 
 ### 7. Animations
 
@@ -266,7 +297,6 @@ Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and 
 | `RefreshView` | Planned (C2) | A MAUI `RefreshView` around the surface root: the drawn scroller hands the drag to native parents at its top edge, as inside a native `ScrollView` (this combination is not covered by tests yet) |
 | `CarouselView`, `IndicatorView` | Planned (D1) | `SkUiScrollView Orientation="Horizontal"` with `SnapPointsType="MandatorySingle"` |
 | `Stepper` | Planned (D2) | Two `SkUiButton`s |
-| `ControlTemplate` on content views | `SkUiRadioButton` only | Compose a `SkUiContentView` subclass |
 | Drag and drop, tooltips, context flyouts | Not planned | Keep native |
 | `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `CollectionView` (when available), `SkUiBorder` |
 | Shell, pages, navigation | Out of scope | Stay MAUI |

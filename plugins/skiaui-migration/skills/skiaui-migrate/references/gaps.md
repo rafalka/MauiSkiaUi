@@ -10,7 +10,6 @@ Check the region for these before converting. If one is central to the page (the
 | `CarouselView`, `IndicatorView` | Planned | `SkUiScrollView Orientation="Horizontal" SnapPointsType="MandatorySingle"`; dots with `SkUiEllipse` |
 | `Stepper` | Planned | Two `SkUiButton`s |
 | `ListView`, `TableView`, cells, compatibility layouts | Obsolete in MAUI; not planned | `CollectionView` when available; `SkUiBorder` for `Frame` |
-| `ControlTemplate` on content views | `SkUiRadioButton` only | Compose a `SkUiContentView` subclass |
 | Drag and drop, tooltips, context flyouts, `ImageBrush` | Not planned | Keep native |
 | `Entry`, `Editor`, `SearchBar` | Native for now; drawn versions planned (they use the platform keyboard) | `SkUiMauiContentView` |
 | Pickers, `WebView`, maps, media | Native by design | `SkUiMauiContentView` |

@@ -16,9 +16,10 @@ public static class SampleSource
     }
 
     /// <summary>A page showing <paramref name="code"/> syntax-highlighted (ColorCode), unwrapped, in a monospace font.</summary>
-    public static string ToHtml(string code)
+    public static string ToHtml(string code, bool xml = false)
     {
-        var highlighted = new ColorCode.HtmlFormatter().GetHtmlString(code.Replace("\r\n", "\n"), ColorCode.Languages.CSharp);
+        var language = xml ? ColorCode.Languages.Xml : ColorCode.Languages.CSharp;
+        var highlighted = new ColorCode.HtmlFormatter().GetHtmlString(code.Replace("\r\n", "\n"), language);
         return $$"""
             <!DOCTYPE html>
             <html>
@@ -40,18 +41,47 @@ public static class SampleSource
 
 /// <summary>
 /// An example's source, syntax-highlighted in a web view (scrolls both ways, text can be selected and copied). Titled
-/// with the file name. On Mac Catalyst and Windows, when the file exists on this machine (the app runs where it was
-/// built), a toolbar button opens it in the IDE that built the app (<see cref="SourceEditor"/>).
+/// with the file name; a XAML page shows its markup, and a toolbar button switches to its code-behind and back. On Mac
+/// Catalyst and Windows, when the file exists on this machine (the app runs where it was built), a toolbar button opens
+/// it in the IDE that built the app (<see cref="SourceEditor"/>).
 /// </summary>
 public sealed class SourcePage : ContentPage
 {
+    private readonly IReadOnlyList<(string Key, string Path)> _files;
+    private readonly WebView _view = new();
+    private readonly ToolbarItem? _switch;
+    private ToolbarItem? _open;
+    private int _shown;
+
     public SourcePage(SampleInfo info)
     {
-        Title = info.SourceFileName;
+        _files = info.SourceFiles;
         BackgroundColor = SampleColors.Surface;
         SampleColors.ApplyNavigationBar(this);
-        if (SourceEditor.ActionTitle(info.SourcePath) is { } action)
-            ToolbarItems.Add(new ToolbarItem(action, null, async () => await SourceEditor.OpenAsync(info.SourcePath)));
-        Content = new WebView { Source = new HtmlWebViewSource { Html = SampleSource.ToHtml(SampleSource.Load(info.SourceKey)) } };
+        if (_files.Count > 1)
+        {
+            _switch = new ToolbarItem { Command = new Command(() => Show((_shown + 1) % _files.Count)) };
+            ToolbarItems.Add(_switch);
+        }
+        Content = _view;
+        Show(0);
+    }
+
+    private void Show(int index)
+    {
+        _shown = index;
+        var (key, path) = _files[index];
+        var xaml = key.EndsWith(".xaml", StringComparison.Ordinal);
+        Title = System.IO.Path.GetFileName(key);
+        _view.Source = new HtmlWebViewSource { Html = SampleSource.ToHtml(SampleSource.Load(key), xaml) };
+        if (_switch is not null)
+            _switch.Text = xaml ? "C#" : "XAML";
+        if (_open is not null)
+            ToolbarItems.Remove(_open);
+        _open = SourceEditor.ActionTitle(path) is { } action
+            ? new ToolbarItem(action, null, async () => await SourceEditor.OpenAsync(path))
+            : null;
+        if (_open is not null)
+            ToolbarItems.Add(_open);
     }
 }

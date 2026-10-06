@@ -207,7 +207,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         var width = Math.Max(0, widthConstraint - left - right);
         var height = Math.Max(0, heightConstraint - bottom);
         // Across the scroll axis an explicitly sized content keeps its size (clipped), as in MAUI.
-        if (LoadedContent is { } content)
+        if (LayoutChild is { } content)
         {
             var inset = ContentInset;
             width = SkUiScrollController.CrossConstraint(width, content.Width, content.MaximumWidth, content.Margin.HorizontalThickness + inset.HorizontalThickness);
@@ -225,7 +225,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         var viewport = _scroller.Viewport;
         var extent = _scroller.Extent;
         // Content stays arranged at its layout origin; the offset is a composite-time children translation.
-        LoadedContent?.Arrange(new Rect(
+        LayoutChild?.Arrange(new Rect(
             Padding.Left, Padding.Top,
             Math.Max(0, Math.Max(extent.Width, viewport.Width) - Padding.HorizontalThickness),
             Math.Max(0, Math.Max(extent.Height, viewport.Height) - Padding.VerticalThickness)));

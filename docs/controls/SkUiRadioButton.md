@@ -113,7 +113,7 @@ A MAUI `ControlTemplate` whose root is a drawn view replaces the circle, the con
 
 This is the template of MAUI's docs with only the prefixes changed. The template must create a drawn view (else `InvalidOperationException`). `TemplateRoot` is the created root; subclasses get `OnApplyTemplate()` and `GetTemplateChild(name)`. Setting `ControlTemplate` to `null` brings back the drawn circle and moves a view content back beside it.
 
-**Bindings to the radio button:** MAUI resolves `{TemplateBinding X}` and `RelativeSource TemplatedParent` only for its own templated views (internal machinery), so they do not reach a drawn radio button. Bind by ancestor type instead: `{Binding Value, Source={RelativeSource AncestorType={x:Type sk:SkUiRadioButton}}}`. Unlike MAUI, the template root inherits the radio button's binding context, so `{Binding}` reaches the page's view model.
+**Bindings to the radio button:** MAUI resolves `{TemplateBinding X}` and `RelativeSource TemplatedParent` only for its own templated views (internal machinery), so they do not reach a drawn radio button. Bind by ancestor type instead: `{Binding Value, Source={RelativeSource AncestorType={x:Type sk:SkUiRadioButton}}}` (a compiled binding, see [binding to the templated control](SkUiContentView.md#binding-to-the-templated-control)). Unlike MAUI, the template root inherits the radio button's binding context, so `{Binding}` reaches the page's view model.
 
 ## Key properties
 

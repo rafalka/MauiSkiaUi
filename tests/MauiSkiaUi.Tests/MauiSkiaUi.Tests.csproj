@@ -7,6 +7,8 @@
     <IsTestProject>true</IsTestProject>
     <!-- Match library diagnostics so ContentPictureRebuilds / record probes compile in Debug and Release test runs. -->
     <DefineConstants>$(DefineConstants);SKUI_DIAGNOSTICS</DefineConstants>
+    <!-- The samples' XAML pages compile as in the app. -->
+    <MauiXamlInflator>SourceGen</MauiXamlInflator>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../MauiSkiaUiDemo/ComponentDemoPage.cs" Link="Demo/ComponentDemoPage.cs" />
@@ -19,7 +21,8 @@
     <!-- Samples app examples (samples/MauiSkiaUiSamples): built and exercised headlessly; sources embedded as in the app. -->
     <Compile Include="../../samples/MauiSkiaUiSamples/Infrastructure/*.cs" Link="Samples/Infrastructure/%(Filename)%(Extension)" />
     <Compile Include="../../samples/MauiSkiaUiSamples/Samples/**/*.cs" Link="Samples/Samples/%(RecursiveDir)%(Filename)%(Extension)" />
-    <EmbeddedResource Include="../../samples/MauiSkiaUiSamples/Samples/**/*.cs" Link="Samples/Source/%(RecursiveDir)%(Filename)%(Extension)" LogicalName="SampleSource/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
+    <MauiXaml Include="../../samples/MauiSkiaUiSamples/Samples/**/*.xaml" Link="Samples/Samples/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../samples/MauiSkiaUiSamples/Samples/**/*.cs;../../samples/MauiSkiaUiSamples/Samples/**/*.xaml" Link="Samples/Source/%(RecursiveDir)%(Filename)%(Extension)" LogicalName="SampleSource/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
     <!-- Leak scenarios shared with the on-device test app (tests/MauiSkiaUi.DeviceTests). -->
     <Compile Include="../Shared/MemoryLeaks/*.cs" Link="Shared/MemoryLeaks/%(Filename)%(Extension)" />
     <None Include="../../MauiSkiaUiDemo/Resources/Fonts/RobotoMono-Regular.ttf" Link="Assets/RobotoMono-Regular.ttf" CopyToOutputDirectory="PreserveNewest" />

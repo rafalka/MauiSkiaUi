@@ -18,6 +18,8 @@ Each example is **one source file** under `Samples/<Section>/`. The file holds:
 
 The project embeds every file under `Samples/`, and each page's **Source** button shows its own file. What people read in the app is the code that runs.
 
+**XAML examples** are a XAML page and its code-behind (`<Name>Sample.xaml` + `<Name>Sample.xaml.cs`): the page's root is `samples:SamplePage`, its content is the live example (`SamplePage.SampleContent` is the content property), and `Info` with whatever the example needs lives in the code-behind. The Source page shows the XAML first, with a toolbar button to switch to the code-behind. XAML is compiled by the source generator (`MauiXamlInflator=SourceGen`), in the app and in the test project.
+
 **The Source page:**
 - **Highlighting:** the file is highlighted with [ColorCode](https://github.com/CommunityToolkit/ColorCode-Universal) (C# → HTML) in a web view: it scrolls both ways and text can be selected. The page title is the file name.
 - **Which file:** `SampleInfo` captures the example's source path with `[CallerFilePath]`. Its file name finds the embedded copy, and the full path lets the page open it.
@@ -35,7 +37,7 @@ Why plain strings instead of HTML:
 
 ## Adding an example
 
-1. Add `Samples/<Section>/<Name>Sample.cs` with a `public sealed class <Name>Sample : SamplePage, ISample`. Declare `Info` first, pass it to `base(Info)` and set `SampleContent`. Create `Info` in the example's own file, so `[CallerFilePath]` records that file.
+1. Add `Samples/<Section>/<Name>Sample.cs` with a `public sealed class <Name>Sample : SamplePage, ISample`. Declare `Info` first, pass it to `base(Info)` and set `SampleContent`. Create `Info` in the example's own file, so `[CallerFilePath]` records that file. For a XAML example, add `<Name>Sample.xaml` (root `<samples:SamplePage x:Class="MauiSkiaUiSamples.Samples.<Section>.<Name>Sample">`) and declare `Info` in `<Name>Sample.xaml.cs`, whose constructor calls `base(Info)` and `InitializeComponent()`.
 2. Register it in `Infrastructure/SampleCatalog.cs`: `SampleEntry.For<NameSample>()`. The list is explicit, with no reflection, so trimming and Native AOT stay safe.
 3. A new section goes in `SampleSection` (`DisplayName`, `Description`). Sections without examples are hidden.
 4. If the example uses its own look, override `Look`. The page makes it current only while it is shown, because looks are app-wide.

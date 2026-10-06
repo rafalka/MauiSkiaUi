@@ -538,6 +538,99 @@ public class ContentAndTemplateTests
         Assert.Null(view.Parent);
     }
 
+    [Fact]
+    public void ContentViewControlTemplateWrapsTheContent()
+    {
+        var content = new SkUiBox { HeightRequest = 20 };
+        var view = new SkUiContentView { Content = content, BindingContext = "context" };
+        view.ControlTemplate = new ControlTemplate(() => new SkUiBorder { Padding = 5, StrokeThickness = 0, Content = new SkUiContentPresenter() });
+        var root = Assert.IsType<SkUiBorder>(view.TemplateRoot);
+        var presenter = Assert.IsType<SkUiContentPresenter>(root.Content);
+        Assert.Same(content, presenter.Content);
+        Assert.Same(root, Assert.Single(view.SkiaChildren));
+        Assert.Equal("context", content.BindingContext);
+
+        Assert.Equal(30, ((IView)view).Measure(100, double.PositiveInfinity).Height); // the content inside the template's padding
+
+        // New content goes to the presenter; the old one is released.
+        var next = new SkUiBox();
+        view.Content = next;
+        Assert.Same(next, presenter.Content);
+        Assert.Null(content.Parent);
+
+        // Another template takes the content over; without one it is the direct child again.
+        view.ControlTemplate = new ControlTemplate(() => new SkUiContentPresenter());
+        Assert.Null(presenter.Content);
+        Assert.Same(view.TemplateRoot, next.Parent);
+        view.ControlTemplate = null;
+        Assert.Null(view.TemplateRoot);
+        Assert.Same(view, next.Parent);
+        Assert.Same(next, Assert.Single(view.SkiaChildren));
+    }
+
+    [Fact]
+    public void ContentViewControlTemplateShowsTemplateContent()
+    {
+        var view = new SkUiContentView
+        {
+            ControlTemplate = new ControlTemplate(() => new SkUiBorder { Content = new SkUiContentPresenter() }),
+            ContentTemplate = new DataTemplate(() => new SkUiLabel { Text = "templated" }),
+        };
+        _ = new SkUiContentView { Content = view }; // in a tree: the content template runs
+        var presenter = (SkUiContentPresenter)((SkUiBorder)view.TemplateRoot!).Content!;
+        Assert.Equal("templated", Assert.IsType<SkUiLabel>(presenter.Content).Text);
+        Assert.Same(view.Content, presenter.Content);
+    }
+
+    [Fact]
+    public void ContentViewTemplatesMustCreateDrawnViews()
+    {
+        var view = new SkUiContentView();
+        Assert.Throws<InvalidOperationException>(() => view.ControlTemplate = new ControlTemplate(() => new Label()));
+    }
+
+    [Fact]
+    public void ContentTemplateWaitsForAPresenter()
+    {
+        var created = 0;
+        var view = new SkUiContentView
+        {
+            ControlTemplate = new ControlTemplate(() => new SkUiBorder()),
+            ContentTemplate = new DataTemplate(() => { created++; return new SkUiLabel(); }),
+        };
+        _ = new SkUiContentView { Content = view };
+        Assert.Equal(0, created);
+        Assert.Null(view.Content);
+
+        var presenter = new SkUiContentPresenter();
+        ((SkUiBorder)view.TemplateRoot!).Content = presenter;
+        Assert.Equal(1, created);
+        Assert.Same(view.Content, presenter.Content);
+    }
+
+    [Fact]
+    public void DeferredContentDefersTheControlTemplate()
+    {
+        var templates = 0;
+        var content = new SkUiBox { HeightRequest = 20 };
+        var view = new SkUiContentView
+        {
+            ContentLoading = SkUiContentLoading.WhenShown,
+            HeightRequest = 50,
+            ControlTemplate = new ControlTemplate(() => { templates++; return new SkUiBorder { StrokeThickness = 0, Content = new SkUiContentPresenter() }; }),
+            Content = content,
+        };
+        Assert.Equal(0, templates);
+        Assert.Null(view.TemplateRoot);
+        Assert.Null(content.Parent);
+        Assert.Equal(50, ((IView)view).Measure(100, double.PositiveInfinity).Height); // its size request
+
+        view.LoadContent();
+        Assert.Equal(1, templates);
+        var presenter = Assert.IsType<SkUiContentPresenter>(((SkUiBorder)view.TemplateRoot!).Content);
+        Assert.Same(content, presenter.Content);
+    }
+
     private static IEnumerable<SkUiView> Descendants(SkUiView view)
     {
         yield return view;

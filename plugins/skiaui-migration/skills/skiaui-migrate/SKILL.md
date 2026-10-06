@@ -32,7 +32,7 @@ SkiaUi draws a subtree of a MAUI page on one Skia surface. Pages, Shell, navigat
    python3 "${CLAUDE_SKILL_DIR}/scripts/check_xaml.py" --root <app project folder> <changed .xaml files or folders>
    ```
 
-   It reports native views inside drawn trees, unsupported gesture recognizers, platform behaviors, effects, BindableLayout templates and empty views that are not drawn, `IsClippedToBounds`, styles targeting MAUI types, custom controls that are not drawn, and drawn controls placed alone in MAUI content. Fix every error; justify any warning you leave. (Without `CLAUDE_SKILL_DIR`, run the script from this skill's `scripts` folder.)
+   It reports native views inside drawn trees, unsupported gesture recognizers, platform behaviors, effects, BindableLayout templates and empty views that are not drawn, `IsClippedToBounds`, `TemplateBinding` / `RelativeSource TemplatedParent` on drawn views, styles targeting MAUI types, custom controls that are not drawn, and drawn controls placed alone in MAUI content. Fix every error; justify any warning you leave. (Without `CLAUDE_SKILL_DIR`, run the script from this skill's `scripts` folder.)
 10. **Build** for at least one platform (`dotnet build -f net10.0-android` or the app's target) and fix errors. Compile-time XAML (`x:DataType`, XamlC) catches misspelled properties.
 11. **Report** what changed, what stayed native and why, and what the user should check on a device: taps and drags in scrollers, light / dark theme, large OS text, screen reader, and the debug output for `SkiaUi:` lines (drawn views log MAUI gesture input they ignore on the first press).
 

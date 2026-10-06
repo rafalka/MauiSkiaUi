@@ -6,7 +6,7 @@ Single-child Skia composition host. Typical outer bridge into a SkiaUi tree.
 
 ## How it works
 
-`[ContentProperty(nameof(Content))]` hosts one `ISkUiView` (`Content`, or one created from `ContentTemplate`). Defaults `HwAccelerated = true`. Forwards measure/arrange/paint/touch to the content and owns a touch router for capture. The content can wait until the view is first shown ([below](#loading-content-when-shown)).
+`[ContentProperty(nameof(Content))]` hosts one `ISkUiView` (`Content`, or one created from `ContentTemplate`), optionally wrapped by a drawn `ControlTemplate` ([below](#controltemplate)). Defaults `HwAccelerated = true`. Forwards measure/arrange/paint/touch to the content and owns a touch router for capture. The content can wait until the view is first shown ([below](#loading-content-when-shown)).
 
 
 ## Shared conventions
@@ -30,11 +30,55 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`Content`, `ContentTemplate`, `Padding` (+ `SetContent` / `SetPadding`); `ContentLoading`, `ContentLoadingDelay`, `ContentLoadedAnimation`, `IsContentLoaded`, `ContentLoaded`, `LoadContent()`.
+`Content`, `ContentTemplate`, `ControlTemplate` (+ `TemplateRoot`), `Padding` (+ `SetContent` / `SetControlTemplate` / `SetPadding`); `ContentLoading`, `ContentLoadingDelay`, `ContentLoadedAnimation`, `IsContentLoaded`, `ContentLoaded`, `LoadContent()`.
 
 ## ContentTemplate
 
 `ContentTemplate` (bindable `DataTemplate` of drawn views) creates the content when `Content` is not set. A `DataTemplateSelector` chooses by the view's `BindingContext`, again whenever it changes (a different template replaces the content; the same one keeps it, rebound). The template runs once the view is in a tree (so properties set before, such as `ContentLoading`, apply first) and its result is assigned to `Content`; a new template replaces it, and explicit `Content` wins. Templates that create native views throw: put them inside an `SkUiMauiContentView`.
+
+## ControlTemplate
+
+`ControlTemplate` (bindable, MAUI's [`ControlTemplate`](https://learn.microsoft.com/dotnet/maui/fundamentals/controltemplate)) wraps the content in a tree of drawn views; an [`SkUiContentPresenter`](SkUiContentPresenter.md) in it shows the content. Use it for a wrapper shared through a style, around content that each instance sets:
+
+```xml
+<Style x:Key="Card" TargetType="sk:SkUiContentView">
+  <Setter Property="ControlTemplate">
+    <ControlTemplate>
+      <sk:SkUiBorder StrokeShape="RoundRectangle 12" Padding="12">
+        <sk:SkUiVerticalStackLayout Spacing="8">
+          <sk:SkUiLabel Text="{Binding Title}" FontAttributes="Bold" />
+          <sk:SkUiContentPresenter />
+        </sk:SkUiVerticalStackLayout>
+      </sk:SkUiBorder>
+    </ControlTemplate>
+  </Setter>
+</Style>
+
+<sk:SkUiContentView Style="{StaticResource Card}">
+  <sk:SkUiImage Source="{Binding Photo}" />
+</sk:SkUiContentView>
+```
+
+- `Content` / `ContentTemplate` decide *what* the content is, `ControlTemplate` *where* it is shown: the template root is the view's child and the content goes into the template's first presenter (a view has one parent). Changing or removing the template moves the same content.
+- The template is created when the content loads: with `ContentLoading="WhenShown"` neither exists until the view is first shown, and `ContentLoadedAnimation` runs on the template root.
+- Without a presenter in the template no content is shown and `ContentTemplate` does not run.
+- The root must be a drawn view (else `InvalidOperationException`). `TemplateRoot` is the created root; subclasses get `OnApplyTemplate()` and `GetTemplateChild(name)`.
+- `Padding` (and a border's stroke) surrounds the template root.
+
+### Binding to the templated control
+
+MAUI resolves `{TemplateBinding X}` and `RelativeSource TemplatedParent` only for its own templated views (internal machinery), so they do not reach drawn controls. Bind by ancestor type instead:
+
+```xml
+<!-- MAUI -->
+<Label Text="{TemplateBinding Title}" />
+<!-- SkiaUi -->
+<sk:SkUiLabel Text="{Binding Title, Source={RelativeSource AncestorType={x:Type local:CardView}}}" />
+```
+
+- Compiled bindings handle it: the XAML source generator (and XamlC when an `x:DataType` is in scope) uses `AncestorType` as the binding's source type and emits a typed binding, with no reflection (trimming / NativeAOT safe). Name the control type that declares the property: a path not found on it falls back to a reflection binding instead of failing the build.
+- It finds the nearest ancestor of that type, which from inside a template is the templated control. If the template itself contains another control of the same type between them, add `AncestorLevel`.
+- Unlike MAUI, the template root inherits the control's binding context, so `{Binding X}` reaches the view model directly; use `AncestorType` for the control's own properties.
 
 ## Loading content when shown
 
@@ -65,6 +109,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | Child type | Must be `ISkUiView` / `Element` (not arbitrary `View` unless it implements the contract) |
 | Surface | Owns the Skia GL/SW surface when standalone |
 | Nested MAUI controls | Use [`SkUiMauiContentView`](SkUiMauiContentView.md) |
+| `ControlTemplate` | Drawn views; `TemplateBinding` / `RelativeSource TemplatedParent` do not resolve (use [`AncestorType`](#binding-to-the-templated-control)); the root inherits the binding context; created when the content loads |
 
 ## Related
 

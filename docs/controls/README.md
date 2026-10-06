@@ -36,7 +36,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 
 | Control | Doc | MAUI counterpart |
 | --- | --- | --- |
-| `SkUiContentView` | [SkUiContentView.md](SkUiContentView.md) | ContentView |
+| `SkUiContentView` | [SkUiContentView.md](SkUiContentView.md) | ContentView (`ContentTemplate`, `ControlTemplate`, content loaded when shown) |
 | `SkUiContentPresenter` | [SkUiContentPresenter.md](SkUiContentPresenter.md) | ContentPresenter (in drawn `ControlTemplate`s) |
 | `SkUiAlternateContentView` | [SkUiAlternateContentView.md](SkUiAlternateContentView.md) | — (content or alternate content, animated switches) |
 | `SkUiMauiContentView` | [SkUiMauiContentView.md](SkUiMauiContentView.md) | — (native host) |

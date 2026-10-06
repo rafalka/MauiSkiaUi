@@ -110,7 +110,7 @@ public class SkUiAlternateContentView : SkUiContentView
     {
         if (_shown == false)
             base.EnsureContentToShow();
-        else if (_shown == true && IsContentLoaded && Parent is not null)
+        else if (_shown == true && IsContentLoaded && Parent is not null && CanPresentContent)
             _alternate.Ensure();
     }
 

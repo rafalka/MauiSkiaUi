@@ -15,7 +15,8 @@ A drawn tree is everything inside a SkiaUi view (an element from the MauiSkiaUi 
   EmptyView becomes a MAUI Label), the Community Toolkit's StateContainer / StateView on drawn layouts (SkUiStateContainer /
   SkUiStateView; state views are checked like other drawn content), the Community Toolkit's Expander in a drawn tree
   (SkUiExpander; headers, content and content templates of drawn views are checked like other drawn content),
-  IsClippedToBounds (ClipToBounds), and styles that
+  IsClippedToBounds (ClipToBounds), TemplateBinding / RelativeSource TemplatedParent on drawn views (RelativeSource
+  AncestorType), and styles that
   target MAUI types:
   keyed styles a drawn view uses, and implicit styles (no x:Key) of the MAUI type a drawn view replaces when no implicit
   style targets the drawn type (warned once per file and type; styles are indexed project-wide, so App.xaml's count).
@@ -61,7 +62,7 @@ REPLACE = {
     "Slider": "SkUiSlider",
     "ProgressBar": "SkUiProgressBar",
     "ActivityIndicator": "SkUiActivityIndicator",
-    "ContentPresenter": "SkUiContentPresenter (inside a SkUiRadioButton ControlTemplate)",
+    "ContentPresenter": "SkUiContentPresenter (inside a drawn ControlTemplate)",
     "GraphicsView": "a SkUiView subclass (MeasureContent + OnPaintContent)",
 }
 WRAP = {"Entry", "Editor", "SearchBar", "Picker", "DatePicker", "TimePicker", "WebView", "HybridWebView", "BlazorWebView", "Map"}
@@ -84,6 +85,7 @@ GESTURE_ADVICE = {
     "DropGestureRecognizer": "drag and drop is not available on drawn views",
 }
 SKIA_BASE_RE = re.compile(r"^(SkUi\w+|ISkUiView)$")
+TEMPLATED_PARENT_RE = re.compile(r"\{\s*TemplateBinding\b|RelativeSource\s+(?:Mode\s*=\s*)?TemplatedParent\b")
 # Drawn view -> the MAUI types it replaces (implicit styles of those no longer reach it).
 REPLACED_BY = {}
 for maui_name, advice in REPLACE.items():
@@ -343,6 +345,8 @@ class Checker:
                 self.report(path, node, "error", f"BindableLayout.EmptyView=\"{value}\" on {node.name}: a string empty view becomes a MAUI Label; use <BindableLayout.EmptyView><sk:SkUiLabel Text=\"{value}\" /></BindableLayout.EmptyView>")
             elif local == "IsClippedToBounds":
                 self.report(path, node, "error", f"IsClippedToBounds on {node.name}: use ClipToBounds")
+            elif TEMPLATED_PARENT_RE.search(value):
+                self.report(path, node, "error", f"{local}=\"{value}\" on {node.name}: TemplateBinding / RelativeSource TemplatedParent do not reach drawn controls; use {{Binding Path, Source={{RelativeSource AncestorType={{x:Type local:TemplatedControl}}}}}}")
             elif local == "Style":
                 key = re.match(r"\{\s*(?:StaticResource|DynamicResource)\s+(?:Key=)?\s*([\w.]+)\s*\}", value)
                 target = self.index.styles.get(key.group(1)) if key else None
