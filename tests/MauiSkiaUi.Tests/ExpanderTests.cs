@@ -448,7 +448,8 @@ public class ExpanderTests
     [Fact]
     public void TheHeaderIsAButtonWithTheExpandedState()
     {
-        var expander = new SkUiExpander { Header = new SkUiLabel { Text = "Details" }, Content = Box(30) };
+        // A fixed size: without an installed font (Linux CI) text measures empty, and zero-size views are not elements.
+        var expander = new SkUiExpander { Header = new SkUiLabel { Text = "Details", WidthRequest = 80, HeightRequest = 20 }, Content = Box(30) };
         var root = new SkUiContentView { Content = new SkUiVerticalStackLayout { Children = { expander } } };
         SkUiTestHelpers.Arrange(root, 200, 200);
         var owner = new SkUiSemanticsOwner(root);
