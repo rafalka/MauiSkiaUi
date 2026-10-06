@@ -42,7 +42,7 @@ Headless-tested; device-verified on a Galaxy S9, iPhone / iOS simulator, Mac Cat
 
 ## Next
 
-Ordered for adoption by real apps (replace a MAUI page's tree with one drawn surface): **full MAUI parity of the controls that already ship comes first**, so a MAUI page ports by changing the XAML prefix instead of rewriting it; then containers for page shells, virtualized lists, list chrome, and the remaining new controls. Within a phase, the order is the suggested order.
+Ordered for adoption by real apps (replace a MAUI page's tree with one drawn surface): **full MAUI parity of the controls that already ship comes first**, so a MAUI page ports by changing the XAML prefix instead of rewriting it; then containers for page shells, virtualized lists, list chrome, the remaining new controls, SVG images and drawn text input. Within a phase, the order is the suggested order.
 
 Phase 0 (state-change animations, FR-26) is shipped: looks draw from continuous parameters, transitions run on the UI clock re-recording one control per frame. New controls with state visuals follow the same pattern (a paint struct with the transition, a `SkUiTransitionKind`, the shared animators). Left open: several ripples at once, press scale, render-thread painters.
 
@@ -129,6 +129,30 @@ An SVG added as a `MauiImage` already works: Resizetizer turns it into density P
 | E2 | **Vector drawing** | The picture is drawn scaled into the destination with `Aspect`: sharp at every size and zoom, no raster per size. A raster (keyed by pixel size) only when transformations are set or a document is too costly to replay each frame. Recoloring: `TintColor` (as `MauiImage`) and FFImageLoading's `ReplaceStringMap` (text replacements before parsing, part of the key) |
 | E3 | **Checks** | Trimming / Native AOT of Svg.Skia's XML / CSS stack (else the package is marked not trimmable); unsupported features (filters, embedded text, CSS) degrade or report `LoadError`; device frame time and memory against `MauiImage` PNGs; a leak scenario |
 
+### Phase T — Drawn text input (FR-16, amended)
+
+`SkUiEntry` and `SkUiEditor` are drawn by SkiaUi; the platform keyboard and IME talk to them through a proxy. Hosting stays for controls that need a platform engine (WebView, maps, media, pickers until drawn ones exist), and `SkUiMauiContentView` stays as the fallback for native text fields.
+
+**Why:** hosted text fields are the most common native overlay on real pages, and overlays bring every hosting limit: snapshots while scrolling, rectangle-only clips, no drawn content on top (popups, sheets), no transforms or opacity from ancestors, one platform view per cell in lists (Phase B), no Core-layer use, and the A6 regression surface. Drawn input removes all of these for text. It also unlocks controls built on editable text: SearchBar, a numeric entry or spin box next to D2's Stepper (MAUI's Stepper itself has no text field), editable combo boxes, and inline editing in collection cells.
+
+**Rules:**
+- **Platform services stay native.** The OS still owns the keyboard, IME composition, autocorrect, dictation, the clipboard and the edit menu. SkiaUi owns text, caret, selection, layout and drawing, and drives the native services through the proxy.
+- **One engine, both layers.** The editing model and the drawing are layer-agnostic (N13); `SkUiEntry` / `SkUiEditor` and `SkUiCoreEntry` / `SkUiCoreEditor` are thin facades over them, and the look draws the chrome.
+- **MAUI's API.** `Entry` / `Editor` members by name (`Text`, `Placeholder`, `Keyboard`, `ReturnType`, `Completed`, `CursorPosition`, `SelectionLength`, …), so a XAML port changes only the prefix instead of adding `SkUiMauiContentView` around the field.
+
+| # | Deliverable | Layer | Notes |
+| --- | --- | --- | --- |
+| T0 | **Proxy spike and decision** | Platforms | Decide the proxy model per platform. Either implement the text input protocol on the surface (Android `OnCreateInputConnection` / `InputConnection`, iOS / Mac Catalyst `UITextInput` on a surface child view, Windows `CoreTextEditContext`), or drive a hidden native text view that holds the text and mirror it, as Uno's Skia runtime does on Apple (`SinglelineInvisibleTextBoxView`). Measure IME composition (CJK, Korean), autocorrect, dictation, autofill and password managers for each model. References: Avalonia (`AvaloniaView.Input.cs`, `TextBoxTextInputMethodClient`, `WinUITextInputMethod`), Uno Skia (`TextInputConnection` on Android, the invisible text views on UIKit), Flutter's text input plugins |
+| T1 | **Editing engine** | Shared, headless | Text buffer, caret and selection model on the shared text engine: hit-testing point → index and index → caret rectangle, grapheme-cluster and word movement, bidi caret positions, line up / down for multiline. Composition (marked) range with its underline; undo / redo with MAUI's coalescing; `MaxLength`, `IsReadOnly`, `TextTransform`. Horizontal scrolling in a single line, wrapping in multiline. Incremental relayout of the edited paragraph only; no allocations per keystroke on plain text |
+| T2 | **Platform IME proxy** | Platforms | One `ISkUiTextInputClient` per focused field, attached on focus and detached on unfocus. Shows and hides the soft keyboard; maps MAUI `Keyboard` (text, numeric, telephone, email, URL, chat, custom flags), `ReturnType`, `IsPassword`, `IsSpellCheckEnabled`, `IsTextPredictionEnabled` and autofill hints. Reports caret and composition rectangles for candidate windows, and feeds selection changes back to the IME. Hardware keyboard: arrows, Home / End, word jumps, shortcuts (copy, cut, paste, select all, undo); macOS and Windows key bindings |
+| T3 | **`SkUiEntry` + `SkUiCoreEntry`** | Both | MAUI `Entry` API: `Text` (two-way), `Placeholder` / `PlaceholderColor`, `TextColor`, font properties, `CharacterSpacing`, `HorizontalTextAlignment` / `VerticalTextAlignment`, `ClearButtonVisibility`, `ReturnCommand` / `Completed`, `TextChanged`, `CursorPosition` / `SelectionLength`, `IsPassword` (masked glyphs). Look-drawn chrome per platform style (underline, outline, filled) with `Focused` / `Disabled` visual states, and a caret blink on the render thread |
+| T4 | **Selection UI** | Both | Touch: double tap and long press select words, drag handles, the iOS loupe or Android magnifier, and the platform edit menu (`UIEditMenuInteraction`, Android floating action mode, WinUI flyout) through MAUI `Clipboard`. Mouse: click, drag and shift-click to select, double / triple click, context menu. Handles and menus are drawn or positioned in surface coordinates and follow scrolling |
+| T5 | **`SkUiEditor` + `SkUiCoreEditor`** | Both | Multiline, `AutoSize` (`TextChanges`), scrolling inside the editor that chains with drawn scrollers through the arena, caret kept in view while typing |
+| T6 | **Integration** | Both | Keyboard avoidance: a focused field scrolls above the soft keyboard in drawn scrollers (keyboard insets per platform), and the IME follows the field when it moves. P10 focus and Tab order across drawn and native fields. Accessibility: the editable text role with value, selection and text navigation for TalkBack, VoiceOver and Narrator. Drawn content over a focused field (popups), fields in expanders and state containers, and RTL |
+| T7 | **Controls on top** | Both | `SkUiSearchBar`; a numeric entry / spin box with D2; editable cells in B2. Each one is a composition of T3, not a new editor |
+
+Hosted `Entry` / `Editor` keep working (A6 still covers them) for apps that need a native-only feature (for example a platform-specific autofill flow) until T6 is verified on devices.
+
 ### Architecture work alongside
 
 From [ArchitectureReview.md](ArchitectureReview.md) (finding numbers N\*). Scheduled next to the phases above, not after them.
@@ -173,11 +197,12 @@ Checked against `Microsoft.Maui.Controls` 10.0.110 (the pinned version). **Parti
 | RefreshView, SwipeView | — | C1, C2 |
 | CarouselView, IndicatorView | — | D1 |
 | Stepper | — | D2 |
-| Entry, Editor, SearchBar, WebView, pickers, Map, media | Hosted (`SkUiMauiContentView`) | By design |
+| Entry, Editor, SearchBar | Hosted (`SkUiMauiContentView`) today | Drawn with an IME proxy: Phase T (`SkUiEntry`, `SkUiEditor`, `SkUiSearchBar`) |
+| WebView, pickers, Map, media | Hosted (`SkUiMauiContentView`) | By design |
 | Pages, Shell, navigation | MAUI | Out of scope |
 | Frame, ListView, TableView, cells (`TextCell`, `ImageCell`, `SwitchCell`, `EntryCell`, `ViewCell`), Compatibility layouts | — | Out of scope: obsolete in MAUI (Frame since .NET 9, the rest in .NET 10); use Border and CollectionView |
 
-**Not planned (by design):** drawn Entry / Editor / WebView / media / maps (host them); Shell and navigation replacements; MAUI-obsolete controls (above); tooltips, context flyouts and drag and drop gestures; vendor control clones; a Core flex layout (Core uses the wrap and shrink layouts and the grid).
+**Not planned (by design):** drawn WebView / media / maps (host them); Shell and navigation replacements; MAUI-obsolete controls (above); tooltips, context flyouts and drag and drop gestures; vendor control clones; a Core flex layout (Core uses the wrap and shrink layouts and the grid).
 
 ---
 
@@ -205,6 +230,7 @@ Checked against `Microsoft.Maui.Controls` 10.0.110 (the pinned version). **Parti
 | CollectionView MVP | Template recycling; selection + `ItemTapped`; `EmptyView`; load-more threshold; pull-to-refresh |
 | SwipeView | Wins horizontal swipes, loses vertical scrolls |
 | Hosted controls | Entry focus + IME; WebView scroll nesting; snapshots during flings (Android / Windows) |
+| Drawn text input (Phase T) | IME composition (Chinese, Japanese, Korean), autocorrect, dictation, the edit menu, autofill and password managers on Android, iOS, Mac Catalyst and Windows; caret and selection through bidi and grapheme clusters; MAUI's `Entry` / `Editor` doc samples with the prefix changed; same text and caret on SkUi* and Core; keyboard avoidance in drawn scrollers; TalkBack, VoiceOver and Narrator read and edit the text; no allocations per keystroke on plain text — headless tests for the engine, device checks for the proxy, and a leak scenario for focus and IME attach / detach |
 
 ---
 
