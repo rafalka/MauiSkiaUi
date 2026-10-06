@@ -438,12 +438,16 @@ Initial controls, layouts, and scroll are delivered with headless tests. Device 
 
 ### FR-21 — Virtual / dynamic scroll layout (on-demand children)
 
-Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-21--virtual--dynamic-scroll-layout-requirements). Purpose: **endless scrolling**, and the item engine for FR-22.
+Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-21--virtual--dynamic-scroll-layout-requirements). Purpose: **on-demand scroll content** (indexed virtual lists, **`InfiniteFeed`**, **loop carousels**), and the item engine for FR-22 (indexed mode only).
 
+- [ ] **`VirtualScrollMode`:** `Indexed` (default), `InfiniteFeed`, `Loop` — one engine; extent, scroll-bar, and `ScrollTo` semantics per [Virtual scroll modes](ScrollingAndCollectionViews.md#virtual-scroll-modes).
 - [ ] **`SkUiVirtualStackLayout`** (vertical first, horizontal later) **requests** its children while the user scrolls.
   - It works inside any drawn scroller, below other content, and nested in another virtual layout.
   - Its window is the intersection of all ancestor viewports.
-- [ ] **`SkUiVirtualScrollView`:** convenience control combining a scroller and a virtual stack.
+- [ ] **`SkUiVirtualScrollView`:** convenience control combining a scroller and a virtual stack; exposes `VirtualScrollMode` and scroll-bar interaction for modes B / Loop.
+- [ ] **Mode A — Indexed (default):** stable item indices; optional release of far items with **cached sizes** so scroll position and thumb stay meaningful; supports absolute / index scroll APIs and normal scroll bars. **`SkUiCollectionView` uses this mode only.**
+- [ ] **Mode B — `InfiniteFeed`:** bounded child count (visible + pre/post buffer); append at trailing edge / remove leading when scrolling forward (reverse when scrolling back); **no** global content extent; **relative** scroll (`ScrollBy`, fling, logical bring-into-view) only; scroll bars **velocity / direction**, not absolute position (default hidden).
+- [ ] **Mode Loop:** finite `ItemCount`; seamless wrap (last → first, first → last) using the same window trim as B; `ScrollToIndex` on `index mod N`; suited to horizontal carousels with snap points.
 - [ ] **Providers** (any one is enough):
   - a per-index factory with an unknown / endless count (`null` ends the list);
   - `ItemsSource` + `ItemTemplate` / selector with incremental collection changes;
@@ -451,9 +455,10 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-21--v
 - [ ] **Prefetch:** items are created **before** they become visible. `PrefetchFactor` (viewport lengths, default 1.0) or `PrefetchDistance`, plus a behind-distance for reverse scrolling. During render-thread flings, prefetch extends by the predicted travel.
 - [ ] **Creation budget:** items are created within a per-frame UI-thread budget, synchronously only to avoid visible gaps. Nothing runs on the render thread.
 - [ ] **Release and sizing:**
+  - default: **each item may have a different size** (per-index measure + cache, not uniform row height);
   - optional release of far items (`ReleaseFactor`), keeping their measured sizes;
   - recycling pool keyed by template;
-  - estimated sizes and a per-index size cache;
+  - optional `EstimatedItemSize` for unrealized indices; optional `QueryItemSize`; `RemeasureItem` when content changes;
   - scroll anchoring when earlier items change size.
 - [ ] **API:** `ScrollToIndex` (position, animated); `ItemRealized` / `ItemReleased` / `VisibleRangeChanged` events.
 - [ ] **Core variant** `SkUiCoreVirtualStackLayout`: **only if cheap**, meaning a thin wrapper over a layer-agnostic engine.
@@ -464,36 +469,33 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-21--v
 
 ### FR-22 — `SkUiCollectionView` (virtualized collection)
 
-Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--skuicollectionview-requirements). Built on FR-21 with template recycling. A Core variant is **not required**: templates and bindings are MAUI concepts.
+Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--skuicollectionview-requirements). Built on FR-21 **indexed** mode with template recycling. A Core variant is **not required**: templates and bindings are MAUI concepts.
 
-- [ ] **MAUI `CollectionView` parity:**
-  - `ItemsSource`, `ItemTemplate` / selector, `EmptyView` (+ template), `Header` / `Footer` (+ templates);
-  - `ItemsLayout` (linear vertical / horizontal with spacing; grid with `Span`), snap points, `ItemSizingStrategy`;
-  - selection (`SelectionMode`, `SelectedItem(s)`, `SelectionChanged` + command, `Selected` visual state);
-  - grouping (`IsGrouped`, group header / footer templates);
-  - `ScrollTo` (index / item, position, animate) and `Scrolled` (visible indexes);
-  - `RemainingItemsThreshold` (+ event / command), `ItemsUpdatingScrollMode`;
-  - reordering (`CanReorderItems`, `CanMixGroups`, `ReorderCompleted`);
-  - scrollbar visibility.
-- [ ] **Sticky header / footer** (`IsStickyHeader`, `IsStickyFooter`) and **sticky group headers**; pinned parts are not re-recorded while scrolling.
-- [ ] **Selected item background:** `SelectionBackground` brush, optional `SelectedItemTemplate`. A selection change re-records only the affected items.
-- [ ] **Item tap:** `ItemTapped` event and `ItemTappedCommand` (+ parameter, default the item), with item / index / group in the args.
-  - It is raised independently of selection.
-  - Interactive children inside items keep their own taps.
+**Not MAUI parity:** unlike most SkUi* controls, FR-22 does **not** require mirroring MAUI's `CollectionView` API. The control is **SkUi-first**; porting from MAUI uses [Migration.md](../Migration.md) and the [skiaui-migration skills](../plugins/skiaui-migration/README.md), kept in sync when the control ships or changes.
+
+- [ ] **Data / templates:** `ItemsSource`, item template / selector, `EmptyView`, incremental source updates.
+- [ ] **Layouts:** vertical / horizontal linear lists (spacing); grid with span.
+- [ ] **Item sizing (default variable):** assume **each item may have a different size**; per-index measure + cache (FR-21); optional `EstimatedItemSize` for unrealized rows only; optional `QueryItemSize`; **`RemeasureItem`** when item content changes; scroll anchoring on size changes.
+- [ ] **Header / footer** (+ templates); **sticky** header / footer; pinned parts not re-recorded while scrolling.
+- [ ] **Grouping:** group header / footer templates; **sticky group headers**.
+- [ ] **Expandable groups:** per-group **`IsExpanded`**; collapsed groups omit items from layout / virtualization; toggle from group header; scroll anchoring when expand / collapse changes height; accessibility expanded / collapsed; `ScrollTo` and indices respect collapsed groups.
+- [ ] **Selection:** `SelectionMode` — `None`, `Single`, **`SingleDeselect`**, **`Multiple`**; selected item(s); **`SelectionChanging`** (cancelable) and **`SelectionChanged`** (+ optional command); **`SelectAll` / `ClearSelection`**; `Selected` visual state; optional `SelectionBackground` / selected template (minimal re-record). Extended (Shift/Ctrl range on desktop) later with FR-10.
+- [ ] **Item tap:** `ItemTapped` (+ command); inner controls keep their taps.
+- [ ] **Scroll:** `ScrollTo` item (and group when grouped); visible range / scrolled; scroll bars (FR-17).
+- [ ] **Load more:** **`LoadMoreMode`** (`None`, **`Manual`**, **`Auto`**, **`AutoOnUserScroll`**); **`LoadMorePosition`** (`End` / **`Start`**); **`LoadMoreCommand`** (+ parameter); **`LoadMoreTemplate`**; **`IsLoadMoreActive`** while loading; optional **`RemainingItemsThreshold`** (+ event / command) alongside load-more UX.
 - [ ] **Pull to refresh** (`IsRefreshing`, `RefreshCommand`).
-- [ ] **Candidates:**
-  - `ItemDoubleTapped` / `ItemLongPressed` (+ commands);
-  - item swipe actions (leading / trailing templates);
-  - load-more footer mode;
-  - item appearing / disappearing events;
-  - keyboard navigation (desktop);
-  - animated insert / remove.
+- [ ] **Migration artifacts (with MVP):** `collection-view.md` in `skiaui-migrate/references`, [Migration.md](../Migration.md) CollectionView section, and plugin gap / audit updates.
+- [ ] **Later (out of FR-22 MVP):** reordering; row swipe; keyboard item navigation; animated insert / remove.
 - [ ] **Benchmarks and tests:**
   - 10k items at device fps while flinging;
-  - recycling (no per-item allocations in steady scrolling);
+  - recycling (no steady-state allocations per scroll);
   - selection re-records at most two items;
   - `ItemTapped` versus buttons inside items;
-  - grouping, sticky header costs, incremental loading and update scroll modes.
+  - grouping, sticky headers, **expand / collapse** (no realize while collapsed, stable anchoring);
+  - load more modes and start/end position;
+  - variable-height items and remeasure anchoring;
+  - extended selection modes and SelectAll;
+  - migration doc covers supported MAUI patterns and intentional gaps.
 
 ### FR-23 — Three-state toggles
 

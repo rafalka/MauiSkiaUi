@@ -292,7 +292,7 @@ Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and 
 
 | MAUI | Status | Meanwhile |
 | --- | --- | --- |
-| `CollectionView` | Planned (Phase B: virtualized `SkUiCollectionView`) | Keep the MAUI `CollectionView` with native item templates, or, for up to a few hundred items, a drawn stack inside `SkUiScrollView` |
+| `CollectionView` | Planned (Phase B: **`SkUiCollectionView`**, SkUi-first — not MAUI API parity) | Keep the MAUI `CollectionView` with native item templates, or, for up to a few hundred items, a drawn stack inside `SkUiScrollView`. When the control ships, use [collection-view.md](../plugins/skiaui-migration/skills/skiaui-migrate/references/collection-view.md) (agent skill reference) for feature-by-feature mapping. |
 | `SwipeView` | Planned (C1) | `Swiped` / `PanUpdated` on the row for simple cases, or keep the list native |
 | `RefreshView` | Planned (C2) | A MAUI `RefreshView` around the surface root: the drawn scroller hands the drag to native parents at its top edge, as inside a native `ScrollView` (this combination is not covered by tests yet) |
 | `CarouselView`, `IndicatorView` | Planned (D1) | `SkUiScrollView Orientation="Horizontal"` with `SnapPointsType="MandatorySingle"` |

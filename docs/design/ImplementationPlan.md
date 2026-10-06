@@ -96,8 +96,8 @@ Weighted growth (leftover space shared by weight) is not a separate layout: use 
 | # | Deliverable | Notes |
 | --- | --- | --- |
 | B1 | **`SkUiVirtualStackLayout`** (+ virtual scroll) | Vertical first; fixed-extent fast path; estimate + anchoring for variable sizes; recycling; prefetch |
-| B2 | **`SkUiCollectionView` MVP** | `ItemsSource` + `ItemTemplate` / selector, single selection, `ItemTapped` / command, header / footer / `EmptyView`, `RemainingItemsThreshold`, pull-to-refresh (`IsRefreshing` / `RefreshCommand`) |
-| B3 | **Phase 2** | Grouping, sticky group headers, grid layout, multiple selection, horizontal |
+| B2 | **`SkUiCollectionView` MVP** | SkUi-first API (not MAUI parity): `ItemsSource` + templates, single selection, `ItemTapped` / command, sticky header / footer / `EmptyView`, load-more threshold, pull-to-refresh; [Migration.md](../Migration.md) + `skiaui-migrate/references/collection-view.md` |
+| B3 | **Phase 2** | Grouping, **expandable groups**, sticky group headers, grid layout, multiple selection, horizontal |
 
 ### Phase C — List chrome and text
 
@@ -227,7 +227,7 @@ Checked against `Microsoft.Maui.Controls` 10.0.110 (the pinned version). **Parti
 | StateContainer | Switching states releases the previous content (leak scenario) |
 | Expander | Header tap toggles with animation; nested in a scroll view; hosted native child — headless tests in `ExpanderTests` (toolkit defaults and command / event order, directions, header taps vs tappable header views, lazy and template content, selectors, animation frames with the height following and siblings moving, reversal, reduce motion, no ancestor re-record per frame, scroll extents, nested expanders, hosted native content hidden and clipped, header semantics) and `ExpanderXamlTests` (the toolkit's samples with the prefix changed), `ExpanderToggled` leak scenario; device check open |
 | Virtual stack | No blank frames while flinging on a device; recycling without per-item allocations; memory flat after release |
-| CollectionView MVP | Template recycling; selection + `ItemTapped`; `EmptyView`; load-more threshold; pull-to-refresh |
+| CollectionView MVP | SkUi-first API; template recycling; selection + `ItemTapped`; `EmptyView`; load-more threshold; pull-to-refresh; migration doc + `collection-view.md` |
 | SwipeView | Wins horizontal swipes, loses vertical scrolls |
 | Hosted controls | Entry focus + IME; WebView scroll nesting; snapshots during flings (Android / Windows) — headless `HostedControlsTests` / `OverlayScrollTests`, the device hosted-control check (native placement, snapshots, focus, re-attach), the manual checklist in [Testing.md](Testing.md#hosted-controls-a6) (open) |
 | Drawn text input (Phase T) | IME composition (Chinese, Japanese, Korean), autocorrect, dictation, the edit menu, autofill and password managers on Android, iOS, Mac Catalyst and Windows; caret and selection through bidi and grapheme clusters; MAUI's `Entry` / `Editor` doc samples with the prefix changed; same text and caret on SkUi* and Core; keyboard avoidance in drawn scrollers; TalkBack, VoiceOver and Narrator read and edit the text; no allocations per keystroke on plain text — headless tests for the engine, device checks for the proxy, and a leak scenario for focus and IME attach / detach |
