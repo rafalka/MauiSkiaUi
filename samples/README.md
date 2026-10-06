@@ -4,7 +4,7 @@
 
 ## How an example is organised
 
-Each example is **one source file** under `Samples/<Section>/`. The file holds:
+Each example is **one source file** under `Samples/<Section>/` (a XAML example is two: [below](#xaml-examples)). The file holds:
 
 1. **`public static SampleInfo Info`** at the top. The app displays it:
    - `Title`: the page title.
@@ -18,10 +18,13 @@ Each example is **one source file** under `Samples/<Section>/`. The file holds:
 
 The project embeds every file under `Samples/`, and each page's **Source** button shows its own file. What people read in the app is the code that runs.
 
-**XAML examples** are a XAML page and its code-behind (`<Name>Sample.xaml` + `<Name>Sample.xaml.cs`): the page's root is `samples:SamplePage`, its content is the live example (`SamplePage.SampleContent` is the content property), and `Info` with whatever the example needs lives in the code-behind. The Source page shows the XAML first, with a toolbar button to switch to the code-behind. XAML is compiled by the source generator (`MauiXamlInflator=SourceGen`), in the app and in the test project.
+### XAML examples
 
-**The Source page:**
-- **Highlighting:** the file is highlighted with [ColorCode](https://github.com/CommunityToolkit/ColorCode-Universal) (C# → HTML) in a web view: it scrolls both ways and text can be selected. The page title is the file name.
+A XAML example is a XAML page and its code-behind (`<Name>Sample.xaml` + `<Name>Sample.xaml.cs`): the page's root is `samples:SamplePage`, its content is the live example (`SamplePage.SampleContent` is the content property), and `Info` with whatever the example needs lives in the code-behind. The Source page shows the XAML first, with a toolbar button to switch to the code-behind. XAML is compiled by the source generator (`MauiXamlInflator=SourceGen`), in the app and in the test project.
+
+### The Source page
+
+- **Highlighting:** the file is highlighted with [ColorCode](https://github.com/CommunityToolkit/ColorCode-Universal) (C# or XAML → HTML) in a web view: it scrolls both ways and text can be selected. The page title is the file name.
 - **Which file:** `SampleInfo` captures the example's source path with `[CallerFilePath]`. Its file name finds the embedded copy, and the full path lets the page open it.
 - **"Open in …":** on Mac Catalyst and Windows, when that file exists (the app runs on the machine that built it), a toolbar button opens it in the IDE that built the app:
   - The build records that IDE as assembly metadata (see `MauiSkiaUiSamples.csproj` and `Infrastructure/SourceEditor.cs`).

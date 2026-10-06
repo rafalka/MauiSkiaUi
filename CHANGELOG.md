@@ -17,7 +17,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 - **`ControlTemplate` on `SkUiContentView`:** content views (`SkUiContentView`, `SkUiBorder`, `SkUiScrollView`, …) take a MAUI `ControlTemplate` of drawn views that wraps their content, shown by an `SkUiContentPresenter` ([SkUiContentView.md](docs/controls/SkUiContentView.md#controltemplate)).
   - `TemplateRoot`, `SetControlTemplate`, `OnApplyTemplate()`, `GetTemplateChild(name)`; changing or removing the template moves the same content.
-  - The template is created when the content loads, so `ContentLoading="WhenShown"` defers it too; `ContentTemplate` runs only once the template has a presenter.
+  - The template is created when the content loads, so `ContentLoading="WhenShown"` defers it too; `ContentTemplate` runs only once the template has a presenter (a template without one logs a `SkiaUi:` trace line). Presenters ignore their own `ControlTemplate`; on `SkUiScrollView` the whole template scrolls.
   - `TemplateBinding` / `RelativeSource TemplatedParent` do not reach drawn controls: bind with `RelativeSource AncestorType` (a compiled binding). The migration guide and skills show the rewrite; `check_xaml.py` reports `TemplateBinding` and `TemplatedParent` on drawn views.
 
 ## 1.0.0-Prerelease09

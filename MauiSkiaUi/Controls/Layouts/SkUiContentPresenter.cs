@@ -31,6 +31,10 @@ public class SkUiContentPresenter : SkUiContentView
     public SkUiContentPresenter() => HwAccelerated = false;
 
     /// <inheritdoc />
+    /// <remarks>A presenter shows its control's content: its own <c>ControlTemplate</c> (e.g. from a style applied to derived types) is ignored.</remarks>
+    private protected override bool AppliesControlTemplate => false;
+
+    /// <inheritdoc />
     protected override void OnParentSet()
     {
         base.OnParentSet();

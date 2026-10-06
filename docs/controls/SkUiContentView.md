@@ -46,6 +46,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
     <ControlTemplate>
       <sk:SkUiBorder StrokeShape="RoundRectangle 12" Padding="12">
         <sk:SkUiVerticalStackLayout Spacing="8">
+          <!-- The view model's Title: the template root inherits the binding context (the control's own properties: see below) -->
           <sk:SkUiLabel Text="{Binding Title}" FontAttributes="Bold" />
           <sk:SkUiContentPresenter />
         </sk:SkUiVerticalStackLayout>
@@ -59,9 +60,11 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 </sk:SkUiContentView>
 ```
 
-- `Content` / `ContentTemplate` decide *what* the content is, `ControlTemplate` *where* it is shown: the template root is the view's child and the content goes into the template's first presenter (a view has one parent). Changing or removing the template moves the same content.
+- `Content` / `ContentTemplate` decide *what* the content is, `ControlTemplate` *where* it is shown: the template root is the view's child and the content goes into the template's first presenter (a view has one parent: further presenters stay empty). Changing or removing the template moves the same content.
 - The template is created when the content loads: with `ContentLoading="WhenShown"` neither exists until the view is first shown, and `ContentLoadedAnimation` runs on the template root.
-- Without a presenter in the template no content is shown and `ContentTemplate` does not run.
+- Without a presenter in the template no content is shown: an explicit `Content` stays out of the tree (a `SkiaUi:` trace line says so) and `ContentTemplate` does not run. On `SkUiAlternateContentView` this holds for both sides.
+- On `SkUiScrollView` the whole template scrolls (wrapper and content); for a fixed wrapper around scrolling content, put the scroll view inside the template instead.
+- `SkUiContentPresenter` is a content view too but ignores `ControlTemplate`, so a style with `ApplyToDerivedTypes="True"` cannot template presenters. Prefer styles that target your control's type (`TargetType="local:CardView"`) or keyed styles: an implicit style for `SkUiContentView` that applies to derived types also reaches `SkUiBorder` and `SkUiScrollView`.
 - The root must be a drawn view (else `InvalidOperationException`). `TemplateRoot` is the created root; subclasses get `OnApplyTemplate()` and `GetTemplateChild(name)`.
 - `Padding` (and a border's stroke) surrounds the template root.
 

@@ -631,6 +631,38 @@ public class ContentAndTemplateTests
         Assert.Same(content, presenter.Content);
     }
 
+    [Fact]
+    public void PresentersIgnoreControlTemplates()
+    {
+        var content = new SkUiBox();
+        var presenter = new SkUiContentPresenter { ControlTemplate = new ControlTemplate(() => new SkUiBorder()) };
+        var view = new SkUiContentView
+        {
+            ControlTemplate = new ControlTemplate(() => new SkUiBorder { Content = presenter }),
+            Content = content,
+        };
+        Assert.Null(presenter.TemplateRoot);
+        Assert.Same(content, presenter.Content);
+        Assert.Same(presenter, content.Parent);
+        Assert.NotNull(view.TemplateRoot);
+    }
+
+    [Fact]
+    public void ScrollViewScrollsItsWholeTemplate()
+    {
+        var scroll = new SkUiScrollView
+        {
+            ControlTemplate = new ControlTemplate(() => new SkUiVerticalStackLayout
+            {
+                Children = { new SkUiBox { HeightRequest = 50 }, new SkUiContentPresenter() }
+            }),
+            Content = new SkUiBox { HeightRequest = 500 },
+        };
+        SkUiTestHelpers.Arrange(scroll, 100, 200);
+        Assert.Same(scroll.TemplateRoot, Assert.Single(scroll.SkiaChildren));
+        Assert.Equal(550, scroll.ContentSize.Height); // the wrapper scrolls with the content
+    }
+
     private static IEnumerable<SkUiView> Descendants(SkUiView view)
     {
         yield return view;

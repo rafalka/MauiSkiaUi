@@ -231,7 +231,7 @@ public class SkUiContentView : SkUiView, ISkUiTemplatedContent
     /// <summary>Instantiates <see cref="ControlTemplate"/> once the content loads (removes it while deferred).</summary>
     private void UpdateTemplateRoot()
     {
-        var template = _loaded ? _controlTemplate : null;
+        var template = _loaded && AppliesControlTemplate ? _controlTemplate : null;
         if (ReferenceEquals(_appliedTemplate, template))
             return;
         var root = template is null ? null : template.CreateContent() as ISkUiView
@@ -258,9 +258,13 @@ public class SkUiContentView : SkUiView, ISkUiTemplatedContent
             AttachChild(root);
             SkUiContentPresenter.UpdateTemplatedParents(root);
             OnApplyTemplate();
+            PresentContent();
         }
         InvalidateMeasureOverride();
     }
+
+    /// <summary>Whether <see cref="ControlTemplate"/> is applied (presenters show their control's content instead).</summary>
+    private protected virtual bool AppliesControlTemplate => true;
 
     /// <summary>Called after a <see cref="ControlTemplate"/> was applied (<see cref="TemplateRoot"/> is set).</summary>
     protected virtual void OnApplyTemplate() { }
@@ -285,11 +289,18 @@ public class SkUiContentView : SkUiView, ISkUiTemplatedContent
         PresentContent(); // the content may move to another presenter
     }
 
-    /// <summary>Shows the loaded content in the template's first presenter (a view has one parent).</summary>
+    /// <summary>Shows the loaded content in the template's first presenter (a view has one parent; others stay empty).</summary>
     private void PresentContent()
     {
-        if (_content is { Parent: null } view && _presenters is [var first, ..])
-            first.Present(view);
+        if (_content is not { } content)
+            return;
+        if (_presenters is [var first, ..])
+        {
+            if (content.Parent is null)
+                first.Present(content);
+        }
+        else
+            Trace.WriteLine($"SkiaUi: the ControlTemplate of {GetType().Name} has no SkUiContentPresenter: its content is not shown.");
     }
 
     private void ReleasePresentedContent()

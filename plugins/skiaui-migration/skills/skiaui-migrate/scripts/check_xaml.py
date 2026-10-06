@@ -329,7 +329,9 @@ class Checker:
             self.report(path, node, "error", "Community Toolkit Expander inside a drawn tree: use sk:SkUiExpander (Header and Content become drawn views; ExpandDirection / ExpandedChangedEventArgs become SkUiExpandDirection / SkUiExpandedChangedEventArgs)")
         elif drawn and clr_namespace(node.uri):
             kind = self.index.drawn(node.name)
-            if kind is False:
+            if kind is True:
+                self.check_attributes(path, node)
+            elif kind is False:
                 self.report(path, node, "error", f"custom control {node.name} is not a drawn view: port it to a SkUiContentView / SkUiView subclass, or wrap it in <sk:SkUiMauiContentView>")
             elif kind is None:
                 self.report(path, node, "warning", f"custom control {node.name}: base type not found; it must derive from a SkiaUi view (or be wrapped in <sk:SkUiMauiContentView>)")

@@ -10,6 +10,7 @@ A content view with a second content: `ShowsAlternate` shows the `Content`, the 
 - **Templates run on first show:** `ContentTemplate` and `AlternateContentTemplate` create their side only the first time it is shown, so a side that is never shown costs nothing. A `DataTemplateSelector` chooses by the binding context, again when it changes.
 - **Animated switches:** with `BeforeStateChangeAnimation` and / or `AfterStateChangeAnimation` (render-thread [`SkUiViewAnimation`](SkUiView.md#key-apis)s; XAML `"FadeOut 120"`, `"FadeIn 200 CubicOut"`, or an element listing the properties), every change of `ShowsAlternate` animates: the shown content runs the first, the new one the second. `ShowsAlternate` takes the new value at once and the content follows; a value set while it animates wins (one set during the "before" animation replaces the pending switch, one set during the "after" animation follows it). `IsSwitching` is `true` meanwhile. The same rules as [`SkUiStateContainer`](SkUiStateContainer.md#animating-every-change), which shares the transition code. Before the view is first drawn, switches apply at once.
 - **With `ContentLoading="WhenShown"`** nothing is attached (and no template runs) until the view is first shown; then the side `ShowsAlternate` names.
+- **With a `ControlTemplate`** ([SkUiContentView](SkUiContentView.md#controltemplate)) the shown side goes into the template's presenter; a template without one shows neither side, and neither side's template runs.
 
 ## Shared conventions
 
