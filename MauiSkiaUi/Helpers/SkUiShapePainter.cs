@@ -121,7 +121,7 @@ internal static class SkUiShapePainter
         }
         using (area)
         {
-            var union = GrownByStroke(path, (float)style.Thickness, paint.StrokeJoin) ?? path.Op(area, SKPathOp.Union) ?? new SKPath(path);
+            var union = GrownByStroke(path, (float)style.Thickness, paint.StrokeJoin, paint.StrokeMiter) ?? path.Op(area, SKPathOp.Union) ?? new SKPath(path);
             path.Dispose();
             return union;
         }
@@ -129,41 +129,43 @@ internal static class SkUiShapePainter
 
     /// <summary>
     /// The outer edge of <paramref name="path"/> stroked <paramref name="thickness"/> wide (centered), as the same simple
-    /// shape when the path is a rectangle (miter or round joins), an oval or a rounded rectangle; <c>null</c> otherwise.
-    /// Shadow silhouettes stay simple shapes this way: Skia blurs them analytically on the GPU, while the general path a
-    /// union returns is rasterized and blurred on the CPU each time it changes size (a card growing frame by frame).
+    /// shape where that is exact: a rectangle with miter joins (a miter limit of at least √2 keeps its corners square) or
+    /// round joins, a circle, or a rounded rectangle with circular corners; <c>null</c> otherwise (the outer edge of an
+    /// ellipse or of elliptical corners is not an ellipse). Shadow silhouettes stay simple shapes this way: Skia blurs
+    /// them analytically on the GPU, while the general path a union returns is rasterized and blurred on the CPU each
+    /// time it changes size (a card growing frame by frame).
     /// </summary>
-    public static SKPath? GrownByStroke(SKPath path, float thickness, SKStrokeJoin join)
+    public static SKPath? GrownByStroke(SKPath path, float thickness, SKStrokeJoin join, float miterLimit)
     {
         var grow = thickness / 2;
-        var grown = new SKPath();
+        using var builder = new SKPathBuilder();
         if (path.IsRoundRect)
         {
             using var roundRect = path.GetRoundRect();
+            if (!roundRect.Radii.All(radius => radius.X == radius.Y))
+                return null;
             roundRect.Inflate(grow, grow);
-            grown.AddRoundRect(roundRect);
+            builder.AddRoundRect(roundRect);
         }
-        else if (path.IsOval)
+        else if (path.IsOval && path.GetOvalBounds() is var oval && oval.Width == oval.Height)
         {
-            var oval = path.GetOvalBounds();
             oval.Inflate(grow, grow);
-            grown.AddOval(oval);
+            builder.AddOval(oval);
         }
-        else if (path.IsRect && join is SKStrokeJoin.Miter or SKStrokeJoin.Round)
+        else if (path.IsRect && ((join == SKStrokeJoin.Miter && miterLimit >= MathF.Sqrt(2)) || join == SKStrokeJoin.Round))
         {
             var rect = path.GetRect();
             rect.Inflate(grow, grow);
             if (join == SKStrokeJoin.Miter)
-                grown.AddRect(rect);
+                builder.AddRect(rect);
             else
-                grown.AddRoundRect(rect, grow, grow);
+                builder.AddRoundRect(rect, grow, grow);
         }
         else
         {
-            grown.Dispose();
             return null;
         }
-        return grown;
+        return builder.Detach();
     }
 
     /// <summary>Configures <paramref name="paint"/> as a stroke of <paramref name="style"/> (width, caps, joins, miter, dashes).</summary>

@@ -12,6 +12,8 @@ The placeholder participates in SkiaUi measure/arrange. The wrapped control's pl
 
 **Visibility:** the native view is hidden while the host or any drawn ancestor is invisible (`IsVisible="False"`, the collapsed content of an expander), and shown again when they are.
 
+**Costs:** each host in a drawn tree watches `IsShown` while parented, so on a page with hosted native views the shown tracker walks the hosts' branches when views are reparented or change visibility, instead of returning at once. Views that move (an animating expander's siblings) walk their subtree to reposition native views only on surfaces that show any.
+
 **Drags that start on the native control** also reach the drawn scroll view around it. Once the drag is clearly a scroll (past the touch slop along the scroller's axis), the native touch is cancelled and the drawn list scrolls. Taps, text selection and cursor placement stay native. Controls that scroll their own content (WebView, Android Editor) keep their native scrolling. Implemented on Android and iOS / Mac Catalyst. On Windows it applies to touch and pen only; mouse drags keep text selection.
 
 **While scrolling** (`ScrollMode`):

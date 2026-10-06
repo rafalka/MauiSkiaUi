@@ -619,18 +619,21 @@ public class BrushShadowClipTests
     }
 }
 
-/// <summary>Gradients and shadows across look and color scheme swaps (P7 acceptance).</summary>
-/// <summary>Shadow silhouettes of stroked simple shapes stay simple shapes (Skia blurs them analytically on the GPU).</summary>
+/// <summary>
+/// Shadow silhouettes of stroked simple shapes stay simple shapes where that is exact (Skia blurs them analytically on
+/// the GPU), and are the union of fill and stroke otherwise.
+/// </summary>
 public class ShadowOutlineShapeTests
 {
-    private static SKPath Union(SKPath path, float thickness, SKStrokeJoin join)
+    private static SKPath Union(SKPath path, float thickness, SKStrokeJoin join, float miterLimit = 4)
     {
-        using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = thickness, StrokeJoin = join };
+        using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = thickness, StrokeJoin = join, StrokeMiter = miterLimit };
         using var area = paint.GetFillPath(path);
         return path.Op(area, SKPathOp.Union)!;
     }
 
-    // Same coverage when filled (antialiased edges may differ slightly along curves).
+    // Same coverage when filled. Along curves the stroker approximates the offset curve with quadratics, so edge pixels
+    // of the union differ from the exact shape by up to about a quarter of their coverage.
     private static void AssertSameArea(SKPath expected, SKPath actual)
     {
         static SKBitmap Fill(SKPath path)
@@ -647,39 +650,67 @@ public class ShadowOutlineShapeTests
         var different = 0;
         for (var x = 0; x < a.Width; x++)
             for (var y = 0; y < a.Height; y++)
-                if (Math.Abs(a.GetPixel(x, y).Alpha - b.GetPixel(x, y).Alpha) > 48)
+                if (Math.Abs(a.GetPixel(x, y).Alpha - b.GetPixel(x, y).Alpha) > 80)
                     different++;
         Assert.Equal(0, different);
     }
 
     [Fact]
-    public void StrokedRectanglesOvalsAndRoundedRectanglesGrowIntoTheSameShape()
+    public void StrokedRectanglesCirclesAndRoundedRectanglesGrowIntoTheSameShape()
     {
         using var roundRect = new SKPath();
         roundRect.AddRoundRect(new SKRect(1, 1, 101, 61), 10, 10);
-        using var grownRoundRect = SkUiShapePainter.GrownByStroke(roundRect, 2, SKStrokeJoin.Miter)!;
+        using var grownRoundRect = SkUiShapePainter.GrownByStroke(roundRect, 2, SKStrokeJoin.Miter, 4)!;
         Assert.True(grownRoundRect.IsRoundRect);
         Assert.Equal(new SKRect(0, 0, 102, 62), grownRoundRect.Bounds);
         using (var union = Union(roundRect, 2, SKStrokeJoin.Miter))
             AssertSameArea(union, grownRoundRect);
 
-        using var oval = new SKPath();
-        oval.AddOval(new SKRect(2, 2, 42, 22));
-        using var grownOval = SkUiShapePainter.GrownByStroke(oval, 4, SKStrokeJoin.Bevel)!;
-        Assert.True(grownOval.IsOval);
-        Assert.Equal(new SKRect(0, 0, 44, 24), grownOval.Bounds);
+        using var circle = new SKPath();
+        circle.AddOval(new SKRect(2, 2, 42, 42));
+        using var grownCircle = SkUiShapePainter.GrownByStroke(circle, 4, SKStrokeJoin.Bevel, 4)!;
+        Assert.True(grownCircle.IsOval);
+        Assert.Equal(new SKRect(0, 0, 44, 44), grownCircle.Bounds);
+        using (var union = Union(circle, 4, SKStrokeJoin.Bevel))
+            AssertSameArea(union, grownCircle);
 
         using var rect = new SKPath();
         rect.AddRect(new SKRect(2, 2, 42, 22));
-        using var mitered = SkUiShapePainter.GrownByStroke(rect, 4, SKStrokeJoin.Miter)!;
+        using var mitered = SkUiShapePainter.GrownByStroke(rect, 4, SKStrokeJoin.Miter, 4)!;
         Assert.True(mitered.IsRect);
         using (var union = Union(rect, 4, SKStrokeJoin.Miter))
             AssertSameArea(union, mitered);
-        using var rounded = SkUiShapePainter.GrownByStroke(rect, 4, SKStrokeJoin.Round)!;
+        using var rounded = SkUiShapePainter.GrownByStroke(rect, 4, SKStrokeJoin.Round, 4)!;
         Assert.True(rounded.IsRoundRect);
         using (var union = Union(rect, 4, SKStrokeJoin.Round))
             AssertSameArea(union, rounded);
-        Assert.Null(SkUiShapePainter.GrownByStroke(rect, 4, SKStrokeJoin.Bevel)); // cut corners: the union stays
+    }
+
+    [Fact]
+    public void OutlinesThatAreNotTheSameShapeKeepTheUnion()
+    {
+        // The outer edge of an ellipse (or of elliptical corners) is not an ellipse; cut corners are not a rectangle.
+        using var ellipse = new SKPath();
+        ellipse.AddOval(new SKRect(2, 2, 62, 22));
+        Assert.Null(SkUiShapePainter.GrownByStroke(ellipse, 4, SKStrokeJoin.Miter, 4));
+        using var ellipticalCorners = new SKPath();
+        ellipticalCorners.AddRoundRect(new SKRect(2, 2, 82, 42), 20, 8);
+        Assert.Null(SkUiShapePainter.GrownByStroke(ellipticalCorners, 4, SKStrokeJoin.Miter, 4));
+        using var rect = new SKPath();
+        rect.AddRect(new SKRect(2, 2, 42, 22));
+        Assert.Null(SkUiShapePainter.GrownByStroke(rect, 4, SKStrokeJoin.Bevel, 4));
+        Assert.Null(SkUiShapePainter.GrownByStroke(rect, 4, SKStrokeJoin.Miter, 1.2f)); // below √2: corners are beveled
+
+        // Through the shape painter: a stroked ellipse and a low-miter rectangle cast their exact union.
+        using var ellipseOutline = SkUiShapePainter.ShapeShadowOutline(new SKPath(ellipse), new SolidPaint(Colors.White), new SolidPaint(Colors.Black), SkUiStrokeStyle.Solid(4))!;
+        Assert.False(ellipseOutline.IsOval);
+        using (var union = Union(ellipse, 4, SKStrokeJoin.Miter))
+            AssertSameArea(union, ellipseOutline);
+        var lowMiter = SkUiStrokeStyle.Solid(4) with { MiterLimit = 1.2 };
+        using var rectOutline = SkUiShapePainter.ShapeShadowOutline(new SKPath(rect), new SolidPaint(Colors.White), new SolidPaint(Colors.Black), lowMiter)!;
+        Assert.False(rectOutline.IsRect);
+        using (var union = Union(rect, 4, SKStrokeJoin.Miter, 1.2f))
+            AssertSameArea(union, rectOutline);
     }
 
     [Fact]
@@ -693,6 +724,7 @@ public class ShadowOutlineShapeTests
     }
 }
 
+/// <summary>Gradients and shadows across look and color scheme swaps (P7 acceptance).</summary>
 [Collection(GlobalStateCollection.Name)]
 public class BrushLookSwapTests
 {

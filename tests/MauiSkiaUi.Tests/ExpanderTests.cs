@@ -391,6 +391,83 @@ public class ExpanderTests
     }
 
     [Fact]
+    public void AnExpanderThatIsTheSurfaceLaysItselfOutInPlaceEveryFrame()
+    {
+        WithMotion(() =>
+        {
+            // The expander is the surface root: each reveal frame is laid out before it is recorded (no native layout,
+            // no explicit arrange), and the expander's own picture is not recorded again (its bounds stay the same).
+            var header = Box(20);
+            var expander = new SkUiExpander { Header = header, Content = Box(40), AnimationLength = 200, Direction = SkUiExpandDirection.Up, Background = Colors.White };
+            using var surface = new SkUiTestSurface(expander, 100, 200);
+            At(surface, 0);
+            var recorded = surface.RecordedPictures;
+            expander.IsExpanded = true;
+            At(surface, 100);
+            Assert.Equal(20, expander.HeaderHost.Frame.Y, 3); // Up: the header sits below the revealed half
+            Assert.Equal(0.5, expander.ContentHost.ScaleY, 3);
+            var midway = surface.RecordedPictures;
+            At(surface, 200);
+            Assert.Equal(40, expander.HeaderHost.Frame.Y);
+            Assert.Equal(new Rect(0, 0, 100, 200), expander.Frame);
+            Assert.Equal(midway, surface.RecordedPictures); // a frame of the animation records nothing
+            Assert.True(midway - recorded <= 2, $"{midway - recorded} pictures recorded when the content was shown");
+        });
+    }
+
+    [Fact]
+    public void IsAnimatingIsObservable()
+    {
+        WithMotion(() =>
+        {
+            var expander = new SkUiExpander { Header = Box(20), Content = Box(40), AnimationLength = 200 };
+            var seen = new List<bool>();
+            expander.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(SkUiExpander.IsAnimating))
+                    seen.Add(expander.IsAnimating);
+            };
+            using var surface = new SkUiTestSurface(new SkUiContentView { Content = new SkUiVerticalStackLayout { Children = { expander } } }, 100, 200);
+            At(surface, 0);
+            expander.IsExpanded = true;
+            expander.IsExpanded = false; // reversed: still animating, no change to report
+            At(surface, 100);
+            At(surface, 300);
+            Assert.Equal([true, false], seen);
+        });
+    }
+
+    [Fact]
+    public void ExpandedChangedIsRaisedEvenWhenTheCommandThrows()
+    {
+        var raised = new List<bool>();
+        var expander = new SkUiExpander { Command = new Command(() => throw new InvalidOperationException("app bug")) };
+        expander.ExpandedChanged += (_, e) => raised.Add(e.IsExpanded);
+        Assert.Throws<InvalidOperationException>(() => expander.IsExpanded = true);
+        Assert.True(expander.IsExpanded);
+        Assert.Equal([true], raised);
+    }
+
+    [Fact]
+    public void TheExpandedStateTextCanBeLocalized()
+    {
+        var original = SkUiExpander.ExpandedStateText;
+        try
+        {
+            SkUiExpander.ExpandedStateText = expanded => expanded ? "Rozwinięte" : "Zwinięte";
+            var expander = new SkUiExpander { Header = new SkUiLabel { Text = "Szczegóły", WidthRequest = 80, HeightRequest = 20 }, Content = Box(30) };
+            var root = new SkUiContentView { Content = new SkUiVerticalStackLayout { Children = { expander } } };
+            SkUiTestHelpers.Arrange(root, 200, 200);
+            Assert.Equal("Zwinięte", SkUiSemanticsTree.Build(root).Find(expander.HeaderHost)!.Value);
+            Assert.Throws<ArgumentNullException>(() => SkUiExpander.ExpandedStateText = null!);
+        }
+        finally
+        {
+            SkUiExpander.ExpandedStateText = original;
+        }
+    }
+
+    [Fact]
     public void ScrollExtentsFollowTheAnimation()
     {
         WithMotion(() =>

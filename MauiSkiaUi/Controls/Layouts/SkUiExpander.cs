@@ -39,6 +39,8 @@ public class SkUiExpander : SkUiView
     private bool _lazy;
     private uint _animationLength;
     private Easing? _animationEasing = Easing.CubicInOut;
+    private bool _isAnimating;
+    private static Func<bool, string> _expandedStateText = expanded => expanded ? "Expanded" : "Collapsed";
 
     /// <summary>Bindable <see cref="Header"/>.</summary>
     public static readonly BindableProperty HeaderProperty = BindableProperty.Create(
@@ -214,10 +216,24 @@ public class SkUiExpander : SkUiView
         set => SetValue(PaddingProperty, value);
     }
 
-    /// <summary>Whether the content is expanding or collapsing.</summary>
-    public bool IsAnimating => _reveal.IsRunning;
+    /// <summary>Whether the content is expanding or collapsing (raises <c>PropertyChanged</c> when it starts and ends).</summary>
+    public bool IsAnimating => _isAnimating;
 
-    /// <summary>Raised when <see cref="IsExpanded"/> changes (when it changes, not when an animation ends).</summary>
+    /// <summary>
+    /// The value screen readers read after a header's text, for expanded (<c>true</c>) and collapsed: "Expanded" /
+    /// "Collapsed" by default. Set it once at startup to localize (it is called each time the semantics are read, so it
+    /// may follow the current culture).
+    /// </summary>
+    public static Func<bool, string> ExpandedStateText
+    {
+        get => _expandedStateText;
+        set => _expandedStateText = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
+    /// <summary>
+    /// Raised when <see cref="IsExpanded"/> changes (when it changes, not when an animation ends), after
+    /// <see cref="Command"/>; also when the command throws, so the app always learns of the change.
+    /// </summary>
     public event EventHandler<SkUiExpandedChangedEventArgs>? ExpandedChanged;
 
     /// <summary>Sets <see cref="Header"/> (same as the property setter).</summary>
@@ -301,11 +317,31 @@ public class SkUiExpander : SkUiView
         var length = SkUiMotion.IsMotionReduced ? 0 : _animationLength;
         var target = value ? 1f : 0f;
         _reveal.AnimateTo(target, length == 0 ? SkUiTransition.None : SkUiTransition.FromMilliseconds(length, _animationEasing ?? Easing.Linear),
-            _ => RefreshContent(), durationScale: Math.Abs(target - _reveal.Value));
+            _ =>
+            {
+                RefreshContent();
+                UpdateIsAnimating();
+            }, durationScale: Math.Abs(target - _reveal.Value));
+        UpdateIsAnimating();
         _headerPart.OnExpandedChanged();
-        if (Command is { } command && command.CanExecute(CommandParameter))
-            command.Execute(CommandParameter);
-        ExpandedChanged?.Invoke(this, new SkUiExpandedChangedEventArgs(value));
+        // The value and the views have changed: the app is told even when its command throws.
+        try
+        {
+            if (Command is { } command && command.CanExecute(CommandParameter))
+                command.Execute(CommandParameter);
+        }
+        finally
+        {
+            ExpandedChanged?.Invoke(this, new SkUiExpandedChangedEventArgs(value));
+        }
+    }
+
+    private void UpdateIsAnimating()
+    {
+        if (_isAnimating == _reveal.IsRunning)
+            return;
+        _isAnimating = _reveal.IsRunning;
+        OnPropertyChanged(nameof(IsAnimating));
     }
 
     private void OnDirectionChanged(SkUiExpandDirection value)
@@ -322,12 +358,14 @@ public class SkUiExpander : SkUiView
         InvalidateMeasureOverride();
     }
 
-    // Each animation frame: the content's scale (composite-time) and the expander's height (a relayout of the
-    // expander and its ancestors, which re-records only what changed size).
+    // Each animation frame: the content's scale (composite-time; it also requests the frame) and the expander's height:
+    // a relayout of the expander and its ancestors that re-records only what changed size. The expander draws nothing
+    // that depends on the reveal, so its own picture is not invalidated (its size change re-records it), and as a
+    // surface root it is laid out in place, asking the native layout only when its size changes.
     private void OnRevealChanged()
     {
         _contentPart.ScaleY = Reveal;
-        InvalidateMeasureOverride();
+        InvalidateMeasureFromChild();
     }
 
     /// <inheritdoc />
@@ -402,7 +440,7 @@ public class SkUiExpander : SkUiView
         }
         // Native views in the content are clipped to the expander while it animates (they cannot be scaled): follow
         // the clip as the height changes, and drop it after the last frame.
-        if (_contentPart.IsVisible && SkUiMauiContentView.HostsNativeViews)
+        if (_contentPart.IsVisible && SurfaceHostsNativeViews)
             _contentPart.NotifyMoved();
     }
 
@@ -433,7 +471,7 @@ public class SkUiExpander : SkUiView
             if (Content is null)
                 return;
             info.Role = SkUiSemanticsRole.Button;
-            info.Value = owner.IsExpanded ? "Expanded" : "Collapsed";
+            info.Value = ExpandedStateText(owner.IsExpanded);
         }
 
         public void OnExpandedChanged() => InvalidateSemantics();

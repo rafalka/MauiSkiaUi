@@ -280,6 +280,26 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         }
     }
 
+    /// <summary>
+    /// Whether this node's surface shows native views (<see cref="SkUiMauiContentView"/> overlays): only then must views
+    /// that move walk their subtree to reposition them (<see cref="NotifyMoved"/>). Per surface, so native views on one
+    /// page cost nothing to a surface on another.
+    /// </summary>
+    internal bool SurfaceHostsNativeViews
+    {
+        get
+        {
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+            var root = this;
+            while (root.SkiaParent is { } parent)
+                root = parent;
+            return root.Handler is SkUiViewHandler { HasOverlays: true };
+#else
+            return false;
+#endif
+        }
+    }
+
     /// <summary>Called on this node and every SkiaUi descendant when this node moved within the drawn tree.</summary>
     internal virtual void NotifyMoved()
     {
@@ -450,7 +470,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         if (_arrangeDirty || previousSize != Frame.Size)
             ArrangeContent(Frame.Size);
         // Descendants keep their cached frames, but their root-relative position changed (native overlays follow).
-        if (previousFrame.Location != Frame.Location && Handler is null && SkUiMauiContentView.HostsNativeViews)
+        if (previousFrame.Location != Frame.Location && Handler is null && SurfaceHostsNativeViews)
             NotifyMoved();
         var frameChanged = _lastArrangeBounds != bounds || previousFrame != Frame;
         _lastArrangeBounds = bounds;
@@ -477,11 +497,14 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     }
 
     /// <summary>
-    /// A child's measure changed: this node is measured and arranged again, but its own content is not re-recorded
-    /// (a size change re-records it when arranged; moved children are composite-time). So a relayout every frame (an
-    /// expanding expander) records nothing above the changed node and leaves ancestor shadows alone.
+    /// Measures and arranges this node again without re-recording its own content (a size change re-records it when
+    /// arranged; moved children are composite-time): a child's measure changed, or the node's size follows state it does
+    /// not draw itself (an expander's reveal). A relayout every frame then records only views whose size changed and
+    /// leaves ancestor shadows alone; on a surface root it is laid out in place before the next frame
+    /// (<see cref="RelayoutIfNeeded"/>), asking the native layout only when the root's size changes. The caller requests
+    /// the frame (a child re-records itself; an expander changes its content's scale).
     /// </summary>
-    private void InvalidateMeasureFromChild()
+    internal void InvalidateMeasureFromChild()
     {
         _measureDirty = true;
         _arrangeDirty = true;

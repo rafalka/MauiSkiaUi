@@ -797,11 +797,23 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     /// offered to the continuous gestures of <paramref name="owner"/>'s drawn ancestors (e.g. a drawn scroller), which
     /// take the touch over from the native control once they claim it.
     /// </summary>
-    internal void AttachOverlay(PlatformView child, SkUiMauiContentView owner) =>
+    internal void AttachOverlay(PlatformView child, SkUiMauiContentView owner)
+    {
+        _overlayViews.Add(child);
         _container?.AddOverlay(child, touch => _renderer?.TouchOverlayDips(touch, owner) ?? SkUiNativeGestureState.None);
+    }
 
     /// <summary>Removes a previously attached native overlay view.</summary>
-    internal void DetachOverlay(PlatformView child) => _container?.RemoveOverlay(child);
+    internal void DetachOverlay(PlatformView child)
+    {
+        _overlayViews.Remove(child);
+        _container?.RemoveOverlay(child);
+    }
+
+    private readonly HashSet<PlatformView> _overlayViews = [];
+
+    /// <summary>Whether native overlays are attached to this surface (<see cref="SkUiView.SurfaceHostsNativeViews"/>).</summary>
+    internal bool HasOverlays => _overlayViews.Count > 0;
 
     /// <summary>Hides / shows a native overlay (e.g. while its snapshot is drawn instead).</summary>
     internal void SetOverlayHidden(PlatformView child, bool hidden) => _container?.SetOverlayHidden(child, hidden);
