@@ -49,7 +49,7 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 
 ## Native islands
 
-`Entry`, `Editor`, `SearchBar`, `Picker`, `DatePicker`, `TimePicker`, `WebView`, maps, media and third-party controls stay native inside the drawn tree:
+`Entry`, `Editor`, `SearchBar`, `Picker`, `DatePicker`, `TimePicker`, `WebView`, maps, media and third-party controls stay native inside the drawn tree (drawn `Entry`, `Editor` and `SearchBar` equivalents are planned; until they ship, wrap these too):
 
 ```xml
 <sk:SkUiMauiContentView>

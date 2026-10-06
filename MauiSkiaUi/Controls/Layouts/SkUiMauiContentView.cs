@@ -18,6 +18,15 @@ public enum SkUiOverlayScrollMode
 }
 
 /// <summary>
+/// Where the platform placed a hosted native view (<see cref="SkUiMauiContentView.GetNativePlacement"/>), read back
+/// from the laid-out native views in root-relative DIPs: the view's <paramref name="Frame"/> and the
+/// <paramref name="Visible"/> rectangle of its clip wrapper. <paramref name="IsShown"/> is the platform's visibility of
+/// the clip wrapper and the view (the wrapper is what a snapshot, an invisible drawn ancestor or a scrolled-out
+/// viewport hides) with a non-empty visible rectangle.
+/// </summary>
+internal readonly record struct SkUiOverlayPlacement(Rect Frame, Rect Visible, bool IsShown);
+
+/// <summary>
 /// Hosts a real MAUI <see cref="VisualElement"/> (e.g. Entry, Editor, WebView) as a native overlay positioned
 /// over this node's arranged bounds, instead of a Skia reimplementation (FR-16). The platform view renders and
 /// receives native input directly, so SkiaUi touch routing never consumes hits over this region. The overlay is
@@ -239,6 +248,10 @@ public partial class SkUiMauiContentView : SkUiView
         }
         InvalidateMeasureOverride();
         AttachOverlayIfPossible();
+        // A snapshot shows the old control: drop it, and capture the new one if a scroller still moves.
+        RestoreLive();
+        if (_movingScrollers > 0)
+            BeginSnapshot();
     }
 
     /// <inheritdoc />
@@ -458,6 +471,60 @@ public partial class SkUiMauiContentView : SkUiView
     partial void SyncOverlayBounds();
     partial void StartCapture(Action<SKImage?> done, ref bool started);
     partial void SetNativeHidden(bool hidden);
+
+    /// <summary>
+    /// Where the platform placed the native view, read back from it (root-relative DIPs); null when it is not attached
+    /// (no platform root, or the headless target). Diagnostics and the device tests' hosted check compare it with
+    /// <see cref="ComputeRootRelativeFrame"/> and <see cref="ComputeRootRelativeClip"/>.
+    /// </summary>
+    internal SkUiOverlayPlacement? GetNativePlacement()
+    {
+        SkUiOverlayPlacement? placement = null;
+        ReadNativePlacement(ref placement);
+        return placement;
+    }
+
+    partial void ReadNativePlacement(ref SkUiOverlayPlacement? placement);
+
+    /// <summary>
+    /// How far (DIPs, per edge) the native placement may be from the drawn tree's in <see cref="FindNativePlacementMismatch"/>:
+    /// Android places views on whole pixels, less than one DIP on any density. Settable so a check can prove it fails.
+    /// </summary>
+    internal static double NativePlacementTolerance { get; set; } = 1.01;
+
+    /// <summary>
+    /// Compares where the platform shows the native view (<see cref="GetNativePlacement"/>) with where the drawn tree
+    /// places it: shown or hidden, and while shown its frame and visible rectangle. Null when they agree; otherwise a
+    /// description. A hidden native view keeps its last geometry (it is placed again before it shows), so only its
+    /// visibility is compared. Shared by the device tests' hosted check and the overlay demo page.
+    /// </summary>
+    internal string? FindNativePlacementMismatch()
+    {
+        if (GetNativePlacement() is not { } placement)
+            return "is not attached to the surface";
+        var frame = ComputeRootRelativeFrame();
+        var visible = frame.Intersect(ComputeRootRelativeClip());
+        var hasVisible = visible.Width > 0 && visible.Height > 0;
+        var shown = hasVisible && !IsNativeHidden;
+        if (placement.IsShown != shown)
+            return $"is {(placement.IsShown ? "shown" : "hidden")}, expected {(shown ? "shown" : "hidden")} (visible {Format(hasVisible ? visible : Rect.Zero)}, snapshot {IsShowingSnapshot})";
+        if (!shown)
+            return null;
+        if (!Near(placement.Frame, frame))
+            return $"frame {Format(placement.Frame)}, expected {Format(frame)}";
+        if (!Near(placement.Visible, visible))
+            return $"visible {Format(placement.Visible)}, expected {Format(visible)}";
+        return null;
+
+        static bool Near(Rect actual, Rect expected)
+        {
+            var tolerance = NativePlacementTolerance;
+            return Math.Abs(actual.X - expected.X) <= tolerance && Math.Abs(actual.Y - expected.Y) <= tolerance
+                && Math.Abs(actual.Right - expected.Right) <= tolerance && Math.Abs(actual.Bottom - expected.Bottom) <= tolerance;
+        }
+
+        static string Format(Rect rect) => $"({rect.X:F1}, {rect.Y:F1}, {rect.Width:F1} × {rect.Height:F1})";
+    }
 
     /// <inheritdoc />
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)

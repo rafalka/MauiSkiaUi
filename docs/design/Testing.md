@@ -93,6 +93,7 @@ The script builds the app in Release (no debugger or Hot Reload keeping instance
 
 - `SKUILEAK_START`;
 - `SKUILEAK_RENDER {json}` for the render check;
+- `SKUILEAK_HOSTED {json}` for the hosted-control check;
 - `SKUILEAK_DETECTOR {json}` for the self-test;
 - one `SKUILEAK {json}` per scenario;
 - `SKUILEAK_DONE`.
@@ -103,6 +104,7 @@ It prints a table and exits non-zero on any failure. Logs go to `artifacts/devic
 - **`--trim`:** builds it fully trimmed, without AOT.
 - Either way, the script fails when the app build reports a trim or AOT warning for SkiaUi code.
 - **Render check:** before the scenarios, the app draws a label, a button and an app-defined view with an overlay layer offscreen, and checks their pixels (`SKUILEAK_RENDER`). Leak scenarios alone would not notice a build where drawing silently breaks. It also loads a `MauiImage` (an SVG item, by its generated PNG name) and checks it lays out at its 48 × 48 base size from the display-density file, and that a `FontImageSource` glyph renders synchronously in a `ConfigureFonts` font: the platform-specific image lookups of P4. Last, it checks that `SkUiWeakEvent` still tells closures from objects in that build (a lambda capturing a local keeps firing after a collection, an object's handler does not keep it alive): it relies on compiler-generated type names, which trimming or Native AOT could change.
+- **Hosted-control check (A6):** `HostedControlsCheck` opens a page with an Entry, an Editor, a WebView, an Entry in a nested horizontal scroller, one in a collapsed expander and one that gets replaced, all hosted in a drawn scroller. After each step it reads every native view back from the platform (`SkUiMauiContentView.GetNativePlacement`: the clip wrapper's and the view's laid-out geometry, whether it shows) and compares it with the drawn tree's frame, visible part and hidden state, within 1 DIP (`SkUiMauiContentView.FindNativePlacementMismatch`, also behind the demo's **Check native placement**). The steps are: first layout, instant scrolls of both scrollers, an animated scroll (snapshots on Android / Windows, live placement on Apple; the motion must be observed, else the step fails) and the restore after it, a focused Entry that keeps focus and stays live while scrolling, the same tree on a new page, expand and collapse, and a replaced control (`SKUILEAK_HOSTED`). `--placement-tolerance -1` must make it fail (`scripts/device_tests.sh -t maccatalyst -S NativeOverlays --placement-tolerance -1`): proof that it compares real native geometry.
 - **CI** runs the Mac Catalyst device tests with `--aot`. iOS devices below iOS 17 (not supported by `devicectl`) are launched through `mlaunch` (`dotnet build -t:Run`).
 
 Launched normally, the app shows the test page: **Run all**, **Rerun failed**, **Self-checks** (detector and render check), and **Run** per scenario, with results and survivors inline.
@@ -151,6 +153,24 @@ Automated device inspection is blocked by `MSB4099` in the installed MAUI extens
 - Confirm the overlay repositions correctly when nested inside other layouts (Grid/StackLayout/AbsoluteLayout), not just a single ContentView, and when an ancestor's `TranslationX`/`TranslationY` changes (e.g. during a transform animation), since `ComputeRootRelativeFrame()`'s accumulation is unverified on a real native container.
 - Inspect Basic controls' rendered colors/contrast (Switch/CheckBox/RadioButton especially) and the Border's rounded-clip content.
 - Verify Stack/Absolute layouts' native-vs-drawn spacing and positions visually match at a few sizes/orientations.
+
+### Hosted controls (A6)
+
+Automated: headless `HostedControlsTests`, `OverlayScrollTests`, `MauiContentViewTests` (also the hosted cases in `ExpanderTests`, `RtlLayoutTests`, `AccessibilityTests`) and the `NativeOverlays` leak scenario; on devices, the hosted-control check of `scripts/device_tests.sh` (above). The checks below need a person (soft keyboard, IME, native touch handling).
+
+Page: **Native overlays in ScrollView** in the demo (Entry ×3, Editor, Entry in a nested carousel, Entry in an expander, a WebView that scrolls inside, a last Entry at the end of the list). **Check native placement** compares every native view with the drawn tree and reports in the status line; use it after each step, also with the keyboard up.
+
+1. **Focus and soft keyboard:** tap Entry 1, type; tap the last Entry (end of the list) with the list scrolled so it sits in the lower half: the keyboard must not cover it (the page or the list moves it into view) and the caret shows. Check native placement with the keyboard up, then after it closes. Rotate with the keyboard up.
+2. **IME composition:** type with a composing keyboard (Japanese / Chinese pinyin / Korean; Gboard or the iOS keyboard): the marked text and candidates show at the field; autocorrect and dictation insert into it. Select text: handles and the edit menu (copy, paste) work, and the loupe on iOS.
+3. **Scroll while focused:** with Entry 1 focused (keyboard up), drag and fling the list: the field stays live (no red snapshot outline) and moves with the list; typing goes on after the fling.
+4. **Snapshots (Android, Windows):** fling the list: every overlay shows a red outline (HighlightSnapshots) and moves exactly with the drawn rows, also with **Stall 2s** pressed during the fling; when the list stops, the native views come back in place without a jump or flash. Repeat on the carousel (horizontal).
+5. **Live mode (iOS, Mac Catalyst; ScrollMode Live elsewhere):** drag slowly and fling: the native views follow the rows with at most a frame of lag and never cover the drawn header / footer.
+6. **Drags that start on a native control:** start a vertical drag on an Entry: the list scrolls (the Entry does not select text); a tap places the caret; a horizontal drag on an Entry selects text. Windows: the same with touch and pen; a mouse drag selects text.
+7. **WebView scroll nesting:** drag inside the WebView: its page scrolls first; at its end the gesture does not leak into odd states (the drawn list scrolls on the next drag). Pinch-zoom inside the WebView stays native.
+8. **Expander:** expand: the Entry appears with the content (clipped while the content grows), stays aligned when the list scrolls; collapse: it hides with the content.
+9. **Navigation:** focus an Entry, navigate back with the keyboard up, open the page again: no stale native view on the other page, the keyboard closed.
+
+Record what was observed per platform here (date, device, result). **Run 2026-10-06:** hosted-control check passed on Mac Catalyst (macOS 27), an iPad simulator (iOS 26.5) and a Galaxy S9 (Android 10), after it found that a focused Entry scrolled out of view lost focus on Android (fixed); the manual steps above are not run yet. Windows not run.
 
 ### Accessibility and keyboard (P10)
 

@@ -15,7 +15,8 @@ public class MainActivity : MauiAppCompatActivity
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         if (Intent?.Extras is { } extras)
-            DeviceTestOptions.Current = DeviceTestOptions.FromValues(extras.GetBoolean("autorun"), extras.GetBoolean("exit"), extras.GetString("scenarios"));
+            DeviceTestOptions.Current = DeviceTestOptions.FromValues(extras.GetBoolean("autorun"), extras.GetBoolean("exit"), extras.GetString("scenarios"),
+                extras.GetString("placementTolerance"));
         base.OnCreate(savedInstanceState);
     }
 }

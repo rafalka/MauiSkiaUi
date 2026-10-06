@@ -10,6 +10,9 @@ namespace MauiSkiaUiDemo;
 /// move exactly with the drawn content (try a fling, then the "Stall 2s" toolbar item); Live repositions the native
 /// views instead. "HighlightSnapshots" outlines frozen overlays in red.</item>
 /// <item>A focused Entry stays live; an Entry inside a nested horizontal scroller follows both scrollers.</item>
+/// <item>An Entry in a collapsed expander is hidden; the WebView scrolls its own content first (scroll nesting).</item>
+/// <item>"Check native placement" compares every native view with where the drawn tree places it (also with the
+/// soft keyboard up); the hosted-controls checklist in docs/design/Testing.md walks through this page.</item>
 /// </list>
 /// </summary>
 public sealed class OverlayScrollingDemoPage : ComponentDemoPage
@@ -52,10 +55,18 @@ public sealed class OverlayScrollingDemoPage : ComponentDemoPage
         _nested = new SkUiScrollView { Orientation = ScrollOrientation.Horizontal, Content = row, HeightRequest = 56 };
         content.Children.Add(_nested);
 
+        content.Children.Add(new SkUiExpander
+        {
+            Header = Text("Expander with an Entry (tap to expand)", bold: true),
+            Content = Host(new Entry { Placeholder = "Entry inside the expander", BackgroundColor = Colors.White, TextColor = Ink }, 44)
+        });
+
         content.Children.Add(Text("WebView", bold: true));
         content.Children.Add(Host(new WebView
         {
-            Source = new HtmlWebViewSource { Html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='font-family:sans-serif;margin:8px;background:#EEF2FF'><h3>Native WebView</h3><p>Scroll the page: this view is frozen while moving.</p></body></html>" }
+            Source = new HtmlWebViewSource { Html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head><body style='font-family:sans-serif;margin:8px;background:#EEF2FF'><h3>Native WebView</h3><p>Scroll the page: this view is frozen while moving.</p>" +
+                "<p>Drag inside this box: the web page scrolls first; at its end the drawn list takes over.</p>" +
+                string.Concat(Enumerable.Range(1, 12).Select(i => $"<p>Web paragraph {i}</p>")) + "</body></html>" }
         }, 140));
         for (var i = 1; i <= 8; i++)
             content.Children.Add(Text($"Drawn row {i}: filler content so the list scrolls well past the overlays."));
@@ -80,6 +91,7 @@ public sealed class OverlayScrollingDemoPage : ComponentDemoPage
             () => SkUiMauiContentView.SnapshotRestoreDelay.TotalMilliseconds);
         ActionButton("Scroll to top", () => _scroll.ScrollToAsync(0, 0));
         ActionButton("Scroll to WebView", () => _scroll.ScrollToAsync(0, Math.Max(0, _overlays[^2].Y - 20)));
+        ActionButton("Check native placement", CheckPlacement);
         OnReset(() =>
         {
             SkUiMauiContentView.HighlightSnapshots = true;
@@ -101,6 +113,24 @@ public sealed class OverlayScrollingDemoPage : ComponentDemoPage
         var frozen = _overlays.Count(overlay => overlay.IsShowingSnapshot);
         var mode = _overlays.Count > 0 && _overlays[0].UsesSnapshotWhileScrolling ? "snapshot" : "live";
         Feedback($"{(_scroll.IsScrolling || _nested.IsScrolling ? "Scrolling" : "Idle")} · mode {mode} · frozen {frozen}/{_overlays.Count} · offset {_scroll.ScrollY:F0}");
+    }
+
+    /// <summary>
+    /// Reads every native view back from the platform and reports any that is not where the drawn tree places it (the
+    /// device tests' hosted check uses the same comparison: shown / hidden, frame and visible rectangle).
+    /// </summary>
+    private void CheckPlacement()
+    {
+        if (_overlays.All(overlay => overlay.GetNativePlacement() is null))
+        {
+            Feedback("No native views attached (run on a device).");
+            return;
+        }
+        var problems = _overlays
+            .Select(overlay => overlay.FindNativePlacementMismatch() is { } mismatch ? $"{overlay.Content?.GetType().Name ?? "overlay"} {mismatch}" : null)
+            .OfType<string>()
+            .ToList();
+        Feedback(problems.Count == 0 ? $"All {_overlays.Count} native views are where the drawn tree places them." : string.Join(" · ", problems));
     }
 
     private SkUiMauiContentView Host(View control, double height, double? width = null)

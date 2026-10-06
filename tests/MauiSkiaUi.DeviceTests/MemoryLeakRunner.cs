@@ -23,7 +23,8 @@ public sealed record LeakResult(string Name, LeakStatus Status, string? Details 
 /// drawn view and Core node, each handler, platform view and what surface handlers own (renderer, compositor, GPU /
 /// software surfaces, overlay container) — must then be collected. Used by <see cref="MemoryLeaksPage"/>; with
 /// <c>--autorun</c> (<see cref="RunForAutomationAsync"/>) results go to the console for scripts/device_tests.sh:
-/// <c>SKUILEAK_START</c>, <c>SKUILEAK_RENDER {json}</c> (<see cref="RenderCheck"/>), <c>SKUILEAK_DETECTOR {json}</c>, one
+/// <c>SKUILEAK_START</c>, <c>SKUILEAK_RENDER {json}</c> (<see cref="RenderCheck"/>), <c>SKUILEAK_HOSTED {json}</c>
+/// (<see cref="HostedControlsCheck"/>), <c>SKUILEAK_DETECTOR {json}</c>, one
 /// <c>SKUILEAK {json}</c> per scenario, <c>SKUILEAK_DONE</c>.
 /// </summary>
 public static class MemoryLeakRunner
@@ -80,6 +81,10 @@ public static class MemoryLeakRunner
             var render = await RenderCheck.RunAsync();
             Console.WriteLine("SKUILEAK_RENDER " + JsonSerializer.Serialize(render, LeakJson.Default.LeakResult));
             if (render.Status != LeakStatus.Pass)
+                failed++;
+            var hosted = await HostedControlsCheck.RunAsync();
+            Console.WriteLine("SKUILEAK_HOSTED " + JsonSerializer.Serialize(hosted, LeakJson.Default.LeakResult));
+            if (hosted.Status != LeakStatus.Pass)
                 failed++;
             var detector = await CheckDetectorAsync();
             Console.WriteLine("SKUILEAK_DETECTOR " + JsonSerializer.Serialize(detector, LeakJson.Default.LeakResult));

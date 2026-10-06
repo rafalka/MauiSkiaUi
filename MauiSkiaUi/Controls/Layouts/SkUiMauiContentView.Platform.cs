@@ -49,6 +49,12 @@ public partial class SkUiMauiContentView
         _attachedRoot.UpdateOverlayBounds(_nativeView, ComputeRootRelativeFrame(), ComputeRootRelativeClip());
     }
 
+    partial void ReadNativePlacement(ref SkUiOverlayPlacement? placement)
+    {
+        if (_attachedRoot is not null && _nativeView is not null)
+            placement = _attachedRoot.GetOverlayPlacement(_nativeView);
+    }
+
     partial void SetNativeHidden(bool hidden)
     {
         if (_attachedRoot is not null && _nativeView is not null)

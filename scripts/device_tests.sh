@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Run the on-device tests (tests/MauiSkiaUi.DeviceTests: memory leak scenarios with real handlers and platform views)
-# and report the results. Builds the app (Release by default), installs it, launches it with --autorun --exit,
+# Run the on-device tests (tests/MauiSkiaUi.DeviceTests: a render check, the hosted-control check and memory leak
+# scenarios with real handlers and platform views) and report the results. Builds the app (Release by default), installs it, launches it with --autorun --exit,
 # collects its "SKUILEAK" console lines and exits non-zero when anything failed.
 # Results: artifacts/device-tests/<timestamp>/{<target>.log,build.log}.
 #
@@ -12,6 +12,7 @@
 #   scripts/device_tests.sh -t ios -s <device-udid>            # physical device (devicectl, or mlaunch below iOS 17)
 #   scripts/device_tests.sh -t maccatalyst --aot               # Native AOT (fully trimmed) build of the app
 #   scripts/device_tests.sh -t android --trim                  # fully trimmed build (no AOT)
+#   scripts/device_tests.sh -t maccatalyst -S NativeOverlays --placement-tolerance -1   # the hosted check must fail
 #
 set -euo pipefail
 
@@ -31,6 +32,7 @@ TIMEOUT=900
 BUILD=true
 AOT=false
 TRIM=false
+PLACEMENT_TOLERANCE=""
 
 usage() {
     cat <<'EOF'
@@ -44,6 +46,8 @@ Usage: scripts/device_tests.sh -t TARGET [options]
   --timeout SEC    give up after SEC seconds (default 900)
   --aot            publish the app with Native AOT (implies full trimming); fails on trim / AOT warnings from SkiaUi
   --trim           build the app fully trimmed (TrimMode=full, no AOT); fails on trim warnings from SkiaUi
+  --placement-tolerance DIPS
+                   override the hosted-control check's tolerance (default 1.01; a negative value must make it fail)
   --no-build       reuse the last build
   -h, --help       this help
 EOF
@@ -60,6 +64,7 @@ while [[ $# -gt 0 ]]; do
         --no-build) BUILD=false; shift ;;
         --aot) AOT=true; shift ;;
         --trim) TRIM=true; shift ;;
+        --placement-tolerance) PLACEMENT_TOLERANCE="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option $1" >&2; usage; exit 2 ;;
     esac
@@ -176,6 +181,7 @@ output() { # glob below bin/<config>/<tfm> (or its <rid> folder, where a publish
 
 app_args=(--autorun --exit)
 [[ -n "$SCENARIOS" ]] && app_args+=(--scenarios "$SCENARIOS")
+[[ -n "$PLACEMENT_TOLERANCE" ]] && app_args+=(--placement-tolerance "$PLACEMENT_TOLERANCE")
 
 filter() { grep "$PREFIX" | sed "s/.*$PREFIX/$PREFIX/"; }
 
@@ -187,12 +193,17 @@ run_android() {
     adb -s "$DEVICE" logcat -c
     local extras=(--ez autorun true --ez exit true)
     [[ -n "$SCENARIOS" ]] && extras+=(--es scenarios "$SCENARIOS")
+    [[ -n "$PLACEMENT_TOLERANCE" ]] && extras+=(--es placementTolerance "$PLACEMENT_TOLERANCE")
     adb -s "$DEVICE" shell am start -n "$ACTIVITY" "${extras[@]}" >/dev/null
     local waited=0
     until adb -s "$DEVICE" logcat -d | grep -q "${PREFIX}_DONE"; do
         sleep 2; waited=$((waited + 2))
         if [[ $waited -ge $TIMEOUT ]]; then log "timeout"; break; fi
-        if [[ $waited -ge 20 ]] && ! adb -s "$DEVICE" shell pidof "$APP_ID" >/dev/null; then log "the app is not running (crash?)"; break; fi
+        if [[ $waited -ge 20 ]] && ! adb -s "$DEVICE" shell pidof "$APP_ID" >/dev/null; then
+            # It may have finished and exited since the check above.
+            adb -s "$DEVICE" logcat -d | grep -q "${PREFIX}_DONE" || log "the app is not running (crash?)"
+            break
+        fi
     done
     adb -s "$DEVICE" logcat -d | filter >"$LOG" || true
     adb -s "$DEVICE" shell am force-stop "$APP_ID"
@@ -231,7 +242,7 @@ log "running on $TARGET${DEVICE:+ ($DEVICE)}"
 python3 - "$LOG" <<'PY'
 import json, sys
 lines = open(sys.argv[1]).read().splitlines()
-results, detector, render, done, errors = [], None, None, None, []
+results, detector, render, hosted, done, errors = [], None, None, None, None, []
 for line in lines:
     tag, _, payload = line.partition(" ")
     if tag == "SKUILEAK":
@@ -240,13 +251,15 @@ for line in lines:
         detector = json.loads(payload)
     elif tag == "SKUILEAK_RENDER":
         render = json.loads(payload)
+    elif tag == "SKUILEAK_HOSTED":
+        hosted = json.loads(payload)
     elif tag == "SKUILEAK_DONE":
         done = payload
     elif tag == "SKUILEAK_START":
         print(payload)
     elif tag == "SKUILEAK_ERROR":
         errors.append(payload)
-for check, name in ((render, "rendering"), (detector, "detector")):
+for check, name in ((render, "rendering"), (hosted, "hosted"), (detector, "detector")):
     if check:
         print(f"{name:9} {check['Status']:4}  {check['Details']}")
 for r in results:
@@ -257,7 +270,7 @@ for e in errors:
 if done is None:
     print("the run did not finish (crash or timeout); see the log")
 ok = (done is not None and not failed and not errors
-      and all(check is not None and check["Status"] == "Pass" for check in (detector, render)))
+      and all(check is not None and check["Status"] == "Pass" for check in (detector, render, hosted)))
 print(f"\n{len(results) - len(failed)}/{len(results)} passed" + ("" if ok else " — FAILED"))
 sys.exit(0 if ok else 1)
 PY
