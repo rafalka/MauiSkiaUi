@@ -88,6 +88,8 @@ internal sealed class SkUiBorderGeometry
         if (!SkUiShapePainter.IsOpaque(stroke))
             return null;
         using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = (float)thickness };
+        if (SkUiShapePainter.GrownByStroke(outline, (float)thickness, paint.StrokeJoin, paint.StrokeMiter) is { } grown)
+            return grown; // stays a rounded rectangle: blurred analytically, not rasterized
         using var strokeArea = paint.GetFillPath(outline);
         return outline.Op(strokeArea, SKPathOp.Union) ?? new SKPath(outline);
     }

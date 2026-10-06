@@ -13,7 +13,9 @@ A drawn tree is everything inside a SkiaUi view (an element from the MauiSkiaUi 
 - behaviors (platform behaviors such as TouchBehavior do not run) and effects (never run);
 - BindableLayout content that is not drawn (item and empty view templates are checked like other drawn content; a string
   EmptyView becomes a MAUI Label), the Community Toolkit's StateContainer / StateView on drawn layouts (SkUiStateContainer /
-  SkUiStateView; state views are checked like other drawn content), IsClippedToBounds (ClipToBounds), and styles that
+  SkUiStateView; state views are checked like other drawn content), the Community Toolkit's Expander in a drawn tree
+  (SkUiExpander; headers, content and content templates of drawn views are checked like other drawn content),
+  IsClippedToBounds (ClipToBounds), and styles that
   target MAUI types:
   keyed styles a drawn view uses, and implicit styles (no x:Key) of the MAUI type a drawn view replaces when no implicit
   style targets the drawn type (warned once per file and type; styles are indexed project-wide, so App.xaml's count).
@@ -88,6 +90,9 @@ for maui_name, advice in REPLACE.items():
     for drawn_name in re.findall(r"SkUi\w+", advice):
         REPLACED_BY.setdefault(drawn_name, []).append(maui_name)
 CONTENT_PROPERTIES = {"Content", "Children"}
+# Property elements whose values are drawn content too (views, or templates of views).
+DRAWN_VALUE_PROPERTIES = {"ControlTemplate", "ItemTemplate", "EmptyView", "EmptyViewTemplate", "StateViews", "Header",
+                          "ContentTemplate", "AlternateContent", "AlternateContentTemplate"}
 # Drawn views that make good surface roots: a region of the page. Any other drawn view directly in MAUI content is a
 # surface of its own.
 REGION_ROOTS = {"SkUiContentView", "SkUiLayout", "SkUiGrid", "SkUiVerticalStackLayout", "SkUiHorizontalStackLayout",
@@ -156,6 +161,10 @@ def parse(path):
 
 def is_skia_uri(uri):
     return "MauiSkiaUi" in uri
+
+
+def is_toolkit_uri(uri):
+    return "maui/toolkit" in uri or (clr_namespace(uri) or "").startswith("CommunityToolkit.Maui")
 
 
 def clr_namespace(uri):
@@ -278,7 +287,7 @@ class Checker:
                 self.report(path, node, "error", f"{node.name} on a drawn layout: use sk:SkUi{node.name}")
             # Children of other property elements (StrokeShape, Shadow, Resources, VisualStateGroups, …) are values,
             # not content: only Content / Children (and templates) carry drawn content.
-            if prop not in CONTENT_PROPERTIES and prop not in ("ControlTemplate", "ItemTemplate", "EmptyView", "EmptyViewTemplate", "StateViews"):
+            if prop not in CONTENT_PROPERTIES and prop not in DRAWN_VALUE_PROPERTIES:
                 for child in node.children:
                     self.visit(path, child, drawn=False)
                 return
@@ -314,6 +323,8 @@ class Checker:
                 for child in node.children:
                     self.visit(path, child, drawn=True)
                 return
+        elif drawn and is_toolkit_uri(node.uri) and node.name == "Expander":
+            self.report(path, node, "error", "Community Toolkit Expander inside a drawn tree: use sk:SkUiExpander (Header and Content become drawn views; ExpandDirection / ExpandedChangedEventArgs become SkUiExpandDirection / SkUiExpandedChangedEventArgs)")
         elif drawn and clr_namespace(node.uri):
             kind = self.index.drawn(node.name)
             if kind is False:

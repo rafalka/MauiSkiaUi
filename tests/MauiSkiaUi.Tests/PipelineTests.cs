@@ -210,15 +210,67 @@ public class PipelineTests
     }
 
     [Fact]
-    public void ChildWidthRequestBubblesPaintEvenWhenLayoutAlsoDirties()
+    public void ChildWidthRequestInvalidatesAncestorLayoutWithoutRerecordingIt()
     {
+        // N5: a child's measure change re-lays out its ancestors but re-records only the changed child (an ancestor
+        // whose size changes re-records when arranged); the surface still gets a frame.
         var child = new SkUiBox { Color = Colors.Red, WidthRequest = 80, HeightRequest = 40 };
-        var host = new SkUiContentView { Background = Colors.White, Content = child };
-        SkUiTestHelpers.Arrange(host, 200, 80);
+        var stack = new SkUiVerticalStackLayout { Background = Colors.Yellow, HorizontalOptions = LayoutOptions.Start, Children = { child } };
+        var host = new SkUiContentView { Background = Colors.White, Content = stack };
+        using var surface = new SkUiTestSurface(host, 200, 80);
+        surface.Frame();
+        var layouts = 0;
         var paints = 0;
+        var childPaints = 0;
+        stack.LayoutInvalidated += (_, _) => layouts++;
         host.PaintInvalidated += (_, _) => paints++;
+        stack.PaintInvalidated += (_, _) => paints++;
+        child.PaintInvalidated += (_, _) => childPaints++;
+        var recorded = surface.RecordedPictures;
         child.WidthRequest = 40;
-        Assert.True(paints >= 1);
+        Assert.True(layouts >= 1); // MAUI's size-request trigger and SkiaUi's property hook both invalidate
+        Assert.True(childPaints >= 1);
+        Assert.Equal(1, paints); // the root's frame signal only, not a re-record of the stack or the host
+        SkUiTestHelpers.Arrange(host, 200, 80);
+        surface.Frame();
+        Assert.Equal(40, child.Width);
+        Assert.Equal(40, stack.Width);
+        Assert.Equal(recorded + 2, surface.RecordedPictures); // the child and the resized stack, not the host
+    }
+
+    [Fact]
+    public void ASurfaceRootLaysOutADescendantChangeItselfBeforeTheNextFrame()
+    {
+        // Relayout boundary: the root re-measures and re-arranges with its last constraint and bounds while presenting
+        // the frame, so the frame shows the change (no native layout pass, no frame recorded with the stale layout).
+        var child = new SkUiBox { Color = Colors.Red, WidthRequest = 80, HeightRequest = 40, HorizontalOptions = LayoutOptions.Start };
+        var below = new SkUiBox { HeightRequest = 10 };
+        var host = new SkUiContentView { Background = Colors.White, Content = new SkUiVerticalStackLayout { Children = { child, below } } };
+        using var surface = new SkUiTestSurface(host, 200, 100);
+        surface.Frame();
+        child.HeightRequest = 60;
+        child.WidthRequest = 40;
+        surface.Frame();
+        Assert.Equal(new Rect(0, 0, 40, 60), child.Frame);
+        Assert.Equal(60, below.Frame.Y);
+        Assert.Equal(new Rect(0, 0, 200, 100), host.Frame); // the root keeps its bounds
+    }
+
+    [Fact]
+    public void ASurfaceRootWhoseSizeChangesIsArrangedInItsOldBoundsUntilTheNativeLayoutRuns()
+    {
+        var child = new SkUiBox { HeightRequest = 40 };
+        var root = new SkUiVerticalStackLayout { Children = { child } };
+        using var surface = new SkUiTestSurface(root, 100, 40);
+        // Sized to its content, as in a native stack: measured with an unbounded height.
+        ((IView)root).Measure(100, double.PositiveInfinity);
+        ((IView)root).Arrange(new Rect(0, 0, 100, 40));
+        surface.Frame();
+        child.HeightRequest = 70;
+        surface.Frame();
+        Assert.Equal(70, ((IView)root).DesiredSize.Height); // measured with its last constraint (the native layout is asked too)
+        Assert.Equal(70, child.Frame.Height);
+        Assert.Equal(40, root.Frame.Height); // the native parent decides the root's new bounds
     }
 
     [Fact]
@@ -499,7 +551,7 @@ public class PipelineTests
         var host = new SkUiContentView { Content = child };
         SkUiTestHelpers.Arrange(host, 100, 100);
         var invalidations = 0;
-        host.PaintInvalidated += (_, _) => invalidations++;
+        host.LayoutInvalidated += (_, _) => invalidations++;
         child.StartUpdating();
         child.StartUpdating();
         child.Color = Colors.Red;

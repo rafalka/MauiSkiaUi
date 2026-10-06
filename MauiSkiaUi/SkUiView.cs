@@ -17,6 +17,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private int _updateDepth;
     private bool _paintPending;
     private bool _layoutPending;
+    private bool _ownLayoutPending; // this node's own measure changed (not only a descendant's)
+    private bool _laidOut;          // measured and arranged at least once
+    private bool _relayoutPending;  // surface roots: a descendant's measure changed, relaid out before the next frame
     private SkUiRenderDirty _renderPending;
     private SkUiRenderState? _renderState;
 #if SKUI_DIAGNOSTICS
@@ -176,6 +179,12 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// </summary>
     public event EventHandler? PaintInvalidated;
 
+    /// <summary>
+    /// Raised when this node's measure is invalidated, by its own change or a descendant's, once per update batch
+    /// (tests, diagnostics). Ancestors are not re-recorded for it (<see cref="PaintInvalidated"/> may not follow).
+    /// </summary>
+    internal event EventHandler? LayoutInvalidated;
+
     /// <summary>Raised on a render root when its subtree needs a new frame (first change per frame only).</summary>
     internal event EventHandler? RenderRootDirty;
 
@@ -186,10 +195,16 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// </summary>
     public static readonly BindableProperty ClipToBoundsProperty = BindableProperty.Create(
         nameof(ClipToBounds), typeof(bool), typeof(SkUiView), true,
-        defaultValueCreator: view => view is not (SkUiLayout or SkUiContentView or Core.SkUiCoreHost));
+        defaultValueCreator: view => view is not (SkUiLayout or SkUiContentView or SkUiExpander or Core.SkUiCoreHost));
 
     /// <inheritdoc cref="ClipToBoundsProperty" />
     public bool ClipToBounds { get => (bool)GetValue(ClipToBoundsProperty); set => SetValue(ClipToBoundsProperty, value); }
+
+    /// <summary>
+    /// Whether hosted native views below are clipped to this node's arranged rectangle: <see cref="ClipToBounds"/>, or
+    /// while drawn content is revealed in a band native views cannot be scaled into (an animating expander).
+    /// </summary>
+    internal virtual bool ClipsHostedViews => ClipToBounds;
 
     /// <summary>
     /// Opts this node into single taps. MAUI <c>GestureRecognizers</c> also work for taps: a <see cref="TapGestureRecognizer"/>
@@ -262,6 +277,26 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         {
             if (child is SkUiView view)
                 view.NotifyAnimationRootChanged(subtreeDetached);
+        }
+    }
+
+    /// <summary>
+    /// Whether this node's surface shows native views (<see cref="SkUiMauiContentView"/> overlays): only then must views
+    /// that move walk their subtree to reposition them (<see cref="NotifyMoved"/>). Per surface, so native views on one
+    /// page cost nothing to a surface on another.
+    /// </summary>
+    internal bool SurfaceHostsNativeViews
+    {
+        get
+        {
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+            var root = this;
+            while (root.SkiaParent is { } parent)
+                root = parent;
+            return root.Handler is SkUiViewHandler { HasOverlays: true };
+#else
+            return false;
+#endif
         }
     }
 
@@ -435,11 +470,12 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         if (_arrangeDirty || previousSize != Frame.Size)
             ArrangeContent(Frame.Size);
         // Descendants keep their cached frames, but their root-relative position changed (native overlays follow).
-        if (previousFrame.Location != Frame.Location && Handler is null)
+        if (previousFrame.Location != Frame.Location && Handler is null && SurfaceHostsNativeViews)
             NotifyMoved();
         var frameChanged = _lastArrangeBounds != bounds || previousFrame != Frame;
         _lastArrangeBounds = bounds;
         _arrangeDirty = false;
+        _laidOut = true;
         Handler?.PlatformArrange(Frame);
         // Offset-only changes are composite-time; the recorder re-records content only when the size changed.
         if (frameChanged)
@@ -456,7 +492,44 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         _measureDirty = true;
         _arrangeDirty = true;
         _layoutPending = true;
+        _ownLayoutPending = true;
         InvalidatePaint();
+    }
+
+    /// <summary>
+    /// Measures and arranges this node again without re-recording its own content (a size change re-records it when
+    /// arranged; moved children are composite-time): a child's measure changed, or the node's size follows state it does
+    /// not draw itself (an expander's reveal). A relayout every frame then records only views whose size changed and
+    /// leaves ancestor shadows alone; on a surface root it is laid out in place before the next frame
+    /// (<see cref="RelayoutIfNeeded"/>), asking the native layout only when the root's size changes. The caller requests
+    /// the frame (a child re-records itself; an expander changes its content's scale).
+    /// </summary>
+    internal void InvalidateMeasureFromChild()
+    {
+        _measureDirty = true;
+        _arrangeDirty = true;
+        _layoutPending = true;
+        if (_updateDepth == 0)
+            FlushInvalidation();
+    }
+
+    /// <summary>
+    /// Surface roots, before recording a frame: lays the tree out again after a descendant's measure changed, with the
+    /// constraint and bounds the native layout last gave the root (they have not changed, or the native layout would
+    /// have measured the root itself). When the root's own size changes, the native layout is asked as well, and the
+    /// tree is arranged in the old bounds until it runs.
+    /// </summary>
+    internal void RelayoutIfNeeded()
+    {
+        if (!_relayoutPending)
+            return;
+        _relayoutPending = false;
+        IView view = this;
+        var previous = view.DesiredSize;
+        var size = view.Measure(_lastConstraint.Width, _lastConstraint.Height);
+        if (size != previous)
+            base.InvalidateMeasureOverride();
+        view.Arrange(_lastArrangeBounds);
     }
 
     /// <summary>Coalesces layout and paint notifications until the matching EndUpdating call.</summary>
@@ -490,16 +563,26 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private void FlushInvalidation()
     {
         var invalidateLayout = _layoutPending;
+        var ownLayout = _ownLayoutPending;
         var invalidatePaint = _paintPending;
         var render = _renderPending;
-        _layoutPending = _paintPending = false;
+        _layoutPending = _ownLayoutPending = _paintPending = false;
         _renderPending = SkUiRenderDirty.None;
         if (invalidateLayout)
         {
             if (SkiaParent is { } parent)
-                ((IView)parent).InvalidateMeasure();
+                parent.InvalidateMeasureFromChild();
+            else if (!ownLayout && _laidOut && HasLiveSurface)
+            {
+                // Relayout boundary: a descendant changed, so this surface root is laid out again in place right
+                // before its next frame (RelayoutIfNeeded), as one frame with the change. The native layout is
+                // only asked when the root's own size changes. The frame is requested by the change's origin, which
+                // always re-records itself (its mark reaches this root after this layout walk).
+                _relayoutPending = true;
+            }
             else
                 base.InvalidateMeasureOverride();
+            LayoutInvalidated?.Invoke(this, EventArgs.Empty);
         }
         if (invalidatePaint)
         {

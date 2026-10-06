@@ -77,6 +77,8 @@ public partial class SkUiMauiContentView : SkUiView
 
     private int _movingScrollers;
     private SKImage? _snapshot;
+    private bool _watchingShown;
+    private bool _notShown; // this view or a drawn ancestor is invisible (or the tree has no live surface)
     private bool _capturing;
     // Bumped whenever an in-flight capture becomes stale (restore, mode change, reset): its completion is ignored.
     private int _captureGeneration;
@@ -125,7 +127,7 @@ public partial class SkUiMauiContentView : SkUiView
                 return;
             }
             _snapshot = image;
-            SetNativeHidden(true);
+            ApplyNativeHidden();
             InvalidatePaint();
             OnPropertyChanged(nameof(IsShowingSnapshot));
         }
@@ -159,7 +161,7 @@ public partial class SkUiMauiContentView : SkUiView
         // Never dispose: the retained picture on the render thread may still reference the image (GC frees it).
         _snapshot = null;
         SyncOverlayBounds();
-        SetNativeHidden(false);
+        ApplyNativeHidden();
         InvalidatePaint();
         OnPropertyChanged(nameof(IsShowingSnapshot));
     }
@@ -266,6 +268,7 @@ public partial class SkUiMauiContentView : SkUiView
             ResetSnapshot();
         }
         base.OnParentSet();
+        WatchShown(Parent is not null);
         if (Parent is null) DetachOverlay();
         else
         {
@@ -309,9 +312,43 @@ public partial class SkUiMauiContentView : SkUiView
         if (_snapshot is null)
             return;
         _snapshot = null;
-        SetNativeHidden(false);
+        ApplyNativeHidden();
         InvalidatePaint();
         OnPropertyChanged(nameof(IsShowingSnapshot));
+    }
+
+    /// <summary>
+    /// Whether the native view is hidden: a snapshot is drawn in its place, or this view is not shown (it or a drawn
+    /// ancestor is invisible, e.g. the collapsed content of an expander), since the overlay sits above the surface.
+    /// </summary>
+    internal bool IsNativeHidden => _snapshot is not null || _notShown;
+
+    private void ApplyNativeHidden() => SetNativeHidden(IsNativeHidden);
+
+    // Watched only while parented: IsShown keeps tracker state for this branch, which goes with the subscription. A
+    // trade-off: a tree with hosted native views always pays the tracker's walk of the watched branches on parent and
+    // visibility changes (not its free path), so that native views under hidden drawn content are hidden.
+    private void WatchShown(bool watch)
+    {
+        if (watch == _watchingShown)
+            return;
+        _watchingShown = watch;
+        if (watch)
+            IsShownChanged += OnIsShownChanged;
+        else
+            IsShownChanged -= OnIsShownChanged;
+        OnIsShownChanged(this, EventArgs.Empty);
+    }
+
+    private void OnIsShownChanged(object? sender, EventArgs e)
+    {
+        var notShown = _watchingShown && !IsShown;
+        if (notShown == _notShown)
+            return;
+        _notShown = notShown;
+        if (!notShown)
+            SyncOverlayBounds(); // placed before it shows again (it may have moved while hidden)
+        ApplyNativeHidden();
     }
 
     /// <summary>
@@ -347,7 +384,7 @@ public partial class SkUiMauiContentView : SkUiView
         var clipped = false;
         for (var ancestor = Parent as SkUiView; ancestor is not null && ancestor.Handler is null; ancestor = ancestor.Parent as SkUiView)
         {
-            if (ancestor is not SkUiScrollView && !ancestor.ClipToBounds)
+            if (ancestor is not SkUiScrollView && !ancestor.ClipsHostedViews)
                 continue;
             var rect = RootRelativeFrame(ancestor);
             // A scroller shows its content in its scrollport only (not in a reserved scroll bar gutter).

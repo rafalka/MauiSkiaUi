@@ -104,7 +104,7 @@ public class LayoutTests
         var host = new SkUiContentView { Content = layout };
         SkUiTestHelpers.Arrange(host, 100, 100);
         var invalidations = 0;
-        host.PaintInvalidated += (_, _) => invalidations++;
+        host.LayoutInvalidated += (_, _) => invalidations++;
 
         layout.StartUpdating();
         for (var i = 0; i < 5; i++)
@@ -126,7 +126,7 @@ public class LayoutTests
         var host = new SkUiContentView { Content = layout };
         SkUiTestHelpers.Arrange(host, 100, 100);
         var invalidations = 0;
-        host.PaintInvalidated += (_, _) => invalidations++;
+        host.LayoutInvalidated += (_, _) => invalidations++;
 
         var children = Enumerable.Range(0, 8).Select(i =>
         {

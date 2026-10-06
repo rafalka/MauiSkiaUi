@@ -26,6 +26,11 @@ public static class Scenarios
         new ToggleTransitions(),
         new ToggleTransitions(busy: true),
         new NativeLabels(),
+        new NestedExpanders(),
+        new NestedExpanders(scroll: true),
+        new NestedExpanders(variant: "noshadow"),
+        new NestedExpanders(variant: "square"),
+        new NestedExpanders(variant: "plain"),
     ];
 
     public static BenchScenario? Find(string name) =>
@@ -378,5 +383,103 @@ public sealed class ToggleTransitions(bool busy = false) : BenchScenario
     private sealed class Stop(Action stop) : IDisposable
     {
         public void Dispose() => stop();
+    }
+}
+
+/// <summary>
+/// Bordered expanders three levels deep (12 sections, controls in each level) in a scroll view, as on the demo's nested
+/// expander page. Motion: three sections expand and collapse continuously (300 ms animation, the height of everything
+/// below follows every frame), or with <c>scroll</c> everything is expanded and the view scrolls. <c>SkUiExpander</c> is
+/// created by reflection so the catalog builds against libraries without it (they get plain stacks and no animation).
+/// </summary>
+/// Variants (cost breakdown): <c>noshadow</c> without card shadows, <c>square</c> with square corners (rectangular
+/// clips), <c>plain</c> without borders.
+public sealed class NestedExpanders(bool scroll = false, string? variant = null) : BenchScenario
+{
+    private static readonly Type? ExpanderType = typeof(SkUiView).Assembly.GetType("MauiSkiaUi.SkUiExpander");
+
+    public override string Name => (scroll ? "expanders-scroll" : "expanders") + (variant is null ? "" : "-" + variant);
+    public override string Description => scroll
+        ? "36 nested SkUiExpander (12 bordered sections x 3 levels, controls inside) all expanded; motion = animated scroll"
+        : "36 nested SkUiExpander (12 bordered sections x 3 levels, controls inside); motion = 3 sections expanding / collapsing (300 ms)";
+    public override bool DeviceOnly => true;
+
+    // Release builds trim: keep the reflected expander's constructor and properties.
+    [System.Diagnostics.CodeAnalysis.DynamicDependency(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties, "MauiSkiaUi.SkUiExpander", "MauiSkiaUi")]
+    public override View Build()
+    {
+        var stack = new SkUiVerticalStackLayout { Spacing = 10, Padding = new Thickness(10) };
+        for (var index = 0; index < 12; index++)
+            stack.Children.Add(Section($"Section {index + 1}", 1));
+        return Scenarios.Scroll(stack);
+    }
+
+    private SkUiView Section(string title, int level)
+    {
+        var content = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12, 4, 12, 12) };
+        content.Children.Add(new SkUiLabel { Text = $"{title}: level {level} of 3. Everything below moves while this opens.", FontSize = 13, LineBreakMode = LineBreakMode.WordWrap });
+        content.Children.Add(new SkUiSlider { Maximum = 1, Value = 0.4 });
+        content.Children.Add(new SkUiProgressBar { Progress = 0.4 });
+        content.Children.Add(new SkUiHorizontalStackLayout
+        {
+            Spacing = 8,
+            Children = { new SkUiSwitch(), new SkUiLabel { Text = "Notifications" }, new SkUiCheckBox { IsChecked = true }, new SkUiLabel { Text = "Sync" } }
+        });
+        content.Children.Add(new SkUiButton { Text = $"Action ({title})", FontSize = 13, HorizontalOptions = LayoutOptions.Start });
+        if (level < 3)
+            content.Children.Add(Section($"{title}.{level + 1}", level + 1));
+        var header = new SkUiLabel { Text = title, FontSize = 16, Padding = new Thickness(12, 10), Background = level == 1 ? Colors.LightSteelBlue : Colors.Transparent };
+        ISkUiView body;
+        if (ExpanderType is not null)
+        {
+            var expander = (SkUiView)Activator.CreateInstance(ExpanderType)!;
+            TrySet(expander, "Header", header);
+            TrySet(expander, "Content", content);
+            TrySet(expander, "AnimationLength", 300u);
+            TrySet(expander, "IsExpanded", scroll);
+            body = expander;
+        }
+        else
+            body = new SkUiVerticalStackLayout { Children = { header, content } };
+        if (variant == "plain")
+            return new SkUiContentView { Background = Colors.White, Content = body };
+        return new SkUiBorder
+        {
+            Stroke = Colors.SteelBlue, StrokeThickness = 1, CornerRadius = variant == "square" ? 0 : 10, Background = Colors.White, Content = body,
+            Shadow = level == 1 && variant != "noshadow" ? new Shadow { Brush = Colors.Black, Opacity = 0.15f, Radius = 6, Offset = new Point(0, 2) } : null
+        };
+    }
+
+    public override Func<View, IDisposable?>? Motion => root =>
+    {
+        var scrollView = (SkUiScrollView)root;
+        if (scroll)
+        {
+            var duration = MotionDuration + TimeSpan.FromSeconds(0.5);
+            var animate = typeof(SkUiScrollView).GetMethod("AnimateScrollTo", [typeof(double), typeof(double), typeof(TimeSpan)]);
+            return animate?.Invoke(scrollView, [0d, scrollView.ContentSize.Height, duration]) as IDisposable;
+        }
+        // Sections 1, 4 and 7 (and their first nested level) toggle every 400 ms: an animation is always running.
+        var sections = ((SkUiVerticalStackLayout)scrollView.Content!).Children.OfType<SkUiContentView>().Where((_, index) => index % 3 == 0).Take(3)
+            .Select(border => border.Content as SkUiView).Where(view => view?.GetType() == ExpanderType).ToList();
+        var expanded = false;
+        void ToggleAll()
+        {
+            expanded = !expanded;
+            foreach (var section in sections)
+                TrySet(section!, "IsExpanded", expanded);
+        }
+        ToggleAll();
+        var timer = root.Dispatcher.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(400);
+        timer.Tick += (_, _) => ToggleAll();
+        timer.Start();
+        return new Stop(timer);
+    };
+
+    private sealed class Stop(IDispatcherTimer timer) : IDisposable
+    {
+        public void Dispose() => timer.Stop();
     }
 }

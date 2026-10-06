@@ -37,6 +37,7 @@ public static class LeakScenarios
         new("BindableLayoutItems", Layouts, "MAUI BindableLayout on a wrap layout bound to a long-lived collection and on a stack with a template selector and an empty view: items added, inserted, replaced, moved and removed, the collection cleared to the empty view and refilled, the items source swapped.", () => new BindableLayoutRun()),
         new("StatesSwitched", Layouts, "SkUiStateContainer on a grid and a stack: loading (spinner running), error (retry button with a long-lived command) and empty states switched directly and with the fade, a change rejected while one runs; hidden state views removed; automatic state change animations (one shared long-lived animation) retargeted while running; closed while one runs.", () => new StatesRun()),
         new("ContentDeferred", Layouts, "Three tabs of SkUiContentView sections that load when shown (explicit content and templates with a long-lived command, some with a delay or a fade-in): tabs switched so some load, a waiting section removed, closed with sections still waiting and delay timers pending.", () => new DeferredRun()),
+        new("ExpanderToggled", Layouts, "SkUiExpander sections (explicit, template and lazy content, a hosted Entry, a long-lived command, both directions): expanded and collapsed by header taps, animated and not, reversed mid-animation, content replaced while collapsed; closed mid-collapse.", () => new ExpanderRun()),
         new("AlternateSwitched", Layouts, "SkUiAlternateContentView cards (explicit content and templates with a long-lived command, shared long-lived animations): switched directly and animated, retargeted while switching, an alternate replaced while hidden; closed mid-switch.", () => new AlternateRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
@@ -1126,6 +1127,82 @@ public static class LeakScenarios
             context.TrackDetached(replaced, "replaced alternate content");
             await context.SettleAsync();
             _cards[0].ShowsAlternate = false; // closed mid-switch
+        }
+
+        public override string? CheckInteraction() => _problem;
+    }
+
+    private sealed class ExpanderRun : LeakScenarioRun
+    {
+        private readonly List<SkUiExpander> _sections = [];
+        private string? _problem;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var stack = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12) };
+            for (var index = 0; index < 4; index++)
+            {
+                var label = $"Section {index}";
+                var section = new SkUiExpander
+                {
+                    Header = new SkUiBorder { Stroke = LeakColors.Accent, StrokeThickness = 1, Padding = new Thickness(8), Content = Text(label) },
+                    AnimationLength = index == 3 ? 0u : 120u,
+                    Direction = index == 3 ? SkUiExpandDirection.Up : SkUiExpandDirection.Down,
+                    LazyContentExpansion = index is 1 or 2,
+                    Command = LeakCommands.Shared,
+                    CommandParameter = label
+                };
+                switch (index)
+                {
+                    case 1:
+                        section.ContentTemplate = new DataTemplate(() => new SkUiHorizontalStackLayout
+                        {
+                            Children = { Text($"{label} details"), new SkUiButton { Text = "Open", Command = LeakCommands.Shared, CommandParameter = label } }
+                        });
+                        break;
+                    case 2:
+                        section.Content = new SkUiMauiContentView { HeightRequest = 44, Content = new Entry { Placeholder = label } };
+                        break;
+                    default:
+                        section.Content = new SkUiVerticalStackLayout { Children = { Text($"{label} line 1"), Text($"{label} line 2") } };
+                        break;
+                }
+                _sections.Add(section);
+                stack.Children.Add(section);
+            }
+            return Root(new SkUiScrollView { Content = stack });
+        }
+
+        private async Task SettleAnimationsAsync(LeakScenarioContext context)
+        {
+            for (var wait = 0; wait < 60 && _sections.Any(section => section.IsAnimating); wait++)
+                await context.SettleAsync();
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.SettleAsync();
+            foreach (var section in _sections)
+                await context.TapAsync(section.Header!);
+            _sections[0].IsExpanded = false; // reversed mid-animation
+            _sections[0].IsExpanded = true;
+            await SettleAnimationsAsync(context);
+            if (_sections.Any(section => !section.IsExpanded || section.Content is not Element { Parent: not null }))
+                _problem = "a section does not show its content after expanding";
+            else
+                await context.TapAsync(((SkUiHorizontalStackLayout)_sections[1].Content!).Children[1]);
+
+            // Collapsed: lazy content leaves the tree, and replaced content must go while the section lives on.
+            await context.TapAsync(_sections[2].Header!);
+            await context.TapAsync(_sections[3].Header!);
+            await SettleAnimationsAsync(context);
+            if (_sections[2].Content is Element { Parent: not null })
+                _problem ??= "lazy content stayed in the tree after collapsing";
+            var replaced = _sections[3].Content!;
+            _sections[3].Content = Text("Replaced");
+            context.TrackDetached(replaced, "replaced expander content");
+            await context.SettleAsync();
+            _sections[0].IsExpanded = false; // closed mid-collapse
         }
 
         public override string? CheckInteraction() => _problem;

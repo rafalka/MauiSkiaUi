@@ -70,4 +70,32 @@ public class MauiContentViewTests
         host.NotifyRootAttached();
         host.NotifyRootDetached();
     }
+    [Fact]
+    public void MauiContentViewHidesTheNativeViewWhileAnAncestorIsInvisible()
+    {
+        // The overlay sits above the surface: an invisible drawn ancestor (collapsed content) must hide it too.
+        var overlay = new SkUiMauiContentView { Content = new Editor(), HeightRequest = 20 };
+        var stack = new SkUiVerticalStackLayout { Children = { overlay } };
+        var root = new SkUiContentView { Content = new SkUiVerticalStackLayout { Children = { stack } } };
+        using (var surface = new SkUiTestSurface(root, 100, 100))
+        {
+            Assert.False(overlay.IsNativeHidden);
+            stack.IsVisible = false;
+            Assert.True(overlay.IsNativeHidden);
+            stack.IsVisible = true;
+            Assert.False(overlay.IsNativeHidden);
+            overlay.IsVisible = false;
+            Assert.True(overlay.IsNativeHidden);
+            overlay.IsVisible = true;
+
+            // Removed while hidden: no tracker state stays behind; added back shown.
+            stack.IsVisible = false;
+            stack.Children.Remove(overlay);
+            Assert.Equal(0, SkUiShownTracker.Watchers(stack));
+            ((SkUiVerticalStackLayout)root.Content!).Children.Add(overlay);
+            Assert.False(overlay.IsNativeHidden);
+        }
+        // The surface went away: nothing is shown.
+        Assert.True(overlay.IsNativeHidden);
+    }
 }

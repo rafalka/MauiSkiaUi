@@ -87,6 +87,8 @@ internal sealed class SkUiFrameRenderer : IDisposable
         try
         {
             _beforeFrame();
+            // A descendant's measure changed: laid out in place now, so this frame records the new layout.
+            _root.RelayoutIfNeeded();
             Interlocked.Exchange(ref _repaintPending, 0);
             if (_disposed || _root.Width <= 0 || _root.Height <= 0)
                 return;
