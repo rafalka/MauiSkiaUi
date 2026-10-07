@@ -7,7 +7,7 @@ Find every custom element the region uses (`local:`, `controls:` and other `clr-
 | A `ContentView` (or layout) composing MAUI views, XAML or C# | A `SkUiContentView` subclass composing drawn views. Same bindable properties, same XAML with `sk:` controls |
 | Drawn with `GraphicsView` / `IDrawable` / `SKCanvasView` | A `SkUiView` subclass (below) |
 | A MAUI control with a custom handler, mapper changes (`AppendToMapping`), renderer or effect | Redraw it with drawn views, or keep it native in `SkUiMauiContentView` |
-| A templated control (`ControlTemplate`, `TemplateBinding`) | A `SkUiContentView` subclass that composes the parts directly. Only `SkUiRadioButton` takes a drawn `ControlTemplate`; there, bind with `{Binding X, Source={RelativeSource AncestorType={x:Type sk:SkUiRadioButton}}}` because `TemplateBinding` does not reach drawn controls |
+| A templated control (`ControlTemplate`, `TemplateBinding`) | A `SkUiContentView` subclass (or a style on `SkUiContentView`) with a `ControlTemplate` of drawn views and `sk:SkUiContentPresenter`; every `TemplateBinding` becomes a `RelativeSource AncestorType` binding ([below](#templated-control)) |
 | A third-party control (charts, calendars, data grids, signature pads, list views) | Native: `SkUiMauiContentView`, or outside the drawn region |
 | Many small repeated parts where allocation matters (grid cells, chips, tiles) | Core nodes (`MauiSkiaUi.Core`, `SkUiCore*` fluent nodes) under a `SkUiCoreHost`: no `BindableObject` per node |
 
@@ -37,6 +37,38 @@ public partial class InfoRow : SkUiContentView   // was ContentView
 ```
 
 A drawn custom control can only be placed inside drawn trees (or be a surface root itself). If native pages still use the old control, keep both until they are converted.
+
+## Templated control
+
+`SkUiContentView` (and content views built on it, such as `SkUiBorder`) and `SkUiRadioButton` take a `ControlTemplate` whose root is a drawn view; `ContentPresenter` → `sk:SkUiContentPresenter`. `{TemplateBinding X}` and `RelativeSource TemplatedParent` do not reach drawn controls (MAUI resolves them only for its own templated views): rewrite each one to an ancestor-type binding naming the templated control's type.
+
+```xml
+<!-- Before -->
+<ControlTemplate x:Key="CardTemplate">
+    <Border Padding="12">
+        <VerticalStackLayout>
+            <Label Text="{TemplateBinding Title}" TextColor="{TemplateBinding AccentColor}" />
+            <ContentPresenter />
+        </VerticalStackLayout>
+    </Border>
+</ControlTemplate>
+
+<!-- After (CardView now derives from SkUiContentView) -->
+<ControlTemplate x:Key="CardTemplate">
+    <sk:SkUiBorder Padding="12">
+        <sk:SkUiVerticalStackLayout>
+            <sk:SkUiLabel Text="{Binding Title, Source={RelativeSource AncestorType={x:Type local:CardView}}}"
+                          TextColor="{Binding AccentColor, Source={RelativeSource AncestorType={x:Type local:CardView}}}" />
+            <sk:SkUiContentPresenter />
+        </sk:SkUiVerticalStackLayout>
+    </sk:SkUiBorder>
+</ControlTemplate>
+```
+
+- Use the type that declares the property (the custom control, or `sk:SkUiRadioButton` in a radio button template). Keep `Mode`, `Converter`, `ConverterParameter`, `StringFormat`.
+- Do not write a markup extension imitating `TemplateBinding`: the ancestor-type binding is compiled (XAML source generator; XamlC with `x:DataType` in scope), so it needs no reflection and is trimming / NativeAOT safe.
+- The template root inherits the control's binding context (MAUI's does not): a `{Binding X}` meant for the view model needs no `Source`.
+- Code-behind: `OnApplyTemplate()` and `GetTemplateChild(name)` work as in MAUI; `TemplateRoot` is the created root. The template is created when the content loads (with `ContentLoading="WhenShown"`, only once shown).
 
 ## Drawn-from-scratch control
 

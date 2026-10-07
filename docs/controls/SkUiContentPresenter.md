@@ -1,6 +1,6 @@
 # SkUiContentPresenter
 
-Shows the `Content` of the drawn control whose `ControlTemplate` contains it: the drawn counterpart of MAUI's `ContentPresenter`, for templates made of drawn views (today [`SkUiRadioButton.ControlTemplate`](SkUiRadioButton.md#controltemplate)).
+Shows the `Content` of the drawn control whose `ControlTemplate` contains it: the drawn counterpart of MAUI's `ContentPresenter`, for templates made of drawn views ([`SkUiContentView.ControlTemplate`](SkUiContentView.md#controltemplate), also on `SkUiBorder` and other content views, and [`SkUiRadioButton.ControlTemplate`](SkUiRadioButton.md#controltemplate)).
 
 **MAUI counterpart:** [`ContentPresenter`](https://learn.microsoft.com/dotnet/maui/fundamentals/controltemplate#substitute-content-into-a-contentpresenter)
 
@@ -9,9 +9,9 @@ Shows the `Content` of the drawn control whose `ControlTemplate` contains it: th
 An [`SkUiContentView`](SkUiContentView.md) whose `Content` the templated control sets. When the presenter is attached (or a template is applied), it looks up its ancestors for the nearest control with a template applied, as MAUI does: crossing another presenter on the way skips one templated control, so content shown by an outer template belongs to that one.
 
 - A **drawn view** content is shown as is (in the first presenter only: a view has one parent).
-- **Text** content (a string, or any other object as its `ToString()`) is shown in a label the presenter creates, styled by the control's text properties (`TextColor`, `FontSize`, `FontFamily`, `FontAttributes`, `CharacterSpacing`, `TextTransform`), and restyled when they change; every presenter of the template gets one.
+- **Text** content (a radio button's string, or any other object as its `ToString()`) is shown in a label the presenter creates, styled by the control's text properties (`TextColor`, `FontSize`, `FontFamily`, `FontAttributes`, `CharacterSpacing`, `TextTransform`), and restyled when they change; every presenter of the template gets one.
 
-Removing the template releases the content: a view goes back to the control (beside the radio circle). A presenter that leaves the template's tree hands a view content to another presenter of it, if any.
+Removing the template releases the content: a view goes back to the control (beside the radio circle, or as a content view's child). A presenter that leaves the template's tree hands a view content to another presenter of it, if any.
 
 ## Shared conventions
 
@@ -42,7 +42,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | Topic | SkiaUi |
 | --- | --- |
 | `Content` | Set by the templated control; setting it yourself is overwritten on the next content change |
-| Binding | No `RelativeSource TemplatedParent` binding (MAUI resolves those only for its own templated views); the presenter is filled directly by the control |
+| Binding | No `TemplateBinding` / `RelativeSource TemplatedParent` (MAUI resolves those only for its own templated views): bind with [`RelativeSource AncestorType`](SkUiContentView.md#binding-to-the-templated-control); the presenter is filled directly by the control |
 | Text styling | The control's text properties are always applied to the label it creates (MAUI binds those its label does not set) |
 
 ## Related

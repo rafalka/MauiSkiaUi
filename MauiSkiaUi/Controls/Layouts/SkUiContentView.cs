@@ -7,10 +7,11 @@ namespace MauiSkiaUi;
 /// A single-child Skia composition host; GPU rendering is the standalone default. The child is <see cref="Content"/>
 /// or comes from <see cref="ContentTemplate"/>; with <see cref="ContentLoading"/> set to
 /// <see cref="SkUiContentLoading.WhenShown"/> it is attached (and a template instantiated) only once the view is
-/// first shown, so content that is never shown costs nothing.
+/// first shown, so content that is never shown costs nothing. A <see cref="ControlTemplate"/> of drawn views wraps the
+/// content, shown by an <see cref="SkUiContentPresenter"/> in it; it is created when the content loads.
 /// </summary>
 [ContentProperty(nameof(Content))]
-public class SkUiContentView : SkUiView
+public class SkUiContentView : SkUiView, ISkUiTemplatedContent
 {
     private ISkUiView? _content;
     private Thickness _padding;
@@ -20,6 +21,10 @@ public class SkUiContentView : SkUiView
     private TimeSpan _contentLoadingDelay;
     private SkUiViewAnimation? _contentLoadedAnimation;
     private IDisposable? _loadTimer;
+    private ControlTemplate? _controlTemplate;
+    private ControlTemplate? _appliedTemplate;
+    private ISkUiView? _templateRoot;
+    private List<SkUiContentPresenter>? _presenters;
 
     /// <summary>Bindable inset around content.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiContentView), default(Thickness),
@@ -52,6 +57,11 @@ public class SkUiContentView : SkUiView
     /// <summary>Bindable read-only <see cref="IsContentLoaded"/> (for triggers).</summary>
     public static readonly BindableProperty IsContentLoadedProperty = IsContentLoadedPropertyKey.BindableProperty;
 
+    /// <summary>Bindable <see cref="ControlTemplate"/>.</summary>
+    public static readonly BindableProperty ControlTemplateProperty = BindableProperty.Create(
+        nameof(ControlTemplate), typeof(ControlTemplate), typeof(SkUiContentView), null,
+        propertyChanged: (bindable, _, newValue) => ((SkUiContentView)bindable).OnControlTemplateChanged((ControlTemplate?)newValue));
+
     /// <summary>Creates a GPU-backed composition root when used in the MAUI visual tree.</summary>
     public SkUiContentView()
     {
@@ -78,14 +88,34 @@ public class SkUiContentView : SkUiView
         set => SetValue(ContentTemplateProperty, value);
     }
 
+    /// <summary>
+    /// Wraps the content in a tree of drawn views (MAUI's <c>ControlTemplate</c>; its root must be an
+    /// <see cref="ISkUiView"/>); an <see cref="SkUiContentPresenter"/> inside it shows the content. It is created when
+    /// the content loads (see <see cref="ContentLoading"/>); without a presenter no content is shown and
+    /// <see cref="ContentTemplate"/> does not run. Unlike MAUI, the root inherits this view's binding context, and
+    /// <c>TemplateBinding</c> / <c>RelativeSource TemplatedParent</c> do not reach drawn controls: bind with
+    /// <c>RelativeSource AncestorType</c> instead.
+    /// </summary>
+    public ControlTemplate? ControlTemplate
+    {
+        get => (ControlTemplate?)GetValue(ControlTemplateProperty);
+        set => SetValue(ControlTemplateProperty, value);
+    }
+
+    /// <summary>The root view created from <see cref="ControlTemplate"/>, or <c>null</c>.</summary>
+    public ISkUiView? TemplateRoot => _templateRoot;
+
+    /// <summary>Sets the control template (same as the property setter).</summary>
+    public SkUiContentView SetControlTemplate(ControlTemplate? value) { ControlTemplate = value; return this; }
+
     /// <summary>Whether the content is attached (always, unless <see cref="ContentLoading"/> defers it and the view has not been shown yet).</summary>
     public bool IsContentLoaded => (bool)GetValue(IsContentLoadedProperty);
 
     /// <summary>
     /// When the content is attached: <see cref="SkUiContentLoading.Immediate"/> (default) or
     /// <see cref="SkUiContentLoading.WhenShown"/>. Deferring content of a view that has already been drawn has no
-    /// effect; going back to <see cref="SkUiContentLoading.Immediate"/> loads at once. Until it loads the view measures
-    /// as its size requests.
+    /// effect; going back to <see cref="SkUiContentLoading.Immediate"/> loads at once. The <see cref="ControlTemplate"/>
+    /// is deferred with the content. Until it loads the view measures as its size requests.
     /// </summary>
     public SkUiContentLoading ContentLoading { get => _contentLoading; set => SetContentLoading(value); }
 
@@ -100,8 +130,8 @@ public class SkUiContentView : SkUiView
     }
 
     /// <summary>
-    /// Runs on the content when deferred content loads (render thread; e.g. <see cref="SkUiViewAnimation.FadeIn"/>),
-    /// so it does not pop in. Not run for content that loads at once.
+    /// Runs on the content (or the <see cref="TemplateRoot"/> wrapping it) when deferred content loads (render thread;
+    /// e.g. <see cref="SkUiViewAnimation.FadeIn"/>), so it does not pop in. Not run for content that loads at once.
     /// </summary>
     public SkUiViewAnimation? ContentLoadedAnimation
     {
@@ -131,13 +161,19 @@ public class SkUiContentView : SkUiView
     /// <summary>The attached child: <see cref="Content"/> once it is loaded.</summary>
     private protected ISkUiView? LoadedContent => _content;
 
+    /// <summary>The child laid out in this view: the template's root, or the loaded content.</summary>
+    private protected ISkUiView? LayoutChild => _templateRoot ?? _content;
+
     /// <summary>The content to attach once loaded: <see cref="Content"/> here, another content in views that switch.</summary>
     private protected virtual ISkUiView? ContentToShow => Content;
 
-    /// <summary>Creates the content to show from its template when needed (loaded, in a tree, no explicit content).</summary>
+    /// <summary>Whether content would be shown: no control template, or one with a presenter.</summary>
+    private protected bool CanPresentContent => _appliedTemplate is null || _presenters is { Count: > 0 };
+
+    /// <summary>Creates the content to show from its template when needed (loaded, in a tree, somewhere to show it, no explicit content).</summary>
     private protected virtual void EnsureContentToShow()
     {
-        if (_loaded && Parent is not null)
+        if (_loaded && Parent is not null && CanPresentContent)
             _main.Ensure();
     }
 
@@ -169,14 +205,110 @@ public class SkUiContentView : SkUiView
             return;
         var previous = _content;
         _content = value;
-        if (previous is not null) DetachChild(previous);
-        if (value is not null) AttachChild(value);
+        if (_templateRoot is null)
+        {
+            if (previous is not null) DetachChild(previous);
+            if (value is not null) AttachChild(value);
+        }
+        else
+        {
+            ReleasePresentedContent();
+            PresentContent();
+        }
         OnContentChanged();
         InvalidateMeasureOverride();
     }
 
     /// <summary>Called after replacing the hosted child.</summary>
     protected virtual void OnContentChanged() { }
+
+    private void OnControlTemplateChanged(ControlTemplate? value)
+    {
+        _controlTemplate = value;
+        UpdateTemplateRoot();
+    }
+
+    /// <summary>Instantiates <see cref="ControlTemplate"/> once the content loads (removes it while deferred).</summary>
+    private void UpdateTemplateRoot()
+    {
+        var template = _loaded && AppliesControlTemplate ? _controlTemplate : null;
+        if (ReferenceEquals(_appliedTemplate, template))
+            return;
+        var root = template is null ? null : template.CreateContent() as ISkUiView
+            ?? throw new InvalidOperationException($"The ControlTemplate of a {GetType().Name} must create a drawn view (ISkUiView, e.g. an SkUiBorder or SkUiGrid).");
+        var oldRoot = _templateRoot;
+        _appliedTemplate = template;
+        _templateRoot = null;
+        _presenters = null;
+        if (oldRoot is not null)
+        {
+            DetachChild(oldRoot);
+            SkUiContentPresenter.UpdateTemplatedParents(oldRoot); // its presenters let the content go
+        }
+        else if (_content is not null)
+            DetachChild(_content);
+        if (root is null)
+        {
+            if (_content is not null)
+                AttachChild(_content);
+        }
+        else
+        {
+            _templateRoot = root;
+            AttachChild(root);
+            SkUiContentPresenter.UpdateTemplatedParents(root);
+            OnApplyTemplate();
+            PresentContent();
+        }
+        InvalidateMeasureOverride();
+    }
+
+    /// <summary>Whether <see cref="ControlTemplate"/> is applied (presenters show their control's content instead).</summary>
+    private protected virtual bool AppliesControlTemplate => true;
+
+    /// <summary>Called after a <see cref="ControlTemplate"/> was applied (<see cref="TemplateRoot"/> is set).</summary>
+    protected virtual void OnApplyTemplate() { }
+
+    /// <summary>The element named <paramref name="name"/> in the applied template, or <c>null</c> (MAUI's <c>GetTemplateChild</c>).</summary>
+    protected object? GetTemplateChild(string name) =>
+        _templateRoot is Element root ? Microsoft.Maui.Controls.Internals.NameScope.GetNameScope(root)?.FindByName(name) : null;
+
+    bool ISkUiTemplatedContent.IsTemplated => _appliedTemplate is not null;
+
+    void ISkUiTemplatedContent.AddPresenter(SkUiContentPresenter presenter)
+    {
+        (_presenters ??= []).Add(presenter);
+        RefreshContent(); // the first presenter lets the content template run
+        PresentContent();
+    }
+
+    void ISkUiTemplatedContent.RemovePresenter(SkUiContentPresenter presenter)
+    {
+        if (_presenters is null || !_presenters.Remove(presenter)) return;
+        presenter.Present(null);
+        PresentContent(); // the content may move to another presenter
+    }
+
+    /// <summary>Shows the loaded content in the template's first presenter (a view has one parent; others stay empty).</summary>
+    private void PresentContent()
+    {
+        if (_content is not { } content)
+            return;
+        if (_presenters is [var first, ..])
+        {
+            if (content.Parent is null)
+                first.Present(content);
+        }
+        else
+            Trace.WriteLine($"SkiaUi: the ControlTemplate of {GetType().Name} has no SkUiContentPresenter: its content is not shown.");
+    }
+
+    private void ReleasePresentedContent()
+    {
+        if (_presenters is null) return;
+        foreach (var presenter in _presenters)
+            presenter.Present(null);
+    }
 
     /// <inheritdoc />
     protected override void OnParentSet()
@@ -223,6 +355,7 @@ public class SkUiContentView : SkUiView
         _loaded = false;
         AttachContent(null);
         ClearTemplateContent();
+        UpdateTemplateRoot();
         SetValue(IsContentLoadedPropertyKey, false);
         IsShownChanged += OnShownChangedForLoading;
         OnShownChangedForLoading(this, EventArgs.Empty);
@@ -235,17 +368,19 @@ public class SkUiContentView : SkUiView
         _loaded = true;
         try
         {
+            UpdateTemplateRoot();
             RefreshContent();
         }
         catch
         {
             _loaded = false; // a template that fails leaves the view waiting, not "loaded" without content
+            UpdateTemplateRoot();
             throw;
         }
         StopWaiting();
         // Published once the content is attached, so observers see it in place.
         SetValue(IsContentLoadedPropertyKey, true);
-        if (animate && _contentLoadedAnimation is { } animation && _content is SkUiView view)
+        if (animate && _contentLoadedAnimation is { } animation && LayoutChild is SkUiView view)
             _ = RunLoadedAnimation(animation, view);
         ContentLoaded?.Invoke(this, EventArgs.Empty);
     }
@@ -302,7 +437,7 @@ public class SkUiContentView : SkUiView
     }
 
     /// <inheritdoc />
-    internal override IEnumerable<ISkUiView> SkiaChildren { get { if (_content is not null) yield return _content; } }
+    internal override IEnumerable<ISkUiView> SkiaChildren { get { if (LayoutChild is { } child) yield return child; } }
 
     /// <summary>The space around the content: the padding (borders add their stroke).</summary>
     private protected virtual Thickness ContentInset => _padding;
@@ -311,7 +446,7 @@ public class SkUiContentView : SkUiView
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         var inset = ContentInset;
-        var size = _content?.Measure(Math.Max(0, widthConstraint - inset.HorizontalThickness), Math.Max(0, heightConstraint - inset.VerticalThickness)) ?? Size.Zero;
+        var size = LayoutChild?.Measure(Math.Max(0, widthConstraint - inset.HorizontalThickness), Math.Max(0, heightConstraint - inset.VerticalThickness)) ?? Size.Zero;
         return new Size(size.Width + inset.HorizontalThickness, size.Height + inset.VerticalThickness);
     }
 
@@ -319,7 +454,7 @@ public class SkUiContentView : SkUiView
     protected override void ArrangeContent(Size size)
     {
         var inset = ContentInset;
-        _content?.Arrange(new Rect(inset.Left, inset.Top,
+        LayoutChild?.Arrange(new Rect(inset.Left, inset.Top,
             Math.Max(0, size.Width - inset.HorizontalThickness), Math.Max(0, size.Height - inset.VerticalThickness)));
     }
 

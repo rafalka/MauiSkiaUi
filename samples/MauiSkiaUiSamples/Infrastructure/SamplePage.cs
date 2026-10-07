@@ -4,8 +4,10 @@ namespace MauiSkiaUiSamples;
 
 /// <summary>
 /// Base page of an example: the summary, collapsible "How to" and "Things to know" panels, a Source toolbar button
-/// (the example's own file, <see cref="SampleInfo.SourcePath"/>), and the live example below (<see cref="SampleContent"/>).
+/// (the example's own file, <see cref="SampleInfo.SourcePath"/>), and the live example below (<see cref="SampleContent"/>,
+/// the content of a XAML page deriving from it).
 /// </summary>
+[ContentProperty(nameof(SampleContent))]
 public abstract class SamplePage : ContentPage
 {
     private readonly ContentView _content = new();
@@ -33,7 +35,7 @@ public abstract class SamplePage : ContentPage
     }
 
     /// <summary>The live example, below the description.</summary>
-    protected View? SampleContent
+    public View? SampleContent
     {
         get => _content.Content;
         set => _content.Content = value;

@@ -41,6 +41,12 @@ public sealed record SampleInfo(
             return folder >= 0 ? path[(folder + "/Samples/".Length)..] : SourceFileName;
         }
     }
+
+    /// <summary>The files the Source page shows (embedded key, full path): a XAML page's markup, then its code-behind.</summary>
+    public IReadOnlyList<(string Key, string Path)> SourceFiles =>
+        SourceKey.EndsWith(".xaml.cs", StringComparison.Ordinal)
+            ? [(SourceKey[..^3], SourcePath[..^3]), (SourceKey, SourcePath)]
+            : [(SourceKey, SourcePath)];
 }
 
 /// <summary>An example page: <see cref="Info"/> is read by the catalog without creating the page.</summary>

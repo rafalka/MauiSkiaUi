@@ -15,6 +15,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- XAML pages compiled to C# (compiled bindings, also RelativeSource AncestorType ones). -->
+    <MauiXamlInflator>SourceGen</MauiXamlInflator>
 
     <ApplicationTitle>SkiaUi Samples</ApplicationTitle>
     <ApplicationId>com.rkdevel.skiauisamples</ApplicationId>
@@ -50,7 +52,7 @@
     <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/Lobster-Regular.ttf" />
 
     <!-- Every example's source file, shown in the app (Source button): the code people read is the code that runs. -->
-    <EmbeddedResource Include="Samples/**/*.cs" LogicalName="SampleSource/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Samples/**/*.cs;Samples/**/*.xaml" LogicalName="SampleSource/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
 
     <!--
       The app that ran this build, for the Source page's "Open in …" button (Mac Catalyst / Windows): on macOS the

@@ -15,7 +15,7 @@ internal interface ISkUiTemplatedContent
 
 /// <summary>
 /// Shows the <c>Content</c> of the drawn control whose <c>ControlTemplate</c> contains it (MAUI's <c>ContentPresenter</c>
-/// for templates of drawn views, e.g. <see cref="SkUiRadioButton.ControlTemplate"/>): a drawn view as is, text as a label
+/// for templates of drawn views, e.g. <see cref="SkUiContentView.ControlTemplate"/>, <see cref="SkUiRadioButton.ControlTemplate"/>): a drawn view as is, text as a label
 /// styled by the control's text properties. As in MAUI, the control is the nearest templated ancestor, skipping one per
 /// presenter crossed on the way (content shown by an outer template belongs to that one). <see cref="SkUiContentView.Content"/>
 /// is set by the control; do not set it.
@@ -29,6 +29,10 @@ public class SkUiContentPresenter : SkUiContentView
 
     /// <summary>Creates an empty presenter; the templated control fills it.</summary>
     public SkUiContentPresenter() => HwAccelerated = false;
+
+    /// <inheritdoc />
+    /// <remarks>A presenter shows its control's content: its own <c>ControlTemplate</c> (e.g. from a style applied to derived types) is ignored.</remarks>
+    private protected override bool AppliesControlTemplate => false;
 
     /// <inheritdoc />
     protected override void OnParentSet()

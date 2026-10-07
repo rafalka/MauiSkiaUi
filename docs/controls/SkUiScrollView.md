@@ -92,6 +92,7 @@ await scroller.ScrollToAsync(finalLabel, ScrollToPosition.Center, animated: true
 | Nested scrolling | Supported (axis-aware, chaining, fling hand-off; also with Core `SkUiCoreScrollView` and native ancestors) |
 | `ScrollToAsync` tasks | Cancelled (not completed) when a newer scroll, a drag or unloading supersedes them |
 | Overlay snapshot while scrolling | `SkUiMauiContentView.ScrollMode` (snapshot on Android / Windows, live on Apple by default) |
+| `ControlTemplate` | MAUI's ScrollView has none; this one ([inherited](SkUiContentView.md#controltemplate)) scrolls the whole template, wrapper and content. For a fixed wrapper, put the scroll view inside the template |
 
 ## Related
 

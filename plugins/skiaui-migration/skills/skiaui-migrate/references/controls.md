@@ -6,7 +6,7 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 
 | MAUI | SkiaUi | Notes |
 | --- | --- | --- |
-| `ContentView` | `sk:SkUiContentView` | Surface root (one child) or a hosted container; base class for drawn custom controls. Also `ContentTemplate`, and `ContentLoading="WhenShown"` (+ `ContentLoadingDelay`, `ContentLoadedAnimation`) to create a pane only when first shown: use it for heavy tabs and hidden or collapsed panes |
+| `ContentView` | `sk:SkUiContentView` | Surface root (one child) or a hosted container; base class for drawn custom controls. Also `ContentTemplate`, `ControlTemplate` of drawn views (`TemplateBinding` → `RelativeSource AncestorType`, see [custom-controls.md](custom-controls.md#templated-control)), and `ContentLoading="WhenShown"` (+ `ContentLoadingDelay`, `ContentLoadedAnimation`) to create a pane only when first shown: use it for heavy tabs and hidden or collapsed panes |
 | `Grid` | `sk:SkUiGrid` | `RowDefinitions`, `ColumnDefinitions`, spacing, `Grid.Row` / `Grid.Column` / spans as in MAUI |
 | `VerticalStackLayout` | `sk:SkUiVerticalStackLayout` | |
 | `HorizontalStackLayout` | `sk:SkUiHorizontalStackLayout` | |
@@ -21,7 +21,7 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 | `ScrollView` | `sk:SkUiScrollView` | Same API (`Orientation`, `ScrollToAsync`, `Scrolled`, scroll bar visibility); plus `SnapPointsType`, `Overscroll` |
 | `Border` | `sk:SkUiBorder` | `StrokeShape` (string `RoundRectangle 8` or a shape element), `Stroke`, `StrokeThickness`, dashes |
 | `Frame` | `sk:SkUiBorder` | `CornerRadius="8"` → `StrokeShape="RoundRectangle 8"`; `BorderColor` → `Stroke`; `HasShadow="True"` → `<sk:SkUiBorder.Shadow><Shadow .../></sk:SkUiBorder.Shadow>`; Frame's default `Padding` is 20 |
-| `ContentPresenter` | `sk:SkUiContentPresenter` | Only inside a `SkUiRadioButton` `ControlTemplate` |
+| `ContentPresenter` | `sk:SkUiContentPresenter` | Inside a drawn `ControlTemplate` (of a `SkUiContentView`, a content view built on it, or a `SkUiRadioButton`) |
 
 `IsClippedToBounds` → `ClipToBounds` (leaf controls clip by default, layouts do not). Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `FlexLayout.Grow`, `SemanticProperties.*`, `AutomationProperties.*`, `RadioButtonGroup.GroupName`, `VisualStateManager.VisualStateGroups`).
 

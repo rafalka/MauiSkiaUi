@@ -355,7 +355,7 @@ def main():
 
     out.append("## Structure and platform code\n")
     out.append(f"- BindableLayout in XAML: {bindable_layouts} (works on drawn layouts; item templates and empty views are converted like the rest of the page)")
-    out.append(f"- DataTemplate: {data_templates}; ControlTemplate: {control_templates} (drawn ControlTemplate: SkUiRadioButton only)")
+    out.append(f"- DataTemplate: {data_templates}; ControlTemplate: {control_templates} (drawn ControlTemplate: SkUiContentView and SkUiRadioButton; TemplateBinding becomes RelativeSource AncestorType)")
     for label in CS_PATTERNS:
         if code[label] and not label.startswith(("gesture recognizers", "TouchBehavior")):
             sample = ", ".join(sorted(code_files[label])[:5])
