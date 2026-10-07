@@ -47,7 +47,9 @@ public class SkUiVirtualVerticalStackLayout : SkUiVirtualVerticalStackLayoutBase
     /// The items, one view each from <see cref="ItemTemplate"/>, with the item as its binding context. A list
     /// (<see cref="IList"/>) is read by index; with <see cref="INotifyCollectionChanged"/> its inserts, removes, moves and
     /// replacements realize or release only the items they touch (the source is listened to weakly). Other sequences are
-    /// copied once. Takes precedence over <see cref="ItemFactory"/>.
+    /// copied once. Takes precedence over <see cref="ItemFactory"/>. Recycled views waiting for reuse keep their last item as
+    /// binding context until they are rebound (as MAUI's CollectionView, so scrolling evaluates bindings once per item);
+    /// replacing the source clears them.
     /// </summary>
     public IEnumerable? ItemsSource { get => (IEnumerable?)GetValue(ItemsSourceProperty); set => SetValue(ItemsSourceProperty, value); }
 
@@ -66,7 +68,9 @@ public class SkUiVirtualVerticalStackLayout : SkUiVirtualVerticalStackLayoutBase
     /// Creates the view of an item by index when there is no <see cref="ItemsSource"/>: called while scrolling, before the
     /// item shows, again after the item was released (pool views in <see cref="SkUiVirtualVerticalStackLayoutBase.ItemReleased"/>
     /// to reuse them). Returning <c>null</c> ends the list when <see cref="ItemFactoryCount"/> is not set (an endless list asks
-    /// until then).
+    /// until then). Factory views are not recycled, so <see cref="SkUiVirtualVerticalStackLayoutBase.ScrollToIndex"/> to an
+    /// item not measured yet creates a view only to measure it; a list that scrolls to items often can derive from
+    /// <see cref="SkUiVirtualVerticalStackLayoutBase"/> with recycle keys instead.
     /// </summary>
     public Func<int, ISkUiView?>? ItemFactory
     {
@@ -117,6 +121,9 @@ public class SkUiVirtualVerticalStackLayout : SkUiVirtualVerticalStackLayoutBase
         _observer.Observe(value as INotifyCollectionChanged);
         ReadSource(value);
         OnItemsChanged();
+        // Recycled views keep their last item until rebound (as MAUI's CollectionView); items of a replaced source go.
+        foreach (var view in RecycledViews)
+            ((BindableObject)view).BindingContext = null;
     }
 
     private void ReadSource(IEnumerable? value)
@@ -194,8 +201,10 @@ public class SkUiVirtualVerticalStackLayout : SkUiVirtualVerticalStackLayoutBase
         var count = ItemCount;
         switch (args.Action)
         {
-            case NotifyCollectionChangedAction.Add when args.NewItems is { } added && args.NewStartingIndex <= count && count + added.Count == source.Count:
-                InsertItems(args.NewStartingIndex < 0 ? count : args.NewStartingIndex, added.Count);
+            // An Add without its index (-1) does not say where: it starts over (below), as any change out of step.
+            case NotifyCollectionChangedAction.Add when args.NewItems is { } added && args.NewStartingIndex >= 0
+                && args.NewStartingIndex <= count && count + added.Count == source.Count:
+                InsertItems(args.NewStartingIndex, added.Count);
                 break;
             case NotifyCollectionChangedAction.Remove when args.OldItems is { } removed && args.OldStartingIndex >= 0
                 && args.OldStartingIndex + removed.Count <= count && count - removed.Count == source.Count:

@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using MauiSkiaUi.Rendering;
+using SkiaSharp;
 using Xunit;
 
 namespace MauiSkiaUi.Tests;
@@ -563,6 +566,52 @@ public class VirtualVerticalStackLayoutTests
     }
 
     [Fact]
+    public void AnAnimatedScrollThatEndsAfterANewerScrollDoesNotOverrideIt()
+    {
+        var list = List(Rows(2000, Varied));
+        list.EstimatedItemSize = 45;
+        using var surface = new SkUiTestSurface(list, 300, 500);
+        surface.Frame(0);
+        var task = list.ScrollToIndex(1500, ScrollToPosition.Start, animated: true);
+        surface.Frame(16); // the animation is committed
+
+        // The render thread finishes it; its completion has not reached the UI thread yet, which scrolls elsewhere first.
+        using var canvas = new SKCanvas(surface.Bitmap);
+        surface.Renderer.Render(canvas, surface.Bitmap.Info, TimeSpan.FromMilliseconds(2000));
+        list.ScrollTo(0, 1234);
+        surface.PumpUi();
+        surface.Frame(2016);
+
+        Assert.True(task.IsCanceled);
+        Assert.InRange(list.ScrollY, 0, 3000); // not item 1500, ~67,000 DIPs down
+        Assert.Equal(list.ScrollY, ((ISkUiRenderable)list).RenderState.Node.Props.ChildrenOffsetY, 0);
+    }
+
+    [Fact]
+    public void ACorrectionReachingTheRenderThreadAfterTheMotionEndedIsShownOnce()
+    {
+        var scroll = new SkUiScrollView { Content = new SkUiBox { HeightRequest = 10_000 }, VerticalScrollBarVisibility = ScrollBarVisibility.Never };
+        using var surface = new SkUiTestSurface(scroll, 100, 500);
+        surface.Frame(0);
+        _ = scroll.ScrollToAsync(0, 1000, animated: true);
+        surface.Frame(16); // the animation is committed and starts
+
+        // The render thread finishes the animation at 1000; the UI thread has not had its last report yet when it corrects
+        // the offset (anchoring) and changes another property in the same frame.
+        using var canvas = new SKCanvas(surface.Bitmap);
+        surface.Renderer.Render(canvas, surface.Bitmap.Info, TimeSpan.FromMilliseconds(1000));
+        scroll.CorrectScrollOffset(0, 10);
+        scroll.Opacity = 0.9;
+        surface.Renderer.PresentFrame();
+        surface.Renderer.Render(canvas, surface.Bitmap.Info, TimeSpan.FromMilliseconds(1016));
+        surface.PumpUi();
+
+        // Shown once, from where the render thread was (not twice, not from the UI's older offset).
+        Assert.Equal(1010, scroll.ScrollY, 1);
+        Assert.Equal(1010, ((ISkUiRenderable)scroll).RenderState.Node.Props.ChildrenOffsetY, 1);
+    }
+
+    [Fact]
     public void FlingKeepsRunningThroughScrollCorrections()
     {
         var scroll = new SkUiScrollView { Content = new SkUiBox { HeightRequest = 100_000 }, VerticalScrollBarVisibility = ScrollBarVisibility.Never };
@@ -712,6 +761,120 @@ public class VirtualVerticalStackLayoutTests
         Assert.Same(first, list.Items.GetRealizedView(1));
         Assert.Equal(new Rect(0, 0, 300, 50), ((View)list.Items.GetRealizedView(0)!).Frame);
         Assert.Equal(new Rect(0, 50, 300, 50), ((View)first!).Frame);
+    }
+
+    /// <summary>A list that raises Add without an index (allowed: the position is unknown).</summary>
+    private sealed class UnindexedList : List<Row>, INotifyCollectionChanged
+    {
+        public event NotifyCollectionChangedEventHandler? CollectionChanged;
+
+        public void Prepend(Row row)
+        {
+            Insert(0, row);
+            CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, row));
+        }
+    }
+
+    [Fact]
+    public void AnAddWithoutAnIndexStartsOver()
+    {
+        var rows = new UnindexedList();
+        rows.AddRange(Rows(100, _ => 50));
+        var list = List(rows);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        rows.Prepend(new Row(-1, 50)); // not at the end: the views must not keep their old indices
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        Assert.Equal(101, list.ItemCount);
+        var (first, last) = list.Items.RealizedRange;
+        for (var index = first; index <= last; index++)
+            Assert.Same(rows[index], ((BindableObject)list.Items.GetRealizedView(index)!).BindingContext);
+    }
+
+    [Fact]
+    public void MovedItemsKeepTheirMeasuredSizes()
+    {
+        var rows = new ObservableCollection<Row>(Rows(100, Varied));
+        var list = List(rows);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        var sizes = list.Items.Sizes;
+        Assert.True(sizes.IsMeasured(3));
+        var total = sizes.TotalLength;
+
+        rows.Move(3, 80); // a measured 30 DIP item far below the realized range
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.True(sizes.IsMeasured(80));
+        Assert.Equal(30, sizes.SizeOf(80));
+        Assert.Equal(total, sizes.TotalLength, 3); // not re-estimated
+
+        rows.Move(80, 5); // back among the realized items: realized there, at its size
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.Equal(total, sizes.TotalLength, 3);
+        var moved = (View)list.Items.GetRealizedView(5)!;
+        Assert.Same(rows[5], moved.BindingContext);
+        Assert.Equal(30, moved.Height);
+        var (first, last) = list.Items.RealizedRange;
+        for (var index = first; index <= last; index++)
+            Assert.Same(rows[index], ((BindableObject)list.Items.GetRealizedView(index)!).BindingContext);
+    }
+
+    [Fact]
+    public void ReplacingTheItemsSourceReleasesTheOldItemsFromRecycledViews()
+    {
+        var old = Rows(1000, _ => 50);
+        var list = List(old);
+        list.ItemExtent = 50;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        list.ItemsSource = Rows(3, _ => 50);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        Assert.NotEmpty(list.Items.RecycledViews);
+        Assert.All(list.Items.RecycledViews, view => Assert.DoesNotContain(((BindableObject)view).BindingContext, old.Cast<object?>()));
+    }
+
+    [Fact]
+    public void TheContentOfAVirtualScrollViewCannotBeReplaced()
+    {
+        var list = List(Rows(10, _ => 50));
+        Assert.Throws<InvalidOperationException>(() => list.Content = new SkUiBox());
+        Assert.Same(list.Items, list.Content);
+        // Past the property's check (a binding, a style): put back, reported as a trace line.
+        list.SetValue(SkUiContentView.ContentProperty, new SkUiBox());
+        Assert.Same(list.Items, list.Content);
+        Assert.Same(list, list.Items.Parent);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.Equal(10 * 50, list.ContentSize.Height);
+    }
+
+    /// <summary>Changes its measure again on each of its first <see cref="Remaining"/> arranges.</summary>
+    private sealed class RestlessView : SkUiView
+    {
+        public int Remaining;
+
+        protected override void ArrangeContent(Size size)
+        {
+            if (Remaining-- > 0)
+                InvalidateMeasureFromChild();
+        }
+    }
+
+    [Fact]
+    public void ARelayoutStillPendingAfterItsPassesGetsTheNextFrame()
+    {
+        var restless = new RestlessView();
+        var root = new SkUiContentView { Content = restless };
+        using var surface = new SkUiTestSurface(root, 100, 100);
+        surface.Frame(0);
+
+        restless.Remaining = 7; // more than the passes of one frame
+        restless.InvalidateMeasureFromChild();
+        surface.Frame(16); // three passes, then a new frame is requested and runs (the UI queue is pumped)
+        surface.Frame(32);
+
+        Assert.True(restless.Remaining < 0, $"{restless.Remaining} relayouts left");
+        Assert.False(root.RelayoutPending);
     }
 
     [Fact]

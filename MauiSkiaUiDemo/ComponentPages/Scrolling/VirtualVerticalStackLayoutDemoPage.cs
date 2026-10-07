@@ -61,6 +61,12 @@ public sealed class VirtualVerticalStackLayoutDemoPage : ComponentDemoPage
         {
             while (_feed.ItemFactory is null && _items.Count <= 200)
                 LoadPage();
+            // An endless factory knows only the items scrolled near so far.
+            if (_feed.ItemCount <= 200)
+            {
+                Feedback($"Item 200 is not known yet ({_feed.ItemCount} items): scroll down first.");
+                return;
+            }
             try
             {
                 await _feed.ScrollToIndex(200, ScrollToPosition.Start, animated: true);

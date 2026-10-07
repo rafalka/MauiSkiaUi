@@ -115,7 +115,8 @@ internal sealed class SkUiFrameRenderer : IDisposable
             _gate--;
         }
 
-        if (!_disposed && Interlocked.Exchange(ref _repaintPending, 0) != 0)
+        // A relayout left pending (its pass cap reached) gets the next frame too: nothing else may request one.
+        if (!_disposed && (Interlocked.Exchange(ref _repaintPending, 0) != 0 || _root.RelayoutPending))
             RequestFrame();
     }
 

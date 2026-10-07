@@ -26,6 +26,8 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     private SkUiRenderFling? _fling;
     /// <summary>Scroll corrections sent to the running motion (<see cref="CorrectOffset"/>): its reports do not include them.</summary>
     private double _motionShiftX, _motionShiftY;
+    /// <summary>Counts scroll requests (motions started or stopped; not corrections): a completing motion checks it is still the latest.</summary>
+    private int _scrollRequests;
     private TaskCompletionSource? _scrollCompletion;
     private Size _extent;
     private Size _viewport;
@@ -309,6 +311,9 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     public Task ScrollToAsync(double x, double y, bool animated) => ScrollToAsync(x, y, animated, retarget: null);
 
+    /// <param name="x">Horizontal offset to scroll to.</param>
+    /// <param name="y">Vertical offset to scroll to.</param>
+    /// <param name="animated">Whether the scroll runs as a render-thread animation.</param>
     /// <param name="retarget">
     /// Where the target is once an animation completes: the layout may have moved it on the way (items measured, a virtual
     /// list's anchoring), so the scroll ends exactly there.
@@ -522,6 +527,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// <summary>Cancels the running render-thread motion; its last shown offset is reported back asynchronously.</summary>
     public void StopMotion()
     {
+        _scrollRequests++;
         var motion = _motion;
         _motion = null;
         _fling = null;
@@ -907,16 +913,21 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             Finished = (animation, completed) =>
             {
                 owner.RenderState.ActiveAnimations?.Remove(animation);
-                if (((SkUiRenderTween)animation).LastValues is { } values && ReferenceEquals(_motion, animation))
+                // The render thread may finish this motion after a newer scroll or a drag took over on the UI thread.
+                var owned = ReferenceEquals(_motion, animation);
+                if (((SkUiRenderTween)animation).LastValues is { } values && owned)
                     ApplyRenderScroll(values[0] - animation.ScrollShiftX, values[1] - animation.ScrollShiftY, 0, 0);
-                if (ReferenceEquals(_motion, animation))
+                if (owned)
                     _motion = null;
                 UpdateMoving();
-                // Lands exactly where the target is now (also beyond what render-thread floats resolve far down a long list).
-                if (completed && retarget is not null)
+                // Lands exactly where the target is now (also beyond what render-thread floats resolve far down a long list),
+                // unless something else scrolls by now: also while resolving it, which can run app code (item binding).
+                if (completed && owned && retarget is not null)
                 {
+                    var request = _scrollRequests;
                     var target = retarget();
-                    if (Math.Abs(Math.Clamp(target.X, 0, MaxX) - X) > 0.5 || Math.Abs(Math.Clamp(target.Y, 0, MaxY) - Y) > 0.5)
+                    if (request == _scrollRequests && _motion is null && !_dragging
+                        && (Math.Abs(Math.Clamp(target.X, 0, MaxX) - X) > 0.5 || Math.Abs(Math.Clamp(target.Y, 0, MaxY) - Y) > 0.5))
                         SetOffset(target.X, target.Y);
                 }
                 if (completion is not null)
@@ -934,6 +945,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     private void BeginMotion(SkUiRenderAnimation motion)
     {
+        _scrollRequests++;
         _motion = motion;
         _motionShiftX = _motionShiftY = 0;
         MotionTravel = 0;

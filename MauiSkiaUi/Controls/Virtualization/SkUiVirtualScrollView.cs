@@ -28,6 +28,38 @@ public class SkUiVirtualScrollView : SkUiScrollView, ISkUiVirtualList
     /// <summary>The virtual stack this view scrolls.</summary>
     public SkUiVirtualVerticalStackLayout Items { get; }
 
+    private const string ContentIsItems = $"The content of {nameof(SkUiVirtualScrollView)} is its {nameof(Items)} layout and cannot be replaced; " +
+        $"put an {nameof(SkUiVirtualVerticalStackLayout)} in an {nameof(SkUiScrollView)} for other content around the list.";
+
+    /// <summary>The scrolled content: always <see cref="Items"/>.</summary>
+    /// <exception cref="InvalidOperationException">Another view is set (nothing changes).</exception>
+    public new ISkUiView? Content
+    {
+        get => base.Content;
+        set
+        {
+            if (!ReferenceEquals(value, Items))
+                throw new InvalidOperationException(ContentIsItems);
+            base.Content = value;
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Content set past <see cref="Content"/>'s check (<c>SetValue</c>, a binding, a style): <see cref="Items"/> is put back and
+    /// the change reported as a <c>SkiaUi:</c> trace line. Not thrown: MAUI applies the restore after this change completes, and an
+    /// exception from a property callback would leave the property in a broken state.
+    /// </remarks>
+    protected override void OnContentChanged()
+    {
+        base.OnContentChanged();
+        // Items is null while the base constructor runs.
+        if (Items is null || ReferenceEquals(base.Content, Items))
+            return;
+        System.Diagnostics.Trace.WriteLine($"SkiaUi: {ContentIsItems} The {nameof(Items)} layout was put back.");
+        SetValue(ContentProperty, Items);
+    }
+
     /// <summary>
     /// A bindable property of this view for one of <see cref="Items"/>' (its name, type and default), whose changes are set on
     /// <see cref="Items"/>. Validated as the layout's, so a value the layout refuses is refused here too.

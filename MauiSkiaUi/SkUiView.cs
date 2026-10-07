@@ -522,7 +522,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     internal void RelayoutIfNeeded()
     {
         // A layout can change measure again (a virtual list realizing the items its new viewport shows): laid out until
-        // stable, within a few passes (anything left waits for the next frame).
+        // stable, within a few passes. Deliberately capped, so a layout that keeps changing cannot stall a frame: what is
+        // still pending then (RelayoutPending) is laid out before the next frame, which the frame renderer requests.
         for (var pass = 0; _relayoutPending && pass < MaxRelayoutPasses; pass++)
         {
             _relayoutPending = false;
@@ -533,9 +534,14 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
                 base.InvalidateMeasureOverride();
             view.Arrange(_lastArrangeBounds);
         }
+        if (_relayoutPending && SkUiDiagnostics.TraceOn)
+            SkUiDiagnostics.Write($"relayout of {GetType().Name} {AutomationId} still changing after {MaxRelayoutPasses} passes: continued next frame");
     }
 
     private const int MaxRelayoutPasses = 3;
+
+    /// <summary>A descendant's measure changed and the tree still has to be laid out again (<see cref="RelayoutIfNeeded"/>).</summary>
+    internal bool RelayoutPending => _relayoutPending;
 
     /// <summary>Coalesces layout and paint notifications until the matching EndUpdating call.</summary>
     public void StartUpdating() => _updateDepth++;

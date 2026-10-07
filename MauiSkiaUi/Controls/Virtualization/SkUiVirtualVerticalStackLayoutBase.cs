@@ -466,18 +466,18 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
 
     /// <summary>
     /// <paramref name="count"/> items moved from <paramref name="index"/> to <paramref name="newIndex"/> (their index once
-    /// moved, as <see cref="System.Collections.Specialized.NotifyCollectionChangedEventArgs.NewStartingIndex"/>).
+    /// moved, as <see cref="System.Collections.Specialized.NotifyCollectionChangedEventArgs.NewStartingIndex"/>). They keep
+    /// their measured sizes; their views are released and realized again where they land when that is among the realized
+    /// items. The other items keep their views and sizes, and what shows stays in place.
     /// </summary>
     protected void MoveItems(int index, int count, int newIndex)
     {
         CheckRange(index, count);
         if ((uint)newIndex > (uint)(_sizes.Count - count))
             throw new ArgumentOutOfRangeException(nameof(newIndex), newIndex, "The moved items do not fit there.");
-        ChangeItems(() =>
-        {
-            Remove(index, count);
-            Insert(newIndex, count);
-        });
+        if (count == 0 || index == newIndex)
+            return;
+        ChangeItems(() => Move(index, count, newIndex));
     }
 
     /// <summary>Drops the recycled views waiting for reuse (their recycle keys no longer create the same views, e.g. a template changed).</summary>
@@ -625,6 +625,9 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     /// <summary>Indices of the realized items (tests, diagnostics).</summary>
     internal (int First, int Last) RealizedRange => _realized.Count == 0 ? (-1, -1) : (_realized[0].Index, _realized[^1].Index);
 
+    /// <summary>The views waiting in the recycling pool.</summary>
+    internal IEnumerable<ISkUiView> RecycledViews => _pool.Values.SelectMany(static views => views);
+
     /// <summary>Views waiting in the recycling pool (tests, diagnostics).</summary>
     internal int PooledViews => _pool.Values.Sum(stack => stack.Count);
 
@@ -696,6 +699,35 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
             anchor.Index -= count;
         else if (anchor.Index >= index)
             anchor.Index = Math.Min(index, _sizes.Count - 1);
+        Reanchor(anchor.Index, anchor.Start);
+    }
+
+    private void Move(int index, int count, int newIndex)
+    {
+        var anchor = CaptureAnchor();
+        for (var position = _realized.Count - 1; position >= 0; position--)
+            if (_realized[position].Index >= index && _realized[position].Index < index + count)
+                ReleaseAt(position);
+        _sizes.Move(index, newIndex, count);
+        // The others follow as after removing the items and inserting them again.
+        ShiftRealized(index + count, -count);
+        ShiftRealized(newIndex, count);
+        // Moved into the realized range: realized there, so the range stays contiguous.
+        if (_realized.Count > 0 && newIndex > _realized[0].Index && newIndex <= _realized[^1].Index)
+        {
+            var position = newIndex - _realized[0].Index;
+            for (var offset = 0; offset < count; offset++)
+                RealizeInside(newIndex + offset, position + offset);
+        }
+        if (anchor.Index >= index && anchor.Index < index + count)
+            anchor.Index = newIndex + anchor.Index - index;
+        else
+        {
+            if (anchor.Index >= index + count)
+                anchor.Index -= count;
+            if (anchor.Index >= newIndex)
+                anchor.Index += count;
+        }
         Reanchor(anchor.Index, anchor.Start);
     }
 
