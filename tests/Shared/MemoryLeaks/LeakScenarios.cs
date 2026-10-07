@@ -1252,9 +1252,11 @@ public static class LeakScenarios
 
     private sealed class VirtualListRun : LeakScenarioRun
     {
+        private readonly List<WeakReference<SkUiLabel>> _created = [];
         private SkUiVirtualScrollView? _list;
         private int _realized;
         private int _released;
+        private int _dropped;
 
         public override View Build(LeakScenarioContext context)
         {
@@ -1268,9 +1270,10 @@ public static class LeakScenarios
                 ReleaseFactor = 0.5,
                 ItemTemplate = new DataTemplate(() =>
                 {
-                    var row = Text("", 13);
+                    var row = context.Track(Text("", 13), "virtual item view");
                     row.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
                     row.TappedCommand = LeakCommands.Shared;
+                    _created.Add(new WeakReference<SkUiLabel>(row));
                     return row;
                 })
             };
@@ -1295,10 +1298,32 @@ public static class LeakScenarios
             await context.DragAsync(_list!, 0, 400, durationMs: 80); // fling towards the start through estimated items
             await context.WaitAsync(200);
             await context.DragAsync(_list!, 0, -400, durationMs: 60); // closes mid-fling
+            TrackDroppedViews(context);
+        }
+
+        /// <summary>
+        /// Views released while scrolling and not kept for recycling (the pool is capped) must be collectable while the
+        /// list is still shown: neither the layout nor the shared command or collection may keep them.
+        /// </summary>
+        private void TrackDroppedViews(LeakScenarioContext context)
+        {
+            var items = _list!.Items;
+            var kept = new HashSet<ISkUiView>(items.RecycledViews, ReferenceEqualityComparer.Instance);
+            var (first, last) = items.RealizedRange;
+            for (var index = first; index >= 0 && index <= last; index++)
+                if (items.GetRealizedView(index) is { } view)
+                    kept.Add(view);
+            foreach (var reference in _created)
+                if (reference.TryGetTarget(out var view) && !kept.Contains(view))
+                {
+                    context.TrackDetached(view, "released virtual item view");
+                    _dropped++;
+                }
         }
 
         public override string? CheckInteraction() =>
-            _realized > 0 && _released > 0 ? null : $"Items realized {_realized} times, released {_released} times.";
+            _realized > 0 && _released > 0 && _dropped > 0 ? null
+                : $"Items realized {_realized} times, released {_released} times; {_created.Count} views created, {_dropped} dropped from the pool.";
     }
 
     // ---- Input ------------------------------------------------------------------------------------------------
