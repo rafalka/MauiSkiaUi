@@ -63,6 +63,12 @@ internal sealed class SkUiRenderUpdate(SkUiRenderNode node)
     public SKPicture? Before;
     public SKPicture? After;
     public SkUiRenderNode[]? Children;
+
+    /// <summary>
+    /// A scroll correction (scroll anchoring: content before the viewport changed size): moves the node's running scroll
+    /// motion by this much, in the same frame as the layout change that caused it.
+    /// </summary>
+    public SKPoint ScrollShift;
 }
 
 /// <summary>Everything the UI thread produced for one frame; applied atomically by the render thread.</summary>
@@ -329,6 +335,9 @@ internal sealed class SkUiCompositor : IDisposable
                 ReleaseReplacedEffects(node.Props, incoming);
                 node.Props = incoming;
             }
+            // An offset the UI set explicitly in the same frame already includes the correction.
+            if (update.ScrollShift != SKPoint.Empty && (update.ExplicitAnimatable & ScrollOffsetMask) == 0)
+                ShiftScroll(node, update.ScrollShift);
             if (update.HasContent)
             {
                 if (!ReferenceEquals(node.Before, update.Before)) node.Before?.Dispose();
@@ -437,6 +446,23 @@ internal sealed class SkUiCompositor : IDisposable
     /// <summary>Children offsets and scales change how the animated node draws its children; the other properties only its place.</summary>
     private const int BodyAnimatedMask = (1 << (int)SkUiRenderProperty.ChildrenOffsetX) | (1 << (int)SkUiRenderProperty.ChildrenOffsetY)
         | (1 << (int)SkUiRenderProperty.ChildrenScaleX) | (1 << (int)SkUiRenderProperty.ChildrenScaleY);
+
+    private const int ScrollOffsetMask = (1 << (int)SkUiRenderProperty.ChildrenOffsetX) | (1 << (int)SkUiRenderProperty.ChildrenOffsetY);
+
+    /// <summary>
+    /// Moves the scroll motion running on <paramref name="node"/> (fling, animated scroll, snap) by a scroll correction, and
+    /// the offset it shows, so the frame that brings the corrected layout also brings the corrected offset.
+    /// </summary>
+    private void ShiftScroll(SkUiRenderNode node, SKPoint shift)
+    {
+        foreach (var animation in _animations)
+            if (ReferenceEquals(animation.Target, node) && !animation.IsCancelled && (animation.PropertyMask & ScrollOffsetMask) != 0)
+                animation.ShiftScroll(shift.X, shift.Y);
+        // Also when the motion has ended here (finished or cancelled) before the correction arrived: the UI counts the
+        // correction as shown, so the offset shown must move by it, or the two would stay apart until the next scroll.
+        node.Props.ChildrenOffsetX += shift.X;
+        node.Props.ChildrenOffsetY += shift.Y;
+    }
 
     private void CancelAnimations(SkUiRenderNode node, int mask)
     {

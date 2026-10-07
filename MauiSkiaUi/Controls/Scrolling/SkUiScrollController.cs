@@ -24,6 +24,8 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     private SkUiRenderAnimation? _motion;
     private SkUiRenderFling? _fling;
+    /// <summary>Scroll corrections sent to the running motion (<see cref="CorrectOffset"/>): its reports do not include them.</summary>
+    private double _motionShiftX, _motionShiftY;
     private TaskCompletionSource? _scrollCompletion;
     private Size _extent;
     private Size _viewport;
@@ -185,6 +187,47 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             invalidate(SkUiRenderDirty.Props);
     }
 
+    /// <summary>
+    /// Moves the offset by a layout correction without showing a scroll (scroll anchoring): content before the viewport
+    /// changed size by (<paramref name="dx"/>, <paramref name="dy"/>), so what the viewport shows stays in place. The extent
+    /// grows by the same amount until the next measure. A fling, animated scroll or snap running on the render thread
+    /// continues from the corrected offset (the correction reaches it with the frame that brings the new layout); a drag
+    /// continues from it too. Not clamped: the next arrange clamps.
+    /// </summary>
+    public void CorrectOffset(double dx, double dy)
+    {
+        if (!Horizontal) dx = 0;
+        if (!Vertical) dy = 0;
+        if (dx == 0 && dy == 0)
+            return;
+        Extent = new Size(Math.Max(0, Extent.Width + dx), Math.Max(0, Extent.Height + dy));
+        X += dx;
+        Y += dy;
+        if (_motion is { Target: not null })
+        {
+            // The render thread runs the motion: it is moved there, not stopped by an offset the UI sets. The offset the next
+            // frame records is acknowledged exactly as it will be computed: far down a long list, a float holds a quarter of a
+            // DIP or less, and committed + delta can round differently from the corrected offset, which would read as a change
+            // the UI made and stop the motion.
+            _motionShiftX += dx;
+            _motionShiftY += dy;
+            var state = owner.RenderState;
+            state.PendingScrollShift += new SKPoint((float)dx, (float)dy);
+            var props = SkUiRenderProps.Default;
+            FillRenderProps(ref props);
+            state.Acknowledge(SkUiRenderProperty.ChildrenOffsetX, props.ChildrenOffsetX);
+            state.Acknowledge(SkUiRenderProperty.ChildrenOffsetY, props.ChildrenOffsetY);
+        }
+        else
+        {
+            // Not sent yet: it starts from the corrected offset the UI commits with it.
+            _motion?.ShiftScrollTargets((float)dx, (float)dy);
+        }
+        invalidate(SkUiRenderDirty.Props);
+        offsetChanged();
+        SkUiSemantics.Invalidate(owner);
+    }
+
     /// <summary>Re-clamps after a layout change (extent / viewport); fading scroll bars stay as they are.</summary>
     public void Clamp()
     {
@@ -264,7 +307,13 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         return new MotionHandle(this, motion);
     }
 
-    public Task ScrollToAsync(double x, double y, bool animated)
+    public Task ScrollToAsync(double x, double y, bool animated) => ScrollToAsync(x, y, animated, retarget: null);
+
+    /// <param name="retarget">
+    /// Where the target is once an animation completes: the layout may have moved it on the way (items measured, a virtual
+    /// list's anchoring), so the scroll ends exactly there.
+    /// </param>
+    private Task ScrollToAsync(double x, double y, bool animated, Func<Point>? retarget)
     {
         StopMotion();
         DropPendingTarget();
@@ -277,7 +326,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         EnsureFinite(x, y);
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _scrollCompletion = completion;
-        StartTween(x, y, TimeSpan.FromMilliseconds(300), completion);
+        StartTween(x, y, TimeSpan.FromMilliseconds(300), completion, retarget);
         return completion.Task;
     }
 
@@ -290,7 +339,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         if (_arranged)
         {
             var target = resolve();
-            return ScrollToAsync(target.X, target.Y, animated);
+            return ScrollToAsync(target.X, target.Y, animated, resolve);
         }
         StopMotion();
         DropPendingTarget();
@@ -307,7 +356,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             return;
         _pendingTarget = null;
         var target = pending.Resolve();
-        var task = ScrollToAsync(target.X, target.Y, pending.Animated);
+        var task = ScrollToAsync(target.X, target.Y, pending.Animated, pending.Resolve);
         if (task.IsCompleted)
             pending.Completion.TrySetResult();
         else
@@ -463,7 +512,8 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
                 UpdateMoving();
             }
         };
-        _motion = _fling = fling;
+        BeginMotion(fling);
+        _fling = fling;
         UpdateMoving();
         SkUiRenderInvalidation.Enqueue(owner, fling);
         return true;
@@ -534,7 +584,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
                 UpdateMoving();
             }
         };
-        _motion = spring;
+        BeginMotion(spring);
         UpdateMoving();
         SkUiRenderInvalidation.Enqueue(owner, spring);
         return true;
@@ -669,7 +719,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         SkUiRenderOverscrollSettle? settle = null;
         settle = new SkUiRenderOverscrollSettle((float)X, (float)Y, (float)OverscrollX, (float)OverscrollY, EffectiveOverscroll,
             (float)Viewport.Width, (float)Viewport.Height,
-            (x, y) => { if (ReferenceEquals(_motion, settle)) ApplyRenderScroll((float)X, (float)Y, x, y); })
+            (x, y) => { if (ReferenceEquals(_motion, settle)) ApplyRenderScroll((float)(X - _motionShiftX), (float)(Y - _motionShiftY), x, y); })
         {
             Finished = (animation, _) =>
             {
@@ -679,7 +729,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
                 UpdateMoving();
             }
         };
-        _motion = settle;
+        BeginMotion(settle);
         UpdateMoving();
         SkUiRenderInvalidation.Enqueue(owner, settle);
         return true;
@@ -845,7 +895,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     #endregion
 
-    private SkUiRenderAnimation StartTween(double x, double y, TimeSpan duration, TaskCompletionSource? completion)
+    private SkUiRenderAnimation StartTween(double x, double y, TimeSpan duration, TaskCompletionSource? completion, Func<Point>? retarget = null)
     {
         SkUiRenderTween? tween = null;
         tween = new SkUiRenderTween(
@@ -858,10 +908,17 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             {
                 owner.RenderState.ActiveAnimations?.Remove(animation);
                 if (((SkUiRenderTween)animation).LastValues is { } values && ReferenceEquals(_motion, animation))
-                    ApplyRenderScroll(values[0], values[1], 0, 0);
+                    ApplyRenderScroll(values[0] - animation.ScrollShiftX, values[1] - animation.ScrollShiftY, 0, 0);
                 if (ReferenceEquals(_motion, animation))
                     _motion = null;
                 UpdateMoving();
+                // Lands exactly where the target is now (also beyond what render-thread floats resolve far down a long list).
+                if (completed && retarget is not null)
+                {
+                    var target = retarget();
+                    if (Math.Abs(Math.Clamp(target.X, 0, MaxX) - X) > 0.5 || Math.Abs(Math.Clamp(target.Y, 0, MaxY) - Y) > 0.5)
+                        SetOffset(target.X, target.Y);
+                }
                 if (completion is not null)
                 {
                     if (ReferenceEquals(_scrollCompletion, completion)) _scrollCompletion = null;
@@ -869,18 +926,35 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
                 }
             }
         };
-        _motion = tween;
+        BeginMotion(tween);
         UpdateMoving();
         SkUiRenderInvalidation.Enqueue(owner, tween);
         return tween;
     }
 
+    private void BeginMotion(SkUiRenderAnimation motion)
+    {
+        _motion = motion;
+        _motionShiftX = _motionShiftY = 0;
+        MotionTravel = 0;
+    }
+
+    /// <summary>
+    /// How far the running render-thread motion moved between its last two reports (one per render frame), in DIPs: its
+    /// speed per frame. Meaningful while <see cref="IsMotionRunning"/>.
+    /// </summary>
+    public double MotionTravel { get; private set; }
+
     /// <summary>
     /// Applies an offset and overscroll produced by the render thread: updates state and listeners without re-committing
-    /// them, and continues a later drag from the overscroll shown.
+    /// them, and continues a later drag from the overscroll shown. The offset comes without scroll corrections; the ones
+    /// sent to the motion are added (also those the render thread has not applied yet).
     /// </summary>
     private void ApplyRenderScroll(float x, float y, float overscrollX, float overscrollY)
     {
+        x = (float)(x + _motionShiftX);
+        y = (float)(y + _motionShiftY);
+        MotionTravel = Math.Max(Math.Abs(x - X), Math.Abs(y - Y));
         var props = SkUiRenderProps.Default;
         SkUiOverscroll.Apply(ref props, x, y, overscrollX, overscrollY, EffectiveOverscroll, (float)Viewport.Width, (float)Viewport.Height);
         var state = owner.RenderState;

@@ -15,10 +15,25 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### New features
 
+- **Virtualized lists (B1, FR-21):** `SkUiVirtualVerticalStackLayout` is a vertical stack whose item views are created only near what its scrollers show, and `SkUiVirtualScrollView` is a vertical scroll view of one, for plain lists ([SkUiVirtualVerticalStackLayout.md](docs/controls/SkUiVirtualVerticalStackLayout.md)).
+  - Items from `ItemsSource` + `ItemTemplate` (a `DataTemplateSelector` chooses per item; `INotifyCollectionChanged` inserts, removes, moves and replacements touch only their items; the source is listened to weakly), or from `ItemFactory` by index, endless until it returns `null` or with `ItemFactoryCount`.
+  - The window is the intersection of every ancestor scroller's viewport, so the layout also works below a header or a carousel in a scrolled page, or nested in another list.
+  - Items of any height: realized items are measured and their heights kept, the rest estimated (`EstimatedItemSize`, else the average); `ItemExtent` gives every item one height (fast path). When items before the first visible one change height, what shows stays in place (scroll anchoring), also during a fling.
+  - Prefetch ahead in the scroll direction (`PrefetchFactor`, further while a fling runs) and behind (`PrefetchBehindFactor`) within a UI-time budget per frame that is chosen automatically from the measured UI frame rate, what items cost to create and the scroll speed (`PrefetchBudget` fixes it instead); items beyond `ReleaseFactor` viewport lengths are released and template views recycled.
+  - `ScrollToIndex(index, position, animated)` lands exactly on items of any height; `RemainingItemsThreshold` (+ event and command, once per item count); `FirstVisibleIndex` / `LastVisibleIndex`, `VisibleRangeChanged`, `ItemRealized` / `ItemReleased`, `GetRealizedView`, `RemeasureItem`.
+  - The layout follows the drawn scrollers around it and does not scroll itself: shown without an `SkUiScrollView` above it (where it cannot scroll, or inside a native `ScrollView` would create every item), it reports so once as a `SkiaUi:` trace line.
+  - Custom list controls derive from the abstract engine, `SkUiVirtualVerticalStackLayoutBase`, and expose only their own API: they create and bind item views by index (`CreateItemView`, `BindItemView`, `UnbindItemView`), choose recycle keys (`GetRecycleKey`) and report item changes (`ResetItems`, `InsertItems`, `RemoveItems`, `ReplaceItems`, `MoveItems`, `HasMoreItems` for endless lists); `SkUiVirtualVerticalStackLayout` is the subclass for `ItemsSource` / `ItemTemplate` / `ItemFactory` ([custom lists](docs/controls/SkUiVirtualVerticalStackLayout.md#custom-lists-skuivirtualverticalstacklayoutbase)).
+  - Both implement `ISkUiVirtualList`; `SkUiVirtualScrollView` declares its bindable properties from the layout's (same names, types, defaults, validation) and forwards every list member to it.
+  - Demo pages **CollectionView** (next to MAUI's) and **SkUiVirtualVerticalStackLayout** (a paged feed below a header and a carousel); leak scenario `VirtualListScrolled`; benchmark `virtual-fling`. The migration guide and skills map plain `CollectionView` lists to `SkUiVirtualScrollView` (selection, headers, empty views and grouping come with `SkUiCollectionView`).
 - **`ControlTemplate` on `SkUiContentView`:** content views (`SkUiContentView`, `SkUiBorder`, `SkUiScrollView`, …) take a MAUI `ControlTemplate` of drawn views that wraps their content, shown by an `SkUiContentPresenter` ([SkUiContentView.md](docs/controls/SkUiContentView.md#controltemplate)).
   - `TemplateRoot`, `SetControlTemplate`, `OnApplyTemplate()`, `GetTemplateChild(name)`; changing or removing the template moves the same content.
   - The template is created when the content loads, so `ContentLoading="WhenShown"` defers it too; `ContentTemplate` runs only once the template has a presenter (a template without one logs a `SkiaUi:` trace line). Presenters ignore their own `ControlTemplate`; on `SkUiScrollView` the whole template scrolls.
   - `TemplateBinding` / `RelativeSource TemplatedParent` do not reach drawn controls: bind with `RelativeSource AncestorType` (a compiled binding). The migration guide and skills show the rewrite; `check_xaml.py` reports `TemplateBinding` and `TemplatedParent` on drawn views.
+
+### Other
+
+- **Scroll corrections reach render-thread motions:** a scroller's offset can be corrected while a fling, animated scroll or snap runs on the render thread (content before the viewport changed size): the correction travels with the frame that brings the new layout and the motion continues from it, instead of being stopped.
+- **Layout converges within a frame:** a surface root whose relayout invalidates layout again (a virtual list realizing items for its new viewport) is laid out again before the frame, up to three passes.
 
 ## 1.0.0-Prerelease09
 

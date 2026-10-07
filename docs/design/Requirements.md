@@ -441,31 +441,32 @@ Initial controls, layouts, and scroll are delivered with headless tests. Device 
 Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-21--virtual--dynamic-scroll-layout-requirements). Purpose: **on-demand scroll content** (indexed virtual lists, **`InfiniteFeed`**, **loop carousels**), and the item engine for FR-22 (indexed mode only).
 
 - [ ] **`VirtualScrollMode`:** `Indexed` (default), `InfiniteFeed`, `Loop` — one engine; extent, scroll-bar, and `ScrollTo` semantics per [Virtual scroll modes](ScrollingAndCollectionViews.md#virtual-scroll-modes).
-- [ ] **`SkUiVirtualStackLayout`** (vertical first, horizontal later) **requests** its children while the user scrolls.
+- [x] **`SkUiVirtualVerticalStackLayout`** (B1; a horizontal twin, `SkUiVirtualHorizontalStackLayout`, later) **requests** its children while the user scrolls.
   - It works inside any drawn scroller, below other content, and nested in another virtual layout.
   - Its window is the intersection of all ancestor viewports.
-- [ ] **`SkUiVirtualScrollView`:** convenience control combining a scroller and a virtual stack; exposes `VirtualScrollMode` and scroll-bar interaction for modes B / Loop.
-- [ ] **Mode A — Indexed (default):** stable item indices; optional release of far items with **cached sizes** so scroll position and thumb stay meaningful; supports absolute / index scroll APIs and normal scroll bars. **`SkUiCollectionView` uses this mode only.**
+- [ ] **`SkUiVirtualScrollView`:** convenience control combining a scroller and a virtual stack; exposes `VirtualScrollMode` and scroll-bar interaction for modes B / Loop. (B1: the control ships for mode A; `VirtualScrollMode` and velocity scroll bars come with modes B / Loop.)
+- [x] **Mode A — Indexed (default):** stable item indices; optional release of far items with **cached sizes** so scroll position and thumb stay meaningful; supports absolute / index scroll APIs and normal scroll bars. **`SkUiCollectionView` uses this mode only.**
 - [ ] **Mode B — `InfiniteFeed`:** bounded child count (visible + pre/post buffer); append at trailing edge / remove leading when scrolling forward (reverse when scrolling back); **no** global content extent; **relative** scroll (`ScrollBy`, fling, logical bring-into-view) only; scroll bars **velocity / direction**, not absolute position (default hidden).
 - [ ] **Mode Loop:** finite `ItemCount`; seamless wrap (last → first, first → last) using the same window trim as B; `ScrollToIndex` on `index mod N`; suited to horizontal carousels with snap points.
 - [ ] **Providers** (any one is enough):
-  - a per-index factory with an unknown / endless count (`null` ends the list);
-  - `ItemsSource` + `ItemTemplate` / selector with incremental collection changes;
-  - incremental loading (`RemainingItemsThreshold` event / command, async load-more hook, loading placeholder).
-- [ ] **Prefetch:** items are created **before** they become visible. `PrefetchFactor` (viewport lengths, default 1.0) or `PrefetchDistance`, plus a behind-distance for reverse scrolling. During render-thread flings, prefetch extends by the predicted travel.
-- [ ] **Creation budget:** items are created within a per-frame UI-thread budget, synchronously only to avoid visible gaps. Nothing runs on the render thread.
+  - [x] a per-index factory with an unknown / endless count (`null` ends the list): `ItemFactory`, `ItemFactoryCount`;
+  - [x] `ItemsSource` + `ItemTemplate` / selector with incremental collection changes;
+  - [ ] incremental loading: `RemainingItemsThreshold` event / command done; async load-more hook and loading placeholder open.
+- [ ] **Prefetch:** items are created **before** they become visible. `PrefetchFactor` (viewport lengths, default 1.0) or `PrefetchDistance`, plus a behind-distance for reverse scrolling. During render-thread flings, prefetch extends by the predicted travel. (Done: `PrefetchFactor`, `PrefetchBehindFactor`, fling prediction; open: `PrefetchDistance`.)
+- [x] **Creation budget:** items are created within a per-frame UI-thread budget, synchronously only to avoid visible gaps. Nothing runs on the render thread. (`PrefetchBudget`, default 4 ms.)
 - [ ] **Release and sizing:**
-  - default: **each item may have a different size** (per-index measure + cache, not uniform row height);
-  - optional release of far items (`ReleaseFactor`), keeping their measured sizes;
-  - recycling pool keyed by template;
-  - optional `EstimatedItemSize` for unrealized indices; optional `QueryItemSize`; `RemeasureItem` when content changes;
-  - scroll anchoring when earlier items change size.
-- [ ] **API:** `ScrollToIndex` (position, animated); `ItemRealized` / `ItemReleased` / `VisibleRangeChanged` events.
-- [ ] **Core variant** `SkUiCoreVirtualStackLayout`: **only if cheap**, meaning a thin wrapper over a layer-agnostic engine.
+  - [x] default: **each item may have a different size** (per-index measure + cache, not uniform row height);
+  - [x] optional release of far items (`ReleaseFactor`), keeping their measured sizes;
+  - [x] recycling pool keyed by template;
+  - [x] optional `EstimatedItemSize` for unrealized indices; `RemeasureItem` when content changes (also automatic when a realized item's measure changes); fixed `ItemExtent` fast path;
+  - [ ] optional `QueryItemSize`;
+  - [x] scroll anchoring when earlier items change size (also during render-thread flings and animated scrolls).
+- [x] **API:** `ScrollToIndex` (position, animated); `ItemRealized` / `ItemReleased` / `VisibleRangeChanged` events.
+- [ ] **Core variant** `SkUiCoreVirtualVerticalStackLayout`: **only if cheap**, meaning a thin wrapper over a layer-agnostic engine.
 - [ ] **Benchmarks and tests:**
-  - device benchmark: endless 10k-item fling at device fps with no blank frames;
-  - memory stays flat with release;
-  - prefetch-before-visible, budget, anchoring and threshold tests.
+  - device benchmark: endless 10k-item fling at device fps with no blank frames (scenario `virtual-fling` added; device run pending);
+  - memory stays flat with release (leak scenario `VirtualListScrolled` passes headless; device run pending);
+  - [x] prefetch-before-visible, budget, anchoring and threshold tests (`VirtualVerticalStackLayoutTests`).
 
 ### FR-22 — `SkUiCollectionView` (virtualized collection)
 

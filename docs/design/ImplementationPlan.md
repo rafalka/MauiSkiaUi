@@ -15,6 +15,7 @@ Headless-tested; device-verified on a Galaxy S9, iPhone / iOS simulator, Mac Cat
 | Host and rendering | `ISkUiView : IView`, `SkUiView`, `SkUiContentView`, custom handler + `HwAccelerated`; retained compositor with UI-thread recording and render-thread compositing: Metal (Apple), GL thread (Android), ANGLE / software (Windows) — [RenderingPipeline.md](RenderingPipeline.md) |
 | Layouts | `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiBorder`, `SkUiContentView` on MAUI's layout managers; **`SkUiFlexLayout`** (MAUI `FlexLayoutManager` over a ported flex engine, frames checked against MAUI's `FlexLayout`); **`SkUiWrapLayout`** and **shrink stacks** on engines shared with Core (FR-27, A1–A3); RTL mirroring; MAUI's `BindableLayout` on every drawn layout |
 | Scrolling | `SkUiScrollView` / `SkUiCoreScrollView` on one engine: render-thread fling and animated scroll, wheel, nested and same-axis chaining, native-parent coordination |
+| Virtual lists (B1) | `SkUiVirtualVerticalStackLayout` / `SkUiVirtualScrollView` (FR-21 indexed mode, vertical): items realized for the intersection of the ancestor viewports, from `ItemsSource` + `ItemTemplate` / selector (incremental collection changes) or an endless `ItemFactory`; prefetch ahead / behind within a per-frame budget, fling-predictive; release and recycling per template; variable heights measured and cached, estimates for the rest, `ItemExtent` fast path; scroll anchoring, also during render-thread flings (`ScrollShift` on committed frames); `ScrollToIndex`, `RemainingItemsThreshold`, realized / released / visible-range events — [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#virtual-stack-implemented) |
 | Input | Per-pointer gesture arena for SkUi* and Core: tap, double tap, long press, pan, swipe, pinch, pointer recognizers — [EventMechanism.md](EventMechanism.md) |
 | Text | Shared engine: HarfBuzz shaping, bidi / RTL, per-character font fallback, wrap / truncation, `TextRendering` fast path |
 | Controls | Label, Button, Image, ImageButton, ActivityIndicator, Switch / CheckBox / RadioButton (three-state `CheckState`, FR-23), **Slider** (horizontal / vertical, FR-24), **ProgressBar** (determinate / render-thread indeterminate, FR-25), shapes — each on both layers |
@@ -95,7 +96,7 @@ Weighted growth (leftover space shared by weight) is not a separate layout: use 
 
 | # | Deliverable | Notes |
 | --- | --- | --- |
-| B1 | **`SkUiVirtualStackLayout`** (+ virtual scroll) | Vertical first; fixed-extent fast path; estimate + anchoring for variable sizes; recycling; prefetch |
+| B1 | **`SkUiVirtualVerticalStackLayout`** (+ virtual scroll) (shipped) | Vertical; fixed-extent fast path (`ItemExtent`); estimates + anchoring for variable sizes, also during render-thread flings; recycling per template; budgeted, fling-predictive prefetch; `SkUiVirtualScrollView`; `ScrollToIndex`; `RemainingItemsThreshold`. Demo pages (next to MAUI's `CollectionView`; a paged feed below a header), `VirtualVerticalStackLayoutTests`, leak scenario `VirtualListScrolled`, benchmark `virtual-fling`. Generic changes: scroll corrections reach running render-thread motions (`SkUiScrollController.CorrectOffset`, `SkUiRenderUpdate.ScrollShift`); surface roots relay out until stable (up to three passes per frame). Left open: horizontal, `VirtualScrollMode` (`InfiniteFeed`, `Loop`), `PrefetchDistance`, `QueryItemSize`, load-more hook and placeholder, Core twin, device runs (fling without blank frames on a Galaxy S9, memory) |
 | B2 | **`SkUiCollectionView` MVP** | SkUi-first API (not MAUI parity): `ItemsSource` + templates, single selection, `ItemTapped` / command, sticky header / footer / `EmptyView`, load-more threshold, pull-to-refresh; [Migration.md](../Migration.md) + `skiaui-migrate/references/collection-view.md` |
 | B3 | **Phase 2** | Grouping, **expandable groups**, sticky group headers, grid layout, multiple selection, horizontal |
 
@@ -193,7 +194,7 @@ Checked against `Microsoft.Maui.Controls` 10.0.110 (the pinned version). **Parti
 | Every view: `Shadow`, gradient `Background`, `Clip` | SkUi* + Core | Done (P7); `ImageBrush` not drawn |
 | Every view: `SemanticProperties`, focus, font scaling | SkUi* + Core | Done (P10): TalkBack, VoiceOver, Narrator; keyboard focus and ring; `FontAutoScalingEnabled`; plus `IsTabStop` / `TabIndex` (gone from MAUI) |
 | Every view: `GestureRecognizers` | Arena gestures (`Tapped`, …) | Taps done (P11a): `TapGestureRecognizer` runs on drawn views; the rest is reported, bridge open (P11b) |
-| CollectionView | — | B1–B3 |
+| CollectionView | `SkUiVirtualScrollView` for plain lists (B1) | Partial: `ItemsSource`, templates and selectors, variable heights, `RemainingItemsThreshold`, scroll to index; selection, header / footer, empty view, grouping, horizontal and grid: `SkUiCollectionView` (B2–B3) |
 | RefreshView, SwipeView | — | C1, C2 |
 | CarouselView, IndicatorView | — | D1 |
 | Stepper | — | D2 |

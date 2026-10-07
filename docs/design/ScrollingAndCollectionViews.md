@@ -26,7 +26,7 @@ Apps should be able to:
 | Scroll bars | Public Core nodes (`SkUiCoreScrollBar`): the bar is the track (pinned to the viewport, or placed by the app), its thumb a scroll-linked child drawn by the look once per length; the compositor moves it from the offset and the UI starts render-thread fades. A hovering pointer expands the bar for dragging and paging. Fading bars (`Default`) draw over the content; bars that always show reserve a gutter, and the content gets the rest (the scrollport). Reused by FR-21 / FR-22 through the shared controller. |
 | Snap points | `SnapPointsType` / `SnapPointsAlignment` (MAUI's CollectionView enums) on the content's children; drags, flings and paused wheel input settle with a render-thread spring (`SkUiRenderScrollSpring`) that never passes its target. FR-22's `ItemsLayout` snap points can reuse it. |
 | Native ancestors | Drawn continuous gestures hold native parents back while they may claim. Once none can claim, the native parent may take over (Android `RequestDisallowInterceptTouchEvent`; iOS gate recognizer). |
-| On-demand items (FR-21) | **`SkUiVirtualStackLayout`**: a layout that *requests* its children from a provider as its visible window (plus prefetch) grows. **`VirtualScrollMode`** selects indexed virtual extent (default), `InfiniteFeed`, or loop. It sits inside any drawn scroller. `SkUiVirtualScrollView` is the combined convenience control. |
+| On-demand items (FR-21) | **`SkUiVirtualVerticalStackLayout`**: a layout that *requests* its children from a provider as its visible window (plus prefetch) grows. **`VirtualScrollMode`** selects indexed virtual extent (default), `InfiniteFeed`, or loop. It sits inside any drawn scroller. `SkUiVirtualScrollView` is the combined convenience control. The vertical, indexed mode is **done** (B1, see [Virtual stack](#virtual-stack-implemented)); `VirtualScrollMode` arrives with the other modes. |
 | Collections (FR-22) | **`SkUiCollectionView`**, built on the FR-21 **indexed** engine with template recycling. **SkUi-first** API (not MAUI parity); MAUI `CollectionView` mapping lives in [Migration.md](../Migration.md) and the [migration skills](../../plugins/skiaui-migration/README.md). |
 | Core layer | `SkUiCoreScrollView` is done. A Core virtual stack is added only if the FR-21 engine stays layer-agnostic, so it costs a thin wrapper. No Core collection view: templates and bindings are MAUI concepts. |
 | Not primary | Nesting SkiaUi trees inside MAUI `ScrollView` / `CollectionView` is compat / migration only. Leaf views keep `HwAccelerated = false` (FR-14). |
@@ -65,11 +65,11 @@ Apps should be able to:
       <SkUiScrollView Orientation="Horizontal">       <!-- nested carousel: horizontal drags -->
         <SkUiHorizontalStackLayout>…</SkUiHorizontalStackLayout>
       </SkUiScrollView>
-      <SkUiVirtualStackLayout ItemsSource="{Binding Feed}" PrefetchFactor="1.5"> <!-- FR-21 -->
-        <SkUiVirtualStackLayout.ItemTemplate>
+      <SkUiVirtualVerticalStackLayout ItemsSource="{Binding Feed}" PrefetchFactor="1.5"> <!-- FR-21 -->
+        <SkUiVirtualVerticalStackLayout.ItemTemplate>
           <DataTemplate><local:FeedCard /></DataTemplate>
-        </SkUiVirtualStackLayout.ItemTemplate>
-      </SkUiVirtualStackLayout>
+        </SkUiVirtualVerticalStackLayout.ItemTemplate>
+      </SkUiVirtualVerticalStackLayout>
     </SkUiVerticalStackLayout>
   </SkUiScrollView>
 </SkUiContentView>
@@ -162,6 +162,33 @@ Native overlays (`SkUiMauiContentView`) sit as **sibling platform views** of the
 - **Verified** on a Galaxy S9: snapshots during the drag, restore after, clipping under the drawn header / footer, typing into an Entry inside a nested carousel. On the iOS simulator: live sync and clipping.
 - **Verified on Windows 11** (mouse, GPU and software surfaces; [WindowsValidation-results.md](WindowsValidation-results.md)): snapshots during the drag (WebView included), restore after, clipping and hit-test clipping under the drawn header, focused controls stay live, Live mode. On Windows the UI thread also composites, so a UI stall pauses the fling together with the snapshots.
 
+## Virtual stack (implemented)
+
+FR-21's indexed mode, vertical (Phase B1): `SkUiVirtualVerticalStackLayout` and `SkUiVirtualScrollView` ([control guide](../controls/SkUiVirtualVerticalStackLayout.md)). The engine is the abstract `SkUiVirtualVerticalStackLayoutBase`; subclasses create and bind item views by index, give recycle keys and report item changes (`SkUiVirtualVerticalStackLayout` does it for `ItemsSource` / `ItemTemplate` / `ItemFactory`; FR-22's collection view will be another subclass). It derives from `SkUiView`, not `SkUiLayout`: its children are the realized items only, in index order (`SkiaChildren`, render children), added as logical children without `SkUiLayout`'s per-child measure invalidation.
+
+```
+ancestor SkUiScrollView(s) ── offset / viewport changes ──▶ ISkUiScrollListener (registered, no tree walks)
+        │                                                          │
+        ▼                                                          ▼
+SkUiVirtualVerticalStackLayout ── window (∩ of ancestor viewports) ──▶ Realize(phase)
+        │   SkUiVirtualItemSizes: measured sizes, estimates, Fenwick offsets       │ release far items → pool per template
+        │                                                          │ cover window (sync), prefetch (budgeted, clock frames)
+        └── anchoring: offset correction ──▶ SkUiScrollController.CorrectOffset ──▶ render-thread motion shifted in the same frame
+```
+
+| Concern | Behavior |
+| --- | --- |
+| **Window** | Walk up the drawn ancestors: each `SkUiScrollView` clips to `[offset, offset + viewport]` in its children space, the surface root to its height. Before the first arrange, positions are unknown (taken as 0) and a scroller's viewport is the one its measure offered the content (`VerticalWindow`), so the first measure realizes the first screen. Without any bound nothing is realized. |
+| **Sizes** (`SkUiVirtualItemSizes`) | Per-index measured heights (`NaN` until measured) and two Fenwick trees (sum, count of measured items): `OffsetOf(i)` in O(log n), `IndexAt(y)` by binary search; unmeasured items use `EstimatedItemSize` or the measured average. `ItemExtent`: offsets are a multiplication. Appends keep the trees; inserts, removes and moves rebuild them (O(n)). A new width forgets every size. |
+| **Phases** | *Measure*: realized items are measured again (cached unless dirty), then the window is realized; the layout reports the sum of sizes as its height. *Arrange*: the window is realized with the real geometry and items are arranged at their offsets. *Update* (scroll listener, prefetch frames, collection changes): realize, arrange, and when the height changed, `InvalidateMeasureFromChild` (a relayout before the next frame, no re-record). A surface root relays out up to three passes per frame (`RelayoutIfNeeded`), so a relayout that realizes items converges in the same frame. Events raised while measuring are deferred to the arrange (a handler changing the layout would be lost by the measure). |
+| **Realization** | Release items outside the release distance (from the ends: the realized range stays contiguous), then cover the visible window at once, then prefetch ahead in the scroll direction and behind, within a budget per pass (at least one item); unfinished prefetch continues on the surface's `SkUiAnimationClock` frames. The budget is automatic unless `PrefetchBudget` fixes it: the clock measures the UI frame interval from its ticks (lower quartile of the last 16, so dropped frames do not lengthen it); each list keeps a moving average of what realizing an item costs; idle passes get a quarter of a frame, scrolling passes the cost of the items scrolling into the prefetch area per frame (× 1.5) between a quarter and three quarters of a frame, doubled (up to 4×, decaying) after a scrolling pass had to create visible items. While a render-thread motion runs, the window ahead grows by velocity × 100 ms (at most two viewports). A motion that passes more than a viewport per frame (`SkUiScrollController.MotionTravel`, between its reports), or an animated `ScrollToIndex` still more than two viewports from its item, is *racing*: each item on the way shows for a frame at most, so only visible items are created (no prefetch), and the estimate stays frozen until it slows down (an average moving with every measured item would move the target by thousands of DIPs per pass and realize ever more items). Released views are pooled up to the most ever realized at once, so a far jump recycles them all. An animated scroll to a target re-resolves it when it completes and lands exactly there (`ScrollToTargetAsync`). Measured on a Galaxy S9 (Release): an animated scroll to the middle of 10,000 rows takes about 330 ms, its 300 ms animation included, realizing ~110 rows and creating no new views once warm. |
+| **Anchoring** | The anchor is the first realized item that shows (not while the list's start shows), or the item a `ScrollToIndex` aims at (pinned until its task completes). After each realization or remeasure, a change of the anchor's offset moves the window, and the innermost vertical scroller's offset by the same delta (`CorrectOffset`; the extent grows by it until the next measure, so nothing clamps it first). Collection changes map the anchor's index through the change. |
+| **Corrections during motion** | `CorrectOffset` while a fling, tween or snap runs on the render thread: the UI acknowledges the corrected offset (not an explicit change, which would stop the motion) and queues `SkUiRenderState.PendingScrollShift`; the recorder sends it as `SkUiRenderUpdate.ScrollShift` with the frame that carries the new layout, and the compositor moves the motion (`SkUiRenderAnimation.ShiftScroll`: fling start, tween start and target, spring and settle targets) and the shown offset. Motions report offsets without their applied shifts; the controller adds the shifts it requested for the current motion, so reports from frames before the shift was applied do not pull the offset back. |
+| **Recycling** | Released views go to a pool per recycle key (`GetRecycleKey`; for `SkUiVirtualVerticalStackLayout` the template a `DataTemplateSelector` chose, and one key for default `SkUiLabel`s) and are rebound (`BindItemView`; there, by `BindingContext`) after `UnbindItemView`. Detaching resets their render state (re-recorded when reused, as the content changed anyway). Factory views are not pooled (`ItemReleased`). |
+| **Collection changes** | `INotifyCollectionChanged` through a weak observer. Add / remove / replace / move update sizes and realized indices; items inserted inside the realized range are realized there; unaffected items keep their views and sizes. Non-list sources are copied and reset on change. |
+
+Not yet: horizontal, `InfiniteFeed` / `Loop` (`VirtualScrollMode`), `PrefetchDistance` in DIPs, `QueryItemSize`, an async load-more hook with a placeholder item, the Core twin, raster caching of rows. Device runs of the `virtual-fling` benchmark and the `VirtualListScrolled` leak scenario are pending.
+
 ## FR-21 — Virtual / dynamic scroll layout (requirements)
 
 **Purpose:**
@@ -173,7 +200,7 @@ The layout **requests** children from a provider while scrolling, before they re
 
 ### Virtual scroll modes
 
-One engine (`SkUiVirtualStackLayout`, optional `SkUiVirtualScrollView` host) implements three modes. Apps choose with **`VirtualScrollMode`** (`Indexed`, `InfiniteFeed`, `Loop`). Prefetch, creation budget, visible-window intersection, and optional recycling are shared; **extent**, **index stability**, **scroll-bar semantics**, and **`ScrollTo`** differ.
+One engine (`SkUiVirtualVerticalStackLayout`, optional `SkUiVirtualScrollView` host) implements three modes. Apps choose with **`VirtualScrollMode`** (`Indexed`, `InfiniteFeed`, `Loop`). Prefetch, creation budget, visible-window intersection, and optional recycling are shared; **extent**, **index stability**, **scroll-bar semantics**, and **`ScrollTo`** differ.
 
 | Mode | Primary goal | Child count | Logical index | Content extent | Scroll bar thumb |
 | --- | --- | --- | --- | --- | --- |
@@ -220,12 +247,12 @@ This is the default FR-21 / FR-22 behavior.
 
 ### Shape
 
-- **`SkUiVirtualStackLayout`:** a stack layout whose children are created on demand. Vertical is required first; horizontal is a later extension.
+- **`SkUiVirtualVerticalStackLayout`:** a vertical stack layout whose children are created on demand. A horizontal twin (`SkUiVirtualHorizontalStackLayout`) is a later extension.
   - It works as the content of a drawn scroller or anywhere below one (several virtual sections in one page, headers above the list).
   - It also works nested inside another virtual layout.
 - **Visible window:** the layout computes its window as the intersection of the viewports of all ancestor scrollers, in its own coordinates. It does not care which ancestor scrolls.
 - **`SkUiVirtualScrollView`:** a convenience control combining a vertical scroller with a virtual stack, for the common single-list case.
-- **Core variant `SkUiCoreVirtualStackLayout`:** optional. It is added only if the engine is written against the shared render / input node contracts, so that it is a thin wrapper.
+- **Core variant `SkUiCoreVirtualVerticalStackLayout`:** optional. It is added only if the engine is written against the shared render / input node contracts, so that it is a thin wrapper.
 
 ### Item provider
 
@@ -243,7 +270,7 @@ Three ways to supply items; any one is enough:
 - **`PrefetchFactor`:** how far ahead to create items, in viewport lengths (default 1.0). Items are requested while still outside the visible area. An optional DIP variant, `PrefetchDistance`, and a smaller behind-distance for reverse scrolling are also required.
 - **Scroll direction and fling:** prefetch follows the scroll direction.
   - During a render-thread fling, the UI thread receives offset reports every frame. The window is extended by the predicted fling travel for the next frames, because the render thread can only show items that already exist.
-- **Creation budget:** items are created within a per-frame UI-thread budget (for example `CreationBudget` = 4 ms), spread over frames.
+- **Creation budget:** items are created within a per-frame UI-thread budget (for example `PrefetchBudget` = 4 ms), spread over frames.
   - Creation is synchronous only when the visible area would otherwise show a gap.
   - All work stays off the render thread (NFR-6).
 - **Nested virtual layouts** receive the clipped window of their ancestor, so an inner list inside a card only realizes what could be visible.
@@ -386,8 +413,9 @@ Syncfusion’s control is a useful benchmark for **list UX**, not an API target.
 | Gestures | Gesture arena; scroll as arena member; press delay; drags inside scrollers | **Done** |
 | Nested scrolling | Orthogonal and same-axis nesting, drag and fling chaining, native-parent coordination | **Done** |
 | Core scrolling | `SkUiCoreScrollView` on the shared engine (Core and SkUi* nest freely) | **Done** |
-| FR-21 | `SkUiVirtualStackLayout` (vertical), **`VirtualScrollMode.Indexed`**, provider / binding, prefetch, budget, anchoring; `SkUiVirtualScrollView` | Next |
-| FR-21 | Release + recycling pool; fling-predictive prefetch; horizontal; optional Core variant | Next |
+| FR-21 | `SkUiVirtualVerticalStackLayout` (vertical), indexed extent, provider / binding, prefetch, budget, anchoring (also during flings); `SkUiVirtualScrollView` (B1) | **Done** |
+| FR-21 | Release + recycling pool; fling-predictive prefetch (B1) | **Done** |
+| FR-21 | `VirtualScrollMode`; horizontal; `PrefetchDistance`, `QueryItemSize`, load-more hook; optional Core variant | Next |
 | FR-21 | **`InfiniteFeed`:** trim/prepend-append, logical index mapping, relative scroll APIs, velocity scroll bars | Later |
 | FR-21 | **`Loop`** carousel: wrap indexing, offset correction, horizontal + snap; demo nested carousel on virtual loop | Later |
 | FR-22 | `SkUiCollectionView` MVP: linear layout, templates, selection, sticky header / footer, item tap, empty view, migration doc + skill reference | Later |

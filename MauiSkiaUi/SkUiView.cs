@@ -195,7 +195,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// </summary>
     public static readonly BindableProperty ClipToBoundsProperty = BindableProperty.Create(
         nameof(ClipToBounds), typeof(bool), typeof(SkUiView), true,
-        defaultValueCreator: view => view is not (SkUiLayout or SkUiContentView or SkUiExpander or Core.SkUiCoreHost));
+        defaultValueCreator: view => view is not (SkUiLayout or SkUiContentView or SkUiExpander or SkUiVirtualVerticalStackLayoutBase or Core.SkUiCoreHost));
 
     /// <inheritdoc cref="ClipToBoundsProperty" />
     public bool ClipToBounds { get => (bool)GetValue(ClipToBoundsProperty); set => SetValue(ClipToBoundsProperty, value); }
@@ -521,16 +521,21 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// </summary>
     internal void RelayoutIfNeeded()
     {
-        if (!_relayoutPending)
-            return;
-        _relayoutPending = false;
-        IView view = this;
-        var previous = view.DesiredSize;
-        var size = view.Measure(_lastConstraint.Width, _lastConstraint.Height);
-        if (size != previous)
-            base.InvalidateMeasureOverride();
-        view.Arrange(_lastArrangeBounds);
+        // A layout can change measure again (a virtual list realizing the items its new viewport shows): laid out until
+        // stable, within a few passes (anything left waits for the next frame).
+        for (var pass = 0; _relayoutPending && pass < MaxRelayoutPasses; pass++)
+        {
+            _relayoutPending = false;
+            IView view = this;
+            var previous = view.DesiredSize;
+            var size = view.Measure(_lastConstraint.Width, _lastConstraint.Height);
+            if (size != previous)
+                base.InvalidateMeasureOverride();
+            view.Arrange(_lastArrangeBounds);
+        }
     }
+
+    private const int MaxRelayoutPasses = 3;
 
     /// <summary>Coalesces layout and paint notifications until the matching EndUpdating call.</summary>
     public void StartUpdating() => _updateDepth++;

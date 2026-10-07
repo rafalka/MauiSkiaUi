@@ -4,7 +4,27 @@
 
 ## Status
 
-**Not available yet** (Phase B). Until then: keep a native `CollectionView` outside the drawn region, or a small drawn stack inside `SkUiScrollView` (see [gaps.md](gaps.md)).
+`SkUiCollectionView` is **not available yet** (Phase B2–B3). Its engine is: **`SkUiVirtualScrollView`** (a vertical scroll view of an `SkUiVirtualVerticalStackLayout`, [SkUiVirtualVerticalStackLayout.md](../../../../../docs/controls/SkUiVirtualVerticalStackLayout.md)) ports **plain lists** today. Lists that need selection, a header / footer, an empty view, grouping, or a horizontal / grid layout stay a native `CollectionView` outside the drawn region until `SkUiCollectionView` ships (see [gaps.md](gaps.md)).
+
+## Plain lists today: `SkUiVirtualScrollView`
+
+| MAUI `CollectionView` | `SkUiVirtualScrollView` | Notes |
+| --- | --- | --- |
+| `ItemsSource` | `ItemsSource` | `IList` + `INotifyCollectionChanged` changes are incremental; other sequences are copied once |
+| `ItemTemplate` (incl. a `DataTemplateSelector`) | `ItemTemplate` (the element's XAML content) | Templates must create drawn views; views are recycled per template (rebound by `BindingContext`) |
+| `ItemSizingStrategy="MeasureAllItems"` (default) | default | Every item may have its own height; unmeasured items are estimated (`EstimatedItemSize`, else the average) |
+| `ItemSizingStrategy="MeasureFirstItem"` | `ItemExtent="<height>"` | One height for every item, set explicitly |
+| `ItemsLayout` `LinearItemsLayout.ItemSpacing` | `Spacing` | Vertical only |
+| `RemainingItemsThreshold`, `RemainingItemsThresholdReached`, `RemainingItemsThresholdReachedCommand` | same names | Fires once per item count, when what shows changes |
+| `ScrollTo(index, position: …, animate: …)` | `ScrollToIndex(index, position, animated)` | Returns a `Task`; lands exactly on items of any height |
+| `ScrollTo(item, …)` | `ScrollToIndex(list.IndexOf(item), …)` | |
+| `Scrolled` (`ItemsViewScrolledEventArgs.FirstVisibleItemIndex` / `LastVisibleItemIndex`) | `Scrolled` (`ScrollX` / `ScrollY`) and `VisibleRangeChanged` / `FirstVisibleIndex` / `LastVisibleIndex` | |
+| `ItemsUpdatingScrollMode` | — | Items inserted or resized before the first visible item keep what shows in place; at the very top, new items at the top show |
+| `SelectionMode`, `SelectedItem(s)`, `SelectionChanged` | — | Not yet: `TappedCommand` on the item template, or keep the native list |
+| `Header`, `Footer`, `EmptyView` | — | Not yet: put an `SkUiVirtualVerticalStackLayout` in an `SkUiScrollView` with drawn views above / below it; show an empty state with `SkUiStateContainer` |
+| `IsGrouped`, group templates | — | Not yet |
+| Horizontal `ItemsLayout`, `GridItemsLayout`, snap points | — | Not yet |
+| `RefreshView` around it | — | A MAUI `RefreshView` around the surface root |
 
 ## Design intent
 
