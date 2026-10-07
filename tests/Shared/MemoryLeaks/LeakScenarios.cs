@@ -40,6 +40,7 @@ public static class LeakScenarios
         new("ExpanderToggled", Layouts, "SkUiExpander sections (explicit, template and lazy content, a hosted Entry, a long-lived command, both directions): expanded and collapsed by header taps, animated and not, reversed mid-animation, content replaced while collapsed; closed mid-collapse.", () => new ExpanderRun()),
         new("AlternateSwitched", Layouts, "SkUiAlternateContentView cards (explicit content and templates with a long-lived command, shared long-lived animations): switched directly and animated, retargeted while switching, an alternate replaced while hidden; closed mid-switch.", () => new AlternateRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
+        new("VirtualListScrolled", Scrolling, "SkUiVirtualScrollView bound to a long-lived collection (items of different heights, recycled template views): dragged, flung, scrolled to an index, items inserted and removed while shown; closed mid-fling.", () => new VirtualListRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
         new("SurfaceReplaced", Rendering, "A page replaces its GPU surface with a software one and back; the discarded surfaces are disconnected.", () => new SurfaceReplacedRun()),
@@ -1247,6 +1248,57 @@ public static class LeakScenarios
 
         public override string? CheckInteraction() =>
             _scrolls > 0 && _carouselScrolls > 0 ? null : $"List scrolled {_scrolls} times, carousel {_carouselScrolls} times.";
+    }
+
+    private sealed class VirtualListRun : LeakScenarioRun
+    {
+        private SkUiVirtualScrollView? _list;
+        private int _realized;
+        private int _released;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 2000; index++)
+                LeakItems.Shared.Add($"Item {index}");
+            _list = new SkUiVirtualScrollView
+            {
+                ItemsSource = LeakItems.Shared,
+                // A small release distance, so scrolling releases views (the pool keeps some for recycling).
+                ReleaseFactor = 0.5,
+                ItemTemplate = new DataTemplate(() =>
+                {
+                    var row = Text("", 13);
+                    row.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+                    row.TappedCommand = LeakCommands.Shared;
+                    return row;
+                })
+            };
+            _list.ItemRealized += (_, args) =>
+            {
+                _realized++;
+                ((SkUiLabel)args.View).HeightRequest = 32 + args.Index % 4 * 12;
+            };
+            _list.ItemReleased += (_, _) => _released++;
+            return Root(_list);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.DragAsync(_list!, 0, -300, durationMs: 400);
+            await context.DragAsync(_list!, 0, -400, durationMs: 80); // fling
+            await context.WaitAsync(300);
+            await context.WaitForAsync(_list!.ScrollToIndex(1200, ScrollToPosition.Start, animated: true));
+            LeakItems.Shared.Insert(0, "Inserted");
+            LeakItems.Shared.RemoveAt(1201);
+            await context.SettleAsync();
+            await context.DragAsync(_list!, 0, 400, durationMs: 80); // fling towards the start through estimated items
+            await context.WaitAsync(200);
+            await context.DragAsync(_list!, 0, -400, durationMs: 60); // closes mid-fling
+        }
+
+        public override string? CheckInteraction() =>
+            _realized > 0 && _released > 0 ? null : $"Items realized {_realized} times, released {_released} times.";
     }
 
     // ---- Input ------------------------------------------------------------------------------------------------

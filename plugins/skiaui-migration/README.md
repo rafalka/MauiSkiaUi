@@ -37,4 +37,4 @@ python3 skills/skiaui-migrate/scripts/check_xaml.py --root path/to/app path/to/a
 
 ## Maintaining
 
-The skills describe SkiaUi's current API and gaps. When a change adds a MAUI-parity feature, a control, or removes a gap (for example a drawn `CollectionView`), update `docs/Migration.md`, the skill references (`skills/skiaui-migrate/references/*.md`, the background in `skills/skiaui-audit/SKILL.md`) and the tables in both scripts together.
+The skills describe SkiaUi's current API and gaps. When a change adds a MAUI-parity feature, a control, or removes a gap (for example a drawn `CollectionView`), update `docs/Migration.md`, the skill references (`skills/skiaui-migrate/references/*.md`, including [collection-view.md](skills/skiaui-migrate/references/collection-view.md) for list migration — SkUi-first, not MAUI parity), the background in `skills/skiaui-audit/SKILL.md`, and the tables in both scripts together.

@@ -22,6 +22,7 @@ public static class Scenarios
         new CoreLabelsUpdate(),
         new SkUiLabelsUpdate(),
         new ScrollFling(),
+        new VirtualListFling(),
         new Spinners(),
         new ToggleTransitions(),
         new ToggleTransitions(busy: true),
@@ -278,6 +279,48 @@ public sealed class ScrollFling : BenchScenario
         _ = scroll.ScrollToAsync(0, scroll.ContentSize.Height, true);
         return null;
     };
+}
+
+/// <summary>A long virtualized list: only the rows near the viewport exist (FR-21).</summary>
+public sealed class VirtualListFling : BenchScenario
+{
+    public override string Name => "virtual-fling";
+    public override string Description => "SkUiVirtualScrollView over 10,000 rows of different heights (template SkUiButton, recycled); motion = animated scroll towards the end";
+
+    // Release builds trim: keep the reflected list's constructor and properties.
+    [System.Diagnostics.CodeAnalysis.DynamicDependency(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties, "MauiSkiaUi.SkUiVirtualScrollView", "MauiSkiaUi")]
+    public override View Build()
+    {
+        // Created by name: baseline commits without virtual lists build an empty scroll view instead.
+        var type = typeof(SkUiScrollView).Assembly.GetType("MauiSkiaUi.SkUiVirtualScrollView");
+        if (type is null)
+            return Scenarios.Scroll(new SkUiVerticalStackLayout());
+        var list = (SkUiScrollView)Activator.CreateInstance(type)!;
+        list.Background = Colors.White;
+        TrySet(list, "ItemsSource", Enumerable.Range(0, 10_000).ToList());
+        TrySet(list, "Spacing", 4d);
+        TrySet(list, "ItemTemplate", new DataTemplate(() => new Row()));
+        return list;
+    }
+
+    public override Func<View, IDisposable?>? Motion => root =>
+    {
+        var scroll = (SkUiScrollView)root;
+        return scroll.AnimateScrollTo(0, scroll.ContentSize.Height, MotionDuration + TimeSpan.FromSeconds(0.5));
+    };
+
+    private sealed class Row : SkUiButton
+    {
+        protected override void OnBindingContextChanged()
+        {
+            base.OnBindingContextChanged();
+            if (BindingContext is not int index)
+                return;
+            Text = $"Row {index:00000}";
+            HeightRequest = 40 + index % 3 * 12;
+        }
+    }
 }
 
 /// <summary>Many activity indicators spinning (content spin on the render thread).</summary>

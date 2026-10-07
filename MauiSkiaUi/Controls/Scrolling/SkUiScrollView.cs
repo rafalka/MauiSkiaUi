@@ -3,6 +3,13 @@ using MauiSkiaUi.Rendering;
 
 namespace MauiSkiaUi;
 
+/// <summary>A descendant that follows what an ancestor <see cref="SkUiScrollView"/> shows (a virtual layout realizing its items).</summary>
+internal interface ISkUiScrollListener
+{
+    /// <summary>The scroller's offset or viewport changed (also during its layout).</summary>
+    void OnAncestorScrollChanged();
+}
+
 /// <summary>
 /// A single-surface scroller with clamped offsets, wheel input and inertial fling.
 /// The scroll offset is a composite-time children translation: scrolling never re-records content, and
@@ -22,6 +29,10 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     private readonly SkUiScrollController _scroller = null!;
     /// <summary>Registered <see cref="SkUiMauiContentView"/> descendants that need offset sync (avoids O(tree) walks).</summary>
     private List<SkUiMauiContentView>? _overlayDescendants;
+    /// <summary>Registered descendants that follow what this scroller shows (virtual layouts).</summary>
+    private List<ISkUiScrollListener>? _scrollListeners;
+    /// <summary>The viewport the last measure offered the content (the arranged viewport is not known before the first arrange).</summary>
+    private Size _measureViewport;
 
     /// <summary>Creates a scroller whose motion stops when its surface unloads.</summary>
     public SkUiScrollView()
@@ -170,6 +181,9 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     /// <summary>True while a render-thread fling or animated scroll is running.</summary>
     internal bool IsMotionRunning => _scroller.IsMotionRunning;
 
+    /// <summary>How far the running render-thread motion moves per frame (see <see cref="SkUiScrollController.MotionTravel"/>).</summary>
+    internal double MotionTravel => _scroller.IsMotionRunning ? _scroller.MotionTravel : 0;
+
     /// <summary>True while the user drags this scroller or a fling / animated scroll runs.</summary>
     public bool IsScrolling => _scroller.IsMoving;
 
@@ -213,6 +227,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
             width = SkUiScrollController.CrossConstraint(width, content.Width, content.MaximumWidth, content.Margin.HorizontalThickness + inset.HorizontalThickness);
             height = SkUiScrollController.CrossConstraint(height, content.Height, content.MaximumHeight, content.Margin.VerticalThickness + inset.VerticalThickness);
         }
+        _measureViewport = new Size(width, height);
         var extent = base.MeasureContent(_scroller.Horizontal ? double.PositiveInfinity : width, _scroller.Vertical ? double.PositiveInfinity : height);
         _scroller.Extent = extent;
         return new Size(Math.Min(widthConstraint, extent.Width + left + right), Math.Min(heightConstraint, extent.Height + bottom));
@@ -241,6 +256,42 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         }
         _scroller.ArrangeScrollBars(IsRightToLeft);
         _scroller.OnArranged();
+        NotifyScrollListeners();
+    }
+
+    /// <summary>
+    /// The vertical scroll offset and viewport height, in this scroller's children space: what a descendant can show. Before
+    /// the first arrange the viewport is the one the measure offered the content.
+    /// </summary>
+    internal (double Offset, double Length) VerticalWindow =>
+        (_scroller.Y, _scroller.Bounds == Size.Zero ? _measureViewport.Height : _scroller.Viewport.Height);
+
+    /// <summary>Moves the offset by a layout correction (scroll anchoring; see <see cref="SkUiScrollController.CorrectOffset"/>).</summary>
+    internal void CorrectScrollOffset(double dx, double dy) => _scroller.CorrectOffset(dx, dy);
+
+    /// <summary>Registers a descendant that follows this scroller's offset and viewport.</summary>
+    internal void RegisterScrollListener(ISkUiScrollListener listener)
+    {
+        _scrollListeners ??= [];
+        if (!_scrollListeners.Contains(listener))
+            _scrollListeners.Add(listener);
+    }
+
+    /// <summary>Removes a previously registered scroll listener.</summary>
+    internal void UnregisterScrollListener(ISkUiScrollListener listener) => _scrollListeners?.Remove(listener);
+
+    private void NotifyScrollListeners()
+    {
+        if (_scrollListeners is not { Count: > 0 } listeners)
+            return;
+        // A listener may realize or release views, and so (un)register nested listeners.
+        if (listeners.Count == 1)
+        {
+            listeners[0].OnAncestorScrollChanged();
+            return;
+        }
+        foreach (var listener in listeners.ToArray())
+            listener.OnAncestorScrollChanged();
     }
 
     /// <inheritdoc />
@@ -383,6 +434,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         OnPropertyChanged(nameof(ScrollX));
         OnPropertyChanged(nameof(ScrollY));
         SyncRegisteredOverlays();
+        NotifyScrollListeners();
         Scrolled?.Invoke(this, new ScrolledEventArgs(ScrollX, ScrollY));
     }
 

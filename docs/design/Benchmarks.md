@@ -90,6 +90,7 @@ The catalog lives in [benchmarks/Scenarios/Scenarios.cs](../../benchmarks/Scenar
 | `core-labels-simple` | Numeric labels with `TextRendering = Simple` |
 | `core-labels-update`, `skui-labels-update` | Steady state: change every label's text (re-layout + re-record) |
 | `scroll-fling` `[device]` | Render-thread `AnimateScrollTo` through 400 buttons |
+| `virtual-fling` | `SkUiVirtualScrollView` over 10,000 buttons of three heights (recycled template views): the first frame realizes only the rows near the viewport; on a device, render-thread `AnimateScrollTo` towards the end while rows are realized, measured and anchored |
 | `spinners` `[device]` | 120 activity indicators (render-thread content spin) |
 | `toggle-transitions` `[device]` | 48 switches + 48 check boxes re-toggled every 120 ms: state-change transitions always running (UI clock, one re-record per control per frame) |
 | `toggle-transitions-busy` `[device]` | The same while the UI thread is blocked 25 ms every 100 ms (where UI-thread transitions lose frames) |

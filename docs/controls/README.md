@@ -71,3 +71,4 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | Control | Doc | MAUI counterpart |
 | --- | --- | --- |
 | `SkUiScrollView` | [SkUiScrollView.md](SkUiScrollView.md) | ScrollView |
+| `SkUiVirtualVerticalStackLayout` / `SkUiVirtualScrollView` / `SkUiVirtualVerticalStackLayoutBase` | [SkUiVirtualVerticalStackLayout.md](SkUiVirtualVerticalStackLayout.md) | — (virtualized lists: items created near the viewport, recycled; plain `CollectionView` lists; the abstract engine for list controls of your own) |

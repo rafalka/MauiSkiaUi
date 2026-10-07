@@ -10,6 +10,41 @@ public sealed class SkUiAnimationClock
 
     internal TimeSpan FrameTime => _frameTime;
 
+    /// <summary>The frame interval assumed before the clock has ticked enough to measure one (60 Hz).</summary>
+    internal static readonly TimeSpan DefaultFrameInterval = TimeSpan.FromSeconds(1 / 60d);
+
+    private const int IntervalSamples = 16;
+    private readonly double[] _intervals = new double[IntervalSamples]; // ms, ring buffer
+    private int _intervalCount;
+    private int _intervalNext;
+
+    /// <summary>
+    /// How long one UI frame lasts, measured from consecutive ticks (the platform ticks the clock once per UI frame): the
+    /// lower quartile of the last 16 intervals, so frames dropped by a busy UI thread do not lengthen it, between 4 and
+    /// 34 ms. It follows the cadence the UI actually runs at (60, 90, 120 Hz…), which may be below the display's maximum.
+    /// <see cref="DefaultFrameInterval"/> until four intervals are known. Used to size per-frame work budgets.
+    /// </summary>
+    internal TimeSpan FrameInterval { get; private set; } = DefaultFrameInterval;
+
+    private void SampleInterval(TimeSpan previous, TimeSpan now)
+    {
+        var milliseconds = (now - previous).TotalMilliseconds;
+        // A gap (the clock stopped and started again) or a repeated time says nothing about the frame rate.
+        if (milliseconds <= 0 || milliseconds > 50)
+            return;
+        _intervals[_intervalNext] = milliseconds;
+        _intervalNext = (_intervalNext + 1) % IntervalSamples;
+        if (_intervalCount < IntervalSamples)
+            _intervalCount++;
+        if (_intervalCount < 4)
+            return;
+        Span<double> sorted = stackalloc double[IntervalSamples];
+        _intervals.AsSpan(0, _intervalCount).CopyTo(sorted);
+        sorted = sorted[.._intervalCount];
+        sorted.Sort();
+        FrameInterval = TimeSpan.FromMilliseconds(Math.Clamp(sorted[_intervalCount / 4], 4, 34));
+    }
+
     /// <summary>Raised when continuous frames need to start or stop.</summary>
     public event EventHandler? RunningChanged;
 
@@ -62,6 +97,7 @@ public sealed class SkUiAnimationClock
     {
         if (elapsed < _frameTime)
             throw new ArgumentOutOfRangeException(nameof(elapsed), "Frame time must be monotonic.");
+        SampleInterval(_frameTime, elapsed);
         _frameTime = elapsed;
         var wasRunning = IsRunning;
         _ticking = true;

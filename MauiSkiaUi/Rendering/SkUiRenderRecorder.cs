@@ -82,6 +82,13 @@ internal sealed class SkUiRenderRecorder : IDisposable
             }
         }
 
+        if (state.PendingScrollShift != SKPoint.Empty)
+        {
+            update ??= new SkUiRenderUpdate(state.Node);
+            update.ScrollShift = state.PendingScrollShift;
+            state.PendingScrollShift = SKPoint.Empty;
+        }
+
         if ((dirty & SkUiRenderDirty.Children) != 0)
         {
             var start = _scratch.Count;

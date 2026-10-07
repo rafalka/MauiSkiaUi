@@ -67,7 +67,7 @@ REPLACE = {
 }
 WRAP = {"Entry", "Editor", "SearchBar", "Picker", "DatePicker", "TimePicker", "WebView", "HybridWebView", "BlazorWebView", "Map"}
 NO_DRAWN = {
-    "CollectionView": "no drawn CollectionView yet: keep the list outside the drawn tree",
+    "CollectionView": "no drawn CollectionView yet: SkUiVirtualScrollView for a plain list (no selection, header, empty view or grouping), else keep the list outside the drawn tree",
     "ListView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",
     "TableView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",
     "CarouselView": "no drawn CarouselView yet: SkUiScrollView Orientation=\"Horizontal\" SnapPointsType=\"MandatorySingle\", or keep it outside",

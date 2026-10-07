@@ -62,6 +62,7 @@ One scenario catalog, [`tests/Shared/MemoryLeaks`](../../tests/Shared/MemoryLeak
 | `ExpanderToggled` | `SkUiExpander` sections (explicit, template and lazy content, a hosted Entry, a long-lived command, both directions): expanded and collapsed by header taps, animated and not, reversed mid-animation, content replaced while collapsed; closed mid-collapse |
 | `AlternateSwitched` | `SkUiAlternateContentView` cards (explicit content and templates with a long-lived command, shared long-lived animations): switched directly and animated, retargeted while switching, an alternate replaced while hidden; closed mid-switch |
 | `ScrollFling` | Vertical list with a nested carousel: drags, flings, animated scroll; closed mid-fling |
+| `VirtualListScrolled` | `SkUiVirtualScrollView` bound to a long-lived collection (items of different heights, recycled template views): dragged, flung, scrolled to an index, items inserted and removed while shown; closed mid-fling |
 | `GesturesMixed` | Tap, double tap, long press, swipe, pan, pinch (drawn and Core); closed with a finger down |
 | `AccessibleFocused` | Drawn and Core controls with semantic properties, read through a semantics tree that reports changes; focused by `Focus()` and Tab, activated by keys and screen-reader actions; a focused row removed; buttons tagged with a long-lived object |
 | `AnimationsRunning` | Render-thread animations and a spinner running at close; nodes detached mid-animation |

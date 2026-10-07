@@ -83,12 +83,31 @@ public enum SkUiTextRendering
 public static class SkUiTextOptions
 {
     private static SkUiTextRendering _defaultRendering = SkUiTextRendering.Auto;
+    private static readonly SkUiWeakEvent _changed = new();
 
-    /// <summary>Rendering used by labels whose <c>TextRendering</c> is <see cref="SkUiTextRendering.Default"/> (initially <see cref="SkUiTextRendering.Auto"/>).</summary>
+    /// <summary>
+    /// Rendering used by labels whose <c>TextRendering</c> is <see cref="SkUiTextRendering.Default"/> (initially
+    /// <see cref="SkUiTextRendering.Auto"/>). Best set once at startup; a change re-measures and redraws live surfaces (the
+    /// modes lay text out slightly differently, so text measured in one mode must not be drawn in the other).
+    /// </summary>
     public static SkUiTextRendering DefaultRendering
     {
         get => _defaultRendering;
-        set => _defaultRendering = value == SkUiTextRendering.Default ? SkUiTextRendering.Auto : value;
+        set
+        {
+            var rendering = value == SkUiTextRendering.Default ? SkUiTextRendering.Auto : value;
+            if (rendering == _defaultRendering)
+                return;
+            _defaultRendering = rendering;
+            _changed.Raise(null, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>Raised when <see cref="DefaultRendering"/> changes (live surfaces re-measure and redraw); subscribers are not kept alive.</summary>
+    internal static event EventHandler? Changed
+    {
+        add => _changed.Add(value);
+        remove => _changed.Remove(value);
     }
 }
 

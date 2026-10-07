@@ -633,6 +633,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         SkUiLook.CurrentChanged += OnLookChanged;
         SkUiColorScheme.CurrentChanged += OnLookChanged;
         SkUiFontScaling.Changed += OnLookChanged;
+        SkUiTextOptions.Changed += OnLookChanged;
         OnClockRunningChanged(this, EventArgs.Empty);
         VirtualView.Router.NativeAncestorCanScroll = NativeAncestorCanScroll;
         QueueFrame();
@@ -689,6 +690,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         SkUiLook.CurrentChanged -= OnLookChanged;
         SkUiColorScheme.CurrentChanged -= OnLookChanged;
         SkUiFontScaling.Changed -= OnLookChanged;
+        SkUiTextOptions.Changed -= OnLookChanged;
         VirtualView.AnimationClock.StopAll();
         _ticker?.Dispose();
         _ticker = null;

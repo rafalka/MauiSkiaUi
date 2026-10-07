@@ -28,9 +28,9 @@ Drawn controls pay off where a screen holds **many views**. Every native MAUI vi
 Good first candidates:
 - dashboards, cards, detail pages and forms with deep `Grid` / `StackLayout` nesting;
 - screens that are slow to open, or where adding views to the page shows up in traces;
-- repeated rows inside a `ScrollView` (not a `CollectionView`: see [Not available yet](#not-available-yet)).
+- repeated rows inside a `ScrollView`, and plain `CollectionView` lists (items and a template, without selection, headers or grouping): `SkUiVirtualScrollView` (see [Not available yet](#not-available-yet)).
 
-Leave for later: screens built around a `CollectionView` with many items, `SwipeView` rows, or third-party controls (charts, calendars, data grids) that would have to sit on top of the drawn surface.
+Leave for later: screens built around a `CollectionView` with selection, headers, an empty view or grouping, `SwipeView` rows, or third-party controls (charts, calendars, data grids) that would have to sit on top of the drawn surface.
 
 ## Setup
 
@@ -292,13 +292,13 @@ Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and 
 
 | MAUI | Status | Meanwhile |
 | --- | --- | --- |
-| `CollectionView` | Planned (Phase B: virtualized `SkUiCollectionView`) | Keep the MAUI `CollectionView` with native item templates, or, for up to a few hundred items, a drawn stack inside `SkUiScrollView` |
+| `CollectionView` | Plain lists: **`SkUiVirtualScrollView`** (B1). The full control is planned (Phase B2–B3: **`SkUiCollectionView`**, SkUi-first — not MAUI API parity) | A plain list (`ItemsSource`, `ItemTemplate` or a selector, `RemainingItemsThreshold`, `ScrollTo` by index, items of any height): `SkUiVirtualScrollView` with drawn item templates, virtualized and recycled ([SkUiVirtualVerticalStackLayout.md](controls/SkUiVirtualVerticalStackLayout.md); mapping in [collection-view.md](../plugins/skiaui-migration/skills/skiaui-migrate/references/collection-view.md)). With selection, `Header` / `Footer`, `EmptyView`, grouping or a horizontal / grid layout: keep the MAUI `CollectionView` with native item templates until `SkUiCollectionView` ships. |
 | `SwipeView` | Planned (C1) | `Swiped` / `PanUpdated` on the row for simple cases, or keep the list native |
 | `RefreshView` | Planned (C2) | A MAUI `RefreshView` around the surface root: the drawn scroller hands the drag to native parents at its top edge, as inside a native `ScrollView` (this combination is not covered by tests yet) |
 | `CarouselView`, `IndicatorView` | Planned (D1) | `SkUiScrollView Orientation="Horizontal"` with `SnapPointsType="MandatorySingle"` |
 | `Stepper` | Planned (D2) | Two `SkUiButton`s |
 | Drag and drop, tooltips, context flyouts | Not planned | Keep native |
-| `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `CollectionView` (when available), `SkUiBorder` |
+| `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `SkUiVirtualScrollView` (plain lists), `SkUiBorder` |
 | Shell, pages, navigation | Out of scope | Stay MAUI |
 | Third-party controls (charts, calendars, data grids, signature pads) | Native | Host in `SkUiMauiContentView`, or keep them outside the surface |
 

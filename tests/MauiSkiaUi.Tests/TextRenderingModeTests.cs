@@ -7,10 +7,10 @@ namespace MauiSkiaUi.Tests;
 /// <summary><see cref="SkUiTextRendering"/> modes and layout reuse.</summary>
 public class TextRenderingModeTests
 {
-    private static SKTypeface Primary() =>
+    internal static SKTypeface Primary() =>
         SKTypeface.FromFile(Path.Combine(AppContext.BaseDirectory, "Assets", "RobotoMono-Regular.ttf"));
 
-    private static bool LayoutIsSimple(string text, SkUiTextRendering rendering, SkUiTextDirection direction = SkUiTextDirection.Auto)
+    internal static bool LayoutIsSimple(string text, SkUiTextRendering rendering, SkUiTextDirection direction = SkUiTextDirection.Auto)
     {
         var layout = new SkUiTextLayout();
         layout.Measure(text, new SkUiTextStyle(Primary(), 16, Direction: direction, Rendering: rendering), default, 500);
@@ -31,24 +31,6 @@ public class TextRenderingModeTests
     {
         Assert.True(LayoutIsSimple("مرحبا 👍", SkUiTextRendering.Simple));
         Assert.False(LayoutIsSimple("Item 0001", SkUiTextRendering.Shaped));
-    }
-
-    [Fact]
-    public void DefaultFollowsGlobalOption()
-    {
-        var previous = SkUiTextOptions.DefaultRendering;
-        try
-        {
-            SkUiTextOptions.DefaultRendering = SkUiTextRendering.Shaped;
-            Assert.False(LayoutIsSimple("Item 0001", SkUiTextRendering.Default));
-            SkUiTextOptions.DefaultRendering = SkUiTextRendering.Default;
-            Assert.Equal(SkUiTextRendering.Auto, SkUiTextOptions.DefaultRendering);
-            Assert.True(LayoutIsSimple("Item 0001", SkUiTextRendering.Default));
-        }
-        finally
-        {
-            SkUiTextOptions.DefaultRendering = previous;
-        }
     }
 
     [Fact]
@@ -93,5 +75,53 @@ public class TextRenderingModeTests
         Assert.Equal(SkUiTextRendering.Simple, label.TextRendering);
         var core = new SkUiCoreLabel().SetTextRendering(SkUiTextRendering.Shaped);
         Assert.Equal(SkUiTextRendering.Shaped, core.TextRendering);
+    }
+}
+
+/// <summary>
+/// <see cref="SkUiTextOptions.DefaultRendering"/> is process-wide: changing it while other classes run in parallel changes how their
+/// labels lay text out between measure and draw (seen as text wrapped onto a clipped line in pixel comparisons).
+/// </summary>
+[Collection(GlobalStateCollection.Name)]
+public class TextRenderingDefaultTests
+{
+    [Fact]
+    public void DefaultFollowsGlobalOption()
+    {
+        var previous = SkUiTextOptions.DefaultRendering;
+        try
+        {
+            SkUiTextOptions.DefaultRendering = SkUiTextRendering.Shaped;
+            Assert.False(TextRenderingModeTests.LayoutIsSimple("Item 0001", SkUiTextRendering.Default));
+            SkUiTextOptions.DefaultRendering = SkUiTextRendering.Default;
+            Assert.Equal(SkUiTextRendering.Auto, SkUiTextOptions.DefaultRendering);
+            Assert.True(TextRenderingModeTests.LayoutIsSimple("Item 0001", SkUiTextRendering.Default));
+        }
+        finally
+        {
+            SkUiTextOptions.DefaultRendering = previous;
+        }
+    }
+
+    [Fact]
+    public void ChangingTheDefaultIsReportedSoSurfacesMeasureAgain()
+    {
+        var previous = SkUiTextOptions.DefaultRendering;
+        var changes = 0;
+        void Count(object? sender, EventArgs args) => changes++;
+        SkUiTextOptions.Changed += Count;
+        try
+        {
+            SkUiTextOptions.DefaultRendering = SkUiTextRendering.Auto;
+            SkUiTextOptions.DefaultRendering = SkUiTextRendering.Shaped;
+            SkUiTextOptions.DefaultRendering = SkUiTextRendering.Shaped; // unchanged
+            SkUiTextOptions.DefaultRendering = SkUiTextRendering.Default; // Auto
+            Assert.Equal(previous == SkUiTextRendering.Auto ? 2 : 3, changes);
+        }
+        finally
+        {
+            SkUiTextOptions.Changed -= Count;
+            SkUiTextOptions.DefaultRendering = previous;
+        }
     }
 }

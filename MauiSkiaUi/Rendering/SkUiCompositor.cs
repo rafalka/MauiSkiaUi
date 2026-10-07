@@ -13,6 +13,8 @@ internal sealed class SkUiRenderNode
     internal SkUiRenderNode[] Children = [];
     internal SkUiRenderNode? Parent;
     internal int AnimatedMask;
+    /// <summary>Properties were applied at least once (the first commit sets every property).</summary>
+    internal bool PropsCommitted;
     internal int Epoch;
     internal bool Disposed;
 
@@ -63,6 +65,12 @@ internal sealed class SkUiRenderUpdate(SkUiRenderNode node)
     public SKPicture? Before;
     public SKPicture? After;
     public SkUiRenderNode[]? Children;
+
+    /// <summary>
+    /// A scroll correction (scroll anchoring: content before the viewport changed size): moves the node's running scroll
+    /// motion by this much, in the same frame as the layout change that caused it.
+    /// </summary>
+    public SKPoint ScrollShift;
 }
 
 /// <summary>Everything the UI thread produced for one frame; applied atomically by the render thread.</summary>
@@ -312,23 +320,31 @@ internal sealed class SkUiCompositor : IDisposable
             }
             var bodyChanged = update.HasContent || update.Children is not null
                 || (update.HasProps && BodyChanged(node.Props, update.Props));
+            // The scroll offset axes whose shown value stays the render thread's after this update (a correction moves them).
+            var retainedOffset = node.PropsCommitted ? ScrollOffsetMask : 0;
             if (update.HasProps)
             {
                 var incoming = update.Props;
-                if (node.AnimatedMask != 0)
-                {
-                    var overridden = update.ExplicitAnimatable & node.AnimatedMask;
-                    if (overridden != 0)
-                        CancelAnimations(node, overridden);
-                    // Properties still animating keep their render-thread value unless the UI set them.
-                    var keep = node.AnimatedMask & ~overridden;
+                var overridden = update.ExplicitAnimatable & node.AnimatedMask;
+                if (overridden != 0)
+                    CancelAnimations(node, overridden);
+                // Properties still animating keep their render-thread value unless the UI set them. So do, once committed,
+                // the scroll offset and scale, which only render-thread motions, corrections and explicit UI changes move: a
+                // value the UI merely acknowledged can be older than what shows (a motion that ended here before its last
+                // report reached the UI), and must not move the content back.
+                var owned = node.AnimatedMask | (node.PropsCommitted ? SkUiRenderOverscrollSettle.ScrollMask : 0);
+                var keep = owned & ~update.ExplicitAnimatable;
+                retainedOffset = keep & ScrollOffsetMask;
+                if (keep != 0)
                     for (var property = 0; property < SkUiRenderPropertyCount.Value; property++)
                         if ((keep & (1 << property)) != 0)
                             incoming.Set((SkUiRenderProperty)property, node.Props.Get((SkUiRenderProperty)property));
-                }
                 ReleaseReplacedEffects(node.Props, incoming);
                 node.Props = incoming;
+                node.PropsCommitted = true;
             }
+            if (update.ScrollShift != SKPoint.Empty)
+                ShiftScroll(node, update.ScrollShift, retainedOffset);
             if (update.HasContent)
             {
                 if (!ReferenceEquals(node.Before, update.Before)) node.Before?.Dispose();
@@ -437,6 +453,31 @@ internal sealed class SkUiCompositor : IDisposable
     /// <summary>Children offsets and scales change how the animated node draws its children; the other properties only its place.</summary>
     private const int BodyAnimatedMask = (1 << (int)SkUiRenderProperty.ChildrenOffsetX) | (1 << (int)SkUiRenderProperty.ChildrenOffsetY)
         | (1 << (int)SkUiRenderProperty.ChildrenScaleX) | (1 << (int)SkUiRenderProperty.ChildrenScaleY);
+
+    private const int ScrollOffsetMask = (1 << (int)SkUiRenderProperty.ChildrenOffsetX) | (1 << (int)SkUiRenderProperty.ChildrenOffsetY);
+
+    /// <summary>
+    /// Moves the scroll motion running on <paramref name="node"/> (fling, animated scroll, snap) by a scroll correction, and
+    /// the offset it shows, so the frame that brings the corrected layout also brings the corrected offset.
+    /// </summary>
+    /// <param name="node">The scrolling node.</param>
+    /// <param name="shift">The correction, in DIPs.</param>
+    /// <param name="retainedOffset">
+    /// The offset axes that show the render thread's value after the update (<see cref="ScrollOffsetMask"/> bits): all, unless
+    /// the UI set the offset explicitly in the same update (which already includes the correction). Those move by it.
+    /// </param>
+    private void ShiftScroll(SkUiRenderNode node, SKPoint shift, int retainedOffset)
+    {
+        foreach (var animation in _animations)
+            if (ReferenceEquals(animation.Target, node) && !animation.IsCancelled && (animation.PropertyMask & ScrollOffsetMask) != 0)
+                animation.ShiftScroll(shift.X, shift.Y);
+        // Also when the motion has ended here (finished or cancelled) before the correction arrived: the UI counts the
+        // correction as shown, so the offset shown must move by it, or the two would stay apart until the next scroll.
+        if ((retainedOffset & (1 << (int)SkUiRenderProperty.ChildrenOffsetX)) != 0)
+            node.Props.ChildrenOffsetX += shift.X;
+        if ((retainedOffset & (1 << (int)SkUiRenderProperty.ChildrenOffsetY)) != 0)
+            node.Props.ChildrenOffsetY += shift.Y;
+    }
 
     private void CancelAnimations(SkUiRenderNode node, int mask)
     {
