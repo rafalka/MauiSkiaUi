@@ -22,6 +22,11 @@ The project embeds every file under `Samples/`, and each page's **Source** butto
 
 A XAML example is a XAML page and its code-behind (`<Name>Sample.xaml` + `<Name>Sample.xaml.cs`): the page's root is `samples:SamplePage`, its content is the live example (`SamplePage.SampleContent` is the content property), and `Info` with whatever the example needs lives in the code-behind. The Source page shows the XAML first, with a toolbar button to switch to the code-behind. XAML is compiled by the source generator (`MauiXamlInflator=SourceGen`), in the app and in the test project.
 
+### Larger examples
+
+- **Several files:** an example may keep its parts in a folder of its own (`Samples/<Section>/<Topic>/`, namespace `MauiSkiaUiSamples.Samples.<Section>.<Topic>`) and list the other files in `Info`'s `MoreSources` (names in the same folder). The Source page then offers a **Files** toolbar button to pick one. Example: `Controls/Contacts/`.
+- **Full page:** `base(Info, fillsPage: true)` gives the example the rest of the page below its description (which scrolls, capped at a third of the page) instead of a stack of its natural height: for examples that are a screen of an app, with a list that fills it.
+
 ### The Source page
 
 - **Highlighting:** the file is highlighted with [ColorCode](https://github.com/CommunityToolkit/ColorCode-Universal) (C# or XAML → HTML) in a web view: it scrolls both ways and text can be selected. The page title is the file name.

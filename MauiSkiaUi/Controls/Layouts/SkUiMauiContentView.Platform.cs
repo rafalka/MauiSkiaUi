@@ -28,6 +28,8 @@ public partial class SkUiMauiContentView
         if (root is null) return;
         _attachedRoot = root;
         _nativeView = _content.ToPlatform(root.MauiContext!);
+        // Measured before it had a handler (zero): now the platform view gives its size (a SearchBar's native height).
+        InvalidateMeasureOverride();
         root.AttachOverlay(_nativeView, this);
         SyncOverlayBounds();
         if (IsNativeHidden)

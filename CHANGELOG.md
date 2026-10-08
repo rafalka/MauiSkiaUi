@@ -49,10 +49,16 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - The template is created when the content loads, so `ContentLoading="WhenShown"` defers it too; `ContentTemplate` runs only once the template has a presenter (a template without one logs a `SkiaUi:` trace line). Presenters ignore their own `ControlTemplate`; on `SkUiScrollView` the whole template scrolls.
   - `TemplateBinding` / `RelativeSource TemplatedParent` do not reach drawn controls: bind with `RelativeSource AncestorType` (a compiled binding). The migration guide and skills show the rewrite; `check_xaml.py` reports `TemplateBinding` and `TemplatedParent` on drawn views.
 
+### Fixes
+
+- **Symbols from fallback fonts no longer make lines taller:** a glyph from a fallback font (☆ comes from Hiragino Sans on macOS and iOS, whose leading is half its size) extends a line only by its own height, without that font's leading. A button with "☆ Star" is as tall as one with "Star", and its text stays centered.
+- **Hosted controls measure again once they have a native view:** `SkUiMauiContentView` measures its control again when the control gets its platform view. A hosted `SearchBar` now takes its own native height and needs no `HeightRequest`. On iOS and Mac Catalyst 26, a height below the native one shrinks only the bar's background, not its field.
+
 ### Other
 
 - **Scroll corrections reach render-thread motions:** a scroller's offset can be corrected while a fling, animated scroll or snap runs on the render thread (content before the viewport changed size): the correction travels with the frame that brings the new layout and the motion continues from it, instead of being stopped.
 - **Layout converges within a frame:** a surface root whose relayout invalidates layout again (a virtual list realizing items for its new viewport) is laid out again before the frame, up to three passes.
+- **Contacts sample:** the samples app's **Contacts** page is now a full contacts screen on `SkUiCollectionView`: a live grouped list over the contacts (filter, sort and grouping followed item by item; a contact may be in several groups), search, grouping by letter or by group (starred, family, business) or none, rows or tiles, photos (MIT-licensed portraits), a preview beside the list on wide screens or in a popup on phones, a selection mode on long press (checkboxes, three-state group headers, select all, star, groups, delete) and a form to add contacts with a photo from the gallery. Samples can now fill the page below their description and show several source files.
 
 ## 1.0.0-Prerelease09
 

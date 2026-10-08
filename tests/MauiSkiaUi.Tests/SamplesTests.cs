@@ -34,10 +34,12 @@ public class SamplesTests
             var className = info.SourceFileName.Split('.')[0];
             Assert.Contains($"class {className}", source);
             Assert.Contains("SampleInfo Info", source); // the description is declared in the example's own file
-            // A XAML page shows its markup first, then the code-behind.
-            Assert.Equal(info.SourceKey.EndsWith(".xaml.cs") ? 2 : 1, info.SourceFiles.Count);
-            if (info.SourceFiles.Count == 2)
-                Assert.Contains($"x:Class=\"MauiSkiaUiSamples.Samples.{info.Section}.{className}\"", SampleSource.Load(info.SourceFiles[0].Key));
+            // A XAML page shows its markup first, then the code-behind, then the example's other files (all embedded).
+            var xaml = info.SourceKey.EndsWith(".xaml.cs");
+            Assert.Equal((xaml ? 2 : 1) + info.MoreSources.Count, info.SourceFiles.Count);
+            if (xaml)
+                Assert.Matches($"x:Class=\"MauiSkiaUiSamples\\.Samples\\.{info.Section}(\\.\\w+)*\\.{className}\"", SampleSource.Load(info.SourceFiles[0].Key));
+            Assert.All(info.SourceFiles, file => Assert.DoesNotContain("is not embedded", SampleSource.Load(file.Key)));
             Assert.Equal(Path.GetFileName(info.SourceFiles[0].Key), new SourcePage(info).Title);
         }
         Assert.All(SampleCatalog.Sections, section => Assert.NotEmpty(section.Description()));

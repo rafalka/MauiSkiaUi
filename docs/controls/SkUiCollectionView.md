@@ -147,4 +147,4 @@ var carousel = new SkUiCollectionView { Orientation = ItemsLayoutOrientation.Hor
 
 ## Demo and tests
 
-Demo: **Components → Scrolling → SkUiCollectionView** (next to MAUI's `CollectionView` in a `RefreshView`) and **CollectionView (groups, grid, horizontal)**. Samples: **Order list (collection view)**. Tests: `CollectionViewTests`, `CollectionViewGroupsAndLayoutsTests`; leak scenarios `CollectionViewUsed`, `CollectionViewGrouped`.
+Demo: **Components → Scrolling → SkUiCollectionView** (next to MAUI's `CollectionView` in a `RefreshView`) and **CollectionView (groups, grid, horizontal)**. Samples: **Order list (collection view)**, **Contacts** (live grouped list, tiles, selection mode, adaptive preview). Tests: `CollectionViewTests`, `CollectionViewGroupsAndLayoutsTests`; leak scenarios `CollectionViewUsed`, `CollectionViewGrouped`.

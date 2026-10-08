@@ -42,11 +42,30 @@ public sealed record SampleInfo(
         }
     }
 
-    /// <summary>The files the Source page shows (embedded key, full path): a XAML page's markup, then its code-behind.</summary>
-    public IReadOnlyList<(string Key, string Path)> SourceFiles =>
-        SourceKey.EndsWith(".xaml.cs", StringComparison.Ordinal)
-            ? [(SourceKey[..^3], SourcePath[..^3]), (SourceKey, SourcePath)]
-            : [(SourceKey, SourcePath)];
+    /// <summary>
+    /// More files of a larger example, next to its source file (file names, e.g. <c>ContactViews.cs</c>), shown by the Source
+    /// page after the example's own files.
+    /// </summary>
+    public IReadOnlyList<string> MoreSources { get; init; } = [];
+
+    /// <summary>
+    /// The files the Source page shows (embedded key, full path): a XAML page's markup, then its code-behind, then
+    /// <see cref="MoreSources"/>.
+    /// </summary>
+    public IReadOnlyList<(string Key, string Path)> SourceFiles
+    {
+        get
+        {
+            List<(string Key, string Path)> files = SourceKey.EndsWith(".xaml.cs", StringComparison.Ordinal)
+                ? [(SourceKey[..^3], SourcePath[..^3]), (SourceKey, SourcePath)]
+                : [(SourceKey, SourcePath)];
+            var folderKey = SourceKey[..(SourceKey.LastIndexOf('/') + 1)];
+            var folderPath = SourcePath[..(SourcePath.Replace('\\', '/').LastIndexOf('/') + 1)];
+            foreach (var name in MoreSources)
+                files.Add((folderKey + name, folderPath + name));
+            return files;
+        }
+    }
 }
 
 /// <summary>An example page: <see cref="Info"/> is read by the catalog without creating the page.</summary>

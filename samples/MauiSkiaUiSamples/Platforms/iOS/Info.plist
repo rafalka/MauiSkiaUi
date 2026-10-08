@@ -4,6 +4,8 @@
 <dict>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>The Contacts sample picks a photo for a new contact.</string>
 	<key>UIDeviceFamily</key>
 	<array>
 		<integer>1</integer>
