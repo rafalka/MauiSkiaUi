@@ -323,6 +323,8 @@ public class ControlParityTests
 
     private sealed class ToggleModel : INotifyPropertyChanged
     {
+        private static readonly PropertyChangedEventArgs IsOnChanged = new(nameof(IsOn));
+
         private bool _isOn;
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -334,7 +336,7 @@ public class ControlParityTests
             {
                 if (_isOn == value) return;
                 _isOn = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsOn)));
+                PropertyChanged?.Invoke(this, IsOnChanged);
             }
         }
     }

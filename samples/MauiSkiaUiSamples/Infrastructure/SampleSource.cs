@@ -41,7 +41,8 @@ public static class SampleSource
 
 /// <summary>
 /// An example's source, syntax-highlighted in a web view (scrolls both ways, text can be selected and copied). Titled
-/// with the file name; a XAML page shows its markup, and a toolbar button switches to its code-behind and back. On Mac
+/// with the file name; a XAML page shows its markup, and a toolbar button switches to its code-behind and back (an
+/// example of more files lists them to pick one). On Mac
 /// Catalyst and Windows, when the file exists on this machine (the app runs where it was built), a toolbar button opens
 /// it in the IDE that built the app (<see cref="SourceEditor"/>).
 /// </summary>
@@ -58,10 +59,21 @@ public sealed class SourcePage : ContentPage
         _files = info.SourceFiles;
         BackgroundColor = SampleColors.Surface;
         SampleColors.ApplyNavigationBar(this);
-        if (_files.Count > 1)
+        // A XAML page and its code-behind: one button switches between them; more files (or a C# sample with others): a picker.
+        if (info.MoreSources.Count == 0 && _files.Count == 2)
         {
             _switch = new ToolbarItem { Command = new Command(() => Show((_shown + 1) % _files.Count)) };
             ToolbarItems.Add(_switch);
+        }
+        else if (_files.Count > 1)
+        {
+            ToolbarItems.Add(new ToolbarItem("Files", null, async () =>
+            {
+                var names = _files.Select(file => System.IO.Path.GetFileName(file.Key)).ToArray();
+                var chosen = await DisplayActionSheetAsync("Source files", "Cancel", null, names);
+                if (Array.IndexOf(names, chosen) is >= 0 and var index)
+                    Show(index);
+            }));
         }
         Content = _view;
         Show(0);

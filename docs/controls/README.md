@@ -71,4 +71,5 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | Control | Doc | MAUI counterpart |
 | --- | --- | --- |
 | `SkUiScrollView` | [SkUiScrollView.md](SkUiScrollView.md) | ScrollView |
+| `SkUiCollectionView` | [SkUiCollectionView.md](SkUiCollectionView.md) | CollectionView (+ RefreshView): lists and grids, vertical or horizontal, single and multiple selection, item taps, groups (collapsible, sticky headers), sticky header / footer, empty view, load more, pull-to-refresh; SkiaUi's own API |
 | `SkUiVirtualVerticalStackLayout` / `SkUiVirtualScrollView` / `SkUiVirtualVerticalStackLayoutBase` | [SkUiVirtualVerticalStackLayout.md](SkUiVirtualVerticalStackLayout.md) | — (virtualized lists: items created near the viewport, recycled; plain `CollectionView` lists; the abstract engine for list controls of your own) |

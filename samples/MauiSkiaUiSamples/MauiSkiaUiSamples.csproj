@@ -50,6 +50,8 @@
     <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/OpenSans-Semibold.ttf" />
     <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/RobotoMono-Regular.ttf" />
     <MauiFont Include="../../MauiSkiaUiDemo/Resources/Fonts/Lobster-Regular.ttf" />
+    <!-- Portraits for the Contacts sample (MIT, see Resources/Images/README.md). -->
+    <MauiImage Include="Resources/Images/contact_photo_*.png" />
 
     <!-- Every example's source file, shown in the app (Source button): the code people read is the code that runs. -->
     <EmbeddedResource Include="Samples/**/*.cs;Samples/**/*.xaml" LogicalName="SampleSource/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />

@@ -261,6 +261,8 @@ public class RadioButtonGroupTests
 
     private sealed class SelectionModel : INotifyPropertyChanged
     {
+        private static readonly PropertyChangedEventArgs SelectionChanged = new(nameof(Selection));
+
         private object? _selection;
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -272,7 +274,7 @@ public class RadioButtonGroupTests
             {
                 if (Equals(_selection, value)) return;
                 _selection = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Selection)));
+                PropertyChanged?.Invoke(this, SelectionChanged);
             }
         }
     }

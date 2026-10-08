@@ -57,7 +57,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | Scroll | Clipped to scroll viewports; snapshot while scrolling on Android / Windows (configurable) |
 | Drawn content over overlays | Not masked yet: drawn popups cannot cover a native overlay |
 | Platforms | Overlay hooks are no-ops on headless `net10.0` tests |
-| Measure without handler | Hosted Editor may measure `Size.Zero` until a platform handler exists |
+| Native size changes | Measured again when the control gets its platform view; later changes of its native size (an Editor that grows with its text) are not followed: give it a size request |
 
 ## Related
 

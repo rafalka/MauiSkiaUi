@@ -4,15 +4,21 @@ namespace MauiSkiaUiSamples;
 
 /// <summary>
 /// Base page of an example: the summary, collapsible "How to" and "Things to know" panels, a Source toolbar button
-/// (the example's own file, <see cref="SampleInfo.SourcePath"/>), and the live example below (<see cref="SampleContent"/>,
-/// the content of a XAML page deriving from it).
+/// (the example's own files, <see cref="SampleInfo.SourceFiles"/>), and the live example below (<see cref="SampleContent"/>,
+/// the content of a XAML page deriving from it). The page scrolls as a whole; an app-like example that needs the page's
+/// height (a list with a detail pane) fills what the description leaves instead (<c>fillsPage</c>).
 /// </summary>
 [ContentProperty(nameof(SampleContent))]
 public abstract class SamplePage : ContentPage
 {
     private readonly ContentView _content = new();
 
-    protected SamplePage(SampleInfo info)
+    /// <param name="info">The example's description.</param>
+    /// <param name="fillsPage">
+    /// The example fills the page below the description (which scrolls on its own, at most a third of the page tall) instead
+    /// of scrolling with it: for examples with their own scrolling and layout across the whole page.
+    /// </param>
+    protected SamplePage(SampleInfo info, bool fillsPage = false)
     {
         Title = info.Title;
         BackgroundColor = SampleColors.Page;
@@ -30,8 +36,20 @@ public abstract class SamplePage : ContentPage
                 Collapsible("Things to know", SampleText.List(info.ThingsToKnow, numbered: false))
             }
         };
-        _content.Padding = new Thickness(16, 8, 16, 24);
-        Content = new ScrollView { Content = new VerticalStackLayout { Children = { about, _content } } };
+        if (!fillsPage)
+        {
+            _content.Padding = new Thickness(16, 8, 16, 24);
+            Content = new ScrollView { Content = new VerticalStackLayout { Children = { about, _content } } };
+            return;
+        }
+        _content.Padding = new Thickness(0, 8, 0, 0);
+        var description = new ScrollView { Content = about };
+        var page = new Grid { RowDefinitions = [new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star)] };
+        page.Add(description);
+        page.Add(_content, 0, 1);
+        // The description takes at most a third of the page, so the example keeps the rest.
+        page.SizeChanged += (_, _) => description.MaximumHeightRequest = Math.Max(120, page.Height / 3);
+        Content = page;
     }
 
     /// <summary>The live example, below the description.</summary>

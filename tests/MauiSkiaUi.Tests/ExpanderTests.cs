@@ -547,8 +547,10 @@ public class ExpanderXamlTests
 {
     private sealed class Model : INotifyPropertyChanged
     {
+        private static readonly PropertyChangedEventArgs OpenChanged = new(nameof(Open));
+
         public string Name => "SkiaUi";
-        public bool Open { get; set { field = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Open))); } }
+        public bool Open { get; set { field = value; PropertyChanged?.Invoke(this, OpenChanged); } }
         public event PropertyChangedEventHandler? PropertyChanged;
     }
 

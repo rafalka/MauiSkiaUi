@@ -34,11 +34,17 @@ public class SamplesTests
             var className = info.SourceFileName.Split('.')[0];
             Assert.Contains($"class {className}", source);
             Assert.Contains("SampleInfo Info", source); // the description is declared in the example's own file
-            // A XAML page shows its markup first, then the code-behind.
-            Assert.Equal(info.SourceKey.EndsWith(".xaml.cs") ? 2 : 1, info.SourceFiles.Count);
-            if (info.SourceFiles.Count == 2)
-                Assert.Contains($"x:Class=\"MauiSkiaUiSamples.Samples.{info.Section}.{className}\"", SampleSource.Load(info.SourceFiles[0].Key));
-            Assert.Equal(Path.GetFileName(info.SourceFiles[0].Key), new SourcePage(info).Title);
+            // A XAML page shows its markup first, then the code-behind, then the example's other files (all embedded).
+            var xaml = info.SourceKey.EndsWith(".xaml.cs");
+            Assert.Equal((xaml ? 2 : 1) + info.MoreSources.Count, info.SourceFiles.Count);
+            if (xaml)
+                Assert.Matches($"x:Class=\"MauiSkiaUiSamples\\.Samples\\.{info.Section}(\\.\\w+)*\\.{className}\"", SampleSource.Load(info.SourceFiles[0].Key));
+            Assert.All(info.SourceFiles, file => Assert.DoesNotContain("is not embedded", SampleSource.Load(file.Key)));
+            var sourcePage = new SourcePage(info);
+            Assert.Equal(Path.GetFileName(info.SourceFiles[0].Key), sourcePage.Title);
+            // Other files: a picker; a XAML page and its code-behind alone: a switch.
+            Assert.Equal(info.MoreSources.Count > 0, sourcePage.ToolbarItems.Any(item => item.Text == "Files"));
+            Assert.Equal(xaml && info.MoreSources.Count == 0, sourcePage.ToolbarItems.Any(item => item.Text == "C#"));
         }
         Assert.All(SampleCatalog.Sections, section => Assert.NotEmpty(section.Description()));
         // Embedded by path under Samples/ (Section/File.cs): two sections may reuse a file name.
@@ -131,6 +137,39 @@ public class SamplesTests
         details.LoadContent();
         Assert.NotNull(details.TemplateRoot);
         Assert.NotNull(details.Content);
+    }
+
+    [Fact]
+    public void OrderListSampleSelectsTapsAndKeepsTheButtonsTaps()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var page = new OrderListSample();
+        var model = (OrderListModel)page.BindingContext;
+        var list = ((SkUiGrid)page.SampleContent!).Children.OfType<SkUiCollectionView>().Single();
+        SkUiTestHelpers.Arrange(list, 360, 420);
+        Assert.True(list.IsStickyHeader);
+        Assert.InRange(list.LastVisibleIndex, 3, 12);
+
+        var row = (SkUiView)list.GetRealizedView(1)!;
+        var rowTop = ((View)row.Parent).Frame.Y + ((View)list.ItemsLayout).Frame.Y + ((View)list.ItemsLayout.Parent).Frame.Y - list.ScrollY; // container, items, body
+        void TapAt(double x, long id)
+        {
+            list.Touch(new(id, SkUiTouchAction.Pressed, new Point(x, rowTop + row.Height / 2), TimeSpan.FromSeconds(id)));
+            list.Touch(new(id, SkUiTouchAction.Released, new Point(x, rowTop + row.Height / 2), TimeSpan.FromSeconds(id + 0.05)));
+        }
+
+        TapAt(40, 1);
+        Assert.Same(model.Orders[1], model.Selected);
+        Assert.Equal($"Opened {model.Orders[1].Title}", model.Status);
+        Assert.Equal("Selected", VisualStateManager.GetVisualStateGroups(row)[0].CurrentState?.Name);
+
+        var button = Descendants(row).OfType<SkUiButton>().Single();
+        TapAt(button.Frame.X + row.Frame.X + button.Width / 2, 2);
+        Assert.Equal($"Paying order {model.Orders[1].Title[6..]}", model.Status);
+        Assert.Same(model.Orders[1], model.Selected); // SingleDeselect would have cleared it on a row tap
+
+        TapAt(40, 3);
+        Assert.Null(model.Selected);
     }
 
     private static IEnumerable<SkUiView> Descendants(SkUiView view)

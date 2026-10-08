@@ -75,12 +75,14 @@ public sealed class AlternateContentViewDemoPage : ComponentDemoPage
 
     private sealed class PersonModel : INotifyPropertyChanged
     {
+        private static readonly PropertyChangedEventArgs NameChanged = new(nameof(Name));
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public string Name
         {
             get => field;
-            set { field = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name))); }
+            set { field = value; PropertyChanged?.Invoke(this, NameChanged); }
         } = "Ada Lovelace";
     }
 }

@@ -299,7 +299,8 @@ public sealed class VirtualListFling : BenchScenario
         var list = (SkUiScrollView)Activator.CreateInstance(type)!;
         list.Background = Colors.White;
         TrySet(list, "ItemsSource", Enumerable.Range(0, 10_000).ToList());
-        TrySet(list, "Spacing", 4d);
+        TrySet(list, "ItemSpacing", 4d);
+        TrySet(list, "Spacing", 4d); // the name before ItemSpacing, for baselines built from older commits
         TrySet(list, "ItemTemplate", new DataTemplate(() => new Row()));
         return list;
     }
@@ -487,11 +488,13 @@ public sealed class NestedExpanders(bool scroll = false, string? variant = null)
             body = new SkUiVerticalStackLayout { Children = { header, content } };
         if (variant == "plain")
             return new SkUiContentView { Background = Colors.White, Content = body };
-        return new SkUiBorder
+        var border = new SkUiBorder
         {
-            Stroke = Colors.SteelBlue, StrokeThickness = 1, CornerRadius = variant == "square" ? 0 : 10, Background = Colors.White, Content = body,
-            Shadow = level == 1 && variant != "noshadow" ? new Shadow { Brush = Colors.Black, Opacity = 0.15f, Radius = 6, Offset = new Point(0, 2) } : null
+            Stroke = Colors.SteelBlue, StrokeThickness = 1, CornerRadius = variant == "square" ? 0 : 10, Background = Colors.White, Content = body
         };
+        if (level == 1 && variant != "noshadow")
+            border.Shadow = new Shadow { Brush = Colors.Black, Opacity = 0.15f, Radius = 6, Offset = new Point(0, 2) };
+        return border;
     }
 
     public override Func<View, IDisposable?>? Motion => root =>

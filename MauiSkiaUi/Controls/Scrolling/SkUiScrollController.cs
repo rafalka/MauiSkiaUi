@@ -11,6 +11,15 @@ internal interface ISkUiScrollHost : ISkUiInputNode
 }
 
 /// <summary>
+/// A node drawn over a scroller that is not inside it (a collection view's sticky header): wheel and trackpad input over it
+/// scrolls that scroller. Only the wheel uses it (focus, semantics and scrolling to targets do not treat it as a scroller).
+/// </summary>
+internal interface ISkUiWheelProxy : ISkUiInputNode
+{
+    SkUiScrollController WheelScroller { get; }
+}
+
+/// <summary>
 /// Scroll state and motion shared by the SkUi* and Core scroll views: clamped offsets applied as a composite-time
 /// children translation, render-thread tweens / flings with offsets reported back, wheel input, nested-scroll
 /// chaining, overscroll past the edges (through the generic children transform: <see cref="SkUiOverscroll"/>), scroll
@@ -83,10 +92,32 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     public void Layout(Size size, bool rightToLeft)
     {
         Bounds = size;
+        _rightToLeft = rightToLeft;
         var (left, right, bottom) = Gutters(rightToLeft);
         ScrollportLeft = Math.Min(left, size.Width);
         Viewport = new Size(Math.Max(0, size.Width - left - right), Math.Max(0, size.Height - bottom));
     }
+
+    private bool _rightToLeft;
+
+    /// <summary>
+    /// Parts of the viewport covered by views drawn over the scroller (a collection view's sticky header and footer), in
+    /// DIPs at the start and the end of the scroll axis: top and bottom when the scroller scrolls vertically, else left and
+    /// right (the start on the right in right-to-left layouts). The owner adds them to the extent and arranges the content
+    /// after the start one, so the content's start and end can be scrolled out from under them; scrolling to a target uses
+    /// the uncovered band, and the scroll bar of that axis runs along it.
+    /// </summary>
+    public (double Start, double End) Insets { get; set; }
+
+    /// <summary>Whether <see cref="Insets"/> apply to the vertical axis (else to the horizontal one).</summary>
+    public bool InsetsVertical => Vertical;
+
+    /// <summary><see cref="Insets"/> as physical left / right (0 when they apply to the vertical axis).</summary>
+    private (double Left, double Right) HorizontalInsets =>
+        InsetsVertical ? (0, 0) : _rightToLeft ? (Insets.End, Insets.Start) : (Insets.Start, Insets.End);
+
+    /// <summary><see cref="Insets"/> as top / bottom (0 when they apply to the horizontal axis).</summary>
+    private (double Top, double Bottom) VerticalInsets => InsetsVertical ? Insets : (0, 0);
 
     /// <summary>The scroller's arranged size (scrollport and gutters).</summary>
     public Size Bounds { get; private set; }
@@ -138,6 +169,19 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     /// <summary>The content is shown past an edge (dragged, bouncing or springing back).</summary>
     public bool IsOverscrolled => OverscrollX != 0 || OverscrollY != 0;
+
+    /// <summary>
+    /// Raised when a drag ends past the start of the vertical axis (pull-to-refresh), before the content springs back; the
+    /// argument is the distance shown past the edge in DIPs. Not raised for flings that overshoot.
+    /// </summary>
+    public event Action<double>? PullReleased;
+
+    /// <summary>Reports the end of a drag that left the content past its vertical start (<see cref="PullReleased"/>).</summary>
+    public void NotifyPullReleased()
+    {
+        if (OverscrollY < 0)
+            PullReleased?.Invoke(-OverscrollY);
+    }
 
     /// <summary>Raised when <see cref="OverscrollX"/> / <see cref="OverscrollY"/> change (e.g. to move native overlays with the content).</summary>
     public event Action? OverscrollChanged;
@@ -252,10 +296,18 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         (Horizontal && ((dx > 0 && X < MaxX) || (dx < 0 && X > 0)))
         || (Vertical && ((dy > 0 && Y < MaxY) || (dy < 0 && Y > 0)));
 
-    /// <summary>Whether a drag in this direction may pull the content past an edge (the axis scrolls and overscroll is on).</summary>
+    /// <summary>
+    /// The start of the vertical axis can be pulled past also when the content does not overflow or overscroll is off
+    /// (pull-to-refresh): the pull is tracked in <see cref="OverscrollY"/> and reported (<see cref="PullReleased"/>); the
+    /// content moves only as <see cref="EffectiveOverscroll"/> draws it.
+    /// </summary>
+    public bool PullsAtVerticalStart { get; set; }
+
+    /// <summary>Whether a drag in this direction may pull the content past an edge (the axis scrolls and overscroll is on, or a pull-to-refresh start).</summary>
     public bool CanOverscroll(double dx, double dy) =>
-        EffectiveOverscroll != SkUiOverscrollMode.None
-        && ((dx != 0 && Horizontal && MaxX > 0) || (dy != 0 && Vertical && MaxY > 0));
+        (EffectiveOverscroll != SkUiOverscrollMode.None
+            && ((dx != 0 && Horizontal && MaxX > 0) || (dy != 0 && Vertical && MaxY > 0)))
+        || (PullsAtVerticalStart && dy < 0 && Vertical && Y <= 0);
 
     /// <summary>
     /// A wheel or trackpad delta (positive towards the start of each axis). Each axis this scroller can move that way
@@ -387,14 +439,17 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// </summary>
     public Point GetOffsetFor(Rect target, ScrollToPosition position)
     {
-        var width = Viewport.Width;
-        var height = Viewport.Height;
-        var x = target.X;
-        var y = target.Y;
+        // The band the insets leave uncovered: offsets are computed in it and moved back by the start inset.
+        var (top, bottom) = VerticalInsets;
+        var (left, right) = HorizontalInsets;
+        var width = Math.Max(0, Viewport.Width - left - right);
+        var height = Math.Max(0, Viewport.Height - top - bottom);
+        var x = target.X - left;
+        var y = target.Y - top;
         if (position == ScrollToPosition.MakeVisible)
         {
             var visible = new Rect(X, Y, width, height);
-            if (visible.Contains(target))
+            if (visible.Contains(new Rect(x, y, target.Width, target.Height)))
                 return new Point(X, Y);
             position = Orientation switch
             {
@@ -865,8 +920,10 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             {
                 var strip = reservedVertical ? gutterLeft + gutterRight : Math.Min(port.Width, hit);
                 var x = reservedVertical ? (rightToLeft ? 0 : port.Right) : rightToLeft ? port.Left : port.Right - strip;
-                var track = Math.Max(0, port.Height - 2 * margin - (showHorizontal && !reservedHorizontal ? corner : 0));
-                bar.ArrangeOwned(new Rect(x, margin, strip, track), thumbAtStart: rightToLeft);
+                // Along the band the insets leave uncovered.
+                var (insetTop, insetBottom) = VerticalInsets;
+                var track = Math.Max(0, port.Height - insetTop - insetBottom - 2 * margin - (showHorizontal && !reservedHorizontal ? corner : 0));
+                bar.ArrangeOwned(new Rect(x, insetTop + margin, strip, track), thumbAtStart: rightToLeft);
             }
         }
         if (showHorizontal || _horizontalBar is not null)
@@ -877,10 +934,11 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             if (showHorizontal)
             {
                 var strip = reservedHorizontal ? gutterBottom : Math.Min(port.Height, hit);
-                var y = reservedHorizontal ? port.Bottom : port.Bottom - strip;
+                var y = reservedHorizontal ? port.Bottom : port.Bottom - VerticalInsets.Bottom - strip;
                 var corneredVertical = showVertical && !reservedVertical;
-                var left = port.Left + margin + (corneredVertical && rightToLeft ? corner : 0);
-                var track = Math.Max(0, port.Width - 2 * margin - (corneredVertical ? corner : 0));
+                var (insetLeft, insetRight) = HorizontalInsets;
+                var left = port.Left + insetLeft + margin + (corneredVertical && rightToLeft ? corner : 0);
+                var track = Math.Max(0, port.Width - insetLeft - insetRight - 2 * margin - (corneredVertical ? corner : 0));
                 bar.ArrangeOwned(new Rect(left, y, track, strip), thumbAtStart: false);
             }
         }
@@ -1126,6 +1184,7 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
         // Start the spring-back or fling (if any) before clearing the drag, so a continuous motion stays "moving".
         try
         {
+            scroller.NotifyPullReleased();
             if (!scroller.SettleOverscroll())
                 Fling();
         }

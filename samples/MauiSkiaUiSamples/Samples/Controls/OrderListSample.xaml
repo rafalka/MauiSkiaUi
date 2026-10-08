@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  SkUiCollectionView in XAML: a sticky header, rows styled by the Selected visual state, a button inside each row that
+  keeps its own taps, an empty view, loading more near the end and pull-to-refresh. The code-behind
+  (OrderListSample.xaml.cs) has the page's description and the view model.
+-->
+<samples:SamplePage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                    xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+                    xmlns:samples="clr-namespace:MauiSkiaUiSamples"
+                    xmlns:local="clr-namespace:MauiSkiaUiSamples.Samples.Controls"
+                    x:Class="MauiSkiaUiSamples.Samples.Controls.OrderListSample"
+                    x:DataType="local:OrderListModel">
+
+    <!-- The page scrolls natively: the list gets a fixed height (a list measured without one creates every item). -->
+    <sk:SkUiGrid RowDefinitions="Auto,420" RowSpacing="8">
+        <sk:SkUiLabel Text="{Binding Status}" FontSize="13" TextColor="{x:Static samples:SampleColors.Caption}" />
+
+        <!--
+          SelectionBackground="Transparent": the rows draw their own selection (the Selected state below) instead of the
+          default accent tint.
+        -->
+        <sk:SkUiCollectionView Grid.Row="1" BackgroundColor="{x:Static samples:SampleColors.Surface}"
+                               ItemsSource="{Binding Orders}" ItemSpacing="1"
+                               SelectionMode="SingleDeselect" SelectedItem="{Binding Selected}"
+                               SelectionBackground="Transparent"
+                               ItemTappedCommand="{Binding OpenCommand}"
+                               IsStickyHeader="True"
+                               RemainingItemsThreshold="5" RemainingItemsThresholdReachedCommand="{Binding LoadMoreCommand}"
+                               IsPullToRefreshEnabled="True" IsRefreshing="{Binding IsRefreshing}"
+                               RefreshCommand="{Binding RefreshCommand}">
+            <sk:SkUiCollectionView.Header>
+                <sk:SkUiLabel Text="Orders" Padding="14,10" FontSize="17" FontAttributes="Bold"
+                              TextColor="{x:Static samples:SampleColors.Ink}" BackgroundColor="{x:Static samples:SampleColors.Page}" />
+            </sk:SkUiCollectionView.Header>
+            <sk:SkUiCollectionView.EmptyView>
+                <sk:SkUiLabel Text="No orders yet. Pull down to load them." HorizontalTextAlignment="Center" VerticalTextAlignment="Center"
+                              TextColor="{x:Static samples:SampleColors.Caption}" />
+            </sk:SkUiCollectionView.EmptyView>
+
+            <!-- The element's content is the item template. -->
+            <DataTemplate x:DataType="local:OrderItem">
+                <sk:SkUiGrid ColumnDefinitions="*,Auto" Padding="14,10" BackgroundColor="{x:Static samples:SampleColors.Surface}">
+                    <VisualStateManager.VisualStateGroups>
+                        <VisualStateGroup Name="CommonStates">
+                            <VisualState Name="Normal" />
+                            <VisualState Name="Selected">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="#E3F1F1" />
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateManager.VisualStateGroups>
+                    <sk:SkUiVerticalStackLayout Spacing="2" VerticalOptions="Center">
+                        <sk:SkUiLabel Text="{Binding Title}" FontSize="15" TextColor="{x:Static samples:SampleColors.Ink}" />
+                        <sk:SkUiLabel Text="{Binding Detail}" FontSize="12" TextColor="{x:Static samples:SampleColors.Caption}" />
+                    </sk:SkUiVerticalStackLayout>
+                    <!-- A tap on the button runs its command; the row is not tapped or selected. -->
+                    <sk:SkUiButton Grid.Column="1" Text="Pay" FontSize="13" Padding="14,6" VerticalOptions="Center"
+                                   Command="{Binding PayCommand}" />
+                </sk:SkUiGrid>
+            </DataTemplate>
+        </sk:SkUiCollectionView>
+    </sk:SkUiGrid>
+</samples:SamplePage>

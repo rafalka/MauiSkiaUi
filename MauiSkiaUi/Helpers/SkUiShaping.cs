@@ -202,6 +202,13 @@ internal static partial class SkUiShaping
         }
     }
 
+    /// <summary>
+    /// Line spacing of a fallback font: the extent of its glyphs, without its leading. Some fallback fonts carry a large
+    /// leading (Hiragino Sans, macOS's fallback for ☆ and CJK: half the font size), which would make a line with one such
+    /// symbol taller than its neighbours and put its text above the middle of a button.
+    /// </summary>
+    internal static float FallbackSpacing(SKFont font) => font.Metrics.Descent - font.Metrics.Ascent;
+
     /// <summary>Typeface for a code point: primary when it has a glyph, else a cached system fallback.</summary>
     private static SKTypeface FaceFor(int cp, SKTypeface primary, SKTypeface? current)
     {
@@ -387,9 +394,11 @@ internal static partial class SkUiShaping
             var font = fonts(piece.Typeface);
             if (!ReferenceEquals(piece.Typeface, primary.Typeface))
             {
-                var fallback = font.Metrics;
-                line.Ascent = Math.Max(line.Ascent, -fallback.Ascent);
-                line.Height = Math.Max(line.Height, font.Spacing);
+                // A fallback font's glyphs extend the line above and below the baseline, without its leading.
+                var ascent = -font.Metrics.Ascent;
+                var below = Math.Max(line.Height - line.Ascent, FallbackSpacing(font) - ascent);
+                line.Ascent = Math.Max(line.Ascent, ascent);
+                line.Height = line.Ascent + below;
             }
             if (piece.Glyphs.Length > 0)
             {

@@ -156,9 +156,27 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     {
         var enabled = IsVisualStateEnabled;
         VisualStateManager.GoToState(this, !enabled ? VisualStateManager.CommonStates.Disabled
+            : _isSelectedItem ? VisualStateManager.CommonStates.Selected
             : IsPointerOver ? VisualStateManager.CommonStates.PointerOver : VisualStateManager.CommonStates.Normal);
         if (enabled)
             VisualStateManager.GoToState(this, IsFocused ? VisualStateManager.CommonStates.Focused : UnfocusedState);
+    }
+
+    private bool _isSelectedItem;
+
+    /// <summary>
+    /// This view is the root of a selected collection item (<see cref="SkUiCollectionView"/>): <c>CommonStates</c> is
+    /// <c>Selected</c> while enabled (before <c>PointerOver</c>), as MAUI's CollectionView items.
+    /// </summary>
+    internal bool IsSelectedItem
+    {
+        get => _isSelectedItem;
+        set
+        {
+            if (_isSelectedItem == value) return;
+            _isSelectedItem = value;
+            ChangeVisualState();
+        }
     }
 
     /// <summary>MAUI's (internal) name of the focus group's unfocused state.</summary>

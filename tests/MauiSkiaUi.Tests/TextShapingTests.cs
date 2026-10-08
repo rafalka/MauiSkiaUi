@@ -31,6 +31,25 @@ public class TextShapingTests
     }
 
     [Fact]
+    public void FallbackGlyphsExtendTheLineButNotByTheirFontsLeading()
+    {
+        // ☆ comes from a fallback font (Hiragino Sans on macOS, whose leading is half its size): the line grows only by
+        // the extent of its glyphs, so a button with "☆ Star" is as tall as its neighbours and its text stays centered.
+        const string text = "☆ Star";
+        if (!HasFontFor('☆')) return;
+        var primary = Primary();
+        var fonts = new Dictionary<SKTypeface, SKFont>();
+        SKFont FontOf(SKTypeface face) => fonts.TryGetValue(face, out var f) ? f : fonts[face] = new SKFont(face, 16) { LinearMetrics = true };
+        var paragraph = SkUiShaping.Shape(text, primary, 16, SkUiTextDirection.Auto, FontOf);
+        if (paragraph.Runs.FirstOrDefault(run => !ReferenceEquals(run.Typeface, primary)) is not { } symbol) return;
+        var primaryFont = FontOf(primary);
+        var line = SkUiShaping.BuildLine(paragraph, 0, text.Length, primaryFont, FontOf);
+        var fallback = FontOf(symbol.Typeface).Metrics;
+        Assert.Equal(Math.Max(-primaryFont.Metrics.Ascent, -fallback.Ascent), line.Ascent, 3);
+        Assert.Equal(Math.Max(primaryFont.Spacing + primaryFont.Metrics.Ascent, fallback.Descent), line.Height - line.Ascent, 3);
+    }
+
+    [Fact]
     public void BidiResolvesLevelsForMixedText()
     {
         const string text = "abc אבג def";

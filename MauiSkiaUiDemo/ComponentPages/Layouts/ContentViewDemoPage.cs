@@ -116,12 +116,14 @@ public sealed class ContentViewDemoPage : ComponentDemoPage
 
     private sealed class PageModel : INotifyPropertyChanged
     {
+        private static readonly PropertyChangedEventArgs TitleChanged = new(nameof(Title));
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public string Title
         {
             get => field;
-            set { field = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Title))); }
+            set { field = value; PropertyChanged?.Invoke(this, TitleChanged); }
         } = "Quarterly report";
     }
 

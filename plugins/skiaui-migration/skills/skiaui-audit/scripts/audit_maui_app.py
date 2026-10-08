@@ -30,12 +30,14 @@ DRAWN = {
     "ContentView", "Grid", "VerticalStackLayout", "HorizontalStackLayout", "StackLayout", "AbsoluteLayout", "FlexLayout",
     "ScrollView", "Border", "Frame", "Label", "Button", "Image", "ImageButton", "BoxView", "Ellipse", "Line", "Rectangle",
     "RoundRectangle", "Path", "Polygon", "Polyline", "CheckBox", "Switch", "RadioButton", "Slider", "ProgressBar",
-    "ActivityIndicator", "GraphicsView",
+    "ActivityIndicator", "GraphicsView", "CollectionView",
 }
 # Community Toolkit controls with a drawn equivalent, counted as "Toolkit <name>".
 TOOLKIT_DRAWN = {"Expander"}
 NATIVE_ISLAND = {"Entry", "Editor", "SearchBar", "Picker", "DatePicker", "TimePicker", "WebView", "HybridWebView", "BlazorWebView", "Map"}
-NOT_YET = {"CollectionView", "ListView", "TableView", "CarouselView", "IndicatorView", "SwipeView", "RefreshView", "Stepper"}
+# CollectionViews SkUiCollectionView cannot take, counted apart from the ones that port.
+BLOCKED_COLLECTION_VIEW = "CollectionView (reorderable or with snap points)"
+NOT_YET = {BLOCKED_COLLECTION_VIEW, "ListView", "TableView", "CarouselView", "IndicatorView", "SwipeView", "RefreshView", "Stepper"}
 PAGES = {"ContentPage", "TabbedPage", "FlyoutPage", "NavigationPage", "Shell"}
 GESTURES = {"TapGestureRecognizer", "SwipeGestureRecognizer", "PanGestureRecognizer", "PinchGestureRecognizer",
             "PointerGestureRecognizer", "DragGestureRecognizer", "DropGestureRecognizer"}
@@ -54,6 +56,25 @@ CS_PATTERNS = {
         re.compile(r"\b(Fade|Translate|Scale|Rotate|RelScale|RelRotate)To(Async)?\s*\(|\bnew\s+Animation\s*\("),
 }
 
+
+
+def collection_view_blocked(node):
+    """Whether a CollectionView uses what SkUiCollectionView does not have: reordering, snap points.
+
+    Conservative: a bound or resource value may be true, so anything but a literal "false" (or no value) blocks."""
+    if node.attrs.get((None, "CanReorderItems"), "false").strip().lower() != "false":
+        return True
+    if any(child.name.endswith(".CanReorderItems") for child in node.children):
+        return True
+    pending = [child for child in node.children if child.name.endswith(".ItemsLayout")]
+    while pending:
+        child = pending.pop()
+        if child.attrs.get((None, "SnapPointsType"), "None").strip() != "None":
+            return True
+        if child.name.endswith(".SnapPointsType"):  # a property element: its value is not kept, so assume snap points
+            return True
+        pending.extend(child.children)
+    return False
 
 class Node:
     __slots__ = ("uri", "name", "attrs", "children", "parent")
@@ -280,6 +301,10 @@ def main():
                     control_templates += 1
                 elif name == "DataTemplate":
                     data_templates += 1
+                elif name == "CollectionView" and collection_view_blocked(node):
+                    totals[BLOCKED_COLLECTION_VIEW] += 1
+                    info.views += 1
+                    info.not_yet[BLOCKED_COLLECTION_VIEW] += 1
                 elif name in DRAWN or name in NATIVE_ISLAND or name in NOT_YET:
                     totals[name] += 1
                     info.views += 1

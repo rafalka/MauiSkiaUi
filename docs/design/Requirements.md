@@ -297,7 +297,7 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
   - [x] Toggle states: `IsChecked` (CheckBox), `On` / `Off` (Switch), `Checked` / `Unchecked` (RadioButton).
   - [x] `PointerOver` from hover tracking in the pointer router (mouse, trackpad, pen, iPad pointer); MAUI's `IsPointerOver` is internal, so SkiaUi keeps its own flag (`SkUiView.IsPointerOver`).
   - [x] `Focused` / `Unfocused` from keyboard focus of drawn controls (P10, FR-28).
-  - [ ] `Selected` on collection items (FR-22).
+  - [x] `Selected` on collection items (FR-22, B2): the root of the selected item's view (`Disabled` wins; before `PointerOver`).
 - [x] State triggers (`StateTrigger`, `AdaptiveTrigger`, `CompareStateTrigger`) verified on drawn controls.
 - Core nodes are not `VisualElement`s: their state visuals come from the look and its transitions (FR-18, FR-26), not from VSM.
 - [x] Prefer FR-12 for **per-control** overrides (this button’s fill, that label’s font). Shared **default** palette across Core + MAUI controls is **FR-19** (color scheme); do not require apps to duplicate Accent/Background tokens only via MAUI resources for Core trees.
@@ -474,18 +474,18 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--s
 
 **Not MAUI parity:** unlike most SkUi* controls, FR-22 does **not** require mirroring MAUI's `CollectionView` API. The control is **SkUi-first**; porting from MAUI uses [Migration.md](../Migration.md) and the [skiaui-migration skills](../plugins/skiaui-migration/README.md), kept in sync when the control ships or changes.
 
-- [ ] **Data / templates:** `ItemsSource`, item template / selector, `EmptyView`, incremental source updates.
-- [ ] **Layouts:** vertical / horizontal linear lists (spacing); grid with span.
-- [ ] **Item sizing (default variable):** assume **each item may have a different size**; per-index measure + cache (FR-21); optional `EstimatedItemSize` for unrealized rows only; optional `QueryItemSize`; **`RemeasureItem`** when item content changes; scroll anchoring on size changes.
-- [ ] **Header / footer** (+ templates); **sticky** header / footer; pinned parts not re-recorded while scrolling.
-- [ ] **Grouping:** group header / footer templates; **sticky group headers**.
-- [ ] **Expandable groups:** per-group **`IsExpanded`**; collapsed groups omit items from layout / virtualization; toggle from group header; scroll anchoring when expand / collapse changes height; accessibility expanded / collapsed; `ScrollTo` and indices respect collapsed groups.
-- [ ] **Selection:** `SelectionMode` — `None`, `Single`, **`SingleDeselect`**, **`Multiple`**; selected item(s); **`SelectionChanging`** (cancelable) and **`SelectionChanged`** (+ optional command); **`SelectAll` / `ClearSelection`**; `Selected` visual state; optional `SelectionBackground` / selected template (minimal re-record). Extended (Shift/Ctrl range on desktop) later with FR-10.
-- [ ] **Item tap:** `ItemTapped` (+ command); inner controls keep their taps.
-- [ ] **Scroll:** `ScrollTo` item (and group when grouped); visible range / scrolled; scroll bars (FR-17).
-- [ ] **Load more:** **`LoadMoreMode`** (`None`, **`Manual`**, **`Auto`**, **`AutoOnUserScroll`**); **`LoadMorePosition`** (`End` / **`Start`**); **`LoadMoreCommand`** (+ parameter); **`LoadMoreTemplate`**; **`IsLoadMoreActive`** while loading; optional **`RemainingItemsThreshold`** (+ event / command) alongside load-more UX.
-- [ ] **Pull to refresh** (`IsRefreshing`, `RefreshCommand`).
-- [ ] **Migration artifacts (with MVP):** `collection-view.md` in `skiaui-migrate/references`, [Migration.md](../Migration.md) CollectionView section, and plugin gap / audit updates.
+- [x] **Data / templates:** `ItemsSource`, item template / selector, `EmptyView` (+ template), incremental source updates (B2).
+- [x] **Layouts:** vertical / horizontal linear lists (spacing); grid with span (B2: vertical; B3: `Orientation`, `Span`, `SpanSpacing`; snap points not done).
+- [x] **Item sizing (default variable)** (B2, from FR-21; `QueryItemSize` still open): assume **each item may have a different size**; per-index measure + cache (FR-21); optional `EstimatedItemSize` for unrealized rows only; optional `QueryItemSize`; **`RemeasureItem`** when item content changes; scroll anchoring on size changes.
+- [x] **Header / footer** (+ templates); **sticky** header / footer; pinned parts not re-recorded while scrolling (B2: sticky parts are drawn over the list, which scrolls behind them with insets of their heights).
+- [x] **Grouping:** group header / footer templates; **sticky group headers** (B3: `IsGrouped`, `GroupHeaderTemplate`, `GroupFooterTemplate`, `IsStickyGroupHeader`).
+- [x] **Expandable groups** (B3: `AllowGroupExpandCollapse`, `ISkUiExpandableGroup`, `AutoExpandGroups`, `ExpandGroup` / `CollapseGroup` / `ExpandAll` / `CollapseAll`, the four events): per-group **`IsExpanded`**; collapsed groups omit items from layout / virtualization; toggle from group header; scroll anchoring when expand / collapse changes height; accessibility expanded / collapsed; `ScrollTo` and indices respect collapsed groups.
+- [x] **Selection:** (B2: `None`, `Single`, `SingleDeselect`, two-way `SelectedItem`, cancelable `SelectionChanging`, `SelectionChanged` + command, `Selected` state, `SelectionBackground`; B3: `Multiple`, `SelectedItems`, `SelectAll` / `ClearSelection`, selection lists in the events; open: a selected template, extended selection) `SelectionMode` — `None`, `Single`, **`SingleDeselect`**, **`Multiple`**; selected item(s); **`SelectionChanging`** (cancelable) and **`SelectionChanged`** (+ optional command); **`SelectAll` / `ClearSelection`**; `Selected` visual state; optional `SelectionBackground` / selected template (minimal re-record). Extended (Shift/Ctrl range on desktop) later with FR-10.
+- [x] **Item tap:** `ItemTapped` (+ command); inner controls keep their taps (B2).
+- [x] **Scroll:** `ScrollTo` item (and group when grouped); visible range / scrolled; scroll bars (FR-17). (B2: `ScrollToIndex`, `ScrollToItem`, `ScrollToAsync`, `VisibleRangeChanged`, `Scrolled`; B3: `ScrollToGroup`, items of collapsed groups expand, horizontal scroll bars.)
+- [x] **Load more:** (B2: `RemainingItemsThreshold`; B3: the modes, position, row, `IsLoadMoreActive`, `LoadingMore`) **`LoadMoreMode`** (`None`, **`Manual`**, **`Auto`**, **`AutoOnUserScroll`**); **`LoadMorePosition`** (`End` / **`Start`**); **`LoadMoreCommand`** (+ parameter); **`LoadMoreTemplate`**; **`IsLoadMoreActive`** while loading; optional **`RemainingItemsThreshold`** (+ event / command) alongside load-more UX.
+- [x] **Pull to refresh** (`IsPullToRefreshEnabled`, `IsRefreshing`, `RefreshCommand`, drawn indicator; B2).
+- [x] **Migration artifacts (with MVP):** `collection-view.md` in `skiaui-migrate/references`, [Migration.md](../Migration.md) CollectionView section, and plugin gap / audit updates.
 - [ ] **Later (out of FR-22 MVP):** reordering; row swipe; keyboard item navigation; animated insert / remove.
 - [ ] **Benchmarks and tests:**
   - 10k items at device fps while flinging;

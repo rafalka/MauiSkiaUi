@@ -188,6 +188,19 @@ public class SkUiVirtualVerticalStackLayout : SkUiVirtualVerticalStackLayoutBase
     /// <inheritdoc />
     protected override object? GetItem(int index) => _source is { } source && index < source.Count ? source[index] : null;
 
+    /// <summary>The index of <paramref name="item"/> in <see cref="ItemsSource"/> (as read), or -1.</summary>
+    internal int IndexOfItem(object? item) => _source?.IndexOf(item) ?? -1;
+
+    /// <summary>
+    /// Scrolls to <paramref name="item"/> of <see cref="ItemsSource"/> (found with <see cref="object.Equals(object?)"/>); see
+    /// <see cref="SkUiVirtualVerticalStackLayoutBase.ScrollToIndex"/>. An item that is not in the list is ignored.
+    /// </summary>
+    public Task ScrollToItem(object? item, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true)
+    {
+        var index = IndexOfItem(item);
+        return index < 0 ? Task.CompletedTask : ScrollToIndex(index, position, animated);
+    }
+
     private void OnSourceCollectionChanged(NotifyCollectionChangedEventArgs args)
     {
         if (_source is not { } source)
