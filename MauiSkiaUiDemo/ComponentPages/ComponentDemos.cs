@@ -51,6 +51,8 @@ public static class ComponentDemos
         new(typeof(SkUiMauiContentView), typeof(OverlayScrollingDemoPage), "Native overlays in ScrollView", ComponentCategory.ScrollingAndCollections,
             () => new OverlayScrollingDemoPage(), Key: "OverlaysInScrollView"),
         new(typeof(SkUiCollectionView), typeof(CollectionViewDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections, () => new CollectionViewDemoPage()),
+        new(typeof(SkUiCollectionView), typeof(CollectionViewLayoutsDemoPage), "CollectionView (groups, grid, horizontal)", ComponentCategory.ScrollingAndCollections,
+            () => new CollectionViewLayoutsDemoPage(), Key: "SkUiCollectionViewLayouts"),
         new(typeof(SkUiVirtualScrollView), typeof(VirtualScrollViewDemoPage), "CollectionView (plain list)", ComponentCategory.ScrollingAndCollections, () => new VirtualScrollViewDemoPage()),
         new(typeof(SkUiVirtualVerticalStackLayout), typeof(VirtualVerticalStackLayoutDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.ScrollingAndCollections, () => new VirtualVerticalStackLayoutDemoPage()),
         new(typeof(SkUiCoreGrid), typeof(CoreGridDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreGridDemoPage()),

@@ -35,8 +35,8 @@ DRAWN = {
 # Community Toolkit controls with a drawn equivalent, counted as "Toolkit <name>".
 TOOLKIT_DRAWN = {"Expander"}
 NATIVE_ISLAND = {"Entry", "Editor", "SearchBar", "Picker", "DatePicker", "TimePicker", "WebView", "HybridWebView", "BlazorWebView", "Map"}
-# CollectionViews SkUiCollectionView cannot take yet (B3), counted apart from the ones that port.
-BLOCKED_COLLECTION_VIEW = "CollectionView (grouped, horizontal, grid or multiple selection)"
+# CollectionViews SkUiCollectionView cannot take, counted apart from the ones that port.
+BLOCKED_COLLECTION_VIEW = "CollectionView (reorderable or with snap points)"
 NOT_YET = {BLOCKED_COLLECTION_VIEW, "ListView", "TableView", "CarouselView", "IndicatorView", "SwipeView", "RefreshView", "Stepper"}
 PAGES = {"ContentPage", "TabbedPage", "FlyoutPage", "NavigationPage", "Shell"}
 GESTURES = {"TapGestureRecognizer", "SwipeGestureRecognizer", "PanGestureRecognizer", "PinchGestureRecognizer",
@@ -59,17 +59,13 @@ CS_PATTERNS = {
 
 
 def collection_view_blocked(node):
-    """Whether a CollectionView uses what SkUiCollectionView does not have yet: grouping, a horizontal or grid layout, multiple selection."""
-    attrs = node.attrs
-    if attrs.get((None, "IsGrouped"), "").strip().lower() == "true" or attrs.get((None, "SelectionMode"), "").strip() == "Multiple":
-        return True
-    layout = attrs.get((None, "ItemsLayout"), "")
-    if "Horizontal" in layout or "Grid" in layout:
+    """Whether a CollectionView uses what SkUiCollectionView does not have: reordering, snap points."""
+    if node.attrs.get((None, "CanReorderItems"), "").strip().lower() == "true":
         return True
     pending = [child for child in node.children if child.name.endswith(".ItemsLayout")]
     while pending:
         child = pending.pop()
-        if child.name == "GridItemsLayout" or (child.name == "LinearItemsLayout" and child.attrs.get((None, "Orientation"), "").strip() == "Horizontal"):
+        if child.attrs.get((None, "SnapPointsType"), "None").strip() != "None":
             return True
         pending.extend(child.children)
     return False

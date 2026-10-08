@@ -1,40 +1,47 @@
 using System.Collections;
-using System.Collections.Specialized;
 using System.Windows.Input;
 using MauiSkiaUi.Rendering;
-using SkiaSharp;
 
 namespace MauiSkiaUi;
 
 /// <summary>
-/// A drawn, virtualized list with selection, item taps, a header and footer (scrolled or sticky), an empty view, a
-/// load-more threshold and pull-to-refresh (FR-22). Its items are created on demand and recycled per template by the
-/// FR-21 engine (<see cref="SkUiVirtualVerticalStackLayout"/>), inside a vertical scroller of its own; every item may
-/// have its own height. In XAML the element's content is the <see cref="ItemTemplate"/>.
+/// A drawn, virtualized list or grid with selection, item taps, groups (collapsible, with sticky group headers), a header
+/// and footer (scrolled or sticky), an empty view, loading more and pull-to-refresh (FR-22). Its rows are created on demand
+/// and recycled per template by the FR-21 engine (<see cref="SkUiVirtualVerticalStackLayoutBase"/>), inside a scroller of
+/// its own, vertical or horizontal; every row may have its own size. In XAML the element's content is the
+/// <see cref="ItemTemplate"/>.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>SkiaUi's own API, not MAUI's <c>CollectionView</c>.</b> Familiar names are kept where they fit
-/// (<c>ItemsSource</c>, <c>ItemTemplate</c>, <c>SelectedItem</c>, <c>RemainingItemsThreshold</c>); the mapping from MAUI is in
-/// the migration guide.
+/// (<c>ItemsSource</c>, <c>ItemTemplate</c>, <c>SelectedItem</c>, <c>SelectedItems</c>, <c>IsGrouped</c>,
+/// <c>RemainingItemsThreshold</c>); the mapping from MAUI is in the migration guide.
 /// </para>
 /// <para>
-/// <b>Cost.</b> A sticky header or footer is drawn over the scroller, not in it, so scrolling never re-records it. A selection
-/// change re-records the two items whose state changed. Each item view is hosted in a drawn item container that takes
-/// the item's taps (tappable views inside the item keep theirs) and draws <see cref="SelectionBackground"/>.
+/// <b>Rows.</b> The engine lays out rows: an item, a grid row of up to <see cref="Span"/> items (as tall as its tallest
+/// item), a group header or a group footer. Indices in this API (<see cref="ItemCount"/>, <see cref="FirstVisibleIndex"/>,
+/// <see cref="ScrollToIndex"/>, <see cref="SkUiItemTappedEventArgs.Index"/>) count items only, across the groups, collapsed
+/// groups included; <see cref="RemainingItemsThreshold"/> counts rows.
 /// </para>
 /// <para>
-/// The list needs a bounded height (a grid row, a page): measured with an unbounded height (inside a vertical stack or a
-/// scroll view) it is as tall as all its items, and creates every one.
+/// <b>Cost.</b> Sticky parts (header, footer, the current group's header) are drawn over the scroller, not in it, so
+/// scrolling does not re-record them (the sticky group header is rebound when the group changes). A selection change
+/// re-records the items whose state changed. Each item view is hosted in a drawn item container that takes the item's taps
+/// (tappable views inside the item keep theirs) and draws <see cref="SelectionBackground"/>.
+/// </para>
+/// <para>
+/// The list needs a bounded size along its axis (a grid row, a page): measured unbounded (inside a stack or a scroll view
+/// of the same axis) it is as long as all its rows, and creates every one.
 /// </para>
 /// </remarks>
 [ContentProperty(nameof(ItemTemplate))]
-public class SkUiCollectionView : SkUiView, ISkUiItemsView
+public partial class SkUiCollectionView : SkUiView, ISkUiItemsView
 {
     /// <summary>How far the top must be pulled (shown past the edge, in DIPs) for a release to start a refresh.</summary>
     internal const double RefreshTriggerDistance = 64;
 
     private readonly ItemsPart _items;
+    private readonly ItemsModel _model;
     private readonly SkUiScrollView _scroller;
     private readonly BodyPart _body;
     // Created the first time they show a view: most lists have no header or footer, fewer have sticky ones.
@@ -44,11 +51,12 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
     private readonly SkUiContentSlot _headerSlot;
     private readonly SkUiContentSlot _footerSlot;
     private readonly SkUiContentSlot _emptySlot;
-    private SkUiSelectionMode _selectionMode;
-    private object? _selectedItem;
-    private Brush? _selectionBackground;
+    private DataTemplate? _itemTemplate;
+    private bool _horizontal;
+    private double _spanSpacing;
     private bool _isEmpty;
-    private static Func<string> _selectedStateText = () => "Selected";
+    private int _firstVisible = -1;
+    private int _lastVisible = -1;
 
     /// <summary>Creates an empty list (GPU-backed when it is a surface of its own).</summary>
     public SkUiCollectionView()
@@ -58,15 +66,16 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
         _footerSlot = new SkUiContentSlot(this, FooterProperty, FooterTemplateProperty);
         _emptySlot = new SkUiContentSlot(this, EmptyViewProperty, EmptyViewTemplateProperty);
         _items = new ItemsPart(this);
-        _items.SourceChanged += OnSourceChanged;
         _items.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName is nameof(FirstVisibleIndex) or nameof(LastVisibleIndex))
-                OnPropertyChanged(args.PropertyName);
+                OnVisibleRowsChanged();
         };
+        _items.ScrollTargetInset = StickyGroupInset;
+        _model = new ItemsModel(this);
         _body = new BodyPart(this);
         _scroller = new SkUiScrollView { Content = _body };
-        _scroller.Scrolled += (_, args) => Scrolled?.Invoke(this, args);
+        _scroller.Scrolled += OnScrollerScrolled;
         _scroller.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(IsScrolling))
@@ -86,41 +95,43 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
     #region Items
 
     /// <summary>A bindable property of this view that sets the same property of the items layout.</summary>
-    private static BindableProperty ForwardedToItems(BindableProperty itemsProperty, string? name = null, BindableProperty.ValidateValueDelegate? validate = null) =>
-        BindableProperty.Create(name ?? itemsProperty.PropertyName, itemsProperty.ReturnType, typeof(SkUiCollectionView), itemsProperty.DefaultValue,
+    private static BindableProperty ForwardedToItems(BindableProperty itemsProperty, BindableProperty.ValidateValueDelegate? validate = null) =>
+        BindableProperty.Create(itemsProperty.PropertyName, itemsProperty.ReturnType, typeof(SkUiCollectionView), itemsProperty.DefaultValue,
             validateValue: validate,
             propertyChanged: (view, _, value) => ((SkUiCollectionView)view)._items.SetValue(itemsProperty, value));
 
     /// <summary>Bindable property for <see cref="ItemsSource"/>.</summary>
-    public static readonly BindableProperty ItemsSourceProperty = ForwardedToItems(SkUiVirtualVerticalStackLayout.ItemsSourceProperty);
+    public static readonly BindableProperty ItemsSourceProperty = BindableProperty.Create(nameof(ItemsSource), typeof(IEnumerable), typeof(SkUiCollectionView), null,
+        propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnItemsSourceChanged((IEnumerable?)value));
 
     /// <summary>Bindable property for <see cref="ItemTemplate"/>.</summary>
-    public static readonly BindableProperty ItemTemplateProperty = ForwardedToItems(SkUiVirtualVerticalStackLayout.ItemTemplateProperty);
+    public static readonly BindableProperty ItemTemplateProperty = BindableProperty.Create(nameof(ItemTemplate), typeof(DataTemplate), typeof(SkUiCollectionView), null,
+        propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnItemTemplateChanged((DataTemplate?)value));
 
     /// <summary>Bindable property for <see cref="ItemSpacing"/>.</summary>
-    public static readonly BindableProperty ItemSpacingProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.ItemSpacingProperty, validate: SkUiValidate.NonNegative);
+    public static readonly BindableProperty ItemSpacingProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.ItemSpacingProperty, SkUiValidate.NonNegative);
 
     /// <summary>Bindable property for <see cref="ItemExtent"/>.</summary>
-    public static readonly BindableProperty ItemExtentProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.ItemExtentProperty, validate: SkUiValidate.NonNegative);
+    public static readonly BindableProperty ItemExtentProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.ItemExtentProperty, SkUiValidate.NonNegative);
 
     /// <summary>Bindable property for <see cref="EstimatedItemSize"/>.</summary>
-    public static readonly BindableProperty EstimatedItemSizeProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.EstimatedItemSizeProperty, validate: SkUiValidate.NonNegative);
+    public static readonly BindableProperty EstimatedItemSizeProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.EstimatedItemSizeProperty, SkUiValidate.NonNegative);
 
     /// <summary>Bindable property for <see cref="PrefetchFactor"/>.</summary>
-    public static readonly BindableProperty PrefetchFactorProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.PrefetchFactorProperty, validate: SkUiValidate.NonNegative);
+    public static readonly BindableProperty PrefetchFactorProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.PrefetchFactorProperty, SkUiValidate.NonNegative);
 
     /// <summary>Bindable property for <see cref="PrefetchBehindFactor"/>.</summary>
-    public static readonly BindableProperty PrefetchBehindFactorProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.PrefetchBehindFactorProperty, validate: SkUiValidate.NonNegative);
+    public static readonly BindableProperty PrefetchBehindFactorProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.PrefetchBehindFactorProperty, SkUiValidate.NonNegative);
 
     /// <summary>Bindable property for <see cref="ReleaseFactor"/>.</summary>
-    public static readonly BindableProperty ReleaseFactorProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.ReleaseFactorProperty, validate: SkUiVirtualVerticalStackLayoutBase.IsValidReleaseFactor);
+    public static readonly BindableProperty ReleaseFactorProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.ReleaseFactorProperty, SkUiVirtualVerticalStackLayoutBase.IsValidReleaseFactor);
 
     /// <summary>Bindable property for <see cref="PrefetchBudget"/>.</summary>
-    public static readonly BindableProperty PrefetchBudgetProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.PrefetchBudgetProperty, validate: SkUiVirtualVerticalStackLayoutBase.IsValidPrefetchBudget);
+    public static readonly BindableProperty PrefetchBudgetProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.PrefetchBudgetProperty, SkUiVirtualVerticalStackLayoutBase.IsValidPrefetchBudget);
 
     /// <summary>Bindable property for <see cref="RemainingItemsThreshold"/>.</summary>
     public static readonly BindableProperty RemainingItemsThresholdProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.RemainingItemsThresholdProperty,
-        validate: SkUiVirtualVerticalStackLayoutBase.IsValidThreshold);
+        SkUiVirtualVerticalStackLayoutBase.IsValidThreshold);
 
     /// <summary>Bindable property for <see cref="RemainingItemsThresholdReachedCommand"/>.</summary>
     public static readonly BindableProperty RemainingItemsThresholdReachedCommandProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.RemainingItemsThresholdReachedCommandProperty);
@@ -128,13 +139,22 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
     /// <summary>Bindable property for <see cref="RemainingItemsThresholdReachedCommandParameter"/>.</summary>
     public static readonly BindableProperty RemainingItemsThresholdReachedCommandParameterProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.RemainingItemsThresholdReachedCommandParameterProperty);
 
-    /// <inheritdoc cref="SkUiVirtualVerticalStackLayout.ItemsSource" />
+    /// <summary>
+    /// The items, one view each from <see cref="ItemTemplate"/>, with the item as its binding context; with
+    /// <see cref="IsGrouped"/>, the groups, each the list of its items. A list (<see cref="IList"/>) is read by index; with
+    /// <see cref="System.Collections.Specialized.INotifyCollectionChanged"/> its inserts, removes, moves and replacements
+    /// (also of each group) change only the rows they touch (sources are listened to weakly). Other sequences are copied
+    /// once and read again when they report a change.
+    /// </summary>
     public IEnumerable? ItemsSource { get => (IEnumerable?)GetValue(ItemsSourceProperty); set => SetValue(ItemsSourceProperty, value); }
 
-    /// <inheritdoc cref="SkUiVirtualVerticalStackLayout.ItemTemplate" />
+    /// <summary>
+    /// Creates an item's view (drawn SkUi* views only); a <see cref="DataTemplateSelector"/> chooses per item, and views are
+    /// recycled per selected template. Without a template each item shows its text in an <see cref="SkUiLabel"/>.
+    /// </summary>
     public DataTemplate? ItemTemplate { get => (DataTemplate?)GetValue(ItemTemplateProperty); set => SetValue(ItemTemplateProperty, value); }
 
-    /// <summary>Gap between items in DIPs (not between the header or footer and the items).</summary>
+    /// <summary>Gap between rows in DIPs, along the list's axis (not around the header and footer); <see cref="SpanSpacing"/> is the gap within a grid row.</summary>
     public double ItemSpacing { get => (double)GetValue(ItemSpacingProperty); set => SetValue(ItemSpacingProperty, value); }
 
     /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.PrefetchFactor" />
@@ -149,13 +169,17 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
     /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.PrefetchBudget" />
     public TimeSpan? PrefetchBudget { get => (TimeSpan?)GetValue(PrefetchBudgetProperty); set => SetValue(PrefetchBudgetProperty, value); }
 
-    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.ItemExtent" />
+    /// <summary>When positive, the size of every row along the list's axis in DIPs (rows are measured and arranged at it): the fast path. 0 (default): each row is as long as it measures.</summary>
     public double ItemExtent { get => (double)GetValue(ItemExtentProperty); set => SetValue(ItemExtentProperty, value); }
 
-    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.EstimatedItemSize" />
+    /// <summary>The size assumed for rows not measured yet, in DIPs; 0 (default): the average of the rows measured so far.</summary>
     public double EstimatedItemSize { get => (double)GetValue(EstimatedItemSizeProperty); set => SetValue(EstimatedItemSizeProperty, value); }
 
-    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.RemainingItemsThreshold" />
+    /// <summary>
+    /// When what shows changes and the last visible row is this many rows (or fewer) from the end,
+    /// <see cref="RemainingItemsThresholdReached"/> is raised (and its command run), once per row count. -1 (default) never.
+    /// Rows are items in a plain list; grid rows, group headers and footers in others.
+    /// </summary>
     public int RemainingItemsThreshold { get => (int)GetValue(RemainingItemsThresholdProperty); set => SetValue(RemainingItemsThresholdProperty, value); }
 
     /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.RemainingItemsThresholdReachedCommand" />
@@ -175,46 +199,207 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
     /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.RemainingItemsThresholdReached" />
     public event EventHandler? RemainingItemsThresholdReached { add => _items.RemainingItemsThresholdReached += value; remove => _items.RemainingItemsThresholdReached -= value; }
 
-    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.ItemCount" />
-    public int ItemCount => _items.ItemCount;
+    /// <summary>The number of items (in a grouped list, of all groups, collapsed ones included).</summary>
+    public int ItemCount => _model.ItemCount;
 
-    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.FirstVisibleIndex" />
-    public int FirstVisibleIndex => _items.FirstVisibleIndex;
+    /// <summary>The first item that shows (at least partly; in a grid, the first of its row), or -1. Group headers and footers are not items.</summary>
+    public int FirstVisibleIndex => _firstVisible;
 
-    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.LastVisibleIndex" />
-    public int LastVisibleIndex => _items.LastVisibleIndex;
+    /// <summary>The last item that shows (at least partly; in a grid, the last of its row), or -1.</summary>
+    public int LastVisibleIndex => _lastVisible;
 
-    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.VisibleRangeChanged" />
-    public event EventHandler<SkUiVisibleRangeChangedEventArgs>? VisibleRangeChanged { add => _items.VisibleRangeChanged += value; remove => _items.VisibleRangeChanged -= value; }
+    /// <summary><see cref="FirstVisibleIndex"/> or <see cref="LastVisibleIndex"/> changed.</summary>
+    public event EventHandler<SkUiVisibleRangeChangedEventArgs>? VisibleRangeChanged;
 
     /// <summary>
     /// The view the item template created for the item at <paramref name="index"/>, while it is realized; else <c>null</c>
     /// (the view itself, not the item container hosting it).
     /// </summary>
-    public ISkUiView? GetRealizedView(int index) => (_items.GetRealizedView(index) as ItemHost)?.Content;
+    public ISkUiView? GetRealizedView(int index) => RealizedHost(index)?.Content;
 
-    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.RemeasureItem" />
-    public void RemeasureItem(int index) => _items.RemeasureItem(index);
+    /// <summary>Measures the item at <paramref name="index"/> again (its row, in a grid); see <see cref="SkUiVirtualVerticalStackLayoutBase.RemeasureItem"/>.</summary>
+    public void RemeasureItem(int index)
+    {
+        CheckIndex(index);
+        var (group, item) = _model.Locate(index);
+        if (_model.RowOfItem(group, item) is >= 0 and var row)
+            _items.RemeasureItem(row);
+    }
 
     /// <summary>
     /// Scrolls so the item at <paramref name="index"/> shows at <paramref name="position"/>
     /// (<see cref="ScrollToPosition.MakeVisible"/> scrolls only when it is not fully visible), animated on the render thread or
-    /// at once; see <see cref="SkUiVirtualVerticalStackLayoutBase.ScrollToIndex"/>. With a sticky header, the item lands
-    /// below it (the header is not over the list).
+    /// at once; see <see cref="SkUiVirtualVerticalStackLayoutBase.ScrollToIndex"/>. It lands in the part sticky views do not
+    /// cover. An item of a collapsed group expands it first (<see cref="GroupExpanding"/> may keep it collapsed: the list then
+    /// scrolls to its header).
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is not an item, or <paramref name="position"/> is not defined.</exception>
-    public Task ScrollToIndex(int index, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true) =>
-        _items.ScrollToIndex(index, position, animated);
+    public Task ScrollToIndex(int index, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true)
+    {
+        if (!Enum.IsDefined(position))
+            throw new ArgumentOutOfRangeException(nameof(position));
+        CheckIndex(index);
+        var (group, item) = _model.Locate(index);
+        if (group >= 0 && !_model.Groups[group].Expanded)
+            ChangeGroupExpanded(group, true, fromGroup: false);
+        var row = _model.RowOfItem(group, item);
+        if (row < 0)
+            row = _model.HeaderRowOf(group);
+        return row < 0 ? Task.CompletedTask : _items.ScrollToIndex(row, position, animated);
+    }
 
     /// <summary>Scrolls to <paramref name="item"/> (found with <see cref="object.Equals(object?)"/>); see <see cref="ScrollToIndex"/>. An item that is not in the list is ignored.</summary>
-    public Task ScrollToItem(object? item, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true) =>
-        _items.ScrollToItem(item, position, animated);
+    public Task ScrollToItem(object? item, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true)
+    {
+        var index = _model.IndexOfItem(item);
+        return index < 0 ? Task.CompletedTask : ScrollToIndex(index, position, animated);
+    }
 
     /// <summary>Sets <see cref="ItemsSource"/> (same as the property setter).</summary>
     public SkUiCollectionView SetItemsSource(IEnumerable? value) { ItemsSource = value; return this; }
 
     /// <summary>Sets <see cref="ItemTemplate"/> (same as the property setter).</summary>
     public SkUiCollectionView SetItemTemplate(DataTemplate? value) { ItemTemplate = value; return this; }
+
+    private void CheckIndex(int index)
+    {
+        if ((uint)index >= (uint)_model.ItemCount)
+            throw new ArgumentOutOfRangeException(nameof(index), index, "The index is not an item of the list.");
+    }
+
+    private void OnItemsSourceChanged(IEnumerable? value)
+    {
+        _userScrolled = false;
+        _model.SetSource(value);
+        // Recycled views keep their last item until rebound (as MAUI's CollectionView); items of a replaced source go.
+        foreach (var view in _items.RecycledViews.Concat(_cellPool.Values.SelectMany(static cells => cells)))
+        {
+            ((BindableObject)view).BindingContext = null;
+            if (view is GridRowPart row)
+                foreach (var cell in row.Cells)
+                    ((BindableObject)cell).BindingContext = null;
+        }
+    }
+
+    private void OnItemTemplateChanged(DataTemplate? value)
+    {
+        _itemTemplate = value;
+        // Views of the old templates go (after the rows released them); every row is measured again with the new ones.
+        _model.Rebuild();
+        DropViews();
+    }
+
+    /// <summary>Drops recycled views and grid cells (their templates no longer create the same views).</summary>
+    private void DropViews()
+    {
+        _items.DropRecycled();
+        _cellPool.Clear();
+        _kindKeys.Clear();
+    }
+
+    /// <summary>The items or groups changed (after the rows did): the empty view, the selection, what shows.</summary>
+    private void OnItemsChanged(IList? removed, bool reset)
+    {
+        UpdateEmpty();
+        OnSelectionSourceChanged(removed, reset);
+        OnVisibleRowsChanged();
+        UpdateStickyGroupHeader();
+        CheckLoadMore();
+    }
+
+    /// <summary>The visible rows changed: the visible items follow (headers and footers skipped).</summary>
+    private void OnVisibleRowsChanged()
+    {
+        int first = -1, last = -1;
+        var (firstRow, lastRow) = (_items.FirstVisibleIndex, _items.LastVisibleIndex);
+        if (firstRow >= 0 && lastRow < _model.RowCount)
+        {
+            for (var row = firstRow; row <= lastRow && first < 0; row++)
+                if (_model.RowAt(row) is { Kind: RowKind.Items } items)
+                    first = _model.GlobalIndex(items.Group, items.Start);
+            for (var row = lastRow; row >= firstRow && last < 0; row--)
+                if (_model.RowAt(row) is { Kind: RowKind.Items } items)
+                    last = _model.GlobalIndex(items.Group, items.Start + items.Count - 1);
+        }
+        CheckLoadMore();
+        if (first == _firstVisible && last == _lastVisible)
+            return;
+        _firstVisible = first;
+        _lastVisible = last;
+        OnPropertyChanged(nameof(FirstVisibleIndex));
+        OnPropertyChanged(nameof(LastVisibleIndex));
+        VisibleRangeChanged?.Invoke(this, new SkUiVisibleRangeChangedEventArgs(first, last));
+    }
+
+    #endregion
+
+    #region Layout properties
+
+    /// <summary>Bindable property for <see cref="Orientation"/>.</summary>
+    public static readonly BindableProperty OrientationProperty = BindableProperty.Create(nameof(Orientation), typeof(ItemsLayoutOrientation),
+        typeof(SkUiCollectionView), ItemsLayoutOrientation.Vertical,
+        validateValue: (_, value) => Enum.IsDefined((ItemsLayoutOrientation)value),
+        propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnOrientationChanged((ItemsLayoutOrientation)value));
+
+    /// <summary>Bindable property for <see cref="Span"/>.</summary>
+    public static readonly BindableProperty SpanProperty = BindableProperty.Create(nameof(Span), typeof(int), typeof(SkUiCollectionView), 1,
+        validateValue: (_, value) => value is int span && span >= 1,
+        propertyChanged: (view, _, _) => ((SkUiCollectionView)view).ApplyStructure());
+
+    /// <summary>Bindable property for <see cref="SpanSpacing"/>.</summary>
+    public static readonly BindableProperty SpanSpacingProperty = BindableProperty.Create(nameof(SpanSpacing), typeof(double), typeof(SkUiCollectionView), 0d,
+        validateValue: SkUiValidate.NonNegative,
+        propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnSpanSpacingChanged((double)value));
+
+    /// <summary>
+    /// The list's axis: <see cref="ItemsLayoutOrientation.Vertical"/> (default) or <see cref="ItemsLayoutOrientation.Horizontal"/>
+    /// (rows follow each other from left to right, from right to left in right-to-left layouts; the header and footer are at
+    /// its start and end; no pull-to-refresh).
+    /// </summary>
+    public ItemsLayoutOrientation Orientation { get => (ItemsLayoutOrientation)GetValue(OrientationProperty); set => SetValue(OrientationProperty, value); }
+
+    /// <summary>
+    /// How many items share a row (default 1: a list): a grid with that many columns (rows of a horizontal list), each row as
+    /// tall (wide) as its tallest (widest) item. Items are as wide as the row divided by the span, less <see cref="SpanSpacing"/>.
+    /// In a grouped list each group starts a new row.
+    /// </summary>
+    public int Span { get => (int)GetValue(SpanProperty); set => SetValue(SpanProperty, value); }
+
+    /// <summary>Gap between the items of a grid row in DIPs (<see cref="ItemSpacing"/> is the gap between rows).</summary>
+    public double SpanSpacing { get => (double)GetValue(SpanSpacingProperty); set => SetValue(SpanSpacingProperty, value); }
+
+    /// <summary>Sets <see cref="Span"/> and <see cref="SpanSpacing"/>.</summary>
+    public SkUiCollectionView SetSpan(int span, double spacing = 0)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(span, 1);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(spacing, nameof(spacing));
+        Span = span;
+        SpanSpacing = spacing;
+        return this;
+    }
+
+    private void OnOrientationChanged(ItemsLayoutOrientation value)
+    {
+        _horizontal = value == ItemsLayoutOrientation.Horizontal;
+        _items.IsHorizontal = _horizontal;
+        _scroller.Orientation = _horizontal ? ScrollOrientation.Horizontal : ScrollOrientation.Vertical;
+        Controller.PullsAtVerticalStart = IsPullToRefreshEnabled && !_horizontal;
+        _body.InvalidateBody();
+        InvalidateMeasure();
+    }
+
+    private void OnSpanSpacingChanged(double value)
+    {
+        _spanSpacing = value;
+        _items.ForgetItemSizes();
+    }
+
+    /// <summary>The structure of the rows changed (grouping, span, group templates): every row is built again.</summary>
+    private void ApplyStructure(bool templatesChanged = false)
+    {
+        _model.Configure(IsGrouped, Span, IsGrouped && GroupHeaderTemplate is not null, IsGrouped && GroupFooterTemplate is not null, force: templatesChanged);
+        DropViews();
+    }
 
     #endregion
 
@@ -226,33 +411,59 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
         validateValue: (_, value) => Enum.IsDefined((ScrollBarVisibility)value),
         propertyChanged: (view, _, value) => ((SkUiCollectionView)view)._scroller.VerticalScrollBarVisibility = (ScrollBarVisibility)value);
 
+    /// <summary>Bindable property for <see cref="HorizontalScrollBarVisibility"/>.</summary>
+    public static readonly BindableProperty HorizontalScrollBarVisibilityProperty = BindableProperty.Create(nameof(HorizontalScrollBarVisibility),
+        typeof(ScrollBarVisibility), typeof(SkUiCollectionView), ScrollBarVisibility.Default,
+        validateValue: (_, value) => Enum.IsDefined((ScrollBarVisibility)value),
+        propertyChanged: (view, _, value) => ((SkUiCollectionView)view)._scroller.HorizontalScrollBarVisibility = (ScrollBarVisibility)value);
+
     /// <summary>Bindable property for <see cref="Overscroll"/>.</summary>
     public static readonly BindableProperty OverscrollProperty = BindableProperty.Create(nameof(Overscroll), typeof(SkUiOverscrollMode),
         typeof(SkUiCollectionView), SkUiOverscrollMode.Default,
         validateValue: (_, value) => Enum.IsDefined((SkUiOverscrollMode)value),
         propertyChanged: (view, _, value) => ((SkUiCollectionView)view)._scroller.Overscroll = (SkUiOverscrollMode)value);
 
-    /// <inheritdoc cref="SkUiScrollView.VerticalScrollBarVisibility" />
+    /// <summary>The scroll bar of a vertical list (MAUI's visibility values; see <see cref="SkUiScrollView.VerticalScrollBarVisibility"/>).</summary>
     public ScrollBarVisibility VerticalScrollBarVisibility
     {
         get => (ScrollBarVisibility)GetValue(VerticalScrollBarVisibilityProperty);
         set => SetValue(VerticalScrollBarVisibilityProperty, value);
     }
 
+    /// <summary>The scroll bar of a horizontal list.</summary>
+    public ScrollBarVisibility HorizontalScrollBarVisibility
+    {
+        get => (ScrollBarVisibility)GetValue(HorizontalScrollBarVisibilityProperty);
+        set => SetValue(HorizontalScrollBarVisibilityProperty, value);
+    }
+
     /// <inheritdoc cref="SkUiScrollView.Overscroll" />
     public SkUiOverscrollMode Overscroll { get => (SkUiOverscrollMode)GetValue(OverscrollProperty); set => SetValue(OverscrollProperty, value); }
 
-    /// <summary>The scroll offset in DIPs (the header, when not sticky, scrolls with the items).</summary>
+    /// <summary>The vertical scroll offset in DIPs (the header, when not sticky, scrolls with the items).</summary>
     public double ScrollY => _scroller.ScrollY;
+
+    /// <summary>The horizontal scroll offset in DIPs (of a horizontal list).</summary>
+    public double ScrollX => _scroller.ScrollX;
 
     /// <summary>True while the user drags the list or a fling / animated scroll runs.</summary>
     public bool IsScrolling => _scroller.IsScrolling;
 
-    /// <summary>Raised after the scroll offset changes (<see cref="ScrolledEventArgs.ScrollY"/>).</summary>
+    /// <summary>Raised after the scroll offset changes.</summary>
     public event EventHandler<ScrolledEventArgs>? Scrolled;
 
-    /// <summary>Scrolls to an offset in DIPs, animated on the render thread or at once (a drag or another scroll cancels the task).</summary>
-    public Task ScrollToAsync(double offset, bool animated = true) => _scroller.ScrollToAsync(0, offset, animated);
+    /// <summary>Scrolls to an offset along the list's axis in DIPs, animated on the render thread or at once (a drag or another scroll cancels the task).</summary>
+    public Task ScrollToAsync(double offset, bool animated = true) =>
+        _horizontal ? _scroller.ScrollToAsync(offset, 0, animated) : _scroller.ScrollToAsync(0, offset, animated);
+
+    private void OnScrollerScrolled(object? sender, ScrolledEventArgs args)
+    {
+        if (Controller.Dragging)
+            _userScrolled = true;
+        Scrolled?.Invoke(this, args);
+        UpdateStickyGroupHeader();
+        CheckLoadMore();
+    }
 
     #endregion
 
@@ -305,7 +516,7 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
     public static readonly BindableProperty EmptyViewTemplateProperty = BindableProperty.Create(nameof(EmptyViewTemplate), typeof(DataTemplate), typeof(SkUiCollectionView), null,
         propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable).OnTemplateChanged(((SkUiCollectionView)bindable)._emptySlot));
 
-    /// <summary>A drawn view above the items: it scrolls with them, or stays at the top with <see cref="IsStickyHeader"/>.</summary>
+    /// <summary>A drawn view before the items: it scrolls with them, or stays at the start with <see cref="IsStickyHeader"/>.</summary>
     public ISkUiView? Header { get => (ISkUiView?)GetValue(HeaderProperty); set => SetValue(HeaderProperty, value); }
 
     /// <summary>
@@ -315,30 +526,30 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
     public DataTemplate? HeaderTemplate { get => (DataTemplate?)GetValue(HeaderTemplateProperty); set => SetValue(HeaderTemplateProperty, value); }
 
     /// <summary>
-    /// Whether the header stays at the top while the items scroll (default <c>false</c>: it scrolls away with them). A sticky
+    /// Whether the header stays at the start while the items scroll (default <c>false</c>: it scrolls away with them). A sticky
     /// header is drawn over the list, and the items scroll behind it: give it a translucent background, margins or rounded
-    /// corners to let them show through. At the start of the list the first item is below it (the list's content starts
-    /// after the header's height, margins included), scrolling to an item places it below it, and the scroll bar runs
+    /// corners to let them show through. At the start of the list the first item is after it (the list's content starts
+    /// after the header's size, margins included), scrolling to an item places it after it, and the scroll bar runs
     /// beside the uncovered part. Scrolling does not re-record it.
     /// </summary>
     public bool IsStickyHeader { get => (bool)GetValue(IsStickyHeaderProperty); set => SetValue(IsStickyHeaderProperty, value); }
 
-    /// <summary>A drawn view below the items: it scrolls with them (right after the last item), or stays at the bottom with <see cref="IsStickyFooter"/>.</summary>
+    /// <summary>A drawn view after the items: it scrolls with them (right after the last item), or stays at the end with <see cref="IsStickyFooter"/>.</summary>
     public ISkUiView? Footer { get => (ISkUiView?)GetValue(FooterProperty); set => SetValue(FooterProperty, value); }
 
     /// <summary>Creates <see cref="Footer"/> when it is not set; see <see cref="HeaderTemplate"/>.</summary>
     public DataTemplate? FooterTemplate { get => (DataTemplate?)GetValue(FooterTemplateProperty); set => SetValue(FooterTemplateProperty, value); }
 
     /// <summary>
-    /// Whether the footer stays at the bottom while the items scroll, drawn over the list as a sticky header is (see
-    /// <see cref="IsStickyHeader"/>): at the end of the list the last item is above it.
+    /// Whether the footer stays at the end while the items scroll, drawn over the list as a sticky header is (see
+    /// <see cref="IsStickyHeader"/>): at the end of the list the last item is before it.
     /// </summary>
     public bool IsStickyFooter { get => (bool)GetValue(IsStickyFooterProperty); set => SetValue(IsStickyFooterProperty, value); }
 
     /// <summary>
-    /// A drawn view shown instead of the items while there are none (<see cref="ItemsSource"/> is <c>null</c> or empty),
-    /// between the header and the footer; it fills the space the list has left (center its content to place it in the
-    /// middle).
+    /// A drawn view shown instead of the items while there are none (<see cref="ItemsSource"/> is <c>null</c> or empty; a
+    /// grouped list with groups but no rows to show is empty too), between the header and the footer; it fills the space
+    /// the list has left (center its content to place it in the middle).
     /// </summary>
     public ISkUiView? EmptyView { get => (ISkUiView?)GetValue(EmptyViewProperty); set => SetValue(EmptyViewProperty, value); }
 
@@ -371,7 +582,7 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
         return this;
     }
 
-    /// <summary>Whether the list has no items (the empty view shows).</summary>
+    /// <summary>Whether the list has no rows to show (the empty view shows).</summary>
     internal bool IsEmpty => _isEmpty;
 
     private void OnHeaderChanged()
@@ -468,7 +679,7 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
 
     private void UpdateEmpty()
     {
-        var empty = _items.ItemCount == 0;
+        var empty = _model.RowCount == 0;
         if (empty == _isEmpty && _body.EmptyHost.IsVisible == empty)
             return;
         _isEmpty = empty;
@@ -480,211 +691,15 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
 
     #endregion
 
-    #region Selection and taps
-
-    /// <summary>Bindable property for <see cref="SelectionMode"/>.</summary>
-    public static readonly BindableProperty SelectionModeProperty = BindableProperty.Create(nameof(SelectionMode), typeof(SkUiSelectionMode),
-        typeof(SkUiCollectionView), SkUiSelectionMode.None,
-        validateValue: (_, value) => Enum.IsDefined((SkUiSelectionMode)value),
-        propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable).OnSelectionModeChanged((SkUiSelectionMode)value));
-
-    /// <summary>Bindable property for <see cref="SelectedItem"/> (two-way by default: taps change it).</summary>
-    public static readonly BindableProperty SelectedItemProperty = BindableProperty.Create(nameof(SelectedItem), typeof(object), typeof(SkUiCollectionView), null,
-        BindingMode.TwoWay,
-        propertyChanged: (bindable, oldValue, newValue) => ((SkUiCollectionView)bindable).OnSelectedItemChanged(oldValue, newValue));
-
-    /// <summary>Bindable property for <see cref="SelectionChangedCommand"/>.</summary>
-    public static readonly BindableProperty SelectionChangedCommandProperty = BindableProperty.Create(nameof(SelectionChangedCommand), typeof(ICommand), typeof(SkUiCollectionView));
-
-    /// <summary>Bindable property for <see cref="SelectionChangedCommandParameter"/>.</summary>
-    public static readonly BindableProperty SelectionChangedCommandParameterProperty = BindableProperty.Create(nameof(SelectionChangedCommandParameter), typeof(object), typeof(SkUiCollectionView));
-
-    /// <summary>Bindable property for <see cref="SelectionBackground"/>.</summary>
-    public static readonly BindableProperty SelectionBackgroundProperty = BindableProperty.Create(nameof(SelectionBackground), typeof(Brush), typeof(SkUiCollectionView), null,
-        propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable).OnSelectionBackgroundChanged((Brush?)value));
-
-    /// <summary>Bindable property for <see cref="ItemTappedCommand"/>.</summary>
-    public static readonly BindableProperty ItemTappedCommandProperty = BindableProperty.Create(nameof(ItemTappedCommand), typeof(ICommand), typeof(SkUiCollectionView));
-
-    /// <summary>Bindable property for <see cref="ItemTappedCommandParameter"/>.</summary>
-    public static readonly BindableProperty ItemTappedCommandParameterProperty = BindableProperty.Create(nameof(ItemTappedCommandParameter), typeof(object), typeof(SkUiCollectionView));
-
-    /// <summary>Bindable property for <see cref="ShowsItemPressEffect"/>.</summary>
-    public static readonly BindableProperty ShowsItemPressEffectProperty = BindableProperty.Create(nameof(ShowsItemPressEffect), typeof(bool), typeof(SkUiCollectionView), false,
-        propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable).OnShowsItemPressEffectChanged((bool)value));
-
-    /// <summary>
-    /// How taps select items: <see cref="SkUiSelectionMode.None"/> (default), <see cref="SkUiSelectionMode.Single"/>, or
-    /// <see cref="SkUiSelectionMode.SingleDeselect"/> (tapping the selected item clears the selection). Changing it to
-    /// <see cref="SkUiSelectionMode.None"/> clears <see cref="SelectedItem"/>.
-    /// </summary>
-    public SkUiSelectionMode SelectionMode { get => (SkUiSelectionMode)GetValue(SelectionModeProperty); set => SetValue(SelectionModeProperty, value); }
-
-    /// <summary>
-    /// The selected item (an item of <see cref="ItemsSource"/>, compared with <see cref="object.Equals(object?)"/>), or
-    /// <c>null</c>. Its view's root goes to the <c>Selected</c> visual state (<c>CommonStates</c>) and its container draws
-    /// <see cref="SelectionBackground"/>. Shown only while <see cref="SelectionMode"/> is not <see cref="SkUiSelectionMode.None"/>.
-    /// Removing the item from the source clears it.
-    /// </summary>
-    public object? SelectedItem { get => GetValue(SelectedItemProperty); set => SetValue(SelectedItemProperty, value); }
-
-    /// <summary>Runs with <see cref="SelectionChangedCommandParameter"/> after <see cref="SelectedItem"/> changes (when it can execute), before <see cref="SelectionChanged"/>.</summary>
-    public ICommand? SelectionChangedCommand
-    {
-        get => (ICommand?)GetValue(SelectionChangedCommandProperty);
-        set => SetValue(SelectionChangedCommandProperty, value);
-    }
-
-    /// <summary>The parameter of <see cref="SelectionChangedCommand"/>.</summary>
-    public object? SelectionChangedCommandParameter
-    {
-        get => GetValue(SelectionChangedCommandParameterProperty);
-        set => SetValue(SelectionChangedCommandParameterProperty, value);
-    }
-
-    /// <summary>
-    /// Drawn behind the selected item's view (in XAML a color, e.g. <c>"#1F0A84FF"</c>, or a gradient); <c>null</c> (default):
-    /// the accent color (<see cref="SkUiColors.Accent"/>) at 12 % opacity. A transparent brush draws nothing (style the
-    /// item with the <c>Selected</c> visual state instead).
-    /// </summary>
-    public Brush? SelectionBackground { get => (Brush?)GetValue(SelectionBackgroundProperty); set => SetValue(SelectionBackgroundProperty, value); }
-
-    /// <summary>Runs after <see cref="ItemTapped"/> (when it can execute), with <see cref="ItemTappedCommandParameter"/> when set, else the tapped item.</summary>
-    public ICommand? ItemTappedCommand { get => (ICommand?)GetValue(ItemTappedCommandProperty); set => SetValue(ItemTappedCommandProperty, value); }
-
-    /// <summary>The parameter of <see cref="ItemTappedCommand"/>; when not set, the tapped item.</summary>
-    public object? ItemTappedCommandParameter { get => GetValue(ItemTappedCommandParameterProperty); set => SetValue(ItemTappedCommandParameterProperty, value); }
-
-    /// <summary>Whether item containers show the press effect (<see cref="SkUiView.ShowsPressEffect"/>) while an item is pressed (default <c>false</c>).</summary>
-    public bool ShowsItemPressEffect { get => (bool)GetValue(ShowsItemPressEffectProperty); set => SetValue(ShowsItemPressEffectProperty, value); }
-
-    /// <summary>
-    /// A tap is about to change the selection: set <see cref="SkUiSelectionChangingEventArgs.Cancel"/> to keep it. Raised for
-    /// taps only (setting <see cref="SelectedItem"/> is the app's own decision).
-    /// </summary>
-    public event EventHandler<SkUiSelectionChangingEventArgs>? SelectionChanging;
-
-    /// <summary><see cref="SelectedItem"/> changed (by a tap, by the app, or because the item was removed), after <see cref="SelectionChangedCommand"/>.</summary>
-    public event EventHandler<SkUiSelectionChangedEventArgs>? SelectionChanged;
-
-    /// <summary>
-    /// An item was tapped (on the item outside views that take taps themselves, such as buttons), whatever the
-    /// <see cref="SelectionMode"/>; raised after the tap changed the selection.
-    /// </summary>
-    public event EventHandler<SkUiItemTappedEventArgs>? ItemTapped;
-
-    /// <summary>
-    /// The value screen readers read for a selected item ("Selected" by default). Set it once at startup to localize (it is
-    /// called each time the semantics are read, so it may follow the current culture).
-    /// </summary>
-    public static Func<string> SelectedStateText
-    {
-        get => _selectedStateText;
-        set => _selectedStateText = value ?? throw new ArgumentNullException(nameof(value));
-    }
-
-    /// <summary>Sets <see cref="SelectionMode"/> (same as the property setter).</summary>
-    public SkUiCollectionView SetSelectionMode(SkUiSelectionMode value)
-    {
-        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
-        SelectionMode = value;
-        return this;
-    }
-
-    /// <summary>Whether item containers take taps.</summary>
-    private bool WantsItemTaps => _selectionMode != SkUiSelectionMode.None || ItemTapped is not null || ItemTappedCommand is not null;
-
-    private bool ShowsSelection(object? item) => _selectionMode != SkUiSelectionMode.None && _selectedItem is not null && Equals(item, _selectedItem);
-
-    private void OnSelectionModeChanged(SkUiSelectionMode value)
-    {
-        _selectionMode = value;
-        if (value == SkUiSelectionMode.None && _selectedItem is not null)
-            SelectedItem = null;
-        else
-            RefreshSelection();
-    }
-
-    private void OnSelectedItemChanged(object? oldValue, object? newValue)
-    {
-        _selectedItem = newValue;
-        RefreshSelection();
-        if (SelectionChangedCommand is { } command && command.CanExecute(SelectionChangedCommandParameter))
-            command.Execute(SelectionChangedCommandParameter);
-        SelectionChanged?.Invoke(this, new SkUiSelectionChangedEventArgs(oldValue, newValue));
-    }
-
-    /// <summary>Shows the selection on the realized items (only items whose state changes re-record).</summary>
-    private void RefreshSelection()
-    {
-        foreach (var view in _items.RealizedViews)
-            if (view is ItemHost host)
-                host.IsSelected = ShowsSelection(((BindableObject)host).BindingContext);
-    }
-
-    private void OnSelectionBackgroundChanged(Brush? value)
-    {
-        _selectionBackground = value;
-        foreach (var view in _items.RealizedViews)
-            if (view is ItemHost { IsSelected: true } host)
-                host.InvalidatePaint();
-    }
-
-    private void OnShowsItemPressEffectChanged(bool value)
-    {
-        foreach (var view in _items.RealizedViews.Concat(_items.RecycledViews))
-            ((SkUiView)view).ShowsPressEffect = value;
-    }
-
-    private void OnItemBound(ItemHost host, object? item) => host.IsSelected = ShowsSelection(item);
-
-    /// <summary>A tap on an item: the selection first (cancelable), then <see cref="ItemTapped"/> and its command.</summary>
-    private void OnItemHostTapped(ItemHost host)
-    {
-        var index = _items.IndexOfRealizedView(host);
-        if (index < 0)
-            return;
-        var item = _items.ItemAt(index);
-        if (_selectionMode != SkUiSelectionMode.None)
-        {
-            var selected = _selectionMode == SkUiSelectionMode.SingleDeselect && Equals(item, _selectedItem) ? null : item;
-            if (!Equals(selected, _selectedItem))
-            {
-                var args = new SkUiSelectionChangingEventArgs(_selectedItem, selected);
-                SelectionChanging?.Invoke(this, args);
-                if (!args.Cancel)
-                    SetValue(SelectedItemProperty, selected);
-            }
-        }
-        ItemTapped?.Invoke(this, new SkUiItemTappedEventArgs(item, index));
-        if (ItemTappedCommand is { } command)
-        {
-            var parameter = IsSet(ItemTappedCommandParameterProperty) ? ItemTappedCommandParameter : item;
-            if (command.CanExecute(parameter))
-                command.Execute(parameter);
-        }
-    }
-
-    /// <summary>The items changed: the empty view, and the selection when its item left the source.</summary>
-    private void OnSourceChanged(NotifyCollectionChangedEventArgs? args)
-    {
-        UpdateEmpty();
-        if (_selectedItem is not { } selected)
-            return;
-        var check = args is null || args.Action == NotifyCollectionChangedAction.Reset
-            || (args.Action is NotifyCollectionChangedAction.Remove or NotifyCollectionChangedAction.Replace
-                && args.OldItems is { } removed && removed.Cast<object?>().Any(item => Equals(item, selected)));
-        if (check && _items.IndexOfItem(selected) < 0)
-            SelectedItem = null;
-    }
-
-    #endregion
-
     #region Pull to refresh
 
     /// <summary>Bindable property for <see cref="IsPullToRefreshEnabled"/>.</summary>
     public static readonly BindableProperty IsPullToRefreshEnabledProperty = BindableProperty.Create(nameof(IsPullToRefreshEnabled), typeof(bool), typeof(SkUiCollectionView), false,
-        propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable).Controller.PullsAtVerticalStart = (bool)value);
+        propertyChanged: (bindable, _, value) =>
+        {
+            var view = (SkUiCollectionView)bindable;
+            view.Controller.PullsAtVerticalStart = (bool)value && !view._horizontal;
+        });
 
     /// <summary>Bindable property for <see cref="IsRefreshing"/> (two-way by default: a pull sets it).</summary>
     public static readonly BindableProperty IsRefreshingProperty = BindableProperty.Create(nameof(IsRefreshing), typeof(bool), typeof(SkUiCollectionView), false,
@@ -702,9 +717,9 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
         propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable)._refreshLayer.Spinner.SetColor((Color?)value));
 
     /// <summary>
-    /// Whether pulling the top of the list down and releasing it starts a refresh (default <c>false</c>). The pull works
+    /// Whether pulling the top of a vertical list down and releasing it starts a refresh (default <c>false</c>). The pull works
     /// also when the items do not fill the list and when overscroll is off: a drawn indicator comes down from the top with the
-    /// pull, and a release past it (64 DIPs) sets <see cref="IsRefreshing"/>.
+    /// pull, and a release past it (64 DIPs) sets <see cref="IsRefreshing"/>. Horizontal lists are not pulled.
     /// </summary>
     public bool IsPullToRefreshEnabled { get => (bool)GetValue(IsPullToRefreshEnabledProperty); set => SetValue(IsPullToRefreshEnabledProperty, value); }
 
@@ -732,14 +747,14 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
 
     private void OnPullReleased(double distance)
     {
-        if (IsPullToRefreshEnabled && IsEnabled && !IsRefreshing && distance >= RefreshTriggerDistance)
+        if (IsPullToRefreshEnabled && !_horizontal && IsEnabled && !IsRefreshing && distance >= RefreshTriggerDistance)
             IsRefreshing = true;
     }
 
     private void OnOverscrollChanged()
     {
         if (!IsRefreshing)
-            _refreshLayer.ShowPull(IsPullToRefreshEnabled ? Math.Max(0, -Controller.OverscrollY) : 0);
+            _refreshLayer.ShowPull(IsPullToRefreshEnabled && !_horizontal ? Math.Max(0, -Controller.OverscrollY) : 0);
     }
 
     private void OnIsRefreshingChanged(bool value)
@@ -763,17 +778,19 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
     /// <summary>The scroller of the header, items, empty view and footer (tests).</summary>
     internal SkUiScrollView ScrollView => _scroller;
 
-    /// <summary>The virtual layout of the items (tests).</summary>
-    internal SkUiVirtualVerticalStackLayout ItemsLayout => _items;
+    /// <summary>The virtual layout of the rows (tests).</summary>
+    internal SkUiVirtualVerticalStackLayoutBase ItemsLayout => _items;
 
     /// <inheritdoc />
     internal override IEnumerable<ISkUiView> SkiaChildren
     {
         get
         {
-            // Screen order (focus, semantics): the header, the list, the footer; the refresh indicator.
+            // Screen order (focus, semantics): the header, the current group's header, the list, the footer; the refresh indicator.
             if (_stickyHeaderHost is not null)
                 yield return _stickyHeaderHost;
+            if (_stickyGroupHost is not null)
+                yield return _stickyGroupHost;
             yield return _scroller;
             if (_stickyFooterHost is not null)
                 yield return _stickyFooterHost;
@@ -782,10 +799,12 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
     }
 
     /// <inheritdoc />
-    /// <remarks>Drawn (and hit-tested) above the list: the sticky header and footer, then the refresh indicator.</remarks>
+    /// <remarks>Drawn (and hit-tested) above the list: the sticky group header, the sticky header and footer, then the refresh indicator.</remarks>
     internal override void AddRenderChildren(List<ISkUiRenderable> children)
     {
         children.Add(_scroller);
+        if (_stickyGroupHost is not null)
+            children.Add(_stickyGroupHost);
         if (_stickyHeaderHost is not null)
             children.Add(_stickyHeaderHost);
         if (_stickyFooterHost is not null)
@@ -795,301 +814,56 @@ public class SkUiCollectionView : SkUiView, ISkUiItemsView
 
     /// <inheritdoc />
     /// <remarks>
-    /// The list fills the view and a sticky header or footer is drawn over it: their heights become the scroller's
-    /// <see cref="SkUiScrollView.Insets"/>, so the items scroll behind them but are never covered at the start or the end.
+    /// The list fills the view and a sticky header or footer is drawn over it: their sizes along the axis become the
+    /// scroller's <see cref="SkUiScrollView.Insets"/>, so the items scroll behind them but are never covered at the start
+    /// or the end.
     /// </remarks>
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        var header = MeasurePart(_stickyHeaderHost, widthConstraint);
-        var footer = MeasurePart(_stickyFooterHost, widthConstraint);
-        _scroller.Insets = (header.Height, footer.Height);
+        var header = MeasurePart(_stickyHeaderHost, widthConstraint, heightConstraint);
+        var footer = MeasurePart(_stickyFooterHost, widthConstraint, heightConstraint);
+        _scroller.Insets = (Along(header), Along(footer));
         var list = ((IView)_scroller).Measure(widthConstraint, heightConstraint);
+        MeasurePart(_stickyGroupHost, widthConstraint, heightConstraint);
         ((IView)_refreshLayer).Measure(widthConstraint, double.PositiveInfinity);
-        return new Size(Math.Max(list.Width, Math.Max(header.Width, footer.Width)), Math.Max(list.Height, header.Height + footer.Height));
+        var across = Math.Max(Across(list), Math.Max(Across(header), Across(footer)));
+        var along = Math.Max(Along(list), Along(header) + Along(footer));
+        return _horizontal ? new Size(along, across) : new Size(across, along);
     }
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
-        var header = HeightOf(_stickyHeaderHost);
-        var footer = HeightOf(_stickyFooterHost);
+        var length = Along(size);
+        var header = AlongOf(_stickyHeaderHost);
+        var footer = AlongOf(_stickyFooterHost);
         ((IView)_scroller).Arrange(new Rect(0, 0, size.Width, size.Height));
-        ((IView?)_stickyHeaderHost)?.Arrange(new Rect(0, 0, size.Width, header));
-        ((IView?)_stickyFooterHost)?.Arrange(new Rect(0, Math.Max(header, size.Height - footer), size.Width, footer));
+        ((IView?)_stickyHeaderHost)?.Arrange(Slot(0, header, size));
+        ((IView?)_stickyFooterHost)?.Arrange(Slot(Math.Max(header, length - footer), footer, size));
+        // The current group's header, below the sticky header (moved by a translation while the next group pushes it).
+        ((IView?)_stickyGroupHost)?.Arrange(Slot(header, AlongOf(_stickyGroupHost), size));
         // Between the sticky parts: the indicator comes down from below the header, clipped there.
-        ((IView)_refreshLayer).Arrange(new Rect(0, header, size.Width, Math.Max(0, size.Height - header - footer)));
+        ((IView)_refreshLayer).Arrange(Slot(header, Math.Max(0, length - header - footer), size));
+        UpdateStickyGroupHeader();
+        RecheckLoadMore();
     }
 
-    /// <summary>Measures a part created on demand with an unbounded height (nothing when it does not exist).</summary>
-    private static Size MeasurePart(SkUiView? part, double width) =>
-        part is null ? Size.Zero : ((IView)part).Measure(width, double.PositiveInfinity);
+    /// <summary>A size along the list's axis.</summary>
+    private double Along(Size size) => _horizontal ? size.Width : size.Height;
 
-    /// <summary>The measured height of a part created on demand (0 when it does not exist).</summary>
-    private static double HeightOf(SkUiView? part) => part is null ? 0 : ((IView)part).DesiredSize.Height;
+    /// <summary>A size across the list's axis.</summary>
+    private double Across(Size size) => _horizontal ? size.Height : size.Width;
+
+    /// <summary>The band <paramref name="length"/> long at <paramref name="start"/> along the axis, across all of <paramref name="size"/>.</summary>
+    private Rect Slot(double start, double length, Size size) =>
+        _horizontal ? new Rect(start, 0, length, size.Height) : new Rect(0, start, size.Width, length);
+
+    /// <summary>Measures a part created on demand, unbounded along the axis (nothing when it does not exist).</summary>
+    private Size MeasurePart(SkUiView? part, double width, double height) =>
+        part is null ? Size.Zero : _horizontal ? ((IView)part).Measure(double.PositiveInfinity, height) : ((IView)part).Measure(width, double.PositiveInfinity);
+
+    /// <summary>The measured size along the axis of a part created on demand (0 when it does not exist or is hidden).</summary>
+    private double AlongOf(SkUiView? part) => part is null || !part.IsVisible ? 0 : Along(((IView)part).DesiredSize);
 
     #endregion
-
-    /// <summary>The items: a virtual stack whose realized views are item containers.</summary>
-    private sealed class ItemsPart(SkUiCollectionView owner) : SkUiVirtualVerticalStackLayout
-    {
-        internal override ISkUiView WrapItemView(ISkUiView content) =>
-            new ItemHost(owner) { Content = content, ShowsPressEffect = owner.ShowsItemPressEffect };
-
-        internal override ISkUiView UnwrapItemView(ISkUiView view) => ((ItemHost)view).Content!;
-
-        internal override void OnItemBound(int index, ISkUiView view, object? item)
-        {
-            if (view is ItemHost host)
-                owner.OnItemBound(host, item);
-        }
-    }
-
-    /// <summary>
-    /// Hosts a sticky header or footer over the list. A drag on it scrolls the list (it has its own drag recognizer for the
-    /// list's scroller), a press stops a fling, the wheel scrolls the list, and a tap does not reach the items behind it;
-    /// views inside it keep their taps.
-    /// </summary>
-    private sealed class StickyHost(SkUiScrollController scroller) : SkUiContentView, ISkUiWheelProxy
-    {
-        private SkUiScrollGestureRecognizer? _drag;
-
-        SkUiScrollController ISkUiWheelProxy.WheelScroller => scroller;
-
-        internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
-        {
-            base.CollectGestureRecognizers(recognizers);
-            if (Content is not null && scroller.Orientation != ScrollOrientation.Neither)
-                recognizers.Add(_drag ??= new SkUiScrollGestureRecognizer(scroller));
-        }
-
-        internal override void CancelGestures()
-        {
-            base.CancelGestures();
-            _drag?.Cancel();
-        }
-    }
-
-    /// <summary>Hosts an item's view: takes its taps, draws the selection background, and puts its root in the <c>Selected</c> state.</summary>
-    private sealed class ItemHost(SkUiCollectionView owner) : SkUiContentView
-    {
-        private bool _selected;
-
-        public bool IsSelected
-        {
-            get => _selected;
-            set
-            {
-                if (_selected == value)
-                    return;
-                _selected = value;
-                if (Content is SkUiView root)
-                    root.IsSelectedItem = value;
-                InvalidatePaint();
-                InvalidateSemantics();
-            }
-        }
-
-        protected override bool HandlesTap => owner.WantsItemTaps;
-
-        protected override void OnTapped(SkUiTappedEventArgs args)
-        {
-            RaiseTapped(args);
-            owner.OnItemHostTapped(this);
-        }
-
-        protected override void OnPaintBackground(SKCanvas canvas)
-        {
-            base.OnPaintBackground(canvas);
-            if (!_selected)
-                return;
-            var rect = new SKRect(0, 0, (float)Width, (float)Height);
-            if (owner._selectionBackground is { } brush)
-                SkUiShapePainter.FillRect(canvas, rect, (Paint?)brush);
-            else
-                SkUiShapePainter.FillRect(canvas, rect, SkUiFill.From(SkUiColors.Accent.WithAlpha(0.12f)));
-        }
-
-        protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
-        {
-            base.OnPopulateSemantics(info);
-            if (_selected)
-                info.Value = SelectedStateText();
-        }
-    }
-
-    /// <summary>The content of the scroller: the header, the items (or the empty view), the footer.</summary>
-    private sealed class BodyPart : SkUiView
-    {
-        private readonly SkUiCollectionView _owner;
-
-        public BodyPart(SkUiCollectionView owner)
-        {
-            _owner = owner;
-            ClipToBounds = false; // items may draw past their slots (shadows, press scale)
-            EmptyHost.IsVisible = false;
-            AttachChild(owner._items);
-            AttachChild(EmptyHost);
-        }
-
-        /// <summary>The scrolled header's host, created the first time it shows a header (<see cref="Adopt"/>).</summary>
-        public SkUiContentView? HeaderHost;
-
-        /// <summary>The scrolled footer's host, created on demand as <see cref="HeaderHost"/>.</summary>
-        public SkUiContentView? FooterHost;
-
-        public SkUiContentView EmptyHost { get; } = new();
-
-        /// <summary>Attaches a host created on demand.</summary>
-        public SkUiContentView Adopt(SkUiContentView host)
-        {
-            AttachChild(host);
-            return host;
-        }
-
-        public void InvalidateBody() => InvalidateMeasureOverride();
-
-        internal override IEnumerable<ISkUiView> SkiaChildren
-        {
-            get
-            {
-                if (HeaderHost is not null)
-                    yield return HeaderHost;
-                yield return _owner._items;
-                yield return EmptyHost;
-                if (FooterHost is not null)
-                    yield return FooterHost;
-            }
-        }
-
-        protected override Size MeasureContent(double widthConstraint, double heightConstraint)
-        {
-            var header = MeasurePart(HeaderHost, widthConstraint);
-            var items = ((IView)_owner._items).Measure(widthConstraint, double.PositiveInfinity);
-            var empty = EmptyHost.IsVisible ? ((IView)EmptyHost).Measure(widthConstraint, double.PositiveInfinity) : Size.Zero;
-            var footer = MeasurePart(FooterHost, widthConstraint);
-            return new Size(Math.Max(Math.Max(header.Width, items.Width), Math.Max(empty.Width, footer.Width)),
-                header.Height + items.Height + empty.Height + footer.Height);
-        }
-
-        protected override void ArrangeContent(Size size)
-        {
-            var header = HeightOf(HeaderHost);
-            var items = ((IView)_owner._items).DesiredSize.Height;
-            var footer = HeightOf(FooterHost);
-            ((IView?)HeaderHost)?.Arrange(new Rect(0, 0, size.Width, header));
-            ((IView)_owner._items).Arrange(new Rect(0, header, size.Width, items));
-            var y = header + items;
-            if (EmptyHost.IsVisible)
-            {
-                // The empty view fills what the viewport has left between the header and the footer.
-                var empty = Math.Max(((IView)EmptyHost).DesiredSize.Height, size.Height - header - items - footer);
-                ((IView)EmptyHost).Arrange(new Rect(0, y, size.Width, empty));
-                y += empty;
-            }
-            ((IView?)FooterHost)?.Arrange(new Rect(0, y, size.Width, footer));
-        }
-    }
-
-    /// <summary>The area over the scrolled list where the refresh indicator comes down (input passes through).</summary>
-    private sealed class RefreshLayer : SkUiView
-    {
-        public RefreshLayer()
-        {
-            InputTransparent = true;
-            ClipToBounds = true;
-            AttachChild(Spinner);
-        }
-
-        public RefreshSpinner Spinner { get; } = new();
-
-        internal override IEnumerable<ISkUiView> SkiaChildren { get { yield return Spinner; } }
-
-        protected override Size MeasureContent(double widthConstraint, double heightConstraint)
-        {
-            ((IView)Spinner).Measure(RefreshSpinner.Size, RefreshSpinner.Size);
-            return Size.Zero;
-        }
-
-        protected override void ArrangeContent(Size size) =>
-            ((IView)Spinner).Arrange(new Rect((size.Width - RefreshSpinner.Size) / 2, 0, RefreshSpinner.Size, RefreshSpinner.Size));
-
-        /// <summary>Follows a pull shown <paramref name="pull"/> DIPs past the top (composite-time: no re-record while dragging).</summary>
-        public void ShowPull(double pull)
-        {
-            var progress = Math.Clamp(pull / RefreshTriggerDistance, 0, 1);
-            Spinner.IsSpinning = false;
-            Spinner.Opacity = progress;
-            Spinner.Rotation = progress * 270;
-            Spinner.TranslationY = Math.Min(pull, RefreshTriggerDistance * 1.5) - RefreshSpinner.Size;
-        }
-
-        /// <summary>Shows the indicator spinning at its place below the top.</summary>
-        public void ShowRefreshing()
-        {
-            Spinner.Opacity = 1;
-            Spinner.Rotation = 0;
-            Spinner.TranslationY = RefreshTriggerDistance - RefreshSpinner.Size;
-            Spinner.IsSpinning = true;
-        }
-    }
-
-    /// <summary>A round badge with the look's spinner arc; spun by the compositor while refreshing.</summary>
-    private sealed class RefreshSpinner : SkUiView
-    {
-        public const double Size = 40;
-
-        private bool _spinning;
-        private Color? _color;
-        private SKPaint? _arc;
-
-        public RefreshSpinner()
-        {
-            Opacity = 0;
-            TranslationY = -Size;
-            Shadow = new Shadow { Brush = Colors.Black, Opacity = 0.25f, Radius = 4, Offset = new Point(0, 1) };
-        }
-
-        public bool IsSpinning
-        {
-            get => _spinning;
-            set
-            {
-                if (_spinning == value)
-                    return;
-                _spinning = value;
-                InvalidateRender(SkUiRenderDirty.Props);
-            }
-        }
-
-        public void SetColor(Color? value)
-        {
-            _color = value;
-            InvalidatePaint();
-        }
-
-        protected override Size MeasureContent(double widthConstraint, double heightConstraint) => new(Size, Size);
-
-        protected override void OnPaintContent(SKCanvas canvas)
-        {
-            var size = (float)Size;
-            using (var fill = new SKPaint { IsAntialias = true, Color = ToSkColor(SkUiColors.DefaultBackground) })
-                canvas.DrawCircle(size / 2, size / 2, size / 2, fill);
-            var arc = _arc ??= new SKPaint { Style = SKPaintStyle.Stroke, StrokeCap = SKStrokeCap.Round, IsAntialias = true };
-            arc.Color = ToSkColor(_color ?? SkUiColors.Accent);
-            const float inset = 10;
-            canvas.Save();
-            canvas.Translate(inset, inset);
-            SkUiLook.Current.DrawActivityIndicator(canvas, size - 2 * inset, size - 2 * inset, 0, arc);
-            canvas.Restore();
-        }
-
-        internal override SKPath? CreateShadowOutline(float width, float height)
-        {
-            using var builder = new SKPathBuilder();
-            builder.AddOval(new SKRect(0, 0, width, height));
-            return builder.Detach();
-        }
-
-        internal override void OnGetRenderProps(ref SkUiRenderProps props) => props.ContentSpinPeriod = _spinning ? 1 : 0;
-    }
 }

@@ -92,18 +92,32 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     public void Layout(Size size, bool rightToLeft)
     {
         Bounds = size;
+        _rightToLeft = rightToLeft;
         var (left, right, bottom) = Gutters(rightToLeft);
         ScrollportLeft = Math.Min(left, size.Width);
         Viewport = new Size(Math.Max(0, size.Width - left - right), Math.Max(0, size.Height - bottom));
     }
 
+    private bool _rightToLeft;
+
     /// <summary>
     /// Parts of the viewport covered by views drawn over the scroller (a collection view's sticky header and footer), in
-    /// DIPs at its top and bottom. The owner adds them to the extent and arranges the content below the top one, so the
-    /// content's start and end can be scrolled out from under them; scrolling to a target uses the uncovered band, and the
-    /// vertical scroll bar runs along it.
+    /// DIPs at the start and the end of the scroll axis: top and bottom when the scroller scrolls vertically, else left and
+    /// right (the start on the right in right-to-left layouts). The owner adds them to the extent and arranges the content
+    /// after the start one, so the content's start and end can be scrolled out from under them; scrolling to a target uses
+    /// the uncovered band, and the scroll bar of that axis runs along it.
     /// </summary>
-    public (double Top, double Bottom) Insets { get; set; }
+    public (double Start, double End) Insets { get; set; }
+
+    /// <summary>Whether <see cref="Insets"/> apply to the vertical axis (else to the horizontal one).</summary>
+    public bool InsetsVertical => Vertical;
+
+    /// <summary><see cref="Insets"/> as physical left / right (0 when they apply to the vertical axis).</summary>
+    private (double Left, double Right) HorizontalInsets =>
+        InsetsVertical ? (0, 0) : _rightToLeft ? (Insets.End, Insets.Start) : (Insets.Start, Insets.End);
+
+    /// <summary><see cref="Insets"/> as top / bottom (0 when they apply to the horizontal axis).</summary>
+    private (double Top, double Bottom) VerticalInsets => InsetsVertical ? Insets : (0, 0);
 
     /// <summary>The scroller's arranged size (scrollport and gutters).</summary>
     public Size Bounds { get; private set; }
@@ -425,11 +439,12 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// </summary>
     public Point GetOffsetFor(Rect target, ScrollToPosition position)
     {
-        // Vertically, the band the insets leave uncovered: offsets are computed in it and moved back by the top inset.
-        var (top, bottom) = Insets;
-        var width = Viewport.Width;
+        // The band the insets leave uncovered: offsets are computed in it and moved back by the start inset.
+        var (top, bottom) = VerticalInsets;
+        var (left, right) = HorizontalInsets;
+        var width = Math.Max(0, Viewport.Width - left - right);
         var height = Math.Max(0, Viewport.Height - top - bottom);
-        var x = target.X;
+        var x = target.X - left;
         var y = target.Y - top;
         if (position == ScrollToPosition.MakeVisible)
         {
@@ -906,8 +921,9 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
                 var strip = reservedVertical ? gutterLeft + gutterRight : Math.Min(port.Width, hit);
                 var x = reservedVertical ? (rightToLeft ? 0 : port.Right) : rightToLeft ? port.Left : port.Right - strip;
                 // Along the band the insets leave uncovered.
-                var track = Math.Max(0, port.Height - Insets.Top - Insets.Bottom - 2 * margin - (showHorizontal && !reservedHorizontal ? corner : 0));
-                bar.ArrangeOwned(new Rect(x, Insets.Top + margin, strip, track), thumbAtStart: rightToLeft);
+                var (insetTop, insetBottom) = VerticalInsets;
+                var track = Math.Max(0, port.Height - insetTop - insetBottom - 2 * margin - (showHorizontal && !reservedHorizontal ? corner : 0));
+                bar.ArrangeOwned(new Rect(x, insetTop + margin, strip, track), thumbAtStart: rightToLeft);
             }
         }
         if (showHorizontal || _horizontalBar is not null)
@@ -918,10 +934,11 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             if (showHorizontal)
             {
                 var strip = reservedHorizontal ? gutterBottom : Math.Min(port.Height, hit);
-                var y = reservedHorizontal ? port.Bottom : port.Bottom - Insets.Bottom - strip;
+                var y = reservedHorizontal ? port.Bottom : port.Bottom - VerticalInsets.Bottom - strip;
                 var corneredVertical = showVertical && !reservedVertical;
-                var left = port.Left + margin + (corneredVertical && rightToLeft ? corner : 0);
-                var track = Math.Max(0, port.Width - 2 * margin - (corneredVertical ? corner : 0));
+                var (insetLeft, insetRight) = HorizontalInsets;
+                var left = port.Left + insetLeft + margin + (corneredVertical && rightToLeft ? corner : 0);
+                var track = Math.Max(0, port.Width - insetLeft - insetRight - 2 * margin - (corneredVertical ? corner : 0));
                 bar.ArrangeOwned(new Rect(left, y, track, strip), thumbAtStart: false);
             }
         }

@@ -85,8 +85,9 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     private int _remainingItemsThreshold = -1;
     private int _thresholdCount = -1;
 
-    private double _cross = double.NaN;         // width items are measured at
-    private double _arrangedWidth = double.NaN; // width items are arranged at
+    private double _cross = double.NaN;         // cross size (width; height when horizontal) items are measured at
+    private double _arrangedWidth = double.NaN; // cross size items are arranged at
+    private bool _horizontal;
     private double _reportedLength = double.NaN; // height of the last measure
     private bool _measuring;
     private bool _updating;
@@ -359,6 +360,77 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         Update();
     }
 
+    /// <summary>
+    /// Items follow each other from left to right (from right to left in right-to-left layouts) instead of top to bottom,
+    /// following the horizontal scrollers around the layout: sizes, offsets and the window are along X, and items are
+    /// measured at the layout's height. For list controls built on the engine (a collection view's orientation).
+    /// </summary>
+    internal bool IsHorizontal
+    {
+        get => _horizontal;
+        set
+        {
+            if (_horizontal == value)
+                return;
+            _horizontal = value;
+            _cross = double.NaN;
+            _sizes.ForgetAll();
+            RegisterWithScrollers(Parent is null);
+            InvalidateMeasureOverride();
+        }
+    }
+
+    /// <summary>
+    /// What shows stays in place when items are inserted or resized before it also while the start of the items shows (by
+    /// default inserted items then push the others along): a list that loads older items at its start (a chat).
+    /// </summary>
+    internal bool AnchorsAtStart { get; set; }
+
+    /// <summary>
+    /// Room that must stay free before an item scrolled to (<see cref="ScrollToIndex"/>) besides the scroller's insets: a
+    /// sticky group header over the list, as high as it is for that item. <c>null</c>: none.
+    /// </summary>
+    internal Func<int, double>? ScrollTargetInset { get; set; }
+
+    /// <summary>Whether the layout has been laid out (it has a window and item sizes).</summary>
+    internal bool HasWindow => !double.IsNaN(_cross) && !double.IsNaN(_arrangedWidth);
+
+    /// <summary>Where the visible window starts, in item coordinates along the axis (padding excluded; mirrored right to left).</summary>
+    internal double VisibleStart => ComputeWindow().Top - PadStart;
+
+    /// <summary>The length of all items with their spacing (padding excluded).</summary>
+    internal double TotalLength => _sizes.TotalLength;
+
+    /// <summary>The item at an offset along the axis (item coordinates).</summary>
+    internal int RowAtOffset(double offset) => _sizes.IndexAt(offset);
+
+    /// <summary>Where an item starts along the axis (item coordinates; estimated when not measured).</summary>
+    internal double RowOffset(int index) => _sizes.OffsetOf(index);
+
+    /// <summary>An item's size along the axis (estimated when not measured).</summary>
+    internal double RowSize(int index) => index >= 0 && index < _sizes.Count ? _sizes.SizeOf(index) : 0;
+
+    /// <summary>Forgets every item size (the items' layout changed, e.g. a grid's spacing): realized items measure again.</summary>
+    internal void ForgetItemSizes()
+    {
+        _sizes.ForgetAll();
+        foreach (var realized in _realized)
+            realized.View.InvalidateMeasure();
+        InvalidateMeasure();
+    }
+
+    /// <summary>The padding at the start of the axis, along it, across it, and before items across it.</summary>
+    private double PadStart => _horizontal ? _padding.Left : _padding.Top;
+
+    private double PadMain => _horizontal ? _padding.HorizontalThickness : _padding.VerticalThickness;
+
+    private double PadCross => _horizontal ? _padding.VerticalThickness : _padding.HorizontalThickness;
+
+    /// <summary>A scroller around this layout that scrolls along its axis.</summary>
+    private bool ScrollsAlong(SkUiScrollView scroller) => _horizontal
+        ? scroller.Orientation is ScrollOrientation.Horizontal or ScrollOrientation.Both
+        : scroller.Orientation is ScrollOrientation.Vertical or ScrollOrientation.Both;
+
     #endregion
 
     #region Items
@@ -582,8 +654,9 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     private void MeasureItem(int index, ISkUiView view)
     {
         var fixedExtent = _sizes.FixedExtent;
-        var size = view.Measure(_cross, fixedExtent > 0 ? fixedExtent : double.PositiveInfinity);
-        _sizes.SetSize(index, size.Height);
+        var length = fixedExtent > 0 ? fixedExtent : double.PositiveInfinity;
+        var size = _horizontal ? view.Measure(length, _cross) : view.Measure(_cross, length);
+        _sizes.SetSize(index, _horizontal ? size.Width : size.Height);
     }
 
     private void ReleaseAt(int position, bool recycle = true)
@@ -775,8 +848,8 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         if (_realized.Count == 0 || double.IsNaN(_cross))
             return (-1, 0);
         var window = ComputeWindow();
-        var top = window.Top - _padding.Top;
-        if (top <= 0)
+        var top = window.Top - PadStart;
+        if (top <= 0 && !AnchorsAtStart)
             return (-1, 0);
         foreach (var realized in _realized)
         {
@@ -821,7 +894,7 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        var cross = Math.Max(0, widthConstraint - _padding.HorizontalThickness);
+        var cross = Math.Max(0, (_horizontal ? heightConstraint : widthConstraint) - PadCross);
         _measuring = true;
         try
         {
@@ -831,17 +904,17 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         {
             _measuring = false;
         }
-        var width = 0d;
+        var across = 0d;
         foreach (var realized in _realized)
-            width = Math.Max(width, realized.View.DesiredSize.Width);
-        _reportedLength = _sizes.TotalLength + _padding.VerticalThickness;
-        return new Size(width + _padding.HorizontalThickness, _reportedLength);
+            across = Math.Max(across, _horizontal ? realized.View.DesiredSize.Height : realized.View.DesiredSize.Width);
+        _reportedLength = _sizes.TotalLength + PadMain;
+        return _horizontal ? new Size(_reportedLength, across + PadCross) : new Size(across + PadCross, _reportedLength);
     }
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
-        _arrangedWidth = Math.Max(0, size.Width - _padding.HorizontalThickness);
+        _arrangedWidth = Math.Max(0, (_horizontal ? size.Height : size.Width) - PadCross);
         Realize(Phase.Arrange, _cross);
         ArrangeRealized();
         if (!_updating)
@@ -875,12 +948,14 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     {
         if (_realized.Count == 0 || double.IsNaN(_arrangedWidth))
             return;
-        var y = _padding.Top + _sizes.OffsetOf(_realized[0].Index);
+        var position = PadStart + _sizes.OffsetOf(_realized[0].Index);
         foreach (var realized in _realized)
         {
-            var height = _sizes.SizeOf(realized.Index);
-            realized.View.Arrange(new Rect(_padding.Left, y, _arrangedWidth, height));
-            y += height + _sizes.Spacing;
+            var length = _sizes.SizeOf(realized.Index);
+            realized.View.Arrange(_horizontal
+                ? new Rect(position, _padding.Top, length, _arrangedWidth)
+                : new Rect(_padding.Left, position, _arrangedWidth, length));
+            position += length + _sizes.Spacing;
         }
     }
 
@@ -931,8 +1006,8 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
             _pinnedAnchor = -1;
         }
         var window = ComputeWindow();
-        _top = window.Top - _padding.Top;
-        _bottom = window.Bottom - _padding.Top;
+        _top = window.Top - PadStart;
+        _bottom = window.Bottom - PadStart;
         _shift = 0;
         _childrenChanged = false;
         _passStart = Stopwatch.GetTimestamp();
@@ -1028,7 +1103,7 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         if (phase == Phase.Update)
             ArrangeRealized();
         // The extent changed (measured items, discovered ones): the scrollers lay out again before the next frame.
-        if (_sizes.TotalLength + _padding.VerticalThickness != _reportedLength)
+        if (_sizes.TotalLength + PadMain != _reportedLength)
             InvalidateMeasureFromChild();
     }
 
@@ -1109,7 +1184,7 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         _anchor = -1;
         if (_pinnedAnchor >= 0 && _pinnedAnchor < _sizes.Count)
             _anchor = _pinnedAnchor;
-        else if (_top > 0 && _bottom > _top)
+        else if ((_top > 0 || AnchorsAtStart) && _bottom > _top)
             foreach (var realized in _realized)
             {
                 if (_sizes.OffsetOf(realized.Index) + _sizes.SizeOf(realized.Index) <= _top)
@@ -1141,9 +1216,15 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     private void CorrectScroll(double delta)
     {
         for (var ancestor = SkiaParent; ancestor is not null; ancestor = ancestor.SkiaParent)
-            if (ancestor is SkUiScrollView { Orientation: ScrollOrientation.Vertical or ScrollOrientation.Both } scroller)
+            if (ancestor is SkUiScrollView scroller && ScrollsAlong(scroller))
             {
-                scroller.CorrectScrollOffset(0, delta);
+                // Right to left, items before the anchor grow the content towards the left: its offset from the left stays.
+                if (_horizontal && IsRightToLeft)
+                    return;
+                if (_horizontal)
+                    scroller.CorrectScrollOffset(delta, 0);
+                else
+                    scroller.CorrectScrollOffset(0, delta);
                 return;
             }
     }
@@ -1155,16 +1236,18 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     /// </summary>
     private (double Top, double Bottom, double Length) ComputeWindow()
     {
+        // Along the axis, in physical coordinates (frames are mirrored in right-to-left layouts).
         double top = double.NegativeInfinity, bottom = double.PositiveInfinity, length = double.PositiveInfinity;
         double y = 0;
         SkUiView node = this;
         while (node.SkiaParent is { } parent)
         {
-            if (node.Frame.Height >= 0)
-                y += node.Frame.Y;
+            var frameLength = _horizontal ? node.Frame.Width : node.Frame.Height;
+            if (frameLength >= 0)
+                y += _horizontal ? node.Frame.X : node.Frame.Y;
             if (parent is SkUiScrollView scroller)
             {
-                var (offset, viewport) = scroller.VerticalWindow;
+                var (offset, viewport) = _horizontal ? scroller.HorizontalWindow : scroller.VerticalWindow;
                 top = Math.Max(top, offset - y);
                 bottom = Math.Min(bottom, offset + viewport - y);
                 length = Math.Min(length, viewport);
@@ -1172,15 +1255,20 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
             }
             node = parent;
         }
-        if (node.Frame.Height > 0)
+        var rootLength = _horizontal ? node.Frame.Width : node.Frame.Height;
+        if (rootLength > 0)
         {
             top = Math.Max(top, -y);
-            bottom = Math.Min(bottom, node.Frame.Height - y);
-            length = Math.Min(length, node.Frame.Height);
+            bottom = Math.Min(bottom, rootLength - y);
+            length = Math.Min(length, rootLength);
         }
         if (double.IsInfinity(length))
             return (0, 0, 0);
-        return (top, Math.Max(top, bottom), length);
+        bottom = Math.Max(top, bottom);
+        // Right to left, items run from the layout's right edge: the window in item coordinates is mirrored.
+        if (_horizontal && IsRightToLeft && Frame.Width > 0)
+            (top, bottom) = (Frame.Width - bottom, Frame.Width - top);
+        return (top, bottom, length);
     }
 
     private bool IsFlinging
@@ -1374,7 +1462,7 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
             throw new ArgumentOutOfRangeException(nameof(index), index, "The index is not an item of the layout.");
         SkUiScrollView? target = null;
         for (var ancestor = SkiaParent; ancestor is not null && target is null; ancestor = ancestor.SkiaParent)
-            if (ancestor is SkUiScrollView { Orientation: ScrollOrientation.Vertical or ScrollOrientation.Both } scroller)
+            if (ancestor is SkUiScrollView scroller && ScrollsAlong(scroller))
                 target = scroller;
         if (target is null)
             return Task.CompletedTask;
@@ -1396,10 +1484,22 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
             return new Point(controller.X, controller.Y);
         EnsureMeasured(index);
         var origin = SkUiScrollController.GetContentBounds(scroller, this) ?? Rect.Zero;
-        var item = new Rect(origin.X + _padding.Left, origin.Y + _padding.Top + _sizes.OffsetOf(index),
-            Math.Max(0, origin.Width - _padding.HorizontalThickness), _sizes.SizeOf(index));
-        var offset = controller.GetOffsetFor(item, position);
-        return new Point(controller.X, offset.Y);
+        // Room for what covers the start of the list besides the scroller's insets (a sticky group header).
+        var extra = ScrollTargetInset?.Invoke(index) ?? 0;
+        var start = PadStart + _sizes.OffsetOf(index) - extra;
+        var length = _sizes.SizeOf(index) + extra;
+        if (!_horizontal)
+        {
+            var item = new Rect(origin.X + _padding.Left, origin.Y + start, Math.Max(0, origin.Width - _padding.HorizontalThickness), length);
+            return new Point(controller.X, controller.GetOffsetFor(item, position).Y);
+        }
+        // Right to left, the item's start is its right edge: mirrored into the layout's bounds, with Start and End swapped.
+        var rightToLeft = IsRightToLeft;
+        var x = rightToLeft ? origin.X + origin.Width - start - length : origin.X + start;
+        if (rightToLeft)
+            position = position switch { ScrollToPosition.Start => ScrollToPosition.End, ScrollToPosition.End => ScrollToPosition.Start, _ => position };
+        var rect = new Rect(x, origin.Y + _padding.Top, length, Math.Max(0, origin.Height - _padding.VerticalThickness));
+        return new Point(controller.GetOffsetFor(rect, position).X, controller.Y);
     }
 
     /// <summary>Gives the item at <paramref name="index"/> its measured size: a view measured off the layout and recycled.</summary>

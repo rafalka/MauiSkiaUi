@@ -46,7 +46,7 @@ public class CheckXamlTests
                              xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
                   <sk:SkUiGrid>
                     <sk:SkUiCollectionView ItemsSource="{Binding Orders}" IsGrouped="True" Header="Orders"
-                                           SelectionMode="Multiple" SelectedItem="{Binding Current}" />
+                                           SelectionMode="Multiple" ItemsLayout="VerticalGrid, 2" CanReorderItems="True" />
                     <CollectionView />
                   </sk:SkUiGrid>
                 </ContentPage>
@@ -54,10 +54,10 @@ public class CheckXamlTests
             var (exitCode, output) = Run(project.FullName);
             Assert.Equal(1, exitCode);
             var errors = output.Split('\n').Where(line => line.Contains("error:")).ToArray();
-            Assert.Equal(4, errors.Length);
-            Assert.Contains(errors, error => error.Contains("IsGrouped") && error.Contains("grouping"));
+            Assert.Equal(4, errors.Length); // grouping and multiple selection are supported
+            Assert.Contains(errors, error => error.Contains("ItemsLayout") && error.Contains("Span="));
+            Assert.Contains(errors, error => error.Contains("CanReorderItems"));
             Assert.Contains(errors, error => error.Contains("Header=\"Orders\"") && error.Contains("<sk:SkUiCollectionView.Header>"));
-            Assert.Contains(errors, error => error.Contains("Multiple"));
             Assert.Contains(errors, error => error.Contains("Page.xaml:6:") && error.Contains("sk:SkUiCollectionView"));
         }
         finally

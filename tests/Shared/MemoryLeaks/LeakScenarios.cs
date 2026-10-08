@@ -42,6 +42,7 @@ public static class LeakScenarios
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("VirtualListScrolled", Scrolling, "SkUiVirtualScrollView bound to a long-lived collection (items of different heights, recycled template views): dragged, flung, scrolled to an index, items inserted and removed while shown; closed mid-fling.", () => new VirtualListRun()),
         new("CollectionViewUsed", Scrolling, "SkUiCollectionView bound to a long-lived collection, with long-lived selection, item-tap and refresh commands, a sticky header and an empty view: items tapped to select and deselect, flung, scrolled to an item, pulled to refresh, the selected item removed, the collection emptied and refilled; closed mid-fling.", () => new CollectionViewRun()),
+        new("CollectionViewGrouped", Scrolling, "SkUiCollectionView over long-lived groups (a grid of two columns, sticky collapsible group headers), with a long-lived selected-items list and load-more command: headers tapped to collapse and expand, items selected, flung, scrolled to a group, groups and items added and removed, the template replaced; closed mid-fling.", () => new CollectionViewGroupedRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
         new("SurfaceReplaced", Rendering, "A page replaces its GPU surface with a software one and back; the discarded surfaces are disconnected.", () => new SurfaceReplacedRun()),
@@ -1393,6 +1394,82 @@ public static class LeakScenarios
                 : $"Tapped {_taps} times, selection changed {_selections} times, refreshed {_refreshes} times; selected {_list!.SelectedItem ?? "none"}.";
     }
 
+    private sealed class CollectionViewGroupedRun : LeakScenarioRun
+    {
+        private SkUiCollectionView? _list;
+        private int _collapsed;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakGroups.Shared.Clear();
+            LeakGroups.Selected.Clear();
+            for (var group = 0; group < 12; group++)
+                LeakGroups.Shared.Add(new LeakGroups.Group($"Group {group}", Enumerable.Range(0, 9).Select(item => $"Item {group}.{item}")));
+            _list = context.Track(new SkUiCollectionView
+            {
+                IsGrouped = true,
+                ItemsSource = LeakGroups.Shared,
+                Span = 2,
+                SpanSpacing = 4,
+                IsStickyGroupHeader = true,
+                AllowGroupExpandCollapse = true,
+                SelectionMode = SkUiSelectionMode.Multiple,
+                SelectedItems = LeakGroups.Selected,
+                LoadMoreMode = SkUiLoadMoreMode.Auto,
+                LoadMoreCommand = LeakCommands.Shared,
+                GroupHeaderTemplate = new DataTemplate(() =>
+                {
+                    var header = context.Track(Text("", 15), "group header view");
+                    header.HeightRequest = 32;
+                    header.SetBinding(SkUiLabel.TextProperty, nameof(LeakGroups.Group.Name));
+                    return header;
+                }),
+                ItemTemplate = new DataTemplate(() =>
+                {
+                    var cell = context.Track(Text("", 13), "grid cell view");
+                    cell.HeightRequest = 44;
+                    cell.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+                    return cell;
+                })
+            }, "grouped collection view");
+            _list.GroupCollapsed += (_, _) => _collapsed++;
+            return Root(_list);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var list = _list!;
+            await context.SettleAsync();
+            await context.TapAsync(list.GetRealizedView(0)!);
+            await context.TapAsync(list.GetRealizedView(1)!);
+            await context.DragAsync(list, 0, -400, durationMs: 80); // fling: the sticky header follows
+            await context.WaitAsync(300);
+            await context.WaitForAsync(list.ScrollToGroup(LeakGroups.Shared[8], ScrollToPosition.Start, animated: true));
+            list.CollapseGroup(LeakGroups.Shared[8]);
+            list.ExpandGroup(LeakGroups.Shared[8]);
+            list.CollapseGroup(LeakGroups.Shared[2]);
+            LeakGroups.Shared.Insert(0, new LeakGroups.Group("New", ["Fresh 1", "Fresh 2", "Fresh 3"]));
+            LeakGroups.Shared[5].RemoveAt(0);
+            LeakGroups.Shared[5].Add("Late");
+            LeakGroups.Shared.RemoveAt(3);
+            list.IsLoadMoreActive = false;
+            await context.SettleAsync();
+            list.ItemTemplate = new DataTemplate(() =>
+            {
+                var cell = context.Track(Text("", 12), "grid cell view (second template)");
+                cell.HeightRequest = 52;
+                cell.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+                return cell;
+            });
+            await context.SettleAsync();
+            await context.DragAsync(list, 0, -400, durationMs: 60); // closes mid-fling
+        }
+
+        public override string? CheckInteraction() =>
+            _collapsed >= 2 && LeakGroups.Selected.Count == 2 ? null
+                : $"Groups collapsed {_collapsed} times, {LeakGroups.Selected.Count} items selected.";
+    }
+
     // ---- Input ------------------------------------------------------------------------------------------------
 
     private sealed class GesturesRun : LeakScenarioRun
@@ -1912,6 +1989,19 @@ public static class LeakCommands
 public static class LeakItems
 {
     public static ObservableCollection<string> Shared { get; } = [];
+}
+
+/// <summary>Long-lived groups and selection for the grouped collection view scenario.</summary>
+public static class LeakGroups
+{
+    public static ObservableCollection<Group> Shared { get; } = [];
+
+    public static ObservableCollection<object> Selected { get; } = [];
+
+    public sealed class Group(string name, IEnumerable<string> items) : ObservableCollection<string>(items)
+    {
+        public string Name { get; } = name;
+    }
 }
 
 /// <summary>Small in-memory PNG sources (no files or network, so they work headless too).</summary>

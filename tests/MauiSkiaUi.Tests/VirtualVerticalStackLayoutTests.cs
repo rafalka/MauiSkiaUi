@@ -1091,9 +1091,9 @@ public class VirtualVerticalStackLayoutTests
     /// <summary>
     /// Every settable member of <typeparamref name="TInterface"/> on <typeparamref name="TList"/> reaches its layout: the list's
     /// bindable property is declared from the layout's (same name, type and default), and a value set on the list is the
-    /// layout's.
+    /// layout's. Members a list keeps itself (a collection view's items and template, which feed its rows) only read back.
     /// </summary>
-    private static void AssertForwardsEveryMember<TInterface, TList>(Func<TList> create, Func<TList, SkUiVirtualVerticalStackLayout> layoutOf)
+    private static void AssertForwardsEveryMember<TInterface, TList>(Func<TList> create, Func<TList, SkUiVirtualVerticalStackLayoutBase> layoutOf)
         where TList : TInterface
     {
         var settable = typeof(TInterface).GetInterfaces().Append(typeof(TInterface))
@@ -1112,7 +1112,11 @@ public class VirtualVerticalStackLayoutTests
             var list = create();
             var value = SampleValue(property.PropertyType);
             property.SetValue(list, value);
-            Assert.Equal(value, property.GetValue(layoutOf(list)));
+            var layout = layoutOf(list);
+            if (layout is TInterface)
+                Assert.Equal(value, property.GetValue(layout));
+            else if (layout.GetType().GetProperty(property.Name) is { } layoutMember)
+                Assert.Equal(value, layoutMember.GetValue(layout));
             Assert.Equal(value, property.GetValue(list));
         }
     }
