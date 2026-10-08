@@ -31,7 +31,7 @@ public sealed class ExpanderNestingDemoPage : ComponentDemoPage
         AddEditor("All expanders", new HorizontalStackLayout
         {
             Spacing = 8,
-            Children = { ActionButton("Expand all", () => ForAll(e => e.IsExpanded = true)), ActionButton("Collapse all", () => ForAll(e => e.IsExpanded = false)) }
+            Children = { HeaderButton("Expand all", () => ForAll(e => e.IsExpanded = true)), HeaderButton("Collapse all", () => ForAll(e => e.IsExpanded = false)) }
         });
         Number(nameof(SkUiExpander.AnimationLength), 0, 800, 300, value => ForAll(e => e.AnimationLength = (uint)value), () => _expanders[0].AnimationLength, whole: true);
         Choice(nameof(SkUiExpander.AnimationEasing), DemoExpanders.EasingNames, "CubicInOut",
@@ -39,7 +39,8 @@ public sealed class ExpanderNestingDemoPage : ComponentDemoPage
         Toggle(nameof(SkUiExpander.LazyContentExpansion), false, value => ForAll(e => e.LazyContentExpansion = value), () => _expanders[0].LazyContentExpansion);
     }
 
-    private static Button ActionButton(string title, Action action)
+    /// <summary>A button above the preview (not an editor row, as the base page's <c>ActionButton</c>).</summary>
+    private static Button HeaderButton(string title, Action action)
     {
         var button = new Button { Text = title, Background = Accent, TextColor = Colors.White, AutomationId = title.Replace(" ", "") };
         button.Clicked += (_, _) => action();
@@ -88,12 +89,14 @@ public sealed class ExpanderNestingDemoPage : ComponentDemoPage
         if (level < Levels)
             content.Children.Add(Section($"{title}.{level + 1}", level + 1));
         expander.Content = content;
-        return new SkUiBorder
+        var border = new SkUiBorder
         {
             Stroke = accent, StrokeThickness = 1, CornerRadius = 10, Background = LevelBackgrounds[level - 1],
-            Shadow = level == 1 ? new Shadow { Brush = Colors.Black, Opacity = 0.15f, Radius = 6, Offset = new Point(0, 2) } : null,
             Content = expander
         };
+        if (level == 1)
+            border.Shadow = new Shadow { Brush = Colors.Black, Opacity = 0.15f, Radius = 6, Offset = new Point(0, 2) };
+        return border;
     }
 
     private void Report() =>

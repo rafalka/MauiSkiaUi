@@ -625,6 +625,14 @@ public class BrushShadowClipTests
 /// </summary>
 public class ShadowOutlineShapeTests
 {
+    /// <summary>A path built by <paramref name="build"/> (SKPath's own Add* methods are obsolete).</summary>
+    private static SKPath Path(Action<SKPathBuilder> build)
+    {
+        using var builder = new SKPathBuilder();
+        build(builder);
+        return builder.Detach();
+    }
+
     private static SKPath Union(SKPath path, float thickness, SKStrokeJoin join, float miterLimit = 4)
     {
         using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = thickness, StrokeJoin = join, StrokeMiter = miterLimit };
@@ -658,24 +666,21 @@ public class ShadowOutlineShapeTests
     [Fact]
     public void StrokedRectanglesCirclesAndRoundedRectanglesGrowIntoTheSameShape()
     {
-        using var roundRect = new SKPath();
-        roundRect.AddRoundRect(new SKRect(1, 1, 101, 61), 10, 10);
+        using var roundRect = Path(builder => builder.AddRoundRect(new SKRoundRect(new SKRect(1, 1, 101, 61), 10, 10)));
         using var grownRoundRect = SkUiShapePainter.GrownByStroke(roundRect, 2, SKStrokeJoin.Miter, 4)!;
         Assert.True(grownRoundRect.IsRoundRect);
         Assert.Equal(new SKRect(0, 0, 102, 62), grownRoundRect.Bounds);
         using (var union = Union(roundRect, 2, SKStrokeJoin.Miter))
             AssertSameArea(union, grownRoundRect);
 
-        using var circle = new SKPath();
-        circle.AddOval(new SKRect(2, 2, 42, 42));
+        using var circle = Path(builder => builder.AddOval(new SKRect(2, 2, 42, 42)));
         using var grownCircle = SkUiShapePainter.GrownByStroke(circle, 4, SKStrokeJoin.Bevel, 4)!;
         Assert.True(grownCircle.IsOval);
         Assert.Equal(new SKRect(0, 0, 44, 44), grownCircle.Bounds);
         using (var union = Union(circle, 4, SKStrokeJoin.Bevel))
             AssertSameArea(union, grownCircle);
 
-        using var rect = new SKPath();
-        rect.AddRect(new SKRect(2, 2, 42, 22));
+        using var rect = Path(builder => builder.AddRect(new SKRect(2, 2, 42, 22)));
         using var mitered = SkUiShapePainter.GrownByStroke(rect, 4, SKStrokeJoin.Miter, 4)!;
         Assert.True(mitered.IsRect);
         using (var union = Union(rect, 4, SKStrokeJoin.Miter))
@@ -690,14 +695,11 @@ public class ShadowOutlineShapeTests
     public void OutlinesThatAreNotTheSameShapeKeepTheUnion()
     {
         // The outer edge of an ellipse (or of elliptical corners) is not an ellipse; cut corners are not a rectangle.
-        using var ellipse = new SKPath();
-        ellipse.AddOval(new SKRect(2, 2, 62, 22));
+        using var ellipse = Path(builder => builder.AddOval(new SKRect(2, 2, 62, 22)));
         Assert.Null(SkUiShapePainter.GrownByStroke(ellipse, 4, SKStrokeJoin.Miter, 4));
-        using var ellipticalCorners = new SKPath();
-        ellipticalCorners.AddRoundRect(new SKRect(2, 2, 82, 42), 20, 8);
+        using var ellipticalCorners = Path(builder => builder.AddRoundRect(new SKRoundRect(new SKRect(2, 2, 82, 42), 20, 8)));
         Assert.Null(SkUiShapePainter.GrownByStroke(ellipticalCorners, 4, SKStrokeJoin.Miter, 4));
-        using var rect = new SKPath();
-        rect.AddRect(new SKRect(2, 2, 42, 22));
+        using var rect = Path(builder => builder.AddRect(new SKRect(2, 2, 42, 22)));
         Assert.Null(SkUiShapePainter.GrownByStroke(rect, 4, SKStrokeJoin.Bevel, 4));
         Assert.Null(SkUiShapePainter.GrownByStroke(rect, 4, SKStrokeJoin.Miter, 1.2f)); // below √2: corners are beveled
 

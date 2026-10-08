@@ -5,7 +5,7 @@ namespace MauiSkiaUiDemo;
 
 /// <summary>
 /// <see cref="SkUiVirtualVerticalStackLayout"/> as one section of a scrolling page: a header and a horizontal carousel above a feed
-/// whose items are created only near the viewport. The feed loads page after page (<see cref="SkUiVirtualVerticalStackLayout.RemainingItemsThreshold"/>),
+/// whose items are created only near the viewport. The feed loads page after page (<see cref="SkUiVirtualVerticalStackLayoutBase.RemainingItemsThreshold"/>),
 /// or comes from an endless <see cref="SkUiVirtualVerticalStackLayout.ItemFactory"/>; inserting at the top keeps what shows in place.
 /// </summary>
 public sealed class VirtualVerticalStackLayoutDemoPage : ComponentDemoPage
