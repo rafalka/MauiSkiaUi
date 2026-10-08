@@ -124,7 +124,11 @@ public class SkUiVirtualVerticalStackLayout : SkUiVirtualVerticalStackLayoutBase
         // Recycled views keep their last item until rebound (as MAUI's CollectionView); items of a replaced source go.
         foreach (var view in RecycledViews)
             ((BindableObject)view).BindingContext = null;
+        SourceChanged?.Invoke(null);
     }
+
+    /// <summary>The items changed after they were applied: the arguments of an incremental change of the source, or <c>null</c> when the source was replaced or read again (collection views follow selection and the empty view).</summary>
+    internal event Action<NotifyCollectionChangedEventArgs?>? SourceChanged;
 
     private void ReadSource(IEnumerable? value)
     {
@@ -166,12 +170,21 @@ public class SkUiVirtualVerticalStackLayout : SkUiVirtualVerticalStackLayoutBase
         if (_source is not null)
             return recycleKey switch
             {
-                DataTemplate template => template.CreateContent() as ISkUiView
-                    ?? throw new InvalidOperationException($"{nameof(ItemTemplate)} of {nameof(SkUiVirtualVerticalStackLayout)} must create drawn (SkUi*) views; put native views inside an SkUiMauiContentView."),
-                _ => new SkUiLabel()
+                DataTemplate template => WrapItemView(template.CreateContent() as ISkUiView
+                    ?? throw new InvalidOperationException($"{nameof(ItemTemplate)} of {nameof(SkUiVirtualVerticalStackLayout)} must create drawn (SkUi*) views; put native views inside an SkUiMauiContentView.")),
+                _ => WrapItemView(new SkUiLabel())
             };
         return _factory?.Invoke(index);
     }
+
+    /// <summary>Hosts a view created from a template (or a default label) in the view the layout realizes; identity by default (the collection view adds an item host).</summary>
+    internal virtual ISkUiView WrapItemView(ISkUiView content) => content;
+
+    /// <summary>The template view inside a realized view (inverse of <see cref="WrapItemView"/>).</summary>
+    internal virtual ISkUiView UnwrapItemView(ISkUiView view) => view;
+
+    /// <summary>An item of <see cref="ItemsSource"/> was bound to a new or recycled view.</summary>
+    internal virtual void OnItemBound(int index, ISkUiView view, object? item) { }
 
     /// <inheritdoc />
     /// <remarks>An item of <see cref="ItemsSource"/> becomes its view's binding context (a default label shows its text).</remarks>
@@ -182,13 +195,26 @@ public class SkUiVirtualVerticalStackLayout : SkUiVirtualVerticalStackLayoutBase
         var item = source[index];
         ((BindableObject)view).BindingContext = item;
         if (ReferenceEquals(recycleKey, DefaultTemplateKey))
-            ((SkUiLabel)view).Text = item?.ToString() ?? string.Empty;
+            ((SkUiLabel)UnwrapItemView(view)).Text = item?.ToString() ?? string.Empty;
+        OnItemBound(index, view, item);
     }
 
     /// <inheritdoc />
     protected override object? GetItem(int index) => _source is { } source && index < source.Count ? source[index] : null;
 
+    /// <summary>The item at <paramref name="index"/> of <see cref="ItemsSource"/> (as read: a copy for other sequences), or <c>null</c>.</summary>
+    internal object? ItemAt(int index) => GetItem(index);
+
+    /// <summary>The index of <paramref name="item"/> in <see cref="ItemsSource"/> (as read), or -1.</summary>
+    internal int IndexOfItem(object? item) => _source?.IndexOf(item) ?? -1;
+
     private void OnSourceCollectionChanged(NotifyCollectionChangedEventArgs args)
+    {
+        ApplySourceChange(args);
+        SourceChanged?.Invoke(_sourceIsSnapshot ? null : args);
+    }
+
+    private void ApplySourceChange(NotifyCollectionChangedEventArgs args)
     {
         if (_source is not { } source)
             return;

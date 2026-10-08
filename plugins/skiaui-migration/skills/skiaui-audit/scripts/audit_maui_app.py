@@ -30,12 +30,14 @@ DRAWN = {
     "ContentView", "Grid", "VerticalStackLayout", "HorizontalStackLayout", "StackLayout", "AbsoluteLayout", "FlexLayout",
     "ScrollView", "Border", "Frame", "Label", "Button", "Image", "ImageButton", "BoxView", "Ellipse", "Line", "Rectangle",
     "RoundRectangle", "Path", "Polygon", "Polyline", "CheckBox", "Switch", "RadioButton", "Slider", "ProgressBar",
-    "ActivityIndicator", "GraphicsView",
+    "ActivityIndicator", "GraphicsView", "CollectionView",
 }
 # Community Toolkit controls with a drawn equivalent, counted as "Toolkit <name>".
 TOOLKIT_DRAWN = {"Expander"}
 NATIVE_ISLAND = {"Entry", "Editor", "SearchBar", "Picker", "DatePicker", "TimePicker", "WebView", "HybridWebView", "BlazorWebView", "Map"}
-NOT_YET = {"CollectionView", "ListView", "TableView", "CarouselView", "IndicatorView", "SwipeView", "RefreshView", "Stepper"}
+# CollectionViews SkUiCollectionView cannot take yet (B3), counted apart from the ones that port.
+BLOCKED_COLLECTION_VIEW = "CollectionView (grouped, horizontal, grid or multiple selection)"
+NOT_YET = {BLOCKED_COLLECTION_VIEW, "ListView", "TableView", "CarouselView", "IndicatorView", "SwipeView", "RefreshView", "Stepper"}
 PAGES = {"ContentPage", "TabbedPage", "FlyoutPage", "NavigationPage", "Shell"}
 GESTURES = {"TapGestureRecognizer", "SwipeGestureRecognizer", "PanGestureRecognizer", "PinchGestureRecognizer",
             "PointerGestureRecognizer", "DragGestureRecognizer", "DropGestureRecognizer"}
@@ -54,6 +56,23 @@ CS_PATTERNS = {
         re.compile(r"\b(Fade|Translate|Scale|Rotate|RelScale|RelRotate)To(Async)?\s*\(|\bnew\s+Animation\s*\("),
 }
 
+
+
+def collection_view_blocked(node):
+    """Whether a CollectionView uses what SkUiCollectionView does not have yet: grouping, a horizontal or grid layout, multiple selection."""
+    attrs = node.attrs
+    if attrs.get((None, "IsGrouped"), "").strip().lower() == "true" or attrs.get((None, "SelectionMode"), "").strip() == "Multiple":
+        return True
+    layout = attrs.get((None, "ItemsLayout"), "")
+    if "Horizontal" in layout or "Grid" in layout:
+        return True
+    pending = [child for child in node.children if child.name.endswith(".ItemsLayout")]
+    while pending:
+        child = pending.pop()
+        if child.name == "GridItemsLayout" or (child.name == "LinearItemsLayout" and child.attrs.get((None, "Orientation"), "").strip() == "Horizontal"):
+            return True
+        pending.extend(child.children)
+    return False
 
 class Node:
     __slots__ = ("uri", "name", "attrs", "children", "parent")
@@ -280,6 +299,10 @@ def main():
                     control_templates += 1
                 elif name == "DataTemplate":
                     data_templates += 1
+                elif name == "CollectionView" and collection_view_blocked(node):
+                    totals[BLOCKED_COLLECTION_VIEW] += 1
+                    info.views += 1
+                    info.not_yet[BLOCKED_COLLECTION_VIEW] += 1
                 elif name in DRAWN or name in NATIVE_ISLAND or name in NOT_YET:
                     totals[name] += 1
                     info.views += 1

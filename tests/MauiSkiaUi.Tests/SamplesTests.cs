@@ -133,6 +133,39 @@ public class SamplesTests
         Assert.NotNull(details.Content);
     }
 
+    [Fact]
+    public void OrderListSampleSelectsTapsAndKeepsTheButtonsTaps()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var page = new OrderListSample();
+        var model = (OrderListModel)page.BindingContext;
+        var list = ((SkUiGrid)page.SampleContent!).Children.OfType<SkUiCollectionView>().Single();
+        SkUiTestHelpers.Arrange(list, 360, 420);
+        Assert.True(list.IsStickyHeader);
+        Assert.InRange(list.LastVisibleIndex, 3, 12);
+
+        var row = (SkUiView)list.GetItemView(1)!;
+        var rowTop = ((View)row.Parent).Frame.Y + list.ScrollView.Frame.Y + ((View)list.ItemsLayout).Frame.Y; // the row's item container
+        void TapAt(double x, long id)
+        {
+            list.Touch(new(id, SkUiTouchAction.Pressed, new Point(x, rowTop + row.Height / 2), TimeSpan.FromSeconds(id)));
+            list.Touch(new(id, SkUiTouchAction.Released, new Point(x, rowTop + row.Height / 2), TimeSpan.FromSeconds(id + 0.05)));
+        }
+
+        TapAt(40, 1);
+        Assert.Same(model.Orders[1], model.Selected);
+        Assert.Equal($"Opened {model.Orders[1].Title}", model.Status);
+        Assert.Equal("Selected", VisualStateManager.GetVisualStateGroups(row)[0].CurrentState?.Name);
+
+        var button = Descendants(row).OfType<SkUiButton>().Single();
+        TapAt(button.Frame.X + row.Frame.X + button.Width / 2, 2);
+        Assert.Equal($"Paying order {model.Orders[1].Title[6..]}", model.Status);
+        Assert.Same(model.Orders[1], model.Selected); // SingleDeselect would have cleared it on a row tap
+
+        TapAt(40, 3);
+        Assert.Null(model.Selected);
+    }
+
     private static IEnumerable<SkUiView> Descendants(SkUiView view)
     {
         yield return view;

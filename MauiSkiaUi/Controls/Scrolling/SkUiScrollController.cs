@@ -139,6 +139,19 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// <summary>The content is shown past an edge (dragged, bouncing or springing back).</summary>
     public bool IsOverscrolled => OverscrollX != 0 || OverscrollY != 0;
 
+    /// <summary>
+    /// Raised when a drag ends past the start of the vertical axis (pull-to-refresh), before the content springs back; the
+    /// argument is the distance shown past the edge in DIPs. Not raised for flings that overshoot.
+    /// </summary>
+    public event Action<double>? PullReleased;
+
+    /// <summary>Reports the end of a drag that left the content past its vertical start (<see cref="PullReleased"/>).</summary>
+    public void NotifyPullReleased()
+    {
+        if (OverscrollY < 0)
+            PullReleased?.Invoke(-OverscrollY);
+    }
+
     /// <summary>Raised when <see cref="OverscrollX"/> / <see cref="OverscrollY"/> change (e.g. to move native overlays with the content).</summary>
     public event Action? OverscrollChanged;
 
@@ -252,10 +265,18 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         (Horizontal && ((dx > 0 && X < MaxX) || (dx < 0 && X > 0)))
         || (Vertical && ((dy > 0 && Y < MaxY) || (dy < 0 && Y > 0)));
 
-    /// <summary>Whether a drag in this direction may pull the content past an edge (the axis scrolls and overscroll is on).</summary>
+    /// <summary>
+    /// The start of the vertical axis can be pulled past also when the content does not overflow or overscroll is off
+    /// (pull-to-refresh): the pull is tracked in <see cref="OverscrollY"/> and reported (<see cref="PullReleased"/>); the
+    /// content moves only as <see cref="EffectiveOverscroll"/> draws it.
+    /// </summary>
+    public bool PullsAtVerticalStart { get; set; }
+
+    /// <summary>Whether a drag in this direction may pull the content past an edge (the axis scrolls and overscroll is on, or a pull-to-refresh start).</summary>
     public bool CanOverscroll(double dx, double dy) =>
-        EffectiveOverscroll != SkUiOverscrollMode.None
-        && ((dx != 0 && Horizontal && MaxX > 0) || (dy != 0 && Vertical && MaxY > 0));
+        (EffectiveOverscroll != SkUiOverscrollMode.None
+            && ((dx != 0 && Horizontal && MaxX > 0) || (dy != 0 && Vertical && MaxY > 0)))
+        || (PullsAtVerticalStart && dy < 0 && Vertical && Y <= 0);
 
     /// <summary>
     /// A wheel or trackpad delta (positive towards the start of each axis). Each axis this scroller can move that way
@@ -1126,6 +1147,7 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
         // Start the spring-back or fling (if any) before clearing the drag, so a continuous motion stays "moving".
         try
         {
+            scroller.NotifyPullReleased();
             if (!scroller.SettleOverscroll())
                 Fling();
         }

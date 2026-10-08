@@ -67,13 +67,13 @@ REPLACE = {
 }
 WRAP = {"Entry", "Editor", "SearchBar", "Picker", "DatePicker", "TimePicker", "WebView", "HybridWebView", "BlazorWebView", "Map"}
 NO_DRAWN = {
-    "CollectionView": "no drawn CollectionView yet: SkUiVirtualScrollView for a plain list (no selection, header, empty view or grouping), else keep the list outside the drawn tree",
+    "CollectionView": "use sk:SkUiCollectionView (SkiaUi's own API: convert member by member, see references/collection-view.md); grouped, horizontal / grid or multiple-selection lists: keep the list outside the drawn tree",
     "ListView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",
     "TableView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",
     "CarouselView": "no drawn CarouselView yet: SkUiScrollView Orientation=\"Horizontal\" SnapPointsType=\"MandatorySingle\", or keep it outside",
     "IndicatorView": "no drawn IndicatorView yet: keep it outside, or draw dots with SkUiEllipse",
     "SwipeView": "no drawn SwipeView yet: Swiped / PanUpdated on the row, or keep the list outside",
-    "RefreshView": "no drawn RefreshView yet: put the MAUI RefreshView around the surface root",
+    "RefreshView": "around a list: SkUiCollectionView's IsPullToRefreshEnabled / IsRefreshing / RefreshCommand; around other content: put the MAUI RefreshView around the surface root",
     "Stepper": "no drawn Stepper yet: two SkUiButtons",
 }
 GESTURE_ADVICE = {
@@ -84,6 +84,20 @@ GESTURE_ADVICE = {
     "DragGestureRecognizer": "drag and drop is not available on drawn views",
     "DropGestureRecognizer": "drag and drop is not available on drawn views",
 }
+# MAUI CollectionView members an SkUiCollectionView does not have (yet), with what to do instead.
+COLLECTION_VIEW_MAUI_ONLY = {
+    "IsGrouped": "grouping is not available yet (B3): keep a grouped list native",
+    "GroupHeaderTemplate": "grouping is not available yet (B3): keep a grouped list native",
+    "GroupFooterTemplate": "grouping is not available yet (B3): keep a grouped list native",
+    "ItemsLayout": "the list is vertical and linear; LinearItemsLayout.ItemSpacing becomes ItemSpacing (horizontal and grid: B3, keep those native)",
+    "SelectedItems": "multiple selection is not available yet (B3): SelectedItem with SelectionMode Single / SingleDeselect",
+    "ItemSizingStrategy": "every item is measured; MeasureFirstItem becomes ItemExtent=\"<height>\"",
+    "ItemsUpdatingScrollMode": "items inserted above the first visible one keep what shows in place; remove it",
+    "ItemTemplateSelector": "set the DataTemplateSelector as ItemTemplate",
+    "Command": "on a RefreshView this is RefreshCommand",
+}
+# CollectionView members that take a drawn view: a string value would become a MAUI label.
+COLLECTION_VIEW_VIEWS = ("Header", "Footer", "EmptyView")
 SKIA_BASE_RE = re.compile(r"^(SkUi\w+|ISkUiView)$")
 TEMPLATED_PARENT_RE = re.compile(r"\{\s*TemplateBinding\b|RelativeSource\s+(?:Mode\s*=\s*)?TemplatedParent\b")
 # Drawn view -> the MAUI types it replaces (implicit styles of those no longer reach it).
@@ -345,6 +359,12 @@ class Checker:
                 self.report(path, node, "error", f"Community Toolkit {local} on {node.name}: use sk:SkUi{local} (the toolkit's StateContainer only runs on MAUI layouts)")
             elif local == "BindableLayout.EmptyView" and not value.lstrip().startswith("{"):
                 self.report(path, node, "error", f"BindableLayout.EmptyView=\"{value}\" on {node.name}: a string empty view becomes a MAUI Label; use <BindableLayout.EmptyView><sk:SkUiLabel Text=\"{value}\" /></BindableLayout.EmptyView>")
+            elif node.name == "SkUiCollectionView" and local in COLLECTION_VIEW_MAUI_ONLY:
+                self.report(path, node, "error", f"{local} on SkUiCollectionView: {COLLECTION_VIEW_MAUI_ONLY[local]}")
+            elif node.name == "SkUiCollectionView" and local == "SelectionMode" and value.strip() == "Multiple":
+                self.report(path, node, "error", "SelectionMode=\"Multiple\" on SkUiCollectionView: multiple selection is not available yet (B3); use Single or SingleDeselect, or keep the list native")
+            elif node.name == "SkUiCollectionView" and local in COLLECTION_VIEW_VIEWS and not value.lstrip().startswith("{"):
+                self.report(path, node, "error", f"{local}=\"{value}\" on SkUiCollectionView: {local} takes a drawn view; use <sk:SkUiCollectionView.{local}><sk:SkUiLabel Text=\"{value}\" /></sk:SkUiCollectionView.{local}>")
             elif local == "IsClippedToBounds":
                 self.report(path, node, "error", f"IsClippedToBounds on {node.name}: use ClipToBounds")
             elif TEMPLATED_PARENT_RE.search(value):

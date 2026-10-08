@@ -28,9 +28,9 @@ Drawn controls pay off where a screen holds **many views**. Every native MAUI vi
 Good first candidates:
 - dashboards, cards, detail pages and forms with deep `Grid` / `StackLayout` nesting;
 - screens that are slow to open, or where adding views to the page shows up in traces;
-- repeated rows inside a `ScrollView`, and plain `CollectionView` lists (items and a template, without selection, headers or grouping): `SkUiVirtualScrollView` (see [Not available yet](#not-available-yet)).
+- repeated rows inside a `ScrollView`, and `CollectionView` lists without grouping or a horizontal / grid layout: `SkUiCollectionView` (selection, header / footer, empty view, pull-to-refresh), or `SkUiVirtualScrollView` for plain lists (see [Lists](#lists-collectionview)).
 
-Leave for later: screens built around a `CollectionView` with selection, headers, an empty view or grouping, `SwipeView` rows, or third-party controls (charts, calendars, data grids) that would have to sit on top of the drawn surface.
+Leave for later: screens built around a grouped, horizontal or grid `CollectionView` or one with multiple selection, `SwipeView` rows, or third-party controls (charts, calendars, data grids) that would have to sit on top of the drawn surface.
 
 ## Setup
 
@@ -133,6 +133,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | Toolkit `StateContainer` / `StateView` (attached properties) | `SkUiStateContainer` / `SkUiStateView` | Same properties and `ChangeStateWithAnimation` overloads, on any drawn layout ([SkUiStateContainer.md](controls/SkUiStateContainer.md)) |
 | Toolkit `Expander` | `SkUiExpander` | Same properties and `ExpandedChanged`; `Header` / `Content` must be drawn views. `ExpandDirection` → `SkUiExpandDirection`, `ExpandedChangedEventArgs` → `SkUiExpandedChangedEventArgs`; drop `HandleHeaderTapped` (a native list view workaround). `IsExpanded` is two-way by default. Plus `ContentTemplate`, `LazyContentExpansion`, `AnimationLength` / `AnimationEasing` ([SkUiExpander.md](controls/SkUiExpander.md)) |
 | `ScrollView` | `SkUiScrollView` | Plus snap points and overscroll |
+| `CollectionView` (+ `RefreshView`) | `SkUiCollectionView` | SkiaUi's own API, not a prefix swap: see [Lists](#lists-collectionview) |
 | `Border` | `SkUiBorder` | `StrokeShape`, brush strokes, dashes |
 | `Frame` (obsolete) | `SkUiBorder` | `CornerRadius` → `StrokeShape="RoundRectangle N"`, `HasShadow` → `Shadow`, `BorderColor` → `Stroke` |
 | `Label` | `SkUiLabel` | Spans, span taps, `TextType="Html"` |
@@ -288,17 +289,33 @@ Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and 
 - **Defer what is not shown.** Other tabs and hidden or collapsed panes can wait: wrap them in `SkUiContentView ContentLoading="WhenShown"` with a `ContentTemplate` ([SkUiContentView.md](controls/SkUiContentView.md#loading-content-when-shown)).
 - **Measure.** Time the page from navigation to first frame before and after; [Performance.md](Performance.md) lists what costs most while scrolling (shadows, gradients and clips in long lists).
 
+## Lists (`CollectionView`)
+
+`SkUiCollectionView` ([SkUiCollectionView.md](controls/SkUiCollectionView.md)) replaces a `CollectionView` (and a `RefreshView` around it) on the drawn surface: items are created near the viewport and recycled, with drawn item templates. Its API is SkiaUi's own, so a list is converted member by member; the full mapping is in [collection-view.md](../plugins/skiaui-migration/skills/skiaui-migrate/references/collection-view.md). The usual changes:
+
+- `ItemsSource`, `ItemTemplate` (or a selector), `SelectedItem`, `SelectionChangedCommand` (+ parameter), `EmptyView`, `RemainingItemsThreshold` (+ event, command): same names. The templates and the empty view create drawn views.
+- `SelectionMode="Single"`: same; `SkUiSelectionMode.SingleDeselect` clears the selection when the selected item is tapped again. `SelectionChanged` gets `SkUiSelectionChangedEventArgs` (`PreviousItem`, `CurrentItem`), and `SelectionChanging` can cancel a tap's change.
+- The `Selected` visual state on the item's root works as in MAUI; by default the selected item also gets a light accent background (`SelectionBackground="Transparent"` turns it off).
+- `Header` / `Footer` take a drawn view (or `HeaderTemplate` / `FooterTemplate`), not a string; `IsStickyHeader` / `IsStickyFooter` keep them in place.
+- `LinearItemsLayout.ItemSpacing` → `ItemSpacing`; `ItemSizingStrategy="MeasureFirstItem"` → `ItemExtent`.
+- `ScrollTo(index | item, position, animate)` → `ScrollToIndex` / `ScrollToItem` (awaitable); `Scrolled` reports `ScrollY`, and `FirstVisibleIndex` / `LastVisibleIndex` / `VisibleRangeChanged` give the visible items.
+- A `TapGestureRecognizer` on the item root that opens the item → `ItemTappedCommand` (the parameter defaults to the item). Buttons inside an item keep their own taps.
+- `RefreshView` around it → `IsPullToRefreshEnabled="True"` with `IsRefreshing` and `RefreshCommand` (`Command` on `RefreshView`); setting `IsRefreshing` runs the command, as in MAUI.
+- The list needs a bounded height: in a `VerticalStackLayout` or a `ScrollView` it would create every item (as a native `CollectionView` there would).
+
+Not yet (B3): grouping, multiple selection, horizontal and grid `ItemsLayout`. Keep those lists native for now. Plain lists can also use the lighter `SkUiVirtualScrollView` ([SkUiVirtualVerticalStackLayout.md](controls/SkUiVirtualVerticalStackLayout.md)).
+
 ## Not available yet
 
 | MAUI | Status | Meanwhile |
 | --- | --- | --- |
-| `CollectionView` | Plain lists: **`SkUiVirtualScrollView`** (B1). The full control is planned (Phase B2–B3: **`SkUiCollectionView`**, SkUi-first — not MAUI API parity) | A plain list (`ItemsSource`, `ItemTemplate` or a selector, `RemainingItemsThreshold`, `ScrollTo` by index, items of any height): `SkUiVirtualScrollView` with drawn item templates, virtualized and recycled ([SkUiVirtualVerticalStackLayout.md](controls/SkUiVirtualVerticalStackLayout.md); mapping in [collection-view.md](../plugins/skiaui-migration/skills/skiaui-migrate/references/collection-view.md)). With selection, `Header` / `Footer`, `EmptyView`, grouping or a horizontal / grid layout: keep the MAUI `CollectionView` with native item templates until `SkUiCollectionView` ships. |
+| `CollectionView`: grouping, multiple selection, horizontal / grid `ItemsLayout` | Planned (B3, `SkUiCollectionView`) | Keep the MAUI `CollectionView` with native item templates (outside the drawn region); everything else ports ([Lists](#lists-collectionview)) |
 | `SwipeView` | Planned (C1) | `Swiped` / `PanUpdated` on the row for simple cases, or keep the list native |
-| `RefreshView` | Planned (C2) | A MAUI `RefreshView` around the surface root: the drawn scroller hands the drag to native parents at its top edge, as inside a native `ScrollView` (this combination is not covered by tests yet) |
+| `RefreshView` (around other content) | Built into `SkUiCollectionView`; for other scrollers planned (C2) | Around a list: `SkUiCollectionView`'s `IsPullToRefreshEnabled` / `IsRefreshing` / `RefreshCommand`. Around other drawn content: a MAUI `RefreshView` around the surface root: the drawn scroller hands the drag to native parents at its top edge, as inside a native `ScrollView` (this combination is not covered by tests yet) |
 | `CarouselView`, `IndicatorView` | Planned (D1) | `SkUiScrollView Orientation="Horizontal"` with `SnapPointsType="MandatorySingle"` |
 | `Stepper` | Planned (D2) | Two `SkUiButton`s |
 | Drag and drop, tooltips, context flyouts | Not planned | Keep native |
-| `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `SkUiVirtualScrollView` (plain lists), `SkUiBorder` |
+| `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists), `SkUiBorder` |
 | Shell, pages, navigation | Out of scope | Stay MAUI |
 | Third-party controls (charts, calendars, data grids, signature pads) | Native | Host in `SkUiMauiContentView`, or keep them outside the surface |
 

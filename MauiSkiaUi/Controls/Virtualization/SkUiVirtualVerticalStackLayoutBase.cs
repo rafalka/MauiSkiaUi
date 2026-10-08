@@ -622,6 +622,18 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         return position < 0 ? null : _realized[position].View;
     }
 
+    /// <summary>The index of the item a realized <paramref name="view"/> shows, or -1 (indices move with collection changes, so views do not keep theirs).</summary>
+    internal int IndexOfRealizedView(ISkUiView view)
+    {
+        foreach (var realized in _realized)
+            if (ReferenceEquals(realized.View, view))
+                return realized.Index;
+        return -1;
+    }
+
+    /// <summary>The realized views (in index order).</summary>
+    internal IEnumerable<ISkUiView> RealizedViews => SkiaChildren;
+
     /// <summary>Indices of the realized items (tests, diagnostics).</summary>
     internal (int First, int Last) RealizedRange => _realized.Count == 0 ? (-1, -1) : (_realized[0].Index, _realized[^1].Index);
 

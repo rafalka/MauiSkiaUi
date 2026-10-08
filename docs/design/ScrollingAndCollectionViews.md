@@ -27,7 +27,7 @@ Apps should be able to:
 | Snap points | `SnapPointsType` / `SnapPointsAlignment` (MAUI's CollectionView enums) on the content's children; drags, flings and paused wheel input settle with a render-thread spring (`SkUiRenderScrollSpring`) that never passes its target. FR-22's `ItemsLayout` snap points can reuse it. |
 | Native ancestors | Drawn continuous gestures hold native parents back while they may claim. Once none can claim, the native parent may take over (Android `RequestDisallowInterceptTouchEvent`; iOS gate recognizer). |
 | On-demand items (FR-21) | **`SkUiVirtualVerticalStackLayout`**: a layout that *requests* its children from a provider as its visible window (plus prefetch) grows. **`VirtualScrollMode`** selects indexed virtual extent (default), `InfiniteFeed`, or loop. It sits inside any drawn scroller. `SkUiVirtualScrollView` is the combined convenience control. The vertical, indexed mode is **done** (B1, see [Virtual stack](#virtual-stack-implemented)); `VirtualScrollMode` arrives with the other modes. |
-| Collections (FR-22) | **`SkUiCollectionView`**, built on the FR-21 **indexed** engine with template recycling. **SkUi-first** API (not MAUI parity); MAUI `CollectionView` mapping lives in [Migration.md](../Migration.md) and the [migration skills](../../plugins/skiaui-migration/README.md). |
+| Collections (FR-22) | **`SkUiCollectionView`**, built on the FR-21 **indexed** engine with template recycling. **SkUi-first** API (not MAUI parity); MAUI `CollectionView` mapping lives in [Migration.md](../Migration.md) and the [migration skills](../../plugins/skiaui-migration/README.md). The MVP is **done** (B2, see [Collection view](#collection-view-implemented)); grouping, grid, horizontal and multiple selection are B3. |
 | Core layer | `SkUiCoreScrollView` is done. A Core virtual stack is added only if the FR-21 engine stays layer-agnostic, so it costs a thin wrapper. No Core collection view: templates and bindings are MAUI concepts. |
 | Not primary | Nesting SkiaUi trees inside MAUI `ScrollView` / `CollectionView` is compat / migration only. Leaf views keep `HwAccelerated = false` (FR-14). |
 | Layout contract | Content and items use MAUI measure / arrange ([LayoutSystem.md](LayoutSystem.md)). |
@@ -164,7 +164,7 @@ Native overlays (`SkUiMauiContentView`) sit as **sibling platform views** of the
 
 ## Virtual stack (implemented)
 
-FR-21's indexed mode, vertical (Phase B1): `SkUiVirtualVerticalStackLayout` and `SkUiVirtualScrollView` ([control guide](../controls/SkUiVirtualVerticalStackLayout.md)). The engine is the abstract `SkUiVirtualVerticalStackLayoutBase`; subclasses create and bind item views by index, give recycle keys and report item changes (`SkUiVirtualVerticalStackLayout` does it for `ItemsSource` / `ItemTemplate` / `ItemFactory`; FR-22's collection view will be another subclass). It derives from `SkUiView`, not `SkUiLayout`: its children are the realized items only, in index order (`SkiaChildren`, render children), added as logical children without `SkUiLayout`'s per-child measure invalidation.
+FR-21's indexed mode, vertical (Phase B1): `SkUiVirtualVerticalStackLayout` and `SkUiVirtualScrollView` ([control guide](../controls/SkUiVirtualVerticalStackLayout.md)). The engine is the abstract `SkUiVirtualVerticalStackLayoutBase`; subclasses create and bind item views by index, give recycle keys and report item changes (`SkUiVirtualVerticalStackLayout` does it for `ItemsSource` / `ItemTemplate` / `ItemFactory`; FR-22's collection view uses an internal subclass of it that hosts each template view in an item container). It derives from `SkUiView`, not `SkUiLayout`: its children are the realized items only, in index order (`SkiaChildren`, render children), added as logical children without `SkUiLayout`'s per-child measure invalidation.
 
 ```
 ancestor SkUiScrollView(s) ── offset / viewport changes ──▶ ISkUiScrollListener (registered, no tree walks)
@@ -188,6 +188,31 @@ SkUiVirtualVerticalStackLayout ── window (∩ of ancestor viewports) ──�
 | **Collection changes** | `INotifyCollectionChanged` through a weak observer. Add / remove / replace / move update sizes and realized indices (moved items keep their measured sizes; an `Add` without its index starts over); items inserted inside the realized range are realized there; unaffected items keep their views and sizes. Non-list sources are copied and reset on change. |
 
 Not yet: horizontal, `InfiniteFeed` / `Loop` (`VirtualScrollMode`), `PrefetchDistance` in DIPs, `QueryItemSize`, an async load-more hook with a placeholder item, the Core twin, raster caching of rows. Device runs of the `virtual-fling` benchmark and the `VirtualListScrolled` leak scenario are pending.
+
+## Collection view (implemented)
+
+FR-22's MVP (Phase B2): `SkUiCollectionView` ([control guide](../controls/SkUiCollectionView.md)). A composite drawn view; nothing in it is a platform view.
+
+```
+SkUiCollectionView
+ ├─ sticky header host        (IsStickyHeader: laid out above the scroller, never re-recorded by scrolling)
+ ├─ SkUiScrollView            (vertical; PullsAtVerticalStart with pull-to-refresh)
+ │   └─ body: header host · items (internal SkUiVirtualVerticalStackLayout) · empty view host · footer host
+ │              └─ item container (SkUiContentView: taps, selection background) ── template view (Selected state)
+ ├─ sticky footer host
+ └─ refresh layer             (over the scroller, input-transparent, clipped): indicator moved by composite-time props
+```
+
+| Concern | Behavior |
+| --- | --- |
+| **Items** | The items layout is an internal subclass of `SkUiVirtualVerticalStackLayout`: each template view (or default label) is wrapped in an item container when created (`WrapItemView`), so containers are recycled with their views, per template. Binding sets the container's binding context (the template view inherits it) and its selected state (`OnItemBound`). Indices are not kept in containers (collection changes move them): a tap looks its container up among the realized items. |
+| **Selection** | `SelectedItem` is compared with `Equals`. A change walks the realized containers and sets their state; only the two whose state changes repaint (their background) and move their template root's `CommonStates` (`SkUiView.IsSelectedItem`: `Disabled`, then `Selected`, then `PointerOver`, then `Normal`). Source changes (`SourceChanged` from the items layout, after they are applied) clear the selection when its item was removed or the source replaced without it. |
+| **Taps** | The container takes single taps while a selection mode, an `ItemTapped` handler or a command needs them. Child-first hit-testing gives views inside the item that take taps their own (buttons). Order: cancelable `SelectionChanging`, `SelectedItem` (command, `SelectionChanged`), `ItemTapped`, `ItemTappedCommand`. |
+| **Header / footer** | One view each, moved between the sticky host (beside the scroller) and the scrolled host in the body when `IsStickyHeader` / `IsStickyFooter` change. Templates (`SkUiContentSlot`) run once the list is in a tree, with its binding context. |
+| **Empty view** | Shown instead of the items while the items layout has none; the body arranges it over the height the viewport has left between header and footer (the scroller arranges its content at least as tall as the viewport). Its template runs the first time the list is empty. |
+| **Pull to refresh** | `SkUiScrollController.PullsAtVerticalStart` lets a drag pull the top past the edge when the content does not overflow or overscroll is off (the pull is tracked in `OverscrollY` and springs back on the render thread; the content moves only as the overscroll mode draws it). The indicator follows `OverscrollChanged` with opacity, rotation and translation only (no re-record while dragging); `PullReleased` past 64 DIPs sets `IsRefreshing`, which (as MAUI's `RefreshView`) raises `Refreshing` and runs the command; the indicator then spins through `ContentSpinPeriod` on the render thread. |
+
+Not yet (B3 and later): grouping and expandable groups, multiple selection, grid and horizontal layouts, load-more modes with a load-more row, reordering, swipe actions, keyboard item navigation.
 
 ## FR-21 — Virtual / dynamic scroll layout (requirements)
 
@@ -418,8 +443,8 @@ Syncfusion’s control is a useful benchmark for **list UX**, not an API target.
 | FR-21 | `VirtualScrollMode`; horizontal; `PrefetchDistance`, `QueryItemSize`, load-more hook; optional Core variant | Next |
 | FR-21 | **`InfiniteFeed`:** trim/prepend-append, logical index mapping, relative scroll APIs, velocity scroll bars | Later |
 | FR-21 | **`Loop`** carousel: wrap indexing, offset correction, horizontal + snap; demo nested carousel on virtual loop | Later |
-| FR-22 | `SkUiCollectionView` MVP: linear layout, templates, selection, sticky header / footer, item tap, empty view, migration doc + skill reference | Later |
-| FR-22 | Grouping, **expandable groups**, sticky group headers, grid, incremental load, pull to refresh | Later |
+| FR-22 | `SkUiCollectionView` MVP: linear layout, templates, single selection, sticky header / footer, item tap, empty view, load-more threshold, pull to refresh, migration doc + skill reference (B2) | **Done** |
+| FR-22 | Grouping, **expandable groups**, sticky group headers, grid, horizontal, multiple selection, load-more modes (B3) | Next |
 | FR-22 | Reordering, row swipe, other list chrome (see Phase C) | Later |
 | Polish | Scroll bars, overscroll / bounce, scroll to element, horizontal wheel for `Both` | **Done** (P8) |
 | Polish | Snap points, draggable scroll bars, placed scroll bars | **Done** (P8) |

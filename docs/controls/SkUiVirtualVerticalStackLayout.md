@@ -4,7 +4,7 @@ A vertical stack whose item views are created on demand: only the items near wha
 
 **`SkUiVirtualVerticalStackLayout` needs a drawn scroller above it.** It does not scroll itself; it follows the `SkUiScrollView`s around it. Use `SkUiVirtualScrollView` (a scroll view with one inside) for a plain list, or put the layout inside your own `SkUiScrollView` (see [Which one](#which-one)).
 
-**MAUI counterpart:** none directly. `SkUiVirtualScrollView` covers plain `CollectionView` lists (`ItemsSource`, `ItemTemplate`, `RemainingItemsThreshold`, `ScrollTo` by index); selection, header / footer, empty view and grouping come with `SkUiCollectionView` (Phase B2–B3, built on this layout). Design: [ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md#virtual-stack-implemented).
+**MAUI counterpart:** none directly. `SkUiVirtualScrollView` covers plain `CollectionView` lists (`ItemsSource`, `ItemTemplate`, `RemainingItemsThreshold`, `ScrollTo` by index); for selection, item taps, a header / footer, an empty view or pull-to-refresh use [`SkUiCollectionView`](SkUiCollectionView.md) (built on this layout; grouping in Phase B3). Design: [ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md#virtual-stack-implemented).
 
 ## How it works
 
