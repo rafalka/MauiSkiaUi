@@ -300,7 +300,9 @@ public partial class SkUiCollectionView
             return;
         var (group, index) = location;
         var item = _model.ItemAt(group, index);
+        var global = _model.GlobalIndex(group, index);
         _tapSelecting = item;
+        _tapSelectingIndex = global; // the appearance tapped (an item may show in several groups)
         try
         {
             SelectByTap(item);
@@ -309,7 +311,6 @@ public partial class SkUiCollectionView
         {
             _tapSelecting = null;
         }
-        var global = _model.GlobalIndex(group, index);
         ItemTapped?.Invoke(this, new SkUiItemTappedEventArgs(item, global, group < 0 ? null : _model.Groups[group].Value));
         if (ItemTappedCommand is { } command)
         {

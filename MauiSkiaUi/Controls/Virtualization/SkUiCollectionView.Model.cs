@@ -113,7 +113,16 @@ public partial class SkUiCollectionView
         /// <summary>The row of a group's header, or -1 (no header rows).</summary>
         public int HeaderRowOf(int group) => HasGroupHeaders ? _groups[group].FirstRow : -1;
 
-        /// <summary>The global index of <paramref name="item"/> (found with <see cref="object.Equals(object?)"/>), or -1.</summary>
+        /// <summary>The global index of <paramref name="item"/> in group <paramref name="group"/> (found with <see cref="object.Equals(object?)"/>), or -1.</summary>
+        public int IndexOfItem(object? item, int group)
+        {
+            if (!Grouped || group < 0 || group >= _groups.Count)
+                return -1;
+            var index = _groups[group].Items.IndexOf(item);
+            return index < 0 ? -1 : _groups[group].FirstItem + index;
+        }
+
+        /// <summary>The global index of <paramref name="item"/> (found with <see cref="object.Equals(object?)"/>; its first appearance in a grouped source), or -1.</summary>
         public int IndexOfItem(object? item)
         {
             if (_source is null)

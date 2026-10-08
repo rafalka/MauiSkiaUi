@@ -184,7 +184,10 @@ public partial class SkUiCollectionView
     {
         if (!IsStickyGroupHeader || !_model.HasGroupHeaders || row >= _model.RowCount || _model.RowAt(row) is not { Kind: not RowKind.GroupHeader } target)
             return 0;
-        return _items.RowSize(_model.HeaderRowOf(target.Group));
+        // Measured first: a header not realized yet would otherwise count with its estimate, and the item land under it.
+        var header = _model.HeaderRowOf(target.Group);
+        _items.EnsureItemMeasured(header);
+        return _items.RowSize(header);
     }
 
     /// <summary>

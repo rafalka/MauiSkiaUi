@@ -1502,6 +1502,13 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         return new Point(controller.GetOffsetFor(rect, position).X, controller.Y);
     }
 
+    /// <summary>Gives the item at <paramref name="index"/> its measured size now (a list control sizing what covers a scroll target).</summary>
+    internal void EnsureItemMeasured(int index)
+    {
+        if (index >= 0 && index < _sizes.Count)
+            EnsureMeasured(index);
+    }
+
     /// <summary>Gives the item at <paramref name="index"/> its measured size: a view measured off the layout and recycled.</summary>
     private void EnsureMeasured(int index)
     {

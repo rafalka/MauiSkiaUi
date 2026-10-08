@@ -395,6 +395,24 @@ public class CollectionViewGroupsAndLayoutsTests
         Assert.Equal(0, OnScreen(list, (View)list.ItemsLayout.GetRealizedView(sections[0].Count + 1)!).Y, 1);
     }
 
+    [Fact]
+    public void ScrollingToAnItemLandsBelowAStickyHeaderNotMeasuredYet()
+    {
+        // Headers (60) taller than items (50): a header far down is still an estimate when the scroll starts.
+        var sections = new ObservableCollection<Section>(Enumerable.Range(0, 5).Select(group => new Section($"{group}", Rows(group * 10, 10))));
+        var list = new SkUiCollectionView
+        {
+            IsGrouped = true, ItemsSource = sections, IsStickyGroupHeader = true,
+            ItemTemplate = new DataTemplate(() => new RowView()),
+            GroupHeaderTemplate = new DataTemplate(() => new SkUiBox { HeightRequest = 60 }),
+            Overscroll = SkUiOverscrollMode.None, PrefetchBudget = TimeSpan.FromSeconds(10)
+        };
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        list.ScrollToIndex(35, ScrollToPosition.Start, animated: false);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.Equal(60, ItemOnScreen(list, 35).Y, 1);
+    }
+
     #endregion
 
     #region Grid
@@ -722,6 +740,63 @@ public class CollectionViewGroupsAndLayoutsTests
         SkUiTestHelpers.Arrange(list, 300, 200);
         Assert.True(FullyShown(list, 27, 200));
         Assert.True(FullyShown(list, 24, 200));
+    }
+
+    /// <summary>Groups A (rows 0–9), B (rows 10–19, then row 0 again) and C (rows 20–29), 30 DIP headers, no footers.</summary>
+    private static (SkUiCollectionView List, List<Row> Rows, ObservableCollection<Section> Sections) SharedItemList(SkUiSelectionMode mode)
+    {
+        var rows = Rows(0, 30).ToList();
+        var sections = new ObservableCollection<Section> { new("A", rows[..10]), new("B", [.. rows[10..20], rows[0]]), new("C", rows[20..]) };
+        var list = new SkUiCollectionView
+        {
+            IsGrouped = true, ItemsSource = sections, ItemTemplate = new DataTemplate(() => new RowView()),
+            GroupHeaderTemplate = HeaderTemplate(), SelectionMode = mode, KeepSelectionVisible = true,
+            Overscroll = SkUiOverscrollMode.None, PrefetchBudget = TimeSpan.FromSeconds(10)
+        };
+        return (list, rows, sections);
+    }
+
+    [Fact]
+    public void AnItemInSeveralGroupsIsScrolledToAndKeptInViewWhereItWasTapped()
+    {
+        var (list, rows, sections) = SharedItemList(SkUiSelectionMode.Single);
+        using var surface = new SkUiTestSurface(list, 300, 500);
+        var time = 0d;
+        Settle(surface, ref time);
+
+        // Row 0 shows twice: item 0 (in A) and item 20 (the end of B, at 1060–1110).
+        list.ScrollToItem(rows[0], sections[1], ScrollToPosition.Start, animated: false);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.Equal(1060, list.ScrollY, 1);
+        list.ScrollToItem(rows[0], null, ScrollToPosition.Start, animated: false); // no group: the first appearance
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.Equal(30, list.ScrollY, 1);
+
+        // Tapped at the end of B, half shown: the list shows that appearance, not the one in A.
+        list.ScrollView.ScrollTo(0, 580);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Tap(list, new Point(150, 490));
+        Settle(surface, ref time);
+        Assert.Same(rows[0], list.SelectedItem);
+        Assert.Equal(610, list.ScrollY, 1);
+        // After a resize too.
+        SkUiTestHelpers.Arrange(list, 300, 300);
+        Assert.Equal(1110 - 300, list.ScrollY, 1);
+    }
+
+    [Fact]
+    public void AMultipleSelectionShowsBelowTheStickyGroupHeader()
+    {
+        var (list, rows, _) = SharedItemList(SkUiSelectionMode.Multiple);
+        list.IsStickyGroupHeader = true;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        list.SelectedItems.Add(rows[15]); // B's sixth row: 810–860
+        list.KeepSelectionVisible = false;
+        list.ScrollView.ScrollTo(0, 810); // its top under B's sticky header
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        list.KeepSelectionVisible = true;
+        SkUiTestHelpers.Arrange(list, 300, 499); // a resize reveals the selection at once
+        Assert.Equal(30, ItemOnScreen(list, 15).Y, 1);
     }
 
     [Fact]

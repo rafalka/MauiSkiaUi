@@ -3,7 +3,9 @@ namespace MauiSkiaUi;
 public partial class SkUiCollectionView
 {
     private object? _tapSelecting;   // the item a tap is selecting, while its selection change runs
+    private int _tapSelectingIndex;  // its index (the appearance tapped, when the item shows in several groups)
     private object? _tappedSelection; // the last item a tap selected (the focus of a multiple selection)
+    private int _tappedIndex = -1;    // the index it was tapped at
     private bool _revealPending;
     private bool _selectionFromSource; // selected items left the source: the selection shrank, nothing to reveal
     private Size _revealSize;
@@ -36,15 +38,15 @@ public partial class SkUiCollectionView
     private void OnSelectionChangedKeepVisible()
     {
         var tapped = _tapSelecting;
-        if (tapped is not null)
-            _tappedSelection = IsSelected(tapped) ? tapped : _tappedSelection;
-        else
-            _tappedSelection = null; // the app changed the selection: it shows from its start
+        if (tapped is not null && IsSelected(tapped))
+            (_tappedSelection, _tappedIndex) = (tapped, _tapSelectingIndex);
+        else if (tapped is null)
+            (_tappedSelection, _tappedIndex) = (null, -1); // the app changed the selection: it shows from its start
         if (!KeepSelectionVisible || _selectionFromSource)
             return;
         if (tapped is not null)
         {
-            if (IsSelected(tapped) && RowOfItem(tapped) is >= 0 and var row)
+            if (IsSelected(tapped) && RowOfTapped() is >= 0 and var row)
                 _items.ScrollToIndex(row, ScrollToPosition.MakeVisible, animated: true);
             return;
         }
@@ -62,6 +64,23 @@ public partial class SkUiCollectionView
     }
 
     private bool IsSelected(object item) => _selectionMode == SkUiSelectionMode.Multiple ? _selectedSet.Contains(item) : Equals(item, _selectedItem);
+
+    /// <summary>
+    /// The row of the appearance of <see cref="_tappedSelection"/> that was tapped, while it is still at the index it was
+    /// tapped at; else (items moved since) the row of its first appearance.
+    /// </summary>
+    private int RowOfTapped()
+    {
+        if (_tappedSelection is not { } item)
+            return -1;
+        if (_tappedIndex >= 0 && _tappedIndex < _model.ItemCount)
+        {
+            var (group, index) = _model.Locate(_tappedIndex);
+            if (Equals(_model.ItemAt(group, index), item))
+                return _model.RowOfItem(group, index);
+        }
+        return RowOfItem(item);
+    }
 
     private int RowOfItem(object item)
     {
@@ -83,7 +102,7 @@ public partial class SkUiCollectionView
         _revealPending = false;
         if (_selectionMode is SkUiSelectionMode.Single or SkUiSelectionMode.SingleDeselect)
         {
-            if (_selectedItem is { } selected && RowOfItem(selected) is >= 0 and var row)
+            if (_selectedItem is { } selected && (Equals(selected, _tappedSelection) ? RowOfTapped() : RowOfItem(selected)) is >= 0 and var row)
                 _items.ScrollToIndex(row, ScrollToPosition.MakeVisible, animated);
             return;
         }
@@ -106,11 +125,12 @@ public partial class SkUiCollectionView
         }
         if (rows.Count == 0)
             return;
-        var focusRow = _tappedSelection is { } tapped && _selectedSet.Contains(tapped) ? RowOfItem(tapped) : -1;
+        var focusRow = _tappedSelection is { } tapped && _selectedSet.Contains(tapped) ? RowOfTapped() : -1;
         var focus = focusRow >= 0 ? Math.Max(0, rows.IndexOf(focusRow)) : 0;
 
-        // The band the sticky parts leave uncovered, in item coordinates.
+        // The band the sticky parts leave uncovered, in item coordinates: a sticky group header covers the start too.
         var (insetStart, insetEnd) = _scroller.Insets;
+        insetStart += StickyGroupInset(rows[focus]);
         var band = Math.Max(0, (_horizontal ? Controller.Viewport.Width : Controller.Viewport.Height) - insetStart - insetEnd);
         var visibleStart = _items.VisibleStart + insetStart;
         var visibleEnd = visibleStart + band;

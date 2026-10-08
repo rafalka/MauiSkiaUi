@@ -16,7 +16,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### New features
 
 - **Collection view groups, grids and horizontal lists (B3, FR-22):** `SkUiCollectionView` lays out rows of a row model over the B1 engine; every source or group change becomes the smallest change of the rows ([SkUiCollectionView.md](docs/controls/SkUiCollectionView.md)).
-  - Groups: `IsGrouped` (MAUI's shape: each group the list of its items; group and item changes followed), `GroupHeaderTemplate`, `GroupFooterTemplate`; `ScrollToGroup`; `ItemTapped` reports the item's group.
+  - Groups: `IsGrouped` (MAUI's shape: each group the list of its items; group and item changes followed), `GroupHeaderTemplate`, `GroupFooterTemplate`; `ScrollToGroup`; `ScrollToItem(item, group)` for an item shown in several groups; `ItemTapped` reports the item's group.
   - Expandable groups: `AllowGroupExpandCollapse` (a tap on a header), `ExpandGroup` / `CollapseGroup` / `ExpandAll` / `CollapseAll`, cancelable `GroupExpanding` / `GroupCollapsing`, `GroupExpanded` / `GroupCollapsed`, `AutoExpandGroups`, and `ISkUiExpandableGroup` for groups that keep their own state. Collapsed items are not realized; what shows stays in place; headers go to the `Expanded` / `Collapsed` visual state; scrolling to an item of a collapsed group expands it.
   - Sticky group headers (`IsStickyGroupHeader`): the current group's header stays at the start, pushed away by the next one (moved by a translation, rebound only when the group changes); scrolling to an item lands after it.
   - Grids: `Span` items per row (as tall as the tallest), `SpanSpacing`; grid rows are recycled whole and their cells pooled per template.

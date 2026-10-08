@@ -612,7 +612,7 @@ public static class LeakScenarios
         public override string? CheckInteraction()
         {
             if (_reload is not { IsCompletedSuccessfully: true })
-                return "The reload did not complete.";
+                return $"The reload did not complete ({_reload?.Status}{(_reload?.Exception?.GetBaseException() is { } error ? $": {error}" : "")}).";
             var failed = _images.Where(image => !image.LoadingTask.IsCompletedSuccessfully || image.LoadError is not null || image.IsLoading).ToList();
             if (_finished == 0)
                 return "The first image raised no successful LoadingFinished.";
@@ -1311,7 +1311,8 @@ public static class LeakScenarios
 
         /// <summary>
         /// Views released (while scrolling beyond the pool's cap, or by a template change) must be collectable while the
-        /// list is still shown: neither the layout nor the shared command or collection may keep them.
+        /// list is still shown: neither the layout nor the shared command or collection may keep them. A collection may
+        /// already have taken some (or all) of them: those count as dropped too.
         /// </summary>
         private void TrackDroppedViews(LeakScenarioContext context)
         {
@@ -1322,11 +1323,15 @@ public static class LeakScenarios
                 if (items.GetRealizedView(index) is { } view)
                     kept.Add(view);
             foreach (var reference in _created)
-                if (reference.TryGetTarget(out var view) && !kept.Contains(view))
+            {
+                if (!reference.TryGetTarget(out var view))
+                    _dropped++; // already collected while the list is shown: what the check is for
+                else if (!kept.Contains(view))
                 {
                     context.TrackDetached(view, "released virtual item view");
                     _dropped++;
                 }
+            }
         }
 
         public override string? CheckInteraction() =>

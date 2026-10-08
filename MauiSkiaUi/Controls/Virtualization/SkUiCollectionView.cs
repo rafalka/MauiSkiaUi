@@ -248,10 +248,27 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView
         return row < 0 ? Task.CompletedTask : _items.ScrollToIndex(row, position, animated);
     }
 
-    /// <summary>Scrolls to <paramref name="item"/> (found with <see cref="object.Equals(object?)"/>); see <see cref="ScrollToIndex"/>. An item that is not in the list is ignored.</summary>
+    /// <summary>
+    /// Scrolls to <paramref name="item"/> (found with <see cref="object.Equals(object?)"/>); see <see cref="ScrollToIndex"/>.
+    /// An item that is not in the list is ignored. In a grouped list an item may show in several groups: this scrolls to its
+    /// first appearance; <see cref="ScrollToItem(object?, object?, ScrollToPosition, bool)"/> names the group.
+    /// </summary>
     public Task ScrollToItem(object? item, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true)
     {
         var index = _model.IndexOfItem(item);
+        return index < 0 ? Task.CompletedTask : ScrollToIndex(index, position, animated);
+    }
+
+    /// <summary>
+    /// Scrolls to <paramref name="item"/> in <paramref name="group"/> (a group of <see cref="ItemsSource"/>, found by
+    /// reference, then with <see cref="object.Equals(object?)"/>; <c>null</c>: its first appearance in any group); see
+    /// <see cref="ScrollToIndex"/>. An item or group that is not in the list is ignored.
+    /// </summary>
+    public Task ScrollToItem(object? item, object? group, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true)
+    {
+        if (group is null)
+            return ScrollToItem(item, position, animated);
+        var index = _model.IndexOfGroup(group) is >= 0 and var inGroup ? _model.IndexOfItem(item, inGroup) : -1;
         return index < 0 ? Task.CompletedTask : ScrollToIndex(index, position, animated);
     }
 
