@@ -24,6 +24,7 @@ A plain list (items and a template only) can also use the lighter **`SkUiVirtual
 | `ItemsLayout="VerticalGrid, 3"` / `GridItemsLayout Span="3"` (`VerticalItemSpacing`, `HorizontalItemSpacing`) | `Span="3"` (`ItemSpacing` between rows, `SpanSpacing` within a row) | A horizontal grid: `Orientation="Horizontal"` with `Span` rows. In a grouped grid each group starts a new row |
 | `SnapPointsType` / `SnapPointsAlignment` on the items layout | — | Not available: keep the list native, or use an `SkUiScrollView` with snap points |
 | `SelectionMode="None"` / `"Single"` / `"Multiple"` | same names | `SkUiSelectionMode`; plus `SingleDeselect` (tapping the selected item clears it) |
+| Scrolling to the selected item by hand (`ScrollTo(SelectedItem)` after selection or rotation) | `KeepSelectionVisible="True"` | Also after size changes; multiple selections show as many selected items as fit |
 | `SelectedItems` | `SelectedItems` | An `ObservableCollection<object>` by default, or a list of yours (`IList<object>`); changes made to an observable list show; `SelectAll()` / `ClearSelection()` |
 | `SelectedItem` (two-way) | `SelectedItem` (two-way) | Compared with `Equals`; removing the item from the source clears it |
 | `SelectionChanged` (`SelectionChangedEventArgs.PreviousSelection` / `CurrentSelection` lists) | `SelectionChanged` (`SkUiSelectionChangedEventArgs.PreviousSelection` / `CurrentSelection`, plus `PreviousItem` / `CurrentItem`) | Raised once per change: taps, code, `SelectAll` / `ClearSelection`, removed items |

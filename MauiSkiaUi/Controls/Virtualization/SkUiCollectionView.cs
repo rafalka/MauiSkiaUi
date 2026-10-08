@@ -846,6 +846,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView
         ((IView)_refreshLayer).Arrange(Slot(header, Math.Max(0, length - header - footer), size));
         UpdateStickyGroupHeader();
         RecheckLoadMore();
+        KeepSelectionVisibleAfterArrange(size);
     }
 
     /// <summary>A size along the list's axis.</summary>

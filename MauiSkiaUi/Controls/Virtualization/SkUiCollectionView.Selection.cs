@@ -209,6 +209,7 @@ public partial class SkUiCollectionView
         if (SelectionChangedCommand is { } command && command.CanExecute(SelectionChangedCommandParameter))
             command.Execute(SelectionChangedCommandParameter);
         SelectionChanged?.Invoke(this, args);
+        OnSelectionChangedKeepVisible();
     }
 
     private void OnSelectedItemsChanged(IList<object>? value)
@@ -297,7 +298,15 @@ public partial class SkUiCollectionView
             return;
         var (group, index) = location;
         var item = _model.ItemAt(group, index);
-        SelectByTap(item);
+        _tapSelecting = item;
+        try
+        {
+            SelectByTap(item);
+        }
+        finally
+        {
+            _tapSelecting = null;
+        }
         var global = _model.GlobalIndex(group, index);
         ItemTapped?.Invoke(this, new SkUiItemTappedEventArgs(item, global, group < 0 ? null : _model.Groups[group].Value));
         if (ItemTappedCommand is { } command)
@@ -392,7 +401,15 @@ public partial class SkUiCollectionView
     {
         if (!reset && removed is null)
             return;
-        DropRemovedSelection(removed, reset);
+        _selectionFromSource = true;
+        try
+        {
+            DropRemovedSelection(removed, reset);
+        }
+        finally
+        {
+            _selectionFromSource = false;
+        }
     }
 
     private void DropRemovedSelection(IList? removed, bool reset)

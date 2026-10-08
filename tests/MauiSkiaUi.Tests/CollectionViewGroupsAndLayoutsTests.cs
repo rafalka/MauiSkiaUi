@@ -595,6 +595,147 @@ public class CollectionViewGroupsAndLayoutsTests
 
     #endregion
 
+    #region Keeping the selection visible
+
+    private static SkUiCollectionView KeepingList(IEnumerable<Row> rows, SkUiSelectionMode mode) => new()
+    {
+        ItemsSource = rows.ToList(), ItemTemplate = new DataTemplate(() => new RowView()), SelectionMode = mode,
+        KeepSelectionVisible = true, Overscroll = SkUiOverscrollMode.None, PrefetchBudget = TimeSpan.FromSeconds(10)
+    };
+
+    /// <summary>Runs render frames until animated scrolls (selection reveals are animated) have landed.</summary>
+    private static void Settle(SkUiTestSurface surface, ref double time)
+    {
+        for (var frame = 0; frame < 60; frame++)
+            surface.Frame(time += 16);
+    }
+
+    private static bool FullyShown(SkUiCollectionView list, int index, double height) =>
+        list.GetRealizedView(index) is View view && OnScreen(list, (View)view.Parent!) is var frame && frame.Y >= -0.5 && frame.Bottom <= height + 0.5;
+
+    [Fact]
+    public void ASingleSelectionScrollsIntoViewAndStaysThereWhenTheListShrinks()
+    {
+        var rows = Rows(0, 100).ToList();
+        var list = KeepingList(rows, SkUiSelectionMode.Single);
+        using var surface = new SkUiTestSurface(list, 300, 500);
+        var time = 0d;
+        Settle(surface, ref time);
+
+        list.SelectedItem = rows[60]; // from the app: scrolled to (animated), only as far as needed
+        Settle(surface, ref time);
+        Assert.True(FullyShown(list, 60, 500));
+        Assert.Equal(60 * 50 + 50 - 500, list.ScrollY, 1);
+
+        // A smaller list (a rotation): the item stays in view, at once.
+        SkUiTestHelpers.Arrange(list, 500, 200);
+        Assert.True(FullyShown(list, 60, 200));
+
+        // Off: nothing moves.
+        list.KeepSelectionVisible = false;
+        list.SelectedItem = rows[5];
+        Settle(surface, ref time);
+        Assert.False(FullyShown(list, 5, 200));
+    }
+
+    [Fact]
+    public void ASelectionSetBeforeTheFirstLayoutShowsOnceLaidOut()
+    {
+        var rows = Rows(0, 100).ToList();
+        var list = KeepingList(rows, SkUiSelectionMode.Single);
+        list.SelectedItem = rows[40];
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.True(FullyShown(list, 40, 500));
+    }
+
+    [Fact]
+    public void AMultipleSelectionFromTheAppShowsFromItsStartWithAsManyAsFit()
+    {
+        var rows = Rows(0, 100).ToList();
+        var list = KeepingList(rows, SkUiSelectionMode.Multiple);
+        using var surface = new SkUiTestSurface(list, 300, 500);
+        var time = 0d;
+        Settle(surface, ref time);
+
+        // Items 30, 33, 36 fit in one screen with 30 first; 80 does not.
+        foreach (var index in new[] { 80, 30, 36, 33 })
+            list.SelectedItems.Add(rows[index]);
+        Settle(surface, ref time);
+        // Each change scrolled only as far as needed: all three show (the last addition, 36, at the end).
+        Assert.True(FullyShown(list, 30, 500) && FullyShown(list, 33, 500) && FullyShown(list, 36, 500));
+        Assert.False(FullyShown(list, 80, 500));
+
+        // Already showing as many: the next change does not move the list.
+        var offset = list.ScrollY;
+        list.SelectedItems.Add(rows[34]);
+        Settle(surface, ref time);
+        Assert.Equal(offset, list.ScrollY, 1);
+
+        // Set in one change (SelectAll-like replacement from the app): it shows from its start.
+        list.ScrollToAsync(0, animated: false);
+        list.ClearSelection();
+        foreach (var index in new[] { 60, 62 })
+            list.SelectedItems.Add(rows[index]);
+        Settle(surface, ref time);
+        Assert.True(FullyShown(list, 60, 500) && FullyShown(list, 62, 500));
+    }
+
+    [Fact]
+    public void AfterAResizeTheTappedItemStaysInViewWithAsManySelectedItemsAsFitAroundIt()
+    {
+        var rows = Rows(0, 100).ToList();
+        var list = KeepingList(rows, SkUiSelectionMode.Multiple);
+        using var surface = new SkUiTestSurface(list, 300, 500);
+        var time = 0d;
+        Settle(surface, ref time);
+        list.KeepSelectionVisible = false;
+        list.SelectedItems.Add(rows[2]);
+        list.SelectedItems.Add(rows[24]);
+        list.ScrollToIndex(20, ScrollToPosition.Start, animated: false);
+        list.KeepSelectionVisible = true; // 2 and 24 do not fit together: the selection's start (2) shows
+        Settle(surface, ref time);
+        Assert.True(FullyShown(list, 2, 500));
+        list.ScrollToIndex(20, ScrollToPosition.Start, animated: false);
+        Settle(surface, ref time);
+
+        // A tap on 27 selects it: it shows already, so nothing moves under the finger.
+        Tap(list, new Point(150, 7 * 50 + 25));
+        Settle(surface, ref time);
+        Assert.Contains(rows[27], list.SelectedItems);
+        Assert.Equal(20 * 50, list.ScrollY, 1);
+
+        // A short list: the tapped item stays in view, with 24 (both fit), not 2.
+        SkUiTestHelpers.Arrange(list, 300, 200);
+        Assert.True(FullyShown(list, 27, 200));
+        Assert.True(FullyShown(list, 24, 200));
+    }
+
+    [Fact]
+    public void RemovingSelectedItemsDoesNotScroll()
+    {
+        var rows = new ObservableCollection<Row>(Rows(0, 100));
+        var list = new SkUiCollectionView
+        {
+            ItemsSource = rows, ItemTemplate = new DataTemplate(() => new RowView()), SelectionMode = SkUiSelectionMode.Multiple,
+            Overscroll = SkUiOverscrollMode.None, PrefetchBudget = TimeSpan.FromSeconds(10)
+        };
+        using var surface = new SkUiTestSurface(list, 300, 500);
+        var time = 0d;
+        list.SelectedItems.Add(rows[1]);
+        list.SelectedItems.Add(rows[90]);
+        list.ScrollToIndex(50, ScrollToPosition.Start, animated: false);
+        list.KeepSelectionVisible = true;
+        list.ScrollToIndex(50, ScrollToPosition.Start, animated: false);
+        Settle(surface, ref time);
+        var offset = list.ScrollY;
+        rows.RemoveAt(90);
+        Settle(surface, ref time);
+        Assert.Equal(offset, list.ScrollY, 1);
+    }
+
+    #endregion
+
     #region Load more
 
     [Fact]

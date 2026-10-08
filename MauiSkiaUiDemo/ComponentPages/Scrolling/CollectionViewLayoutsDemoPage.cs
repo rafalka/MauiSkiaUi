@@ -51,6 +51,7 @@ public sealed class CollectionViewLayoutsDemoPage : ComponentDemoPage
                 _native.SelectionMode = value switch { SkUiSelectionMode.None => SelectionMode.None, SkUiSelectionMode.Multiple => SelectionMode.Multiple, _ => SelectionMode.Single };
             },
             () => _skia.SelectionMode);
+        Toggle(nameof(SkUiCollectionView.KeepSelectionVisible), false, value => _skia.KeepSelectionVisible = value, () => _skia.KeepSelectionVisible);
         Choice(nameof(SkUiCollectionView.LoadMoreMode), Enum.GetValues<SkUiLoadMoreMode>(), SkUiLoadMoreMode.None, value => _skia.LoadMoreMode = value, () => _skia.LoadMoreMode);
         Choice(nameof(SkUiCollectionView.LoadMorePosition), Enum.GetValues<SkUiLoadMorePosition>(), SkUiLoadMorePosition.End, value => _skia.LoadMorePosition = value, () => _skia.LoadMorePosition);
         ActionButton("Select all", () => _skia.SelectAll());

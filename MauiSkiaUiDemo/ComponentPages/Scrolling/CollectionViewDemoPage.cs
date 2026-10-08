@@ -66,6 +66,7 @@ public sealed class CollectionViewDemoPage : ComponentDemoPage
         Toggle(nameof(SkUiCollectionView.IsPullToRefreshEnabled), true,
             value => { _skia.IsPullToRefreshEnabled = value; _refresh.IsRefreshEnabled = value; },
             () => _skia.IsPullToRefreshEnabled, () => _refresh.IsRefreshEnabled);
+        Toggle(nameof(SkUiCollectionView.KeepSelectionVisible), false, value => _skia.KeepSelectionVisible = value, () => _skia.KeepSelectionVisible);
         Toggle(nameof(SkUiCollectionView.ShowsItemPressEffect), false, value => _skia.ShowsItemPressEffect = value, () => _skia.ShowsItemPressEffect);
         Number(nameof(SkUiCollectionView.ItemSpacing), 0, 16, 0,
             value => { _skia.ItemSpacing = value; ((LinearItemsLayout)_native.ItemsLayout).ItemSpacing = value; },
