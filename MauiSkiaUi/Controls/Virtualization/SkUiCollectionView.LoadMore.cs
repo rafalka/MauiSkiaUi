@@ -8,6 +8,7 @@ public partial class SkUiCollectionView
     private bool _userScrolled;
     private bool _runningLoadMore;
     private bool _recheckLoadMore;
+    private int _itemsAtLoadMore; // the item count when the list last asked for more
     private SkUiWeakListener<SkUiCollectionView>? _loadMoreCommandListener;
     private static Func<string> _loadMoreText = () => "Load more";
 
@@ -101,6 +102,7 @@ public partial class SkUiCollectionView
         if (_loadMoreMode == SkUiLoadMoreMode.None || IsLoadMoreActive || !CanLoadMore || _runningLoadMore)
             return;
         _runningLoadMore = true;
+        _itemsAtLoadMore = _model.ItemCount;
         try
         {
             IsLoadMoreActive = true;
@@ -163,8 +165,10 @@ public partial class SkUiCollectionView
     private void OnIsLoadMoreActiveChanged(bool value)
     {
         UpdateLoadMoreRow();
-        // Done: once the new items are laid out, the end may still show (a short page): ask again then.
-        if (!value)
+        // Done: once the new items are laid out, the end may still show (a short page): ask again then. Only when items
+        // came: an empty answer would otherwise be asked again after every layout (scrolling, or a new command or
+        // parameter, still asks).
+        if (!value && _model.ItemCount != _itemsAtLoadMore)
             _recheckLoadMore = true;
     }
 

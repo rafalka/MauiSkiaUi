@@ -40,7 +40,11 @@ public class SamplesTests
             if (xaml)
                 Assert.Matches($"x:Class=\"MauiSkiaUiSamples\\.Samples\\.{info.Section}(\\.\\w+)*\\.{className}\"", SampleSource.Load(info.SourceFiles[0].Key));
             Assert.All(info.SourceFiles, file => Assert.DoesNotContain("is not embedded", SampleSource.Load(file.Key)));
-            Assert.Equal(Path.GetFileName(info.SourceFiles[0].Key), new SourcePage(info).Title);
+            var sourcePage = new SourcePage(info);
+            Assert.Equal(Path.GetFileName(info.SourceFiles[0].Key), sourcePage.Title);
+            // Other files: a picker; a XAML page and its code-behind alone: a switch.
+            Assert.Equal(info.MoreSources.Count > 0, sourcePage.ToolbarItems.Any(item => item.Text == "Files"));
+            Assert.Equal(xaml && info.MoreSources.Count == 0, sourcePage.ToolbarItems.Any(item => item.Text == "C#"));
         }
         Assert.All(SampleCatalog.Sections, section => Assert.NotEmpty(section.Description()));
         // Embedded by path under Samples/ (Section/File.cs): two sections may reuse a file name.

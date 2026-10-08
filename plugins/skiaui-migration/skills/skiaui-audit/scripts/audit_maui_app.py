@@ -71,6 +71,8 @@ def collection_view_blocked(node):
         child = pending.pop()
         if child.attrs.get((None, "SnapPointsType"), "None").strip() != "None":
             return True
+        if child.name.endswith(".SnapPointsType"):  # a property element: its value is not kept, so assume snap points
+            return True
         pending.extend(child.children)
     return False
 

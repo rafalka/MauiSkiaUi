@@ -545,6 +545,33 @@ public class CollectionViewGroupsAndLayoutsTests
         Assert.Equal(50, list.FirstVisibleIndex);
     }
 
+    [Fact]
+    public void RightToLeftHorizontalListsHaveTheirStickyHeaderAtTheRight()
+    {
+        var header = new SkUiBox { WidthRequest = 60 };
+        var footer = new SkUiBox { WidthRequest = 40 };
+        var list = new SkUiCollectionView
+        {
+            Orientation = ItemsLayoutOrientation.Horizontal,
+            FlowDirection = FlowDirection.RightToLeft,
+            ItemsSource = Rows(0, 100, 80).ToList(),
+            ItemTemplate = new DataTemplate(() => new ColumnView()),
+            Header = header, IsStickyHeader = true, Footer = footer, IsStickyFooter = true,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Never, Overscroll = SkUiOverscrollMode.None,
+            PrefetchBudget = TimeSpan.FromSeconds(10)
+        };
+        SkUiTestHelpers.Arrange(list, 400, 100);
+        SkUiTestHelpers.Arrange(list, 400, 100);
+        // The start is the right: the header there, the footer at the left, the first item next to the header.
+        Assert.Equal(new Rect(340, 0, 60, 100), OnScreen(list, header));
+        Assert.Equal(new Rect(0, 0, 40, 100), OnScreen(list, footer));
+        Assert.Equal(new Rect(260, 0, 80, 100), ItemOnScreen(list, 0));
+
+        list.ScrollToIndex(50, ScrollToPosition.Start, animated: false);
+        SkUiTestHelpers.Arrange(list, 400, 100);
+        Assert.Equal(340, ItemOnScreen(list, 50).Right, 1);
+    }
+
     #endregion
 
     #region Multiple selection
@@ -622,6 +649,13 @@ public class CollectionViewGroupsAndLayoutsTests
         Assert.True(((SkUiView)list.GetRealizedView(1)!).IsSelectedItem);
         mine.Add(rows[4]);
         Assert.True(((SkUiView)list.GetRealizedView(4)!).IsSelectedItem);
+
+        // Null (a binding to a missing list) gives an empty list of the list's own, which taps and SelectAll use.
+        list.SelectedItems = null!;
+        Assert.Empty(list.SelectedItems);
+        Assert.False(((SkUiView)list.GetRealizedView(4)!).IsSelectedItem);
+        list.SelectAll();
+        Assert.Equal(rows, list.SelectedItems);
     }
 
     #endregion
@@ -800,6 +834,29 @@ public class CollectionViewGroupsAndLayoutsTests
     }
 
     [Fact]
+    public void AMultipleSelectionInAGridShowsTheRowsWithTheMostSelectedItems()
+    {
+        var rows = Rows(0, 30).ToList();
+        var list = KeepingList(rows, SkUiSelectionMode.Multiple);
+        list.Span = 3; // rows of 3 items, 50 DIPs each: two fit
+        using var surface = new SkUiTestSurface(list, 300, 100);
+        var time = 0d;
+        Settle(surface, ref time);
+        foreach (var index in new[] { 6, 7, 8, 12 }) // all of row 2, one item of row 4
+            list.SelectedItems.Add(rows[index]);
+        Settle(surface, ref time);
+        list.ScrollView.ScrollTo(0, 150); // rows 3 and 4
+        SkUiTestHelpers.Arrange(list, 300, 100);
+        Tap(list, new Point(50, 25)); // item 9 (row 3): the focus
+        Settle(surface, ref time);
+        Assert.Equal(150, list.ScrollY, 1);
+
+        // A resize: rows 2 and 3 (four selected items) rather than rows 3 and 4 (two).
+        SkUiTestHelpers.Arrange(list, 300, 101);
+        Assert.Equal(100, list.ScrollY, 1);
+    }
+
+    [Fact]
     public void RemovingSelectedItemsDoesNotScroll()
     {
         var rows = new ObservableCollection<Row>(Rows(0, 100));
@@ -896,6 +953,11 @@ public class CollectionViewGroupsAndLayoutsTests
         shortRows.Add(new Row(2));
         auto.IsLoadMoreActive = false;
         SkUiTestHelpers.Arrange(auto, 300, 500);
+        Assert.Equal(2, autoLoads);
+        // A load that brought nothing is not asked again by itself (it would be after every layout).
+        auto.IsLoadMoreActive = false;
+        SkUiTestHelpers.Arrange(auto, 300, 500);
+        SkUiTestHelpers.Arrange(auto, 300, 501);
         Assert.Equal(2, autoLoads);
 
         // A parameter or command that can execute again loads at once while the end shows.

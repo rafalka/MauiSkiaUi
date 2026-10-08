@@ -39,6 +39,8 @@ public partial class SkUiCollectionView
             (owner._selectedItemsObserver ??= new SelectedItemsObserver(owner)).Observe(list);
             return list;
         },
+        // Never null (a binding may set it): an empty list of the list's own instead.
+        coerceValue: (_, value) => value ?? new ObservableCollection<object>(),
         propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable).OnSelectedItemsChanged((IList<object>?)value));
 
     /// <summary>Bindable property for <see cref="SelectionChangedCommand"/>.</summary>
@@ -82,7 +84,8 @@ public partial class SkUiCollectionView
     /// The selected items of a multiple selection (<see cref="SkUiSelectionMode.Multiple"/>): by default an
     /// <see cref="ObservableCollection{T}"/> of the list's own; set a list of yours to share it with a view model. Taps add and
     /// remove items in it; changes made to it (an <see cref="INotifyCollectionChanged"/> list, or after setting another list)
-    /// show at once and raise <see cref="SelectionChanged"/>. Items removed from the source are removed from it.
+    /// show at once and raise <see cref="SelectionChanged"/>. Items removed from the source are removed from it. Setting
+    /// <c>null</c> sets an empty list of the list's own.
     /// </summary>
     public IList<object> SelectedItems { get => (IList<object>)GetValue(SelectedItemsProperty); set => SetValue(SelectedItemsProperty, value); }
 

@@ -109,22 +109,27 @@ public partial class SkUiCollectionView
         if (_selectionMode != SkUiSelectionMode.Multiple || _selectedSet.Count == 0)
             return;
 
-        // The rows showing selected items, in order (one scan of the items: a large selection costs no lookups per item).
+        // The rows showing selected items, in order, with how many each shows (a grid row may show several); one scan of
+        // the items: a large selection costs no lookups per item. before[i]: the selected items in rows[0..i).
         var rows = new List<int>();
+        var before = new List<int> { 0 };
         for (var row = 0; row < _model.RowCount; row++)
         {
             var current = _model.RowAt(row);
             if (current.Kind != RowKind.Items)
                 continue;
+            var selected = 0;
             for (var slot = 0; slot < current.Count; slot++)
                 if (_model.ItemAt(current.Group, current.Start + slot) is { } item && _selectedSet.Contains(item))
-                {
-                    rows.Add(row);
-                    break;
-                }
+                    selected++;
+            if (selected == 0)
+                continue;
+            rows.Add(row);
+            before.Add(before[^1] + selected);
         }
         if (rows.Count == 0)
             return;
+        int Selected(int first, int last) => before[last + 1] - before[first];
         var focusRow = _tappedSelection is { } tapped && _selectedSet.Contains(tapped) ? RowOfTapped() : -1;
         var focus = focusRow >= 0 ? Math.Max(0, rows.IndexOf(focusRow)) : 0;
 
@@ -137,7 +142,7 @@ public partial class SkUiCollectionView
         double Start(int index) => _items.RowOffset(rows[index]);
         double End(int index) => _items.RowOffset(rows[index]) + _items.RowSize(rows[index]);
 
-        // The window of selected rows that fits the band, contains the focus and holds the most of them.
+        // The window of selected rows that fits the band, contains the focus and holds the most selected items.
         // Ties keep the window that starts at the focus (a selection set by the app shows from its start).
         int bestFirst = focus, bestLast = focus;
         for (var first = focus; first >= 0; first--)
@@ -147,7 +152,7 @@ public partial class SkUiCollectionView
             var last = focus;
             while (last + 1 < rows.Count && End(last + 1) - Start(first) <= band)
                 last++;
-            if (last - first > bestLast - bestFirst)
+            if (Selected(first, last) > Selected(bestFirst, bestLast))
                 (bestFirst, bestLast) = (first, last);
         }
         // What shows already holds as many (and the focus): nothing moves.
@@ -155,8 +160,8 @@ public partial class SkUiCollectionView
         var focusShown = Start(focus) >= visibleStart && End(focus) <= visibleEnd;
         for (var index = 0; index < rows.Count; index++)
             if (Start(index) >= visibleStart && End(index) <= visibleEnd)
-                shown++;
-        if (focusShown && shown >= bestLast - bestFirst + 1)
+                shown += Selected(index, index);
+        if (focusShown && shown >= Selected(bestFirst, bestLast))
             return;
         if (Start(bestFirst) < visibleStart)
             _items.ScrollToIndex(rows[bestFirst], ScrollToPosition.Start, animated);

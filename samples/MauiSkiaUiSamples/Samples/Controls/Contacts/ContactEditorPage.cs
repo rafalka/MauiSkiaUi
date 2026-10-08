@@ -88,9 +88,17 @@ public sealed class ContactEditorPage : ContentPage
                 return;
             // Copied into the app's data: the picked file may be temporary.
             var path = Path.Combine(FileSystem.AppDataDirectory, $"contact_{Guid.NewGuid():N}{Path.GetExtension(photo.FileName)}");
-            await using (var source = await photo.OpenReadAsync())
-            await using (var target = File.Create(path))
+            try
+            {
+                await using var source = await photo.OpenReadAsync();
+                await using var target = File.Create(path);
                 await source.CopyToAsync(target);
+            }
+            catch
+            {
+                DeleteFile(path); // a partial copy
+                throw;
+            }
             DeletePhotoCopy(); // the photo picked before
             _photoPath = path;
             _draft.Photo = ImageSource.FromFile(path);
@@ -127,15 +135,20 @@ public sealed class ContactEditorPage : ContentPage
     {
         if (_photoPath is null)
             return;
+        DeleteFile(_photoPath);
+        _photoPath = null;
+    }
+
+    private static void DeleteFile(string path)
+    {
         try
         {
-            File.Delete(_photoPath);
+            File.Delete(path);
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // Best effort: a file that cannot be deleted stays behind.
         }
-        _photoPath = null;
     }
 
     /// <summary>The system back button cancels.</summary>
