@@ -353,6 +353,9 @@ public sealed class LiveGroupedList<TItem, TKey> : IDisposable
 /// </summary>
 public sealed class ItemGroup<TKey, TItem>(TKey key, string title, IEnumerable<TItem> items) : ObservableCollection<TItem>(items), ISkUiExpandableGroup
 {
+    private static readonly PropertyChangedEventArgs IsExpandedChanged = new(nameof(IsExpanded));
+    private static readonly PropertyChangedEventArgs CheckStateChanged = new(nameof(CheckState));
+
     private bool _expanded = true;
     private SkUiCheckState _checkState;
 
@@ -370,7 +373,7 @@ public sealed class ItemGroup<TKey, TItem>(TKey key, string title, IEnumerable<T
             if (_expanded == value)
                 return;
             _expanded = value;
-            OnPropertyChanged(new PropertyChangedEventArgs(nameof(IsExpanded)));
+            OnPropertyChanged(IsExpandedChanged);
         }
     }
 
@@ -383,7 +386,7 @@ public sealed class ItemGroup<TKey, TItem>(TKey key, string title, IEnumerable<T
             if (_checkState == value)
                 return;
             _checkState = value;
-            OnPropertyChanged(new PropertyChangedEventArgs(nameof(CheckState)));
+            OnPropertyChanged(CheckStateChanged);
         }
     }
 }
@@ -391,6 +394,10 @@ public sealed class ItemGroup<TKey, TItem>(TKey key, string title, IEnumerable<T
 /// <summary>An <see cref="ObservableCollection{T}"/> whose contents can be replaced with one reset (instead of an event per item).</summary>
 public sealed class ShownCollection<T> : ObservableCollection<T>
 {
+    private static readonly PropertyChangedEventArgs CountChanged = new(nameof(Count));
+    private static readonly PropertyChangedEventArgs IndexerChanged = new("Item[]");
+    private static readonly NotifyCollectionChangedEventArgs Reset = new(NotifyCollectionChangedAction.Reset);
+
     /// <summary>Replaces the contents, raising one <see cref="NotifyCollectionChangedAction.Reset"/>.</summary>
     public void ReplaceAll(IEnumerable<T> items)
     {
@@ -398,8 +405,8 @@ public sealed class ShownCollection<T> : ObservableCollection<T>
         Items.Clear();
         foreach (var item in items)
             Items.Add(item);
-        OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
-        OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
-        OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+        OnPropertyChanged(CountChanged);
+        OnPropertyChanged(IndexerChanged);
+        OnCollectionChanged(Reset);
     }
 }

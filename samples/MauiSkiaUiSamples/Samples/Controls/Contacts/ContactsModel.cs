@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -43,6 +44,9 @@ public enum ContactDisplay
 
 public abstract class Observable : INotifyPropertyChanged
 {
+    // One event args per property name, shared by every instance: raising a change allocates nothing.
+    private static readonly ConcurrentDictionary<string, PropertyChangedEventArgs> ChangedArgs = new();
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
@@ -54,7 +58,8 @@ public abstract class Observable : INotifyPropertyChanged
         return true;
     }
 
-    protected void OnPropertyChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    protected void OnPropertyChanged([CallerMemberName] string? name = null) =>
+        PropertyChanged?.Invoke(this, ChangedArgs.GetOrAdd(name ?? "", static key => new PropertyChangedEventArgs(key)));
 }
 
 public sealed class Contact : Observable

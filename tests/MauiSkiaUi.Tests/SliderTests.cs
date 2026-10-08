@@ -192,6 +192,8 @@ public class SliderTests
 
     private sealed class SliderModel : INotifyPropertyChanged
     {
+        private static readonly PropertyChangedEventArgs LevelChanged = new(nameof(Level));
+
         private double _level;
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -203,7 +205,7 @@ public class SliderTests
             {
                 if (_level == value) return;
                 _level = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Level)));
+                PropertyChanged?.Invoke(this, LevelChanged);
             }
         }
     }

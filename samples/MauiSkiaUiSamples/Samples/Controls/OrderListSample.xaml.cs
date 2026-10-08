@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using MauiSkiaUi;
 
@@ -65,6 +64,10 @@ public sealed class OrderItem(int number, OrderListModel owner)
 
 public sealed class OrderListModel : INotifyPropertyChanged
 {
+    private static readonly PropertyChangedEventArgs SelectedChanged = new(nameof(Selected));
+    private static readonly PropertyChangedEventArgs IsRefreshingChanged = new(nameof(IsRefreshing));
+    private static readonly PropertyChangedEventArgs StatusChanged = new(nameof(Status));
+
     private int _next = 1000;
     private OrderItem? _selected;
     private bool _isRefreshing;
@@ -92,11 +95,11 @@ public sealed class OrderListModel : INotifyPropertyChanged
 
     public ICommand RefreshCommand { get; }
 
-    public OrderItem? Selected { get => _selected; set => Set(ref _selected, value); }
+    public OrderItem? Selected { get => _selected; set => Set(ref _selected, value, SelectedChanged); }
 
-    public bool IsRefreshing { get => _isRefreshing; set => Set(ref _isRefreshing, value); }
+    public bool IsRefreshing { get => _isRefreshing; set => Set(ref _isRefreshing, value, IsRefreshingChanged); }
 
-    public string Status { get => _status; set => Set(ref _status, value); }
+    public string Status { get => _status; set => Set(ref _status, value, StatusChanged); }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -106,11 +109,11 @@ public sealed class OrderListModel : INotifyPropertyChanged
             Orders.Add(new OrderItem(_next++, this));
     }
 
-    private void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
+    private void Set<T>(ref T field, T value, PropertyChangedEventArgs changed)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
             return;
         field = value;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        PropertyChanged?.Invoke(this, changed);
     }
 }

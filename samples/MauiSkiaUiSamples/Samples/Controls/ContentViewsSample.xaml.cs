@@ -103,6 +103,8 @@ public sealed record ShippedStatus(string Carrier, string TrackingNumber) : Orde
 
 public sealed class ContentViewsModel : INotifyPropertyChanged
 {
+    private static readonly PropertyChangedEventArgs StatusChanged = new(nameof(Status));
+
     private static readonly OrderStatus[] Statuses =
     [
         new PackingStatus(1, 3), new PackingStatus(3, 3), new ShippedStatus("Parcel Express", "PX 4071 2290")
@@ -113,7 +115,7 @@ public sealed class ContentViewsModel : INotifyPropertyChanged
     public ContentViewsModel() => NextStatusCommand = new Command(() =>
     {
         _index = (_index + 1) % Statuses.Length;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Status)));
+        PropertyChanged?.Invoke(this, StatusChanged);
     });
 
     public event PropertyChangedEventHandler? PropertyChanged;

@@ -29,6 +29,8 @@ public class CollectionViewGroupsAndLayoutsTests
     /// <summary>A group that keeps its own expanded state.</summary>
     private sealed class ExpandableSection(string name, IEnumerable<Row> rows, bool expanded) : ObservableCollection<Row>(rows), ISkUiExpandableGroup
     {
+        private static readonly PropertyChangedEventArgs IsExpandedChanged = new(nameof(IsExpanded));
+
         private bool _expanded = expanded;
 
         public string Name { get; } = name;
@@ -41,7 +43,7 @@ public class CollectionViewGroupsAndLayoutsTests
                 if (_expanded == value)
                     return;
                 _expanded = value;
-                OnPropertyChanged(new PropertyChangedEventArgs(nameof(IsExpanded)));
+                OnPropertyChanged(IsExpandedChanged);
             }
         }
     }
