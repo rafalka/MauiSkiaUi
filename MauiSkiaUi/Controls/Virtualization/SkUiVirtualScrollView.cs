@@ -75,8 +75,8 @@ public class SkUiVirtualScrollView : SkUiScrollView, ISkUiVirtualList
     /// <summary>Bindable property for <see cref="ItemTemplate"/>.</summary>
     public static readonly BindableProperty ItemTemplateProperty = Forwarded(SkUiVirtualVerticalStackLayout.ItemTemplateProperty);
 
-    /// <summary>Bindable property for <see cref="Spacing"/>.</summary>
-    public static readonly BindableProperty SpacingProperty = Forwarded(SkUiVirtualVerticalStackLayout.SpacingProperty, SkUiValidate.NonNegative);
+    /// <summary>Bindable property for <see cref="ItemSpacing"/>.</summary>
+    public static readonly BindableProperty ItemSpacingProperty = Forwarded(SkUiVirtualVerticalStackLayout.ItemSpacingProperty, SkUiValidate.NonNegative);
 
     /// <summary>Bindable property for <see cref="ItemExtent"/>.</summary>
     public static readonly BindableProperty ItemExtentProperty = Forwarded(SkUiVirtualVerticalStackLayout.ItemExtentProperty, SkUiValidate.NonNegative);
@@ -111,8 +111,8 @@ public class SkUiVirtualScrollView : SkUiScrollView, ISkUiVirtualList
     /// <inheritdoc cref="SkUiVirtualVerticalStackLayout.ItemTemplate" />
     public DataTemplate? ItemTemplate { get => (DataTemplate?)GetValue(ItemTemplateProperty); set => SetValue(ItemTemplateProperty, value); }
 
-    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.Spacing" />
-    public double Spacing { get => (double)GetValue(SpacingProperty); set => SetValue(SpacingProperty, value); }
+    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.ItemSpacing" />
+    public double ItemSpacing { get => (double)GetValue(ItemSpacingProperty); set => SetValue(ItemSpacingProperty, value); }
 
     /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.ItemExtent" />
     public double ItemExtent { get => (double)GetValue(ItemExtentProperty); set => SetValue(ItemExtentProperty, value); }
@@ -179,6 +179,10 @@ public class SkUiVirtualScrollView : SkUiScrollView, ISkUiVirtualList
     /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.ScrollToIndex" />
     public Task ScrollToIndex(int index, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true) =>
         Items.ScrollToIndex(index, position, animated);
+
+    /// <inheritdoc cref="SkUiVirtualVerticalStackLayout.ScrollToItem" />
+    public Task ScrollToItem(object? item, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true) =>
+        Items.ScrollToItem(item, position, animated);
 
     /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.GetRealizedView" />
     public ISkUiView? GetRealizedView(int index) => Items.GetRealizedView(index);

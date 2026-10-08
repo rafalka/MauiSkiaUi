@@ -1368,9 +1368,9 @@ public static class LeakScenarios
         {
             var list = _list!;
             await context.SettleAsync();
-            await context.TapAsync(list.GetItemView(2)!);
-            await context.TapAsync(list.GetItemView(2)!); // deselects
-            await context.TapAsync(list.GetItemView(4)!);
+            await context.TapAsync(list.GetRealizedView(2)!);
+            await context.TapAsync(list.GetRealizedView(2)!); // deselects
+            await context.TapAsync(list.GetRealizedView(4)!);
             await context.DragAsync(list, 0, 300, durationMs: 400); // pull to refresh
             await context.SettleAsync();
             list.IsRefreshing = false;

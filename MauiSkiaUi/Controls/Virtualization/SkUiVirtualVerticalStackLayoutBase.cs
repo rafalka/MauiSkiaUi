@@ -126,13 +126,13 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
 
     #region Properties
 
-    /// <summary>Bindable property for <see cref="Spacing"/>.</summary>
-    public static readonly BindableProperty SpacingProperty = BindableProperty.Create(nameof(Spacing), typeof(double), typeof(SkUiVirtualVerticalStackLayoutBase), 0d,
+    /// <summary>Bindable property for <see cref="ItemSpacing"/>.</summary>
+    public static readonly BindableProperty ItemSpacingProperty = BindableProperty.Create(nameof(ItemSpacing), typeof(double), typeof(SkUiVirtualVerticalStackLayoutBase), 0d,
         validateValue: SkUiValidate.NonNegative,
         propertyChanged: (view, _, value) => ((SkUiVirtualVerticalStackLayoutBase)view).OnSizingChanged(() => ((SkUiVirtualVerticalStackLayoutBase)view)._sizes.Spacing = (double)value));
 
     /// <summary>Gap between items in DIPs.</summary>
-    public double Spacing { get => (double)GetValue(SpacingProperty); set => SetValue(SpacingProperty, value); }
+    public double ItemSpacing { get => (double)GetValue(ItemSpacingProperty); set => SetValue(ItemSpacingProperty, value); }
 
     /// <summary>Bindable property for <see cref="Padding"/>.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiVirtualVerticalStackLayoutBase), default(Thickness),
@@ -315,8 +315,8 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     /// <summary>The end of the items comes into view; see <see cref="RemainingItemsThreshold"/>.</summary>
     public event EventHandler? RemainingItemsThresholdReached;
 
-    /// <summary>Sets <see cref="Spacing"/> (same as the property setter).</summary>
-    public SkUiVirtualVerticalStackLayoutBase SetSpacing(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); Spacing = value; return this; }
+    /// <summary>Sets <see cref="ItemSpacing"/> (same as the property setter).</summary>
+    public SkUiVirtualVerticalStackLayoutBase SetItemSpacing(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); ItemSpacing = value; return this; }
 
     /// <summary>Sets <see cref="Padding"/> (same as the property setter).</summary>
     public SkUiVirtualVerticalStackLayoutBase SetPadding(Thickness value) { Padding = value; return this; }

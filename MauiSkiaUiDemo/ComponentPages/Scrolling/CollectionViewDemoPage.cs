@@ -29,8 +29,11 @@ public sealed class CollectionViewDemoPage : ComponentDemoPage
         Append(60);
 
         _skia.ItemTemplate = new DataTemplate(() => new SkiaRow());
-        _skia.Header = new SkUiLabel { Text = "Orders", FontSize = 18, FontAttributes = FontAttributes.Bold, TextColor = Ink, Padding = new Thickness(12, 10), Background = DemoColors.PageBackground };
-        _skia.Footer = new SkUiLabel { Text = "Pull down to refresh · scroll to load more", FontSize = 12, TextColor = DemoColors.Caption, Padding = new Thickness(12, 8), Background = DemoColors.PageBackground };
+        // Floating cards narrower than the list, translucent: when sticky, the rows scroll behind them and show around them.
+        _skia.Header = Card(new SkUiLabel { Text = "Orders", FontSize = 18, FontAttributes = FontAttributes.Bold, TextColor = Ink }, new Thickness(16, 8, 16, 4));
+        _skia.Footer = Card(new SkUiLabel { Text = "Pull down to refresh · scroll to load more", FontSize = 12, TextColor = DemoColors.Caption }, new Thickness(16, 4, 16, 8));
+        _skia.IsStickyHeader = true;
+        _skia.IsStickyFooter = true;
         _skia.EmptyView = new SkUiLabel { Text = "No orders", FontSize = 16, TextColor = DemoColors.Caption, HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center };
         _skia.IsPullToRefreshEnabled = true;
         _skia.RemainingItemsThreshold = 5;
@@ -56,8 +59,8 @@ public sealed class CollectionViewDemoPage : ComponentDemoPage
             },
             () => _skia.SelectionMode);
         // SkiaUi only: MAUI's header and footer always scroll.
-        Toggle(nameof(SkUiCollectionView.IsStickyHeader), false, value => _skia.IsStickyHeader = value, () => _skia.IsStickyHeader);
-        Toggle(nameof(SkUiCollectionView.IsStickyFooter), false, value => _skia.IsStickyFooter = value, () => _skia.IsStickyFooter);
+        Toggle(nameof(SkUiCollectionView.IsStickyHeader), true, value => _skia.IsStickyHeader = value, () => _skia.IsStickyHeader);
+        Toggle(nameof(SkUiCollectionView.IsStickyFooter), true, value => _skia.IsStickyFooter = value, () => _skia.IsStickyFooter);
         Toggle("No items (empty view)", false, value => { _empty = value; ShowItems(); }, () => _empty);
         Toggle("Load more near the end", true, value => _loadMore = value, () => _loadMore);
         Toggle(nameof(SkUiCollectionView.IsPullToRefreshEnabled), true,
@@ -83,6 +86,18 @@ public sealed class CollectionViewDemoPage : ComponentDemoPage
             _ = _skia.ScrollToAsync(0, animated: false);
         });
     }
+
+    /// <summary>A rounded, translucent card with a shadow, inset from the list's edges by <paramref name="margin"/>.</summary>
+    private static SkUiBorder Card(SkUiLabel text, Thickness margin) => new()
+    {
+        Content = text,
+        Margin = margin,
+        Padding = new Thickness(14, 8),
+        StrokeThickness = 0,
+        StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
+        Background = Colors.White.WithAlpha(0.85f),
+        Shadow = new Shadow { Brush = Colors.Black, Opacity = 0.18f, Radius = 8, Offset = new Point(0, 2) }
+    };
 
     private void ShowItems()
     {

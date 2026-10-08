@@ -296,7 +296,7 @@ Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and 
 - `ItemsSource`, `ItemTemplate` (or a selector), `SelectedItem`, `SelectionChangedCommand` (+ parameter), `EmptyView`, `RemainingItemsThreshold` (+ event, command): same names. The templates and the empty view create drawn views.
 - `SelectionMode="Single"`: same; `SkUiSelectionMode.SingleDeselect` clears the selection when the selected item is tapped again. `SelectionChanged` gets `SkUiSelectionChangedEventArgs` (`PreviousItem`, `CurrentItem`), and `SelectionChanging` can cancel a tap's change.
 - The `Selected` visual state on the item's root works as in MAUI; by default the selected item also gets a light accent background (`SelectionBackground="Transparent"` turns it off).
-- `Header` / `Footer` take a drawn view (or `HeaderTemplate` / `FooterTemplate`), not a string; `IsStickyHeader` / `IsStickyFooter` keep them in place.
+- `Header` / `Footer` take a drawn view (or `HeaderTemplate` / `FooterTemplate`), not a string; `IsStickyHeader` / `IsStickyFooter` keep them in place over the list (the items scroll behind them, uncovered at the start and the end).
 - `LinearItemsLayout.ItemSpacing` → `ItemSpacing`; `ItemSizingStrategy="MeasureFirstItem"` → `ItemExtent`.
 - `ScrollTo(index | item, position, animate)` → `ScrollToIndex` / `ScrollToItem` (awaitable); `Scrolled` reports `ScrollY`, and `FirstVisibleIndex` / `LastVisibleIndex` / `VisibleRangeChanged` give the visible items.
 - A `TapGestureRecognizer` on the item root that opens the item → `ItemTappedCommand` (the parameter defaults to the item). Buttons inside an item keep their own taps.

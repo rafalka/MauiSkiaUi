@@ -19,7 +19,7 @@ namespace MauiSkiaUi;
 /// the migration guide.
 /// </para>
 /// <para>
-/// <b>Cost.</b> A sticky header or footer is laid out beside the scroller, so scrolling never re-records it. A selection
+/// <b>Cost.</b> A sticky header or footer is drawn over the scroller, not in it, so scrolling never re-records it. A selection
 /// change re-records the two items whose state changed. Each item view is hosted in a drawn item container that takes
 /// the item's taps (tappable views inside the item keep theirs) and draws <see cref="SelectionBackground"/>.
 /// </para>
@@ -29,7 +29,7 @@ namespace MauiSkiaUi;
 /// </para>
 /// </remarks>
 [ContentProperty(nameof(ItemTemplate))]
-public class SkUiCollectionView : SkUiView
+public class SkUiCollectionView : SkUiView, ISkUiItemsView
 {
     /// <summary>How far the top must be pulled (shown past the edge, in DIPs) for a release to start a refresh.</summary>
     internal const double RefreshTriggerDistance = 64;
@@ -37,8 +37,9 @@ public class SkUiCollectionView : SkUiView
     private readonly ItemsPart _items;
     private readonly SkUiScrollView _scroller;
     private readonly BodyPart _body;
-    private readonly SkUiContentView _stickyHeaderHost = new();
-    private readonly SkUiContentView _stickyFooterHost = new();
+    // Created the first time they show a view: most lists have no header or footer, fewer have sticky ones.
+    private StickyHost? _stickyHeaderHost;
+    private StickyHost? _stickyFooterHost;
     private readonly RefreshLayer _refreshLayer;
     private readonly SkUiContentSlot _headerSlot;
     private readonly SkUiContentSlot _footerSlot;
@@ -75,9 +76,7 @@ public class SkUiCollectionView : SkUiView
         controller.PullReleased += OnPullReleased;
         controller.OverscrollChanged += OnOverscrollChanged;
         _refreshLayer = new RefreshLayer();
-        AttachChild(_stickyHeaderHost);
         AttachChild(_scroller);
-        AttachChild(_stickyFooterHost);
         AttachChild(_refreshLayer);
         UpdateEmpty();
     }
@@ -99,13 +98,25 @@ public class SkUiCollectionView : SkUiView
     public static readonly BindableProperty ItemTemplateProperty = ForwardedToItems(SkUiVirtualVerticalStackLayout.ItemTemplateProperty);
 
     /// <summary>Bindable property for <see cref="ItemSpacing"/>.</summary>
-    public static readonly BindableProperty ItemSpacingProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.SpacingProperty, nameof(ItemSpacing), SkUiValidate.NonNegative);
+    public static readonly BindableProperty ItemSpacingProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.ItemSpacingProperty, validate: SkUiValidate.NonNegative);
 
     /// <summary>Bindable property for <see cref="ItemExtent"/>.</summary>
     public static readonly BindableProperty ItemExtentProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.ItemExtentProperty, validate: SkUiValidate.NonNegative);
 
     /// <summary>Bindable property for <see cref="EstimatedItemSize"/>.</summary>
     public static readonly BindableProperty EstimatedItemSizeProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.EstimatedItemSizeProperty, validate: SkUiValidate.NonNegative);
+
+    /// <summary>Bindable property for <see cref="PrefetchFactor"/>.</summary>
+    public static readonly BindableProperty PrefetchFactorProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.PrefetchFactorProperty, validate: SkUiValidate.NonNegative);
+
+    /// <summary>Bindable property for <see cref="PrefetchBehindFactor"/>.</summary>
+    public static readonly BindableProperty PrefetchBehindFactorProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.PrefetchBehindFactorProperty, validate: SkUiValidate.NonNegative);
+
+    /// <summary>Bindable property for <see cref="ReleaseFactor"/>.</summary>
+    public static readonly BindableProperty ReleaseFactorProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.ReleaseFactorProperty, validate: SkUiVirtualVerticalStackLayoutBase.IsValidReleaseFactor);
+
+    /// <summary>Bindable property for <see cref="PrefetchBudget"/>.</summary>
+    public static readonly BindableProperty PrefetchBudgetProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.PrefetchBudgetProperty, validate: SkUiVirtualVerticalStackLayoutBase.IsValidPrefetchBudget);
 
     /// <summary>Bindable property for <see cref="RemainingItemsThreshold"/>.</summary>
     public static readonly BindableProperty RemainingItemsThresholdProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.RemainingItemsThresholdProperty,
@@ -125,6 +136,18 @@ public class SkUiCollectionView : SkUiView
 
     /// <summary>Gap between items in DIPs (not between the header or footer and the items).</summary>
     public double ItemSpacing { get => (double)GetValue(ItemSpacingProperty); set => SetValue(ItemSpacingProperty, value); }
+
+    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.PrefetchFactor" />
+    public double PrefetchFactor { get => (double)GetValue(PrefetchFactorProperty); set => SetValue(PrefetchFactorProperty, value); }
+
+    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.PrefetchBehindFactor" />
+    public double PrefetchBehindFactor { get => (double)GetValue(PrefetchBehindFactorProperty); set => SetValue(PrefetchBehindFactorProperty, value); }
+
+    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.ReleaseFactor" />
+    public double ReleaseFactor { get => (double)GetValue(ReleaseFactorProperty); set => SetValue(ReleaseFactorProperty, value); }
+
+    /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.PrefetchBudget" />
+    public TimeSpan? PrefetchBudget { get => (TimeSpan?)GetValue(PrefetchBudgetProperty); set => SetValue(PrefetchBudgetProperty, value); }
 
     /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.ItemExtent" />
     public double ItemExtent { get => (double)GetValue(ItemExtentProperty); set => SetValue(ItemExtentProperty, value); }
@@ -164,8 +187,11 @@ public class SkUiCollectionView : SkUiView
     /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.VisibleRangeChanged" />
     public event EventHandler<SkUiVisibleRangeChangedEventArgs>? VisibleRangeChanged { add => _items.VisibleRangeChanged += value; remove => _items.VisibleRangeChanged -= value; }
 
-    /// <summary>The view the item template created for the item at <paramref name="index"/>, while it is realized; else <c>null</c>.</summary>
-    public ISkUiView? GetItemView(int index) => (_items.GetRealizedView(index) as ItemHost)?.Content;
+    /// <summary>
+    /// The view the item template created for the item at <paramref name="index"/>, while it is realized; else <c>null</c>
+    /// (the view itself, not the item container hosting it).
+    /// </summary>
+    public ISkUiView? GetRealizedView(int index) => (_items.GetRealizedView(index) as ItemHost)?.Content;
 
     /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.RemeasureItem" />
     public void RemeasureItem(int index) => _items.RemeasureItem(index);
@@ -181,11 +207,8 @@ public class SkUiCollectionView : SkUiView
         _items.ScrollToIndex(index, position, animated);
 
     /// <summary>Scrolls to <paramref name="item"/> (found with <see cref="object.Equals(object?)"/>); see <see cref="ScrollToIndex"/>. An item that is not in the list is ignored.</summary>
-    public Task ScrollToItem(object? item, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true)
-    {
-        var index = _items.IndexOfItem(item);
-        return index < 0 ? Task.CompletedTask : _items.ScrollToIndex(index, position, animated);
-    }
+    public Task ScrollToItem(object? item, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true) =>
+        _items.ScrollToItem(item, position, animated);
 
     /// <summary>Sets <see cref="ItemsSource"/> (same as the property setter).</summary>
     public SkUiCollectionView SetItemsSource(IEnumerable? value) { ItemsSource = value; return this; }
@@ -293,7 +316,10 @@ public class SkUiCollectionView : SkUiView
 
     /// <summary>
     /// Whether the header stays at the top while the items scroll (default <c>false</c>: it scrolls away with them). A sticky
-    /// header is laid out above the scrolled area, so scrolling does not re-record it, and the items scroll below it.
+    /// header is drawn over the list, and the items scroll behind it: give it a translucent background, margins or rounded
+    /// corners to let them show through. At the start of the list the first item is below it (the list's content starts
+    /// after the header's height, margins included), scrolling to an item places it below it, and the scroll bar runs
+    /// beside the uncovered part. Scrolling does not re-record it.
     /// </summary>
     public bool IsStickyHeader { get => (bool)GetValue(IsStickyHeaderProperty); set => SetValue(IsStickyHeaderProperty, value); }
 
@@ -303,7 +329,10 @@ public class SkUiCollectionView : SkUiView
     /// <summary>Creates <see cref="Footer"/> when it is not set; see <see cref="HeaderTemplate"/>.</summary>
     public DataTemplate? FooterTemplate { get => (DataTemplate?)GetValue(FooterTemplateProperty); set => SetValue(FooterTemplateProperty, value); }
 
-    /// <summary>Whether the footer stays at the bottom while the items scroll; see <see cref="IsStickyHeader"/>.</summary>
+    /// <summary>
+    /// Whether the footer stays at the bottom while the items scroll, drawn over the list as a sticky header is (see
+    /// <see cref="IsStickyHeader"/>): at the end of the list the last item is above it.
+    /// </summary>
     public bool IsStickyFooter { get => (bool)GetValue(IsStickyFooterProperty); set => SetValue(IsStickyFooterProperty, value); }
 
     /// <summary>
@@ -353,9 +382,9 @@ public class SkUiCollectionView : SkUiView
         PlaceHeader();
     }
 
-    private void PlaceHeader() => Place(Header, IsStickyHeader, _stickyHeaderHost, _body.HeaderHost);
+    private void PlaceHeader() => Place(Header, IsStickyHeader, ref _stickyHeaderHost, ref _body.HeaderHost);
 
-    private void PlaceFooter() => Place(Footer, IsStickyFooter, _stickyFooterHost, _body.FooterHost);
+    private void PlaceFooter() => Place(Footer, IsStickyFooter, ref _stickyFooterHost, ref _body.FooterHost);
 
     private void OnFooterChanged()
     {
@@ -365,15 +394,36 @@ public class SkUiCollectionView : SkUiView
         PlaceFooter();
     }
 
-    /// <summary>Shows <paramref name="view"/> in the sticky or the scrolled host (taken out of the other first).</summary>
-    private static void Place(ISkUiView? view, bool sticky, SkUiContentView stickyHost, SkUiContentView scrolledHost)
+    /// <summary>
+    /// Shows <paramref name="view"/> in the sticky or the scrolled host (taken out of the other first: a view has one
+    /// parent). A host is created, and attached, the first time it shows a view; once created it stays (empty, it measures
+    /// nothing).
+    /// </summary>
+    private void Place(ISkUiView? view, bool sticky, ref StickyHost? stickyHost, ref SkUiContentView? scrolledHost)
     {
-        var (host, other) = sticky ? (stickyHost, scrolledHost) : (scrolledHost, stickyHost);
-        if (!ReferenceEquals(other.Content, null))
-            other.Content = null;
-        if (!ReferenceEquals(host.Content, view))
+        SetContent(sticky ? scrolledHost : stickyHost, null);
+        if (sticky)
+            SetContent(view is null ? stickyHost : stickyHost ??= Adopt(new StickyHost(Controller)), view);
+        else
+            SetContent(view is null ? scrolledHost : scrolledHost ??= _body.Adopt(new SkUiContentView()), view);
+    }
+
+    private static void SetContent(SkUiContentView? host, ISkUiView? view)
+    {
+        if (host is not null && !ReferenceEquals(host.Content, view))
             host.Content = view;
     }
+
+    /// <summary>Attaches a part created on demand (before it gets content, so the content's layout change reaches the list).</summary>
+    private T Adopt<T>(T part) where T : SkUiView
+    {
+        AttachChild(part);
+        return part;
+    }
+
+    /// <summary>Which header and footer hosts exist (tests).</summary>
+    internal (bool StickyHeader, bool StickyFooter, bool Header, bool Footer) CreatedHosts =>
+        (_stickyHeaderHost is not null, _stickyFooterHost is not null, _body.HeaderHost is not null, _body.FooterHost is not null);
 
     private void OnEmptyViewChanged()
     {
@@ -721,36 +771,61 @@ public class SkUiCollectionView : SkUiView
     {
         get
         {
-            // Screen order (focus, semantics); the refresh indicator draws over the list.
-            yield return _stickyHeaderHost;
+            // Screen order (focus, semantics): the header, the list, the footer; the refresh indicator.
+            if (_stickyHeaderHost is not null)
+                yield return _stickyHeaderHost;
             yield return _scroller;
-            yield return _stickyFooterHost;
+            if (_stickyFooterHost is not null)
+                yield return _stickyFooterHost;
             yield return _refreshLayer;
         }
     }
 
     /// <inheritdoc />
+    /// <remarks>Drawn (and hit-tested) above the list: the sticky header and footer, then the refresh indicator.</remarks>
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
+    {
+        children.Add(_scroller);
+        if (_stickyHeaderHost is not null)
+            children.Add(_stickyHeaderHost);
+        if (_stickyFooterHost is not null)
+            children.Add(_stickyFooterHost);
+        children.Add(_refreshLayer);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The list fills the view and a sticky header or footer is drawn over it: their heights become the scroller's
+    /// <see cref="SkUiScrollView.Insets"/>, so the items scroll behind them but are never covered at the start or the end.
+    /// </remarks>
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        var header = ((IView)_stickyHeaderHost).Measure(widthConstraint, double.PositiveInfinity);
-        var footer = ((IView)_stickyFooterHost).Measure(widthConstraint, double.PositiveInfinity);
-        var list = ((IView)_scroller).Measure(widthConstraint, Math.Max(0, heightConstraint - header.Height - footer.Height));
+        var header = MeasurePart(_stickyHeaderHost, widthConstraint);
+        var footer = MeasurePart(_stickyFooterHost, widthConstraint);
+        _scroller.Insets = (header.Height, footer.Height);
+        var list = ((IView)_scroller).Measure(widthConstraint, heightConstraint);
         ((IView)_refreshLayer).Measure(widthConstraint, double.PositiveInfinity);
-        return new Size(Math.Max(list.Width, Math.Max(header.Width, footer.Width)), header.Height + list.Height + footer.Height);
+        return new Size(Math.Max(list.Width, Math.Max(header.Width, footer.Width)), Math.Max(list.Height, header.Height + footer.Height));
     }
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
-        var header = ((IView)_stickyHeaderHost).DesiredSize.Height;
-        var footer = ((IView)_stickyFooterHost).DesiredSize.Height;
-        var list = Math.Max(0, size.Height - header - footer);
-        ((IView)_stickyHeaderHost).Arrange(new Rect(0, 0, size.Width, header));
-        ((IView)_scroller).Arrange(new Rect(0, header, size.Width, list));
-        ((IView)_stickyFooterHost).Arrange(new Rect(0, header + list, size.Width, footer));
-        // Over the scrolled area only: the indicator comes down from its top edge, clipped there.
-        ((IView)_refreshLayer).Arrange(new Rect(0, header, size.Width, list));
+        var header = HeightOf(_stickyHeaderHost);
+        var footer = HeightOf(_stickyFooterHost);
+        ((IView)_scroller).Arrange(new Rect(0, 0, size.Width, size.Height));
+        ((IView?)_stickyHeaderHost)?.Arrange(new Rect(0, 0, size.Width, header));
+        ((IView?)_stickyFooterHost)?.Arrange(new Rect(0, Math.Max(header, size.Height - footer), size.Width, footer));
+        // Between the sticky parts: the indicator comes down from below the header, clipped there.
+        ((IView)_refreshLayer).Arrange(new Rect(0, header, size.Width, Math.Max(0, size.Height - header - footer)));
     }
+
+    /// <summary>Measures a part created on demand with an unbounded height (nothing when it does not exist).</summary>
+    private static Size MeasurePart(SkUiView? part, double width) =>
+        part is null ? Size.Zero : ((IView)part).Measure(width, double.PositiveInfinity);
+
+    /// <summary>The measured height of a part created on demand (0 when it does not exist).</summary>
+    private static double HeightOf(SkUiView? part) => part is null ? 0 : ((IView)part).DesiredSize.Height;
 
     #endregion
 
@@ -766,6 +841,31 @@ public class SkUiCollectionView : SkUiView
         {
             if (view is ItemHost host)
                 owner.OnItemBound(host, item);
+        }
+    }
+
+    /// <summary>
+    /// Hosts a sticky header or footer over the list. A drag on it scrolls the list (it has its own drag recognizer for the
+    /// list's scroller), a press stops a fling, the wheel scrolls the list, and a tap does not reach the items behind it;
+    /// views inside it keep their taps.
+    /// </summary>
+    private sealed class StickyHost(SkUiScrollController scroller) : SkUiContentView, ISkUiWheelProxy
+    {
+        private SkUiScrollGestureRecognizer? _drag;
+
+        SkUiScrollController ISkUiWheelProxy.WheelScroller => scroller;
+
+        internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
+        {
+            base.CollectGestureRecognizers(recognizers);
+            if (Content is not null && scroller.Orientation != ScrollOrientation.Neither)
+                recognizers.Add(_drag ??= new SkUiScrollGestureRecognizer(scroller));
+        }
+
+        internal override void CancelGestures()
+        {
+            base.CancelGestures();
+            _drag?.Cancel();
         }
     }
 
@@ -827,17 +927,24 @@ public class SkUiCollectionView : SkUiView
             _owner = owner;
             ClipToBounds = false; // items may draw past their slots (shadows, press scale)
             EmptyHost.IsVisible = false;
-            AttachChild(HeaderHost);
             AttachChild(owner._items);
             AttachChild(EmptyHost);
-            AttachChild(FooterHost);
         }
 
-        public SkUiContentView HeaderHost { get; } = new();
+        /// <summary>The scrolled header's host, created the first time it shows a header (<see cref="Adopt"/>).</summary>
+        public SkUiContentView? HeaderHost;
+
+        /// <summary>The scrolled footer's host, created on demand as <see cref="HeaderHost"/>.</summary>
+        public SkUiContentView? FooterHost;
 
         public SkUiContentView EmptyHost { get; } = new();
 
-        public SkUiContentView FooterHost { get; } = new();
+        /// <summary>Attaches a host created on demand.</summary>
+        public SkUiContentView Adopt(SkUiContentView host)
+        {
+            AttachChild(host);
+            return host;
+        }
 
         public void InvalidateBody() => InvalidateMeasureOverride();
 
@@ -845,29 +952,31 @@ public class SkUiCollectionView : SkUiView
         {
             get
             {
-                yield return HeaderHost;
+                if (HeaderHost is not null)
+                    yield return HeaderHost;
                 yield return _owner._items;
                 yield return EmptyHost;
-                yield return FooterHost;
+                if (FooterHost is not null)
+                    yield return FooterHost;
             }
         }
 
         protected override Size MeasureContent(double widthConstraint, double heightConstraint)
         {
-            var header = ((IView)HeaderHost).Measure(widthConstraint, double.PositiveInfinity);
+            var header = MeasurePart(HeaderHost, widthConstraint);
             var items = ((IView)_owner._items).Measure(widthConstraint, double.PositiveInfinity);
             var empty = EmptyHost.IsVisible ? ((IView)EmptyHost).Measure(widthConstraint, double.PositiveInfinity) : Size.Zero;
-            var footer = ((IView)FooterHost).Measure(widthConstraint, double.PositiveInfinity);
+            var footer = MeasurePart(FooterHost, widthConstraint);
             return new Size(Math.Max(Math.Max(header.Width, items.Width), Math.Max(empty.Width, footer.Width)),
                 header.Height + items.Height + empty.Height + footer.Height);
         }
 
         protected override void ArrangeContent(Size size)
         {
-            var header = ((IView)HeaderHost).DesiredSize.Height;
+            var header = HeightOf(HeaderHost);
             var items = ((IView)_owner._items).DesiredSize.Height;
-            var footer = ((IView)FooterHost).DesiredSize.Height;
-            ((IView)HeaderHost).Arrange(new Rect(0, 0, size.Width, header));
+            var footer = HeightOf(FooterHost);
+            ((IView?)HeaderHost)?.Arrange(new Rect(0, 0, size.Width, header));
             ((IView)_owner._items).Arrange(new Rect(0, header, size.Width, items));
             var y = header + items;
             if (EmptyHost.IsVisible)
@@ -877,7 +986,7 @@ public class SkUiCollectionView : SkUiView
                 ((IView)EmptyHost).Arrange(new Rect(0, y, size.Width, empty));
                 y += empty;
             }
-            ((IView)FooterHost).Arrange(new Rect(0, y, size.Width, footer));
+            ((IView?)FooterHost)?.Arrange(new Rect(0, y, size.Width, footer));
         }
     }
 

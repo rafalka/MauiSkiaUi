@@ -31,7 +31,7 @@ A plain list (items and a template only) can also use the lighter **`SkUiVirtual
 | Selected-row background from the platform / a `Selected` state setter | `SelectionBackground` (brush; default accent at 12 %) | `SelectionBackground="Transparent"` when the template styles its own `Selected` state |
 | `TapGestureRecognizer` on the item root (open the item) | `ItemTapped` / `ItemTappedCommand` (+ `Parameter`, default the item) | Fires for every tap on the item, whatever the selection mode, after the selection changed; buttons inside the item keep their own taps |
 | `Header` / `Footer` (object or view) + `HeaderTemplate` / `FooterTemplate` | `Header` / `Footer` (drawn views) + templates | A string becomes `<sk:SkUiCollectionView.Header><sk:SkUiLabel Text="..." /></sk:SkUiCollectionView.Header>`; templates bind to the list's context |
-| — | `IsStickyHeader`, `IsStickyFooter` | Keep them in place while the items scroll |
+| — | `IsStickyHeader`, `IsStickyFooter` | Keep them in place, drawn over the list: the items scroll behind them (use a translucent or inset header to show them) and are never covered at the start or the end |
 | `EmptyView` (object or view) + `EmptyViewTemplate` | `EmptyView` (drawn view) + `EmptyViewTemplate` | Shown while `ItemsSource` is null or empty; fills the space between header and footer |
 | `RemainingItemsThreshold`, `RemainingItemsThresholdReached`, `RemainingItemsThresholdReachedCommand` (+ `Parameter`) | same names | Fires once per item count, when what shows changes |
 | `ScrollTo(index, position: …, animate: …)` | `ScrollToIndex(index, position, animated)` | Returns a `Task`; lands exactly on items of any height |

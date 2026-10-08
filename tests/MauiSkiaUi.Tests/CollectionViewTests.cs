@@ -96,7 +96,7 @@ public class CollectionViewTests
         SkUiTestHelpers.Arrange(list, 300, 500);
 
         Assert.Equal(new Rect(0, 0, 300, 80), OnScreen(list, header));
-        Assert.Equal(new Rect(0, 80, 300, 50), OnScreen(list, (View)list.GetItemView(0)!));
+        Assert.Equal(new Rect(0, 80, 300, 50), OnScreen(list, (View)list.GetRealizedView(0)!));
         Assert.Equal(0, list.FirstVisibleIndex);
         Assert.Equal(8, list.LastVisibleIndex); // 80 + 9 · 50 > 500
         var (_, last) = list.ItemsLayout.RealizedRange;
@@ -112,32 +112,109 @@ public class CollectionViewTests
     }
 
     [Fact]
-    public void StickyHeaderAndFooterStayOutsideTheScrolledItems()
+    public void ItemsScrollBehindStickyPartsButAreNotCoveredAtTheStartOrTheEnd()
     {
-        var header = new SkUiBox { HeightRequest = 60 };
+        var header = new SkUiBox { HeightRequest = 50, Margin = new Thickness(10, 5) };
         var footer = new SkUiBox { HeightRequest = 40 };
         var list = List(Rows(1000));
         list.SetHeader(header, sticky: true).SetFooter(footer, sticky: true);
         SkUiTestHelpers.Arrange(list, 300, 500);
 
-        Assert.Equal(new Rect(0, 0, 300, 60), OnScreen(list, header));
+        // The list fills the view; the sticky parts are drawn over it.
+        Assert.Equal(new Rect(0, 0, 300, 500), list.ScrollView.Frame);
+        Assert.Equal(new Rect(10, 5, 280, 50), OnScreen(list, header));
         Assert.Equal(new Rect(0, 460, 300, 40), OnScreen(list, footer));
-        Assert.Equal(new Rect(0, 60, 300, 400), list.ScrollView.Frame);
-        Assert.Equal(1000 * 50, list.ScrollView.ContentSize.Height);
-        Assert.Equal(7, list.LastVisibleIndex); // a 400 DIP viewport
+        // At the start the first item is below the header (margins included), at the end the last one above the footer.
+        Assert.Equal(new Rect(0, 60, 300, 50), OnScreen(list, (View)list.GetRealizedView(0)!));
+        Assert.Equal(60 + 1000 * 50 + 40, list.ScrollView.ContentSize.Height);
+        list.ScrollView.ScrollTo(0, list.ScrollView.ContentSize.Height);
+        Assert.Equal(460, OnScreen(list, (View)list.GetRealizedView(999)!).Bottom);
 
-        // Scrolling moves the items only: the sticky parts are not inside the scroller, so nothing re-records them.
+        // Behind the sticky parts items are realized (they show through), and scrolling moves the items only.
         list.ScrollView.ScrollTo(0, 5000);
-        Assert.Equal(new Rect(0, 0, 300, 60), OnScreen(list, header));
-        Assert.Equal(100, list.FirstVisibleIndex);
-        Assert.Same(list, ((Element)header).Parent.Parent);
+        Assert.Equal(new Rect(10, 5, 280, 50), OnScreen(list, header));
+        Assert.Equal(98, list.FirstVisibleIndex); // 5000 - 60 = item 98.8 at the top of the view
+        Assert.NotNull(list.GetRealizedView(98));
 
-        // Switching to scrolled moves the same header into the scroller.
+        // Scrolling to an item places it in the uncovered band.
+        list.ScrollToIndex(300, ScrollToPosition.Start, animated: false);
+        Assert.Equal(60, OnScreen(list, (View)list.GetRealizedView(300)!).Y);
+        list.ScrollToIndex(300, ScrollToPosition.End, animated: false);
+        Assert.Equal(460, OnScreen(list, (View)list.GetRealizedView(300)!).Bottom);
+        list.ScrollToIndex(292, ScrollToPosition.MakeVisible, animated: false); // under the header now
+        Assert.Equal(60, OnScreen(list, (View)list.GetRealizedView(292)!).Y);
+        var offset = list.ScrollY;
+        list.ScrollToIndex(295, ScrollToPosition.MakeVisible, animated: false); // fully uncovered: no scroll
+        Assert.Equal(offset, list.ScrollY);
+
+        // A tap on the header does not reach the item behind it.
+        list.SelectionMode = SkUiSelectionMode.Single;
+        Tap(list, new Point(150, 30));
+        Assert.Null(list.SelectedItem);
+        Tap(list, new Point(150, 85));
+        Assert.Equal(292, ((Row)list.SelectedItem!).Index);
+        // A drag on the header scrolls the list.
+        var before = list.ScrollY;
+        Drag(list, new Point(150, 50), new Point(150, 10));
+        Assert.Equal(before + 40, list.ScrollY, 1);
+        // So does the wheel over it.
+        before = list.ScrollY;
+        list.Touch(new(0, SkUiTouchAction.Wheel, new Point(150, 30), WheelDelta: -80));
+        Assert.Equal(before + 80, list.ScrollY, 1);
+
+        // Switching to scrolled moves the same header into the scroller, which loses its top inset.
         list.IsStickyHeader = false;
         SkUiTestHelpers.Arrange(list, 300, 500);
         Assert.IsType<SkUiContentView>(((Element)header).Parent);
         Assert.NotSame(list, ((Element)header).Parent.Parent);
-        Assert.Equal(60 + 1000 * 50, list.ScrollView.ContentSize.Height);
+        Assert.Equal(60 + 1000 * 50 + 40, list.ScrollView.ContentSize.Height);
+        Assert.Equal((0d, 40d), list.ScrollView.Insets);
+    }
+
+    [Fact]
+    public void HeaderAndFooterHostsAreCreatedOnlyWhenTheyShowAView()
+    {
+        var list = List(Rows(20));
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.Equal((false, false, false, false), list.CreatedHosts);
+        Assert.Equal((0d, 0d), list.ScrollView.Insets);
+        Assert.Equal(new Rect(0, 0, 300, 50), OnScreen(list, (View)list.GetRealizedView(0)!));
+
+        // Sticky without a view: nothing yet.
+        list.IsStickyHeader = true;
+        Assert.Equal((false, false, false, false), list.CreatedHosts);
+
+        var header = new SkUiBox { HeightRequest = 40 };
+        list.Header = header;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.Equal((true, false, false, false), list.CreatedHosts);
+        Assert.Equal(new Rect(0, 40, 300, 50), OnScreen(list, (View)list.GetRealizedView(0)!));
+
+        list.IsStickyHeader = false;
+        list.Footer = new SkUiBox { HeightRequest = 30 };
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.Equal((true, false, true, true), list.CreatedHosts);
+        Assert.Equal(new Rect(0, 40, 300, 50), OnScreen(list, (View)list.GetRealizedView(0)!));
+        Assert.Equal(40 + 20 * 50 + 30, list.ScrollView.ContentSize.Height);
+
+        // Hosts stay once created, and are reused.
+        var host = ((Element)header).Parent;
+        list.Header = null;
+        list.Header = header;
+        Assert.Same(host, ((Element)header).Parent);
+    }
+
+    [Fact]
+    public void TheScrollBarRunsBesideTheUncoveredBand()
+    {
+        var list = List(Rows(100));
+        list.VerticalScrollBarVisibility = ScrollBarVisibility.Always;
+        list.SetHeader(new SkUiBox { HeightRequest = 60 }, sticky: true).SetFooter(new SkUiBox { HeightRequest = 40 }, sticky: true);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        var bar = ((ISkUiScrollHost)list.ScrollView).Scroller.ScrollBars.Vertical!;
+        var margin = SkUiLook.Current.ScrollBarMargin;
+        Assert.Equal(60 + margin, bar.Frame.Y);
+        Assert.Equal(400 - 2 * margin, bar.Frame.Height);
     }
 
     [Fact]
@@ -160,7 +237,7 @@ public class CollectionViewTests
         SkUiTestHelpers.Arrange(page, 300, 500);
         Assert.False(list.IsEmpty);
         Assert.False(((View)empty.Parent).IsVisible);
-        Assert.Equal(new Rect(0, 50, 300, 50), OnScreen(list, (View)list.GetItemView(0)!));
+        Assert.Equal(new Rect(0, 50, 300, 50), OnScreen(list, (View)list.GetRealizedView(0)!));
 
         // The template's view is kept for the next time the list is empty; a null source is empty too.
         list.ItemsSource = null;
@@ -308,7 +385,7 @@ public class CollectionViewTests
         });
         list.SelectionMode = SkUiSelectionMode.Single;
         SkUiTestHelpers.Arrange(list, 300, 500);
-        string State(int index) => VisualStateManager.GetVisualStateGroups((VisualElement)list.GetItemView(index)!)[0].CurrentState?.Name ?? "-";
+        string State(int index) => VisualStateManager.GetVisualStateGroups((VisualElement)list.GetRealizedView(index)!)[0].CurrentState?.Name ?? "-";
 
         list.SelectedItem = rows[1];
         Assert.Equal("Selected", State(1));

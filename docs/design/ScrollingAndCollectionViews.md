@@ -194,13 +194,13 @@ Not yet: horizontal, `InfiniteFeed` / `Loop` (`VirtualScrollMode`), `PrefetchDis
 FR-22's MVP (Phase B2): `SkUiCollectionView` ([control guide](../controls/SkUiCollectionView.md)). A composite drawn view; nothing in it is a platform view.
 
 ```
-SkUiCollectionView
- ├─ sticky header host        (IsStickyHeader: laid out above the scroller, never re-recorded by scrolling)
- ├─ SkUiScrollView            (vertical; PullsAtVerticalStart with pull-to-refresh)
- │   └─ body: header host · items (internal SkUiVirtualVerticalStackLayout) · empty view host · footer host
+SkUiCollectionView                      (render order; screen-reader order: header, list, footer)
+ ├─ SkUiScrollView            (fills the view; Insets = sticky heights; PullsAtVerticalStart with pull-to-refresh)
+ │   └─ body (below the top inset): header host · items (internal SkUiVirtualVerticalStackLayout) · empty view host · footer host
  │              └─ item container (SkUiContentView: taps, selection background) ── template view (Selected state)
- ├─ sticky footer host
- └─ refresh layer             (over the scroller, input-transparent, clipped): indicator moved by composite-time props
+ ├─ sticky header host        (IsStickyHeader: drawn over the scroller's top; its own drag recognizer for the scroller)
+ ├─ sticky footer host        (IsStickyFooter: over the bottom)
+ └─ refresh layer             (between the sticky parts, input-transparent, clipped): indicator moved by composite-time props
 ```
 
 | Concern | Behavior |
@@ -208,7 +208,7 @@ SkUiCollectionView
 | **Items** | The items layout is an internal subclass of `SkUiVirtualVerticalStackLayout`: each template view (or default label) is wrapped in an item container when created (`WrapItemView`), so containers are recycled with their views, per template. Binding sets the container's binding context (the template view inherits it) and its selected state (`OnItemBound`). Indices are not kept in containers (collection changes move them): a tap looks its container up among the realized items. |
 | **Selection** | `SelectedItem` is compared with `Equals`. A change walks the realized containers and sets their state; only the two whose state changes repaint (their background) and move their template root's `CommonStates` (`SkUiView.IsSelectedItem`: `Disabled`, then `Selected`, then `PointerOver`, then `Normal`). Source changes (`SourceChanged` from the items layout, after they are applied) clear the selection when its item was removed or the source replaced without it. |
 | **Taps** | The container takes single taps while a selection mode, an `ItemTapped` handler or a command needs them. Child-first hit-testing gives views inside the item that take taps their own (buttons). Order: cancelable `SelectionChanging`, `SelectedItem` (command, `SelectionChanged`), `ItemTapped`, `ItemTappedCommand`. |
-| **Header / footer** | One view each, moved between the sticky host (beside the scroller) and the scrolled host in the body when `IsStickyHeader` / `IsStickyFooter` change. Templates (`SkUiContentSlot`) run once the list is in a tree, with its binding context. |
+| **Header / footer** | One view each, moved between the sticky host (drawn over the scroller) and the scrolled host in the body when `IsStickyHeader` / `IsStickyFooter` change. The four hosts are created the first time they show a view (most lists have no header or footer, fewer sticky ones) and kept after. The scroller fills the view and the items scroll behind sticky parts; their measured heights (margins included) become the scroller's `Insets` (`SkUiScrollController.Insets`), set while the collection measures and invalidating only the scroller: the content is arranged below the top inset and the extent grows by both, so nothing is covered at the start or the end; `GetOffsetFor` (scroll to an item or element, `MakeVisible`) works in the uncovered band; the vertical scroll bar runs beside it. Items behind the sticky parts are realized and count as visible (they show through translucent parts). A sticky host has its own `SkUiScrollGestureRecognizer` for the list's controller: a drag on it scrolls the list and a press stops a fling, while a tap is claimed by nothing and so never reaches the items behind; views in it keep their taps. Templates (`SkUiContentSlot`) run once the list is in a tree, with its binding context. |
 | **Empty view** | Shown instead of the items while the items layout has none; the body arranges it over the height the viewport has left between header and footer (the scroller arranges its content at least as tall as the viewport). Its template runs the first time the list is empty. |
 | **Pull to refresh** | `SkUiScrollController.PullsAtVerticalStart` lets a drag pull the top past the edge when the content does not overflow or overscroll is off (the pull is tracked in `OverscrollY` and springs back on the render thread; the content moves only as the overscroll mode draws it). The indicator follows `OverscrollChanged` with opacity, rotation and translation only (no re-record while dragging); `PullReleased` past 64 DIPs sets `IsRefreshing`, which (as MAUI's `RefreshView`) raises `Refreshing` and runs the command; the indicator then spins through `ContentSpinPeriod` on the render thread. |
 

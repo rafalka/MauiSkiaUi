@@ -32,9 +32,9 @@ public sealed class VirtualScrollViewDemoPage : ComponentDemoPage
         Toggle("Variable heights", _variable, value => { _variable = value; Rebuild(); }, () => _variable);
         // SkiaUi only: every row 56 DIPs, positions known without measuring.
         Toggle(nameof(SkUiVirtualScrollView.ItemExtent) + " = 56", false, value => _skia.ItemExtent = value ? 56 : 0, () => _skia.ItemExtent > 0);
-        Number(nameof(SkUiVirtualScrollView.Spacing), 0, 16, 0,
-            value => { _skia.Spacing = value; ((LinearItemsLayout)_native.ItemsLayout).ItemSpacing = value; },
-            () => _skia.Spacing, () => ((LinearItemsLayout)_native.ItemsLayout).ItemSpacing);
+        Number(nameof(SkUiVirtualScrollView.ItemSpacing), 0, 16, 0,
+            value => { _skia.ItemSpacing = value; ((LinearItemsLayout)_native.ItemsLayout).ItemSpacing = value; },
+            () => _skia.ItemSpacing, () => ((LinearItemsLayout)_native.ItemsLayout).ItemSpacing);
         Number(nameof(SkUiVirtualScrollView.PrefetchFactor), 0, 3, 1, value => _skia.PrefetchFactor = value, () => _skia.PrefetchFactor);
         Number(nameof(SkUiVirtualScrollView.ReleaseFactor), 0, 6, 2, value => _skia.ReleaseFactor = value, () => _skia.ReleaseFactor);
         var position = ScrollToPosition.Start;

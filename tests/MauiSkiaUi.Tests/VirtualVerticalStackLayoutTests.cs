@@ -311,9 +311,9 @@ public class VirtualVerticalStackLayoutTests
             using (var surface = new SkUiTestSurface(page, 300, 500))
             {
                 // Laid out again on the live surface (twice: reported once).
-                alone.Spacing = 1;
+                alone.ItemSpacing = 1;
                 surface.Frame(0);
-                alone.Spacing = 2;
+                alone.ItemSpacing = 2;
                 surface.Frame(16);
             }
             var message = Assert.Single(listener.Messages);
@@ -323,14 +323,14 @@ public class VirtualVerticalStackLayoutTests
             var scroll = new SkUiScrollView { Content = new SkUiVerticalStackLayout { Children = { new SkUiBox { HeightRequest = 100 }, scrolled } } };
             using (var surface = new SkUiTestSurface(scroll, 300, 500))
             {
-                scrolled.Spacing = 1;
+                scrolled.ItemSpacing = 1;
                 surface.Frame(0);
             }
             var list = new SkUiVirtualScrollView { ItemsSource = Rows(100, _ => 50) };
             list.Items.AutomationId = "lonely-list";
             using (var surface = new SkUiTestSurface(list, 300, 500))
             {
-                list.Spacing = 1;
+                list.ItemSpacing = 1;
                 surface.Frame(0);
             }
             Assert.Single(listener.Messages);
@@ -364,7 +364,7 @@ public class VirtualVerticalStackLayoutTests
                          xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
               <sk:SkUiScrollView>
                 <sk:SkUiVerticalStackLayout>
-                  <sk:SkUiVirtualScrollView x:Name="Fixed" ItemsSource="{Binding}" Spacing="4" PrefetchBudget="0:0:0.004" HeightRequest="200">
+                  <sk:SkUiVirtualScrollView x:Name="Fixed" ItemsSource="{Binding}" ItemSpacing="4" PrefetchBudget="0:0:0.004" HeightRequest="200">
                     <DataTemplate><sk:SkUiLabel Text="{Binding}" /></DataTemplate>
                   </sk:SkUiVirtualScrollView>
                   <sk:SkUiVirtualVerticalStackLayout x:Name="Automatic" ItemsSource="{Binding}" PrefetchBudget="{x:Null}" ItemExtent="30" />
@@ -1075,49 +1075,86 @@ public class VirtualVerticalStackLayoutTests
         Assert.Equal("b", ((SkUiLabel)list.Items.GetRealizedView(1)!).Text);
     }
 
-    [Fact]
-    public void ScrollViewForwardsEveryListMemberToItsLayout()
+    /// <summary>A value of <paramref name="type"/> other than the property defaults.</summary>
+    private static object SampleValue(Type type) => type switch
     {
-        object Sample(Type type) => type switch
-        {
-            _ when type == typeof(IEnumerable<int>) || type == typeof(System.Collections.IEnumerable) => new List<int> { 1, 2 },
-            _ when type == typeof(DataTemplate) => new DataTemplate(() => new SkUiBox()),
-            _ when type == typeof(double) => 3d,
-            _ when type == typeof(TimeSpan) || type == typeof(TimeSpan?) => TimeSpan.FromMilliseconds(7),
-            _ when type == typeof(int) || type == typeof(int?) => 5,
-            _ when type == typeof(System.Windows.Input.ICommand) => new Command(() => { }),
-            _ when type == typeof(Func<int, ISkUiView?>) => (Func<int, ISkUiView?>)(_ => null),
-            _ => "parameter"
-        };
-        var settable = typeof(ISkUiVirtualList).GetProperties().Where(property => property.CanWrite).ToList();
+        _ when type == typeof(IEnumerable<int>) || type == typeof(System.Collections.IEnumerable) => new List<int> { 1, 2 },
+        _ when type == typeof(DataTemplate) => new DataTemplate(() => new SkUiBox()),
+        _ when type == typeof(double) => 3d,
+        _ when type == typeof(TimeSpan) || type == typeof(TimeSpan?) => TimeSpan.FromMilliseconds(7),
+        _ when type == typeof(int) || type == typeof(int?) => 5,
+        _ when type == typeof(System.Windows.Input.ICommand) => new Command(() => { }),
+        _ when type == typeof(Func<int, ISkUiView?>) => (Func<int, ISkUiView?>)(_ => null),
+        _ => "parameter"
+    };
+
+    /// <summary>
+    /// Every settable member of <typeparamref name="TInterface"/> on <typeparamref name="TList"/> reaches its layout: the list's
+    /// bindable property is declared from the layout's (same name, type and default), and a value set on the list is the
+    /// layout's.
+    /// </summary>
+    private static void AssertForwardsEveryMember<TInterface, TList>(Func<TList> create, Func<TList, SkUiVirtualVerticalStackLayout> layoutOf)
+        where TList : TInterface
+    {
+        var settable = typeof(TInterface).GetInterfaces().Append(typeof(TInterface))
+            .SelectMany(type => type.GetProperties()).Where(property => property.CanWrite).ToList();
         Assert.NotEmpty(settable);
+        const System.Reflection.BindingFlags statics = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy;
         foreach (var property in settable)
         {
-            // Bindable properties: the scroll view's is declared from the layout's (same name, type and default).
-            var layoutField = typeof(SkUiVirtualVerticalStackLayout).GetField(property.Name + "Property",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy);
-            if (layoutField?.GetValue(null) is BindableProperty layoutProperty)
+            if (typeof(SkUiVirtualVerticalStackLayout).GetField(property.Name + "Property", statics)?.GetValue(null) is BindableProperty layoutProperty)
             {
-                var forwarded = (BindableProperty)typeof(SkUiVirtualScrollView).GetField(property.Name + "Property")!.GetValue(null)!;
+                var forwarded = (BindableProperty)typeof(TList).GetField(property.Name + "Property", statics)!.GetValue(null)!;
                 Assert.Equal(layoutProperty.PropertyName, forwarded.PropertyName);
                 Assert.Equal(layoutProperty.ReturnType, forwarded.ReturnType);
                 Assert.Equal(layoutProperty.DefaultValue, forwarded.DefaultValue);
             }
-            var list = new SkUiVirtualScrollView();
-            var value = Sample(property.PropertyType);
+            var list = create();
+            var value = SampleValue(property.PropertyType);
             property.SetValue(list, value);
-            Assert.Equal(value, property.GetValue(list.Items));
+            Assert.Equal(value, property.GetValue(layoutOf(list)));
             Assert.Equal(value, property.GetValue(list));
         }
+    }
+
+    [Fact]
+    public void ScrollViewForwardsEveryListMemberToItsLayout()
+    {
+        AssertForwardsEveryMember<ISkUiVirtualList, SkUiVirtualScrollView>(() => new SkUiVirtualScrollView(), list => list.Items);
 
         // A value the layout refuses is refused by the scroll view too, so they never disagree.
-        var refusing = new SkUiVirtualScrollView { Spacing = 4, ReleaseFactor = 1 };
-        refusing.Spacing = -1;
+        var refusing = new SkUiVirtualScrollView { ItemSpacing = 4, ReleaseFactor = 1 };
+        refusing.ItemSpacing = -1;
         refusing.ReleaseFactor = double.NaN;
-        Assert.Equal(4, refusing.Spacing);
-        Assert.Equal(4, refusing.Items.Spacing);
+        Assert.Equal(4, refusing.ItemSpacing);
+        Assert.Equal(4, refusing.Items.ItemSpacing);
         Assert.Equal(1, refusing.ReleaseFactor);
         Assert.Equal(1, refusing.Items.ReleaseFactor);
+    }
+
+    [Fact]
+    public void CollectionViewForwardsEveryCommonListMemberToItsLayout()
+    {
+        AssertForwardsEveryMember<ISkUiItemsView, SkUiCollectionView>(() => new SkUiCollectionView(), list => list.ItemsLayout);
+
+        var refusing = new SkUiCollectionView { ItemSpacing = 4, PrefetchBudget = TimeSpan.FromMilliseconds(2) };
+        refusing.ItemSpacing = -1;
+        refusing.PrefetchBudget = TimeSpan.FromMilliseconds(-1);
+        Assert.Equal(4, refusing.ItemsLayout.ItemSpacing);
+        Assert.Equal(TimeSpan.FromMilliseconds(2), refusing.ItemsLayout.PrefetchBudget);
+    }
+
+    [Fact]
+    public void EveryListHasTheCommonMembersUnderTheSameNames()
+    {
+        // The interfaces are implemented (compile-time); each list also declares a bindable property per settable member.
+        foreach (var type in new[] { typeof(SkUiVirtualVerticalStackLayout), typeof(SkUiVirtualScrollView), typeof(SkUiCollectionView) })
+        {
+            Assert.True(typeof(ISkUiItemsView).IsAssignableFrom(type), type.Name);
+            foreach (var property in typeof(ISkUiItemsView).GetProperties().Where(property => property.CanWrite))
+                Assert.True(type.GetField(property.Name + "Property", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy) is not null,
+                    $"{type.Name}.{property.Name}Property");
+        }
     }
 
     [Fact]

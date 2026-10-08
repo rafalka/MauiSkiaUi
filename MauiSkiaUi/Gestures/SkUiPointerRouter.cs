@@ -398,9 +398,9 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         {
             if (!node.IsInputEnabled)
                 return true;
-            if (node is ISkUiScrollHost host)
+            if (((node as ISkUiScrollHost)?.Scroller ?? (node as ISkUiWheelProxy)?.WheelScroller) is { } scroller)
             {
-                rest = host.Scroller.Wheel(rest.X, rest.Y);
+                rest = scroller.Wheel(rest.X, rest.Y);
                 if (rest.X == 0 && rest.Y == 0)
                     return true;
             }

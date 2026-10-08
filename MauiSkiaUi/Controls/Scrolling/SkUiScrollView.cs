@@ -229,6 +229,8 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         }
         _measureViewport = new Size(width, height);
         var extent = base.MeasureContent(_scroller.Horizontal ? double.PositiveInfinity : width, _scroller.Vertical ? double.PositiveInfinity : height);
+        var insets = _scroller.Insets;
+        extent = new Size(extent.Width, extent.Height + insets.Top + insets.Bottom);
         _scroller.Extent = extent;
         return new Size(Math.Min(widthConstraint, extent.Width + left + right), Math.Min(heightConstraint, extent.Height + bottom));
     }
@@ -239,11 +241,12 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         _scroller.Layout(size, IsRightToLeft);
         var viewport = _scroller.Viewport;
         var extent = _scroller.Extent;
-        // Content stays arranged at its layout origin; the offset is a composite-time children translation.
+        // Content stays arranged at its layout origin (below the top inset); the offset is a composite-time children translation.
+        var (top, bottom) = _scroller.Insets;
         LayoutChild?.Arrange(new Rect(
-            Padding.Left, Padding.Top,
+            Padding.Left, Padding.Top + top,
             Math.Max(0, Math.Max(extent.Width, viewport.Width) - Padding.HorizontalThickness),
-            Math.Max(0, Math.Max(extent.Height, viewport.Height) - Padding.VerticalThickness)));
+            Math.Max(0, Math.Max(extent.Height, viewport.Height) - Padding.VerticalThickness - top - bottom)));
         InvalidateRender(SkUiRenderDirty.Props);
         if (!_rtlStartApplied && IsRightToLeft && _scroller.Horizontal && _scroller.MaxX > 0)
         {
@@ -265,6 +268,24 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     /// </summary>
     internal (double Offset, double Length) VerticalWindow =>
         (_scroller.Y, _scroller.Bounds == Size.Zero ? _measureViewport.Height : _scroller.Viewport.Height);
+
+    /// <summary>
+    /// The parts of the viewport covered by views drawn over this scroller, at its top and bottom (a collection view's
+    /// sticky header and footer; see <see cref="SkUiScrollController.Insets"/>): the content is arranged below the top one
+    /// and the extent grows by both, so at the start and the end of the scroll range nothing of the content is covered.
+    /// Set by the owner while it measures, before it measures this scroller: only this scroller's measure is invalidated.
+    /// </summary>
+    internal (double Top, double Bottom) Insets
+    {
+        get => _scroller.Insets;
+        set
+        {
+            if (_scroller.Insets == value)
+                return;
+            _scroller.Insets = value;
+            InvalidateMeasureOverride();
+        }
+    }
 
     /// <summary>Moves the offset by a layout correction (scroll anchoring; see <see cref="SkUiScrollController.CorrectOffset"/>).</summary>
     internal void CorrectScrollOffset(double dx, double dy) => _scroller.CorrectOffset(dx, dy);

@@ -144,8 +144,8 @@ public class SamplesTests
         Assert.True(list.IsStickyHeader);
         Assert.InRange(list.LastVisibleIndex, 3, 12);
 
-        var row = (SkUiView)list.GetItemView(1)!;
-        var rowTop = ((View)row.Parent).Frame.Y + list.ScrollView.Frame.Y + ((View)list.ItemsLayout).Frame.Y; // the row's item container
+        var row = (SkUiView)list.GetRealizedView(1)!;
+        var rowTop = ((View)row.Parent).Frame.Y + ((View)list.ItemsLayout).Frame.Y + ((View)list.ItemsLayout.Parent).Frame.Y - list.ScrollY; // container, items, body
         void TapAt(double x, long id)
         {
             list.Touch(new(id, SkUiTouchAction.Pressed, new Point(x, rowTop + row.Height / 2), TimeSpan.FromSeconds(id)));

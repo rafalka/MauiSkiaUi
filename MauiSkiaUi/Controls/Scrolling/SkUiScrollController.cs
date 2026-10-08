@@ -11,6 +11,15 @@ internal interface ISkUiScrollHost : ISkUiInputNode
 }
 
 /// <summary>
+/// A node drawn over a scroller that is not inside it (a collection view's sticky header): wheel and trackpad input over it
+/// scrolls that scroller. Only the wheel uses it (focus, semantics and scrolling to targets do not treat it as a scroller).
+/// </summary>
+internal interface ISkUiWheelProxy : ISkUiInputNode
+{
+    SkUiScrollController WheelScroller { get; }
+}
+
+/// <summary>
 /// Scroll state and motion shared by the SkUi* and Core scroll views: clamped offsets applied as a composite-time
 /// children translation, render-thread tweens / flings with offsets reported back, wheel input, nested-scroll
 /// chaining, overscroll past the edges (through the generic children transform: <see cref="SkUiOverscroll"/>), scroll
@@ -87,6 +96,14 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         ScrollportLeft = Math.Min(left, size.Width);
         Viewport = new Size(Math.Max(0, size.Width - left - right), Math.Max(0, size.Height - bottom));
     }
+
+    /// <summary>
+    /// Parts of the viewport covered by views drawn over the scroller (a collection view's sticky header and footer), in
+    /// DIPs at its top and bottom. The owner adds them to the extent and arranges the content below the top one, so the
+    /// content's start and end can be scrolled out from under them; scrolling to a target uses the uncovered band, and the
+    /// vertical scroll bar runs along it.
+    /// </summary>
+    public (double Top, double Bottom) Insets { get; set; }
 
     /// <summary>The scroller's arranged size (scrollport and gutters).</summary>
     public Size Bounds { get; private set; }
@@ -408,14 +425,16 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// </summary>
     public Point GetOffsetFor(Rect target, ScrollToPosition position)
     {
+        // Vertically, the band the insets leave uncovered: offsets are computed in it and moved back by the top inset.
+        var (top, bottom) = Insets;
         var width = Viewport.Width;
-        var height = Viewport.Height;
+        var height = Math.Max(0, Viewport.Height - top - bottom);
         var x = target.X;
-        var y = target.Y;
+        var y = target.Y - top;
         if (position == ScrollToPosition.MakeVisible)
         {
             var visible = new Rect(X, Y, width, height);
-            if (visible.Contains(target))
+            if (visible.Contains(new Rect(x, y, target.Width, target.Height)))
                 return new Point(X, Y);
             position = Orientation switch
             {
@@ -886,8 +905,9 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             {
                 var strip = reservedVertical ? gutterLeft + gutterRight : Math.Min(port.Width, hit);
                 var x = reservedVertical ? (rightToLeft ? 0 : port.Right) : rightToLeft ? port.Left : port.Right - strip;
-                var track = Math.Max(0, port.Height - 2 * margin - (showHorizontal && !reservedHorizontal ? corner : 0));
-                bar.ArrangeOwned(new Rect(x, margin, strip, track), thumbAtStart: rightToLeft);
+                // Along the band the insets leave uncovered.
+                var track = Math.Max(0, port.Height - Insets.Top - Insets.Bottom - 2 * margin - (showHorizontal && !reservedHorizontal ? corner : 0));
+                bar.ArrangeOwned(new Rect(x, Insets.Top + margin, strip, track), thumbAtStart: rightToLeft);
             }
         }
         if (showHorizontal || _horizontalBar is not null)
@@ -898,7 +918,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             if (showHorizontal)
             {
                 var strip = reservedHorizontal ? gutterBottom : Math.Min(port.Height, hit);
-                var y = reservedHorizontal ? port.Bottom : port.Bottom - strip;
+                var y = reservedHorizontal ? port.Bottom : port.Bottom - Insets.Bottom - strip;
                 var corneredVertical = showVertical && !reservedVertical;
                 var left = port.Left + margin + (corneredVertical && rightToLeft ? corner : 0);
                 var track = Math.Max(0, port.Width - 2 * margin - (corneredVertical ? corner : 0));

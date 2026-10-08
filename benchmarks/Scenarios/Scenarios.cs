@@ -299,7 +299,8 @@ public sealed class VirtualListFling : BenchScenario
         var list = (SkUiScrollView)Activator.CreateInstance(type)!;
         list.Background = Colors.White;
         TrySet(list, "ItemsSource", Enumerable.Range(0, 10_000).ToList());
-        TrySet(list, "Spacing", 4d);
+        TrySet(list, "ItemSpacing", 4d);
+        TrySet(list, "Spacing", 4d); // the name before ItemSpacing, for baselines built from older commits
         TrySet(list, "ItemTemplate", new DataTemplate(() => new Row()));
         return list;
     }

@@ -20,7 +20,7 @@ public sealed class VirtualVerticalStackLayoutDemoPage : ComponentDemoPage
     public VirtualVerticalStackLayoutDemoPage() : base(nameof(SkUiVirtualVerticalStackLayout), new SkUiScrollView(), widthRange: (160, 400, 300), heightRange: (160, 600, 360))
     {
         var page = (SkUiScrollView)SkiaControl;
-        _feed = new SkUiVirtualVerticalStackLayout { Spacing = 6, Padding = new Thickness(0, 6) };
+        _feed = new SkUiVirtualVerticalStackLayout { ItemSpacing = 6, Padding = new Thickness(0, 6) };
         _feed.ItemTemplate = new DataTemplate(() => { _created++; return new FeedCard(); });
         _feed.RemainingItemsThresholdReached += (_, _) => LoadPage();
         _feed.VisibleRangeChanged += (_, _) => Status();

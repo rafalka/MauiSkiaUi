@@ -20,7 +20,7 @@ A vertical stack whose item views are created on demand: only the items near wha
 ## How to use
 
 ```xml
-<sk:SkUiVirtualScrollView ItemsSource="{Binding Orders}" Spacing="4"
+<sk:SkUiVirtualScrollView ItemsSource="{Binding Orders}" ItemSpacing="4"
                           RemainingItemsThreshold="5"
                           RemainingItemsThresholdReachedCommand="{Binding LoadMoreCommand}">
   <DataTemplate x:DataType="local:Order">
@@ -60,7 +60,7 @@ Item views that take their data from the binding context in `OnBindingContextCha
 | `ItemsSource` | `null` | Items; one view each from `ItemTemplate`, with the item as its binding context. `IList` sources are read by index; other sequences are copied once. Takes precedence over `ItemFactory` |
 | `ItemTemplate` | `null` | Drawn views only; a `DataTemplateSelector` chooses per item (views are recycled per selected template). Without a template, items show their text in an `SkUiLabel` |
 | `ItemFactory`, `ItemFactoryCount` | `null` | Items by index from code (no recycling: pool views in `ItemReleased`). Without a count, the list is endless until the factory returns `null`. `SetItemFactory(factory, count)` |
-| `Spacing`, `Padding` | 0 | Gap between items; space around them |
+| `ItemSpacing`, `Padding` | 0 | Gap between items; space around them |
 | `ItemExtent` | 0 | When positive, the height of every item (fast path) |
 | `EstimatedItemSize` | 0 | Height assumed for items not measured yet; 0: the average measured height |
 | `PrefetchFactor` | 1 | Viewport lengths created ahead of the window, in the scroll direction (plus a running fling's travel) |
@@ -69,14 +69,14 @@ Item views that take their data from the binding context in `OnBindingContextCha
 | `PrefetchBudget` | `null` (automatic) | UI-thread time per frame for prefetch (at least one item per frame); leave it automatic |
 | `RemainingItemsThreshold` | -1 | When what shows changes and the last visible item is this close to the end, `RemainingItemsThresholdReached` is raised and `RemainingItemsThresholdReachedCommand` (+ `…Parameter`) runs, once per item count |
 | `ItemCount`, `FirstVisibleIndex`, `LastVisibleIndex` | | Read-only; the visible indices raise `PropertyChanged` |
-| `ScrollToIndex(index, position, animated)` | | Scrolls the innermost vertical scroller around the layout (`MakeVisible`, `Start`, `Center`, `End`). The item is measured first; it keeps its place on screen while items before it are measured on the way, so it lands where asked |
+| `ScrollToIndex(index, position, animated)`, `ScrollToItem(item, …)` | | Scrolls the innermost vertical scroller around the layout (`MakeVisible`, `Start`, `Center`, `End`). The item is measured first; it keeps its place on screen while items before it are measured on the way, so it lands where asked |
 | `GetRealizedView(index)`, `RemeasureItem(index)` | | The item's view while realized; measure an item again (a released item's height is forgotten and estimated) |
 | `ItemRealized`, `ItemReleased` | | `SkUiVirtualItemEventArgs`: `Index`, `View`, `Item` |
 | `VisibleRangeChanged` | | `SkUiVisibleRangeChangedEventArgs`: `FirstVisibleIndex`, `LastVisibleIndex` |
 
 `SkUiVirtualScrollView` is a vertical `SkUiScrollView` whose content is the layout (`Items`; setting another `Content` throws, and one set through a binding or `SetValue` is put back with a trace line), and keeps everything a scroll view has (scroll bars, overscroll, snap points, `Scrolled`). In XAML its content is the `ItemTemplate`.
 
-Both implement **`ISkUiVirtualList`**: the list members above except `Padding` (the scroll view has its own) and the fluent setters. The scroll view forwards each of them to `Items`, and declares its bindable properties from the layout's (same names, types, defaults and validation), so the two cannot drift apart; a test checks every member of the interface. Code that only configures or follows a list can take an `ISkUiVirtualList`.
+Both implement **`ISkUiVirtualList`**: the list members above except `Padding` (the scroll view has its own) and the fluent setters. The scroll view forwards each of them to `Items`, and declares its bindable properties from the layout's (same names, types, defaults and validation), so the two cannot drift apart; a test checks every member of the interface. `ISkUiVirtualList` extends **`ISkUiItemsView`**, the members every list has (all but the item factories and the realized / released events), which [`SkUiCollectionView`](SkUiCollectionView.md) implements too, under the same names. Code that only configures or follows a list can take an `ISkUiItemsView` (any of the three) or an `ISkUiVirtualList`.
 
 ### Which one
 
