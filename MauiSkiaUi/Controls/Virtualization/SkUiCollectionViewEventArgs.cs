@@ -80,13 +80,13 @@ public sealed class SkUiSelectionChangingEventArgs : EventArgs
         CurrentSelection = currentSelection;
     }
 
-    /// <summary>The selected item now (<c>null</c>: none; always <c>null</c> for a multiple selection).</summary>
+    /// <summary>The item selected before this change (<c>null</c>: none; always <c>null</c> for a multiple selection).</summary>
     public object? PreviousItem { get; }
 
     /// <summary>The item the tap selects (<c>null</c>: the selection is cleared; always <c>null</c> for a multiple selection).</summary>
     public object? CurrentItem { get; }
 
-    /// <summary>The selected items now.</summary>
+    /// <summary>The items selected before this change.</summary>
     public IReadOnlyList<object> PreviousSelection { get; }
 
     /// <summary>The selected items after the tap.</summary>

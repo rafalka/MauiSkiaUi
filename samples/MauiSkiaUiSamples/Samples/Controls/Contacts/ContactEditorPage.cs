@@ -17,6 +17,7 @@ public sealed class ContactEditorPage : ContentPage
     private readonly SkUiCheckBox _business = new() { VerticalOptions = LayoutOptions.Center };
     private readonly SkUiSwitch _starred = new() { VerticalOptions = LayoutOptions.Center };
     private readonly SkUiButton _save;
+    private string? _photoPath; // the copy of the picked photo, kept only when the contact is saved
     private bool _closed;
 
     public ContactEditorPage()
@@ -90,6 +91,8 @@ public sealed class ContactEditorPage : ContentPage
             await using (var source = await photo.OpenReadAsync())
             await using (var target = File.Create(path))
                 await source.CopyToAsync(target);
+            DeletePhotoCopy(); // the photo picked before
+            _photoPath = path;
             _draft.Photo = ImageSource.FromFile(path);
         }
         catch (Exception exception) when (exception is FeatureNotSupportedException or PermissionException or IOException)
@@ -114,8 +117,25 @@ public sealed class ContactEditorPage : ContentPage
         if (_closed)
             return;
         _closed = true;
+        if (contact is null)
+            DeletePhotoCopy();
         _result.TrySetResult(contact);
         await Navigation.PopModalAsync();
+    }
+
+    private void DeletePhotoCopy()
+    {
+        if (_photoPath is null)
+            return;
+        try
+        {
+            File.Delete(_photoPath);
+        }
+        catch (IOException)
+        {
+            // Best effort: a file that cannot be deleted stays behind.
+        }
+        _photoPath = null;
     }
 
     /// <summary>The system back button cancels.</summary>

@@ -187,6 +187,9 @@ public sealed class ContactGroupHeader : SkUiGrid
         // While selecting a tap checks the group: no chevron (a collapsed group stays collapsed, its count says what is in it).
         if (!selecting)
             GridCells.Place(this, _chevron, column);
+        // The chevron turns (composite-time: nothing re-records). A binding, not a PropertyChanged handler: bindings listen
+        // weakly, so a pooled header does not keep the list alive from a group that outlives it.
+        _chevron.SetBinding(RotationProperty, static (ItemGroup<string, Contact> group) => group.IsExpanded, converter: new ChevronRotation());
         LongPressed += (_, _) =>
         {
             if (!_model.IsSelecting && _group is not null)
@@ -207,22 +210,18 @@ public sealed class ContactGroupHeader : SkUiGrid
     protected override void OnBindingContextChanged()
     {
         base.OnBindingContextChanged();
-        if (_group is not null)
-            ((INotifyPropertyChanged)_group).PropertyChanged -= OnGroupChanged;
         _group = BindingContext as ItemGroup<string, Contact>;
-        if (_group is not null)
-            ((INotifyPropertyChanged)_group).PropertyChanged += OnGroupChanged;
-        ShowExpanded();
     }
 
-    private void OnGroupChanged(object? sender, PropertyChangedEventArgs args)
+    /// <summary>A collapsed group's chevron points sideways.</summary>
+    private sealed class ChevronRotation : IValueConverter
     {
-        if (args.PropertyName == nameof(ItemGroup<string, Contact>.IsExpanded))
-            ShowExpanded();
-    }
+        public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) =>
+            value is false ? -90.0 : 0.0;
 
-    /// <summary>The chevron turns (composite-time: nothing re-records).</summary>
-    private void ShowExpanded() => _chevron.Rotation = _group is { IsExpanded: false } ? -90 : 0;
+        public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) =>
+            throw new NotSupportedException();
+    }
 }
 
 /// <summary>

@@ -32,6 +32,7 @@ public sealed class LiveGroupedList<TItem, TKey> : IDisposable
 {
     private readonly ObservableCollection<TItem> _source;
     private readonly Dictionary<TItem, TKey[]> _shown = new(ReferenceEqualityComparer.Instance); // shown items and their groups
+    private readonly HashSet<TItem> _watched = new(ReferenceEqualityComparer.Instance); // every item listened to (shown or not)
     private readonly HashSet<TKey> _collapsed = [];
     private Func<TItem, bool>? _filter;
     private IComparer<TItem>? _sort;
@@ -84,8 +85,20 @@ public sealed class LiveGroupedList<TItem, TKey> : IDisposable
         Refresh();
     }
 
+    /// <summary>
+    /// Raised after the shown collections changed: an item was shown, hidden or moved (also between groups), or they were
+    /// rebuilt. State kept per group (a header checkbox) can be brought up to date here.
+    /// </summary>
+    public event EventHandler? Changed;
+
     /// <summary>Builds the shown collections again (after a setting changed, or something the filter reads).</summary>
     public void Refresh()
+    {
+        Rebuild();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Rebuild()
     {
         foreach (var group in Groups.Where(group => !group.IsExpanded))
             _collapsed.Add(group.Key);
@@ -127,8 +140,7 @@ public sealed class LiveGroupedList<TItem, TKey> : IDisposable
     public void Dispose()
     {
         _source.CollectionChanged -= OnSourceChanged;
-        foreach (var item in _source)
-            Unwatch(item);
+        UnwatchAll();
     }
 
     private IComparer<TKey> GroupComparer => _groupOrder ?? Comparer<TKey>.Default;
@@ -144,6 +156,12 @@ public sealed class LiveGroupedList<TItem, TKey> : IDisposable
     #region Following the source
 
     private void OnSourceChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        FollowSource(args);
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void FollowSource(NotifyCollectionChangedEventArgs args)
     {
         switch (args.Action)
         {
@@ -176,27 +194,31 @@ public sealed class LiveGroupedList<TItem, TKey> : IDisposable
             case NotifyCollectionChangedAction.Move when _sort is not null:
                 return; // sorted: the source's order does not matter
         }
-        // A reset (or a move of an unsorted source): every item is listened to again and placed again.
-        foreach (var item in _shown.Keys.ToList())
-            Unwatch(item);
+        // A reset (or a move of an unsorted source): every item is listened to again and placed again. Items that left
+        // (a cleared source) are no longer in it: the watched set has them.
+        UnwatchAll();
         foreach (var item in _source)
-        {
-            Unwatch(item);
             Watch(item);
-        }
-        Refresh();
+        Rebuild();
     }
 
     private void Watch(TItem item)
     {
-        if (item is INotifyPropertyChanged notifying)
+        if (item is INotifyPropertyChanged notifying && _watched.Add(item))
             notifying.PropertyChanged += OnItemChanged;
     }
 
     private void Unwatch(TItem item)
     {
-        if (item is INotifyPropertyChanged notifying)
+        if (item is INotifyPropertyChanged notifying && _watched.Remove(item))
             notifying.PropertyChanged -= OnItemChanged;
+    }
+
+    private void UnwatchAll()
+    {
+        foreach (var item in _watched)
+            ((INotifyPropertyChanged)item).PropertyChanged -= OnItemChanged;
+        _watched.Clear();
     }
 
     private void OnItemChanged(object? sender, PropertyChangedEventArgs args)
@@ -206,6 +228,7 @@ public sealed class LiveGroupedList<TItem, TKey> : IDisposable
         if (WatchedProperties.Count > 0 && args.PropertyName is { Length: > 0 } property && !WatchedProperties.Contains(property))
             return;
         Update(item);
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Shows a new item at its places.</summary>

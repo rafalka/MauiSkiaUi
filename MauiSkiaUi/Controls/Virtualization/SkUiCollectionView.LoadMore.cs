@@ -27,7 +27,7 @@ public partial class SkUiCollectionView
 
     /// <summary>Bindable property for <see cref="LoadMoreCommandParameter"/>.</summary>
     public static readonly BindableProperty LoadMoreCommandParameterProperty = BindableProperty.Create(nameof(LoadMoreCommandParameter), typeof(object), typeof(SkUiCollectionView), null,
-        propertyChanged: (view, _, _) => ((SkUiCollectionView)view).UpdateLoadMoreRow());
+        propertyChanged: (view, _, _) => ((SkUiCollectionView)view).OnCanLoadMoreChanged());
 
     /// <summary>Bindable property for <see cref="LoadMoreTemplate"/>.</summary>
     public static readonly BindableProperty LoadMoreTemplateProperty = BindableProperty.Create(nameof(LoadMoreTemplate), typeof(DataTemplate), typeof(SkUiCollectionView), null,
@@ -140,13 +140,17 @@ public partial class SkUiCollectionView
         _loadMoreCommandListener ??= new SkUiWeakListener<SkUiCollectionView>(this, static (view, change) =>
         {
             if (change.Kind == SkUiChangeKind.CanExecute)
-            {
-                view.UpdateLoadMoreRow();
-                view.CheckLoadMore();
-            }
+                view.OnCanLoadMoreChanged();
         });
         _loadMoreCommandListener.Listen(value);
+        OnCanLoadMoreChanged();
+    }
+
+    /// <summary>The command, its parameter or its <c>CanExecute</c> changed: the row, and an automatic load if the end shows.</summary>
+    private void OnCanLoadMoreChanged()
+    {
         UpdateLoadMoreRow();
+        CheckLoadMore();
     }
 
     private void OnLoadMoreTemplateChanged()

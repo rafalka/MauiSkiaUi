@@ -72,6 +72,22 @@ public class ContactsSampleTests
     }
 
     [Fact]
+    public void AClearedSourceIsNoLongerFollowedIncludingItemsTheFilterHid()
+    {
+        var zed = new Person("Zed");
+        var source = new ObservableCollection<Person> { new("Ada"), zed };
+        using var view = new LiveGroupedList<Person, string>(source);
+        var changes = 0;
+        view.Changed += (_, _) => changes++;
+        view.Configure(person => !person.Name.StartsWith('Z'), ByName, null);
+        source.Clear();
+        Assert.Equal(2, changes); // the new settings, the reset
+        zed.Name = "Abe"; // would pass the filter now, but has left the source
+        Assert.Empty(view.Items);
+        Assert.Equal(2, changes);
+    }
+
+    [Fact]
     public void ItemsShowInEachOfTheirGroupsAndMoveToNewGroupsBeforeLeavingOldOnes()
     {
         var ada = new Person("Ada", "family", "work");
@@ -191,6 +207,17 @@ public class ContactsSampleTests
 
         model.EndSelection();
         Assert.Equal(SkUiSelectionMode.Single, list.SelectionMode);
+
+        // By group: starring a checked contact puts it in "★ Starred", whose checkbox follows.
+        model.Grouping = ContactGrouping.Groups;
+        var carla = model.All.Single(contact => contact.FirstName == "Carla"); // Family, not starred
+        model.BeginSelection([carla]);
+        var starred = model.View.Groups.Single(group => group.Key == "★ Starred");
+        Assert.Equal(SkUiCheckState.Unchecked, starred.CheckState);
+        model.ToggleStarOfSelected();
+        Assert.Equal(SkUiCheckState.Indeterminate, starred.CheckState);
+        model.ToggleStarOfSelected();
+        Assert.DoesNotContain(carla, starred);
     }
 
     [Fact]

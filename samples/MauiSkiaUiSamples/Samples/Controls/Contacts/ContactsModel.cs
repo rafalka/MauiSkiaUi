@@ -141,6 +141,8 @@ public sealed class ContactsViewModel : Observable, IDisposable
             WatchedProperties = { nameof(Contact.FirstName), nameof(Contact.LastName), nameof(Contact.IsStarred), nameof(Contact.Groups) }
         };
         Selected.CollectionChanged += OnSelectedChanged;
+        // Starring, regrouping or renaming contacts moves them between groups: the header checkboxes follow.
+        View.Changed += (_, _) => UpdateGroupChecks();
         All.CollectionChanged += (_, _) => OnPropertyChanged(nameof(Status));
         Apply();
     }
@@ -282,8 +284,6 @@ public sealed class ContactsViewModel : Observable, IDisposable
             sort,
             _grouping == ContactGrouping.None ? null : GroupsOf,
             groupOrder);
-        // A rebuilt view has new groups: their checkboxes follow the selection again.
-        UpdateGroupChecks();
         OnPropertyChanged(nameof(Shown));
         OnPropertyChanged(nameof(IsGrouped));
     }

@@ -41,7 +41,8 @@ public sealed partial class OrderListSample : SamplePage, ISample
                 "all its items and create every one.",
             "Views inside a row that take taps (buttons) keep them: the row is not tapped or selected.",
             "Setting `IsRefreshing` to true, by a pull or from code, runs `RefreshCommand`; set it back to false when done.",
-            "Not in this version: grouping, multiple selection, grid and horizontal layouts.",
+            "Groups, multiple selection, grids and horizontal lists are shown in the Contacts sample and the " +
+                "\"CollectionView (groups, grid, horizontal)\" demo page.",
             "Templates must create drawn views; put native ones inside `SkUiMauiContentView`."
         ]);
 

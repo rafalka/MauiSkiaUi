@@ -584,6 +584,17 @@ public class CollectionViewGroupsAndLayoutsTests
     }
 
     [Fact]
+    public void SelectAllSelectsAnItemShownInSeveralGroupsOnce()
+    {
+        var rows = Rows(0, 3).ToList();
+        var groups = new List<List<Row>> { new() { rows[0], rows[1] }, new() { rows[1], rows[2] } };
+        var list = new SkUiCollectionView { ItemsSource = groups, IsGrouped = true, SelectionMode = SkUiSelectionMode.Multiple };
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        list.SelectAll();
+        Assert.Equal(rows, list.SelectedItems);
+    }
+
+    [Fact]
     public void AnAppListSetAsSelectedItemsIsFollowed()
     {
         var rows = Rows(0, 5).ToList();
@@ -811,6 +822,23 @@ public class CollectionViewGroupsAndLayoutsTests
         auto.IsLoadMoreActive = false;
         SkUiTestHelpers.Arrange(auto, 300, 500);
         Assert.Equal(2, autoLoads);
+
+        // A parameter or command that can execute again loads at once while the end shows.
+        var pages = 0;
+        var paged = new SkUiCollectionView
+        {
+            ItemsSource = new ObservableCollection<Row>(Rows(0, 2)), ItemTemplate = new DataTemplate(() => new RowView()),
+            LoadMoreMode = SkUiLoadMoreMode.Auto, LoadMoreCommandParameter = "last",
+            LoadMoreCommand = new Command<string>(_ => pages++, page => page != "last")
+        };
+        SkUiTestHelpers.Arrange(paged, 300, 500);
+        Assert.Equal(0, pages);
+        paged.LoadMoreCommandParameter = "next";
+        Assert.Equal(1, pages);
+        paged.IsLoadMoreActive = false;
+        paged.LoadMoreCommandParameter = "last";
+        paged.LoadMoreCommand = new Command(_ => pages++);
+        Assert.Equal(2, pages);
     }
 
     [Fact]

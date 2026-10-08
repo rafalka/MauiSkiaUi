@@ -158,11 +158,13 @@ public partial class SkUiCollectionView
     {
         if (_selectionMode != SkUiSelectionMode.Multiple)
             return;
+        // Once each: an item may show in several groups.
         var all = new List<object>();
+        var seen = new HashSet<object>();
         for (var index = 0; index < _model.ItemCount; index++)
         {
             var (group, item) = _model.Locate(index);
-            if (_model.ItemAt(group, item) is { } value)
+            if (_model.ItemAt(group, item) is { } value && seen.Add(value))
                 all.Add(value);
         }
         ReplaceSelectedItems(all);

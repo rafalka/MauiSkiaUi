@@ -59,8 +59,12 @@ CS_PATTERNS = {
 
 
 def collection_view_blocked(node):
-    """Whether a CollectionView uses what SkUiCollectionView does not have: reordering, snap points."""
-    if node.attrs.get((None, "CanReorderItems"), "").strip().lower() == "true":
+    """Whether a CollectionView uses what SkUiCollectionView does not have: reordering, snap points.
+
+    Conservative: a bound or resource value may be true, so anything but a literal "false" (or no value) blocks."""
+    if node.attrs.get((None, "CanReorderItems"), "false").strip().lower() != "false":
+        return True
+    if any(child.name.endswith(".CanReorderItems") for child in node.children):
         return True
     pending = [child for child in node.children if child.name.endswith(".ItemsLayout")]
     while pending:
