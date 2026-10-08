@@ -40,7 +40,7 @@ public static class LeakScenarios
         new("ExpanderToggled", Layouts, "SkUiExpander sections (explicit, template and lazy content, a hosted Entry, a long-lived command, both directions): expanded and collapsed by header taps, animated and not, reversed mid-animation, content replaced while collapsed; closed mid-collapse.", () => new ExpanderRun()),
         new("AlternateSwitched", Layouts, "SkUiAlternateContentView cards (explicit content and templates with a long-lived command, shared long-lived animations): switched directly and animated, retargeted while switching, an alternate replaced while hidden; closed mid-switch.", () => new AlternateRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
-        new("VirtualListScrolled", Scrolling, "SkUiVirtualScrollView bound to a long-lived collection (items of different heights, recycled template views): dragged, flung, scrolled to an index, items inserted and removed while shown; closed mid-fling.", () => new VirtualListRun()),
+        new("VirtualListScrolled", Scrolling, "SkUiVirtualScrollView bound to a long-lived collection (items of different heights, recycled template views): dragged, flung, scrolled to an index, items inserted and removed and the item template replaced while shown; closed mid-fling.", () => new VirtualListRun()),
         new("CollectionViewUsed", Scrolling, "SkUiCollectionView bound to a long-lived collection, with long-lived selection, item-tap and refresh commands, a sticky header and an empty view: items tapped to select and deselect, flung, scrolled to an item, pulled to refresh, the selected item removed, the collection emptied and refilled; closed mid-fling.", () => new CollectionViewRun()),
         new("CollectionViewGrouped", Scrolling, "SkUiCollectionView over long-lived groups (a grid of two columns, sticky collapsible group headers), with a long-lived selected-items list and load-more command: headers tapped to collapse and expand, items selected, flung, scrolled to a group, groups and items added and removed, the template replaced; closed mid-fling.", () => new CollectionViewGroupedRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
@@ -1270,14 +1270,7 @@ public static class LeakScenarios
                 ItemsSource = LeakItems.Shared,
                 // A small release distance, so scrolling releases views (the pool keeps some for recycling).
                 ReleaseFactor = 0.5,
-                ItemTemplate = new DataTemplate(() =>
-                {
-                    var row = context.Track(Text("", 13), "virtual item view");
-                    row.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
-                    row.TappedCommand = LeakCommands.Shared;
-                    _created.Add(new WeakReference<SkUiLabel>(row));
-                    return row;
-                })
+                ItemTemplate = CreateTemplate(context)
             };
             _list.ItemRealized += (_, args) =>
             {
@@ -1288,6 +1281,16 @@ public static class LeakScenarios
             return Root(_list);
         }
 
+        private DataTemplate CreateTemplate(LeakScenarioContext context) =>
+            new(() =>
+            {
+                var row = context.Track(Text("", 13), "virtual item view");
+                row.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+                row.TappedCommand = LeakCommands.Shared;
+                _created.Add(new WeakReference<SkUiLabel>(row));
+                return row;
+            });
+
         public override async Task InteractAsync(LeakScenarioContext context)
         {
             await context.DragAsync(_list!, 0, -300, durationMs: 400);
@@ -1297,6 +1300,9 @@ public static class LeakScenarios
             LeakItems.Shared.Insert(0, "Inserted");
             LeakItems.Shared.RemoveAt(1201);
             await context.SettleAsync();
+            // The views of the old template (realized and pooled ones) all go, whatever the timing of the scrolling.
+            _list!.ItemTemplate = CreateTemplate(context);
+            await context.SettleAsync();
             await context.DragAsync(_list!, 0, 400, durationMs: 80); // fling towards the start through estimated items
             await context.WaitAsync(200);
             await context.DragAsync(_list!, 0, -400, durationMs: 60); // closes mid-fling
@@ -1304,7 +1310,7 @@ public static class LeakScenarios
         }
 
         /// <summary>
-        /// Views released while scrolling and not kept for recycling (the pool is capped) must be collectable while the
+        /// Views released (while scrolling beyond the pool's cap, or by a template change) must be collectable while the
         /// list is still shown: neither the layout nor the shared command or collection may keep them.
         /// </summary>
         private void TrackDroppedViews(LeakScenarioContext context)
