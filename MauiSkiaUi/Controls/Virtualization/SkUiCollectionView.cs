@@ -802,7 +802,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// </summary>
     public event EventHandler<SkUiRefreshingEventArgs>? Refreshing;
 
-    bool ISkUiRefreshOwner.CanStartRefresh => IsEnabled;
+    bool ISkUiRefreshOwner.CanStartRefresh => IsEnabled && (RefreshCommand?.CanExecute(RefreshCommandParameter) ?? true);
 
     void ISkUiRefreshOwner.RaiseRefreshing(SkUiRefreshingEventArgs args) => Refreshing?.Invoke(this, args);
 

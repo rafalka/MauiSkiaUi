@@ -532,17 +532,51 @@ public partial class SkUiSwipeView : SkUiView
         if (items?.Mode == SwipeMode.Execute)
         {
             var remainOpen = items.SwipeBehaviorOnInvoked == SwipeBehaviorOnInvoked.RemainOpen;
-            Settle(open: passed && remainOpen, animated: true);
-            SwipeEnded?.Invoke(this, new SwipeEndedEventArgs(DirectionOf(side), _open));
-            // The first visible item, unless it is disabled (no other item is invoked instead, as MAUI's handlers).
-            if (passed && items.FirstOrDefault(IsItemVisible) is { } first && IsItemEnabled(first))
-                ((Microsoft.Maui.ISwipeItem)first).OnInvoked();
+            // As MAUI's handlers (and a tapped item): the item is invoked first, still shown, then the view settles. The first
+            // visible item, unless it is disabled (no other item is invoked instead).
+            try
+            {
+                if (passed && items.FirstOrDefault(IsItemVisible) is { } first && IsItemEnabled(first))
+                    ((Microsoft.Maui.ISwipeItem)first).OnInvoked();
+            }
+            finally
+            {
+                if (ReferenceEquals(part, _shownPart))
+                    Settle(open: passed && remainOpen, animated: true);
+                SwipeEnded?.Invoke(this, new SwipeEndedEventArgs(DirectionOf(side), _open));
+            }
             return;
         }
         var fling = Math.Abs(velocity) >= SkUiGestureSettings.SwipeVelocity;
         var open = fling ? opening > 0 && _shown > 0 : passed;
         Settle(open, animated: true);
         SwipeEnded?.Invoke(this, new SwipeEndedEventArgs(DirectionOf(side), open));
+    }
+
+    /// <summary>
+    /// The swipe was cancelled (the arena rejected it: the view was disabled, hidden or left its surface, another gesture
+    /// won): the items close. Nothing opens or is invoked, whatever the distance: only a release does that.
+    /// </summary>
+    private void CancelDrag()
+    {
+        _dragging = false;
+        if (_shownPart is not { } part)
+            return;
+        Settle(open: false, animated: true);
+        SwipeEnded?.Invoke(this, new SwipeEndedEventArgs(DirectionOf(part.Side), false));
+    }
+
+    /// <inheritdoc />
+    protected override void OnPropertyChanged(string? propertyName = null)
+    {
+        base.OnPropertyChanged(propertyName);
+        // Disabled, hidden or input transparent while items show: the view takes no gestures any more and its content ignores
+        // input while they show, so nothing could close them: they close.
+        if (_shownPart is not null
+            && ((propertyName == nameof(IsEnabled) && !IsEnabled)
+                || (propertyName == nameof(IsVisible) && !IsVisible)
+                || (propertyName == nameof(InputTransparent) && InputTransparent)))
+            Close(animated: false);
     }
 
     /// <summary>An item was tapped: it is invoked, and the view closes unless its items remain open.</summary>
@@ -678,7 +712,7 @@ public partial class SkUiSwipeView : SkUiView
             _pointer = null;
             _active = false;
             if (active)
-                owner.EndDrag(0);
+                owner.CancelDrag();
         }
     }
 

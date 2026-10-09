@@ -9,10 +9,13 @@ internal interface ISkUiRefreshOwner
     /// <summary>The owner's bindable <c>IsRefreshing</c>.</summary>
     bool IsRefreshing { get; set; }
 
-    /// <summary>Whether a pull released past the trigger may start a refresh now (the owner is enabled, its pull is on).</summary>
+    /// <summary>
+    /// Whether a pull released past the trigger may start a refresh now: the owner is enabled, its pull is on and its command
+    /// (if any) can execute (it then runs without being asked again).
+    /// </summary>
     bool CanStartRefresh { get; }
 
-    /// <summary>Runs when a refresh starts (when it can execute).</summary>
+    /// <summary>Runs when a refresh starts.</summary>
     ICommand? RefreshCommand { get; }
 
     /// <summary>The parameter of <see cref="RefreshCommand"/>.</summary>
@@ -156,18 +159,27 @@ internal sealed class SkUiPullToRefresh(ISkUiRefreshOwner owner)
         ShowPull(_gap, _top, _device);
         var run = owner.RefreshCompletion == SkUiRefreshCompletion.Automatic ? new RefreshRun(this) : null;
         _run = run;
-        owner.RaiseRefreshing(new SkUiRefreshingEventArgs(run is null ? null : run.Defer));
-        if (!owner.IsRefreshing || !ReferenceEquals(_run, run))
-            return; // a handler ended it
-        var parameter = owner.RefreshCommandParameter;
-        if (owner.RefreshCommand is { } command && command.CanExecute(parameter))
+        try
         {
-            command.Execute(parameter);
-            // Busy right after it ran (an async command): done once it can execute again.
-            if (run is not null && ReferenceEquals(_run, run) && !command.CanExecute(parameter))
-                run.WaitFor(command, parameter);
+            owner.RaiseRefreshing(new SkUiRefreshingEventArgs(run is null ? null : run.Defer));
+            if (!owner.IsRefreshing || !ReferenceEquals(_run, run))
+                return; // a handler ended it (the run was cancelled)
+            // As MAUI's RefreshView: the command runs once the refresh started, not asked again (a pull starts one only while it
+            // can execute, CanStartRefresh; a CanExecute such as "not refreshing" would refuse now).
+            var parameter = owner.RefreshCommandParameter;
+            if (owner.RefreshCommand is { } command)
+            {
+                command.Execute(parameter);
+                // Busy right after it ran (an async command): done once it can execute again.
+                if (run is not null && ReferenceEquals(_run, run) && !command.CanExecute(parameter))
+                    run.WaitFor(command, parameter);
+            }
         }
-        run?.Complete();
+        finally
+        {
+            // Also when a handler or the command throws: an automatic refresh must still end.
+            run?.Complete();
+        }
     }
 
     private void OnRunDone(RefreshRun run)

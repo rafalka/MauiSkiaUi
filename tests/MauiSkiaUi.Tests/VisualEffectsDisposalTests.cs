@@ -108,6 +108,26 @@ public class VisualEffectsDisposalTests
     }
 
     [Fact]
+    public void TearingDownWithPendingFramesThatShareAShadowStyleReleasesItOnce()
+    {
+        // Paint changes keep the shadow's style (only the silhouette is new), so the committed props and two pending frames
+        // alias it; the teardown releases all of them.
+        var border = Border();
+        var root = new SkUiVerticalStackLayout { Children = { border } };
+        var surface = Surface(root);
+        var style = Committed(border).Shadow!.Style;
+        border.BackgroundColor = Colors.LightGray;
+        SkUiTestHelpers.Arrange(root, 200, 300);
+        surface.PresentFrame(); // committed, not applied
+        border.BackgroundColor = Colors.White;
+        SkUiTestHelpers.Arrange(root, 200, 300);
+        surface.PresentFrame();
+        surface.Dispose();
+        Assert.True(Disposed(style.Blur));
+        Assert.True(Disposed(Committed(border).ClipPath));
+    }
+
+    [Fact]
     public void ActivityIndicatorsDisposeTheirStrokePaintWhenTheyLeave()
     {
         var indicator = new SkUiActivityIndicator { IsRunning = true, WidthRequest = 40, HeightRequest = 40 };

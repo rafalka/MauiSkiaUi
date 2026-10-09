@@ -258,8 +258,14 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
 
     private void OnContentChanged(ISkUiView? value)
     {
+        // Replaced during an inline refresh: the old scroller lets its content back up, and the view holds the new content
+        // down itself (no scroller of it was pulled) until the refresh ends.
+        if (IsRefreshing)
+            ReleaseHold();
         DetachScroller();
         _contentPart.Content = value;
+        if (IsRefreshing)
+            Hold();
     }
 
     private void OnCommandChanged(ICommand? value)

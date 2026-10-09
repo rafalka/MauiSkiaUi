@@ -765,6 +765,11 @@ internal sealed class SkUiCompositor : IDisposable
     /// surface is gone) and forgot them (<see cref="ISkUiRenderable.ReleaseDrawingResources"/>), so nothing commits them
     /// again: a render node leaves the tree only that way.
     /// </summary>
+    /// <remarks>
+    /// The props of one node alias each other's effects (an unchanged clip path, a shadow's style reused by the next shadow),
+    /// so releasing a node's committed props and its discarded pending ones may release an object twice: disposal is
+    /// idempotent (SkiaSharp objects, <see cref="SkUiShadowStyle.Dispose"/>). Nodes never share effects.
+    /// </remarks>
     internal static void ReleaseEffects(in SkUiRenderProps props)
     {
         props.ClipPath?.Dispose();

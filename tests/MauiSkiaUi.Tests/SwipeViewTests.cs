@@ -433,6 +433,61 @@ public class SwipeViewTests
     }
 
     [Fact]
+    public void ExecuteModeInvokesTheItemWhileItStillShowsThenSettles()
+    {
+        // As MAUI's handlers and a tapped item: invoked first (a handler that removes the row sees it as swiped), then closed.
+        var swipe = Swipe(out _);
+        swipe.RightItems = TwoItems();
+        swipe.RightItems.Mode = SwipeMode.Execute;
+        OpenSwipeItem? shownWhenInvoked = null;
+        var ended = 0;
+        swipe.SwipeEnded += (_, _) => ended++;
+        ((SwipeItem)swipe.RightItems[0]).Invoked += (_, _) => shownWhenInvoked = swipe.ShownSide;
+        SkUiTestHelpers.Arrange(swipe, 300, 60);
+        Drag(swipe, new Point(290, 30), new Point(10, 30));
+        Assert.Equal(OpenSwipeItem.RightItems, shownWhenInvoked);
+        Assert.Equal(1, ended);
+        Assert.False(swipe.IsOpen);
+
+        // A handler that throws still lets the view settle and end the swipe.
+        ((SwipeItem)swipe.RightItems[0]).Invoked += (_, _) => throw new InvalidOperationException("handler");
+        Assert.Throws<InvalidOperationException>(() => Drag(swipe, new Point(290, 30), new Point(10, 30)));
+        Assert.Equal(2, ended);
+        Assert.False(swipe.IsOpen);
+    }
+
+    [Fact]
+    public void ACancelledSwipeClosesWithoutOpeningOrInvoking()
+    {
+        var log = new List<string>();
+        var swipe = Swipe(out _);
+        swipe.RightItems = TwoItems(log);
+        swipe.RightItems.Mode = SwipeMode.Execute;
+        swipe.LeftItems = TwoItems(log);
+        SkUiTestHelpers.Arrange(swipe, 300, 60);
+
+        // Past the threshold, then disabled before the release: nothing is invoked, nothing opens.
+        Drag(swipe, new Point(290, 30), new Point(10, 30), release: false);
+        swipe.IsEnabled = false;
+        Assert.Empty(log);
+        Assert.False(swipe.IsOpen);
+        Assert.Null(swipe.ShownSide);
+
+        // Disabled while open: it closes (its content ignores input while items show, so nothing else could close it).
+        swipe.IsEnabled = true;
+        swipe.Open(OpenSwipeItem.LeftItems, animated: false);
+        Assert.True(swipe.IsOpen);
+        swipe.IsEnabled = false;
+        Assert.False(swipe.IsOpen);
+        Assert.Null(swipe.ShownSide);
+        Assert.False(swipe.ContentHost.InputTransparent);
+        swipe.IsEnabled = true;
+        swipe.Open(OpenSwipeItem.LeftItems, animated: false);
+        swipe.IsVisible = false;
+        Assert.Null(swipe.ShownSide);
+    }
+
+    [Fact]
     public void ExecuteModeDoesNotInvokeADisabledFirstItem()
     {
         // As MAUI's handlers: the first visible item is invoked only when it is enabled; no other item is invoked instead.

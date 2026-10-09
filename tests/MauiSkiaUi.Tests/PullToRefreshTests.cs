@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -24,6 +25,14 @@ public class PullToRefreshTests
         public event EventHandler? CanExecuteChanged { add { } remove { } }
         public bool CanExecute(object? parameter) => true;
         public void Execute(object? parameter) => execute(parameter);
+    }
+
+    /// <summary>A command that can execute while <paramref name="canExecute"/> says so.</summary>
+    private sealed class GuardedCommand(Func<bool> canExecute, Action execute) : ICommand
+    {
+        public event EventHandler? CanExecuteChanged { add { } remove { } }
+        public bool CanExecute(object? parameter) => canExecute();
+        public void Execute(object? parameter) => execute();
     }
 
     /// <summary>A command that cannot execute while it runs (as the MVVM Toolkit's <c>AsyncRelayCommand</c>), until <see cref="Finish"/>.</summary>
@@ -233,6 +242,33 @@ public class PullToRefreshTests
         Assert.Equal(SkUiRefreshStyle.Overlay, refresh.RefreshIndicator.EffectiveStyle);
     }
 
+    [Fact]
+    public void ReplacingTheContentDuringAnInlineRefreshLetsTheOldScrollerGoAndHoldsTheNewContent()
+    {
+        var scroller = Scroller(100, SkUiOverscrollMode.Bounce);
+        var refresh = new SkUiRefreshView { Content = scroller, RefreshStyle = SkUiRefreshStyle.Inline };
+        using var surface = new SkUiTestSurface(refresh, 300, 400);
+        surface.Frame(0);
+        Drag(refresh, new Point(150, 20), new Point(150, 380));
+        Assert.True(refresh.IsRefreshing);
+        Assert.Equal(Rest, ControllerOf(scroller).TopRest);
+
+        var box = new SkUiBox { HeightRequest = 100 };
+        refresh.Content = box;
+        Assert.Equal(0, ControllerOf(scroller).TopRest); // the old scroller rests at its edge again
+        void Tick(int from)
+        {
+            // The view's own hold animates on the UI clock.
+            for (var frame = from; frame < from + 60; frame++)
+                refresh.AnimationClock.Tick(TimeSpan.FromMilliseconds(frame * 16));
+        }
+        Tick(1);
+        Assert.Equal(Rest, ((View)box.Parent).TranslationY, 1); // the view holds the new content down
+        refresh.IsRefreshing = false;
+        Tick(61);
+        Assert.Equal(0, ((View)box.Parent).TranslationY, 1);
+    }
+
     #endregion
 
     #region Trigger distance and mouse
@@ -318,6 +354,52 @@ public class PullToRefreshTests
     #endregion
 
     #region Completion
+
+    [Fact]
+    public void TheCommandRunsOnceTheRefreshStartedWithoutBeingAskedAgain()
+    {
+        // As MAUI's RefreshView: a command guarded by "not refreshing" still runs (refreshing has started when it runs).
+        var ran = 0;
+        var refresh = new SkUiRefreshView { Content = Scroller(100) };
+        refresh.Command = new GuardedCommand(() => !refresh.IsRefreshing, () => ran++);
+        SkUiTestHelpers.Arrange(refresh, 300, 400);
+        Drag(refresh, new Point(150, 20), new Point(150, 380));
+        Assert.True(refresh.IsRefreshing);
+        Assert.Equal(1, ran);
+
+        var list = List();
+        var listRan = 0;
+        var canExecute = false;
+        list.RefreshCommand = new GuardedCommand(() => canExecute && !list.IsRefreshing, () => listRan++);
+        SkUiTestHelpers.Arrange(list, 300, 400);
+        Drag(list, new Point(150, 20), new Point(150, 380)); // a pull starts a refresh only while the command can execute
+        Assert.False(list.IsRefreshing);
+        canExecute = true;
+        Drag(list, new Point(150, 20), new Point(150, 380));
+        Assert.True(list.IsRefreshing);
+        Assert.Equal(1, listRan);
+    }
+
+    [Fact]
+    public void AnAutomaticRefreshRunEndsWhenAHandlerOrTheCommandThrows()
+    {
+        // The run (its deferrals, the command it waits for) ends instead of staying alive. IsRefreshing itself stays true: an
+        // exception out of a property's change callback leaves MAUI's BindableObject unable to set that property again (as
+        // MAUI's RefreshView, which raises Refreshing and runs its command there too).
+        static object? Run(object owner) =>
+            typeof(SkUiPullToRefresh).GetField("_run", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(
+                owner.GetType().GetField("_refresh", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(owner));
+        var refresh = new SkUiRefreshView { Content = Scroller(100), RefreshCompletion = SkUiRefreshCompletion.Automatic };
+        refresh.Refreshing += (_, _) => throw new InvalidOperationException("handler");
+        Assert.Throws<InvalidOperationException>(() => refresh.IsRefreshing = true);
+        Assert.Null(Run(refresh));
+
+        var list = List();
+        list.RefreshCompletion = SkUiRefreshCompletion.Automatic;
+        list.RefreshCommand = new Command(_ => throw new InvalidOperationException("command"));
+        Assert.Throws<InvalidOperationException>(() => list.IsRefreshing = true);
+        Assert.Null(Run(list));
+    }
 
     [Fact]
     public void AutomaticCompletionEndsWithACommandThatIsDoneAtOnce()
