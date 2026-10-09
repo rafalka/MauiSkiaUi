@@ -12,6 +12,7 @@ public sealed class LeakScenarioContext(Func<TimeSpan, Task> wait, bool isDevice
     private static long _nextPointer = long.MinValue / 4;
     private readonly List<TrackedObject> _tracked = [];
     private readonly List<TrackedObject> _detached = [];
+    private readonly HashSet<object> _longLived = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>Running on a device with handlers and platform views (<c>false</c> in headless tests).</summary>
     public bool IsDevice { get; } = isDevice;
@@ -34,6 +35,21 @@ public sealed class LeakScenarioContext(Func<TimeSpan, Task> wait, bool isDevice
     /// the rest of the page is still alive. Catches leaks that grow for as long as a long-lived page lives.
     /// </summary>
     public void TrackDetached(object instance, string? label = null) => _detached.Add(LeakTracker.Track(instance, label));
+
+    /// <summary>
+    /// Declares an element that outlives the page on purpose and shows in its visual tree (app resources such as shared
+    /// swipe items): the tree walk does not track it or its visual descendants. Returns it.
+    /// </summary>
+    public T LongLived<T>(T element) where T : class, IVisualTreeElement
+    {
+        _longLived.Add(element);
+        foreach (var descendant in element.GetVisualTreeDescendants())
+            _longLived.Add(descendant);
+        return element;
+    }
+
+    /// <summary>Whether <paramref name="instance"/> was declared <see cref="LongLived{T}"/>.</summary>
+    public bool IsLongLived(object instance) => _longLived.Contains(instance);
 
     /// <summary>Lets time pass: real delay on a device; headless, advances the gesture clock and renders frames.</summary>
     public Task WaitAsync(double milliseconds) => wait(TimeSpan.FromMilliseconds(milliseconds));

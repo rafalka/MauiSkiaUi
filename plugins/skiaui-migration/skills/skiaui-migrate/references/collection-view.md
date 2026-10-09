@@ -47,7 +47,8 @@ A plain list (items and a template only) can also use the lighter **`SkUiVirtual
 | — | `IsStickyGroupHeader` | The current group's header stays at the start, pushed away by the next one |
 | — | `AllowGroupExpandCollapse`, `AutoExpandGroups`, `ExpandGroup` / `CollapseGroup` / `ExpandAll` / `CollapseAll`, `GroupExpanding` / `GroupExpanded` / `GroupCollapsing` / `GroupCollapsed`, `ISkUiExpandableGroup` | Collapsed groups' items are not realized; the header's root goes to `Expanded` / `Collapsed` |
 | `ScrollTo(item, group, …)` | `ScrollToItem(item, …)`, `ScrollToGroup(group, …)` | An item of a collapsed group expands it |
-| `CanReorderItems`, `SwipeView` rows, `ContextMenu` | — | Not yet (later / Phase C) |
+| `SwipeView` rows | `sk:SkUiSwipeView` in the item template | Prefix swap ([controls.md](controls.md)); the swipe takes horizontal drags and leaves vertical ones to the list, a scroll closes an open row, a recycled row shows closed |
+| `CanReorderItems`, `ContextMenu` | — | Not yet |
 | `RefreshView` around it: `IsRefreshing`, `Command` (+ `Parameter`), `RefreshColor`, `Refreshing`, `IsEnabled` / `IsRefreshEnabled` | `IsPullToRefreshEnabled="True"`, `IsRefreshing` (two-way), `RefreshCommand` (+ `Parameter`), `RefreshColor`, `Refreshing` | Drop the `RefreshView`. As MAUI: `IsRefreshing = true` (pull or code) raises `Refreshing` and runs the command; the app sets it back to `false` |
 
 ## Intentional differences

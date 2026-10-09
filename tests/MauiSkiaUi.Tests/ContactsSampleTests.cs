@@ -8,7 +8,7 @@ namespace MauiSkiaUi.Tests;
 
 /// <summary>
 /// The Contacts sample (samples app): its live grouped list helper (<see cref="LiveGroupedList{TItem, TKey}"/>) and the
-/// screen built on <see cref="SkUiCollectionView"/> (grouping, search, selection mode, actions, adaptive preview, tiles).
+/// screen built on <see cref="SkUiCollectionView"/> (grouping, search, swipes, selection mode, actions, adaptive preview, tiles).
 /// </summary>
 [Collection(RuntimeXamlCollection.Name)]
 public class ContactsSampleTests
@@ -243,6 +243,54 @@ public class ContactsSampleTests
         Assert.True(list.Span > 1);
         page.Model.Display = ContactDisplay.List;
         Assert.Equal(1, list.Span);
+    }
+
+    private static long _pointer = 160_000;
+
+    /// <summary>A slow horizontal swipe across a row (the row as the surface root), from one edge to the other.</summary>
+    private static void SwipeRow(SkUiView row, bool toTheRight)
+    {
+        var id = ++_pointer;
+        var (from, to) = toTheRight ? (10.0, row.Width - 10) : (row.Width - 10, 10.0);
+        var y = row.Height / 2;
+        row.Touch(new(id, SkUiTouchAction.Pressed, new Point(from, y), TimeSpan.Zero));
+        for (var step = 1; step <= 6; step++)
+            row.Touch(new(id, SkUiTouchAction.Moved, new Point(from + (to - from) * step / 6, y), TimeSpan.FromMilliseconds(step * 100)));
+        row.Touch(new(id, SkUiTouchAction.Released, new Point(to, y), TimeSpan.FromMilliseconds(900)));
+    }
+
+    [Fact]
+    public void RowsSwipedToTheRightStarAndUnstarAndSwipedToTheLeftDelete()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var (page, list) = Screen();
+        var model = page.Model;
+        var row = Assert.IsType<SwipeableContactRow>(list.GetRealizedView(0));
+        var contact = (Contact)row.BindingContext;
+        Assert.False(contact.IsStarred);
+        Assert.Equal("Favorite", ((SwipeItem)row.LeftItems[0]).Text);
+
+        SwipeRow(row, toTheRight: true);
+        Assert.True(contact.IsStarred);
+        Assert.False(row.IsOpen); // execute mode: nothing stays open
+        Assert.Equal("Unfavorite", ((SwipeItem)row.LeftItems[0]).Text);
+        SwipeRow(row, toTheRight: true);
+        Assert.False(contact.IsStarred);
+
+        // The previewed contact swiped away: deleted, and no longer previewed.
+        model.Current = contact;
+        SwipeRow(row, toTheRight: false);
+        Assert.DoesNotContain(contact, model.All);
+        Assert.Equal(29, list.ItemCount);
+        Assert.Null(model.Current);
+
+        // Rows swipe only outside the selection mode, and only as rows (not tiles).
+        model.BeginSelection([model.All[0]]);
+        Assert.IsType<ContactRow>(list.GetRealizedView(0));
+        model.EndSelection();
+        model.Display = ContactDisplay.Tiles;
+        SkUiTestHelpers.Arrange((SkUiView)page.SampleContent!, 900, 700); // tiles are realized with the next layout
+        Assert.IsType<ContactTile>(list.GetRealizedView(0));
     }
 
     [Fact]

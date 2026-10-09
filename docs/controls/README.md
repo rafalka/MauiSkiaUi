@@ -51,6 +51,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiHorizontalShrinkLayout` / `SkUiVerticalShrinkLayout` | [SkUiShrinkLayout.md](SkUiShrinkLayout.md) | — (stacks whose children shrink to fit) |
 | `SkUiStateContainer` / `SkUiStateView` (attached properties on any drawn layout) | [SkUiStateContainer.md](SkUiStateContainer.md) | Community Toolkit `StateContainer` / `StateView` |
 | `SkUiExpander` | [SkUiExpander.md](SkUiExpander.md) | Community Toolkit `Expander` |
+| `SkUiSwipeView` / `SkUiSwipeItemView` | [SkUiSwipeView.md](SkUiSwipeView.md) | SwipeView (MAUI's `SwipeItems` / `SwipeItem`) / SwipeItemView |
 
 ## Graphics
 

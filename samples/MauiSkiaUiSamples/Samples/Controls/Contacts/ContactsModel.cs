@@ -240,6 +240,18 @@ public sealed class ContactsViewModel : Observable, IDisposable
             contact.Groups = group == ContactGroups.None ? ContactGroups.None : contact.Groups | group;
     }
 
+    /// <summary>Deletes one contact (a swipe to the left on its row).</summary>
+    public void Delete(Contact contact)
+    {
+        All.Remove(contact);
+        Selected.Remove(contact);
+        if (ReferenceEquals(Current, contact))
+            Current = null;
+    }
+
+    /// <summary>Stars a contact, or removes its star (a swipe to the right on its row).</summary>
+    public void ToggleStar(Contact contact) => contact.IsStarred = !contact.IsStarred;
+
     public void Add(Contact contact)
     {
         All.Add(contact);

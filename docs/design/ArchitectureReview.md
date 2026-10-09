@@ -29,7 +29,7 @@ Re-review of the implementation against the previous review (2026-09-25), checke
 | Enforced performance budget | Open | `PerformanceTests` logs numbers for the immediate painter, not the retained record / commit path |
 | Drawn `SkUiEntry` with an IME proxy | Planned (Phase T) | Reversed: hosted text fields carry every overlay limit (snapshots, rectangle clips, nothing drawn on top, one platform view per list cell, no Core use), and controls built on editable text need a drawn editor. FR-16 keeps hosting for WebView and other platform engines |
 | Core as a separate assembly (FR-C1) | Open, re-decide | Core now uses MAUI Controls types (`IVisualElementController` for flow direction) |
-| Features (old §4) | Open | CollectionView, accessibility, brushes and effects (non-solid `Background` is ignored), SwipeView / RefreshView / Carousel / Expander / Stepper / Picker, spring physics, SVG / Lottie, an on-screen diagnostics overlay, stored golden images. Slider, ProgressBar and spans / `FormattedText` are now shipped |
+| Features (old §4) | Open | CollectionView, accessibility, brushes and effects (non-solid `Background` is ignored), RefreshView / Carousel / Stepper / Picker (SwipeView and Expander shipped), spring physics, SVG / Lottie, an on-screen diagnostics overlay, stored golden images. Slider, ProgressBar and spans / `FormattedText` are now shipped |
 
 ## 2. New findings
 

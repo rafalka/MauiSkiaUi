@@ -222,7 +222,7 @@ SkUiCollectionView                      (render order; screen-reader order: head
 | **Load more** | A load-more host in the body before or after the items (created the first time it shows): visible in manual mode while the command can execute (its `CanExecuteChanged` is followed weakly), and in every mode while loading. Automatic modes ask when the engine's first (start) or last (end) visible row is the first or last row, or there are none, checked on visible-range changes, scrolls and changes; `AutoOnUserScroll` once a scroll happened while dragging. `IsLoadMoreActive` stops further asks until the app clears it; the next layout checks again. At the start, `AnchorsAtStart` keeps what shows in place also while the start of the items shows, so inserted older items push the offset, not the content. |
 | **Pull to refresh** | `SkUiScrollController.PullsAtVerticalStart` lets a drag pull the top past the edge when the content does not overflow or overscroll is off (the pull is tracked in `OverscrollY` and springs back on the render thread; the content moves only as the overscroll mode draws it). The indicator follows `OverscrollChanged` with opacity, rotation and translation only (no re-record while dragging); `PullReleased` past 64 DIPs sets `IsRefreshing`, which (as MAUI's `RefreshView`) raises `Refreshing` and runs the command; the indicator then spins through `ContentSpinPeriod` on the render thread. Vertical lists only. |
 
-Not yet: reordering, swipe actions (Phase C), snap points on the items, keyboard item navigation, extended (Shift / Ctrl) selection, animated insert / remove.
+Row swipe actions: [`SkUiSwipeView`](../controls/SkUiSwipeView.md) in the item template (C1; the swipe loses vertical drags to the list, a scroll closes an open row, a recycled row shows closed). Not yet: reordering, snap points on the items, keyboard item navigation, extended (Shift / Ctrl) selection, animated insert / remove.
 
 ## FR-21 — Virtual / dynamic scroll layout (requirements)
 
@@ -389,7 +389,7 @@ Unlike most SkUi* controls, **`SkUiCollectionView` is not required to mirror MAU
   - Reaching the boundary may still raise **`RemainingItemsThreshold`** / **`RemainingItemsThresholdReached`** for apps that prefer a threshold-only hook; load-more mode and threshold can coexist (threshold for prefetch, load-more row for UX).
 - **Pull to refresh:** `IsRefreshing` / `RefreshCommand` at the scroll start (drawn indicator).
 
-**Later (not FR-22 MVP):** reordering (long-press drag, gesture arena); row swipe actions (`SkUiSwipeView` / Phase C); horizontal-only polish; keyboard-focused item navigation; animated insert / remove.
+**Later (not FR-22 MVP):** reordering (long-press drag, gesture arena); row swipe actions (shipped as `SkUiSwipeView`, C1); horizontal-only polish; keyboard-focused item navigation; animated insert / remove.
 
 ### Product backlog (Syncfusion [SfListView](https://help.syncfusion.com/maui/listview/overview) and peers)
 
@@ -409,7 +409,7 @@ Syncfusion’s control is a useful benchmark for **list UX**, not an API target.
 | Select → scroll | Auto `ScrollTo` when `SelectedItem` changes | — | **Candidate:** `ScrollSelectedIntoView` (optional) |
 | Load more | Manual / Auto / AutoOnScroll; top or bottom; template row | FR-22 load-more API | **In FR-22** ([load more](https://help.syncfusion.com/maui/listview/loadmore)) |
 | Pull to refresh | Often `SfPullToRefresh` wrapper | Built-in on collection | **Ship**; document horizontal list limitation (Syncfusion: no PTR on horizontal) |
-| Swipe actions | Start/end templates, threshold, full swipe delete | Phase C `SkUiSwipeView` | **Ship in Phase C**; optional **`SwipeThreshold` / `SwipeOffset`**, programmatic reset ([swiping](https://help.syncfusion.com/maui/listview/swiping)) |
+| Swipe actions | Start/end templates, threshold, full swipe delete | `SkUiSwipeView` in the item template (C1): MAUI's `SwipeView` API, `Threshold`, `Execute` mode for a full swipe, `Open` / `Close` | **Shipped** ([swiping](https://help.syncfusion.com/maui/listview/swiping)) |
 | Reorder | OnHold / drag indicator, drag template | FR-22 later | **Ship later** with **`DragStartMode`**, optional **`DragItemTemplate`** ([drag and drop](https://help.syncfusion.com/maui/listview/item-drag-and-drop)) |
 | Scroll / scroll-to | `ScrollTo` / `ScrollToRowIndex`, animated | FR-17 + FR-22 | **Ship**; grouped + variable height may weaken exact `Center` first time (document like Syncfusion) ([scrolling](https://help.syncfusion.com/maui/listview/scrolling)) |
 | Item tap context | `ItemType` (Header, GroupHeader, Record, LoadMore) | Item + index + group | **Add:** **`ItemTappedEventArgs.ItemKind`** (record, header, footer, group header, load-more) |
@@ -455,7 +455,8 @@ Syncfusion’s control is a useful benchmark for **list UX**, not an API target.
 | FR-21 | **`Loop`** carousel: wrap indexing, offset correction, horizontal + snap; demo nested carousel on virtual loop | Later |
 | FR-22 | `SkUiCollectionView` MVP: linear layout, templates, single selection, sticky header / footer, item tap, empty view, load-more threshold, pull to refresh, migration doc + skill reference (B2) | **Done** |
 | FR-22 | Grouping, **expandable groups**, sticky group headers, grid, horizontal, multiple selection, load-more modes (B3) | **Done** |
-| FR-22 | Reordering, row swipe, other list chrome (see Phase C) | Later |
+| FR-22 | Row swipe (`SkUiSwipeView`, C1) | **Done** |
+| FR-22 | Reordering, other list chrome (see Phase C) | Later |
 | Polish | Scroll bars, overscroll / bounce, scroll to element, horizontal wheel for `Both` | **Done** (P8) |
 | Polish | Snap points, draggable scroll bars, placed scroll bars | **Done** (P8) |
 | Polish | Keyboard / focus bring-into-view | Later |

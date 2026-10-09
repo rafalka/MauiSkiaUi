@@ -4,7 +4,7 @@ A drawn, virtualized list or grid with selection (single or multiple), item taps
 
 **MAUI counterpart:** `CollectionView` (and a `RefreshView` around it), with **SkiaUi's own API**: familiar names where they fit (`ItemsSource`, `ItemTemplate`, `SelectedItem`, `SelectedItems`, `SelectionChangedCommand`, `IsGrouped`, `GroupHeaderTemplate`, `RemainingItemsThreshold`, `EmptyView`), different ones where MAUI's do not fit the drawn, recycled model (`Header` is a view or a template, not any object; no `ItemsLayout` object but `Orientation`, `Span` and spacings; `ItemTapped` exists; `ScrollToIndex` returns a `Task`). Mapping from MAUI: [Migration.md](../Migration.md#lists-collectionview) and [collection-view.md](../../plugins/skiaui-migration/skills/skiaui-migrate/references/collection-view.md). Design: [ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md#collection-view-implemented).
 
-Not available: reordering items, swipe actions on rows (Phase C), snap points, keyboard item navigation. Plain lists without any of the features below can also use the lighter `SkUiVirtualScrollView`.
+Swipe actions on rows: put an [`SkUiSwipeView`](SkUiSwipeView.md) in the item template. Not available: reordering items, snap points, keyboard item navigation. Plain lists without any of the features below can also use the lighter `SkUiVirtualScrollView`.
 
 ## How it works
 

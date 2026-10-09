@@ -72,7 +72,10 @@ public sealed class ContactRow : SkUiGrid
 {
     private readonly SkUiCheckBox? _check;
 
-    public ContactRow(ContactsViewModel model, bool selecting)
+    /// <param name="model">The view model (a long press starts the selection mode).</param>
+    /// <param name="selecting">Whether the row shows a checkbox.</param>
+    /// <param name="wired">Whether the row is the list's item (its long press and states); <c>false</c> inside a <see cref="SwipeableContactRow"/>, which is.</param>
+    public ContactRow(ContactsViewModel model, bool selecting, bool wired = true)
     {
         Padding = new Thickness(14, 8);
         ColumnSpacing = 12;
@@ -97,7 +100,8 @@ public sealed class ContactRow : SkUiGrid
         var star = new SkUiLabel { FontSize = 16, TextColor = Color.FromArgb("#E3A008"), VerticalOptions = LayoutOptions.Center };
         star.SetBinding(SkUiLabel.TextProperty, static (Contact contact) => contact.StarGlyph);
         GridCells.Place(this, star, column);
-        ContactItem.Wire(this, model);
+        if (wired)
+            ContactItem.Wire(this, model);
     }
 
     protected override void ChangeVisualState()
@@ -105,6 +109,74 @@ public sealed class ContactRow : SkUiGrid
         base.ChangeVisualState();
         if (_check is not null)
             _check.IsChecked = ContactItem.IsSelectedState(this);
+    }
+}
+
+/// <summary>
+/// A contact's row that swipes (<see cref="SkUiSwipeView"/> with MAUI's <see cref="SwipeItems"/>): to the right it stars
+/// the contact, or removes its star; to the left it deletes the contact. Both sides execute (<see cref="SwipeMode.Execute"/>):
+/// a swipe past the threshold acts at once, nothing stays open. The row covers what the list draws behind its items, so it
+/// paints the selection itself.
+/// </summary>
+public sealed class SwipeableContactRow : SkUiSwipeView
+{
+    private const string Favorite = "Favorite";
+    private const string Unfavorite = "Unfavorite";
+    private static readonly Color StarColor = Color.FromArgb("#E3A008");
+    private static readonly Color DeleteColor = Color.FromArgb("#C62828");
+
+    private readonly ContactRow _row;
+
+    public SwipeableContactRow(ContactsViewModel model)
+    {
+        // Opaque, so the swiped row slides over the list instead of showing what is behind it.
+        _row = new ContactRow(model, selecting: false, wired: false) { BackgroundColor = SampleColors.Surface };
+        Content = _row;
+
+        var star = new SwipeItem { BackgroundColor = StarColor, IconImageSource = Glyph("★") };
+        star.SetBinding(MenuItem.TextProperty, static (Contact contact) => contact.IsStarred, converter: new FavoriteText());
+        star.Invoked += (_, _) =>
+        {
+            if (BindingContext is Contact contact)
+                model.ToggleStar(contact);
+        };
+        var delete = new SwipeItem { Text = "Delete", BackgroundColor = DeleteColor, IconImageSource = Glyph("✕") };
+        delete.Invoked += (_, _) =>
+        {
+            if (BindingContext is Contact contact)
+                model.Delete(contact);
+        };
+        LeftItems = new SwipeItems([star]) { Mode = SwipeMode.Execute };
+        RightItems = new SwipeItems([delete]) { Mode = SwipeMode.Execute };
+        ContactItem.Wire(this, model);
+    }
+
+    private static FontImageSource Glyph(string glyph) =>
+        new() { Glyph = glyph, FontFamily = SampleFonts.Regular, Size = 20, Color = Colors.White };
+
+    /// <summary>Selected: the list's selection color (its accent at 12 %) over the row's surface.</summary>
+    protected override void ChangeVisualState()
+    {
+        base.ChangeVisualState();
+        if (_row is null)
+            return; // the base constructor sets the first state
+        _row.BackgroundColor = ContactItem.IsSelectedState(this)
+            ? Blend(SampleColors.Surface, SkUiColors.Accent, 0.12f)
+            : SampleColors.Surface;
+    }
+
+    private static Color Blend(Color under, Color over, float alpha) => new(
+        under.Red + (over.Red - under.Red) * alpha,
+        under.Green + (over.Green - under.Green) * alpha,
+        under.Blue + (over.Blue - under.Blue) * alpha);
+
+    private sealed class FavoriteText : IValueConverter
+    {
+        public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) =>
+            value is true ? Unfavorite : Favorite;
+
+        public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) =>
+            throw new NotSupportedException();
     }
 }
 

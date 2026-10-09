@@ -15,9 +15,9 @@ public static class LeakTracker
     /// <summary>
     /// Tracks <paramref name="root"/> and everything in its visual tree (MAUI views, drawn SkUi* views, Core nodes),
     /// plus each element's handler and platform view and what surface handlers own (renderer, compositor, platform
-    /// surfaces, overlay container).
+    /// surfaces, overlay container). Elements <paramref name="exclude"/> accepts (long-lived ones) are skipped.
     /// </summary>
-    public static List<TrackedObject> TrackTree(IVisualTreeElement root)
+    public static List<TrackedObject> TrackTree(IVisualTreeElement root, Func<object, bool>? exclude = null)
     {
         var tracked = new List<TrackedObject>();
         var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
@@ -28,6 +28,8 @@ public static class LeakTracker
         }
         foreach (var element in root.GetVisualTreeDescendants().Prepend(root))
         {
+            if (exclude?.Invoke(element) == true)
+                continue;
             Add(element);
             if (element is not IElement { Handler: { } handler })
                 continue;

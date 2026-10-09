@@ -111,7 +111,7 @@ public class MemoryLeakTests
 
         // Removed objects must go while the page is still alive.
         var detachedSurvivors = LeakTracker.CollectNow(context.Detached);
-        var tracked = LeakTracker.TrackTree(view);
+        var tracked = LeakTracker.TrackTree(view, context.IsLongLived);
         tracked.AddRange(context.Tracked);
         foreach (var (surface, _, _) in surfaces)
         {

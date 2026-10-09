@@ -486,7 +486,8 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--s
 - [x] **Load more:** (B2: `RemainingItemsThreshold`; B3: the modes, position, row, `IsLoadMoreActive`, `LoadingMore`) **`LoadMoreMode`** (`None`, **`Manual`**, **`Auto`**, **`AutoOnUserScroll`**); **`LoadMorePosition`** (`End` / **`Start`**); **`LoadMoreCommand`** (+ parameter); **`LoadMoreTemplate`**; **`IsLoadMoreActive`** while loading; optional **`RemainingItemsThreshold`** (+ event / command) alongside load-more UX.
 - [x] **Pull to refresh** (`IsPullToRefreshEnabled`, `IsRefreshing`, `RefreshCommand`, drawn indicator; B2).
 - [x] **Migration artifacts (with MVP):** `collection-view.md` in `skiaui-migrate/references`, [Migration.md](../Migration.md) CollectionView section, and plugin gap / audit updates.
-- [ ] **Later (out of FR-22 MVP):** reordering; row swipe; keyboard item navigation; animated insert / remove.
+- [x] **Row swipe:** `SkUiSwipeView` in the item template (C1).
+- [ ] **Later (out of FR-22 MVP):** reordering; keyboard item navigation; animated insert / remove.
 - [ ] **Benchmarks and tests:**
   - 10k items at device fps while flinging;
   - recycling (no steady-state allocations per scroll);
