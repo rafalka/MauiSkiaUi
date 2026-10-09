@@ -37,7 +37,10 @@ public abstract class BenchScenario
     public virtual TimeSpan MotionDuration => TimeSpan.FromSeconds(1.5);
 
     /// <summary>Sets a property if the library under test has it (newer APIs in baseline comparisons).</summary>
-    protected static void TrySet(object target, string property, object value)
+    protected static void TrySet(object target, string property, object value) => TrySetOption(target, property, value);
+
+    /// <summary>Sets <paramref name="property"/> when the library has it (a no-op on older libraries), for scenarios and their helpers.</summary>
+    public static void TrySetOption(object target, string property, object value)
     {
         var info = target.GetType().GetProperty(property, BindingFlags.Instance | BindingFlags.Public);
         if (info is null || !info.CanWrite)

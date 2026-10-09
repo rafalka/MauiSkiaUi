@@ -205,6 +205,7 @@ Design and checklist: [LayoutSystem.md](LayoutSystem.md).
 - [ ] Drawn `SkUiEntry` / `SkUiEditor` (and Core twins) with an IME proxy (FR-16, Phase D).
 - [x] Each Skia-drawn control derives from **`SkUiView`** (implements `ISkUiView`), is XAML-constructible, works under `SkUiContentView` / `SkUiLayout`, and can be used standalone in the MAUI tree (FR-13).
 - [x] Labels (both layers) have MAUI Label's text properties (`MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`) and custom line breaking (`SkUiTextLineBreaker`), so text can get shorter in its own way (fewer decimals, another ellipsis) instead of the stock ellipsis.
+- [x] Labels (both layers) fit text to their size (C3): text that does not fit is tightened (`AllowsTightening`) and shrunk (`ShrinkToFit`, down to `MinimumFontScale`), every font size alike, as little as needed so nothing is truncated, left past `MaxLines` or broken inside a word, and the lines fit the label's height; text with room grows (`GrowToFill`, up to `MaximumFontScale`).
 - [x] Labels (both layers) draw optional rounded chrome — per-corner radii, border, fill — so badges, chips, tags and tabs need no wrapping border node; buttons inherit it and keep MAUI's uniform `CornerRadius`.
 
 ### FR-5 — Demo gallery

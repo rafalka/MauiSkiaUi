@@ -10,7 +10,9 @@ namespace MauiSkiaUi;
 /// custom <see cref="LineBreaker"/> that can shorten text its own way. Optional
 /// rounded chrome (a badge, a chip, a tag): <see cref="CornerRadii"/> (or the uniform <see cref="CornerRadius"/>),
 /// <see cref="BorderColor"/> and <see cref="BorderWidth"/> shape the <see cref="VisualElement.Background"/> fill without
-/// wrapping the label in a border.
+/// wrapping the label in a border. Text fits the label on request: <see cref="ShrinkToFit"/> makes text that does not
+/// fit smaller (down to <see cref="MinimumFontScale"/>), <see cref="AllowsTightening"/> tightens it first and
+/// <see cref="GrowToFill"/> makes it larger (up to <see cref="MaximumFontScale"/>) to fill the label.
 /// </summary>
 [ContentProperty(nameof(Text))]
 public class SkUiLabel : SkUiView
@@ -30,6 +32,11 @@ public class SkUiLabel : SkUiView
     private double _characterSpacing;
     private TextDecorations _textDecorations;
     private TextTransform _textTransform = TextTransform.Default;
+    private bool _shrinkToFit;
+    private double _minimumFontScale = SkUiTextFit.DefaultMinimumScale;
+    private bool _growToFill;
+    private double _maximumFontScale = SkUiTextFit.DefaultMaximumScale;
+    private bool _allowsTightening;
     private TextAlignment _horizontalTextAlignment;
     private TextAlignment _verticalTextAlignment;
     private Thickness _padding;
@@ -93,6 +100,21 @@ public class SkUiLabel : SkUiView
     /// <summary>Bindable command run with the <c>href</c> of a tapped HTML link.</summary>
     public static readonly BindableProperty LinkTappedCommandProperty = BindableProperty.Create(nameof(LinkTappedCommand), typeof(ICommand), typeof(SkUiLabel), null,
         propertyChanged: (view, _, value) => ((SkUiLabel)view)._linkTappedCommand = (ICommand?)value);
+    /// <summary>Bindable <see cref="ShrinkToFit"/>.</summary>
+    public static readonly BindableProperty ShrinkToFitProperty = BindableProperty.Create(nameof(ShrinkToFit), typeof(bool), typeof(SkUiLabel), false,
+        propertyChanged: (view, _, value) => ((SkUiLabel)view).OnShrinkToFitChanged((bool)value));
+    /// <summary>Bindable <see cref="MinimumFontScale"/>.</summary>
+    public static readonly BindableProperty MinimumFontScaleProperty = BindableProperty.Create(nameof(MinimumFontScale), typeof(double), typeof(SkUiLabel), SkUiTextFit.DefaultMinimumScale,
+        validateValue: SkUiValidate.Fraction, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnMinimumFontScaleChanged((double)value));
+    /// <summary>Bindable <see cref="GrowToFill"/>.</summary>
+    public static readonly BindableProperty GrowToFillProperty = BindableProperty.Create(nameof(GrowToFill), typeof(bool), typeof(SkUiLabel), false,
+        propertyChanged: (view, _, value) => ((SkUiLabel)view).OnGrowToFillChanged((bool)value));
+    /// <summary>Bindable <see cref="MaximumFontScale"/>.</summary>
+    public static readonly BindableProperty MaximumFontScaleProperty = BindableProperty.Create(nameof(MaximumFontScale), typeof(double), typeof(SkUiLabel), SkUiTextFit.DefaultMaximumScale,
+        validateValue: SkUiValidate.AtLeastOne, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnMaximumFontScaleChanged((double)value));
+    /// <summary>Bindable <see cref="AllowsTightening"/>.</summary>
+    public static readonly BindableProperty AllowsTighteningProperty = BindableProperty.Create(nameof(AllowsTightening), typeof(bool), typeof(SkUiLabel), false,
+        propertyChanged: (view, _, value) => ((SkUiLabel)view).OnAllowsTighteningChanged((bool)value));
     /// <summary>Bindable text inset.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiLabel), default(Thickness), defaultValueCreator: view => ((SkUiLabel)view).DefaultPadding, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnPaddingChanged((Thickness)value));
 
@@ -182,6 +204,38 @@ public class SkUiLabel : SkUiView
     public TextDecorations TextDecorations { get => (TextDecorations)GetValue(TextDecorationsProperty); set => SetValue(TextDecorationsProperty, value); }
     /// <summary>Displays <see cref="Text"/> in upper or lower case (invariant culture, as MAUI); <see cref="Text"/> keeps its value.</summary>
     public TextTransform TextTransform { get => (TextTransform)GetValue(TextTransformProperty); set => SetValue(TextTransformProperty, value); }
+    /// <summary>
+    /// Makes text that does not fit the label smaller, down to <see cref="MinimumFontScale"/> (iOS's
+    /// <c>adjustsFontSizeToFitWidth</c>, Android's auto-size): every font size and character spacing, also of spans and
+    /// HTML, is scaled alike, as little as needed so that no text is truncated or left past <see cref="MaxLines"/>, no word
+    /// is broken inside (<see cref="LineBreakMode.WordWrap"/>), a <see cref="LineBreakMode.NoWrap"/> line is not wider
+    /// than the label and the lines are not taller than it. Text that still does not fit is drawn at the minimum scale and
+    /// broken as <see cref="LineBreakMode"/> (or <see cref="LineBreaker"/>) says. The label is measured at the shrunk size
+    /// for the space it is offered, and drawn at the size that fits where it was arranged. With
+    /// <see cref="AllowsTightening"/>, the text is tightened before it shrinks. Default <c>false</c>.
+    /// </summary>
+    public bool ShrinkToFit { get => (bool)GetValue(ShrinkToFitProperty); set => SetValue(ShrinkToFitProperty, value); }
+    /// <summary>
+    /// The smallest scale <see cref="ShrinkToFit"/> shrinks the text to, more than 0 and at most 1 (0.5, default: half the
+    /// font size; 1: never smaller). It scales the size as drawn, after the system text size.
+    /// </summary>
+    public double MinimumFontScale { get => (double)GetValue(MinimumFontScaleProperty); set => SetValue(MinimumFontScaleProperty, value); }
+    /// <summary>
+    /// Makes the text larger, up to <see cref="MaximumFontScale"/>, as large as still fits the label (Android's uniform
+    /// auto-size grows the same way): what <see cref="ShrinkToFit"/> calls fitting, every font size and character spacing
+    /// alike. Give the label a size to fill (a width, and a height or <see cref="MaxLines"/> for wrapped text): measured
+    /// without a limit, one line grows to the maximum and wrapped text until a word no longer fits a line. Default
+    /// <c>false</c>.
+    /// </summary>
+    public bool GrowToFill { get => (bool)GetValue(GrowToFillProperty); set => SetValue(GrowToFillProperty, value); }
+    /// <summary>The largest scale <see cref="GrowToFill"/> grows the text to, finite and at least 1 (default 2: twice the font size).</summary>
+    public double MaximumFontScale { get => (double)GetValue(MaximumFontScaleProperty); set => SetValue(MaximumFontScaleProperty, value); }
+    /// <summary>
+    /// Takes up to 0.05 em (5 % of the font size) from the space after each character before text that does not fit is
+    /// truncated or, with <see cref="ShrinkToFit"/>, shrunk (iOS's <c>allowsDefaultTighteningForTruncation</c>, SwiftUI's
+    /// <c>allowsTightening</c>): as little as fits, only when it does not fit otherwise. Default <c>false</c>.
+    /// </summary>
+    public bool AllowsTightening { get => (bool)GetValue(AllowsTighteningProperty); set => SetValue(AllowsTighteningProperty, value); }
     /// <summary>Horizontal text placement.</summary>
     public TextAlignment HorizontalTextAlignment { get => (TextAlignment)GetValue(HorizontalTextAlignmentProperty); set => SetValue(HorizontalTextAlignmentProperty, value); }
     /// <summary>Vertical text placement.</summary>
@@ -333,6 +387,31 @@ public class SkUiLabel : SkUiView
         if (UsesRichText) InvalidateText(); // spans inherit it; the (empty) plain text would not change
         UpdateDisplayText();
     }
+    /// <summary>Sets <see cref="ShrinkToFit"/> (same as the property setter).</summary>
+    public SkUiLabel SetShrinkToFit(bool value) { ShrinkToFit = value; return this; }
+    private void OnShrinkToFitChanged(bool value) { if (_shrinkToFit == value) return; _shrinkToFit = value; InvalidateText(); }
+    /// <summary>Sets <see cref="MinimumFontScale"/> (same as the property setter).</summary>
+    public SkUiLabel SetMinimumFontScale(double value) { SkUiValidate.ThrowIfNotFraction(value, nameof(value)); MinimumFontScale = value; return this; }
+    private void OnMinimumFontScaleChanged(double value)
+    {
+        if (_minimumFontScale == value) return;
+        _minimumFontScale = value;
+        if (_shrinkToFit) InvalidateText();
+    }
+    /// <summary>Sets <see cref="GrowToFill"/> (same as the property setter).</summary>
+    public SkUiLabel SetGrowToFill(bool value) { GrowToFill = value; return this; }
+    private void OnGrowToFillChanged(bool value) { if (_growToFill == value) return; _growToFill = value; InvalidateText(); }
+    /// <summary>Sets <see cref="MaximumFontScale"/> (same as the property setter).</summary>
+    public SkUiLabel SetMaximumFontScale(double value) { SkUiValidate.ThrowIfNotAtLeastOne(value, nameof(value)); MaximumFontScale = value; return this; }
+    private void OnMaximumFontScaleChanged(double value)
+    {
+        if (_maximumFontScale == value) return;
+        _maximumFontScale = value;
+        if (_growToFill) InvalidateText();
+    }
+    /// <summary>Sets <see cref="AllowsTightening"/> (same as the property setter).</summary>
+    public SkUiLabel SetAllowsTightening(bool value) { AllowsTightening = value; return this; }
+    private void OnAllowsTighteningChanged(bool value) { if (_allowsTightening == value) return; _allowsTightening = value; InvalidateText(); }
     /// <summary>Sets horizontal alignment (same as the property setter).</summary>
     public SkUiLabel SetHorizontalTextAlignment(TextAlignment value) { HorizontalTextAlignment = value; return this; }
     private void OnHorizontalTextAlignmentChanged(TextAlignment value)
@@ -431,7 +510,8 @@ public class SkUiLabel : SkUiView
     }
 
     private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), ScaledFontSize(_fontSize), _lineBreakMode, _lineBreaker,
-        _maxLines, _lineHeight, _characterSpacing, TextDirection, _textRendering, _fontAttributes, _horizontalTextAlignment == TextAlignment.Justify);
+        _maxLines, _lineHeight, _characterSpacing, TextDirection, _textRendering, _fontAttributes, _horizontalTextAlignment == TextAlignment.Justify,
+        _shrinkToFit ? (float)_minimumFontScale : 1, _growToFill ? (float)_maximumFontScale : 1, _allowsTightening);
 
     /// <summary>
     /// Paragraph direction from MAUI <see cref="VisualElement.FlowDirection"/>: an explicit or inherited right-to-left
@@ -561,8 +641,8 @@ public class SkUiLabel : SkUiView
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => UsesRichText
-        ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint)
-        : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint);
+        ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint, heightConstraint)
+        : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint, heightConstraint);
 
     /// <summary>The text's size without padding when wrapped to <paramref name="widthConstraint"/> (buttons place an image beside it).</summary>
     private protected Size MeasureText(double widthConstraint) => UsesRichText

@@ -21,6 +21,10 @@ public static class Scenarios
         new CoreLabelsSimpleMode(),
         new CoreLabelsUpdate(),
         new SkUiLabelsUpdate(),
+        new CoreLabelsFit(),
+        new CoreLabelsFit(idle: true),
+        new SkUiLabelsFit(),
+        new CoreLabelsGrow(),
         new ScrollFling(),
         new VirtualListFling(),
         new Spinners(),
@@ -248,6 +252,139 @@ public sealed class SkUiLabelsUpdate : BenchScenario
         var index = 0;
         foreach (var child in grid.Children)
             ((SkUiLabel)child).Text = $"Value {index++ + _round:0000}";
+        grid.EndUpdating();
+    };
+}
+
+/// <summary>
+/// Text that fits its label (C3): shrink to fit with tightening on texts that fit, shrink a little, shrink a lot and do not
+/// fit even at the minimum (about 190 DIPs a cell headless); update = new texts, fitted again. Libraries without the
+/// options draw the same labels truncated, so a comparison with them is the cost of fitting.
+/// </summary>
+public static class FitTexts
+{
+    private static readonly string[] Tails = ["", " · express delivery", " · express delivery to Kraków, gate 4", " · express delivery to Kraków, gate 4, pick up before noon"];
+
+    public static string Text(int index, int round, bool idle) => $"Order {(index + round) % 10000:0000}" + (idle ? "" : Tails[index % Tails.Length]);
+
+    public static void Apply(object label)
+    {
+        BenchScenario.TrySetOption(label, "ShrinkToFit", true);
+        BenchScenario.TrySetOption(label, "AllowsTightening", true);
+    }
+}
+
+/// <summary>1,000 Core labels that shrink and tighten to fit (or, idle, already fit).</summary>
+public sealed class CoreLabelsFit(bool idle = false) : BenchScenario
+{
+    private int _round;
+
+    public override string Name => idle ? "core-labels-fit-idle" : "core-labels-fit";
+    public override string Description => idle
+        ? "1,000 SkUiCoreLabel with ShrinkToFit + AllowsTightening whose text fits; update = new texts (no-op without the options)"
+        : "1,000 SkUiCoreLabel with ShrinkToFit + AllowsTightening, texts fitting to too long; update = new texts (no-op without the options)";
+
+    public override View Build()
+    {
+        var grid = Scenarios.CoreGrid(Scenarios.Count);
+        grid.StartUpdating();
+        for (var i = 0; i < Scenarios.Count; i++)
+        {
+            var label = new SkUiCoreLabel();
+            label.SetText(FitTexts.Text(i, 0, idle));
+            label.SetFontSize(14);
+            label.SetLineBreakMode(LineBreakMode.TailTruncation);
+            FitTexts.Apply(label);
+            grid.Add(label, i / 2, i % 2);
+        }
+        grid.EndUpdating();
+        return Scenarios.Scroll(Scenarios.Host(grid));
+    }
+
+    public override Action<View>? Update => root =>
+    {
+        _round++;
+        var grid = (SkUiCoreGrid)((SkUiCoreHost)((SkUiScrollView)root).Content!).Content!;
+        grid.StartUpdating();
+        var index = 0;
+        foreach (var child in grid.Children)
+            ((SkUiCoreLabel)child).SetText(FitTexts.Text(index++, _round, idle));
+        grid.EndUpdating();
+    };
+}
+
+/// <summary>1,000 SkUi labels that shrink and tighten to fit.</summary>
+public sealed class SkUiLabelsFit : BenchScenario
+{
+    private int _round;
+
+    public override string Name => "skui-labels-fit";
+    public override string Description => "1,000 SkUiLabel with ShrinkToFit + AllowsTightening, texts fitting to too long; update = new texts (no-op without the options)";
+
+    public override View Build()
+    {
+        var grid = Scenarios.SkUiGrid(Scenarios.Count);
+        grid.StartUpdating();
+        for (var i = 0; i < Scenarios.Count; i++)
+        {
+            var label = new SkUiLabel { Text = FitTexts.Text(i, 0, idle: false), FontSize = 14, LineBreakMode = LineBreakMode.TailTruncation };
+            FitTexts.Apply(label);
+            Grid.SetRow(label, i / 2);
+            Grid.SetColumn(label, i % 2);
+            grid.Children.Add(label);
+        }
+        grid.EndUpdating();
+        return Scenarios.Scroll(grid);
+    }
+
+    public override Action<View>? Update => root =>
+    {
+        _round++;
+        var grid = (SkUiGrid)((SkUiScrollView)root).Content!;
+        grid.StartUpdating();
+        var index = 0;
+        foreach (var child in grid.Children)
+            ((SkUiLabel)child).Text = FitTexts.Text(index++, _round, idle: false);
+        grid.EndUpdating();
+    };
+}
+
+/// <summary>1,000 Core labels whose numbers grow to fill their cells (36 DIPs high).</summary>
+public sealed class CoreLabelsGrow : BenchScenario
+{
+    private int _round;
+
+    public override string Name => "core-labels-grow";
+    public override string Description => "1,000 SkUiCoreLabel with GrowToFill (up to 3x) filling their cells; update = new numbers (no-op without the options)";
+
+    private static string Number(int index, int round) => $"{(index * 37 + round) % 100000:N0}";
+
+    public override View Build()
+    {
+        var grid = Scenarios.CoreGrid(Scenarios.Count);
+        grid.StartUpdating();
+        for (var i = 0; i < Scenarios.Count; i++)
+        {
+            var label = new SkUiCoreLabel();
+            label.SetText(Number(i, 0));
+            label.SetFontSize(14);
+            label.SetLineBreakMode(LineBreakMode.NoWrap);
+            TrySetOption(label, "GrowToFill", true);
+            TrySetOption(label, "MaximumFontScale", 3d);
+            grid.Add(label, i / 2, i % 2);
+        }
+        grid.EndUpdating();
+        return Scenarios.Scroll(Scenarios.Host(grid));
+    }
+
+    public override Action<View>? Update => root =>
+    {
+        _round++;
+        var grid = (SkUiCoreGrid)((SkUiCoreHost)((SkUiScrollView)root).Content!).Content!;
+        grid.StartUpdating();
+        var index = 0;
+        foreach (var child in grid.Children)
+            ((SkUiCoreLabel)child).SetText(Number(index++, _round));
         grid.EndUpdating();
     };
 }

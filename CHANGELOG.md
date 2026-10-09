@@ -15,6 +15,13 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### New features
 
+- **Text that fits (C3):** labels fit their text to their size, on `SkUiLabel` and `SkUiCoreLabel`, inherited by buttons ([SkUiLabel.md](docs/controls/SkUiLabel.md#shrink-to-fit)).
+  - `ShrinkToFit` and `MinimumFontScale` (default 0.5): text that does not fit is drawn smaller, down to the minimum scale. It does not fit when a line would be truncated, lines are past `MaxLines`, word wrap would break a word inside, a `NoWrap` line is wider than the label, or the lines are taller than it (a `HeightRequest`, a fixed grid row). Words that wrap whole keep the size.
+  - `AllowsTightening`: up to 0.05 em less space after each character before the text is truncated or shrunk (as iOS's `allowsDefaultTighteningForTruncation`).
+  - `GrowToFill` and `MaximumFontScale` (default 2): text with room is drawn larger, as large as still fits (as Android's uniform auto-size).
+  - Every font size and character spacing scaled alike, also of spans and HTML; as little as needed (quarter-DIP steps). Text still too long is broken by `LineBreakMode` at the minimum; a custom `LineBreaker` shortens what still does not fit there.
+  - Measured for the space offered, drawn for the slot arranged; free when off, and a few layouts when the text or the space changes (the fit is remembered for measure and draw).
+  - Demo page **Label** (all five properties); the samples app's **Text that fits** has a headline that tightens and shrinks and a year that grows.
 - **Refresh view (C2):** `SkUiRefreshView` is MAUI's `RefreshView` around drawn content: its XAML ports by changing the prefix ([SkUiRefreshView.md](docs/controls/SkUiRefreshView.md)).
   - `IsRefreshing` (two-way), `Command` / `CommandParameter`, `RefreshColor`, `IsRefreshEnabled` and `Refreshing`, with MAUI's rules: `IsRefreshing` stays `false` while the view is disabled, the pull is off or the command cannot execute; disabling the view or turning `IsRefreshEnabled` off ends a refresh.
   - A drag in a vertical drawn scroller of the content (`SkUiScrollView`, `SkUiVirtualScrollView`, `SkUiCollectionView`, Core scroll views) pulls at its top, also on short content, with overscroll off, and after the same drag scrolled it to the top; with nested scrollers the outermost one under the finger. Elsewhere (content without a scroller, a header above a list) the view itself pulls, while the content's scroller is at its top.

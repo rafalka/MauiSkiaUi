@@ -118,6 +118,13 @@ public sealed class LabelDemoPage : ComponentDemoPage
         Choice(nameof(SkUiLabel.TextTransform), Enum.GetValues<TextTransform>(), TextTransform.Default, value => { skia.TextTransform = value; native.TextTransform = value; }, () => skia.TextTransform, () => native.TextTransform);
         // SkiaUi only: a custom line breaker (MAUI's Label has none, so the native side keeps its LineBreakMode).
         Choice(nameof(SkUiLabel.LineBreaker), LineBreakers.Keys.ToArray(), NoLineBreaker, value => skia.LineBreaker = LineBreakers[value], () => LineBreakerName(skia.LineBreaker));
+        // SkiaUi only: text that does not fit gets tightened, then smaller, down to MinimumFontScale (try a truncation mode
+        // or MaxLines); text with room grows up to MaximumFontScale.
+        Toggle(nameof(SkUiLabel.AllowsTightening), false, value => skia.AllowsTightening = value, () => skia.AllowsTightening);
+        Toggle(nameof(SkUiLabel.ShrinkToFit), false, value => skia.ShrinkToFit = value, () => skia.ShrinkToFit);
+        Number(nameof(SkUiLabel.MinimumFontScale), 0.1, 1, 0.5, value => skia.MinimumFontScale = value, () => skia.MinimumFontScale);
+        Toggle(nameof(SkUiLabel.GrowToFill), false, value => skia.GrowToFill = value, () => skia.GrowToFill);
+        Number(nameof(SkUiLabel.MaximumFontScale), 1, 4, 2, value => skia.MaximumFontScale = value, () => skia.MaximumFontScale);
         Choice(nameof(SkUiLabel.HorizontalTextAlignment), Enum.GetValues<TextAlignment>(), TextAlignment.Start, value => { skia.HorizontalTextAlignment = value; native.HorizontalTextAlignment = value; }, () => skia.HorizontalTextAlignment, () => native.HorizontalTextAlignment);
         Choice(nameof(SkUiLabel.FontAttributes), new[] { FontAttributes.None, FontAttributes.Bold, FontAttributes.Italic, FontAttributes.Bold | FontAttributes.Italic }, FontAttributes.None, value => { skia.FontAttributes = value; native.FontAttributes = value; }, () => skia.FontAttributes, () => native.FontAttributes);
         ColorEditor(nameof(SkUiLabel.TextColor), Ink, value => { skia.TextColor = value; native.TextColor = value; }, () => skia.TextColor, () => native.TextColor);

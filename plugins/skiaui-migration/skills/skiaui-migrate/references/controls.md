@@ -33,7 +33,7 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 
 | MAUI | SkiaUi | Notes |
 | --- | --- | --- |
-| `Label` | `sk:SkUiLabel` | Text properties, `MaxLines`, `LineBreakMode`, `FormattedText` / `Span` (span `TapGestureRecognizer`s work), `TextType="Html"` |
+| `Label` | `sk:SkUiLabel` | Text properties, `MaxLines`, `LineBreakMode`, `FormattedText` / `Span` (span `TapGestureRecognizer`s work), `TextType="Html"`. Code that shrank (or grew) the font size until the text fit becomes `ShrinkToFit="True"` with `MinimumFontScale` (or `GrowToFill="True"` with `MaximumFontScale`); native tightening (iOS `AllowsDefaultTighteningForTruncation`) becomes `AllowsTightening="True"` |
 | `Button` | `sk:SkUiButton` | `Clicked`, `Command`, `Pressed` / `Released`, `ImageSource`, `ContentLayout`, `CornerRadius`, `BorderColor` / `BorderWidth`, `Padding`. Text does not wrap by default (as MAUI) |
 | `Image` | `sk:SkUiImage` | `Source` (files, `MauiImage`, `FontImageSource`, URIs, streams), `Aspect`, `IsAnimationPlaying`; plus `Transformations`, `DownsampleWidth` / `DownsampleHeight`, `LoadingPlaceholder`, `ErrorPlaceholder` (FFImageLoading-style) |
 | `ImageButton` | `sk:SkUiImageButton` | |

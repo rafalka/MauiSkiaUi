@@ -138,6 +138,13 @@ internal static class SkUiTextTransform
 /// <param name="Rendering">Shaping mode.</param>
 /// <param name="FontAttributes">Requested bold / italic: drawn synthetically when <paramref name="Typeface"/> lacks them.</param>
 /// <param name="Justify">Horizontal <see cref="TextAlignment.Justify"/>: wrapped lines but a paragraph's last are stretched to the width.</param>
+/// <param name="MinimumScale">Shrink to fit (<see cref="SkUiTextFit"/>): the smallest <paramref name="Scale"/> the layout picks
+/// so the text fits its slot; 1 (default): no shrinking.</param>
+/// <param name="MaximumScale">Grow to fill: the largest <paramref name="Scale"/> the layout picks; 1 (default): no growing.</param>
+/// <param name="AllowsTightening">Whether the layout tightens (<paramref name="Tightening"/>, up to
+/// <see cref="SkUiTextFit.MaximumTightening"/>) before it shrinks or truncates.</param>
+/// <param name="Scale">Factor of every font size and character spacing (the fit sets it; labels pass 1).</param>
+/// <param name="Tightening">Ems (of each font size) taken from the space after each character (the fit sets it; labels pass 0).</param>
 internal readonly record struct SkUiTextStyle(
     SKTypeface Typeface,
     double FontSize,
@@ -149,16 +156,35 @@ internal readonly record struct SkUiTextStyle(
     SkUiTextDirection Direction = SkUiTextDirection.Auto,
     SkUiTextRendering Rendering = SkUiTextRendering.Default,
     FontAttributes FontAttributes = FontAttributes.None,
-    bool Justify = false);
+    bool Justify = false,
+    float MinimumScale = 1,
+    float MaximumScale = 1,
+    bool AllowsTightening = false,
+    float Scale = 1,
+    float Tightening = 0)
+{
+    // The fit's values are floats: every layout and remembered fit carries a style, and float precision is plenty for scales.
+
+    /// <summary>Whether the layout fits the text to its slot: it shrinks, grows or tightens it (<see cref="SkUiTextFit"/>).</summary>
+    internal bool IsFitted => MinimumScale < 1 || MaximumScale > 1 || AllowsTightening;
+
+    /// <summary>The space drawn after each character of text <paramref name="fontSize"/> DIPs (before <see cref="Scale"/>) with <paramref name="spacing"/>.</summary>
+    internal float DrawnSpacing(double spacing, double fontSize) => (float)((spacing - Tightening * fontSize) * Scale);
+
+    /// <summary>Whether lines wrap (rather than one line per paragraph, cut or not).</summary>
+    internal bool Wraps => LineBreakMode is LineBreakMode.WordWrap or LineBreakMode.CharacterWrap
+        || (LineBreakMode == LineBreakMode.TailTruncation && MaxLines > 0);
+}
 
 /// <summary>
 /// Shared text measure / paint engine for <see cref="SkUiLabel"/> and <see cref="SkUiCoreLabel"/> (one
 /// implementation for both layers). Text is shaped with HarfBuzz (<see cref="SkUiShaping"/>): complex scripts,
 /// ligatures, kerning, bidirectional (RTL / mixed) text and per-character font fallback. Broken, shaped lines
 /// are cached as text blobs keyed by wrap width and <see cref="SkUiTextStyle"/>, so paint-only changes (color,
-/// alignment, decorations) and re-paints never re-shape or re-wrap.
+/// alignment, decorations) and re-paints never re-shape or re-wrap. A fitted style shrinks, grows or tightens the text to fit
+/// its slot (<see cref="SkUiTextFit"/>).
 /// </summary>
-internal sealed class SkUiTextLayout
+internal sealed class SkUiTextLayout : ISkUiTextFitLayout
 {
     internal const string DefaultEllipsis = "...";
     private readonly Dictionary<SKTypeface, SKFont> _fonts = [];
@@ -176,6 +202,10 @@ internal sealed class SkUiTextLayout
     // _maxLineWidth then yields the same lines, so measure-at-constraint and draw-at-arranged-width share one layout.
     private bool _naturalFit;
     private float _maxLineWidth;
+    // The fit (SkUiTextFit): whether the lines show all the text, and the widest paragraph unbroken.
+    private bool _fits;
+    private float _widestParagraph;
+    private SkUiTextFit? _fit;
 
     /// <summary>
     /// A line before shaping: a range of a shaped paragraph, or a synthesized string (a truncation).
@@ -204,6 +234,7 @@ internal sealed class SkUiTextLayout
     {
         _brokenWidth = double.NaN;
         _naturalFit = false;
+        _fit?.Clear();
     }
 
     private static SkUiTextRendering Resolve(SkUiTextRendering rendering) =>
@@ -219,7 +250,7 @@ internal sealed class SkUiTextLayout
     private SkUiShaping.Paragraph ShapeParagraphCore(string text, SKFont primary)
     {
         var direction = _style.Direction;
-        var spacing = (float)_style.CharacterSpacing;
+        var spacing = _style.DrawnSpacing(_style.CharacterSpacing, _style.FontSize);
         switch (_style.Rendering)
         {
             case SkUiTextRendering.Simple:
@@ -255,7 +286,7 @@ internal sealed class SkUiTextLayout
 
     private SKFont Primary(in SkUiTextStyle style)
     {
-        var (typeface, size) = (style.Typeface, style.FontSize);
+        var (typeface, size) = (style.Typeface, style.FontSize * style.Scale);
         if (!ReferenceEquals(_typeface, typeface) || _fontSize != (float)size || _fontAttributes != style.FontAttributes)
         {
             // Text blobs in recorded pictures hold their own typeface references, so old fonts can go.
@@ -281,14 +312,17 @@ internal sealed class SkUiTextLayout
         _style = style;
         LayoutCount++;
         LastLayoutSimple = true;
+        _widestParagraph = 0;
         var lines = new List<SkUiShaping.Line>();
         var natural = true;
+        var fits = true;
         if (text.Length > 0)
         {
             var mode = style.LineBreaker is { } breaker ? StockMode(breaker) : style.LineBreakMode;
             if (mode is null)
             {
-                // Custom breaker: it decides the logical lines; each line is shaped as its own paragraph.
+                // Custom breaker: it decides the logical lines; each line is shaped as its own paragraph. (The fit
+                // tries the stock mode it falls back to, see Fits.)
                 natural = false;
                 var logical = style.LineBreaker!(new SkUiTextLineBreakContext(this, text, width, style.MaxLines, style.LineBreakMode, primary));
                 foreach (var line in logical ?? [])
@@ -304,7 +338,7 @@ internal sealed class SkUiTextLayout
                 specs.Clear();
                 try
                 {
-                    natural = BreakStock(text, width, mode.Value, style.MaxLines, DefaultEllipsis, primary, specs);
+                    natural = BreakStock(text, width, mode.Value, style.MaxLines, DefaultEllipsis, primary, specs, out fits);
                     var justifyWidth = style.Justify ? (float)width : (float?)null;
                     foreach (var spec in specs)
                         lines.Add(spec.Text is { } synthesized
@@ -320,10 +354,47 @@ internal sealed class SkUiTextLayout
         ApplyLineHeight(lines, style.LineHeight);
         _lines = lines;
         _naturalFit = natural;
+        _fits = fits;
         _brokenWidth = width;
         _maxLineWidth = 0;
         foreach (var line in lines)
             _maxLineWidth = Math.Max(_maxLineWidth, line.Width);
+    }
+
+    /// <summary>
+    /// <paramref name="style"/> at the scale and tightening <see cref="SkUiTextFit"/> picks for a
+    /// <paramref name="width"/>×<paramref name="height"/> content slot; unchanged when the style is not fitted.
+    /// </summary>
+    private SkUiTextStyle Fitted(string text, in SkUiTextStyle style, double width, double height) =>
+        style.IsFitted ? (_fit ??= new SkUiTextFit()).Fit(this, text, style, width, height) : style;
+
+    /// <inheritdoc />
+    bool ISkUiTextFitLayout.Fits(object text, in SkUiTextStyle style, double width, double height, out double estimate)
+    {
+        // A custom breaker shortens the fitted text its own way: the text fits when it fits by the mode it falls back to.
+        var stock = style.LineBreaker is { } breaker ? style with { LineBreaker = null, LineBreakMode = StockMode(breaker) ?? style.LineBreakMode } : style;
+        var trial = SkUiTextFit.TrialStyle(stock);
+        EnsureLines((string)text, SkUiTextFit.TrialWidth(width, stock), trial, Primary(trial));
+        return SkUiTextFit.Check(_fits, (float)LinesSize().Height, _widestParagraph, stock, width, height, out estimate);
+    }
+
+    /// <inheritdoc />
+    Size ISkUiTextFitLayout.Extent(object text, in SkUiTextStyle style, double width)
+    {
+        EnsureLines((string)text, width, style, Primary(style));
+        return LinesSize();
+    }
+
+    /// <inheritdoc />
+    bool ISkUiTextFitLayout.SameText(object text, object other) => string.Equals((string)text, (string)other, StringComparison.Ordinal);
+
+    /// <summary>The widest line and the lines' height.</summary>
+    private Size LinesSize()
+    {
+        var height = 0f;
+        foreach (var line in _lines)
+            height += line.Height;
+        return new Size(_maxLineWidth, height);
     }
 
     private static LineBreakMode? StockMode(SkUiTextLineBreaker breaker)
@@ -377,7 +448,7 @@ internal sealed class SkUiTextLayout
         if (text.Length == 0)
             return [];
         var specs = new List<LineSpec>();
-        BreakStock(text, double.IsNaN(width) ? 0 : Math.Max(0, width), mode, maxLines, ellipsis, primary, specs);
+        BreakStock(text, double.IsNaN(width) ? 0 : Math.Max(0, width), mode, maxLines, ellipsis, primary, specs, out _);
         var lines = new string[specs.Count];
         for (var index = 0; index < specs.Count; index++)
         {
@@ -392,17 +463,21 @@ internal sealed class SkUiTextLayout
     /// Breaks <paramref name="text"/> into <paramref name="specs"/> for a stock <paramref name="mode"/>, keeping at most
     /// <paramref name="maxLines"/> lines (MAUI's <c>MaxLines</c>): wrapped lines past it are dropped; with tail truncation
     /// the text wraps and its last kept line ends with <paramref name="ellipsis"/> when more text follows.
+    /// <c>fits</c> tells the fit whether the lines show all the text: nothing truncated or left past
+    /// <paramref name="maxLines"/>, no word broken inside (word wrap) and no unwrapped line wider than <paramref name="width"/>.
     /// </summary>
     /// <returns>Whether the lines are the same at any width at least as wide as the widest (nothing wrapped or truncated).</returns>
-    private bool BreakStock(string text, double width, LineBreakMode mode, int maxLines, string ellipsis, SKFont primary, List<LineSpec> specs)
+    private bool BreakStock(string text, double width, LineBreakMode mode, int maxLines, string ellipsis, SKFont primary, List<LineSpec> specs, out bool fits)
     {
         var natural = true;
+        fits = true;
         var limit = maxLines > 0 ? maxLines : int.MaxValue;
         var wrapTail = mode == LineBreakMode.TailTruncation && maxLines > 0;
         foreach (var source in SplitParagraphs(text))
         {
             if (specs.Count == limit)
             {
+                fits = false;
                 if (wrapTail)
                 {
                     EllipsizeLast(specs, width, ellipsis, primary);
@@ -411,8 +486,10 @@ internal sealed class SkUiTextLayout
                 break;
             }
             var paragraph = ShapeParagraph(source, primary);
+            _widestParagraph = Math.Max(_widestParagraph, paragraph.Width);
             if (double.IsInfinity(width) || mode == LineBreakMode.NoWrap || paragraph.Width <= width)
             {
+                fits &= !(paragraph.Width > width); // NoWrap: drawn past the width
                 specs.Add(new LineSpec(paragraph, 0, source.Length, null));
                 continue;
             }
@@ -422,10 +499,13 @@ internal sealed class SkUiTextLayout
                 case LineBreakMode.HeadTruncation:
                 case LineBreakMode.MiddleTruncation:
                 case LineBreakMode.TailTruncation when !wrapTail:
+                    fits = false;
                     specs.Add(new LineSpec(null, 0, 0, Truncate(paragraph, 0, width, mode, ellipsis, primary)));
                     break;
                 default:
-                    if (Wrap(paragraph, width, mode != LineBreakMode.CharacterWrap, primary, specs, limit) && wrapTail)
+                    var leftOver = Wrap(paragraph, width, mode != LineBreakMode.CharacterWrap, primary, specs, limit, out var splitWord);
+                    fits &= !leftOver && !splitWord;
+                    if (leftOver && wrapTail)
                     {
                         EllipsizeLast(specs, width, ellipsis, primary);
                         return false;
@@ -447,10 +527,12 @@ internal sealed class SkUiTextLayout
     /// Greedy line breaking over shaped advances (grapheme-safe; words, hyphens and CJK boundaries), adding lines until
     /// <paramref name="specs"/> holds <paramref name="limit"/>. <paramref name="primary"/> fills a simple paragraph's advances
     /// on demand (<c>null</c> for shaped paragraphs).
+    /// <c>splitWord</c>: whether a word (<paramref name="words"/>) was broken inside, its line having no break opportunity.
     /// </summary>
     /// <returns>Whether text was left over at the limit.</returns>
-    internal static bool Wrap(SkUiShaping.Paragraph paragraph, double width, bool words, SKFont? primary, List<LineSpec> specs, int limit)
+    internal static bool Wrap(SkUiShaping.Paragraph paragraph, double width, bool words, SKFont? primary, List<LineSpec> specs, int limit, out bool splitWord)
     {
+        splitWord = false;
         if (primary is not null)
             SkUiShaping.EnsureAdvances(paragraph, primary);
         var text = paragraph.Text;
@@ -485,6 +567,7 @@ internal sealed class SkUiTextLayout
                 end = lastBreak;
             else
             {
+                splitWord |= words;
                 end = index;
                 while (end > start && !boundary[end]) end--;
                 if (end <= start)
@@ -572,14 +655,17 @@ internal sealed class SkUiTextLayout
         };
     }
 
-    /// <summary>Content size in DIPs including <paramref name="padding"/>.</summary>
-    internal Size Measure(string text, in SkUiTextStyle style, Thickness padding, double widthConstraint)
+    /// <summary>
+    /// Content size in DIPs including <paramref name="padding"/>. <paramref name="heightConstraint"/> only matters to a fitted
+    /// style.
+    /// </summary>
+    internal Size Measure(string text, in SkUiTextStyle style, Thickness padding, double widthConstraint, double heightConstraint = double.PositiveInfinity)
     {
-        var primary = Primary(style);
         var contentWidth = double.IsInfinity(widthConstraint)
             ? double.PositiveInfinity
             : Math.Max(0, widthConstraint - padding.HorizontalThickness);
-        EnsureLines(text, contentWidth, style, primary);
+        var fitted = Fitted(text, style, contentWidth, SkUiTextFit.ContentHeight(heightConstraint, padding));
+        EnsureLines(text, contentWidth, fitted, Primary(fitted));
         var width = 0f;
         var height = 0f;
         foreach (var line in _lines)
@@ -595,7 +681,8 @@ internal sealed class SkUiTextLayout
     /// and <see cref="TextAlignment.End"/> follow each paragraph's direction (Start is the right edge for RTL).
     /// Horizontal <see cref="TextAlignment.Justify"/> lines were stretched by the layout (<see cref="SkUiTextStyle.Justify"/>),
     /// a paragraph's last line is at Start; vertical Justify spreads the lines over the height (one line: Start).
-    /// <paramref name="decorations"/> are drawn under / through each line's glyphs in the text paint.
+    /// <paramref name="decorations"/> are drawn under / through each line's glyphs in the text paint. A fitted style is
+    /// fitted to the padded slot.
     /// </summary>
     internal void Draw(SKCanvas canvas, string text, in SkUiTextStyle style, Thickness padding,
         double width, double height, TextAlignment horizontal, TextAlignment vertical, SKPaint paint,
@@ -603,9 +690,10 @@ internal sealed class SkUiTextLayout
     {
         if (text.Length == 0)
             return;
-        var primary = Primary(style);
         var available = Math.Max(0, width - padding.HorizontalThickness);
-        EnsureLines(text, available, style, primary);
+        var fitted = Fitted(text, style, available, SkUiTextFit.ContentHeight(height, padding));
+        var primary = Primary(fitted);
+        EnsureLines(text, available, fitted, primary);
         var total = 0f;
         foreach (var line in _lines)
             total += line.Height;

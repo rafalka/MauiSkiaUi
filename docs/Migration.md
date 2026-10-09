@@ -138,7 +138,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `CollectionView` (+ `RefreshView`) | `SkUiCollectionView` | SkiaUi's own API, not a prefix swap: see [Lists](#lists-collectionview) |
 | `Border` | `SkUiBorder` | `StrokeShape`, brush strokes, dashes |
 | `Frame` (obsolete) | `SkUiBorder` | `CornerRadius` → `StrokeShape="RoundRectangle N"`, `HasShadow` → `Shadow`, `BorderColor` → `Stroke` |
-| `Label` | `SkUiLabel` | Spans, span taps, `TextType="Html"` |
+| `Label` | `SkUiLabel` | Spans, span taps, `TextType="Html"`. Plus `ShrinkToFit` / `MinimumFontScale` and `AllowsTightening` (text that does not fit gets tighter and smaller), `GrowToFill` / `MaximumFontScale` (text that fills its label) and a custom `LineBreaker` |
 | `Button` | `SkUiButton` | `ImageSource`, `ContentLayout` |
 | `Image` | `SkUiImage` | Shared memory and disk cache, transformations, placeholders |
 | `ImageButton` | `SkUiImageButton` | |
