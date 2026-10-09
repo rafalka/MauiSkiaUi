@@ -239,6 +239,9 @@ internal sealed class SkUiPullToRefresh(ISkUiRefreshOwner owner)
                 if (change.Kind == SkUiChangeKind.CanExecute)
                     run.OnUiThread(run.OnCanExecuteChanged);
             })).Listen(command);
+            // It may have become executable between the caller's check and the subscription (a fast async command), and
+            // that notification is gone: ask again now that a later one would be heard.
+            OnCanExecuteChanged();
         }
 
         /// <summary>Runs <paramref name="action"/> on the UI thread the run started on.</summary>

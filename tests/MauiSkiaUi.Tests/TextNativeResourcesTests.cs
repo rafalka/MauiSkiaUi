@@ -53,6 +53,12 @@ public class TextNativeResourcesTests
         Assert.NotSame(font, SkUiTextResources.Font(Mono, 16, FontAttributes.Bold));
         Assert.Same(SkUiTextResources.TextPaint, SkUiTextResources.TextPaint);
 
+        // Kept for the process: many sizes (an animated font size) never drop a font a layout may still hold.
+        for (var size = 1000f; size < 1000f + 1100 / 64f; size += 1 / 64f)
+            SkUiTextResources.Font(Mono, size, FontAttributes.None);
+        Assert.Same(font, SkUiTextResources.Font(Mono, 16, FontAttributes.None));
+        Assert.NotEqual(IntPtr.Zero, font.Handle);
+
         // Labels keep no font or paint of their own: two layouts measure with the one shared font.
         var style = new SkUiTextStyle(Mono, 16, Rendering: SkUiTextRendering.Shaped);
         var (first, second) = (new SkUiTextLayout(), new SkUiTextLayout());

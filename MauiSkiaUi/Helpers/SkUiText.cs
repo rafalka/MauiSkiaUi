@@ -68,25 +68,26 @@ internal static class SkUiTypefaces
 /// </summary>
 internal static class SkUiTextResources
 {
-    /// <summary>The most fonts kept; past it the cache starts over (fonts still in use stay with their layouts).</summary>
-    private const int MaxFonts = 1024;
-
     private static readonly ConcurrentDictionary<(SKTypeface Typeface, float Size, FontAttributes Attributes), SKFont> Fonts = new();
     [ThreadStatic] private static SKPaint? _textPaint;
 
     /// <summary>
     /// The font that draws <paramref name="typeface"/> at <paramref name="size"/> with <paramref name="attributes"/>
-    /// (<see cref="SkUiTextLayout.CreateFont"/>). Never disposed: layouts and recorded pictures may still use it; one dropped
-    /// when the cache starts over (an animated font size) is left to the GC.
+    /// (<see cref="SkUiTextLayout.CreateFont"/>), kept for the process: layouts and recordings hold it without owning it, so
+    /// none is ever released (nor left to the finalizer). A font is small (a typeface, a size and flags: glyphs are cached
+    /// by Skia, shared and bounded), so one per size the app draws costs little; an animated font size adds one per distinct
+    /// size shown.
     /// </summary>
     internal static SKFont Font(SKTypeface typeface, float size, FontAttributes attributes)
     {
         var key = (typeface, size, attributes);
         if (Fonts.TryGetValue(key, out var font))
             return font;
-        if (Fonts.Count >= MaxFonts)
-            Fonts.Clear();
-        return Fonts.GetOrAdd(key, static key => SkUiTextLayout.CreateFont(key.Typeface, key.Size, key.Attributes));
+        var created = SkUiTextLayout.CreateFont(typeface, size, attributes);
+        font = Fonts.GetOrAdd(key, created);
+        if (!ReferenceEquals(font, created))
+            created.Dispose(); // another thread added it first
+        return font;
     }
 
     /// <summary>The antialiased paint labels draw text with on this thread; callers set its color, nothing else.</summary>

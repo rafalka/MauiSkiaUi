@@ -381,6 +381,24 @@ public class PullToRefreshTests
     }
 
     [Fact]
+    public void AnAutomaticRefreshEndsWhenTheCommandFinishedBeforeItsNotificationWasHeard()
+    {
+        // Busy when asked right after it ran, done at once after that, and it never raises CanExecuteChanged: a notification
+        // sent between the check and the subscription is lost, so the run asks again once subscribed.
+        var busy = false;
+        var command = new GuardedCommand(() =>
+        {
+            if (!busy)
+                return true;
+            busy = false;
+            return false;
+        }, () => busy = true);
+        var refresh = new SkUiRefreshView { Content = Scroller(100), Command = command, RefreshCompletion = SkUiRefreshCompletion.Automatic };
+        refresh.IsRefreshing = true;
+        Assert.False(refresh.IsRefreshing);
+    }
+
+    [Fact]
     public void AnAutomaticRefreshRunEndsWhenAHandlerOrTheCommandThrows()
     {
         // The run (its deferrals, the command it waits for) ends instead of staying alive. IsRefreshing itself stays true: an
