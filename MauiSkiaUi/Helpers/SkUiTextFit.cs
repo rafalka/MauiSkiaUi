@@ -1,3 +1,5 @@
+using SkiaSharp;
+
 namespace MauiSkiaUi;
 
 /// <summary>A text layout that fits its text to a slot (<see cref="SkUiTextFit"/>): it lays the text out at a trial size.</summary>
@@ -14,9 +16,15 @@ internal interface ISkUiTextFitLayout
 
     /// <summary>
     /// Lays <paramref name="text"/> out as drawn with the fitted <paramref name="style"/> in a slot <paramref name="width"/>
-    /// wide (the layout measure and draw then reuse) and returns the lines' size.
+    /// wide (the layout measure and draw then reuse) and returns the lines' size as drawn (scaled).
     /// </summary>
     Size Extent(object text, in SkUiTextStyle style, double width);
+
+    /// <summary>
+    /// Starts (<c>true</c>) or ends keeping shaped paragraphs between layouts: the layouts of one fit shape the same
+    /// paragraphs with the same fonts and differ in width and tightening only. Ending releases them.
+    /// </summary>
+    void ReuseShaping(bool reuse);
 
     /// <summary>Whether <paramref name="text"/> and <paramref name="other"/> lay out alike.</summary>
     bool SameText(object text, object other);
@@ -55,14 +63,15 @@ internal sealed class SkUiTextFit
     /// <summary>DIPs the lines may be taller than the slot and still fit (sums of float line heights, a slot rounded by a layout).</summary>
     internal const double HeightTolerance = 0.5;
 
-    /// <summary>
-    /// DIPs a trial keeps free at the end of each line: trials lay text out at the base size, and the scaled layout drawn
-    /// may measure a rounding error wider.
-    /// </summary>
-    private const double WidthMargin = 0.01;
 
     private Entry _recent;
     private Entry _older;
+
+    /// <summary>
+    /// The layout's shaped paragraphs while a fit runs (<see cref="ISkUiTextFitLayout.ReuseShaping"/>), kept here so only
+    /// fitted labels pay for them.
+    /// </summary>
+    internal object? Shaping;
 
     /// <summary>
     /// A fitted slot: where on the path its text was fitted (<see cref="Path.Last"/>: the end, whether it fits or not) and
@@ -78,16 +87,45 @@ internal sealed class SkUiTextFit
         double.IsNaN(height) || double.IsPositiveInfinity(height) ? double.PositiveInfinity : Math.Max(0, height - padding.VerticalThickness);
 
     /// <summary>
-    /// What a trial of <paramref name="style"/> lays out: the text at the base size (scale 1) in a slot
-    /// <see cref="TrialWidth"/> wide. Text drawn s times as large breaks into the same lines in a slot s times as wide
-    /// (advances, character spacing, tightening and line heights all scale with it), so trials never create fonts at new
-    /// sizes; only the scale picked is laid out at its size.
+    /// The style lines of <paramref name="style"/> are laid out with: its scale left out. Text drawn s times as large breaks
+    /// into the same lines in a slot s times as wide (advances, character spacing, tightening and line heights all scale
+    /// with it), so a fitted text is laid out at its font size in a slot <see cref="UnscaledWidth"/> wide and drawn scaled
+    /// (<see cref="BeginScaled"/>): trials create no fonts, and the trial that fits is the layout drawn.
     /// </summary>
-    internal static SkUiTextStyle TrialStyle(in SkUiTextStyle style) => style with { Scale = 1 };
+    internal static SkUiTextStyle Unscaled(in SkUiTextStyle style) => style.Scale == 1 ? style : style with { Scale = 1 };
 
-    /// <summary>The width a trial of <paramref name="style"/> lays the text out in, for a slot <paramref name="width"/> wide (see <see cref="TrialStyle"/>).</summary>
-    internal static double TrialWidth(double width, in SkUiTextStyle style) =>
-        double.IsFinite(width) ? Math.Max(0, width - WidthMargin) / style.Scale : width;
+    /// <summary>The width the lines of <paramref name="style"/> are laid out in for a slot <paramref name="width"/> wide (see <see cref="Unscaled"/>).</summary>
+    internal static double UnscaledWidth(double width, in SkUiTextStyle style) => style.Scale == 1 ? width : width / style.Scale;
+
+    /// <summary>
+    /// Draws the lines of a <paramref name="scale"/>d text (see <see cref="Unscaled"/>): scales <paramref name="canvas"/>
+    /// about the padded slot's corner and turns the slot into its unscaled size without padding. Returns the save count to
+    /// restore, or -1 when the text is not scaled (the slot is left as it is).
+    /// </summary>
+    internal static int BeginScaled(SKCanvas canvas, float scale, ref Thickness padding, ref double width, ref double height)
+    {
+        if (scale == 1)
+            return -1;
+        var save = canvas.Save();
+        canvas.Translate((float)padding.Left, (float)padding.Top);
+        canvas.Scale(scale);
+        UnscaleSlot(scale, ref padding, ref width, ref height);
+        return save;
+    }
+
+    /// <summary>The padded slot as the unscaled lines of a <paramref name="scale"/>d text see it: their size, no padding (see <see cref="BeginScaled"/>).</summary>
+    internal static void UnscaleSlot(float scale, ref Thickness padding, ref double width, ref double height)
+    {
+        if (scale == 1)
+            return;
+        width = Math.Max(0, width - padding.HorizontalThickness) / scale;
+        height = Math.Max(0, height - padding.VerticalThickness) / scale;
+        padding = default;
+    }
+
+    /// <summary>A point in a padded slot as the unscaled lines of a <paramref name="scale"/>d text see it (see <see cref="UnscaleSlot"/>).</summary>
+    internal static Point UnscalePoint(float scale, Thickness padding, Point point) =>
+        scale == 1 ? point : new Point((point.X - padding.Left) / scale, (point.Y - padding.Top) / scale);
 
     /// <summary>
     /// Whether a trial of <paramref name="style"/> fits a <paramref name="width"/> × <paramref name="height"/> slot: its lines
@@ -101,7 +139,7 @@ internal sealed class SkUiTextFit
         var (scale, tall) = (style.Scale, (double)linesHeight * style.Scale);
         var ratio = double.PositiveInfinity;
         if (!style.Wraps && widestParagraph > 0 && double.IsFinite(width))
-            ratio = Math.Max(0, width - WidthMargin) / (widestParagraph * scale);
+            ratio = width / (widestParagraph * scale);
         if (tall > 0 && double.IsFinite(height))
         {
             var room = (height + HeightTolerance) / tall;
@@ -133,6 +171,20 @@ internal sealed class SkUiTextFit
             (_recent, _older) = (_older, _recent);
             return path.At(_recent.Position);
         }
+        layout.ReuseShaping(true);
+        try
+        {
+            return Fit(layout, text, key, path, width, height);
+        }
+        finally
+        {
+            layout.ReuseShaping(false);
+        }
+    }
+
+    /// <summary>A slot not fitted lately: its fit, from one fitted lately or a search.</summary>
+    private SkUiTextStyle Fit(ISkUiTextFitLayout layout, object text, in SkUiTextStyle key, in Path path, double width, double height)
+    {
         // A slot no larger than one fitted: the text only fits further along the path, so that position is still the answer
         // when it fits. Arranged at the measured size (or anything at least as large as the text drawn), the lines are the
         // same: greedy breaking gives the same lines at any width from the widest line up, so no trial is needed.

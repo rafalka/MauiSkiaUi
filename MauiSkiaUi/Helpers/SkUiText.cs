@@ -143,7 +143,9 @@ internal static class SkUiTextTransform
 /// <param name="MaximumScale">Grow to fill: the largest <paramref name="Scale"/> the layout picks; 1 (default): no growing.</param>
 /// <param name="AllowsTightening">Whether the layout tightens (<paramref name="Tightening"/>, up to
 /// <see cref="SkUiTextFit.MaximumTightening"/>) before it shrinks or truncates.</param>
-/// <param name="Scale">Factor of every font size and character spacing (the fit sets it; labels pass 1).</param>
+/// <param name="Scale">Factor the lines are drawn at (the fit sets it; labels pass 1): every font size and character spacing
+/// scaled. Layouts lay the lines out unscaled in a slot as much smaller and draw them with a canvas scale
+/// (<see cref="SkUiTextFit.Unscaled"/>).</param>
 /// <param name="Tightening">Ems (of each font size) taken from the space after each character (the fit sets it; labels pass 0).</param>
 internal readonly record struct SkUiTextStyle(
     SKTypeface Typeface,
@@ -168,8 +170,8 @@ internal readonly record struct SkUiTextStyle(
     /// <summary>Whether the layout fits the text to its slot: it shrinks, grows or tightens it (<see cref="SkUiTextFit"/>).</summary>
     internal bool IsFitted => MinimumScale < 1 || MaximumScale > 1 || AllowsTightening;
 
-    /// <summary>The space drawn after each character of text <paramref name="fontSize"/> DIPs (before <see cref="Scale"/>) with <paramref name="spacing"/>.</summary>
-    internal float DrawnSpacing(double spacing, double fontSize) => (float)((spacing - Tightening * fontSize) * Scale);
+    /// <summary>The space laid out after each character of text <paramref name="fontSize"/> DIPs with <paramref name="spacing"/>: less <see cref="Tightening"/>.</summary>
+    internal float TightenedSpacing(double spacing, double fontSize) => (float)(spacing - Tightening * fontSize);
 
     /// <summary>Whether lines wrap (rather than one line per paragraph, cut or not).</summary>
     internal bool Wraps => LineBreakMode is LineBreakMode.WordWrap or LineBreakMode.CharacterWrap
@@ -242,15 +244,57 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
 
     private SkUiShaping.Paragraph ShapeParagraph(string text, SKFont primary)
     {
-        var paragraph = ShapeParagraphCore(text, primary);
+        var paragraph = _fit?.Shaping is ShapedParagraphs { Running: true, Layouts: > 1 } shaped
+            ? shaped.Get(text, primary, _style, this)
+            : ShapeParagraphCore(text, primary);
         LastLayoutSimple &= paragraph.IsSimple;
         return paragraph;
+    }
+
+    /// <summary>
+    /// Paragraphs shaped by the layouts of one fit (<see cref="ISkUiTextFitLayout.ReuseShaping"/>), by text and spacing, for
+    /// the font and settings they were shaped with: trials differ in width and tightening only. Kept from the fit's second
+    /// layout on (text that fits as set needs one), cleared when the fit ends.
+    /// </summary>
+    private sealed class ShapedParagraphs
+    {
+        private readonly Dictionary<(string Text, float Spacing), SkUiShaping.Paragraph> _paragraphs = [];
+        private (SKFont? Font, SkUiTextDirection Direction, SkUiTextRendering Rendering) _with;
+
+        /// <summary>Whether a fit runs.</summary>
+        internal bool Running { get; private set; }
+
+        /// <summary>Layouts of the running fit.</summary>
+        internal int Layouts { get; set; }
+
+        internal void Begin() => (Running, Layouts) = (true, 0);
+
+        internal SkUiShaping.Paragraph Get(string text, SKFont primary, in SkUiTextStyle style, SkUiTextLayout layout)
+        {
+            var with = (primary, style.Direction, style.Rendering);
+            if (with != _with)
+            {
+                _paragraphs.Clear();
+                _with = with;
+            }
+            var key = (text, style.TightenedSpacing(style.CharacterSpacing, style.FontSize));
+            if (!_paragraphs.TryGetValue(key, out var paragraph))
+                _paragraphs[key] = paragraph = layout.ShapeParagraphCore(text, primary);
+            return paragraph;
+        }
+
+        internal void End()
+        {
+            (Running, Layouts) = (false, 0);
+            _paragraphs.Clear();
+            _with = default;
+        }
     }
 
     private SkUiShaping.Paragraph ShapeParagraphCore(string text, SKFont primary)
     {
         var direction = _style.Direction;
-        var spacing = _style.DrawnSpacing(_style.CharacterSpacing, _style.FontSize);
+        var spacing = _style.TightenedSpacing(_style.CharacterSpacing, _style.FontSize);
         switch (_style.Rendering)
         {
             case SkUiTextRendering.Simple:
@@ -286,7 +330,7 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
 
     private SKFont Primary(in SkUiTextStyle style)
     {
-        var (typeface, size) = (style.Typeface, style.FontSize * style.Scale);
+        var (typeface, size) = (style.Typeface, style.FontSize);
         if (!ReferenceEquals(_typeface, typeface) || _fontSize != (float)size || _fontAttributes != style.FontAttributes)
         {
             // Text blobs in recorded pictures hold their own typeface references, so old fonts can go.
@@ -311,6 +355,8 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
         _brokenWidth = double.NaN; // until the lines are complete (a custom breaker may throw)
         _style = style;
         LayoutCount++;
+        if (_fit?.Shaping is ShapedParagraphs { Running: true } running)
+            running.Layouts++;
         LastLayoutSimple = true;
         _widestParagraph = 0;
         var lines = new List<SkUiShaping.Line>();
@@ -373,16 +419,35 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
     {
         // A custom breaker shortens the fitted text its own way: the text fits when it fits by the mode it falls back to.
         var stock = style.LineBreaker is { } breaker ? style with { LineBreaker = null, LineBreakMode = StockMode(breaker) ?? style.LineBreakMode } : style;
-        var trial = SkUiTextFit.TrialStyle(stock);
-        EnsureLines((string)text, SkUiTextFit.TrialWidth(width, stock), trial, Primary(trial));
+        var lines = SkUiTextFit.Unscaled(stock);
+        EnsureLines((string)text, SkUiTextFit.UnscaledWidth(width, stock), lines, Primary(lines));
         return SkUiTextFit.Check(_fits, (float)LinesSize().Height, _widestParagraph, stock, width, height, out estimate);
     }
 
     /// <inheritdoc />
     Size ISkUiTextFitLayout.Extent(object text, in SkUiTextStyle style, double width)
     {
-        EnsureLines((string)text, width, style, Primary(style));
-        return LinesSize();
+        var lines = SkUiTextFit.Unscaled(style);
+        EnsureLines((string)text, SkUiTextFit.UnscaledWidth(width, style), lines, Primary(lines));
+        var size = LinesSize();
+        return new Size(size.Width * style.Scale, size.Height * style.Scale);
+    }
+
+    /// <inheritdoc />
+    void ISkUiTextFitLayout.ReuseShaping(bool reuse)
+    {
+        if (_fit is not { } fit)
+            return;
+        if (!reuse)
+            (fit.Shaping as ShapedParagraphs)?.End();
+        else if (fit.Shaping is ShapedParagraphs shaped)
+            shaped.Begin();
+        else
+        {
+            var created = new ShapedParagraphs();
+            fit.Shaping = created;
+            created.Begin();
+        }
     }
 
     /// <inheritdoc />
@@ -665,7 +730,8 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
             ? double.PositiveInfinity
             : Math.Max(0, widthConstraint - padding.HorizontalThickness);
         var fitted = Fitted(text, style, contentWidth, SkUiTextFit.ContentHeight(heightConstraint, padding));
-        EnsureLines(text, contentWidth, fitted, Primary(fitted));
+        var lines = SkUiTextFit.Unscaled(fitted);
+        EnsureLines(text, SkUiTextFit.UnscaledWidth(contentWidth, fitted), lines, Primary(lines));
         var width = 0f;
         var height = 0f;
         foreach (var line in _lines)
@@ -673,7 +739,7 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
             width = Math.Max(width, line.Width);
             height += line.Height;
         }
-        return new Size(width + padding.HorizontalThickness, height + padding.VerticalThickness);
+        return new Size(width * fitted.Scale + padding.HorizontalThickness, height * fitted.Scale + padding.VerticalThickness);
     }
 
     /// <summary>
@@ -690,10 +756,13 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
     {
         if (text.Length == 0)
             return;
+        var fitted = Fitted(text, style, Math.Max(0, width - padding.HorizontalThickness), SkUiTextFit.ContentHeight(height, padding));
+        // A fitted scale draws the unscaled lines with a canvas scale.
+        var restore = SkUiTextFit.BeginScaled(canvas, fitted.Scale, ref padding, ref width, ref height);
         var available = Math.Max(0, width - padding.HorizontalThickness);
-        var fitted = Fitted(text, style, available, SkUiTextFit.ContentHeight(height, padding));
-        var primary = Primary(fitted);
-        EnsureLines(text, available, fitted, primary);
+        var lineStyle = SkUiTextFit.Unscaled(fitted);
+        var primary = Primary(lineStyle);
+        EnsureLines(text, available, lineStyle, primary);
         var total = 0f;
         foreach (var line in _lines)
             total += line.Height;
@@ -714,6 +783,8 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
             }
             top += line.Height + gap;
         }
+        if (restore >= 0)
+            canvas.RestoreToCount(restore);
     }
 
     /// <summary>

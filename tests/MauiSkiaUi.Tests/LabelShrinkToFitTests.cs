@@ -352,12 +352,40 @@ public class LabelShrinkToFitTests
     }
 
     [Fact]
-    public void GrowingOneLineTakesAFewLayouts()
+    public void OneLineIsFittedInAFewLayoutsAndDrawnFromTheLastTrial()
     {
+        // Growing: trials lay the line out at its font size, where it fits whatever the slot; the computed size is drawn
+        // from the same lines, scaled.
         var layout = new SkUiTextLayout();
-        var style = new SkUiTextStyle(Mono, 16, LineBreakMode.NoWrap, MaximumScale: 4f);
-        layout.Measure("01234", style, default, Advance * 13);
-        Assert.InRange(layout.LayoutCount, 2, 4); // as set, the guess from the room left, its neighbour
+        var grown = layout.Measure("01234", new SkUiTextStyle(Mono, 16, LineBreakMode.NoWrap, MaximumScale: 4f), default, Advance * 13);
+        Assert.Equal(1, layout.LayoutCount);
+        Assert.InRange(grown.Width, Advance * 13 - SkUiTextFit.Step / 16 * Advance * 5 - 0.01, Advance * 13 + 0.01);
+
+        // Shrinking with tightening: as set, fully tightened, the computed size (the lines drawn).
+        layout = new SkUiTextLayout();
+        layout.Measure(Digits, new SkUiTextStyle(Mono, 16, LineBreakMode.TailTruncation, MinimumScale: 0.5f, AllowsTightening: true), default, Advance * 7);
+        Assert.InRange(layout.LayoutCount, 2, 3);
+    }
+
+    [Fact]
+    public void ShrunkSpansAreHitWhereTheyAreDrawn()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var first = new Span { Text = "AAAAA" };
+        var second = new Span { Text = "BBBBB" };
+        var label = new SkUiLabel
+        {
+            FontFamily = SkUiTestHelpers.BundledFontFamily,
+            LineBreakMode = LineBreakMode.NoWrap,
+            ShrinkToFit = true,
+            Padding = new Thickness(4, 0),
+            FormattedText = new FormattedString { Spans = { first, second } }
+        };
+        // Ten advances in five: drawn at half size, the second span from 2.5 advances on.
+        SkUiTestHelpers.Arrange(label, Advance * 5 + 8, 40);
+        Assert.Same(first, label.SpanAt(new Point(4 + Advance * 1, 5)));
+        Assert.Same(second, label.SpanAt(new Point(4 + Advance * 4, 5)));
+        Assert.Null(label.SpanAt(new Point(4 + Advance * 1, 30))); // below the shrunk line
     }
 
     [Fact]
