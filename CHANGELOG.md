@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.0.0-Prerelease10
+
 ### New features
 
 - **Collection view groups, grids and horizontal lists (B3, FR-22):** `SkUiCollectionView` lays out rows of a row model over the B1 engine; every source or group change becomes the smallest change of the rows ([SkUiCollectionView.md](docs/controls/SkUiCollectionView.md)).
