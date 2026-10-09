@@ -153,6 +153,26 @@ public class ScrollViewOverscrollTests
     }
 
     [Fact]
+    public void ADragCatchingASpringBackBeforeItsFirstFrameTakesTheOverscrollBack()
+    {
+        // A press right after a pull is released (an inline refresh that just ended springs back the same way) catches the
+        // spring-back before it reported a frame: the drag must take back the overscroll still shown, not leave it to be
+        // reported as a second pull. Content that scrolls: the drag would otherwise scroll it with the overscroll left shown.
+        var scroller = Scroller(2000, SkUiScrollEdges.Top);
+        var pulls = new List<double>();
+        scroller.PullReleased += (_, args) => pulls.Add(args.Distance);
+        using var surface = new SkUiTestSurface(scroller, 300, 400);
+        surface.Frame(0);
+
+        Drag(scroller, new Point(150, 50), new Point(150, 350));
+        Assert.Single(pulls);
+        Assert.True(scroller.OverscrollY < 0);
+        Drag(scroller, new Point(150, 350), new Point(150, 50)); // no frame in between
+        Assert.Single(pulls);
+        Assert.Equal(0, scroller.OverscrollY);
+    }
+
+    [Fact]
     public void OverscrollModesReportWithoutPullEdges()
     {
         var scroller = Scroller(1000);

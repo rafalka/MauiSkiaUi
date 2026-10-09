@@ -1,4 +1,5 @@
 using System.Reflection;
+using MauiSkiaUi.Core;
 using MauiSkiaUi.Rendering;
 using Microsoft.Maui.Controls.Shapes;
 using SkiaSharp;
@@ -107,9 +108,34 @@ public class VisualEffectsDisposalTests
     }
 
     [Fact]
+    public void ActivityIndicatorsDisposeTheirStrokePaintWhenTheyLeave()
+    {
+        var indicator = new SkUiActivityIndicator { IsRunning = true, WidthRequest = 40, HeightRequest = 40 };
+        var core = new SkUiCoreActivityIndicator().SetIsRunning(true);
+        var host = new SkUiCoreHost();
+        host.SetContent(core);
+        var root = new SkUiVerticalStackLayout { Children = { indicator, host } };
+        using var surface = Surface(root);
+        SKPaint? Paint(object owner) => (SKPaint?)owner.GetType().GetField("_strokePaint", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(owner);
+        var (drawn, coreDrawn) = (Paint(indicator), Paint(core));
+        Assert.False(Disposed(drawn));
+        Assert.False(Disposed(coreDrawn));
+
+        root.Children.Remove(indicator);
+        host.SetContent(null);
+        Assert.True(Disposed(drawn));
+        Assert.True(Disposed(coreDrawn));
+        Assert.Null(Paint(indicator));
+        root.Children.Add(indicator);
+        Frame(surface, root);
+        Assert.False(Disposed(Paint(indicator)));
+    }
+
+    [Fact]
     public void PathsOnlyRecordingUsesAreDisposedWhenTheNodeLeaves()
     {
-        var label = new SkUiLabel { Text = "Chip", BackgroundColor = Colors.Yellow, CornerRadius = 8 };
+        using var _ = SkUiTestHelpers.UseBundledFont(); // Linux agents have no system fonts: the label would be empty
+        var label = new SkUiLabel { Text = "Chip", FontFamily = SkUiTestHelpers.BundledFontFamily, BackgroundColor = Colors.Yellow, CornerRadius = 8 };
         var root = new SkUiVerticalStackLayout { Children = { label } };
         using var surface = Surface(root);
         var chrome = typeof(SkUiLabel).GetField("_chrome", BindingFlags.NonPublic | BindingFlags.Instance)!;

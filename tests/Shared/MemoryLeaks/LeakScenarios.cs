@@ -1287,7 +1287,8 @@ public static class LeakScenarios
             await context.SettleAsync();
             // Execute mode: a full swipe invokes the first item; then a row open while its item is replaced (recycled).
             Row(4).RightItems.Mode = SwipeMode.Execute;
-            await context.DragAsync(Row(4), -280, 0, durationMs: 300);
+            // Execute swipe items share the row's width, so the threshold grows with it: swiped across most of the row.
+            await context.DragAsync(Row(4), -Row(4).Width * 0.9, 0, durationMs: 300);
             Row(5).Open(OpenSwipeItem.RightItems, animated: false);
             LeakItems.Shared[5] = "Replaced";
             await context.SettleAsync();

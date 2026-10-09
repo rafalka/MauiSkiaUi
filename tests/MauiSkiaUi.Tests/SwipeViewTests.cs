@@ -433,6 +433,33 @@ public class SwipeViewTests
     }
 
     [Fact]
+    public void ExecuteModeDoesNotInvokeADisabledFirstItem()
+    {
+        // As MAUI's handlers: the first visible item is invoked only when it is enabled; no other item is invoked instead.
+        var log = new List<string>();
+        var swipe = Swipe(out _);
+        swipe.RightItems = TwoItems(log);
+        swipe.RightItems.Mode = SwipeMode.Execute;
+        ((SwipeItem)swipe.RightItems[0]).IsEnabled = false;
+        SkUiTestHelpers.Arrange(swipe, 300, 60);
+        Drag(swipe, new Point(290, 30), new Point(10, 30));
+        Assert.Empty(log);
+        Assert.False(swipe.IsOpen);
+
+        // A drawn item view whose command cannot execute is disabled too.
+        var canExecute = false;
+        var view = new SkUiSwipeItemView { Command = new Command(_ => log.Add("command"), () => canExecute), Content = new SkUiBox() };
+        view.Invoked += (_, _) => log.Add("view");
+        swipe.RightItems = new SwipeItems([view]) { Mode = SwipeMode.Execute };
+        SkUiTestHelpers.Arrange(swipe, 300, 60);
+        Drag(swipe, new Point(290, 30), new Point(10, 30));
+        Assert.Empty(log);
+        canExecute = true;
+        Drag(swipe, new Point(290, 30), new Point(10, 30));
+        Assert.Equal(["command", "view"], log);
+    }
+
+    [Fact]
     public void ExecuteItemsShowTheirTextAtTheInnerEdgeSoAPartialSwipeReadsIt()
     {
         var swipe = Swipe(out _);

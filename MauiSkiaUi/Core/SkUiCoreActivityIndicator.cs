@@ -62,6 +62,15 @@ public class SkUiCoreActivityIndicator : SkUiCoreNode
     }
 
     /// <inheritdoc />
+    internal override void ReleaseDrawingResources()
+    {
+        base.ReleaseDrawingResources();
+        // Recording copied it into the picture; the next record makes it again.
+        _strokePaint?.Dispose();
+        _strokePaint = null;
+    }
+
+    /// <inheritdoc />
     internal override void OnGetRenderProps(ref SkUiRenderProps props) =>
         props.ContentSpinPeriod = _isRunning ? 1 : 0;
 

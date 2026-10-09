@@ -15,7 +15,35 @@ namespace MauiSkiaUi.Tests;
 [Collection(nameof(OverlayScrollTests))]
 public class MemoryLeakTests
 {
+    /// <summary>A phone's width in DIPs.</summary>
+    private const int SurfaceWidth = 360;
+
+    /// <summary>A desktop window's width in DIPs.</summary>
+    private const int WideSurfaceWidth = 1000;
+
     public static TheoryData<string> Scenarios() => new(LeakScenarios.All.Select(scenario => scenario.Name));
+
+    /// <summary>
+    /// The scenarios' interactions on a surface as wide as a desktop window, with iOS / Mac Catalyst's inline pull-to-refresh
+    /// (the device tests' Mac Catalyst run): what depends on the width (execute swipes) or on the platform's refresh style
+    /// still takes effect.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Scenarios))]
+    public void ScenarioWorksOnAWideSurfaceWithInlineRefresh(string name)
+    {
+        var look = (DefaultSkUiLook)SkUiLook.Current;
+        var style = look.RefreshStyle;
+        look.RefreshStyle = SkUiRefreshStyle.Inline;
+        try
+        {
+            Run(LeakScenarios.Find(name), WideSurfaceWidth);
+        }
+        finally
+        {
+            look.RefreshStyle = style;
+        }
+    }
 
     [Theory]
     [MemberData(nameof(Scenarios))]
@@ -64,7 +92,7 @@ public class MemoryLeakTests
     /// this frame keeps the UI alive for the caller's collection.
     /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static (List<TrackedObject> Tracked, IReadOnlyList<string> DetachedSurvivors) Run(LeakScenario scenario)
+    private static (List<TrackedObject> Tracked, IReadOnlyList<string> DetachedSurvivors) Run(LeakScenario scenario, int surfaceWidth = SurfaceWidth)
     {
         using var clock = new ManualGestureClock();
         // Continuations of animated changes run here, between frames, as on the app's UI thread.
@@ -97,7 +125,7 @@ public class MemoryLeakTests
         foreach (var root in Roots(view))
         {
             var height = root.HeightRequest > 0 ? (int)root.HeightRequest : 640;
-            surfaces.Add((new SkUiTestSurface(root, 360, height), 360, height));
+            surfaces.Add((new SkUiTestSurface(root, surfaceWidth, height), surfaceWidth, height));
         }
         Frames(TimeSpan.FromMilliseconds(16));
 

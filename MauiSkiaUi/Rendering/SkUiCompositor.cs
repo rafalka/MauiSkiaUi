@@ -85,7 +85,8 @@ internal sealed class SkUiRenderBatch
 
     /// <summary>
     /// Releases pictures and effects of a batch that will never be applied (the compositor was disposed; the UI side then
-    /// forgets its effects, <see cref="ISkUiRenderable.ReleaseDrawingResources"/>).
+    /// forgets its effects, <see cref="ISkUiRenderable.ReleaseDrawingResources"/>). Called only while no frame draws: the
+    /// effects may be the ones a node has committed.
     /// </summary>
     public void Discard()
     {
@@ -195,6 +196,7 @@ internal sealed class SkUiCompositor : IDisposable
         {
             if (_disposed)
             {
+                // No frame draws after Dispose (it took the render lock and dropped the tree), so nothing uses its effects.
                 DiscardWithAnimations(batch);
                 return;
             }
@@ -795,18 +797,22 @@ internal sealed class SkUiCompositor : IDisposable
     /// <summary>Releases all retained pictures; later commits are discarded.</summary>
     public void Dispose()
     {
+        List<SkUiRenderBatch> discarded;
         lock (_pendingLock)
         {
             if (_disposed)
                 return;
             _disposed = true;
-            foreach (var batch in _pending)
-                DiscardWithAnimations(batch);
+            discarded = [.. _pending];
             _pending.Clear();
             _hasPending = false;
         }
         lock (_renderLock)
         {
+            // Discarded only now: a props update of a pending batch carries the node's effects (its clip path, shadow) as
+            // committed, and a frame still drawing them holds the render lock.
+            foreach (var batch in discarded)
+                DiscardWithAnimations(batch);
             foreach (var animation in _animations)
             {
                 animation.Cancel();

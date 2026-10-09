@@ -281,6 +281,19 @@ public partial class SkUiSwipeView : SkUiView
 
     internal static bool IsItemVisible(ISwipeItem? item) => item?.IsVisible == true;
 
+    /// <summary>
+    /// Whether <paramref name="item"/> may be invoked, as MAUI's handlers check before an execute swipe invokes it: an
+    /// enabled swipe item (MAUI's <c>MenuItem.IsEnabled</c> follows its command), an enabled item view whose command can
+    /// execute (it is disabled otherwise, as a tap on it shows).
+    /// </summary>
+    internal static bool IsItemEnabled(ISwipeItem item) => item switch
+    {
+        SkUiSwipeItemView view => view.IsEnabled && (view.Command?.CanExecute(view.CommandParameter) ?? true),
+        MenuItem menuItem => menuItem.IsEnabled,
+        VisualElement element => element.IsEnabled,
+        _ => true
+    };
+
     /// <summary>Whether a press may start or continue a swipe.</summary>
     private bool CanSwipe => IsEnabled && (_shownPart is not null
         || HasVisibleItems(OpenSwipeItem.LeftItems) || HasVisibleItems(OpenSwipeItem.RightItems)
@@ -521,7 +534,8 @@ public partial class SkUiSwipeView : SkUiView
             var remainOpen = items.SwipeBehaviorOnInvoked == SwipeBehaviorOnInvoked.RemainOpen;
             Settle(open: passed && remainOpen, animated: true);
             SwipeEnded?.Invoke(this, new SwipeEndedEventArgs(DirectionOf(side), _open));
-            if (passed && items.FirstOrDefault(IsItemVisible) is { } first)
+            // The first visible item, unless it is disabled (no other item is invoked instead, as MAUI's handlers).
+            if (passed && items.FirstOrDefault(IsItemVisible) is { } first && IsItemEnabled(first))
                 ((Microsoft.Maui.ISwipeItem)first).OnInvoked();
             return;
         }

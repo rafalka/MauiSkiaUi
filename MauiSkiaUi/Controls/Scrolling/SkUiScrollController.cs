@@ -887,6 +887,18 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         return true;
     }
 
+    /// <summary>
+    /// A press caught a running motion (a fling, a spring-back): it stops, and the overscroll shown becomes the drag's pull,
+    /// so the drag takes it back first. A spring-back that has not reported a frame yet still shows where it started (it
+    /// cleared the pull when it began).
+    /// </summary>
+    public void CatchMotion()
+    {
+        StopMotion();
+        _pullX = SkUiOverscroll.InverseRubberBand(OverscrollX, Viewport.Width);
+        _pullY = SkUiOverscroll.InverseRubberBand(OverscrollY, Viewport.Height);
+    }
+
     /// <summary>Drops any overscroll at once (wheel, programmatic scrolls, unloading).</summary>
     public void ClearOverscroll()
     {
@@ -1216,7 +1228,7 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
         _velocity.Reset(pointer.Timestamp, pointer.Position);
         if (scroller.IsMotionRunning)
         {
-            scroller.StopMotion();
+            scroller.CatchMotion();
             Claim();
             _dragging = _pointer is not null;
             scroller.Dragging = _dragging;
