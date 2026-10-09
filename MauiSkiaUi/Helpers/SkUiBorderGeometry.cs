@@ -35,6 +35,17 @@ internal sealed class SkUiBorderGeometry
     /// <summary>Drops the cached paths after the stroke shape changed inside (one of its properties).</summary>
     public void Invalidate() => _version++;
 
+    /// <summary>
+    /// The border's retained pictures and render node are gone: disposes the outline (only recording used it) and forgets
+    /// the content clip (committed: the compositor disposes it with the render node).
+    /// </summary>
+    public void Release()
+    {
+        _outline?.Dispose();
+        (_outline, _outlineKey) = (null, default);
+        (_clip, _clipKey) = (null, default);
+    }
+
     /// <summary>The outline the fill and the stroke follow; owned by this cache (recording copies it).</summary>
     public SKPath Outline(IShape? shape, CornerRadius radii, float width, float height, double thickness)
     {
@@ -50,8 +61,8 @@ internal sealed class SkUiBorderGeometry
     }
 
     /// <summary>
-    /// The content clip: inside the stroke's inner edge. Committed to the compositor, so it is never disposed here (the
-    /// render thread may still draw with it; the GC finalizes it).
+    /// The content clip: inside the stroke's inner edge. Committed to the compositor, which disposes it once a commit
+    /// replaces it or its render node goes (the render thread may still draw with it): never disposed here.
     /// </summary>
     public SKPath ContentClip(IShape? shape, CornerRadius radii, float width, float height, double thickness)
     {

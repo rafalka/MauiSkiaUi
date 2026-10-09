@@ -802,6 +802,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     internal override void ReleaseDrawingResources()
     {
         base.ReleaseDrawingResources();
+        _chrome.ReleaseClip();
         _layout.Release();
         _richLayout?.Release();
     }

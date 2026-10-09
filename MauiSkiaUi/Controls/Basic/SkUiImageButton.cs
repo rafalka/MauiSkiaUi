@@ -185,6 +185,13 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     }
 
     /// <inheritdoc />
+    internal override void ReleaseDrawingResources()
+    {
+        base.ReleaseDrawingResources();
+        _chrome.ReleaseClip();
+    }
+
+    /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height) =>
         PaintBackground is null ? _chrome.ShadowOutline(width, height, _chrome.Radii, ResolveBackgroundPaint()) : null;
 

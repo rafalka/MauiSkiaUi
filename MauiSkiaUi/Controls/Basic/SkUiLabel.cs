@@ -504,6 +504,7 @@ public class SkUiLabel : SkUiView
     internal override void ReleaseDrawingResources()
     {
         base.ReleaseDrawingResources();
+        _chrome.ReleaseClip();
         _layout.Release();
         _richLayout?.Release();
     }

@@ -23,6 +23,13 @@ internal struct SkUiRoundedClip
         }
         return _path;
     }
+
+    /// <summary>Disposes the path (the owner's retained pictures are gone); the next <see cref="Get"/> makes it again.</summary>
+    public void Release()
+    {
+        _path?.Dispose();
+        _path = null;
+    }
 }
 
 /// <summary>Corner-radius helpers shared by the labels and buttons of both layers.</summary>

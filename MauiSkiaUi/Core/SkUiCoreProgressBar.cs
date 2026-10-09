@@ -100,6 +100,13 @@ public class SkUiCoreProgressBar : SkUiCoreNode
             ToSkColor(_trackColor), ToSkColor(_progressColor), enabled: true);
 
     /// <inheritdoc />
+    internal override void ReleaseDrawingResources()
+    {
+        base.ReleaseDrawingResources();
+        (_clip, _clipSize) = (null, default); // committed: the compositor disposes it with the render node
+    }
+
+    /// <inheritdoc />
     internal override void OnGetRenderProps(ref SkUiRenderProps props) =>
         SkUiProgressBarDrawing.SetSlide(ref props, _isIndeterminate, IsRightToLeft, ref _clip, ref _clipSize);
 

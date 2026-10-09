@@ -431,6 +431,7 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
     internal override void ReleaseDrawingResources()
     {
         base.ReleaseDrawingResources();
+        _chrome.ReleaseClip();
         _textContent?.Release();
     }
 

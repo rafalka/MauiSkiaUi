@@ -37,6 +37,21 @@ internal sealed class SkUiVisualEffects
     /// <summary>Bumped when the node's paint changed: its fill, and so its shadow's silhouette, may differ.</summary>
     public int PaintVersion;
 
+    /// <summary>
+    /// Forgets the clip path and shadow committed so far (the node was reset: it left its drawn parent or its surface).
+    /// The compositor disposes them with the node's render node, so they are never committed or read again; the next record
+    /// makes new ones.
+    /// </summary>
+    public void Forget()
+    {
+        _clipPath = null;
+        _clipKey = default;
+        _style = null;
+        _styleKey = default;
+        _shadow = null;
+        _shadowKey = default;
+    }
+
     /// <summary>The clip of a node of <paramref name="width"/> × <paramref name="height"/>; <c>null</c> without a clip shape.</summary>
     public SKPath? GetClipPath(IShape? clip, float width, float height)
     {
@@ -46,8 +61,8 @@ internal sealed class SkUiVisualEffects
         if (_clipPath is not null && key == _clipKey)
             return _clipPath;
         _clipKey = key;
-        // Committed to the compositor, which disposes it once a commit replaces it (the render thread may still clip with it
-        // until then): never disposed here.
+        // Committed to the compositor, which disposes it once a commit replaces it or its render node goes (the render thread
+        // may still clip with it until then): never disposed here.
         return _clipPath = SkUiClipGeometry.CreatePath(clip, width, height);
     }
 
