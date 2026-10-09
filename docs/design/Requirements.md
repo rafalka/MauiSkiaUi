@@ -572,6 +572,48 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--s
 - [ ] Device runs with TalkBack, VoiceOver (iOS) and Narrator; keyboards on Android and Windows.
 - [ ] Links inside text as elements, custom actions, live regions, arrow keys within radio groups.
 
+### FR-29 — Pickers on the app's popup system
+
+**Status:** planned (C6–C7 in [ImplementationPlan.md](ImplementationPlan.md#popups-through-the-apps-popup-system)).
+
+SkiaUi does not replace navigation: it ships no pages and no popup windows. Drawn controls that need a popup open it through an abstraction the app implements on its own popup system (MAUI's built-in UI, CommunityToolkit's `Popup`, Syncfusion's `SfPopup` or `SfPicker`, its own overlay).
+
+- [ ] **Popup presenter:** `ISkUiPopupPresenter.ShowAsync(SkUiPopupRequest, CancellationToken)`, registered app-wide (`SkUiPopups.Presenter`, also from `UseSkiaUi`) and overridable per control (`PopupPresenter`). The library takes no popup dependency.
+- [ ] **Request:** a reference MAUI `View` (`Anchor`: the control, or the `SkUiCoreHost` for Core) from which the presenter finds the window and page; the nearest ancestor with a platform view (`PlatformAnchor`), since drawn views have no handler; the anchor's rectangle in window coordinates and relative to `PlatformAnchor` (through drawn offsets, transforms, scrolling and clips) with the window's safe area; the placement (`Anchored` to the control like a combo box, flipping above when it fits better and mirrored in RTL; `Window`-aligned, e.g. centered or a bottom sheet; `Absolute` window rectangle); the preferred (measured) and maximum size; the content as a ready MAUI `View` (a drawn surface).
+- [ ] **Own UI in presenters:** typed requests (`SkUiListPopupRequest`: item texts, selected index, title; date and time requests for C7) let a presenter show its own picker UI instead of the drawn content and return the result.
+- [ ] **Lifetime:** `ShowAsync` completes once, with a result (a choice in the content) or none (dismissed by the presenter: tap outside, Back, Escape); the control cancels the token when the popup must close (`IsOpen = false`, unfocused, disabled, hidden or removed, the anchor scrolled, the window resized); nothing keeps the control alive after completion.
+- [ ] **`SkUiPicker` / `SkUiCorePicker`:** MAUI's `Picker` API (`ItemsSource` / `Items`, `ItemDisplayBinding`, `SelectedIndex` / `SelectedItem` two-way, `SelectedIndexChanged`, `Title` / `TitleColor`, text and font properties, text alignment, `IsOpen` / `Opened` / `Closed`), XAML ports by prefix; a look-drawn field with visual states; the items as a drawn, virtualized list (FR-22) on the popup, the selection highlighted and scrolled into view; beyond MAUI: `PopupPlacement` (`Anchored`, `Window`, `Default` per look and platform), `ItemTemplate`, `MaxPopupHeight`.
+- [ ] **`SkUiDatePicker` / `SkUiTimePicker` (+ Core):** MAUI's API (`Date` / `Time` nullable, `MinimumDate` / `MaximumDate`, `Format`, `DateSelected` / `TimeSelected`, `IsOpen` / `Opened` / `Closed`); drawn wheels ordered and formatted by culture on the same presenter.
+- [ ] **Input and accessibility (FR-28):** open by tap, Space, Enter or Alt+Down; arrow keys change the selection on the closed field; keyboard navigation and type-ahead in the list; a combo-box / pop-up-button role with the expanded state and the selection as value.
+- [ ] **Fallback** without a registered presenter (to confirm with C6): MAUI's `DisplayActionSheetAsync` on the anchor's page, plus one `Trace` line.
+- [ ] Sample presenters (MAUI action sheet, CommunityToolkit `Popup`, Syncfusion `SfPopup`) in the samples app and the control docs; headless tests with a recording presenter; demo pages next to MAUI's pickers; leak scenario; device runs of the sample presenters on every platform.
+
+### FR-30 — Avatar view
+
+**Status:** planned (C8 in [ImplementationPlan.md](ImplementationPlan.md)).
+
+- [ ] **`SkUiAvatarView`** with the Community Toolkit's `AvatarView` API, so XAML ports by prefix: `Text`, `ImageSource`, `TextColor`, `TextTransform`, font properties, `CharacterSpacing`, `FontAutoScalingEnabled`, `BorderColor` / `BorderWidth` / `CornerRadius`, and the `Border` members the toolkit's view inherits (`StrokeShape`, `Stroke`, `Background`, `Padding`); the toolkit's defaults (48 × 48, centered, text `?`, a 1-wide border, fully rounded).
+- [ ] **Content as the toolkit's:** the image (aspect fill) once it has loaded, else the text; both clipped to the stroke shape, inset by the stroke and padding.
+- [ ] **One drawn node:** no child image or label; the image through the shared loader and cache (P4), downsampled to the avatar's pixel size; the text through the shared text engine; the clip through the shared border geometry (P6); a new `Text` or `ImageSource` (recycled list rows) re-records only this node.
+- [ ] **Core twin** `SkUiCoreAvatar` (fluent `Set*`), the same pixels as `SkUiAvatarView`.
+- [ ] **Look and colors:** default background and text colors from the color scheme (FR-19); drawn by the look (FR-18).
+- [ ] **Accessibility (FR-28):** an image element described by `Text`, unless semantic properties are set.
+- [ ] Beyond the toolkit, if cheap (decide with C8): initials from a name, a background color picked from the text, a status badge.
+- [ ] The toolkit's docs samples with the prefix changed; headless tests; demo page next to the toolkit's `AvatarView`; a leak scenario.
+
+### FR-31 — Shimmer (skeleton loading)
+
+**Status:** planned (C9 in [ImplementationPlan.md](ImplementationPlan.md)).
+
+- [ ] **`SkUiShimmer` / `SkUiCoreShimmer`:** shows `Content` while inactive and a skeleton with a moving wave while `IsActive`; SkiaUi's own API with names from Syncfusion's toolkit `SfShimmer` where they fit (`WaveColor`, `WaveWidth`, `WaveDirection`, `AnimationDuration`, `RepeatCount`, `Fill`) and a conversion path in [Migration.md](../Migration.md).
+- [ ] **Skeleton from views:** `SkeletonContent` of drawn views (boxes, round rectangles, ellipses, borders) as the bones.
+- [ ] **Render-thread wave:** bones recorded once; one gradient across the whole region, composited over the bones and masked to them, moved at composite time; no recording per frame; `WaveDirection` with `Default` following RTL; reduce motion shows the bones still.
+- [ ] **Look and colors:** default bone and wave colors from the color scheme (FR-19); the wave drawn by the look (FR-18).
+- [ ] **Integration:** a state view in `SkUiStateContainer`; placeholder rows in `SkUiCollectionView` while loading; an optional fade to the content.
+- [ ] **Accessibility (FR-28):** one "loading" element instead of the bones.
+- [ ] **Skeleton from the content (to explore, C9b):** the content's own controls draw their bones (label lines, image and chrome shapes, toggle outlines) in their overlay paint phase while a shimmer ancestor is active, so the skeleton matches what is displayed; per-control bone painters in the look; a per-view override (`Skeleton`: `Bone`, `Hidden`, `Children`, `Default`); placeholder lines for empty text.
+- [ ] Headless tests, demo page, leak scenario, frame time on a device with a list of shimmering rows.
+
 ## Non-functional requirements
 
 ### NFR-1 — Platforms
@@ -665,6 +707,9 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - Exact public names for animation helpers / `ISkUiAnimator` (tier APIs sketched in [AnimationMechanism.md](AnimationMechanism.md)).
 - Scroll details still open in [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#open-items): how FR-21 / FR-22 provide their extent inside an outer scroller.
 - **Control look (FR-18)** remaining: per-tree look attachment (vs process-wide `Current`), and optional OS theme sync helpers. Type names, `Current`, virtual/delegate painters, and default size tokens are decided — see Decided and [ControlLook.md](ControlLook.md).
+- **Shimmer (FR-31):** whether C9b's skeleton from the content draws in the overlay phase or a separate skeleton recording, and how the wave's mask is built from the bones.
+- **Avatar view (FR-30):** which extras beyond the toolkit ship (initials from a name, a color from the text, a status badge).
+- **Pickers (FR-29):** the fallback without a registered presenter (MAUI's action sheet, an exception, or nothing); the default placement per platform and idiom; wheels or a month calendar for the date picker.
 - **Color scheme (FR-19)** remaining: optional OS light/dark synchronization helpers. Type names, light/dark packs, `Current`, and construction-snapshot vs paint-time token reads are decided — see Decided and [ColorScheme.md](ColorScheme.md).
 
 ## Decided
@@ -693,6 +738,7 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - **MAUI control hosting (FR-16):** no custom Skia `SkUiWebView`; drawn `SkUiEntry` / `SkUiEditor` with an IME proxy are planned (Phase D). Host real MAUI `Entry`, `Editor`, `WebView`, and other `VisualElement`s via **`SkUiMauiContentView`**: `ISkUiView` placeholder in the SkiaUi tree; native platform view overlaid on the standalone root’s container and synced to arranged bounds (DrawnUi `SkiaMauiElement` pattern). Content property is **`Content`** (`VisualElement`, `[ContentProperty]`). Input stays with the native control; FR-15 does not own overlay hits.
 - **Snapshot-during-scroll (FR-16 / FR-17):** while an ancestor scroll/fling is active, **Android and Windows** use **snapshot freeze** by default (hide native overlay, paint bitmap on Skia until motion settles); **Apple** uses **live sync only**. Apps may **opt out** per overlay for special cases (e.g. keep WebView live). Details: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#overlays-while-scrolling-fr-16).
 - **Scrolling / collections (FR-17):** implement **`SkUiScrollView`** (and later a virtualizing collection) **inside** the SkiaUi tree on the shared surface. Do **not** use MAUI `ScrollView` / `CollectionView` as the primary composition model for scrollable SkiaUi UI. Nesting standalone `SkUi*` under MAUI scrollers remains a documented compat path only. Details: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md).
+- **Popups (FR-29):** SkiaUi ships no pages or popup windows. Drawn controls (pickers first) open popups through `ISkUiPopupPresenter`, which the app implements on its own popup system; the request gives a reference MAUI view (window and placement), the anchor's window rectangle, placement and size, and a ready content view. Presenters are samples, not library code.
 - **Core layer:** low-level composition API without MAUI Controls / XAML — [CoreRequirements.md](CoreRequirements.md) (separate from this MAUI-compatible contract).
 
 ## Tracking
