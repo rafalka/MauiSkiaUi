@@ -107,6 +107,9 @@ internal struct SkUiChromeState
         return SkUiLook.Current.CreateRoundRectPath(new SKRect(0, 0, width, height), radii);
     }
 
+    /// <summary>Disposes the cached clip path (the owner's retained pictures are gone).</summary>
+    public void ReleaseClip() => _clip.Release();
+
     /// <summary>Draws only the border (over content), as image buttons do.</summary>
     public readonly void DrawBorder(SKCanvas canvas, float width, float height, CornerRadius radii)
     {

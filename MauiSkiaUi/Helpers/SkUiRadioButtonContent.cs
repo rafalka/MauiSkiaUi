@@ -12,7 +12,6 @@ namespace MauiSkiaUi;
 internal sealed class SkUiRadioButtonContent(object owner)
 {
     private readonly SkUiTextLayout _layout = new(owner);
-    private SKPaint? _paint;
 
     /// <summary>The circle, spacing and content in a padded slot (left-to-right).</summary>
     /// <param name="Circle">The circle's square.</param>
@@ -74,6 +73,9 @@ internal sealed class SkUiRadioButtonContent(object owner)
     /// <summary>Forgets the broken lines (text, font or direction changed).</summary>
     public void Invalidate() => _layout.Invalidate();
 
+    /// <summary>Disposes the lines' text blobs (the button's retained pictures are gone; see <see cref="SkUiTextLayout.Release"/>).</summary>
+    public void Release() => _layout.Release();
+
     /// <summary>The text's size wrapped to <paramref name="widthConstraint"/>.</summary>
     public Size MeasureText(string text, in SkUiTextStyle style, double widthConstraint) =>
         _layout.Measure(text, style, default, widthConstraint);
@@ -83,7 +85,7 @@ internal sealed class SkUiRadioButtonContent(object owner)
     {
         if (text.Length == 0 || area.Width <= 0 || area.Height <= 0)
             return;
-        var paint = _paint ??= new SKPaint { IsAntialias = true };
+        var paint = SkUiTextResources.TextPaint;
         paint.Color = color;
         var save = canvas.Save();
         canvas.Translate((float)area.X, (float)area.Y);

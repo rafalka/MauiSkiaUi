@@ -180,7 +180,7 @@ public static class MemoryLeakRunner
         var problem = run.CheckInteraction();
         var detachedSurvivors = await LeakTracker.WaitForCollectionAsync(context.Detached, TimeSpan.FromSeconds(5));
 
-        var tracked = LeakTracker.TrackTree(page);
+        var tracked = LeakTracker.TrackTree(page, context.IsLongLived);
         tracked.AddRange(context.Tracked);
         await navigation.PopAsync(animated: false);
         if (context.FocusedTextInput && FocusSink is { } sink)

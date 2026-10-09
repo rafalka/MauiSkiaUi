@@ -5,8 +5,6 @@ Check the region for these before converting. If one is central to the page (the
 | MAUI | Status | Do instead |
 | --- | --- | --- |
 | `CollectionView` with `CanReorderItems` or snap points on its items layout | Not available | Keep the native `CollectionView` (outside the drawn region; its item templates stay native). Every other list (grouped, grid, horizontal, multiple selection) ports to `sk:SkUiCollectionView` member by member ([collection-view.md](collection-view.md)) |
-| `SwipeView` | Planned | `Swiped` / `PanUpdated` on the row for simple reveal actions, or keep the list native |
-| `RefreshView` | Around a list: built into `SkUiCollectionView`; around other content: planned | List: `IsPullToRefreshEnabled` / `IsRefreshing` / `RefreshCommand` on `sk:SkUiCollectionView`. Other content: put a MAUI `RefreshView` around the surface root; a drawn scroller hands the drag to native parents at its top edge (verify on device) |
 | `CarouselView`, `IndicatorView` | Planned | `SkUiScrollView Orientation="Horizontal" SnapPointsType="MandatorySingle"`; dots with `SkUiEllipse` |
 | `Stepper` | Planned | Two `SkUiButton`s |
 | `ListView`, `TableView`, cells, compatibility layouts | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists); `SkUiBorder` for `Frame` |

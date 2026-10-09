@@ -48,6 +48,13 @@ public class SkUiLook
     // Scroll bar thumbs: drawn once per length and color into a Core node; the compositor moves and fades it.
     public void DrawScrollBar(SKCanvas canvas, SkUiScrollBarPaint bar) { … }         // → ScrollBarPainter ?? DrawScrollBarCore
     public void DrawScrollBarTrack(SKCanvas canvas, SkUiScrollBarTrackPaint track) { … } // expanded bars (hover) → ScrollBarTrackPainter ?? DrawScrollBarTrackCore
+    // Pull-to-refresh indicator (SkUiCoreRefreshIndicator): recorded once per state; a pull shows through
+    // GetRefreshPullFeedback (composite opacity / rotation) unless RefreshIndicatorDrawsPullProgress; spun while refreshing.
+    // Default: DrawActivityIndicator, on a badge of the default background as an overlay, bare inline.
+    public void DrawRefreshIndicator(SKCanvas canvas, SkUiRefreshIndicatorPaint paint) { … } // → RefreshIndicatorPainter ?? DrawRefreshIndicatorCore
+    public virtual double RefreshIndicatorSize => 40;      // and RefreshTriggerDistance (64), RefreshRestDistance (64),
+                                                           // RefreshIndicatorSpinPeriod (1 s), GetRefreshIndicatorShadow(style)
+    public virtual SkUiRefreshStyle DefaultRefreshStyle => SkUiRefreshStyle.Overlay; // DefaultSkUiLook: the platform's (Inline on Apple)
     // Keyboard focus ring over the focused drawn control (P10), inside its bounds, while focus came from the keyboard.
     public void DrawFocusRing(SKCanvas canvas, SkUiFocusRingPaint ring) { … }        // → FocusRingPainter ?? DrawFocusRingCore
     public virtual double ScrollBarThickness => 4;         // and ScrollBarMargin (2), ScrollBarMinimumThumbLength (24),

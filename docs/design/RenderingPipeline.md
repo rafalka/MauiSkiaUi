@@ -67,7 +67,7 @@ Children are composited by the engine between the Content and Overlay pictures. 
 | Arrange resizes the node | `Props` | This node (content depends on size) |
 | Transform / opacity / `ClipToBounds` / scroll offset | `Props` | No |
 | Child added, removed or reordered | `Children` | No (new children record once) |
-| Detach from the tree | subtree reset | Re-recorded on reattach; the compositor disposes the old pictures |
+| Detach from the tree | subtree reset | Re-recorded on reattach; the compositor disposes the old pictures and effects; nodes release what they keep only for drawing (text blobs, recording-only paths) |
 
 The first mark in a frame walks up to the root. Later marks stop at the first ancestor that is already marked. N changes therefore cost O(N + depth), not O(N × depth).
 
@@ -117,7 +117,7 @@ Per node the compositor draws: transform → cull by `InkBounds` (visual bounds 
 
 **Subtree versions.** On the render thread every applied update and animation tick bumps `SkUiRenderNode.Version` on the affected node and its ancestors (once per pass). A node's own offset, transform and opacity only bump its ancestors, since the cached raster is in the node's own coordinates: moving, fading or scaling a shadowed node, and scrolling the list around it, reuse its raster. `SkUiCompositor.ShadowRasterizations` / `LiveShadows` count both paths for tests.
 
-Shadow and clip changes are `Props` changes: no re-record. The compositor disposes the clip path and shadow objects (outline, shader, blur filters) a commit replaces, on the render thread between frames: the UI side keeps only its newest ones, so nothing else uses them.
+Shadow and clip changes are `Props` changes: no re-record. The compositor disposes the clip paths (`ClipPath`, `ChildrenClipPath`, `ContentClipPath`) and shadow objects (outline, shader, blur filters) a commit replaces, on the render thread between frames: the UI side keeps only its newest ones, so nothing else uses them. It also disposes a node's committed ones when the node is removed, when the compositor is disposed and when a batch is never applied: a render node leaves the tree only when its UI node is reset (detached, surface torn down), and a reset node forgets them (`ISkUiRenderable.ReleaseDrawingResources`) and makes new ones, so none is committed or read again. Nothing is left to the finalizer, whose disposals would contend with drawing.
 
 ## GPU pipeline warm-up
 

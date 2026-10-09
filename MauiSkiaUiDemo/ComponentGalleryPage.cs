@@ -5,6 +5,15 @@ public sealed class ComponentGalleryPage : ContentPage
 {
     private bool _navigating;
 
+    // Shown while the page's shorter side cannot fit the SkUi and MAUI previews side by side: the shorter side, not the
+    // width, so a phone in landscape (wide, but no height left for the editors) still shows it.
+    private readonly Label _narrowNote = new()
+    {
+        Text = "This demo works best on wide devices like tablets or desktops.",
+        TextColor = DemoColors.Caption, Background = DemoColors.SoftSurface, FontFamily = DemoFonts.OpenSansRegular, FontSize = 12,
+        Padding = new Thickness(16, 8), IsVisible = false, AutomationId = "NarrowScreenNote"
+    };
+
     public ComponentGalleryPage()
     {
         Title = "SkiaUi / Components";
@@ -38,10 +47,17 @@ public sealed class ComponentGalleryPage : ContentPage
                 rows.Add(button, 0, row);
             }
         }
-        var root = new Grid { RowDefinitions = [new(GridLength.Star)] };
-        root.Add(new ScrollView { Content = rows, AutomationId = "ComponentCatalog" });
+        var root = new Grid { RowDefinitions = [new(GridLength.Auto), new(GridLength.Star)] };
+        root.Add(_narrowNote);
+        root.Add(new ScrollView { Content = rows, AutomationId = "ComponentCatalog" }, 0, 1);
         Content = root;
+        SizeChanged += (_, _) => UpdateNarrowNote(Width, Height);
     }
+
+    internal bool ShowsNarrowNote => _narrowNote.IsVisible;
+
+    internal void UpdateNarrowNote(double width, double height) =>
+        _narrowNote.IsVisible = width > 0 && height > 0 && Math.Min(width, height) < ComponentDemoPage.SideBySideMinWidth;
 
     private async Task Navigate(string route)
     {

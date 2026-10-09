@@ -21,7 +21,9 @@ public sealed class ScrollViewDemoPage : ComponentDemoPage
         var nativeClicks = 0;
         var skiaRows = new List<SkUiButton>();
         var nativeRows = new List<Button>();
-        void Status() => Feedback($"Offset {_skia.ScrollX:F0}, {_skia.ScrollY:F0}; taps {skiaClicks}", $"Offset {_native.ScrollX:F0}, {_native.ScrollY:F0}; taps {nativeClicks}");
+        var lastPull = "";
+        void Status() => Feedback($"Offset {_skia.ScrollX:F0}, {_skia.ScrollY:F0}; overscroll {_skia.OverscrollX:F0}, {_skia.OverscrollY:F0}; taps {skiaClicks}{lastPull}",
+            $"Offset {_native.ScrollX:F0}, {_native.ScrollY:F0}; taps {nativeClicks}");
         for (var index = 0; index < 10; index++)
         {
             drawn.RowDefinitions.Add(new RowDefinition(GridLength.Star));
@@ -39,6 +41,8 @@ public sealed class ScrollViewDemoPage : ComponentDemoPage
         _skia.Content = drawn;
         _native.Content = standard;
         _skia.Scrolled += (_, _) => Status();
+        _skia.Overscrolled += (_, _) => Status();
+        _skia.PullReleased += (_, args) => { lastPull = $"; released {args.Edge} at {args.Distance:F0}"; Status(); };
         _native.Scrolled += (_, _) => Status();
         Choice(nameof(SkUiScrollView.Orientation), Enum.GetValues<ScrollOrientation>(), ScrollOrientation.Both, value => { _skia.Orientation = value; _native.Orientation = value; }, () => _skia.Orientation, () => _native.Orientation);
         // Content size is distinct from the host WidthRequest/HeightRequest editors.
@@ -60,6 +64,9 @@ public sealed class ScrollViewDemoPage : ComponentDemoPage
             value => _skia.SnapPointsType = value, () => _skia.SnapPointsType);
         Choice(nameof(SkUiScrollView.SnapPointsAlignment), Enum.GetValues<SnapPointsAlignment>(), SnapPointsAlignment.Start,
             value => _skia.SnapPointsAlignment = value, () => _skia.SnapPointsAlignment);
+        // SkiaUi only: edges pulled also when the content fits or overscroll is off (reported in the status line).
+        Choice(nameof(SkUiScrollView.PullEdges), [SkUiScrollEdges.None, SkUiScrollEdges.Top, SkUiScrollEdges.Top | SkUiScrollEdges.Bottom, SkUiScrollEdges.All],
+            SkUiScrollEdges.None, value => _skia.PullEdges = value, () => _skia.PullEdges);
         Choice("Thumb color", ["Default", "Accent"], "Default",
             value => { _skia.VerticalScrollBar.ThumbColor = _skia.HorizontalScrollBar.ThumbColor = value == "Accent" ? Accent : null; },
             () => _skia.VerticalScrollBar.ThumbColor is null ? "Default" : "Accent");
@@ -68,7 +75,7 @@ public sealed class ScrollViewDemoPage : ComponentDemoPage
         ActionButton("Scroll to row 8", () => ScrollBothTo(skiaRows[7], nativeRows[7], position));
         ActionButton("Scroll to middle", () => ScrollBoth(100, 250));
         ActionButton("Scroll to start", () => ScrollBoth(0, 0));
-        OnReset(() => { skiaClicks = nativeClicks = 0; ScrollBoth(0, 0); });
+        OnReset(() => { skiaClicks = nativeClicks = 0; lastPull = ""; ScrollBoth(0, 0); });
     }
 
     private async void ScrollBothTo(SkUiButton skiaRow, Button nativeRow, ScrollToPosition position)

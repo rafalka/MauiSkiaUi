@@ -13,7 +13,8 @@ namespace MauiSkiaUi.Core;
 /// Optional rounded chrome (a badge, a chip): <see cref="FillColor"/> (or a <see cref="SkUiCoreNode.Background"/>, solid or
 /// gradient, which replaces it), <see cref="CornerRadii"/> (<see cref="SetCornerRadius"/>
 /// sets all four), <see cref="BorderColor"/> and <see cref="BorderWidth"/>, drawn unless a <see cref="SkUiCoreNode.PaintBackground"/>
-/// painter replaces it.
+/// painter replaces it. Text fits the label on request: <see cref="ShrinkToFit"/> (down to <see cref="MinimumFontScale"/>),
+/// <see cref="AllowsTightening"/> and <see cref="GrowToFill"/> (up to <see cref="MaximumFontScale"/>).
 /// </summary>
 public class SkUiCoreLabel : SkUiCoreNode
 {
@@ -35,10 +36,14 @@ public class SkUiCoreLabel : SkUiCoreNode
     private double _characterSpacing;
     private TextDecorations _textDecorations;
     private TextTransform _textTransform = TextTransform.Default;
+    private bool _shrinkToFit;
+    private double _minimumFontScale = SkUiTextFit.DefaultMinimumScale;
+    private bool _growToFill;
+    private double _maximumFontScale = SkUiTextFit.DefaultMaximumScale;
+    private bool _allowsTightening;
     private readonly SkUiTextLayout _layout;
     private SkUiTextDirection _textDirection;
     private SkUiTextRendering _textRendering;
-    private SKPaint? _textPaint;
     private Color _fillColor = Colors.Transparent;
     private SkUiChromeState _chrome;
     private SkUiCoreSpan[] _spans = [];
@@ -130,6 +135,50 @@ public class SkUiCoreLabel : SkUiCoreNode
     {
         get => _textTransform;
         set => SetTextTransform(value);
+    }
+
+    /// <summary>
+    /// Makes text that does not fit the label smaller, down to <see cref="MinimumFontScale"/> (see
+    /// <see cref="SkUiLabel.ShrinkToFit"/>). Default <c>false</c>.
+    /// </summary>
+    public bool ShrinkToFit
+    {
+        get => _shrinkToFit;
+        set => SetShrinkToFit(value);
+    }
+
+    /// <summary>The smallest scale <see cref="ShrinkToFit"/> shrinks the text to, more than 0 and at most 1 (default 0.5).</summary>
+    public double MinimumFontScale
+    {
+        get => _minimumFontScale;
+        set => SetMinimumFontScale(value);
+    }
+
+    /// <summary>
+    /// Makes the text larger, up to <see cref="MaximumFontScale"/>, as large as still fits the label (see
+    /// <see cref="SkUiLabel.GrowToFill"/>). Default <c>false</c>.
+    /// </summary>
+    public bool GrowToFill
+    {
+        get => _growToFill;
+        set => SetGrowToFill(value);
+    }
+
+    /// <summary>The largest scale <see cref="GrowToFill"/> grows the text to, finite and at least 1 (default 2).</summary>
+    public double MaximumFontScale
+    {
+        get => _maximumFontScale;
+        set => SetMaximumFontScale(value);
+    }
+
+    /// <summary>
+    /// Takes up to 0.05 em from the space after each character before text that does not fit is truncated or shrunk (see
+    /// <see cref="SkUiLabel.AllowsTightening"/>). Default <c>false</c>.
+    /// </summary>
+    public bool AllowsTightening
+    {
+        get => _allowsTightening;
+        set => SetAllowsTightening(value);
     }
 
     /// <summary>Background fill of the rounded chrome (transparent by default); a set <see cref="SkUiCoreNode.Background"/> replaces it.</summary>
@@ -482,6 +531,48 @@ public class SkUiCoreLabel : SkUiCoreNode
         return this;
     }
 
+    /// <summary>Sets <see cref="ShrinkToFit"/>.</summary>
+    public SkUiCoreLabel SetShrinkToFit(bool value)
+    {
+        if (!SetProperty(ref _shrinkToFit, value, nameof(ShrinkToFit))) return this;
+        InvalidateText();
+        return this;
+    }
+
+    /// <summary>Sets <see cref="MinimumFontScale"/> (more than 0, at most 1).</summary>
+    public SkUiCoreLabel SetMinimumFontScale(double value)
+    {
+        SkUiValidate.ThrowIfNotFraction(value, nameof(value));
+        if (!SetProperty(ref _minimumFontScale, value, nameof(MinimumFontScale))) return this;
+        if (_shrinkToFit) InvalidateText();
+        return this;
+    }
+
+    /// <summary>Sets <see cref="GrowToFill"/>.</summary>
+    public SkUiCoreLabel SetGrowToFill(bool value)
+    {
+        if (!SetProperty(ref _growToFill, value, nameof(GrowToFill))) return this;
+        InvalidateText();
+        return this;
+    }
+
+    /// <summary>Sets <see cref="MaximumFontScale"/> (finite, at least 1).</summary>
+    public SkUiCoreLabel SetMaximumFontScale(double value)
+    {
+        SkUiValidate.ThrowIfNotAtLeastOne(value, nameof(value));
+        if (!SetProperty(ref _maximumFontScale, value, nameof(MaximumFontScale))) return this;
+        if (_growToFill) InvalidateText();
+        return this;
+    }
+
+    /// <summary>Sets <see cref="AllowsTightening"/>.</summary>
+    public SkUiCoreLabel SetAllowsTightening(bool value)
+    {
+        if (!SetProperty(ref _allowsTightening, value, nameof(AllowsTightening))) return this;
+        InvalidateText();
+        return this;
+    }
+
     /// <summary>Sets foreground color.</summary>
     public SkUiCoreLabel SetTextColor(Color value)
     {
@@ -638,12 +729,13 @@ public class SkUiCoreLabel : SkUiCoreNode
     public void InvalidateTextLayout() => InvalidateText();
 
     private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), ScaledFontSize(_fontSize), _lineBreakMode, _lineBreaker,
-        _maxLines, _lineHeight, _characterSpacing, EffectiveTextDirection, _textRendering, _fontAttributes, _horizontal == TextAlignment.Justify);
+        _maxLines, _lineHeight, _characterSpacing, EffectiveTextDirection, _textRendering, _fontAttributes, _horizontal == TextAlignment.Justify,
+        _shrinkToFit ? (float)_minimumFontScale : 1, _growToFill ? (float)_maximumFontScale : 1, _allowsTightening);
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => UsesRichText
-        ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint)
-        : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint);
+        ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint, heightConstraint)
+        : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint, heightConstraint);
 
     /// <summary>The text's size without padding when wrapped to <paramref name="widthConstraint"/> (buttons place an image beside it).</summary>
     private protected Size MeasureText(double widthConstraint) => UsesRichText
@@ -694,7 +786,7 @@ public class SkUiCoreLabel : SkUiCoreNode
 
     private void PaintText(SKCanvas canvas)
     {
-        var paint = _textPaint ??= new SKPaint { IsAntialias = true };
+        var paint = SkUiTextResources.TextPaint;
         var inset = TextInset;
         if (UsesRichText)
         {
@@ -704,6 +796,15 @@ public class SkUiCoreLabel : SkUiCoreNode
         paint.Color = ToSkColor(_textColor);
         _layout.Draw(canvas, _displayText, TextStyle, inset, Frame.Width, Frame.Height,
             _horizontal, _vertical, paint, _textDecorations);
+    }
+
+    /// <inheritdoc />
+    internal override void ReleaseDrawingResources()
+    {
+        base.ReleaseDrawingResources();
+        _chrome.ReleaseClip();
+        _layout.Release();
+        _richLayout?.Release();
     }
 
     private void UpdateDisplayText()

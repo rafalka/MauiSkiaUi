@@ -83,13 +83,19 @@ internal sealed class SkUiRenderBatch
     public float RootHeight;
     public SKColor ClearColor;
 
-    /// <summary>Releases pictures of a batch that will never be applied.</summary>
+    /// <summary>
+    /// Releases pictures and effects of a batch that will never be applied (the compositor was disposed; the UI side then
+    /// forgets its effects, <see cref="ISkUiRenderable.ReleaseDrawingResources"/>). Called only while no frame draws: the
+    /// effects may be the ones a node has committed.
+    /// </summary>
     public void Discard()
     {
         foreach (var update in Updates)
         {
             update.Before?.Dispose();
             update.After?.Dispose();
+            if (update.HasProps)
+                SkUiCompositor.ReleaseEffects(update.Props);
         }
         Updates.Clear();
     }
@@ -190,6 +196,7 @@ internal sealed class SkUiCompositor : IDisposable
         {
             if (_disposed)
             {
+                // No frame draws after Dispose (it took the render lock and dropped the tree), so nothing uses its effects.
                 DiscardWithAnimations(batch);
                 return;
             }
@@ -314,8 +321,11 @@ internal sealed class SkUiCompositor : IDisposable
             var node = update.Node;
             if (node.Disposed)
             {
+                // Recorded before its UI node was reset (detached): nothing commits these objects again.
                 update.Before?.Dispose();
                 update.After?.Dispose();
+                if (update.HasProps)
+                    ReleaseEffects(update.Props);
                 continue;
             }
             var bodyChanged = update.HasContent || update.Children is not null
@@ -405,16 +415,19 @@ internal sealed class SkUiCompositor : IDisposable
     }
 
     /// <summary>
-    /// Disposes the clip path and shadow objects a commit replaced. The UI side keeps only its newest ones and never commits
+    /// Disposes the clip paths and shadow objects a commit replaced. The UI side keeps only its newest ones and never commits
     /// a replaced one again, so once the render thread stops drawing with them (here, between frames) nothing uses them:
     /// clip or shadow edits (theme toggles, animated brushes) do not pile up native Skia objects until the GC finalizes
-    /// them. Objects of batches never applied, or of nodes reset by a detach (whose UI side commits them again), are left
-    /// to the GC.
+    /// them. A removed node's and a disposed compositor's are released too (<see cref="ReleaseEffects"/>).
     /// </summary>
     private static void ReleaseReplacedEffects(in SkUiRenderProps current, in SkUiRenderProps incoming)
     {
         if (current.ClipPath is { } clip && !ReferenceEquals(clip, incoming.ClipPath))
             clip.Dispose();
+        if (current.ChildrenClipPath is { } children && !ReferenceEquals(children, incoming.ChildrenClipPath))
+            children.Dispose();
+        if (current.ContentClipPath is { } content && !ReferenceEquals(content, incoming.ContentClipPath))
+            content.Dispose();
         if (current.Shadow is not { } shadow || ReferenceEquals(shadow, incoming.Shadow))
             return;
         if (shadow.Outline is { } outline && !ReferenceEquals(outline, incoming.Shadow?.Outline))
@@ -746,12 +759,36 @@ internal sealed class SkUiCompositor : IDisposable
             canvas.RestoreToCount(save);
     }
 
+    /// <summary>
+    /// Disposes the clip paths and shadow objects of <paramref name="props"/> that no frame draws any more: a removed node's,
+    /// a disposed compositor's, a batch's that is never applied. Its UI node was reset (it left its drawn parent, or its
+    /// surface is gone) and forgot them (<see cref="ISkUiRenderable.ReleaseDrawingResources"/>), so nothing commits them
+    /// again: a render node leaves the tree only that way.
+    /// </summary>
+    /// <remarks>
+    /// The props of one node alias each other's effects (an unchanged clip path, a shadow's style reused by the next shadow),
+    /// so releasing a node's committed props and its discarded pending ones may release an object twice: disposal is
+    /// idempotent (SkiaSharp objects, <see cref="SkUiShadowStyle.Dispose"/>). Nodes never share effects.
+    /// </remarks>
+    internal static void ReleaseEffects(in SkUiRenderProps props)
+    {
+        props.ClipPath?.Dispose();
+        props.ChildrenClipPath?.Dispose();
+        props.ContentClipPath?.Dispose();
+        if (props.Shadow is { } shadow)
+        {
+            shadow.Outline?.Dispose();
+            shadow.Style.Dispose();
+        }
+    }
+
     private static void DisposeSubtree(SkUiRenderNode node)
     {
         node.Disposed = true;
         node.Before?.Dispose();
         node.After?.Dispose();
         node.Before = node.After = null;
+        ReleaseEffects(node.Props);
         DisposeShadowCache(node);
         foreach (var child in node.Children)
             if (ReferenceEquals(child.Parent, node))
@@ -765,18 +802,22 @@ internal sealed class SkUiCompositor : IDisposable
     /// <summary>Releases all retained pictures; later commits are discarded.</summary>
     public void Dispose()
     {
+        List<SkUiRenderBatch> discarded;
         lock (_pendingLock)
         {
             if (_disposed)
                 return;
             _disposed = true;
-            foreach (var batch in _pending)
-                DiscardWithAnimations(batch);
+            discarded = [.. _pending];
             _pending.Clear();
             _hasPending = false;
         }
         lock (_renderLock)
         {
+            // Discarded only now: a props update of a pending batch carries the node's effects (its clip path, shadow) as
+            // committed, and a frame still drawing them holds the render lock.
+            foreach (var batch in discarded)
+                DiscardWithAnimations(batch);
             foreach (var animation in _animations)
             {
                 animation.Cancel();

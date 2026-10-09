@@ -30,7 +30,7 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreGrid` | Auto / absolute / star grid + per-track min/max; see [SkUiCoreGrid.md](SkUiCoreGrid.md) |
 | `SkUiCoreTable` | Grid + row/column/cell backgrounds and span-aware separators; see [SkUiCoreTable.md](SkUiCoreTable.md) |
 | `SkUiCoreContentView` / `SkUiCoreBorder` | Single-child host; the border draws any `StrokeShape` (a Core shape or any MAUI Graphics `IShape`; without one a rectangle rounded by `CornerRadius`) with a `Paint` stroke, dashes, caps and joins, insets the content by the stroke and clips it to the shape ([SkUiBorder.md](SkUiBorder.md)) |
-| `SkUiCoreLabel` / `SkUiCoreButton` | Text with the text properties of `SkUiLabel` (`FontAttributes`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`; wrap / truncate via `LineBreakMode` or a custom `LineBreaker`; spans: `SkUiCoreSpan` via `SetSpans`) with optional rounded chrome (`FillColor`, or a `Background` paint which replaces it; per-corner `CornerRadii`, `SetCornerRadius(double)` to set all four, `BorderColor`, `BorderWidth`: badges without a wrapping border), and the rounded tap button (`ICommand`) built on it, with an optional image beside its text (`ImageSource`, `ContentLayout`, as [`SkUiButton`](SkUiButton.md#image-and-content-layout)) |
+| `SkUiCoreLabel` / `SkUiCoreButton` | Text with the text properties of `SkUiLabel` (`FontAttributes`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`; wrap / truncate via `LineBreakMode` or a custom `LineBreaker`; text that shrinks, tightens or grows to fit; spans: `SkUiCoreSpan` via `SetSpans`) with optional rounded chrome (`FillColor`, or a `Background` paint which replaces it; per-corner `CornerRadii`, `SetCornerRadius(double)` to set all four, `BorderColor`, `BorderWidth`: badges without a wrapping border), and the rounded tap button (`ICommand`) built on it, with an optional image beside its text (`ImageSource`, `ContentLayout`, as [`SkUiButton`](SkUiButton.md#image-and-content-layout)) |
 | `SkUiTextLineBreaker` / `SkUiTextLineBreakers` | Custom line breaking for labels on both layers, and the stock breakers ([SkUiLabel.md](SkUiLabel.md#custom-line-breaking)) |
 | `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Toggles: `CheckState` (Unchecked / Checked / Indeterminate), `IsChecked` view, `IsThreeState`; Switch `IsToggled` / `Toggled`; radio buttons only check on tap and do not group themselves: `SkUiCoreRadioButtons.Group(buttons, onChecked)` makes a list exclude each other (dispose to stop), `Uncheck(buttons)` and `node.UncheckRadioButtons(excluded, recursive)` uncheck them. A bare circle: compose labels and borders around it (`SkUiRadioButton` has MAUI's `Content`) |
 | `SkUiCoreSlider` | Horizontal or vertical slider (`Minimum` / `Maximum` / `Value`, drag events, `SetThumbImageSource`) |
@@ -39,7 +39,8 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreBox` | BoxView twin: `Color` (else `Background`), per-corner `CornerRadius`, 40 × 40 unless sized |
 | `SkUiCoreImage` / `SkUiCoreImageButton` | Image from an `SkUiImageSource` (`SetSource`, or `SetSourceFile` (`MauiImage` / raw asset / path), `SetSourceUri`, `SetSourceStream(open, cacheKey)`, `SetSourceFont`) or a decoded `SKImage` (`SetImage`), through the cache shared with SkUi* images; `SetTransformations`, `SetDownsample`, `SetCacheType`, `SetIsAnimationPlaying`, `SetLoadingPlaceholder` / `SetErrorPlaceholder`, `LoadingStarted` / `LoadingFinished` ([SkUiImage.md](SkUiImage.md)). The button adds tap/tint, `Pressed` / `Released`, `Padding`, `CornerRadii` clip (`SetCornerRadius(double)`), border. No MAUI `ImageSource` |
 | `SkUiCoreActivityIndicator` | Indeterminate spinner, rotated by the compositor on the render thread |
-| `SkUiCoreScrollView` | Scroller on the shared scroll engine: offsets, render-thread fling / animated scroll, wheel (both axes), nesting with Core and SkUi* scrollers; scroll bars (`SetHorizontalScrollBarVisibility`, `SetVerticalScrollBarVisibility`), overscroll (`SetOverscroll`), snap points (`SetSnapPointsType`, `SetSnapPointsAlignment`), `ScrollToAsync(SkUiCoreNode, ScrollToPosition, bool)` / `GetScrollPositionForNode` ([SkUiScrollView.md](SkUiScrollView.md)) |
+| `SkUiCoreScrollView` | Scroller on the shared scroll engine: offsets, render-thread fling / animated scroll, wheel (both axes), nesting with Core and SkUi* scrollers; scroll bars (`SetHorizontalScrollBarVisibility`, `SetVerticalScrollBarVisibility`), overscroll (`SetOverscroll`) and its events (`Overscrolled`, `PullReleased`, `SetPullEdges`), snap points (`SetSnapPointsType`, `SetSnapPointsAlignment`), `ScrollToAsync(SkUiCoreNode, ScrollToPosition, bool)` / `GetScrollPositionForNode` ([SkUiScrollView.md](SkUiScrollView.md)) |
+| `SkUiCoreRefreshIndicator` | The pull-to-refresh indicator drawn by the look (`PullProgress`, `IsRefreshing`, `Style`, `Color`): the one `SkUiRefreshView` and `SkUiCollectionView` show, or one of your own on a scroller's overscroll events ([below](#refresh-indicator)) |
 | `SkUiCoreScrollBar` | A scroll bar of a drawn scroller ([below](#scroll-bars)) |
 | `SkUiCoreHost` | `SkUiView` bridge that hosts one Core root |
 
@@ -97,6 +98,7 @@ scroller.SetContent(host);
 - `LineBreakMode` / `SetLineBreakMode(LineBreakMode)`: stock wrapping and truncation (default `WordWrap`), on HarfBuzz-shaped widths.
 - `MaxLines` / `SetMaxLines(int)`: the most lines drawn (-1, the default, or 0: no limit); with `TailTruncation` the text wraps and the last line ends with the ellipsis.
 - `LineBreaker` / `SetLineBreaker(SkUiTextLineBreaker?)`: a custom breaker that replaces `LineBreakMode` and can still apply it (`context.Break()`); `null` (default) uses `LineBreakMode`. Each returned line is shaped. Call `InvalidateTextLayout()` when the breaker's own inputs change.
+- `ShrinkToFit` / `SetShrinkToFit(bool)` and `MinimumFontScale` / `SetMinimumFontScale(double)`: text that does not fit gets smaller, down to the minimum scale (default 0.5); `AllowsTightening` / `SetAllowsTightening(bool)` tightens it first; `GrowToFill` / `SetGrowToFill(bool)` and `MaximumFontScale` / `SetMaximumFontScale(double)` make text with room larger (default up to 2). As on `SkUiLabel` ([Shrink to fit](SkUiLabel.md#shrink-to-fit)).
 - `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`, `FontAttributes` (+ `Set*`): as on `SkUiLabel`.
 - `FlowDirection` / `SetFlowDirection` on any Core node sets the layout direction (`MatchParent` inherits from the Core parent, then from `SkUiCoreHost.FlowDirection`); RTL mirrors child frames, and labels in `Auto` follow it.
 - `TextRendering` / `SetTextRendering(SkUiTextRendering)`: `Auto` (fast path for plain Latin text, HarfBuzz otherwise), `Shaped`, `Simple` (never shapes, for dense plain text / numbers) — see [SkUiLabel.md](SkUiLabel.md).
@@ -225,6 +227,36 @@ Demo **Stress test** page: toggle **Core layer** to build the same two-column gr
 - `SkUiLabel` / `SkUiButton` delegate measure & paint to Core instances (today they are separate types that share the internal text engine and the `SkUiLook` chrome)
 
 Already shipped: hand-rolled INPC on `SkUiCoreNode` with `ICommand` commands (`SkUiCoreCommand` helper); fluent `Set*` as the single apply path, with CLR setters calling `Set*`; shared painters, default sizes and state-change transitions via **`SkUiLook`** (FR-18, FR-26: Core toggles, buttons, sliders and progress bars animate like their SkUi* counterparts, through the same internal animators; `ShowsPressEffect` on any node gives a composite button, e.g. a `SkUiCoreBorder` holding an icon and labels, the look's press feedback: see the "Composite buttons" demo) and the shared palette via **`SkUiColorScheme`** / **`SkUiColors`** (FR-19) — neither is MAUI Style/VSM (FR-12); Grid, Table and ScrollView layouts.
+
+## Refresh indicator
+
+`SkUiCoreRefreshIndicator` is the indicator of pull-to-refresh, drawn by the look (`SkUiLook.DrawRefreshIndicator`; by default the look's activity indicator, on a badge as an overlay). `SkUiRefreshView` and `SkUiCollectionView` show one (their `RefreshIndicator`: style its `Color` or `Shadow` there), and it is a control of its own for pulls built on a scroller's overscroll events.
+
+| Member | Notes |
+| --- | --- |
+| `Color` / `SetColor` | The arc's color; `null`: the accent |
+| `Style` / `SetStyle`, `EffectiveStyle` | `Overlay` (badge) or `Inline`; `Default`: the look's |
+| `PullProgress` / `SetPullProgress` | The pull over the trigger distance (1: far enough); the look turns it into opacity and rotation at composite time (nothing re-records) |
+| `IsRefreshing` / `SetIsRefreshing` | Shown fully and spun on the render thread; read as busy by screen readers |
+
+Its size is `SkUiLook.RefreshIndicatorSize` (40); place it with `TranslationY`. The look gives it a shadow (`GetRefreshIndicatorShadow`) unless one is set.
+
+```csharp
+var indicator = new SkUiCoreRefreshIndicator().SetColor(Colors.Teal);
+scroller.PullEdges = SkUiScrollEdges.Top;
+scroller.Overscrolled += (_, e) =>
+{
+    var pull = Math.Max(0, -e.OverscrollY);
+    indicator.SetPullProgress(pull / 80).SetTranslationY(pull - 40);
+};
+scroller.PullReleased += async (_, e) =>
+{
+    if (e.Edge != SkUiScrollEdges.Top || e.Distance < 80) return;
+    indicator.SetIsRefreshing(true);
+    await ReloadAsync();
+    indicator.SetIsRefreshing(false).SetPullProgress(0);
+};
+```
 
 ## Scroll bars
 

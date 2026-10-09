@@ -20,6 +20,12 @@ internal static class SkUiValidate
 
     public static bool FinitePositive(BindableObject bindable, object? value) => value is double number && double.IsFinite(number) && number > 0;
 
+    /// <summary>A scale up: finite, at least 1.</summary>
+    public static bool AtLeastOne(BindableObject bindable, object? value) => value is double number && double.IsFinite(number) && number >= 1;
+
+    /// <summary>A scale down to a fraction: more than 0, at most 1.</summary>
+    public static bool Fraction(BindableObject bindable, object? value) => value is double number && number is > 0 and <= 1;
+
     public static bool CornerRadii(BindableObject bindable, object? value) => value is CornerRadius radii && SkUiCornerRadii.IsValid(radii);
 
     /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is finite and not negative (the rule of <see cref="NonNegative"/>).</summary>
@@ -34,6 +40,20 @@ internal static class SkUiValidate
     {
         if (!double.IsFinite(value))
             throw new ArgumentOutOfRangeException(name, value, "The value must be finite.");
+    }
+
+    /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is more than 0 and at most 1 (the rule of <see cref="Fraction"/>).</summary>
+    public static void ThrowIfNotFraction(double value, string name)
+    {
+        if (value is not (> 0 and <= 1))
+            throw new ArgumentOutOfRangeException(name, value, "The value must be more than 0 and at most 1.");
+    }
+
+    /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is finite and at least 1 (the rule of <see cref="AtLeastOne"/>).</summary>
+    public static void ThrowIfNotAtLeastOne(double value, string name)
+    {
+        if (!double.IsFinite(value) || value < 1)
+            throw new ArgumentOutOfRangeException(name, value, "The value must be finite and at least 1.");
     }
 
     /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is finite and positive.</summary>

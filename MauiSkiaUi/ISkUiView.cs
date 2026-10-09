@@ -44,5 +44,27 @@ public enum SkUiTouchAction
 /// <param name="Timestamp">Sample time (now when <c>null</c>).</param>
 /// <param name="WheelDelta">Vertical wheel / trackpad scroll in DIPs, positive towards the top (<see cref="SkUiTouchAction.Wheel"/>).</param>
 /// <param name="WheelDeltaX">Horizontal wheel / trackpad scroll in DIPs, positive towards the left (<see cref="SkUiTouchAction.Wheel"/>).</param>
+/// <param name="Device">What produced the sample: a finger, a mouse (or trackpad click) or a pen.</param>
 public readonly record struct SkUiTouchEvent(long Id, SkUiTouchAction Action, Point Position, TimeSpan? Timestamp = null, double WheelDelta = 0,
-    double WheelDeltaX = 0);
+    double WheelDeltaX = 0, SkUiPointerDevice Device = SkUiPointerDevice.Touch)
+{
+    /// <summary>A touch sample (<see cref="SkUiPointerDevice.Touch"/>): the constructor of builds before <see cref="Device"/>, kept for binary compatibility.</summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public SkUiTouchEvent(long Id, SkUiTouchAction Action, Point Position, TimeSpan? Timestamp, double WheelDelta, double WheelDeltaX)
+        : this(Id, Action, Position, Timestamp, WheelDelta, WheelDeltaX, SkUiPointerDevice.Touch)
+    {
+    }
+}
+
+/// <summary>What produces a pointer's samples (<see cref="SkUiTouchEvent.Device"/>, <see cref="SkUiPointer.Device"/>).</summary>
+public enum SkUiPointerDevice
+{
+    /// <summary>A finger on a touch screen (also when the platform does not tell).</summary>
+    Touch,
+
+    /// <summary>A mouse, or a trackpad click (iPad pointer, Mac Catalyst, Windows, Android with a mouse).</summary>
+    Mouse,
+
+    /// <summary>A pen or stylus (Apple Pencil, Android stylus, Windows pen).</summary>
+    Pen
+}

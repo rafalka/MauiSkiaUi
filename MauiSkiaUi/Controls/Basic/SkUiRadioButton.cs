@@ -427,6 +427,14 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
 
     private SkUiRadioButtonContent TextContent => _textContent ??= new SkUiRadioButtonContent(this);
 
+    /// <inheritdoc />
+    internal override void ReleaseDrawingResources()
+    {
+        base.ReleaseDrawingResources();
+        _chrome.ReleaseClip();
+        _textContent?.Release();
+    }
+
     private SkUiTextStyle TextStyle => SkUiRadioButtonContent.TextStyle(_fontFamily,
         SkUiFontScaling.ScaleFontSize(_fontSize, _fontAutoScalingEnabled), _fontAttributes, _characterSpacing, TextDirection);
 

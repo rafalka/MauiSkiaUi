@@ -212,6 +212,13 @@ public class SkUiCoreBorder : SkUiCoreContentView
     private SkUiFill BorderFill => Background is { } background ? SkUiFill.From(background) : SkUiFill.From(_backgroundColor);
 
     /// <inheritdoc />
+    internal override void ReleaseDrawingResources()
+    {
+        base.ReleaseDrawingResources();
+        _geometry.Release();
+    }
+
+    /// <inheritdoc />
     /// <remarks>An opaque fill casts the shadow from the outline (with an opaque stroke, its outer edge), as MAUI on Android.</remarks>
     internal override SKPath? CreateShadowOutline(float width, float height) =>
         ReferenceEquals(PaintBackground, _backgroundPainter) && ReferenceEquals(PaintOverlay, _overlayPainter)

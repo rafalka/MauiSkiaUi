@@ -4,7 +4,7 @@ A drawn, virtualized list or grid with selection (single or multiple), item taps
 
 **MAUI counterpart:** `CollectionView` (and a `RefreshView` around it), with **SkiaUi's own API**: familiar names where they fit (`ItemsSource`, `ItemTemplate`, `SelectedItem`, `SelectedItems`, `SelectionChangedCommand`, `IsGrouped`, `GroupHeaderTemplate`, `RemainingItemsThreshold`, `EmptyView`), different ones where MAUI's do not fit the drawn, recycled model (`Header` is a view or a template, not any object; no `ItemsLayout` object but `Orientation`, `Span` and spacings; `ItemTapped` exists; `ScrollToIndex` returns a `Task`). Mapping from MAUI: [Migration.md](../Migration.md#lists-collectionview) and [collection-view.md](../../plugins/skiaui-migration/skills/skiaui-migrate/references/collection-view.md). Design: [ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md#collection-view-implemented).
 
-Not available: reordering items, swipe actions on rows (Phase C), snap points, keyboard item navigation. Plain lists without any of the features below can also use the lighter `SkUiVirtualScrollView`.
+Swipe actions on rows: put an [`SkUiSwipeView`](SkUiSwipeView.md) in the item template. Not available: reordering items, snap points, keyboard item navigation. Plain lists without any of the features below can also use the lighter `SkUiVirtualScrollView`.
 
 ## How it works
 
@@ -21,7 +21,7 @@ Not available: reordering items, swipe actions on rows (Phase C), snap points, k
 - **Taps.** `ItemTapped` and `ItemTappedCommand` run for every tap on an item, whatever the selection mode, after the selection changed (`Item`, its `Index` across the groups, its `Group`). Views inside the item that take taps themselves (buttons, views with `Tapped`) keep them: the item is not tapped then.
 - **Empty view.** While there are no rows (`ItemsSource` is `null` or empty), `EmptyView` shows instead of the items, between the header and the footer, filling what the list has left. `EmptyViewTemplate` creates it the first time the list is empty.
 - **Loading more.** `LoadMoreMode` `Manual` shows a load-more row (a "Load more" button by default, or `LoadMoreTemplate`) after the items (`LoadMorePosition` `End`) or before them (`Start`) while `LoadMoreCommand` can execute; `Auto` asks when that end of the rows shows (also when the items do not fill the list), `AutoOnUserScroll` only once the user has scrolled. Asking sets `IsLoadMoreActive` (the row shows a spinner), raises `LoadingMore` and runs the command; the app sets `IsLoadMoreActive` back to `false` when the items are added, and an automatic mode asks again if the end still shows once they are laid out. At the start, inserted items keep what shows in place (a chat loading older messages). `RemainingItemsThreshold` works independently (to prefetch a page before the end shows).
-- **Pull to refresh.** With `IsPullToRefreshEnabled`, dragging the top of a vertical list down brings a drawn indicator down with the pull (composite-time, no re-record while dragging), also when the items do not fill the list and when overscroll is off. Releasing past 64 DIPs sets `IsRefreshing`; as MAUI's `RefreshView`, `IsRefreshing` becoming `true` (by a pull or by the app) raises `Refreshing` and runs `RefreshCommand`, and the indicator spins on the render thread until the app sets it back to `false`.
+- **Pull to refresh.** With `IsPullToRefreshEnabled`, dragging the top of a vertical list down shows the refresh indicator (`RefreshIndicator`, the [`SkUiCoreRefreshIndicator`](SkUiCore.md#refresh-indicator) drawn by the look, shared with [`SkUiRefreshView`](SkUiRefreshView.md)), also when the items do not fill the list and when overscroll is off; nothing re-records while dragging. Releasing past `RefreshTriggerDistance` (0: the look's, 64 DIPs) sets `IsRefreshing` while `RefreshCommand` (if any) can execute; as MAUI's `RefreshView`, `IsRefreshing` becoming `true` (by a pull or by the app) raises `Refreshing` and runs `RefreshCommand`, and the indicator spins on the render thread until it goes back to `false`: set by the app (`RefreshCompletion="Manual"`, default) or by the list when an async command and the deferrals taken in `Refreshing` are done (`Automatic`; details in [SkUiRefreshView.md](SkUiRefreshView.md#how-it-works)). `RefreshStyle`: an `Overlay` badge over the items (rests below the sticky header), or `Inline` (iOS): the items move down (with bounce overscroll) and stay down while refreshing; `Default` follows the look (the platform). Touch and pen pull; mouse drags only with `IsMousePullEnabled`. For other content, wrap it in `SkUiRefreshView` (a list inside it is pulled for the refresh view; leave `IsPullToRefreshEnabled` off then).
 - **Accessibility.** Tappable items are actionable elements (double tap, Enter / Space); a selected item reads `SelectedStateText` ("Selected") as its value; collapsible group headers are buttons that read "Expanded" / "Collapsed" (`SkUiExpander.ExpandedStateText`).
 
 ## How to use
@@ -120,9 +120,14 @@ var carousel = new SkUiCollectionView { Orientation = ItemsLayoutOrientation.Hor
 | `RemainingItemsThreshold`, `RemainingItemsThresholdReachedCommand` (+ `…Parameter`) | -1 | As the virtual layout, counted in rows: once per row count, when the end comes near |
 | `LoadMoreMode`, `LoadMorePosition` | `None`, `End` | `Manual` (a load-more row), `Auto`, `AutoOnUserScroll`; at the `End` or the `Start` of the items |
 | `LoadMoreCommand` (+ `…Parameter`), `LoadMoreTemplate`, `IsLoadMoreActive` | `null`, `null`, `false` | The command loads more (while it can execute, more can load); the row's template; two-way, set by the list when it asks, back to `false` by the app when done |
-| `IsPullToRefreshEnabled` | `false` | Pulling the top down and releasing past 64 DIPs starts a refresh (vertical lists) |
+| `IsPullToRefreshEnabled` | `false` | Pulling the top down and releasing past `RefreshTriggerDistance` starts a refresh (vertical lists) |
 | `IsRefreshing` | `false` | Two-way; `true` raises `Refreshing` and runs `RefreshCommand` (+ `…Parameter`) |
 | `RefreshColor` | `null` | The indicator's arc; `null`: the accent |
+| `RefreshStyle` | `Default` | `Overlay`, `Inline` (items move down), or the look's |
+| `RefreshTriggerDistance` | `0` | DIPs a release must pass; 0: the look's (64) |
+| `IsMousePullEnabled` | `false` | Mouse drags pull too |
+| `RefreshCompletion` | `Manual` | `Automatic`: the list ends the refresh when an async command and the deferrals are done |
+| `RefreshIndicator` | — | The `SkUiCoreRefreshIndicator` shown (read-only) |
 | `VerticalScrollBarVisibility`, `HorizontalScrollBarVisibility`, `Overscroll` | `Default` | Of the list's scroller |
 | `ItemCount`, `FirstVisibleIndex`, `LastVisibleIndex`, `ScrollX`, `ScrollY`, `IsScrolling` | | Read-only; items only (headers and footers are not items); the visible indices and `IsScrolling` raise `PropertyChanged` |
 | `ScrollToIndex(index, position, animated)`, `ScrollToItem(item, …)`, `ScrollToGroup(group, …)`, `ScrollToAsync(offset, animated)` | | Return `Task`s; an item lands exactly where asked (rows between are measured on the way), after the sticky parts. `ScrollToItem` ignores an item not in the list. An item in several groups: `ScrollToItem(item)` goes to its first appearance, `ScrollToItem(item, group, …)` to the one in that group |
@@ -142,7 +147,7 @@ var carousel = new SkUiCollectionView { Orientation = ItemsLayoutOrientation.Hor
 | `GroupExpanding`, `GroupCollapsing` | `SkUiGroupChangingEventArgs` (`Group`, `GroupIndex`, `Cancel`) | A tap or the API is about to expand / collapse a group |
 | `GroupExpanded`, `GroupCollapsed` | `SkUiGroupEventArgs` (`Group`, `GroupIndex`) | A group expanded / collapsed (also when its `ISkUiExpandableGroup.IsExpanded` changed) |
 | `LoadingMore` | | The list asks for more items (before `LoadMoreCommand`) |
-| `Refreshing` | | `IsRefreshing` became `true` |
+| `Refreshing` | | `IsRefreshing` became `true` (`SkUiRefreshingEventArgs`: `GetDeferral()`) |
 | `RemainingItemsThresholdReached`, `VisibleRangeChanged`, `Scrolled` | | As on the virtual layout and the scroll view |
 
 ## Demo and tests

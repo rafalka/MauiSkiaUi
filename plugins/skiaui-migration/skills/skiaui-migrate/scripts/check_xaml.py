@@ -14,7 +14,9 @@ A drawn tree is everything inside a SkiaUi view (an element from the MauiSkiaUi 
 - BindableLayout content that is not drawn (item and empty view templates are checked like other drawn content; a string
   EmptyView becomes a MAUI Label), the Community Toolkit's StateContainer / StateView on drawn layouts (SkUiStateContainer /
   SkUiStateView; state views are checked like other drawn content), the Community Toolkit's Expander in a drawn tree
-  (SkUiExpander; headers, content and content templates of drawn views are checked like other drawn content),
+  (SkUiExpander; headers, content and content templates of drawn views are checked like other drawn content), MAUI's
+  SwipeItemView in an SkUiSwipeView (SkUiSwipeItemView; MAUI's SwipeItems and SwipeItem are what it draws), an
+  SkUiCollectionView with its own pull-to-refresh inside an SkUiRefreshView (both would refresh),
   IsClippedToBounds (ClipToBounds), TemplateBinding / RelativeSource TemplatedParent on drawn views (RelativeSource
   AncestorType), and styles that
   target MAUI types:
@@ -64,6 +66,9 @@ REPLACE = {
     "ActivityIndicator": "SkUiActivityIndicator",
     "ContentPresenter": "SkUiContentPresenter (inside a drawn ControlTemplate)",
     "GraphicsView": "a SkUiView subclass (MeasureContent + OnPaintContent)",
+    "SwipeView": "SkUiSwipeView (SwipeItems and SwipeItem stay MAUI's)",
+    "SwipeItemView": "SkUiSwipeItemView",
+    "RefreshView": "SkUiRefreshView (around a list, SkUiCollectionView's own IsPullToRefreshEnabled also works)",
 }
 WRAP = {"Entry", "Editor", "SearchBar", "Picker", "DatePicker", "TimePicker", "WebView", "HybridWebView", "BlazorWebView", "Map"}
 NO_DRAWN = {
@@ -72,8 +77,6 @@ NO_DRAWN = {
     "TableView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",
     "CarouselView": "no drawn CarouselView yet: SkUiScrollView Orientation=\"Horizontal\" SnapPointsType=\"MandatorySingle\", or keep it outside",
     "IndicatorView": "no drawn IndicatorView yet: keep it outside, or draw dots with SkUiEllipse",
-    "SwipeView": "no drawn SwipeView yet: Swiped / PanUpdated on the row, or keep the list outside",
-    "RefreshView": "around a list: SkUiCollectionView's IsPullToRefreshEnabled / IsRefreshing / RefreshCommand; around other content: put the MAUI RefreshView around the surface root",
     "Stepper": "no drawn Stepper yet: two SkUiButtons",
 }
 GESTURE_ADVICE = {
@@ -103,6 +106,8 @@ for maui_name, advice in REPLACE.items():
     for drawn_name in re.findall(r"SkUi\w+", advice):
         REPLACED_BY.setdefault(drawn_name, []).append(maui_name)
 CONTENT_PROPERTIES = {"Content", "Children"}
+# SkUiSwipeView's item sides: MAUI's SwipeItems of MAUI SwipeItems (drawn by the view) or drawn item views.
+SWIPE_ITEMS_PROPERTIES = {"LeftItems", "RightItems", "TopItems", "BottomItems"}
 # Property elements whose values are drawn content too (views, or templates of views).
 DRAWN_VALUE_PROPERTIES = {"ControlTemplate", "ItemTemplate", "EmptyView", "EmptyViewTemplate", "StateViews", "Header",
                           "ContentTemplate", "AlternateContent", "AlternateContentTemplate"}
@@ -174,6 +179,16 @@ def parse(path):
 
 def is_skia_uri(uri):
     return "MauiSkiaUi" in uri
+
+
+def in_refresh_view(node):
+    """Whether an SkUiRefreshView encloses the element."""
+    parent = node.parent
+    while parent is not None:
+        if parent.name == "SkUiRefreshView" and is_skia_uri(parent.uri):
+            return True
+        parent = parent.parent
+    return False
 
 
 def is_toolkit_uri(uri):
@@ -298,6 +313,10 @@ class Checker:
                 return
             if drawn and owner == "StateContainer" and not is_skia_uri(node.uri):
                 self.report(path, node, "error", f"{node.name} on a drawn layout: use sk:SkUi{node.name}")
+            if drawn and prop in SWIPE_ITEMS_PROPERTIES and owner == "SkUiSwipeView":
+                for child in node.children:
+                    self.check_swipe_items(path, child)
+                return
             # Children of other property elements (StrokeShape, Shadow, Resources, VisualStateGroups, …) are values,
             # not content: only Content / Children (and templates) carry drawn content.
             if prop not in CONTENT_PROPERTIES and prop not in DRAWN_VALUE_PROPERTIES:
@@ -360,6 +379,8 @@ class Checker:
                 self.report(path, node, "error", f"{local} on SkUiCollectionView: {COLLECTION_VIEW_MAUI_ONLY[local]}")
             elif node.name == "SkUiCollectionView" and local in COLLECTION_VIEW_VIEWS and not value.lstrip().startswith("{"):
                 self.report(path, node, "error", f"{local}=\"{value}\" on SkUiCollectionView: {local} takes a drawn view; use <sk:SkUiCollectionView.{local}><sk:SkUiLabel Text=\"{value}\" /></sk:SkUiCollectionView.{local}>")
+            elif node.name == "SkUiCollectionView" and local == "IsPullToRefreshEnabled" and value.strip().lower() != "false" and in_refresh_view(node):
+                self.report(path, node, "error", "IsPullToRefreshEnabled on an SkUiCollectionView inside an SkUiRefreshView: both would refresh; keep one (the refresh view's Command, or the list's RefreshCommand)")
             elif local == "IsClippedToBounds":
                 self.report(path, node, "error", f"IsClippedToBounds on {node.name}: use ClipToBounds")
             elif TEMPLATED_PARENT_RE.search(value):
@@ -379,6 +400,19 @@ class Checker:
                 self.implicit_reported.add((path, node.name))
                 self.report(path, node, "warning", f"the implicit {maui_name} style ({declared}) does not apply to {node.name}: add <Style TargetType=\"sk:{node.name}\"> with the same setters")
                 return
+
+    def check_swipe_items(self, path, node):
+        """An SkUiSwipeView side: MAUI's SwipeItems (or one item set directly) of SwipeItems and drawn item views."""
+        if node.uri == MAUI_NS and node.name == "SwipeItems":
+            for child in node.children:
+                if not child.is_property_element:
+                    self.check_swipe_items(path, child)
+        elif node.uri == MAUI_NS and node.name == "SwipeItem":
+            return
+        elif node.uri == MAUI_NS and node.name == "SwipeItemView":
+            self.report(path, node, "error", "SwipeItemView in an SkUiSwipeView: use sk:SkUiSwipeItemView with drawn content (MAUI's hosts native views)")
+        else:
+            self.visit(path, node, drawn=True)
 
     def check_gesture(self, path, node):
         name = node.name

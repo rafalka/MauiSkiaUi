@@ -119,7 +119,8 @@ internal sealed class SkUiGlTextureView : GLTextureView
         (-e.GetAxisValue(Axis.Hscroll) * 64, e.GetAxisValue(Axis.Vscroll) * 64);
 
     private SkUiTouchEvent Event(MotionEvent e, int index, SkUiTouchAction action, TimeSpan time) =>
-        new(e.GetPointerId(index), action, new Point(e.GetX(index) / _density, e.GetY(index) / _density), time);
+        new(e.GetPointerId(index), action, new Point(e.GetX(index) / _density, e.GetY(index) / _density), time,
+            Device: SkUiPointerDevices.From(e, index));
 
     private sealed class Renderer(SkUiGlTextureView owner) : SKGLTextureViewRenderer
     {

@@ -31,6 +31,25 @@ public class DefaultSkUiLook : SkUiLook
     /// <inheritdoc />
     public override SkUiOverscrollMode DefaultOverscroll => Overscroll == SkUiOverscrollMode.Default ? SkUiOverscrollMode.None : Overscroll;
 
+    /// <summary>
+    /// Pull-to-refresh style of controls that do not set their own: the platform's by default
+    /// (<see cref="SkUiRefreshStyle.Inline"/> on iOS and Mac Catalyst, <see cref="SkUiRefreshStyle.Overlay"/> elsewhere).
+    /// </summary>
+    public SkUiRefreshStyle RefreshStyle { get; set; } = PlatformRefreshStyle;
+
+    /// <summary>The platform's pull-to-refresh style: iOS and Mac Catalyst inline (UIRefreshControl), others an overlay badge (Android's).</summary>
+    public static SkUiRefreshStyle PlatformRefreshStyle =>
+        OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst() ? SkUiRefreshStyle.Inline : SkUiRefreshStyle.Overlay;
+
+    /// <inheritdoc />
+    public override SkUiRefreshStyle DefaultRefreshStyle => RefreshStyle == SkUiRefreshStyle.Default ? SkUiRefreshStyle.Overlay : RefreshStyle;
+
+    private static readonly Shadow OverlayRefreshShadow = new() { Brush = Colors.Black, Opacity = 0.25f, Radius = 4, Offset = new Point(0, 1) };
+
+    /// <inheritdoc />
+    /// <remarks>The overlay badge casts a soft shadow (Android's); inline indicators none.</remarks>
+    public override Shadow? GetRefreshIndicatorShadow(SkUiRefreshStyle style) => style == SkUiRefreshStyle.Overlay ? OverlayRefreshShadow : null;
+
     /// <inheritdoc />
     protected override SkUiTransition GetTransitionCore(SkUiTransitionKind kind) => kind switch
     {

@@ -632,6 +632,89 @@ public class SkUiLook
 
     #endregion
 
+    #region Pull to refresh
+
+    /// <summary>Size of the refresh indicator's square, in DIPs (<see cref="Core.SkUiCoreRefreshIndicator"/>).</summary>
+    public virtual double RefreshIndicatorSize => 40;
+
+    /// <summary>How far the content must be pulled past its top (shown distance, DIPs) for a release to start a refresh, where controls do not set their own.</summary>
+    public virtual double RefreshTriggerDistance => 64;
+
+    /// <summary>
+    /// While refreshing: how far below the top the indicator's area ends, in DIPs. An overlay badge rests with its bottom
+    /// there; an inline indicator is centered in it, the content held down by it.
+    /// </summary>
+    public virtual double RefreshRestDistance => 64;
+
+    /// <summary>How pull-to-refresh controls whose style is <see cref="SkUiRefreshStyle.Default"/> show their indicator.</summary>
+    public virtual SkUiRefreshStyle DefaultRefreshStyle => SkUiRefreshStyle.Overlay;
+
+    /// <summary>Seconds per turn of the refresh indicator while refreshing (spun on the render thread); 0: it does not spin.</summary>
+    public virtual double RefreshIndicatorSpinPeriod => 1;
+
+    /// <summary>
+    /// Whether <see cref="DrawRefreshIndicator"/> draws the pull itself (<see cref="SkUiRefreshIndicatorPaint.PullProgress"/>):
+    /// the indicator is then recorded again as the pull changes. Default <c>false</c>: a pull shows through
+    /// <see cref="GetRefreshPullFeedback"/>, which re-records nothing.
+    /// </summary>
+    public virtual bool RefreshIndicatorDrawsPullProgress => false;
+
+    /// <summary>
+    /// How a pull that got <paramref name="progress"/> of the trigger distance (1 at the trigger, more past it) shows the
+    /// indicator, at composite time. Default: it fades in and, as an overlay badge, turns up to 270°.
+    /// </summary>
+    public virtual SkUiRefreshPullFeedback GetRefreshPullFeedback(double progress, SkUiRefreshStyle style)
+    {
+        var shown = Math.Clamp(progress, 0, 1);
+        return new SkUiRefreshPullFeedback(shown, style == SkUiRefreshStyle.Overlay ? shown * 270 : 0);
+    }
+
+    /// <summary>The refresh indicator's shadow for <paramref name="style"/>, or <c>null</c> (default: none).</summary>
+    public virtual Shadow? GetRefreshIndicatorShadow(SkUiRefreshStyle style) => null;
+
+    /// <summary>Optional refresh indicator painter; when set, replaces <see cref="DrawRefreshIndicatorCore"/>.</summary>
+    public Action<SKCanvas, SkUiRefreshIndicatorPaint>? RefreshIndicatorPainter { get; set; }
+
+    /// <summary>
+    /// Draws the refresh indicator of pull-to-refresh (delegate or <see cref="DrawRefreshIndicatorCore"/>) into
+    /// <see cref="SkUiRefreshIndicatorPaint.Bounds"/>. While refreshing the compositor spins the picture about its center, so
+    /// draw centered, rotation-symmetric geometry (as <see cref="DrawActivityIndicator"/>).
+    /// </summary>
+    public void DrawRefreshIndicator(SKCanvas canvas, SkUiRefreshIndicatorPaint paint)
+    {
+        if (RefreshIndicatorPainter is { } painter)
+        {
+            painter(canvas, paint);
+            return;
+        }
+        DrawRefreshIndicatorCore(canvas, paint);
+    }
+
+    /// <summary>
+    /// Default refresh indicator: the look's activity indicator (<see cref="DrawActivityIndicator"/>), on a round badge of
+    /// the default background as an overlay, bare inline.
+    /// </summary>
+    protected virtual void DrawRefreshIndicatorCore(SKCanvas canvas, SkUiRefreshIndicatorPaint paint)
+    {
+        var bounds = paint.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+        var inset = 0f;
+        if (paint.Style == SkUiRefreshStyle.Overlay)
+        {
+            using var fill = new SKPaint { IsAntialias = true, Color = SkUiToggleDrawing.ToSkColor(SkUiColors.DefaultBackground) };
+            canvas.DrawCircle(bounds.MidX, bounds.MidY, Math.Min(bounds.Width, bounds.Height) / 2, fill);
+            inset = Math.Min(bounds.Width, bounds.Height) / 4;
+        }
+        using var arc = new SKPaint { Style = SKPaintStyle.Stroke, StrokeCap = SKStrokeCap.Round, IsAntialias = true, Color = paint.Color };
+        canvas.Save();
+        canvas.Translate(bounds.Left + inset, bounds.Top + inset);
+        DrawActivityIndicator(canvas, bounds.Width - 2 * inset, bounds.Height - 2 * inset, 0, arc);
+        canvas.Restore();
+    }
+
+    #endregion
+
     #region Image
 
     /// <summary>Optional image painter.</summary>

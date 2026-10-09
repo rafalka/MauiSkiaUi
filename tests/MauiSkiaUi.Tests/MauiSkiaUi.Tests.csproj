@@ -12,6 +12,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../MauiSkiaUiDemo/ComponentDemoPage.cs" Link="Demo/ComponentDemoPage.cs" />
+    <Compile Include="../../MauiSkiaUiDemo/ComponentGalleryPage.cs" Link="Demo/ComponentGalleryPage.cs" />
     <Compile Include="../../MauiSkiaUiDemo/DemoColors.cs" Link="Demo/DemoColors.cs" />
     <Compile Include="../../MauiSkiaUiDemo/DemoAssets.cs" Link="Demo/DemoAssets.cs" />
     <Compile Include="../../MauiSkiaUiDemo/DemoFonts.cs" Link="Demo/DemoFonts.cs" />

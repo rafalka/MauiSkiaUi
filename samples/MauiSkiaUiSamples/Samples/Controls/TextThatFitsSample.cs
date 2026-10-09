@@ -10,7 +10,13 @@ namespace MauiSkiaUiSamples.Samples.Controls;
 /// (shaping, fallback fonts, character spacing), and <c>context.Break()</c> falls back to the label's
 /// <c>LineBreakMode</c>, so a breaker only handles its own case.
 /// <para>
-/// Drag the slider to change the width of the drawn column: each row reacts differently. The number drops decimals
+/// Or let it shrink: <see cref="SkUiLabel.ShrinkToFit"/> draws text that does not fit smaller, down to
+/// <see cref="SkUiLabel.MinimumFontScale"/> (<see cref="SkUiLabel.AllowsTightening"/> tightens it first), before the line
+/// break mode (or the breaker) shortens it; <see cref="SkUiLabel.GrowToFill"/> makes text with room larger.
+/// </para>
+/// <para>
+/// Drag the slider to change the width of the drawn column: each row reacts differently. The headline tightens,
+/// then shrinks, the year grows into the width (<see cref="SkUiLabel.GrowToFill"/>), the number drops decimals
 /// (<see cref="SkUiTextLineBreakers.FirstFit"/>), the title uses its own ellipsis
 /// (<see cref="SkUiTextLineBreakers.WithEllipsis"/>), the people row counts who was left out (a custom breaker), and the
 /// description keeps two lines (<c>MaxLines</c> with tail truncation, as MAUI's Label).
@@ -21,10 +27,15 @@ public sealed class TextThatFitsSample : SamplePage, ISample
     public static SampleInfo Info { get; } = new(
         SampleSection.Controls,
         Title: "Text that fits",
-        Summary: "A custom `LineBreaker` decides how text gets shorter: fewer decimals, another ellipsis, or a count of " +
-            "what was left out. Drag the slider to narrow the column.",
+        Summary: "Text that shrinks to fit (`ShrinkToFit`) or grows to fill (`GrowToFill`), or a custom `LineBreaker` that decides how it gets shorter: " +
+            "fewer decimals, another ellipsis, or a count of what was left out. Drag the slider to narrow the column.",
         HowTo:
         [
+            "Smaller text: `label.ShrinkToFit = true`, with `label.MinimumFontScale = 0.6` for the smallest scale (default 0.5). " +
+                "Text still too long at that scale is shortened by the label's `LineBreakMode`. `label.AllowsTightening = true` " +
+                "tightens the letters a little first.",
+            "Larger text: `label.GrowToFill = true`, up to `label.MaximumFontScale` (default 2). Give the label a width to fill " +
+                "(and a height or `MaxLines` for wrapped text).",
             "Fewer decimals: `label.LineBreaker = SkUiTextLineBreakers.FirstFit(_ => forms)`, where `forms` lists the text " +
                 "from longest to shortest. The first that fits is drawn.",
             "Another ellipsis: `label.LineBreaker = SkUiTextLineBreakers.WithEllipsis(\"…\")` (it keeps the label's " +
@@ -40,7 +51,11 @@ public sealed class TextThatFitsSample : SamplePage, ISample
             "`context.Text` is the displayed text, after `TextTransform`. `context.Owner` is the label, e.g. to read its " +
                 "`BindingContext`.",
             "Each returned string is one line; lines beyond `MaxLines` are dropped.",
-            "Labels without a custom breaker keep the cached fast path; a custom breaker runs at each new width."
+            "Labels without a custom breaker keep the cached fast path; a custom breaker runs at each new width.",
+            "Shrink to fit scales every font size and character spacing alike, also of spans and HTML. It shrinks for truncated " +
+                "text, lines past `MaxLines`, a word that would be broken inside and lines taller than the label; wrapped " +
+                "words alone do not shrink it. With a custom breaker, the text shrinks first and the breaker shortens what " +
+                "still does not fit at the minimum."
         ]);
 
     public TextThatFitsSample() : base(Info) => SampleContent = Build();
@@ -62,6 +77,18 @@ public sealed class TextThatFitsSample : SamplePage, ISample
 
     private static View Build()
     {
+        var headline = Row("Apollo 11 lands on the Moon");
+        headline.FontSize = 24;
+        headline.FontAttributes = FontAttributes.Bold;
+        headline.ShrinkToFit = true;
+        headline.MinimumFontScale = 0.6;
+        headline.AllowsTightening = true;
+
+        var year = Row("1969");
+        year.LineBreakMode = LineBreakMode.NoWrap;
+        year.GrowToFill = true;
+        year.MaximumFontScale = 4;
+
         var distance = Row(Distance.ToString("N6", CultureInfo.CurrentCulture));
         // Longest form first; from two decimals down, the number is rounded rather than cut.
         distance.LineBreaker = SkUiTextLineBreakers.FirstFit(_ =>
@@ -78,7 +105,7 @@ public sealed class TextThatFitsSample : SamplePage, ISample
         description.MaxLines = 2;
 
         var column = new SkUiVerticalStackLayout { Spacing = 10, Padding = new Thickness(12) };
-        foreach (var (caption, label) in new[] { ("Distance to the Moon (km)", distance), ("Title", title), ("Crew", people), ("Description", description) })
+        foreach (var (caption, label) in new[] { ("Headline (shrinks to fit)", headline), ("Year (grows to fill, up to 4×)", year), ("Distance to the Moon (km)", distance), ("Title", title), ("Crew", people), ("Description", description) })
         {
             column.Children.Add(new SkUiLabel { Text = caption, FontSize = 12, TextColor = SampleColors.Caption });
             column.Children.Add(label);

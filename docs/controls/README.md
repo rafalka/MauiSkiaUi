@@ -51,6 +51,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiHorizontalShrinkLayout` / `SkUiVerticalShrinkLayout` | [SkUiShrinkLayout.md](SkUiShrinkLayout.md) | — (stacks whose children shrink to fit) |
 | `SkUiStateContainer` / `SkUiStateView` (attached properties on any drawn layout) | [SkUiStateContainer.md](SkUiStateContainer.md) | Community Toolkit `StateContainer` / `StateView` |
 | `SkUiExpander` | [SkUiExpander.md](SkUiExpander.md) | Community Toolkit `Expander` |
+| `SkUiSwipeView` / `SkUiSwipeItemView` | [SkUiSwipeView.md](SkUiSwipeView.md) | SwipeView (MAUI's `SwipeItems` / `SwipeItem`) / SwipeItemView |
 
 ## Graphics
 
@@ -70,6 +71,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 
 | Control | Doc | MAUI counterpart |
 | --- | --- | --- |
-| `SkUiScrollView` | [SkUiScrollView.md](SkUiScrollView.md) | ScrollView |
+| `SkUiScrollView` | [SkUiScrollView.md](SkUiScrollView.md) | ScrollView (plus snap points, overscroll and its events) |
+| `SkUiRefreshView` | [SkUiRefreshView.md](SkUiRefreshView.md) | RefreshView (pull-to-refresh around drawn content: through its scrollers, or the view itself) |
 | `SkUiCollectionView` | [SkUiCollectionView.md](SkUiCollectionView.md) | CollectionView (+ RefreshView): lists and grids, vertical or horizontal, single and multiple selection, item taps, groups (collapsible, sticky headers), sticky header / footer, empty view, load more, pull-to-refresh; SkiaUi's own API |
 | `SkUiVirtualVerticalStackLayout` / `SkUiVirtualScrollView` / `SkUiVirtualVerticalStackLayoutBase` | [SkUiVirtualVerticalStackLayout.md](SkUiVirtualVerticalStackLayout.md) | — (virtualized lists: items created near the viewport, recycled; plain `CollectionView` lists; the abstract engine for list controls of your own) |

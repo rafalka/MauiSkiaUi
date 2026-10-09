@@ -27,6 +27,9 @@ public abstract class ComponentDemoPage : ContentPage
     private SkUiContentView _host;
     private bool _hwAccelerated = true;
 
+    /// <summary>Narrowest page width that shows the SkUi and MAUI previews side by side (narrower pages stack them).</summary>
+    internal const double SideBySideMinWidth = 720;
+
     internal SkUiView SkiaControl { get; }
     internal View? NativeControl { get; }
     internal bool IsWide { get; private set; }
@@ -187,7 +190,7 @@ public abstract class ComponentDemoPage : ContentPage
 
     internal void UpdateComparisonLayout(double width)
     {
-        IsWide = width >= 720 && _nativePanel is not null;
+        IsWide = width >= SideBySideMinWidth && _nativePanel is not null;
         _comparisons.ColumnDefinitions = IsWide ? [new(GridLength.Star), new(GridLength.Star)] : [new(GridLength.Star)];
         // Auto-sized pages: the panels take their content height (preview area = 2 x the control's initial height).
         var row = _areaHeight > 0 ? GridLength.Auto : GridLength.Star;

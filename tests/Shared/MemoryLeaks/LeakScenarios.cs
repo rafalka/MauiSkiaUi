@@ -38,11 +38,13 @@ public static class LeakScenarios
         new("StatesSwitched", Layouts, "SkUiStateContainer on a grid and a stack: loading (spinner running), error (retry button with a long-lived command) and empty states switched directly and with the fade, a change rejected while one runs; hidden state views removed; automatic state change animations (one shared long-lived animation) retargeted while running; closed while one runs.", () => new StatesRun()),
         new("ContentDeferred", Layouts, "Three tabs of SkUiContentView sections that load when shown (explicit content and templates with a long-lived command, some with a delay or a fade-in): tabs switched so some load, a waiting section removed, closed with sections still waiting and delay timers pending.", () => new DeferredRun()),
         new("ExpanderToggled", Layouts, "SkUiExpander sections (explicit, template and lazy content, a hosted Entry, a long-lived command, both directions): expanded and collapsed by header taps, animated and not, reversed mid-animation, content replaced while collapsed; closed mid-collapse.", () => new ExpanderRun()),
+        new("SwipeViewsSwiped", Layouts, "SkUiSwipeView rows in a SkUiCollectionView over a long-lived collection, sharing long-lived swipe items (a long-lived command): rows swiped open and closed, items tapped (a drawn item view, a swipe item that removes its row), opened by code, closed by flinging the list, an execute-mode swipe, a row recycled while open; closed mid-swipe.", () => new SwipeRun()),
         new("AlternateSwitched", Layouts, "SkUiAlternateContentView cards (explicit content and templates with a long-lived command, shared long-lived animations): switched directly and animated, retargeted while switching, an alternate replaced while hidden; closed mid-switch.", () => new AlternateRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("VirtualListScrolled", Scrolling, "SkUiVirtualScrollView bound to a long-lived collection (items of different heights, recycled template views): dragged, flung, scrolled to an index, items inserted and removed and the item template replaced while shown; closed mid-fling.", () => new VirtualListRun()),
         new("CollectionViewUsed", Scrolling, "SkUiCollectionView bound to a long-lived collection, with long-lived selection, item-tap and refresh commands, a sticky header and an empty view: items tapped to select and deselect, flung, scrolled to an item, pulled to refresh, the selected item removed, the collection emptied and refilled; closed mid-fling.", () => new CollectionViewRun()),
         new("CollectionViewGrouped", Scrolling, "SkUiCollectionView over long-lived groups (a grid of two columns, sticky collapsible group headers), with a long-lived selected-items list and load-more command: headers tapped to collapse and expand, items selected, flung, scrolled to a group, groups and items added and removed, the template replaced; closed mid-fling.", () => new CollectionViewGroupedRun()),
+        new("RefreshPulled", Scrolling, "SkUiRefreshView (inline style, automatic completion) with a long-lived command around a header and a drawn scroller: pulled through the scroller and by the header (content held down while refreshing), each refresh ended by a deferral taken in Refreshing, a short pull released before the trigger (the indicator going back), the scroller replaced while still linked and the old one detached; closed mid-pull.", () => new RefreshRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
         new("SurfaceReplaced", Rendering, "A page replaces its GPU surface with a software one and back; the discarded surfaces are disconnected.", () => new SurfaceReplacedRun()),
@@ -1211,6 +1213,97 @@ public static class LeakScenarios
         public override string? CheckInteraction() => _problem;
     }
 
+    private sealed class SwipeRun : LeakScenarioRun
+    {
+        private SkUiCollectionView? _list;
+        private int _invoked;
+        private int _swipes;
+        private string? _problem;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 200; index++)
+                LeakItems.Shared.Add($"Message {index}");
+            _list = context.Track(new SkUiCollectionView
+            {
+                ItemsSource = LeakItems.Shared,
+                ItemTemplate = new DataTemplate(() =>
+                {
+                    var label = Text("", 13);
+                    label.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+                    var delete = new SwipeItem { Text = "Delete", BackgroundColor = LeakColors.Accent, Command = LeakCommands.Shared };
+                    delete.Invoked += OnDeleteInvoked;
+                    var mute = new SkUiSwipeItemView { Command = LeakCommands.Shared, Content = Text("Mute", 13) };
+                    mute.Invoked += OnInvoked;
+                    var row = context.Track(new SkUiSwipeView
+                    {
+                        HeightRequest = 52,
+                        Content = new SkUiContentView { Background = Colors.White, Content = label },
+                        LeftItems = context.LongLived(LeakSwipeItems.Shared), // long-lived: must not keep rows alive
+                        RightItems = [mute, delete]
+                    }, "swipe row");
+                    row.SwipeEnded += OnSwipeEnded;
+                    return row;
+                })
+            }, "collection view");
+            return Root(_list);
+        }
+
+        private void OnInvoked(object? sender, EventArgs e) => _invoked++;
+
+        private void OnSwipeEnded(object? sender, SwipeEndedEventArgs e) => _swipes++;
+
+        private void OnDeleteInvoked(object? sender, EventArgs e)
+        {
+            _invoked++;
+            if (((Element)sender!).Parent?.Parent is SkUiSwipeView { BindingContext: string message })
+                LeakItems.Shared.Remove(message);
+        }
+
+        private SkUiSwipeView Row(int index) => (SkUiSwipeView)_list!.GetRealizedView(index)!;
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var list = _list!;
+            await context.SettleAsync();
+            // Swiped open, then a drawn item view tapped (closes).
+            await context.DragAsync(Row(1), -220, 0, durationMs: 300);
+            if (!Row(1).IsOpen)
+                _problem = "a swipe did not open the row";
+            await context.TapAsync(Row(1).RightItems[0]);
+            // Shared items on the left: swiped open and closed by a tap on the content.
+            await context.DragAsync(Row(2), 220, 0, durationMs: 300);
+            await context.TapAsync(Row(2).Content!);
+            // Opened by code, then the list flung: scrolling closes it.
+            var opened = Row(3);
+            opened.Open(OpenSwipeItem.RightItems);
+            await context.WaitAsync(300);
+            await context.DragAsync(list, 0, -300, durationMs: 80);
+            await context.WaitAsync(400);
+            if (opened.IsOpen)
+                _problem ??= "a row stayed open while the list scrolled";
+            await context.WaitForAsync(list.ScrollToIndex(0, ScrollToPosition.Start, animated: false));
+            await context.SettleAsync();
+            // Execute mode: a full swipe invokes the first item; then a row open while its item is replaced (recycled).
+            Row(4).RightItems.Mode = SwipeMode.Execute;
+            // Execute swipe items share the row's width, so the threshold grows with it: swiped across most of the row.
+            await context.DragAsync(Row(4), -Row(4).Width * 0.9, 0, durationMs: 300);
+            Row(5).Open(OpenSwipeItem.RightItems, animated: false);
+            LeakItems.Shared[5] = "Replaced";
+            await context.SettleAsync();
+            // The delete item removes its row.
+            Row(6).Open(OpenSwipeItem.RightItems, animated: false);
+            await context.SettleAsync();
+            ((Microsoft.Maui.ISwipeItem)Row(6).RightItems[1]).OnInvoked();
+            await context.SettleAsync();
+            await context.DragAsync(Row(2), -150, 0, durationMs: 300, release: false); // closes mid-swipe
+        }
+
+        public override string? CheckInteraction() =>
+            _problem ?? (_invoked >= 3 && _swipes >= 3 ? null : $"Items invoked {_invoked} times, {_swipes} swipes ended.");
+    }
+
     private sealed class ScrollRun : LeakScenarioRun
     {
         private SkUiScrollView? _scroll;
@@ -1403,6 +1496,76 @@ public static class LeakScenarios
         public override string? CheckInteraction() =>
             _taps >= 3 && _selections >= 4 && _refreshes == 1 && _list!.SelectedItem is null ? null
                 : $"Tapped {_taps} times, selection changed {_selections} times, refreshed {_refreshes} times; selected {_list!.SelectedItem ?? "none"}.";
+    }
+
+    private sealed class RefreshRun : LeakScenarioRun
+    {
+        private SkUiRefreshView? _refresh;
+        private SkUiLabel? _header;
+        private SkUiGrid? _grid;
+        private SkUiScrollView? _scroller;
+        private SkUiRefreshDeferral? _deferral;
+        private int _refreshes;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _header = Text("Pull to refresh", 15);
+            _scroller = context.Track(Scroller(context, "First"), "refreshed scroller");
+            _grid = new SkUiGrid { RowDefinitions = [new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star)] };
+            Grid.SetRow(_scroller, 1);
+            _grid.Children.Add(_header);
+            _grid.Children.Add(_scroller);
+            _refresh = context.Track(new SkUiRefreshView
+            {
+                Content = _grid,
+                Command = LeakCommands.Shared,
+                RefreshColor = LeakColors.Accent,
+                RefreshStyle = SkUiRefreshStyle.Inline,
+                RefreshCompletion = SkUiRefreshCompletion.Automatic
+            }, "refresh view");
+            _refresh.Refreshing += (_, args) =>
+            {
+                _refreshes++;
+                _deferral = args.GetDeferral(); // the refresh ends when the work (simulated below) completes it
+            };
+            return Root(_refresh);
+        }
+
+        private static SkUiScrollView Scroller(LeakScenarioContext context, string name)
+        {
+            var stack = new SkUiVerticalStackLayout { Spacing = 4, Padding = new Thickness(12) };
+            for (var index = 0; index < 30; index++)
+                stack.Children.Add(context.Track(Text($"{name} {index}", 13), "refreshed row"));
+            return new SkUiScrollView { Content = stack };
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var refresh = _refresh!;
+            await context.SettleAsync();
+            await context.DragAsync(_scroller!, 0, 300, durationMs: 400); // pulled through the scroller
+            await context.SettleAsync();
+            _deferral?.Complete();
+            await context.WaitAsync(300);
+            await context.DragAsync(_header!, 0, 300, durationMs: 400); // pulled by the header
+            await context.SettleAsync();
+            _deferral?.Complete();
+            await context.DragAsync(_header!, 0, 40, durationMs: 200); // released before the trigger
+            await context.WaitAsync(SkUiRefreshView.PullBackLength + 100);
+
+            // The scroller replaced: the old one, still the one pulled last, must go (the view links to it weakly).
+            var old = _scroller!;
+            _scroller = Scroller(context, "Second");
+            Grid.SetRow(_scroller, 1);
+            _grid!.Children.Remove(old);
+            _grid.Children.Add(_scroller);
+            context.TrackDetached(old, "replaced scroller");
+            await context.SettleAsync();
+            await context.DragAsync(_header!, 0, 200, durationMs: 400, release: false); // closes mid-pull
+        }
+
+        public override string? CheckInteraction() =>
+            _refreshes == 2 && !_refresh!.IsRefreshing ? null : $"Refreshed {_refreshes} times (expected 2), still refreshing: {_refresh!.IsRefreshing}.";
     }
 
     private sealed class CollectionViewGroupedRun : LeakScenarioRun
@@ -2000,6 +2163,12 @@ public static class LeakCommands
 public static class LeakItems
 {
     public static ObservableCollection<string> Shared { get; } = [];
+}
+
+/// <summary>Swipe items that outlive every scenario, like ones in app resources: swipe views must not stay reachable from them.</summary>
+public static class LeakSwipeItems
+{
+    public static SwipeItems Shared { get; } = [new SwipeItem { Text = "Flag", BackgroundColor = Colors.Orange, Command = LeakCommands.Shared }];
 }
 
 /// <summary>Long-lived groups and selection for the grouped collection view scenario.</summary>

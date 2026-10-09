@@ -35,7 +35,11 @@ public sealed class SkUiTextLineBreakContext
     /// <summary>The label's text after its <c>TextTransform</c> (may contain newlines).</summary>
     public string Text { get; }
 
-    /// <summary>Content width in DIPs (the label's width minus its padding); infinite when the label is measured unconstrained.</summary>
+    /// <summary>
+    /// Content width in DIPs (the label's width minus its padding); infinite when the label is measured unconstrained. A
+    /// label that shrinks or grows its text (<c>ShrinkToFit</c>, <c>GrowToFill</c>) gives the width at the text's own size,
+    /// the content width divided by the scale, as <see cref="Font"/> is at that size: the breaker sees the text unscaled.
+    /// </summary>
     public double AvailableWidth { get; }
 
     /// <summary>The label's <c>MaxLines</c>: the most lines it paints, or 0 / negative for no limit.</summary>

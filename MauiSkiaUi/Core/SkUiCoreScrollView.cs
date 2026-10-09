@@ -9,7 +9,8 @@ namespace MauiSkiaUi.Core;
 /// slop in a direction this scroller can move; nested scrollers (Core or SkUi*) get the drags of their own axis and
 /// hand over at their edges. It clips its content to the viewport. Past the outermost edge the content overscrolls
 /// (<see cref="Overscroll"/>); look-drawn scroll bars show while scrolling (<see cref="VerticalScrollBarVisibility"/>,
-/// <see cref="HorizontalScrollBarVisibility"/>).
+/// <see cref="HorizontalScrollBarVisibility"/>). <see cref="Overscrolled"/> and <see cref="PullReleased"/> report pulls past
+/// the edges (also of content that does not overflow, with <see cref="PullEdges"/>).
 /// </summary>
 public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
 {
@@ -21,6 +22,37 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
     {
         InitClipToBounds(true);
         _scroller = new SkUiScrollController(this, InvalidateRender, OnOffsetChanged);
+        _scroller.OverscrollChanged += () => Overscrolled?.Invoke(this, _scroller.OverscrolledArgs());
+        _scroller.PullReleased += (edge, distance) => PullReleased?.Invoke(this, new SkUiPullReleasedEventArgs(edge, distance));
+    }
+
+    /// <summary>Edges a drag can pull the content past also when it does not overflow or overscroll is off (see <see cref="SkUiScrollView.PullEdges"/>).</summary>
+    public SkUiScrollEdges PullEdges
+    {
+        get => _scroller.PullEdges;
+        set => SetPullEdges(value);
+    }
+
+    /// <summary>Distance shown past the left (negative) or right (positive) edge, in DIPs (see <see cref="Overscrolled"/>).</summary>
+    public double OverscrollX => _scroller.OverscrollX;
+
+    /// <summary>Distance shown past the top (negative) or bottom (positive) edge, in DIPs (see <see cref="Overscrolled"/>).</summary>
+    public double OverscrollY => _scroller.OverscrollY;
+
+    /// <summary>Raised when the distance shown past the edges changes (see <see cref="SkUiScrollView.Overscrolled"/>); the arguments are reused.</summary>
+    public event EventHandler<SkUiOverscrolledEventArgs>? Overscrolled;
+
+    /// <summary>Raised when a drag is released with the content past an edge, once per edge (see <see cref="SkUiScrollView.PullReleased"/>).</summary>
+    public event EventHandler<SkUiPullReleasedEventArgs>? PullReleased;
+
+    /// <summary>Sets <see cref="PullEdges"/>.</summary>
+    public SkUiCoreScrollView SetPullEdges(SkUiScrollEdges value)
+    {
+        if ((value & ~SkUiScrollEdges.All) != 0) throw new ArgumentOutOfRangeException(nameof(value));
+        if (_scroller.PullEdges == value) return this;
+        _scroller.PullEdges = value;
+        OnPropertyChanged(nameof(PullEdges));
+        return this;
     }
 
     /// <summary>The horizontal scroll bar: shown while scrolling (<see cref="ScrollBarVisibility.Default"/>), always, or never.</summary>

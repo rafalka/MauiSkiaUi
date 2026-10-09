@@ -475,7 +475,7 @@ public class CollectionViewTests
 
         // A short pull shows the indicator coming down, but a release before the trigger does nothing.
         Drag(list, new Point(150, 100), new Point(150, 160), release: false);
-        Assert.InRange(list.RefreshIndicator.Opacity, 0.05, 0.99);
+        Assert.InRange(list.RefreshIndicator.ShownOpacity, 0.05, 0.99);
         Assert.True(list.RefreshIndicator.TranslationY < 0);
         list.Touch(new(_pointer, SkUiTouchAction.Released, new Point(150, 160), TimeSpan.FromSeconds(1)));
         Assert.False(list.IsRefreshing);
@@ -484,17 +484,17 @@ public class CollectionViewTests
         Drag(list, new Point(150, 50), new Point(150, 450));
         Assert.True(list.IsRefreshing);
         Assert.Equal(["refreshing", "command p"], log);
-        Assert.Equal(1, list.RefreshIndicator.Opacity);
-        Assert.Equal(SkUiCollectionView.RefreshTriggerDistance - 40, list.RefreshIndicator.TranslationY);
+        Assert.Equal(1, list.RefreshIndicator.ShownOpacity);
+        Assert.Equal(SkUiLook.Current.RefreshRestDistance - SkUiLook.Current.RefreshIndicatorSize, list.RefreshIndicator.TranslationY);
 
         // A pull while refreshing does not start another one; the app ends it once the list has sprung back.
         Drag(list, new Point(150, 50), new Point(150, 450));
         Assert.Equal(2, log.Count);
         for (var frame = 1; frame <= 60; frame++)
             surface.Frame(frame * 16);
-        Assert.Equal(1, list.RefreshIndicator.Opacity);
+        Assert.Equal(1, list.RefreshIndicator.ShownOpacity);
         list.IsRefreshing = false;
-        Assert.Equal(0, list.RefreshIndicator.Opacity);
+        Assert.Equal(0, list.RefreshIndicator.ShownOpacity);
     }
 
     [Fact]
@@ -504,7 +504,7 @@ public class CollectionViewTests
         SkUiTestHelpers.Arrange(list, 300, 500);
         Drag(list, new Point(150, 50), new Point(150, 450));
         Assert.False(list.IsRefreshing);
-        Assert.Equal(0, list.RefreshIndicator.Opacity);
+        Assert.Equal(0, list.RefreshIndicator.ShownOpacity);
     }
 
     [Fact]
@@ -515,7 +515,7 @@ public class CollectionViewTests
         list.RefreshCommand = new Command(_ => ran++);
         list.IsRefreshing = true;
         Assert.Equal(1, ran);
-        Assert.Equal(1, list.RefreshIndicator.Opacity);
+        Assert.Equal(1, list.RefreshIndicator.ShownOpacity);
     }
 
     #endregion

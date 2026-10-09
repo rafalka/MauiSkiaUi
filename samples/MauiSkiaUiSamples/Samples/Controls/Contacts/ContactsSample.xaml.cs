@@ -15,6 +15,8 @@ namespace MauiSkiaUiSamples.Samples.Controls.Contacts;
 /// <item>Preview: next to the list on wide screens (tablets, desktops, phones held sideways), a popup on narrow phones; the
 /// list keeps the previewed contact selected and in view (<see cref="SkUiCollectionView.KeepSelectionVisible"/>), also
 /// after a rotation.</item>
+/// <item>Swipes: in the list, a row swiped to the right stars the contact (or removes its star), to the left deletes it
+/// (<see cref="SwipeableContactRow"/>: an <see cref="SkUiSwipeView"/> with MAUI's swipe items in execute mode).</item>
 /// <item>Selection mode: a long press on a contact or a group header; the list switches to multiple selection over
 /// <see cref="ContactsViewModel.Selected"/>; group headers show three-state checkboxes.</item>
 /// </list>
@@ -25,7 +27,8 @@ public sealed partial class ContactsSample : SamplePage, ISample
         SampleSection.Controls,
         Title: "Contacts",
         Summary: "A contacts screen on SkUiCollectionView: search, sort and group (by letter, by group, or none), rows or " +
-                 "tiles, a preview beside the list or in a popup, a selection mode with actions, and a form to add contacts.",
+                 "tiles, rows that swipe to star or delete, a preview beside the list or in a popup, a selection mode with " +
+                 "actions, and a form to add contacts.",
         HowTo:
         [
             "Keep what the list shows in a live grouped view over the source (`LiveGroupedList.cs`): it filters, sorts and " +
@@ -35,6 +38,8 @@ public sealed partial class ContactsSample : SamplePage, ISample
             "Rows or tiles: swap `ItemTemplate`; for tiles set `Span` from the list's width.",
             "Long press: switch to `SelectionMode=\"Multiple\"` over your own `SelectedItems` list, with templates that show " +
                 "checkboxes (the item root's `Selected` state checks them).",
+            "Swipe actions: make the row an `SkUiSwipeView` with MAUI's `SwipeItems` (`LeftItems`: star, `RightItems`: delete). " +
+                "`Mode=\"Execute\"` acts once a swipe passes the threshold; vertical drags still scroll the list.",
             "`KeepSelectionVisible=\"True\"` keeps the previewed contact in view, also after a rotation.",
             "Native controls (the search box, the form's entries) are hosted in `SkUiMauiContentView`."
         ],
@@ -42,6 +47,8 @@ public sealed partial class ContactsSample : SamplePage, ISample
         [
             "Moving an item within the shown list (a rename) is a move, not a remove and an insert, so the list keeps it " +
                 "selected; a contact that changes groups is added to the new ones before it leaves the old ones.",
+            "A swiped row covers what the list draws behind its items, so the row paints the selection color itself (its " +
+                "`Selected` state); a recycled row shows closed.",
             "Group headers are templates too: their checkbox state (all, some, none) is a property of the group, kept by the " +
                 "view model.",
             "The photos are MIT-licensed portraits from the Syncfusion Toolkit for .NET MAUI gallery (Resources/Images/README.md).",
@@ -119,13 +126,18 @@ public sealed partial class ContactsSample : SamplePage, ISample
         List.ItemsSource = _model.Shown;
     }
 
-    /// <summary>Rows or tiles, with checkboxes while selecting (the modes are read now: a change sets new templates).</summary>
+    /// <summary>
+    /// Rows or tiles, with checkboxes while selecting (the modes are read now: a change sets new templates); outside the
+    /// selection mode rows swipe (star, delete).
+    /// </summary>
     private void ApplyTemplates()
     {
         var model = _model;
         var selecting = model.IsSelecting;
         var tiles = model.Display == ContactDisplay.Tiles;
-        List.ItemTemplate = new DataTemplate(() => tiles ? new ContactTile(model, selecting) : new ContactRow(model, selecting));
+        List.ItemTemplate = new DataTemplate(() => tiles ? new ContactTile(model, selecting)
+            : selecting ? new ContactRow(model, selecting)
+            : new SwipeableContactRow(model));
         List.GroupHeaderTemplate = new DataTemplate(() => new ContactGroupHeader(model, selecting));
         List.ItemSpacing = tiles ? 6 : 0;
         List.SpanSpacing = tiles ? 6 : 0;

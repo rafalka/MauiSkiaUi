@@ -39,6 +39,29 @@ Extends [`SkUiContentView`](SkUiContentView.md). Measures content unconstrained 
 
 **Snap points** (`SnapPointsType`, `SnapPointsAlignment`: MAUI's CollectionView enums; a SkiaUi extension, MAUI's ScrollView has none): the children of the content are the snap targets, lined up with the viewport's start, center or end. With `Mandatory`, drags, flings and wheel / trackpad scrolling (after a 150 ms pause) end on the snap point nearest to where the motion would stop; with `MandatorySingle` a swipe moves one snap point from where the drag started, and a slow drag settles on the nearest (a carousel). The settle is a render-thread spring that starts at the release velocity and never passes its target. Programmatic scrolls do not snap.
 
+**Overscroll events** (SkiaUi extensions; also on `SkUiCoreScrollView`), for effects and gestures at the edges (stretchy headers, pull to dismiss, pull to load the next page, a refresh of your own; for MAUI's pull-to-refresh wrap the scroller in [`SkUiRefreshView`](SkUiRefreshView.md)):
+- `Overscrolled` reports `OverscrollX` / `OverscrollY` (DIPs shown past the edges; negative past the top or left) and `IsDragging` whenever they change: while a drag pulls past an edge, while a fling bounces, and while the content springs back (once per frame, reported from the render thread), ending at 0. One argument instance is reused per scroller: read it in the handler. Changing translation, scale, rotation or opacity from it re-records nothing.
+- `PullReleased` reports the edge and the distance when a drag is released past an edge, before the content springs back (once per edge).
+- `PullEdges` (`SkUiScrollEdges`: `Top`, `Bottom`, `Left`, `Right`, flags) lets drags pull past those edges also when the content does not overflow or `Overscroll` is `None`. The pull has the rubber band's resistance and moves the content only as the overscroll mode draws it, so with `None` the content stays and only the events tell. Edges of an axis the scroller does not scroll never pull. Left and right are physical, also in right-to-left layouts.
+- Without `PullEdges`, the events still report what `Bounce` and `Stretch` show.
+
+```csharp
+// A header image that stretches while the top is pulled (composite-time: nothing re-records).
+scroller.Overscrolled += (_, e) =>
+{
+    var pull = Math.Max(0, -e.OverscrollY);
+    header.AnchorY = 1;
+    header.ScaleY = 1 + pull / header.Height;
+};
+// Pull down far enough to close the page.
+scroller.PullEdges = SkUiScrollEdges.Top;
+scroller.PullReleased += async (_, e) =>
+{
+    if (e.Edge == SkUiScrollEdges.Top && e.Distance > 120)
+        await Navigation.PopModalAsync();
+};
+```
+
 **Scrolling to an element** (MAUI's API): `ScrollToAsync(Element, ScrollToPosition, bool)` scrolls so that a drawn descendant, a Core node under a `SkUiCoreHost` (`ScrollToAsync(SkUiCoreNode, …)`), or a MAUI view inside a `SkUiMauiContentView` is at the `Start`, `Center` or `End` of the viewport; `MakeVisible` scrolls only when it is not fully visible, aligning its end when it begins after the viewport's start and its start otherwise (MAUI's rule: an element larger than the viewport moves even when part of it shows). Positions come from the layout (offsets of nested scrollers included, transforms ignored, as MAUI) and are clamped; before the first layout the request waits for it. `GetScrollPositionForElement` returns the offset without scrolling. Both `ScrollToAsync` overloads raise MAUI's `ScrollToRequested` with MAUI's `ScrollToRequestedEventArgs`; with `Orientation="Neither"` they do nothing.
 
 Native overlays register with ancestor scrollers for O(overlays) offset sync. See [RenderingPipeline.md](../design/RenderingPipeline.md) and [ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md).
@@ -79,7 +102,7 @@ await scroller.ScrollToAsync(finalLabel, ScrollToPosition.Center, animated: true
 
 ## Key properties / APIs
 
-`Orientation`, `ScrollX`, `ScrollY`, `ContentSize`, `HorizontalScrollBarVisibility`, `VerticalScrollBarVisibility`, `VerticalScrollBar`, `HorizontalScrollBar`, `Overscroll`, `SnapPointsType`, `SnapPointsAlignment`, `IsScrolling`, `Scrolled`, `ScrollToRequested`, `ScrollTo`, `ScrollToAsync` (offset, element, Core node), `GetScrollPositionForElement`, `AnimateScrollTo`. Core: [`SkUiCoreScrollView`](SkUiCore.md) has the same features (`Set*` setters, `ScrollToAsync(SkUiCoreNode, …)`, `GetScrollPositionForNode`).
+`Orientation`, `ScrollX`, `ScrollY`, `ContentSize`, `HorizontalScrollBarVisibility`, `VerticalScrollBarVisibility`, `VerticalScrollBar`, `HorizontalScrollBar`, `Overscroll`, `SnapPointsType`, `SnapPointsAlignment`, `PullEdges`, `OverscrollX`, `OverscrollY`, `Overscrolled`, `PullReleased`, `IsScrolling`, `Scrolled`, `ScrollToRequested`, `ScrollTo`, `ScrollToAsync` (offset, element, Core node), `GetScrollPositionForElement`, `AnimateScrollTo`. Core: [`SkUiCoreScrollView`](SkUiCore.md) has the same features (`Set*` setters, `ScrollToAsync(SkUiCoreNode, …)`, `GetScrollPositionForNode`).
 
 ## Differences from MAUI ScrollView
 
@@ -89,6 +112,7 @@ await scroller.ScrollToAsync(finalLabel, ScrollToPosition.Center, animated: true
 | Scroll bars | Drawn by the look, the same on every platform; `Default` fades as on mobile, and a hovering pointer expands the bar for dragging and paging (desktop); bars can be styled and placed by the app |
 | Bounce / overscroll | Per look or per scroller (`Overscroll`), not only the platform's |
 | Snap points | `SnapPointsType` / `SnapPointsAlignment` on the content's children (MAUI has them on CollectionView only) |
+| Overscroll events | `Overscrolled`, `PullReleased` and `PullEdges` for effects and gestures at the edges; MAUI has none (a `RefreshView` around the scroller ports as `SkUiRefreshView`) |
 | Nested scrolling | Supported (axis-aware, chaining, fling hand-off; also with Core `SkUiCoreScrollView` and native ancestors) |
 | `ScrollToAsync` tasks | Cancelled (not completed) when a newer scroll, a drag or unloading supersedes them |
 | Overlay snapshot while scrolling | `SkUiMauiContentView.ScrollMode` (snapshot on Android / Windows, live on Apple by default) |
@@ -96,4 +120,4 @@ await scroller.ScrollToAsync(finalLabel, ScrollToPosition.Center, animated: true
 
 ## Related
 
-[ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) · Gallery: `ScrollViewDemoPage`
+[ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) · [SkUiRefreshView](SkUiRefreshView.md) · Gallery: `ScrollViewDemoPage` (`PullEdges`, overscroll in the status line) · Tests: `ScrollViewOverscrollTests`

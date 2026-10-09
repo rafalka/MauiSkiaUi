@@ -66,6 +66,95 @@ public class CheckXamlTests
         }
     }
 
+    [Fact]
+    public void AcceptsMauiSwipeItemsInSwipeViewsAndReportsNativeItemViews()
+    {
+        var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
+        try
+        {
+            File.WriteAllText(Path.Combine(project.FullName, "Page.xaml"), """
+                <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
+                  <sk:SkUiVerticalStackLayout>
+                    <sk:SkUiSwipeView>
+                      <sk:SkUiSwipeView.LeftItems>
+                        <SwipeItems Mode="Execute">
+                          <SwipeItem Text="Delete" BackgroundColor="Red" />
+                          <sk:SkUiSwipeItemView>
+                            <sk:SkUiLabel Text="Drawn" />
+                          </sk:SkUiSwipeItemView>
+                          <SwipeItemView>
+                            <Label Text="Native" />
+                          </SwipeItemView>
+                        </SwipeItems>
+                      </sk:SkUiSwipeView.LeftItems>
+                      <sk:SkUiSwipeView.RightItems>
+                        <SwipeItems>
+                          <sk:SkUiSwipeItemView>
+                            <Label Text="Native label" />
+                          </sk:SkUiSwipeItemView>
+                        </SwipeItems>
+                      </sk:SkUiSwipeView.RightItems>
+                      <sk:SkUiLabel Text="Row" />
+                    </sk:SkUiSwipeView>
+                    <SwipeView />
+                  </sk:SkUiVerticalStackLayout>
+                </ContentPage>
+                """);
+            var (exitCode, output) = Run(project.FullName);
+            Assert.Equal(1, exitCode);
+            Assert.DoesNotContain("warning:", output); // drawn item views are not surfaces of their own
+            var errors = output.Split('\n').Where(line => line.Contains("error:")).ToArray();
+            Assert.Equal(3, errors.Length);
+            Assert.Contains(errors, error => error.Contains("Page.xaml:11:") && error.Contains("sk:SkUiSwipeItemView"));
+            Assert.Contains(errors, error => error.Contains("Page.xaml:19:") && error.Contains("SkUiLabel"));
+            Assert.Contains(errors, error => error.Contains("Page.xaml:25:") && error.Contains("SkUiSwipeView"));
+        }
+        finally
+        {
+            project.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MapsRefreshViewsAndReportsAListRefreshingInsideOne()
+    {
+        var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
+        try
+        {
+            File.WriteAllText(Path.Combine(project.FullName, "Page.xaml"), """
+                <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
+                  <sk:SkUiVerticalStackLayout>
+                    <sk:SkUiRefreshView Command="{Binding Refresh}">
+                      <sk:SkUiScrollView>
+                        <sk:SkUiLabel Text="Feed" />
+                      </sk:SkUiScrollView>
+                    </sk:SkUiRefreshView>
+                    <sk:SkUiRefreshView>
+                      <sk:SkUiCollectionView IsPullToRefreshEnabled="True" />
+                    </sk:SkUiRefreshView>
+                    <sk:SkUiRefreshView>
+                      <sk:SkUiCollectionView IsPullToRefreshEnabled="False" />
+                    </sk:SkUiRefreshView>
+                    <sk:SkUiCollectionView IsPullToRefreshEnabled="True" />
+                    <RefreshView />
+                  </sk:SkUiVerticalStackLayout>
+                </ContentPage>
+                """);
+            var (exitCode, output) = Run(project.FullName);
+            Assert.Equal(1, exitCode);
+            var errors = output.Split('\n').Where(line => line.Contains("error:")).ToArray();
+            Assert.Equal(2, errors.Length);
+            Assert.Contains(errors, error => error.Contains("Page.xaml:10:") && error.Contains("both would refresh"));
+            Assert.Contains(errors, error => error.Contains("Page.xaml:16:") && error.Contains("SkUiRefreshView"));
+        }
+        finally
+        {
+            project.Delete(recursive: true);
+        }
+    }
+
     private static (int ExitCode, string Output) Run(string project)
     {
         var start = new ProcessStartInfo("python3") { RedirectStandardOutput = true, RedirectStandardError = true };

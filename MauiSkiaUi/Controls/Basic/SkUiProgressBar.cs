@@ -131,6 +131,13 @@ public class SkUiProgressBar : SkUiView
     }
 
     /// <inheritdoc />
+    internal override void ReleaseDrawingResources()
+    {
+        base.ReleaseDrawingResources();
+        (_clip, _clipSize) = (null, default); // committed: the compositor disposes it with the render node
+    }
+
+    /// <inheritdoc />
     internal override void OnGetRenderProps(ref SkUiRenderProps props) =>
         SkUiProgressBarDrawing.SetSlide(ref props, _isIndeterminate, IsRightToLeft, ref _clip, ref _clipSize);
 
@@ -200,7 +207,7 @@ internal static class SkUiProgressBarDrawing
         var size = new SKSize(props.Width, props.Height);
         if (clip is null || clipSize != size)
         {
-            // Not disposed: a committed frame may still clip with the previous path (the GC frees it).
+            // Not disposed here: the compositor disposes the previous path once a commit replaces it.
             clip = look.CreateRoundRectPath(new SKRect(0, 0, props.Width, props.Height), look.GetProgressBarCornerRadius(props.Height));
             clipSize = size;
         }

@@ -32,6 +32,7 @@ internal static class SkUiFontImages
             Color = new SKColor((byte)(color.Red * 255), (byte)(color.Green * 255), (byte)(color.Blue * 255), (byte)(color.Alpha * 255))
         };
         layout.Draw(canvas, source.Glyph, style, default, width / scale, height / scale, TextAlignment.Center, TextAlignment.Center, paint);
+        layout.Release(); // the glyph's blob, now drawn
         return new SkUiDecodedImage([surface.Snapshot()], [], new Size(width / (double)scale, height / (double)scale));
     }
 }

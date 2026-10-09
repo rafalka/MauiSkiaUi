@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!--
   A contacts screen built on SkUiCollectionView: search, sorting and grouping (by letter, by group with contacts in
-  several groups, or none) through a live grouped list (LiveGroupedList.cs), list or tile display, a preview next to the
+  several groups, or none) through a live grouped list (LiveGroupedList.cs), list or tile display, rows that swipe to star
+  (right) or delete (left) a contact (SkUiSwipeView, ContactViews.cs), a preview next to the
   list on wide screens (a popup on narrow phones), a selection mode (long press) with checkboxes and actions, and a form
   to add contacts. The page fills the screen below its description; the code-behind (ContactsSample.xaml.cs) wires the
   list to the view model (ContactsModel.cs); the views are in ContactViews.cs, the form in ContactEditorPage.cs.

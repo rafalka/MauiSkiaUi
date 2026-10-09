@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Windows.Input;
+using MauiSkiaUi.Core;
 using MauiSkiaUi.Rendering;
 
 namespace MauiSkiaUi;
@@ -35,11 +36,8 @@ namespace MauiSkiaUi;
 /// </para>
 /// </remarks>
 [ContentProperty(nameof(ItemTemplate))]
-public partial class SkUiCollectionView : SkUiView, ISkUiItemsView
+public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefreshOwner
 {
-    /// <summary>How far the top must be pulled (shown past the edge, in DIPs) for a release to start a refresh.</summary>
-    internal const double RefreshTriggerDistance = 64;
-
     private readonly ItemsPart _items;
     private readonly ItemsModel _model;
     private readonly SkUiScrollView _scroller;
@@ -47,7 +45,8 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView
     // Created the first time they show a view: most lists have no header or footer, fewer have sticky ones.
     private StickyHost? _stickyHeaderHost;
     private StickyHost? _stickyFooterHost;
-    private readonly RefreshLayer _refreshLayer;
+    private readonly SkUiPullToRefresh _refresh;
+    private readonly SkUiRefreshLayer _refreshLayer;
     private readonly SkUiContentSlot _headerSlot;
     private readonly SkUiContentSlot _footerSlot;
     private readonly SkUiContentSlot _emptySlot;
@@ -81,10 +80,9 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView
             if (args.PropertyName == nameof(IsScrolling))
                 OnPropertyChanged(nameof(IsScrolling));
         };
-        var controller = Controller;
-        controller.PullReleased += OnPullReleased;
-        controller.OverscrollChanged += OnOverscrollChanged;
-        _refreshLayer = new RefreshLayer();
+        _refresh = new SkUiPullToRefresh(this);
+        _refresh.PullThrough(Controller);
+        _refreshLayer = _refresh.Layer;
         AttachChild(_scroller);
         AttachChild(_refreshLayer);
         UpdateEmpty();
@@ -400,7 +398,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView
         _horizontal = value == ItemsLayoutOrientation.Horizontal;
         _items.IsHorizontal = _horizontal;
         _scroller.Orientation = _horizontal ? ScrollOrientation.Horizontal : ScrollOrientation.Vertical;
-        Controller.PullsAtVerticalStart = IsPullToRefreshEnabled && !_horizontal;
+        _refresh.PullEnabled = IsPullToRefreshEnabled && !_horizontal;
         _body.InvalidateBody();
         InvalidateMeasure();
     }
@@ -715,13 +713,13 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView
         propertyChanged: (bindable, _, value) =>
         {
             var view = (SkUiCollectionView)bindable;
-            view.Controller.PullsAtVerticalStart = (bool)value && !view._horizontal;
+            view._refresh.PullEnabled = (bool)value && !view._horizontal;
         });
 
     /// <summary>Bindable property for <see cref="IsRefreshing"/> (two-way by default: a pull sets it).</summary>
     public static readonly BindableProperty IsRefreshingProperty = BindableProperty.Create(nameof(IsRefreshing), typeof(bool), typeof(SkUiCollectionView), false,
         BindingMode.TwoWay,
-        propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable).OnIsRefreshingChanged((bool)value));
+        propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable)._refresh.OnIsRefreshingChanged((bool)value));
 
     /// <summary>Bindable property for <see cref="RefreshCommand"/>.</summary>
     public static readonly BindableProperty RefreshCommandProperty = BindableProperty.Create(nameof(RefreshCommand), typeof(ICommand), typeof(SkUiCollectionView));
@@ -731,19 +729,38 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView
 
     /// <summary>Bindable property for <see cref="RefreshColor"/>.</summary>
     public static readonly BindableProperty RefreshColorProperty = BindableProperty.Create(nameof(RefreshColor), typeof(Color), typeof(SkUiCollectionView), null,
-        propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable)._refreshLayer.Spinner.SetColor((Color?)value));
+        propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable)._refresh.Indicator.SetColor((Color?)value));
+
+    /// <summary>Bindable property for <see cref="RefreshStyle"/>.</summary>
+    public static readonly BindableProperty RefreshStyleProperty = BindableProperty.Create(nameof(RefreshStyle), typeof(SkUiRefreshStyle), typeof(SkUiCollectionView),
+        SkUiRefreshStyle.Default, validateValue: (_, value) => Enum.IsDefined((SkUiRefreshStyle)value),
+        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable)._refresh.OnSettingsChanged());
+
+    /// <summary>Bindable property for <see cref="RefreshTriggerDistance"/>.</summary>
+    public static readonly BindableProperty RefreshTriggerDistanceProperty = BindableProperty.Create(nameof(RefreshTriggerDistance), typeof(double), typeof(SkUiCollectionView),
+        0d, validateValue: SkUiValidate.NonNegative,
+        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable)._refresh.OnSettingsChanged());
+
+    /// <summary>Bindable property for <see cref="IsMousePullEnabled"/>.</summary>
+    public static readonly BindableProperty IsMousePullEnabledProperty = BindableProperty.Create(nameof(IsMousePullEnabled), typeof(bool), typeof(SkUiCollectionView), false,
+        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable)._refresh.OnSettingsChanged());
+
+    /// <summary>Bindable property for <see cref="RefreshCompletion"/>.</summary>
+    public static readonly BindableProperty RefreshCompletionProperty = BindableProperty.Create(nameof(RefreshCompletion), typeof(SkUiRefreshCompletion), typeof(SkUiCollectionView),
+        SkUiRefreshCompletion.Manual, validateValue: (_, value) => Enum.IsDefined((SkUiRefreshCompletion)value));
 
     /// <summary>
     /// Whether pulling the top of a vertical list down and releasing it starts a refresh (default <c>false</c>). The pull works
-    /// also when the items do not fill the list and when overscroll is off: a drawn indicator comes down from the top with the
-    /// pull, and a release past it (64 DIPs) sets <see cref="IsRefreshing"/>. Horizontal lists are not pulled.
+    /// also when the items do not fill the list and when overscroll is off: the refresh indicator (<see cref="RefreshIndicator"/>)
+    /// comes down with the pull, and a release past <see cref="RefreshTriggerDistance"/> sets <see cref="IsRefreshing"/>. Touch
+    /// and pen drags pull; mouse drags only with <see cref="IsMousePullEnabled"/>. Horizontal lists are not pulled.
     /// </summary>
     public bool IsPullToRefreshEnabled { get => (bool)GetValue(IsPullToRefreshEnabledProperty); set => SetValue(IsPullToRefreshEnabledProperty, value); }
 
     /// <summary>
     /// Whether a refresh runs: the indicator spins at the top. Set to <c>true</c> (by a pull or by the app, as MAUI's
-    /// <c>RefreshView</c>) it raises <see cref="Refreshing"/> and runs <see cref="RefreshCommand"/>; set it back to
-    /// <c>false</c> when the refresh is done.
+    /// <c>RefreshView</c>) it raises <see cref="Refreshing"/> and runs <see cref="RefreshCommand"/>; it goes back to
+    /// <c>false</c> when the app sets it, or by itself with <see cref="SkUiRefreshCompletion.Automatic"/> completion.
     /// </summary>
     public bool IsRefreshing { get => (bool)GetValue(IsRefreshingProperty); set => SetValue(IsRefreshingProperty, value); }
 
@@ -756,37 +773,38 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView
     /// <summary>The refresh indicator's color; <c>null</c> (default): the accent color.</summary>
     public Color? RefreshColor { get => (Color?)GetValue(RefreshColorProperty); set => SetValue(RefreshColorProperty, value); }
 
-    /// <summary>Raised when <see cref="IsRefreshing"/> becomes <c>true</c>, before <see cref="RefreshCommand"/>.</summary>
-    public event EventHandler? Refreshing;
+    /// <summary>
+    /// How the refresh indicator shows: <see cref="SkUiRefreshStyle.Overlay"/> (a badge over the items),
+    /// <see cref="SkUiRefreshStyle.Inline"/> (above the items, which move down: with bounce overscroll), or the look's
+    /// (<see cref="SkUiRefreshStyle.Default"/>, default; the default look follows the platform).
+    /// </summary>
+    public SkUiRefreshStyle RefreshStyle { get => (SkUiRefreshStyle)GetValue(RefreshStyleProperty); set => SetValue(RefreshStyleProperty, value); }
 
-    /// <summary>The refresh indicator (tests).</summary>
-    internal SkUiView RefreshIndicator => _refreshLayer.Spinner;
+    /// <summary>How far the top must be pulled (shown past the edge, DIPs) for a release to refresh; 0 (default): the look's (<see cref="SkUiLook.RefreshTriggerDistance"/>, 64).</summary>
+    public double RefreshTriggerDistance { get => (double)GetValue(RefreshTriggerDistanceProperty); set => SetValue(RefreshTriggerDistanceProperty, value); }
 
-    private void OnPullReleased(double distance)
-    {
-        if (IsPullToRefreshEnabled && !_horizontal && IsEnabled && !IsRefreshing && distance >= RefreshTriggerDistance)
-            IsRefreshing = true;
-    }
+    /// <summary>Whether mouse drags pull too (default <c>false</c>: touch and pen only, as desktop apps expect; touch screens of laptops pull).</summary>
+    public bool IsMousePullEnabled { get => (bool)GetValue(IsMousePullEnabledProperty); set => SetValue(IsMousePullEnabledProperty, value); }
 
-    private void OnOverscrollChanged()
-    {
-        if (!IsRefreshing)
-            _refreshLayer.ShowPull(IsPullToRefreshEnabled && !_horizontal ? Math.Max(0, -Controller.OverscrollY) : 0);
-    }
+    /// <summary>
+    /// Who sets <see cref="IsRefreshing"/> back to <c>false</c>: the app (<see cref="SkUiRefreshCompletion.Manual"/>, default,
+    /// MAUI's rule) or the list when the refresh's work is done (<see cref="SkUiRefreshCompletion.Automatic"/>: an async
+    /// command, deferrals taken in <see cref="Refreshing"/>).
+    /// </summary>
+    public SkUiRefreshCompletion RefreshCompletion { get => (SkUiRefreshCompletion)GetValue(RefreshCompletionProperty); set => SetValue(RefreshCompletionProperty, value); }
 
-    private void OnIsRefreshingChanged(bool value)
-    {
-        if (!value)
-        {
-            // Done: the indicator goes (or follows a pull still in progress).
-            OnOverscrollChanged();
-            return;
-        }
-        _refreshLayer.ShowRefreshing();
-        Refreshing?.Invoke(this, EventArgs.Empty);
-        if (RefreshCommand is { } command && command.CanExecute(RefreshCommandParameter))
-            command.Execute(RefreshCommandParameter);
-    }
+    /// <summary>The refresh indicator, drawn by the look (style it: <see cref="SkUiCoreRefreshIndicator.Color"/>, a shadow).</summary>
+    public SkUiCoreRefreshIndicator RefreshIndicator => _refresh.Indicator;
+
+    /// <summary>
+    /// Raised when <see cref="IsRefreshing"/> becomes <c>true</c>, before <see cref="RefreshCommand"/>; with automatic
+    /// completion, <see cref="SkUiRefreshingEventArgs.GetDeferral"/> keeps the refresh running until the deferral completes.
+    /// </summary>
+    public event EventHandler<SkUiRefreshingEventArgs>? Refreshing;
+
+    bool ISkUiRefreshOwner.CanStartRefresh => IsEnabled && (RefreshCommand?.CanExecute(RefreshCommandParameter) ?? true);
+
+    void ISkUiRefreshOwner.RaiseRefreshing(SkUiRefreshingEventArgs args) => Refreshing?.Invoke(this, args);
 
     #endregion
 

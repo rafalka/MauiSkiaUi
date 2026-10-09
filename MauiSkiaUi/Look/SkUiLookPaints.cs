@@ -149,3 +149,24 @@ public readonly record struct SkUiScrollBarPaint(SKRect Bounds, ScrollOrientatio
 /// <param name="Orientation">Which bar: <see cref="ScrollOrientation.Vertical"/> or <see cref="ScrollOrientation.Horizontal"/>.</param>
 /// <param name="Color">The thumb's color (the look derives the track's from it).</param>
 public readonly record struct SkUiScrollBarTrackPaint(SKRect Bounds, ScrollOrientation Orientation, SKColor Color);
+
+/// <summary>
+/// What a look draws for a refresh indicator (<see cref="SkUiLook.DrawRefreshIndicator"/>). It is recorded once per state
+/// (style, color, refreshing or not); a pull shows through composite-time opacity and rotation
+/// (<see cref="SkUiLook.GetRefreshPullFeedback"/>), unless the look draws the pull itself
+/// (<see cref="SkUiLook.RefreshIndicatorDrawsPullProgress"/>), and while refreshing the compositor spins the picture about
+/// its center (<see cref="SkUiLook.RefreshIndicatorSpinPeriod"/>).
+/// </summary>
+/// <param name="Bounds">The indicator's square (<see cref="SkUiLook.RefreshIndicatorSize"/>).</param>
+/// <param name="Color">The arc's color (the control's <c>RefreshColor</c>, or the accent).</param>
+/// <param name="Style">How the indicator shows: a badge over the content, or inline above it (never <see cref="SkUiRefreshStyle.Default"/>).</param>
+/// <param name="IsRefreshing">A refresh runs (the picture spins); otherwise the indicator follows a pull.</param>
+/// <param name="PullProgress">
+/// How far the pull got, 1 at the trigger distance; always 0 unless <see cref="SkUiLook.RefreshIndicatorDrawsPullProgress"/>.
+/// </param>
+public readonly record struct SkUiRefreshIndicatorPaint(SKRect Bounds, SKColor Color, SkUiRefreshStyle Style, bool IsRefreshing, double PullProgress);
+
+/// <summary>How a refresh indicator shows a pull, at composite time (<see cref="SkUiLook.GetRefreshPullFeedback"/>).</summary>
+/// <param name="Opacity">Multiplies the indicator's opacity (0–1).</param>
+/// <param name="Rotation">Added to the indicator's rotation, in degrees.</param>
+public readonly record struct SkUiRefreshPullFeedback(double Opacity, double Rotation);

@@ -336,10 +336,11 @@ internal sealed class SkUiRenderFling : SkUiRenderAnimation
 
 /// <summary>
 /// Spring-back from overscroll after a drag released past an edge: a critically damped spring, <c>o·(1 + ωt)·e^(−ωt)</c>,
-/// drawn through the children transform (<see cref="SkUiOverscroll.Apply"/>). Reports the overscroll to the UI thread every frame.
+/// drawn through the children transform (<see cref="SkUiOverscroll.Apply"/>), towards the edge or a resting distance past
+/// the top (<paramref name="restY"/>, negative). Reports the overscroll to the UI thread every frame.
 /// </summary>
 internal sealed class SkUiRenderOverscrollSettle(float x, float y, float overscrollX, float overscrollY, SkUiOverscrollMode mode,
-    float width, float height, Action<float, float> report) : SkUiRenderAnimation
+    float width, float height, Action<float, float> report, float restY = 0) : SkUiRenderAnimation
 {
     private float _offsetX = x, _offsetY = y;
 
@@ -357,10 +358,13 @@ internal sealed class SkUiRenderOverscrollSettle(float x, float y, float overscr
         var t = elapsed.TotalSeconds;
         var factor = (1 + SkUiRenderFling.SpringOmega * t) * Math.Exp(-SkUiRenderFling.SpringOmega * t);
         _x = (float)(overscrollX * factor);
-        _y = (float)(overscrollY * factor);
-        var done = Math.Abs(_x) < 0.25 && Math.Abs(_y) < 0.25;
+        _y = (float)(restY + (overscrollY - restY) * factor);
+        var done = Math.Abs(_x) < 0.25 && Math.Abs(_y - restY) < 0.25;
         if (done)
-            _x = _y = 0;
+        {
+            _x = 0;
+            _y = restY;
+        }
         SkUiOverscroll.Apply(ref props, _offsetX, _offsetY, _x, _y, mode, width, height);
         return done;
     }

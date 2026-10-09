@@ -101,7 +101,7 @@ internal sealed class SkUiMetalView : UIView
             if (action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
                 _touchIds.Remove(key);
             var location = touch.LocationInView(this);
-            TouchHandler?.Invoke(new SkUiTouchEvent(id, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp)));
+            TouchHandler?.Invoke(new SkUiTouchEvent(id, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp), Device: SkUiPointerDevices.From(touch)));
         }
         _gate.Sync(NativeGestureState?.Invoke() ?? SkUiNativeGestureState.None, ended: _touchIds.Count == 0);
     }
@@ -340,7 +340,7 @@ internal sealed class SkUiTouchDeliverer : UIGestureRecognizer
             if (action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
                 _touchIds.Remove(key);
             var location = touch.LocationInView(view);
-            handler(new SkUiTouchEvent(id, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp)));
+            handler(new SkUiTouchEvent(id, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp), Device: SkUiPointerDevices.From(touch)));
         }
         _gate.Sync(NativeGestureState?.Invoke() ?? SkUiNativeGestureState.None, ended: _touchIds.Count == 0);
     }
@@ -468,7 +468,7 @@ internal sealed class SkUiOverlayDragRecognizer : UIGestureRecognizer
         if (_touch is not { } touch)
             return SkUiNativeGestureState.None;
         var location = touch.LocationInView(_space);
-        return _overlayTouch(new SkUiTouchEvent(_pointer, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp)));
+        return _overlayTouch(new SkUiTouchEvent(_pointer, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp), Device: SkUiPointerDevices.From(touch)));
     }
 }
 

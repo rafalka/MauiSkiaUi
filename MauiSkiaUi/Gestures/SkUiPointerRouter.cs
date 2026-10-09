@@ -31,12 +31,14 @@ internal enum SkUiNativeGestureState
 }
 
 /// <summary>One pointer's competition between recognizers.</summary>
-internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router, Point start)
+internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router, Point start, SkUiPointerDevice device = SkUiPointerDevice.Touch)
 {
     private bool _open = true;
 
     public long PointerId { get; } = pointerId;
     public Point Start { get; } = start;
+    /// <summary>What produces the pointer's samples, as reported on its press.</summary>
+    public SkUiPointerDevice Device { get; } = device;
     public List<SkUiGestureRecognizer> Members { get; } = [];
     public SkUiGestureRecognizer? Winner { get; private set; }
     /// <summary>The winner claimed explicitly (its gesture started) rather than winning by default.</summary>
@@ -212,7 +214,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
             EndArena(arena, cancelled: true);
             return handled;
         }
-        var pointer = new SkUiPointer(touch.Id, touch.Position, arena.Start, time, this);
+        var pointer = new SkUiPointer(touch.Id, touch.Position, arena.Start, time, this, arena.Device);
         var slop = SkUiGestureSettings.TouchSlop;
         if (!arena.SlopExceeded && (Math.Pow(pointer.TotalX, 2) + Math.Pow(pointer.TotalY, 2)) > slop * slop)
         {
@@ -290,7 +292,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
             return false;
         if (root is SkUiView { FocusManagerIfCreated: { PointerPressFocuses: true } focus })
             focus.OnPointerPressed(leaf);
-        var arena = new SkUiGestureArena(touch.Id, this, touch.Position);
+        var arena = new SkUiGestureArena(touch.Id, this, touch.Position, touch.Device);
         if (!leaf.IsInputEnabled)
         {
             // Disabled: blocks the pointer until release without reacting.
@@ -309,7 +311,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
             EndArena(stale, cancelled: true);
         if (overlay.RenderParent is not ISkUiInputNode parent || !IsLive(overlay))
             return false;
-        var arena = new SkUiGestureArena(touch.Id, this, touch.Position);
+        var arena = new SkUiGestureArena(touch.Id, this, touch.Position, touch.Device);
         AddMembers(arena, parent, continuousOnly: true);
         return Open(arena, touch, time);
     }
@@ -338,7 +340,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     {
         _arenas[touch.Id] = arena;
         ActiveArenas++;
-        var pointer = new SkUiPointer(touch.Id, touch.Position, touch.Position, time, this);
+        var pointer = new SkUiPointer(touch.Id, touch.Position, touch.Position, time, this, arena.Device);
         foreach (var member in arena.Members.ToArray())
             if (arena.Members.Contains(member) && !member.OnPointerPressed(pointer))
                 arena.Remove(member, rejected: false);

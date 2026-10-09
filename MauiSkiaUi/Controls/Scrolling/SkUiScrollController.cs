@@ -4,6 +4,19 @@ using SkiaSharp;
 
 namespace MauiSkiaUi;
 
+/// <summary>Which drags may pull a scroller's start for pull-to-refresh (<see cref="SkUiScrollController.PullsAtVerticalStart"/>).</summary>
+internal enum SkUiPullInput
+{
+    /// <summary>No pull.</summary>
+    None,
+
+    /// <summary>Touch and pen drags (mouse drags do not pull).</summary>
+    Touch,
+
+    /// <summary>Every drag, also by mouse.</summary>
+    TouchAndMouse
+}
+
 /// <summary>A drawn scroller (<see cref="SkUiScrollView"/>, <see cref="Core.SkUiCoreScrollView"/>) driven by the shared scroll gesture.</summary>
 internal interface ISkUiScrollHost : ISkUiInputNode
 {
@@ -171,20 +184,37 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     public bool IsOverscrolled => OverscrollX != 0 || OverscrollY != 0;
 
     /// <summary>
-    /// Raised when a drag ends past the start of the vertical axis (pull-to-refresh), before the content springs back; the
-    /// argument is the distance shown past the edge in DIPs. Not raised for flings that overshoot.
+    /// Raised when a drag ends with the content past an edge, before it springs back, once per edge (pull-to-refresh,
+    /// <see cref="SkUiScrollView.PullReleased"/>); the distance is what was shown past the edge, in DIPs. Not raised for
+    /// flings that overshoot.
     /// </summary>
-    public event Action<double>? PullReleased;
+    public event Action<SkUiScrollEdges, double>? PullReleased;
 
-    /// <summary>Reports the end of a drag that left the content past its vertical start (<see cref="PullReleased"/>).</summary>
+    /// <summary>Reports the end of a drag that left the content past its edges (<see cref="PullReleased"/>).</summary>
     public void NotifyPullReleased()
     {
-        if (OverscrollY < 0)
-            PullReleased?.Invoke(-OverscrollY);
+        if (PullReleased is not { } released)
+            return;
+        if (OverscrollY != 0)
+            released(OverscrollY < 0 ? SkUiScrollEdges.Top : SkUiScrollEdges.Bottom, Math.Abs(OverscrollY));
+        if (OverscrollX != 0)
+            released(OverscrollX < 0 ? SkUiScrollEdges.Left : SkUiScrollEdges.Right, Math.Abs(OverscrollX));
     }
 
     /// <summary>Raised when <see cref="OverscrollX"/> / <see cref="OverscrollY"/> change (e.g. to move native overlays with the content).</summary>
     public event Action? OverscrollChanged;
+
+    private SkUiOverscrolledEventArgs? _overscrolledArgs;
+
+    /// <summary>The overscroll now, in the instance this scroller reuses for its owner's <c>Overscrolled</c> event.</summary>
+    public SkUiOverscrolledEventArgs OverscrolledArgs()
+    {
+        var args = _overscrolledArgs ??= new SkUiOverscrolledEventArgs();
+        args.OverscrollX = OverscrollX;
+        args.OverscrollY = OverscrollY;
+        args.IsDragging = _dragging;
+        return args;
+    }
 
     private bool _dragging;
     private bool _moving;
@@ -299,15 +329,46 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// <summary>
     /// The start of the vertical axis can be pulled past also when the content does not overflow or overscroll is off
     /// (pull-to-refresh): the pull is tracked in <see cref="OverscrollY"/> and reported (<see cref="PullReleased"/>); the
-    /// content moves only as <see cref="EffectiveOverscroll"/> draws it.
+    /// content moves only as <see cref="EffectiveOverscroll"/> draws it. By touch (and pen) drags, or by mouse drags too.
     /// </summary>
-    public bool PullsAtVerticalStart { get; set; }
+    public SkUiPullInput PullsAtVerticalStart { get; set; }
 
-    /// <summary>Whether a drag in this direction may pull the content past an edge (the axis scrolls and overscroll is on, or a pull-to-refresh start).</summary>
+    /// <summary>
+    /// As <see cref="PullsAtVerticalStart"/>, set by an enclosing <see cref="SkUiRefreshView"/> that pulls through this
+    /// scroller; kept apart from the owner's own setting (a collection view's pull-to-refresh).
+    /// </summary>
+    public SkUiPullInput PullsForRefreshView { get; set; }
+
+    /// <summary>What drags this scroller now (or did last): set by the scroll gesture on each press.</summary>
+    public SkUiPointerDevice DragDevice { get; set; }
+
+    /// <summary>Whether a pull-to-refresh pull of <paramref name="input"/> is open to the device that drags now.</summary>
+    public bool Allows(SkUiPullInput input) =>
+        input == SkUiPullInput.TouchAndMouse || (input == SkUiPullInput.Touch && DragDevice != SkUiPointerDevice.Mouse);
+
+    /// <summary>
+    /// Edges the app lets drags pull past also when the content does not overflow or overscroll is off
+    /// (<see cref="SkUiScrollView.PullEdges"/>), as <see cref="PullsAtVerticalStart"/> does for the top.
+    /// </summary>
+    public SkUiScrollEdges PullEdges { get; set; }
+
+    /// <summary>Whether a drag in this direction may pull the content past an edge (the axis scrolls and overscroll is on, or the edge pulls).</summary>
     public bool CanOverscroll(double dx, double dy) =>
         (EffectiveOverscroll != SkUiOverscrollMode.None
             && ((dx != 0 && Horizontal && MaxX > 0) || (dy != 0 && Vertical && MaxY > 0)))
-        || (PullsAtVerticalStart && dy < 0 && Vertical && Y <= 0);
+        || PullsAt(dx, dy);
+
+    /// <summary>Whether the edge a drag in this direction leaves past pulls (<see cref="PullEdges"/> or a pull-to-refresh start), with the content at it.</summary>
+    private bool PullsAt(double dx, double dy)
+    {
+        var edges = PullEdges;
+        if (Allows(PullsAtVerticalStart) || Allows(PullsForRefreshView))
+            edges |= SkUiScrollEdges.Top;
+        if (edges == SkUiScrollEdges.None)
+            return false;
+        return (Vertical && ((dy < 0 && Y <= 0 && edges.HasFlag(SkUiScrollEdges.Top)) || (dy > 0 && Y >= MaxY && edges.HasFlag(SkUiScrollEdges.Bottom))))
+            || (Horizontal && ((dx < 0 && X <= 0 && edges.HasFlag(SkUiScrollEdges.Left)) || (dx > 0 && X >= MaxX && edges.HasFlag(SkUiScrollEdges.Right))));
+    }
 
     /// <summary>
     /// A wheel or trackpad delta (positive towards the start of each axis). Each axis this scroller can move that way
@@ -768,19 +829,49 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     }
 
     /// <summary>
-    /// Springs back from overscroll on the render thread (a drag released past an edge); returns <c>false</c> when the
-    /// content is not past an edge.
+    /// How far past the top the content rests while it is not dragged (an inline pull-to-refresh while refreshing, DIPs):
+    /// spring-backs at the top settle there instead of at the edge, and a drag takes the rest back first. 0: none.
+    /// </summary>
+    public double TopRest { get; private set; }
+
+    /// <summary>Where the vertical overscroll settles now: -<see cref="TopRest"/> at the top, else the edge.</summary>
+    private double RestY => TopRest > 0 && Vertical && Y <= 0 && OverscrollY <= 0 ? -TopRest : 0;
+
+    /// <summary>
+    /// Sets <see cref="TopRest"/>; with the content at the top and not dragged it springs to the new rest on the render thread.
+    /// </summary>
+    public void SetTopRest(double rest)
+    {
+        rest = Math.Max(0, rest);
+        if (TopRest == rest)
+            return;
+        TopRest = rest;
+        // Dragged: the release settles. Scrolled into the content: nothing shows at the top until it comes back.
+        if (_dragging || !Vertical || (Y > 0 && OverscrollY >= 0))
+            return;
+        SettleOverscroll();
+    }
+
+    /// <summary>
+    /// Springs back from overscroll on the render thread (a drag released past an edge), to the edge or to
+    /// <see cref="TopRest"/>; returns <c>false</c> when the content is not past an edge (and does not rest past the top).
     /// </summary>
     public bool SettleOverscroll()
     {
         _pullX = _pullY = 0;
-        if (!IsOverscrolled)
-            return false;
+        var restY = RestY;
+        if (OverscrollX == 0 && OverscrollY == restY)
+        {
+            // Resting already (or nothing past an edge): a later drag takes the rest back first.
+            _pullY = SkUiOverscroll.InverseRubberBand(OverscrollY, Viewport.Height);
+            return restY != 0;
+        }
         StopMotion();
         SkUiRenderOverscrollSettle? settle = null;
         settle = new SkUiRenderOverscrollSettle((float)X, (float)Y, (float)OverscrollX, (float)OverscrollY, EffectiveOverscroll,
             (float)Viewport.Width, (float)Viewport.Height,
-            (x, y) => { if (ReferenceEquals(_motion, settle)) ApplyRenderScroll((float)(X - _motionShiftX), (float)(Y - _motionShiftY), x, y); })
+            (x, y) => { if (ReferenceEquals(_motion, settle)) ApplyRenderScroll((float)(X - _motionShiftX), (float)(Y - _motionShiftY), x, y); },
+            (float)restY)
         {
             Finished = (animation, _) =>
             {
@@ -794,6 +885,18 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         UpdateMoving();
         SkUiRenderInvalidation.Enqueue(owner, settle);
         return true;
+    }
+
+    /// <summary>
+    /// A press caught a running motion (a fling, a spring-back): it stops, and the overscroll shown becomes the drag's pull,
+    /// so the drag takes it back first. A spring-back that has not reported a frame yet still shows where it started (it
+    /// cleared the pull when it began).
+    /// </summary>
+    public void CatchMotion()
+    {
+        StopMotion();
+        _pullX = SkUiOverscroll.InverseRubberBand(OverscrollX, Viewport.Width);
+        _pullY = SkUiOverscroll.InverseRubberBand(OverscrollY, Viewport.Height);
     }
 
     /// <summary>Drops any overscroll at once (wheel, programmatic scrolls, unloading).</summary>
@@ -1121,10 +1224,11 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
         _pointer = pointer.Id;
         _start = _last = pointer.Position;
         _dragging = false;
+        scroller.DragDevice = pointer.Device;
         _velocity.Reset(pointer.Timestamp, pointer.Position);
         if (scroller.IsMotionRunning)
         {
-            scroller.StopMotion();
+            scroller.CatchMotion();
             Claim();
             _dragging = _pointer is not null;
             scroller.Dragging = _dragging;

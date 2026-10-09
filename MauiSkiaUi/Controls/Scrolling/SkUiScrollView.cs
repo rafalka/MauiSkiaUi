@@ -22,6 +22,8 @@ internal interface ISkUiScrollListener
 /// overscrolls (<see cref="Overscroll"/>: bounce or stretch, per look by default) and springs back.
 /// Scroll bars (<see cref="VerticalScrollBarVisibility"/>, <see cref="HorizontalScrollBarVisibility"/>) are drawn by the
 /// look, placed from the offset on the render thread, and fade out after scrolling stops.
+/// <see cref="Overscrolled"/> and <see cref="PullReleased"/> report pulls past the edges (with <see cref="PullEdges"/>, also
+/// of content that does not overflow), for effects and gestures built on them (stretchy headers, pull to dismiss).
 /// </summary>
 public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
 {
@@ -39,7 +41,8 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     {
         _scroller = new SkUiScrollController(this, InvalidateRender, OnOffsetChanged);
         _scroller.MovingChanged += OnMovingChanged;
-        _scroller.OverscrollChanged += SyncRegisteredOverlays;
+        _scroller.OverscrollChanged += OnOverscrollReported;
+        _scroller.PullReleased += OnPullReleased;
         Unloaded += (_, _) => CancelInteraction();
     }
 
@@ -112,6 +115,61 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         get => (SkUiOverscrollMode)GetValue(OverscrollProperty);
         set => SetValue(OverscrollProperty, value);
     }
+
+    /// <summary>Bindable property for <see cref="PullEdges"/>.</summary>
+    public static readonly BindableProperty PullEdgesProperty = BindableProperty.Create(nameof(PullEdges), typeof(SkUiScrollEdges),
+        typeof(SkUiScrollView), SkUiScrollEdges.None,
+        validateValue: (_, value) => ((SkUiScrollEdges)value & ~SkUiScrollEdges.All) == 0,
+        propertyChanged: (view, _, value) => ((SkUiScrollView)view)._scroller.PullEdges = (SkUiScrollEdges)value);
+
+    /// <summary>
+    /// Edges a drag can pull the content past also when it does not overflow or <see cref="Overscroll"/> is
+    /// <see cref="SkUiOverscrollMode.None"/> (default <see cref="SkUiScrollEdges.None"/>; only edges of the scrolled axes).
+    /// The pull is reported (<see cref="Overscrolled"/>, <see cref="PullReleased"/>) with the rubber band's resistance, and
+    /// moves the content only as the overscroll mode draws it. SkiaUi extension.
+    /// </summary>
+    public SkUiScrollEdges PullEdges
+    {
+        get => (SkUiScrollEdges)GetValue(PullEdgesProperty);
+        set => SetValue(PullEdgesProperty, value);
+    }
+
+    /// <summary>Distance shown past the left (negative) or right (positive) edge, in DIPs (see <see cref="Overscrolled"/>).</summary>
+    public double OverscrollX => _scroller.OverscrollX;
+
+    /// <summary>Distance shown past the top (negative) or bottom (positive) edge, in DIPs (see <see cref="Overscrolled"/>).</summary>
+    public double OverscrollY => _scroller.OverscrollY;
+
+    /// <summary>
+    /// Raised when the distance shown past the edges changes: while a drag pulls the content past an edge (by the overscroll
+    /// mode, or <see cref="PullEdges"/>), a fling bounces past it, or the content springs back (once per frame then, reported
+    /// from the render thread), ending at 0. The arguments are reused: read them in the handler. Changing translation,
+    /// scale, rotation or opacity of a view from it re-records nothing. SkiaUi extension.
+    /// </summary>
+    public event EventHandler<SkUiOverscrolledEventArgs>? Overscrolled;
+
+    /// <summary>
+    /// Raised when a drag is released with the content past an edge, before it springs back, once per edge, with the
+    /// distance shown past it (pull to dismiss, to load more, a refresh of your own). SkiaUi extension.
+    /// </summary>
+    public event EventHandler<SkUiPullReleasedEventArgs>? PullReleased;
+
+    /// <summary>Sets <see cref="PullEdges"/> (same as the property setter).</summary>
+    public SkUiScrollView SetPullEdges(SkUiScrollEdges value)
+    {
+        if ((value & ~SkUiScrollEdges.All) != 0) throw new ArgumentOutOfRangeException(nameof(value));
+        PullEdges = value;
+        return this;
+    }
+
+    private void OnOverscrollReported()
+    {
+        SyncRegisteredOverlays();
+        Overscrolled?.Invoke(this, _scroller.OverscrolledArgs());
+    }
+
+    private void OnPullReleased(SkUiScrollEdges edge, double distance) =>
+        PullReleased?.Invoke(this, new SkUiPullReleasedEventArgs(edge, distance));
 
     /// <summary>
     /// The vertical scroll bar: a Core node drawn by the look along the viewport edge (style it with

@@ -207,6 +207,13 @@ public class SkUiBorder : SkUiContentView
     }
 
     /// <inheritdoc />
+    internal override void ReleaseDrawingResources()
+    {
+        base.ReleaseDrawingResources();
+        _geometry.Release();
+    }
+
+    /// <inheritdoc />
     /// <remarks>An opaque background casts the shadow from the outline (with an opaque stroke, its outer edge), as MAUI on Android.</remarks>
     internal override SKPath? CreateShadowOutline(float width, float height)
     {

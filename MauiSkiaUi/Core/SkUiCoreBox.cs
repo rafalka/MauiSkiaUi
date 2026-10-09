@@ -70,6 +70,13 @@ public class SkUiCoreBox : SkUiCoreNode
     }
 
     /// <inheritdoc />
+    internal override void ReleaseDrawingResources()
+    {
+        base.ReleaseDrawingResources();
+        _shape.Release();
+    }
+
+    /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height)
     {
         if (PaintBackground is not null || !BoxFill.IsOpaque)

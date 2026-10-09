@@ -47,8 +47,9 @@ A plain list (items and a template only) can also use the lighter **`SkUiVirtual
 | — | `IsStickyGroupHeader` | The current group's header stays at the start, pushed away by the next one |
 | — | `AllowGroupExpandCollapse`, `AutoExpandGroups`, `ExpandGroup` / `CollapseGroup` / `ExpandAll` / `CollapseAll`, `GroupExpanding` / `GroupExpanded` / `GroupCollapsing` / `GroupCollapsed`, `ISkUiExpandableGroup` | Collapsed groups' items are not realized; the header's root goes to `Expanded` / `Collapsed` |
 | `ScrollTo(item, group, …)` | `ScrollToItem(item, …)`, `ScrollToGroup(group, …)` | An item of a collapsed group expands it |
-| `CanReorderItems`, `SwipeView` rows, `ContextMenu` | — | Not yet (later / Phase C) |
-| `RefreshView` around it: `IsRefreshing`, `Command` (+ `Parameter`), `RefreshColor`, `Refreshing`, `IsEnabled` / `IsRefreshEnabled` | `IsPullToRefreshEnabled="True"`, `IsRefreshing` (two-way), `RefreshCommand` (+ `Parameter`), `RefreshColor`, `Refreshing` | Drop the `RefreshView`. As MAUI: `IsRefreshing = true` (pull or code) raises `Refreshing` and runs the command; the app sets it back to `false` |
+| `SwipeView` rows | `sk:SkUiSwipeView` in the item template | Prefix swap ([controls.md](controls.md)); the swipe takes horizontal drags and leaves vertical ones to the list, a scroll closes an open row, a recycled row shows closed |
+| `CanReorderItems`, `ContextMenu` | — | Not yet |
+| `RefreshView` around it: `IsRefreshing`, `Command` (+ `Parameter`), `RefreshColor`, `Refreshing`, `IsEnabled` / `IsRefreshEnabled` | `IsPullToRefreshEnabled="True"`, `IsRefreshing` (two-way), `RefreshCommand` (+ `Parameter`), `RefreshColor`, `Refreshing` | Drop the `RefreshView`. As MAUI: `IsRefreshing = true` (pull or code) raises `Refreshing` and runs the command; the app sets it back to `false`. Keeping it as `sk:SkUiRefreshView` around the list also works (leave `IsPullToRefreshEnabled` off then) |
 
 ## Intentional differences
 
@@ -61,7 +62,7 @@ A plain list (items and a template only) can also use the lighter **`SkUiVirtual
 | Sticky header / footer | Not available | `IsStickyHeader` / `IsStickyFooter`, and sticky group headers |
 | Layout | An `ItemsLayout` object | `Orientation`, `Span`, `ItemSpacing`, `SpanSpacing` on the list |
 | Expandable groups | Not available | Built in |
-| Pull to refresh | A separate `RefreshView` | Built in; works also on short lists and without overscroll |
+| Pull to refresh | A separate `RefreshView` | Built in; works also on short lists and without overscroll; the look's indicator (overlay badge or inline, the platform's); mouse drags pull only with `IsMousePullEnabled`; `RefreshCompletion="Automatic"` ends it when an async command is done |
 | Height | Fills its slot; in a `StackLayout` / `ScrollView` it may create every cell | Same rule: give it a bounded height (grid row, page) |
 
 ## Agent workflow
@@ -69,5 +70,5 @@ A plain list (items and a template only) can also use the lighter **`SkUiVirtual
 1. Do not convert by prefix swap alone: walk the table above for every attribute and property element of the list.
 2. Reorderable lists (`CanReorderItems`) and items layouts with snap points: keep native (outside the drawn region) and report them.
 3. Convert the item template, header, footer and empty view to drawn views like the rest of the region; replace `TapGestureRecognizer`s on the item root with `ItemTappedCommand`.
-4. Move a surrounding `RefreshView` onto the list (`IsPullToRefreshEnabled`, `IsRefreshing`, `RefreshCommand`).
+4. Move a surrounding `RefreshView` onto the list (`IsPullToRefreshEnabled`, `IsRefreshing`, `RefreshCommand`), or keep it as `sk:SkUiRefreshView` (not both).
 5. Run `check_xaml.py` on the page: it reports native `CollectionView`s inside drawn trees and MAUI-only members left on `sk:SkUiCollectionView`.

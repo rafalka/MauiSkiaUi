@@ -1,6 +1,6 @@
 # SkUiLabel
 
-Drawn text with wrapping, truncation, fonts, alignment, padding and MAUI Label's text properties, spans with their own styles and tap recognizers (`FormattedText`), HTML text (`TextType="Html"`) with tappable links, custom line breaking (shorter forms instead of an ellipsis) and optional rounded chrome for badges, chips and tags.
+Drawn text with wrapping, truncation, fonts, alignment, padding and MAUI Label's text properties, spans with their own styles and tap recognizers (`FormattedText`), HTML text (`TextType="Html"`) with tappable links, text that shrinks or grows to fit, custom line breaking (shorter forms instead of an ellipsis) and optional rounded chrome for badges, chips and tags.
 
 **MAUI counterpart:** [`Label`](https://learn.microsoft.com/dotnet/maui/user-interface/controls/label)
 
@@ -41,6 +41,31 @@ A label measured at one width and drawn at a wider one reuses its lines when not
 **Direction:** effective `FlowDirection` RTL (explicit on the label or inherited from any ancestor) makes paragraphs RTL. `FlowDirection="LeftToRight"` forces LTR. The default (`MatchParent` under an LTR parent) lets the first strong character decide, like Android's `firstStrong`. `HorizontalTextAlignment` `Start` / `End` follow the resolved paragraph direction, so `Start` is the right edge for RTL text.
 
 
+## Shrink to fit
+
+`ShrinkToFit="True"` draws text that does not fit the label smaller, down to `MinimumFontScale` (default `0.5`: half the font size; more than 0, at most 1), as iOS's `adjustsFontSizeToFitWidth` and Android's auto-size do. `AllowsTightening="True"` first takes a little space from between the characters, and `GrowToFill="True"` makes text with room larger, up to `MaximumFontScale`. MAUI's Label has none of these.
+
+```xml
+<sk:SkUiLabel Text="{Binding Headline}" FontSize="24" LineBreakMode="TailTruncation"
+              ShrinkToFit="True" MinimumFontScale="0.6" AllowsTightening="True" />
+
+<!-- A number that fills its tile -->
+<sk:SkUiLabel Text="{Binding Score}" LineBreakMode="NoWrap" WidthRequest="120" HeightRequest="80"
+              GrowToFill="True" MaximumFontScale="4" ShrinkToFit="True" />
+```
+
+- **When it fits:** the text fits when nothing would be truncated or left past `MaxLines`, word wrap would break no word inside, no `NoWrap` line is wider than the label, and the lines are no taller than it. Words that wrap whole fit, so a wrapping label without a height limit keeps its size. `CharacterWrap` breaks words by design and does not shrink for them.
+- **The order:** the largest text that fits, from the largest to the smallest: grown (with `GrowToFill`, down from `MaximumFontScale`), the text as set, tightened (with `AllowsTightening`), then shrunk (with `ShrinkToFit`, fully tightened, down to `MinimumFontScale`). Each property works alone: tightening without shrinking only keeps text from being truncated a little earlier; growing without shrinking never goes below the text as set.
+- **Shrinking and growing** scale every font size and character spacing alike, also of spans and HTML, so formatted text keeps its proportions; line heights are multipliers and follow. Sizes are a quarter DIP of font size apart, so the text is less than that from the best size. Padding, the chrome and the label's own size properties do not scale.
+- **Tightening** takes up to 0.05 em (5 % of each span's font size) from the space after each character, in 0.1 DIP steps, as little as fits, as iOS's `allowsDefaultTighteningForTruncation` and SwiftUI's `allowsTightening` do. `CharacterSpacing` stays as set when the text fits.
+- **Text still too long** at the end of the order is drawn there (the minimum scale, fully tightened) and broken as `LineBreakMode` says (an ellipsis, wrapping, `MaxLines`). A custom `LineBreaker` gets the fitted text: fitting comes first, and the breaker shortens what still does not fit (whether the text fits is decided by the mode it falls back to, `context.LineBreakMode`).
+- **Which space:** measuring fits the text to the space the label is offered (the width, and the height when it is limited: a `HeightRequest`, a fixed grid row), so the label asks for the fitted size. Drawing fits it to the slot it was arranged in: a label given less than it asked for shrinks further there. A label measured without a width limit (in a horizontal stack) has nothing to shrink for, and one that grows grows to the maximum there.
+- **Growing needs a size to fill:** a width, and for wrapped text a height or `MaxLines`; without a height limit, wrapped text grows until a word no longer fits a line (Android's auto-size asks for a fixed size for the same reason). Growing measures the label larger, so it pushes its neighbours as a larger font would.
+- **Scale and system text size:** both scales apply to the size as drawn, after `FontAutoScalingEnabled` and `SkUiLook.FontScale`.
+- **Cost:** off by default and free when off. A fitted label lays its text out again only when its text, a text property or its space changes, and the fitted size is remembered for the measured and the arranged slot (measure and draw share one layout; a repaint needs none). Text that fits as set costs one layout. Fitted text is laid out at its own font size in a slot as much wider or narrower as it is scaled, and drawn with a canvas scale, so trials create no fonts and the trial that fits is the layout drawn; the paragraphs are shaped once per fit and reused by its trials. From how far one line overflows (or how much room it has) the size that fits is computed exactly: one line that shrinks costs two or three layouts, one that grows one; wrapped text a few more. In the headless benchmarks (`core-labels-fit`, `core-labels-grow`), 1,000 labels of which 750 shrink measure in about 11 ms instead of 4 ms, and 1,000 growing numbers in 1.7 ms instead of 1.2 ms.
+
+`SkUiButton` inherits these properties (a title that does not fit gets tighter or smaller), and Core labels and buttons have them too (`SetShrinkToFit`, `SetMinimumFontScale`, `SetAllowsTightening`, `SetGrowToFill`, `SetMaximumFontScale`). The samples app shows a headline that tightens and shrinks and a year that grows, next to the custom breakers (**Controls › Text that fits**).
+
 ## Custom line breaking
 
 `LineBreaker` (an `SkUiTextLineBreaker`) replaces `LineBreakMode` with your own code: it gets the text and the available width and returns the lines to draw. Use it when "..." is the wrong way to shorten text:
@@ -54,7 +79,7 @@ The context (valid during the call):
 | Member | |
 | --- | --- |
 | `Text` | The displayed text (after `TextTransform`) |
-| `AvailableWidth` | Content width in DIPs (label width minus `Padding`); infinite when measured unconstrained |
+| `AvailableWidth` | Content width in DIPs (label width minus `Padding`); infinite when measured unconstrained. A label that shrinks or grows its text gives the width at the text's own size (the content width divided by the scale), and `Font` is at that size too: the breaker sees the text unscaled |
 | `MaxLines`, `LineBreakMode` | The label's settings |
 | `Font`, `Owner` | The primary `SKFont`; the label (`SkUiLabel` or `SkUiCoreLabel`), e.g. to read its `BindingContext` |
 | `Measure(text)`, `Fits(text)` | One-line width as the label draws it: shaping, fallback fonts, character spacing |
@@ -194,7 +219,7 @@ Fonts registered with MAUI's `ConfigureFonts` (`fonts.AddFont("file.ttf", "Alias
 
 ## Key properties
 
-`Text`, `FormattedText`, `TextType`, `LinkTappedCommand`, `TextColor`, `FontSize`, `FontAutoScalingEnabled`, `FontFamily`, `FontAttributes`, `LineBreakMode`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`, `LineBreaker`, `HorizontalTextAlignment`, `VerticalTextAlignment`, `TextRendering`, `Padding`, `CornerRadii`, `CornerRadius`, `BorderColor`, `BorderWidth` (+ matching `Set*` setters); `InvalidateTextLayout()`, `SpanAt(point)`, `LinkAt(point)`; `LinkTapped`.
+`Text`, `FormattedText`, `TextType`, `LinkTappedCommand`, `TextColor`, `FontSize`, `FontAutoScalingEnabled`, `ShrinkToFit`, `MinimumFontScale`, `AllowsTightening`, `GrowToFill`, `MaximumFontScale`, `FontFamily`, `FontAttributes`, `LineBreakMode`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`, `LineBreaker`, `HorizontalTextAlignment`, `VerticalTextAlignment`, `TextRendering`, `Padding`, `CornerRadii`, `CornerRadius`, `BorderColor`, `BorderWidth` (+ matching `Set*` setters); `InvalidateTextLayout()`, `SpanAt(point)`, `LinkAt(point)`; `LinkTapped`.
 
 ## Differences from MAUI Label
 
@@ -210,6 +235,7 @@ Fonts registered with MAUI's `ConfigureFonts` (`fonts.AddFont("file.ttf", "Alias
 | `LineHeight` | Extra space split above and below each line (iOS adds it above, Android below) |
 | `MaxLines` with `HeadTruncation` / `MiddleTruncation` / `NoWrap` | One line per paragraph, then at most `MaxLines` lines (MAUI shows a single line) |
 | Custom line breaking | `LineBreaker` (MAUI has none) |
+| Text that fits | `ShrinkToFit` / `MinimumFontScale`, `AllowsTightening`, `GrowToFill` / `MaximumFontScale` (MAUI has none) |
 | Bidi / complex scripts | Supported (HarfBuzz + UAX #9 implicit levels). Explicit embedding / isolate control characters (LRE…PDI) are treated as neutral; LRM / RLM / ALM work |
 | Fallback fonts | Chosen by Skia's font manager per character; may differ from the native text stack's choice (e.g. a different Hebrew face on iOS) |
 | Selection / copy | Not supported |

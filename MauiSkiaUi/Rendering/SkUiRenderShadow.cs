@@ -22,6 +22,8 @@ internal sealed class SkUiShadowStyle : IDisposable
             SKMaskFilter.ConvertRadiusToSigma(radius));
     }
 
+    private bool _disposed;
+
     private SkUiShadowStyle(SKColor color, SKShader? shader, byte alpha, float offsetX, float offsetY, float sigma)
     {
         Color = color;
@@ -64,9 +66,15 @@ internal sealed class SkUiShadowStyle : IDisposable
     /// <summary>The blur of a shadow from the node's content; <c>null</c> without blur.</summary>
     public SKImageFilter? LayerBlur { get; }
 
-    /// <summary>Releases the native shader and filters (render thread, once no committed frame uses this style).</summary>
+    /// <summary>
+    /// Releases the native shader and filters (render thread, once no committed frame uses this style). Idempotent: shadows
+    /// of one node share their style, so a teardown may release it from several props.
+    /// </summary>
     public void Dispose()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
         Shader?.Dispose();
         Blur?.Dispose();
         LayerBlur?.Dispose();
