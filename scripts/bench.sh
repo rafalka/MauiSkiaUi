@@ -23,6 +23,7 @@ SCENARIOS=""
 BASELINE=""
 ROUNDS=1
 THRESHOLD=5
+QUIET_GC=0
 OUT=""
 TIMEOUT=900
 
@@ -40,6 +41,9 @@ Usage: scripts/bench.sh [options]
                    benchmarks/ folder copied in, then compare REF → working tree
   -r ROUNDS        alternate baseline/current this many times and pool the samples (default 1)
   --threshold PCT  minimum median change reported as faster/slower (default 5)
+  --quiet-gc       headless: a gen0 budget large enough that no garbage collection lands inside an iteration
+                   (each starts after a full one), so a change in allocations does not move a collection
+                   into another phase; compares code paths, not collection costs
   -o DIR           output directory (default artifacts/bench/<timestamp>)
   -l, --list       list scenarios and exit
   -h, --help       this help
@@ -56,6 +60,7 @@ while [[ $# -gt 0 ]]; do
         -b|--baseline) BASELINE="$2"; shift 2 ;;
         -r) ROUNDS="$2"; shift 2 ;;
         --threshold) THRESHOLD="$2"; shift 2 ;;
+        --quiet-gc) QUIET_GC=1; shift ;;
         -o) OUT="$2"; shift 2 ;;
         -l|--list) exec dotnet run -c Release --project "$REPO_ROOT/benchmarks/MauiSkiaUi.Benchmarks" -- --list ;;
         -h|--help) usage; exit 0 ;;
@@ -200,7 +205,10 @@ run_headless() { # label dir round
     local label="$1" dir="$2" round="$3" json="$OUT/$1.round$3.json"
     read -r -a args <<<"$(app_args "$label")"
     # Fully optimized JIT from the first iteration: tiering otherwise makes early samples order dependent.
-    DOTNET_TieredCompilation=0 DOTNET_TieredPGO=0 dotnet run -c Release --no-build --project "$dir/benchmarks/MauiSkiaUi.Benchmarks" -- "${args[@]}" --json "$json" >"$OUT/$label.round$round.log"
+    # --quiet-gc: no collection inside an iteration (each starts after a full one).
+    local gc=""
+    [[ "$QUIET_GC" == 1 ]] && gc="DOTNET_GCgen0size=0x40000000"
+    env $gc DOTNET_TieredCompilation=0 DOTNET_TieredPGO=0 dotnet run -c Release --no-build --project "$dir/benchmarks/MauiSkiaUi.Benchmarks" -- "${args[@]}" --json "$json" >"$OUT/$label.round$round.log"
     echo "$json"
 }
 

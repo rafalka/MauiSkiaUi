@@ -60,6 +60,39 @@ internal static class SkUiTypefaces
         attributes.HasFlag(FontAttributes.Italic) ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright);
 }
 
+/// <summary>
+/// Native objects drawn text shares between labels instead of each label keeping its own (which the finalizer would
+/// release when the label is dropped): fonts, one per typeface, size and requested attributes, and the paint text is
+/// drawn with. Fonts are only read once made (measuring, shaping, drawing), so layouts on any thread share them; the
+/// paint is per thread.
+/// </summary>
+internal static class SkUiTextResources
+{
+    /// <summary>The most fonts kept; past it the cache starts over (fonts still in use stay with their layouts).</summary>
+    private const int MaxFonts = 1024;
+
+    private static readonly ConcurrentDictionary<(SKTypeface Typeface, float Size, FontAttributes Attributes), SKFont> Fonts = new();
+    [ThreadStatic] private static SKPaint? _textPaint;
+
+    /// <summary>
+    /// The font that draws <paramref name="typeface"/> at <paramref name="size"/> with <paramref name="attributes"/>
+    /// (<see cref="SkUiTextLayout.CreateFont"/>). Never disposed: layouts and recorded pictures may still use it; one dropped
+    /// when the cache starts over (an animated font size) is left to the GC.
+    /// </summary>
+    internal static SKFont Font(SKTypeface typeface, float size, FontAttributes attributes)
+    {
+        var key = (typeface, size, attributes);
+        if (Fonts.TryGetValue(key, out var font))
+            return font;
+        if (Fonts.Count >= MaxFonts)
+            Fonts.Clear();
+        return Fonts.GetOrAdd(key, static key => SkUiTextLayout.CreateFont(key.Typeface, key.Size, key.Attributes));
+    }
+
+    /// <summary>The antialiased paint labels draw text with on this thread; callers set its color, nothing else.</summary>
+    internal static SKPaint TextPaint => _textPaint ??= new SKPaint { IsAntialias = true };
+}
+
 /// <summary>How drawn text is laid out.</summary>
 public enum SkUiTextRendering
 {
@@ -189,7 +222,6 @@ internal readonly record struct SkUiTextStyle(
 internal sealed class SkUiTextLayout : ISkUiTextFitLayout
 {
     internal const string DefaultEllipsis = "...";
-    private readonly Dictionary<SKTypeface, SKFont> _fonts = [];
     private readonly Func<SKTypeface, SKFont> _fontFor;
     // Stock breaking scratch, shared per thread (layout runs on the UI thread and never nests a stock break).
     [ThreadStatic] private static List<LineSpec>? _specs;
@@ -230,6 +262,26 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
 
     /// <summary>Whether the last layout used the simple (non-HarfBuzz) path for every paragraph (tests).</summary>
     internal bool LastLayoutSimple { get; private set; }
+
+    /// <summary>
+    /// Disposes the lines' text blobs and forgets them (the label's retained pictures are gone: it left its drawn parent or
+    /// its surface): nothing is left to the finalizer. The next measure or draw lays the text out again.
+    /// </summary>
+    internal void Release()
+    {
+        ReleaseBlobs(_lines);
+        _lines = [];
+        Invalidate();
+    }
+
+    private static void ReleaseBlobs(List<SkUiShaping.Line> lines)
+    {
+        foreach (var line in lines)
+        {
+            line.Blob?.Dispose();
+            line.Blob = null;
+        }
+    }
 
     /// <summary>Forgets broken lines (text or padding changed, or a custom breaker's inputs).</summary>
     internal void Invalidate()
@@ -306,14 +358,12 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
         }
     }
 
-    private SKFont FontFor(SKTypeface typeface)
-    {
-        if (!_fonts.TryGetValue(typeface, out var font))
-            _fonts[typeface] = font = CreateFont(typeface, _fontSize, _fontAttributes);
-        return font;
-    }
+    private SKFont FontFor(SKTypeface typeface) => SkUiTextResources.Font(typeface, _fontSize, _fontAttributes);
 
-    /// <summary>A font for drawn text: <paramref name="typeface"/> at <paramref name="size"/>, synthesizing the requested attributes it lacks.</summary>
+    /// <summary>
+    /// A new font for drawn text: <paramref name="typeface"/> at <paramref name="size"/>, synthesizing the requested attributes
+    /// it lacks. Layouts share them through <see cref="SkUiTextResources.Font"/>.
+    /// </summary>
     internal static SKFont CreateFont(SKTypeface typeface, float size, FontAttributes attributes)
     {
         // Linear (unhinted) metrics: Skia measures like HarfBuzz shapes, so simple and shaped text agree on FreeType
@@ -333,10 +383,6 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
         var (typeface, size) = (style.Typeface, style.FontSize);
         if (!ReferenceEquals(_typeface, typeface) || _fontSize != (float)size || _fontAttributes != style.FontAttributes)
         {
-            // Text blobs in recorded pictures hold their own typeface references, so old fonts can go.
-            foreach (var font in _fonts.Values)
-                font.Dispose();
-            _fonts.Clear();
             _typeface = typeface;
             _fontSize = (float)size;
             _fontAttributes = style.FontAttributes;
@@ -398,6 +444,8 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
             }
         }
         ApplyLineHeight(lines, style.LineHeight);
+        // Pictures that drew the old lines hold their own references to the blobs.
+        ReleaseBlobs(_lines);
         _lines = lines;
         _naturalFit = natural;
         _fits = fits;

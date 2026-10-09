@@ -42,7 +42,6 @@ public class SkUiLabel : SkUiView
     private Thickness _padding;
     private readonly SkUiTextLayout _layout;
     private SkUiTextRendering _textRendering;
-    private SKPaint? _textPaint;
     private SkUiChromeState _chrome;
     private bool _syncingCornerRadius;
     private FormattedString? _formattedText;
@@ -501,6 +500,14 @@ public class SkUiLabel : SkUiView
     /// <summary>Breaks the text again at the next measure, e.g. when what a custom <see cref="LineBreaker"/> reads has changed.</summary>
     public void InvalidateTextLayout() => InvalidateText();
 
+    /// <inheritdoc />
+    internal override void ReleaseDrawingResources()
+    {
+        base.ReleaseDrawingResources();
+        _layout.Release();
+        _richLayout?.Release();
+    }
+
     private void UpdateDisplayText()
     {
         var display = SkUiTextTransform.Apply(_text, _textTransform);
@@ -693,7 +700,7 @@ public class SkUiLabel : SkUiView
 
     private void PaintText(SKCanvas canvas)
     {
-        var paint = _textPaint ??= new SKPaint { IsAntialias = true };
+        var paint = SkUiTextResources.TextPaint;
         var inset = TextInset;
         if (UsesRichText)
         {

@@ -812,6 +812,14 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
                 children.Add(renderable);
     }
 
+    void ISkUiRenderable.ReleaseDrawingResources() => ReleaseDrawingResources();
+
+    /// <summary>
+    /// Disposes native objects kept only for drawing (see <see cref="ISkUiRenderable.ReleaseDrawingResources"/>): the node
+    /// left its drawn parent or its surface was torn down. They are made again when the node is drawn again.
+    /// </summary>
+    internal virtual void ReleaseDrawingResources() { }
+
     void ISkUiRenderable.OnRenderRootDirty(bool fromDescendant)
     {
         RenderRootDirty?.Invoke(this, EventArgs.Empty);

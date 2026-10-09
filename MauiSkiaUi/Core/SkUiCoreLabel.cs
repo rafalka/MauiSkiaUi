@@ -44,7 +44,6 @@ public class SkUiCoreLabel : SkUiCoreNode
     private readonly SkUiTextLayout _layout;
     private SkUiTextDirection _textDirection;
     private SkUiTextRendering _textRendering;
-    private SKPaint? _textPaint;
     private Color _fillColor = Colors.Transparent;
     private SkUiChromeState _chrome;
     private SkUiCoreSpan[] _spans = [];
@@ -787,7 +786,7 @@ public class SkUiCoreLabel : SkUiCoreNode
 
     private void PaintText(SKCanvas canvas)
     {
-        var paint = _textPaint ??= new SKPaint { IsAntialias = true };
+        var paint = SkUiTextResources.TextPaint;
         var inset = TextInset;
         if (UsesRichText)
         {
@@ -797,6 +796,14 @@ public class SkUiCoreLabel : SkUiCoreNode
         paint.Color = ToSkColor(_textColor);
         _layout.Draw(canvas, _displayText, TextStyle, inset, Frame.Width, Frame.Height,
             _horizontal, _vertical, paint, _textDecorations);
+    }
+
+    /// <inheritdoc />
+    internal override void ReleaseDrawingResources()
+    {
+        base.ReleaseDrawingResources();
+        _layout.Release();
+        _richLayout?.Release();
     }
 
     private void UpdateDisplayText()

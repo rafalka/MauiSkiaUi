@@ -110,8 +110,6 @@ internal sealed class SkUiRichText
 /// </summary>
 internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayout
 {
-    private Dictionary<(SKTypeface Face, float Size, FontAttributes Attributes), SKFont> _fonts = [];
-    private Dictionary<(SKTypeface Face, float Size, FontAttributes Attributes), SKFont> _spareFonts = [];
     private readonly Dictionary<int, float> _ellipsisWidths = [];
     private List<SkUiShaping.StyledLine> _lines = [];
     // What the lines were broken for: the text's layout parts, the paragraph style and the width.
@@ -129,6 +127,32 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
     /// <summary>Line layouts computed by this instance (diagnostics / tests).</summary>
     internal int LayoutCount { get; private set; }
 
+    /// <summary>
+    /// Disposes the lines' text blobs and forgets them (the label's retained pictures are gone): nothing is left to the
+    /// finalizer. The next measure or draw lays the text out again.
+    /// </summary>
+    internal void Release()
+    {
+        ReleaseBlobs(_lines);
+        _lines = [];
+        Invalidate();
+    }
+
+    private static void ReleaseBlobs(List<SkUiShaping.StyledLine> lines)
+    {
+        foreach (var line in lines)
+        {
+            var pieces = line.Pieces;
+            for (var index = 0; index < pieces.Length; index++)
+            {
+                if (pieces[index].Blob is not { } blob)
+                    continue;
+                blob.Dispose();
+                pieces[index] = pieces[index] with { Blob = null };
+            }
+        }
+    }
+
     /// <summary>Forgets broken lines (padding or a default changed).</summary>
     internal void Invalidate()
     {
@@ -142,14 +166,7 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
     SKFont ISkUiTextSpanFonts.Font(int span, SKTypeface face)
     {
         var style = _text.Styles[span];
-        var key = (face, (float)style.FontSize, style.FontAttributes);
-        if (!_fonts.TryGetValue(key, out var font))
-        {
-            if (!_spareFonts.Remove(key, out font))
-                font = SkUiTextLayout.CreateFont(face, key.Item2, style.FontAttributes);
-            _fonts[key] = font;
-        }
-        return font;
+        return SkUiTextResources.Font(face, (float)style.FontSize, style.FontAttributes);
     }
 
     float ISkUiTextSpanFonts.Spacing(int span) => _style.TightenedSpacing(_text.Styles[span].CharacterSpacing, _text.Styles[span].FontSize);
@@ -173,17 +190,13 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
         LayoutCount++;
         if (_fit?.Shaping is ShapedParagraphs { Running: true } running)
             running.Layouts++;
-        // The previous layout's fonts become spares: reused when asked for again, disposed after (blobs in recorded
-        // pictures hold their own typeface references).
-        (_fonts, _spareFonts) = (_spareFonts, _fonts);
         _ellipsisWidths.Clear();
         _widestParagraph = 0;
         var lines = new List<SkUiShaping.StyledLine>();
         var fits = true;
         var natural = text.Text.Length == 0 || BreakStock(width, lines, out fits);
-        foreach (var font in _spareFonts.Values)
-            font.Dispose();
-        _spareFonts.Clear();
+        // Pictures that drew the old lines hold their own references to the blobs.
+        ReleaseBlobs(_lines);
         _lines = lines;
         _naturalFit = natural;
         _fits = fits;
@@ -265,15 +278,9 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
                 _with = (layout._text, style.Direction);
             }
             var key = (start, style.Tightening);
-            if (_paragraphs.TryGetValue(key, out var paragraph))
-            {
-                // Fonts a layout does not ask for are disposed at its end; the reused runs hold this layout's ones.
-                foreach (var run in paragraph.Runs)
-                    if (run.Span >= 0)
-                        ((ISkUiTextSpanFonts)layout).Font(run.Span, run.Typeface);
-                return paragraph;
-            }
-            return _paragraphs[key] = SkUiShaping.ShapeStyled(full[start..end], spanOf[start..end], style.Direction, layout);
+            if (!_paragraphs.TryGetValue(key, out var paragraph))
+                _paragraphs[key] = paragraph = SkUiShaping.ShapeStyled(full[start..end], spanOf[start..end], style.Direction, layout);
+            return paragraph;
         }
 
         internal void End()

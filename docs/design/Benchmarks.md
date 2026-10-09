@@ -24,6 +24,9 @@ scripts/bench.sh
 # Uncommitted changes vs the last commit (the everyday "did I make it slower?" check)
 scripts/bench.sh --baseline HEAD
 
+# The same, with no garbage collection inside an iteration (a phase that jumped: code or collection timing?)
+scripts/bench.sh --baseline HEAD --quiet-gc
+
 # Device: a branch vs master on a connected Android phone, selected scenarios, 8 runs
 scripts/bench.sh -t android -s 2299011508047ece --baseline master -S core-labels,skui-labels -n 8
 
@@ -51,6 +54,12 @@ core-labels-update     update                  67.4      50.8   -24.6  faster
   - for timings, they also differ by at least 0.25 ms;
   - the interquartile ranges do not overlap.
 - Anything else is `~` (within noise).
+- **Garbage collections move between phases.** Each headless iteration starts after a full collection, but a scenario of
+  1,000 controls allocates megabytes, so gen0 collections happen inside it, and each one promotes the live tree (a few ms).
+  A change that allocates a little more or less moves a collection into another phase: one phase looks much slower
+  (`record` +70 %) and another faster, with no code path changed. When a single phase jumps like that, compare again
+  with `--quiet-gc` (a gen0 budget large enough that no collection lands inside an iteration): it compares code paths
+  only. Allocations are still reported (`allocKB`); judge them on their own.
 - The script exits 0 either way. Read the table, or run `scripts/bench_compare.py A.json B.json --json` for machine output, or `--markdown` for PR descriptions.
 
 Output goes to `artifacts/bench/<timestamp>/` (git-ignored):

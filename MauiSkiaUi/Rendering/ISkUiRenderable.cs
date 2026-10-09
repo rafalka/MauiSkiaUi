@@ -40,6 +40,13 @@ internal interface ISkUiRenderable
     /// <paramref name="fromDescendant"/> is <c>false</c> when the root itself was marked.
     /// </summary>
     void OnRenderRootDirty(bool fromDescendant);
+
+    /// <summary>
+    /// The node's retained pictures are gone (it left its drawn parent, or its surface was torn down): it disposes native
+    /// objects it keeps only for drawing (text blobs), rather than leave them to the finalizer, and makes them again when
+    /// it is drawn again.
+    /// </summary>
+    void ReleaseDrawingResources();
 }
 
 /// <summary>What changed on a node since it was last recorded.</summary>
@@ -168,10 +175,14 @@ internal static class SkUiRenderInvalidation
         scratch.RemoveRange(start, end - start);
     }
 
-    /// <summary>Resets a detached subtree so a later attach re-records it into fresh render nodes.</summary>
+    /// <summary>
+    /// Resets a detached subtree so a later attach re-records it into fresh render nodes, and lets its nodes release what
+    /// they keep for drawing (<see cref="ISkUiRenderable.ReleaseDrawingResources"/>).
+    /// </summary>
     public static void ResetSubtree(ISkUiRenderable node, List<ISkUiRenderable>? scratch = null)
     {
         node.RenderState.Reset();
+        node.ReleaseDrawingResources();
         scratch ??= [];
         var start = scratch.Count;
         node.GetRenderChildren(scratch);
