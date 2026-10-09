@@ -147,7 +147,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `CheckBox`, `Switch`, `RadioButton` | `SkUiCheckBox`, `SkUiSwitch`, `SkUiRadioButton` | Optional third state; radio `Content` and `ControlTemplate` |
 | `Slider`, `ProgressBar`, `ActivityIndicator` | `SkUiSlider`, `SkUiProgressBar`, `SkUiActivityIndicator` | Vertical slider, indeterminate progress |
 | `GraphicsView`, `SKCanvasView` | A `SkUiView` subclass | Override `MeasureContent` and `OnPaintContent(SKCanvas)` |
-| `Entry`, `Editor`, `SearchBar` | Wrapped in `SkUiMauiContentView` | Native for now; drawn `SkUiEntry` / `SkUiEditor` / `SkUiSearchBar` using the platform keyboard are planned ([Phase T](design/ImplementationPlan.md#phase-t--drawn-text-input-fr-16-amended)) |
+| `Entry`, `Editor`, `SearchBar` | Wrapped in `SkUiMauiContentView` | Native for now; drawn `SkUiEntry` / `SkUiEditor` / `SkUiSearchBar` using the platform keyboard are planned ([Phase D](design/ImplementationPlan.md#phase-d--drawn-text-input-fr-16-amended)) |
 | `Picker`, `DatePicker`, `TimePicker`, `WebView`, maps, media | Wrapped in `SkUiMauiContentView` | Native by design |
 | `Layout.IsClippedToBounds` | `ClipToBounds` | Leaves clip by default, layouts do not |
 
@@ -315,8 +315,8 @@ Not available: reordering (`CanReorderItems`) and snap points on the items layou
 | MAUI | Status | Meanwhile |
 | --- | --- | --- |
 | `CollectionView`: reordering (`CanReorderItems`), snap points on the items layout | Not available | Keep the MAUI `CollectionView` with native item templates (outside the drawn region); everything else ports ([Lists](#lists-collectionview)) |
-| `CarouselView`, `IndicatorView` | Planned (D1) | `SkUiScrollView Orientation="Horizontal"` with `SnapPointsType="MandatorySingle"` |
-| `Stepper` | Planned (D2) | Two `SkUiButton`s |
+| `CarouselView`, `IndicatorView` | Planned (C4) | `SkUiScrollView Orientation="Horizontal"` with `SnapPointsType="MandatorySingle"` |
+| `Stepper` | Planned (D7, with a drawn value entry) | Two `SkUiButton`s |
 | Drag and drop, tooltips, context flyouts | Not planned | Keep native |
 | `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists), `SkUiBorder` |
 | Shell, pages, navigation | Out of scope | Stay MAUI |
