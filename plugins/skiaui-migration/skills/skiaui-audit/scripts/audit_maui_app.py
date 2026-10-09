@@ -30,14 +30,14 @@ DRAWN = {
     "ContentView", "Grid", "VerticalStackLayout", "HorizontalStackLayout", "StackLayout", "AbsoluteLayout", "FlexLayout",
     "ScrollView", "Border", "Frame", "Label", "Button", "Image", "ImageButton", "BoxView", "Ellipse", "Line", "Rectangle",
     "RoundRectangle", "Path", "Polygon", "Polyline", "CheckBox", "Switch", "RadioButton", "Slider", "ProgressBar",
-    "ActivityIndicator", "GraphicsView", "CollectionView", "SwipeView",
+    "ActivityIndicator", "GraphicsView", "CollectionView", "SwipeView", "RefreshView",
 }
 # Community Toolkit controls with a drawn equivalent, counted as "Toolkit <name>".
 TOOLKIT_DRAWN = {"Expander"}
 NATIVE_ISLAND = {"Entry", "Editor", "SearchBar", "Picker", "DatePicker", "TimePicker", "WebView", "HybridWebView", "BlazorWebView", "Map"}
 # CollectionViews SkUiCollectionView cannot take, counted apart from the ones that port.
 BLOCKED_COLLECTION_VIEW = "CollectionView (reorderable or with snap points)"
-NOT_YET = {BLOCKED_COLLECTION_VIEW, "ListView", "TableView", "CarouselView", "IndicatorView", "RefreshView", "Stepper"}
+NOT_YET = {BLOCKED_COLLECTION_VIEW, "ListView", "TableView", "CarouselView", "IndicatorView", "Stepper"}
 PAGES = {"ContentPage", "TabbedPage", "FlyoutPage", "NavigationPage", "Shell"}
 GESTURES = {"TapGestureRecognizer", "SwipeGestureRecognizer", "PanGestureRecognizer", "PinchGestureRecognizer",
             "PointerGestureRecognizer", "DragGestureRecognizer", "DropGestureRecognizer"}

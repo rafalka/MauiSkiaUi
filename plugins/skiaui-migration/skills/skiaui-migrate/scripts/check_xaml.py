@@ -15,7 +15,8 @@ A drawn tree is everything inside a SkiaUi view (an element from the MauiSkiaUi 
   EmptyView becomes a MAUI Label), the Community Toolkit's StateContainer / StateView on drawn layouts (SkUiStateContainer /
   SkUiStateView; state views are checked like other drawn content), the Community Toolkit's Expander in a drawn tree
   (SkUiExpander; headers, content and content templates of drawn views are checked like other drawn content), MAUI's
-  SwipeItemView in an SkUiSwipeView (SkUiSwipeItemView; MAUI's SwipeItems and SwipeItem are what it draws),
+  SwipeItemView in an SkUiSwipeView (SkUiSwipeItemView; MAUI's SwipeItems and SwipeItem are what it draws), an
+  SkUiCollectionView with its own pull-to-refresh inside an SkUiRefreshView (both would refresh),
   IsClippedToBounds (ClipToBounds), TemplateBinding / RelativeSource TemplatedParent on drawn views (RelativeSource
   AncestorType), and styles that
   target MAUI types:
@@ -67,6 +68,7 @@ REPLACE = {
     "GraphicsView": "a SkUiView subclass (MeasureContent + OnPaintContent)",
     "SwipeView": "SkUiSwipeView (SwipeItems and SwipeItem stay MAUI's)",
     "SwipeItemView": "SkUiSwipeItemView",
+    "RefreshView": "SkUiRefreshView (around a list, SkUiCollectionView's own IsPullToRefreshEnabled also works)",
 }
 WRAP = {"Entry", "Editor", "SearchBar", "Picker", "DatePicker", "TimePicker", "WebView", "HybridWebView", "BlazorWebView", "Map"}
 NO_DRAWN = {
@@ -75,7 +77,6 @@ NO_DRAWN = {
     "TableView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",
     "CarouselView": "no drawn CarouselView yet: SkUiScrollView Orientation=\"Horizontal\" SnapPointsType=\"MandatorySingle\", or keep it outside",
     "IndicatorView": "no drawn IndicatorView yet: keep it outside, or draw dots with SkUiEllipse",
-    "RefreshView": "around a list: SkUiCollectionView's IsPullToRefreshEnabled / IsRefreshing / RefreshCommand; around other content: put the MAUI RefreshView around the surface root",
     "Stepper": "no drawn Stepper yet: two SkUiButtons",
 }
 GESTURE_ADVICE = {
@@ -178,6 +179,16 @@ def parse(path):
 
 def is_skia_uri(uri):
     return "MauiSkiaUi" in uri
+
+
+def in_refresh_view(node):
+    """Whether an SkUiRefreshView encloses the element."""
+    parent = node.parent
+    while parent is not None:
+        if parent.name == "SkUiRefreshView" and is_skia_uri(parent.uri):
+            return True
+        parent = parent.parent
+    return False
 
 
 def is_toolkit_uri(uri):
@@ -368,6 +379,8 @@ class Checker:
                 self.report(path, node, "error", f"{local} on SkUiCollectionView: {COLLECTION_VIEW_MAUI_ONLY[local]}")
             elif node.name == "SkUiCollectionView" and local in COLLECTION_VIEW_VIEWS and not value.lstrip().startswith("{"):
                 self.report(path, node, "error", f"{local}=\"{value}\" on SkUiCollectionView: {local} takes a drawn view; use <sk:SkUiCollectionView.{local}><sk:SkUiLabel Text=\"{value}\" /></sk:SkUiCollectionView.{local}>")
+            elif node.name == "SkUiCollectionView" and local == "IsPullToRefreshEnabled" and value.strip().lower() != "false" and in_refresh_view(node):
+                self.report(path, node, "error", "IsPullToRefreshEnabled on an SkUiCollectionView inside an SkUiRefreshView: both would refresh; keep one (the refresh view's Command, or the list's RefreshCommand)")
             elif local == "IsClippedToBounds":
                 self.report(path, node, "error", f"IsClippedToBounds on {node.name}: use ClipToBounds")
             elif TEMPLATED_PARENT_RE.search(value):

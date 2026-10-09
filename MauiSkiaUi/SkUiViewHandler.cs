@@ -1126,7 +1126,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             return;
 #endif
         args.Handled = _renderer?.TouchPixels(new(args.Id, action.Value,
-            new Point(args.Location.X, args.Location.Y), null, args.WheelDelta)) == true;
+            new Point(args.Location.X, args.Location.Y), null, args.WheelDelta, Device: SkUiPointerDevices.From(args.DeviceType))) == true;
         if (SkUiDiagnostics.TraceOn)
             SkUiDiagnostics.Write($"touch {action} id={args.Id} {args.DeviceType} px={args.Location.X:F0},{args.Location.Y:F0} handled={args.Handled} native={GetNativeGestureState()} arenas={VirtualView?.Router.ActiveArenaCount} root={VirtualView?.AutomationId ?? VirtualView?.GetType().Name}");
 #if WINDOWS
@@ -1425,7 +1425,7 @@ internal sealed class SkUiOverlayClip : Android.Views.ViewGroup
         var density = Resources?.DisplayMetrics?.Density ?? 1;
         // This view's position in the overlay container equals the surface's coordinate space.
         var position = new Point((Left + e.GetX(index)) / density, (Top + e.GetY(index)) / density);
-        return touch(new SkUiTouchEvent(_pointer, action, position, TimeSpan.FromMilliseconds(e.EventTime)));
+        return touch(new SkUiTouchEvent(_pointer, action, position, TimeSpan.FromMilliseconds(e.EventTime), Device: SkUiPointerDevices.From(e, index)));
     }
 
     /// <summary>JNI activation constructor.</summary>
@@ -2059,7 +2059,7 @@ internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.
             // The overlay container's space is the surface's DIP space (the surface is its first child at 0, 0).
             var point = args.GetCurrentPoint(_space);
             return _touch(new SkUiTouchEvent(_pointer, action, new Point(point.Position.X, point.Position.Y),
-                TimeSpan.FromTicks((long)point.Timestamp * 10)));
+                TimeSpan.FromTicks((long)point.Timestamp * 10), Device: SkUiPointerDevices.From(args.Pointer.PointerDeviceType)));
         }
     }
 

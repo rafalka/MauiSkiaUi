@@ -33,7 +33,7 @@ SkiaUi replaces a **subtree** of a MAUI page with controls drawn on one Skia sur
    - **Summary:** is a migration worthwhile, and where; the main blockers.
    - **First screens:** 3–5 pages in order, each with its drawn region, what stays native, blockers, gesture conversions and custom controls to port. Prefer large pages without lists.
    - **Shared controls to port first:** name, uses, base type, approach (drawn composite, drawn from scratch, Core nodes, stays native).
-   - **Blocked until SkiaUi adds:** screens that depend on a reorderable `CollectionView` or one with snap points (the script counts those apart from the lists that port to `SkUiCollectionView`), `RefreshView` around content other than a list, `CarouselView`, with counts.
+   - **Blocked until SkiaUi adds:** screens that depend on a reorderable `CollectionView` or one with snap points (the script counts those apart from the lists that port to `SkUiCollectionView`), `CarouselView`, with counts.
    - **Gesture and behavior conversions:** counts per kind and the files with the non-trivial ones (pan, pinch, swipe paging).
    - **Platform code to revisit:** custom handlers and mapper changes whose effect must be reproduced with drawn properties.
    - **Risks and checks:** native islands that drawn content would need to cover, third-party controls inside candidate regions, measuring before / after.

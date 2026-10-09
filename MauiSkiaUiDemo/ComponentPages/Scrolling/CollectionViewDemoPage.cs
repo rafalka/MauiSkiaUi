@@ -66,6 +66,10 @@ public sealed class CollectionViewDemoPage : ComponentDemoPage
         Toggle(nameof(SkUiCollectionView.IsPullToRefreshEnabled), true,
             value => { _skia.IsPullToRefreshEnabled = value; _refresh.IsRefreshEnabled = value; },
             () => _skia.IsPullToRefreshEnabled, () => _refresh.IsRefreshEnabled);
+        // SkiaUi only: the pull-to-refresh indicator's style, and pulls by mouse.
+        Choice(nameof(SkUiCollectionView.RefreshStyle), Enum.GetValues<SkUiRefreshStyle>(), SkUiRefreshStyle.Default,
+            value => _skia.RefreshStyle = value, () => _skia.RefreshStyle);
+        Toggle(nameof(SkUiCollectionView.IsMousePullEnabled), false, value => _skia.IsMousePullEnabled = value, () => _skia.IsMousePullEnabled);
         Toggle(nameof(SkUiCollectionView.KeepSelectionVisible), false, value => _skia.KeepSelectionVisible = value, () => _skia.KeepSelectionVisible);
         Toggle(nameof(SkUiCollectionView.ShowsItemPressEffect), false, value => _skia.ShowsItemPressEffect = value, () => _skia.ShowsItemPressEffect);
         Number(nameof(SkUiCollectionView.ItemSpacing), 0, 16, 0,

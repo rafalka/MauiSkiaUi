@@ -15,6 +15,22 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### New features
 
+- **Refresh view (C2):** `SkUiRefreshView` is MAUI's `RefreshView` around drawn content: its XAML ports by changing the prefix ([SkUiRefreshView.md](docs/controls/SkUiRefreshView.md)).
+  - `IsRefreshing` (two-way), `Command` / `CommandParameter`, `RefreshColor`, `IsRefreshEnabled` and `Refreshing`, with MAUI's rules: `IsRefreshing` stays `false` while the view is disabled, the pull is off or the command cannot execute; disabling the view or turning `IsRefreshEnabled` off ends a refresh.
+  - A drag in a vertical drawn scroller of the content (`SkUiScrollView`, `SkUiVirtualScrollView`, `SkUiCollectionView`, Core scroll views) pulls at its top, also on short content, with overscroll off, and after the same drag scrolled it to the top; with nested scrollers the outermost one under the finger. Elsewhere (content without a scroller, a header above a list) the view itself pulls, while the content's scroller is at its top.
+  - The collection view's drawn indicator, shared: it follows the pull at composite time and spins on the render thread while refreshing. Taps in the content keep working; nested refresh views pull for themselves; a scroller that left the content and the view keep each other alive in neither direction.
+  - One indicator for every pull-to-refresh, public as `SkUiCoreRefreshIndicator` (`RefreshIndicator` on both controls; usable on its own with `PullProgress` / `IsRefreshing`) and drawn by the look: `SkUiLook.DrawRefreshIndicator` / `RefreshIndicatorPainter` (default: the look's activity indicator on a badge), `RefreshIndicatorSize`, `RefreshTriggerDistance`, `RefreshRestDistance`, `RefreshIndicatorSpinPeriod`, `GetRefreshPullFeedback`, `GetRefreshIndicatorShadow`, `RefreshIndicatorDrawsPullProgress`.
+  - `RefreshStyle` on both controls: `Overlay` (a badge over the content) or `Inline` (iOS: the content moves down with the pull and stays down while refreshing); `Default` follows the look, and `DefaultSkUiLook.RefreshStyle` the platform (inline on iOS and Mac Catalyst).
+  - `RefreshTriggerDistance` on both controls; `IsMousePullEnabled` (mouse drags pull only when set: touch and pen always do).
+  - `RefreshCompletion="Automatic"` on both controls: the control sets `IsRefreshing` back when the refresh's work is done (a command that is busy while it runs, such as the MVVM Toolkit's `AsyncRelayCommand`, and deferrals taken in `Refreshing` with `SkUiRefreshingEventArgs.GetDeferral()`). `Manual` (default) keeps MAUI's rule.
+  - Pointers report their device: `SkUiTouchEvent.Device` and `SkUiPointer.Device` (`Touch`, `Mouse`, `Pen`) on every platform.
+  - Demo page **RefreshView** (next to MAUI's, with the style, trigger, mouse and completion editors); leak scenario `RefreshPulled`. The migration guide and skills map `RefreshView` around drawn content to it; `check_xaml.py` reports a collection view with its own pull-to-refresh inside an `SkUiRefreshView`.
+- **Overscroll events (C2):** `SkUiScrollView` and `SkUiCoreScrollView` report pulls past their edges, for effects and gestures of the app's own: stretchy headers, pull to dismiss, pull to load the next page ([SkUiScrollView.md](docs/controls/SkUiScrollView.md)).
+  - `Overscrolled` with `OverscrollX` / `OverscrollY` and `IsDragging`, while dragging, bouncing and springing back (reported each frame from the render thread; one reused arguments object, no allocation per frame); `OverscrollX` / `OverscrollY` properties.
+  - `PullReleased` with the edge and the distance when a drag is released past an edge.
+  - `PullEdges` (`SkUiScrollEdges` flags): edges a drag can pull past also when the content does not overflow or `Overscroll` is `None`. Physical edges, also in right-to-left layouts.
+  - The **ScrollView** demo page shows the overscroll and the last release, with a `PullEdges` choice.
+
 - **Swipe view (C1):** `SkUiSwipeView` is MAUI's `SwipeView` on the drawn surface: its XAML ports by changing the prefix ([SkUiSwipeView.md](docs/controls/SkUiSwipeView.md)).
   - `LeftItems` / `RightItems` / `TopItems` / `BottomItems` take MAUI's `SwipeItems` and `SwipeItem`s, drawn as MAUI's handlers show them (background, icon above text, white or black text by the background); `SkUiSwipeItemView` replaces MAUI's `SwipeItemView` (native views) with drawn content, `Command` / `CommandParameter` / `Invoked`, disabled while its command cannot execute.
   - Sizes, open distance and `Threshold` (default 60 %) as MAUI's handlers; `SwipeMode.Reveal` opens past the threshold or on a fast swipe, `SwipeMode.Execute` invokes the first visible item (its icon and text at the inner edge, next to the content, so a short swipe shows them); an invoked item closes the view unless `SwipeBehaviorOnInvoked` is `RemainOpen`. A drag past the closed position reveals the other side of the axis.
@@ -55,6 +71,11 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `TemplateRoot`, `SetControlTemplate`, `OnApplyTemplate()`, `GetTemplateChild(name)`; changing or removing the template moves the same content.
   - The template is created when the content loads, so `ContentLoading="WhenShown"` defers it too; `ContentTemplate` runs only once the template has a presenter (a template without one logs a `SkiaUi:` trace line). Presenters ignore their own `ControlTemplate`; on `SkUiScrollView` the whole template scrolls.
   - `TemplateBinding` / `RelativeSource TemplatedParent` do not reach drawn controls: bind with `RelativeSource AncestorType` (a compiled binding). The migration guide and skills show the rewrite; `check_xaml.py` reports `TemplateBinding` and `TemplatedParent` on drawn views.
+
+### Breaking changes
+
+- `SkUiCollectionView.Refreshing` is an `EventHandler<SkUiRefreshingEventArgs>` (for `GetDeferral()`). Lambdas and handlers taking `EventArgs` still attach; only delegates stored as `EventHandler` need the new type.
+- `SkUiCollectionView`'s pull-to-refresh no longer reacts to mouse drags; set `IsMousePullEnabled="True"` to keep it on desktop (touch screens and pens pull as before).
 
 ### Fixes
 

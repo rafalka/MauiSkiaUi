@@ -5,12 +5,14 @@ public readonly struct SkUiPointer
 {
     private readonly SkUiPointerRouter? _router;
 
-    internal SkUiPointer(long id, Point position, Point startPosition, TimeSpan timestamp, SkUiPointerRouter router)
+    internal SkUiPointer(long id, Point position, Point startPosition, TimeSpan timestamp, SkUiPointerRouter router,
+        SkUiPointerDevice device = SkUiPointerDevice.Touch)
     {
         Id = id;
         Position = position;
         StartPosition = startPosition;
         Timestamp = timestamp;
+        Device = device;
         _router = router;
     }
 
@@ -25,6 +27,9 @@ public readonly struct SkUiPointer
 
     /// <summary>Sample time.</summary>
     public TimeSpan Timestamp { get; }
+
+    /// <summary>What produces the pointer's samples (a finger, a mouse, a pen), as reported when it was pressed.</summary>
+    public SkUiPointerDevice Device { get; }
 
     /// <summary>Distance moved since the press (surface DIPs).</summary>
     public double TotalX => Position.X - StartPosition.X;
@@ -144,6 +149,15 @@ public abstract class SkUiGestureRecognizer
             SkUiPanAxis.Vertical => Math.Abs(dy) > slop && Math.Abs(dy) >= Math.Abs(dx),
             _ => dx * dx + dy * dy > slop * slop
         };
+    }
+
+    /// <summary>The arena of a pointer this recognizer competes for; <c>null</c> when it does not.</summary>
+    internal SkUiGestureArena? ArenaOf(long pointerId)
+    {
+        foreach (var arena in _arenas)
+            if (arena.PointerId == pointerId)
+                return arena;
+        return null;
     }
 
     internal void JoinArena(SkUiGestureArena arena) => _arenas.Add(arena);

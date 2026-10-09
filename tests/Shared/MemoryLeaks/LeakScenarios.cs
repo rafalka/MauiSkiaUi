@@ -44,6 +44,7 @@ public static class LeakScenarios
         new("VirtualListScrolled", Scrolling, "SkUiVirtualScrollView bound to a long-lived collection (items of different heights, recycled template views): dragged, flung, scrolled to an index, items inserted and removed and the item template replaced while shown; closed mid-fling.", () => new VirtualListRun()),
         new("CollectionViewUsed", Scrolling, "SkUiCollectionView bound to a long-lived collection, with long-lived selection, item-tap and refresh commands, a sticky header and an empty view: items tapped to select and deselect, flung, scrolled to an item, pulled to refresh, the selected item removed, the collection emptied and refilled; closed mid-fling.", () => new CollectionViewRun()),
         new("CollectionViewGrouped", Scrolling, "SkUiCollectionView over long-lived groups (a grid of two columns, sticky collapsible group headers), with a long-lived selected-items list and load-more command: headers tapped to collapse and expand, items selected, flung, scrolled to a group, groups and items added and removed, the template replaced; closed mid-fling.", () => new CollectionViewGroupedRun()),
+        new("RefreshPulled", Scrolling, "SkUiRefreshView (inline style, automatic completion) with a long-lived command around a header and a drawn scroller: pulled through the scroller and by the header (content held down while refreshing), each refresh ended by a deferral taken in Refreshing, a short pull released before the trigger (the indicator going back), the scroller replaced while still linked and the old one detached; closed mid-pull.", () => new RefreshRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
         new("SurfaceReplaced", Rendering, "A page replaces its GPU surface with a software one and back; the discarded surfaces are disconnected.", () => new SurfaceReplacedRun()),
@@ -1494,6 +1495,76 @@ public static class LeakScenarios
         public override string? CheckInteraction() =>
             _taps >= 3 && _selections >= 4 && _refreshes == 1 && _list!.SelectedItem is null ? null
                 : $"Tapped {_taps} times, selection changed {_selections} times, refreshed {_refreshes} times; selected {_list!.SelectedItem ?? "none"}.";
+    }
+
+    private sealed class RefreshRun : LeakScenarioRun
+    {
+        private SkUiRefreshView? _refresh;
+        private SkUiLabel? _header;
+        private SkUiGrid? _grid;
+        private SkUiScrollView? _scroller;
+        private SkUiRefreshDeferral? _deferral;
+        private int _refreshes;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _header = Text("Pull to refresh", 15);
+            _scroller = context.Track(Scroller(context, "First"), "refreshed scroller");
+            _grid = new SkUiGrid { RowDefinitions = [new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star)] };
+            Grid.SetRow(_scroller, 1);
+            _grid.Children.Add(_header);
+            _grid.Children.Add(_scroller);
+            _refresh = context.Track(new SkUiRefreshView
+            {
+                Content = _grid,
+                Command = LeakCommands.Shared,
+                RefreshColor = LeakColors.Accent,
+                RefreshStyle = SkUiRefreshStyle.Inline,
+                RefreshCompletion = SkUiRefreshCompletion.Automatic
+            }, "refresh view");
+            _refresh.Refreshing += (_, args) =>
+            {
+                _refreshes++;
+                _deferral = args.GetDeferral(); // the refresh ends when the work (simulated below) completes it
+            };
+            return Root(_refresh);
+        }
+
+        private static SkUiScrollView Scroller(LeakScenarioContext context, string name)
+        {
+            var stack = new SkUiVerticalStackLayout { Spacing = 4, Padding = new Thickness(12) };
+            for (var index = 0; index < 30; index++)
+                stack.Children.Add(context.Track(Text($"{name} {index}", 13), "refreshed row"));
+            return new SkUiScrollView { Content = stack };
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var refresh = _refresh!;
+            await context.SettleAsync();
+            await context.DragAsync(_scroller!, 0, 300, durationMs: 400); // pulled through the scroller
+            await context.SettleAsync();
+            _deferral?.Complete();
+            await context.WaitAsync(300);
+            await context.DragAsync(_header!, 0, 300, durationMs: 400); // pulled by the header
+            await context.SettleAsync();
+            _deferral?.Complete();
+            await context.DragAsync(_header!, 0, 40, durationMs: 200); // released before the trigger
+            await context.WaitAsync(SkUiRefreshView.PullBackLength + 100);
+
+            // The scroller replaced: the old one, still the one pulled last, must go (the view links to it weakly).
+            var old = _scroller!;
+            _scroller = Scroller(context, "Second");
+            Grid.SetRow(_scroller, 1);
+            _grid!.Children.Remove(old);
+            _grid.Children.Add(_scroller);
+            context.TrackDetached(old, "replaced scroller");
+            await context.SettleAsync();
+            await context.DragAsync(_header!, 0, 200, durationMs: 400, release: false); // closes mid-pull
+        }
+
+        public override string? CheckInteraction() =>
+            _refreshes == 2 && !_refresh!.IsRefreshing ? null : $"Refreshed {_refreshes} times (expected 2), still refreshing: {_refresh!.IsRefreshing}.";
     }
 
     private sealed class CollectionViewGroupedRun : LeakScenarioRun
