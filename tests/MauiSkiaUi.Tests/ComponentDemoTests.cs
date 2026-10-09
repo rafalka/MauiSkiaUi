@@ -115,6 +115,21 @@ public class ComponentDemoTests
     }
 
     [Fact]
+    public void GalleryShowsTheNarrowScreenNoteWhileThePageShorterSideIsBelowSideBySide()
+    {
+        var gallery = new ComponentGalleryPage();
+        Assert.False(gallery.ShowsNarrowNote);
+        gallery.UpdateNarrowNote(390, 760); // phone, portrait
+        Assert.True(gallery.ShowsNarrowNote);
+        gallery.UpdateNarrowNote(844, 340); // phone, landscape: wide enough for side by side, but no room for the editors
+        Assert.True(gallery.ShowsNarrowNote);
+        gallery.UpdateNarrowNote(820, 1100); // tablet
+        Assert.False(gallery.ShowsNarrowNote);
+        gallery.UpdateNarrowNote(1280, ComponentDemoPage.SideBySideMinWidth); // desktop window
+        Assert.False(gallery.ShowsNarrowNote);
+    }
+
+    [Fact]
     public void ControlSpecificEditorsComeBeforeTheCommonOnes()
     {
         var page = new GridDemoPage();
