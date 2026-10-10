@@ -361,6 +361,41 @@ public class CarouselViewTests
     }
 
     [Fact]
+    public void ASwipeAcrossTheMoveBackToTheMiddleGoesOneItemFromWhereTheDragStarted()
+    {
+        var carousel = Carousel(count: 3, loop: true);
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        var (_, stride, _, _) = carousel.Geometry;
+        var home = carousel.ScrollView.ScrollX;
+        // A fast drag of 2.6 items: past 0.75 of a cycle, so the strip moves back by a cycle (900) during the drag.
+        var id = ++_pointer;
+        carousel.Touch(new(id, SkUiTouchAction.Pressed, new Point(290, 100), TimeSpan.FromMilliseconds(0)));
+        for (var step = 1; step <= 6; step++)
+            carousel.Touch(new(id, SkUiTouchAction.Moved, new Point(290 - step * 130, 100), TimeSpan.FromMilliseconds(step * 5)));
+        Assert.Equal(home + 780 - 3 * stride, carousel.ScrollView.ScrollX);
+        carousel.Touch(new(id, SkUiTouchAction.Released, new Point(-490, 100), TimeSpan.FromMilliseconds(32)));
+        Run(surface, 40, 2000);
+        // One item from the drag's origin, which moved with the strip (not one item past the origin before the move).
+        Assert.Equal(home + stride - 3 * stride, carousel.ScrollView.ScrollX);
+        Assert.Equal(1, carousel.Position);
+    }
+
+    [Fact]
+    public void HalfItemOffsetsRoundTheSameWayInBothDirections()
+    {
+        var carousel = Carousel(count: 6);
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        var scroller = Scroller(carousel);
+        foreach (var (offset, expected) in new[] { (150d, 1), (450d, 2), (750d, 3), (1050d, 4), (449d, 1) })
+        {
+            scroller.SetOffset(offset, 0);
+            Assert.Equal(expected, carousel.Position);
+        }
+    }
+
+    [Fact]
     public void ASingleItemDoesNotLoop()
     {
         var carousel = Carousel(count: 1, loop: true);
@@ -401,9 +436,13 @@ public class CarouselViewTests
         Assert.Equal("Item 3", carousel.CurrentItem);
         Assert.Equal("Item 3", ((SkUiView)carousel.GetRealizedView(3)!).BindingContext);
 
+        var positions = new List<(int, int)>();
+        carousel.PositionChanged += (_, args) => positions.Add((args.PreviousPosition, args.CurrentPosition));
         items.Clear();
         surface.Frame(64);
         Assert.Null(carousel.CurrentItem);
+        Assert.Equal(0, carousel.Position);
+        Assert.Equal([(3, 0)], positions);
         Assert.Equal((-1, -1), carousel.RealizedSlots);
     }
 
@@ -494,6 +533,22 @@ public class CarouselViewTests
         Assert.Equal(SkUiCarouselView.PreviousItemVisualState, carousel.ItemVisualState(0));
         Assert.Equal(SkUiCarouselView.CurrentItemVisualState, carousel.ItemVisualState(1));
         Assert.Equal(SkUiCarouselView.NextItemVisualState, carousel.ItemVisualState(2));
+    }
+
+    [Fact]
+    public void OnlyTheNearestCopyOfTheCurrentItemTakesItsVisualState()
+    {
+        // Two items in a viewport of three: copies of both show.
+        var carousel = Carousel(count: 2, loop: true);
+        carousel.ItemExtent = 100;
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        var states = carousel.ItemVisualStates.ToList();
+        Assert.True(states.Count(state => state.Index == 0) > 1);
+        Assert.Single(states, state => state.State == SkUiCarouselView.CurrentItemVisualState);
+        Assert.Single(states, state => state.State == SkUiCarouselView.NextItemVisualState);
+        Assert.Single(states, state => state.State == SkUiCarouselView.PreviousItemVisualState);
+        Assert.Equal(0, states.Single(state => state.State == SkUiCarouselView.CurrentItemVisualState).Index);
     }
 
     #endregion

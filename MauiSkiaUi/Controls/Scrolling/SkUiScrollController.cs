@@ -300,7 +300,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// changed size by (<paramref name="dx"/>, <paramref name="dy"/>), so what the viewport shows stays in place. The extent
     /// grows by the same amount until the next measure. A fling, animated scroll or snap running on the render thread
     /// continues from the corrected offset (the correction reaches it with the frame that brings the new layout); a drag
-    /// continues from it too. Not clamped: the next arrange clamps.
+    /// continues from it too, and its origin moves with it. Not clamped: the next arrange clamps.
     /// </summary>
     public void CorrectOffset(double dx, double dy)
     {
@@ -311,6 +311,8 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         Extent = new Size(Math.Max(0, Extent.Width + dx), Math.Max(0, Extent.Height + dy));
         X += dx;
         Y += dy;
+        // The drag's origin moves too: a single-step snap goes one snap point from where the drag started in the content.
+        _dragOrigin = new Point(_dragOrigin.X + dx, _dragOrigin.Y + dy);
         if (_motion is { Target: not null })
         {
             // The render thread runs the motion: it is moved there, not stopped by an offset the UI sets. The offset the next

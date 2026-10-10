@@ -317,6 +317,57 @@ public class IndicatorViewTests
         }
     }
 
+    [Fact]
+    public void TheIndicatorStopsWrappingWhenTheCarouselStopsLoopingOrUnlinks()
+    {
+        SkUiIndicatorPaint? drawn = null;
+        SkUiLook.Current.IndicatorPainter = (_, paint) => drawn = paint;
+        try
+        {
+            var indicator = new SkUiIndicatorView { HeightRequest = 20 };
+            var carousel = new SkUiCarouselView { ItemsSource = Items(4), HeightRequest = 180, IndicatorView = indicator };
+            var column = new SkUiVerticalStackLayout { Children = { carousel, indicator } };
+            using var surface = new SkUiTestSurface(column, 300, 200);
+            surface.Frame(0);
+            Assert.True(drawn!.Value.Wraps);
+            carousel.Loop = false;
+            surface.Frame(16);
+            Assert.False(drawn!.Value.Wraps);
+            carousel.Loop = true;
+            surface.Frame(32);
+            Assert.True(drawn!.Value.Wraps);
+            carousel.IndicatorView = null;
+            surface.Frame(48);
+            Assert.False(drawn!.Value.Wraps);
+        }
+        finally
+        {
+            SkUiLook.Current.IndicatorPainter = null;
+        }
+    }
+
+    [Fact]
+    public void ACollectedCarouselNoLongerDrivesItsIndicator()
+    {
+        var indicator = new SkUiIndicatorView { Count = 5 };
+        static WeakReference Link(SkUiIndicatorView indicator)
+        {
+            var carousel = new SkUiCarouselView { ItemsSource = Items(5), IndicatorView = indicator };
+            indicator.Follow(2.5, wraps: true);
+            return new WeakReference(carousel);
+        }
+        var carousel = Link(indicator);
+        for (var attempt = 0; attempt < 10 && carousel.IsAlive; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+        Assert.False(carousel.IsAlive);
+        indicator.Position = 4;
+        Assert.Null(indicator.Carousel);
+        Assert.Equal(4, indicator.DisplayedPosition);
+    }
+
     #endregion
 
     #region Keyboard

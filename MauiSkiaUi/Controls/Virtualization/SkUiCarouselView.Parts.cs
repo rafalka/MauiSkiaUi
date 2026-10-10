@@ -167,9 +167,15 @@ public partial class SkUiCarouselView
         public double ScrollPosition => Loops ? Mod(FractionalSlot, _count) : Math.Clamp(FractionalSlot, 0, _count - 1);
 
         /// <summary>How far the strip is past the nearest snap point, in items (-0.5 to 0.5).</summary>
-        public double WithinItem => HasGeometry ? FractionalSlot - Math.Round(FractionalSlot) : 0;
+        public double WithinItem => HasGeometry ? FractionalSlot - NearestSlot : 0;
 
         private int IndexOfSlot(int slot) => Loops ? (int)Mod(slot, _count) : slot;
+
+        /// <summary>
+        /// The slot nearest to the snap point. Halves round up (to the next slot), the same way in both directions: banker's
+        /// rounding would round half-item offsets alternately down and up.
+        /// </summary>
+        private int NearestSlot => (int)Math.Floor(FractionalSlot + 0.5);
 
         private static double Mod(double value, double count) => (value % count + count) % count;
 
@@ -459,6 +465,9 @@ public partial class SkUiCarouselView
             return null;
         }
 
+        /// <summary>The visual states of the realized item views, with their items (tests).</summary>
+        public IEnumerable<(int Index, string? State)> VisualStates => _realized.Select(static cell => (cell.Index, cell.VisualState));
+
         public void UpdateVisualStates()
         {
             foreach (var cell in _realized)
@@ -467,17 +476,16 @@ public partial class SkUiCarouselView
 
         private void UpdateVisualState(ItemCell cell)
         {
-            var position = owner._position;
-            var count = _count;
-            string state;
-            if (cell.Index == position)
-                state = CurrentItemVisualState;
-            else if (cell.Index == (Loops ? (position + 1) % count : position + 1))
-                state = NextItemVisualState;
-            else if (cell.Index == (Loops ? (position - 1 + count) % count : position - 1))
-                state = PreviousItemVisualState;
-            else
-                state = DefaultItemVisualState;
+            // By slot, not by item: a looping carousel can show copies of an item, and only the current item's copy nearest
+            // to the snap point (and its neighbors) take the roles; the other copies are default items.
+            var current = HasGeometry ? NearestSlotOf(owner._position) : owner._position;
+            var state = (cell.Slot - current) switch
+            {
+                0 => CurrentItemVisualState,
+                1 => NextItemVisualState,
+                -1 => PreviousItemVisualState,
+                _ => DefaultItemVisualState
+            };
             if (ReferenceEquals(state, cell.VisualState))
                 return;
             cell.VisualState = state;
@@ -499,9 +507,9 @@ public partial class SkUiCarouselView
                 // Items whose snap points the ends clamp share them: the current one stays current there.
                 if (keep >= 0 && keep < _count && Math.Abs(ClampedSnapOffset(keep) - LogicalOffset) < 0.5)
                     return keep;
-                return Math.Clamp((int)Math.Round(FractionalSlot), 0, _count - 1);
+                return Math.Clamp(NearestSlot, 0, _count - 1);
             }
-            return IndexOfSlot((int)Math.Round(FractionalSlot));
+            return IndexOfSlot(NearestSlot);
         }
 
         /// <summary>The last item in view (not looping).</summary>
@@ -514,11 +522,19 @@ public partial class SkUiCarouselView
         {
             if (!Loops)
                 return ClampedSnapOffset(index);
-            var current = (int)Math.Round(FractionalSlot);
+            return SnapOffset(NearestSlotOf(index));
+        }
+
+        /// <summary>The slot of the item at <paramref name="index"/> nearest to the snap point (the shorter way round when looping).</summary>
+        private int NearestSlotOf(int index)
+        {
+            if (!Loops)
+                return index;
+            var current = NearestSlot;
             var delta = (int)Mod(index - Mod(current, _count), _count);
             if (delta > _count / 2)
                 delta -= _count;
-            return SnapOffset(current + delta);
+            return current + delta;
         }
 
         /// <summary>Scrolls so the item at <paramref name="index"/> is at the snap point; before the layout, the layout places it.</summary>

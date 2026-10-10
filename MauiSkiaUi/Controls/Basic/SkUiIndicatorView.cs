@@ -176,6 +176,7 @@ public class SkUiIndicatorView : SkUiView
 
     private void OnPositionChanged(int previous, int value)
     {
+        _ = Carousel; // a collected carousel no longer drives the drawn position
         _model.Position = value;
         _model.PositionChanged(previous);
         InvalidatePaint();
@@ -214,17 +215,40 @@ public class SkUiIndicatorView : SkUiView
     // Weak: an indicator that outlives its carousel (kept by the app) keeps no carousel alive.
     private WeakReference<SkUiCarouselView>? _carousel;
 
-    /// <summary>The carousel this view shows, or <c>null</c>.</summary>
-    internal SkUiCarouselView? Carousel => _carousel is { } link && link.TryGetTarget(out var carousel) ? carousel : null;
+    /// <summary>The carousel this view shows, or <c>null</c> (also once a carousel that never unlinked was collected).</summary>
+    internal SkUiCarouselView? Carousel
+    {
+        get
+        {
+            if (_carousel is not { } link)
+                return null;
+            if (link.TryGetTarget(out var carousel))
+                return carousel;
+            Unlinked(); // collected without unlinking: the view is on its own again
+            return null;
+        }
+    }
 
     /// <summary>A carousel links this view (or unlinks it, <c>null</c>): it then sets the count, the position and the drawn position.</summary>
     internal void Link(SkUiCarouselView? carousel)
     {
-        _carousel = carousel is null ? null : new WeakReference<SkUiCarouselView>(carousel);
-        _model.IsDriven = carousel is not null;
-        if (carousel is not null)
+        if (carousel is null)
+        {
+            Unlinked();
             return;
-        if (_model.Drive(null))
+        }
+        _carousel = new WeakReference<SkUiCarouselView>(carousel);
+        _model.IsDriven = true;
+    }
+
+    /// <summary>No carousel drives the view any more: it draws its own position, does not wrap, and counts its own items.</summary>
+    private void Unlinked()
+    {
+        _carousel = null;
+        _model.IsDriven = false;
+        var changed = _model.Drive(null) | _model.Wraps;
+        _model.Wraps = false;
+        if (changed)
             InvalidatePaint();
         _counter.Recount(); // the items of its own source again
     }

@@ -197,6 +197,8 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         _indicator?.SetValue(SkUiIndicatorView.CountProperty, count);
         if (count > 0)
             ApplyPosition(_position, position, fromScroll: true);
+        else if (previousCount > 0)
+            ApplyPosition(_position, 0, fromScroll: true); // the items went: back to the start, with the current item cleared
         else
             SyncCurrentItem(null);
         UpdateEmpty();
@@ -712,6 +714,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             return;
         _panel.Refresh();
         UpdateOverscroll();
+        FollowWithIndicator(); // whether its selection wraps (Loop)
     }
 
     private void OnOrientationChanged(ItemsLayoutOrientation value)
@@ -973,6 +976,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
 
     /// <summary>The panel of the items (tests).</summary>
     internal (int First, int Last) RealizedSlots => _panel.RealizedSlots;
+
+    /// <summary>The visual states of the realized item views (tests).</summary>
+    internal IEnumerable<(int Index, string? State)> ItemVisualStates => _panel.VisualStates;
 
     /// <summary>The visual state of the item view at <paramref name="index"/> (tests).</summary>
     internal string? ItemVisualState(int index) => _panel.VisualStateOf(index);

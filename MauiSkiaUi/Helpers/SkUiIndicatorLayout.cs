@@ -52,7 +52,7 @@ internal static class SkUiIndicatorLayout
     {
         if (visible >= count || visible <= 0)
             return 0;
-        var selected = (int)Math.Round(position);
+        var selected = (int)Math.Floor(position + 0.5); // halves up, as the carousel's position
         return wraps ? ((selected - visible / 2) % count + count) % count : Math.Clamp(selected - visible / 2, 0, count - visible);
     }
 
