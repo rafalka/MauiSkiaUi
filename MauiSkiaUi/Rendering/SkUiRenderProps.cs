@@ -12,6 +12,31 @@ internal record struct SkUiRenderProps
     public float X, Y, Width, Height;
     public float TranslationX, TranslationY, Rotation, ScaleX, ScaleY, AnchorX, AnchorY;
     public float Opacity;
+
+    /// <summary>
+    /// Turns the node about its vertical axis through the anchor, in perspective, in degrees (positive: its right edge goes
+    /// away); 0 = none. Applied before <see cref="ScaleX"/> / <see cref="ScaleY"/> and <see cref="Rotation"/>.
+    /// </summary>
+    public float RotationY;
+
+    /// <summary>Turns the node about its horizontal axis through the anchor, in perspective, in degrees (positive: its bottom edge goes away); 0 = none.</summary>
+    public float RotationX;
+
+    /// <summary>How far the eye is from the node for <see cref="RotationX"/> / <see cref="RotationY"/>, in DIPs (at least the node's size).</summary>
+    public float CameraDistance;
+
+    /// <summary>
+    /// A transform of the node from an ancestor scroller's offset, evaluated on the render thread every frame (a carousel's
+    /// item effect); <c>null</c> = none. The UI side writes the same placement (not the opacity) into the node's transform
+    /// for hit-testing and immediate painting. Immutable once committed.
+    /// </summary>
+    public SkUiItemEffectLink? ItemEffect;
+
+    /// <summary>
+    /// Children are drawn back to front by the depth of their <see cref="ItemEffect"/> at the current scroll offset (a
+    /// carousel whose effect overlaps items), instead of in their order.
+    /// </summary>
+    public bool SortsChildrenByDepth;
     public bool IsVisible;
 
     /// <summary>Clips the node's own content, children and overlay to its layout rectangle.</summary>
@@ -110,14 +135,30 @@ internal record struct SkUiRenderProps
     /// <summary><see cref="Matrix"/> with another translation (a <see cref="Link"/> evaluated on the render thread).</summary>
     public readonly SKMatrix GetMatrix(float translationX, float translationY)
     {
-        if (translationX == 0 && translationY == 0 && Rotation == 0 && ScaleX == 1 && ScaleY == 1)
+        // Exact comparisons: identity values are the common case and skip the matrix products.
+        if (translationX == 0 && translationY == 0 && Rotation == 0 && ScaleX == 1 && ScaleY == 1 && RotationX == 0 && RotationY == 0)
             return SKMatrix.CreateTranslation(X, Y);
         var anchorX = Width * AnchorX;
         var anchorY = Height * AnchorY;
-        return SKMatrix.CreateTranslation(X + translationX + anchorX, Y + translationY + anchorY)
+        var matrix = SKMatrix.CreateTranslation(X + translationX + anchorX, Y + translationY + anchorY)
             .PreConcat(SKMatrix.CreateRotationDegrees(Rotation))
-            .PreConcat(SKMatrix.CreateScale(ScaleX, ScaleY))
-            .PreConcat(SKMatrix.CreateTranslation(-anchorX, -anchorY));
+            .PreConcat(SKMatrix.CreateScale(ScaleX, ScaleY));
+        if (RotationX != 0 || RotationY != 0)
+            matrix = matrix.PreConcat(Perspective(RotationX, RotationY, Math.Max(CameraDistance, Math.Max(Width, Height))));
+        return matrix.PreConcat(SKMatrix.CreateTranslation(-anchorX, -anchorY));
+    }
+
+    /// <summary>
+    /// Turns about the vertical (<paramref name="rotationY"/>) and horizontal (<paramref name="rotationX"/>) axes through the
+    /// origin, seen from <paramref name="distance"/> DIPs in front: a projective 2D matrix (what a 3D rotation shows).
+    /// </summary>
+    internal static SKMatrix Perspective(float rotationX, float rotationY, float distance)
+    {
+        var x = rotationX * MathF.PI / 180;
+        var y = rotationY * MathF.PI / 180;
+        var d = Math.Max(1, distance);
+        // x' = x·cos(y) / w, y' = y·cos(x) / w with w = 1 + (x·sin(y) + y·sin(x)) / d: the far edge shrinks towards the axis.
+        return new SKMatrix(MathF.Cos(y), 0, 0, 0, MathF.Cos(x), 0, MathF.Sin(y) / d, MathF.Sin(x) / d, 1);
     }
 
     /// <summary>Whether children are scaled (<see cref="ChildrenScaleX"/> / <see cref="ChildrenScaleY"/> other than 1).</summary>
@@ -236,4 +277,58 @@ internal sealed record SkUiRenderLink(
     public SKPoint Evaluate(float offsetX, float offsetY) => new(
         Math.Clamp(FactorX * offsetX + BaseX, MinX, Math.Max(MinX, MaxX)),
         Math.Clamp(FactorY * offsetY + BaseY, MinY, Math.Max(MinY, MaxY)));
+}
+
+/// <summary>
+/// A carousel item's transform from its scroller's offset (<see cref="SkUiRenderProps.ItemEffect"/>): the item's position
+/// in items from the carousel's current place is <c>Factor · offset + Base</c> along the scroll axis, and
+/// <see cref="Effect"/> turns it into a placement, scale, tilt, opacity and depth. The compositor evaluates it every frame
+/// against <see cref="Source"/>'s children offset (possibly render-thread animated), so effects follow flings without
+/// UI-thread work.
+/// </summary>
+internal sealed class SkUiItemEffectLink(SkUiRenderNode source, bool horizontal, float factor, float @base, SkUiCarouselEffect effect, SkUiCarouselItemMetrics metrics)
+{
+    /// <summary>The largest tilt applied, in degrees.</summary>
+    private const double MaxTilt = 80;
+
+    /// <summary>The scroller whose children offset places the item.</summary>
+    public SkUiRenderNode Source { get; } = source;
+
+    public bool Horizontal { get; } = horizontal;
+
+    public float Factor { get; } = factor;
+
+    public float Base { get; } = @base;
+
+    public SkUiCarouselEffect Effect { get; } = effect;
+
+    public SkUiCarouselItemMetrics Metrics { get; } = metrics;
+
+    /// <summary>The item's position in items from the current place for a children offset.</summary>
+    public double Position(float offsetX, float offsetY) => Factor * (Horizontal ? offsetX : offsetY) + Base;
+
+    /// <summary>The effect's transform for a children offset.</summary>
+    public SkUiCarouselItemTransform Evaluate(float offsetX, float offsetY) => Effect.GetItemTransform(Position(offsetX, offsetY), Metrics);
+
+    /// <summary>
+    /// Writes the transform's placement into <paramref name="props"/> (replacing the node's own translation, scale, rotation
+    /// and tilt: carousel items have none of their own) and returns its opacity, which the caller applies: the UI side keeps
+    /// the node's opacity, so an item faded out is still recorded.
+    /// </summary>
+    public double Apply(ref SkUiRenderProps props, float offsetX, float offsetY)
+    {
+        var transform = Evaluate(offsetX, offsetY);
+        var along = (float)transform.Translation;
+        var across = (float)transform.CrossTranslation;
+        props.TranslationX = Horizontal ? along : across;
+        props.TranslationY = Horizontal ? across : along;
+        props.ScaleX = props.ScaleY = (float)Math.Max(0, transform.Scale);
+        props.Rotation = (float)transform.Rotation;
+        // Past 90° the item would turn its back; near it, its far edge would cross the eye.
+        var tilt = (float)Math.Clamp(transform.Tilt, -MaxTilt, MaxTilt);
+        props.RotationY = Horizontal ? tilt : 0;
+        props.RotationX = Horizontal ? 0 : tilt;
+        props.CameraDistance = (float)Effect.GetPerspective(Metrics);
+        return transform.Opacity;
+    }
 }

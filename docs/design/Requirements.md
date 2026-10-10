@@ -448,7 +448,7 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-21--v
 - [ ] **`SkUiVirtualScrollView`:** convenience control combining a scroller and a virtual stack; exposes `VirtualScrollMode` and scroll-bar interaction for modes B / Loop. (B1: the control ships for mode A; `VirtualScrollMode` and velocity scroll bars come with modes B / Loop.)
 - [x] **Mode A — Indexed (default):** stable item indices; optional release of far items with **cached sizes** so scroll position and thumb stay meaningful; supports absolute / index scroll APIs and normal scroll bars. **`SkUiCollectionView` uses this mode only.**
 - [ ] **Mode B — `InfiniteFeed`:** bounded child count (visible + pre/post buffer); append at trailing edge / remove leading when scrolling forward (reverse when scrolling back); **no** global content extent; **relative** scroll (`ScrollBy`, fling, logical bring-into-view) only; scroll bars **velocity / direction**, not absolute position (default hidden).
-- [ ] **Mode Loop:** finite `ItemCount`; seamless wrap (last → first, first → last) using the same window trim as B; `ScrollToIndex` on `index mod N`; suited to horizontal carousels with snap points.
+- [ ] **Mode Loop:** finite `ItemCount`; seamless wrap (last → first, first → last) using the same window trim as B; `ScrollToIndex` on `index mod N`; suited to horizontal carousels with snap points. (C4: `SkUiCarouselView` loops with a panel of its own, FR-32; the virtual stack's `VirtualScrollMode.Loop` stays open.)
 - [ ] **Providers** (any one is enough):
   - [x] a per-index factory with an unknown / endless count (`null` ends the list): `ItemFactory`, `ItemFactoryCount`;
   - [x] `ItemsSource` + `ItemTemplate` / selector with incremental collection changes;
@@ -613,6 +613,22 @@ SkiaUi does not replace navigation: it ships no pages and no popup windows. Draw
 - [ ] **Accessibility (FR-28):** one "loading" element instead of the bones.
 - [ ] **Skeleton from the content (to explore, C9b):** the content's own controls draw their bones (label lines, image and chrome shapes, toggle outlines) in their overlay paint phase while a shimmer ancestor is active, so the skeleton matches what is displayed; per-control bone painters in the look; a per-view override (`Skeleton`: `Bone`, `Hidden`, `Children`, `Default`); placeholder lines for empty text.
 - [ ] Headless tests, demo page, leak scenario, frame time on a device with a list of shimmering rows.
+
+### FR-32 — Carousel and indicator view
+
+**Status:** shipped (C4 in [ImplementationPlan.md](ImplementationPlan.md)). Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#carousel-c4).
+
+- [x] **`SkUiCarouselView`** with MAUI's `CarouselView` names where they fit (`ItemsSource`, `ItemTemplate` / selector, `Position` and `CurrentItem` two-way with their events, commands and MAUI's argument types, `Loop`, `PeekAreaInsets`, `IsSwipeEnabled`, `IsBounceEnabled`, `IsScrollAnimated`, `IsDragging`, `IndicatorView`, `RemainingItemsThreshold` (+ event, command), `Scrolled`, `ScrollTo`, `EmptyView`, the item visual states); the items layout as properties (`Orientation`, `ItemSpacing`, `SnapPointsType`, `SnapPointsAlignment`), with MAUI's carousel defaults.
+- [x] **Layout:** items filling the carousel minus the peek insets (one card per page), or `ItemExtent` long with several in view; spacing; horizontal or vertical; right to left.
+- [x] **Snapping** on the scroll view's render-thread spring, one item per swipe (`MandatorySingle`) or the nearest to the fling's end; snap points listed by the carousel's panel for the range a motion can reach (`ISkUiSnapPointSource`).
+- [x] **Looping** without an end and without a jump, also during flings: a strip of copies moved back to its middle by scroll corrections; the shorter way round for positions set.
+- [x] **Virtual items** (in view and one on either side, more for effects that show more), recycled per template; collection changes keep the current item and a running fling.
+- [x] **Loading more:** the threshold on the last item in view (the current item while looping), once per count.
+- [x] **Item effects** (`ItemEffect`): render-thread, per-frame placement, scale, rotation, tilt in perspective, opacity and drawing order of each item from the scroll offset (`SkUiRenderProps.ItemEffect`, `SortsChildrenByDepth`); `SkUiCoverFlowEffect`, `SkUiScaleEffect`, custom `SkUiCarouselEffect`s; no recording while scrolling; hit-testing with the same transforms.
+- [x] **`SkUiIndicatorView` / `SkUiCoreIndicatorView`** with MAUI's `IndicatorView` API except `IndicatorTemplate`; drawn by the look (FR-18: `DrawIndicators` / `IndicatorPainter`, `DefaultSkUiLook.IndicatorStyle` dots or pill, `GetSelectedIndicatorExtraLength`, `DefaultIndicatorSpacing`, the `IndicatorPosition` transition); taps; a window of `MaximumVisible`; following a linked carousel's scrolling, also across its wrap.
+- [x] **Keyboard and screen readers (FR-28):** arrow keys, Home and End step the carousel item by item (`ISkUiScrollStepper`), screen readers' scroll actions page item by item; the indicator is adjustable.
+- [x] Headless tests (`CarouselViewTests`, `CarouselViewXamlTests`, `IndicatorViewTests`), demo pages next to MAUI's, leak scenario `CarouselSwiped`, migration guide and skills (`check_xaml.py`).
+- [ ] Left open: autoplay, several items per snap point, `ItemsUpdatingScrollMode`, `VisibleViews`, `IndicatorTemplate`, a Core carousel, device runs (feel of snaps and effects, fling across the move back to the middle on a phone).
 
 ## Non-functional requirements
 

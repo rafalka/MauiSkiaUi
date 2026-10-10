@@ -576,8 +576,23 @@ internal sealed class SkUiCompositor : IDisposable
         ref readonly var props = ref node.Props;
         if (props.IsSkipped)
             return;
+        SKMatrix matrix;
+        var opacity = props.Opacity;
+        if (props.ItemEffect is { Source.Disposed: false } effect)
+        {
+            // A carousel item: placed (and faded) by its effect at the scroller's current offset.
+            var placed = props;
+            ref readonly var source = ref effect.Source.Props;
+            opacity *= (float)Math.Clamp(effect.Apply(ref placed, source.ChildrenOffsetX, source.ChildrenOffsetY), 0, 1);
+            if (opacity <= 0)
+                return;
+            matrix = placed.Matrix;
+        }
+        else
+        {
+            matrix = props.Link is { } link ? Follow(props, link) : props.Matrix;
+        }
         var save = canvas.Save();
-        var matrix = props.Link is { } link ? Follow(props, link) : props.Matrix;
         if (isRoot)
             matrix = matrix.PostConcat(SKMatrix.CreateTranslation(-props.X, -props.Y));
         canvas.Concat(in matrix);
@@ -586,9 +601,9 @@ internal sealed class SkUiCompositor : IDisposable
             canvas.RestoreToCount(save);
             return;
         }
-        if (props.Opacity < 1)
+        if (opacity < 1)
         {
-            _layerPaint.Color = SKColors.White.WithAlpha((byte)(255 * props.Opacity));
+            _layerPaint.Color = SKColors.White.WithAlpha((byte)(255 * opacity));
             canvas.SaveLayer(props.LayerBounds, _layerPaint);
         }
         if (props.Shadow is { } shadow)
@@ -739,13 +754,16 @@ internal sealed class SkUiCompositor : IDisposable
                 canvas.ClipPath(path, antialias: true);
             var pinned = false;
             props.TransformChildren(canvas);
-            foreach (var child in children)
-            {
-                if (child.Props.Pinned)
-                    pinned = true;
-                else
-                    DrawNode(canvas, child, isRoot: false);
-            }
+            if (props.SortsChildrenByDepth && children.Length > 1)
+                pinned = DrawChildrenByDepth(canvas, children);
+            else
+                foreach (var child in children)
+                {
+                    if (child.Props.Pinned)
+                        pinned = true;
+                    else
+                        DrawNode(canvas, child, isRoot: false);
+                }
             canvas.RestoreToCount(childSave);
             // Pinned children: in local coordinates, outside the children clip.
             if (pinned)
@@ -757,6 +775,47 @@ internal sealed class SkUiCompositor : IDisposable
             canvas.DrawPicture(after);
         if (save >= 0)
             canvas.RestoreToCount(save);
+    }
+
+    /// <summary>The most children sorted on the stack; more are sorted in arrays from the pool.</summary>
+    private const int StackSortLimit = 64;
+
+    /// <summary>
+    /// Draws the unpinned <paramref name="children"/> back to front by the depth their item effects give them at the current
+    /// scroll offset (equal depths keep their order); returns whether any child is pinned.
+    /// </summary>
+    private bool DrawChildrenByDepth(SKCanvas canvas, SkUiRenderNode[] children)
+    {
+        var count = children.Length;
+        float[]? rentedDepths = null;
+        int[]? rentedOrder = null;
+        var depths = count <= StackSortLimit ? stackalloc float[count] : (rentedDepths = System.Buffers.ArrayPool<float>.Shared.Rent(count)).AsSpan(0, count);
+        var order = count <= StackSortLimit ? stackalloc int[count] : (rentedOrder = System.Buffers.ArrayPool<int>.Shared.Rent(count)).AsSpan(0, count);
+        var pinned = false;
+        for (var index = 0; index < count; index++)
+        {
+            ref readonly var props = ref children[index].Props;
+            pinned |= props.Pinned;
+            depths[index] = props.ItemEffect is { Source.Disposed: false } effect
+                ? (float)effect.Evaluate(effect.Source.Props.ChildrenOffsetX, effect.Source.Props.ChildrenOffsetY).ZIndex
+                : 0;
+            // Insertion sort: a handful of items, nearly sorted from frame to frame.
+            var position = index;
+            while (position > 0 && depths[order[position - 1]] > depths[index])
+            {
+                order[position] = order[position - 1];
+                position--;
+            }
+            order[position] = index;
+        }
+        foreach (var index in order)
+            if (!children[index].Props.Pinned)
+                DrawNode(canvas, children[index], isRoot: false);
+        if (rentedDepths is not null)
+            System.Buffers.ArrayPool<float>.Shared.Return(rentedDepths);
+        if (rentedOrder is not null)
+            System.Buffers.ArrayPool<int>.Shared.Return(rentedOrder);
+        return pinned;
     }
 
     /// <summary>

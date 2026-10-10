@@ -24,6 +24,32 @@ internal interface ISkUiScrollHost : ISkUiInputNode
 }
 
 /// <summary>
+/// Scrolled content that lists its own snap points (a virtual carousel, whose items are not all realized): the scroller
+/// asks it instead of lining up its children.
+/// </summary>
+internal interface ISkUiSnapPointSource
+{
+    /// <summary>Adds the snap offsets along one axis between <paramref name="from"/> and <paramref name="to"/> (scroller offsets) to <paramref name="points"/>.</summary>
+    void GetSnapOffsets(bool horizontal, double from, double to, List<double> points);
+}
+
+/// <summary>
+/// Moves a scroller by steps of its own instead of lines and pages (a carousel: item by item), for the keyboard (arrow,
+/// page, Home and End keys) and screen readers' scroll actions.
+/// </summary>
+internal interface ISkUiScrollStepper
+{
+    /// <summary>Whether a step towards larger offsets (<paramref name="forward"/>) or smaller ones can move.</summary>
+    bool CanStep(bool forward);
+
+    /// <summary>Steps towards larger offsets (<paramref name="forward"/>) or smaller ones, a line or a page; returns whether it moved.</summary>
+    bool Step(bool forward, bool page);
+
+    /// <summary>Goes to the first (or, <paramref name="end"/>, the last) position; returns whether it moved.</summary>
+    bool StepToEdge(bool end);
+}
+
+/// <summary>
 /// A node drawn over a scroller that is not inside it (a collection view's sticky header): wheel and trackpad input over it
 /// scrolls that scroller. Only the wheel uses it (focus, semantics and scrolling to targets do not treat it as a scroller).
 /// </summary>
@@ -233,10 +259,16 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         {
             if (value && !_dragging)
                 _dragOrigin = new Point(X, Y);
+            var changed = value != _dragging;
             _dragging = value;
             UpdateMoving();
+            if (changed)
+                DraggingChanged?.Invoke(value);
         }
     }
+
+    /// <summary>Raised when <see cref="Dragging"/> changes (a carousel's <c>IsDragging</c>).</summary>
+    public event Action<bool>? DraggingChanged;
 
     /// <summary>The offset when the current (or last) drag started: a single-step snap moves one snap point from it.</summary>
     private Point _dragOrigin;
@@ -327,6 +359,15 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         || (Vertical && ((dy > 0 && Y < MaxY) || (dy < 0 && Y > 0)));
 
     /// <summary>
+    /// Whether drags and the wheel scroll (default <c>true</c>); programmatic scrolls, the keyboard and screen readers always
+    /// do (a carousel with swiping turned off).
+    /// </summary>
+    public bool IsUserScrollEnabled { get; set; } = true;
+
+    /// <summary>Steps of the owner's own for the keyboard and screen readers (a carousel's items); <c>null</c>: lines and pages.</summary>
+    public ISkUiScrollStepper? Stepper { get; set; }
+
+    /// <summary>
     /// The start of the vertical axis can be pulled past also when the content does not overflow or overscroll is off
     /// (pull-to-refresh): the pull is tracked in <see cref="OverscrollY"/> and reported (<see cref="PullReleased"/>); the
     /// content moves only as <see cref="EffectiveOverscroll"/> draws it. By touch (and pen) drags, or by mouse drags too.
@@ -377,7 +418,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// </summary>
     public Point Wheel(double deltaX, double deltaY)
     {
-        if (Orientation == ScrollOrientation.Neither || (deltaX == 0 && deltaY == 0))
+        if (Orientation == ScrollOrientation.Neither || !IsUserScrollEnabled || (deltaX == 0 && deltaY == 0))
             return new Point(deltaX, deltaY);
         var mapped = Horizontal && !Vertical && deltaX == 0;
         var dx = mapped ? -deltaY : Horizontal ? -deltaX : 0;
@@ -714,11 +755,14 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     private double SnapTarget(bool horizontal, double current, double velocity, double origin)
     {
-        var points = SnapOffsets(horizontal);
-        if (points.Count == 0)
-            return current;
         // Where a fling with this velocity would stop (the decay's total travel).
         var projected = current + velocity * SkUiRenderFling.TotalTravelPerVelocity;
+        // The snap points the motion can reach, with a viewport of room on either side (a virtual carousel lists only those).
+        var viewport = horizontal ? Viewport.Width : Viewport.Height;
+        var points = SnapOffsets(horizontal,
+            Math.Min(current, Math.Min(projected, origin)) - viewport, Math.Max(current, Math.Max(projected, origin)) + viewport);
+        if (points.Count == 0)
+            return current;
         if (SnapPointsType == SnapPointsType.MandatorySingle && Math.Abs(velocity) >= SkUiGestureSettings.FlingMinimumVelocity)
         {
             if (velocity > 0)
@@ -743,9 +787,10 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     /// <summary>
     /// The snap offsets along one axis, sorted: each child of the content (or the content itself, without children) aligned
-    /// to the viewport by <see cref="SnapPointsAlignment"/>, clamped to the scroll range.
+    /// to the viewport by <see cref="SnapPointsAlignment"/>, clamped to the scroll range. Content that knows its snap points
+    /// (<see cref="ISkUiSnapPointSource"/>) lists those between <paramref name="from"/> and <paramref name="to"/>.
     /// </summary>
-    internal List<double> SnapOffsets(bool horizontal)
+    internal List<double> SnapOffsets(bool horizontal, double from = double.NegativeInfinity, double to = double.PositiveInfinity)
     {
         var points = new List<double>();
         var children = new List<ISkUiRenderable>();
@@ -753,13 +798,22 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         var content = children.FirstOrDefault(child => child is not SkUiCoreScrollBar);
         if (content is null)
             return points;
+        var max = horizontal ? MaxX : MaxY;
+        if (content is ISkUiSnapPointSource source)
+        {
+            source.GetSnapOffsets(horizontal, Math.Max(0, from), Math.Min(max, to), points);
+            for (var index = 0; index < points.Count; index++)
+                points[index] = Math.Clamp(points[index], 0, max);
+            points.Sort();
+            RemoveDuplicates(points);
+            return points;
+        }
         var contentProps = GetProps(content);
         var items = new List<ISkUiRenderable>();
         content.GetRenderChildren(items);
         if (items.Count == 0)
             items.Add(content);
         var viewport = horizontal ? Viewport.Width : Viewport.Height;
-        var max = horizontal ? MaxX : MaxY;
         foreach (var item in items)
         {
             var props = GetProps(item);
@@ -776,10 +830,16 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             points.Add(Math.Clamp(offset, 0, max));
         }
         points.Sort();
+        RemoveDuplicates(points);
+        return points;
+    }
+
+    /// <summary>Drops snap points less than half a DIP after the previous one (sorted points).</summary>
+    private static void RemoveDuplicates(List<double> points)
+    {
         for (var index = points.Count - 1; index > 0; index--)
             if (points[index] - points[index - 1] < 0.5)
                 points.RemoveAt(index);
-        return points;
     }
 
     #endregion

@@ -170,3 +170,51 @@ public readonly record struct SkUiRefreshIndicatorPaint(SKRect Bounds, SKColor C
 /// <param name="Opacity">Multiplies the indicator's opacity (0–1).</param>
 /// <param name="Rotation">Added to the indicator's rotation, in degrees.</param>
 public readonly record struct SkUiRefreshPullFeedback(double Opacity, double Rotation);
+
+/// <summary>
+/// What a look draws for an indicator view (<see cref="SkUiLook.DrawIndicators"/>): a row of indicators in left-to-right
+/// coordinates (the control mirrors right-to-left layouts), along <see cref="Orientation"/>. The control lays the row out,
+/// so taps hit what is drawn: <see cref="GetIndicatorBounds"/> is each indicator's rectangle, with the selected one
+/// <see cref="SelectedExtraLength"/> longer, and <see cref="GetSelection"/> how selected it is while the selection moves.
+/// Colors already reflect the enabled state.
+/// </summary>
+/// <param name="Bounds">The row's rectangle.</param>
+/// <param name="Count">How many indicators show (at most the view's <c>MaximumVisible</c>).</param>
+/// <param name="First">The item of the first indicator shown (indicators show a window of the items when there are more).</param>
+/// <param name="Position">
+/// The selected item, fractional while the selection moves (a linked carousel scrolls, a transition runs), in items; with
+/// <see cref="Wraps"/>, past the last item it moves on to the first.
+/// </param>
+/// <param name="ItemCount">How many items there are (<see cref="Count"/> or more).</param>
+/// <param name="IndicatorSize">An indicator's size (its thickness across the row, and its length).</param>
+/// <param name="Spacing">The gap between indicators.</param>
+/// <param name="SelectedExtraLength">How much longer the selected indicator is along the row (<see cref="SkUiLook.GetSelectedIndicatorExtraLength"/>).</param>
+/// <param name="Shape">The indicators' shape.</param>
+/// <param name="Color">Unselected indicators' color.</param>
+/// <param name="SelectedColor">The selected indicator's color.</param>
+/// <param name="Orientation">The row's direction.</param>
+/// <param name="Wraps">The selection wraps from the last item to the first (a looping carousel).</param>
+/// <param name="IsEnabled">The control is enabled.</param>
+public readonly record struct SkUiIndicatorPaint(
+    SKRect Bounds, int Count, int First, float Position, int ItemCount, float IndicatorSize, float Spacing, float SelectedExtraLength,
+    IndicatorShape Shape, SKColor Color, SKColor SelectedColor, StackOrientation Orientation, bool Wraps, bool IsEnabled)
+{
+    /// <summary>
+    /// How selected the indicator in <paramref name="slot"/> (0 = the first shown) is, 0–1: 1 for the selected one, shared by
+    /// two neighbors while the selection moves between them (the weights of all indicators add up to 1).
+    /// </summary>
+    public float GetSelection(int slot) => SkUiIndicatorLayout.Selection(First + slot, Position, ItemCount, Wraps);
+
+    /// <summary>The rectangle of the indicator in <paramref name="slot"/> (0 = the first shown), inside <see cref="Bounds"/>.</summary>
+    public SKRect GetIndicatorBounds(int slot)
+    {
+        var start = SkUiIndicatorLayout.Start(slot, First, Position, ItemCount, Wraps, IndicatorSize, Spacing, SelectedExtraLength);
+        var length = IndicatorSize + SelectedExtraLength * GetSelection(slot);
+        return Orientation == StackOrientation.Horizontal
+            ? new SKRect(Bounds.Left + start, Bounds.MidY - IndicatorSize / 2, Bounds.Left + start + length, Bounds.MidY + IndicatorSize / 2)
+            : new SKRect(Bounds.MidX - IndicatorSize / 2, Bounds.Top + start, Bounds.MidX + IndicatorSize / 2, Bounds.Top + start + length);
+    }
+
+    /// <summary>The color of the indicator in <paramref name="slot"/>: <see cref="Color"/> blended towards <see cref="SelectedColor"/> by its selection.</summary>
+    public SKColor GetColor(int slot) => SkUiIndicatorLayout.Blend(Color, SelectedColor, GetSelection(slot));
+}

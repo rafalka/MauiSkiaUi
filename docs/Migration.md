@@ -136,6 +136,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `ScrollView` | `SkUiScrollView` | Plus snap points, overscroll and its events (`Overscrolled`, `PullReleased`, `PullEdges`) |
 | `RefreshView` (around other content) | `SkUiRefreshView` | Prefix swap with drawn content: same `IsRefreshing`, `Command`, `RefreshColor`, `IsRefreshEnabled`, `Refreshing`. Pulls through the content's vertical scrollers at their top, or the view itself over content that does not scroll ([SkUiRefreshView.md](controls/SkUiRefreshView.md)). Mouse drags no longer pull unless `IsMousePullEnabled`. Plus `RefreshStyle` (overlay badge or inline, the platform's by default), `RefreshTriggerDistance`, and `RefreshCompletion="Automatic"`: the view ends the refresh when an async command (busy while it runs) or the deferrals taken in `Refreshing` are done, instead of the view model setting `IsRefreshing` back |
 | `CollectionView` (+ `RefreshView`) | `SkUiCollectionView` | SkiaUi's own API, not a prefix swap: see [Lists](#lists-collectionview) |
+| `CarouselView`, `IndicatorView` | `SkUiCarouselView`, `SkUiIndicatorView` | Prefix swap, with the items layout as properties of the carousel: see [Carousels](#carousels-carouselview-indicatorview) |
 | `Border` | `SkUiBorder` | `StrokeShape`, brush strokes, dashes |
 | `Frame` (obsolete) | `SkUiBorder` | `CornerRadius` → `StrokeShape="RoundRectangle N"`, `HasShadow` → `Shadow`, `BorderColor` → `Stroke` |
 | `Label` | `SkUiLabel` | Spans, span taps, `TextType="Html"`. Plus `ShrinkToFit` / `MinimumFontScale` and `AllowsTightening` (text that does not fit gets tighter and smaller), `GrowToFill` / `MaximumFontScale` (text that fills its label) and a custom `LineBreaker` |
@@ -310,12 +311,22 @@ Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and 
 
 Not available: reordering (`CanReorderItems`) and snap points on the items layout; keep those lists native. Plain lists can also use the lighter `SkUiVirtualScrollView` ([SkUiVirtualVerticalStackLayout.md](controls/SkUiVirtualVerticalStackLayout.md)).
 
+## Carousels (`CarouselView`, `IndicatorView`)
+
+`SkUiCarouselView` ([SkUiCarouselView.md](controls/SkUiCarouselView.md)) and `SkUiIndicatorView` ([SkUiIndicatorView.md](controls/SkUiIndicatorView.md)) keep MAUI's names; the usual changes:
+
+- `CarouselView` → `sk:SkUiCarouselView`, `IndicatorView` → `sk:SkUiIndicatorView`; `IndicatorView="{x:Reference …}"` links them as in MAUI. The item template creates drawn views (`EmptyView` too).
+- `ItemsLayout` → properties of the carousel: `Orientation`, `ItemSpacing`, `SnapPointsType`, `SnapPointsAlignment` (the defaults are MAUI's carousel defaults: horizontal, `MandatorySingle`, `Center`). Drop a `LinearItemsLayout` that only restates them.
+- Same: `ItemsSource`, `Position` and `CurrentItem` (two-way, with their events, commands and MAUI's argument types), `Loop` (default `true`), `PeekAreaInsets`, `IsSwipeEnabled`, `IsBounceEnabled`, `IsScrollAnimated`, `IsDragging`, `RemainingItemsThreshold` (+ event, command), `Scrolled`, `ScrollTo`, the `CurrentItem` / `NextItem` / `PreviousItem` / `DefaultItem` visual states.
+- `ScrollTo(index, …)` also exists as awaitable `ScrollToIndex(index, animated)` / `ScrollToItem(item, animated)`.
+- Not available: `ItemsUpdatingScrollMode` (the current item is always kept), `VisibleViews`, `IndicatorTemplate` (draw other indicators through the look: `IndicatorPainter`, `DefaultSkUiLook.IndicatorStyle`).
+- New: several cards in view (`ItemExtent`), item effects drawn by the compositor (`ItemEffect`: `SkUiCoverFlowEffect`, `SkUiScaleEffect`), `ScrollPosition`; on the indicator `IndicatorSpacing` and `Orientation`.
+
 ## Not available yet
 
 | MAUI | Status | Meanwhile |
 | --- | --- | --- |
 | `CollectionView`: reordering (`CanReorderItems`), snap points on the items layout | Not available | Keep the MAUI `CollectionView` with native item templates (outside the drawn region); everything else ports ([Lists](#lists-collectionview)) |
-| `CarouselView`, `IndicatorView` | Planned (C4) | `SkUiScrollView Orientation="Horizontal"` with `SnapPointsType="MandatorySingle"` |
 | `Stepper` | Planned (D7, with a drawn value entry) | Two `SkUiButton`s |
 | Drag and drop, tooltips, context flyouts | Not planned | Keep native |
 | `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists), `SkUiBorder` |

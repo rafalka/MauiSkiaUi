@@ -16,6 +16,7 @@ public sealed class LookAndColorSchemePage : ContentPage
     private readonly Picker _lookPicker;
     private readonly Picker _accentPicker;
     private readonly Picker _pressPicker;
+    private readonly Picker _indicatorPicker;
     private readonly Picker _motionPicker;
     private readonly Grid _sizeGrid;
     /// <summary>The page's selections, shared by every visit (the look they produce stays current app-wide).</summary>
@@ -26,6 +27,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         public static int Accent;
         public static int Pack;
         public static int Press;
+        public static int Indicator;
         public static int Motion;
     }
 
@@ -115,6 +117,17 @@ public sealed class LookAndColorSchemePage : ContentPage
         };
         _pressPicker.SelectedIndexChanged += (_, _) => Apply();
 
+        _indicatorPicker = new Picker
+        {
+            Title = "Indicator style",
+            ItemsSource = new[] { "Dots", "Pill" },
+            SelectedIndex = Settings.Indicator,
+            AutomationId = "LookIndicatorPicker",
+            TextColor = DemoColors.Ink,
+            FontFamily = DemoFonts.OpenSansRegular
+        };
+        _indicatorPicker.SelectedIndexChanged += (_, _) => Apply();
+
         _motionPicker = new Picker
         {
             Title = "Transitions",
@@ -143,6 +156,7 @@ public sealed class LookAndColorSchemePage : ContentPage
             _accentPicker.SelectedIndex = 0;
             _lookPicker.SelectedIndex = 0;
             _pressPicker.SelectedIndex = 0;
+            _indicatorPicker.SelectedIndex = 0;
             _motionPicker.SelectedIndex = 0;
             _look.Style = DemoLookStyle.Default;
             _look.ClearSizeOverrides();
@@ -191,6 +205,10 @@ public sealed class LookAndColorSchemePage : ContentPage
                 Caption("How buttons, image buttons and tappable containers with ShowsPressEffect (cards, composite buttons) " +
                     "react to a press. Dim fades the button; Ripple spreads a circle from the finger and fades after the release."),
                 _pressPicker,
+                Section("Indicator style"),
+                Caption("How indicator views (the dots under a carousel) draw: dots, or a pill the selected one stretches into, " +
+                    "sliding with the carousel's scrolling."),
+                _indicatorPicker,
                 Section("State-change transitions"),
                 Caption("Animation of switches, check boxes, radio buttons, presses and slider thumbs. Normal follows the " +
                     "system's reduce-motion setting; Slow motion stretches every transition 5× so you can watch it (even when " +
@@ -490,8 +508,10 @@ public sealed class LookAndColorSchemePage : ContentPage
         Settings.Accent = _accentPicker.SelectedIndex;
         Settings.Pack = _lookPicker.SelectedIndex;
         Settings.Press = _pressPicker.SelectedIndex;
+        Settings.Indicator = _indicatorPicker.SelectedIndex;
         Settings.Motion = _motionPicker.SelectedIndex;
         _look.PressEffect = _pressPicker.SelectedIndex == 1 ? SkUiPressEffect.Ripple : SkUiPressEffect.Dim;
+        _look.IndicatorStyle = _indicatorPicker.SelectedIndex == 1 ? SkUiIndicatorStyle.Pill : SkUiIndicatorStyle.Dots;
         _look.TransitionScale = _motionPicker.SelectedIndex == 1 ? 5 : 1;
         // Slow motion is for watching transitions: on even when the system reduces motion.
         SkUiMotion.ReduceMotion = _motionPicker.SelectedIndex switch { 1 => false, 2 => true, _ => null };
@@ -504,7 +524,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         RebuildAllPreviews();
         _status.Text =
             $"Scheme: {SkUiColorScheme.Current.GetType().Name} · Accent {ToHex(SkUiColorScheme.Current.Accent)} · " +
-            $"Look: {_look.Style} · Press: {_look.PressEffect} · Transitions: {(SkUiMotion.IsMotionReduced ? "off" : _look.TransitionScale == 1 ? "normal" : "slow")}";
+            $"Look: {_look.Style} · Press: {_look.PressEffect} · Indicators: {_look.IndicatorStyle} · Transitions: {(SkUiMotion.IsMotionReduced ? "off" : _look.TransitionScale == 1 ? "normal" : "slow")}";
     }
 
     private void SyncSizeEntriesFromLook()

@@ -20,7 +20,12 @@ public enum SkUiTransitionKind
     /// <summary>A slider thumb jumps to a tapped value.</summary>
     SliderThumb,
     /// <summary>A determinate progress bar's fill follows a new <c>Progress</c> (<c>ProgressTo</c> animates on its own).</summary>
-    Progress
+    Progress,
+    /// <summary>
+    /// An indicator view's selected indicator moves to a new <c>Position</c> (tapped, set by the app; one linked to a carousel
+    /// follows its scrolling instead).
+    /// </summary>
+    IndicatorPosition
 }
 
 /// <summary>
@@ -108,6 +113,15 @@ public readonly record struct SkUiPressVisual(float Pressed, SKPoint Origin, flo
 
     /// <summary>Whether a ripple is visible.</summary>
     public bool HasRipple => Ripple > 0 && RippleFade < 1;
+}
+
+/// <summary>How <see cref="DefaultSkUiLook"/> draws indicator views (<see cref="DefaultSkUiLook.IndicatorStyle"/>).</summary>
+public enum SkUiIndicatorStyle
+{
+    /// <summary>Dots (or squares) of the same size; the selected one takes the selected color (iOS-like).</summary>
+    Dots,
+    /// <summary>The selected indicator stretches into a pill twice the size longer, and slides between positions (Material-like).</summary>
+    Pill
 }
 
 /// <summary>Press feedback style of <see cref="DefaultSkUiLook"/> buttons.</summary>

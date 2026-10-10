@@ -369,6 +369,8 @@ internal sealed class SkUiFocusManager(SkUiView root)
         }
         if (FindScroller() is not { } scroller)
             return false;
+        if (scroller.Stepper is { } stepper)
+            return stepper.StepToEdge(end);
         var x = scroller.Horizontal && !scroller.Vertical ? (end ? scroller.MaxX : 0) : scroller.X;
         var y = scroller.Vertical ? (end ? scroller.MaxY : 0) : scroller.Y;
         if (x == scroller.X && y == scroller.Y)
@@ -382,6 +384,8 @@ internal sealed class SkUiFocusManager(SkUiView root)
     {
         if (FindScroller(horizontal) is not { } scroller)
             return false;
+        if (scroller.Stepper is { } stepper)
+            return stepper.Step(forward, page);
         var useX = horizontal || (scroller.Horizontal && !scroller.Vertical);
         var extent = useX ? scroller.Viewport.Width : scroller.Viewport.Height;
         var step = (forward ? 1 : -1) * (page ? extent * 0.875 : LineStep);

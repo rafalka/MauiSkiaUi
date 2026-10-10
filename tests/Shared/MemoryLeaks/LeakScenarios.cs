@@ -45,6 +45,7 @@ public static class LeakScenarios
         new("CollectionViewUsed", Scrolling, "SkUiCollectionView bound to a long-lived collection, with long-lived selection, item-tap and refresh commands, a sticky header and an empty view: items tapped to select and deselect, flung, scrolled to an item, pulled to refresh, the selected item removed, the collection emptied and refilled; closed mid-fling.", () => new CollectionViewRun()),
         new("CollectionViewGrouped", Scrolling, "SkUiCollectionView over long-lived groups (a grid of two columns, sticky collapsible group headers), with a long-lived selected-items list and load-more command: headers tapped to collapse and expand, items selected, flung, scrolled to a group, groups and items added and removed, the template replaced; closed mid-fling.", () => new CollectionViewGroupedRun()),
         new("RefreshPulled", Scrolling, "SkUiRefreshView (inline style, automatic completion) with a long-lived command around a header and a drawn scroller: pulled through the scroller and by the header (content held down while refreshing), each refresh ended by a deferral taken in Refreshing, a short pull released before the trigger (the indicator going back), the scroller replaced while still linked and the old one detached; closed mid-pull.", () => new RefreshRun()),
+        new("CarouselSwiped", Scrolling, "SkUiCarouselView over a long-lived collection with a long-lived shared cover flow effect, a long-lived position command and a linked indicator view: swiped and flung forward past the middle of its looping strip (moved back by corrections), an indicator tapped, the position set by code, items added and removed, the effect switched, looping turned off and the end reached (load-more command); closed mid-fling.", () => new CarouselRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
         new("SurfaceReplaced", Rendering, "A page replaces its GPU surface with a software one and back; the discarded surfaces are disconnected.", () => new SurfaceReplacedRun()),
@@ -1568,6 +1569,76 @@ public static class LeakScenarios
             _refreshes == 2 && !_refresh!.IsRefreshing ? null : $"Refreshed {_refreshes} times (expected 2), still refreshing: {_refresh!.IsRefreshing}.";
     }
 
+    private sealed class CarouselRun : LeakScenarioRun
+    {
+        private SkUiCarouselView? _carousel;
+        private SkUiIndicatorView? _indicator;
+        private int _positions;
+        private int _loads;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 6; index++)
+                LeakItems.Shared.Add($"Card {index}");
+            _indicator = context.Track(new SkUiIndicatorView { HeightRequest = 24 }, "carousel indicator");
+            _carousel = context.Track(new SkUiCarouselView
+            {
+                ItemsSource = LeakItems.Shared,
+                ItemExtent = 160,
+                ItemEffect = LeakCarouselEffects.CoverFlow,
+                IndicatorView = _indicator,
+                PositionChangedCommand = LeakCommands.Shared,
+                RemainingItemsThresholdReachedCommand = LeakCommands.Shared,
+                ItemTemplate = new DataTemplate(Card)
+            }, "carousel");
+            _carousel.PositionChanged += (_, _) => _positions++;
+            _carousel.RemainingItemsThresholdReached += (_, _) => _loads++;
+            var grid = new SkUiGrid { RowDefinitions = [new RowDefinition(GridLength.Star), new RowDefinition(GridLength.Auto)] };
+            Grid.SetRow(_indicator, 1);
+            grid.Children.Add(_carousel);
+            grid.Children.Add(_indicator);
+            return Root(grid);
+        }
+
+        private static SkUiBorder Card()
+        {
+            var label = new SkUiLabel { TextColor = Colors.White, HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center };
+            label.SetBinding(SkUiLabel.TextProperty, static (string text) => text);
+            return new SkUiBorder { Background = LeakColors.Accent, StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 }, Content = label };
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var carousel = _carousel!;
+            await context.SettleAsync();
+            // Forward past the middle copy of the looping strip: moved back while flinging.
+            for (var swipe = 0; swipe < 8; swipe++)
+            {
+                await context.DragAsync(carousel, -220, 0, durationMs: 60);
+                await context.WaitAsync(500);
+            }
+            await context.TapAsync(_indicator!); // the middle indicator
+            await context.WaitAsync(400);
+            carousel.Position = 1;
+            await context.WaitAsync(400);
+            LeakItems.Shared.Add("Card added");
+            LeakItems.Shared.RemoveAt(0);
+            await context.SettleAsync();
+            carousel.ItemEffect = new SkUiScaleEffect();
+            carousel.Loop = false;
+            carousel.RemainingItemsThreshold = 1;
+            carousel.IsScrollAnimated = false;
+            carousel.Position = LeakItems.Shared.Count - 1; // the end: the threshold asks for more
+            await context.SettleAsync();
+            carousel.ItemEffect = LeakCarouselEffects.CoverFlow;
+            await context.DragAsync(carousel, 220, 0, durationMs: 60); // closes mid-fling
+        }
+
+        public override string? CheckInteraction() =>
+            _positions >= 8 && _loads >= 1 ? null : $"Position changed {_positions} times (expected 8 or more), loaded {_loads} times (expected 1 or more).";
+    }
+
     private sealed class CollectionViewGroupedRun : LeakScenarioRun
     {
         private SkUiCollectionView? _list;
@@ -2163,6 +2234,12 @@ public static class LeakCommands
 public static class LeakItems
 {
     public static ObservableCollection<string> Shared { get; } = [];
+}
+
+/// <summary>Carousel effects that outlive every scenario, like ones in app resources: carousels must not stay reachable from them.</summary>
+public static class LeakCarouselEffects
+{
+    public static SkUiCoverFlowEffect CoverFlow { get; } = new();
 }
 
 /// <summary>Swipe items that outlive every scenario, like ones in app resources: swipe views must not stay reachable from them.</summary>

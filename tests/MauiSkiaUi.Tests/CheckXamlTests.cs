@@ -36,6 +36,43 @@ public class CheckXamlTests
     }
 
     [Fact]
+    public void ReportsMauiOnlyCarouselMembersAndSuggestsTheDrawnCarousel()
+    {
+        var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
+        try
+        {
+            File.WriteAllText(Path.Combine(project.FullName, "Page.xaml"), """
+                <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
+                  <sk:SkUiGrid>
+                    <sk:SkUiCarouselView ItemsSource="{Binding Photos}" Loop="False" ItemsUpdatingScrollMode="KeepLastItemInView">
+                      <sk:SkUiCarouselView.ItemsLayout>
+                        <LinearItemsLayout Orientation="Horizontal" ItemSpacing="12" />
+                      </sk:SkUiCarouselView.ItemsLayout>
+                    </sk:SkUiCarouselView>
+                    <sk:SkUiIndicatorView IndicatorTemplate="{StaticResource Dot}" />
+                    <CarouselView />
+                  </sk:SkUiGrid>
+                </ContentPage>
+                """);
+            var (exitCode, output) = Run(project.FullName);
+            Assert.Equal(1, exitCode);
+            var lines = output.Split('\n');
+            var errors = lines.Where(line => line.Contains("error:")).ToArray();
+            Assert.Equal(4, errors.Length);
+            Assert.Contains(errors, error => error.Contains("SkUiCarouselView.ItemsLayout") && error.Contains("ItemSpacing"));
+            Assert.Contains(errors, error => error.Contains("ItemsUpdatingScrollMode"));
+            Assert.Contains(errors, error => error.Contains("IndicatorTemplate"));
+            // The native carousel inside the drawn tree: the drawn one replaces it.
+            Assert.Contains(errors, error => error.Contains("Page.xaml:10:") && error.Contains("SkUiCarouselView"));
+        }
+        finally
+        {
+            project.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void ReportsMauiOnlyCollectionViewMembersAndNativeLists()
     {
         var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");

@@ -222,6 +222,8 @@ internal static class SkUiSemantics
     /// <summary>Scrolls a scroller one page (a screen reader's scroll action); returns whether it moved.</summary>
     public static bool ScrollPage(SkUiScrollController scroller, bool forward)
     {
+        if (scroller.Stepper is { } stepper)
+            return stepper.Step(forward, page: true);
         var (dx, dy) = PageDelta(scroller, forward);
         if (!scroller.CanScroll(dx, dy))
             return false;
@@ -246,6 +248,14 @@ internal static class SkUiSemantics
     {
         info.Role = SkUiSemanticsRole.ScrollView;
         info.IsHorizontal = scroller.Horizontal && !scroller.Vertical;
+        if (scroller.Stepper is { } stepper)
+        {
+            if (stepper.CanStep(forward: true))
+                info.Actions |= SkUiSemanticsActions.ScrollForward;
+            if (stepper.CanStep(forward: false))
+                info.Actions |= SkUiSemanticsActions.ScrollBackward;
+            return;
+        }
         // The axis the page actions move (ScrollPage), so an advertised action always scrolls.
         var (forwardX, forwardY) = PageDelta(scroller, forward: true);
         if (scroller.CanScroll(forwardX, forwardY))
