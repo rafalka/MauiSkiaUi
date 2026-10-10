@@ -69,14 +69,14 @@ REPLACE = {
     "SwipeView": "SkUiSwipeView (SwipeItems and SwipeItem stay MAUI's)",
     "SwipeItemView": "SkUiSwipeItemView",
     "RefreshView": "SkUiRefreshView (around a list, SkUiCollectionView's own IsPullToRefreshEnabled also works)",
+    "CarouselView": "SkUiCarouselView (ItemsLayout settings become carousel properties: Orientation, ItemSpacing, SnapPointsType, SnapPointsAlignment)",
+    "IndicatorView": "SkUiIndicatorView (IndicatorTemplate is not supported: the look draws the indicators)",
 }
 WRAP = {"Entry", "Editor", "SearchBar", "Picker", "DatePicker", "TimePicker", "WebView", "HybridWebView", "BlazorWebView", "Map"}
 NO_DRAWN = {
     "CollectionView": "use sk:SkUiCollectionView (SkiaUi's own API: convert member by member, see references/collection-view.md); reorderable lists (CanReorderItems): keep the list outside the drawn tree",
     "ListView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",
     "TableView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",
-    "CarouselView": "no drawn CarouselView yet: SkUiScrollView Orientation=\"Horizontal\" SnapPointsType=\"MandatorySingle\", or keep it outside",
-    "IndicatorView": "no drawn IndicatorView yet: keep it outside, or draw dots with SkUiEllipse",
     "Stepper": "no drawn Stepper yet: two SkUiButtons",
 }
 GESTURE_ADVICE = {
@@ -95,6 +95,16 @@ COLLECTION_VIEW_MAUI_ONLY = {
     "ItemsUpdatingScrollMode": "items inserted above the first visible one keep what shows in place; remove it",
     "ItemTemplateSelector": "set the DataTemplateSelector as ItemTemplate",
     "Command": "on a RefreshView this is RefreshCommand",
+}
+# MAUI CarouselView / IndicatorView members the drawn ones do not have, with what to do instead.
+CAROUSEL_MAUI_ONLY = {
+    "ItemsLayout": "no ItemsLayout object: set Orientation, ItemSpacing, SnapPointsType and SnapPointsAlignment on the carousel (horizontal, MandatorySingle and Center are the defaults)",
+    "ItemsUpdatingScrollMode": "the current item is always kept in view; remove it",
+    "VisibleViews": "not available: use GetRealizedView(index) or the Scrolled event",
+}
+INDICATOR_MAUI_ONLY = {
+    "IndicatorTemplate": "not supported: the look draws the indicators (DefaultSkUiLook.IndicatorStyle, SkUiLook.IndicatorPainter)",
+    "IndicatorLayout": "not supported: the look draws the indicators",
 }
 # CollectionView members that take a drawn view: a string value would become a MAUI label.
 COLLECTION_VIEW_VIEWS = ("Header", "Footer", "EmptyView")
@@ -313,6 +323,12 @@ class Checker:
                 return
             if drawn and owner == "StateContainer" and not is_skia_uri(node.uri):
                 self.report(path, node, "error", f"{node.name} on a drawn layout: use sk:SkUi{node.name}")
+            if drawn and owner == "SkUiCarouselView" and prop in CAROUSEL_MAUI_ONLY:
+                self.report(path, node, "error", f"{node.name}: {CAROUSEL_MAUI_ONLY[prop]}")
+                return
+            if drawn and owner == "SkUiIndicatorView" and prop in INDICATOR_MAUI_ONLY:
+                self.report(path, node, "error", f"{node.name}: {INDICATOR_MAUI_ONLY[prop]}")
+                return
             if drawn and prop in SWIPE_ITEMS_PROPERTIES and owner == "SkUiSwipeView":
                 for child in node.children:
                     self.check_swipe_items(path, child)
@@ -375,6 +391,10 @@ class Checker:
                 self.report(path, node, "error", f"Community Toolkit {local} on {node.name}: use sk:SkUi{local} (the toolkit's StateContainer only runs on MAUI layouts)")
             elif local == "BindableLayout.EmptyView" and not value.lstrip().startswith("{"):
                 self.report(path, node, "error", f"BindableLayout.EmptyView=\"{value}\" on {node.name}: a string empty view becomes a MAUI Label; use <BindableLayout.EmptyView><sk:SkUiLabel Text=\"{value}\" /></BindableLayout.EmptyView>")
+            elif node.name == "SkUiCarouselView" and local in CAROUSEL_MAUI_ONLY:
+                self.report(path, node, "error", f"{local} on SkUiCarouselView: {CAROUSEL_MAUI_ONLY[local]}")
+            elif node.name == "SkUiIndicatorView" and local in INDICATOR_MAUI_ONLY:
+                self.report(path, node, "error", f"{local} on SkUiIndicatorView: {INDICATOR_MAUI_ONLY[local]}")
             elif node.name == "SkUiCollectionView" and local in COLLECTION_VIEW_MAUI_ONLY:
                 self.report(path, node, "error", f"{local} on SkUiCollectionView: {COLLECTION_VIEW_MAUI_ONLY[local]}")
             elif node.name == "SkUiCollectionView" and local in COLLECTION_VIEW_VIEWS and not value.lstrip().startswith("{"):

@@ -13,6 +13,26 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Carousel (C4):** `SkUiCarouselView` is MAUI's `CarouselView` on the drawn surface: its XAML ports by changing the prefix, with the items layout's settings as properties of the carousel ([SkUiCarouselView.md](docs/controls/SkUiCarouselView.md)).
+  - MAUI's names and defaults: `ItemsSource`, `ItemTemplate` (or a selector), `Position` and `CurrentItem` (two-way; `PositionChanged` / `CurrentItemChanged` with MAUI's arguments, and their commands), `Loop` (on by default), `PeekAreaInsets`, `IsSwipeEnabled`, `IsBounceEnabled`, `IsScrollAnimated`, `IsDragging`, `IndicatorView`, `RemainingItemsThreshold` (+ event, command), `Scrolled`, `ScrollTo`, `EmptyView` / `EmptyViewTemplate`, the `CurrentItem` / `NextItem` / `PreviousItem` / `DefaultItem` visual states; `Orientation`, `ItemSpacing`, `SnapPointsType` (`MandatorySingle` by default: one card per swipe) and `SnapPointsAlignment` (`Center`) instead of an `ItemsLayout` object.
+  - One card per page (items fill the carousel minus the peek insets, the neighbors peeking in) or several in view: `ItemExtent` sets every card's length, `SnapPointsAlignment="Start"` lines the current one up at the start.
+  - Looping without an end and without a jump, also in a fling: the items repeat along a strip whose middle the carousel moves back to by offset corrections nothing shows; a position set takes the shorter way round.
+  - Virtual: only the cards in view and one on either side exist, recycled per template; collection changes keep the current card (and a running fling: items appended at the end load more without a stop).
+  - `ScrollToIndex` / `ScrollToItem` (awaitable) and `ScrollPosition` (fractional, for effects of the app's own).
+  - Item effects (`ItemEffect`), placed by the compositor from the scroll offset in every frame, so scrolling records nothing and stays smooth while the UI thread is busy: `SkUiCoverFlowEffect` (side cards turned in perspective, scaled and stacked, the nearest on top), `SkUiScaleEffect` (side cards shrink and fade, the gaps kept), and effects of your own (`SkUiCarouselEffect`: a transform per position with translation, scale, rotation, tilt, opacity and drawing order). Taps hit what is drawn.
+  - The arrow keys, Home and End step item by item; screen readers' scroll actions page item by item.
+- **Indicator view (C4):** `SkUiIndicatorView` (and the Core `SkUiCoreIndicatorView`) is MAUI's `IndicatorView` drawn by the look ([SkUiIndicatorView.md](docs/controls/SkUiIndicatorView.md)).
+  - MAUI's `Position` (two-way), `Count`, `ItemsSource`, `IndicatorColor`, `SelectedIndicatorColor`, `IndicatorSize`, `IndicatorsShape`, `MaximumVisible`, `HideSingle`; plus `IndicatorSpacing` and `Orientation`. `IndicatorTemplate` is not supported.
+  - Linked to a carousel, its selection slides with the scrolling (across the wrap of a looping carousel), and a tap scrolls the carousel; on its own a tap selects a dot and the selection moves with the look's new `SkUiTransitionKind.IndicatorPosition` transition.
+  - The look draws it: `SkUiLook.DrawIndicators` / `IndicatorPainter` with `SkUiIndicatorPaint` (which lays the row out as the control hit-tests it), `GetSelectedIndicatorExtraLength`, `DefaultIndicatorSpacing`; `DefaultSkUiLook.IndicatorStyle` draws dots (default) or a pill. An adjustable element for screen readers and the keyboard.
+
+### Other
+
+- Demo pages **CarouselView** (next to MAUI's, with an indicator, effects, several cards in view and loading more) and **IndicatorView**; the Look & colors page chooses the indicator style. Leak scenario `CarouselSwiped`.
+- The migration guide and skills map `CarouselView` and `IndicatorView` to the drawn controls; `check_xaml.py` reports their MAUI-only members (`ItemsLayout`, `ItemsUpdatingScrollMode`, `VisibleViews`, `IndicatorTemplate`), and the audit counts them as drawn.
+
 ## 1.0.0-Prerelease10
 
 ### New features

@@ -44,6 +44,32 @@ public class DefaultSkUiLook : SkUiLook
     /// <inheritdoc />
     public override SkUiRefreshStyle DefaultRefreshStyle => RefreshStyle == SkUiRefreshStyle.Default ? SkUiRefreshStyle.Overlay : RefreshStyle;
 
+    /// <summary>How indicator views draw (default <see cref="SkUiIndicatorStyle.Dots"/>). Call <see cref="SkUiLook.NotifyChanged"/> after changing it.</summary>
+    public SkUiIndicatorStyle IndicatorStyle { get; set; } = SkUiIndicatorStyle.Dots;
+
+    /// <inheritdoc />
+    /// <remarks>A <see cref="SkUiIndicatorStyle.Pill"/> is twice the indicator size longer.</remarks>
+    public override double GetSelectedIndicatorExtraLength(double indicatorSize, IndicatorShape shape) =>
+        IndicatorStyle == SkUiIndicatorStyle.Pill ? 2 * indicatorSize : 0;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Circles (or squares) in a blend of the two colors by selection; a <see cref="SkUiIndicatorStyle.Pill"/> rounds the
+    /// stretched selected indicator (squares keep a small corner).
+    /// </remarks>
+    protected override void DrawIndicatorsCore(SKCanvas canvas, SkUiIndicatorPaint paint)
+    {
+        if (paint.Count <= 0 || paint.IndicatorSize <= 0)
+            return;
+        var fill = Paint(paint.Color);
+        var radius = paint.Shape == IndicatorShape.Circle ? paint.IndicatorSize / 2 : Math.Min(1.5f, paint.IndicatorSize / 4);
+        for (var slot = 0; slot < paint.Count; slot++)
+        {
+            fill.Color = paint.GetColor(slot);
+            canvas.DrawRoundRect(paint.GetIndicatorBounds(slot), radius, radius, fill);
+        }
+    }
+
     private static readonly Shadow OverlayRefreshShadow = new() { Brush = Colors.Black, Opacity = 0.25f, Radius = 4, Offset = new Point(0, 1) };
 
     /// <inheritdoc />
@@ -61,6 +87,7 @@ public class DefaultSkUiLook : SkUiLook
         // Only rippling looks spend frames on the ripple.
         SkUiTransitionKind.Ripple => PressEffect == SkUiPressEffect.Ripple ? SkUiTransition.FromMilliseconds(450, Easing.CubicOut) : SkUiTransition.None,
         SkUiTransitionKind.SliderThumb => SkUiTransition.FromMilliseconds(150, Easing.CubicOut),
+        SkUiTransitionKind.IndicatorPosition => SkUiTransition.FromMilliseconds(250, Easing.CubicOut),
         // Determinate progress follows Progress at once, as MAUI's ProgressBar (ProgressTo animates).
         _ => SkUiTransition.None
     };

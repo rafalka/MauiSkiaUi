@@ -58,6 +58,8 @@ public static class ComponentDemos
         new(typeof(SkUiCollectionView), typeof(SwipeViewListDemoPage), "CollectionView with SwipeView rows", ComponentCategory.ScrollingAndCollections,
             () => new SwipeViewListDemoPage(), Key: "SkUiCollectionViewSwipeRows"),
         new(typeof(SkUiRefreshView), typeof(RefreshViewDemoPage), nameof(RefreshView), ComponentCategory.ScrollingAndCollections, () => new RefreshViewDemoPage()),
+        new(typeof(SkUiCarouselView), typeof(CarouselViewDemoPage), nameof(CarouselView), ComponentCategory.ScrollingAndCollections, () => new CarouselViewDemoPage()),
+        new(typeof(SkUiIndicatorView), typeof(IndicatorViewDemoPage), nameof(IndicatorView), ComponentCategory.ScrollingAndCollections, () => new IndicatorViewDemoPage()),
         new(typeof(SkUiVirtualScrollView), typeof(VirtualScrollViewDemoPage), "CollectionView (plain list)", ComponentCategory.ScrollingAndCollections, () => new VirtualScrollViewDemoPage()),
         new(typeof(SkUiVirtualVerticalStackLayout), typeof(VirtualVerticalStackLayoutDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.ScrollingAndCollections, () => new VirtualVerticalStackLayoutDemoPage()),
         new(typeof(SkUiCoreGrid), typeof(CoreGridDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreGridDemoPage()),

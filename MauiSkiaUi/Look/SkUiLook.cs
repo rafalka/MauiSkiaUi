@@ -715,6 +715,42 @@ public class SkUiLook
 
     #endregion
 
+    #region IndicatorView
+
+    /// <summary>The gap between indicators of indicator views that do not set their own (<c>IndicatorSpacing</c>), in DIPs.</summary>
+    public virtual double DefaultIndicatorSpacing => 8;
+
+    /// <summary>
+    /// How much longer than the others the selected indicator is along the row, in DIPs, for indicators of
+    /// <paramref name="indicatorSize"/> (a pill); 0 (default): all are the same size. Indicator views lay the row out with it,
+    /// so the selected indicator's room moves with the selection.
+    /// </summary>
+    public virtual double GetSelectedIndicatorExtraLength(double indicatorSize, IndicatorShape shape) => 0;
+
+    /// <summary>Optional indicator view painter; when set, replaces <see cref="DrawIndicatorsCore"/>.</summary>
+    public Action<SKCanvas, SkUiIndicatorPaint>? IndicatorPainter { get; set; }
+
+    /// <summary>
+    /// Draws an indicator view's row of indicators (delegate or <see cref="DrawIndicatorsCore"/>): each in its
+    /// <see cref="SkUiIndicatorPaint.GetIndicatorBounds"/>, colored by how selected it is
+    /// (<see cref="SkUiIndicatorPaint.GetSelection"/>, <see cref="SkUiIndicatorPaint.GetColor"/>). It is drawn again while the
+    /// selection moves (a linked carousel scrolls), so keep it cheap.
+    /// </summary>
+    public void DrawIndicators(SKCanvas canvas, SkUiIndicatorPaint paint)
+    {
+        if (IndicatorPainter is { } painter)
+        {
+            painter(canvas, paint);
+            return;
+        }
+        DrawIndicatorsCore(canvas, paint);
+    }
+
+    /// <summary>Default indicator geometry: none (<see cref="DefaultSkUiLook"/> draws dots or a pill).</summary>
+    protected virtual void DrawIndicatorsCore(SKCanvas canvas, SkUiIndicatorPaint paint) { }
+
+    #endregion
+
     #region Image
 
     /// <summary>Optional image painter.</summary>

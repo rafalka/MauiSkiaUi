@@ -410,7 +410,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
     {
         base.CollectGestureRecognizers(recognizers);
-        if (_scroller.Orientation != ScrollOrientation.Neither)
+        if (_scroller.Orientation != ScrollOrientation.Neither && _scroller.IsUserScrollEnabled)
             recognizers.Add(_scroller.Gesture);
     }
 

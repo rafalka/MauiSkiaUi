@@ -256,6 +256,20 @@ Two owners share one helper, `SkUiPullToRefresh` (C2): the indicator (the public
 - **`PullReleased`** comes from the controller's release report, now per edge (`Action<SkUiScrollEdges, double>`); the pull-to-refresh owners keep only the top.
 - Effects that follow the events run on the UI thread, a frame behind the render thread during a bounce when the UI thread is busy; render-thread scroll links for them are not public yet.
 
+## Carousel (C4)
+
+`SkUiCarouselView` ([SkUiCarouselView.md](../controls/SkUiCarouselView.md)) is a horizontal or vertical `SkUiScrollView` around a panel of its own, not the virtual stack: carousel items have one length (the viewport minus the peek insets, or `ItemExtent`), so their positions are known without measuring, and looping needs slots rather than items (one item can show in several views at once).
+
+| Topic | How |
+| --- | --- |
+| **Slots** | The panel lays out `count × copies` slots (`copies` = 1 without looping), slot `s` showing item `s mod count`; slot `s` starts at `peekStart + s · stride` (`stride` = item length + spacing). Only the slots overlapping the viewport widened by one stride on either side are realized (more for an effect's `GetVisibleRange`), in item cells recycled per template. Logical offsets run from the start of the items; right to left they mirror the physical offset (`max − offset`), and frames are mirrored by the layout. |
+| **Snap points** | The scroller asks content that implements `ISkUiSnapPointSource` for the snap offsets between the lowest and highest of the current offset, the fling's projected end and the drag's origin, widened by a viewport, instead of lining up realized children; the panel lists slot `s` at `s · stride − align` (`align` from `SnapPointsAlignment` inside the insets), clamped without looping. The scroll view's render-thread spring does the rest (`MandatorySingle`: the next point from the drag's origin). |
+| **Position** | The item at the snap point, from the offset on every report (render-thread flings report each frame); a programmatic scroll holds the target until it ends or a drag takes over (the scroller's stop before the new scroll is not taken as a rest). Without looping, items whose clamped snap points coincide at the ends keep the current one. |
+| **Loop** | The strip has enough copies on either side of the middle one for the drift before moving back (0.75 of a cycle), the longest fling (`FlingMaximumVelocity` × the decay's travel), the viewport and the effect's range. Once the offset is 0.75 of a cycle from the middle copy, the panel renumbers its cells by whole cycles (each keeps its item) and moves the offset by the same cycles with `CorrectOffset`: a running fling, snap or drag goes on from the corrected offset (the shift travels with the frame that brings the moved cells), and the scroller's extent is restored by the relayout it asks for. Positions set take the shorter way round on the ring. |
+| **Changes** | Settings, viewport and item changes keep the current place (the fractional slot at the snap point); the scroller takes it after its next arrange: set when nothing moves, corrected (`CorrectOffset`) while a fling or drag runs, so appended items do not stop a fling. Cells whose slot shows another item or template are rebound or swapped; the others stay. |
+| **Effects** | Each cell's render properties carry an `SkUiItemEffectLink` (the position `−offset / stride + snap(s) / stride` and the effect), evaluated by the compositor into the cell's placement and opacity every frame, and the panel's `SortsChildrenByDepth` draws the cells back to front by the effect's depth ([RenderingPipeline.md](RenderingPipeline.md#retained-render-tree)). |
+| **Input** | `IsSwipeEnabled` is the controller's `IsUserScrollEnabled` (drags and the wheel); the keyboard and screen readers step item by item through the controller's `Stepper` (`ISkUiScrollStepper`). |
+
 ## FR-21 — Virtual / dynamic scroll layout (requirements)
 
 **Purpose:**
