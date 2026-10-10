@@ -14,13 +14,17 @@ internal static class SkUiIndicatorLayout
         return Math.Max(0, 1 - distance);
     }
 
+    /// <summary>The item of the indicator in <paramref name="slot"/>: counted on from <paramref name="first"/>, past the last item to the first when the selection wraps.</summary>
+    public static int Item(int slot, int first, int itemCount, bool wraps) =>
+        wraps && itemCount > 0 ? ((first + slot) % itemCount + itemCount) % itemCount : first + slot;
+
     /// <summary>Where the indicator in <paramref name="slot"/> starts along the row: the ones before it, each longer by its share of the selection.</summary>
     public static float Start(int slot, int first, float position, int itemCount, bool wraps, float size, float spacing, float extra)
     {
         var start = slot * (size + spacing);
         if (extra > 0)
             for (var before = 0; before < slot; before++)
-                start += extra * Selection(first + before, position, itemCount, wraps);
+                start += extra * Selection(Item(before, first, itemCount, wraps), position, itemCount, wraps);
         return start;
     }
 
@@ -39,13 +43,17 @@ internal static class SkUiIndicatorLayout
     /// <summary>How many indicators show for <paramref name="count"/> items.</summary>
     public static int Visible(int count, int maximumVisible) => Math.Max(0, Math.Min(count, maximumVisible));
 
-    /// <summary>The item of the first indicator shown: a window of <paramref name="visible"/> items around the selected one.</summary>
-    public static int First(int count, int visible, double position)
+    /// <summary>
+    /// The item of the first indicator shown: a window of <paramref name="visible"/> items around the selected one, kept
+    /// within the items; when the selection <paramref name="wraps"/> the window wraps too (it shows the last items and the
+    /// first ones together while the selection moves across the wrap).
+    /// </summary>
+    public static int First(int count, int visible, double position, bool wraps)
     {
         if (visible >= count || visible <= 0)
             return 0;
         var selected = (int)Math.Round(position);
-        return Math.Clamp(selected - visible / 2, 0, count - visible);
+        return wraps ? ((selected - visible / 2) % count + count) % count : Math.Clamp(selected - visible / 2, 0, count - visible);
     }
 
     /// <summary>The row's length for <paramref name="visible"/> indicators (the selected one <paramref name="extra"/> longer).</summary>
@@ -136,7 +144,7 @@ internal sealed class SkUiIndicatorModel(ISkUiTransitionHost host)
     {
         var visible = SkUiIndicatorLayout.Visible(Count, MaximumVisible);
         var displayed = Displayed;
-        var first = SkUiIndicatorLayout.First(Count, visible, displayed);
+        var first = SkUiIndicatorLayout.First(Count, visible, displayed, Wraps);
         var extra = (float)ExtraLength;
         var length = (float)SkUiIndicatorLayout.Length(visible, IndicatorSize, ResolvedSpacing, extra);
         var horizontal = Orientation == StackOrientation.Horizontal;
@@ -184,7 +192,7 @@ internal sealed class SkUiIndicatorModel(ISkUiTransitionHost host)
             if (distance < bestDistance)
             {
                 bestDistance = distance;
-                best = paint.First + slot;
+                best = paint.GetItem(slot);
             }
         }
         return best;

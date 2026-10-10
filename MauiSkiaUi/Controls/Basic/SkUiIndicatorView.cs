@@ -41,6 +41,7 @@ public class SkUiIndicatorView : SkUiView
     /// <summary>Bindable property for <see cref="Position"/> (two-way by default: a tap sets it).</summary>
     public static readonly BindableProperty PositionProperty = BindableProperty.Create(nameof(Position), typeof(int), typeof(SkUiIndicatorView), 0, BindingMode.TwoWay,
         validateValue: SkUiValidate.NonNegative,
+        coerceValue: (view, value) => ((SkUiIndicatorView)view).CoercePosition((int)value),
         propertyChanged: (view, old, value) => ((SkUiIndicatorView)view).OnPositionChanged((int)old, (int)value));
 
     /// <summary>Bindable property for <see cref="Count"/>.</summary>
@@ -91,10 +92,13 @@ public class SkUiIndicatorView : SkUiView
         validateValue: (_, value) => Enum.IsDefined((StackOrientation)value),
         propertyChanged: (view, _, value) => ((SkUiIndicatorView)view).OnSizeChanged(model => model.Orientation = (StackOrientation)value));
 
-    /// <summary>The selected item (0 = the first; default 0). A tap on an indicator sets it; a linked carousel keeps it at its position.</summary>
+    /// <summary>
+    /// The selected item (0 = the first; default 0). A tap on an indicator sets it; a linked carousel keeps it at its position.
+    /// Within the items: beyond the last it becomes the last (also when <see cref="Count"/> drops); without items it is kept.
+    /// </summary>
     public int Position { get => (int)GetValue(PositionProperty); set => SetValue(PositionProperty, value); }
 
-    /// <summary>How many indicators there are (default 0); set by <see cref="ItemsSource"/> or a linked carousel.</summary>
+    /// <summary>How many indicators there are (default 0); set by <see cref="ItemsSource"/> (0 when it is cleared) or a linked carousel.</summary>
     public int Count { get => (int)GetValue(CountProperty); set => SetValue(CountProperty, value); }
 
     /// <summary>
@@ -178,9 +182,15 @@ public class SkUiIndicatorView : SkUiView
         InvalidateSemantics();
     }
 
+    /// <summary>A position within the items (kept while there are none: a position bound before the items).</summary>
+    private object CoercePosition(int value) => Count > 0 && value >= Count ? Count - 1 : value;
+
     private void OnCountChanged(int value)
     {
         _model.Count = value;
+        // Set, not CoerceValue: MAUI's CoerceValue runs the coercion without applying its result.
+        if (value > 0 && Position >= value)
+            Position = value - 1;
         InvalidateMeasureOverride();
         InvalidateSemantics();
     }
@@ -212,8 +222,11 @@ public class SkUiIndicatorView : SkUiView
     {
         _carousel = carousel is null ? null : new WeakReference<SkUiCarouselView>(carousel);
         _model.IsDriven = carousel is not null;
-        if (carousel is null && _model.Drive(null))
+        if (carousel is not null)
+            return;
+        if (_model.Drive(null))
             InvalidatePaint();
+        _counter.Recount(); // the items of its own source again
     }
 
     /// <summary>The linked carousel's scroll position (fractional, in items) and whether it loops.</summary>
@@ -287,11 +300,13 @@ public class SkUiIndicatorView : SkUiView
     internal override bool TakesKeyboardFocus => true;
 
     /// <summary>Counts the items of <see cref="ItemsSource"/> into <see cref="Count"/>, listening to its changes without the source keeping the view alive.</summary>
+    /// <remarks>While a carousel is linked, it sets the count; the source is counted again when it unlinks.</remarks>
     private sealed class ItemsCounter(SkUiIndicatorView owner)
     {
         private readonly WeakReference<SkUiIndicatorView> _owner = new(owner);
         private INotifyCollectionChanged? _observed;
         private IEnumerable? _source;
+        private bool _counted; // the count is the source's: clearing the source clears it
 
         public void Observe(IEnumerable? source)
         {
@@ -306,7 +321,7 @@ public class SkUiIndicatorView : SkUiView
 
         private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs args) => Recount();
 
-        private void Recount()
+        public void Recount()
         {
             if (!_owner.TryGetTarget(out var owner))
             {
@@ -315,8 +330,17 @@ public class SkUiIndicatorView : SkUiView
                 _observed = null;
                 return;
             }
-            if (_source is null)
+            if (owner.Carousel is not null)
                 return;
+            if (_source is null)
+            {
+                // A source cleared: no items; a count the app set without a source stays.
+                if (_counted)
+                    owner.Count = 0;
+                _counted = false;
+                return;
+            }
+            _counted = true;
             owner.Count = _source switch
             {
                 ICollection collection => collection.Count,

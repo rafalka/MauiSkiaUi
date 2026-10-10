@@ -135,6 +135,71 @@ public class IndicatorViewTests
     }
 
     [Fact]
+    public void ThePositionStaysWithinTheItems()
+    {
+        var indicator = new SkUiIndicatorView { Position = 7 };
+        Assert.Equal(7, indicator.Position); // no items yet: kept for them
+        indicator.Count = 5;
+        Assert.Equal(4, indicator.Position);
+        indicator.Position = 11;
+        Assert.Equal(4, indicator.Position);
+        indicator.Count = 3;
+        Assert.Equal(2, indicator.Position);
+
+        var core = new SkUiCoreIndicatorView().SetCount(5).SetPosition(11);
+        Assert.Equal(4, core.Position);
+        core.SetCount(2);
+        Assert.Equal(1, core.Position);
+    }
+
+    [Fact]
+    public void AnUnlinkedIndicatorCountsItsOwnItemsAgain()
+    {
+        var indicator = new SkUiIndicatorView { ItemsSource = Items(10) };
+        var carousel = new SkUiCarouselView { ItemsSource = Items(3), IndicatorView = indicator };
+        Assert.Equal(3, indicator.Count);
+        carousel.IndicatorView = null;
+        Assert.Equal(10, indicator.Count);
+        indicator.ItemsSource = null;
+        Assert.Equal(0, indicator.Count);
+        // A count set without a source stays.
+        indicator.Count = 4;
+        indicator.ItemsSource = null;
+        Assert.Equal(4, indicator.Count);
+    }
+
+    [Fact]
+    public void TheWindowOfAWrappingSelectionWrapsToo()
+    {
+        SkUiIndicatorPaint? drawn = null;
+        var look = SkUiLook.Current;
+        look.IndicatorPainter = (_, paint) => drawn = paint;
+        try
+        {
+            var indicator = new SkUiIndicatorView { Count = 10, MaximumVisible = 5 };
+            using var surface = new SkUiTestSurface(indicator, 200, 20);
+            // Halfway from the last item to the first: both show, sharing the selection.
+            indicator.Follow(9.5, wraps: true);
+            surface.Frame(0);
+            var paint = drawn!.Value;
+            Assert.Equal([8, 9, 0, 1, 2], Enumerable.Range(0, paint.Count).Select(paint.GetItem));
+            Assert.Equal(0.5f, paint.GetSelection(1), 3);
+            Assert.Equal(0.5f, paint.GetSelection(2), 3);
+            Assert.Equal(1f, Enumerable.Range(0, paint.Count).Sum(paint.GetSelection), 3);
+            // A tap on the indicator after the last item selects the first item.
+            var center = paint.GetIndicatorBounds(2);
+            var id = 170_999L;
+            indicator.Touch(new(id, SkUiTouchAction.Pressed, new Point(center.MidX, 10), TimeSpan.FromSeconds(1)));
+            indicator.Touch(new(id, SkUiTouchAction.Released, new Point(center.MidX, 10), TimeSpan.FromSeconds(1.02)));
+            Assert.Equal(0, indicator.Position);
+        }
+        finally
+        {
+            look.IndicatorPainter = null;
+        }
+    }
+
+    [Fact]
     public void ItemsSourceCountsTheItems()
     {
         var items = Items(3);

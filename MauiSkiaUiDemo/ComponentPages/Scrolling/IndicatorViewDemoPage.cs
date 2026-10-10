@@ -32,7 +32,8 @@ public sealed class IndicatorViewDemoPage : ComponentDemoPage
 
         Number(nameof(IndicatorView.Count), 0, 12, 5, value => { _skia.Count = (int)value; _native.Count = (int)value; },
             () => _skia.Count, () => _native.Count, whole: true);
-        Number(nameof(IndicatorView.Position), 0, 11, 0, value => { _skia.Position = (int)value; _native.Position = (int)value; },
+        // Within the Count range's middle, where the drawn view keeps a position (it stays within the items, MAUI's does not).
+        Number(nameof(IndicatorView.Position), 0, 9, 0, value => { _skia.Position = (int)value; _native.Position = (int)value; },
             () => _skia.Position, () => _native.Position, whole: true);
         Number(nameof(IndicatorView.IndicatorSize), 2, 24, 6, value => { _skia.IndicatorSize = value; _native.IndicatorSize = value; },
             () => _skia.IndicatorSize, () => _native.IndicatorSize, whole: true);

@@ -16,7 +16,10 @@ public class SkUiCoreIndicatorView : SkUiCoreNode
     public SkUiCoreIndicatorView() =>
         _model = new SkUiIndicatorModel(this) { IndicatorColor = SkUiColors.TrackOff, SelectedColor = SkUiColors.Accent };
 
-    /// <summary>The selected item (0 = the first; default 0). A tap on an indicator sets it.</summary>
+    /// <summary>
+    /// The selected item (0 = the first; default 0). A tap on an indicator sets it. Within the items: beyond the last it becomes
+    /// the last (also when <see cref="Count"/> drops); without items it is kept.
+    /// </summary>
     public int Position { get => _model.Position; set => SetPosition(value); }
 
     /// <summary>How many indicators there are (default 0).</summary>
@@ -50,6 +53,8 @@ public class SkUiCoreIndicatorView : SkUiCoreNode
     public SkUiCoreIndicatorView SetPosition(int value)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(value);
+        if (_model.Count > 0 && value >= _model.Count)
+            value = _model.Count - 1;
         var previous = _model.Position;
         if (!SetProperty(ref _model.Position, value, nameof(Position)))
             return this;
@@ -65,6 +70,8 @@ public class SkUiCoreIndicatorView : SkUiCoreNode
         ArgumentOutOfRangeException.ThrowIfNegative(value);
         if (!SetProperty(ref _model.Count, value, nameof(Count)))
             return this;
+        if (value > 0 && _model.Position >= value)
+            SetPosition(value - 1);
         InvalidateMeasure();
         InvalidateSemantics();
         return this;

@@ -180,7 +180,10 @@ public readonly record struct SkUiRefreshPullFeedback(double Opacity, double Rot
 /// </summary>
 /// <param name="Bounds">The row's rectangle.</param>
 /// <param name="Count">How many indicators show (at most the view's <c>MaximumVisible</c>).</param>
-/// <param name="First">The item of the first indicator shown (indicators show a window of the items when there are more).</param>
+/// <param name="First">
+/// The item of the first indicator shown (indicators show a window of the items when there are more; with <see cref="Wraps"/>
+/// the window runs on past the last item to the first: <see cref="GetItem"/>).
+/// </param>
 /// <param name="Position">
 /// The selected item, fractional while the selection moves (a linked carousel scrolls, a transition runs), in items; with
 /// <see cref="Wraps"/>, past the last item it moves on to the first.
@@ -203,7 +206,10 @@ public readonly record struct SkUiIndicatorPaint(
     /// How selected the indicator in <paramref name="slot"/> (0 = the first shown) is, 0–1: 1 for the selected one, shared by
     /// two neighbors while the selection moves between them (the weights of all indicators add up to 1).
     /// </summary>
-    public float GetSelection(int slot) => SkUiIndicatorLayout.Selection(First + slot, Position, ItemCount, Wraps);
+    public float GetSelection(int slot) => SkUiIndicatorLayout.Selection(GetItem(slot), Position, ItemCount, Wraps);
+
+    /// <summary>The item of the indicator in <paramref name="slot"/> (0 = the first shown).</summary>
+    public int GetItem(int slot) => SkUiIndicatorLayout.Item(slot, First, ItemCount, Wraps);
 
     /// <summary>The rectangle of the indicator in <paramref name="slot"/> (0 = the first shown), inside <see cref="Bounds"/>.</summary>
     public SKRect GetIndicatorBounds(int slot)
