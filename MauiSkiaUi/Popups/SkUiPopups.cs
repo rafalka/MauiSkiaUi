@@ -71,10 +71,3 @@ public sealed class SkUiActionSheetPopupPresenter : ISkUiPopupPresenter
             list.Complete(chosenIndex);
     }
 }
-
-/// <summary>Options of <c>UseSkiaUi</c>.</summary>
-public sealed class SkUiOptions
-{
-    /// <summary>The app-wide popup presenter (<see cref="SkUiPopups.Presenter"/>); <c>null</c>: MAUI's action sheet.</summary>
-    public ISkUiPopupPresenter? PopupPresenter { get; set; }
-}

@@ -230,4 +230,54 @@ public class LookAndColorSchemeTests
             return builder.Detach();
         }
     }
+
+    [Fact]
+    public void DefaultLookIsTheSameOnEveryPlatformAndPlatformLooksMimicTheirs()
+    {
+        var common = new DefaultSkUiLook();
+        Assert.Equal(SkUiPickerFieldStyle.Outline, common.DefaultPickerFieldStyle);
+        Assert.Equal(SkUiPressEffect.Dim, common.PressEffect);
+        Assert.Equal(LayoutOptions.Center, common.PopupVerticalOptions);
+
+        var android = new AndroidSkUiLook();
+        Assert.Equal(SkUiPickerFieldStyle.Underline, android.DefaultPickerFieldStyle);
+        Assert.Equal(SkUiPressEffect.Ripple, android.PressEffect);
+        // The default look's options still override a platform look's choices.
+        android.PressEffect = SkUiPressEffect.Dim;
+        Assert.Equal(SkUiPressEffect.Dim, android.PressEffect);
+
+        // Headless runs are no phone: the iOS look's sheet is for phones only.
+        Assert.Equal(LayoutOptions.Center, IosSkUiLook.Instance.PopupVerticalOptions);
+        Assert.Equal(SkUiPickerFieldStyle.Outline, IosSkUiLook.Instance.DefaultPickerFieldStyle);
+        Assert.Equal(SkUiPickerFieldStyle.Outline, MacSkUiLook.Instance.DefaultPickerFieldStyle);
+        Assert.Equal(SkUiPickerFieldStyle.Outline, WindowsSkUiLook.Instance.DefaultPickerFieldStyle);
+    }
+
+    [Fact]
+    public void ForCurrentPlatformPicksTheRunningPlatformsLook()
+    {
+        // The headless suite runs on net10.0 (macOS, Linux or Windows hosts): Windows' look there, the default look elsewhere.
+        var expected = OperatingSystem.IsWindows() ? WindowsSkUiLook.Instance : DefaultSkUiLook.Instance;
+        Assert.Same(expected, DefaultSkUiLook.ForCurrentPlatform());
+        Assert.NotSame(DefaultSkUiLook.Instance, AndroidSkUiLook.Instance);
+    }
+
+    [Fact]
+    public void PickerFieldDefaultStyleDrawsTheLooksStyle()
+    {
+        // An outline has a left edge half way down the field; an underline does not.
+        Assert.True(HasLeftEdge(new DefaultSkUiLook()));
+        Assert.False(HasLeftEdge(new AndroidSkUiLook()));
+        Assert.True(HasLeftEdge(new AndroidSkUiLook { PickerFieldStyle = SkUiPickerFieldStyle.Outline }));
+
+        static bool HasLeftEdge(SkUiLook look)
+        {
+            using var bitmap = new SKBitmap(200, 44);
+            using var canvas = new SKCanvas(bitmap);
+            canvas.Clear(SKColors.White);
+            look.DrawPickerField(canvas, new SkUiPickerFieldPaint(new SKRect(0, 0, 200, 44), new SKRect(168, 0, 200, 44), SKColors.Teal,
+                SKColors.Black, SKColors.Black, 0, 0, default, false, true, false));
+            return bitmap.GetPixel(0, 22) != SKColors.White;
+        }
+    }
 }

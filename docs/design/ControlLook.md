@@ -60,11 +60,12 @@ public class SkUiLook
     public void DrawIndicators(SKCanvas canvas, SkUiIndicatorPaint paint) { … } // → IndicatorPainter ?? DrawIndicatorsCore
     public virtual double DefaultIndicatorSpacing => 8;    // and GetSelectedIndicatorExtraLength(size, shape) (a pill's room)
     // Picker fields (C6): chrome and chevron behind the control's text; Focused / Open animate (FieldFocus, PickerOpen).
-    // DefaultSkUiLook: PickerFieldStyle (underline on Android, outline elsewhere, filled, none).
+    // DefaultSkUiLook: PickerFieldStyle (Default → DefaultPickerFieldStyle: outline; underline, filled, none);
+    // AndroidSkUiLook: underline.
     public void DrawPickerField(SKCanvas canvas, SkUiPickerFieldPaint field) { … } // → PickerFieldPainter ?? DrawPickerFieldCore
     public virtual Thickness PickerFieldPadding => new(12, 8); // and PickerChevronWidth (32), DefaultPickerMinimumHeight (44)
     // Popups of drawn controls (C6): where they go and what they look like; the app's presenter shows them.
-    public virtual SkUiPopupPlacement DefaultPopupPlacement => SkUiPopupPlacement.Anchored; // DefaultSkUiLook: the platform's
+    public virtual SkUiPopupPlacement DefaultPopupPlacement => SkUiPopupPlacement.Anchored; // DefaultSkUiLook: the device's
     public virtual Thickness PopupMargin => new(8);         // and PopupAnchorGap (4), PopupPreferredWidth (320),
                                                            // PopupHorizontalOptions / PopupVerticalOptions, PopupItemHeight (44),
                                                            // PopupItemPadding, PopupHighlightColor, GetPopupOverlayColor(placement)
@@ -205,11 +206,11 @@ Looks do **not** replace `PaintBackground` / `OnPaintContent` hooks; they are wh
 
 | Pack | Intent |
 | --- | --- |
-| `DefaultSkUiLook` | Current cross-platform geometry and sizes (the former `SkUiChrome` painters + hardcoded measures) |
-| Platform-inspired packs (later) | Android-like, iOS-like, etc. — approximate shapes **and** typical default sizes |
-| App / library packs | Brand-specific subclasses or delegate replacements |
+| `DefaultSkUiLook` | Cross-platform geometry and sizes (the former `SkUiChrome` painters + hardcoded measures), **the same on every platform** by default |
+| Platform looks: `AndroidSkUiLook`, `IosSkUiLook`, `MacSkUiLook`, `WindowsSkUiLook` | Subclasses of `DefaultSkUiLook` that mimic one platform each; they draw the same wherever they run. `DefaultSkUiLook.ForCurrentPlatform()` returns the one for the platform the app runs on (shared instances; `UseSkiaUi(options => options.Look = …)` or `SkUiLook.Current` makes it current). Basic so far: Android underlines picker fields and ripples presses, iOS opens window popups as a bottom sheet on phones; Mac and Windows match the default look. Filling them in is phase L of the [plan](ImplementationPlan.md#phase-l--platform-looks) |
+| App / library packs | Brand-specific subclasses (of the default look or a platform look) or delegate replacements |
 
-Shipping every OS-faithful pack is **not** required for FR-18 v1; v1 ships the extensibility model + default look (including overridable default sizes).
+Platform-specific choices belong in the platform looks, not in `DefaultSkUiLook`: an option of the default look (such as `PickerFieldStyle`) resolves its `Default` value through a virtual (`DefaultPickerFieldStyle`) the platform looks override. Choices that depend on the device rather than the platform (a phone, a tablet, a desktop) can stay in the default look (`DevicePopupPlacement`). Exceptions, still in the default look: the overscroll and pull-to-refresh defaults follow the platform (to move in phase L).
 
 ## Core
 

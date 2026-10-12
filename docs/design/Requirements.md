@@ -401,7 +401,7 @@ Design details: [ControlLook.md](ControlLook.md).
 - [ ] Optional resolution: control-local look → tree/host look → app current look → `DefaultSkUiLook` (global `Current` shipped; per-tree deferred).
 - [x] Changing the active look raises `CurrentChanged`; apps invalidate measure/paint (automatic tree walk deferred).
 - [x] Document naming clearly vs FR-12 / FR-19; tests cover swap full look + override a single painter and a single default size.
-- [ ] Built-in platform-inspired packs may ship later; FR-18 v1 requires the **extensibility model** + default look (including overridable default sizes), not full OS parity.
+- [ ] Built-in platform-inspired packs may ship later; FR-18 v1 requires the **extensibility model** + default look (including overridable default sizes), not full OS parity. *(Partial: `AndroidSkUiLook`, `IosSkUiLook`, `MacSkUiLook`, `WindowsSkUiLook` and `DefaultSkUiLook.ForCurrentPlatform()` ship with the picker's platform choices; the default look is the same on every platform. The rest is phase L of the [plan](ImplementationPlan.md#phase-l--platform-looks).)*
 - [x] Gallery sample page for look packs (`LookAndColorSchemePage`).
 
 ### FR-19 — Color scheme (shared default palette; not MAUI styles / not look)

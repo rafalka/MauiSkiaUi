@@ -131,7 +131,7 @@ public enum SkUiIndicatorStyle
 /// <summary>How <see cref="DefaultSkUiLook"/> draws picker fields (<see cref="DefaultSkUiLook.PickerFieldStyle"/>).</summary>
 public enum SkUiPickerFieldStyle
 {
-    /// <summary>The platform's: an underline on Android (Material's), an outline elsewhere (iOS, Mac Catalyst, Windows).</summary>
+    /// <summary>The look's (<see cref="DefaultSkUiLook.DefaultPickerFieldStyle"/>): an outline; Material's underline in <see cref="AndroidSkUiLook"/>.</summary>
     Default,
     /// <summary>A line under the field, thicker and in the accent color while focused or open.</summary>
     Underline,

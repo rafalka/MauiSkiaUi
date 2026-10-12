@@ -782,12 +782,12 @@ public class SkUiLook
         DrawPickerFieldCore(canvas, field);
     }
 
-    /// <summary>Default picker field: none (<see cref="DefaultSkUiLook"/> draws the platform's style).</summary>
+    /// <summary>Default picker field: none (<see cref="DefaultSkUiLook"/> draws <see cref="DefaultSkUiLook.PickerFieldStyle"/>).</summary>
     protected virtual void DrawPickerFieldCore(SKCanvas canvas, SkUiPickerFieldPaint field) { }
 
     /// <summary>
     /// Where pickers that do not set their own <c>PopupPlacement</c> open their list (default <see cref="SkUiPopupPlacement.Anchored"/>;
-    /// <see cref="DefaultSkUiLook"/> follows the platform and idiom).
+    /// <see cref="DefaultSkUiLook"/> follows the device: anchored on desktops and tablets, a dialog on phones).
     /// </summary>
     public virtual SkUiPopupPlacement DefaultPopupPlacement => SkUiPopupPlacement.Anchored;
 

@@ -17,6 +17,7 @@ public sealed class LookAndColorSchemePage : ContentPage
     private readonly Picker _accentPicker;
     private readonly Picker _pressPicker;
     private readonly Picker _indicatorPicker;
+    private readonly Picker _platformLookPicker;
     private readonly Picker _pickerFieldPicker;
     private readonly Picker _popupPlacementPicker;
     private readonly Picker _motionPicker;
@@ -30,6 +31,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         public static int Pack;
         public static int Press;
         public static int Indicator;
+        public static int PlatformLook;
         public static int PickerField;
         public static int PopupPlacement;
         public static int Motion;
@@ -43,6 +45,16 @@ public sealed class LookAndColorSchemePage : ContentPage
     private const double WidePreviewBreakpoint = 600;
     private bool _applying;
     private bool _syncingSizes;
+
+    /// <summary>The platform looks whose picker defaults the demo's look can take (Common: none, the default look's).</summary>
+    private static readonly (string Name, DefaultSkUiLook? Look)[] PlatformLooks =
+    [
+        ("Common (default)", null),
+        ("Android", AndroidSkUiLook.Instance),
+        ("iOS", IosSkUiLook.Instance),
+        ("Mac", MacSkUiLook.Instance),
+        ("Windows", WindowsSkUiLook.Instance)
+    ];
 
     private static readonly (string Name, Color Value)[] AccentPresets =
     [
@@ -132,6 +144,17 @@ public sealed class LookAndColorSchemePage : ContentPage
         };
         _indicatorPicker.SelectedIndexChanged += (_, _) => Apply();
 
+        _platformLookPicker = new Picker
+        {
+            Title = "Platform look",
+            ItemsSource = PlatformLooks.Select(platform => platform.Name).ToList(),
+            SelectedIndex = Settings.PlatformLook,
+            AutomationId = "LookPlatformPicker",
+            TextColor = DemoColors.Ink,
+            FontFamily = DemoFonts.OpenSansRegular
+        };
+        _platformLookPicker.SelectedIndexChanged += (_, _) => Apply();
+
         _pickerFieldPicker = new Picker
         {
             Title = "Picker field style",
@@ -183,6 +206,7 @@ public sealed class LookAndColorSchemePage : ContentPage
             _lookPicker.SelectedIndex = 0;
             _pressPicker.SelectedIndex = 0;
             _indicatorPicker.SelectedIndex = 0;
+            _platformLookPicker.SelectedIndex = 0;
             _pickerFieldPicker.SelectedIndex = 0;
             _popupPlacementPicker.SelectedIndex = 0;
             _motionPicker.SelectedIndex = 0;
@@ -238,9 +262,11 @@ public sealed class LookAndColorSchemePage : ContentPage
                     "sliding with the carousel's scrolling."),
                 _indicatorPicker,
                 Section("Pickers"),
-                Caption("How picker fields draw (Default: the platform's, an underline on Android and an outline elsewhere) and " +
-                    "where pickers that do not set PopupPlacement open their list (Default: anchored on desktops and tablets, in " +
-                    "the window on phones)."),
+                Caption("The platform look whose picker defaults apply (Common: the default look, the same on every platform; " +
+                    "Android: underlined fields; iOS: lists in a sheet at the bottom on phones), how picker fields draw (Default: " +
+                    "the platform look's, an outline in the common look) and where pickers that do not set PopupPlacement open " +
+                    "their list (Default: anchored on desktops and tablets, in the window on phones)."),
+                _platformLookPicker,
                 _pickerFieldPicker,
                 _popupPlacementPicker,
                 Section("State-change transitions"),
@@ -543,6 +569,8 @@ public sealed class LookAndColorSchemePage : ContentPage
         Settings.Pack = _lookPicker.SelectedIndex;
         Settings.Press = _pressPicker.SelectedIndex;
         Settings.Indicator = _indicatorPicker.SelectedIndex;
+        Settings.PlatformLook = Math.Max(0, _platformLookPicker.SelectedIndex);
+        _look.PlatformLook = PlatformLooks[Settings.PlatformLook].Look;
         Settings.PickerField = Math.Max(0, _pickerFieldPicker.SelectedIndex);
         Settings.PopupPlacement = Math.Max(0, _popupPlacementPicker.SelectedIndex);
         _look.PickerFieldStyle = (SkUiPickerFieldStyle)Settings.PickerField;
@@ -562,7 +590,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         RebuildAllPreviews();
         _status.Text =
             $"Scheme: {SkUiColorScheme.Current.GetType().Name} · Accent {ToHex(SkUiColorScheme.Current.Accent)} · " +
-            $"Look: {_look.Style} · Press: {_look.PressEffect} · Indicators: {_look.IndicatorStyle} · Picker fields: {_look.PickerFieldStyle} · Transitions: {(SkUiMotion.IsMotionReduced ? "off" : _look.TransitionScale == 1 ? "normal" : "slow")}";
+            $"Look: {_look.Style} · Press: {_look.PressEffect} · Indicators: {_look.IndicatorStyle} · Platform: {PlatformLooks[Settings.PlatformLook].Name} · Picker fields: {_look.PickerFieldStyle} · Transitions: {(SkUiMotion.IsMotionReduced ? "off" : _look.TransitionScale == 1 ? "normal" : "slow")}";
     }
 
     private void SyncSizeEntriesFromLook()

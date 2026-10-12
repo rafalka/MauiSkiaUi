@@ -3,7 +3,9 @@ using SkiaSharp;
 namespace MauiSkiaUi;
 
 /// <summary>
-/// Built-in control look: current cross-platform geometry and intrinsic sizes (former <c>SkUiChrome</c>).
+/// Built-in control look: cross-platform geometry and intrinsic sizes (former <c>SkUiChrome</c>), the same on every platform;
+/// <see cref="AndroidSkUiLook"/>, <see cref="IosSkUiLook"/>, <see cref="MacSkUiLook"/> and <see cref="WindowsSkUiLook"/> mimic
+/// one platform each (<see cref="ForCurrentPlatform"/>).
 /// Subclass or set painter/measure delegates to customize without replacing every control type.
 /// State changes animate (<see cref="GetTransitionCore"/>): switch thumbs slide, check marks draw in, radio dots grow,
 /// pressed buttons dim or ripple (<see cref="PressEffect"/>) and slider thumbs glide to tapped values.
@@ -12,6 +14,19 @@ public class DefaultSkUiLook : SkUiLook
 {
     /// <summary>Shared default look used as the process <see cref="SkUiLook.Current"/>.</summary>
     public static DefaultSkUiLook Instance { get; } = new();
+
+    /// <summary>
+    /// The shared look that mimics the platform the app runs on: <see cref="AndroidSkUiLook"/>, <see cref="IosSkUiLook"/>,
+    /// <see cref="MacSkUiLook"/> (Mac Catalyst) or <see cref="WindowsSkUiLook"/>; <see cref="Instance"/> elsewhere (headless).
+    /// The default look is the same on every platform; set this as <see cref="SkUiLook.Current"/> (or
+    /// <c>UseSkiaUi(options => options.Look = DefaultSkUiLook.ForCurrentPlatform())</c>) for the platform's.
+    /// </summary>
+    public static DefaultSkUiLook ForCurrentPlatform() =>
+        OperatingSystem.IsAndroid() ? AndroidSkUiLook.Instance
+        : OperatingSystem.IsMacCatalyst() ? MacSkUiLook.Instance
+        : OperatingSystem.IsIOS() ? IosSkUiLook.Instance
+        : OperatingSystem.IsWindows() ? WindowsSkUiLook.Instance
+        : Instance;
 
     /// <summary>Button and ImageButton press feedback (default <see cref="SkUiPressEffect.Dim"/>). Repaint after changing it.</summary>
     public SkUiPressEffect PressEffect { get; set; } = SkUiPressEffect.Dim;
@@ -45,31 +60,34 @@ public class DefaultSkUiLook : SkUiLook
     public override SkUiRefreshStyle DefaultRefreshStyle => RefreshStyle == SkUiRefreshStyle.Default ? SkUiRefreshStyle.Overlay : RefreshStyle;
 
     /// <summary>
-    /// How picker fields draw (default <see cref="SkUiPickerFieldStyle.Default"/>: the platform's,
-    /// <see cref="PlatformPickerFieldStyle"/>). Call <see cref="SkUiLook.NotifyChanged"/> after changing it.
+    /// How picker fields draw (default <see cref="SkUiPickerFieldStyle.Default"/>: the look's,
+    /// <see cref="DefaultPickerFieldStyle"/>). Call <see cref="SkUiLook.NotifyChanged"/> after changing it.
     /// </summary>
     public SkUiPickerFieldStyle PickerFieldStyle { get; set; }
 
-    /// <summary>The platform's picker field: Android's underline (Material), an outline on iOS, Mac Catalyst and Windows.</summary>
-    public static SkUiPickerFieldStyle PlatformPickerFieldStyle => OperatingSystem.IsAndroid() ? SkUiPickerFieldStyle.Underline : SkUiPickerFieldStyle.Outline;
+    /// <summary>
+    /// The picker field a <see cref="SkUiPickerFieldStyle.Default"/> <see cref="PickerFieldStyle"/> draws: an outline, the same
+    /// on every platform. Platform looks draw their platform's (<see cref="AndroidSkUiLook"/>: Material's underline).
+    /// </summary>
+    public virtual SkUiPickerFieldStyle DefaultPickerFieldStyle => SkUiPickerFieldStyle.Outline;
 
     /// <summary>
     /// Where pickers that do not set their own placement open their list (default <see cref="SkUiPopupPlacement.Default"/>: the
-    /// platform's, <see cref="PlatformPopupPlacement"/>).
+    /// device's, <see cref="DevicePopupPlacement"/>).
     /// </summary>
     public SkUiPopupPlacement PopupPlacement { get; set; }
 
     /// <summary>
-    /// The platform's popup placement: anchored as a combo box on Mac Catalyst, Windows and tablets; on phones a dialog centered
-    /// in the window (as Android's spinner dialog).
+    /// The device's popup placement: anchored as a combo box on desktops (Mac Catalyst, Windows) and tablets; on phones a dialog
+    /// in the window, where a long list has room.
     /// </summary>
-    public static SkUiPopupPlacement PlatformPopupPlacement => IsPhone ? SkUiPopupPlacement.Window : SkUiPopupPlacement.Anchored;
+    public static SkUiPopupPlacement DevicePopupPlacement => IsPhone ? SkUiPopupPlacement.Window : SkUiPopupPlacement.Anchored;
 
     /// <inheritdoc />
-    public override SkUiPopupPlacement DefaultPopupPlacement => PopupPlacement == SkUiPopupPlacement.Default ? PlatformPopupPlacement : PopupPlacement;
+    public override SkUiPopupPlacement DefaultPopupPlacement => PopupPlacement == SkUiPopupPlacement.Default ? DevicePopupPlacement : PopupPlacement;
 
     /// <summary>Whether the app runs on a phone (Android or iOS; headless runs, without a device, are not).</summary>
-    private static bool IsPhone =>
+    protected static bool IsPhone =>
         (OperatingSystem.IsAndroid() || (OperatingSystem.IsIOS() && !OperatingSystem.IsMacCatalyst())) && DeviceInfo.Current.Idiom == DeviceIdiom.Phone;
 
     /// <summary>How indicator views draw (default <see cref="SkUiIndicatorStyle.Dots"/>). Call <see cref="SkUiLook.NotifyChanged"/> after changing it.</summary>
@@ -452,7 +470,7 @@ public class DefaultSkUiLook : SkUiLook
         var bounds = field.Bounds;
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return;
-        var style = PickerFieldStyle == SkUiPickerFieldStyle.Default ? PlatformPickerFieldStyle : PickerFieldStyle;
+        var style = PickerFieldStyle == SkUiPickerFieldStyle.Default ? DefaultPickerFieldStyle : PickerFieldStyle;
         var focus = field.IsEnabled ? Math.Clamp(field.Focused, 0, 1) : 0;
         var idle = field.IsPointerOver && field.IsEnabled ? Mix(field.Border, field.Foreground, 0.35f) : field.Border;
         var line = Mix(idle, field.Accent, focus);

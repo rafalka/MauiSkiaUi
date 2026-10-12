@@ -41,6 +41,21 @@ internal sealed class DemoConfigurableLook : DefaultSkUiLook
     /// <summary>Slows every state-change transition down by this factor (1 = the default look's timing).</summary>
     public double TransitionScale { get; set; } = 1;
 
+    /// <summary>
+    /// A platform look whose picker defaults (field style, popup alignment) this look takes; <c>null</c>: the default look's,
+    /// the same on every platform.
+    /// </summary>
+    public DefaultSkUiLook? PlatformLook { get; set; }
+
+    /// <inheritdoc />
+    public override SkUiPickerFieldStyle DefaultPickerFieldStyle => PlatformLook?.DefaultPickerFieldStyle ?? base.DefaultPickerFieldStyle;
+
+    /// <inheritdoc />
+    public override LayoutOptions PopupHorizontalOptions => PlatformLook?.PopupHorizontalOptions ?? base.PopupHorizontalOptions;
+
+    /// <inheritdoc />
+    public override LayoutOptions PopupVerticalOptions => PlatformLook?.PopupVerticalOptions ?? base.PopupVerticalOptions;
+
     /// <inheritdoc />
     protected override SkUiTransition GetTransitionCore(SkUiTransitionKind kind)
     {
