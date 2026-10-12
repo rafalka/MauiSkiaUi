@@ -54,6 +54,8 @@ internal sealed class SkUiSemanticsNode
     public bool IsEnabled = true;
     public SkUiSemanticsActions Actions;
     public bool IsHorizontal;
+    /// <summary>Whether a combo box's list is open; <c>null</c> when the element does not expand.</summary>
+    public bool? IsExpanded;
     public SemanticHeadingLevel HeadingLevel;
     public string? AutomationId;
     public bool IsFocusable;
@@ -70,7 +72,7 @@ internal sealed class SkUiSemanticsNode
     public bool ContentEquals(SkUiSemanticsNode other) =>
         Id == other.Id && ReferenceEquals(Source, other.Source) && Bounds == other.Bounds && Role == other.Role && Label == other.Label
         && Hint == other.Hint && Value == other.Value && CheckState == other.CheckState && Range == other.Range && IsEnabled == other.IsEnabled
-        && Actions == other.Actions && IsHorizontal == other.IsHorizontal && HeadingLevel == other.HeadingLevel
+        && Actions == other.Actions && IsHorizontal == other.IsHorizontal && IsExpanded == other.IsExpanded && HeadingLevel == other.HeadingLevel
         && AutomationId == other.AutomationId && IsFocusable == other.IsFocusable && IsFocused == other.IsFocused && IsNative == other.IsNative;
 
     /// <summary>The value read for a range element without an explicit one: a percentage (as native sliders).</summary>
@@ -297,7 +299,7 @@ internal sealed class SkUiSemanticsTree
                 {
                     var actionable = (_info.Actions & (SkUiSemanticsActions.Activate | SkUiSemanticsActions.LongPress)) != 0
                         || _info.Role is SkUiSemanticsRole.Button or SkUiSemanticsRole.CheckBox or SkUiSemanticsRole.Switch
-                            or SkUiSemanticsRole.RadioButton or SkUiSemanticsRole.Slider;
+                            or SkUiSemanticsRole.RadioButton or SkUiSemanticsRole.Slider or SkUiSemanticsRole.ComboBox;
                     if (absorber is not null && !actionable && _info.Role != SkUiSemanticsRole.ScrollView)
                     {
                         // Read as part of the actionable (or described) ancestor.
@@ -379,6 +381,7 @@ internal sealed class SkUiSemanticsTree
                 IsEnabled = info.IsEnabled,
                 Actions = info.Actions,
                 IsHorizontal = info.IsHorizontal,
+                IsExpanded = info.IsExpanded,
                 HeadingLevel = info.HeadingLevel,
                 AutomationId = info.AutomationId,
                 IsFocusable = !native && source.IsKeyboardFocusable,

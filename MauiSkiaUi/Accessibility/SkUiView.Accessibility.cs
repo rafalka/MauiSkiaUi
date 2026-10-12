@@ -123,6 +123,9 @@ public partial class SkUiView : ISkUiAccessibleNode
     /// <summary>Whether the view takes keyboard focus when visible, enabled and a tab stop (interactive views do).</summary>
     internal virtual bool TakesKeyboardFocus => WantsSingleTap;
 
+    /// <summary>Whether the look's focus ring is drawn while the view has keyboard focus from the keyboard (a popup's list shows its own highlight instead).</summary>
+    internal virtual bool ShowsFocusRing => true;
+
     /// <summary>Corner radii of the focus ring (default: the press effect's).</summary>
     internal virtual CornerRadius FocusRingCornerRadii => PressEffectCornerRadii;
 
@@ -204,7 +207,7 @@ public partial class SkUiView : ISkUiAccessibleNode
     {
         if (IsFocused != focused)
             ((IView)this).IsFocused = focused; // raises Focused / Unfocused and moves to the Focused / Unfocused visual state
-        var ring = focused && ringVisible;
+        var ring = focused && ringVisible && ShowsFocusRing;
         if (_focusRingVisible == ring)
             return;
         _focusRingVisible = ring;

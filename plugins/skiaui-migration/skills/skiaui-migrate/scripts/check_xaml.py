@@ -71,8 +71,9 @@ REPLACE = {
     "RefreshView": "SkUiRefreshView (around a list, SkUiCollectionView's own IsPullToRefreshEnabled also works)",
     "CarouselView": "SkUiCarouselView (ItemsLayout settings become carousel properties: Orientation, ItemSpacing, SnapPointsType, SnapPointsAlignment)",
     "IndicatorView": "SkUiIndicatorView (IndicatorTemplate is not supported: the look draws the indicators)",
+    "Picker": "SkUiPicker (its list opens on the app's popup system: register a presenter with UseSkiaUi(options => options.PopupPresenter = ...) or SkUiPopups.Presenter; without one, MAUI's action sheet)",
 }
-WRAP = {"Entry", "Editor", "SearchBar", "Picker", "DatePicker", "TimePicker", "WebView", "HybridWebView", "BlazorWebView", "Map"}
+WRAP = {"Entry", "Editor", "SearchBar", "DatePicker", "TimePicker", "WebView", "HybridWebView", "BlazorWebView", "Map"}
 NO_DRAWN = {
     "CollectionView": "use sk:SkUiCollectionView (SkiaUi's own API: convert member by member, see references/collection-view.md); reorderable lists (CanReorderItems): keep the list outside the drawn tree",
     "ListView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",

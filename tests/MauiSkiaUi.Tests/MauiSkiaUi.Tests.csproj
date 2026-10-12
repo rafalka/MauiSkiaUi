@@ -34,5 +34,7 @@
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="$(SkiaSharpVersion)" />
     <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" Version="$(HarfBuzzSharpVersion)" />
     <ProjectReference Include="../../MauiSkiaUi/MauiSkiaUi.csproj" AdditionalProperties="SKUI_ENABLE_DIAGNOSTICS=true" />
+    <!-- SkiaUi.Maui.CommunityToolkit (the samples' and the demo's popups). -->
+    <ProjectReference Include="../../MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj" AdditionalProperties="SKUI_ENABLE_DIAGNOSTICS=true" />
   </ItemGroup>
 </Project>

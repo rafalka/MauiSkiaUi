@@ -17,6 +17,8 @@ public sealed class LookAndColorSchemePage : ContentPage
     private readonly Picker _accentPicker;
     private readonly Picker _pressPicker;
     private readonly Picker _indicatorPicker;
+    private readonly Picker _pickerFieldPicker;
+    private readonly Picker _popupPlacementPicker;
     private readonly Picker _motionPicker;
     private readonly Grid _sizeGrid;
     /// <summary>The page's selections, shared by every visit (the look they produce stays current app-wide).</summary>
@@ -28,6 +30,8 @@ public sealed class LookAndColorSchemePage : ContentPage
         public static int Pack;
         public static int Press;
         public static int Indicator;
+        public static int PickerField;
+        public static int PopupPlacement;
         public static int Motion;
     }
 
@@ -128,6 +132,28 @@ public sealed class LookAndColorSchemePage : ContentPage
         };
         _indicatorPicker.SelectedIndexChanged += (_, _) => Apply();
 
+        _pickerFieldPicker = new Picker
+        {
+            Title = "Picker field style",
+            ItemsSource = Enum.GetNames<SkUiPickerFieldStyle>(),
+            SelectedIndex = Settings.PickerField,
+            AutomationId = "LookPickerFieldPicker",
+            TextColor = DemoColors.Ink,
+            FontFamily = DemoFonts.OpenSansRegular
+        };
+        _pickerFieldPicker.SelectedIndexChanged += (_, _) => Apply();
+
+        _popupPlacementPicker = new Picker
+        {
+            Title = "Popup placement",
+            ItemsSource = Enum.GetNames<SkUiPopupPlacement>()[..3],
+            SelectedIndex = Settings.PopupPlacement,
+            AutomationId = "LookPopupPlacementPicker",
+            TextColor = DemoColors.Ink,
+            FontFamily = DemoFonts.OpenSansRegular
+        };
+        _popupPlacementPicker.SelectedIndexChanged += (_, _) => Apply();
+
         _motionPicker = new Picker
         {
             Title = "Transitions",
@@ -157,6 +183,8 @@ public sealed class LookAndColorSchemePage : ContentPage
             _lookPicker.SelectedIndex = 0;
             _pressPicker.SelectedIndex = 0;
             _indicatorPicker.SelectedIndex = 0;
+            _pickerFieldPicker.SelectedIndex = 0;
+            _popupPlacementPicker.SelectedIndex = 0;
             _motionPicker.SelectedIndex = 0;
             _look.Style = DemoLookStyle.Default;
             _look.ClearSizeOverrides();
@@ -209,6 +237,12 @@ public sealed class LookAndColorSchemePage : ContentPage
                 Caption("How indicator views (the dots under a carousel) draw: dots, or a pill the selected one stretches into, " +
                     "sliding with the carousel's scrolling."),
                 _indicatorPicker,
+                Section("Pickers"),
+                Caption("How picker fields draw (Default: the platform's, an underline on Android and an outline elsewhere) and " +
+                    "where pickers that do not set PopupPlacement open their list (Default: anchored on desktops and tablets, in " +
+                    "the window on phones)."),
+                _pickerFieldPicker,
+                _popupPlacementPicker,
                 Section("State-change transitions"),
                 Caption("Animation of switches, check boxes, radio buttons, presses and slider thumbs. Normal follows the " +
                     "system's reduce-motion setting; Slow motion stretches every transition 5× so you can watch it (even when " +
@@ -509,6 +543,10 @@ public sealed class LookAndColorSchemePage : ContentPage
         Settings.Pack = _lookPicker.SelectedIndex;
         Settings.Press = _pressPicker.SelectedIndex;
         Settings.Indicator = _indicatorPicker.SelectedIndex;
+        Settings.PickerField = Math.Max(0, _pickerFieldPicker.SelectedIndex);
+        Settings.PopupPlacement = Math.Max(0, _popupPlacementPicker.SelectedIndex);
+        _look.PickerFieldStyle = (SkUiPickerFieldStyle)Settings.PickerField;
+        _look.PopupPlacement = (SkUiPopupPlacement)Settings.PopupPlacement;
         Settings.Motion = _motionPicker.SelectedIndex;
         _look.PressEffect = _pressPicker.SelectedIndex == 1 ? SkUiPressEffect.Ripple : SkUiPressEffect.Dim;
         _look.IndicatorStyle = _indicatorPicker.SelectedIndex == 1 ? SkUiIndicatorStyle.Pill : SkUiIndicatorStyle.Dots;
@@ -524,7 +562,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         RebuildAllPreviews();
         _status.Text =
             $"Scheme: {SkUiColorScheme.Current.GetType().Name} · Accent {ToHex(SkUiColorScheme.Current.Accent)} · " +
-            $"Look: {_look.Style} · Press: {_look.PressEffect} · Indicators: {_look.IndicatorStyle} · Transitions: {(SkUiMotion.IsMotionReduced ? "off" : _look.TransitionScale == 1 ? "normal" : "slow")}";
+            $"Look: {_look.Style} · Press: {_look.PressEffect} · Indicators: {_look.IndicatorStyle} · Picker fields: {_look.PickerFieldStyle} · Transitions: {(SkUiMotion.IsMotionReduced ? "off" : _look.TransitionScale == 1 ? "normal" : "slow")}";
     }
 
     private void SyncSizeEntriesFromLook()

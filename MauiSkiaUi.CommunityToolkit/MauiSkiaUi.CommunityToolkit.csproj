@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- The library's trim / AOT analysis: every analyzer warning is an error here too. -->
+	<Import Project="../MauiSkiaUi/TrimAnalysis.props" />
+
+	<PropertyGroup>
+		<TargetFrameworks>net10.0;net10.0-android</TargetFrameworks>
+		<TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<RootNamespace>MauiSkiaUi.CommunityToolkit</RootNamespace>
+
+		<IsAotCompatible>true</IsAotCompatible>
+		<_MauiDoNotConfigureTrimAnalyzer>true</_MauiDoNotConfigureTrimAnalyzer>
+		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+
+		<!-- NuGet: released with SkiaUi.Maui, same version (Directory.Build.props); depends on that exact release line. -->
+		<IsPackable>true</IsPackable>
+		<PackageId>SkiaUi.Maui.CommunityToolkit</PackageId>
+		<Authors>Rafal Kukla</Authors>
+		<Company>Rafal Kukla</Company>
+		<Copyright>Copyright © Rafal Kukla</Copyright>
+		<Description>CommunityToolkit.Maui integration for SkiaUi.Maui: drawn pickers (and other drawn controls with popups) show their popups in the toolkit's Popup.</Description>
+		<PackageTags>maui;skiasharp;skia;ui;communitytoolkit;popup;picker</PackageTags>
+		<PackageProjectUrl>https://github.com/rafalka/MauiSkiaUi</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/rafalka/MauiSkiaUi</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageIcon>nuget-icon.png</PackageIcon>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<_ChangelogNotes>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../artifacts/release-notes.txt'))</_ChangelogNotes>
+		<PackageReleaseNotes Condition="Exists('$(_ChangelogNotes)')">$([System.IO.File]::ReadAllText('$(_ChangelogNotes)'))</PackageReleaseNotes>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
+		<None Include="..\Resources\nuget-icon.png" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="MauiSkiaUi.Tests" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="$(CommunityToolkitMauiVersion)" />
+		<!-- Packed as a dependency on SkiaUi.Maui of the same version. -->
+		<ProjectReference Include="..\MauiSkiaUi\MauiSkiaUi.csproj" />
+	</ItemGroup>
+
+</Project>

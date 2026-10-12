@@ -59,6 +59,15 @@ public class SkUiLook
     // GetColor, as hit-tested); drawn again while the selection moves. DefaultSkUiLook: dots or a pill (IndicatorStyle).
     public void DrawIndicators(SKCanvas canvas, SkUiIndicatorPaint paint) { … } // → IndicatorPainter ?? DrawIndicatorsCore
     public virtual double DefaultIndicatorSpacing => 8;    // and GetSelectedIndicatorExtraLength(size, shape) (a pill's room)
+    // Picker fields (C6): chrome and chevron behind the control's text; Focused / Open animate (FieldFocus, PickerOpen).
+    // DefaultSkUiLook: PickerFieldStyle (underline on Android, outline elsewhere, filled, none).
+    public void DrawPickerField(SKCanvas canvas, SkUiPickerFieldPaint field) { … } // → PickerFieldPainter ?? DrawPickerFieldCore
+    public virtual Thickness PickerFieldPadding => new(12, 8); // and PickerChevronWidth (32), DefaultPickerMinimumHeight (44)
+    // Popups of drawn controls (C6): where they go and what they look like; the app's presenter shows them.
+    public virtual SkUiPopupPlacement DefaultPopupPlacement => SkUiPopupPlacement.Anchored; // DefaultSkUiLook: the platform's
+    public virtual Thickness PopupMargin => new(8);         // and PopupAnchorGap (4), PopupPreferredWidth (320),
+                                                           // PopupHorizontalOptions / PopupVerticalOptions, PopupItemHeight (44),
+                                                           // PopupItemPadding, PopupHighlightColor, GetPopupOverlayColor(placement)
     // Keyboard focus ring over the focused drawn control (P10), inside its bounds, while focus came from the keyboard.
     public void DrawFocusRing(SKCanvas canvas, SkUiFocusRingPaint ring) { … }        // → FocusRingPainter ?? DrawFocusRingCore
     public virtual double ScrollBarThickness => 4;         // and ScrollBarMargin (2), ScrollBarMinimumThumbLength (24),
@@ -130,7 +139,7 @@ Looks draw every point of a transition, not only the resting states. Switches, c
 
 Drawing the blend makes interruptions free: a switch toggled back mid-way reverses from where it is. (A third state mid-way, only possible with three-state toggles, starts again from the nearer of the two states.)
 
-**How long, which curve.** `GetTransition(kind)` returns a `SkUiTransition(Duration, Easing)`; `None` (zero duration) turns a transition off. Kinds: `Switch`, `CheckBox`, `RadioButton`, `Press`, `Release`, `Ripple`, `SliderThumb`, `Progress`, `IndicatorPosition`.
+**How long, which curve.** `GetTransition(kind)` returns a `SkUiTransition(Duration, Easing)`; `None` (zero duration) turns a transition off. Kinds: `Switch`, `CheckBox`, `RadioButton`, `Press`, `Release`, `Ripple`, `SliderThumb`, `Progress`, `IndicatorPosition`, `FieldFocus`, `PickerOpen`.
 
 | Kind | `DefaultSkUiLook` |
 | --- | --- |
@@ -140,6 +149,8 @@ Drawing the blend makes interruptions free: a switch toggled back mid-way revers
 | Ripple | 450 ms, cubic out (only with `PressEffect = Ripple`, else none: no frames spent) |
 | SliderThumb | 150 ms, cubic out (taps only; drags and code follow at once) |
 | IndicatorPosition | 250 ms, cubic out (an indicator view's selection; a linked carousel's scrolling drives it instead) |
+| FieldFocus | 150 ms, cubic out (a picker field's focus and open highlight) |
+| PickerOpen | 200 ms, cubic in-out (a picker's chevron turns while its popup opens and closes) |
 | Progress | None, as MAUI's `ProgressBar` (`ProgressTo` animates on its own) |
 
 **Press feedback on any control.** `ShowsPressEffect` (every `SkUiView` and Core node) draws the look's press overlay (`DrawPressOverlay`) over the node and its children while it is pressed, clipped to its rounded shape (a label's `CornerRadii`, a border's `CornerRadius` or rounded-rectangle `StrokeShape`). This is for containers that act as one button: a card, or a composite button built from several Core nodes. The node needs a tap handler (`Tapped`, or `TappedCommand` on SkUi*) to be pressed. A button inside it still takes its own presses. `DefaultSkUiLook` dims the content or spreads a dark ripple.

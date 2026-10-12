@@ -1217,7 +1217,10 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
             if (e.Action == Android.Views.KeyEventActions.Down)
             {
                 var key = SkUiAndroidKeys.Map(e.KeyCode);
-                if (key != SkUiKey.None && focus.KeyDown(key, SkUiAndroidKeys.Modifiers(e), isRepeat: e.RepeatCount > 0))
+                var character = key == SkUiKey.None ? SkUiAndroidKeys.Character(e) : '\0';
+                if (character != '\0')
+                    key = SkUiKey.Character;
+                if (key != SkUiKey.None && focus.KeyDown(key, SkUiAndroidKeys.Modifiers(e), isRepeat: e.RepeatCount > 0, character))
                 {
                     _handledKeys.Add(e.KeyCode);
                     return true;
@@ -1615,8 +1618,8 @@ internal sealed class SkUiOverlayContainer : MauiView
         {
             // Tab normally arrives through the key commands (ahead of UIKit's focus movement); a press that gets here anyway
             // is handled the same way.
-            if (press.Key is { } key && KeyboardFocus is { } focus && SkUiAppleKeys.Map(key) is var mapped && mapped != SkUiKey.None
-                && focus.KeyDown(mapped, SkUiAppleKeys.Modifiers(key)))
+            if (press.Key is { } key && KeyboardFocus is { } focus && SkUiAppleKeys.Map(key, out var character) is var mapped && mapped != SkUiKey.None
+                && focus.KeyDown(mapped, SkUiAppleKeys.Modifiers(key), character: character))
                 _handledKeys.Add(key.KeyCode);
             else
                 unused = true;
@@ -1802,8 +1805,8 @@ internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.
     {
         if (args.Handled || !ReferenceEquals(args.OriginalSource, this) || KeyboardFocus is not { } focus)
             return;
-        var key = SkUiWindowsKeys.Map(args.Key);
-        if (key != SkUiKey.None && focus.KeyDown(key, SkUiWindowsKeys.Modifiers(), isRepeat: args.KeyStatus.WasKeyDown))
+        var key = SkUiWindowsKeys.Map(args.Key, out var character);
+        if (key != SkUiKey.None && focus.KeyDown(key, SkUiWindowsKeys.Modifiers(), isRepeat: args.KeyStatus.WasKeyDown, character))
             args.Handled = true;
     }
 

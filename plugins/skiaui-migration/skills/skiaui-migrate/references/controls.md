@@ -47,13 +47,14 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 | `Slider` | `sk:SkUiSlider` | `ThumbImageSource`; plus vertical |
 | `ProgressBar` | `sk:SkUiProgressBar` | Plus indeterminate |
 | `ActivityIndicator` | `sk:SkUiActivityIndicator` | |
+| `Picker` | `sk:SkUiPicker` | Prefix swap: same `ItemsSource` / `Items`, `ItemDisplayBinding`, `SelectedIndex` / `SelectedItem` (two-way), `SelectedIndexChanged`, `Title` / `TitleColor`, text and font properties, alignments, `IsOpen` / `Opened` / `Closed`. Its list opens on the app's popup system: register a presenter once (with CommunityToolkit.Maui: the `SkiaUi.Maui.CommunityToolkit` package and `UseSkiaUiCommunityToolkit()`; see the note below), else MAUI's action sheet shows the items. Drop `ios:Picker.UpdateMode` (the selection changes on a choice). Optional: `PopupPlacement` (`Anchored` combo box, `Window` dialog or sheet), `ItemTemplate` of drawn rows, `MaxPopupHeight` |
 | `GraphicsView`, `SKCanvasView` | A `SkUiView` subclass | See [custom-controls.md](custom-controls.md) |
 
 `FFImageLoading`'s `CachedImage` → `sk:SkUiImage` (its circle / rounded / blur transformations have drawn equivalents in `Transformations`).
 
 ## Native islands
 
-`Entry`, `Editor`, `SearchBar`, `Picker`, `DatePicker`, `TimePicker`, `WebView`, maps, media and third-party controls stay native inside the drawn tree (drawn `Entry`, `Editor` and `SearchBar` equivalents are planned; until they ship, wrap these too):
+`Entry`, `Editor`, `SearchBar`, `DatePicker`, `TimePicker`, `WebView`, maps, media and third-party controls stay native inside the drawn tree (drawn `Entry`, `Editor` and `SearchBar` equivalents are planned; until they ship, wrap these too):
 
 ```xml
 <sk:SkUiMauiContentView>
@@ -85,3 +86,13 @@ Drawn views animate opacity, translation, rotation and scale on the render threa
 | Parent `Animation` with children over the same span | One `SkUiViewAnimation` listing every property |
 
 Leave as MAUI animations (and say so in the report): animations of `WidthRequest` / `HeightRequest` / `Margin` and staggered child spans; they re-lay out every frame on drawn views too.
+
+## Pickers and the app's popups
+
+`sk:SkUiPicker` draws its field and its list but has no popup window of its own: an `ISkUiPopupPresenter` shows the list on whatever the app uses for popups. Before converting pickers, check what the app uses:
+
+- **CommunityToolkit.Maui (`Popup`):** add the `SkiaUi.Maui.CommunityToolkit` package (same version as SkiaUi.Maui) and register it: `builder.UseMauiCommunityToolkit().UseSkiaUi().UseSkiaUiCommunityToolkit()`.
+- **Syncfusion `SfPopup`, Telerik `RadPopup`, a popup navigation service of the app's:** write a presenter on it (one method: show `request.Content` at `request.Bounds`, close it when the token is cancelled, return when it is gone; sketches in `SkUiPicker.md`).
+- **Nothing:** pickers open MAUI's action sheet (plain item texts); tell the user and suggest a presenter.
+
+A presenter that shows a vendor picker instead reads `SkUiListPopupRequest` (`Items`, `SelectedIndex`) and calls `request.Complete(index)`.

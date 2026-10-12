@@ -72,5 +72,7 @@
     <!-- C# → syntax-highlighted HTML for the Source page (.NET Foundation, used by the Windows Community Toolkit). -->
     <PackageReference Include="ColorCode.HTML" Version="2.0.15" />
     <ProjectReference Include="../../MauiSkiaUi/MauiSkiaUi.csproj" />
+    <!-- SkiaUi.Maui.CommunityToolkit: the picker example's popups (CommunityToolkit.Maui comes with it). -->
+    <ProjectReference Include="../../MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj" />
   </ItemGroup>
 </Project>

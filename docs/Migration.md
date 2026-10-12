@@ -41,6 +41,8 @@ dotnet add package SkiaUi.Maui
 ```csharp
 // MauiProgram.cs
 builder.UseMauiApp<App>().UseSkiaUi();
+// Pickers with CommunityToolkit.Maui: lists in the toolkit's Popup (package SkiaUi.Maui.CommunityToolkit; see Pickers below)
+builder.UseMauiApp<App>().UseMauiCommunityToolkit().UseSkiaUi().UseSkiaUiCommunityToolkit();
 ```
 
 ```xml
@@ -149,7 +151,9 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `Slider`, `ProgressBar`, `ActivityIndicator` | `SkUiSlider`, `SkUiProgressBar`, `SkUiActivityIndicator` | Vertical slider, indeterminate progress |
 | `GraphicsView`, `SKCanvasView` | A `SkUiView` subclass | Override `MeasureContent` and `OnPaintContent(SKCanvas)` |
 | `Entry`, `Editor`, `SearchBar` | Wrapped in `SkUiMauiContentView` | Native for now; drawn `SkUiEntry` / `SkUiEditor` / `SkUiSearchBar` using the platform keyboard are planned ([Phase D](design/ImplementationPlan.md#phase-d--drawn-text-input-fr-16-amended)) |
-| `Picker`, `DatePicker`, `TimePicker`, `WebView`, maps, media | Wrapped in `SkUiMauiContentView` | Native by design |
+| `Picker` | `SkUiPicker` | Prefix swap; its list opens on your popup system: see [Pickers](#pickers-picker) |
+| `DatePicker`, `TimePicker` | Wrapped in `SkUiMauiContentView` | Native for now; drawn versions on the same popups are planned (C7) |
+| `WebView`, maps, media | Wrapped in `SkUiMauiContentView` | Native by design |
 | `Layout.IsClippedToBounds` | `ClipToBounds` | Leaves clip by default, layouts do not |
 
 Per-control differences: [docs/controls/](controls/README.md).
@@ -158,7 +162,7 @@ Per-control differences: [docs/controls/](controls/README.md).
 
 ```xml
 <sk:SkUiMauiContentView>
-    <Picker ItemsSource="{Binding Stores}" SelectedItem="{Binding Store}" />
+    <DatePicker Date="{Binding Due}" />
 </sk:SkUiMauiContentView>
 ```
 
@@ -321,6 +325,19 @@ Not available: reordering (`CanReorderItems`) and snap points on the items layou
 - `ScrollTo(index, …)` also exists as awaitable `ScrollToIndex(index, animated)` / `ScrollToItem(item, animated)`.
 - Not available: `ItemsUpdatingScrollMode` (the current item is always kept), `VisibleViews`, `IndicatorTemplate` (draw other indicators through the look: `IndicatorPainter`, `DefaultSkUiLook.IndicatorStyle`).
 - New: several cards in view (`ItemExtent`), item effects drawn by the compositor (`ItemEffect`: `SkUiCoverFlowEffect`, `SkUiScaleEffect`), `ScrollPosition`; on the indicator `IndicatorSpacing` and `Orientation`.
+
+## Pickers (`Picker`)
+
+`SkUiPicker` ([SkUiPicker.md](controls/SkUiPicker.md)) keeps MAUI's `Picker` API: change the prefix. Same `ItemsSource` / `Items`, `ItemDisplayBinding`, `SelectedIndex` / `SelectedItem` (two-way, MAUI's selection rules), `SelectedIndexChanged`, `Title` / `TitleColor`, `TextColor`, the font properties, `CharacterSpacing`, the text alignments, `IsOpen` / `Opened` / `Closed`.
+
+What differs is where the list shows. SkiaUi has no popup windows: the picker draws its list and hands it to an `ISkUiPopupPresenter` of your app, built on what you already use for popups:
+
+- **CommunityToolkit.Maui:** add the **SkiaUi.Maui.CommunityToolkit** package and call `UseSkiaUiCommunityToolkit()` after `UseSkiaUi()`.
+- **Syncfusion `SfPopup`, Telerik `RadPopup`, a popup navigation service:** one method to write, `ShowAsync(request, token)`: show `request.Content` at `request.Bounds` (or relative to `request.PlatformAnchor` with `request.AnchorBoundsInPlatformAnchor`), close it when the token is cancelled, return when it is gone. Sketches in [SkUiPicker.md](controls/SkUiPicker.md#presenter-examples).
+- **A vendor picker UI** (a wheel, a searchable list): the presenter reads `SkUiListPopupRequest` (`Items`, `SelectedIndex`, `Title`) and calls `request.Complete(index)`.
+- **Nothing registered:** the list opens in MAUI's action sheet (plain item texts, MAUI's UI), with one trace line.
+
+Platform differences go: the list is the same drawn list everywhere, anchored to the field as a combo box on desktops and tablets and in the window on phones (`PopupPlacement` and the look decide; `ios:Picker.UpdateMode` does not apply). New: `ItemTemplate` (drawn rows), `MaxPopupHeight`, keyboard navigation and type-ahead on every platform.
 
 ## Not available yet
 

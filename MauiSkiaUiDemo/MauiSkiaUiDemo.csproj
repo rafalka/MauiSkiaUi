@@ -113,7 +113,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="CommunityToolkit.Maui" Version="15.0.1" />
+		<PackageReference Include="CommunityToolkit.Maui" Version="$(CommunityToolkitMauiVersion)" />
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.12" />
 		<PackageReference Include="Microsoft.Maui.DevFlow.Agent" Version="0.1.0-preview.12.26421.1" Condition="'$(Configuration)' == 'Debug'" />
@@ -121,6 +121,10 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\MauiSkiaUi\MauiSkiaUi.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+		<!-- Drawn pickers show their lists in CommunityToolkit.Maui's popups. -->
+		<ProjectReference Include="..\MauiSkiaUi.CommunityToolkit\MauiSkiaUi.CommunityToolkit.csproj" />
 	</ItemGroup>
 
 </Project>

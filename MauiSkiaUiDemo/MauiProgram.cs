@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using CommunityToolkit.Maui;
 using MauiSkiaUi;
+using MauiSkiaUi.CommunityToolkit;
 #if MAUI_DEVFLOW
 using Microsoft.Maui.DevFlow.Agent;
 #endif
@@ -17,6 +18,8 @@ public static class MauiProgram
 			.UseMauiApp<App>()
 			.UseMauiCommunityToolkit()
 			.UseSkiaUi()
+			// Drawn pickers show their lists in the toolkit's popups.
+			.UseSkiaUiCommunityToolkit()
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("OpenSans-Regular.ttf", DemoFonts.OpenSansRegular);

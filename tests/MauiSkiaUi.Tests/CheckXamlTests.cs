@@ -73,6 +73,44 @@ public class CheckXamlTests
     }
 
     [Fact]
+    public void SuggestsTheDrawnPickerAndChecksItsRows()
+    {
+        var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
+        try
+        {
+            File.WriteAllText(Path.Combine(project.FullName, "Page.xaml"), """
+                <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
+                  <sk:SkUiVerticalStackLayout>
+                    <Picker ItemsSource="{Binding Stores}" />
+                    <sk:SkUiPicker ItemsSource="{Binding Paints}">
+                      <sk:SkUiPicker.ItemTemplate>
+                        <DataTemplate>
+                          <Label Text="{Binding Name}" />
+                        </DataTemplate>
+                      </sk:SkUiPicker.ItemTemplate>
+                    </sk:SkUiPicker>
+                    <sk:SkUiMauiContentView>
+                      <DatePicker />
+                    </sk:SkUiMauiContentView>
+                  </sk:SkUiVerticalStackLayout>
+                </ContentPage>
+                """);
+            var (exitCode, output) = Run(project.FullName);
+            Assert.Equal(1, exitCode);
+            var errors = output.Split('\n').Where(line => line.Contains("error:")).ToArray();
+            Assert.Equal(2, errors.Length);
+            // The native picker: the drawn one replaces it (and needs a presenter); a native row in the drawn list's template.
+            Assert.Contains(errors, error => error.Contains("Page.xaml:4:") && error.Contains("SkUiPicker") && error.Contains("PopupPresenter"));
+            Assert.Contains(errors, error => error.Contains("Page.xaml:8:") && error.Contains("SkUiLabel"));
+        }
+        finally
+        {
+            project.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void ReportsMauiOnlyCollectionViewMembersAndNativeLists()
     {
         var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");

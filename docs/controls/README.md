@@ -30,6 +30,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiRadioButton` | [SkUiRadioButton.md](SkUiRadioButton.md) | RadioButton (`Content`, `ControlTemplate`; MAUI's `RadioButtonGroup` works on drawn layouts) |
 | `SkUiSlider` | [SkUiSlider.md](SkUiSlider.md) | Slider (plus vertical) |
 | `SkUiProgressBar` | [SkUiProgressBar.md](SkUiProgressBar.md) | ProgressBar (plus indeterminate) |
+| `SkUiPicker` / `SkUiCorePicker` | [SkUiPicker.md](SkUiPicker.md) | Picker (the list on the app's popup system: `ISkUiPopupPresenter`) |
 | `SkUiToggleControl` | [SkUiToggleControl.md](SkUiToggleControl.md) | — (abstract) |
 
 ## Layouts

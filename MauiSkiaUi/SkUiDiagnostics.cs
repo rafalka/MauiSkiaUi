@@ -187,7 +187,7 @@ public static class SkUiDiagnostics
     }
 
     /// <summary>Window position (DIPs) of the root's platform view, or <c>null</c> without one.</summary>
-    private static Point? GetWindowOrigin(SkUiView root)
+    internal static Point? GetWindowOrigin(SkUiView root)
     {
 #if IOS || MACCATALYST
         if (root.Handler?.PlatformView is UIKit.UIView view && view.Window is not null)

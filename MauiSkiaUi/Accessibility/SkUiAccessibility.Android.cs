@@ -225,6 +225,9 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
             node.LongClickable = true;
             node.AddAction(AccessibilityNodeInfoCompat.ActionLongClick);
         }
+        // A combo box opens and closes its list with the click; TalkBack also offers expand / collapse.
+        if (element.IsExpanded is { } expanded && (actions & SkUiSemanticsActions.Activate) != 0)
+            node.AddAction(expanded ? AccessibilityNodeInfoCompat.ActionCollapse : AccessibilityNodeInfoCompat.ActionExpand);
         // Sliders step and scrollers page with the scroll actions, as Android's SeekBar and ScrollView do.
         if ((actions & (SkUiSemanticsActions.Increment | SkUiSemanticsActions.ScrollForward)) != 0)
             node.AddAction(AccessibilityNodeInfoCompat.ActionScrollForward);
@@ -280,6 +283,9 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
                 if (done)
                     SendEventForVirtualView(virtualViewId, (int)EventTypes.ViewClicked);
                 break;
+            case AccessibilityNodeInfoCompat.ActionExpand or AccessibilityNodeInfoCompat.ActionCollapse:
+                done = element.IsExpanded == (action == AccessibilityNodeInfoCompat.ActionCollapse) && owner.Perform(virtualViewId, SkUiSemanticsActions.Activate);
+                break;
             case AccessibilityNodeInfoCompat.ActionLongClick:
                 done = owner.Perform(virtualViewId, SkUiSemanticsActions.LongPress);
                 if (done)
@@ -328,6 +334,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         SkUiSemanticsRole.Slider => "android.widget.SeekBar",
         SkUiSemanticsRole.ProgressBar => "android.widget.ProgressBar",
         SkUiSemanticsRole.ScrollView => node.IsHorizontal ? "android.widget.HorizontalScrollView" : "android.widget.ScrollView",
+        SkUiSemanticsRole.ComboBox => "android.widget.Spinner",
         _ => "android.view.View"
     };
 }
@@ -368,6 +375,15 @@ internal static class SkUiAndroidKeys
         Android.Views.Keycode.MoveEnd => SkUiKey.End,
         _ => SkUiKey.None
     };
+
+    /// <summary>The printable character a key types (type-ahead), or 0: none, or a command modifier (Ctrl, Meta) is held.</summary>
+    public static char Character(Android.Views.KeyEvent e)
+    {
+        if (e.IsCtrlPressed || e.IsMetaPressed)
+            return '\0';
+        var unicode = e.UnicodeChar;
+        return unicode > ' ' && unicode <= char.MaxValue && !char.IsControl((char)unicode) ? (char)unicode : '\0';
+    }
 
     public static SkUiKeyModifiers Modifiers(Android.Views.KeyEvent e) =>
         (e.IsShiftPressed ? SkUiKeyModifiers.Shift : 0) | (e.IsCtrlPressed ? SkUiKeyModifiers.Control : 0)
