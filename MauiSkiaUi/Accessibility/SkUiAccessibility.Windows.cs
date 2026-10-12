@@ -3,6 +3,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Automation.Provider;
+// WinUI's, not MAUI's XAML IValueProvider (both namespaces are imported).
+using IValueProvider = Microsoft.UI.Xaml.Automation.Provider.IValueProvider;
 using WinPoint = Windows.Foundation.Point;
 using WinRect = Windows.Foundation.Rect;
 
