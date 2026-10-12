@@ -46,6 +46,7 @@ public static class LeakScenarios
         new("CollectionViewGrouped", Scrolling, "SkUiCollectionView over long-lived groups (a grid of two columns, sticky collapsible group headers), with a long-lived selected-items list and load-more command: headers tapped to collapse and expand, items selected, flung, scrolled to a group, groups and items added and removed, the template replaced; closed mid-fling.", () => new CollectionViewGroupedRun()),
         new("RefreshPulled", Scrolling, "SkUiRefreshView (inline style, automatic completion) with a long-lived command around a header and a drawn scroller: pulled through the scroller and by the header (content held down while refreshing), each refresh ended by a deferral taken in Refreshing, a short pull released before the trigger (the indicator going back), the scroller replaced while still linked and the old one detached; closed mid-pull.", () => new RefreshRun()),
         new("CarouselSwiped", Scrolling, "SkUiCarouselView over a long-lived collection with a long-lived shared cover flow effect, a long-lived position command and a linked indicator view: swiped and flung forward past the middle of its looping strip (moved back by corrections), an indicator tapped, the position set by code, items added and removed, the effect switched, looping turned off and the end reached (load-more command); closed mid-fling.", () => new CarouselRun()),
+        new("PickerOpened", Controls, "SkUiPicker and SkUiCorePicker over a long-lived collection (a display binding, an item template), opened on a long-lived presenter that keeps the last request (as a popup stack does): tapped open and an item chosen in the drawn list, dismissed, closed by IsOpen = false and by hiding the picker, opened by the keyboard, the Core picker chosen; closed with a popup open.", () => new PickerRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
         new("SurfaceReplaced", Rendering, "A page replaces its GPU surface with a software one and back; the discarded surfaces are disconnected.", () => new SurfaceReplacedRun()),
@@ -1569,6 +1570,91 @@ public static class LeakScenarios
             _refreshes == 2 && !_refresh!.IsRefreshing ? null : $"Refreshed {_refreshes} times (expected 2), still refreshing: {_refresh!.IsRefreshing}.";
     }
 
+    private sealed class PickerRun : LeakScenarioRun
+    {
+        private SkUiPicker? _picker;
+        private SkUiCorePicker? _core;
+        private int _chosen;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 30; index++)
+                LeakItems.Shared.Add($"Option {index}");
+            _picker = context.Track(new SkUiPicker
+            {
+                Title = "Pick one",
+                ItemsSource = LeakItems.Shared,
+                ItemDisplayBinding = new Binding("."),
+                PopupPresenter = LeakPopupPresenter.Shared,
+                PopupPlacement = SkUiPopupPlacement.Anchored,
+                ItemTemplate = new DataTemplate(() =>
+                {
+                    var label = new SkUiLabel { Padding = new Thickness(12, 8), TextColor = LeakColors.Ink };
+                    label.SetBinding(SkUiLabel.TextProperty, static (string text) => text);
+                    return label;
+                })
+            }, "picker");
+            _picker.SelectedIndexChanged += (_, _) => _chosen++;
+            _core = context.Track(new SkUiCorePicker { Title = "Core", PopupPresenter = LeakPopupPresenter.Shared }, "core picker");
+            foreach (var option in new[] { "Red", "Green", "Blue" })
+                _core.Items.Add(option);
+            var stack = new SkUiVerticalStackLayout { Spacing = 12, Padding = new Thickness(12) };
+            stack.Children.Add(_picker);
+            stack.Children.Add(new SkUiCoreHost().SetContent(_core));
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var picker = _picker!;
+            // Tapped open, an item chosen in the drawn list.
+            await context.TapAsync(picker);
+            Track(context);
+            ((LeakPopupPresenter.Shared.Last as SkUiListPopupRequest)?.Content as SkUiView)?.Measure(300, 400);
+            (LeakPopupPresenter.Shared.Last as SkUiListPopupRequest)?.Complete(3);
+            await context.SettleAsync();
+            // Dismissed, closed by code, closed by hiding.
+            picker.IsOpen = true;
+            Track(context);
+            LeakPopupPresenter.Shared.Dismiss();
+            await context.SettleAsync();
+            picker.IsOpen = true;
+            Track(context);
+            picker.IsOpen = false;
+            await context.SettleAsync();
+            picker.IsOpen = true;
+            Track(context);
+            picker.IsVisible = false;
+            await context.SettleAsync();
+            picker.IsVisible = true;
+            // Opened by the keyboard (Space on the focused field), then the Core picker chosen.
+            picker.Focus();
+            picker.IsOpen = true;
+            Track(context);
+            picker.IsOpen = false;
+            await context.TapAsync(_core!);
+            Track(context);
+            (LeakPopupPresenter.Shared.Last as SkUiListPopupRequest)?.Complete(1);
+            await context.SettleAsync();
+            // Closed with a popup open (its content goes once the UI thread has seen the popup close, after the page).
+            picker.IsOpen = true;
+            await context.SettleAsync();
+        }
+
+        /// <summary>Each opening's content must go once its popup has gone.</summary>
+        private static void Track(LeakScenarioContext context)
+        {
+            if (LeakPopupPresenter.Shared.Last?.Content is { } content)
+                context.Track(content, "picker popup content");
+        }
+
+        public override string? CheckInteraction() =>
+            _chosen == 0 || _picker?.SelectedIndex != 3 ? "no item was chosen in the picker's list"
+            : _core?.SelectedIndex != 1 ? "no item was chosen in the Core picker's list"
+            : null;
+    }
+
     private sealed class CarouselRun : LeakScenarioRun
     {
         private SkUiCarouselView? _carousel;
@@ -2231,6 +2317,31 @@ public static class LeakCommands
 }
 
 /// <summary>A collection that outlives every scenario, like a view model's list: bound layouts must not stay reachable from it.</summary>
+/// <summary>
+/// A popup presenter that outlives every scenario (as an app's): it shows nothing, keeps the last request, and closes when
+/// asked or dismissed. Pickers must not stay reachable from it, nor from the request it keeps.
+/// </summary>
+public sealed class LeakPopupPresenter : ISkUiPopupPresenter
+{
+    public static LeakPopupPresenter Shared { get; } = new();
+
+    private TaskCompletionSource? _shown;
+
+    public SkUiPopupRequest? Last { get; private set; }
+
+    public Task ShowAsync(SkUiPopupRequest request, CancellationToken cancellationToken)
+    {
+        Last = request;
+        var shown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _shown = shown;
+        cancellationToken.Register(() => shown.TrySetResult());
+        return shown.Task;
+    }
+
+    /// <summary>A tap outside the popup: it closes without a choice.</summary>
+    public void Dismiss() => _shown?.TrySetResult();
+}
+
 public static class LeakItems
 {
     public static ObservableCollection<string> Shared { get; } = [];

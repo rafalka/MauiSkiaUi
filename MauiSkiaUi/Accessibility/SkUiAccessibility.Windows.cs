@@ -3,6 +3,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Automation.Provider;
+// WinUI's, not MAUI's XAML IValueProvider (both namespaces are imported).
+using IValueProvider = Microsoft.UI.Xaml.Automation.Provider.IValueProvider;
 using WinPoint = Windows.Foundation.Point;
 using WinRect = Windows.Foundation.Rect;
 
@@ -207,11 +209,13 @@ internal sealed partial class SkUiSurfaceAutomationPeer(FrameworkElement owner, 
 
 /// <summary>One drawn element as UI Automation sees it.</summary>
 internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge bridge, int id)
-    : AutomationPeer, IInvokeProvider, IToggleProvider, IRangeValueProvider, ISelectionItemProvider
+    : AutomationPeer, IInvokeProvider, IToggleProvider, IRangeValueProvider, ISelectionItemProvider, IExpandCollapseProvider, IValueProvider
 {
     private string _name = string.Empty;
     private ToggleState _toggle;
     private double _value;
+    private ExpandCollapseState _expandCollapse = ExpandCollapseState.LeafNode;
+    private string _text = string.Empty;
 
     private SkUiSemanticsNode? Node => bridge.Tree.Find(id);
 
@@ -231,7 +235,22 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
             RaisePropertyChangedEvent(RangeValuePatternIdentifiers.ValueProperty, _value, range.Value);
             _value = range.Value;
         }
+        var expandCollapse = ToExpandCollapseState(node.IsExpanded);
+        if (expandCollapse != _expandCollapse)
+            RaisePropertyChangedEvent(ExpandCollapsePatternIdentifiers.ExpandCollapseStateProperty, _expandCollapse, expandCollapse);
+        _expandCollapse = expandCollapse;
+        var text = node.Role == SkUiSemanticsRole.ComboBox ? node.Value ?? string.Empty : string.Empty;
+        if (text != _text)
+            RaisePropertyChangedEvent(ValuePatternIdentifiers.ValueProperty, _text, text);
+        _text = text;
     }
+
+    private static ExpandCollapseState ToExpandCollapseState(bool? expanded) => expanded switch
+    {
+        true => ExpandCollapseState.Expanded,
+        false => ExpandCollapseState.Collapsed,
+        _ => ExpandCollapseState.LeafNode
+    };
 
     private static ToggleState ToToggleState(SkUiCheckState? state) => state switch
     {
@@ -269,6 +288,7 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
         SkUiSemanticsRole.Slider => AutomationControlType.Slider,
         SkUiSemanticsRole.ProgressBar => AutomationControlType.ProgressBar,
         SkUiSemanticsRole.ScrollView => AutomationControlType.Pane,
+        SkUiSemanticsRole.ComboBox => AutomationControlType.ComboBox,
         _ => Node is { Actions: var actions } && (actions & SkUiSemanticsActions.Activate) != 0 ? AutomationControlType.Button : AutomationControlType.Group
     };
 
@@ -335,7 +355,10 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
             PatternInterface.Toggle when node.CheckState is not null && node.Role != SkUiSemanticsRole.RadioButton => this,
             PatternInterface.SelectionItem when node.Role == SkUiSemanticsRole.RadioButton => this,
             PatternInterface.RangeValue when node.Range is not null => this,
-            PatternInterface.Invoke when node.CheckState is null && (actions & SkUiSemanticsActions.Activate) != 0 => this,
+            // A combo box opens through ExpandCollapse (as WinUI's), not Invoke.
+            PatternInterface.ExpandCollapse when node.IsExpanded is not null => this,
+            PatternInterface.Value when node.Role == SkUiSemanticsRole.ComboBox => this,
+            PatternInterface.Invoke when node.CheckState is null && node.IsExpanded is null && (actions & SkUiSemanticsActions.Activate) != 0 => this,
             _ => null
         };
     }
@@ -378,11 +401,51 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
     public void AddToSelection() => Select();
 
     public void RemoveFromSelection() { }
+
+    // ExpandCollapse
+    public ExpandCollapseState ExpandCollapseState => _expandCollapse = ToExpandCollapseState(Node?.IsExpanded);
+
+    public void Expand()
+    {
+        if (Node?.IsExpanded == false)
+            Perform(SkUiSemanticsActions.Activate);
+    }
+
+    public void Collapse()
+    {
+        if (Node?.IsExpanded == true)
+            Perform(SkUiSemanticsActions.Activate);
+    }
+
+    // Value (a combo box's selected text; read-only, as WinUI's non-editable ComboBox)
+    string IValueProvider.Value => _text = Node is { Role: SkUiSemanticsRole.ComboBox } node ? node.Value ?? string.Empty : string.Empty;
+
+    bool IValueProvider.IsReadOnly => true;
+
+    void IValueProvider.SetValue(string value) { }
 }
 
 /// <summary>WinUI key events of a focused surface container as <see cref="SkUiKey"/>s.</summary>
 internal static class SkUiWindowsKeys
 {
+    /// <summary>
+    /// The key as a <see cref="SkUiKey"/>; a letter or digit key (without Control) as <see cref="SkUiKey.Character"/> with its
+    /// character (type-ahead compares letters ignoring case, so the keyboard layout's shift state does not matter).
+    /// </summary>
+    public static SkUiKey Map(Windows.System.VirtualKey key, out char character)
+    {
+        character = '\0';
+        var mapped = Map(key);
+        if (mapped != SkUiKey.None || (Modifiers() & SkUiKeyModifiers.Control) != 0)
+            return mapped;
+        if (key is >= Windows.System.VirtualKey.A and <= Windows.System.VirtualKey.Z or >= Windows.System.VirtualKey.Number0 and <= Windows.System.VirtualKey.Number9)
+        {
+            character = (char)key;
+            return SkUiKey.Character;
+        }
+        return SkUiKey.None;
+    }
+
     public static SkUiKey Map(Windows.System.VirtualKey key) => key switch
     {
         Windows.System.VirtualKey.Tab => SkUiKey.Tab,

@@ -3,7 +3,9 @@ using SkiaSharp;
 namespace MauiSkiaUi;
 
 /// <summary>
-/// Built-in control look: current cross-platform geometry and intrinsic sizes (former <c>SkUiChrome</c>).
+/// Built-in control look: cross-platform geometry and intrinsic sizes (former <c>SkUiChrome</c>), the same on every platform;
+/// <see cref="AndroidSkUiLook"/>, <see cref="IosSkUiLook"/>, <see cref="MacSkUiLook"/> and <see cref="WindowsSkUiLook"/> mimic
+/// one platform each (<see cref="ForCurrentPlatform"/>).
 /// Subclass or set painter/measure delegates to customize without replacing every control type.
 /// State changes animate (<see cref="GetTransitionCore"/>): switch thumbs slide, check marks draw in, radio dots grow,
 /// pressed buttons dim or ripple (<see cref="PressEffect"/>) and slider thumbs glide to tapped values.
@@ -12,6 +14,19 @@ public class DefaultSkUiLook : SkUiLook
 {
     /// <summary>Shared default look used as the process <see cref="SkUiLook.Current"/>.</summary>
     public static DefaultSkUiLook Instance { get; } = new();
+
+    /// <summary>
+    /// The shared look that mimics the platform the app runs on: <see cref="AndroidSkUiLook"/>, <see cref="IosSkUiLook"/>,
+    /// <see cref="MacSkUiLook"/> (Mac Catalyst) or <see cref="WindowsSkUiLook"/>; <see cref="Instance"/> elsewhere (headless).
+    /// The default look is the same on every platform; set this as <see cref="SkUiLook.Current"/> (or
+    /// <c>UseSkiaUi(options => options.Look = DefaultSkUiLook.ForCurrentPlatform())</c>) for the platform's.
+    /// </summary>
+    public static DefaultSkUiLook ForCurrentPlatform() =>
+        OperatingSystem.IsAndroid() ? AndroidSkUiLook.Instance
+        : OperatingSystem.IsMacCatalyst() ? MacSkUiLook.Instance
+        : OperatingSystem.IsIOS() ? IosSkUiLook.Instance
+        : OperatingSystem.IsWindows() ? WindowsSkUiLook.Instance
+        : Instance;
 
     /// <summary>Button and ImageButton press feedback (default <see cref="SkUiPressEffect.Dim"/>). Repaint after changing it.</summary>
     public SkUiPressEffect PressEffect { get; set; } = SkUiPressEffect.Dim;
@@ -43,6 +58,37 @@ public class DefaultSkUiLook : SkUiLook
 
     /// <inheritdoc />
     public override SkUiRefreshStyle DefaultRefreshStyle => RefreshStyle == SkUiRefreshStyle.Default ? SkUiRefreshStyle.Overlay : RefreshStyle;
+
+    /// <summary>
+    /// How picker fields draw (default <see cref="SkUiPickerFieldStyle.Default"/>: the look's,
+    /// <see cref="DefaultPickerFieldStyle"/>). Call <see cref="SkUiLook.NotifyChanged"/> after changing it.
+    /// </summary>
+    public SkUiPickerFieldStyle PickerFieldStyle { get; set; }
+
+    /// <summary>
+    /// The picker field a <see cref="SkUiPickerFieldStyle.Default"/> <see cref="PickerFieldStyle"/> draws: an outline, the same
+    /// on every platform. Platform looks draw their platform's (<see cref="AndroidSkUiLook"/>: Material's underline).
+    /// </summary>
+    public virtual SkUiPickerFieldStyle DefaultPickerFieldStyle => SkUiPickerFieldStyle.Outline;
+
+    /// <summary>
+    /// Where pickers that do not set their own placement open their list (default <see cref="SkUiPopupPlacement.Default"/>: the
+    /// device's, <see cref="DevicePopupPlacement"/>).
+    /// </summary>
+    public SkUiPopupPlacement PopupPlacement { get; set; }
+
+    /// <summary>
+    /// The device's popup placement: anchored as a combo box on desktops (Mac Catalyst, Windows) and tablets; on phones a dialog
+    /// in the window, where a long list has room.
+    /// </summary>
+    public static SkUiPopupPlacement DevicePopupPlacement => IsPhone ? SkUiPopupPlacement.Window : SkUiPopupPlacement.Anchored;
+
+    /// <inheritdoc />
+    public override SkUiPopupPlacement DefaultPopupPlacement => PopupPlacement == SkUiPopupPlacement.Default ? DevicePopupPlacement : PopupPlacement;
+
+    /// <summary>Whether the app runs on a phone (Android or iOS; headless runs, without a device, are not).</summary>
+    protected static bool IsPhone =>
+        (OperatingSystem.IsAndroid() || (OperatingSystem.IsIOS() && !OperatingSystem.IsMacCatalyst())) && DeviceInfo.Current.Idiom == DeviceIdiom.Phone;
 
     /// <summary>How indicator views draw (default <see cref="SkUiIndicatorStyle.Dots"/>). Call <see cref="SkUiLook.NotifyChanged"/> after changing it.</summary>
     public SkUiIndicatorStyle IndicatorStyle { get; set; } = SkUiIndicatorStyle.Dots;
@@ -88,6 +134,8 @@ public class DefaultSkUiLook : SkUiLook
         SkUiTransitionKind.Ripple => PressEffect == SkUiPressEffect.Ripple ? SkUiTransition.FromMilliseconds(450, Easing.CubicOut) : SkUiTransition.None,
         SkUiTransitionKind.SliderThumb => SkUiTransition.FromMilliseconds(150, Easing.CubicOut),
         SkUiTransitionKind.IndicatorPosition => SkUiTransition.FromMilliseconds(250, Easing.CubicOut),
+        SkUiTransitionKind.FieldFocus => SkUiTransition.FromMilliseconds(150, Easing.CubicOut),
+        SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(200, Easing.CubicInOut),
         // Determinate progress follows Progress at once, as MAUI's ProgressBar (ProgressTo animates).
         _ => SkUiTransition.None
     };
@@ -409,6 +457,86 @@ public class DefaultSkUiLook : SkUiLook
         }
         using var path = CreateRoundRectPath(bounds, shrunk);
         canvas.DrawPath(path, paint);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// <see cref="PickerFieldStyle"/>'s chrome: idle in the border color (darker while a pointer is over it), in the accent
+    /// color and thicker while focused or open; a light press overlay; a chevron that turns while the popup opens; dimmed
+    /// when disabled.
+    /// </remarks>
+    protected override void DrawPickerFieldCore(SKCanvas canvas, SkUiPickerFieldPaint field)
+    {
+        var bounds = field.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+        var style = PickerFieldStyle == SkUiPickerFieldStyle.Default ? DefaultPickerFieldStyle : PickerFieldStyle;
+        var focus = field.IsEnabled ? Math.Clamp(field.Focused, 0, 1) : 0;
+        var idle = field.IsPointerOver && field.IsEnabled ? Mix(field.Border, field.Foreground, 0.35f) : field.Border;
+        var line = Mix(idle, field.Accent, focus);
+        if (!field.IsEnabled)
+            line = line.WithAlpha((byte)(line.Alpha * DisabledAlpha));
+        var paint = Paint(line);
+        const float radius = 6;
+        switch (style)
+        {
+            case SkUiPickerFieldStyle.Outline:
+            {
+                var width = 1 + focus;
+                var ring = bounds;
+                ring.Inflate(-width / 2, -width / 2);
+                Stroke(paint, line, width);
+                canvas.DrawRoundRect(ring, radius - width / 2, radius - width / 2, paint);
+                break;
+            }
+            case SkUiPickerFieldStyle.Underline or SkUiPickerFieldStyle.Filled:
+            {
+                if (style == SkUiPickerFieldStyle.Filled)
+                {
+                    var tint = Mix(field.Border, field.Foreground, field.IsPointerOver && field.IsEnabled ? 0.2f : 0);
+                    paint.Color = tint.WithAlpha((byte)(field.IsEnabled ? 40 : 20));
+                    using var fill = new SKRoundRect(bounds, radius);
+                    fill.SetRectRadii(bounds, [new SKPoint(radius, radius), new SKPoint(radius, radius), default, default]);
+                    canvas.DrawRoundRect(fill, paint);
+                    paint.Color = line;
+                }
+                var height = 1 + focus;
+                canvas.DrawRect(new SKRect(bounds.Left, bounds.Bottom - height, bounds.Right, bounds.Bottom), paint);
+                break;
+            }
+        }
+        if (field.IsEnabled && field.Press.Pressed > 0)
+        {
+            var press = Paint(field.Foreground.WithAlpha((byte)(18 * field.Press.Pressed)));
+            if (style == SkUiPickerFieldStyle.Outline)
+                canvas.DrawRoundRect(bounds, radius, radius, press);
+            else
+                canvas.DrawRect(bounds, press);
+        }
+        DrawChevron(canvas, field);
+    }
+
+    /// <summary>The opacity of disabled field chrome.</summary>
+    private const float DisabledAlpha = 0.38f;
+
+    /// <summary>A down-pointing chevron centered in the field's chevron bounds, turned upwards as the popup opens.</summary>
+    private static void DrawChevron(SKCanvas canvas, SkUiPickerFieldPaint field)
+    {
+        var area = field.ChevronBounds;
+        if (area.Width <= 0 || area.Height <= 0)
+            return;
+        var color = field.IsEnabled ? field.Foreground.WithAlpha((byte)(field.Foreground.Alpha * 0.7f)) : field.Foreground.WithAlpha((byte)(field.Foreground.Alpha * DisabledAlpha));
+        var paint = Paint(color);
+        Stroke(paint, color, 1.75f);
+        paint.StrokeCap = SKStrokeCap.Round;
+        paint.StrokeJoin = SKStrokeJoin.Round;
+        var half = Math.Min(5f, Math.Min(area.Width, area.Height) / 3);
+        canvas.Save();
+        canvas.Translate(area.MidX, area.MidY);
+        canvas.RotateDegrees(180 * Math.Clamp(field.Open, 0, 1));
+        canvas.DrawLine(-half, -half / 2, 0, half / 2, paint);
+        canvas.DrawLine(0, half / 2, half, -half / 2, paint);
+        canvas.Restore();
     }
 
     /// <summary>

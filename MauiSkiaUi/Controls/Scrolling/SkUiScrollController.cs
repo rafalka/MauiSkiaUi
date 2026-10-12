@@ -1110,9 +1110,13 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         ForEachBar(static bar => bar.OnMetricsChanged());
     }
 
+    /// <summary>Raised when the offset or overscroll changed (an anchored popup closes when its anchor's scroller moves).</summary>
+    internal event Action? Scrolled;
+
     /// <summary>The offset or overscroll changed: bars that fade show (and fade out again once nothing moves).</summary>
     private void OnScrolled()
     {
+        Scrolled?.Invoke();
         var moving = _moving;
         ForEachBar(bar => bar.OnScrolled(moving));
     }

@@ -186,8 +186,8 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         if (element.Role is SkUiSemanticsRole.Text or SkUiSemanticsRole.Button)
             node.Text = element.Label ?? string.Empty;
         else
-            node.ContentDescription = element.Label ?? string.Empty;
-        if (element.Hint is { } hint && OperatingSystem.IsAndroidVersionAtLeast(26))
+            node.ContentDescription = SpokenName(element);
+        if (Hint(element) is { } hint && OperatingSystem.IsAndroidVersionAtLeast(26))
             node.HintText = hint;
         if (element.HeadingLevel != SemanticHeadingLevel.None)
             node.Heading = true;
@@ -208,7 +208,8 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         if (OperatingSystem.IsAndroidVersionAtLeast(30))
         {
             // Before Android 16's partial state a mixed check box would be read as unchecked: say it (unless the control does).
-            if (element.Value is { } value)
+            // A combo box's value is its name (SpokenName), not a state.
+            if (element.Value is { } value && element.Role != SkUiSemanticsRole.ComboBox)
                 node.StateDescription = value;
             else if (element.CheckState == SkUiCheckState.Indeterminate && !OperatingSystem.IsAndroidVersionAtLeast(36))
                 node.StateDescription = MixedStateDescription;
@@ -225,6 +226,9 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
             node.LongClickable = true;
             node.AddAction(AccessibilityNodeInfoCompat.ActionLongClick);
         }
+        // A combo box opens and closes its list with the click; TalkBack also offers expand / collapse.
+        if (element.IsExpanded is { } expanded && (actions & SkUiSemanticsActions.Activate) != 0)
+            node.AddAction(expanded ? AccessibilityNodeInfoCompat.ActionCollapse : AccessibilityNodeInfoCompat.ActionExpand);
         // Sliders step and scrollers page with the scroll actions, as Android's SeekBar and ScrollView do.
         if ((actions & (SkUiSemanticsActions.Increment | SkUiSemanticsActions.ScrollForward)) != 0)
             node.AddAction(AccessibilityNodeInfoCompat.ActionScrollForward);
@@ -261,7 +265,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         if (e is null)
             return;
         var element = _owner?.Tree.Find(virtualViewId);
-        e.ContentDescription = element?.Label ?? string.Empty;
+        e.ContentDescription = element is null ? string.Empty : SpokenName(element);
         e.ClassName = element is null ? "android.view.View" : ClassName(element);
         if (element is { Source: { } source } && e.EventType == EventTypes.ViewAccessibilityFocused)
             SkUiSemantics.BringIntoView(source); // focused while partly scrolled out: show it, as native lists do
@@ -279,6 +283,9 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
                 done = owner.Perform(virtualViewId, SkUiSemanticsActions.Activate);
                 if (done)
                     SendEventForVirtualView(virtualViewId, (int)EventTypes.ViewClicked);
+                break;
+            case AccessibilityNodeInfoCompat.ActionExpand or AccessibilityNodeInfoCompat.ActionCollapse:
+                done = element.IsExpanded == (action == AccessibilityNodeInfoCompat.ActionCollapse) && owner.Perform(virtualViewId, SkUiSemanticsActions.Activate);
                 break;
             case AccessibilityNodeInfoCompat.ActionLongClick:
                 done = owner.Perform(virtualViewId, SkUiSemanticsActions.LongPress);
@@ -316,6 +323,17 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
     /// <summary>What TalkBack reads for a mixed (indeterminate) check box before Android 16 (English; a control's own value wins).</summary>
     internal const string MixedStateDescription = "partially checked";
 
+    /// <summary>
+    /// What TalkBack reads as the element's name: its label; for a combo box (a spinner) the selection, as native spinners,
+    /// else its label (the title).
+    /// </summary>
+    private static string SpokenName(SkUiSemanticsNode node) =>
+        (node.Role == SkUiSemanticsRole.ComboBox ? node.Value ?? node.Label : node.Label) ?? string.Empty;
+
+    /// <summary>The element's hint; a combo box read by its selection adds its label (the title) in front.</summary>
+    private static string? Hint(SkUiSemanticsNode node) =>
+        node is { Role: SkUiSemanticsRole.ComboBox, Value: not null, Label: { } title } ? node.Hint is { } hint ? $"{title}, {hint}" : title : node.Hint;
+
     /// <summary>The framework class whose behavior TalkBack announces for a role.</summary>
     private static string ClassName(SkUiSemanticsNode node) => node.Role switch
     {
@@ -328,6 +346,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         SkUiSemanticsRole.Slider => "android.widget.SeekBar",
         SkUiSemanticsRole.ProgressBar => "android.widget.ProgressBar",
         SkUiSemanticsRole.ScrollView => node.IsHorizontal ? "android.widget.HorizontalScrollView" : "android.widget.ScrollView",
+        SkUiSemanticsRole.ComboBox => "android.widget.Spinner",
         _ => "android.view.View"
     };
 }
@@ -368,6 +387,15 @@ internal static class SkUiAndroidKeys
         Android.Views.Keycode.MoveEnd => SkUiKey.End,
         _ => SkUiKey.None
     };
+
+    /// <summary>The printable character a key types (type-ahead), or 0: none, or a command modifier (Ctrl, Meta) is held.</summary>
+    public static char Character(Android.Views.KeyEvent e)
+    {
+        if (e.IsCtrlPressed || e.IsMetaPressed)
+            return '\0';
+        var unicode = e.UnicodeChar;
+        return unicode > ' ' && unicode <= char.MaxValue && !char.IsControl((char)unicode) ? (char)unicode : '\0';
+    }
 
     public static SkUiKeyModifiers Modifiers(Android.Views.KeyEvent e) =>
         (e.IsShiftPressed ? SkUiKeyModifiers.Shift : 0) | (e.IsCtrlPressed ? SkUiKeyModifiers.Control : 0)

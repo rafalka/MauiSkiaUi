@@ -751,6 +751,79 @@ public class SkUiLook
 
     #endregion
 
+    #region Picker and popups
+
+    /// <summary>The minimum height of pickers that do not set their own (<c>MinimumHeightRequest</c>), in DIPs (default 44, a touch target).</summary>
+    public virtual double DefaultPickerMinimumHeight => 44;
+
+    /// <summary>The space between a picker field's edges and its text, in DIPs (the chevron's room is added at the end).</summary>
+    public virtual Thickness PickerFieldPadding => new(12, 8);
+
+    /// <summary>The room a picker field keeps for its chevron at the end, in DIPs (the chevron is drawn centered in it).</summary>
+    public virtual double PickerChevronWidth => 32;
+
+    /// <summary>Optional picker field painter; when set, replaces <see cref="DrawPickerFieldCore"/>.</summary>
+    public Action<SKCanvas, SkUiPickerFieldPaint>? PickerFieldPainter { get; set; }
+
+    /// <summary>
+    /// Draws a picker's field chrome behind its text (delegate or <see cref="DrawPickerFieldCore"/>): an underline, an outline
+    /// or a fill, the chevron in <see cref="SkUiPickerFieldPaint.ChevronBounds"/>, and the states (pointer over, pressed,
+    /// focused, open, disabled; <see cref="SkUiPickerFieldPaint.Focused"/> and <see cref="SkUiPickerFieldPaint.Open"/> animate
+    /// with the look's <see cref="SkUiTransitionKind.FieldFocus"/> and <see cref="SkUiTransitionKind.PickerOpen"/> transitions).
+    /// The control draws its text over it.
+    /// </summary>
+    public void DrawPickerField(SKCanvas canvas, SkUiPickerFieldPaint field)
+    {
+        if (PickerFieldPainter is { } painter)
+        {
+            painter(canvas, field);
+            return;
+        }
+        DrawPickerFieldCore(canvas, field);
+    }
+
+    /// <summary>Default picker field: none (<see cref="DefaultSkUiLook"/> draws <see cref="DefaultSkUiLook.PickerFieldStyle"/>).</summary>
+    protected virtual void DrawPickerFieldCore(SKCanvas canvas, SkUiPickerFieldPaint field) { }
+
+    /// <summary>
+    /// Where pickers that do not set their own <c>PopupPlacement</c> open their list (default <see cref="SkUiPopupPlacement.Anchored"/>;
+    /// <see cref="DefaultSkUiLook"/> follows the device: anchored on desktops and tablets, a dialog on phones).
+    /// </summary>
+    public virtual SkUiPopupPlacement DefaultPopupPlacement => SkUiPopupPlacement.Anchored;
+
+    /// <summary>How <see cref="SkUiPopupPlacement.Window"/> popups align horizontally in the window (default centered).</summary>
+    public virtual LayoutOptions PopupHorizontalOptions => LayoutOptions.Center;
+
+    /// <summary>How <see cref="SkUiPopupPlacement.Window"/> popups align vertically in the window (default centered; <c>End</c>: a bottom sheet).</summary>
+    public virtual LayoutOptions PopupVerticalOptions => LayoutOptions.Center;
+
+    /// <summary>The space popups keep from the window's safe area edges, in DIPs (default 8).</summary>
+    public virtual Thickness PopupMargin => new(8);
+
+    /// <summary>The gap between an anchored popup and its anchor, in DIPs (default 4).</summary>
+    public virtual double PopupAnchorGap => 4;
+
+    /// <summary>The width of a <see cref="SkUiPopupPlacement.Window"/> popup's list (unless the window is narrower), in DIPs (default 320).</summary>
+    public virtual double PopupPreferredWidth => 320;
+
+    /// <summary>The height of a popup list's rows without an item template, in DIPs (default 44).</summary>
+    public virtual double PopupItemHeight => 44;
+
+    /// <summary>The space around a popup list row's text, in DIPs (default 16 across, 8 down).</summary>
+    public virtual Thickness PopupItemPadding => new(16, 8);
+
+    /// <summary>
+    /// What a modal popup system dims the page with behind a popup of <paramref name="placement"/>
+    /// (<see cref="SkUiPopupRequest.OverlayColor"/>); default: nothing for anchored popups, black at 32 % for the others.
+    /// </summary>
+    public virtual Color? GetPopupOverlayColor(SkUiPopupPlacement placement) =>
+        placement == SkUiPopupPlacement.Anchored ? null : Color.FromRgba(0, 0, 0, 0.32);
+
+    /// <summary>A popup list's highlighted row background (the selection and the keyboard's position): default the accent at 12 %.</summary>
+    public virtual Color PopupHighlightColor => SkUiColors.Accent.WithAlpha(0.12f);
+
+    #endregion
+
     #region Image
 
     /// <summary>Optional image painter.</summary>

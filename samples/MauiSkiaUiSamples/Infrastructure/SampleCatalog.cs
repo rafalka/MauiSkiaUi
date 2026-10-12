@@ -1,5 +1,6 @@
 using MauiSkiaUiSamples.Samples.Controls;
 using MauiSkiaUiSamples.Samples.Controls.Contacts;
+using MauiSkiaUiSamples.Samples.Controls.Pickers;
 using MauiSkiaUiSamples.Samples.Customisation;
 using MauiSkiaUiSamples.Samples.GettingStarted;
 
@@ -20,6 +21,7 @@ public static class SampleCatalog
         SampleEntry.For<OrderListSample>(),
         SampleEntry.For<ContactsSample>(),
         SampleEntry.For<PlanPickerSample>(),
+        SampleEntry.For<PickerPopupsSample>(),
         SampleEntry.For<CrossCheckBoxSample>(),
     ];
 

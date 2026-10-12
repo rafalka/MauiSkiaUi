@@ -17,7 +17,31 @@ internal enum SkUiKey
     PageUp,
     PageDown,
     Home,
-    End
+    End,
+    /// <summary>A character key (a letter, a digit, punctuation): <see cref="SkUiKeyEvent.Character"/> (type-ahead in lists).</summary>
+    Character
+}
+
+/// <summary>A key press the drawn tree is offered (<see cref="ISkUiKeyHandler"/>).</summary>
+/// <param name="Key">The key.</param>
+/// <param name="Modifiers">Modifier keys held.</param>
+/// <param name="IsRepeat">A key held down repeating.</param>
+/// <param name="Character">The character of a <see cref="SkUiKey.Character"/> key (0 otherwise).</param>
+internal readonly record struct SkUiKeyEvent(SkUiKey Key, SkUiKeyModifiers Modifiers, bool IsRepeat, char Character = '\0')
+{
+    /// <summary>Whether a command modifier is held (Control, Alt or Command): the key is a shortcut, not input.</summary>
+    public bool HasCommandModifier => (Modifiers & (SkUiKeyModifiers.Control | SkUiKeyModifiers.Alt | SkUiKeyModifiers.Command)) != 0;
+}
+
+/// <summary>
+/// A drawn node that handles keys itself (a picker's arrow keys, a popup list's navigation and type-ahead): offered every key
+/// while it or a descendant has keyboard focus (innermost first), before the focus manager's own handling (Tab, activation,
+/// adjusting, scrolling). A surface without a focused node offers keys to its root.
+/// </summary>
+internal interface ISkUiKeyHandler
+{
+    /// <summary>Handles <paramref name="key"/>; returns whether it was used (it then goes no further).</summary>
+    bool OnKeyDown(in SkUiKeyEvent key);
 }
 
 /// <summary>Modifier keys held with a <see cref="SkUiKey"/>.</summary>
@@ -217,14 +241,17 @@ internal sealed class SkUiFocusManager(SkUiView root)
     /// <param name="key">The key.</param>
     /// <param name="modifiers">Modifier keys held.</param>
     /// <param name="isRepeat">A key held down repeating: it does not activate again (a held Enter would click many times).</param>
-    public bool KeyDown(SkUiKey key, SkUiKeyModifiers modifiers = SkUiKeyModifiers.None, bool isRepeat = false)
+    /// <param name="character">The character of a <see cref="SkUiKey.Character"/> key.</param>
+    public bool KeyDown(SkUiKey key, SkUiKeyModifiers modifiers = SkUiKeyModifiers.None, bool isRepeat = false, char character = '\0')
     {
         if (!SkUiAccessibility.IsEnabled)
             return false;
         _lastInputWasPointer = false;
         Validate();
-        if (_focused is not null && !_ringVisible && key is not SkUiKey.None)
+        if (_focused is not null && !_ringVisible && key is not (SkUiKey.None or SkUiKey.Character))
             SetRingVisible(true);
+        if (key != SkUiKey.None && OfferKey(new SkUiKeyEvent(key, modifiers, isRepeat, character)))
+            return true;
         switch (key)
         {
             case SkUiKey.Tab when (modifiers & (SkUiKeyModifiers.Control | SkUiKeyModifiers.Alt | SkUiKeyModifiers.Command)) == 0:
@@ -239,6 +266,15 @@ internal sealed class SkUiFocusManager(SkUiView root)
             case SkUiKey.Home or SkUiKey.End:
                 return HomeEnd(key == SkUiKey.End);
         }
+        return false;
+    }
+
+    /// <summary>Offers <paramref name="key"/> to the focused node's key handlers, innermost first (the root's without focus).</summary>
+    private bool OfferKey(in SkUiKeyEvent key)
+    {
+        for (ISkUiRenderable? current = _focused ?? (ISkUiRenderable)root; current is not null; current = current.RenderParent)
+            if (current is ISkUiKeyHandler handler && handler.OnKeyDown(key))
+                return true;
         return false;
     }
 

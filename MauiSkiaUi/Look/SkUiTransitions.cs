@@ -25,7 +25,11 @@ public enum SkUiTransitionKind
     /// An indicator view's selected indicator moves to a new <c>Position</c> (tapped, set by the app; one linked to a carousel
     /// follows its scrolling instead).
     /// </summary>
-    IndicatorPosition
+    IndicatorPosition,
+    /// <summary>A field (a picker) gains or loses keyboard focus or its popup: its focus highlight goes towards 1 or 0.</summary>
+    FieldFocus,
+    /// <summary>A picker's popup opens or closes: its chevron turns (<see cref="SkUiPickerFieldPaint.Open"/> goes towards 1 or 0).</summary>
+    PickerOpen
 }
 
 /// <summary>
@@ -122,6 +126,21 @@ public enum SkUiIndicatorStyle
     Dots,
     /// <summary>The selected indicator stretches into a pill twice the size longer, and slides between positions (Material-like).</summary>
     Pill
+}
+
+/// <summary>How <see cref="DefaultSkUiLook"/> draws picker fields (<see cref="DefaultSkUiLook.PickerFieldStyle"/>).</summary>
+public enum SkUiPickerFieldStyle
+{
+    /// <summary>The look's (<see cref="DefaultSkUiLook.DefaultPickerFieldStyle"/>): an outline; Material's underline in <see cref="AndroidSkUiLook"/>.</summary>
+    Default,
+    /// <summary>A line under the field, thicker and in the accent color while focused or open.</summary>
+    Underline,
+    /// <summary>A rounded outline, thicker and in the accent color while focused or open.</summary>
+    Outline,
+    /// <summary>A tinted fill with rounded top corners over an underline (Material's filled field).</summary>
+    Filled,
+    /// <summary>No chrome: the chevron only (the app draws its own, e.g. with a border around the picker).</summary>
+    None
 }
 
 /// <summary>Press feedback style of <see cref="DefaultSkUiLook"/> buttons.</summary>

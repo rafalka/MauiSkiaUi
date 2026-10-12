@@ -56,6 +56,16 @@ Register in `MauiProgram`:
 builder.UseSkiaUi();
 ```
 
+Using [CommunityToolkit.Maui](https://github.com/CommunityToolkit/Maui)? **[SkiaUi.Maui.CommunityToolkit](https://www.nuget.org/packages/SkiaUi.Maui.CommunityToolkit/)** opens drawn pickers' lists in the toolkit's `Popup` (without it, they open in MAUI's action sheet, or on any popup system through an `ISkUiPopupPresenter` of yours):
+
+```bash
+dotnet add package SkiaUi.Maui.CommunityToolkit
+```
+
+```csharp
+builder.UseMauiCommunityToolkit().UseSkiaUi().UseSkiaUiCommunityToolkit();
+```
+
 ## Quick start
 
 ```xml

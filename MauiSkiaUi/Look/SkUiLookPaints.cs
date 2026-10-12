@@ -224,3 +224,23 @@ public readonly record struct SkUiIndicatorPaint(
     /// <summary>The color of the indicator in <paramref name="slot"/>: <see cref="Color"/> blended towards <see cref="SelectedColor"/> by its selection.</summary>
     public SKColor GetColor(int slot) => SkUiIndicatorLayout.Blend(Color, SelectedColor, GetSelection(slot));
 }
+
+/// <summary>
+/// What a look draws for a picker's field (<see cref="SkUiLook.DrawPickerField"/>), behind the text the control draws: the
+/// chrome (underline, outline or fill) in <see cref="Bounds"/> and the chevron in <see cref="ChevronBounds"/> (at the end side:
+/// the left in right-to-left layouts).
+/// </summary>
+/// <param name="Bounds">The field's rectangle.</param>
+/// <param name="ChevronBounds">Where the chevron goes.</param>
+/// <param name="Accent">The focus and open color (the color scheme's accent).</param>
+/// <param name="Border">The idle underline or outline color (the color scheme's muted color).</param>
+/// <param name="Foreground">The chevron color (the picker's text color).</param>
+/// <param name="Focused">How focused the field is, 0–1 (keyboard focus or an open popup), animated by <see cref="SkUiTransitionKind.FieldFocus"/>.</param>
+/// <param name="Open">How open the popup is, 0–1 (the chevron turns), animated by <see cref="SkUiTransitionKind.PickerOpen"/>.</param>
+/// <param name="Press">Press amount and point.</param>
+/// <param name="IsPointerOver">A hovering pointer is over the field.</param>
+/// <param name="IsEnabled">The field is enabled.</param>
+/// <param name="IsRightToLeft">The field lays out right to left.</param>
+public readonly record struct SkUiPickerFieldPaint(
+    SKRect Bounds, SKRect ChevronBounds, SKColor Accent, SKColor Border, SKColor Foreground, float Focused, float Open, SkUiPressVisual Press,
+    bool IsPointerOver, bool IsEnabled, bool IsRightToLeft);

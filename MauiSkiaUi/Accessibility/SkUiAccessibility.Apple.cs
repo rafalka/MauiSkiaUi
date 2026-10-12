@@ -154,6 +154,10 @@ internal sealed class SkUiAccessibilityBridge
             case SkUiSemanticsRole.ProgressBar:
                 traits |= UIAccessibilityTrait.UpdatesFrequently;
                 break;
+            case SkUiSemanticsRole.ComboBox:
+                // As UIKit's pop-up button (UIButton with a menu): a button read with its selection as the value.
+                traits |= UIAccessibilityTrait.Button;
+                break;
             default:
                 if ((node.Actions & SkUiSemanticsActions.Activate) != 0)
                     traits |= UIAccessibilityTrait.Button;
@@ -264,6 +268,21 @@ internal sealed class SkUiAccessibilityElement : UIAccessibilityElement
 /// <summary>Hardware keyboard presses of a focused surface container as <see cref="SkUiKey"/>s.</summary>
 internal static class SkUiAppleKeys
 {
+    /// <summary>The key as a <see cref="SkUiKey"/>; a printable character (without Command or Control) as <see cref="SkUiKey.Character"/>.</summary>
+    public static SkUiKey Map(UIKey key, out char character)
+    {
+        character = '\0';
+        var mapped = Map(key);
+        if (mapped != SkUiKey.None || (key.ModifierFlags & (UIKeyModifierFlags.Command | UIKeyModifierFlags.Control)) != 0)
+            return mapped;
+        if (key.Characters is { Length: 1 } text && text[0] > ' ' && !char.IsControl(text[0]))
+        {
+            character = text[0];
+            return SkUiKey.Character;
+        }
+        return SkUiKey.None;
+    }
+
     public static SkUiKey Map(UIKey key) => key.KeyCode switch
     {
         UIKeyboardHidUsage.KeyboardTab => SkUiKey.Tab,

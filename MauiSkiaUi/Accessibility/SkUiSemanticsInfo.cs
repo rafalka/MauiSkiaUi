@@ -25,7 +25,12 @@ public enum SkUiSemanticsRole
     /// <summary>Progress (<see cref="SkUiSemanticsInfo.Range"/>, or none while indeterminate).</summary>
     ProgressBar,
     /// <summary>A scrolling container: its children are elements, and it scrolls by page.</summary>
-    ScrollView
+    ScrollView,
+    /// <summary>
+    /// A combo box / pop-up button (a picker): activating it opens its list; <see cref="SkUiSemanticsInfo.Value"/> is the
+    /// selected item's text and <see cref="SkUiSemanticsInfo.IsExpanded"/> whether the list is open.
+    /// </summary>
+    ComboBox
 }
 
 /// <summary>Actions assistive technologies (and the keyboard) can perform on a drawn element.</summary>
@@ -95,6 +100,9 @@ public sealed class SkUiSemanticsInfo
     /// <summary>Whether a scrolling element moves horizontally (its page actions scroll left / right).</summary>
     public bool IsHorizontal { get; set; }
 
+    /// <summary>Whether a combo box's list is open; <c>null</c> when the element does not expand.</summary>
+    public bool? IsExpanded { get; set; }
+
     internal string? Description;
     internal string? Hint;
     internal SemanticHeadingLevel HeadingLevel;
@@ -113,6 +121,7 @@ public sealed class SkUiSemanticsInfo
         IsEnabled = true;
         Actions = SkUiSemanticsActions.None;
         IsHorizontal = false;
+        IsExpanded = null;
         HeadingLevel = SemanticHeadingLevel.None;
         IsInAccessibleTree = null;
         ExcludedWithChildren = false;

@@ -1,6 +1,6 @@
 name: NuGet publish
 
-# Packs SkiaUi.Maui (macOS + Windows TFMs merged) and pushes to https://www.nuget.org/
+# Packs SkiaUi.Maui and SkiaUi.Maui.CommunityToolkit (macOS + Windows TFMs merged, one version) and pushes to https://www.nuget.org/
 # via Trusted Publishing (OIDC):
 #   https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
 # Uses GitHub Environment "nuget.org" (match this name in the nuget.org trusted policy).
@@ -156,13 +156,16 @@ jobs:
           # Do not pass -p:TargetFrameworks=… here: a semicolon-list via -p is misapplied as
           # singular TargetFramework (NETSDK1046). On macOS the csproj already selects
           # net10.0 + android + ios + maccatalyst via OS conditions.
-          dotnet pack MauiSkiaUi/MauiSkiaUi.csproj \
-            -c Release \
-            -o artifacts/nuget \
-            -p:Version="${PACKAGE_VERSION}" \
-            -p:ContinuousIntegrationBuild=true \
-            -p:IncludeSymbols=true \
-            -p:SymbolPackageFormat=snupkg
+          # Every package (SkiaUi.Maui and its integrations), released together with one version.
+          for project in MauiSkiaUi/MauiSkiaUi.csproj MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj; do
+            dotnet pack "$project" \
+              -c Release \
+              -o artifacts/nuget \
+              -p:Version="${PACKAGE_VERSION}" \
+              -p:ContinuousIntegrationBuild=true \
+              -p:IncludeSymbols=true \
+              -p:SymbolPackageFormat=snupkg
+          done
 
       - name: Upload macOS package
         uses: actions/upload-artifact@v6
@@ -210,14 +213,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/nuget-win
-          dotnet pack MauiSkiaUi/MauiSkiaUi.csproj \
-            -c Release \
-            -o artifacts/nuget-win \
-            -p:Version="${PACKAGE_VERSION}" \
-            -p:ContinuousIntegrationBuild=true \
-            -p:IncludeSymbols=true \
-            -p:SymbolPackageFormat=snupkg \
-            -p:TargetFrameworks="net10.0-windows10.0.19041.0"
+          for project in MauiSkiaUi/MauiSkiaUi.csproj MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj; do
+            dotnet pack "$project" \
+              -c Release \
+              -o artifacts/nuget-win \
+              -p:Version="${PACKAGE_VERSION}" \
+              -p:ContinuousIntegrationBuild=true \
+              -p:IncludeSymbols=true \
+              -p:SymbolPackageFormat=snupkg \
+              -p:TargetFrameworks="net10.0-windows10.0.19041.0"
+          done
 
       - name: Upload Windows package
         uses: actions/upload-artifact@v6
@@ -270,37 +275,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/nuget
-          python3 <<'PY'
-          import pathlib, zipfile, shutil
-
-          def one_pkg(folder: pathlib.Path, suffix: str) -> pathlib.Path:
-              matches = sorted(folder.glob(f"*{suffix}"))
-              if len(matches) != 1:
-                  raise SystemExit(f"Expected one *{suffix} under {folder}, found {matches}")
-              return matches[0]
-
-          macos_dir = pathlib.Path("incoming/macos")
-          win_dir = pathlib.Path("incoming/windows")
-          out_dir = pathlib.Path("artifacts/nuget")
-          out_dir.mkdir(parents=True, exist_ok=True)
-
-          for suffix in (".nupkg", ".snupkg"):
-              base = one_pkg(macos_dir, suffix)
-              win = one_pkg(win_dir, suffix)
-              dest = out_dir / base.name
-              shutil.copy2(base, dest)
-              with zipfile.ZipFile(dest, "a") as zdst, zipfile.ZipFile(win, "r") as zsrc:
-                  existing = set(zdst.namelist())
-                  for info in zsrc.infolist():
-                      name = info.filename
-                      if name in existing:
-                          continue
-                      if name.startswith("lib/") or name.startswith("runtimes/") or name.startswith("ref/"):
-                          zdst.writestr(info, zsrc.read(name))
-                          print(f"merged {suffix}: {name}")
-              print(f"wrote {dest}")
-          PY
+          python3 scripts/merge_nupkgs.py incoming/macos incoming/windows artifacts/nuget
 
       - name: Upload NuGet packages
         uses: actions/upload-artifact@v6
