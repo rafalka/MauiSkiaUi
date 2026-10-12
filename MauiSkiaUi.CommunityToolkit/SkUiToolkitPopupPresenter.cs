@@ -44,7 +44,17 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
             return;
         var (popup, options) = Create(request, content);
         var bounds = request.Bounds;
-        popup.Opened += (_, _) => CorrectOffset(popup, content, bounds);
+        popup.Opened += (_, _) =>
+        {
+            // A close asked for before the toolkit attached the popup could not close it then (it throws until the popup is
+            // shown, and CloseAsync ignores that): close it now.
+            if (cancellationToken.IsCancellationRequested)
+            {
+                _ = CloseAsync(popup);
+                return;
+            }
+            CorrectOffset(popup, content, bounds);
+        };
         await using var registration = cancellationToken.Register(() => _ = CloseAsync(popup));
         await page.ShowPopupAsync(popup, options, CancellationToken.None);
     }

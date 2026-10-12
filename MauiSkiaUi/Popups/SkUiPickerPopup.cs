@@ -94,8 +94,8 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler
     internal int HighlightedIndex => _highlighted;
 
     /// <summary>
-    /// The size the content wants: as wide as its widest text (the first items', at least <paramref name="minimumWidth"/>, at
-    /// most <paramref name="maximumWidth"/>) and as tall as all its rows and its title.
+    /// The size the content wants: as wide as its widest text (the first items') or templated row (the first one's), at least
+    /// <paramref name="minimumWidth"/>, at most <paramref name="maximumWidth"/>, and as tall as all its rows and its title.
     /// </summary>
     public Size PreferredSize(double minimumWidth, double maximumWidth)
     {
@@ -116,12 +116,19 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler
             }
             layout.Release();
         }
-        var width = Math.Clamp(Math.Ceiling(widest + padding.HorizontalThickness), Math.Min(minimumWidth, maximumWidth), maximumWidth);
+        var width = Math.Ceiling(widest + padding.HorizontalThickness);
         double rowHeight = look.PopupItemHeight;
+        RowView? probe = null;
         if (_template is not null && _rows.Length > 0)
         {
-            // Templated rows: as tall as the first one, for every row (the list measures each row once it shows).
-            var probe = new RowView(_template, _style) { BindingContext = _rows[0] };
+            // Templated rows: at least as wide as the first one wants (its own padding included) and as tall as it at the
+            // popup's width, for every row (the list measures each row once it shows).
+            probe = new RowView(_template, _style) { BindingContext = _rows[0] };
+            width = Math.Max(width, Math.Ceiling(probe.Measure(maximumWidth, double.PositiveInfinity).Width));
+        }
+        width = Math.Clamp(width, Math.Min(minimumWidth, maximumWidth), maximumWidth);
+        if (probe is not null)
+        {
             rowHeight = probe.Measure(width, double.PositiveInfinity).Height;
             probe.BindingContext = null;
         }
@@ -188,6 +195,21 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler
         _highlighted = index;
         _list.SelectedItem = _rows[index];
         _ = _list.ScrollToIndex(index, ScrollToPosition.MakeVisible, animated: false);
+    }
+
+    /// <summary>
+    /// The picker's selection changed while the popup is open (the app set it): the highlight follows, so Enter chooses what
+    /// the field shows; -1 clears it.
+    /// </summary>
+    internal void SyncSelection(int index)
+    {
+        if (index >= 0 && index < _rows.Length)
+        {
+            Highlight(index);
+            return;
+        }
+        _highlighted = -1;
+        _list.SelectedItem = null;
     }
 
     /// <inheritdoc />

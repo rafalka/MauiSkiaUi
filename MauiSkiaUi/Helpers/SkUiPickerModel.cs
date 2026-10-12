@@ -72,13 +72,21 @@ internal sealed class SkUiPickerModel
 
     #region State the controls copy in
 
-    /// <summary>The item texts, in order (the control keeps the list; set again when it changes).</summary>
+    /// <summary>
+    /// The item texts, in order (the control keeps the list; set again when it changes). An open popup closes: it shows the
+    /// items it opened with, and a choice made there is mapped to the item it showed (<see cref="Ended"/>).
+    /// </summary>
     public IReadOnlyList<string> Items
     {
         get => _items;
         set
         {
             _items = value;
+            if (_session is { } session)
+            {
+                session.ItemsChanged = true;
+                Close();
+            }
             TextChanged();
         }
     }
@@ -123,8 +131,15 @@ internal sealed class SkUiPickerModel
     /// <summary>A paint-only property changed (a color).</summary>
     public void PaintChanged() => _owner.InvalidatePaint();
 
-    /// <summary>The selection changed: new text, the popup's request is not updated (it holds the selection it opened with).</summary>
-    public void SelectionChanged() => TextChanged();
+    /// <summary>
+    /// The selection changed: new text, and an open popup's highlight follows (its request keeps the selection it opened
+    /// with).
+    /// </summary>
+    public void SelectionChanged()
+    {
+        _session?.SelectionChanged(SelectedIndex);
+        TextChanged();
+    }
 
     #endregion
 
@@ -300,7 +315,25 @@ internal sealed class SkUiPickerModel
         _session = session;
         UpdateHighlight();
         _owner.InvalidateSemantics();
-        session.Start();
+        try
+        {
+            session.Start();
+        }
+        catch (Exception exception)
+        {
+            // Not shown (a failure building or placing it, e.g. in the item template): closed again, so the picker can open
+            // later. Reported as presenter failures are (this runs in the IsOpen change, where a throw would leave it open).
+            Trace.WriteLine($"SkiaUi: a picker's popup could not be built: {exception}");
+            session.Abort();
+            if (ReferenceEquals(_session, session))
+            {
+                _session = null;
+                _reopen = false;
+                UpdateHighlight();
+                _owner.InvalidateSemantics();
+                _owner.SetIsOpen(false);
+            }
+        }
     }
 
     /// <summary>The control's <c>IsOpen</c> became <c>false</c>, or the picker can no longer show its popup: the popup closes.</summary>
@@ -318,6 +351,7 @@ internal sealed class SkUiPickerModel
         _session = null;
         UpdateHighlight();
         _owner.InvalidateSemantics();
+        choice = session.ItemsChanged ? session.CurrentIndexOf(choice) : choice;
         if (choice >= 0 && choice < _items.Count)
             _owner.Choose(choice);
         if (hadFocus)
@@ -351,8 +385,36 @@ internal sealed class SkUiPickerModel
         private readonly List<ScrollView> _nativeScrollers = [];
         private Window? _window;
         private SkUiPickerPopup? _content;
+        private string[] _texts = [];
+        private object?[]? _sourceItems;
 
         public SkUiListPopupRequest? Request { get; private set; }
+
+        /// <summary>The picker's items changed while the popup was open (it closes; a choice made in it is mapped).</summary>
+        public bool ItemsChanged { get; set; }
+
+        /// <summary>
+        /// Where the item the popup showed at <paramref name="choice"/> is now: the same object of the picker's source, else the
+        /// same text (at the same index when it is still there); -1 when it has gone.
+        /// </summary>
+        public int CurrentIndexOf(int choice)
+        {
+            if (choice < 0 || choice >= _texts.Length)
+                return -1;
+            if (_sourceItems is { } shown && model._owner.ItemsSource is { } source)
+                return source.IndexOf(shown[choice]);
+            var text = _texts[choice];
+            var items = model._items;
+            if (choice < items.Count && items[choice] == text)
+                return choice;
+            for (var index = 0; index < items.Count; index++)
+                if (items[index] == text)
+                    return index;
+            return -1;
+        }
+
+        /// <summary>The picker's selection changed while open: the list's highlight follows.</summary>
+        public void SelectionChanged(int index) => _content?.SyncSelection(index);
 
         public bool IsClosing => Request?.CloseRequested.IsCancellationRequested ?? false;
 
@@ -368,6 +430,12 @@ internal sealed class SkUiPickerModel
             var anchorBounds = rootBounds.Offset(origin.X, origin.Y);
             var windowSize = SkUiWindowMetrics.WindowSize(anchor.Window);
             var items = model._items.ToArray();
+            _texts = items;
+            if (model._owner.ItemsSource is { } source)
+            {
+                _sourceItems = new object?[source.Count];
+                source.CopyTo(_sourceItems, 0);
+            }
             var rowStyle = new SkUiPickerRowStyle(model.FontFamily, model.FontSize, model.FontAttributes, model.FontAutoScalingEnabled, model.CharacterSpacing,
                 model.TextColor);
             var content = new SkUiPickerPopup(items, model.SelectedIndex, model.ItemTemplate, model._owner.ItemsSource, rowStyle,
@@ -417,10 +485,21 @@ internal sealed class SkUiPickerModel
                 _content?.Release();
                 _content = null;
                 model.Ended(this, choice, hadFocus);
+                _sourceItems = null;
             }
         }
 
         public void Close() => Request?.Close();
+
+        /// <summary><see cref="Start"/> failed: nothing was handed to a presenter; stops watching and lets go of the content.</summary>
+        public void Abort()
+        {
+            StopWatching();
+            Request?.MarkCompleted();
+            _content?.Release();
+            _content = null;
+            _sourceItems = null;
+        }
 
         /// <summary>An anchored popup closes when its anchor scrolls (a drawn or a MAUI scroller around it) or the window resizes.</summary>
         private void WatchAnchor()

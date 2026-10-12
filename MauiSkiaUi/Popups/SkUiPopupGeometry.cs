@@ -54,7 +54,10 @@ internal readonly record struct SkUiPopupPlacementInput(
 /// </summary>
 internal static class SkUiPopupGeometry
 {
-    /// <summary>Below this, popups are not made any smaller to fit (they overlap the edge's margin instead).</summary>
+    /// <summary>
+    /// Below this, anchored popups are not made any smaller to fit beside their anchor: they move into the safe area instead,
+    /// over the anchor.
+    /// </summary>
     private const double MinimumExtent = 48;
 
     public static SkUiPopupLayout Layout(in SkUiPopupPlacementInput input)
@@ -108,10 +111,13 @@ internal static class SkUiPopupGeometry
         // Below when it fits there, else on the side with more room (as a combo box), never smaller than a few rows.
         opensAbove = wanted > spaceBelow && spaceAbove > spaceBelow;
         var room = opensAbove ? spaceAbove : spaceBelow;
-        var height = Math.Max(Math.Min(wanted, room), Math.Min(wanted, MinimumExtent));
+        // Never taller than the safe area (less the margin), and kept inside it: with too little room beside the anchor, a
+        // popup of the minimum extent covers the anchor rather than leaving the window.
+        var height = Math.Min(Math.Max(Math.Min(wanted, room), Math.Min(wanted, MinimumExtent)), area.Height);
         var left = input.IsRightToLeft ? anchor.Right - width : anchor.Left;
         left = Clamp(left, area.Left, area.Right - width);
         var top = opensAbove ? anchor.Top - input.AnchorGap - height : anchor.Bottom + input.AnchorGap;
+        top = Clamp(top, area.Top, area.Bottom - height);
         return new Rect(left, top, width, height);
     }
 

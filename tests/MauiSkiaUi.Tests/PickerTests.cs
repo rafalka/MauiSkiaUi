@@ -536,6 +536,146 @@ public sealed class PickerTests : IDisposable
         var row = Assert.IsType<SkUiLabel>(((SkUiContentView)content.List.GetRealizedView(1)!).Content);
         Assert.Equal("🐒 Capuchin Monkey", row.Text);
     }
+
+    [Fact]
+    public void TemplatedRowsWiderThanTheTextsWidenThePopup()
+    {
+        var picker = new SkUiPicker
+        {
+            ItemsSource = new List<string> { "A", "B" },
+            PopupPlacement = SkUiPopupPlacement.Anchored,
+            ItemTemplate = new DataTemplate(() => new SkUiBox { WidthRequest = 420, HeightRequest = 30 })
+        };
+        var root = new SkUiVerticalStackLayout { Children = { new SkUiHorizontalStackLayout { Children = { picker } } } };
+        SkUiTestHelpers.Arrange(root, 600, 600);
+
+        picker.IsOpen = true;
+
+        Assert.Equal(420, Shown().PreferredSize.Width, 3);
+    }
+
+    /// <summary>A presenter whose popup goes only when the test says so (a choice can be made before the items change).</summary>
+    private sealed class ManualPopupPresenter : ISkUiPopupPresenter
+    {
+        private TaskCompletionSource? _shown;
+
+        public SkUiListPopupRequest? Current { get; private set; }
+
+        public Task ShowAsync(SkUiPopupRequest request, CancellationToken cancellationToken)
+        {
+            Current = (SkUiListPopupRequest)request;
+            _shown = new TaskCompletionSource();
+            return _shown.Task;
+        }
+
+        public void Gone() => _shown?.TrySetResult();
+    }
+
+    [Fact]
+    public void ItemsChangingWhileOpenCloseThePopupAndAChoiceKeepsItsItem()
+    {
+        var monkeys = new ObservableCollection<Monkey>(Monkeys.Select(name => new Monkey(name)));
+        var manual = new ManualPopupPresenter();
+        var picker = new SkUiPicker { ItemsSource = monkeys, ItemDisplayBinding = new Binding(nameof(Monkey.Name)), PopupPresenter = manual };
+        Root(picker);
+
+        // A choice made just before the items changed selects the item the popup showed, where it is now.
+        picker.IsOpen = true;
+        var request = manual.Current!;
+        request.Complete(1);
+        monkeys.Insert(0, new Monkey("Gorilla"));
+        Assert.True(request.CloseRequested.IsCancellationRequested);
+        manual.Gone();
+        _ui.RunPending();
+        Assert.Same(monkeys[2], picker.SelectedItem);
+        Assert.False(picker.IsOpen);
+
+        // An item gone meanwhile is not chosen.
+        picker.IsOpen = true;
+        manual.Current!.Complete(0);
+        monkeys.RemoveAt(0);
+        manual.Gone();
+        _ui.RunPending();
+        Assert.Same(monkeys[1], picker.SelectedItem);
+
+        // Items changing while the popup is open close it (it shows the items it opened with).
+        picker.IsOpen = true;
+        request = manual.Current!;
+        monkeys.Add(new Monkey("Gibbon"));
+        Assert.True(request.CloseRequested.IsCancellationRequested);
+        manual.Gone();
+        _ui.RunPending();
+        Assert.False(picker.IsOpen);
+        Assert.Same(monkeys[1], picker.SelectedItem);
+    }
+
+    [Fact]
+    public void ASelectionSetWhileOpenMovesTheHighlight()
+    {
+        var picker = Picker(Monkeys);
+        picker.SelectedIndex = 1;
+        Root(picker);
+        picker.IsOpen = true;
+        var content = Assert.IsType<SkUiPickerPopup>(Shown().Content);
+        Assert.Equal(1, content.HighlightedIndex);
+
+        picker.SelectedIndex = 4;
+        Assert.Equal(4, content.HighlightedIndex);
+        // Enter chooses what the field shows, not the selection the popup opened with.
+        Assert.True(content.OnKeyDown(new SkUiKeyEvent(SkUiKey.Enter, SkUiKeyModifiers.None, false)));
+        _ui.RunPending();
+        Assert.Equal(4, picker.SelectedIndex);
+
+        picker.IsOpen = true;
+        content = Assert.IsType<SkUiPickerPopup>(Shown().Content);
+        picker.SelectedIndex = -1;
+        Assert.Equal(-1, content.HighlightedIndex);
+    }
+
+    [Fact]
+    public void APopupThatFailsToBuildLeavesThePickerClosed()
+    {
+        var picker = Picker(Monkeys);
+        picker.ItemTemplate = new DataTemplate(() => throw new InvalidOperationException("Broken template"));
+        Root(picker);
+
+        picker.IsOpen = true;
+        _ui.RunPending();
+        Assert.False(picker.IsPopupShown);
+        Assert.False(picker.IsOpen);
+        Assert.Empty(_presenter.Requests);
+
+        // It opens again once it can.
+        picker.ItemTemplate = null;
+        picker.IsOpen = true;
+        Assert.True(picker.IsPopupShown);
+        Assert.Single(_presenter.Requests);
+    }
+
+    [Fact]
+    public void ACorePickerKeepsAPendingIndexUntilTheItemsReachIt()
+    {
+        var core = new SkUiCorePicker().SetSelectedIndex(3);
+        for (var index = 0; index < 3; index++)
+        {
+            core.Items.Add($"Item {index}");
+            Assert.Equal(-1, core.SelectedIndex);
+        }
+        core.Items.Add("Item 3");
+        Assert.Equal(3, core.SelectedIndex);
+        Assert.Equal("Item 3", core.SelectedItem);
+
+        // A new source applies it at once, clamped (as MAUI's).
+        var clamped = new SkUiCorePicker().SetSelectedIndex(9);
+        clamped.ItemsSource = new List<string> { "A", "B" };
+        Assert.Equal(1, clamped.SelectedIndex);
+
+        // SelectedItem is settable, as SelectedIndex.
+        clamped.SelectedItem = "A";
+        Assert.Equal(0, clamped.SelectedIndex);
+        clamped.SelectedItem = "Missing";
+        Assert.Equal(-1, clamped.SelectedIndex);
+    }
 }
 
 /// <summary>Placing popups (<see cref="SkUiPopupGeometry"/>): anchored, flipped, mirrored, window-aligned, absolute, clamped.</summary>
@@ -568,6 +708,23 @@ public class PopupGeometryTests
         Assert.Equal(48, tall.Bounds.Top, 3); // shortened to the room there is (the safe area plus the margin)
         // Fits below: stays below even with more room above.
         Assert.False(Layout(new Rect(20, 600, 200, 40), new Size(200, 100)).OpensAbove);
+    }
+
+    [Fact]
+    public void AnchoredPopupsWithoutRoomBesideTheAnchorStayInTheSafeArea()
+    {
+        // An anchor filling the safe area: no room above (40 + 8) or below (800 - 20 - 8); the popup keeps the minimum
+        // extent, inside the safe area less the margin, over the anchor.
+        var layout = Layout(new Rect(20, 50, 200, 720), new Size(200, 300));
+        Assert.Equal(48, layout.Bounds.Height, 3);
+        Assert.InRange(layout.Bounds.Top, 48, 772 - 48);
+        Assert.True(layout.Bounds.Bottom <= 772 + 0.001);
+        // Never taller than the safe area.
+        var short_ = SkUiPopupGeometry.Layout(new SkUiPopupPlacementInput(new Rect(0, 10, 100, 20), new Rect(0, 10, 100, 20), new Size(200, 60),
+            new Thickness(0), new Thickness(8), 4, SkUiPopupPlacement.Anchored, LayoutOptions.Center, LayoutOptions.Center, new Size(100, 300),
+            double.PositiveInfinity, default, false));
+        Assert.Equal(44, short_.Bounds.Height, 3);
+        Assert.Equal(8, short_.Bounds.Top, 3);
     }
 
     [Fact]

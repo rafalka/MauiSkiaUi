@@ -50,8 +50,8 @@ public class SkUiCorePicker : SkUiCoreNode, ISkUiPickerOwner, ISkUiKeyHandler
     /// <summary>The selected item's index; -1 (default): none.</summary>
     public int SelectedIndex { get => _selectedIndex; set => SetSelectedIndex(value); }
 
-    /// <summary>The selected item (of <see cref="ItemsSource"/>, else of <see cref="Items"/>), or <c>null</c>.</summary>
-    public object? SelectedItem => _selectedItem;
+    /// <summary>The selected item (of <see cref="ItemsSource"/>, else of <see cref="Items"/>), or <c>null</c>; see <see cref="SetSelectedItem"/>.</summary>
+    public object? SelectedItem { get => _selectedItem; set => SetSelectedItem(value); }
 
     /// <summary>Shown while nothing is selected (in <see cref="TitleColor"/>), and as the title of window popups.</summary>
     public string? Title { get => _model.Title; set => SetTitle(value); }
@@ -121,13 +121,13 @@ public class SkUiCorePicker : SkUiCoreNode, ISkUiPickerOwner, ISkUiKeyHandler
         (_itemsSourceListener ??= new(this, static (picker, change) =>
         {
             if (change.Kind == SkUiChangeKind.Collection)
-                picker.SyncItems();
+                picker.SyncItems(forceClamp: false);
         })).Listen(value as INotifyCollectionChanged);
         _items.IsReadOnly = value is not null;
         if (value is null)
             _items.Clear();
         else
-            SyncItems();
+            SyncItems(forceClamp: true);
         return this;
     }
 
@@ -135,7 +135,7 @@ public class SkUiCorePicker : SkUiCoreNode, ISkUiPickerOwner, ISkUiKeyHandler
     public SkUiCorePicker SetItemDisplay(Func<object?, string>? value)
     {
         if (SetProperty(ref _itemDisplay, value, nameof(ItemDisplay)))
-            SyncItems();
+            SyncItems(forceClamp: false);
         return this;
     }
 
@@ -274,7 +274,11 @@ public class SkUiCorePicker : SkUiCoreNode, ISkUiPickerOwner, ISkUiKeyHandler
 
     #region Items and selection
 
-    private void SyncItems()
+    /// <summary>
+    /// The items again from <see cref="ItemsSource"/>; <paramref name="forceClamp"/> (a new source) applies an index waiting for
+    /// items even when it is past the end (clamped), as MAUI's picker.
+    /// </summary>
+    private void SyncItems(bool forceClamp)
     {
         if (_itemsSource is not { } source)
             return;
@@ -291,7 +295,7 @@ public class SkUiCorePicker : SkUiCoreNode, ISkUiPickerOwner, ISkUiKeyHandler
         {
             _syncingItems = false;
         }
-        Reconcile(selected is not null ? source.IndexOf(selected) : _selectedIndex);
+        Reconcile(selected is not null ? source.IndexOf(selected) : _selectedIndex, forceClamp);
     }
 
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs args)
@@ -301,13 +305,16 @@ public class SkUiCorePicker : SkUiCoreNode, ISkUiPickerOwner, ISkUiKeyHandler
             return;
         // The app changed the texts: the selected text keeps its selection where it moved (as MAUI's).
         var moved = _selectedItem is string text ? _items.IndexOf(text) : -1;
-        Reconcile(moved >= 0 ? moved : _selectedIndex);
+        Reconcile(moved >= 0 ? moved : _selectedIndex, forceClamp: false);
     }
 
-    /// <summary>After the items changed: an index waiting for items applies (without the event), else the selection is clamped.</summary>
-    private void Reconcile(int index)
+    /// <summary>
+    /// After the items changed: an index waiting for items applies (without the event) once there is an item at it, or at once
+    /// clamped with <paramref name="forceClamp"/> (a new source; as MAUI's picker); else the selection is clamped.
+    /// </summary>
+    private void Reconcile(int index, bool forceClamp)
     {
-        if (_pendingSelectedIndex >= 0 && _items.Count > 0)
+        if (_pendingSelectedIndex >= 0 && _items.Count > 0 && (forceClamp || _pendingSelectedIndex < _items.Count))
         {
             var pending = Math.Min(_pendingSelectedIndex, _items.Count - 1);
             _pendingSelectedIndex = -1;
