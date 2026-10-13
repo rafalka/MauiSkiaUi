@@ -205,6 +205,12 @@ public partial class SkUiCorePicker : SkUiCorePickerBase
     /// <summary>Sets <see cref="SkUiCorePickerBase.CancelText"/> (same as the property setter).</summary>
     public new SkUiCorePicker SetCancelText(string? value) { base.SetCancelText(value); return this; }
 
+    /// <summary>Sets <see cref="SkUiCorePickerBase.PopupHeaderTemplate"/> (same as the property setter).</summary>
+    public new SkUiCorePicker SetPopupHeaderTemplate(DataTemplate? value) { base.SetPopupHeaderTemplate(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.PopupFooterTemplate"/> (same as the property setter).</summary>
+    public new SkUiCorePicker SetPopupFooterTemplate(DataTemplate? value) { base.SetPopupFooterTemplate(value); return this; }
+
     /// <summary>Sets <see cref="SkUiCorePickerBase.IsClearButtonVisible"/> (same as the property setter).</summary>
     public new SkUiCorePicker SetIsClearButtonVisible(bool value) { base.SetIsClearButtonVisible(value); return this; }
 

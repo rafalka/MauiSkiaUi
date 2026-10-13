@@ -84,7 +84,7 @@ public sealed class PickerWheelPartsTests : IDisposable
         column.ItemTemplate = new DataTemplate(() =>
         {
             var view = new SkUiContentView { HeightRequest = 30, Content = new SkUiLabel() };
-            view.BindingContextChanged += (_, _) => ((SkUiLabel)view.Content!).Text = view.BindingContext?.ToString();
+            view.BindingContextChanged += (_, _) => ((SkUiLabel)view.Content!).Text = view.BindingContext?.ToString() ?? string.Empty;
             return view;
         });
         column.SelectedIndex = 3;

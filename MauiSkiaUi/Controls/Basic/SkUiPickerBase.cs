@@ -243,6 +243,20 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
     /// <summary>The popup's Clear button's text; <c>null</c> (default): <see cref="SkUiStrings.ClearText"/> ("Clear"). SkiaUi extension.</summary>
     public string? ClearText { get => (string?)GetValue(ClearTextProperty); set => SetValue(ClearTextProperty, value); }
 
+    /// <summary>Bindable property for <see cref="PopupHeaderTemplate"/>.</summary>
+    public static readonly BindableProperty PopupHeaderTemplateProperty = BindableProperty.Create(nameof(PopupHeaderTemplate), typeof(DataTemplate), typeof(SkUiPickerBase), null,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Model.PopupHeaderTemplate = (DataTemplate?)value);
+
+    /// <summary>Drawn views (<c>SkUi*</c>) of the app's above the popup's list or wheels (below the title): a hint, a filter of its own, actions. Created for each opening with the picker's binding context. SkiaUi extension.</summary>
+    public DataTemplate? PopupHeaderTemplate { get => (DataTemplate?)GetValue(PopupHeaderTemplateProperty); set => SetValue(PopupHeaderTemplateProperty, value); }
+
+    /// <summary>Bindable property for <see cref="PopupFooterTemplate"/>.</summary>
+    public static readonly BindableProperty PopupFooterTemplateProperty = BindableProperty.Create(nameof(PopupFooterTemplate), typeof(DataTemplate), typeof(SkUiPickerBase), null,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Model.PopupFooterTemplate = (DataTemplate?)value);
+
+    /// <summary>Drawn views (<c>SkUi*</c>) of the app's below the popup's list or wheels (above its buttons). Created for each opening with the picker's binding context. SkiaUi extension.</summary>
+    public DataTemplate? PopupFooterTemplate { get => (DataTemplate?)GetValue(PopupFooterTemplateProperty); set => SetValue(PopupFooterTemplateProperty, value); }
+
     /// <summary>Raised when <see cref="IsOpen"/> becomes <c>true</c> (the list opens).</summary>
     public event EventHandler<PickerOpenedEventArgs>? Opened;
 
@@ -327,6 +341,12 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
 
     /// <summary>Sets <see cref="CancelText"/> (same as the property setter).</summary>
     public SkUiPickerBase SetCancelText(string? value) { CancelText = value; return this; }
+
+    /// <summary>Sets <see cref="PopupHeaderTemplate"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetPopupHeaderTemplate(DataTemplate? value) { PopupHeaderTemplate = value; return this; }
+
+    /// <summary>Sets <see cref="PopupFooterTemplate"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetPopupFooterTemplate(DataTemplate? value) { PopupFooterTemplate = value; return this; }
 
     /// <summary>Sets <see cref="IsClearButtonVisible"/> (same as the property setter).</summary>
     public SkUiPickerBase SetIsClearButtonVisible(bool value) { IsClearButtonVisible = value; return this; }
@@ -538,6 +558,8 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
     void ISkUiPickerOwner.Choose(int index) => ChooseItem(index);
 
     void ISkUiPickerOwner.ClearChoice() => ClearChoice();
+
+    object? ISkUiPickerOwner.PopupBindingContext => BindingContext;
 
     void ISkUiPickerOwner.SetIsOpen(bool open)
     {

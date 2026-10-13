@@ -105,6 +105,12 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     /// <summary>The popup's Clear button's text; <c>null</c> (default): <see cref="SkUiStrings.ClearText"/>.</summary>
     public string? ClearText { get => Model.ClearText; set => SetClearText(value); }
 
+    /// <summary>Drawn views of the app's above the popup's list or wheels, created for each opening (without a binding context: Core nodes have none).</summary>
+    public DataTemplate? PopupHeaderTemplate { get => Model.PopupHeaderTemplate; set => SetPopupHeaderTemplate(value); }
+
+    /// <summary>Drawn views of the app's below the popup's list or wheels (above its buttons), created for each opening.</summary>
+    public DataTemplate? PopupFooterTemplate { get => Model.PopupFooterTemplate; set => SetPopupFooterTemplate(value); }
+
     /// <summary>Raised when <see cref="IsOpen"/> becomes <c>true</c>.</summary>
     public event EventHandler<PickerOpenedEventArgs>? Opened;
 
@@ -214,6 +220,12 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
 
     /// <summary>Sets <see cref="CancelText"/>.</summary>
     public SkUiCorePickerBase SetCancelText(string? value) => Update(ref Model.CancelText, value, nameof(CancelText), paint: false);
+
+    /// <summary>Sets <see cref="PopupHeaderTemplate"/>.</summary>
+    public SkUiCorePickerBase SetPopupHeaderTemplate(DataTemplate? value) => Update(ref Model.PopupHeaderTemplate, value, nameof(PopupHeaderTemplate), paint: false);
+
+    /// <summary>Sets <see cref="PopupFooterTemplate"/>.</summary>
+    public SkUiCorePickerBase SetPopupFooterTemplate(DataTemplate? value) => Update(ref Model.PopupFooterTemplate, value, nameof(PopupFooterTemplate), paint: false);
 
     /// <summary>Sets <see cref="IsClearButtonVisible"/>.</summary>
     public SkUiCorePickerBase SetIsClearButtonVisible(bool value) => Update(ref Model.ShowsClearButton, value, nameof(IsClearButtonVisible), measure: true);
@@ -381,6 +393,8 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     void ISkUiPickerOwner.Choose(int index) => ChooseItem(index);
 
     void ISkUiPickerOwner.ClearChoice() => ClearChoice();
+
+    object? ISkUiPickerOwner.PopupBindingContext => null;
 
     void ISkUiPickerOwner.SetIsOpen(bool open) => SetIsOpen(open);
 

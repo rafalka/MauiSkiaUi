@@ -7,6 +7,7 @@ SkiaUi shows or reads out only a few texts of its own; everything else (labels, 
 | `AcceptText` | "OK" | The OK button of pickers with `UpdateMode="WhenFinished"` ([SkUiPicker](../controls/SkUiPicker.md#when-a-choice-takes-effect)), unless the picker sets its own `AcceptText` |
 | `CancelText` | "Cancel" | Their Cancel button (unless the picker sets its own `CancelText`), and the cancel button of MAUI's action sheet (the fallback presenter) |
 | `ClearText` | "Clear" | The Clear button of picker popups (`IsPopupClearButtonVisible`), unless the picker sets its own `ClearText` |
+| `SelectAllText` | "Select all" | The "Select all" row of picker lists with several choices (`IsSelectAllVisible`), unless the picker sets its own `SelectAllText` |
 | `LoadMoreText` | "Load more" | The default load-more button of `SkUiCollectionView` (`LoadMoreMode="Manual"`) |
 | `SelectedStateText` | "Selected" | What screen readers read as the value of a selected collection view item (also a chosen row of a picker with several choices) |
 | `ExpandedStateText` / `CollapsedStateText` | "Expanded" / "Collapsed" | What screen readers read after the header of an `SkUiExpander` or a collapsible collection view group |

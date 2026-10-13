@@ -49,6 +49,28 @@ public partial class SkUiPicker
     /// <summary>Sets <see cref="IsPopupClosedOnSelection"/> (same as the property setter).</summary>
     public SkUiPicker SetIsPopupClosedOnSelection(bool value) { IsPopupClosedOnSelection = value; return this; }
 
+    /// <summary>Bindable property for <see cref="IsSelectAllVisible"/>.</summary>
+    public static readonly BindableProperty IsSelectAllVisibleProperty = BindableProperty.Create(nameof(IsSelectAllVisible), typeof(bool), typeof(SkUiPicker), false);
+
+    /// <summary>Bindable property for <see cref="SelectAllText"/>.</summary>
+    public static readonly BindableProperty SelectAllTextProperty = BindableProperty.Create(nameof(SelectAllText), typeof(string), typeof(SkUiPicker), null);
+
+    /// <summary>
+    /// With several choices: whether a "Select all" row shows above the rows, a check box that is checked when every item that can
+    /// be chosen is, in between when some are; a tap chooses them all, or none when all were (one change). Default <c>false</c>.
+    /// Applies from the next opening. SkiaUi extension.
+    /// </summary>
+    public bool IsSelectAllVisible { get => (bool)GetValue(IsSelectAllVisibleProperty); set => SetValue(IsSelectAllVisibleProperty, value); }
+
+    /// <summary>The "Select all" row's text; <c>null</c> (default): <see cref="SkUiStrings.SelectAllText"/>. SkiaUi extension.</summary>
+    public string? SelectAllText { get => (string?)GetValue(SelectAllTextProperty); set => SetValue(SelectAllTextProperty, value); }
+
+    /// <summary>Sets <see cref="IsSelectAllVisible"/> (same as the property setter).</summary>
+    public SkUiPicker SetIsSelectAllVisible(bool value) { IsSelectAllVisible = value; return this; }
+
+    /// <summary>Sets <see cref="SelectAllText"/> (same as the property setter).</summary>
+    public SkUiPicker SetSelectAllText(string? value) { SelectAllText = value; return this; }
+
     /// <summary>Bindable property for <see cref="SelectedTextSeparator"/>.</summary>
     public static readonly BindableProperty SelectedTextSeparatorProperty = BindableProperty.Create(nameof(SelectedTextSeparator), typeof(string), typeof(SkUiPicker),
         DefaultSelectedTextSeparator, validateValue: SkUiValidate.NotNull,
@@ -274,7 +296,8 @@ public partial class SkUiPicker
                 if (weak.TryGetTarget(out var picker))
                     picker.ApplyChosenIndices(indices);
             },
-            () => weak.TryGetTarget(out var picker) ? picker._selectedIndices : [], _selectedIndices, IsPopupClosedOnSelection, Model.ItemEnabled);
+            () => weak.TryGetTarget(out var picker) ? picker._selectedIndices : [], _selectedIndices, IsPopupClosedOnSelection, Model.ItemEnabled,
+            context.Extras, IsSelectAllVisible ? SelectAllText ?? SkUiStrings.Current.SelectAllText : null);
     }
 
     /// <summary>Follows an <see cref="INotifyCollectionChanged"/> <see cref="SelectedItems"/> list without the list keeping the picker alive.</summary>

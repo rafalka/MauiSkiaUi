@@ -30,6 +30,18 @@ public partial class SkUiCorePicker
     /// <summary>Sets <see cref="IsPopupClosedOnSelection"/>.</summary>
     public SkUiCorePicker SetIsPopupClosedOnSelection(bool value) { IsPopupClosedOnSelection = value; return this; }
 
+    /// <summary>With several choices: whether a "Select all" row shows above the rows (default <c>false</c>; see <c>SkUiPicker.IsSelectAllVisible</c>).</summary>
+    public bool IsSelectAllVisible { get; set => SetProperty(ref field, value); }
+
+    /// <summary>The "Select all" row's text; <c>null</c> (default): <see cref="SkUiStrings.SelectAllText"/>.</summary>
+    public string? SelectAllText { get; set => SetProperty(ref field, value); }
+
+    /// <summary>Sets <see cref="IsSelectAllVisible"/>.</summary>
+    public SkUiCorePicker SetIsSelectAllVisible(bool value) { IsSelectAllVisible = value; return this; }
+
+    /// <summary>Sets <see cref="SelectAllText"/>.</summary>
+    public SkUiCorePicker SetSelectAllText(string? value) { SelectAllText = value; return this; }
+
     /// <summary>What goes between the chosen texts in the field with several choices (default <c>", "</c>).</summary>
     public string SelectedTextSeparator { get => _selectedTextSeparator; set => SetSelectedTextSeparator(value); }
 
@@ -200,6 +212,7 @@ public partial class SkUiCorePicker
                 if (weak.TryGetTarget(out var picker))
                     picker.ApplyChosenIndices(indices);
             },
-            () => weak.TryGetTarget(out var picker) ? picker._selectedIndices : [], _selectedIndices, IsPopupClosedOnSelection, Model.ItemEnabled);
+            () => weak.TryGetTarget(out var picker) ? picker._selectedIndices : [], _selectedIndices, IsPopupClosedOnSelection, Model.ItemEnabled,
+            context.Extras, IsSelectAllVisible ? SelectAllText ?? SkUiStrings.Current.SelectAllText : null);
     }
 }

@@ -36,6 +36,9 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     private readonly SkUiCollectionView _list;
     private readonly SkUiLabel? _title;
     private readonly SkUiView? _footer;
+    private readonly SkUiView? _appHeader;
+    private readonly SkUiView? _appFooter;
+    private readonly SelectAllRow? _selectAll;
     private readonly SkUiPickerPopupChrome _chrome;
     private readonly IReadOnlyList<string> _texts;
     private readonly SkUiPickerRowStyle _style;
@@ -63,7 +66,8 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     /// </summary>
     public SkUiPickerPopup(IReadOnlyList<string> texts, int selected, DataTemplate? template, IList? itemsSource, SkUiPickerRowStyle style, string? title,
         bool rightToLeft, SkUiPickerPopupChrome chrome, Action<IReadOnlyList<int>>? apply = null, Func<IReadOnlyList<int>>? currentSelection = null,
-        IReadOnlyList<int>? checkedIndices = null, bool closesOnToggle = false, IReadOnlyList<bool>? itemEnabled = null)
+        IReadOnlyList<int>? checkedIndices = null, bool closesOnToggle = false, IReadOnlyList<bool>? itemEnabled = null, SkUiPopupExtras extras = default,
+        string? selectAllText = null)
     {
         _closesOnToggle = closesOnToggle;
         _itemEnabled = itemEnabled;
@@ -117,7 +121,18 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         _list.SelectionChanging += OnListSelectionChanging;
         _title = title is null ? null : SkUiPopupParts.Title(title, style);
         _footer = chrome.HasButtons ? SkUiPopupParts.Buttons(chrome, style, () => Request, ClearChoice) : null;
-        Content = SkUiPopupParts.Compose(_title, _list, _footer);
+        _appHeader = extras.CreateHeader();
+        _appFooter = extras.CreateFooter();
+        // Several choices: a "Select all" row above the rows (with the app's header, under it).
+        if (_multiple && selectAllText is not null)
+        {
+            _selectAll = new SelectAllRow(this, selectAllText, style);
+            _selectAll.Show(SelectAllState());
+        }
+        var header = _appHeader is not null && _selectAll is not null
+            ? new SkUiVerticalStackLayout { Children = { _appHeader, _selectAll } }
+            : _appHeader ?? _selectAll;
+        Content = SkUiPopupParts.Compose(_title, header, _list, _appFooter, _footer);
         var first = _multiple ? (_initialChecked.Length > 0 ? _initialChecked[0] : -1) : _highlighted;
         if (first >= 0 && first < _rows.Length)
             _ = _list.ScrollToIndex(first, ScrollToPosition.Center, animated: false);
@@ -193,7 +208,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             rowHeight = probe.Measure(width, double.PositiveInfinity).Height;
             probe.BindingContext = null;
         }
-        var height = _rows.Length * rowHeight + SkUiPopupParts.ExtraHeight(_title, _footer, width);
+        var height = _rows.Length * rowHeight + SkUiPopupParts.ExtraHeight(width, _title, _appHeader, _selectAll, _appFooter, _footer);
         return new Size(width, height);
     }
 
@@ -229,7 +244,14 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     /// <summary>The list changed its chosen rows (a tap, or <see cref="ToggleRow"/>): the picker takes them at once.</summary>
     private void OnListSelectionChanged(object? sender, SkUiSelectionChangedEventArgs args)
     {
-        if (_applying || Request is not SkUiSelectionPopupRequest request)
+        if (!_applying)
+            ApplyListSelection();
+    }
+
+    /// <summary>The list's chosen rows go to the request (applied at once, or the draft).</summary>
+    private void ApplyListSelection()
+    {
+        if (Request is not SkUiSelectionPopupRequest request)
             return;
         var chosen = new List<int>();
         foreach (var item in _list.SelectedItems)
@@ -251,6 +273,48 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             request.Close();
     }
 
+    /// <summary>"Select all": checked when every row that can be chosen is, unchecked when none is, else in between.</summary>
+    private SkUiCheckState SelectAllState()
+    {
+        var enabled = 0;
+        var checkedRows = 0;
+        foreach (var row in _rows)
+        {
+            if (!row.IsEnabled)
+                continue;
+            enabled++;
+            if (row.IsChecked)
+                checkedRows++;
+        }
+        return checkedRows == 0 ? SkUiCheckState.Unchecked : checkedRows == enabled ? SkUiCheckState.Checked : SkUiCheckState.Indeterminate;
+    }
+
+    /// <summary>"Select all" tapped: every row that can be chosen is chosen, or (all were) none is; one change of the selection.</summary>
+    private void ToggleAll()
+    {
+        if (Request is not { } request || request.CloseRequested.IsCancellationRequested)
+            return;
+        var choose = SelectAllState() != SkUiCheckState.Checked;
+        _applying = true;
+        try
+        {
+            foreach (var row in _rows)
+            {
+                if (!row.IsEnabled || row.IsChecked == choose)
+                    continue;
+                if (choose)
+                    _list.SelectedItems.Add(row);
+                else
+                    _list.SelectedItems.Remove(row);
+            }
+        }
+        finally
+        {
+            _applying = false;
+        }
+        ApplyListSelection();
+    }
+
     /// <summary>Shows exactly <paramref name="chosen"/> (ascending) as checked.</summary>
     private void ShowChecks(IReadOnlyList<int> chosen)
     {
@@ -261,6 +325,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
                 next++;
             _rows[index].IsChecked = next < chosen.Count && chosen[next] == index;
         }
+        _selectAll?.Show(SelectAllState());
     }
 
     private void ToggleRow(int index)
@@ -395,6 +460,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         _itemEnabled = states;
         for (var index = 0; index < _rows.Length; index++)
             _rows[index].IsEnabled = SkUiItemStates.IsEnabled(states, index);
+        _selectAll?.Show(SelectAllState());
         switch (Request)
         {
             case SkUiListPopupRequest list:
@@ -463,6 +529,76 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         _list.ItemsSource = null;
         _rows = [];
     }
+
+    /// <summary>
+    /// The "Select all" row of a list with several choices: a check box (checked, unchecked, or in between when some rows are chosen)
+    /// and its text; a tap chooses every row that can be chosen, or none when all are. A check box for screen readers.
+    /// </summary>
+    private sealed class SelectAllRow : SkUiContentView
+    {
+        private readonly SkUiPickerPopup _owner;
+        private readonly SkUiCheckBox _check;
+        private readonly string _text;
+
+        public SelectAllRow(SkUiPickerPopup owner, string text, SkUiPickerRowStyle style)
+        {
+            _owner = owner;
+            _text = text;
+            var padding = SkUiLook.Current.PopupItemPadding;
+            _check = new SkUiCheckBox { InputTransparent = true, VerticalOptions = LayoutOptions.Center, Margin = new Thickness(padding.Left, 0, 12, 0) };
+            AutomationProperties.SetIsInAccessibleTree(_check, false);
+            var label = new SkUiLabel
+            {
+                Text = text,
+                FontFamily = style.FontFamily,
+                FontSize = style.FontSize,
+                FontAttributes = style.FontAttributes,
+                FontAutoScalingEnabled = style.FontAutoScalingEnabled,
+                TextColor = style.TextColor ?? SkUiColors.DefaultForeground,
+                Padding = new Thickness(0, padding.Top, padding.Right, padding.Bottom),
+                VerticalTextAlignment = TextAlignment.Center,
+                LineBreakMode = LineBreakMode.TailTruncation,
+                MaxLines = 1
+            };
+            AutomationProperties.SetIsInAccessibleTree(label, false);
+            var grid = new SkUiGrid { ColumnDefinitions = [new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star)], MinimumHeightRequest = SkUiLook.Current.PopupItemHeight };
+            grid.Children.Add(_check);
+            grid.Children.Add(label);
+            Grid.SetColumn(label, 1);
+            Content = grid;
+        }
+
+        /// <summary>The check box's state (tests).</summary>
+        public SkUiCheckState State => _check.CheckState;
+
+        public void Show(SkUiCheckState state)
+        {
+            _check.CheckState = state;
+            InvalidateSemantics();
+        }
+
+        protected override bool HandlesTap => true;
+
+        protected override void OnTapped(SkUiTappedEventArgs args)
+        {
+            RaiseTapped(args);
+            _owner.ToggleAll();
+        }
+
+        protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+        {
+            base.OnPopulateSemantics(info);
+            info.Role = SkUiSemanticsRole.CheckBox;
+            info.Text = _text;
+            info.CheckState = _check.CheckState;
+        }
+    }
+
+    /// <summary>The "Select all" row's state (tests); <c>null</c> without one.</summary>
+    internal SkUiCheckState? SelectAllCheckState => _selectAll?.State;
+
+    /// <summary>Taps "Select all" (tests).</summary>
+    internal void TapSelectAll() => ToggleAll();
 
     /// <summary>One item of the list: its index, text and the object its template binds to; whether it is checked or at the keyboard's cursor.</summary>
     internal sealed class Row(int index, string text, object? item)

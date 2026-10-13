@@ -16,9 +16,27 @@ internal readonly record struct SkUiPickerPopupChrome(bool RequiresAccept, strin
     public bool HasButtons => RequiresAccept || ShowsClear;
 }
 
-/// <summary>What a popup's content is built for: where it goes, its title, the picker's text style and its buttons.</summary>
+/// <summary>The app's views around a popup's list or wheels: a header and a footer (created per opening, bound to <see cref="BindingContext"/>).</summary>
+internal readonly record struct SkUiPopupExtras(DataTemplate? HeaderTemplate, DataTemplate? FooterTemplate, object? BindingContext)
+{
+    /// <summary>The header's view, or <c>null</c>.</summary>
+    public SkUiView? CreateHeader() => Create(HeaderTemplate);
+
+    /// <summary>The footer's view, or <c>null</c>.</summary>
+    public SkUiView? CreateFooter() => Create(FooterTemplate);
+
+    private SkUiView? Create(DataTemplate? template)
+    {
+        if (template?.CreateContent() is not SkUiView view)
+            return null;
+        view.BindingContext = BindingContext;
+        return view;
+    }
+}
+
+/// <summary>What a popup's content is built for: where it goes, its title, the picker's text style, its buttons and the app's views.</summary>
 internal readonly record struct SkUiPickerPopupContext(SkUiPopupPlacement Placement, string? Title, bool RightToLeft, SkUiPickerRowStyle RowStyle,
-    SkUiPickerPopupChrome Chrome);
+    SkUiPickerPopupChrome Chrome, SkUiPopupExtras Extras = default);
 
 /// <summary>What every request a picker creates carries besides its content and geometry.</summary>
 internal readonly record struct SkUiPopupRequestOptions(string? Title, Color? OverlayColor, bool IsAnimated, SkUiPickerPopupChrome Chrome);
@@ -68,6 +86,9 @@ internal interface ISkUiPickerOwner : ISkUiTransitionHost
 
     /// <summary>The objects the popup's templated rows bind to (the picker's <c>ItemsSource</c>), or <c>null</c> (the item texts).</summary>
     IList? ItemsSource { get; }
+
+    /// <summary>What the app's popup header and footer bind to (the picker's binding context; Core: none).</summary>
+    object? PopupBindingContext { get; }
 
     /// <summary>The user chose <paramref name="index"/> (in the popup, or with an arrow key on the closed field).</summary>
     void Choose(int index);
@@ -170,6 +191,8 @@ internal sealed class SkUiPickerModel
     public string? Placeholder;
     public Color? PlaceholderColor;
     public double PopupWidth = -1;
+    public DataTemplate? PopupHeaderTemplate;
+    public DataTemplate? PopupFooterTemplate;
     public bool ShowsClearButton;
     public bool ShowsPopupClearButton;
     public string? ClearText;
@@ -592,7 +615,8 @@ internal sealed class SkUiPickerModel
             var strings = SkUiStrings.Current;
             var chrome = new SkUiPickerPopupChrome(requiresAccept, model.AcceptText ?? strings.AcceptText, model.CancelText ?? strings.CancelText,
                 model.ShowsPopupClearButton, model.ClearText ?? strings.ClearText);
-            var context = new SkUiPickerPopupContext(placement, placement == SkUiPopupPlacement.Anchored ? null : model.Title, rightToLeft, rowStyle, chrome);
+            var extras = new SkUiPopupExtras(model.PopupHeaderTemplate, model.PopupFooterTemplate, model._owner.PopupBindingContext);
+            var context = new SkUiPickerPopupContext(placement, placement == SkUiPopupPlacement.Anchored ? null : model.Title, rightToLeft, rowStyle, chrome, extras);
             var content = model.ContentFactory is { } factory ? factory(context) : BuildList(context);
             var maximumHeight = model.MaxPopupHeight >= 0 ? model.MaxPopupHeight : double.PositiveInfinity;
             var windowWidth = windowSize.Width > 0 ? windowSize.Width : double.PositiveInfinity;
@@ -625,7 +649,7 @@ internal sealed class SkUiPickerModel
                 source.CopyTo(_sourceItems, 0);
             }
             return new SkUiPickerPopup(items, model.SelectedIndex, model.ItemTemplate, model._owner.ItemsSource, context.RowStyle, context.Title, context.RightToLeft,
-                context.Chrome, itemEnabled: model._itemEnabled);
+                context.Chrome, itemEnabled: model._itemEnabled, extras: context.Extras);
         }
 
         private async Task RunAsync(SkUiPopupRequest request, ISkUiPopupPresenter presenter)

@@ -166,7 +166,7 @@ internal sealed class SkUiColumnsModel
                 if (weak.TryGetTarget(out var model))
                     model.Apply(indices);
             },
-            () => weak.TryGetTarget(out var model) ? model._indices : [], states, columns);
+            () => weak.TryGetTarget(out var model) ? model._indices : [], states, columns, context.Extras);
     }
 
     /// <summary>The popup chose these indices (one per column): they become the columns' selection.</summary>

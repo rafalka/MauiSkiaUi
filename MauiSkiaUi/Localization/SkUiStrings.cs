@@ -84,6 +84,9 @@ public class SkUiStrings
     /// <summary>The Clear button of popups (a picker's <c>IsPopupClearButtonVisible</c>), unless the picker sets its own <c>ClearText</c>. Default "Clear".</summary>
     public virtual string ClearText { get; set => Set(ref field, value); } = "Clear";
 
+    /// <summary>The "Select all" row above a list with several choices (a picker's <c>IsSelectAllVisible</c>), unless the picker sets its own <c>SelectAllText</c>. Default "Select all".</summary>
+    public virtual string SelectAllText { get; set => Set(ref field, value); } = "Select all";
+
     /// <summary>The default load-more button of a collection view (<see cref="SkUiCollectionView.LoadMoreMode"/> <c>Manual</c>). Default "Load more".</summary>
     public virtual string LoadMoreText { get; set => Set(ref field, value); } = "Load more";
 

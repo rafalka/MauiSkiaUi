@@ -65,6 +65,7 @@ host.SetContent(core);
 | `Separator` | `" "` | Between the chosen texts; ignored with `Format` |
 | `Format` | `null` | `string.Format` of the field, `{0}`… per column |
 | `VisibleRows` | 5 | Rows of each wheel (1–9) |
+| `PopupHeaderTemplate`, `PopupFooterTemplate` | `null` | The app's views above and below the wheels ([SkUiPicker](SkUiPicker.md#the-apps-views-in-the-popup)) |
 | `IsClearButtonVisible`, `IsPopupClearButtonVisible`, `ClearText` | `false`, `false`, `null` | Clear every column ([SkUiPicker](SkUiPicker.md#clearing-the-choice)); `ClearSelection()` |
 | `UpdateMode`, `AcceptText`, `CancelText` | `Immediately`, `null` | `WhenFinished`: the wheels are a draft until OK ([SkUiPicker](SkUiPicker.md#when-a-choice-takes-effect)) |
 | `SelectedIndices` / `SelectedItems` | | One per column (read-only; set the columns) |

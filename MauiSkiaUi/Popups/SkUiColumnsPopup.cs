@@ -64,6 +64,8 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
     private readonly Func<IReadOnlyList<int>> _current;
     private readonly SkUiLabel? _title;
     private readonly SkUiView? _footer;
+    private readonly SkUiView? _appHeader;
+    private readonly SkUiView? _appFooter;
     private readonly SkUiPickerPopupChrome _chrome;
     private readonly SkUiCarouselView[] _wheels;
     private readonly IReadOnlyList<bool>?[] _states;
@@ -80,7 +82,7 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
 
     public SkUiColumnsPopup(string[][] texts, bool[] loops, double[] widths, IReadOnlyList<int> selected, int rows, SkUiPickerRowStyle style, string? title,
         bool rightToLeft, SkUiPickerPopupChrome chrome, Action<IReadOnlyList<int>> apply, Func<IReadOnlyList<int>> current,
-        IReadOnlyList<bool>?[]? states = null, ColumnParts[]? parts = null)
+        IReadOnlyList<bool>?[]? states = null, ColumnParts[]? parts = null, SkUiPopupExtras extras = default)
     {
         _chrome = chrome;
         _texts = texts;
@@ -155,7 +157,9 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
         // The band sits behind the wheels; the wheels are transparent, so the chosen texts stay clear.
         _title = title is null ? null : SkUiPopupParts.Title(title, style);
         _footer = chrome.HasButtons ? SkUiPopupParts.Buttons(chrome, style, () => Request, () => Request?.Clear()) : null;
-        Content = SkUiPopupParts.Compose(_title, wheels, _footer);
+        _appHeader = extras.CreateHeader();
+        _appFooter = extras.CreateFooter();
+        Content = SkUiPopupParts.Compose(_title, _appHeader, wheels, _appFooter, _footer);
         // Handlers last: setting the starting positions is not a choice.
         foreach (var wheel in _wheels)
         {
@@ -256,7 +260,7 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
         var total = padding + ColumnWidths().Sum();
         var width = Math.Clamp(Math.Ceiling(total), Math.Min(minimumWidth, maximumWidth), maximumWidth);
         var headers = _headers.Max(header => header?.Measure(width / Math.Max(1, _headers.Length), double.PositiveInfinity).Height ?? 0);
-        var height = _rows * _rowHeight + headers + SkUiPopupParts.ExtraHeight(_title, _footer, width);
+        var height = _rows * _rowHeight + headers + SkUiPopupParts.ExtraHeight(width, _title, _appHeader, _appFooter, _footer);
         return new Size(width, height);
     }
 

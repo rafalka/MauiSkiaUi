@@ -22,6 +22,7 @@ A drawn picker: a field that shows the selected item (or a title), and a list to
 - **The list stays open.** A tap toggles a row and applies at once (the field follows behind the popup); the list closes on a dismissal (the presenter's tap outside, Back), Enter or Escape, and keeps the choice. With `UpdateMode="WhenFinished"` the toggles are a draft: OK or Enter applies them (one `SelectionChanged`), Cancel, Escape or a dismissal discard them ([below](#when-a-choice-takes-effect)). Keys in the list: Up / Down, Page Up / Page Down, Home / End and typing move a cursor (a light row), Space toggles the row at it. The closed field opens with a tap, Space, Enter or Alt+Down; arrow keys do not change the choice there.
 - **The field** shows the chosen texts in the order of the items, joined by `SelectedTextSeparator` (default `", "`), truncated at the end; or, with `SelectedCountFormat` (`"{0} selected"`), the count once two or more are chosen; the title while nothing is.
 - **Rows:** a check box before the row's text or `ItemTemplate`; chosen rows show `SelectionBackground` and their template's root is in the `Selected` visual state ([below](#the-selected-rows-look)). Screen readers read the rows as selected or not.
+- **Select all** (`IsSelectAllVisible`, text `SelectAllText` or `SkUiStrings.SelectAllText`): a row above the rows, a check box that is checked when every item that can be chosen is, in between when some are; a tap chooses them all (disabled items keep their state), or none when all were, as one change (a draft with `WhenFinished`).
 - **Presenters** that show their own UI read `SkUiMultiListPopupRequest` (`Items`, `SelectedIndices` following the changes) and call `SetSelected(index, selected)` (or `SetSelection(indices)`) as the user toggles items (applied at once, or kept as the draft `Accept()` applies), or `Complete(indices)` with the final choice. MAUI's action sheet shows lists of one choice only: register a presenter for this mode.
 
 ```xml
@@ -51,6 +52,10 @@ Several columns of wheels (hours and minutes, an amount and a unit) are a contro
                ItemsSource="{Binding Toppings}" SelectedItems="{Binding ChosenToppings}"
                AcceptText="{Binding Strings[Apply]}" />
 ```
+
+## The app's views in the popup
+
+`PopupHeaderTemplate` and `PopupFooterTemplate` (every picker; SkiaUi) put drawn views of the app's (`SkUi*`) above the list or wheels (under the title) and below them (above the buttons): a hint, an action, a legend. They are created for each opening and bound to the picker's binding context (Core pickers: none). With "Select all", the app's header comes first.
 
 ## Items that cannot be chosen
 
@@ -261,6 +266,8 @@ host.SetContent(picker);
 | `PopupWidth` | `-1` | The popup's width (within the window; an anchored popup is then not widened to the field); -1: the content's (SkiaUi) |
 | `SelectionChangedCommand` / `SelectionChangedCommandParameter` | `null` | Runs after each change of the choice (when it can execute), before `SelectedIndexChanged` / `SelectionChanged` (SkiaUi) |
 | `IsPopupClosedOnSelection` | `false` | Several choices: the list closes after each toggled row (SkiaUi) |
+| `PopupHeaderTemplate` / `PopupFooterTemplate` | `null` | The app's views above and below the list or wheels (SkiaUi) |
+| `IsSelectAllVisible` / `SelectAllText` | `false` / `null` | Several choices: a "Select all" row (SkiaUi) |
 | `IsClearButtonVisible` / `IsPopupClearButtonVisible` / `ClearText` | `false` / `false` / `null` | The field's clear button and the popup's Clear button ([Clearing the choice](#clearing-the-choice)) (SkiaUi) |
 | `PopupPresenter` | `null` | The app's presenter (SkiaUi) |
 | `SelectionMode` | `Single` | `Multiple`: check boxes, the list stays open (SkiaUi) |

@@ -82,32 +82,34 @@ internal static class SkUiPopupParts
         return button;
     }
 
-    /// <summary>The content's root: <paramref name="body"/> alone, or with the title above and the footer below it.</summary>
-    public static ISkUiView Compose(SkUiLabel? title, SkUiView body, SkUiView? footer)
+    /// <summary>
+    /// The content's root: <paramref name="body"/> alone, or in a column under the title and the app's header, over the app's footer
+    /// and the buttons (each when there is one); the body takes the room left.
+    /// </summary>
+    public static ISkUiView Compose(SkUiView? title, SkUiView? header, SkUiView body, SkUiView? footer, SkUiView? buttons)
     {
-        if (title is null && footer is null)
+        if (title is null && header is null && footer is null && buttons is null)
             return body;
         var grid = new SkUiGrid();
         var row = 0;
-        if (title is not null)
-        {
-            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            grid.Children.Add(title);
-            Grid.SetRow(title, row++);
-        }
-        grid.RowDefinitions.Add(new RowDefinition(GridLength.Star));
-        grid.Children.Add(body);
-        Grid.SetRow(body, row++);
-        if (footer is not null)
-        {
-            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            grid.Children.Add(footer);
-            Grid.SetRow(footer, row);
-        }
+        Add(grid, title, ref row, GridLength.Auto);
+        Add(grid, header, ref row, GridLength.Auto);
+        Add(grid, body, ref row, GridLength.Star);
+        Add(grid, footer, ref row, GridLength.Auto);
+        Add(grid, buttons, ref row, GridLength.Auto);
         return grid;
     }
 
-    /// <summary>The height the title and the footer add at <paramref name="width"/>.</summary>
-    public static double ExtraHeight(SkUiLabel? title, SkUiView? footer, double width) =>
-        (title?.Measure(width, double.PositiveInfinity).Height ?? 0) + (footer?.Measure(width, double.PositiveInfinity).Height ?? 0);
+    private static void Add(SkUiGrid grid, SkUiView? view, ref int row, GridLength height)
+    {
+        if (view is null)
+            return;
+        grid.RowDefinitions.Add(new RowDefinition(height));
+        grid.Children.Add(view);
+        Grid.SetRow(view, row++);
+    }
+
+    /// <summary>The height <paramref name="parts"/> add at <paramref name="width"/>.</summary>
+    public static double ExtraHeight(double width, params SkUiView?[] parts) =>
+        parts.Sum(part => part?.Measure(width, double.PositiveInfinity).Height ?? 0);
 }
