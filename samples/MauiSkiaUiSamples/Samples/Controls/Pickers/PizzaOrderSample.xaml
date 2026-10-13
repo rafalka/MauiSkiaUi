@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Pickers in XAML over a view model (PizzaOrderSample.xaml.cs): a size picker whose field and rows are drawn by templates, a
+  crust picker with a placeholder and a clear button, and a toppings picker with several choices shown as tokens, "All
+  toppings", items out of stock that cannot be chosen, and OK / Cancel. The total follows every change through
+  SelectionChangedCommand.
+-->
+<samples:SamplePage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                    xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+                    xmlns:samples="clr-namespace:MauiSkiaUiSamples"
+                    xmlns:local="clr-namespace:MauiSkiaUiSamples.Samples.Controls.Pickers"
+                    x:Class="MauiSkiaUiSamples.Samples.Controls.Pickers.PizzaOrderSample"
+                    x:DataType="local:PizzaOrderModel">
+
+    <sk:SkUiVerticalStackLayout Spacing="10" Padding="16" BackgroundColor="{x:Static samples:SampleColors.Surface}">
+
+        <sk:SkUiLabel Text="SIZE" FontSize="13" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Caption}" />
+        <!--
+          The field shows the size through SelectedItemTemplate; the list's rows through ItemTemplate, whose root turns teal in the
+          Selected state (SelectionBackground="Transparent" turns the default tint off).
+        -->
+        <sk:SkUiPicker Title="Size" ItemsSource="{Binding Sizes}" SelectedItem="{Binding Size}" PopupPlacement="Anchored"
+                       SelectionBackground="Transparent" SelectionChangedCommand="{Binding UpdateCommand}"
+                       TextColor="{x:Static samples:SampleColors.Ink}">
+            <sk:SkUiPicker.ItemDisplayBinding>
+                <Binding Path="Name" x:DataType="local:PizzaSize" />
+            </sk:SkUiPicker.ItemDisplayBinding>
+            <sk:SkUiPicker.SelectedItemTemplate>
+                <DataTemplate x:DataType="local:PizzaSize">
+                    <sk:SkUiHorizontalStackLayout Spacing="8">
+                        <sk:SkUiLabel Text="{Binding Name}" FontSize="16" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Ink}" VerticalOptions="Center" />
+                        <sk:SkUiLabel Text="{Binding Description}" FontSize="13" TextColor="{x:Static samples:SampleColors.Caption}" VerticalOptions="Center" />
+                    </sk:SkUiHorizontalStackLayout>
+                </DataTemplate>
+            </sk:SkUiPicker.SelectedItemTemplate>
+            <sk:SkUiPicker.ItemTemplate>
+                <DataTemplate x:DataType="local:PizzaSize">
+                    <sk:SkUiGrid ColumnDefinitions="*,Auto" Padding="16,10">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup Name="CommonStates">
+                                <VisualState Name="Normal" />
+                                <VisualState Name="Selected">
+                                    <VisualState.Setters>
+                                        <Setter Property="BackgroundColor" Value="#E3F1F1" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <sk:SkUiVerticalStackLayout Spacing="2">
+                            <sk:SkUiLabel Text="{Binding Name}" FontSize="16" TextColor="{x:Static samples:SampleColors.Ink}" />
+                            <sk:SkUiLabel Text="{Binding Description}" FontSize="12" TextColor="{x:Static samples:SampleColors.Caption}" />
+                        </sk:SkUiVerticalStackLayout>
+                        <sk:SkUiLabel Grid.Column="1" Text="{Binding PriceText}" FontSize="15" VerticalOptions="Center"
+                                      TextColor="{x:Static samples:SampleColors.Accent}" />
+                    </sk:SkUiGrid>
+                </DataTemplate>
+            </sk:SkUiPicker.ItemTemplate>
+        </sk:SkUiPicker>
+
+        <sk:SkUiLabel Text="CRUST" FontSize="13" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Caption}" />
+        <!-- A placeholder in the field until a crust is chosen; the clear button takes the choice back. -->
+        <sk:SkUiPicker Title="Crust" Placeholder="Choose a crust" ItemsSource="{Binding Crusts}" SelectedItem="{Binding Crust}"
+                       IsClearButtonVisible="True" PopupPlacement="Anchored" TextColor="{x:Static samples:SampleColors.Ink}" />
+
+        <sk:SkUiLabel Text="TOPPINGS" FontSize="13" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Caption}" />
+        <!--
+          Several choices: SelectedItems is the view model's list. Tokens with a × each (at most two lines, then "+N"), an
+          "All toppings" row, toppings out of stock dimmed (ItemEnabledBinding), and a draft until OK (UpdateMode="WhenFinished").
+        -->
+        <sk:SkUiPicker Title="Toppings" Placeholder="Add toppings" SelectionMode="Multiple" ItemsSource="{Binding Toppings}"
+                       SelectedItems="{Binding ChosenToppings}" SelectedItemsDisplay="Tokens" MaxTokenLines="2"
+                       IsSelectAllVisible="True" SelectAllText="All toppings" IsClearButtonVisible="True"
+                       UpdateMode="WhenFinished" AcceptText="Add" PopupPlacement="Window" MaxPopupHeight="460"
+                       SelectionChangedCommand="{Binding UpdateCommand}" TextColor="{x:Static samples:SampleColors.Ink}">
+            <sk:SkUiPicker.ItemDisplayBinding>
+                <Binding Path="Name" x:DataType="local:Topping" />
+            </sk:SkUiPicker.ItemDisplayBinding>
+            <sk:SkUiPicker.ItemEnabledBinding>
+                <Binding Path="InStock" x:DataType="local:Topping" />
+            </sk:SkUiPicker.ItemEnabledBinding>
+            <sk:SkUiPicker.ItemTemplate>
+                <DataTemplate x:DataType="local:Topping">
+                    <sk:SkUiGrid ColumnDefinitions="*,Auto" Padding="0,10,16,10">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup Name="CommonStates">
+                                <VisualState Name="Normal" />
+                                <VisualState Name="Disabled">
+                                    <VisualState.Setters>
+                                        <Setter Property="Opacity" Value="0.4" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <sk:SkUiLabel Text="{Binding Name}" FontSize="16" TextColor="{x:Static samples:SampleColors.Ink}" />
+                        <sk:SkUiLabel Grid.Column="1" Text="{Binding PriceText}" FontSize="14" TextColor="{x:Static samples:SampleColors.Caption}" />
+                    </sk:SkUiGrid>
+                </DataTemplate>
+            </sk:SkUiPicker.ItemTemplate>
+            <sk:SkUiPicker.PopupFooterTemplate>
+                <DataTemplate>
+                    <sk:SkUiLabel Text="Dimmed toppings are out of stock today." FontSize="12" Padding="16,6"
+                                  TextColor="{x:Static samples:SampleColors.Caption}" />
+                </DataTemplate>
+            </sk:SkUiPicker.PopupFooterTemplate>
+        </sk:SkUiPicker>
+
+        <sk:SkUiLabel Text="{Binding Total}" FontSize="22" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Ink}" Margin="0,8,0,0" />
+        <sk:SkUiLabel Text="{Binding Summary}" FontSize="13" TextColor="{x:Static samples:SampleColors.Caption}" />
+    </sk:SkUiVerticalStackLayout>
+</samples:SamplePage>

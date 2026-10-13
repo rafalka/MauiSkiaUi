@@ -1,5 +1,6 @@
 using CommunityToolkit.Maui;
 using MauiSkiaUi;
+using MauiSkiaUi.CommunityToolkit;
 
 namespace MauiSkiaUiSamples;
 
@@ -10,9 +11,10 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
-            // The picker example shows its lists in the toolkit's popups (SkiaUi.Maui.CommunityToolkit, set per picker there).
+            // Drawn pickers open their lists in the toolkit's popups (the SkiaUi.Maui.CommunityToolkit package), app-wide.
             .UseMauiCommunityToolkit()
             .UseSkiaUi()
+            .UseSkiaUiCommunityToolkit()
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", SampleFonts.Regular);

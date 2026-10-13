@@ -93,7 +93,16 @@ internal sealed class SkUiColumnsModel
         if (!chosen)
             return null;
         if (Format is { } format)
-            return string.Format(CultureInfo.CurrentCulture, format, texts);
+        {
+            try
+            {
+                return string.Format(CultureInfo.CurrentCulture, format, texts);
+            }
+            catch (FormatException)
+            {
+                // A format that names more columns than there are (columns added after it), or a malformed one: the texts joined.
+            }
+        }
         var shown = new List<string>(texts.Length);
         foreach (var text in texts)
             if (text is string { Length: > 0 } value)
@@ -124,7 +133,8 @@ internal sealed class SkUiColumnsModel
     {
         switch (change.PropertyName)
         {
-            case nameof(SkUiPickerColumn.SelectedIndex):
+            // Once the index and the item agree (the column's selection notice, not the index's change).
+            case SkUiPickerColumn.SelectionChanged:
                 Refresh(raise: true);
                 break;
             case SkUiPickerColumn.ItemStatesChanged when change.Sender is SkUiPickerColumn column && Columns.IndexOf(column) is var index and >= 0:

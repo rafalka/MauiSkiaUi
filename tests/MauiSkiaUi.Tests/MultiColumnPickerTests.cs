@@ -410,3 +410,52 @@ public class MultiColumnPickerXamlTests
         }
     }
 }
+
+/// <summary>A multi-column picker's <c>Format</c> before its columns, or malformed: the texts joined instead of an exception.</summary>
+public class MultiColumnPickerFormatTests
+{
+    [Fact]
+    public void AFormatThatDoesNotFitJoinsTheTexts()
+    {
+        var picker = new SkUiMultiColumnPicker { Format = "{0} h {1} min", Separator = "/" };
+
+        picker.AddColumn(SkUiPickerColumn.Range(0, 12));
+        picker.Columns[0].SelectedItem = 2;
+        Assert.Equal("2", Text(picker)); // one column for two placeholders: joined
+
+        picker.AddColumn(SkUiPickerColumn.Range(0, 45, 15, "00"));
+        picker.Columns[1].SelectedItem = 30;
+        Assert.Equal("2 h 30 min", Text(picker));
+
+        picker.Format = "{0 broken";
+        Assert.Equal("2/30", Text(picker));
+    }
+
+    private static string? Text(SkUiMultiColumnPicker picker)
+    {
+        var stack = new SkUiVerticalStackLayout();
+        stack.Children.Add(picker);
+        SkUiTestHelpers.Arrange(stack, 300, 200);
+        var value = SkUiSemanticsTree.Build(stack).Flatten().Single(node => ReferenceEquals(node.Source, picker)).Value;
+        stack.Children.Clear();
+        return value;
+    }
+}
+
+/// <summary>When a multi-column picker reports a change, the column's index and item agree.</summary>
+public class MultiColumnPickerOrderTests
+{
+    [Fact]
+    public void AChangeReportsTheNewItem()
+    {
+        var column = new SkUiPickerColumn { ItemsSource = new[] { "a", "b", "c" }, SelectedIndex = 0 };
+        var picker = new SkUiMultiColumnPicker().AddColumn(column);
+        var seen = new List<object?>();
+        picker.SelectionChanged += (_, _) => seen.Add(column.SelectedItem);
+
+        column.SelectedIndex = 2;
+        column.SelectedItem = "b";
+
+        Assert.Equal(["c", "b"], seen);
+    }
+}

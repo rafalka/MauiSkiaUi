@@ -10,8 +10,9 @@ namespace MauiSkiaUiSamples.Samples.Controls.Pickers;
 /// (<see cref="SkUiActionSheetPopupPresenter"/>, the fallback when nothing is registered).
 /// <para>
 /// The page shows a picker anchored to its field as a combo box, one whose list opens in the window as a dialog with a title,
-/// one with drawn rows (an item template over objects), one on MAUI's action sheet, and what was picked. The presenter is set
-/// per picker so this page does not change the app's; an app registers it once (<c>UseSkiaUiCommunityToolkit()</c>).
+/// one with drawn rows (an item template over objects), one on MAUI's action sheet, and what was picked. The samples app
+/// registers the toolkit's presenter once (<c>UseSkiaUiCommunityToolkit()</c> in MauiProgram); the pickers here also set it
+/// per picker, to show that option, and the T-shirt size picker uses MAUI's action sheet instead.
 /// </para>
 /// </summary>
 public sealed class PickerPopupsSample : SamplePage, ISample

@@ -19,6 +19,13 @@ public class SkUiPickerColumn : BindableObject
     private static readonly BindableProperty DisplayProperty = BindableProperty.Create("Display", typeof(string), typeof(SkUiPickerColumn), null);
     private static readonly BindableProperty EnabledProperty = BindableProperty.Create("Enabled", typeof(bool), typeof(SkUiPickerColumn), true);
 
+    /// <summary>
+    /// The name this column raises <see cref="BindableObject.PropertyChanged"/> with once its selection changed and
+    /// <see cref="SelectedIndex"/> and <see cref="SelectedItem"/> agree again (MAUI raises a property's change before its own callback
+    /// runs, so the item still lags the index at the index's change).
+    /// </summary>
+    internal const string SelectionChanged = "Selection";
+
     /// <summary>The name this column raises <see cref="BindableObject.PropertyChanged"/> with when which of its items can be chosen changed.</summary>
     internal const string ItemStatesChanged = "ItemStates";
 
@@ -52,7 +59,7 @@ public class SkUiPickerColumn : BindableObject
     public static readonly BindableProperty SelectedIndexProperty = BindableProperty.Create(nameof(SelectedIndex), typeof(int), typeof(SkUiPickerColumn), -1, BindingMode.TwoWay,
         validateValue: (_, value) => (int)value >= -1,
         coerceValue: (column, value) => ((SkUiPickerColumn)column).CoerceIndex((int)value),
-        propertyChanged: (column, _, _) => ((SkUiPickerColumn)column).SyncSelectedItem());
+        propertyChanged: (column, _, _) => ((SkUiPickerColumn)column).OnSelectedIndexChanged());
 
     /// <summary>Bindable property for <see cref="SelectedItem"/> (two-way by default).</summary>
     public static readonly BindableProperty SelectedItemProperty = BindableProperty.Create(nameof(SelectedItem), typeof(object), typeof(SkUiPickerColumn), null, BindingMode.TwoWay,
@@ -333,6 +340,12 @@ public class SkUiPickerColumn : BindableObject
         // An item that is not in the items clears the choice, and the property with it.
         if (index < 0 && value is not null)
             SyncSelectedItem();
+    }
+
+    private void OnSelectedIndexChanged()
+    {
+        SyncSelectedItem();
+        OnPropertyChanged(SelectionChanged);
     }
 
     /// <summary>Makes <see cref="SelectedItem"/> the item at <see cref="SelectedIndex"/>.</summary>
