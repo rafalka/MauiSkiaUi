@@ -121,6 +121,12 @@ public class SkUiCoreMultiColumnPicker : SkUiCorePickerBase
     /// <summary>Sets <see cref="SkUiCorePickerBase.CancelText"/> (same as the property setter).</summary>
     public new SkUiCoreMultiColumnPicker SetCancelText(string? value) { base.SetCancelText(value); return this; }
 
+    /// <summary>Sets <see cref="SkUiCorePickerBase.MinPopupWidth"/> (same as the property setter).</summary>
+    public new SkUiCoreMultiColumnPicker SetMinPopupWidth(double value) { base.SetMinPopupWidth(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.MaxPopupWidth"/> (same as the property setter).</summary>
+    public new SkUiCoreMultiColumnPicker SetMaxPopupWidth(double value) { base.SetMaxPopupWidth(value); return this; }
+
     /// <summary>Sets <see cref="SkUiCorePickerBase.PopupHeaderTemplate"/> (same as the property setter).</summary>
     public new SkUiCoreMultiColumnPicker SetPopupHeaderTemplate(DataTemplate? value) { base.SetPopupHeaderTemplate(value); return this; }
 

@@ -172,6 +172,12 @@ public class SkUiMultiColumnPicker : SkUiPickerBase
     /// <summary>Sets <see cref="SkUiPickerBase.CancelText"/> (same as the property setter).</summary>
     public new SkUiMultiColumnPicker SetCancelText(string? value) { base.SetCancelText(value); return this; }
 
+    /// <summary>Sets <see cref="SkUiPickerBase.MinPopupWidth"/> (same as the property setter).</summary>
+    public new SkUiMultiColumnPicker SetMinPopupWidth(double value) { base.SetMinPopupWidth(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.MaxPopupWidth"/> (same as the property setter).</summary>
+    public new SkUiMultiColumnPicker SetMaxPopupWidth(double value) { base.SetMaxPopupWidth(value); return this; }
+
     /// <summary>Sets <see cref="SkUiPickerBase.PopupHeaderTemplate"/> (same as the property setter).</summary>
     public new SkUiMultiColumnPicker SetPopupHeaderTemplate(DataTemplate? value) { base.SetPopupHeaderTemplate(value); return this; }
 

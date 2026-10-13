@@ -89,6 +89,11 @@ public sealed class PickerDemoPage : ComponentDemoPage
         Choice(nameof(SkUiPicker.UpdateMode), [SkUiPickerUpdateMode.Immediately, SkUiPickerUpdateMode.WhenFinished], SkUiPickerUpdateMode.Immediately,
             value => _skia.UpdateMode = value, () => _skia.UpdateMode);
         Number(nameof(SkUiPicker.PopupWidth), -1, 400, -1, value => _skia.PopupWidth = value < 0 ? -1 : value, () => _skia.PopupWidth, whole: true);
+        Number(nameof(SkUiPicker.MinPopupWidth), -1, 400, -1, value => _skia.MinPopupWidth = value < 0 ? -1 : value, () => _skia.MinPopupWidth, whole: true);
+        Number(nameof(SkUiPicker.MaxPopupWidth), -1, 400, -1, value => _skia.MaxPopupWidth = value < 0 ? -1 : value, () => _skia.MaxPopupWidth, whole: true);
+        // A narrow field with a short text, a list of whole names (a currency's code over its name).
+        Toggle("Field shows a short text (SelectedItemDisplayBinding)", false,
+            value => _skia.SelectedItemDisplayBinding = value ? new Binding(".", converter: ShortText.Instance) : null, () => _skia.SelectedItemDisplayBinding is not null);
         Toggle("Items 2 and 4 cannot be chosen (ItemEnabledBinding)", false,
             value => _skia.ItemEnabledBinding = value ? new Binding(".", converter: EvenItems.Instance) : null, () => _skia.ItemEnabledBinding is not null);
         Toggle("PopupHeaderTemplate / PopupFooterTemplate", false, value =>
@@ -114,6 +119,20 @@ public sealed class PickerDemoPage : ComponentDemoPage
 
     /// <summary>A hint in the popup (the app's header and footer).</summary>
     private static SkUiLabel Hint(string text) => new() { Text = text, FontSize = 13, TextColor = DemoColors.Caption, Padding = new Thickness(16, 8) };
+
+    /// <summary>The first three letters of an item's text, in capitals: the field's short text (as a currency's code).</summary>
+    private sealed class ShortText : IValueConverter
+    {
+        public static ShortText Instance { get; } = new();
+
+        public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)
+        {
+            var text = value is DemoColour colour ? colour.Name : value?.ToString() ?? string.Empty;
+            return text[..Math.Min(3, text.Length)].ToUpperInvariant();
+        }
+
+        public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
+    }
 
     /// <summary>Items 2 and 4 (indices 1 and 3) cannot be chosen.</summary>
     private sealed class EvenItems : IValueConverter

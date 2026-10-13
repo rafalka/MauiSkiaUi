@@ -318,7 +318,7 @@ public partial class SkUiPicker
                 indices.Add(index);
         _selectedIndices = [.. indices];
         Model.ShowsTokens = SelectedItemsDisplay == SkUiSelectedItemsDisplay.Tokens;
-        Model.Tokens = [.. _selectedIndices.Select(index => new SkUiPickerToken(_items[index], index, Model.IsItemEnabled(index)))];
+        Model.Tokens = [.. _selectedIndices.Select(index => new SkUiPickerToken(FieldTextOf(index), index, Model.IsItemEnabled(index)))];
         Model.ValueText = ComposeSelectedText();
         Model.SelectionChanged();
     }
@@ -329,7 +329,7 @@ public partial class SkUiPicker
             return null;
         if (SelectedCountFormat is { } format && _selectedIndices.Length > 1)
             return string.Format(System.Globalization.CultureInfo.CurrentCulture, format, _selectedIndices.Length);
-        return string.Join(SelectedTextSeparator, _selectedIndices.Select(index => _items[index]));
+        return string.Join(SelectedTextSeparator, _selectedIndices.Select(FieldTextOf));
     }
 
     private int IndexOfItem(object item) => _itemsSource?.IndexOf(item) ?? (item is string text ? _items.IndexOf(text) : -1);

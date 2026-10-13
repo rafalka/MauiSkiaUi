@@ -197,6 +197,24 @@ internal sealed class SkUiPickerModel
     public string? Placeholder;
     public Color? PlaceholderColor;
     public double PopupWidth = -1;
+    public double MinPopupWidth = -1;
+    public double MaxPopupWidth = -1;
+
+    /// <summary>
+    /// The popup's width range in a window <paramref name="windowWidth"/> wide: <see cref="PopupWidth"/> both ways when set, else
+    /// <see cref="MinPopupWidth"/> (NaN when not set: the placement's default) and <see cref="MaxPopupWidth"/> (the window when not set).
+    /// </summary>
+    internal (double Minimum, double Maximum) PopupWidthRange(double windowWidth)
+    {
+        if (PopupWidth >= 0)
+        {
+            var width = Math.Min(PopupWidth, windowWidth);
+            return (width, width);
+        }
+        var maximum = MaxPopupWidth >= 0 ? Math.Min(MaxPopupWidth, windowWidth) : windowWidth;
+        var minimum = MinPopupWidth >= 0 ? Math.Min(MinPopupWidth, maximum) : double.NaN;
+        return (minimum, maximum);
+    }
     public DataTemplate? PopupHeaderTemplate;
 
     /// <summary>Whether the field shows the choice as tokens (several choices).</summary>
@@ -279,11 +297,20 @@ internal sealed class SkUiPickerModel
     public string? SelectedText => UsesValueText ? ValueText
         : SelectedIndex >= 0 && SelectedIndex < _items.Count ? _items[SelectedIndex] ?? string.Empty : null;
 
+    /// <summary>
+    /// The text the field shows for the selected item when it differs from the item's text in the list (the control's
+    /// <c>SelectedItemDisplayBinding</c>: a currency's code for its full name); <c>null</c>: the item's text. Screen readers read the item's text.
+    /// </summary>
+    public string? SelectedFieldText;
+
+    /// <summary>The text the field shows for the choice: <see cref="SelectedFieldText"/>, else <see cref="SelectedText"/>; <c>null</c> without a choice.</summary>
+    private string? ShownSelection => SelectedText is null ? null : SelectedFieldText ?? SelectedText;
+
     /// <summary>The hint the field shows while nothing is chosen: the placeholder, else the title.</summary>
     private string? PlaceholderText => Placeholder ?? Title;
 
     /// <summary>The text the field shows: the selection's, else the hint (else nothing).</summary>
-    private string DisplayText => SelectedText ?? PlaceholderText ?? string.Empty;
+    private string DisplayText => ShownSelection ?? PlaceholderText ?? string.Empty;
 
     /// <summary>The shown text, the font or the items changed: lay the text out again and measure.</summary>
     public void TextChanged()
@@ -414,7 +441,7 @@ internal sealed class SkUiPickerModel
             DrawTokens(canvas, width, height, foreground);
             return;
         }
-        var selected = SelectedText;
+        var selected = ShownSelection;
         var text = selected ?? PlaceholderText;
         if (string.IsNullOrEmpty(text) || HidesText)
             return;
@@ -889,14 +916,16 @@ internal sealed class SkUiPickerModel
             var context = new SkUiPickerPopupContext(placement, placement == SkUiPopupPlacement.Anchored ? null : model.Title, rightToLeft, rowStyle, chrome, extras);
             var content = model.ContentFactory is { } factory ? factory(context) : BuildList(context);
             var maximumHeight = model.MaxPopupHeight >= 0 ? model.MaxPopupHeight : double.PositiveInfinity;
-            var windowWidth = windowSize.Width > 0 ? windowSize.Width : double.PositiveInfinity;
-            // A width of the app's: the content is measured at it (within the window).
-            var preferred = model.PopupWidth >= 0
-                ? content.PreferredSize(Math.Min(model.PopupWidth, windowWidth), Math.Min(model.PopupWidth, windowWidth))
-                : content.PreferredSize(placement == SkUiPopupPlacement.Anchored ? anchorBounds.Width : look.PopupPreferredWidth, windowWidth);
+            var (minimumWidth, maximumWidth) = model.PopupWidthRange(windowSize.Width > 0 ? windowSize.Width : double.PositiveInfinity);
+            // The content is measured within the range: as wide as its widest item (the first ones'), so an anchored list is
+            // wider than a narrow field when its items are; without a minimum of the app's, at least the field's width (anchored)
+            // or the look's preferred width (window popups).
+            var preferred = content.PreferredSize(
+                double.IsNaN(minimumWidth) ? Math.Min(placement == SkUiPopupPlacement.Anchored ? anchorBounds.Width : look.PopupPreferredWidth, maximumWidth) : minimumWidth,
+                maximumWidth);
             var layout = SkUiPopupGeometry.Layout(new SkUiPopupPlacementInput(anchorBounds, rootBounds, windowSize,
                 SkUiWindowMetrics.SafeAreaInsets(surfaceRoot), look.PopupMargin, look.PopupAnchorGap, placement, look.PopupHorizontalOptions,
-                look.PopupVerticalOptions, preferred, maximumHeight, model.PopupBounds, rightToLeft, model.PopupWidth >= 0));
+                look.PopupVerticalOptions, preferred, maximumHeight, model.PopupBounds, rightToLeft, minimumWidth, maximumWidth));
             _content = content;
             var request = content.CreateRequest(anchor, surfaceRoot, layout,
                 new SkUiPopupRequestOptions(model.Title, look.GetPopupOverlayColor(layout.Placement), !SkUiMotion.IsMotionReduced, chrome));

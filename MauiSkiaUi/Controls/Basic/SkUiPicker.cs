@@ -38,6 +38,7 @@ public partial class SkUiPicker : SkUiPickerBase
 {
     private static readonly BindableProperty DisplayProperty = BindableProperty.Create("Display", typeof(string), typeof(SkUiPicker), null);
     private static readonly BindableProperty EnabledProperty = BindableProperty.Create("Enabled", typeof(bool), typeof(SkUiPicker), true);
+    private static readonly BindableProperty FieldDisplayProperty = BindableProperty.Create("FieldDisplay", typeof(string), typeof(SkUiPicker), null);
 
     private readonly SkUiPickerItems _items = new();
     private SkUiWeakListener<SkUiPicker>? _itemsSourceListener;
@@ -46,6 +47,8 @@ public partial class SkUiPicker : SkUiPickerBase
     private BindableObject? _displayProbe;
     private BindingBase? _itemEnabledBinding;
     private BindableObject? _enabledProbe;
+    private BindingBase? _selectedItemDisplayBinding;
+    private BindableObject? _fieldProbe;
     private bool _hasPendingSelectedIndex;
     private int _pendingSelectedIndex = -1;
     private bool _settingSelectedIndexInternally;
@@ -170,6 +173,59 @@ public partial class SkUiPicker : SkUiPickerBase
         UpdateMultipleState();
     }
 
+    /// <summary>
+    /// The binding that picks the text the field shows for the selected item, when it differs from the item's text in the list
+    /// (<see cref="ItemDisplayBinding"/>): a narrow currency field shows <c>{Binding Code}</c> ("PLN") and its list
+    /// <c>{Binding Name}</c> ("Polish Zloty (PLN)"); with several choices the joined texts and the tokens use it too. <c>null</c>
+    /// (default): the item's text. Type-ahead and screen readers use the item's text. Syncfusion's <c>TextMemberPath</c>. SkiaUi extension.
+    /// </summary>
+    public BindingBase? SelectedItemDisplayBinding
+    {
+        get => _selectedItemDisplayBinding;
+        set
+        {
+            if (ReferenceEquals(_selectedItemDisplayBinding, value))
+                return;
+            OnPropertyChanging();
+            _selectedItemDisplayBinding = value;
+            if (_fieldProbe is not null)
+            {
+                _fieldProbe.RemoveBinding(FieldDisplayProperty);
+                _fieldProbe = null;
+            }
+            UpdateFieldText();
+            UpdateMultipleState();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Sets <see cref="SelectedItemDisplayBinding"/> (same as the property setter).</summary>
+    public SkUiPicker SetSelectedItemDisplayBinding(BindingBase? value) { SelectedItemDisplayBinding = value; return this; }
+
+    /// <summary>The field's text for the item at <paramref name="index"/>: <see cref="SelectedItemDisplayBinding"/>'s, else the item's text.</summary>
+    private string FieldTextOf(int index)
+    {
+        if (_selectedItemDisplayBinding is null || index < 0 || index >= _items.Count)
+            return index >= 0 && index < _items.Count ? _items[index] : string.Empty;
+        if (_fieldProbe is null)
+        {
+            _fieldProbe = new DisplayProbe();
+            _fieldProbe.SetBinding(FieldDisplayProperty, _selectedItemDisplayBinding);
+        }
+        _fieldProbe.BindingContext = _itemsSource is { } source ? (index < source.Count ? source[index] : null) : _items[index];
+        var text = (string?)_fieldProbe.GetValue(FieldDisplayProperty) ?? string.Empty;
+        // The probe must not keep the item alive.
+        _fieldProbe.BindingContext = null;
+        return text;
+    }
+
+    /// <summary>The field's text for the selected item (one choice).</summary>
+    private void UpdateFieldText()
+    {
+        Model.SelectedFieldText = _selectedItemDisplayBinding is null || _multiple || SelectedIndex < 0 ? null : FieldTextOf(SelectedIndex);
+        Model.TextChanged();
+    }
+
     /// <summary>Sets <see cref="ItemEnabledBinding"/> (same as the property setter).</summary>
     public SkUiPicker SetItemEnabledBinding(BindingBase? value) { ItemEnabledBinding = value; return this; }
 
@@ -280,6 +336,12 @@ public partial class SkUiPicker : SkUiPickerBase
     /// <summary>Sets <see cref="SkUiPickerBase.CancelText"/> (same as the property setter).</summary>
     public new SkUiPicker SetCancelText(string? value) { base.SetCancelText(value); return this; }
 
+    /// <summary>Sets <see cref="SkUiPickerBase.MinPopupWidth"/> (same as the property setter).</summary>
+    public new SkUiPicker SetMinPopupWidth(double value) { base.SetMinPopupWidth(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.MaxPopupWidth"/> (same as the property setter).</summary>
+    public new SkUiPicker SetMaxPopupWidth(double value) { base.SetMaxPopupWidth(value); return this; }
+
     /// <summary>Sets <see cref="SkUiPickerBase.PopupHeaderTemplate"/> (same as the property setter).</summary>
     public new SkUiPicker SetPopupHeaderTemplate(DataTemplate? value) { base.SetPopupHeaderTemplate(value); return this; }
 
@@ -340,6 +402,8 @@ public partial class SkUiPicker : SkUiPickerBase
         Model.Items = _items;
         if (_itemEnabledBinding is not null)
             RefreshItemStates();
+        if (_selectedItemDisplayBinding is not null)
+            UpdateFieldText();
         // Changes made by the picker from its source reconcile the selection themselves.
         if (_items.IsReadOnly)
             return;
@@ -432,6 +496,8 @@ public partial class SkUiPicker : SkUiPickerBase
     {
         Model.SelectedIndex = SelectedIndex;
         UpdateSelectedItem(SelectedIndex);
+        if (_selectedItemDisplayBinding is not null)
+            UpdateFieldText();
         Model.SelectionChanged();
         if (_suppressSelectedIndexChanged)
             return;

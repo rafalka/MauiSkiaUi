@@ -111,6 +111,12 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     /// <summary>Drawn views of the app's below the popup's list or wheels (above its buttons), created for each opening.</summary>
     public DataTemplate? PopupFooterTemplate { get => Model.PopupFooterTemplate; set => SetPopupFooterTemplate(value); }
 
+    /// <summary>The least width of the popup in DIPs; -1 (default): the field's width (anchored) or the look's preferred width (window popups).</summary>
+    public double MinPopupWidth { get => Model.MinPopupWidth; set => SetMinPopupWidth(value); }
+
+    /// <summary>The most width of the popup in DIPs (its items are truncated at it); -1 (default): the window's safe area.</summary>
+    public double MaxPopupWidth { get => Model.MaxPopupWidth; set => SetMaxPopupWidth(value); }
+
     /// <summary>Raised when <see cref="IsOpen"/> becomes <c>true</c>.</summary>
     public event EventHandler<PickerOpenedEventArgs>? Opened;
 
@@ -220,6 +226,20 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
 
     /// <summary>Sets <see cref="CancelText"/>.</summary>
     public SkUiCorePickerBase SetCancelText(string? value) => Update(ref Model.CancelText, value, nameof(CancelText), paint: false);
+
+    /// <summary>Sets <see cref="MinPopupWidth"/>.</summary>
+    public SkUiCorePickerBase SetMinPopupWidth(double value)
+    {
+        SkUiPickerValidation.ThrowIfNotOptionalLength(value, nameof(value));
+        return Update(ref Model.MinPopupWidth, value, nameof(MinPopupWidth), paint: false);
+    }
+
+    /// <summary>Sets <see cref="MaxPopupWidth"/>.</summary>
+    public SkUiCorePickerBase SetMaxPopupWidth(double value)
+    {
+        SkUiPickerValidation.ThrowIfNotOptionalLength(value, nameof(value));
+        return Update(ref Model.MaxPopupWidth, value, nameof(MaxPopupWidth), paint: false);
+    }
 
     /// <summary>Sets <see cref="PopupHeaderTemplate"/>.</summary>
     public SkUiCorePickerBase SetPopupHeaderTemplate(DataTemplate? value) => Update(ref Model.PopupHeaderTemplate, value, nameof(PopupHeaderTemplate), paint: false);

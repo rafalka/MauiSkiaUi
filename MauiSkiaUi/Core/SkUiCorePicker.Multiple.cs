@@ -215,7 +215,7 @@ public partial class SkUiCorePicker
                 indices.Add(index);
         _selectedIndices = [.. indices];
         Model.ShowsTokens = _selectedItemsDisplay == SkUiSelectedItemsDisplay.Tokens;
-        Model.Tokens = [.. _selectedIndices.Select(index => new SkUiPickerToken(_items[index], index, Model.IsItemEnabled(index)))];
+        Model.Tokens = [.. _selectedIndices.Select(index => new SkUiPickerToken(FieldTextOf(index), index, Model.IsItemEnabled(index)))];
         Model.ValueText = ComposeSelectedText();
         Model.SelectionChanged();
     }
@@ -226,7 +226,7 @@ public partial class SkUiCorePicker
             return null;
         if (_selectedCountFormat is { } format && _selectedIndices.Length > 1)
             return string.Format(CultureInfo.CurrentCulture, format, _selectedIndices.Length);
-        return string.Join(_selectedTextSeparator, _selectedIndices.Select(index => _items[index]));
+        return string.Join(_selectedTextSeparator, _selectedIndices.Select(FieldTextOf));
     }
 
     /// <summary>The popup chose these indices (ascending): they become the choice.</summary>

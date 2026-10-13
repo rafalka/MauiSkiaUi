@@ -58,6 +58,22 @@ Several columns of wheels (hours and minutes, an amount and a unit) are a contro
 
 `PopupHeaderTemplate` and `PopupFooterTemplate` (every picker; SkiaUi) put drawn views of the app's (`SkUi*`) above the list or wheels (under the title) and below them (above the buttons): a hint, an action, a legend. They are created for each opening and bound to the picker's binding context (Core pickers: none). With "Select all", the app's header comes first.
 
+## The popup's width
+
+A popup is as wide as its items want (the widest text of the first 200 items, or the first templated row), within a range:
+
+- **At least:** `MinPopupWidth`, else an anchored popup's field width or a window popup's `SkUiLook.PopupPreferredWidth` (320). Set `MinPopupWidth` for lists of short items (single numbers), which would otherwise be as wide as the default; it replaces the field's width, so an anchored popup may be narrower than its field.
+- **At most:** `MaxPopupWidth`, and the window's safe area less the margin; longer items are truncated at the end.
+- **Exactly:** `PopupWidth`, which replaces both.
+
+So a narrow field opens a wider list when its items are wider. With `SelectedItemDisplayBinding` the field shows a short text of the selected item while the list shows the whole one: a currency field shows "PLN", its anchored list "Polish Zloty (PLN)" (Syncfusion's `TextMemberPath` next to `DisplayMemberPath`). Type-ahead and screen readers use the whole text; with several choices the joined texts and the tokens use the short one. Core: `SelectedItemDisplay`, a function.
+
+```xml
+<sk:SkUiPicker ItemsSource="{Binding Currencies}" SelectedItem="{Binding Currency}" HorizontalOptions="Start"
+               ItemDisplayBinding="{Binding Name}" SelectedItemDisplayBinding="{Binding Code}"
+               PopupPlacement="Anchored" MaxPopupWidth="280" />
+```
+
 ## Items that cannot be chosen
 
 `ItemEnabledBinding` (SkiaUi; Core: `ItemEnabled`, a function of the item) says per item whether it can be chosen: a `bool` of the item of `ItemsSource` (or of the text of `Items`), e.g. `ItemEnabledBinding="{Binding InStock}"`; `null` (default): every item.
@@ -282,7 +298,9 @@ host.SetContent(picker);
 | `SelectedItemTemplate` | `null` | The selected item in the field through drawn views ([above](#the-fields-look-of-the-selected-item)) (SkiaUi) |
 | `SelectionBackground` | `null` | Behind the selected rows; `null`: the look's `PopupHighlightColor`; `Transparent`: none (SkiaUi) |
 | `MaxPopupHeight` | `-1` | No limit beyond the window (SkiaUi) |
-| `PopupWidth` | `-1` | The popup's width (within the window; an anchored popup is then not widened to the field); -1: the content's (SkiaUi) |
+| `MinPopupWidth` / `MaxPopupWidth` | `-1` / `-1` | The popup's width range: as wide as its items within it ([The popup's width](#the-popups-width)) (SkiaUi) |
+| `PopupWidth` | `-1` | The popup's exact width (replaces the range) (SkiaUi) |
+| `SelectedItemDisplayBinding` | `null` | The field's short text of the selected item, the list keeps the whole one (SkiaUi; Core `SelectedItemDisplay`) |
 | `SelectionChangedCommand` / `SelectionChangedCommandParameter` | `null` | Runs after each change of the choice (when it can execute), before `SelectedIndexChanged` / `SelectionChanged` (SkiaUi) |
 | `IsPopupClosedOnSelection` | `false` | Several choices: the list closes after each toggled row (SkiaUi) |
 | `PopupHeaderTemplate` / `PopupFooterTemplate` | `null` | The app's views above and below the list or wheels (SkiaUi) |

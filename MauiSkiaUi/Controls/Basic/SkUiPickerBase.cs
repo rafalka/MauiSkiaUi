@@ -214,7 +214,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
         validateValue: (_, value) => value is double number && SkUiPickerValidation.IsMaxPopupHeight(number),
         propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Model.PopupWidth = (double)value);
 
-    /// <summary>The popup's width in DIPs (within the window); -1 (default): as wide as its content wants (at least the field's width when anchored). SkiaUi extension.</summary>
+    /// <summary>The popup's exact width in DIPs (within the window), whatever its items; it replaces <see cref="MinPopupWidth"/> and <see cref="MaxPopupWidth"/>. -1 (default): as wide as its items want, within those. SkiaUi extension.</summary>
     public double PopupWidth { get => (double)GetValue(PopupWidthProperty); set => SetValue(PopupWidthProperty, value); }
 
     /// <summary>Bindable property for <see cref="SelectionChangedCommand"/>.</summary>
@@ -265,6 +265,22 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
 
     /// <summary>Drawn views (<c>SkUi*</c>) of the app's below the popup's list or wheels (above its buttons). Created for each opening with the picker's binding context. SkiaUi extension.</summary>
     public DataTemplate? PopupFooterTemplate { get => (DataTemplate?)GetValue(PopupFooterTemplateProperty); set => SetValue(PopupFooterTemplateProperty, value); }
+
+    /// <summary>Bindable property for <see cref="MinPopupWidth"/>.</summary>
+    public static readonly BindableProperty MinPopupWidthProperty = BindableProperty.Create(nameof(MinPopupWidth), typeof(double), typeof(SkUiPickerBase), -1d,
+        validateValue: (_, value) => value is double number && SkUiPickerValidation.IsMaxPopupHeight(number),
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Model.MinPopupWidth = (double)value);
+
+    /// <summary>The least width of the popup in DIPs (a list of short items, as single numbers); -1 (default): an anchored popup is at least the field's width, a window popup the look's <see cref="SkUiLook.PopupPreferredWidth"/>. Set, it replaces those (an anchored popup may then be narrower than its field). The popup is wider when its items are. SkiaUi extension.</summary>
+    public double MinPopupWidth { get => (double)GetValue(MinPopupWidthProperty); set => SetValue(MinPopupWidthProperty, value); }
+
+    /// <summary>Bindable property for <see cref="MaxPopupWidth"/>.</summary>
+    public static readonly BindableProperty MaxPopupWidthProperty = BindableProperty.Create(nameof(MaxPopupWidth), typeof(double), typeof(SkUiPickerBase), -1d,
+        validateValue: (_, value) => value is double number && SkUiPickerValidation.IsMaxPopupHeight(number),
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Model.MaxPopupWidth = (double)value);
+
+    /// <summary>The most width of the popup in DIPs (its items are truncated at it); -1 (default): the window's safe area. A popup is as wide as its widest item within <see cref="MinPopupWidth"/> and this, so a narrow field (a currency's code) can open a list of wider items (its full name). SkiaUi extension.</summary>
+    public double MaxPopupWidth { get => (double)GetValue(MaxPopupWidthProperty); set => SetValue(MaxPopupWidthProperty, value); }
 
     /// <summary>Raised when <see cref="IsOpen"/> becomes <c>true</c> (the list opens).</summary>
     public event EventHandler<PickerOpenedEventArgs>? Opened;
@@ -350,6 +366,12 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
 
     /// <summary>Sets <see cref="CancelText"/> (same as the property setter).</summary>
     public SkUiPickerBase SetCancelText(string? value) { CancelText = value; return this; }
+
+    /// <summary>Sets <see cref="MinPopupWidth"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetMinPopupWidth(double value) { SkUiPickerValidation.ThrowIfNotOptionalLength(value, nameof(value)); MinPopupWidth = value; return this; }
+
+    /// <summary>Sets <see cref="MaxPopupWidth"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetMaxPopupWidth(double value) { SkUiPickerValidation.ThrowIfNotOptionalLength(value, nameof(value)); MaxPopupWidth = value; return this; }
 
     /// <summary>Sets <see cref="PopupHeaderTemplate"/> (same as the property setter).</summary>
     public SkUiPickerBase SetPopupHeaderTemplate(DataTemplate? value) { PopupHeaderTemplate = value; return this; }

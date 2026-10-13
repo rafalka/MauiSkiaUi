@@ -19,6 +19,7 @@ public partial class SkUiCorePicker : SkUiCorePickerBase
     private IList? _itemsSource;
     private Func<object?, string>? _itemDisplay;
     private Func<object?, bool>? _itemEnabled;
+    private Func<object?, string>? _selectedItemDisplay;
     private int _selectedIndex = -1;
     private object? _selectedItem;
     private int _pendingSelectedIndex = -1;
@@ -47,6 +48,34 @@ public partial class SkUiCorePicker : SkUiCorePickerBase
     /// item. See <c>SkUiPicker.ItemEnabledBinding</c>; read when the items change and on <see cref="RefreshItemStates"/>.
     /// </summary>
     public Func<object?, bool>? ItemEnabled { get => _itemEnabled; set => SetItemEnabled(value); }
+
+    /// <summary>
+    /// The text the field shows for a chosen item when it differs from its text in the list (a currency's code for its full name);
+    /// <c>null</c> (default): the item's text. See <c>SkUiPicker.SelectedItemDisplayBinding</c>.
+    /// </summary>
+    public Func<object?, string>? SelectedItemDisplay { get => _selectedItemDisplay; set => SetSelectedItemDisplay(value); }
+
+    /// <summary>Sets <see cref="SelectedItemDisplay"/>.</summary>
+    public SkUiCorePicker SetSelectedItemDisplay(Func<object?, string>? value)
+    {
+        if (!SetProperty(ref _selectedItemDisplay, value, nameof(SelectedItemDisplay)))
+            return this;
+        UpdateFieldText();
+        UpdateMultipleState();
+        return this;
+    }
+
+    /// <summary>The field's text for the item at <paramref name="index"/>: <see cref="SelectedItemDisplay"/>'s, else the item's text.</summary>
+    private string FieldTextOf(int index) =>
+        _selectedItemDisplay is { } display && index >= 0 && index < _items.Count ? display(ItemAt(index)) ?? string.Empty
+        : index >= 0 && index < _items.Count ? _items[index] : string.Empty;
+
+    /// <summary>The field's text for the selected item (one choice).</summary>
+    private void UpdateFieldText()
+    {
+        Model.SelectedFieldText = _selectedItemDisplay is null || _multiple || _selectedIndex < 0 ? null : FieldTextOf(_selectedIndex);
+        Model.TextChanged();
+    }
 
     /// <summary>Sets <see cref="ItemEnabled"/>.</summary>
     public SkUiCorePicker SetItemEnabled(Func<object?, bool>? value)
@@ -208,6 +237,12 @@ public partial class SkUiCorePicker : SkUiCorePickerBase
     /// <summary>Sets <see cref="SkUiCorePickerBase.CancelText"/> (same as the property setter).</summary>
     public new SkUiCorePicker SetCancelText(string? value) { base.SetCancelText(value); return this; }
 
+    /// <summary>Sets <see cref="SkUiCorePickerBase.MinPopupWidth"/> (same as the property setter).</summary>
+    public new SkUiCorePicker SetMinPopupWidth(double value) { base.SetMinPopupWidth(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.MaxPopupWidth"/> (same as the property setter).</summary>
+    public new SkUiCorePicker SetMaxPopupWidth(double value) { base.SetMaxPopupWidth(value); return this; }
+
     /// <summary>Sets <see cref="SkUiCorePickerBase.PopupHeaderTemplate"/> (same as the property setter).</summary>
     public new SkUiCorePicker SetPopupHeaderTemplate(DataTemplate? value) { base.SetPopupHeaderTemplate(value); return this; }
 
@@ -316,6 +351,8 @@ public partial class SkUiCorePicker : SkUiCorePickerBase
         }
         // The index may be the same while its text changed (a replaced item): the field shows the new text.
         Model.SelectedIndex = index;
+        if (_selectedItemDisplay is not null)
+            Model.SelectedFieldText = _multiple || index < 0 ? null : FieldTextOf(index);
         Model.SelectionChanged();
         if (!changed || !raise)
             return;
