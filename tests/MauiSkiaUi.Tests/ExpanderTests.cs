@@ -449,25 +449,6 @@ public class ExpanderTests
     }
 
     [Fact]
-    public void TheExpandedStateTextCanBeLocalized()
-    {
-        var original = SkUiExpander.ExpandedStateText;
-        try
-        {
-            SkUiExpander.ExpandedStateText = expanded => expanded ? "Rozwinięte" : "Zwinięte";
-            var expander = new SkUiExpander { Header = new SkUiLabel { Text = "Szczegóły", WidthRequest = 80, HeightRequest = 20 }, Content = Box(30) };
-            var root = new SkUiContentView { Content = new SkUiVerticalStackLayout { Children = { expander } } };
-            SkUiTestHelpers.Arrange(root, 200, 200);
-            Assert.Equal("Zwinięte", SkUiSemanticsTree.Build(root).Find(expander.HeaderHost)!.Value);
-            Assert.Throws<ArgumentNullException>(() => SkUiExpander.ExpandedStateText = null!);
-        }
-        finally
-        {
-            SkUiExpander.ExpandedStateText = original;
-        }
-    }
-
-    [Fact]
     public void ScrollExtentsFollowTheAnimation()
     {
         WithMotion(() =>

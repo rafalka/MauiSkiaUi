@@ -17,4 +17,7 @@ public sealed class SkUiOptions
     /// same on every platform). <see cref="DefaultSkUiLook.ForCurrentPlatform"/> mimics the platform the app runs on.
     /// </summary>
     public SkUiLook? Look { get; set; }
+
+    /// <summary>The app-wide texts, to translate SkiaUi's own (<see cref="SkUiStrings.Current"/>); <c>null</c>: unchanged (English).</summary>
+    public SkUiStrings? Strings { get; set; }
 }

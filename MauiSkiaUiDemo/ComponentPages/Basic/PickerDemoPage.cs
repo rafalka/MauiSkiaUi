@@ -18,6 +18,8 @@ public sealed class PickerDemoPage : ComponentDemoPage
     private const string ActionSheetPresenter = "MAUI action sheet";
     private const string AppPresenter = "App's (SkUiPopups.Presenter)";
     private const string Title1 = "Select a monkey";
+    private const string AppAcceptText = "(app's: SkUiStrings.Current)";
+    private const string LocalAcceptText = "Done";
 
     private static readonly string[] MonkeyNames = ["Baboon", "Capuchin Monkey", "Blue Monkey", "Squirrel Monkey", "Golden Lion Tamarin", "Howler Monkey"];
     private static readonly string[] NumberNames = [.. Enumerable.Range(1, 500).Select(number => $"Item {number}")];
@@ -74,6 +76,10 @@ public sealed class PickerDemoPage : ComponentDemoPage
         Choice(nameof(SkUiPicker.PopupPlacement), Enum.GetValues<SkUiPopupPlacement>(), SkUiPopupPlacement.Default,
             value => _skia.PopupPlacement = value, () => _skia.PopupPlacement);
         Number(nameof(SkUiPicker.MaxPopupHeight), -1, 600, -1, value => _skia.MaxPopupHeight = value < 0 ? -1 : value, () => _skia.MaxPopupHeight, whole: true);
+        Choice(nameof(SkUiPickerBase.UpdateMode), [SkUiPickerUpdateMode.Immediately, SkUiPickerUpdateMode.WhenFinished], SkUiPickerUpdateMode.Immediately,
+            value => _skia.UpdateMode = value, () => _skia.UpdateMode);
+        Choice(nameof(SkUiPickerBase.AcceptText), [AppAcceptText, LocalAcceptText], AppAcceptText,
+            value => _skia.AcceptText = value == AppAcceptText ? null : value, () => _skia.AcceptText ?? AppAcceptText);
         Toggle("ItemTemplate (drawn rows)", false, value => _skia.ItemTemplate = value ? new DataTemplate(Row) : null, () => _skia.ItemTemplate is not null);
         Choice(nameof(SkUiPicker.PopupPresenter), [ToolkitPresenter, ActionSheetPresenter, AppPresenter], ToolkitPresenter,
             value => _skia.PopupPresenter = value switch

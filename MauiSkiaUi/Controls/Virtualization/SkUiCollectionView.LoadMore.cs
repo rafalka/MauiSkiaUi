@@ -10,7 +10,6 @@ public partial class SkUiCollectionView
     private bool _recheckLoadMore;
     private int _itemsAtLoadMore; // the item count when the list last asked for more
     private SkUiWeakListener<SkUiCollectionView>? _loadMoreCommandListener;
-    private static Func<string> _loadMoreText = () => "Load more";
 
     /// <summary>Bindable property for <see cref="LoadMoreMode"/>.</summary>
     public static readonly BindableProperty LoadMoreModeProperty = BindableProperty.Create(nameof(LoadMoreMode), typeof(SkUiLoadMoreMode), typeof(SkUiCollectionView), SkUiLoadMoreMode.None,
@@ -67,7 +66,7 @@ public partial class SkUiCollectionView
     /// <summary>
     /// Creates the load-more row (drawn views; the list's binding context): shown by <see cref="SkUiLoadMoreMode.Manual"/>
     /// while more can load (a tap on it loads; views in it keep their taps), and by every mode while loading. Default: a
-    /// "Load more" button (<see cref="LoadMoreText"/>) and a spinner while loading.
+    /// "Load more" button (<see cref="SkUiStrings.LoadMoreText"/>) and a spinner while loading.
     /// </summary>
     public DataTemplate? LoadMoreTemplate { get => (DataTemplate?)GetValue(LoadMoreTemplateProperty); set => SetValue(LoadMoreTemplateProperty, value); }
 
@@ -79,13 +78,6 @@ public partial class SkUiCollectionView
 
     /// <summary>Raised when the list asks for more items, before <see cref="LoadMoreCommand"/>.</summary>
     public event EventHandler? LoadingMore;
-
-    /// <summary>The text of the default load-more button ("Load more"). Set it once at startup to localize.</summary>
-    public static Func<string> LoadMoreText
-    {
-        get => _loadMoreText;
-        set => _loadMoreText = value ?? throw new ArgumentNullException(nameof(value));
-    }
 
     /// <summary>The load-more row, once created (tests).</summary>
     internal SkUiView? LoadMoreRow => _body.LoadMoreHost;

@@ -47,24 +47,25 @@ public sealed class SkUiActionSheetPopupPresenter : ISkUiPopupPresenter
     /// <summary>The shared presenter.</summary>
     public static SkUiActionSheetPopupPresenter Instance { get; } = new();
 
-    /// <summary>The text of the sheet's cancel button (default "Cancel"); set it to localize.</summary>
-    public string CancelText { get; set; } = "Cancel";
+    /// <summary>The text of the sheet's cancel button; <c>null</c> (default): the request's, <see cref="SkUiPopupRequest.CancelText"/> (<see cref="SkUiStrings.CancelText"/> unless the control sets its own).</summary>
+    public string? CancelText { get; set; }
 
     /// <inheritdoc />
     public async Task ShowAsync(SkUiPopupRequest request, CancellationToken cancellationToken)
     {
         if (request is not SkUiListPopupRequest list || list.Page is not { } page || list.Items.Count == 0)
         {
-            Trace.WriteLine($"SkiaUi: {nameof(SkUiActionSheetPopupPresenter)} shows list requests on a page only: the popup was not shown.");
+            Trace.WriteLine($"SkiaUi: {nameof(SkUiActionSheetPopupPresenter)} shows lists to choose one item from, on a page only: the popup was not shown (register a presenter for several choices and wheels).");
             return;
         }
         var items = list.Items;
         var buttons = new string[items.Count];
         for (var index = 0; index < buttons.Length; index++)
             buttons[index] = items[index];
-        var chosen = await page.DisplayActionSheetAsync(list.Title, CancelText, null, list.IsRightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight, buttons);
+        var cancel = CancelText ?? list.CancelText;
+        var chosen = await page.DisplayActionSheetAsync(list.Title, cancel, null, list.IsRightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight, buttons);
         // MAUI answers the cancel button's text for a cancel (or a tap outside): an item with that text is not chosen.
-        if (chosen is null || chosen == CancelText || cancellationToken.IsCancellationRequested)
+        if (chosen is null || chosen == cancel || cancellationToken.IsCancellationRequested)
             return;
         var chosenIndex = Array.IndexOf(buttons, chosen);
         if (chosenIndex >= 0)

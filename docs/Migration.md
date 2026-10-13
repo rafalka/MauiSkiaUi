@@ -337,7 +337,7 @@ What differs is where the list shows. SkiaUi has no popup windows: the picker dr
 - **A vendor picker UI** (a wheel, a searchable list): the presenter reads `SkUiListPopupRequest` (`Items`, `SelectedIndex`, `Title`) and calls `request.Complete(index)`.
 - **Nothing registered:** the list opens in MAUI's action sheet (plain item texts, MAUI's UI), with one trace line.
 
-Platform differences go: the list is the same drawn list everywhere, anchored to the field as a combo box on desktops and tablets and in the window on phones (`PopupPlacement` and the look decide; `ios:Picker.UpdateMode` does not apply). New: `ItemTemplate` (drawn rows), `MaxPopupHeight`, keyboard navigation and type-ahead on every platform.
+Platform differences go: the list is the same drawn list everywhere, anchored to the field as a combo box on desktops and tablets and in the window on phones (`PopupPlacement` and the look decide). `ios:Picker.UpdateMode="WhenFinished"` becomes `UpdateMode="WhenFinished"` on the picker itself, on every platform: the choice waits for an OK button (texts translated with SkiaUi's other texts in `SkUiStrings`, [Localization.md](design/Localization.md), or per picker). New: `ItemTemplate` (drawn rows), `MaxPopupHeight`, keyboard navigation and type-ahead on every platform, several choices (`SelectionMode="Multiple"`, `SelectedItems`: a replacement for a vendor's multi-select combo box) and, as a control of its own, wheels of several columns ([SkUiMultiColumnPicker](controls/SkUiMultiColumnPicker.md): a replacement for a vendor's multi-column wheel picker).
 
 ## Not available yet
 

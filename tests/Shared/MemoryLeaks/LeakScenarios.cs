@@ -47,6 +47,7 @@ public static class LeakScenarios
         new("RefreshPulled", Scrolling, "SkUiRefreshView (inline style, automatic completion) with a long-lived command around a header and a drawn scroller: pulled through the scroller and by the header (content held down while refreshing), each refresh ended by a deferral taken in Refreshing, a short pull released before the trigger (the indicator going back), the scroller replaced while still linked and the old one detached; closed mid-pull.", () => new RefreshRun()),
         new("CarouselSwiped", Scrolling, "SkUiCarouselView over a long-lived collection with a long-lived shared cover flow effect, a long-lived position command and a linked indicator view: swiped and flung forward past the middle of its looping strip (moved back by corrections), an indicator tapped, the position set by code, items added and removed, the effect switched, looping turned off and the end reached (load-more command); closed mid-fling.", () => new CarouselRun()),
         new("PickerOpened", Controls, "SkUiPicker and SkUiCorePicker over a long-lived collection (a display binding, an item template), opened on a long-lived presenter that keeps the last request (as a popup stack does): tapped open and an item chosen in the drawn list, dismissed, closed by IsOpen = false and by hiding the picker, opened by the keyboard, the Core picker chosen; closed with a popup open.", () => new PickerRun()),
+        new("PickerWheelsOpened", Controls, "SkUiPicker with several choices and SkUiMultiColumnPicker, and their Core twins, over long-lived collections (columns' items, a long-lived presenter that keeps the last request): tapped open, rows toggled and wheels set through the request, completed with a selection, a draft accepted (UpdateMode WhenFinished), dismissed, closed by IsOpen = false and by hiding, columns removed while open; closed with a popup open.", () => new PickerWheelsRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
         new("SurfaceReplaced", Rendering, "A page replaces its GPU surface with a software one and back; the discarded surfaces are disconnected.", () => new SurfaceReplacedRun()),
@@ -1652,6 +1653,117 @@ public static class LeakScenarios
         public override string? CheckInteraction() =>
             _chosen == 0 || _picker?.SelectedIndex != 3 ? "no item was chosen in the picker's list"
             : _core?.SelectedIndex != 1 ? "no item was chosen in the Core picker's list"
+            : null;
+    }
+
+    private sealed class PickerWheelsRun : LeakScenarioRun
+    {
+        private SkUiPicker? _multiple;
+        private SkUiCorePicker? _coreMultiple;
+        private SkUiMultiColumnPicker? _columns;
+        private SkUiCoreMultiColumnPicker? _coreColumns;
+        private int _changes;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 30; index++)
+                LeakItems.Shared.Add($"Option {index}");
+            _multiple = context.Track(new SkUiPicker
+            {
+                Title = "Several",
+                SelectionMode = SkUiSelectionMode.Multiple,
+                ItemsSource = LeakItems.Shared,
+                PopupPresenter = LeakPopupPresenter.Shared,
+                PopupPlacement = SkUiPopupPlacement.Anchored
+            }, "multiple picker");
+            _multiple.SelectionChanged += (_, _) => _changes++;
+            _coreMultiple = context.Track(new SkUiCorePicker { Title = "Core several", SelectionMode = SkUiSelectionMode.Multiple, PopupPresenter = LeakPopupPresenter.Shared },
+                "core multiple picker");
+            foreach (var option in new[] { "Red", "Green", "Blue" })
+                _coreMultiple.Items.Add(option);
+            _columns = context.Track(new SkUiMultiColumnPicker { Title = "Columns", PopupPresenter = LeakPopupPresenter.Shared, PopupPlacement = SkUiPopupPlacement.Anchored }, "columns picker");
+            _columns.Columns.Add(new SkUiPickerColumn { ItemsSource = LeakItems.Shared, Loop = true });
+            _columns.Columns.Add(new SkUiPickerColumn { ItemsSource = LeakItems.Shared });
+            _columns.SelectionChanged += (_, _) => _changes++;
+            _coreColumns = context.Track(new SkUiCoreMultiColumnPicker { Title = "Core columns", PopupPresenter = LeakPopupPresenter.Shared, UpdateMode = SkUiPickerUpdateMode.WhenFinished }, "core columns picker");
+            _coreColumns.Columns.Add(new SkUiPickerColumn { ItemsSource = LeakItems.Shared });
+            var stack = new SkUiVerticalStackLayout { Spacing = 12, Padding = new Thickness(12) };
+            stack.Children.Add(_multiple);
+            stack.Children.Add(new SkUiCoreHost().SetContent(_coreMultiple));
+            stack.Children.Add(_columns);
+            stack.Children.Add(new SkUiCoreHost().SetContent(_coreColumns));
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            // The list with several choices: tapped open, rows toggled through the request, dismissed (the choice stays).
+            await context.TapAsync(_multiple!);
+            Track(context);
+            var list = (SkUiMultiListPopupRequest)LeakPopupPresenter.Shared.Last!;
+            ((SkUiView)list.Content!).Measure(300, 400);
+            list.SetSelected(3, true);
+            list.SetSelected(5, true);
+            LeakPopupPresenter.Shared.Dismiss();
+            await context.SettleAsync();
+            _multiple!.IsOpen = true;
+            Track(context);
+            _multiple.IsOpen = false;
+            await context.SettleAsync();
+            _multiple.IsOpen = true;
+            Track(context);
+            _multiple.IsVisible = false;
+            await context.SettleAsync();
+            _multiple.IsVisible = true;
+            // The wheels: tapped open, set through the request, completed with a selection.
+            await context.TapAsync(_columns!);
+            Track(context);
+            var wheels = (SkUiColumnsPopupRequest)LeakPopupPresenter.Shared.Last!;
+            ((SkUiView)wheels.Content!).Measure(300, 400);
+            wheels.SetSelectedIndex(0, 4);
+            wheels.Complete([2, 3]);
+            await context.SettleAsync();
+            _columns!.IsOpen = true;
+            Track(context);
+            LeakPopupPresenter.Shared.Dismiss();
+            await context.SettleAsync();
+            // Columns taken away while the popup is open.
+            _columns.IsOpen = true;
+            Track(context);
+            _columns.Columns.RemoveAt(1);
+            await context.SettleAsync();
+            // The Core twins.
+            await context.TapAsync(_coreMultiple!);
+            Track(context);
+            ((SkUiMultiListPopupRequest)LeakPopupPresenter.Shared.Last!).SetSelected(1, true);
+            LeakPopupPresenter.Shared.Dismiss();
+            await context.SettleAsync();
+            await context.TapAsync(_coreColumns!);
+            Track(context);
+            // Its choice waits for OK: a draft, then accepted.
+            var coreWheels = (SkUiColumnsPopupRequest)LeakPopupPresenter.Shared.Last!;
+            coreWheels.SetSelectedIndex(0, 6);
+            coreWheels.Accept();
+            await context.SettleAsync();
+            // Closed with popups open (their content goes once the UI thread has seen the popups close, after the page).
+            _multiple.IsOpen = true;
+            await context.SettleAsync();
+        }
+
+        /// <summary>Each opening's content must go once its popup has gone.</summary>
+        private static void Track(LeakScenarioContext context)
+        {
+            if (LeakPopupPresenter.Shared.Last?.Content is { } content)
+                context.Track(content, "picker popup content");
+        }
+
+        public override string? CheckInteraction() =>
+            _multiple?.SelectedIndices.SequenceEqual([3, 5]) != true ? "the rows of the list with several choices were not chosen"
+            : _columns?.SelectedIndices.SequenceEqual([2]) != true ? "the wheels' selection was not applied"
+            : _coreMultiple?.SelectedIndices.SequenceEqual([1]) != true ? "the Core list with several choices was not chosen"
+            : _coreColumns?.SelectedIndices.SequenceEqual([6]) != true ? "the Core wheels' selection was not applied"
+            : _changes == 0 ? "no change was reported"
             : null;
     }
 

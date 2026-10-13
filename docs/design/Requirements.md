@@ -574,7 +574,7 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--s
 
 ### FR-29 — Pickers on the app's popup system
 
-**Status:** popup presenter and `SkUiPicker` / `SkUiCorePicker` shipped (C6); date and time pickers planned (C7 in [ImplementationPlan.md](ImplementationPlan.md#popups-through-the-apps-popup-system)).
+**Status:** popup presenter and `SkUiPicker` / `SkUiCorePicker` shipped (C6); several choices and `SkUiMultiColumnPicker` shipped (C6b); date and time pickers planned (C7 in [ImplementationPlan.md](ImplementationPlan.md#popups-through-the-apps-popup-system)).
 
 SkiaUi does not replace navigation: it ships no pages and no popup windows. Drawn controls that need a popup open it through an abstraction the app implements on its own popup system (MAUI's built-in UI, CommunityToolkit's `Popup`, Syncfusion's `SfPopup` or `SfPicker`, its own overlay).
 
@@ -583,10 +583,13 @@ SkiaUi does not replace navigation: it ships no pages and no popup windows. Draw
 - [x] **Own UI in presenters:** typed requests (`SkUiListPopupRequest`: item texts, selected index, title; date and time requests for C7) let a presenter show its own picker UI instead of the drawn content and return the result.
 - [x] **Lifetime:** `ShowAsync` completes once, with a result (a choice in the content) or none (dismissed by the presenter: tap outside, Back, Escape); the control cancels the token when the popup must close (`IsOpen = false`, unfocused, disabled, hidden or removed, the anchor scrolled, the window resized); nothing keeps the control alive after completion.
 - [x] **`SkUiPicker` / `SkUiCorePicker`:** MAUI's `Picker` API (`ItemsSource` / `Items`, `ItemDisplayBinding`, `SelectedIndex` / `SelectedItem` two-way, `SelectedIndexChanged`, `Title` / `TitleColor`, text and font properties, text alignment, `IsOpen` / `Opened` / `Closed`), XAML ports by prefix; a look-drawn field with visual states; the items as a drawn, virtualized list (FR-22) on the popup, the selection highlighted and scrolled into view; beyond MAUI: `PopupPlacement` (`Anchored`, `Window`, `Default` per look and platform), `ItemTemplate`, `MaxPopupHeight`.
+- [x] **Several choices:** `SelectionMode` `Multiple` on both pickers (`SelectedItems` bindable, `SelectedIndices`, `SelectionChanged`, `SelectAll` / `ClearSelection`), check-box rows that stay open and apply each change at once, a cursor and Space in the list, the field joining the texts or counting them; `SkUiMultiListPopupRequest` for presenters' own UI (C6b).
+- [x] **Choices that wait for OK:** `UpdateMode` `Immediately` / `WhenFinished` on every picker; Cancel / OK drawn below the content on every platform (presenters with their own UI call `Accept()` / `Cancel()`); localizable texts app-wide (`SkUiStrings`) and per picker (C6b).
+- [x] **`SkUiMultiColumnPicker` / `SkUiCoreMultiColumnPicker`:** bindable `SkUiPickerColumn`s (items, display binding, two-way selection, loop, width) on wheels side by side (snapping, looping or stopping, `VisibleRows`), choosing as they move; `Separator` / `Format` for the field; keyboard per column; `SkUiColumnsPopupRequest` (C6b).
 - [ ] **`SkUiDatePicker` / `SkUiTimePicker` (+ Core):** MAUI's API (`Date` / `Time` nullable, `MinimumDate` / `MaximumDate`, `Format`, `DateSelected` / `TimeSelected`, `IsOpen` / `Opened` / `Closed`); drawn wheels ordered and formatted by culture on the same presenter.
 - [x] **Input and accessibility (FR-28):** open by tap, Space, Enter or Alt+Down; arrow keys change the selection on the closed field; keyboard navigation and type-ahead in the list; a combo-box / pop-up-button role with the expanded state and the selection as value.
 - [x] **Fallback** without a registered presenter: MAUI's `DisplayActionSheetAsync` on the anchor's page (`SkUiActionSheetPopupPresenter`), plus one `Trace` line.
-- [x] Presenters: MAUI's action sheet (built in) and CommunityToolkit's `Popup` (package SkiaUi.Maui.CommunityToolkit, used by the samples app and the demo), Syncfusion `SfPopup` and Telerik `RadPopup` sketches in the control docs; headless tests with a recording presenter; demo pages next to MAUI's picker; leak scenario `PickerOpened`.
+- [x] Presenters: MAUI's action sheet (built in) and CommunityToolkit's `Popup` (package SkiaUi.Maui.CommunityToolkit, used by the samples app and the demo), Syncfusion `SfPopup` and Telerik `RadPopup` sketches in the control docs; headless tests with a recording presenter; demo pages next to MAUI's picker; leak scenarios `PickerOpened` and `PickerWheelsOpened`.
 - [ ] Device runs of the sample presenters on every platform (checked so far: the iPad simulator).
 
 ### FR-30 — Avatar view

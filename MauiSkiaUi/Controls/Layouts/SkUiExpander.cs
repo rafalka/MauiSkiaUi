@@ -40,7 +40,6 @@ public class SkUiExpander : SkUiView
     private uint _animationLength;
     private Easing? _animationEasing = Easing.CubicInOut;
     private bool _isAnimating;
-    private static Func<bool, string> _expandedStateText = expanded => expanded ? "Expanded" : "Collapsed";
 
     /// <summary>Bindable <see cref="Header"/>.</summary>
     public static readonly BindableProperty HeaderProperty = BindableProperty.Create(
@@ -218,17 +217,6 @@ public class SkUiExpander : SkUiView
 
     /// <summary>Whether the content is expanding or collapsing (raises <c>PropertyChanged</c> when it starts and ends).</summary>
     public bool IsAnimating => _isAnimating;
-
-    /// <summary>
-    /// The value screen readers read after a header's text, for expanded (<c>true</c>) and collapsed: "Expanded" /
-    /// "Collapsed" by default. Set it once at startup to localize (it is called each time the semantics are read, so it
-    /// may follow the current culture).
-    /// </summary>
-    public static Func<bool, string> ExpandedStateText
-    {
-        get => _expandedStateText;
-        set => _expandedStateText = value ?? throw new ArgumentNullException(nameof(value));
-    }
 
     /// <summary>
     /// Raised when <see cref="IsExpanded"/> changes (when it changes, not when an animation ends), after
@@ -471,7 +459,7 @@ public class SkUiExpander : SkUiView
             if (Content is null)
                 return;
             info.Role = SkUiSemanticsRole.Button;
-            info.Value = ExpandedStateText(owner.IsExpanded);
+            info.Value = SkUiStrings.Current.ExpansionStateText(owner.IsExpanded);
         }
 
         public void OnExpandedChanged() => InvalidateSemantics();

@@ -102,6 +102,7 @@ Architecture, requirements, and mechanism checklists live under **[docs/design/]
 | [DrawingMechanism.md](docs/design/DrawingMechanism.md) | Paint pipeline, layers, clip/mask, caching (FR-8 / FR-9 / FR-11) |
 | [ControlLook.md](docs/design/ControlLook.md) | Control look packs / default sizes (FR-18) |
 | [ColorScheme.md](docs/design/ColorScheme.md) | Shared default palette (FR-19) |
+| [Localization.md](docs/design/Localization.md) | SkiaUi's own texts (`SkUiStrings`): button texts and screen-reader states, translated at once |
 | [EventMechanism.md](docs/design/EventMechanism.md) | SkiaUi-owned gestures (FR-15) |
 | [Accessibility.md](docs/design/Accessibility.md) | Semantics tree and platform accessibility bridges, keyboard focus, OS font scaling (FR-28, P10) |
 | [AnimationMechanism.md](docs/design/AnimationMechanism.md) | Vsync clock, paint / transform animation (FR-7) |

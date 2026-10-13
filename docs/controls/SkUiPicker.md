@@ -2,7 +2,7 @@
 
 A drawn picker: a field that shows the selected item (or a title), and a list to choose from that opens on **your app's popup system** (CommunityToolkit's `Popup`, Syncfusion's `SfPopup`, Telerik's `RadPopup`, a navigation service of your own, or MAUI's action sheet).
 
-**MAUI counterpart:** `Picker`. Its XAML ports by changing the prefix. Beyond MAUI: `PopupPlacement` (anchored like a combo box, in the window like a dialog or a sheet, at a rectangle), `PopupBounds`, `ItemTemplate` (drawn rows), `MaxPopupHeight`, `PopupPresenter`. Core twin: `SkUiCorePicker` (fluent setters, `ItemDisplay` as a function instead of a binding, the same field and list).
+**MAUI counterpart:** `Picker`. Its XAML ports by changing the prefix. Beyond MAUI: several choices (`SelectionMode`, [below](#several-choices)), choices that wait for OK (`UpdateMode`, [below](#when-a-choice-takes-effect)), `PopupPlacement` (anchored like a combo box, in the window like a dialog or a sheet, at a rectangle), `PopupBounds`, `ItemTemplate` (drawn rows), `MaxPopupHeight`, `PopupPresenter`. Core twin: `SkUiCorePicker` (fluent setters, `ItemDisplay` as a function instead of a binding, `SetSelectedItems` instead of a mutable list, the same field and list). What every drawn picker shares (the field, fonts and colors, `IsOpen`, the popup's placement and presenter) is in the base class `SkUiPickerBase` (Core: `SkUiCorePickerBase`).
 
 ## How it works
 
@@ -12,6 +12,45 @@ A drawn picker: a field that shows the selected item (or a title), and a list to
 - **Choosing and closing.** A tap on a row (or Enter on the highlighted one) chooses it: `SelectedIndex` changes (`SelectedIndexChanged`), then the popup closes and `IsOpen` goes back to `false` (`Closed`). The popup also closes without a choice when the user dismisses it (the presenter's tap outside, Back, Escape), `IsOpen` is set to `false`, or the picker is disabled, hidden, removed or its surface goes. It closes too when the items change while it is open (it shows the items it opened with; a choice made just before is applied to the item it showed, wherever that item is now, or not at all once it has gone). A selection the app sets while it is open moves its highlight, so Enter chooses what the field shows. An anchored popup also closes when a scroller around the picker scrolls (a drawn one or a MAUI `ScrollView`) or the window resizes, as a combo box's does. A popup that fails to build (an item template that throws) leaves the picker closed, with a trace line. `Opened` and `Closed` follow `IsOpen`, as MAUI 10's.
 - **Keyboard.** On the closed field, as a desktop combo box: Up / Down (and Left / Right) select the previous / next item, Home / End the first / last, typing jumps to the next item starting with what was typed (the same letter again cycles), all without opening; Alt+Down / Alt+Up, Space and Enter open. In the list (it takes keyboard focus when shown): Up / Down, Page Up / Page Down, Home / End move the highlight, typing jumps, Enter or Space chooses, Escape closes.
 - **Screen readers.** A combo box (Android's spinner, WinUI's combo box with expand / collapse and the value, a button on iOS and Mac Catalyst) named by `Title` (or `SemanticProperties.Description`), with the selected text as its value and whether the list is open; activating it opens the list. The list's rows are elements; activating one chooses it.
+
+## Several choices
+
+`SelectionMode="Multiple"` (SkiaUi; default `Single`) turns the list into check boxes:
+
+- **The choice** is `SelectedItems` (an `IList<object>` of items of `ItemsSource`, else texts of `Items`; never `null`), with `SelectedIndices` (ascending) and `SelectionChanged` (`SkUiSelectionChangedEventArgs`: the items before and after, once per change), as `SkUiCollectionView`'s multiple selection. Change the list, or bind it to a view model's (`SelectedItems="{Binding Chosen}"`; an `INotifyCollectionChanged` list is followed, weakly), to choose from code; `SelectAll()` and `ClearSelection()`. `SelectedIndex` / `SelectedItem` stay -1 / `null` (setting them does nothing). Switching the mode keeps the first choice: the selected item becomes the only one chosen, or the first chosen item becomes the selection.
+- **The items change:** chosen items that leave them leave `SelectedItems`; ones that move stay chosen. Items chosen before the picker has any items wait for them.
+- **The list stays open.** A tap toggles a row and applies at once (the field follows behind the popup); the list closes on a dismissal (the presenter's tap outside, Back), Enter or Escape, and keeps the choice. With `UpdateMode="WhenFinished"` the toggles are a draft: OK or Enter applies them (one `SelectionChanged`), Cancel, Escape or a dismissal discard them ([below](#when-a-choice-takes-effect)). Keys in the list: Up / Down, Page Up / Page Down, Home / End and typing move a cursor (a light row), Space toggles the row at it. The closed field opens with a tap, Space, Enter or Alt+Down; arrow keys do not change the choice there.
+- **The field** shows the chosen texts in the order of the items, joined by `SelectedTextSeparator` (default `", "`), truncated at the end; or, with `SelectedCountFormat` (`"{0} selected"`), the count once two or more are chosen; the title while nothing is.
+- **Rows:** a check box before the row's text or `ItemTemplate`; chosen rows show `SelectionBackground` and their template's root is in the `Selected` visual state ([below](#the-selected-rows-look)). Screen readers read the rows as selected or not.
+- **Presenters** that show their own UI read `SkUiMultiListPopupRequest` (`Items`, `SelectedIndices` following the changes) and call `SetSelected(index, selected)` (or `SetSelection(indices)`) as the user toggles items (applied at once, or kept as the draft `Accept()` applies), or `Complete(indices)` with the final choice. MAUI's action sheet shows lists of one choice only: register a presenter for this mode.
+
+```xml
+<sk:SkUiPicker Title="Toppings" SelectionMode="Multiple" SelectedCountFormat="{}{0} toppings"
+               ItemsSource="{Binding Toppings}" ItemDisplayBinding="{Binding Name}"
+               SelectedItems="{Binding ChosenToppings}" />
+```
+
+Several columns of wheels (hours and minutes, an amount and a unit) are a control of their own: [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md).
+
+## When a choice takes effect
+
+`UpdateMode` (on every picker, `SkUiPickerBase`; MAUI's iOS-only `Picker.UpdateMode`, here on every platform):
+
+- **`Immediately`** (default): a tap on a row chooses it and closes the list; with several choices each toggled row, and on [wheels](SkUiMultiColumnPicker.md) each move, applies at once. Dismissing keeps what was chosen.
+- **`WhenFinished`:** what is chosen in the popup is a draft. A tap only highlights a row (one choice), toggles a check box or moves a wheel, and the field and the selection properties stay as they were. **OK** (also Enter; Space on wheels) applies the draft: the selection events follow, then the popup closes (`Closed`). **Cancel**, Escape or a dismissal (the presenter's tap outside, Back) discard it. The OK and Cancel buttons sit below the list or wheels, at the end side (mirrored right to left), Cancel first; they apply from the next opening.
+
+**The buttons' texts** are localizable in two places:
+
+- App-wide: `SkUiStrings.Current.AcceptText` and `CancelText` (default "OK" and "Cancel"), with SkiaUi's other texts in one object you replace as a whole or derive from to read your resources ([Localization.md](../design/Localization.md)). They are read each time a popup opens, so a language switch applies to the next popup. `CancelText` is also the cancel button of MAUI's action sheet (the fallback presenter).
+- Per picker: `AcceptText` / `CancelText` (bindable: `AcceptText="{x:Static res:AppResources.Choose}"` or a binding to a localization service); `null` (default) uses the app's.
+
+**The buttons are drawn by SkiaUi on every platform** and with every presenter, so they look the same everywhere (a popup system's own footer, such as `SfPopup`'s, stays off). A presenter that shows its own UI for a typed request instead of the drawn content reads `request.RequiresAccept` and the resolved `request.AcceptText` / `request.CancelText`, and calls `request.Accept()` / `request.Cancel()` from its own buttons.
+
+```xml
+<sk:SkUiPicker Title="Toppings" SelectionMode="Multiple" UpdateMode="WhenFinished"
+               ItemsSource="{Binding Toppings}" SelectedItems="{Binding ChosenToppings}"
+               AcceptText="{Binding Strings[Apply]}" />
+```
 
 ## Popups on your popup system
 
@@ -49,7 +88,7 @@ What the request carries:
 | `CloseRequested` | The token `ShowAsync` gets |
 | `HasResult`, `IsCompleted` | Whether a choice was made; whether the presenter's task finished |
 
-**Showing your own UI instead** (a platform list, a vendor picker): read the typed request, `SkUiListPopupRequest` (`Items` texts, `SelectedIndex`, `Title`), and call `request.Complete(index)` with the choice; then close and return. Date and time pickers (C7) will add their own typed requests.
+**Showing your own UI instead** (a platform list, a vendor picker): read the typed request, `SkUiListPopupRequest` (`Items` texts, `SelectedIndex`, `Title`), and call `request.Complete(index)` with the choice; then close and return. Choices that wait for OK: `request.RequiresAccept`; move the highlight with `SetCurrentIndex(index)` and call `request.Accept()` / `Cancel()`, or `Complete(index)` directly. Several choices and wheels have typed requests of their own that report each change (`SkUiSelectionPopupRequest`, applied at once or kept as a draft until `Accept`: `SkUiMultiListPopupRequest`, [above](#several-choices), and `SkUiColumnsPopupRequest`, [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md#presenters)). Date and time pickers (C7) will add their own.
 
 ### Presenter examples
 
@@ -135,6 +174,38 @@ Anchored as a combo box, with drawn rows:
 </sk:SkUiPicker>
 ```
 
+### The selected row's look
+
+The list's selected row (the highlighted one: the selection when it opens, then where a tap or the keys move it; with several choices every chosen row) is drawn on `SelectionBackground`, and the root of its `ItemTemplate` is in MAUI's `Selected` visual state (`CommonStates`; `Disabled` wins, `Selected` comes before `PointerOver`), as a collection view's items. Style it as there:
+
+- `SelectionBackground`: a brush (in XAML a color) behind selected rows; `null` (default): the look's `PopupHighlightColor` (the accent at 12 %); `Transparent`: none.
+- The template root's `VisualStateGroups`: setters for the root's properties in the `Selected` state (its background, padding, opacity).
+
+```xml
+<sk:SkUiPicker Title="Paint" ItemsSource="{Binding Paints}" ItemDisplayBinding="{Binding Name}" SelectionBackground="Transparent">
+  <sk:SkUiPicker.ItemTemplate>
+    <DataTemplate x:DataType="local:Paint">
+      <sk:SkUiHorizontalStackLayout Spacing="12" Padding="16,10">
+        <VisualStateManager.VisualStateGroups>
+          <VisualStateGroup Name="CommonStates">
+            <VisualState Name="Normal" />
+            <VisualState Name="Selected">
+              <VisualState.Setters>
+                <Setter Property="BackgroundColor" Value="{StaticResource Primary}" />
+              </VisualState.Setters>
+            </VisualState>
+          </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+        <sk:SkUiBox Color="{Binding Color}" WidthRequest="20" HeightRequest="20" CornerRadius="10" />
+        <sk:SkUiLabel Text="{Binding Name}" />
+      </sk:SkUiHorizontalStackLayout>
+    </DataTemplate>
+  </sk:SkUiPicker.ItemTemplate>
+</sk:SkUiPicker>
+```
+
+Rows without a template (the item texts) show the selection only through `SelectionBackground`. The wheels of [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md) mark the chosen row with the look's band.
+
 Core:
 
 ```csharp
@@ -157,8 +228,14 @@ host.SetContent(picker);
 | `IsOpen` | `false` | Two-way; `Opened` / `Closed` |
 | `PopupPlacement` | `Default` | `Anchored`, `Window`, `Absolute` (SkiaUi) |
 | `PopupBounds` | empty | The window rectangle of `Absolute` popups (SkiaUi) |
-| `ItemTemplate` | `null` | Drawn rows (`SkUi*` views) bound to the items; a selector picks per item (SkiaUi) |
+| `ItemTemplate` | `null` | Drawn rows (`SkUi*` views) bound to the items; a selector picks per item; the selected row's root is in the `Selected` visual state (SkiaUi) |
+| `SelectionBackground` | `null` | Behind the selected rows; `null`: the look's `PopupHighlightColor`; `Transparent`: none (SkiaUi) |
 | `MaxPopupHeight` | `-1` | No limit beyond the window (SkiaUi) |
 | `PopupPresenter` | `null` | The app's presenter (SkiaUi) |
+| `SelectionMode` | `Single` | `Multiple`: check boxes, the list stays open (SkiaUi) |
+| `UpdateMode` | `Immediately` | `WhenFinished`: a draft until OK, with Cancel and OK buttons (MAUI's iOS `Picker.UpdateMode`, on every platform) |
+| `AcceptText` / `CancelText` | `null` | The buttons' texts; `null`: `SkUiStrings.Current`'s (SkiaUi) |
+| `SelectedItems` / `SelectedIndices` | empty | The choice with `Multiple`; `SelectionChanged`, `SelectAll()`, `ClearSelection()` (SkiaUi) |
+| `SelectedTextSeparator` / `SelectedCountFormat` | `", "` / `null` | The field with several choices (SkiaUi) |
 
-Not available: MAUI's platform-specific `UpdateMode` (iOS: the selection changes when the wheel stops) and the per-platform picker UIs (wheels, dialogs): the list is SkiaUi's, on the popup system you choose, or MAUI's action sheet.
+MAUI's iOS-only `UpdateMode` is `UpdateMode` on every platform ([above](#when-a-choice-takes-effect)). Not available: the per-platform picker UIs (wheels, dialogs): the list is SkiaUi's, on the popup system you choose, or MAUI's action sheet.

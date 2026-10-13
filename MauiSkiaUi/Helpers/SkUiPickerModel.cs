@@ -5,6 +5,44 @@ using SkiaSharp;
 
 namespace MauiSkiaUi;
 
+/// <summary>
+/// Whether a popup's choice waits to be accepted (<see cref="SkUiPickerUpdateMode.WhenFinished"/>): then its content shows the OK
+/// and Cancel buttons, with these texts.
+/// </summary>
+internal readonly record struct SkUiPickerPopupChrome(bool RequiresAccept, string AcceptText, string CancelText);
+
+/// <summary>What a popup's content is built for: where it goes, its title, the picker's text style and its buttons.</summary>
+internal readonly record struct SkUiPickerPopupContext(SkUiPopupPlacement Placement, string? Title, bool RightToLeft, SkUiPickerRowStyle RowStyle,
+    SkUiPickerPopupChrome Chrome);
+
+/// <summary>What every request a picker creates carries besides its content and geometry.</summary>
+internal readonly record struct SkUiPopupRequestOptions(string? Title, Color? OverlayColor, bool IsAnimated, SkUiPickerPopupChrome Chrome);
+
+/// <summary>
+/// The content of a picker's popup, as the popup session sees it: a drawn surface that measures itself, builds the request that
+/// carries it (typed to what it chooses) and follows the picker's selection while it is open.
+/// </summary>
+internal interface ISkUiPickerPopupContent
+{
+    /// <summary>The surface handed to the presenter.</summary>
+    SkUiContentView Surface { get; }
+
+    /// <summary>Whether the content has keyboard focus.</summary>
+    bool IsFocused { get; }
+
+    /// <summary>The size the content wants (at least <paramref name="minimumWidth"/>, at most <paramref name="maximumWidth"/> wide).</summary>
+    Size PreferredSize(double minimumWidth, double maximumWidth);
+
+    /// <summary>Creates the request that carries the content (and links it back).</summary>
+    SkUiPopupRequest CreateRequest(View anchor, View? platformAnchor, in SkUiPopupLayout layout, in SkUiPopupRequestOptions options);
+
+    /// <summary>The picker's selection changed while the popup is open (<paramref name="index"/>: its selected index, for single lists).</summary>
+    void SelectionChanged(int index);
+
+    /// <summary>The popup has gone: lets go of the request and the items.</summary>
+    void Release();
+}
+
 /// <summary>What the shared picker engine (<see cref="SkUiPickerModel"/>) needs from its control, on either layer.</summary>
 internal interface ISkUiPickerOwner : ISkUiTransitionHost
 {
@@ -105,16 +143,39 @@ internal sealed class SkUiPickerModel
     public TextAlignment HorizontalTextAlignment = TextAlignment.Start;
     public TextAlignment VerticalTextAlignment = TextAlignment.Center;
     public DataTemplate? ItemTemplate;
+    public Brush? SelectionBackground;
     public double MaxPopupHeight = -1;
     public SkUiPopupPlacement PopupPlacement = SkUiPopupPlacement.Default;
     public Rect PopupBounds = Rect.Zero;
     public ISkUiPopupPresenter? PopupPresenter;
+    public SkUiPickerUpdateMode UpdateMode = SkUiPickerUpdateMode.Immediately;
+    public string? AcceptText;
+    public string? CancelText;
     public bool IsEnabled = true;
     public bool IsPointerOver;
     public bool HasExplicitMinimumHeight;
 
+    /// <summary>
+    /// Whether the field shows <see cref="ValueText"/> instead of the item at <see cref="SelectedIndex"/> (multiple selection,
+    /// columns); the control sets the text and calls <see cref="TextChanged"/>.
+    /// </summary>
+    public bool UsesValueText;
+
+    /// <summary>The field's text while <see cref="UsesValueText"/>; <c>null</c>: nothing is chosen (the title shows).</summary>
+    public string? ValueText;
+
+    /// <summary>Whether the closed field changes the selection with arrow keys and typing (single lists; not for several choices).</summary>
+    public bool ClosedFieldSelects = true;
+
+    /// <summary>
+    /// Builds the popup's content; <c>null</c> (default): the list of <see cref="Items"/> to choose one from. Called for each
+    /// opening, with the items as they are then.
+    /// </summary>
+    public Func<SkUiPickerPopupContext, ISkUiPickerPopupContent>? ContentFactory;
+
     /// <summary>The selected item's text, or <c>null</c> without a selection (the title shows then).</summary>
-    public string? SelectedText => SelectedIndex >= 0 && SelectedIndex < _items.Count ? _items[SelectedIndex] ?? string.Empty : null;
+    public string? SelectedText => UsesValueText ? ValueText
+        : SelectedIndex >= 0 && SelectedIndex < _items.Count ? _items[SelectedIndex] ?? string.Empty : null;
 
     /// <summary>The text the field shows: the selection's, else the title (else nothing).</summary>
     private string DisplayText => SelectedText ?? Title ?? string.Empty;
@@ -251,7 +312,7 @@ internal sealed class SkUiPickerModel
             _owner.SetIsOpen(true);
             return true;
         }
-        if (key.HasCommandModifier || _items.Count == 0)
+        if (key.HasCommandModifier || _items.Count == 0 || !ClosedFieldSelects)
             return false;
         var current = SelectedIndex;
         var rightToLeft = _owner.IsRightToLeft;
@@ -384,11 +445,11 @@ internal sealed class SkUiPickerModel
         private readonly List<SkUiScrollController> _scrollers = [];
         private readonly List<ScrollView> _nativeScrollers = [];
         private Window? _window;
-        private SkUiPickerPopup? _content;
+        private ISkUiPickerPopupContent? _content;
         private string[] _texts = [];
         private object?[]? _sourceItems;
 
-        public SkUiListPopupRequest? Request { get; private set; }
+        public SkUiPopupRequest? Request { get; private set; }
 
         /// <summary>The picker's items changed while the popup was open (it closes; a choice made in it is mapped).</summary>
         public bool ItemsChanged { get; set; }
@@ -414,7 +475,7 @@ internal sealed class SkUiPickerModel
         }
 
         /// <summary>The picker's selection changed while open: the list's highlight follows.</summary>
-        public void SelectionChanged(int index) => _content?.SyncSelection(index);
+        public void SelectionChanged(int index) => _content?.SelectionChanged(index);
 
         public bool IsClosing => Request?.CloseRequested.IsCancellationRequested ?? false;
 
@@ -429,6 +490,35 @@ internal sealed class SkUiPickerModel
             var origin = SkUiWindowMetrics.SurfaceOrigin(surfaceRoot);
             var anchorBounds = rootBounds.Offset(origin.X, origin.Y);
             var windowSize = SkUiWindowMetrics.WindowSize(anchor.Window);
+            var rowStyle = new SkUiPickerRowStyle(model.FontFamily, model.FontSize, model.FontAttributes, model.FontAutoScalingEnabled, model.CharacterSpacing,
+                model.TextColor, model.SelectionBackground);
+            var presenter = SkUiPopups.Resolve(model.PopupPresenter);
+            var requiresAccept = model.UpdateMode == SkUiPickerUpdateMode.WhenFinished;
+            // The texts are read at each opening, so a culture switch applies to the next popup.
+            var strings = SkUiStrings.Current;
+            var chrome = new SkUiPickerPopupChrome(requiresAccept, model.AcceptText ?? strings.AcceptText, model.CancelText ?? strings.CancelText);
+            var context = new SkUiPickerPopupContext(placement, placement == SkUiPopupPlacement.Anchored ? null : model.Title, rightToLeft, rowStyle, chrome);
+            var content = model.ContentFactory is { } factory ? factory(context) : BuildList(context);
+            var maximumHeight = model.MaxPopupHeight >= 0 ? model.MaxPopupHeight : double.PositiveInfinity;
+            var preferred = content.PreferredSize(placement == SkUiPopupPlacement.Anchored ? anchorBounds.Width : look.PopupPreferredWidth,
+                windowSize.Width > 0 ? windowSize.Width : double.PositiveInfinity);
+            var layout = SkUiPopupGeometry.Layout(new SkUiPopupPlacementInput(anchorBounds, rootBounds, windowSize,
+                SkUiWindowMetrics.SafeAreaInsets(surfaceRoot), look.PopupMargin, look.PopupAnchorGap, placement, look.PopupHorizontalOptions,
+                look.PopupVerticalOptions, preferred, maximumHeight, model.PopupBounds, rightToLeft));
+            _content = content;
+            var request = content.CreateRequest(anchor, surfaceRoot, layout,
+                new SkUiPopupRequestOptions(model.Title, look.GetPopupOverlayColor(layout.Placement), !SkUiMotion.IsMotionReduced, chrome));
+            content.Surface.WidthRequest = layout.Bounds.Width;
+            content.Surface.HeightRequest = layout.Bounds.Height;
+            Request = request;
+            if (layout.Placement == SkUiPopupPlacement.Anchored)
+                WatchAnchor();
+            _ = RunAsync(request, presenter);
+        }
+
+        /// <summary>The default content: the items to choose one from.</summary>
+        private ISkUiPickerPopupContent BuildList(in SkUiPickerPopupContext context)
+        {
             var items = model._items.ToArray();
             _texts = items;
             if (model._owner.ItemsSource is { } source)
@@ -436,33 +526,11 @@ internal sealed class SkUiPickerModel
                 _sourceItems = new object?[source.Count];
                 source.CopyTo(_sourceItems, 0);
             }
-            var rowStyle = new SkUiPickerRowStyle(model.FontFamily, model.FontSize, model.FontAttributes, model.FontAutoScalingEnabled, model.CharacterSpacing,
-                model.TextColor);
-            var content = new SkUiPickerPopup(items, model.SelectedIndex, model.ItemTemplate, model._owner.ItemsSource, rowStyle,
-                placement == SkUiPopupPlacement.Anchored ? null : model.Title, rightToLeft);
-            var maximumHeight = model.MaxPopupHeight >= 0 ? model.MaxPopupHeight : double.PositiveInfinity;
-            var preferred = content.PreferredSize(placement == SkUiPopupPlacement.Anchored ? anchorBounds.Width : look.PopupPreferredWidth,
-                windowSize.Width > 0 ? windowSize.Width : double.PositiveInfinity);
-            var layout = SkUiPopupGeometry.Layout(new SkUiPopupPlacementInput(anchorBounds, rootBounds, windowSize,
-                SkUiWindowMetrics.SafeAreaInsets(surfaceRoot), look.PopupMargin, look.PopupAnchorGap, placement, look.PopupHorizontalOptions,
-                look.PopupVerticalOptions, preferred, maximumHeight, model.PopupBounds, rightToLeft));
-            var request = new SkUiListPopupRequest(anchor, surfaceRoot, content, layout, items, model.SelectedIndex)
-            {
-                Title = model.Title,
-                OverlayColor = look.GetPopupOverlayColor(layout.Placement),
-                IsAnimated = !SkUiMotion.IsMotionReduced
-            };
-            content.Request = request;
-            content.WidthRequest = layout.Bounds.Width;
-            content.HeightRequest = layout.Bounds.Height;
-            _content = content;
-            Request = request;
-            if (layout.Placement == SkUiPopupPlacement.Anchored)
-                WatchAnchor();
-            _ = RunAsync(request, SkUiPopups.Resolve(model.PopupPresenter));
+            return new SkUiPickerPopup(items, model.SelectedIndex, model.ItemTemplate, model._owner.ItemsSource, context.RowStyle, context.Title, context.RightToLeft,
+                context.Chrome);
         }
 
-        private async Task RunAsync(SkUiListPopupRequest request, ISkUiPopupPresenter presenter)
+        private async Task RunAsync(SkUiPopupRequest request, ISkUiPopupPresenter presenter)
         {
             try
             {
@@ -479,7 +547,7 @@ internal sealed class SkUiPickerModel
             finally
             {
                 StopWatching();
-                var choice = request.HasResult ? request.Result : -1;
+                var choice = request is SkUiListPopupRequest { HasResult: true } list ? list.Result : -1;
                 var hadFocus = _content?.IsFocused == true;
                 request.MarkCompleted();
                 _content?.Release();

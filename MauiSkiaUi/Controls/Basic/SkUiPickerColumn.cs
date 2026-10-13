@@ -1,0 +1,235 @@
+using System.Collections;
+using System.Collections.Specialized;
+
+namespace MauiSkiaUi;
+
+/// <summary>
+/// One column of a <see cref="SkUiMultiColumnPicker"/> (or <see cref="Core.SkUiCoreMultiColumnPicker"/>): the items to choose from
+/// (<see cref="ItemsSource"/>, shown as <see cref="ItemDisplayBinding"/>, else <c>ToString()</c>), the chosen one
+/// (<see cref="SelectedIndex"/>, <see cref="SelectedItem"/>, both two-way) and how its wheel looks (<see cref="Loop"/>,
+/// <see cref="Width"/>). Bindable, so XAML columns bind to a view model; the picker follows every change (a column can be shared
+/// by pickers, and does not keep them alive).
+/// </summary>
+/// <remarks>
+/// The selection follows the rules of <see cref="SkUiPicker"/> where they fit: an index beyond the items is clamped to the last
+/// item, an index set before the items applies when they come, and a selected item that moves in a changing source stays selected.
+/// </remarks>
+public class SkUiPickerColumn : BindableObject
+{
+    private static readonly BindableProperty DisplayProperty = BindableProperty.Create("Display", typeof(string), typeof(SkUiPickerColumn), null);
+
+    /// <summary>The name this column raises <see cref="BindableObject.PropertyChanged"/> with when its items (their texts) changed.</summary>
+    internal const string TextsChanged = "Texts";
+
+    private readonly SkUiWeakListener<SkUiPickerColumn> _sourceListener;
+    private string[]? _texts;
+    private BindingBase? _itemDisplayBinding;
+    private BindableObject? _displayProbe;
+    private object? _pendingItem;
+    private bool _syncing;
+
+    /// <summary>Creates a column without items.</summary>
+    public SkUiPickerColumn() =>
+        _sourceListener = new SkUiWeakListener<SkUiPickerColumn>(this, static (column, change) =>
+        {
+            if (change.Kind == SkUiChangeKind.Collection)
+                column.OnItemsChanged(keepSelectedItem: true);
+        });
+
+    /// <summary>Bindable property for <see cref="ItemsSource"/>.</summary>
+    public static readonly BindableProperty ItemsSourceProperty = BindableProperty.Create(nameof(ItemsSource), typeof(IList), typeof(SkUiPickerColumn), null,
+        propertyChanged: (column, _, value) => ((SkUiPickerColumn)column).OnItemsSourceChanged((IList?)value));
+
+    /// <summary>Bindable property for <see cref="SelectedIndex"/> (two-way by default).</summary>
+    public static readonly BindableProperty SelectedIndexProperty = BindableProperty.Create(nameof(SelectedIndex), typeof(int), typeof(SkUiPickerColumn), -1, BindingMode.TwoWay,
+        validateValue: (_, value) => (int)value >= -1,
+        coerceValue: (column, value) => ((SkUiPickerColumn)column).CoerceIndex((int)value),
+        propertyChanged: (column, _, _) => ((SkUiPickerColumn)column).SyncSelectedItem());
+
+    /// <summary>Bindable property for <see cref="SelectedItem"/> (two-way by default).</summary>
+    public static readonly BindableProperty SelectedItemProperty = BindableProperty.Create(nameof(SelectedItem), typeof(object), typeof(SkUiPickerColumn), null, BindingMode.TwoWay,
+        propertyChanged: (column, _, value) => ((SkUiPickerColumn)column).OnSelectedItemChanged(value));
+
+    /// <summary>Bindable property for <see cref="Loop"/>.</summary>
+    public static readonly BindableProperty LoopProperty = BindableProperty.Create(nameof(Loop), typeof(bool), typeof(SkUiPickerColumn), false);
+
+    /// <summary>Bindable property for <see cref="Width"/>.</summary>
+    public static readonly BindableProperty WidthProperty = BindableProperty.Create(nameof(Width), typeof(double), typeof(SkUiPickerColumn), -1d,
+        validateValue: (_, value) => value is double width && IsValidWidth(width));
+
+    /// <summary>
+    /// The items of the column (any <see cref="IList"/>; an <see cref="INotifyCollectionChanged"/> one is followed, weakly). Each shows
+    /// as its <see cref="ItemDisplayBinding"/>, else <c>ToString()</c>.
+    /// </summary>
+    public IList? ItemsSource { get => (IList?)GetValue(ItemsSourceProperty); set => SetValue(ItemsSourceProperty, value); }
+
+    /// <summary>The binding that picks the text shown for each item (MAUI's <c>Picker</c> rule; <c>null</c>: <c>ToString()</c>).</summary>
+    public BindingBase? ItemDisplayBinding
+    {
+        get => _itemDisplayBinding;
+        set
+        {
+            if (ReferenceEquals(_itemDisplayBinding, value))
+                return;
+            OnPropertyChanging();
+            _itemDisplayBinding = value;
+            if (_displayProbe is not null)
+            {
+                _displayProbe.RemoveBinding(DisplayProperty);
+                _displayProbe = null;
+            }
+            OnItemsChanged(keepSelectedItem: false);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>The index of the chosen item; -1 (default): none. Clamped to the items. Two-way by default.</summary>
+    public int SelectedIndex { get => (int)GetValue(SelectedIndexProperty); set => SetValue(SelectedIndexProperty, value); }
+
+    /// <summary>The chosen item (of <see cref="ItemsSource"/>), or <c>null</c>. Two-way by default.</summary>
+    public object? SelectedItem { get => GetValue(SelectedItemProperty); set => SetValue(SelectedItemProperty, value); }
+
+    /// <summary>Whether the wheel's items repeat without an end (default <c>false</c>: it stops at the first and last item), as a clock's hours.</summary>
+    public bool Loop { get => (bool)GetValue(LoopProperty); set => SetValue(LoopProperty, value); }
+
+    /// <summary>
+    /// The width of the column's wheel in DIPs; -1 (default): as wide as its widest text. The columns of a wheel popup share the
+    /// popup's width in proportion to these widths.
+    /// </summary>
+    public double Width { get => (double)GetValue(WidthProperty); set => SetValue(WidthProperty, value); }
+
+    /// <summary>Sets <see cref="ItemsSource"/> (same as the property setter).</summary>
+    public SkUiPickerColumn SetItemsSource(IList? value) { ItemsSource = value; return this; }
+
+    /// <summary>Sets <see cref="ItemDisplayBinding"/> (same as the property setter).</summary>
+    public SkUiPickerColumn SetItemDisplayBinding(BindingBase? value) { ItemDisplayBinding = value; return this; }
+
+    /// <summary>Sets <see cref="SelectedIndex"/> (same as the property setter).</summary>
+    public SkUiPickerColumn SetSelectedIndex(int value) { ArgumentOutOfRangeException.ThrowIfLessThan(value, -1); SelectedIndex = value; return this; }
+
+    /// <summary>Sets <see cref="SelectedItem"/> (same as the property setter).</summary>
+    public SkUiPickerColumn SetSelectedItem(object? value) { SelectedItem = value; return this; }
+
+    /// <summary>Sets <see cref="Loop"/> (same as the property setter).</summary>
+    public SkUiPickerColumn SetLoop(bool value) { Loop = value; return this; }
+
+    /// <summary>Sets <see cref="Width"/> (same as the property setter; -1: as wide as the widest text).</summary>
+    public SkUiPickerColumn SetWidth(double value)
+    {
+        if (!IsValidWidth(value))
+            throw new ArgumentOutOfRangeException(nameof(value), value, "The width must be at least 0, or -1 for the widest text.");
+        Width = value;
+        return this;
+    }
+
+    private static bool IsValidWidth(double width) => double.IsFinite(width) && (width >= 0 || Math.Abs(width + 1) < SkUiPickerValidation.Tolerance);
+
+    /// <summary>The number of items.</summary>
+    internal int Count => ItemsSource?.Count ?? 0;
+
+    /// <summary>The display texts of the items (computed once, until the items change).</summary>
+    internal string[] Texts => _texts ??= ComputeTexts();
+
+    /// <summary>The item at <paramref name="index"/>, or <c>null</c> outside the items.</summary>
+    internal object? ItemAt(int index) => ItemsSource is { } source && index >= 0 && index < source.Count ? source[index] : null;
+
+    private int CoerceIndex(int value)
+    {
+        var count = Count;
+        // Before the items: kept, and clamped once they come.
+        return count > 0 ? Math.Min(value, count - 1) : value;
+    }
+
+    private void OnItemsSourceChanged(IList? value)
+    {
+        _sourceListener.Listen(value as INotifyCollectionChanged);
+        OnItemsChanged(keepSelectedItem: false);
+    }
+
+    private void OnItemsChanged(bool keepSelectedItem)
+    {
+        _texts = null;
+        var item = keepSelectedItem ? SelectedItem : _pendingItem;
+        if (item is not null && ItemsSource is { Count: > 0 } source && source.IndexOf(item) is var moved and >= 0)
+        {
+            // The chosen item stays chosen where it moved (or arrived).
+            _pendingItem = null;
+            if (moved != SelectedIndex)
+                SetValue(SelectedIndexProperty, moved);
+        }
+        CoerceValue(SelectedIndexProperty);
+        SyncSelectedItem();
+        OnPropertyChanged(TextsChanged);
+    }
+
+    private void OnSelectedItemChanged(object? value)
+    {
+        if (_syncing)
+            return;
+        if (value is not null && ItemsSource is not { Count: > 0 })
+        {
+            // Before the items: applied when they come.
+            _pendingItem = value;
+            return;
+        }
+        _pendingItem = null;
+        var index = value is null ? -1 : ItemsSource?.IndexOf(value) ?? -1;
+        _syncing = true;
+        try
+        {
+            SetValue(SelectedIndexProperty, index);
+        }
+        finally
+        {
+            _syncing = false;
+        }
+        // An item that is not in the items clears the choice, and the property with it.
+        if (index < 0 && value is not null)
+            SyncSelectedItem();
+    }
+
+    /// <summary>Makes <see cref="SelectedItem"/> the item at <see cref="SelectedIndex"/>.</summary>
+    private void SyncSelectedItem()
+    {
+        if (_syncing)
+            return;
+        _syncing = true;
+        try
+        {
+            SetValue(SelectedItemProperty, ItemAt(SelectedIndex));
+        }
+        finally
+        {
+            _syncing = false;
+        }
+    }
+
+    private string[] ComputeTexts()
+    {
+        if (ItemsSource is not { } source)
+            return [];
+        var texts = new string[source.Count];
+        for (var index = 0; index < texts.Length; index++)
+        {
+            if (_itemDisplayBinding is null)
+            {
+                texts[index] = source[index]?.ToString() ?? string.Empty;
+                continue;
+            }
+            if (_displayProbe is null)
+            {
+                _displayProbe = new DisplayProbe();
+                _displayProbe.SetBinding(DisplayProperty, _itemDisplayBinding);
+            }
+            _displayProbe.BindingContext = source[index];
+            texts[index] = (string?)_displayProbe.GetValue(DisplayProperty) ?? string.Empty;
+        }
+        // The probe must not keep the last item alive.
+        if (_displayProbe is not null)
+            _displayProbe.BindingContext = null;
+        return texts;
+    }
+
+    /// <summary>A bindable object that evaluates <see cref="ItemDisplayBinding"/> for one item at a time.</summary>
+    private sealed class DisplayProbe : BindableObject;
+}

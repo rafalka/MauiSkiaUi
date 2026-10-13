@@ -634,6 +634,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         SkUiColorScheme.CurrentChanged += OnLookChanged;
         SkUiFontScaling.Changed += OnLookChanged;
         SkUiTextOptions.Changed += OnLookChanged;
+        SkUiStrings.CurrentChanged += OnStringsChanged;
         OnClockRunningChanged(this, EventArgs.Empty);
         VirtualView.Router.NativeAncestorCanScroll = NativeAncestorCanScroll;
         QueueFrame();
@@ -691,6 +692,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         SkUiColorScheme.CurrentChanged -= OnLookChanged;
         SkUiFontScaling.Changed -= OnLookChanged;
         SkUiTextOptions.Changed -= OnLookChanged;
+        SkUiStrings.CurrentChanged -= OnStringsChanged;
         VirtualView.AnimationClock.StopAll();
         _ticker?.Dispose();
         _ticker = null;
@@ -929,6 +931,19 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         }
         Rendering.SkUiRenderInvalidation.MarkLookChanged(root);
         ((IView)root).InvalidateMeasure();
+    }
+
+    /// <summary>SkiaUi's texts changed (<see cref="SkUiStrings"/>): what screen readers read is built again.</summary>
+    private void OnStringsChanged(object? sender, EventArgs args)
+    {
+        if (VirtualView is not { } root)
+            return;
+        if (root.Dispatcher.IsDispatchRequired)
+        {
+            root.Dispatcher.Dispatch(() => OnStringsChanged(sender, args));
+            return;
+        }
+        root.SemanticsOwner?.Invalidate();
     }
 
     private void OnClockRunningChanged(object? sender, EventArgs args)

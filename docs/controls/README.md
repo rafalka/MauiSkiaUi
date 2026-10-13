@@ -2,7 +2,7 @@
 
 Per-control guides for public `SkUi*` types. For MAUI reimplementations, baseline behavior lives in the linked Microsoft docs; each page focuses on **SkiaUi differences and extensions**.
 
-Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechanism.md](../design/DrawingMechanism.md) · [ControlLook.md](../design/ControlLook.md) · [ColorScheme.md](../design/ColorScheme.md) · [EventMechanism.md](../design/EventMechanism.md) · [AnimationMechanism.md](../design/AnimationMechanism.md) · [ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) · [Accessibility.md](../design/Accessibility.md) (screen readers, keyboard focus, text size: [SkUiView.md](SkUiView.md#accessibility-and-keyboard))
+Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechanism.md](../design/DrawingMechanism.md) · [ControlLook.md](../design/ControlLook.md) · [ColorScheme.md](../design/ColorScheme.md) · [Localization.md](../design/Localization.md) (SkiaUi's own texts: `SkUiStrings`) · [EventMechanism.md](../design/EventMechanism.md) · [AnimationMechanism.md](../design/AnimationMechanism.md) · [ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) · [Accessibility.md](../design/Accessibility.md) (screen readers, keyboard focus, text size: [SkUiView.md](SkUiView.md#accessibility-and-keyboard))
 
 ## Core layer (lightweight, no MAUI View)
 
@@ -30,7 +30,8 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiRadioButton` | [SkUiRadioButton.md](SkUiRadioButton.md) | RadioButton (`Content`, `ControlTemplate`; MAUI's `RadioButtonGroup` works on drawn layouts) |
 | `SkUiSlider` | [SkUiSlider.md](SkUiSlider.md) | Slider (plus vertical) |
 | `SkUiProgressBar` | [SkUiProgressBar.md](SkUiProgressBar.md) | ProgressBar (plus indeterminate) |
-| `SkUiPicker` / `SkUiCorePicker` | [SkUiPicker.md](SkUiPicker.md) | Picker (the list on the app's popup system: `ISkUiPopupPresenter`) |
+| `SkUiPicker` / `SkUiCorePicker` | [SkUiPicker.md](SkUiPicker.md) | Picker (the list on the app's popup system: `ISkUiPopupPresenter`; plus several choices) |
+| `SkUiMultiColumnPicker` / `SkUiCoreMultiColumnPicker` | [SkUiMultiColumnPicker.md](SkUiMultiColumnPicker.md) | — (wheels of several columns on the app's popup system) |
 | `SkUiToggleControl` | [SkUiToggleControl.md](SkUiToggleControl.md) | — (abstract) |
 
 ## Layouts
