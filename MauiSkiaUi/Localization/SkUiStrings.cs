@@ -93,6 +93,24 @@ public class SkUiStrings
     /// </summary>
     public virtual string MoreTokensFormat { get; set => Set(ref field, value); } = "+{0}";
 
+    /// <summary>The header of a date picker's day wheel (<c>AreColumnHeadersVisible</c>). Default "Day".</summary>
+    public virtual string DayText { get; set => Set(ref field, value); } = "Day";
+
+    /// <summary>The header of a date picker's month wheel. Default "Month".</summary>
+    public virtual string MonthText { get; set => Set(ref field, value); } = "Month";
+
+    /// <summary>The header of a date picker's year wheel. Default "Year".</summary>
+    public virtual string YearText { get; set => Set(ref field, value); } = "Year";
+
+    /// <summary>The header of a time picker's hour wheel. Default "Hour".</summary>
+    public virtual string HourText { get; set => Set(ref field, value); } = "Hour";
+
+    /// <summary>The header of a time picker's minute wheel. Default "Minute".</summary>
+    public virtual string MinuteText { get; set => Set(ref field, value); } = "Minute";
+
+    /// <summary>The header of a time picker's second wheel. Default "Second".</summary>
+    public virtual string SecondText { get; set => Set(ref field, value); } = "Second";
+
     /// <summary>The default load-more button of a collection view (<see cref="SkUiCollectionView.LoadMoreMode"/> <c>Manual</c>). Default "Load more".</summary>
     public virtual string LoadMoreText { get; set => Set(ref field, value); } = "Load more";
 

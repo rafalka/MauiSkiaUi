@@ -48,13 +48,15 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 | `ProgressBar` | `sk:SkUiProgressBar` | Plus indeterminate |
 | `ActivityIndicator` | `sk:SkUiActivityIndicator` | |
 | `Picker` | `sk:SkUiPicker` | Prefix swap: same `ItemsSource` / `Items`, `ItemDisplayBinding`, `SelectedIndex` / `SelectedItem` (two-way), `SelectedIndexChanged`, `Title` / `TitleColor`, text and font properties, alignments, `IsOpen` / `Opened` / `Closed`. Its list opens on the app's popup system: register a presenter once (with CommunityToolkit.Maui: the `SkiaUi.Maui.CommunityToolkit` package and `UseSkiaUiCommunityToolkit()`; see the note below), else MAUI's action sheet shows the items. `ios:Picker.UpdateMode="WhenFinished"` → `UpdateMode="WhenFinished"` on `sk:SkUiPicker` (every platform; Cancel / OK buttons, texts from `SkUiStrings.Current` (app-wide, all of SkiaUi's texts; derive it to read the app's resources) or `AcceptText` / `CancelText` on the picker: wire them to the app's localization); drop `ios:Picker.UpdateMode="Immediately"` (the default). Optional: `PopupPlacement` (`Anchored` combo box, `Window` dialog or sheet), `ItemTemplate` of drawn rows, `MaxPopupHeight`, `SelectionMode="Multiple"` with `SelectedItems` (several choices) |
+| `DatePicker` | `sk:SkUiDatePicker` | Prefix swap: same `Date` (`DateTime?`, two-way, today by default), `MinimumDate` / `MaximumDate`, `Format`, `DateSelected`, `IsOpen` / `Opened` / `Closed` (MAUI's event args), text and font properties. Its wheels open on the app's popup system (the presenter registered for `SkUiPicker`). Optional: `WheelFormat` (`"MMMM yyyy"` a month picker), `BlackoutDates`, `DateEnabled` (code), `DefaultHighlightedDate`, `AreColumnHeadersVisible`, `UpdateMode="WhenFinished"`, `IsClearButtonVisible`, `Placeholder`; `sk:SkUiDateTimePicker` for a day and a time together |
+| `TimePicker` | `sk:SkUiTimePicker` | Prefix swap: same `Time` (`TimeSpan?`, two-way), `Format`, `TimeSelected`, `IsOpen` / `Opened` / `Closed`, text and font properties; wheels on the app's popup system. Optional: `MinimumTime` / `MaximumTime`, `MinuteInterval` (and `HourInterval`, `SecondInterval`), `WheelFormat` (`"HH:mm"`), `DefaultHighlightedTime` |
 | `GraphicsView`, `SKCanvasView` | A `SkUiView` subclass | See [custom-controls.md](custom-controls.md) |
 
 `FFImageLoading`'s `CachedImage` → `sk:SkUiImage` (its circle / rounded / blur transformations have drawn equivalents in `Transformations`).
 
 ## Native islands
 
-`Entry`, `Editor`, `SearchBar`, `DatePicker`, `TimePicker`, `WebView`, maps, media and third-party controls stay native inside the drawn tree (drawn `Entry`, `Editor` and `SearchBar` equivalents are planned; until they ship, wrap these too):
+`Entry`, `Editor`, `SearchBar`, `WebView`, maps, media and third-party controls stay native inside the drawn tree (drawn `Entry`, `Editor` and `SearchBar` equivalents are planned; until they ship, wrap these too):
 
 ```xml
 <sk:SkUiMauiContentView>

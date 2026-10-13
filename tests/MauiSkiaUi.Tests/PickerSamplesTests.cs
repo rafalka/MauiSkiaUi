@@ -151,6 +151,51 @@ public sealed class PickerSamplesTests : IDisposable
     }
 
     [Fact]
+    public void TheBookingKeepsToWeekdaysOpeningHoursAndWholeMonths()
+    {
+        using var culture = DateTimeWheelsTests.UseCulture("en-US");
+        var page = new BookingSample();
+        var root = Content(page);
+        var model = Assert.IsType<BookingModel>(page.BindingContext);
+        var dates = Descendants(root).OfType<SkUiDatePicker>().ToList();
+        var (day, expiry) = (dates[0], dates[1]);
+        var time = Descendants(root).OfType<SkUiTimePicker>().Single();
+        Assert.Equal(model.Day, day.Date);
+        Assert.NotEqual(DayOfWeek.Saturday, day.Date!.Value.DayOfWeek);
+        Assert.Null(time.Time);
+
+        // Weekends and holidays are dimmed in the day's wheels.
+        day.IsOpen = true;
+        var request = Assert.IsType<SkUiDatePopupRequest>(_presenter.Current);
+        var saturday = DateTime.Today.AddDays((DayOfWeek.Saturday - DateTime.Today.DayOfWeek + 7) % 7 + 7);
+        Assert.False(request.IsDateEnabled(saturday));
+        Assert.False(request.SetDate(saturday));
+        Assert.Equal(["Month", "Day", "Year"], request.Headers.Select(header => header ?? string.Empty));
+        day.IsOpen = false;
+        _ui.RunPending();
+
+        // Opening hours in quarter hours, chosen with OK; the wheels start on 9:00.
+        time.IsOpen = true;
+        var times = Assert.IsType<SkUiTimePopupRequest>(_presenter.Current);
+        Assert.Equal(new TimeSpan(9, 0, 0), times.DefaultHighlightedTime);
+        Assert.False(times.SetTime(new TimeSpan(18, 0, 0)));
+        Assert.True(times.SetTime(new TimeSpan(10, 50, 0)));
+        Assert.Null(model.Time); // a draft until OK
+        Assert.True(times.Accept());
+        _ui.RunPending();
+        Assert.Equal(new TimeSpan(10, 45, 0), model.Time);
+
+        // A card's expiry: month and year, the 1st of the month.
+        expiry.IsOpen = true;
+        var card = Assert.IsType<SkUiDatePopupRequest>(_presenter.Current);
+        Assert.Equal(2, card.Columns.Count);
+        Assert.True(card.CompleteDate(new DateTime(DateTime.Today.Year + 3, 7, 19)));
+        _ui.RunPending();
+        Assert.Equal(new DateTime(DateTime.Today.Year + 3, 7, 1), model.Expiry);
+        Assert.Contains("card valid to 07/", model.Summary);
+    }
+
+    [Fact]
     public void TheCoreFormPicksWithFunctions()
     {
         var root = Content(new CorePickersSample());

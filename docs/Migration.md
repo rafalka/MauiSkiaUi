@@ -152,7 +152,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `GraphicsView`, `SKCanvasView` | A `SkUiView` subclass | Override `MeasureContent` and `OnPaintContent(SKCanvas)` |
 | `Entry`, `Editor`, `SearchBar` | Wrapped in `SkUiMauiContentView` | Native for now; drawn `SkUiEntry` / `SkUiEditor` / `SkUiSearchBar` using the platform keyboard are planned ([Phase D](design/ImplementationPlan.md#phase-d--drawn-text-input-fr-16-amended)) |
 | `Picker` | `SkUiPicker` | Prefix swap; its list opens on your popup system: see [Pickers](#pickers-picker) |
-| `DatePicker`, `TimePicker` | Wrapped in `SkUiMauiContentView` | Native for now; drawn versions on the same popups are planned (C7) |
+| `DatePicker`, `TimePicker` | `SkUiDatePicker`, `SkUiTimePicker` | Prefix swap; wheels on your popup system like the picker's list: see [Pickers](#pickers-picker) |
 | `WebView`, maps, media | Wrapped in `SkUiMauiContentView` | Native by design |
 | `Layout.IsClippedToBounds` | `ClipToBounds` | Leaves clip by default, layouts do not |
 
@@ -162,7 +162,7 @@ Per-control differences: [docs/controls/](controls/README.md).
 
 ```xml
 <sk:SkUiMauiContentView>
-    <DatePicker Date="{Binding Due}" />
+    <Entry Text="{Binding Name}" />
 </sk:SkUiMauiContentView>
 ```
 
@@ -338,6 +338,10 @@ What differs is where the list shows. SkiaUi has no popup windows: the picker dr
 - **Nothing registered:** the list opens in MAUI's action sheet (plain item texts, MAUI's UI), with one trace line.
 
 Platform differences go: the list is the same drawn list everywhere, anchored to the field as a combo box on desktops and tablets and in the window on phones (`PopupPlacement` and the look decide). `ios:Picker.UpdateMode="WhenFinished"` becomes `UpdateMode="WhenFinished"` on the picker itself, on every platform: the choice waits for an OK button (texts translated with SkiaUi's other texts in `SkUiStrings`, [Localization.md](design/Localization.md), or per picker). New: `ItemTemplate` (drawn rows), `MaxPopupHeight`, keyboard navigation and type-ahead on every platform, several choices (`SelectionMode="Multiple"`, `SelectedItems`: a replacement for a vendor's multi-select combo box) and, as a control of its own, wheels of several columns ([SkUiMultiColumnPicker](controls/SkUiMultiColumnPicker.md): a replacement for a vendor's multi-column wheel picker).
+
+**`DatePicker` and `TimePicker`** become `SkUiDatePicker` and `SkUiTimePicker` by the prefix ([SkUiDatePicker.md](controls/SkUiDatePicker.md), [SkUiTimePicker.md](controls/SkUiTimePicker.md)): the same `Date` / `MinimumDate` / `MaximumDate` / `Format` / `DateSelected`, `Time` / `Format` / `TimeSelected`, `IsOpen` / `Opened` / `Closed` (MAUI's event types), the text and font properties. Instead of the platform's dialog or wheels, drawn wheels open on the same presenter as the picker's list, ordered and named by the culture; a presenter can still show a platform dialog by handling `SkUiDatePopupRequest` / `SkUiTimePopupRequest`. SkiaUi keeps a time between `MinimumTime` and `MaximumTime` as MAUI keeps a date in its range. New, from Syncfusion's and Telerik's pickers: `WheelFormat` (which wheels: a month and year picker), `BlackoutDates` / `DateEnabled`, `MinimumTime` / `MaximumTime`, `HourInterval` / `MinuteInterval` / `SecondInterval`, `DefaultHighlightedDate` / `DefaultHighlightedTime`, headers, `UpdateMode`, clearing, and `SkUiDateTimePicker` for a day and a time on one popup.
+
+Coming from **Syncfusion** `SfDatePicker` / `SfTimePicker` / `SfDateTimePicker`: `SelectedDate` / `SelectedTime` → `Date` / `Time`; `Format` (an enum of the columns) → `WheelFormat` (a .NET format, `"dd MM yyyy"`); `MinuteInterval` and the other intervals keep their names; `BlackoutDates` keeps its name; `ColumnHeaderView` texts → `AreColumnHeadersVisible` with `SkUiStrings`' texts; `EnableLooping` → `IsLooping`; `IsOpen`, `Mode="Dialog"` → `PopupPlacement="Window"`; the footer's OK / Cancel → `UpdateMode="WhenFinished"`. From **Telerik** `RadDatePicker` / `RadTimePicker` / `RadDateTimePicker`: `SpinnerFormat` → `WheelFormat`, `DisplayStringFormat` → `Format`, `HourStep` / `MinuteStep` / `SecondStep` → `HourInterval` / `MinuteInterval` / `SecondInterval`, `DefaultHighlightedDate` / `DefaultHighlightedTime` keep their names, `AreSpinnerHeadersVisible` → `AreColumnHeadersVisible`, `IsClearButtonVisible` and `Placeholder` keep theirs. Not available: a drawn calendar popup (planned), `RadTimeSpanPicker`'s durations over a day (use `SkUiMultiColumnPicker` with `SkUiPickerColumn.Range` columns).
 
 ## Not available yet
 

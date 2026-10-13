@@ -440,17 +440,21 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
 
     private void OnIsOpenChanged(bool value)
     {
+        RaiseOpenedOrClosed(value);
         if (value)
-        {
-            Opened?.Invoke(this, OpenedArgs);
             Model.Open();
-        }
         else
-        {
-            Closed?.Invoke(this, ClosedArgs);
             Model.Close();
-        }
         InvalidatePaint();
+    }
+
+    /// <summary>Raises <see cref="Opened"/> (<paramref name="opened"/>) or <see cref="Closed"/>; a picker with MAUI's own event types raises those too.</summary>
+    private protected virtual void RaiseOpenedOrClosed(bool opened)
+    {
+        if (opened)
+            Opened?.Invoke(this, OpenedArgs);
+        else
+            Closed?.Invoke(this, ClosedArgs);
     }
 
     /// <summary>The open popup's request (tests), or <c>null</c>.</summary>

@@ -9,9 +9,13 @@ SkiaUi shows or reads out only a few texts of its own; everything else (labels, 
 | `ClearText` | "Clear" | The Clear button of picker popups (`IsPopupClearButtonVisible`), unless the picker sets its own `ClearText` |
 | `SelectAllText` | "Select all" | The "Select all" row of picker lists with several choices (`IsSelectAllVisible`), unless the picker sets its own `SelectAllText` |
 | `MoreTokensFormat` | "+{0}" | The token that stands for the chosen items that do not fit in a picker's field (`MaxTokenLines`), with their count as `{0}` |
+| `DayText`, `MonthText`, `YearText` | "Day", "Month", "Year" | The headers of a date picker's wheels (`AreColumnHeadersVisible`) |
+| `HourText`, `MinuteText`, `SecondText` | "Hour", "Minute", "Second" | The headers of a time picker's wheels |
 | `LoadMoreText` | "Load more" | The default load-more button of `SkUiCollectionView` (`LoadMoreMode="Manual"`) |
 | `SelectedStateText` | "Selected" | What screen readers read as the value of a selected collection view item (also a chosen row of a picker with several choices) |
 | `ExpandedStateText` / `CollapsedStateText` | "Expanded" / "Collapsed" | What screen readers read after the header of an `SkUiExpander` or a collapsible collection view group |
+
+The date and time pickers' month names, AM / PM, the order of their wheels and their fields' texts come from `CultureInfo.CurrentCulture` (read when the field's value changes and at each opening), not from `SkUiStrings`.
 
 ## How to translate
 

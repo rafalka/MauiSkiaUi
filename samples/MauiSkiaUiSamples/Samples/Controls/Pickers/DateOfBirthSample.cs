@@ -37,7 +37,7 @@ public sealed class DateOfBirthSample : SamplePage, ISample
             "A wheel that stops on a dimmed day rolls on to the nearest one that can be chosen; the keyboard and taps pass them by.",
             "The app may still select a day that cannot be chosen; this page moves the choice to the last valid day itself when the " +
                 "popup is closed.",
-            "C7's date picker will be built on these wheels."
+            "For dates, `SkUiDatePicker` does all this by itself (see the booking example); this page shows how to make any wheels depend on each other."
         ]);
 
     /// <summary>A day of the month, which the month shown may not have.</summary>

@@ -32,6 +32,9 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiProgressBar` | [SkUiProgressBar.md](SkUiProgressBar.md) | ProgressBar (plus indeterminate) |
 | `SkUiPicker` / `SkUiCorePicker` | [SkUiPicker.md](SkUiPicker.md) | Picker (the list on the app's popup system: `ISkUiPopupPresenter`; plus several choices) |
 | `SkUiMultiColumnPicker` / `SkUiCoreMultiColumnPicker` | [SkUiMultiColumnPicker.md](SkUiMultiColumnPicker.md) | — (wheels of several columns on the app's popup system) |
+| `SkUiDatePicker` / `SkUiCoreDatePicker` | [SkUiDatePicker.md](SkUiDatePicker.md) | DatePicker (wheels of the day, month and year) |
+| `SkUiTimePicker` / `SkUiCoreTimePicker` | [SkUiTimePicker.md](SkUiTimePicker.md) | TimePicker (wheels of the hour, minute, AM / PM) |
+| `SkUiDateTimePicker` / `SkUiCoreDateTimePicker` | [SkUiDateTimePicker.md](SkUiDateTimePicker.md) | — (a day and a time on one popup) |
 | `SkUiToggleControl` | [SkUiToggleControl.md](SkUiToggleControl.md) | — (abstract) |
 
 ## Layouts

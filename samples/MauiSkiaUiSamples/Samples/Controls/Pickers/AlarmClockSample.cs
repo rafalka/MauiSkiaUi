@@ -37,7 +37,8 @@ public sealed class AlarmClockSample : SamplePage, ISample
             "The wheels always show a time: after Clear, moving one wheel (or OK) chooses what both show, never just an hour.",
             "Clear (\"No alarm\") closes the popup: the wheels cannot show that nothing is chosen.",
             "`SelectAllText` names the select-all row (\"Every day\").",
-            "The popup's texts (OK, Cancel, Clear) come from `SkUiStrings` unless the picker sets its own."
+            "The popup's texts (OK, Cancel, Clear) come from `SkUiStrings` unless the picker sets its own.",
+            "For a time of day as a `TimeSpan`, `SkUiTimePicker` (MAUI's `TimePicker`) has the same wheels, steps (`MinuteInterval`) and a range."
         ]);
 
     private static readonly string[] Days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];

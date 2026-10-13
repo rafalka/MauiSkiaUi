@@ -48,6 +48,7 @@ public static class LeakScenarios
         new("CarouselSwiped", Scrolling, "SkUiCarouselView over a long-lived collection with a long-lived shared cover flow effect, a long-lived position command and a linked indicator view: swiped and flung forward past the middle of its looping strip (moved back by corrections), an indicator tapped, the position set by code, items added and removed, the effect switched, looping turned off and the end reached (load-more command); closed mid-fling.", () => new CarouselRun()),
         new("PickerOpened", Controls, "SkUiPicker and SkUiCorePicker over a long-lived collection (a display binding, an item template), opened on a long-lived presenter that keeps the last request (as a popup stack does): tapped open and an item chosen in the drawn list, dismissed, closed by IsOpen = false and by hiding the picker, opened by the keyboard, the Core picker chosen; closed with a popup open.", () => new PickerRun()),
         new("PickerWheelsOpened", Controls, "SkUiPicker with several choices and SkUiMultiColumnPicker, and their Core twins, over long-lived collections (columns' items, a long-lived presenter that keeps the last request): tapped open, rows toggled and wheels set through the request, completed with a selection, a draft accepted (UpdateMode WhenFinished), dismissed, closed by IsOpen = false and by hiding, columns removed while open; closed with a popup open.", () => new PickerWheelsRun()),
+        new("DateTimePickersOpened", Controls, "SkUiDatePicker, SkUiTimePicker and SkUiDateTimePicker, and the Core date and time pickers, with long-lived blackout dates and a long-lived day rule, on a long-lived presenter that keeps the last request: tapped open, wheels turned (a month without the chosen day, a time before the minimum), a date and a time set and completed through the typed requests, a draft accepted (UpdateMode WhenFinished), cleared, dismissed, the range changed while open; closed with a popup open.", () => new DateTimePickersRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
         new("SurfaceReplaced", Rendering, "A page replaces its GPU surface with a software one and back; the discarded surfaces are disconnected.", () => new SurfaceReplacedRun()),
@@ -1800,6 +1801,126 @@ public static class LeakScenarios
             : _coreMultiple?.SelectedIndices.SequenceEqual([1]) != true ? "the Core list with several choices was not chosen"
             : _coreColumns?.SelectedIndices.SequenceEqual([6]) != true ? "the Core wheels' selection was not applied"
             : _single?.SelectedIndex != 5 || _single.FieldView is null ? "the field template's picker did not show its choice"
+            : _changes == 0 ? "no change was reported"
+            : null;
+    }
+
+    private sealed class DateTimePickersRun : LeakScenarioRun
+    {
+        /// <summary>Long-lived blackout dates, shared by every run (as an app's holiday list).</summary>
+        private static readonly ObservableCollection<DateTime> Holidays = [new DateTime(2026, 12, 25), new DateTime(2026, 12, 26)];
+
+        /// <summary>A long-lived rule of the app's.</summary>
+        private static readonly Func<DateTime, bool> Weekdays = date => date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
+
+        private SkUiDatePicker? _date;
+        private SkUiTimePicker? _time;
+        private SkUiDateTimePicker? _dateTime;
+        private SkUiCoreDatePicker? _coreDate;
+        private SkUiCoreTimePicker? _coreTime;
+        private int _changes;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _date = context.Track(new SkUiDatePicker
+            {
+                Title = "Date", Date = new DateTime(2026, 3, 31), BlackoutDates = Holidays, PopupPresenter = LeakPopupPresenter.Shared,
+                PopupPlacement = SkUiPopupPlacement.Anchored, AreColumnHeadersVisible = true, IsClearButtonVisible = true,
+                SelectionChangedCommand = LeakCommands.Shared
+            }, "date picker");
+            _date.DateEnabled = Weekdays;
+            _date.DateSelected += (_, _) => _changes++;
+            _time = context.Track(new SkUiTimePicker
+            {
+                Title = "Time", MinuteInterval = 15, MinimumTime = new TimeSpan(9, 0, 0), PopupPresenter = LeakPopupPresenter.Shared,
+                UpdateMode = SkUiPickerUpdateMode.WhenFinished
+            }, "time picker");
+            _time.TimeSelected += (_, _) => _changes++;
+            _dateTime = context.Track(new SkUiDateTimePicker
+            {
+                Title = "Appointment", MinimumDate = new DateTime(2026, 10, 13, 9, 0, 0), MaximumDate = new DateTime(2026, 12, 31),
+                PopupPresenter = LeakPopupPresenter.Shared
+            }, "date and time picker");
+            _coreDate = context.Track(new SkUiCoreDatePicker().SetBlackoutDates(Holidays).SetDateEnabled(Weekdays), "core date picker");
+            _coreDate.SetPopupPresenter(LeakPopupPresenter.Shared);
+            _coreTime = context.Track(new SkUiCoreTimePicker().SetWheelFormat("HH:mm:ss"), "core time picker");
+            _coreTime.SetPopupPresenter(LeakPopupPresenter.Shared);
+            var stack = new SkUiVerticalStackLayout { Spacing = 12, Padding = new Thickness(12) };
+            stack.Children.Add(_date);
+            stack.Children.Add(_time);
+            stack.Children.Add(_dateTime);
+            stack.Children.Add(new SkUiCoreHost().SetContent(new SkUiCoreVerticalStackLayout().Add(_coreDate).Add(_coreTime)));
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            // The date: tapped open, its wheels laid out and turned (February: the 31st moves to the 27th, a Friday), then a
+            // date set through the request; dismissed.
+            await context.TapAsync(_date!);
+            Track(context);
+            var date = (SkUiDatePopupRequest)LeakPopupPresenter.Shared.Last!;
+            var wheels = (SkUiView)date.Content!;
+            wheels.Measure(300, 400);
+            wheels.Arrange(new Rect(0, 0, 300, 400));
+            date.SetSelectedIndex(0, 1);
+            date.SetDate(new DateTime(2026, 2, 26));
+            LeakPopupPresenter.Shared.Dismiss();
+            await context.SettleAsync();
+            // Completed with a date; then the range changes while open (it closes), and the clear button clears.
+            _date!.IsOpen = true;
+            Track(context);
+            ((SkUiDatePopupRequest)LeakPopupPresenter.Shared.Last!).CompleteDate(new DateTime(2026, 4, 6));
+            await context.SettleAsync();
+            _date.IsOpen = true;
+            Track(context);
+            _date.MaximumDate = new DateTime(2099, 12, 31);
+            await context.SettleAsync();
+            // The time: a draft before the minimum moves to it, accepted.
+            await context.TapAsync(_time!);
+            Track(context);
+            var time = (SkUiTimePopupRequest)LeakPopupPresenter.Shared.Last!;
+            time.SetSelectedIndex(0, 7);
+            time.SetTime(new TimeSpan(10, 30, 0));
+            time.Accept();
+            await context.SettleAsync();
+            // A day and a time, completed; cleared through the popup.
+            await context.TapAsync(_dateTime!);
+            Track(context);
+            ((SkUiDatePopupRequest)LeakPopupPresenter.Shared.Last!).CompleteDate(new DateTime(2026, 11, 2, 14, 0, 0));
+            await context.SettleAsync();
+            _dateTime!.IsOpen = true;
+            Track(context);
+            LeakPopupPresenter.Shared.Last!.Clear();
+            await context.SettleAsync();
+            // The Core twins.
+            await context.TapAsync(_coreDate!);
+            Track(context);
+            ((SkUiDatePopupRequest)LeakPopupPresenter.Shared.Last!).CompleteDate(new DateTime(2026, 5, 5));
+            await context.SettleAsync();
+            await context.TapAsync(_coreTime!);
+            Track(context);
+            ((SkUiTimePopupRequest)LeakPopupPresenter.Shared.Last!).SetTime(new TimeSpan(8, 15, 30));
+            LeakPopupPresenter.Shared.Dismiss();
+            await context.SettleAsync();
+            // Closed with a popup open.
+            _time!.IsOpen = true;
+            await context.SettleAsync();
+        }
+
+        /// <summary>Each opening's content must go once its popup has gone.</summary>
+        private static void Track(LeakScenarioContext context)
+        {
+            if (LeakPopupPresenter.Shared.Last?.Content is { } content)
+                context.Track(content, "date or time popup content");
+        }
+
+        public override string? CheckInteraction() =>
+            _date?.Date != new DateTime(2026, 4, 6) ? $"the date picker has {_date?.Date}, not the date completed"
+            : _time?.Time != new TimeSpan(10, 30, 0) ? $"the time picker has {_time?.Time}, not the accepted draft"
+            : _dateTime?.Date is not null ? "the date and time picker was not cleared"
+            : _coreDate?.Date != new DateTime(2026, 5, 5) ? "the Core date picker's date was not applied"
+            : _coreTime?.Time != new TimeSpan(8, 15, 30) ? "the Core time picker's time was not applied"
             : _changes == 0 ? "no change was reported"
             : null;
     }

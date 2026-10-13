@@ -9,7 +9,6 @@ Check the region for these before converting. If one is central to the page (the
 | `ListView`, `TableView`, cells, compatibility layouts | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists); `SkUiBorder` for `Frame` |
 | Drag and drop, tooltips, context flyouts, `ImageBrush` | Not planned | Keep native |
 | `Entry`, `Editor`, `SearchBar` | Native for now; drawn versions planned (they use the platform keyboard) | `SkUiMauiContentView` |
-| `DatePicker`, `TimePicker` | Planned (drawn, on the app's popup system like `SkUiPicker`) | `SkUiMauiContentView` |
 | `WebView`, maps, media | Native by design | `SkUiMauiContentView` |
 | Third-party controls | Native | `SkUiMauiContentView` or outside the region |
 | Pages, Shell, navigation, toolbar, popups | Stay MAUI | — |

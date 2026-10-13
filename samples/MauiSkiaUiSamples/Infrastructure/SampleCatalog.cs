@@ -27,6 +27,7 @@ public static class SampleCatalog
         SampleEntry.For<PizzaOrderSample>(),
         SampleEntry.For<AlarmClockSample>(),
         SampleEntry.For<DateOfBirthSample>(),
+        SampleEntry.For<BookingSample>(),
         SampleEntry.For<CrossCheckBoxSample>(),
         SampleEntry.For<TranslatedPickerTextsSample>(),
         SampleEntry.For<CorePickersSample>(),

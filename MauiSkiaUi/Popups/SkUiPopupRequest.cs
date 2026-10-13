@@ -516,8 +516,9 @@ public sealed class SkUiMultiListPopupRequest : SkUiSelectionPopupRequest
 /// <summary>
 /// A request for wheels, one per column, to choose one item from each (a multi-column picker): the columns' item texts, whether
 /// they loop and the chosen index of each, for presenters that show their own UI instead of <see cref="SkUiPopupRequest.Content"/>.
+/// Date and time pickers' requests say more (<see cref="SkUiDatePopupRequest"/>, <see cref="SkUiTimePopupRequest"/>).
 /// </summary>
-public sealed class SkUiColumnsPopupRequest : SkUiSelectionPopupRequest
+public class SkUiColumnsPopupRequest : SkUiSelectionPopupRequest
 {
     private IReadOnlyList<IReadOnlyList<string>> _columns;
     private IReadOnlyList<bool> _loops;
@@ -565,6 +566,28 @@ public sealed class SkUiColumnsPopupRequest : SkUiSelectionPopupRequest
             _itemsEnabled = new IReadOnlyList<bool>?[_columns.Count];
         if (column >= 0 && column < _itemsEnabled.Length)
             _itemsEnabled[column] = states;
+    }
+
+    /// <summary>Chooses <paramref name="indices"/> after taking <paramref name="rules"/>' item states for them (a day the old month lacked).</summary>
+    private protected bool Choose(ISkUiColumnsRules rules, int[] indices)
+    {
+        TakeStates(rules, indices);
+        return SetSelection(indices);
+    }
+
+    /// <summary>Completes with <paramref name="indices"/> after taking <paramref name="rules"/>' item states for them.</summary>
+    private protected bool CompleteWith(ISkUiColumnsRules rules, int[] indices)
+    {
+        TakeStates(rules, indices);
+        return Complete(indices);
+    }
+
+    private void TakeStates(ISkUiColumnsRules rules, int[] indices)
+    {
+        if (IsCompleted || CloseRequested.IsCancellationRequested)
+            return;
+        for (var column = 0; column < _columns.Count; column++)
+            SetItemStates(column, rules.ItemStates(column, indices));
     }
 
     /// <summary>Chooses the item at <paramref name="index"/> in the column <paramref name="column"/> (see <see cref="SkUiSelectionPopupRequest.SetSelection"/>).</summary>
