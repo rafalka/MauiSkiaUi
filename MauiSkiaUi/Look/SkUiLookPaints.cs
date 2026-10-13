@@ -263,3 +263,14 @@ public enum SkUiPopupButton
     /// <summary>Clear: clears the choice.</summary>
     Clear
 }
+
+/// <summary>What a look draws a picker field's token with (<see cref="SkUiLook.DrawPickerToken"/>).</summary>
+/// <param name="Bounds">The token's rectangle in the field.</param>
+/// <param name="RemoveBounds">Its ×'s room at the end side; empty when it cannot be removed (an item that cannot be chosen, "+N").</param>
+/// <param name="Fill">The token's background (the look's popup highlight color).</param>
+/// <param name="Foreground">The ×'s color (the color scheme's muted color).</param>
+/// <param name="IsRemovePressed">The × is pressed.</param>
+/// <param name="IsEnabled">The field is enabled.</param>
+/// <param name="IsMore">The token stands for the chosen items that do not fit ("+N").</param>
+public readonly record struct SkUiPickerTokenPaint(SKRect Bounds, SKRect RemoveBounds, SKColor Fill, SKColor Foreground, bool IsRemovePressed, bool IsEnabled,
+    bool IsMore);

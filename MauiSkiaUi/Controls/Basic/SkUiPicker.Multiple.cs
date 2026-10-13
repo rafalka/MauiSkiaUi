@@ -49,6 +49,59 @@ public partial class SkUiPicker
     /// <summary>Sets <see cref="IsPopupClosedOnSelection"/> (same as the property setter).</summary>
     public SkUiPicker SetIsPopupClosedOnSelection(bool value) { IsPopupClosedOnSelection = value; return this; }
 
+    /// <summary>Bindable property for <see cref="SelectedItemsDisplay"/>.</summary>
+    public static readonly BindableProperty SelectedItemsDisplayProperty = BindableProperty.Create(nameof(SelectedItemsDisplay), typeof(SkUiSelectedItemsDisplay),
+        typeof(SkUiPicker), SkUiSelectedItemsDisplay.Text, validateValue: (_, value) => Enum.IsDefined((SkUiSelectedItemsDisplay)value),
+        propertyChanged: (view, _, _) => ((SkUiPicker)view).UpdateMultipleState());
+
+    /// <summary>Bindable property for <see cref="MaxTokenLines"/>.</summary>
+    public static readonly BindableProperty MaxTokenLinesProperty = BindableProperty.Create(nameof(MaxTokenLines), typeof(int), typeof(SkUiPicker), -1,
+        validateValue: (_, value) => (int)value is -1 or > 0,
+        propertyChanged: (view, _, value) => ((SkUiPicker)view).OnMaxTokenLinesChanged((int)value));
+
+    /// <summary>
+    /// With several choices: how the field shows them, <see cref="SkUiSelectedItemsDisplay.Text"/> (default: the texts joined, or a
+    /// count) or <see cref="SkUiSelectedItemsDisplay.Tokens"/> (a token each, drawn by the look, whose × removes the item; Backspace
+    /// on the focused field removes the last one; the field grows by lines up to <see cref="MaxTokenLines"/>). SkiaUi extension.
+    /// </summary>
+    public SkUiSelectedItemsDisplay SelectedItemsDisplay { get => (SkUiSelectedItemsDisplay)GetValue(SelectedItemsDisplayProperty); set => SetValue(SelectedItemsDisplayProperty, value); }
+
+    /// <summary>
+    /// With tokens: the most lines of them in the field (default -1: as many as they need); the tokens that do not fit show as one
+    /// "+N" token (<see cref="SkUiStrings.MoreTokensFormat"/>). SkiaUi extension.
+    /// </summary>
+    public int MaxTokenLines { get => (int)GetValue(MaxTokenLinesProperty); set => SetValue(MaxTokenLinesProperty, value); }
+
+    /// <summary>Sets <see cref="SelectedItemsDisplay"/> (same as the property setter).</summary>
+    public SkUiPicker SetSelectedItemsDisplay(SkUiSelectedItemsDisplay value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        SelectedItemsDisplay = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="MaxTokenLines"/> (same as the property setter; -1: no limit).</summary>
+    public SkUiPicker SetMaxTokenLines(int value)
+    {
+        if (value is not (-1 or > 0)) throw new ArgumentOutOfRangeException(nameof(value), value, "The lines must be positive, or -1 for no limit.");
+        MaxTokenLines = value;
+        return this;
+    }
+
+    private void OnMaxTokenLinesChanged(int value)
+    {
+        Model.MaxTokenLines = value;
+        Model.Tokens = Model.Tokens; // laid out again
+        Model.TextChanged();
+    }
+
+    /// <inheritdoc />
+    private protected override void RemoveChoice(int index)
+    {
+        if (_multiple && Model.IsItemEnabled(index) && ItemAtIndex(index) is { } item && SelectedItems.Contains(item))
+            ReplaceSelectedItems([.. _selectedSnapshot.Where(chosen => !Equals(chosen, item))]);
+    }
+
     /// <summary>Bindable property for <see cref="IsSelectAllVisible"/>.</summary>
     public static readonly BindableProperty IsSelectAllVisibleProperty = BindableProperty.Create(nameof(IsSelectAllVisible), typeof(bool), typeof(SkUiPicker), false);
 
@@ -177,6 +230,8 @@ public partial class SkUiPicker
         }
         var first = _selectedIndices.Length > 0 ? _selectedIndices[0] : -1;
         _multiple = false;
+        Model.ShowsTokens = false;
+        Model.Tokens = [];
         Model.UsesValueText = false;
         Model.ClosedFieldSelects = true;
         Model.ContentFactory = null;
@@ -250,6 +305,8 @@ public partial class SkUiPicker
             if (IndexOfItem(item) is var index and >= 0)
                 indices.Add(index);
         _selectedIndices = [.. indices];
+        Model.ShowsTokens = SelectedItemsDisplay == SkUiSelectedItemsDisplay.Tokens;
+        Model.Tokens = [.. _selectedIndices.Select(index => new SkUiPickerToken(_items[index], index, Model.IsItemEnabled(index)))];
         Model.ValueText = ComposeSelectedText();
         Model.SelectionChanged();
     }

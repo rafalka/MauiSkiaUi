@@ -87,6 +87,12 @@ public class SkUiStrings
     /// <summary>The "Select all" row above a list with several choices (a picker's <c>IsSelectAllVisible</c>), unless the picker sets its own <c>SelectAllText</c>. Default "Select all".</summary>
     public virtual string SelectAllText { get; set => Set(ref field, value); } = "Select all";
 
+    /// <summary>
+    /// The token that stands for the chosen items that do not fit in a picker's field (<c>MaxTokenLines</c>), a <c>string.Format</c>
+    /// format with their count as <c>{0}</c>. Default "+{0}".
+    /// </summary>
+    public virtual string MoreTokensFormat { get; set => Set(ref field, value); } = "+{0}";
+
     /// <summary>The default load-more button of a collection view (<see cref="SkUiCollectionView.LoadMoreMode"/> <c>Manual</c>). Default "Load more".</summary>
     public virtual string LoadMoreText { get; set => Set(ref field, value); } = "Load more";
 

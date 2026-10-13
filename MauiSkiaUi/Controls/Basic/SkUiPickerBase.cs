@@ -17,6 +17,15 @@ public enum SkUiPickerUpdateMode
     WhenFinished
 }
 
+/// <summary>How a picker's field shows several chosen items (its <c>SelectedItemsDisplay</c>).</summary>
+public enum SkUiSelectedItemsDisplay
+{
+    /// <summary>Their texts joined (<c>SelectedTextSeparator</c>), or a count (<c>SelectedCountFormat</c>) (default).</summary>
+    Text,
+    /// <summary>A token (a chip) each, with a × that removes it; the field grows by lines (<c>MaxTokenLines</c>).</summary>
+    Tokens
+}
+
 /// <summary>
 /// What the drawn pickers share: the field drawn by the look (the text, the title, the chevron, the states), the font and
 /// color properties, <see cref="IsOpen"/> with <see cref="Opened"/> and <see cref="Closed"/>, the popup's placement and the
@@ -393,6 +402,11 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
     /// <summary>What <see cref="ClearSelection"/> clears, for this kind of picker.</summary>
     private protected abstract void ClearChoice();
 
+    /// <summary>Removes the chosen item at <paramref name="index"/> (several choices shown as tokens); nothing for other pickers.</summary>
+    private protected virtual void RemoveChoice(int index)
+    {
+    }
+
     /// <summary>The user chose the item at <paramref name="index"/> in the popup or with an arrow key on the closed field (lists).</summary>
     private protected virtual void ChooseItem(int index)
     {
@@ -419,6 +433,9 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
 
     /// <summary>The open popup's request (tests), or <c>null</c>.</summary>
     internal SkUiPopupRequest? PopupRequest => Model.Request;
+
+    /// <summary>The field's tokens as laid out: texts, rectangles and ×'s (tests).</summary>
+    internal IReadOnlyList<(string Text, Rect Bounds, Rect Remove)> TokenBoxes => Model.TokenBoxes(Width, Height);
 
     /// <summary>Whether a popup is showing (or closing) now.</summary>
     internal bool IsPopupShown => Model.IsOpen;
@@ -453,6 +470,8 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
         // The clear button clears without opening.
         if (Model.HitsClearButton(args.Position, Width, Height))
             ClearChoice();
+        else if (Model.TokenRemovedAt(args.Position, Width, Height) is var removed and >= 0)
+            RemoveChoice(removed);
         else
             IsOpen = !IsOpen;
     }
@@ -558,6 +577,8 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
     void ISkUiPickerOwner.Choose(int index) => ChooseItem(index);
 
     void ISkUiPickerOwner.ClearChoice() => ClearChoice();
+
+    void ISkUiPickerOwner.RemoveChoice(int index) => RemoveChoice(index);
 
     object? ISkUiPickerOwner.PopupBindingContext => BindingContext;
 

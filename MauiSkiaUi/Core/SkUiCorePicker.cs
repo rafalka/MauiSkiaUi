@@ -62,12 +62,15 @@ public partial class SkUiCorePicker : SkUiCorePickerBase
         if (ItemEnabled is not { } enabled)
         {
             Model.ItemEnabled = null;
+            UpdateMultipleState();
             return;
         }
         var states = new bool[_items.Count];
         for (var index = 0; index < states.Length; index++)
             states[index] = enabled(ItemAt(index));
         Model.ItemEnabled = states;
+        // Tokens: an item that can no longer be chosen keeps its token, without its ×.
+        UpdateMultipleState();
     }
 
     /// <summary>The selected item's index; -1 (default): none.</summary>

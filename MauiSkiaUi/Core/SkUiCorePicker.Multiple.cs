@@ -10,6 +10,7 @@ public partial class SkUiCorePicker
     private int[] _selectedIndices = [];
     private string _selectedTextSeparator = SkUiPicker.DefaultSelectedTextSeparator;
     private string? _selectedCountFormat;
+    private SkUiSelectedItemsDisplay _selectedItemsDisplay;
 
     /// <summary>
     /// <see cref="SkUiSelectionMode.Single"/> (default): the list chooses one item. <see cref="SkUiSelectionMode.Multiple"/>: the rows are
@@ -29,6 +30,40 @@ public partial class SkUiCorePicker
 
     /// <summary>Sets <see cref="IsPopupClosedOnSelection"/>.</summary>
     public SkUiCorePicker SetIsPopupClosedOnSelection(bool value) { IsPopupClosedOnSelection = value; return this; }
+
+    /// <summary>With several choices: how the field shows them (text, or tokens with ×; see <c>SkUiPicker.SelectedItemsDisplay</c>).</summary>
+    public SkUiSelectedItemsDisplay SelectedItemsDisplay { get => _selectedItemsDisplay; set => SetSelectedItemsDisplay(value); }
+
+    /// <summary>With tokens: the most lines of them (default -1: as many as they need); the rest show as "+N".</summary>
+    public int MaxTokenLines { get => Model.MaxTokenLines; set => SetMaxTokenLines(value); }
+
+    /// <summary>Sets <see cref="SelectedItemsDisplay"/>.</summary>
+    public SkUiCorePicker SetSelectedItemsDisplay(SkUiSelectedItemsDisplay value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        if (SetProperty(ref _selectedItemsDisplay, value, nameof(SelectedItemsDisplay)))
+            UpdateMultipleState();
+        return this;
+    }
+
+    /// <summary>Sets <see cref="MaxTokenLines"/> (-1: no limit).</summary>
+    public SkUiCorePicker SetMaxTokenLines(int value)
+    {
+        if (value is not (-1 or > 0)) throw new ArgumentOutOfRangeException(nameof(value), value, "The lines must be positive, or -1 for no limit.");
+        if (SetProperty(ref Model.MaxTokenLines, value, nameof(MaxTokenLines)))
+        {
+            Model.Tokens = Model.Tokens; // laid out again
+            Model.TextChanged();
+        }
+        return this;
+    }
+
+    /// <inheritdoc />
+    private protected override void RemoveChoice(int index)
+    {
+        if (_multiple && Model.IsItemEnabled(index) && ItemAt(index) is { } item && _selected.Contains(item))
+            ApplyChoice([.. _selected.Where(chosen => !Equals(chosen, item))]);
+    }
 
     /// <summary>With several choices: whether a "Select all" row shows above the rows (default <c>false</c>; see <c>SkUiPicker.IsSelectAllVisible</c>).</summary>
     public bool IsSelectAllVisible { get; set => SetProperty(ref field, value); }
@@ -74,6 +109,8 @@ public partial class SkUiCorePicker
         var first = _selectedIndices.Length > 0 ? _selectedIndices[0] : -1;
         var previous = _selected;
         _multiple = false;
+        Model.ShowsTokens = false;
+        Model.Tokens = [];
         Model.UsesValueText = false;
         Model.ClosedFieldSelects = true;
         Model.ContentFactory = null;
@@ -177,6 +214,8 @@ public partial class SkUiCorePicker
             if (IndexOfItem(item) is var index and >= 0)
                 indices.Add(index);
         _selectedIndices = [.. indices];
+        Model.ShowsTokens = _selectedItemsDisplay == SkUiSelectedItemsDisplay.Tokens;
+        Model.Tokens = [.. _selectedIndices.Select(index => new SkUiPickerToken(_items[index], index, Model.IsItemEnabled(index)))];
         Model.ValueText = ComposeSelectedText();
         Model.SelectionChanged();
     }

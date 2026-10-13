@@ -815,6 +815,53 @@ public class SkUiLook
         button.TextColor = SkUiColors.Accent;
     }
 
+    /// <summary>Optional painter of a picker field's tokens; when set, replaces <see cref="DrawPickerTokenCore"/>.</summary>
+    public Action<SKCanvas, SkUiPickerTokenPaint>? PickerTokenPainter { get; set; }
+
+    /// <summary>
+    /// Draws a token of a picker field (several choices shown as tokens; delegate or <see cref="DrawPickerTokenCore"/>): its background
+    /// and its × in <see cref="SkUiPickerTokenPaint.RemoveBounds"/> (empty when it cannot be removed); the control draws the text.
+    /// </summary>
+    public void DrawPickerToken(SKCanvas canvas, SkUiPickerTokenPaint token)
+    {
+        if (PickerTokenPainter is { } painter)
+        {
+            painter(canvas, token);
+            return;
+        }
+        DrawPickerTokenCore(canvas, token);
+    }
+
+    /// <summary>Default token: a pill in <see cref="SkUiPickerTokenPaint.Fill"/> (outlined for "+N"), a cross in the muted color.</summary>
+    protected virtual void DrawPickerTokenCore(SKCanvas canvas, SkUiPickerTokenPaint token)
+    {
+        const float arm = 3.5f;
+        var radius = token.Bounds.Height / 2;
+        using var paint = new SKPaint { IsAntialias = true, Color = token.Fill };
+        if (token.IsMore)
+        {
+            paint.Style = SKPaintStyle.Stroke;
+            paint.StrokeWidth = 1;
+            paint.Color = token.Foreground;
+            var outline = token.Bounds;
+            outline.Inflate(-0.5f, -0.5f);
+            canvas.DrawRoundRect(outline, radius, radius, paint);
+        }
+        else
+        {
+            canvas.DrawRoundRect(token.Bounds, radius, radius, paint);
+        }
+        if (token.RemoveBounds.IsEmpty)
+            return;
+        var center = new SKPoint(token.RemoveBounds.MidX - 2, token.RemoveBounds.MidY);
+        paint.Style = SKPaintStyle.Stroke;
+        paint.StrokeWidth = 1.5f;
+        paint.StrokeCap = SKStrokeCap.Round;
+        paint.Color = token.Foreground.WithAlpha((byte)(token.Foreground.Alpha * (token.IsRemovePressed ? 0.6f : token.IsEnabled ? 1f : 0.5f)));
+        canvas.DrawLine(center.X - arm, center.Y - arm, center.X + arm, center.Y + arm, paint);
+        canvas.DrawLine(center.X - arm, center.Y + arm, center.X + arm, center.Y - arm, paint);
+    }
+
     /// <summary>The room a picker field keeps for its clear button (<c>IsClearButtonVisible</c>) before the chevron, in DIPs (default 32).</summary>
     public virtual double PickerClearButtonWidth => 32;
 

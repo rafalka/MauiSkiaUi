@@ -69,6 +69,9 @@ internal interface ISkUiPickerPopupContent
     void Release();
 }
 
+/// <summary>A chosen item shown as a token (a chip) in the field: its text, its index in the items, and whether its × removes it.</summary>
+internal readonly record struct SkUiPickerToken(string Text, int Index, bool IsRemovable);
+
 /// <summary>What the shared picker engine (<see cref="SkUiPickerModel"/>) needs from its control, on either layer.</summary>
 internal interface ISkUiPickerOwner : ISkUiTransitionHost
 {
@@ -95,6 +98,9 @@ internal interface ISkUiPickerOwner : ISkUiTransitionHost
 
     /// <summary>The user cleared the choice (the field's clear button, Delete, the popup's Clear button).</summary>
     void ClearChoice();
+
+    /// <summary>The user removed the chosen item at <paramref name="index"/> (a token's ×, Backspace on the field).</summary>
+    void RemoveChoice(int index);
 
     /// <summary>Sets the control's <c>IsOpen</c> from the popup's lifetime (raising <c>Opened</c> / <c>Closed</c>).</summary>
     void SetIsOpen(bool open);
@@ -192,6 +198,28 @@ internal sealed class SkUiPickerModel
     public Color? PlaceholderColor;
     public double PopupWidth = -1;
     public DataTemplate? PopupHeaderTemplate;
+
+    /// <summary>Whether the field shows the choice as tokens (several choices).</summary>
+    public bool ShowsTokens;
+
+    /// <summary>The most lines of tokens (-1: as many as they need); the rest show as "+N".</summary>
+    public int MaxTokenLines = -1;
+
+    private IReadOnlyList<SkUiPickerToken> _tokens = [];
+
+    /// <summary>The tokens of the choice, in the order of the items (the control sets them with the choice).</summary>
+    public IReadOnlyList<SkUiPickerToken> Tokens
+    {
+        get => _tokens;
+        set
+        {
+            _tokens = value;
+            _tokenLayoutWidth = double.NaN;
+        }
+    }
+
+    /// <summary>Whether the field draws tokens now: in that mode with something chosen.</summary>
+    internal bool TokensShown => ShowsTokens && _tokens.Count > 0;
     public DataTemplate? PopupFooterTemplate;
     public bool ShowsClearButton;
     public bool ShowsPopupClearButton;
@@ -328,6 +356,13 @@ internal sealed class SkUiPickerModel
     public Size Measure(double widthConstraint, double heightConstraint)
     {
         var inset = TextInset;
+        if (TokensShown)
+        {
+            var available = Math.Max(0, widthConstraint - inset.HorizontalThickness);
+            var block = LayoutTokens(available);
+            var tokensSize = new Size(Math.Min(widthConstraint, block.Width + inset.HorizontalThickness), block.Height + inset.VerticalThickness);
+            return HasExplicitMinimumHeight ? tokensSize : new Size(tokensSize.Width, Math.Max(tokensSize.Height, SkUiLook.Current.DefaultPickerMinimumHeight));
+        }
         var text = DisplayText;
         var size = text.Length == 0
             ? new Size(inset.HorizontalThickness, inset.VerticalThickness + SkUiFontScaling.ScaleFontSize(FontSize, FontAutoScalingEnabled) * 1.2)
@@ -351,9 +386,14 @@ internal sealed class SkUiPickerModel
             SkUiLook.Current.DrawPickerClearButton(canvas, new SkUiPickerClearButtonPaint(bounds, ToSkColor(SkUiColors.Muted),
                 ToSkColor(SkUiColors.DefaultBackground), pressed, IsEnabled));
         }
+        if (TokensShown)
+        {
+            DrawTokens(canvas, width, height, foreground);
+            return;
+        }
         var selected = SelectedText;
         var text = selected ?? PlaceholderText;
-        if (string.IsNullOrEmpty(text))
+        if (string.IsNullOrEmpty(text) || HidesText)
             return;
         var color = selected is not null ? foreground : ToSkColor(PlaceholderColor ?? TitleColor ?? SkUiColors.Muted);
         if (!IsEnabled)
@@ -367,8 +407,204 @@ internal sealed class SkUiPickerModel
         canvas.Restore();
     }
 
+    /// <summary>Whether the control shows the choice with views of its own (a field template): the field draws no text for it.</summary>
+    public bool HidesText;
+
     /// <summary>The text's native resources go (the picker left its surface).</summary>
-    public void ReleaseDrawingResources() => _layout.Release();
+    public void ReleaseDrawingResources()
+    {
+        _layout.Release();
+        foreach (var layout in _tokenText)
+            layout.Release();
+        _tokenLayoutWidth = double.NaN;
+    }
+
+    #region Tokens
+
+    /// <summary>Room around a token's text, the gap between tokens, and the room of a token's ×, in DIPs.</summary>
+    private const double TokenPaddingX = 10;
+    private const double TokenPaddingY = 4;
+    private const double TokenGap = 6;
+    private const double TokenRemoveWidth = 20;
+
+    private readonly List<SkUiTextLayout> _tokenText = [];
+    private readonly List<TokenBox> _tokenBoxes = [];
+    private double _tokenLayoutWidth = double.NaN;
+    private Size _tokenBlock;
+
+    /// <summary>A token as laid out: its rectangle and its ×'s (empty when it cannot be removed) in the tokens' block, and its text.</summary>
+    private readonly record struct TokenBox(int Token, SKRect Bounds, SKRect Remove, string Text);
+
+    private SkUiTextLayout TokenLayout(int slot)
+    {
+        while (_tokenText.Count <= slot)
+            _tokenText.Add(new SkUiTextLayout(_owner));
+        return _tokenText[slot];
+    }
+
+    private double TokenTextWidth(int slot, string text, out double lineHeight)
+    {
+        var layout = TokenLayout(slot);
+        layout.Invalidate();
+        var size = layout.Measure(text, TextStyle, default, double.PositiveInfinity, double.PositiveInfinity);
+        lineHeight = size.Height;
+        return size.Width;
+    }
+
+    /// <summary>
+    /// Lays the tokens out in lines <paramref name="available"/> wide (wrapping; with <see cref="MaxTokenLines"/>, the tokens that do
+    /// not fit become a "+N" token at the end of the last line); returns the block's size.
+    /// </summary>
+    private Size LayoutTokens(double available)
+    {
+        // Exact: the same width needs no new layout (NaN: none yet).
+        if (available == _tokenLayoutWidth)
+            return _tokenBlock;
+        _tokenBoxes.Clear();
+        var unbounded = double.IsInfinity(available);
+        double x = 0, y = 0, widest = 0, lineHeight = 0;
+        var line = 0;
+        for (var index = 0; index < _tokens.Count; index++)
+        {
+            var token = _tokens[index];
+            var textWidth = TokenTextWidth(index, token.Text, out var textHeight);
+            lineHeight = Math.Max(lineHeight, textHeight + 2 * TokenPaddingY);
+            var width = textWidth + 2 * TokenPaddingX + (token.IsRemovable ? TokenRemoveWidth : 0);
+            if (!unbounded)
+                width = Math.Min(width, available);
+            if (x > 0 && !unbounded && x + width > available)
+            {
+                if (MaxTokenLines > 0 && line + 1 >= MaxTokenLines)
+                {
+                    AddMoreToken(index, available, lineHeight, ref x, y);
+                    break;
+                }
+                line++;
+                x = 0;
+                y += lineHeight + TokenGap;
+            }
+            _tokenBoxes.Add(new TokenBox(index, new SKRect((float)x, (float)y, (float)(x + width), (float)(y + lineHeight)), default, token.Text));
+            x += width + TokenGap;
+            widest = Math.Max(widest, x - TokenGap);
+        }
+        // Every box is a line tall; the × at the end side (mirrored right to left).
+        var rightToLeft = _owner.IsRightToLeft;
+        var blockWidth = unbounded ? widest : available;
+        for (var box = 0; box < _tokenBoxes.Count; box++)
+        {
+            var current = _tokenBoxes[box];
+            var bounds = new SKRect(current.Bounds.Left, current.Bounds.Top, current.Bounds.Right, current.Bounds.Top + (float)lineHeight);
+            if (rightToLeft)
+                bounds = new SKRect((float)blockWidth - bounds.Right, bounds.Top, (float)blockWidth - bounds.Left, bounds.Bottom);
+            var removable = current.Token >= 0 && _tokens[current.Token].IsRemovable;
+            var remove = !removable ? SKRect.Empty
+                : rightToLeft ? new SKRect(bounds.Left, bounds.Top, bounds.Left + (float)TokenRemoveWidth + (float)TokenPaddingX / 2, bounds.Bottom)
+                : new SKRect(bounds.Right - (float)TokenRemoveWidth - (float)TokenPaddingX / 2, bounds.Top, bounds.Right, bounds.Bottom);
+            _tokenBoxes[box] = current with { Bounds = bounds, Remove = remove };
+        }
+        var lines = _tokenBoxes.Count == 0 ? 0 : _tokenBoxes.Max(box => box.Bounds.Bottom);
+        _tokenBlock = new Size(Math.Max(widest, 0), lines);
+        _tokenLayoutWidth = available;
+        return _tokenBlock;
+    }
+
+    /// <summary>The tokens from <paramref name="first"/> on do not fit: a "+N" token closes the last line (moving tokens into it as needed).</summary>
+    private void AddMoreToken(int first, double available, double lineHeight, ref double x, double y)
+    {
+        var hidden = _tokens.Count - first;
+        while (true)
+        {
+            var text = string.Format(System.Globalization.CultureInfo.CurrentCulture, SkUiStrings.Current.MoreTokensFormat, hidden);
+            var width = TokenTextWidth(_tokens.Count, text, out _) + 2 * TokenPaddingX;
+            var lastOnLine = _tokenBoxes.Count > 0 && Math.Abs(_tokenBoxes[^1].Bounds.Top - y) < TokenLineTolerance ? _tokenBoxes[^1] : (TokenBox?)null;
+            if (x + width <= available || lastOnLine is null)
+            {
+                _tokenBoxes.Add(new TokenBox(-1, new SKRect((float)x, (float)y, (float)(x + Math.Min(width, available)), (float)(y + lineHeight)), default, text));
+                x += width + TokenGap;
+                return;
+            }
+            // Not even "+N" fits: one more token goes into it.
+            _tokenBoxes.RemoveAt(_tokenBoxes.Count - 1);
+            x = lastOnLine.Value.Bounds.Left;
+            hidden++;
+        }
+    }
+
+    /// <summary>How close two token tops must be to be on one line.</summary>
+    private const float TokenLineTolerance = 0.5f;
+
+    /// <summary>The tokens' block in a field of <paramref name="width"/> × <paramref name="height"/>: inside the inset, centered vertically.</summary>
+    private (float Left, float Top) TokenOrigin(float width, float height)
+    {
+        var inset = TextInset;
+        LayoutTokens(Math.Max(0, width - inset.HorizontalThickness));
+        var room = height - inset.VerticalThickness;
+        return ((float)inset.Left, (float)(inset.Top + Math.Max(0, (room - _tokenBlock.Height) / 2)));
+    }
+
+    private void DrawTokens(SKCanvas canvas, float width, float height, SKColor foreground)
+    {
+        var (left, top) = TokenOrigin(width, height);
+        var look = SkUiLook.Current;
+        var fill = ToSkColor(look.PopupHighlightColor);
+        var muted = ToSkColor(SkUiColors.Muted);
+        var text = IsEnabled ? foreground : foreground.WithAlpha((byte)(foreground.Alpha * 0.5f));
+        var paint = SkUiTextResources.TextPaint;
+        canvas.Save();
+        canvas.ClipRect(new SKRect(left, 0, width - (float)TextInset.Right, height));
+        for (var index = 0; index < _tokenBoxes.Count; index++)
+        {
+            var box = _tokenBoxes[index];
+            var bounds = box.Bounds;
+            bounds.Offset(left, top);
+            var remove = box.Remove;
+            if (!remove.IsEmpty)
+                remove.Offset(left, top);
+            var pressed = !remove.IsEmpty && _press?.Visual is { Pressed: > 0 } && remove.Contains((float)_pressOrigin.X, (float)_pressOrigin.Y);
+            look.DrawPickerToken(canvas, new SkUiPickerTokenPaint(bounds, remove, fill, muted, pressed, IsEnabled, box.Token < 0));
+            var removeRoom = remove.IsEmpty ? 0 : TokenRemoveWidth;
+            var inset = _owner.IsRightToLeft
+                ? new Thickness(TokenPaddingX + removeRoom, TokenPaddingY, TokenPaddingX, TokenPaddingY)
+                : new Thickness(TokenPaddingX, TokenPaddingY, TokenPaddingX + removeRoom, TokenPaddingY);
+            canvas.Save();
+            canvas.Translate(bounds.Left, bounds.Top);
+            paint.Color = text;
+            TokenLayout(box.Token < 0 ? _tokens.Count : box.Token)
+                .Draw(canvas, box.Text, TextStyle, inset, bounds.Width, bounds.Height, TextAlignment.Start, TextAlignment.Center, paint);
+            canvas.Restore();
+        }
+        canvas.Restore();
+    }
+
+    /// <summary>The item whose token's × is at <paramref name="point"/> (field coordinates), or -1.</summary>
+    public int TokenRemovedAt(Point point, double width, double height)
+    {
+        if (!TokensShown)
+            return -1;
+        var (left, top) = TokenOrigin((float)width, (float)height);
+        foreach (var box in _tokenBoxes)
+        {
+            if (box.Remove.IsEmpty || box.Token < 0)
+                continue;
+            var remove = box.Remove;
+            remove.Offset(left, top);
+            // A little room around the × (a touch target).
+            remove.Inflate(0, (float)TokenGap / 2);
+            if (remove.Contains((float)point.X, (float)point.Y))
+                return _tokens[box.Token].Index;
+        }
+        return -1;
+    }
+
+    /// <summary>The tokens as laid out in a field of <paramref name="width"/> × <paramref name="height"/>: their texts and rectangles (tests).</summary>
+    internal IReadOnlyList<(string Text, Rect Bounds, Rect Remove)> TokenBoxes(double width, double height)
+    {
+        var (left, top) = TokenOrigin((float)width, (float)height);
+        return [.. _tokenBoxes.Select(box => (box.Text, new Rect(box.Bounds.Left + left, box.Bounds.Top + top, box.Bounds.Width, box.Bounds.Height),
+            box.Remove.IsEmpty ? Rect.Zero : new Rect(box.Remove.Left + left, box.Remove.Top + top, box.Remove.Width, box.Remove.Height)))];
+    }
+
+    #endregion
 
     /// <summary>The field is pressed or released (<paramref name="origin"/>: the press point).</summary>
     public void SetPressed(bool pressed, Point origin)
@@ -415,6 +651,17 @@ internal sealed class SkUiPickerModel
         {
             _owner.SetIsOpen(true);
             return true;
+        }
+        // Backspace with tokens: the last token that can be removed goes.
+        if (TokensShown && key.Key == SkUiKey.Backspace && !key.HasCommandModifier)
+        {
+            for (var index = _tokens.Count - 1; index >= 0; index--)
+                if (_tokens[index].IsRemovable)
+                {
+                    _owner.RemoveChoice(_tokens[index].Index);
+                    return true;
+                }
+            return false;
         }
         // The clear button's key.
         if (ClearButtonShown && key.Key is SkUiKey.Delete or SkUiKey.Backspace && !key.HasCommandModifier)

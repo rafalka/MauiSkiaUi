@@ -285,6 +285,11 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     /// <summary>What <see cref="ClearSelection"/> clears, for this kind of picker.</summary>
     private protected abstract void ClearChoice();
 
+    /// <summary>Removes the chosen item at <paramref name="index"/> (several choices shown as tokens); nothing for other pickers.</summary>
+    private protected virtual void RemoveChoice(int index)
+    {
+    }
+
     /// <summary>The user chose the item at <paramref name="index"/> in the popup or with an arrow key on the closed field (lists).</summary>
     private protected virtual void ChooseItem(int index)
     {
@@ -295,6 +300,9 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     #region Field
 
     private bool CanOpen => IsVisible && SkUiDiagnostics.GetSurfaceRoot(this) is not null;
+
+    /// <summary>The field's tokens as laid out: texts, rectangles and ×'s (tests).</summary>
+    internal IReadOnlyList<(string Text, Rect Bounds, Rect Remove)> TokenBoxes => Model.TokenBoxes(Frame.Width, Frame.Height);
 
     /// <summary>The open popup's request (tests), or <c>null</c>.</summary>
     internal SkUiPopupRequest? PopupRequest => Model.Request;
@@ -318,6 +326,8 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
         // The clear button clears without opening.
         if (Model.HitsClearButton(args.Position, Frame.Width, Frame.Height))
             ClearChoice();
+        else if (Model.TokenRemovedAt(args.Position, Frame.Width, Frame.Height) is var removed and >= 0)
+            RemoveChoice(removed);
         else
             SetIsOpen(!_isOpen);
     }
@@ -393,6 +403,8 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     void ISkUiPickerOwner.Choose(int index) => ChooseItem(index);
 
     void ISkUiPickerOwner.ClearChoice() => ClearChoice();
+
+    void ISkUiPickerOwner.RemoveChoice(int index) => RemoveChoice(index);
 
     object? ISkUiPickerOwner.PopupBindingContext => null;
 

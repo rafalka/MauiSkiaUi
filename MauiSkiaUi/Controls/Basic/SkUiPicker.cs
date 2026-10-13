@@ -145,6 +145,7 @@ public partial class SkUiPicker : SkUiPickerBase
         if (_itemEnabledBinding is null)
         {
             Model.ItemEnabled = null;
+            UpdateMultipleState();
             return;
         }
         var states = new bool[_items.Count];
@@ -161,6 +162,8 @@ public partial class SkUiPicker : SkUiPickerBase
         // The probe must not keep the last item alive.
         _enabledProbe.BindingContext = null;
         Model.ItemEnabled = states;
+        // Tokens: an item that can no longer be chosen keeps its token, without its ×.
+        UpdateMultipleState();
     }
 
     /// <summary>Sets <see cref="ItemEnabledBinding"/> (same as the property setter).</summary>
