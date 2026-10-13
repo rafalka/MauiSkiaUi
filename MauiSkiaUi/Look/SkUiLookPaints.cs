@@ -252,3 +252,14 @@ public readonly record struct SkUiPickerFieldPaint(
 /// <param name="IsPressed">The button is pressed.</param>
 /// <param name="IsEnabled">The field is enabled.</param>
 public readonly record struct SkUiPickerClearButtonPaint(SKRect Bounds, SKColor Color, SKColor Background, bool IsPressed, bool IsEnabled);
+
+/// <summary>A button of a popup's footer (<see cref="SkUiLook.StylePopupButton"/>).</summary>
+public enum SkUiPopupButton
+{
+    /// <summary>OK: applies what was chosen in the popup.</summary>
+    Accept,
+    /// <summary>Cancel: closes, discarding what was chosen in the popup.</summary>
+    Cancel,
+    /// <summary>Clear: clears the choice.</summary>
+    Clear
+}

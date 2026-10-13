@@ -523,12 +523,16 @@ public sealed class SkUiColumnsPopupRequest : SkUiSelectionPopupRequest
     private IReadOnlyList<bool> _loops;
 
     internal SkUiColumnsPopupRequest(View anchor, View? platformAnchor, View? content, in SkUiPopupLayout layout, IReadOnlyList<IReadOnlyList<string>> columns,
-        IReadOnlyList<bool> loops, IReadOnlyList<int> selected, Action<IReadOnlyList<int>> apply)
+        IReadOnlyList<bool> loops, IReadOnlyList<int> selected, Action<IReadOnlyList<int>> apply, IReadOnlyList<string?>? headers = null)
         : base(anchor, platformAnchor, content, layout, selected, apply)
     {
         _columns = columns;
         _loops = loops;
+        Headers = headers ?? new string?[columns.Count];
     }
+
+    /// <summary>The columns' headers ("Hour", "Minute"; <c>null</c>: none).</summary>
+    public IReadOnlyList<string?> Headers { get; }
 
     /// <summary>The display texts of each column's items (empty once the request completed).</summary>
     public IReadOnlyList<IReadOnlyList<string>> Columns => _columns;

@@ -31,8 +31,9 @@ internal static class SkUiPopupParts
 
     /// <summary>
     /// The footer: a Clear button at the start side (<see cref="SkUiPickerPopupChrome.ShowsClear"/>, which calls
-    /// <paramref name="clear"/>), and Cancel then OK at the end side (<see cref="SkUiPickerPopupChrome.RequiresAccept"/>; mirrored right
-    /// to left), in the picker's font; they cancel or accept the request <paramref name="request"/> returns (the content's, once it
+    /// <paramref name="clear"/>), and Cancel and OK at the end side (<see cref="SkUiPickerPopupChrome.RequiresAccept"/>; ordered by the
+    /// look's <see cref="SkUiLook.PopupAcceptButtonFirst"/>, mirrored right to left), in the picker's font, styled by the look's
+    /// <see cref="SkUiLook.StylePopupButton"/>; they cancel or accept the request <paramref name="request"/> returns (the content's, once it
     /// has one).
     /// </summary>
     public static SkUiGrid Buttons(in SkUiPickerPopupChrome chrome, in SkUiPickerRowStyle style, Func<SkUiPopupRequest?> request, Action clear)
@@ -45,32 +46,41 @@ internal static class SkUiPopupParts
         };
         if (chrome.ShowsClear)
         {
-            var clearButton = TextButton(chrome.ClearText ?? SkUiStrings.Current.ClearText, style);
+            var clearButton = Button(chrome.ClearText ?? SkUiStrings.Current.ClearText, style, SkUiPopupButton.Clear);
             clearButton.Clicked += (_, _) => clear();
             footer.Children.Add(clearButton);
         }
         if (chrome.RequiresAccept)
         {
-            var cancel = TextButton(chrome.CancelText, style);
-            var accept = new SkUiButton { Text = chrome.AcceptText, FontFamily = style.FontFamily, FontAutoScalingEnabled = style.FontAutoScalingEnabled };
+            var cancel = Button(chrome.CancelText, style, SkUiPopupButton.Cancel);
+            var accept = Button(chrome.AcceptText, style, SkUiPopupButton.Accept);
             cancel.Clicked += (_, _) => request()?.Cancel();
             accept.Clicked += (_, _) => request()?.Accept();
-            var end = new SkUiHorizontalStackLayout { Spacing = ButtonSpacing, Children = { cancel, accept } };
+            var end = new SkUiHorizontalStackLayout { Spacing = ButtonSpacing };
+            // The look orders them (Windows: OK first).
+            if (SkUiLook.Current.PopupAcceptButtonFirst)
+            {
+                end.Children.Add(accept);
+                end.Children.Add(cancel);
+            }
+            else
+            {
+                end.Children.Add(cancel);
+                end.Children.Add(accept);
+            }
             footer.Children.Add(end);
             Grid.SetColumn(end, 2);
         }
         return footer;
     }
 
-    /// <summary>A button drawn as text in the accent color (Cancel, Clear).</summary>
-    private static SkUiButton TextButton(string text, in SkUiPickerRowStyle style) => new()
+    /// <summary>A footer button with its text in the picker's font, styled by the look.</summary>
+    private static SkUiButton Button(string text, in SkUiPickerRowStyle style, SkUiPopupButton kind)
     {
-        Text = text,
-        FillColor = Colors.Transparent,
-        TextColor = SkUiColors.Accent,
-        FontFamily = style.FontFamily,
-        FontAutoScalingEnabled = style.FontAutoScalingEnabled
-    };
+        var button = new SkUiButton { Text = text, FontFamily = style.FontFamily, FontAutoScalingEnabled = style.FontAutoScalingEnabled };
+        SkUiLook.Current.StylePopupButton(button, kind);
+        return button;
+    }
 
     /// <summary>The content's root: <paramref name="body"/> alone, or with the title above and the footer below it.</summary>
     public static ISkUiView Compose(SkUiLabel? title, SkUiView body, SkUiView? footer)

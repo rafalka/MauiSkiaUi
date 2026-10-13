@@ -785,6 +785,36 @@ public class SkUiLook
     /// <summary>Default picker field: none (<see cref="DefaultSkUiLook"/> draws <see cref="DefaultSkUiLook.PickerFieldStyle"/>).</summary>
     protected virtual void DrawPickerFieldCore(SKCanvas canvas, SkUiPickerFieldPaint field) { }
 
+    /// <summary>The height of a row of a picker's wheels (<c>SkUiMultiColumnPicker</c>), in DIPs (default <see cref="PopupItemHeight"/>).</summary>
+    public virtual double PickerWheelRowHeight => PopupItemHeight;
+
+    /// <summary>How the items of a picker's wheels change as they leave the middle row (default: they fade, shrink a little and turn away as on a drum).</summary>
+    public virtual SkUiCarouselEffect PickerWheelEffect => SkUiWheelEffect.Instance;
+
+    /// <summary>The band behind the middle row of a picker's wheels (default <see cref="PopupHighlightColor"/>).</summary>
+    public virtual Color PickerWheelBandColor => PopupHighlightColor;
+
+    /// <summary>The corners of the band behind the middle row of a picker's wheels (default 8).</summary>
+    public virtual CornerRadius PickerWheelBandCornerRadius => new(8);
+
+    /// <summary>
+    /// Whether OK comes before Cancel in a popup's footer, at its end side (default <c>false</c>: Cancel, then OK, as on Android,
+    /// Apple platforms and the web; <c>true</c> as Windows' dialogs).
+    /// </summary>
+    public virtual bool PopupAcceptButtonFirst => false;
+
+    /// <summary>
+    /// Styles a button of a popup's footer after SkiaUi created it with its text and the picker's font: by default OK is a filled
+    /// button in the accent color, Cancel and Clear are text in the accent color. Override it for the look's buttons.
+    /// </summary>
+    public virtual void StylePopupButton(SkUiButton button, SkUiPopupButton kind)
+    {
+        if (kind == SkUiPopupButton.Accept)
+            return;
+        button.FillColor = Colors.Transparent;
+        button.TextColor = SkUiColors.Accent;
+    }
+
     /// <summary>The room a picker field keeps for its clear button (<c>IsClearButtonVisible</c>) before the chevron, in DIPs (default 32).</summary>
     public virtual double PickerClearButtonWidth => 32;
 

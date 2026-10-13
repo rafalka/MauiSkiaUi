@@ -131,7 +131,8 @@ internal sealed class SkUiColumnsModel
                 // An open popup follows (its wheels move off items now disabled).
                 _model.ColumnItemStatesChanged(index, column.ItemStates);
                 break;
-            case SkUiPickerColumn.TextsChanged or nameof(SkUiPickerColumn.Loop) or nameof(SkUiPickerColumn.Width):
+            case SkUiPickerColumn.TextsChanged or nameof(SkUiPickerColumn.Loop) or nameof(SkUiPickerColumn.Width) or nameof(SkUiPickerColumn.Header)
+                or nameof(SkUiPickerColumn.ItemTemplate):
                 _model.Close();
                 Refresh(raise: true);
                 break;
@@ -148,10 +149,12 @@ internal sealed class SkUiColumnsModel
         var loops = new bool[texts.Length];
         var widths = new double[texts.Length];
         var states = new IReadOnlyList<bool>?[texts.Length];
+        var columns = new SkUiColumnsPopup.ColumnParts[texts.Length];
         for (var column = 0; column < texts.Length; column++)
         {
             texts[column] = Columns[column].Texts;
             states[column] = Columns[column].ItemStates;
+            columns[column] = new SkUiColumnsPopup.ColumnParts(Columns[column].Header, Columns[column].ItemTemplate, Columns[column].ItemsSource);
             loops[column] = Columns[column].Loop;
             widths[column] = Columns[column].Width;
         }
@@ -163,7 +166,7 @@ internal sealed class SkUiColumnsModel
                 if (weak.TryGetTarget(out var model))
                     model.Apply(indices);
             },
-            () => weak.TryGetTarget(out var model) ? model._indices : [], states);
+            () => weak.TryGetTarget(out var model) ? model._indices : [], states, columns);
     }
 
     /// <summary>The popup chose these indices (one per column): they become the columns' selection.</summary>

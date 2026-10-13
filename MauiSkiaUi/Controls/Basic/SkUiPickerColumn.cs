@@ -61,6 +61,12 @@ public class SkUiPickerColumn : BindableObject
     /// <summary>Bindable property for <see cref="Loop"/>.</summary>
     public static readonly BindableProperty LoopProperty = BindableProperty.Create(nameof(Loop), typeof(bool), typeof(SkUiPickerColumn), false);
 
+    /// <summary>Bindable property for <see cref="Header"/>.</summary>
+    public static readonly BindableProperty HeaderProperty = BindableProperty.Create(nameof(Header), typeof(string), typeof(SkUiPickerColumn), null);
+
+    /// <summary>Bindable property for <see cref="ItemTemplate"/>.</summary>
+    public static readonly BindableProperty ItemTemplateProperty = BindableProperty.Create(nameof(ItemTemplate), typeof(DataTemplate), typeof(SkUiPickerColumn), null);
+
     /// <summary>Bindable property for <see cref="Width"/>.</summary>
     public static readonly BindableProperty WidthProperty = BindableProperty.Create(nameof(Width), typeof(double), typeof(SkUiPickerColumn), -1d,
         validateValue: (_, value) => value is double width && IsValidWidth(width));
@@ -136,6 +142,53 @@ public class SkUiPickerColumn : BindableObject
     /// <summary>Whether the wheel's items repeat without an end (default <c>false</c>: it stops at the first and last item), as a clock's hours.</summary>
     public bool Loop { get => (bool)GetValue(LoopProperty); set => SetValue(LoopProperty, value); }
 
+    /// <summary>A header above the column's wheel in the popup ("Hour", "Minute"); <c>null</c> (default): none. SkiaUi extension.</summary>
+    public string? Header { get => (string?)GetValue(HeaderProperty); set => SetValue(HeaderProperty, value); }
+
+    /// <summary>
+    /// The wheel's items: a template of drawn views (<c>SkUi*</c>) bound to the items of <see cref="ItemsSource"/>; a
+    /// <see cref="DataTemplateSelector"/> picks per item. The root of the item in the middle row is in the <c>Selected</c> visual
+    /// state (as the picker list's selected row), the roots of items that cannot be chosen in <c>Disabled</c>. <c>null</c>
+    /// (default): the item texts in the picker's font. The field still shows the texts. SkiaUi extension.
+    /// </summary>
+    public DataTemplate? ItemTemplate { get => (DataTemplate?)GetValue(ItemTemplateProperty); set => SetValue(ItemTemplateProperty, value); }
+
+    /// <summary>
+    /// The text shown for each item when there is no <see cref="ItemDisplayBinding"/>: a function of the item (not bindable; for
+    /// columns built in code, as <see cref="Range"/>'s); <c>null</c> (default): <c>ToString()</c>.
+    /// </summary>
+    public Func<object?, string>? ItemDisplay
+    {
+        get;
+        set
+        {
+            if (ReferenceEquals(field, value))
+                return;
+            field = value;
+            OnItemsChanged(keepSelectedItem: true);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// A column of the whole numbers from <paramref name="start"/> to <paramref name="end"/> (inclusive) every <paramref name="step"/>
+    /// (minutes every 5: <c>Range(0, 55, 5, "00")</c>), shown with the .NET number <paramref name="format"/> in the current culture
+    /// (<c>null</c>: as they are). The items are <c>int</c>s, so <see cref="SelectedItem"/> takes and gives a number.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="step"/> is not positive.</exception>
+    public static SkUiPickerColumn Range(int start, int end, int step = 1, string? format = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(step);
+        var values = new List<int>();
+        for (var value = start; value <= end; value += step)
+            values.Add(value);
+        return new SkUiPickerColumn
+        {
+            ItemDisplay = item => item is int number ? number.ToString(format, System.Globalization.CultureInfo.CurrentCulture) : item?.ToString() ?? string.Empty,
+            ItemsSource = values
+        };
+    }
+
     /// <summary>
     /// The width of the column's wheel in DIPs; -1 (default): as wide as its widest text. The columns of a wheel popup share the
     /// popup's width in proportion to these widths.
@@ -156,6 +209,15 @@ public class SkUiPickerColumn : BindableObject
 
     /// <summary>Sets <see cref="SelectedItem"/> (same as the property setter).</summary>
     public SkUiPickerColumn SetSelectedItem(object? value) { SelectedItem = value; return this; }
+
+    /// <summary>Sets <see cref="Header"/> (same as the property setter).</summary>
+    public SkUiPickerColumn SetHeader(string? value) { Header = value; return this; }
+
+    /// <summary>Sets <see cref="ItemTemplate"/> (same as the property setter).</summary>
+    public SkUiPickerColumn SetItemTemplate(DataTemplate? value) { ItemTemplate = value; return this; }
+
+    /// <summary>Sets <see cref="ItemDisplay"/> (same as the property setter).</summary>
+    public SkUiPickerColumn SetItemDisplay(Func<object?, string>? value) { ItemDisplay = value; return this; }
 
     /// <summary>Sets <see cref="Loop"/> (same as the property setter).</summary>
     public SkUiPickerColumn SetLoop(bool value) { Loop = value; return this; }
@@ -298,7 +360,7 @@ public class SkUiPickerColumn : BindableObject
         {
             if (_itemDisplayBinding is null)
             {
-                texts[index] = source[index]?.ToString() ?? string.Empty;
+                texts[index] = ItemDisplay is { } display ? display(source[index]) ?? string.Empty : source[index]?.ToString() ?? string.Empty;
                 continue;
             }
             if (_displayProbe is null)
