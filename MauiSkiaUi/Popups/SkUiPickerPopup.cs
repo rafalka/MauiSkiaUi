@@ -594,6 +594,19 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         }
     }
 
+    /// <summary>
+    /// Whether the app's visual states for a template's <paramref name="root"/> have a <c>Disabled</c> state: then that state is
+    /// the look of items that cannot be chosen, otherwise the popup dims them.
+    /// </summary>
+    internal static bool HasDisabledState(VisualElement root)
+    {
+        foreach (var group in VisualStateManager.GetVisualStateGroups(root))
+            foreach (var state in group.States)
+                if (state.Name == VisualStateManager.CommonStates.Disabled)
+                    return true;
+        return false;
+    }
+
     /// <summary>The "Select all" row's state (tests); <c>null</c> without one.</summary>
     internal SkUiCheckState? SelectAllCheckState => _selectAll?.State;
 
@@ -714,11 +727,11 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             _row = BindingContext as Row;
             if (_row is not null)
                 _row.StateChanged += OnRowStateChanged;
-            ShowState();
             var row = _row;
             if (_label is not null)
             {
                 _label.Text = row?.Text ?? string.Empty;
+                ShowState();
                 return;
             }
             // A template selector picks per item: a new view when it picks another template.
@@ -731,6 +744,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             }
             if (host.Content is BindableObject content)
                 content.BindingContext = row?.Item;
+            ShowState();
             ForwardSelected();
         }
 
@@ -750,16 +764,23 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
 
         private void OnRowStateChanged(object? sender, EventArgs args) => ShowState();
 
-        /// <summary>How much a disabled row without a template shows (Material's disabled text).</summary>
+
+        /// <summary>How much a disabled row shows (Material's disabled text).</summary>
         private const double DisabledOpacity = 0.38;
 
         private void ShowState()
         {
-            // A disabled row: its template's root goes to the Disabled state; plain text is dimmed.
+            // A disabled row: plain text is dimmed; a template's root goes to the Disabled state, and is dimmed unless the
+            // app styles that state itself.
             var enabled = _row?.IsEnabled != false;
             IsEnabled = enabled;
             if (_label is not null)
                 _label.Opacity = enabled ? 1 : DisabledOpacity;
+            else
+            {
+                var host = _slot ?? this;
+                host.Opacity = enabled || (host.Content is VisualElement root && HasDisabledState(root)) ? 1 : DisabledOpacity;
+            }
             if (_check is null)
                 return;
             _check.IsChecked = _row?.IsChecked == true;

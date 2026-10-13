@@ -132,7 +132,7 @@ public sealed class PickerDisabledItemsTests : IDisposable
         Assert.Equal(1, Label(content, 0).Opacity);
         Assert.True(Label(content, 1).Opacity < 0.5);
 
-        // Templated rows: the root is disabled (its Disabled visual state).
+        // Templated rows: the root is disabled (its Disabled visual state) and dimmed.
         picker.IsOpen = false;
         _ui.RunPending();
         picker.ItemTemplate = new DataTemplate(() => new SkUiContentView { HeightRequest = 40, Content = new SkUiLabel { Text = "row" } });
@@ -140,9 +140,79 @@ public sealed class PickerDisabledItemsTests : IDisposable
         content = Assert.IsType<SkUiPickerPopup>(_presenter.Current!.Content);
         using var templated = new SkUiTestSurface(content, 360, 400);
         templated.Frame();
-        var root = Descendants(Assert.IsAssignableFrom<SkUiView>(content.List.GetRealizedView(1))).OfType<SkUiContentView>().Last();
+        var root = TemplateRoot(content, 1);
         Assert.False(root.IsEnabled);
+        Assert.True(Opacity(root) < 0.5);
+        Assert.Equal(1, Opacity(TemplateRoot(content, 0)));
     }
+
+    [Fact]
+    public void TemplatesThatStyleTheDisabledStateAreNotDimmed()
+    {
+        var picker = Picker(Products());
+        picker.ItemTemplate = new DataTemplate(() =>
+        {
+            var row = new SkUiContentView { HeightRequest = 40, Content = new SkUiLabel { Text = "row" } };
+            VisualStateManager.SetVisualStateGroups(row,
+            [
+                new VisualStateGroup
+                {
+                    Name = "CommonStates",
+                    States =
+                    {
+                        new VisualState { Name = VisualStateManager.CommonStates.Normal },
+                        new VisualState
+                        {
+                            Name = VisualStateManager.CommonStates.Disabled,
+                            Setters = { new Setter { Property = VisualElement.BackgroundColorProperty, Value = Colors.LightGray } }
+                        }
+                    }
+                }
+            ]);
+            return row;
+        });
+        Root(picker);
+        picker.IsOpen = true;
+        var content = Assert.IsType<SkUiPickerPopup>(_presenter.Current!.Content);
+        using var surface = new SkUiTestSurface(content, 360, 400);
+        surface.Frame();
+
+        var root = TemplateRoot(content, 1);
+        Assert.False(root.IsEnabled);
+        Assert.Equal(Colors.LightGray, root.BackgroundColor); // the app's look of a disabled row
+        Assert.Equal(1, Opacity(root));
+    }
+
+    [Fact]
+    public void TemplatedWheelItemsAreDimmed()
+    {
+        var column = new SkUiPickerColumn
+        {
+            ItemsSource = Products(), SelectedIndex = 0,
+            ItemEnabledBinding = Binding.Create(static (Product product) => product.InStock),
+            ItemTemplate = new DataTemplate(() => new SkUiContentView { HeightRequest = 40, Content = new SkUiLabel { Text = "item" } })
+        };
+        var picker = new SkUiMultiColumnPicker().AddColumn(column);
+        Root(picker);
+        picker.IsOpen = true;
+        var content = Assert.IsType<SkUiColumnsPopup>(_presenter.Current!.Content);
+        using var surface = new SkUiTestSurface(content, 360, 400);
+        surface.Frame();
+
+        var roots = Descendants(content.Wheel(0)).OfType<SkUiContentView>().Where(view => view.BindingContext is Product).ToList();
+        var banana = roots.First(view => ((Product)view.BindingContext!).Name == "Banana");
+        var apple = roots.First(view => ((Product)view.BindingContext!).Name == "Apple");
+        Assert.False(banana.IsEnabled);
+        Assert.True(Opacity(banana) < 0.5);
+        Assert.Equal(1, Opacity(apple));
+    }
+
+    /// <summary>The root of the item template's view in the list's row <paramref name="index"/>.</summary>
+    private static SkUiContentView TemplateRoot(SkUiPickerPopup content, int index) =>
+        Descendants(Assert.IsAssignableFrom<SkUiView>(content.List.GetRealizedView(index))).OfType<SkUiContentView>().Last();
+
+    /// <summary>How opaque a template's root shows: its own opacity times its item's (the popup dims the item around it).</summary>
+    private static double Opacity(VisualElement root) => root.Opacity * ((VisualElement)root.Parent).Opacity;
 
     [Fact]
     public void SeveralChoicesKeepDisabledItemsAsTheyAre()

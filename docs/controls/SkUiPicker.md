@@ -78,7 +78,7 @@ So a narrow field opens a wider list when its items are wider. With `SelectedIte
 
 `ItemEnabledBinding` (SkiaUi; Core: `ItemEnabled`, a function of the item) says per item whether it can be chosen: a `bool` of the item of `ItemsSource` (or of the text of `Items`), e.g. `ItemEnabledBinding="{Binding InStock}"`; `null` (default): every item.
 
-- Disabled items show: plain rows dimmed, templated rows with their root in the `Disabled` visual state (style them there).
+- Disabled items show dimmed; a templated row's root is also in the `Disabled` visual state. A template whose root defines a `Disabled` state (`VisualStateManager.VisualStateGroups`) is not dimmed: that state is the look of disabled rows then.
 - Taps on them do nothing; the keyboard (in the list and on the closed field) and type-ahead pass them by, in the key's direction.
 - With several choices they keep their state: a disabled item the app chose stays chosen through toggles, `SelectAll()` and Clear; others cannot be chosen.
 - The app may still select a disabled item from code.
@@ -223,7 +223,7 @@ Anchored as a combo box, with drawn rows:
 
 ### The field's look of the selected item
 
-`SelectedItemTemplate` (SkiaUi; `SkUiPicker` only) shows the selected item in the field through drawn views of the app's, bound to `SelectedItem` (a `DataTemplateSelector` picks per item), inside the field's chrome before the chevron and the clear button; the field grows with them. They take no taps (a tap opens the list as anywhere on the field), and screen readers read the item's text. While nothing is selected the placeholder shows, and with several choices the texts or tokens.
+`SelectedItemTemplate` (SkiaUi; `SkUiPicker` only) shows the selected item in the field through drawn views of the app's, bound to `SelectedItem` (a `DataTemplateSelector` picks per item), inside the field's chrome before the chevron and the clear button; the field grows with them. The views get the field's content area, inside its padding: a field with a set height (48 is common) leaves them about the height of a line of text, so give them no padding of their own and don't reuse a list row's template with its padding (it is squeezed and clipped). They take no taps (a tap opens the list as anywhere on the field), and screen readers read the item's text. While nothing is selected the placeholder shows, and with several choices the texts or tokens.
 
 ```xml
 <sk:SkUiPicker ItemsSource="{Binding Paints}" ItemDisplayBinding="{Binding Name}" SelectedItem="{Binding Paint}">

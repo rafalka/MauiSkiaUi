@@ -470,11 +470,11 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
 
     /// <summary>
     /// One item of a wheel: its text in the picker's font, centered, or the column's item template bound to the item (its root in the
-    /// <c>Selected</c> state while it is in the middle row, in <c>Disabled</c> when it cannot be chosen); a tap chooses it.
+    /// <c>Selected</c> state while it is in the middle row, in <c>Disabled</c> and dimmed when it cannot be chosen); a tap chooses it.
     /// </summary>
     private sealed class WheelItem : SkUiContentView
     {
-        /// <summary>How much a disabled item without a template shows (Material's disabled text; the wheel's fade multiplies it).</summary>
+        /// <summary>How much a disabled item shows (Material's disabled text; the wheel's fade multiplies it).</summary>
         private const double DisabledOpacity = 0.38;
 
         private readonly SkUiColumnsPopup _owner;
@@ -558,6 +558,8 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
             if (Content is not SkUiView root)
                 return;
             root.IsEnabled = enabled;
+            // Dimmed too, unless the app styles the Disabled state itself (the wheel's fade multiplies it).
+            Opacity = enabled || SkUiPickerPopup.HasDisabledState(root) ? 1 : DisabledOpacity;
             root.IsSelectedItem = _entry is not null && _owner._wheels.Length > _column && _owner._wheels[_column] is { } wheel && wheel.Position == _entry.Index;
         }
 

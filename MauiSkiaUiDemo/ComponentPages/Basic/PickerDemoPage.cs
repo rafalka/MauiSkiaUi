@@ -81,13 +81,11 @@ public sealed class PickerDemoPage : ComponentDemoPage
         Choice(nameof(SkUiPickerBase.AcceptText), [AppAcceptText, LocalAcceptText], AppAcceptText,
             value => _skia.AcceptText = value == AppAcceptText ? null : value, () => _skia.AcceptText ?? AppAcceptText);
         Toggle("ItemTemplate (drawn rows)", false, value => _skia.ItemTemplate = value ? new DataTemplate(Row) : null, () => _skia.ItemTemplate is not null);
-        Toggle("SelectedItemTemplate (drawn field)", false, value => _skia.SelectedItemTemplate = value ? new DataTemplate(Row) : null,
+        Toggle("SelectedItemTemplate (drawn field)", false, value => _skia.SelectedItemTemplate = value ? new DataTemplate(FieldRow) : null,
             () => _skia.SelectedItemTemplate is not null);
         Text(nameof(SkUiPicker.Placeholder), "", value => _skia.Placeholder = value.Length == 0 ? null : value, () => _skia.Placeholder ?? "");
         Toggle(nameof(SkUiPicker.IsClearButtonVisible), false, value => _skia.IsClearButtonVisible = value, () => _skia.IsClearButtonVisible);
         Toggle(nameof(SkUiPicker.IsPopupClearButtonVisible), false, value => _skia.IsPopupClearButtonVisible = value, () => _skia.IsPopupClearButtonVisible);
-        Choice(nameof(SkUiPicker.UpdateMode), [SkUiPickerUpdateMode.Immediately, SkUiPickerUpdateMode.WhenFinished], SkUiPickerUpdateMode.Immediately,
-            value => _skia.UpdateMode = value, () => _skia.UpdateMode);
         Number(nameof(SkUiPicker.PopupWidth), -1, 400, -1, value => _skia.PopupWidth = value < 0 ? -1 : value, () => _skia.PopupWidth, whole: true);
         Number(nameof(SkUiPicker.MinPopupWidth), -1, 400, -1, value => _skia.MinPopupWidth = value < 0 ? -1 : value, () => _skia.MinPopupWidth, whole: true);
         Number(nameof(SkUiPicker.MaxPopupWidth), -1, 400, -1, value => _skia.MaxPopupWidth = value < 0 ? -1 : value, () => _skia.MaxPopupWidth, whole: true);
@@ -170,11 +168,31 @@ public sealed class PickerDemoPage : ComponentDemoPage
         ReferenceEquals(items, NumberNames) ? Numbers : ReferenceEquals(items, ColourItems) ? Colours : Monkeys;
 
     /// <summary>A drawn row: a swatch (the objects list's color) and the text, larger than the plain rows.</summary>
-    private static SkUiHorizontalStackLayout Row()
+    private static SkUiGrid Row() => Swatched(swatchSize: 22, fontSize: 17, new Thickness(16, 12));
+
+    /// <summary>
+    /// The field's view of the selected item: the row's swatch and text, smaller and without the row's padding (the field has its
+    /// own, and a short field leaves the template little height).
+    /// </summary>
+    private static SkUiGrid FieldRow() => Swatched(swatchSize: 16, fontSize: 16, new Thickness(0));
+
+    private static SkUiGrid Swatched(double swatchSize, double fontSize, Thickness padding)
     {
-        var swatch = new SkUiBox { WidthRequest = 22, HeightRequest = 22, CornerRadius = new CornerRadius(11), VerticalOptions = LayoutOptions.Center };
-        var text = new SkUiLabel { FontSize = 17, TextColor = DemoColors.Ink, VerticalOptions = LayoutOptions.Center };
-        var row = new SkUiHorizontalStackLayout { Spacing = 12, Padding = new Thickness(16, 12), Children = { swatch, text } };
+        var swatch = new SkUiBox
+        {
+            WidthRequest = swatchSize, HeightRequest = swatchSize, CornerRadius = new CornerRadius(swatchSize / 2), VerticalOptions = LayoutOptions.Center
+        };
+        var text = new SkUiLabel
+        {
+            FontSize = fontSize, TextColor = DemoColors.Ink, VerticalOptions = LayoutOptions.Center, MaxLines = 1, LineBreakMode = LineBreakMode.TailTruncation
+        };
+        // A grid, not a stack: the text gets the width that is left and truncates in a narrow field.
+        var row = new SkUiGrid
+        {
+            ColumnSpacing = 12, Padding = padding, ColumnDefinitions = [new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star)],
+            Children = { swatch, text }
+        };
+        Grid.SetColumn(text, 1);
         // Rows bind to the items: a color object, or a plain text (the monkeys and numbers lists).
         row.BindingContextChanged += (_, _) =>
         {
