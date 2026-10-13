@@ -543,6 +543,13 @@ public sealed class SkUiColumnsPopupRequest : SkUiSelectionPopupRequest
     /// <inheritdoc />
     private protected override IReadOnlyList<int> EmptySelection => Enumerable.Repeat(-1, _columns.Count).ToArray();
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Wheels always show an item in their middle rows, so they cannot show that nothing is chosen: Clear chooses nothing and
+    /// closes, also when the popup waits for OK.
+    /// </remarks>
+    private protected override bool ClearCore() => Complete(EmptySelection);
+
     /// <summary>
     /// Which items of each column can be chosen (<c>null</c> for a column: all): disabled items show (dimmed), but a wheel does not
     /// stop on them and a selection cannot choose them. Follows the columns while the popup is open.

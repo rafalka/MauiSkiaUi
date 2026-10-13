@@ -86,7 +86,7 @@ public sealed class CorePickerMultipleTests : IDisposable
         Assert.True(request.SetSelectedIndex(1, 1));
 
         Assert.Equal([2, 1], core.SelectedIndices);
-        Assert.Equal([(0, 2), (1, 1)], changes);
+        Assert.Equal([(0, 2), (1, 0), (1, 1)], changes); // the hour's wheel chose the minutes shown (00) too
         Assert.Equal("11:30", FieldText(root, core));
         core.Columns.Clear();
         _ui.RunPending();

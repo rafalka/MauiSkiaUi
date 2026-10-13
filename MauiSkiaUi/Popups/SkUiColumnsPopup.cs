@@ -249,6 +249,9 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
         };
         for (var column = 0; column < _states.Length; column++)
             request.SetItemStates(column, _states[column]);
+        // Waiting for OK: the draft is what the wheels show (OK chooses it), also in columns with nothing chosen yet.
+        if (request.RequiresAccept)
+            request.Refresh(Shown(_initial));
         Request = request;
         return request;
     }
@@ -301,9 +304,26 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
         if (Request is not SkUiSelectionPopupRequest request || index < 0 || index >= _texts[column].Length || request.SelectedIndices[column] == index
             || !SkUiItemStates.IsEnabled(_states[column], index))
             return;
-        var next = request.SelectedIndices.ToArray();
+        // The other columns with nothing chosen take what their wheels show: a time is never half chosen ("01:").
+        var next = Shown(request.SelectedIndices);
         next[column] = index;
         request.SetSelection(next);
+    }
+
+    /// <summary><paramref name="chosen"/>, with the columns that have nothing chosen at the item their wheel shows (one that can be chosen).</summary>
+    private int[] Shown(IReadOnlyList<int> chosen)
+    {
+        var shown = chosen.ToArray();
+        for (var column = 0; column < shown.Length && column < _wheels.Length; column++)
+        {
+            if (shown[column] >= 0 || _texts[column].Length == 0)
+                continue;
+            var position = _wheels[column].Position;
+            shown[column] = SkUiItemStates.IsEnabled(_states[column], position)
+                ? position
+                : SkUiItemStates.Nearest(_states[column], _texts[column].Length, position, -1, _loops[column]);
+        }
+        return shown;
     }
 
     /// <summary>A tap on an item: its wheel scrolls it to the middle, and chooses it (also when it is the one shown).</summary>

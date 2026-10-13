@@ -117,8 +117,8 @@ public sealed class PickerSamplesTests : IDisposable
         var request = Assert.IsType<SkUiColumnsPopupRequest>(_presenter.Current);
         Assert.Equal(["Hour", "Minute"], request.Headers);
         Assert.Equal("No alarm", Descendants((SkUiView)request.Content!).OfType<SkUiButton>().First().Text);
-        Assert.True(request.Clear());
-        Assert.True(request.Accept());
+        Assert.True(request.Clear()); // closes: the wheels cannot show "no alarm"
+        Assert.True(request.IsCompleted);
         _ui.RunPending();
 
         Assert.Equal("The alarm is off.", summary.Text);

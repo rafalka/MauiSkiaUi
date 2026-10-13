@@ -92,7 +92,7 @@ So a narrow field opens a wider list when its items are wider. With `SelectedIte
 Every picker (lists, several choices, [wheels](SkUiMultiColumnPicker.md)) can be cleared: no selected item, no chosen items, no item in any column; the field shows its placeholder.
 
 - **The field's clear button** (`IsClearButtonVisible`, default `false`): drawn by the look before the chevron while something is chosen (`SkUiLook.DrawPickerClearButton` / `PickerClearButtonPainter`, room `PickerClearButtonWidth`). A tap on it clears without opening the popup; on the focused field Delete or Backspace does the same.
-- **The popup's Clear button** (`IsPopupClearButtonVisible`, default `false`): at the start of the popup's footer, text `ClearText` or `SkUiStrings.ClearText` ("Clear"). With `UpdateMode="Immediately"` it clears at once (a list of one choice then closes); with `WhenFinished` it clears the draft, and OK applies it.
+- **The popup's Clear button** (`IsPopupClearButtonVisible`, default `false`): at the start of the popup's footer, text `ClearText` or `SkUiStrings.ClearText` ("Clear"). With `UpdateMode="Immediately"` it clears at once (a list of one choice then closes); with `WhenFinished` it clears the draft, and OK applies it. Wheels always show an item in their middle rows, so they cannot show a cleared draft: their Clear clears and closes in both modes.
 - **From code:** `ClearSelection()` on every picker. A presenter's own UI calls `request.Clear()`, or completes a `SkUiListPopupRequest` with `-1`.
 
 Clearing raises the change events (`SelectedIndexChanged`, `SelectionChanged`) and `SelectionChangedCommand` as any other change.

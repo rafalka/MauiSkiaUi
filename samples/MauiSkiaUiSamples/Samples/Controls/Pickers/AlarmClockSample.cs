@@ -34,6 +34,8 @@ public sealed class AlarmClockSample : SamplePage, ISample
         [
             "Each wheel's change applies to its column at once with `Immediately`; with `WhenFinished` the wheels are a draft until OK.",
             "A tap on an item scrolls it to the middle and chooses it; the keyboard moves the active wheel (Left / Right change it).",
+            "The wheels always show a time: after Clear, moving one wheel (or OK) chooses what both show, never just an hour.",
+            "Clear (\"No alarm\") closes the popup: the wheels cannot show that nothing is chosen.",
             "`SelectAllText` names the select-all row (\"Every day\").",
             "The popup's texts (OK, Cancel, Clear) come from `SkUiStrings` unless the picker sets its own."
         ]);

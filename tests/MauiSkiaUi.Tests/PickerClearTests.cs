@@ -207,12 +207,49 @@ public sealed class PickerClearTests : IDisposable
         Root(wheels);
         wheels.IsOpen = true;
         var request = Assert.IsType<SkUiColumnsPopupRequest>(_presenter.Current);
+        // Wheels cannot show that nothing is chosen: Clear chooses nothing and closes, also when waiting for OK.
         Assert.True(request.Clear());
-        Assert.Equal([-1, -1], request.SelectedIndices);
-        Assert.Equal([2, 0], wheels.SelectedIndices); // a draft
-        Assert.True(request.Accept());
+        Assert.True(request.IsCompleted);
         _ui.RunPending();
         Assert.Equal([-1, -1], wheels.SelectedIndices);
+        Assert.False(wheels.IsOpen);
+    }
+
+    [Fact]
+    public void WheelsWithNothingChosenChooseWhatTheyShow()
+    {
+        string[] hours = ["00", "01", "02"];
+        string[] minutes = ["00", "15", "30"];
+        var wheels = new SkUiMultiColumnPicker { Format = "{0}:{1}" }
+            .AddColumn(new SkUiPickerColumn { ItemsSource = hours })
+            .AddColumn(new SkUiPickerColumn { ItemsSource = minutes });
+        Root(wheels);
+
+        // At once: moving the hours chooses the minutes the other wheel shows too, never "01:".
+        wheels.IsOpen = true;
+        var content = Assert.IsType<SkUiColumnsPopup>(_presenter.Current!.Content);
+        using (var surface = new SkUiTestSurface(content, 360, 400))
+        {
+            surface.Frame();
+            Assert.Equal([-1, -1], wheels.SelectedIndices); // opening chooses nothing
+            content.Wheel(0).Position = 1;
+            surface.Frame();
+        }
+        Assert.Equal([1, 0], wheels.SelectedIndices);
+        Assert.Equal("01:00", SkUiSemanticsTree.Build((SkUiView)wheels.Parent!).Flatten().Single(node => ReferenceEquals(node.Source, wheels)).Value);
+        wheels.IsOpen = false;
+        _ui.RunPending();
+
+        // Waiting for OK: OK chooses what the wheels show.
+        wheels.ClearSelection();
+        wheels.UpdateMode = SkUiPickerUpdateMode.WhenFinished;
+        wheels.IsOpen = true;
+        var request = Assert.IsType<SkUiColumnsPopupRequest>(_presenter.Current);
+        Assert.Equal([0, 0], request.SelectedIndices);
+        Assert.Equal([-1, -1], wheels.SelectedIndices); // a draft
+        Assert.True(request.Accept());
+        _ui.RunPending();
+        Assert.Equal([0, 0], wheels.SelectedIndices);
     }
 
     [Fact]

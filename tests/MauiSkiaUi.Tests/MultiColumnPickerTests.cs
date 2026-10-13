@@ -158,18 +158,19 @@ public sealed class MultiColumnPickerTests : IDisposable
         content.Wheel(1).Position = 3;
         content.Wheel(0).Position = 8;
 
+        // The columns with nothing chosen take what their wheels show (the first items): never half a time.
         Assert.True(picker.IsOpen);
-        Assert.Equal([8, 3, -1], picker.SelectedIndices);
-        Assert.Equal([8, 3, -1], request.SelectedIndices);
-        Assert.Equal(["1->3", "0->8"], events);
-        Assert.Equal("08:45", FieldText(picker));
+        Assert.Equal([8, 3, 0], picker.SelectedIndices);
+        Assert.Equal([8, 3, 0], request.SelectedIndices);
+        Assert.Equal(["0->0", "1->3", "2->0", "0->8"], events);
+        Assert.Equal("08:45:AM", FieldText(picker));
 
         // A dismissal keeps what was chosen.
         _presenter.Dismiss();
         _ui.RunPending();
         Assert.False(picker.IsOpen);
-        Assert.Equal([8, 3, -1], picker.SelectedIndices);
-        Assert.Equal(["1->3", "0->8", "Closed"], events);
+        Assert.Equal([8, 3, 0], picker.SelectedIndices);
+        Assert.Equal(["0->0", "1->3", "2->0", "0->8", "Closed"], events);
     }
 
     [Fact]
@@ -179,14 +180,14 @@ public sealed class MultiColumnPickerTests : IDisposable
         var content = Open(picker, out var request);
         using var surface = new SkUiTestSurface(content, 360, 400);
         surface.Frame();
-        // Column 2 has nothing chosen and shows "AM" in the middle row; tapping it chooses it.
+        // Column 2 has nothing chosen and shows "AM" in the middle row; tapping it chooses it (and what the other wheels show).
         var item = Assert.IsAssignableFrom<SkUiView>(content.Wheel(2).GetRealizedView(0));
 
         Assert.NotNull(SkUiDiagnostics.SimulateTap(item));
         _ui.RunPending();
 
         Assert.Equal(0, picker.Columns[2].SelectedIndex);
-        Assert.Equal([-1, -1, 0], request.SelectedIndices);
+        Assert.Equal([0, 0, 0], request.SelectedIndices);
     }
 
     [Fact]
