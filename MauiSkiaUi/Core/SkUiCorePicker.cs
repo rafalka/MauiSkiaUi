@@ -18,6 +18,7 @@ public partial class SkUiCorePicker : SkUiCorePickerBase
     private SkUiWeakListener<SkUiCorePicker>? _itemsSourceListener;
     private IList? _itemsSource;
     private Func<object?, string>? _itemDisplay;
+    private Func<object?, bool>? _itemEnabled;
     private int _selectedIndex = -1;
     private object? _selectedItem;
     private int _pendingSelectedIndex = -1;
@@ -40,6 +41,34 @@ public partial class SkUiCorePicker : SkUiCorePickerBase
 
     /// <summary>The text shown for each item of <see cref="ItemsSource"/>; <c>null</c> (default): <c>ToString()</c>.</summary>
     public Func<object?, string>? ItemDisplay { get => _itemDisplay; set => SetItemDisplay(value); }
+
+    /// <summary>
+    /// Whether an item (of <see cref="ItemsSource"/>, else a text of <see cref="Items"/>) can be chosen; <c>null</c> (default): every
+    /// item. See <c>SkUiPicker.ItemEnabledBinding</c>; read when the items change and on <see cref="RefreshItemStates"/>.
+    /// </summary>
+    public Func<object?, bool>? ItemEnabled { get => _itemEnabled; set => SetItemEnabled(value); }
+
+    /// <summary>Sets <see cref="ItemEnabled"/>.</summary>
+    public SkUiCorePicker SetItemEnabled(Func<object?, bool>? value)
+    {
+        if (SetProperty(ref _itemEnabled, value, nameof(ItemEnabled)))
+            RefreshItemStates();
+        return this;
+    }
+
+    /// <summary>Reads which items can be chosen again (<see cref="ItemEnabled"/>), after the app's data changed; an open list follows.</summary>
+    public void RefreshItemStates()
+    {
+        if (ItemEnabled is not { } enabled)
+        {
+            Model.ItemEnabled = null;
+            return;
+        }
+        var states = new bool[_items.Count];
+        for (var index = 0; index < states.Length; index++)
+            states[index] = enabled(ItemAt(index));
+        Model.ItemEnabled = states;
+    }
 
     /// <summary>The selected item's index; -1 (default): none.</summary>
     public int SelectedIndex { get => _selectedIndex; set => SetSelectedIndex(value); }
@@ -237,6 +266,8 @@ public partial class SkUiCorePicker : SkUiCorePickerBase
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
         Model.Items = _items;
+        if (ItemEnabled is not null)
+            RefreshItemStates();
         if (_syncingItems || _items.IsReadOnly)
             return;
         if (_multiple)

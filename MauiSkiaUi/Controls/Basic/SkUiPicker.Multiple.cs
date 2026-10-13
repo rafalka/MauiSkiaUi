@@ -117,7 +117,8 @@ public partial class SkUiPicker
             return;
         var all = new List<object>(_items.Count);
         for (var index = 0; index < _items.Count; index++)
-            if (ItemAtIndex(index) is { } item)
+            // Disabled items keep their state: chosen ones stay chosen.
+            if ((Model.IsItemEnabled(index) || _selectedIndices.Contains(index)) && ItemAtIndex(index) is { } item)
                 all.Add(item);
         ReplaceSelectedItems(all);
     }
@@ -273,7 +274,7 @@ public partial class SkUiPicker
                 if (weak.TryGetTarget(out var picker))
                     picker.ApplyChosenIndices(indices);
             },
-            () => weak.TryGetTarget(out var picker) ? picker._selectedIndices : [], _selectedIndices, IsPopupClosedOnSelection);
+            () => weak.TryGetTarget(out var picker) ? picker._selectedIndices : [], _selectedIndices, IsPopupClosedOnSelection, Model.ItemEnabled);
     }
 
     /// <summary>Follows an <see cref="INotifyCollectionChanged"/> <see cref="SelectedItems"/> list without the list keeping the picker alive.</summary>

@@ -292,10 +292,12 @@ public sealed class SkUiListPopupRequest : SkUiPopupRequest<int>
 {
     private IReadOnlyList<string> _items;
 
-    internal SkUiListPopupRequest(View anchor, View? platformAnchor, View? content, in SkUiPopupLayout layout, IReadOnlyList<string> items, int selectedIndex)
+    internal SkUiListPopupRequest(View anchor, View? platformAnchor, View? content, in SkUiPopupLayout layout, IReadOnlyList<string> items, int selectedIndex,
+        IReadOnlyList<bool>? itemsEnabled = null)
         : base(anchor, platformAnchor, content, layout)
     {
         _items = items;
+        ItemsEnabled = itemsEnabled;
         SelectedIndex = selectedIndex;
         CurrentIndex = selectedIndex;
     }
@@ -306,10 +308,20 @@ public sealed class SkUiListPopupRequest : SkUiPopupRequest<int>
     /// </summary>
     public int CurrentIndex { get; private set; }
 
-    /// <summary>Highlights the item at <paramref name="index"/> (a presenter's own list, before <see cref="SkUiPopupRequest.Accept"/>); <c>false</c> for an index that is not an item.</summary>
+    /// <summary>
+    /// Which items can be chosen (<c>null</c>: all; else one flag per item): disabled items show (dimmed) but cannot be chosen
+    /// (<see cref="SkUiPopupRequest{TResult}.Complete"/> and <see cref="SetCurrentIndex"/> refuse them). Follows the picker while
+    /// the popup is open.
+    /// </summary>
+    public IReadOnlyList<bool>? ItemsEnabled { get; private set; }
+
+    /// <summary>The picker's item states changed while open.</summary>
+    internal void SetItemStates(IReadOnlyList<bool>? states) => ItemsEnabled = states;
+
+    /// <summary>Highlights the item at <paramref name="index"/> (a presenter's own list, before <see cref="SkUiPopupRequest.Accept"/>); <c>false</c> for an index that is not an item, or a disabled one.</summary>
     public bool SetCurrentIndex(int index)
     {
-        if (index < -1 || index >= _items.Count)
+        if (index < -1 || index >= _items.Count || !SkUiItemStates.IsEnabled(ItemsEnabled, index))
             return false;
         CurrentIndex = index;
         if (index >= 0)
@@ -337,7 +349,7 @@ public sealed class SkUiListPopupRequest : SkUiPopupRequest<int>
     public int SelectedIndex { get; }
 
     /// <inheritdoc />
-    private protected override bool IsValidResult(int result) => result >= -1 && result < _items.Count;
+    private protected override bool IsValidResult(int result) => result >= -1 && result < _items.Count && SkUiItemStates.IsEnabled(ItemsEnabled, result);
 
     /// <inheritdoc />
     private protected override void OnCompleted() => _items = [];
@@ -429,17 +441,28 @@ public sealed class SkUiMultiListPopupRequest : SkUiSelectionPopupRequest
     private IReadOnlyList<string> _items;
 
     internal SkUiMultiListPopupRequest(View anchor, View? platformAnchor, View? content, in SkUiPopupLayout layout, IReadOnlyList<string> items,
-        IReadOnlyList<int> selected, Action<IReadOnlyList<int>> apply)
+        IReadOnlyList<int> selected, Action<IReadOnlyList<int>> apply, IReadOnlyList<bool>? itemsEnabled = null)
         : base(anchor, platformAnchor, content, layout, selected, apply)
     {
         _items = items;
+        ItemsEnabled = itemsEnabled;
     }
+
+    /// <summary>
+    /// Which items can be chosen (<c>null</c>: all; else one flag per item): a selection may not add or remove a disabled item
+    /// (one the app chose stays). Follows the picker while the popup is open.
+    /// </summary>
+    public IReadOnlyList<bool>? ItemsEnabled { get; private set; }
+
+    /// <summary>The picker's item states changed while open.</summary>
+    internal void SetItemStates(IReadOnlyList<bool>? states) => ItemsEnabled = states;
 
     /// <summary>The items' display texts, in order (empty once the request completed).</summary>
     public IReadOnlyList<string> Items => _items;
 
     /// <inheritdoc />
-    private protected override IReadOnlyList<int> EmptySelection => [];
+    /// <remarks>Disabled items the app chose stay chosen.</remarks>
+    private protected override IReadOnlyList<int> EmptySelection => [.. SelectedIndices.Where(index => !SkUiItemStates.IsEnabled(ItemsEnabled, index))];
 
     /// <summary>Chooses or un-chooses the item at <paramref name="index"/> (see <see cref="SkUiSelectionPopupRequest.SetSelection"/>).</summary>
     public bool SetSelected(int index, bool selected)
@@ -472,6 +495,13 @@ public sealed class SkUiMultiListPopupRequest : SkUiSelectionPopupRequest
                 return false;
             previous = index;
         }
+        if (ItemsEnabled is null)
+            return true;
+        // Disabled items keep their state: chosen ones stay chosen, others cannot be chosen.
+        var current = SelectedIndices;
+        for (var index = 0; index < _items.Count; index++)
+            if (!SkUiItemStates.IsEnabled(ItemsEnabled, index) && indices.Contains(index) != current.Contains(index))
+                return false;
         return true;
     }
 
@@ -509,6 +539,23 @@ public sealed class SkUiColumnsPopupRequest : SkUiSelectionPopupRequest
     /// <inheritdoc />
     private protected override IReadOnlyList<int> EmptySelection => Enumerable.Repeat(-1, _columns.Count).ToArray();
 
+    /// <summary>
+    /// Which items of each column can be chosen (<c>null</c> for a column: all): disabled items show (dimmed), but a wheel does not
+    /// stop on them and a selection cannot choose them. Follows the columns while the popup is open.
+    /// </summary>
+    public IReadOnlyList<IReadOnlyList<bool>?> ItemsEnabled => _itemsEnabled;
+
+    private IReadOnlyList<bool>?[] _itemsEnabled = [];
+
+    /// <summary>The states the popup opened with, and their changes while open.</summary>
+    internal void SetItemStates(int column, IReadOnlyList<bool>? states)
+    {
+        if (_itemsEnabled.Length != _columns.Count)
+            _itemsEnabled = new IReadOnlyList<bool>?[_columns.Count];
+        if (column >= 0 && column < _itemsEnabled.Length)
+            _itemsEnabled[column] = states;
+    }
+
     /// <summary>Chooses the item at <paramref name="index"/> in the column <paramref name="column"/> (see <see cref="SkUiSelectionPopupRequest.SetSelection"/>).</summary>
     public bool SetSelectedIndex(int column, int index)
     {
@@ -525,8 +572,14 @@ public sealed class SkUiColumnsPopupRequest : SkUiSelectionPopupRequest
         if (indices.Count != _columns.Count)
             return false;
         for (var column = 0; column < indices.Count; column++)
+        {
             if (indices[column] < -1 || indices[column] >= _columns[column].Count)
                 return false;
+            // A disabled item cannot be chosen (one the app chose may stay).
+            var states = column < _itemsEnabled.Length ? _itemsEnabled[column] : null;
+            if (indices[column] >= 0 && !SkUiItemStates.IsEnabled(states, indices[column]) && indices[column] != SelectedIndices[column])
+                return false;
+        }
         return true;
     }
 

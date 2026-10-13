@@ -56,6 +56,7 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
     private readonly SkUiView? _footer;
     private readonly SkUiPickerPopupChrome _chrome;
     private readonly SkUiCarouselView[] _wheels;
+    private readonly IReadOnlyList<bool>?[] _states;
     private readonly double _rowHeight;
     private SkUiTypeAhead _typeAhead;
     private int _active;
@@ -63,11 +64,13 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
     private bool _focusedOnce;
 
     public SkUiColumnsPopup(string[][] texts, bool[] loops, double[] widths, IReadOnlyList<int> selected, int rows, SkUiPickerRowStyle style, string? title,
-        bool rightToLeft, SkUiPickerPopupChrome chrome, Action<IReadOnlyList<int>> apply, Func<IReadOnlyList<int>> current)
+        bool rightToLeft, SkUiPickerPopupChrome chrome, Action<IReadOnlyList<int>> apply, Func<IReadOnlyList<int>> current,
+        IReadOnlyList<bool>?[]? states = null)
     {
         _chrome = chrome;
         _texts = texts;
-        _entries = [.. texts.Select(column => column.Select((text, index) => new Entry(index, text)).ToArray())];
+        _states = states ?? new IReadOnlyList<bool>?[texts.Length];
+        _entries = [.. texts.Select((column, c) => column.Select((text, index) => new Entry(index, text) { IsEnabled = SkUiItemStates.IsEnabled(_states[c], index) }).ToArray())];
         _loops = loops;
         _widths = widths;
         _initial = [.. selected];
@@ -109,7 +112,10 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
         Content = SkUiPopupParts.Compose(_title, wheels, _footer);
         // Handlers last: setting the starting positions is not a choice.
         foreach (var wheel in _wheels)
+        {
             wheel.PositionChanged += OnWheelPositionChanged;
+            wheel.PropertyChanged += OnWheelPropertyChanged;
+        }
     }
 
     private SkUiCarouselView CreateWheel(int column)
@@ -190,6 +196,8 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
             AcceptText = chrome.AcceptText,
             CancelText = chrome.CancelText
         };
+        for (var column = 0; column < _states.Length; column++)
+            request.SetItemStates(column, _states[column]);
         Request = request;
         return request;
     }
@@ -214,9 +222,32 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
             Choose(column, args.CurrentPosition);
     }
 
+    /// <summary>A wheel stopped: on a disabled item it rolls on to the nearest one that can be chosen, and chooses it.</summary>
+    private void OnWheelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName != nameof(SkUiCarouselView.IsScrolling) || sender is not SkUiCarouselView { IsScrolling: false } wheel)
+            return;
+        var column = Array.IndexOf(_wheels, wheel);
+        if (column >= 0)
+            MoveOffDisabled(column, wheel.Position, step: -1);
+    }
+
+    /// <summary>When the wheel of <paramref name="column"/> shows a disabled item at <paramref name="position"/>: to the nearest enabled one.</summary>
+    private void MoveOffDisabled(int column, int position, int step)
+    {
+        if (SkUiItemStates.IsEnabled(_states[column], position))
+            return;
+        var target = SkUiItemStates.Nearest(_states[column], _texts[column].Length, position, step, _loops[column]);
+        if (target < 0)
+            return;
+        _ = _wheels[column].ScrollToIndex(target);
+        Choose(column, target);
+    }
+
     private void Choose(int column, int index)
     {
-        if (Request is not SkUiSelectionPopupRequest request || index < 0 || index >= _texts[column].Length || request.SelectedIndices[column] == index)
+        if (Request is not SkUiSelectionPopupRequest request || index < 0 || index >= _texts[column].Length || request.SelectedIndices[column] == index
+            || !SkUiItemStates.IsEnabled(_states[column], index))
             return;
         var next = request.SelectedIndices.ToArray();
         next[column] = index;
@@ -227,10 +258,27 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
     private void OnItemTapped(int column, int index)
     {
         _active = column;
-        if (index < 0 || index >= _texts[column].Length)
+        if (index < 0 || index >= _texts[column].Length || !SkUiItemStates.IsEnabled(_states[column], index))
             return;
         _ = _wheels[column].ScrollToIndex(index);
         Choose(column, index);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>A wheel whose item became disabled moves to the nearest earlier one that can be chosen (as a date's day in a shorter month).</remarks>
+    public void ItemStatesChanged(int column, IReadOnlyList<bool>? states)
+    {
+        if (column < 0 || column >= _states.Length)
+            return;
+        _states[column] = states;
+        foreach (var entry in _entries[column])
+            entry.IsEnabled = SkUiItemStates.IsEnabled(states, entry.Index);
+        (Request as SkUiColumnsPopupRequest)?.SetItemStates(column, states);
+        if (Request is SkUiSelectionPopupRequest request)
+        {
+            var chosen = request.SelectedIndices[column];
+            MoveOffDisabled(column, chosen >= 0 ? chosen : _wheels[column].Position, step: -1);
+        }
     }
 
     /// <summary>The picker's selection changed while the popup is open (the app set it): the wheels follow.</summary>
@@ -285,7 +333,7 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
             SkUiKey.PageUp => from - page,
             SkUiKey.Home => 0,
             SkUiKey.End => count - 1,
-            SkUiKey.Character => SkUiTypeAhead.Next(_texts[column], from, key.Character, ref _typeAhead),
+            SkUiKey.Character => SkUiTypeAhead.Next(_texts[column], from, key.Character, ref _typeAhead, _states[column]),
             _ => int.MinValue
         };
         if (key.Key is SkUiKey.Left or SkUiKey.Right)
@@ -298,7 +346,11 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
         }
         if (target == int.MinValue || count == 0)
             return false;
-        target = _loops[column] && count > 1 ? (int)(((long)target % count + count) % count) : Math.Clamp(target, 0, count - 1);
+        // Disabled items are passed by in the key's direction.
+        var direction = key.Key is SkUiKey.Up or SkUiKey.PageUp or SkUiKey.End ? -1 : 1;
+        target = SkUiItemStates.Nearest(_states[column], count, target, direction, _loops[column] && count > 1);
+        if (target < 0)
+            return true;
         _ = _wheels[column].ScrollToIndex(target, animated: false);
         Choose(column, target);
         return true;
@@ -332,12 +384,35 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
         foreach (var wheel in _wheels)
         {
             wheel.PositionChanged -= OnWheelPositionChanged;
+            wheel.PropertyChanged -= OnWheelPropertyChanged;
             wheel.ItemsSource = null;
         }
     }
 
-    /// <summary>What a wheel shows for an item: its index (equal texts stay apart) and text.</summary>
-    private sealed record Entry(int Index, string Text);
+    /// <summary>What a wheel shows for an item: its index (equal texts stay apart), text and whether it can be chosen.</summary>
+    private sealed class Entry(int index, string text)
+    {
+        private bool _isEnabled = true;
+
+        public int Index { get; } = index;
+
+        public string Text { get; } = text;
+
+        public bool IsEnabled
+        {
+            get => _isEnabled;
+            set
+            {
+                if (_isEnabled == value)
+                    return;
+                _isEnabled = value;
+                Changed?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>Raised when <see cref="IsEnabled"/> changed (the item's view dims).</summary>
+        public event EventHandler? Changed;
+    }
 
     /// <summary>One item of a wheel: its text in the picker's font, centered; a tap chooses it.</summary>
     private sealed class WheelItem : SkUiContentView
@@ -369,11 +444,26 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
 
         protected override bool HandlesTap => true;
 
+        private Entry? _entry;
+
+        /// <summary>How much a disabled item shows (Material's disabled text; the wheel's fade multiplies it).</summary>
+        private const double DisabledOpacity = 0.38;
+
         protected override void OnBindingContextChanged()
         {
             base.OnBindingContextChanged();
-            _label.Text = (BindingContext as Entry)?.Text ?? string.Empty;
+            if (_entry is not null)
+                _entry.Changed -= OnEntryChanged;
+            _entry = BindingContext as Entry;
+            if (_entry is not null)
+                _entry.Changed += OnEntryChanged;
+            _label.Text = _entry?.Text ?? string.Empty;
+            ShowState();
         }
+
+        private void OnEntryChanged(object? sender, EventArgs args) => ShowState();
+
+        private void ShowState() => _label.Opacity = _entry?.IsEnabled == false ? DisabledOpacity : 1;
 
         protected override void OnTapped(SkUiTappedEventArgs args)
         {

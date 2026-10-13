@@ -44,6 +44,9 @@ internal interface ISkUiPickerPopupContent
     /// <summary>The picker's selection changed while the popup is open (<paramref name="index"/>: its selected index, for single lists).</summary>
     void SelectionChanged(int index);
 
+    /// <summary>Which items of <paramref name="column"/> (0 for a list) can be chosen changed while the popup is open.</summary>
+    void ItemStatesChanged(int column, IReadOnlyList<bool>? states);
+
     /// <summary>The popup has gone: lets go of the request and the items.</summary>
     void Release();
 }
@@ -139,6 +142,28 @@ internal sealed class SkUiPickerModel
 
     /// <summary>The selected index (-1: none).</summary>
     public int SelectedIndex = -1;
+
+    private IReadOnlyList<bool>? _itemEnabled;
+
+    /// <summary>
+    /// Which items can be chosen (<c>null</c>: all; the control's <c>ItemEnabledBinding</c>), set by the control after the
+    /// items; an open list follows.
+    /// </summary>
+    public IReadOnlyList<bool>? ItemEnabled
+    {
+        get => _itemEnabled;
+        set
+        {
+            _itemEnabled = value;
+            _session?.ItemStatesChanged(0, value);
+        }
+    }
+
+    /// <summary>Whether the item at <paramref name="index"/> can be chosen.</summary>
+    public bool IsItemEnabled(int index) => SkUiItemStates.IsEnabled(_itemEnabled, index);
+
+    /// <summary>Which items of a column changed while a popup may be open (wheels).</summary>
+    public void ColumnItemStatesChanged(int column, IReadOnlyList<bool>? states) => _session?.ItemStatesChanged(column, states);
 
     public string? Title;
     public Color? TitleColor;
@@ -378,6 +403,7 @@ internal sealed class SkUiPickerModel
             return false;
         var current = SelectedIndex;
         var rightToLeft = _owner.IsRightToLeft;
+        var forward = key.Key is SkUiKey.Down or SkUiKey.End || key.Key == (rightToLeft ? SkUiKey.Left : SkUiKey.Right);
         var target = key.Key switch
         {
             SkUiKey.Down => current + 1,
@@ -386,13 +412,14 @@ internal sealed class SkUiPickerModel
             SkUiKey.Left => rightToLeft ? current + 1 : Math.Max(0, current - 1),
             SkUiKey.Home => 0,
             SkUiKey.End => _items.Count - 1,
-            SkUiKey.Character => SkUiTypeAhead.Next(_items, current, key.Character, ref _typeAhead),
+            SkUiKey.Character => SkUiTypeAhead.Next(_items, current, key.Character, ref _typeAhead, _itemEnabled),
             _ => int.MinValue
         };
         if (target == int.MinValue)
             return false;
-        target = Math.Clamp(target, 0, _items.Count - 1);
-        if (target != current)
+        // Disabled items are passed by, in the key's direction (Home: the first enabled one; End: the last).
+        target = SkUiItemStates.Nearest(_itemEnabled, _items.Count, target, key.Key == SkUiKey.Home ? 1 : key.Key == SkUiKey.End ? -1 : forward ? 1 : -1);
+        if (target >= 0 && target != current)
             _owner.Choose(target);
         return true;
     }
@@ -541,6 +568,9 @@ internal sealed class SkUiPickerModel
         /// <summary>The picker's selection changed while open: the list's highlight follows.</summary>
         public void SelectionChanged(int index) => _content?.SelectionChanged(index);
 
+        /// <summary>Which items can be chosen changed while open: the content follows.</summary>
+        public void ItemStatesChanged(int column, IReadOnlyList<bool>? states) => _content?.ItemStatesChanged(column, states);
+
         public bool IsClosing => Request?.CloseRequested.IsCancellationRequested ?? false;
 
         public void Start()
@@ -595,7 +625,7 @@ internal sealed class SkUiPickerModel
                 source.CopyTo(_sourceItems, 0);
             }
             return new SkUiPickerPopup(items, model.SelectedIndex, model.ItemTemplate, model._owner.ItemsSource, context.RowStyle, context.Title, context.RightToLeft,
-                context.Chrome);
+                context.Chrome, itemEnabled: model._itemEnabled);
         }
 
         private async Task RunAsync(SkUiPopupRequest request, ISkUiPopupPresenter presenter)
@@ -693,7 +723,7 @@ internal struct SkUiTypeAhead
     private long _last;
 
     /// <summary>The item to go to after typing <paramref name="character"/> at <paramref name="current"/>, or <paramref name="current"/> when none matches.</summary>
-    public static int Next(IReadOnlyList<string> items, int current, char character, ref SkUiTypeAhead state)
+    public static int Next(IReadOnlyList<string> items, int current, char character, ref SkUiTypeAhead state, IReadOnlyList<bool>? enabled = null)
     {
         var now = Environment.TickCount64;
         var typed = now - state._last > ResetMilliseconds || state._typed is null ? string.Empty : state._typed;
@@ -707,7 +737,7 @@ internal struct SkUiTypeAhead
         for (var offset = 0; offset < items.Count; offset++)
         {
             var index = (start + offset) % items.Count;
-            if (index >= 0 && (items[index] ?? string.Empty).StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase))
+            if (index >= 0 && SkUiItemStates.IsEnabled(enabled, index) && (items[index] ?? string.Empty).StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase))
                 return index;
         }
         return current;

@@ -37,12 +37,15 @@ namespace MauiSkiaUi;
 public partial class SkUiPicker : SkUiPickerBase
 {
     private static readonly BindableProperty DisplayProperty = BindableProperty.Create("Display", typeof(string), typeof(SkUiPicker), null);
+    private static readonly BindableProperty EnabledProperty = BindableProperty.Create("Enabled", typeof(bool), typeof(SkUiPicker), true);
 
     private readonly SkUiPickerItems _items = new();
     private SkUiWeakListener<SkUiPicker>? _itemsSourceListener;
     private IList? _itemsSource;
     private BindingBase? _itemDisplayBinding;
     private BindableObject? _displayProbe;
+    private BindingBase? _itemEnabledBinding;
+    private BindableObject? _enabledProbe;
     private bool _hasPendingSelectedIndex;
     private int _pendingSelectedIndex = -1;
     private bool _settingSelectedIndexInternally;
@@ -109,6 +112,59 @@ public partial class SkUiPicker : SkUiPickerBase
             OnPropertyChanged();
         }
     }
+
+    /// <summary>
+    /// The binding that says whether an item can be chosen (a <c>bool</c> of the item of <see cref="ItemsSource"/>, or of the text of
+    /// <see cref="Items"/>: <c>{Binding IsAvailable}</c>); <c>null</c> (default): every item. Disabled items show (dimmed; a template's
+    /// root in the <c>Disabled</c> visual state) but taps, the keyboard and type-ahead pass them by, and <c>SelectAll</c> skips them.
+    /// The app may still select one from code. Read when the items change and on <see cref="RefreshItemStates"/> (an open list
+    /// follows). SkiaUi extension.
+    /// </summary>
+    public BindingBase? ItemEnabledBinding
+    {
+        get => _itemEnabledBinding;
+        set
+        {
+            if (ReferenceEquals(_itemEnabledBinding, value))
+                return;
+            OnPropertyChanging();
+            _itemEnabledBinding = value;
+            if (_enabledProbe is not null)
+            {
+                _enabledProbe.RemoveBinding(EnabledProperty);
+                _enabledProbe = null;
+            }
+            RefreshItemStates();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Reads which items can be chosen again (<see cref="ItemEnabledBinding"/>), after the app's data changed; an open list follows.</summary>
+    public void RefreshItemStates()
+    {
+        if (_itemEnabledBinding is null)
+        {
+            Model.ItemEnabled = null;
+            return;
+        }
+        var states = new bool[_items.Count];
+        if (_enabledProbe is null)
+        {
+            _enabledProbe = new DisplayProbe();
+            _enabledProbe.SetBinding(EnabledProperty, _itemEnabledBinding);
+        }
+        for (var index = 0; index < states.Length; index++)
+        {
+            _enabledProbe.BindingContext = _itemsSource is { } source ? (index < source.Count ? source[index] : null) : _items[index];
+            states[index] = _enabledProbe.GetValue(EnabledProperty) is not false;
+        }
+        // The probe must not keep the last item alive.
+        _enabledProbe.BindingContext = null;
+        Model.ItemEnabled = states;
+    }
+
+    /// <summary>Sets <see cref="ItemEnabledBinding"/> (same as the property setter).</summary>
+    public SkUiPicker SetItemEnabledBinding(BindingBase? value) { ItemEnabledBinding = value; return this; }
 
     /// <summary>The index of the selected item; -1 (default): none. Two-way by default.</summary>
     public int SelectedIndex { get => (int)GetValue(SelectedIndexProperty); set => SetValue(SelectedIndexProperty, value); }
@@ -258,6 +314,8 @@ public partial class SkUiPicker : SkUiPickerBase
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
         Model.Items = _items;
+        if (_itemEnabledBinding is not null)
+            RefreshItemStates();
         // Changes made by the picker from its source reconcile the selection themselves.
         if (_items.IsReadOnly)
             return;

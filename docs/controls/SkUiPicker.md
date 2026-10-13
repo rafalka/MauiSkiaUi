@@ -52,6 +52,19 @@ Several columns of wheels (hours and minutes, an amount and a unit) are a contro
                AcceptText="{Binding Strings[Apply]}" />
 ```
 
+## Items that cannot be chosen
+
+`ItemEnabledBinding` (SkiaUi; Core: `ItemEnabled`, a function of the item) says per item whether it can be chosen: a `bool` of the item of `ItemsSource` (or of the text of `Items`), e.g. `ItemEnabledBinding="{Binding InStock}"`; `null` (default): every item.
+
+- Disabled items show: plain rows dimmed, templated rows with their root in the `Disabled` visual state (style them there).
+- Taps on them do nothing; the keyboard (in the list and on the closed field) and type-ahead pass them by, in the key's direction.
+- With several choices they keep their state: a disabled item the app chose stays chosen through toggles, `SelectAll()` and Clear; others cannot be chosen.
+- The app may still select a disabled item from code.
+- The states are read when the items change; after the app's data changed, `RefreshItemStates()` reads them again and an open list follows.
+- Presenters with their own UI read `request.ItemsEnabled` (`null`: all); `Complete` and `SetCurrentIndex` refuse disabled items.
+
+[Wheels](SkUiMultiColumnPicker.md) have the same per column.
+
 ## Clearing the choice
 
 Every picker (lists, several choices, [wheels](SkUiMultiColumnPicker.md)) can be cleared: no selected item, no chosen items, no item in any column; the field shows its placeholder.
@@ -240,6 +253,7 @@ host.SetContent(picker);
 | `PopupPlacement` | `Default` | `Anchored`, `Window`, `Absolute` (SkiaUi) |
 | `PopupBounds` | empty | The window rectangle of `Absolute` popups (SkiaUi) |
 | `ItemTemplate` | `null` | Drawn rows (`SkUi*` views) bound to the items; a selector picks per item; the selected row's root is in the `Selected` visual state (SkiaUi) |
+| `ItemEnabledBinding` | `null` | Whether each item can be chosen ([Items that cannot be chosen](#items-that-cannot-be-chosen)); `RefreshItemStates()` (SkiaUi; Core `ItemEnabled`) |
 | `SelectionBackground` | `null` | Behind the selected rows; `null`: the look's `PopupHighlightColor`; `Transparent`: none (SkiaUi) |
 | `MaxPopupHeight` | `-1` | No limit beyond the window (SkiaUi) |
 | `PopupWidth` | `-1` | The popup's width (within the window; an anchored popup is then not widened to the field); -1: the content's (SkiaUi) |

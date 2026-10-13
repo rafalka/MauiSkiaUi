@@ -127,6 +127,10 @@ internal sealed class SkUiColumnsModel
             case nameof(SkUiPickerColumn.SelectedIndex):
                 Refresh(raise: true);
                 break;
+            case SkUiPickerColumn.ItemStatesChanged when change.Sender is SkUiPickerColumn column && Columns.IndexOf(column) is var index and >= 0:
+                // An open popup follows (its wheels move off items now disabled).
+                _model.ColumnItemStatesChanged(index, column.ItemStates);
+                break;
             case SkUiPickerColumn.TextsChanged or nameof(SkUiPickerColumn.Loop) or nameof(SkUiPickerColumn.Width):
                 _model.Close();
                 Refresh(raise: true);
@@ -143,9 +147,11 @@ internal sealed class SkUiColumnsModel
         var texts = new string[Columns.Count][];
         var loops = new bool[texts.Length];
         var widths = new double[texts.Length];
+        var states = new IReadOnlyList<bool>?[texts.Length];
         for (var column = 0; column < texts.Length; column++)
         {
             texts[column] = Columns[column].Texts;
+            states[column] = Columns[column].ItemStates;
             loops[column] = Columns[column].Loop;
             widths[column] = Columns[column].Width;
         }
@@ -157,7 +163,7 @@ internal sealed class SkUiColumnsModel
                 if (weak.TryGetTarget(out var model))
                     model.Apply(indices);
             },
-            () => weak.TryGetTarget(out var model) ? model._indices : []);
+            () => weak.TryGetTarget(out var model) ? model._indices : [], states);
     }
 
     /// <summary>The popup chose these indices (one per column): they become the columns' selection.</summary>

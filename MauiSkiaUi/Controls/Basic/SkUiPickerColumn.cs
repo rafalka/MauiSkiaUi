@@ -17,6 +17,10 @@ namespace MauiSkiaUi;
 public class SkUiPickerColumn : BindableObject
 {
     private static readonly BindableProperty DisplayProperty = BindableProperty.Create("Display", typeof(string), typeof(SkUiPickerColumn), null);
+    private static readonly BindableProperty EnabledProperty = BindableProperty.Create("Enabled", typeof(bool), typeof(SkUiPickerColumn), true);
+
+    /// <summary>The name this column raises <see cref="BindableObject.PropertyChanged"/> with when which of its items can be chosen changed.</summary>
+    internal const string ItemStatesChanged = "ItemStates";
 
     /// <summary>The name this column raises <see cref="BindableObject.PropertyChanged"/> with when its items (their texts) changed.</summary>
     internal const string TextsChanged = "Texts";
@@ -25,6 +29,10 @@ public class SkUiPickerColumn : BindableObject
     private string[]? _texts;
     private BindingBase? _itemDisplayBinding;
     private BindableObject? _displayProbe;
+    private BindingBase? _itemEnabledBinding;
+    private BindableObject? _enabledProbe;
+    private bool[]? _itemStates;
+    private bool _itemStatesValid;
     private object? _pendingItem;
     private bool _syncing;
 
@@ -83,6 +91,42 @@ public class SkUiPickerColumn : BindableObject
         }
     }
 
+    /// <summary>
+    /// The binding that says whether an item can be chosen (a <c>bool</c> of the item, e.g. <c>{Binding IsAvailable}</c>);
+    /// <c>null</c> (default): every item. Disabled items show dimmed, a wheel does not stop on them (it rolls on to the nearest one
+    /// that can be chosen) and the keyboard passes them by. Read when the items change and on <see cref="RefreshItemStates"/>
+    /// (an open popup follows). SkiaUi extension.
+    /// </summary>
+    public BindingBase? ItemEnabledBinding
+    {
+        get => _itemEnabledBinding;
+        set
+        {
+            if (ReferenceEquals(_itemEnabledBinding, value))
+                return;
+            OnPropertyChanging();
+            _itemEnabledBinding = value;
+            if (_enabledProbe is not null)
+            {
+                _enabledProbe.RemoveBinding(EnabledProperty);
+                _enabledProbe = null;
+            }
+            RefreshItemStates();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Reads which items can be chosen again (<see cref="ItemEnabledBinding"/>), after the app's data changed: an open popup's
+    /// wheel dims and passes by the items now disabled (moving off its item when that one is), as a date picker's days of a
+    /// shorter month.
+    /// </summary>
+    public void RefreshItemStates()
+    {
+        _itemStatesValid = false;
+        OnPropertyChanged(ItemStatesChanged);
+    }
+
     /// <summary>The index of the chosen item; -1 (default): none. Clamped to the items. Two-way by default.</summary>
     public int SelectedIndex { get => (int)GetValue(SelectedIndexProperty); set => SetValue(SelectedIndexProperty, value); }
 
@@ -103,6 +147,9 @@ public class SkUiPickerColumn : BindableObject
 
     /// <summary>Sets <see cref="ItemDisplayBinding"/> (same as the property setter).</summary>
     public SkUiPickerColumn SetItemDisplayBinding(BindingBase? value) { ItemDisplayBinding = value; return this; }
+
+    /// <summary>Sets <see cref="ItemEnabledBinding"/> (same as the property setter).</summary>
+    public SkUiPickerColumn SetItemEnabledBinding(BindingBase? value) { ItemEnabledBinding = value; return this; }
 
     /// <summary>Sets <see cref="SelectedIndex"/> (same as the property setter).</summary>
     public SkUiPickerColumn SetSelectedIndex(int value) { ArgumentOutOfRangeException.ThrowIfLessThan(value, -1); SelectedIndex = value; return this; }
@@ -130,6 +177,43 @@ public class SkUiPickerColumn : BindableObject
     /// <summary>The display texts of the items (computed once, until the items change).</summary>
     internal string[] Texts => _texts ??= ComputeTexts();
 
+    /// <summary>Which items can be chosen (<c>null</c>: all), computed once until the items or the states change.</summary>
+    internal bool[]? ItemStates
+    {
+        get
+        {
+            if (!_itemStatesValid)
+            {
+                _itemStates = ComputeItemStates();
+                _itemStatesValid = true;
+            }
+            return _itemStates;
+        }
+    }
+
+    private bool[]? ComputeItemStates()
+    {
+        if (_itemEnabledBinding is null || ItemsSource is not { } source)
+            return null;
+        var states = new bool[source.Count];
+        _enabledProbe ??= CreateEnabledProbe(_itemEnabledBinding);
+        for (var index = 0; index < states.Length; index++)
+        {
+            _enabledProbe.BindingContext = source[index];
+            states[index] = _enabledProbe.GetValue(EnabledProperty) is not false;
+        }
+        // The probe must not keep the last item alive.
+        _enabledProbe.BindingContext = null;
+        return states;
+    }
+
+    private static BindableObject CreateEnabledProbe(BindingBase binding)
+    {
+        var probe = new DisplayProbe();
+        probe.SetBinding(EnabledProperty, binding);
+        return probe;
+    }
+
     /// <summary>The item at <paramref name="index"/>, or <c>null</c> outside the items.</summary>
     internal object? ItemAt(int index) => ItemsSource is { } source && index >= 0 && index < source.Count ? source[index] : null;
 
@@ -149,6 +233,7 @@ public class SkUiPickerColumn : BindableObject
     private void OnItemsChanged(bool keepSelectedItem)
     {
         _texts = null;
+        _itemStatesValid = false;
         var item = keepSelectedItem ? SelectedItem : _pendingItem;
         if (item is not null && ItemsSource is { Count: > 0 } source && source.IndexOf(item) is var moved and >= 0)
         {

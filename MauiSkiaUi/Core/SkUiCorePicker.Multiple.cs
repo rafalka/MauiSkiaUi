@@ -115,7 +115,8 @@ public partial class SkUiCorePicker
             return;
         var all = new List<object>(_items.Count);
         for (var index = 0; index < _items.Count; index++)
-            if (ItemAt(index) is { } item)
+            // Disabled items keep their state: chosen ones stay chosen.
+            if ((Model.IsItemEnabled(index) || _selectedIndices.Contains(index)) && ItemAt(index) is { } item)
                 all.Add(item);
         ApplyChoice(all.ToArray());
     }
@@ -199,6 +200,6 @@ public partial class SkUiCorePicker
                 if (weak.TryGetTarget(out var picker))
                     picker.ApplyChosenIndices(indices);
             },
-            () => weak.TryGetTarget(out var picker) ? picker._selectedIndices : [], _selectedIndices, IsPopupClosedOnSelection);
+            () => weak.TryGetTarget(out var picker) ? picker._selectedIndices : [], _selectedIndices, IsPopupClosedOnSelection, Model.ItemEnabled);
     }
 }

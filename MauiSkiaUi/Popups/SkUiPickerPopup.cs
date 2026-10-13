@@ -47,6 +47,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     private readonly Func<IReadOnlyList<int>>? _currentSelection;
     private readonly int _initialSelected;
     private readonly int[] _initialChecked = [];
+    private IReadOnlyList<bool>? _itemEnabled;
     private int _highlighted;
     private SkUiTypeAhead _typeAhead;
     private bool _focusedOnce;
@@ -62,9 +63,10 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     /// </summary>
     public SkUiPickerPopup(IReadOnlyList<string> texts, int selected, DataTemplate? template, IList? itemsSource, SkUiPickerRowStyle style, string? title,
         bool rightToLeft, SkUiPickerPopupChrome chrome, Action<IReadOnlyList<int>>? apply = null, Func<IReadOnlyList<int>>? currentSelection = null,
-        IReadOnlyList<int>? checkedIndices = null, bool closesOnToggle = false)
+        IReadOnlyList<int>? checkedIndices = null, bool closesOnToggle = false, IReadOnlyList<bool>? itemEnabled = null)
     {
         _closesOnToggle = closesOnToggle;
+        _itemEnabled = itemEnabled;
         _texts = texts;
         _chrome = chrome;
         _style = style;
@@ -82,7 +84,10 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         AutomationProperties.SetIsInAccessibleTree(this, false);
         _rows = new Row[texts.Count];
         for (var index = 0; index < _rows.Length; index++)
-            _rows[index] = new Row(index, texts[index], itemsSource is not null && index < itemsSource.Count ? itemsSource[index] : texts[index]);
+            _rows[index] = new Row(index, texts[index], itemsSource is not null && index < itemsSource.Count ? itemsSource[index] : texts[index])
+            {
+                IsEnabled = SkUiItemStates.IsEnabled(itemEnabled, index)
+            };
         _list = new SkUiCollectionView
         {
             SelectionBackground = style.SelectionBackground ?? new SolidColorBrush(look.PopupHighlightColor),
@@ -109,6 +114,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         if (_highlighted >= 0)
             _list.SelectedItem = _rows[_highlighted];
         _list.ItemTapped += OnItemTapped;
+        _list.SelectionChanging += OnListSelectionChanging;
         _title = title is null ? null : SkUiPopupParts.Title(title, style);
         _footer = chrome.HasButtons ? SkUiPopupParts.Buttons(chrome, style, () => Request, ClearChoice) : null;
         Content = SkUiPopupParts.Compose(_title, _list, _footer);
@@ -128,12 +134,12 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     {
         var chrome = options.Chrome;
         SkUiPopupRequest request = _multiple
-            ? new SkUiMultiListPopupRequest(anchor, platformAnchor, this, layout, _texts, _initialChecked, indices => _apply!(indices))
+            ? new SkUiMultiListPopupRequest(anchor, platformAnchor, this, layout, _texts, _initialChecked, indices => _apply!(indices), _itemEnabled)
             {
                 Title = options.Title, OverlayColor = options.OverlayColor, IsAnimated = options.IsAnimated,
                 RequiresAccept = chrome.RequiresAccept, AcceptText = chrome.AcceptText, CancelText = chrome.CancelText
             }
-            : new SkUiListPopupRequest(anchor, platformAnchor, this, layout, _texts, _initialSelected)
+            : new SkUiListPopupRequest(anchor, platformAnchor, this, layout, _texts, _initialSelected, _itemEnabled)
             {
                 Title = options.Title, OverlayColor = options.OverlayColor, IsAnimated = options.IsAnimated,
                 RequiresAccept = chrome.RequiresAccept, AcceptText = chrome.AcceptText, CancelText = chrome.CancelText
@@ -191,8 +197,27 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         return new Size(width, height);
     }
 
+    /// <summary>A tap would select or toggle a disabled row: the list keeps its selection.</summary>
+    private void OnListSelectionChanging(object? sender, SkUiSelectionChangingEventArgs args)
+    {
+        if (_applying)
+            return;
+        if (!_multiple)
+        {
+            if (args.CurrentItem is Row { IsEnabled: false })
+                args.Cancel = true;
+            return;
+        }
+        // The toggled row: in one selection and not in the other.
+        foreach (var item in args.CurrentSelection.Except(args.PreviousSelection).Concat(args.PreviousSelection.Except(args.CurrentSelection)))
+            if (item is Row { IsEnabled: false })
+                args.Cancel = true;
+    }
+
     private void OnItemTapped(object? sender, SkUiItemTappedEventArgs args)
     {
+        if (args.Index < 0 || args.Index >= _rows.Length || !_rows[args.Index].IsEnabled)
+            return;
         if (_multiple)
             _highlighted = args.Index; // the list toggled the row; the keyboard goes on from it
         else if (_chrome.RequiresAccept)
@@ -240,7 +265,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
 
     private void ToggleRow(int index)
     {
-        if (index < 0 || index >= _rows.Length)
+        if (index < 0 || index >= _rows.Length || !_rows[index].IsEnabled)
             return;
         var row = _rows[index];
         if (!_list.SelectedItems.Remove(row))
@@ -291,12 +316,15 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             SkUiKey.PageUp => _highlighted - page,
             SkUiKey.Home => 0,
             SkUiKey.End => count - 1,
-            SkUiKey.Character => SkUiTypeAhead.Next(_texts, _highlighted, key.Character, ref _typeAhead),
+            SkUiKey.Character => SkUiTypeAhead.Next(_texts, _highlighted, key.Character, ref _typeAhead, _itemEnabled),
             _ => int.MinValue
         };
         if (target == int.MinValue)
             return false;
-        Highlight(Math.Clamp(target, 0, count - 1));
+        // Disabled rows are passed by in the key's direction.
+        var step = key.Key is SkUiKey.Up or SkUiKey.PageUp or SkUiKey.End ? -1 : 1;
+        if (SkUiItemStates.Nearest(_itemEnabled, count, target, step) is var enabled and >= 0)
+            Highlight(enabled);
         return true;
     }
 
@@ -307,7 +335,9 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             return;
         if (_multiple)
         {
-            _list.SelectedItems.Clear();
+            // Disabled rows the app chose stay chosen.
+            foreach (var row in _list.SelectedItems.OfType<Row>().Where(row => row.IsEnabled).ToList())
+                _list.SelectedItems.Remove(row);
             return;
         }
         _highlighted = -1;
@@ -325,7 +355,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     /// <summary>Moves the highlight to <paramref name="index"/> and scrolls it into view (no choice yet).</summary>
     internal void Highlight(int index)
     {
-        if (index < 0 || index >= _rows.Length)
+        if (index < 0 || index >= _rows.Length || !_rows[index].IsEnabled)
             return;
         (Request as SkUiListPopupRequest)?.SetCurrentIndex(index);
         if (index == _highlighted)
@@ -357,6 +387,23 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         _highlighted = -1;
         _list.SelectedItem = null;
         (Request as SkUiListPopupRequest)?.SetCurrentIndex(-1);
+    }
+
+    /// <inheritdoc />
+    public void ItemStatesChanged(int column, IReadOnlyList<bool>? states)
+    {
+        _itemEnabled = states;
+        for (var index = 0; index < _rows.Length; index++)
+            _rows[index].IsEnabled = SkUiItemStates.IsEnabled(states, index);
+        switch (Request)
+        {
+            case SkUiListPopupRequest list:
+                list.SetItemStates(states);
+                break;
+            case SkUiMultiListPopupRequest several:
+                several.SetItemStates(states);
+                break;
+        }
     }
 
     /// <summary>The picker's chosen rows changed while open (the app set them): the checks follow.</summary>
@@ -412,6 +459,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         Request = null;
         _list.ItemTapped -= OnItemTapped;
         _list.SelectionChanged -= OnListSelectionChanged;
+        _list.SelectionChanging -= OnListSelectionChanging;
         _list.ItemsSource = null;
         _rows = [];
     }
@@ -421,6 +469,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     {
         private bool _isChecked;
         private bool _isCursor;
+        private bool _isEnabled = true;
 
         public int Index { get; } = index;
         public string Text { get; } = text ?? string.Empty;
@@ -437,6 +486,19 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
                 if (_isChecked == value)
                     return;
                 _isChecked = value;
+                StateChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>Whether the row can be chosen (the picker's item states); disabled rows show dimmed.</summary>
+        public bool IsEnabled
+        {
+            get => _isEnabled;
+            set
+            {
+                if (_isEnabled == value)
+                    return;
+                _isEnabled = value;
                 StateChanged?.Invoke(this, EventArgs.Empty);
             }
         }
@@ -514,7 +576,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             if (_row is not null)
                 _row.StateChanged -= OnRowStateChanged;
             _row = BindingContext as Row;
-            if (_row is not null && _check is not null)
+            if (_row is not null)
                 _row.StateChanged += OnRowStateChanged;
             ShowState();
             var row = _row;
@@ -552,8 +614,16 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
 
         private void OnRowStateChanged(object? sender, EventArgs args) => ShowState();
 
+        /// <summary>How much a disabled row without a template shows (Material's disabled text).</summary>
+        private const double DisabledOpacity = 0.38;
+
         private void ShowState()
         {
+            // A disabled row: its template's root goes to the Disabled state; plain text is dimmed.
+            var enabled = _row?.IsEnabled != false;
+            IsEnabled = enabled;
+            if (_label is not null)
+                _label.Opacity = enabled ? 1 : DisabledOpacity;
             if (_check is null)
                 return;
             _check.IsChecked = _row?.IsChecked == true;
