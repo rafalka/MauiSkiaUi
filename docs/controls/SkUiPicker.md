@@ -205,6 +205,23 @@ Anchored as a combo box, with drawn rows:
 </sk:SkUiPicker>
 ```
 
+### The field's look of the selected item
+
+`SelectedItemTemplate` (SkiaUi; `SkUiPicker` only) shows the selected item in the field through drawn views of the app's, bound to `SelectedItem` (a `DataTemplateSelector` picks per item), inside the field's chrome before the chevron and the clear button; the field grows with them. They take no taps (a tap opens the list as anywhere on the field), and screen readers read the item's text. While nothing is selected the placeholder shows, and with several choices the texts or tokens.
+
+```xml
+<sk:SkUiPicker ItemsSource="{Binding Paints}" ItemDisplayBinding="{Binding Name}" SelectedItem="{Binding Paint}">
+  <sk:SkUiPicker.SelectedItemTemplate>
+    <DataTemplate x:DataType="local:Paint">
+      <sk:SkUiHorizontalStackLayout Spacing="8">
+        <sk:SkUiBox Color="{Binding Color}" WidthRequest="18" HeightRequest="18" CornerRadius="9" VerticalOptions="Center" />
+        <sk:SkUiLabel Text="{Binding Name}" VerticalOptions="Center" />
+      </sk:SkUiHorizontalStackLayout>
+    </DataTemplate>
+  </sk:SkUiPicker.SelectedItemTemplate>
+</sk:SkUiPicker>
+```
+
 ### The selected row's look
 
 The list's selected row (the highlighted one: the selection when it opens, then where a tap or the keys move it; with several choices every chosen row) is drawn on `SelectionBackground`, and the root of its `ItemTemplate` is in MAUI's `Selected` visual state (`CommonStates`; `Disabled` wins, `Selected` comes before `PointerOver`), as a collection view's items. Style it as there:
@@ -262,6 +279,7 @@ host.SetContent(picker);
 | `PopupBounds` | empty | The window rectangle of `Absolute` popups (SkiaUi) |
 | `ItemTemplate` | `null` | Drawn rows (`SkUi*` views) bound to the items; a selector picks per item; the selected row's root is in the `Selected` visual state (SkiaUi) |
 | `ItemEnabledBinding` | `null` | Whether each item can be chosen ([Items that cannot be chosen](#items-that-cannot-be-chosen)); `RefreshItemStates()` (SkiaUi; Core `ItemEnabled`) |
+| `SelectedItemTemplate` | `null` | The selected item in the field through drawn views ([above](#the-fields-look-of-the-selected-item)) (SkiaUi) |
 | `SelectionBackground` | `null` | Behind the selected rows; `null`: the look's `PopupHighlightColor`; `Transparent`: none (SkiaUi) |
 | `MaxPopupHeight` | `-1` | No limit beyond the window (SkiaUi) |
 | `PopupWidth` | `-1` | The popup's width (within the window; an anchored popup is then not widened to the field); -1: the content's (SkiaUi) |

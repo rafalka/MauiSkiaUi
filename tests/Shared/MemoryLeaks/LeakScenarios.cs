@@ -1659,6 +1659,7 @@ public static class LeakScenarios
     private sealed class PickerWheelsRun : LeakScenarioRun
     {
         private SkUiPicker? _multiple;
+        private SkUiPicker? _single;
         private SkUiCorePicker? _coreMultiple;
         private SkUiMultiColumnPicker? _columns;
         private SkUiCoreMultiColumnPicker? _coreColumns;
@@ -1675,21 +1676,47 @@ public static class LeakScenarios
                 SelectionMode = SkUiSelectionMode.Multiple,
                 ItemsSource = LeakItems.Shared,
                 PopupPresenter = LeakPopupPresenter.Shared,
-                PopupPlacement = SkUiPopupPlacement.Anchored
+                PopupPlacement = SkUiPopupPlacement.Anchored,
+                SelectedItemsDisplay = SkUiSelectedItemsDisplay.Tokens,
+                IsSelectAllVisible = true,
+                IsPopupClearButtonVisible = true,
+                PopupHeaderTemplate = new DataTemplate(() => new SkUiLabel { Text = "Pick some", TextColor = LeakColors.Ink }),
+                ItemEnabledBinding = new Binding(".", converter: LeakConverters.NotFirst),
+                SelectionChangedCommand = LeakCommands.Shared
             }, "multiple picker");
+            _single = context.Track(new SkUiPicker
+            {
+                Title = "One",
+                ItemsSource = LeakItems.Shared,
+                PopupPresenter = LeakPopupPresenter.Shared,
+                UpdateMode = SkUiPickerUpdateMode.WhenFinished,
+                IsClearButtonVisible = true,
+                SelectedIndex = 2,
+                SelectedItemTemplate = new DataTemplate(() =>
+                {
+                    var label = new SkUiLabel { TextColor = LeakColors.Ink };
+                    label.SetBinding(SkUiLabel.TextProperty, static (string text) => text);
+                    return label;
+                })
+            }, "picker with a field template");
             _multiple.SelectionChanged += (_, _) => _changes++;
             _coreMultiple = context.Track(new SkUiCorePicker { Title = "Core several", SelectionMode = SkUiSelectionMode.Multiple, PopupPresenter = LeakPopupPresenter.Shared },
                 "core multiple picker");
             foreach (var option in new[] { "Red", "Green", "Blue" })
                 _coreMultiple.Items.Add(option);
             _columns = context.Track(new SkUiMultiColumnPicker { Title = "Columns", PopupPresenter = LeakPopupPresenter.Shared, PopupPlacement = SkUiPopupPlacement.Anchored }, "columns picker");
-            _columns.Columns.Add(new SkUiPickerColumn { ItemsSource = LeakItems.Shared, Loop = true });
+            _columns.Columns.Add(new SkUiPickerColumn
+            {
+                ItemsSource = LeakItems.Shared, Loop = true, Header = "First",
+                ItemTemplate = new DataTemplate(() => new SkUiLabel { TextColor = LeakColors.Ink })
+            });
             _columns.Columns.Add(new SkUiPickerColumn { ItemsSource = LeakItems.Shared });
             _columns.SelectionChanged += (_, _) => _changes++;
             _coreColumns = context.Track(new SkUiCoreMultiColumnPicker { Title = "Core columns", PopupPresenter = LeakPopupPresenter.Shared, UpdateMode = SkUiPickerUpdateMode.WhenFinished }, "core columns picker");
             _coreColumns.Columns.Add(new SkUiPickerColumn { ItemsSource = LeakItems.Shared });
             var stack = new SkUiVerticalStackLayout { Spacing = 12, Padding = new Thickness(12) };
             stack.Children.Add(_multiple);
+            stack.Children.Add(_single);
             stack.Children.Add(new SkUiCoreHost().SetContent(_coreMultiple));
             stack.Children.Add(_columns);
             stack.Children.Add(new SkUiCoreHost().SetContent(_coreColumns));
@@ -1716,6 +1743,15 @@ public static class LeakScenarios
             _multiple.IsVisible = false;
             await context.SettleAsync();
             _multiple.IsVisible = true;
+            // The field template, a draft accepted, then cleared by the field.
+            await context.TapAsync(_single!);
+            Track(context);
+            var one = (SkUiListPopupRequest)LeakPopupPresenter.Shared.Last!;
+            one.SetCurrentIndex(4);
+            one.Accept();
+            await context.SettleAsync();
+            _single!.ClearSelection();
+            _single.SelectedIndex = 5;
             // The wheels: tapped open, set through the request, completed with a selection.
             await context.TapAsync(_columns!);
             Track(context);
@@ -1763,6 +1799,7 @@ public static class LeakScenarios
             : _columns?.SelectedIndices.SequenceEqual([2]) != true ? "the wheels' selection was not applied"
             : _coreMultiple?.SelectedIndices.SequenceEqual([1]) != true ? "the Core list with several choices was not chosen"
             : _coreColumns?.SelectedIndices.SequenceEqual([6]) != true ? "the Core wheels' selection was not applied"
+            : _single?.SelectedIndex != 5 || _single.FieldView is null ? "the field template's picker did not show its choice"
             : _changes == 0 ? "no change was reported"
             : null;
     }
@@ -2452,6 +2489,20 @@ public sealed class LeakPopupPresenter : ISkUiPopupPresenter
 
     /// <summary>A tap outside the popup: it closes without a choice.</summary>
     public void Dismiss() => _shown?.TrySetResult();
+}
+
+/// <summary>Converters that outlive every scenario, like ones in app resources.</summary>
+public static class LeakConverters
+{
+    /// <summary>Every item but "Option 0" (an item that cannot be chosen).</summary>
+    public static IValueConverter NotFirst { get; } = new NotFirstConverter();
+
+    private sealed class NotFirstConverter : IValueConverter
+    {
+        public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => !Equals(value, "Option 0");
+
+        public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
+    }
 }
 
 public static class LeakItems

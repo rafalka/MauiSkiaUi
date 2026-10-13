@@ -214,6 +214,18 @@ public partial class SkUiPicker
             return;
         // The popup shows the other kind of list: it closes.
         ClosePopup();
+        try
+        {
+            ChangeSelectionMode(multiple);
+        }
+        finally
+        {
+            UpdateFieldView();
+        }
+    }
+
+    private void ChangeSelectionMode(bool multiple)
+    {
         if (multiple)
         {
             var single = SelectedItem;

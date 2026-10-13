@@ -81,6 +81,21 @@ public sealed class PickerDemoPage : ComponentDemoPage
         Choice(nameof(SkUiPickerBase.AcceptText), [AppAcceptText, LocalAcceptText], AppAcceptText,
             value => _skia.AcceptText = value == AppAcceptText ? null : value, () => _skia.AcceptText ?? AppAcceptText);
         Toggle("ItemTemplate (drawn rows)", false, value => _skia.ItemTemplate = value ? new DataTemplate(Row) : null, () => _skia.ItemTemplate is not null);
+        Toggle("SelectedItemTemplate (drawn field)", false, value => _skia.SelectedItemTemplate = value ? new DataTemplate(Row) : null,
+            () => _skia.SelectedItemTemplate is not null);
+        Text(nameof(SkUiPicker.Placeholder), "", value => _skia.Placeholder = value.Length == 0 ? null : value, () => _skia.Placeholder ?? "");
+        Toggle(nameof(SkUiPicker.IsClearButtonVisible), false, value => _skia.IsClearButtonVisible = value, () => _skia.IsClearButtonVisible);
+        Toggle(nameof(SkUiPicker.IsPopupClearButtonVisible), false, value => _skia.IsPopupClearButtonVisible = value, () => _skia.IsPopupClearButtonVisible);
+        Choice(nameof(SkUiPicker.UpdateMode), [SkUiPickerUpdateMode.Immediately, SkUiPickerUpdateMode.WhenFinished], SkUiPickerUpdateMode.Immediately,
+            value => _skia.UpdateMode = value, () => _skia.UpdateMode);
+        Number(nameof(SkUiPicker.PopupWidth), -1, 400, -1, value => _skia.PopupWidth = value < 0 ? -1 : value, () => _skia.PopupWidth, whole: true);
+        Toggle("Items 2 and 4 cannot be chosen (ItemEnabledBinding)", false,
+            value => _skia.ItemEnabledBinding = value ? new Binding(".", converter: EvenItems.Instance) : null, () => _skia.ItemEnabledBinding is not null);
+        Toggle("PopupHeaderTemplate / PopupFooterTemplate", false, value =>
+        {
+            _skia.PopupHeaderTemplate = value ? new DataTemplate(() => Hint("Pick one; disabled items are dimmed.")) : null;
+            _skia.PopupFooterTemplate = value ? new DataTemplate(() => Hint("A footer of the app's.")) : null;
+        }, () => _skia.PopupHeaderTemplate is not null);
         Choice(nameof(SkUiPicker.PopupPresenter), [ToolkitPresenter, ActionSheetPresenter, AppPresenter], ToolkitPresenter,
             value => _skia.PopupPresenter = value switch
             {
@@ -95,6 +110,25 @@ public sealed class PickerDemoPage : ComponentDemoPage
                 _ => AppPresenter
             });
         Status();
+    }
+
+    /// <summary>A hint in the popup (the app's header and footer).</summary>
+    private static SkUiLabel Hint(string text) => new() { Text = text, FontSize = 13, TextColor = DemoColors.Caption, Padding = new Thickness(16, 8) };
+
+    /// <summary>Items 2 and 4 (indices 1 and 3) cannot be chosen.</summary>
+    private sealed class EvenItems : IValueConverter
+    {
+        public static EvenItems Instance { get; } = new();
+
+        public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) =>
+            value switch
+            {
+                DemoColour colour => Array.IndexOf(ColourItems, colour) is not (1 or 3),
+                string text => Array.IndexOf(MonkeyNames, text) is not (1 or 3) && Array.IndexOf(NumberNames, text) is not (1 or 3),
+                _ => true
+            };
+
+        public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
     }
 
     private void SetItems(string name)

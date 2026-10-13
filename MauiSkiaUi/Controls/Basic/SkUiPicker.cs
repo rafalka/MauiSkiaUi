@@ -71,7 +71,11 @@ public partial class SkUiPicker : SkUiPickerBase
 
     /// <summary>Bindable property for <see cref="SelectedItem"/> (two-way by default).</summary>
     public static readonly BindableProperty SelectedItemProperty = BindableProperty.Create(nameof(SelectedItem), typeof(object), typeof(SkUiPicker), null, BindingMode.TwoWay,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view).UpdateSelectedIndex(value));
+        propertyChanged: (view, _, value) => ((SkUiPicker)view).OnSelectedItemChanged(value));
+
+    /// <summary>Bindable property for <see cref="SelectedItemTemplate"/>.</summary>
+    public static readonly BindableProperty SelectedItemTemplateProperty = BindableProperty.Create(nameof(SelectedItemTemplate), typeof(DataTemplate), typeof(SkUiPicker), null,
+        propertyChanged: (view, _, _) => ((SkUiPicker)view).UpdateFieldView(templateChanged: true));
 
     /// <summary>Bindable property for <see cref="SelectionBackground"/>.</summary>
     public static readonly BindableProperty SelectionBackgroundProperty = BindableProperty.Create(nameof(SelectionBackground), typeof(Brush), typeof(SkUiPicker), null,
@@ -189,6 +193,17 @@ public partial class SkUiPicker : SkUiPickerBase
     /// <c>Selected</c> visual state of the <see cref="ItemTemplate"/>'s root. Applies from the next opening. SkiaUi extension.
     /// </summary>
     public Brush? SelectionBackground { get => (Brush?)GetValue(SelectionBackgroundProperty); set => SetValue(SelectionBackgroundProperty, value); }
+
+    /// <summary>
+    /// How the field shows the selected item: drawn views (<c>SkUi*</c>) bound to <see cref="SelectedItem"/> (a
+    /// <see cref="DataTemplateSelector"/> picks per item), inside the field's chrome, before the chevron (and the clear button);
+    /// they take no taps (the field does). <c>null</c> (default): the item's text. While nothing is selected, and with several
+    /// choices, the field shows its text. Screen readers read the item's text. SkiaUi extension.
+    /// </summary>
+    public DataTemplate? SelectedItemTemplate { get => (DataTemplate?)GetValue(SelectedItemTemplateProperty); set => SetValue(SelectedItemTemplateProperty, value); }
+
+    /// <summary>Sets <see cref="SelectedItemTemplate"/> (same as the property setter).</summary>
+    public SkUiPicker SetSelectedItemTemplate(DataTemplate? value) { SelectedItemTemplate = value; return this; }
 
     /// <summary>Raised when <see cref="SelectedIndex"/> changes (by the user or the app; not when an index set before the items applies).</summary>
     public event EventHandler? SelectedIndexChanged;
@@ -520,6 +535,94 @@ public partial class SkUiPicker : SkUiPickerBase
 
     /// <summary>A bindable object that evaluates <see cref="ItemDisplayBinding"/> for one item at a time.</summary>
     private sealed class DisplayProbe : BindableObject;
+
+    #endregion
+
+    #region Field template
+
+    private SkUiView? _fieldView;
+    private DataTemplate? _fieldTemplate;
+    private ISkUiView[] _fieldChildren = [];
+
+    /// <summary>The view the field shows for the selected item (tests), or <c>null</c>.</summary>
+    internal SkUiView? FieldView => _fieldView;
+
+    private void OnSelectedItemChanged(object? value)
+    {
+        UpdateSelectedIndex(value);
+        UpdateFieldView();
+    }
+
+    /// <summary>The field's view for the selected item: created (or swapped by a selector), bound, or removed; the field draws no text under it.</summary>
+    private void UpdateFieldView(bool templateChanged = false)
+    {
+        var template = _multiple ? null : SelectedItemTemplate;
+        var item = SelectedItem;
+        if (template is null || SelectedIndex < 0)
+        {
+            RemoveFieldView();
+            return;
+        }
+        var chosen = template is DataTemplateSelector selector ? selector.SelectTemplate(item, this) : template;
+        if (templateChanged || _fieldView is null || !ReferenceEquals(chosen, _fieldTemplate))
+        {
+            RemoveFieldView();
+            if (chosen?.CreateContent() is not SkUiView view)
+                return;
+            _fieldTemplate = chosen;
+            _fieldView = view;
+            // The field takes the taps; screen readers read the field (the item's text).
+            view.InputTransparent = true;
+            AutomationProperties.SetIsInAccessibleTree(view, false);
+            _fieldChildren = [view];
+            AttachChild(view);
+        }
+        _fieldView!.BindingContext = item;
+        Model.HidesText = true;
+        InvalidateMeasureOverride();
+        InvalidatePaint();
+    }
+
+    private void RemoveFieldView()
+    {
+        if (_fieldView is null)
+            return;
+        var view = _fieldView;
+        _fieldView = null;
+        _fieldTemplate = null;
+        _fieldChildren = [];
+        view.BindingContext = null;
+        DetachChild(view);
+        Model.HidesText = false;
+        InvalidatePaint();
+    }
+
+    /// <inheritdoc />
+    internal override IEnumerable<ISkUiView> SkiaChildren => _fieldChildren;
+
+    /// <inheritdoc />
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint)
+    {
+        if (_fieldView is null)
+            return base.MeasureContent(widthConstraint, heightConstraint);
+        Model.HasExplicitMinimumHeight = MinimumHeightRequest >= 0;
+        var inset = Model.ContentInset;
+        var content = ((IView)_fieldView).Measure(Math.Max(0, widthConstraint - inset.HorizontalThickness), Math.Max(0, heightConstraint - inset.VerticalThickness));
+        return Model.MeasureAround(content);
+    }
+
+    /// <inheritdoc />
+    protected override void ArrangeContent(Size size)
+    {
+        base.ArrangeContent(size);
+        if (_fieldView is null)
+            return;
+        // Left to right: drawn children are mirrored in right-to-left layouts.
+        var inset = Model.ContentInset;
+        var bounds = new Rect(inset.Left, inset.Top, Math.Max(0, size.Width - inset.HorizontalThickness), Math.Max(0, size.Height - inset.VerticalThickness));
+        ((IView)_fieldView).Measure(bounds.Width, bounds.Height);
+        ((IView)_fieldView).Arrange(bounds);
+    }
 
     #endregion
 

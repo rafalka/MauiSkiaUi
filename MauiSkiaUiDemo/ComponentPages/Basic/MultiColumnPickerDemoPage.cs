@@ -38,6 +38,7 @@ public sealed class MultiColumnPickerDemoPage : ComponentDemoPage
     private int _closed;
     private bool _loop;
     private double _firstWidth = -1;
+    private bool _headers;
 
     public MultiColumnPickerDemoPage()
         : base(nameof(SkUiMultiColumnPicker), new SkUiMultiColumnPicker { Title = PickTime }, widthRange: (100, 360, 240), heightRange: (30, 120, 48))
@@ -78,6 +79,11 @@ public sealed class MultiColumnPickerDemoPage : ComponentDemoPage
             value => _picker.UpdateMode = value, () => _picker.UpdateMode);
         Choice(nameof(SkUiPickerBase.AcceptText), [AppAcceptText, LocalAcceptText], AppAcceptText,
             value => _picker.AcceptText = value == AppAcceptText ? null : value, () => _picker.AcceptText ?? AppAcceptText);
+        Toggle("Column headers", false, value => { _headers = value; ApplyColumnSettings(); }, () => _headers);
+        Toggle(nameof(SkUiMultiColumnPicker.IsClearButtonVisible), false, value => _picker.IsClearButtonVisible = value, () => _picker.IsClearButtonVisible);
+        Toggle(nameof(SkUiMultiColumnPicker.IsPopupClearButtonVisible), false, value => _picker.IsPopupClearButtonVisible = value, () => _picker.IsPopupClearButtonVisible);
+        Choice(nameof(SkUiMultiColumnPicker.UpdateMode), [SkUiPickerUpdateMode.Immediately, SkUiPickerUpdateMode.WhenFinished], SkUiPickerUpdateMode.Immediately,
+            value => _picker.UpdateMode = value, () => _picker.UpdateMode);
         ActionButton("Open (IsOpen = true)", () => _picker.IsOpen = true);
         ActionButton("Choose the first item of every column", () => { foreach (var column in _picker.Columns) column.SelectedIndex = 0; });
         SetColumns(Time);
@@ -111,10 +117,26 @@ public sealed class MultiColumnPickerDemoPage : ComponentDemoPage
     private void ApplyColumnSettings()
     {
         foreach (var column in _picker.Columns)
+        {
             column.Loop = _loop;
+            column.Header = _headers ? HeaderOf(column) : null;
+        }
         if (_picker.Columns.Count > 0)
             _picker.Columns[0].Width = _firstWidth;
     }
+
+    /// <summary>A column's header: what its items are.</summary>
+    private static string? HeaderOf(SkUiPickerColumn column) => column.ItemsSource switch
+    {
+        _ when ReferenceEquals(column.ItemsSource, Hours) => "Hour",
+        _ when ReferenceEquals(column.ItemsSource, Minutes) => "Minute",
+        _ when ReferenceEquals(column.ItemsSource, Months) => "Month",
+        _ when ReferenceEquals(column.ItemsSource, Days) => "Day",
+        _ when ReferenceEquals(column.ItemsSource, Years) => "Year",
+        _ when ReferenceEquals(column.ItemsSource, Amounts) => "Amount",
+        _ when ReferenceEquals(column.ItemsSource, Units) => "Unit",
+        _ => null
+    };
 
     private string ColumnsName() => _picker.Columns.Count switch { 3 when ReferenceEquals(_picker.Columns[0].ItemsSource, Hours) => Time, 3 => Date, _ => Unit };
 

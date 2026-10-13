@@ -66,6 +66,18 @@ public sealed class PickerMultipleDemoPage : ComponentDemoPage
             value => _picker.UpdateMode = value, () => _picker.UpdateMode);
         Choice(nameof(SkUiPickerBase.AcceptText), [AppAcceptText, LocalAcceptText], AppAcceptText,
             value => _picker.AcceptText = value == AppAcceptText ? null : value, () => _picker.AcceptText ?? AppAcceptText);
+        Choice(nameof(SkUiPicker.SelectedItemsDisplay), [SkUiSelectedItemsDisplay.Text, SkUiSelectedItemsDisplay.Tokens], SkUiSelectedItemsDisplay.Text,
+            value => _picker.SelectedItemsDisplay = value, () => _picker.SelectedItemsDisplay);
+        Number("MaxTokenLines (0: no limit)", 0, 4, 0, value => _picker.MaxTokenLines = value < 1 ? -1 : (int)value,
+            () => _picker.MaxTokenLines < 0 ? 0 : _picker.MaxTokenLines, whole: true);
+        Toggle(nameof(SkUiPicker.IsSelectAllVisible), false, value => _picker.IsSelectAllVisible = value, () => _picker.IsSelectAllVisible);
+        Toggle(nameof(SkUiPicker.IsPopupClosedOnSelection), false, value => _picker.IsPopupClosedOnSelection = value, () => _picker.IsPopupClosedOnSelection);
+        Toggle(nameof(SkUiPicker.IsClearButtonVisible), false, value => _picker.IsClearButtonVisible = value, () => _picker.IsClearButtonVisible);
+        Toggle(nameof(SkUiPicker.IsPopupClearButtonVisible), false, value => _picker.IsPopupClearButtonVisible = value, () => _picker.IsPopupClearButtonVisible);
+        Choice(nameof(SkUiPicker.UpdateMode), [SkUiPickerUpdateMode.Immediately, SkUiPickerUpdateMode.WhenFinished], SkUiPickerUpdateMode.Immediately,
+            value => _picker.UpdateMode = value, () => _picker.UpdateMode);
+        Toggle("Spider Monkey cannot be chosen (ItemEnabledBinding)", false,
+            value => _picker.ItemEnabledBinding = value ? new Binding(".", converter: NotSpider.Instance) : null, () => _picker.ItemEnabledBinding is not null);
         ActionButton("Open (IsOpen = true)", () => _picker.IsOpen = true);
         ActionButton("SelectAll", _picker.SelectAll);
         ActionButton("ClearSelection", _picker.ClearSelection);
@@ -76,6 +88,16 @@ public sealed class PickerMultipleDemoPage : ComponentDemoPage
         });
         OnReset(() => _picker.ClearSelection());
         Status();
+    }
+
+    /// <summary>Every monkey but the spider monkey can be chosen.</summary>
+    private sealed class NotSpider : IValueConverter
+    {
+        public static NotSpider Instance { get; } = new();
+
+        public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => !Equals(value, MonkeyNames[6]);
+
+        public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
     }
 
     private void Status() => Feedback(_picker.SelectionMode == SkUiSelectionMode.Multiple

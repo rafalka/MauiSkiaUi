@@ -336,6 +336,29 @@ internal sealed class SkUiPickerModel
         return _owner.IsRightToLeft ? new SKRect(0, 0, chevron, height) : new SKRect(width - chevron, 0, width, height);
     }
 
+    /// <summary>
+    /// Where content of the control's own goes in the field (a field template), left to right (drawn children are mirrored in
+    /// right-to-left layouts): the look's padding, with the chevron's and the clear button's room at the end.
+    /// </summary>
+    internal Thickness ContentInset
+    {
+        get
+        {
+            var look = SkUiLook.Current;
+            var padding = look.PickerFieldPadding;
+            return new Thickness(padding.Left, padding.Top, padding.Right + look.PickerChevronWidth + (ClearButtonShown ? look.PickerClearButtonWidth : 0),
+                padding.Bottom);
+        }
+    }
+
+    /// <summary>The field's size around content of <paramref name="content"/>'s size: the inset, at least the look's touch height.</summary>
+    internal Size MeasureAround(Size content)
+    {
+        var inset = ContentInset;
+        var size = new Size(content.Width + inset.HorizontalThickness, content.Height + inset.VerticalThickness);
+        return HasExplicitMinimumHeight ? size : new Size(size.Width, Math.Max(size.Height, SkUiLook.Current.DefaultPickerMinimumHeight));
+    }
+
     /// <summary>Whether the field shows its clear button: it has one and something is chosen.</summary>
     internal bool ClearButtonShown => ShowsClearButton && SelectedText is not null;
 
