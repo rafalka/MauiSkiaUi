@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using System.Collections;
 using MauiSkiaUi.Rendering;
 using SkiaSharp;
@@ -79,6 +80,21 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
 
     /// <summary>The Cancel button's text with <see cref="SkUiPickerUpdateMode.WhenFinished"/>; <c>null</c> (default): <see cref="SkUiStrings.CancelText"/>.</summary>
     public string? CancelText { get => Model.CancelText; set => SetCancelText(value); }
+
+    /// <summary>Shown in the field while nothing is chosen; <c>null</c> (default): <see cref="Title"/>.</summary>
+    public string? Placeholder { get => Model.Placeholder; set => SetPlaceholder(value); }
+
+    /// <summary>The placeholder's color; <c>null</c> (default): <see cref="TitleColor"/>, else the color scheme's muted color.</summary>
+    public Color? PlaceholderColor { get => Model.PlaceholderColor; set => SetPlaceholderColor(value); }
+
+    /// <summary>The popup's width in DIPs; -1 (default): as wide as its content wants.</summary>
+    public double PopupWidth { get => Model.PopupWidth; set => SetPopupWidth(value); }
+
+    /// <summary>Runs with <see cref="SelectionChangedCommandParameter"/> after the choice changes (when it can execute), before the change event.</summary>
+    public ICommand? SelectionChangedCommand { get => Model.SelectionChangedCommand; set => SetSelectionChangedCommand(value); }
+
+    /// <summary>The parameter of <see cref="SelectionChangedCommand"/>.</summary>
+    public object? SelectionChangedCommandParameter { get => Model.SelectionChangedCommandParameter; set => SetSelectionChangedCommandParameter(value); }
 
     /// <summary>Raised when <see cref="IsOpen"/> becomes <c>true</c>.</summary>
     public event EventHandler<PickerOpenedEventArgs>? Opened;
@@ -189,6 +205,25 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
 
     /// <summary>Sets <see cref="CancelText"/>.</summary>
     public SkUiCorePickerBase SetCancelText(string? value) => Update(ref Model.CancelText, value, nameof(CancelText), paint: false);
+
+    /// <summary>Sets <see cref="Placeholder"/>.</summary>
+    public SkUiCorePickerBase SetPlaceholder(string? value) => Update(ref Model.Placeholder, value, nameof(Placeholder), measure: true);
+
+    /// <summary>Sets <see cref="PlaceholderColor"/>.</summary>
+    public SkUiCorePickerBase SetPlaceholderColor(Color? value) => Update(ref Model.PlaceholderColor, value, nameof(PlaceholderColor));
+
+    /// <summary>Sets <see cref="PopupWidth"/>.</summary>
+    public SkUiCorePickerBase SetPopupWidth(double value)
+    {
+        SkUiPickerValidation.ThrowIfNotOptionalLength(value, nameof(value));
+        return Update(ref Model.PopupWidth, value, nameof(PopupWidth), paint: false);
+    }
+
+    /// <summary>Sets <see cref="SelectionChangedCommand"/>.</summary>
+    public SkUiCorePickerBase SetSelectionChangedCommand(ICommand? value) => Update(ref Model.SelectionChangedCommand, value, nameof(SelectionChangedCommand), paint: false);
+
+    /// <summary>Sets <see cref="SelectionChangedCommandParameter"/>.</summary>
+    public SkUiCorePickerBase SetSelectionChangedCommandParameter(object? value) => Update(ref Model.SelectionChangedCommandParameter, value, nameof(SelectionChangedCommandParameter), paint: false);
 
     /// <inheritdoc />
     public override SkUiCoreNode SetMinimumHeight(double value)

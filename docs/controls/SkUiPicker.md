@@ -221,7 +221,8 @@ host.SetContent(picker);
 | `ItemsSource` / `Items` | `null` / empty | `Items` is read-only while `ItemsSource` is set |
 | `ItemDisplayBinding` | `null` | `ToString()` without it (Core: `ItemDisplay`, a function) |
 | `SelectedIndex` / `SelectedItem` | `-1` / `null` | Two-way; kept in step |
-| `Title` / `TitleColor` | `null` / scheme muted | Shown while nothing is selected; the title of window popups |
+| `Title` / `TitleColor` | `null` / scheme muted | Shown while nothing is selected (unless `Placeholder` is set); the title of window popups |
+| `Placeholder` / `PlaceholderColor` | `null` | The field's hint while nothing is chosen, when it differs from `Title`; `null`: `Title` / `TitleColor` (SkiaUi) |
 | `TextColor` | scheme foreground | Also the chevron and the list's rows |
 | `FontFamily`, `FontSize` (16), `FontAttributes`, `FontAutoScalingEnabled`, `CharacterSpacing` | | The field and plain rows |
 | `HorizontalTextAlignment` / `VerticalTextAlignment` | `Start` / `Center` | In the field |
@@ -231,6 +232,9 @@ host.SetContent(picker);
 | `ItemTemplate` | `null` | Drawn rows (`SkUi*` views) bound to the items; a selector picks per item; the selected row's root is in the `Selected` visual state (SkiaUi) |
 | `SelectionBackground` | `null` | Behind the selected rows; `null`: the look's `PopupHighlightColor`; `Transparent`: none (SkiaUi) |
 | `MaxPopupHeight` | `-1` | No limit beyond the window (SkiaUi) |
+| `PopupWidth` | `-1` | The popup's width (within the window; an anchored popup is then not widened to the field); -1: the content's (SkiaUi) |
+| `SelectionChangedCommand` / `SelectionChangedCommandParameter` | `null` | Runs after each change of the choice (when it can execute), before `SelectedIndexChanged` / `SelectionChanged` (SkiaUi) |
+| `IsPopupClosedOnSelection` | `false` | Several choices: the list closes after each toggled row (SkiaUi) |
 | `PopupPresenter` | `null` | The app's presenter (SkiaUi) |
 | `SelectionMode` | `Single` | `Multiple`: check boxes, the list stays open (SkiaUi) |
 | `UpdateMode` | `Immediately` | `WhenFinished`: a draft until OK, with Cancel and OK buttons (MAUI's iOS `Picker.UpdateMode`, on every platform) |

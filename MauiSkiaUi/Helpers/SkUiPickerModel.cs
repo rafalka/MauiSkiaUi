@@ -134,6 +134,11 @@ internal sealed class SkUiPickerModel
 
     public string? Title;
     public Color? TitleColor;
+    public string? Placeholder;
+    public Color? PlaceholderColor;
+    public double PopupWidth = -1;
+    public System.Windows.Input.ICommand? SelectionChangedCommand;
+    public object? SelectionChangedCommandParameter;
     public Color? TextColor;
     public string? FontFamily;
     public double FontSize = DefaultFontSize;
@@ -161,6 +166,16 @@ internal sealed class SkUiPickerModel
     /// </summary>
     public bool UsesValueText;
 
+    /// <summary>
+    /// The choice changed (any kind: an index, items, a column): runs the control's <c>SelectionChangedCommand</c> with its
+    /// parameter when it can execute. The controls call it before their change events.
+    /// </summary>
+    public void RunSelectionChangedCommand()
+    {
+        if (SelectionChangedCommand is { } command && command.CanExecute(SelectionChangedCommandParameter))
+            command.Execute(SelectionChangedCommandParameter);
+    }
+
     /// <summary>The field's text while <see cref="UsesValueText"/>; <c>null</c>: nothing is chosen (the title shows).</summary>
     public string? ValueText;
 
@@ -178,7 +193,10 @@ internal sealed class SkUiPickerModel
         : SelectedIndex >= 0 && SelectedIndex < _items.Count ? _items[SelectedIndex] ?? string.Empty : null;
 
     /// <summary>The text the field shows: the selection's, else the title (else nothing).</summary>
-    private string DisplayText => SelectedText ?? Title ?? string.Empty;
+    /// <summary>The hint the field shows while nothing is chosen: the placeholder, else the title.</summary>
+    private string? PlaceholderText => Placeholder ?? Title;
+
+    private string DisplayText => SelectedText ?? PlaceholderText ?? string.Empty;
 
     /// <summary>The shown text, the font or the items changed: lay the text out again and measure.</summary>
     public void TextChanged()
@@ -252,10 +270,10 @@ internal sealed class SkUiPickerModel
             ToSkColor(SkUiColors.Accent), ToSkColor(SkUiColors.Muted), foreground, _focus.Value, _open.Value, _press?.Visual ?? SkUiPressVisual.None,
             IsPointerOver, IsEnabled, _owner.IsRightToLeft));
         var selected = SelectedText;
-        var text = selected ?? Title;
+        var text = selected ?? PlaceholderText;
         if (string.IsNullOrEmpty(text))
             return;
-        var color = selected is not null ? foreground : ToSkColor(TitleColor ?? SkUiColors.Muted);
+        var color = selected is not null ? foreground : ToSkColor(PlaceholderColor ?? TitleColor ?? SkUiColors.Muted);
         if (!IsEnabled)
             color = color.WithAlpha((byte)(color.Alpha * 0.5f));
         var inset = TextInset;
@@ -341,7 +359,7 @@ internal sealed class SkUiPickerModel
     public void PopulateSemantics(SkUiSemanticsInfo info)
     {
         info.Role = SkUiSemanticsRole.ComboBox;
-        info.Text = Title;
+        info.Text = Title ?? Placeholder;
         info.Value = SelectedText;
         info.IsExpanded = IsOpen;
         info.IsEnabled &= IsEnabled;
@@ -500,11 +518,14 @@ internal sealed class SkUiPickerModel
             var context = new SkUiPickerPopupContext(placement, placement == SkUiPopupPlacement.Anchored ? null : model.Title, rightToLeft, rowStyle, chrome);
             var content = model.ContentFactory is { } factory ? factory(context) : BuildList(context);
             var maximumHeight = model.MaxPopupHeight >= 0 ? model.MaxPopupHeight : double.PositiveInfinity;
-            var preferred = content.PreferredSize(placement == SkUiPopupPlacement.Anchored ? anchorBounds.Width : look.PopupPreferredWidth,
-                windowSize.Width > 0 ? windowSize.Width : double.PositiveInfinity);
+            var windowWidth = windowSize.Width > 0 ? windowSize.Width : double.PositiveInfinity;
+            // A width of the app's: the content is measured at it (within the window).
+            var preferred = model.PopupWidth >= 0
+                ? content.PreferredSize(Math.Min(model.PopupWidth, windowWidth), Math.Min(model.PopupWidth, windowWidth))
+                : content.PreferredSize(placement == SkUiPopupPlacement.Anchored ? anchorBounds.Width : look.PopupPreferredWidth, windowWidth);
             var layout = SkUiPopupGeometry.Layout(new SkUiPopupPlacementInput(anchorBounds, rootBounds, windowSize,
                 SkUiWindowMetrics.SafeAreaInsets(surfaceRoot), look.PopupMargin, look.PopupAnchorGap, placement, look.PopupHorizontalOptions,
-                look.PopupVerticalOptions, preferred, maximumHeight, model.PopupBounds, rightToLeft));
+                look.PopupVerticalOptions, preferred, maximumHeight, model.PopupBounds, rightToLeft, model.PopupWidth >= 0));
             _content = content;
             var request = content.CreateRequest(anchor, surfaceRoot, layout,
                 new SkUiPopupRequestOptions(model.Title, look.GetPopupOverlayColor(layout.Placement), !SkUiMotion.IsMotionReduced, chrome));

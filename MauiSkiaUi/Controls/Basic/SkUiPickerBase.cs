@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using System.Collections;
 using MauiSkiaUi.Rendering;
 using SkiaSharp;
@@ -185,6 +186,42 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
     /// <summary>The Cancel button's text with <see cref="SkUiPickerUpdateMode.WhenFinished"/>; <c>null</c> (default): <see cref="SkUiStrings.CancelText"/> ("Cancel"). SkiaUi extension.</summary>
     public string? CancelText { get => (string?)GetValue(CancelTextProperty); set => SetValue(CancelTextProperty, value); }
 
+    /// <summary>Bindable property for <see cref="Placeholder"/>.</summary>
+    public static readonly BindableProperty PlaceholderProperty = BindableProperty.Create(nameof(Placeholder), typeof(string), typeof(SkUiPickerBase), null,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.Placeholder = (string?)value, measure: true));
+
+    /// <summary>Shown in the field while nothing is chosen (in <see cref="PlaceholderColor"/>); <c>null</c> (default): <see cref="Title"/>, as MAUI's picker, which shows its title there. Set it when the popup's title and the field's hint differ. SkiaUi extension.</summary>
+    public string? Placeholder { get => (string?)GetValue(PlaceholderProperty); set => SetValue(PlaceholderProperty, value); }
+
+    /// <summary>Bindable property for <see cref="PlaceholderColor"/>.</summary>
+    public static readonly BindableProperty PlaceholderColorProperty = BindableProperty.Create(nameof(PlaceholderColor), typeof(Color), typeof(SkUiPickerBase), null,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.PlaceholderColor = (Color?)value));
+
+    /// <summary>The color of the placeholder in the field; <c>null</c> (default): <see cref="TitleColor"/>, else the color scheme's muted color. SkiaUi extension.</summary>
+    public Color? PlaceholderColor { get => (Color?)GetValue(PlaceholderColorProperty); set => SetValue(PlaceholderColorProperty, value); }
+
+    /// <summary>Bindable property for <see cref="PopupWidth"/>.</summary>
+    public static readonly BindableProperty PopupWidthProperty = BindableProperty.Create(nameof(PopupWidth), typeof(double), typeof(SkUiPickerBase), -1d,
+        validateValue: (_, value) => value is double number && SkUiPickerValidation.IsMaxPopupHeight(number),
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Model.PopupWidth = (double)value);
+
+    /// <summary>The popup's width in DIPs (within the window); -1 (default): as wide as its content wants (at least the field's width when anchored). SkiaUi extension.</summary>
+    public double PopupWidth { get => (double)GetValue(PopupWidthProperty); set => SetValue(PopupWidthProperty, value); }
+
+    /// <summary>Bindable property for <see cref="SelectionChangedCommand"/>.</summary>
+    public static readonly BindableProperty SelectionChangedCommandProperty = BindableProperty.Create(nameof(SelectionChangedCommand), typeof(ICommand), typeof(SkUiPickerBase), null,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Model.SelectionChangedCommand = (ICommand?)value);
+
+    /// <summary>Runs with <see cref="SelectionChangedCommandParameter"/> after the choice changes (when it can execute), before the change event: the selected index, the chosen items, a column's item. SkiaUi extension.</summary>
+    public ICommand? SelectionChangedCommand { get => (ICommand?)GetValue(SelectionChangedCommandProperty); set => SetValue(SelectionChangedCommandProperty, value); }
+
+    /// <summary>Bindable property for <see cref="SelectionChangedCommandParameter"/>.</summary>
+    public static readonly BindableProperty SelectionChangedCommandParameterProperty = BindableProperty.Create(nameof(SelectionChangedCommandParameter), typeof(object), typeof(SkUiPickerBase), null,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Model.SelectionChangedCommandParameter = (object?)value);
+
+    /// <summary>The parameter of <see cref="SelectionChangedCommand"/>. SkiaUi extension.</summary>
+    public object? SelectionChangedCommandParameter { get => (object?)GetValue(SelectionChangedCommandParameterProperty); set => SetValue(SelectionChangedCommandParameterProperty, value); }
+
     /// <summary>Raised when <see cref="IsOpen"/> becomes <c>true</c> (the list opens).</summary>
     public event EventHandler<PickerOpenedEventArgs>? Opened;
 
@@ -269,6 +306,21 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
 
     /// <summary>Sets <see cref="CancelText"/> (same as the property setter).</summary>
     public SkUiPickerBase SetCancelText(string? value) { CancelText = value; return this; }
+
+    /// <summary>Sets <see cref="Placeholder"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetPlaceholder(string? value) { Placeholder = value; return this; }
+
+    /// <summary>Sets <see cref="PlaceholderColor"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetPlaceholderColor(Color? value) { PlaceholderColor = value; return this; }
+
+    /// <summary>Sets <see cref="PopupWidth"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetPopupWidth(double value) { SkUiPickerValidation.ThrowIfNotOptionalLength(value, nameof(value)); PopupWidth = value; return this; }
+
+    /// <summary>Sets <see cref="SelectionChangedCommand"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetSelectionChangedCommand(ICommand? value) { SelectionChangedCommand = value; return this; }
+
+    /// <summary>Sets <see cref="SelectionChangedCommandParameter"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetSelectionChangedCommandParameter(object? value) { SelectionChangedCommandParameter = value; return this; }
 
     private void Apply(Action<SkUiPickerModel> apply, bool measure = false)
     {
@@ -470,6 +522,12 @@ internal static class SkUiPickerValidation
     internal const double Tolerance = 1e-9;
 
     public static bool IsMaxPopupHeight(double value) => !double.IsNaN(value) && (value >= 0 || Math.Abs(value + 1) < Tolerance);
+
+    public static void ThrowIfNotOptionalLength(double value, string name)
+    {
+        if (!IsMaxPopupHeight(value))
+            throw new ArgumentOutOfRangeException(name, value, "The length must be at least 0, or -1 for the content's.");
+    }
 
     public static void ThrowIfNotMaxPopupHeight(double value, string name)
     {

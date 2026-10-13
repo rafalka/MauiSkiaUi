@@ -32,6 +32,7 @@ internal readonly record struct SkUiPopupLayout(
 /// <param name="MaximumHeight">The control's height limit (infinite: none).</param>
 /// <param name="AbsoluteBounds">The app's rectangle for <see cref="SkUiPopupPlacement.Absolute"/>.</param>
 /// <param name="IsRightToLeft">The anchor lays out right to left.</param>
+/// <param name="FixedWidth">Whether <paramref name="PreferredSize"/>'s width is the app's (an anchored popup is then not widened to the anchor).</param>
 internal readonly record struct SkUiPopupPlacementInput(
     Rect AnchorBounds,
     Rect AnchorBoundsInPlatformAnchor,
@@ -45,7 +46,8 @@ internal readonly record struct SkUiPopupPlacementInput(
     Size PreferredSize,
     double MaximumHeight,
     Rect AbsoluteBounds,
-    bool IsRightToLeft);
+    bool IsRightToLeft,
+    bool FixedWidth = false);
 
 /// <summary>
 /// Places popups (pure geometry, window coordinates): anchored below the anchor or flipped above when the content fits there
@@ -106,7 +108,8 @@ internal static class SkUiPopupGeometry
     private static Rect Anchored(in SkUiPopupPlacementInput input, Rect area, Size maximum, double spaceAbove, double spaceBelow, out bool opensAbove)
     {
         var anchor = input.AnchorBounds;
-        var width = Math.Min(Math.Max(anchor.Width, input.PreferredSize.Width), maximum.Width);
+        // At least the anchor's width, unless the app set the width (a picker's PopupWidth).
+        var width = Math.Min(input.FixedWidth ? input.PreferredSize.Width : Math.Max(anchor.Width, input.PreferredSize.Width), maximum.Width);
         var wanted = Math.Min(input.PreferredSize.Height, maximum.Height);
         // Below when it fits there, else on the side with more room (as a combo box), never smaller than a few rows.
         opensAbove = wanted > spaceBelow && spaceAbove > spaceBelow;

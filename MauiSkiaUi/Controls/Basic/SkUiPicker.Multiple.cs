@@ -36,6 +36,19 @@ public partial class SkUiPicker
         coerceValue: (_, value) => value ?? new ObservableCollection<object>(),
         propertyChanged: (view, _, value) => ((SkUiPicker)view).OnSelectedItemsChanged((IList<object>?)value));
 
+    /// <summary>Bindable property for <see cref="IsPopupClosedOnSelection"/>.</summary>
+    public static readonly BindableProperty IsPopupClosedOnSelectionProperty = BindableProperty.Create(nameof(IsPopupClosedOnSelection), typeof(bool), typeof(SkUiPicker), false);
+
+    /// <summary>
+    /// With several choices (and <see cref="SkUiPickerUpdateMode.Immediately"/>): whether the list closes after each toggled row, as
+    /// a combo box that adds one item at a time (default <c>false</c>: it stays open). A single choice always closes. Applies
+    /// from the next opening. SkiaUi extension.
+    /// </summary>
+    public bool IsPopupClosedOnSelection { get => (bool)GetValue(IsPopupClosedOnSelectionProperty); set => SetValue(IsPopupClosedOnSelectionProperty, value); }
+
+    /// <summary>Sets <see cref="IsPopupClosedOnSelection"/> (same as the property setter).</summary>
+    public SkUiPicker SetIsPopupClosedOnSelection(bool value) { IsPopupClosedOnSelection = value; return this; }
+
     /// <summary>Bindable property for <see cref="SelectedTextSeparator"/>.</summary>
     public static readonly BindableProperty SelectedTextSeparatorProperty = BindableProperty.Create(nameof(SelectedTextSeparator), typeof(string), typeof(SkUiPicker),
         DefaultSelectedTextSeparator, validateValue: SkUiValidate.NotNull,
@@ -167,8 +180,10 @@ public partial class SkUiPicker
             return;
         _selectedSnapshot = current;
         UpdateMultipleState();
-        if (!(previous.Length == current.Length && previous.SequenceEqual(current)))
-            SelectionChanged?.Invoke(this, new SkUiSelectionChangedEventArgs(previous, current));
+        if (previous.Length == current.Length && previous.SequenceEqual(current))
+            return;
+        Model.RunSelectionChangedCommand();
+        SelectionChanged?.Invoke(this, new SkUiSelectionChangedEventArgs(previous, current));
     }
 
     /// <summary>Sets the contents of <see cref="SelectedItems"/> in one change (one <see cref="SelectionChanged"/>).</summary>
@@ -258,7 +273,7 @@ public partial class SkUiPicker
                 if (weak.TryGetTarget(out var picker))
                     picker.ApplyChosenIndices(indices);
             },
-            () => weak.TryGetTarget(out var picker) ? picker._selectedIndices : [], _selectedIndices);
+            () => weak.TryGetTarget(out var picker) ? picker._selectedIndices : [], _selectedIndices, IsPopupClosedOnSelection);
     }
 
     /// <summary>Follows an <see cref="INotifyCollectionChanged"/> <see cref="SelectedItems"/> list without the list keeping the picker alive.</summary>

@@ -24,6 +24,12 @@ public partial class SkUiCorePicker
     /// <summary>The indices of <see cref="SelectedItems"/> in the items, ascending (empty without <see cref="SkUiSelectionMode.Multiple"/>).</summary>
     public IReadOnlyList<int> SelectedIndices => _selectedIndices;
 
+    /// <summary>With several choices: whether the list closes after each toggled row (default <c>false</c>; see <c>SkUiPicker.IsPopupClosedOnSelection</c>).</summary>
+    public bool IsPopupClosedOnSelection { get; set => SetProperty(ref field, value); }
+
+    /// <summary>Sets <see cref="IsPopupClosedOnSelection"/>.</summary>
+    public SkUiCorePicker SetIsPopupClosedOnSelection(bool value) { IsPopupClosedOnSelection = value; return this; }
+
     /// <summary>What goes between the chosen texts in the field with several choices (default <c>", "</c>).</summary>
     public string SelectedTextSeparator { get => _selectedTextSeparator; set => SetSelectedTextSeparator(value); }
 
@@ -63,7 +69,10 @@ public partial class SkUiCorePicker
         _selectedIndices = [];
         ApplySelectedIndex(first, raise: true);
         if (previous.Length > 0)
+        {
+            Model.RunSelectionChangedCommand();
             SelectionChanged?.Invoke(this, new SkUiSelectionChangedEventArgs(previous, []));
+        }
         return this;
     }
 
@@ -127,8 +136,10 @@ public partial class SkUiCorePicker
         _selected = chosen;
         UpdateMultipleState();
         OnPropertyChanged(nameof(SelectedItems));
-        if (!(previous.Length == chosen.Length && previous.SequenceEqual(chosen)))
-            SelectionChanged?.Invoke(this, new SkUiSelectionChangedEventArgs(previous, chosen));
+        if (previous.Length == chosen.Length && previous.SequenceEqual(chosen))
+            return;
+        Model.RunSelectionChangedCommand();
+        SelectionChanged?.Invoke(this, new SkUiSelectionChangedEventArgs(previous, chosen));
     }
 
     /// <summary>
@@ -188,6 +199,6 @@ public partial class SkUiCorePicker
                 if (weak.TryGetTarget(out var picker))
                     picker.ApplyChosenIndices(indices);
             },
-            () => weak.TryGetTarget(out var picker) ? picker._selectedIndices : [], _selectedIndices);
+            () => weak.TryGetTarget(out var picker) ? picker._selectedIndices : [], _selectedIndices, IsPopupClosedOnSelection);
     }
 }

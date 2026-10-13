@@ -42,6 +42,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     private readonly DataTemplate? _template;
     private Row[] _rows;
     private readonly bool _multiple;
+    private readonly bool _closesOnToggle;
     private readonly Action<IReadOnlyList<int>>? _apply;
     private readonly Func<IReadOnlyList<int>>? _currentSelection;
     private readonly int _initialSelected;
@@ -61,8 +62,9 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     /// </summary>
     public SkUiPickerPopup(IReadOnlyList<string> texts, int selected, DataTemplate? template, IList? itemsSource, SkUiPickerRowStyle style, string? title,
         bool rightToLeft, SkUiPickerPopupChrome chrome, Action<IReadOnlyList<int>>? apply = null, Func<IReadOnlyList<int>>? currentSelection = null,
-        IReadOnlyList<int>? checkedIndices = null)
+        IReadOnlyList<int>? checkedIndices = null, bool closesOnToggle = false)
     {
+        _closesOnToggle = closesOnToggle;
         _texts = texts;
         _chrome = chrome;
         _style = style;
@@ -219,6 +221,9 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         {
             _applying = false;
         }
+        // A combo box that adds one item at a time (each change already applied).
+        if (_closesOnToggle && !request.RequiresAccept)
+            request.Close();
     }
 
     /// <summary>Shows exactly <paramref name="chosen"/> (ascending) as checked.</summary>

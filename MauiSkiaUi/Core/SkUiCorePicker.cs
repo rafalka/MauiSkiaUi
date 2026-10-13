@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Specialized;
+using System.Windows.Input;
 
 namespace MauiSkiaUi.Core;
 
@@ -175,6 +176,21 @@ public partial class SkUiCorePicker : SkUiCorePickerBase
     /// <summary>Sets <see cref="SkUiCorePickerBase.CancelText"/> (same as the property setter).</summary>
     public new SkUiCorePicker SetCancelText(string? value) { base.SetCancelText(value); return this; }
 
+    /// <summary>Sets <see cref="SkUiCorePickerBase.Placeholder"/> (same as the property setter).</summary>
+    public new SkUiCorePicker SetPlaceholder(string? value) { base.SetPlaceholder(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.PlaceholderColor"/> (same as the property setter).</summary>
+    public new SkUiCorePicker SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.PopupWidth"/> (same as the property setter).</summary>
+    public new SkUiCorePicker SetPopupWidth(double value) { base.SetPopupWidth(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.SelectionChangedCommand"/> (same as the property setter).</summary>
+    public new SkUiCorePicker SetSelectionChangedCommand(ICommand? value) { base.SetSelectionChangedCommand(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.SelectionChangedCommandParameter"/> (same as the property setter).</summary>
+    public new SkUiCorePicker SetSelectionChangedCommandParameter(object? value) { base.SetSelectionChangedCommandParameter(value); return this; }
+
     #endregion
 
     #region Items and selection
@@ -252,8 +268,10 @@ public partial class SkUiCorePicker : SkUiCorePickerBase
         // The index may be the same while its text changed (a replaced item): the field shows the new text.
         Model.SelectedIndex = index;
         Model.SelectionChanged();
-        if (changed && raise)
-            SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
+        if (!changed || !raise)
+            return;
+        Model.RunSelectionChangedCommand();
+        SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private object? ItemAt(int index)

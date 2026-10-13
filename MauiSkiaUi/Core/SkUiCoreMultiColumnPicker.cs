@@ -1,3 +1,5 @@
+using System.Windows.Input;
+
 namespace MauiSkiaUi.Core;
 
 /// <summary>
@@ -13,7 +15,10 @@ public class SkUiCoreMultiColumnPicker : SkUiCorePickerBase
     /// <summary>Creates a picker without columns.</summary>
     public SkUiCoreMultiColumnPicker() =>
         _columns = new SkUiColumnsModel(Model, (column, previous, current) =>
-            SelectionChanged?.Invoke(this, new SkUiColumnSelectionChangedEventArgs(column, previous, current)));
+        {
+            Model.RunSelectionChangedCommand();
+            SelectionChanged?.Invoke(this, new SkUiColumnSelectionChangedEventArgs(column, previous, current));
+        });
 
     /// <summary>The columns, left to right (right to left in right-to-left layouts). Changing them closes an open popup.</summary>
     public IList<SkUiPickerColumn> Columns => _columns.Columns;
@@ -115,6 +120,21 @@ public class SkUiCoreMultiColumnPicker : SkUiCorePickerBase
 
     /// <summary>Sets <see cref="SkUiCorePickerBase.CancelText"/> (same as the property setter).</summary>
     public new SkUiCoreMultiColumnPicker SetCancelText(string? value) { base.SetCancelText(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.Placeholder"/> (same as the property setter).</summary>
+    public new SkUiCoreMultiColumnPicker SetPlaceholder(string? value) { base.SetPlaceholder(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.PlaceholderColor"/> (same as the property setter).</summary>
+    public new SkUiCoreMultiColumnPicker SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.PopupWidth"/> (same as the property setter).</summary>
+    public new SkUiCoreMultiColumnPicker SetPopupWidth(double value) { base.SetPopupWidth(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.SelectionChangedCommand"/> (same as the property setter).</summary>
+    public new SkUiCoreMultiColumnPicker SetSelectionChangedCommand(ICommand? value) { base.SetSelectionChangedCommand(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.SelectionChangedCommandParameter"/> (same as the property setter).</summary>
+    public new SkUiCoreMultiColumnPicker SetSelectionChangedCommandParameter(object? value) { base.SetSelectionChangedCommandParameter(value); return this; }
 
     /// <summary>Adds <paramref name="column"/> after the others.</summary>
     public SkUiCoreMultiColumnPicker AddColumn(SkUiPickerColumn column)

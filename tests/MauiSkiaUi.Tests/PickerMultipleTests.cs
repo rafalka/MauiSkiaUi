@@ -279,7 +279,7 @@ public sealed class PickerSelectedRowLookTests : IDisposable
     {
         var label = new SkUiLabel { Padding = new Thickness(12) };
         var row = new SkUiHorizontalStackLayout { Children = { label } };
-        row.BindingContextChanged += (_, _) => label.Text = row.BindingContext as string;
+        row.BindingContextChanged += (_, _) => label.Text = row.BindingContext as string ?? string.Empty;
         var selected = new VisualState { Name = VisualStateManager.CommonStates.Selected };
         selected.Setters.Add(new Setter { Property = VisualElement.BackgroundColorProperty, Value = SelectedColor });
         var group = new VisualStateGroup { Name = "CommonStates" };

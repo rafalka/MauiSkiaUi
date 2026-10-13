@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Specialized;
+using System.Windows.Input;
 
 namespace MauiSkiaUi;
 
@@ -205,6 +206,21 @@ public partial class SkUiPicker : SkUiPickerBase
     /// <summary>Sets <see cref="SkUiPickerBase.CancelText"/> (same as the property setter).</summary>
     public new SkUiPicker SetCancelText(string? value) { base.SetCancelText(value); return this; }
 
+    /// <summary>Sets <see cref="SkUiPickerBase.Placeholder"/> (same as the property setter).</summary>
+    public new SkUiPicker SetPlaceholder(string? value) { base.SetPlaceholder(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.PlaceholderColor"/> (same as the property setter).</summary>
+    public new SkUiPicker SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.PopupWidth"/> (same as the property setter).</summary>
+    public new SkUiPicker SetPopupWidth(double value) { base.SetPopupWidth(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.SelectionChangedCommand"/> (same as the property setter).</summary>
+    public new SkUiPicker SetSelectionChangedCommand(ICommand? value) { base.SetSelectionChangedCommand(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.SelectionChangedCommandParameter"/> (same as the property setter).</summary>
+    public new SkUiPicker SetSelectionChangedCommandParameter(object? value) { base.SetSelectionChangedCommandParameter(value); return this; }
+
     #endregion
 
     #region Items and selection (MAUI's rules)
@@ -326,8 +342,10 @@ public partial class SkUiPicker : SkUiPickerBase
         Model.SelectedIndex = SelectedIndex;
         UpdateSelectedItem(SelectedIndex);
         Model.SelectionChanged();
-        if (!_suppressSelectedIndexChanged)
-            SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
+        if (_suppressSelectedIndexChanged)
+            return;
+        Model.RunSelectionChangedCommand();
+        SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private int GetSelectedIndex()

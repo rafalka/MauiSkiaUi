@@ -65,7 +65,7 @@ host.SetContent(core);
 | `UpdateMode`, `AcceptText`, `CancelText` | `Immediately`, `null` | `WhenFinished`: the wheels are a draft until OK ([SkUiPicker](SkUiPicker.md#when-a-choice-takes-effect)) |
 | `SelectedIndices` / `SelectedItems` | | One per column (read-only; set the columns) |
 | `SelectionChanged` | | `SkUiColumnSelectionChangedEventArgs`: `ColumnIndex`, `PreviousIndex`, `CurrentIndex` |
-| `Title`, `TitleColor`, `TextColor`, font properties, alignments, `IsOpen` / `Opened` / `Closed`, `PopupPlacement`, `PopupBounds`, `MaxPopupHeight`, `PopupPresenter` | | As `SkUiPicker`'s (`SkUiPickerBase`); the font is also the wheels' |
+| `Title`, `TitleColor`, `Placeholder`, `PlaceholderColor`, `TextColor`, font properties, alignments, `IsOpen` / `Opened` / `Closed`, `PopupPlacement`, `PopupBounds`, `PopupWidth`, `MaxPopupHeight`, `PopupPresenter`, `SelectionChangedCommand` (+ parameter) | | As `SkUiPicker`'s (`SkUiPickerBase`); the font is also the wheels' |
 
 | `SkUiPickerColumn` | Default | Notes |
 | --- | --- | --- |
