@@ -38,9 +38,22 @@ public sealed class SkUiStringsTests : IDisposable
     [Fact]
     public void ScreenReadersReadTheCurrentTexts()
     {
+        // The items are measured text: the bundled font (Linux CI has no system fonts, and an item without height is no element).
+        using var font = SkUiTestHelpers.UseBundledFont();
         SkUiStrings.Current = Polish();
         var expander = new SkUiExpander { Header = new SkUiLabel { Text = "Szczegóły", WidthRequest = 80, HeightRequest = 20 }, Content = new SkUiBox { HeightRequest = 30 } };
-        var list = new SkUiCollectionView { ItemsSource = new[] { "a", "b" }, SelectionMode = SkUiSelectionMode.Single, SelectedItem = "b" };
+        var list = new SkUiCollectionView
+        {
+            ItemsSource = new[] { "a", "b" },
+            SelectionMode = SkUiSelectionMode.Single,
+            SelectedItem = "b",
+            ItemTemplate = new DataTemplate(() =>
+            {
+                var label = new SkUiLabel { FontFamily = SkUiTestHelpers.BundledFontFamily };
+                label.SetBinding(SkUiLabel.TextProperty, static (string text) => text);
+                return label;
+            })
+        };
         var root = new SkUiContentView { Content = new SkUiVerticalStackLayout { Children = { expander, list } } };
         SkUiTestHelpers.Arrange(root, 200, 300);
         var tree = SkUiSemanticsTree.Build(root);

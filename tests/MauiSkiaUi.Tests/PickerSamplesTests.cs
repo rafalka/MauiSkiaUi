@@ -56,6 +56,9 @@ public sealed class PickerSamplesTests : IDisposable
         Assert.Equal("Polish Zloty (PLN)", Value(root, from)); // screen readers: the whole name
         Assert.Contains(Descendants(root).OfType<SkUiLabel>(), label => label.Text?.EndsWith(" EUR") == true && label.FontSize > 20);
 
+        // The list's width comes from its measured texts: the bundled font (Linux CI has no system fonts).
+        using var font = SkUiTestHelpers.UseBundledFont();
+        from.FontFamily = SkUiTestHelpers.BundledFontFamily;
         from.IsOpen = true;
         var request = _presenter.Current!;
         Assert.True(request.Bounds.Width > from.Width); // the list is wider than the narrow field
