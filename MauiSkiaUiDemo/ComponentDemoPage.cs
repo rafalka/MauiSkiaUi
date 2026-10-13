@@ -53,6 +53,7 @@ public abstract class ComponentDemoPage : ContentPage
         {
             native.HorizontalOptions = LayoutOptions.Center;
             native.VerticalOptions = LayoutOptions.Center;
+            native.HandlerChanged += (_, _) => UseLightAppearance(native);
         }
         _skiaPanel = MakePanel("SkUi", _host, out _skiaStatus);
         _comparisons.Add(_skiaPanel);
@@ -108,6 +109,19 @@ public abstract class ComponentDemoPage : ContentPage
             value => { _skiaPanel.FlowDirection = value; if (_nativePanel is not null) _nativePanel.FlowDirection = value; },
             () => _skiaPanel.FlowDirection, _nativePanel is null ? null : () => _nativePanel.FlowDirection);
         _addingCommonEditors = false;
+    }
+
+    /// <summary>
+    /// The comparison panels are always light. On Apple platforms a native control follows the system's appearance where MAUI
+    /// does not set its colors (Mac Catalyst's <c>UIDatePicker</c> ignores <c>TextColor</c>: white text on the white panel in
+    /// dark mode), so it is given the light appearance too.
+    /// </summary>
+    private static void UseLightAppearance(View native)
+    {
+#if IOS || MACCATALYST
+        if (native.Handler?.PlatformView is UIKit.UIView view)
+            view.OverrideUserInterfaceStyle = UIKit.UIUserInterfaceStyle.Light;
+#endif
     }
 
     private readonly bool _autoSize;
