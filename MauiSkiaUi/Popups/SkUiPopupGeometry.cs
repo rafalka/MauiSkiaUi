@@ -32,6 +32,8 @@ internal readonly record struct SkUiPopupLayout(
 /// <param name="MaximumHeight">The control's height limit (infinite: none).</param>
 /// <param name="AbsoluteBounds">The app's rectangle for <see cref="SkUiPopupPlacement.Absolute"/>.</param>
 /// <param name="IsRightToLeft">The anchor lays out right to left.</param>
+/// <param name="MinimumWidth">The least width the app wants (a picker's <c>MinPopupWidth</c> / <c>PopupWidth</c>); NaN: none, so an anchored popup is at least the anchor's width.</param>
+/// <param name="MaximumWidth">The most width the app allows (a picker's <c>MaxPopupWidth</c> / <c>PopupWidth</c>), within the safe area.</param>
 internal readonly record struct SkUiPopupPlacementInput(
     Rect AnchorBounds,
     Rect AnchorBoundsInPlatformAnchor,
@@ -45,7 +47,9 @@ internal readonly record struct SkUiPopupPlacementInput(
     Size PreferredSize,
     double MaximumHeight,
     Rect AbsoluteBounds,
-    bool IsRightToLeft);
+    bool IsRightToLeft,
+    double MinimumWidth = double.NaN,
+    double MaximumWidth = double.PositiveInfinity);
 
 /// <summary>
 /// Places popups (pure geometry, window coordinates): anchored below the anchor or flipped above when the content fits there
@@ -63,7 +67,7 @@ internal static class SkUiPopupGeometry
     public static SkUiPopupLayout Layout(in SkUiPopupPlacementInput input)
     {
         var area = Area(input);
-        var maximum = new Size(Math.Max(0, area.Width), Math.Max(0, Math.Min(area.Height, input.MaximumHeight)));
+        var maximum = new Size(Math.Max(0, Math.Min(area.Width, input.MaximumWidth)), Math.Max(0, Math.Min(area.Height, input.MaximumHeight)));
         var spaceAbove = Math.Max(0, input.AnchorBounds.Top - input.AnchorGap - area.Top);
         var spaceBelow = Math.Max(0, area.Bottom - input.AnchorBounds.Bottom - input.AnchorGap);
         var opensAbove = false;
@@ -106,7 +110,10 @@ internal static class SkUiPopupGeometry
     private static Rect Anchored(in SkUiPopupPlacementInput input, Rect area, Size maximum, double spaceAbove, double spaceBelow, out bool opensAbove)
     {
         var anchor = input.AnchorBounds;
-        var width = Math.Min(Math.Max(anchor.Width, input.PreferredSize.Width), maximum.Width);
+        // As wide as the content wants (wider than the anchor when its items are), at least the anchor's width unless the app set
+        // a minimum of its own, at most the app's maximum and the safe area.
+        var minimum = double.IsNaN(input.MinimumWidth) ? anchor.Width : input.MinimumWidth;
+        var width = Math.Min(Math.Max(minimum, input.PreferredSize.Width), maximum.Width);
         var wanted = Math.Min(input.PreferredSize.Height, maximum.Height);
         // Below when it fits there, else on the side with more room (as a combo box), never smaller than a few rows.
         opensAbove = wanted > spaceBelow && spaceAbove > spaceBelow;
@@ -125,7 +132,8 @@ internal static class SkUiPopupGeometry
     {
         var horizontal = input.HorizontalOptions.Alignment;
         var vertical = input.VerticalOptions.Alignment;
-        var width = horizontal == LayoutAlignment.Fill ? maximum.Width : Math.Min(input.PreferredSize.Width, maximum.Width);
+        var minimum = double.IsNaN(input.MinimumWidth) ? 0 : input.MinimumWidth;
+        var width = horizontal == LayoutAlignment.Fill ? maximum.Width : Math.Min(Math.Max(minimum, input.PreferredSize.Width), maximum.Width);
         var height = vertical == LayoutAlignment.Fill ? maximum.Height : Math.Min(input.PreferredSize.Height, maximum.Height);
         // Start and End are mirrored in right-to-left layouts, as in a MAUI layout.
         if (input.IsRightToLeft && horizontal is LayoutAlignment.Start or LayoutAlignment.End)

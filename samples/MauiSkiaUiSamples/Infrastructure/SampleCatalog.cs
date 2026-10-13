@@ -1,6 +1,7 @@
 using MauiSkiaUiSamples.Samples.Controls;
 using MauiSkiaUiSamples.Samples.Controls.Contacts;
 using MauiSkiaUiSamples.Samples.Controls.Pickers;
+using MauiSkiaUiSamples.Samples.Core;
 using MauiSkiaUiSamples.Samples.Customisation;
 using MauiSkiaUiSamples.Samples.GettingStarted;
 
@@ -22,7 +23,14 @@ public static class SampleCatalog
         SampleEntry.For<ContactsSample>(),
         SampleEntry.For<PlanPickerSample>(),
         SampleEntry.For<PickerPopupsSample>(),
+        SampleEntry.For<CurrencyConverterSample>(),
+        SampleEntry.For<PizzaOrderSample>(),
+        SampleEntry.For<AlarmClockSample>(),
+        SampleEntry.For<DateOfBirthSample>(),
+        SampleEntry.For<BookingSample>(),
         SampleEntry.For<CrossCheckBoxSample>(),
+        SampleEntry.For<TranslatedPickerTextsSample>(),
+        SampleEntry.For<CorePickersSample>(),
     ];
 
     /// <summary>Sections that have examples, in <see cref="SampleSection"/> order.</summary>

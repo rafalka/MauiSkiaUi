@@ -785,6 +785,120 @@ public class SkUiLook
     /// <summary>Default picker field: none (<see cref="DefaultSkUiLook"/> draws <see cref="DefaultSkUiLook.PickerFieldStyle"/>).</summary>
     protected virtual void DrawPickerFieldCore(SKCanvas canvas, SkUiPickerFieldPaint field) { }
 
+    /// <summary>The height of a row of a picker's wheels (<c>SkUiMultiColumnPicker</c>), in DIPs (default <see cref="PopupItemHeight"/>).</summary>
+    public virtual double PickerWheelRowHeight => PopupItemHeight;
+
+    /// <summary>How the items of a picker's wheels change as they leave the middle row (default: they fade, shrink a little and turn away as on a drum).</summary>
+    public virtual SkUiCarouselEffect PickerWheelEffect => SkUiWheelEffect.Instance;
+
+    /// <summary>The band behind the middle row of a picker's wheels (default <see cref="PopupHighlightColor"/>).</summary>
+    public virtual Color PickerWheelBandColor => PopupHighlightColor;
+
+    /// <summary>The corners of the band behind the middle row of a picker's wheels (default 8).</summary>
+    public virtual CornerRadius PickerWheelBandCornerRadius => new(8);
+
+    /// <summary>
+    /// Whether OK comes before Cancel in a popup's footer, at its end side (default <c>false</c>: Cancel, then OK, as on Android,
+    /// Apple platforms and the web; <c>true</c> as Windows' dialogs).
+    /// </summary>
+    public virtual bool PopupAcceptButtonFirst => false;
+
+    /// <summary>
+    /// Styles a button of a popup's footer after SkiaUi created it with its text and the picker's font: by default OK is a filled
+    /// button in the accent color, Cancel and Clear are text in the accent color. Override it for the look's buttons.
+    /// </summary>
+    public virtual void StylePopupButton(SkUiButton button, SkUiPopupButton kind)
+    {
+        if (kind == SkUiPopupButton.Accept)
+            return;
+        button.FillColor = Colors.Transparent;
+        button.TextColor = SkUiColors.Accent;
+    }
+
+    /// <summary>Optional painter of a picker field's tokens; when set, replaces <see cref="DrawPickerTokenCore"/>.</summary>
+    public Action<SKCanvas, SkUiPickerTokenPaint>? PickerTokenPainter { get; set; }
+
+    /// <summary>
+    /// Draws a token of a picker field (several choices shown as tokens; delegate or <see cref="DrawPickerTokenCore"/>): its background
+    /// and its × in <see cref="SkUiPickerTokenPaint.RemoveBounds"/> (empty when it cannot be removed); the control draws the text.
+    /// </summary>
+    public void DrawPickerToken(SKCanvas canvas, SkUiPickerTokenPaint token)
+    {
+        if (PickerTokenPainter is { } painter)
+        {
+            painter(canvas, token);
+            return;
+        }
+        DrawPickerTokenCore(canvas, token);
+    }
+
+    /// <summary>Default token: a pill in <see cref="SkUiPickerTokenPaint.Fill"/> (outlined for "+N"), a cross in the muted color.</summary>
+    protected virtual void DrawPickerTokenCore(SKCanvas canvas, SkUiPickerTokenPaint token)
+    {
+        const float arm = 3.5f;
+        var radius = token.Bounds.Height / 2;
+        using var paint = new SKPaint { IsAntialias = true, Color = token.Fill };
+        if (token.IsMore)
+        {
+            paint.Style = SKPaintStyle.Stroke;
+            paint.StrokeWidth = 1;
+            paint.Color = token.Foreground;
+            var outline = token.Bounds;
+            outline.Inflate(-0.5f, -0.5f);
+            canvas.DrawRoundRect(outline, radius, radius, paint);
+        }
+        else
+        {
+            canvas.DrawRoundRect(token.Bounds, radius, radius, paint);
+        }
+        if (token.RemoveBounds.IsEmpty)
+            return;
+        var center = new SKPoint(token.RemoveBounds.MidX - 2, token.RemoveBounds.MidY);
+        paint.Style = SKPaintStyle.Stroke;
+        paint.StrokeWidth = 1.5f;
+        paint.StrokeCap = SKStrokeCap.Round;
+        paint.Color = token.Foreground.WithAlpha((byte)(token.Foreground.Alpha * (token.IsRemovePressed ? 0.6f : token.IsEnabled ? 1f : 0.5f)));
+        canvas.DrawLine(center.X - arm, center.Y - arm, center.X + arm, center.Y + arm, paint);
+        canvas.DrawLine(center.X - arm, center.Y + arm, center.X + arm, center.Y - arm, paint);
+    }
+
+    /// <summary>The room a picker field keeps for its clear button (<c>IsClearButtonVisible</c>) before the chevron, in DIPs (default 32).</summary>
+    public virtual double PickerClearButtonWidth => 32;
+
+    /// <summary>Optional painter of a picker field's clear button; when set, replaces <see cref="DrawPickerClearButtonCore"/>.</summary>
+    public Action<SKCanvas, SkUiPickerClearButtonPaint>? PickerClearButtonPainter { get; set; }
+
+    /// <summary>
+    /// Draws the clear button of a picker field (delegate or <see cref="DrawPickerClearButtonCore"/>) in
+    /// <see cref="SkUiPickerClearButtonPaint.Bounds"/>, over the field's chrome; shown while something is chosen.
+    /// </summary>
+    public void DrawPickerClearButton(SKCanvas canvas, SkUiPickerClearButtonPaint button)
+    {
+        if (PickerClearButtonPainter is { } painter)
+        {
+            painter(canvas, button);
+            return;
+        }
+        DrawPickerClearButtonCore(canvas, button);
+    }
+
+    /// <summary>Default clear button: a filled circle in the muted color with a cross in the field's background color, centered.</summary>
+    protected virtual void DrawPickerClearButtonCore(SKCanvas canvas, SkUiPickerClearButtonPaint button)
+    {
+        const float radius = 8;
+        const float arm = 3.5f;
+        var center = new SKPoint(button.Bounds.MidX, button.Bounds.MidY);
+        var alpha = button.IsEnabled ? (button.IsPressed ? 0.75f : 1f) : 0.5f;
+        using var paint = new SKPaint { IsAntialias = true, Color = button.Color.WithAlpha((byte)(button.Color.Alpha * alpha)) };
+        canvas.DrawCircle(center, radius, paint);
+        paint.Color = button.Background;
+        paint.Style = SKPaintStyle.Stroke;
+        paint.StrokeWidth = 1.5f;
+        paint.StrokeCap = SKStrokeCap.Round;
+        canvas.DrawLine(center.X - arm, center.Y - arm, center.X + arm, center.Y + arm, paint);
+        canvas.DrawLine(center.X - arm, center.Y + arm, center.X + arm, center.Y - arm, paint);
+    }
+
     /// <summary>
     /// Where pickers that do not set their own <c>PopupPlacement</c> open their list (default <see cref="SkUiPopupPlacement.Anchored"/>;
     /// <see cref="DefaultSkUiLook"/> follows the device: anchored on desktops and tablets, a dialog on phones).

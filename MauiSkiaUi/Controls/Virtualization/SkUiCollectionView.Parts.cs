@@ -216,7 +216,7 @@ public partial class SkUiCollectionView
         {
             base.OnPopulateSemantics(info);
             if (_selected)
-                info.Value = SelectedStateText();
+                info.Value = SkUiStrings.Current.SelectedStateText;
         }
     }
 
@@ -354,7 +354,7 @@ public partial class SkUiCollectionView
             if (!owner.AllowGroupExpandCollapse || Content is null)
                 return;
             info.Role = SkUiSemanticsRole.Button;
-            info.Value = SkUiExpander.ExpandedStateText(_expanded);
+            info.Value = SkUiStrings.Current.ExpansionStateText(_expanded);
         }
     }
 
@@ -370,7 +370,7 @@ public partial class SkUiCollectionView
         }
     }
 
-    /// <summary>The default load-more row: a "Load more" button (manual mode), a spinner while loading.</summary>
+    /// <summary>The default load-more row: a "Load more" button (manual mode; its text follows <see cref="SkUiStrings"/>), a spinner while loading.</summary>
     private sealed class LoadMoreDefaultView : SkUiContentView
     {
         private readonly SkUiButton _button;
@@ -379,9 +379,14 @@ public partial class SkUiCollectionView
         public LoadMoreDefaultView(SkUiCollectionView owner)
         {
             Padding = new Thickness(8);
-            _button = new SkUiButton { Text = LoadMoreText(), HorizontalOptions = LayoutOptions.Center };
+            _button = new SkUiButton { Text = SkUiStrings.Current.LoadMoreText, HorizontalOptions = LayoutOptions.Center };
             _button.Clicked += (_, _) => owner.RunLoadMore();
+            // Weak: the app-wide event does not keep the list alive.
+            SkUiStrings.CurrentChanged += OnStringsChanged;
         }
+
+        // The texts change on the UI thread (SkUiStrings).
+        private void OnStringsChanged(object? sender, EventArgs args) => _button.Text = SkUiStrings.Current.LoadMoreText;
 
         public void Show(bool manual, bool active)
         {

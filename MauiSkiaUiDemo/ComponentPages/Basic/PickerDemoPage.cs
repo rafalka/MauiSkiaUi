@@ -18,6 +18,8 @@ public sealed class PickerDemoPage : ComponentDemoPage
     private const string ActionSheetPresenter = "MAUI action sheet";
     private const string AppPresenter = "App's (SkUiPopups.Presenter)";
     private const string Title1 = "Select a monkey";
+    private const string AppAcceptText = "(app's: SkUiStrings.Current)";
+    private const string LocalAcceptText = "Done";
 
     private static readonly string[] MonkeyNames = ["Baboon", "Capuchin Monkey", "Blue Monkey", "Squirrel Monkey", "Golden Lion Tamarin", "Howler Monkey"];
     private static readonly string[] NumberNames = [.. Enumerable.Range(1, 500).Select(number => $"Item {number}")];
@@ -74,7 +76,29 @@ public sealed class PickerDemoPage : ComponentDemoPage
         Choice(nameof(SkUiPicker.PopupPlacement), Enum.GetValues<SkUiPopupPlacement>(), SkUiPopupPlacement.Default,
             value => _skia.PopupPlacement = value, () => _skia.PopupPlacement);
         Number(nameof(SkUiPicker.MaxPopupHeight), -1, 600, -1, value => _skia.MaxPopupHeight = value < 0 ? -1 : value, () => _skia.MaxPopupHeight, whole: true);
+        Choice(nameof(SkUiPickerBase.UpdateMode), [SkUiPickerUpdateMode.Immediately, SkUiPickerUpdateMode.WhenFinished], SkUiPickerUpdateMode.Immediately,
+            value => _skia.UpdateMode = value, () => _skia.UpdateMode);
+        Choice(nameof(SkUiPickerBase.AcceptText), [AppAcceptText, LocalAcceptText], AppAcceptText,
+            value => _skia.AcceptText = value == AppAcceptText ? null : value, () => _skia.AcceptText ?? AppAcceptText);
         Toggle("ItemTemplate (drawn rows)", false, value => _skia.ItemTemplate = value ? new DataTemplate(Row) : null, () => _skia.ItemTemplate is not null);
+        Toggle("SelectedItemTemplate (drawn field)", false, value => _skia.SelectedItemTemplate = value ? new DataTemplate(FieldRow) : null,
+            () => _skia.SelectedItemTemplate is not null);
+        Text(nameof(SkUiPicker.Placeholder), "", value => _skia.Placeholder = value.Length == 0 ? null : value, () => _skia.Placeholder ?? "");
+        Toggle(nameof(SkUiPicker.IsClearButtonVisible), false, value => _skia.IsClearButtonVisible = value, () => _skia.IsClearButtonVisible);
+        Toggle(nameof(SkUiPicker.IsPopupClearButtonVisible), false, value => _skia.IsPopupClearButtonVisible = value, () => _skia.IsPopupClearButtonVisible);
+        Number(nameof(SkUiPicker.PopupWidth), -1, 400, -1, value => _skia.PopupWidth = value < 0 ? -1 : value, () => _skia.PopupWidth, whole: true);
+        Number(nameof(SkUiPicker.MinPopupWidth), -1, 400, -1, value => _skia.MinPopupWidth = value < 0 ? -1 : value, () => _skia.MinPopupWidth, whole: true);
+        Number(nameof(SkUiPicker.MaxPopupWidth), -1, 400, -1, value => _skia.MaxPopupWidth = value < 0 ? -1 : value, () => _skia.MaxPopupWidth, whole: true);
+        // A narrow field with a short text, a list of whole names (a currency's code over its name).
+        Toggle("Field shows a short text (SelectedItemDisplayBinding)", false,
+            value => _skia.SelectedItemDisplayBinding = value ? new Binding(".", converter: ShortText.Instance) : null, () => _skia.SelectedItemDisplayBinding is not null);
+        Toggle("Items 2 and 4 cannot be chosen (ItemEnabledBinding)", false,
+            value => _skia.ItemEnabledBinding = value ? new Binding(".", converter: EvenItems.Instance) : null, () => _skia.ItemEnabledBinding is not null);
+        Toggle("PopupHeaderTemplate / PopupFooterTemplate", false, value =>
+        {
+            _skia.PopupHeaderTemplate = value ? new DataTemplate(() => Hint("Pick one; disabled items are dimmed.")) : null;
+            _skia.PopupFooterTemplate = value ? new DataTemplate(() => Hint("A footer of the app's.")) : null;
+        }, () => _skia.PopupHeaderTemplate is not null);
         Choice(nameof(SkUiPicker.PopupPresenter), [ToolkitPresenter, ActionSheetPresenter, AppPresenter], ToolkitPresenter,
             value => _skia.PopupPresenter = value switch
             {
@@ -89,6 +113,39 @@ public sealed class PickerDemoPage : ComponentDemoPage
                 _ => AppPresenter
             });
         Status();
+    }
+
+    /// <summary>A hint in the popup (the app's header and footer).</summary>
+    private static SkUiLabel Hint(string text) => new() { Text = text, FontSize = 13, TextColor = DemoColors.Caption, Padding = new Thickness(16, 8) };
+
+    /// <summary>The first three letters of an item's text, in capitals: the field's short text (as a currency's code).</summary>
+    private sealed class ShortText : IValueConverter
+    {
+        public static ShortText Instance { get; } = new();
+
+        public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)
+        {
+            var text = value is DemoColour colour ? colour.Name : value?.ToString() ?? string.Empty;
+            return text[..Math.Min(3, text.Length)].ToUpperInvariant();
+        }
+
+        public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
+    }
+
+    /// <summary>Items 2 and 4 (indices 1 and 3) cannot be chosen.</summary>
+    private sealed class EvenItems : IValueConverter
+    {
+        public static EvenItems Instance { get; } = new();
+
+        public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) =>
+            value switch
+            {
+                DemoColour colour => Array.IndexOf(ColourItems, colour) is not (1 or 3),
+                string text => Array.IndexOf(MonkeyNames, text) is not (1 or 3) && Array.IndexOf(NumberNames, text) is not (1 or 3),
+                _ => true
+            };
+
+        public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
     }
 
     private void SetItems(string name)
@@ -111,11 +168,31 @@ public sealed class PickerDemoPage : ComponentDemoPage
         ReferenceEquals(items, NumberNames) ? Numbers : ReferenceEquals(items, ColourItems) ? Colours : Monkeys;
 
     /// <summary>A drawn row: a swatch (the objects list's color) and the text, larger than the plain rows.</summary>
-    private static SkUiHorizontalStackLayout Row()
+    private static SkUiGrid Row() => Swatched(swatchSize: 22, fontSize: 17, new Thickness(16, 12));
+
+    /// <summary>
+    /// The field's view of the selected item: the row's swatch and text, smaller and without the row's padding (the field has its
+    /// own, and a short field leaves the template little height).
+    /// </summary>
+    private static SkUiGrid FieldRow() => Swatched(swatchSize: 16, fontSize: 16, new Thickness(0));
+
+    private static SkUiGrid Swatched(double swatchSize, double fontSize, Thickness padding)
     {
-        var swatch = new SkUiBox { WidthRequest = 22, HeightRequest = 22, CornerRadius = new CornerRadius(11), VerticalOptions = LayoutOptions.Center };
-        var text = new SkUiLabel { FontSize = 17, TextColor = DemoColors.Ink, VerticalOptions = LayoutOptions.Center };
-        var row = new SkUiHorizontalStackLayout { Spacing = 12, Padding = new Thickness(16, 12), Children = { swatch, text } };
+        var swatch = new SkUiBox
+        {
+            WidthRequest = swatchSize, HeightRequest = swatchSize, CornerRadius = new CornerRadius(swatchSize / 2), VerticalOptions = LayoutOptions.Center
+        };
+        var text = new SkUiLabel
+        {
+            FontSize = fontSize, TextColor = DemoColors.Ink, VerticalOptions = LayoutOptions.Center, MaxLines = 1, LineBreakMode = LineBreakMode.TailTruncation
+        };
+        // A grid, not a stack: the text gets the width that is left and truncates in a narrow field.
+        var row = new SkUiGrid
+        {
+            ColumnSpacing = 12, Padding = padding, ColumnDefinitions = [new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star)],
+            Children = { swatch, text }
+        };
+        Grid.SetColumn(text, 1);
         // Rows bind to the items: a color object, or a plain text (the monkeys and numbers lists).
         row.BindingContextChanged += (_, _) =>
         {

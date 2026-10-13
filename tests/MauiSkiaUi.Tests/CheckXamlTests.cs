@@ -93,13 +93,16 @@ public class CheckXamlTests
                     <sk:SkUiMauiContentView>
                       <DatePicker />
                     </sk:SkUiMauiContentView>
+                    <TimePicker Time="{Binding Alarm}" />
                   </sk:SkUiVerticalStackLayout>
                 </ContentPage>
                 """);
             var (exitCode, output) = Run(project.FullName);
             Assert.Equal(1, exitCode);
             var errors = output.Split('\n').Where(line => line.Contains("error:")).ToArray();
-            Assert.Equal(2, errors.Length);
+            Assert.Equal(3, errors.Length);
+            // A wrapped native date picker is allowed; a bare time picker: the drawn one replaces it.
+            Assert.Contains(errors, error => error.Contains("Page.xaml:15:") && error.Contains("SkUiTimePicker"));
             // The native picker: the drawn one replaces it (and needs a presenter); a native row in the drawn list's template.
             Assert.Contains(errors, error => error.Contains("Page.xaml:4:") && error.Contains("SkUiPicker") && error.Contains("PopupPresenter"));
             Assert.Contains(errors, error => error.Contains("Page.xaml:8:") && error.Contains("SkUiLabel"));

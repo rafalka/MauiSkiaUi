@@ -1,23 +1,27 @@
 using System.Collections;
 using System.Collections.Specialized;
-using MauiSkiaUi.Rendering;
-using SkiaSharp;
+using System.Windows.Input;
 
 namespace MauiSkiaUi;
 
 /// <summary>
 /// A drawn picker: MAUI's <c>Picker</c> API (XAML ports by prefix) with a field drawn by the look and its list on the app's
-/// popup system. The field shows the selected item's text, or <see cref="Title"/> in <see cref="TitleColor"/> while nothing is
-/// selected; a tap, Space, Enter or Alt+Down opens the list (<see cref="IsOpen"/>), arrow keys change the selection without
+/// popup system. The field shows the selected item's text, or <see cref="SkUiPickerBase.Title"/> in <see cref="SkUiPickerBase.TitleColor"/> while nothing is
+/// selected; a tap, Space, Enter or Alt+Down opens the list (<see cref="SkUiPickerBase.IsOpen"/>), arrow keys change the selection without
 /// opening (as a desktop combo box). The list is a drawn, virtualized <see cref="SkUiCollectionView"/> in its own surface,
-/// handed to the app's <see cref="ISkUiPopupPresenter"/> (<see cref="PopupPresenter"/>, else <see cref="SkUiPopups.Presenter"/>,
+/// handed to the app's <see cref="ISkUiPopupPresenter"/> (<see cref="SkUiPickerBase.PopupPresenter"/>, else <see cref="SkUiPopups.Presenter"/>,
 /// else MAUI's action sheet): the selection highlighted and scrolled into view, a tap chooses, keyboard and screen readers.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Beyond MAUI:</b> <see cref="PopupPlacement"/> (anchored like a combo box, in the window like a dialog or a sheet, at
-/// <see cref="PopupBounds"/>, or the look's choice per platform), <see cref="ItemTemplate"/> (drawn rows),
-/// <see cref="MaxPopupHeight"/> and <see cref="PopupPresenter"/>.
+/// <b>Beyond MAUI:</b> <see cref="SkUiPickerBase.PopupPlacement"/> (anchored like a combo box, in the window like a dialog or a sheet, at
+/// <see cref="SkUiPickerBase.PopupBounds"/>, or the look's choice per platform), <see cref="ItemTemplate"/> (drawn rows),
+/// <see cref="SkUiPickerBase.MaxPopupHeight"/> and <see cref="SkUiPickerBase.PopupPresenter"/>.
+/// </para>
+/// <para>
+/// <b>Several choices:</b> <see cref="SelectionMode"/> <see cref="SkUiSelectionMode.Multiple"/> turns the list into check boxes
+/// that stay open (<see cref="SelectedItems"/>, <see cref="SelectedIndices"/>, <see cref="SelectionChanged"/>); the field shows the
+/// chosen texts joined by <see cref="SelectedTextSeparator"/>.
 /// </para>
 /// <para>
 /// <b>Selection</b> follows MAUI's rules: <see cref="SelectedIndex"/> and <see cref="SelectedItem"/> stay in step, an index set
@@ -25,23 +29,26 @@ namespace MauiSkiaUi;
 /// </para>
 /// <para>
 /// <b>The popup closes</b> when an item is chosen, the user dismisses it (the presenter's tap outside, Back, Escape),
-/// <see cref="IsOpen"/> is set to <c>false</c>, or the picker is disabled, hidden or removed; an anchored popup also closes when
-/// a scroller around the picker scrolls or the window resizes. <see cref="Opened"/> and <see cref="Closed"/> follow
-/// <see cref="IsOpen"/>, as MAUI's; a choice raises <see cref="SelectedIndexChanged"/> before <see cref="Closed"/>.
+/// <see cref="SkUiPickerBase.IsOpen"/> is set to <c>false</c>, or the picker is disabled, hidden or removed; an anchored popup also closes when
+/// a scroller around the picker scrolls or the window resizes. <see cref="SkUiPickerBase.Opened"/> and <see cref="SkUiPickerBase.Closed"/> follow
+/// <see cref="SkUiPickerBase.IsOpen"/>, as MAUI's; a choice raises <see cref="SelectedIndexChanged"/> before <see cref="SkUiPickerBase.Closed"/>.
 /// </para>
 /// </remarks>
-public class SkUiPicker : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
+public partial class SkUiPicker : SkUiPickerBase
 {
-    private static readonly PickerOpenedEventArgs OpenedArgs = new();
-    private static readonly PickerClosedEventArgs ClosedArgs = new();
     private static readonly BindableProperty DisplayProperty = BindableProperty.Create("Display", typeof(string), typeof(SkUiPicker), null);
+    private static readonly BindableProperty EnabledProperty = BindableProperty.Create("Enabled", typeof(bool), typeof(SkUiPicker), true);
+    private static readonly BindableProperty FieldDisplayProperty = BindableProperty.Create("FieldDisplay", typeof(string), typeof(SkUiPicker), null);
 
-    private readonly SkUiPickerModel _model;
     private readonly SkUiPickerItems _items = new();
     private SkUiWeakListener<SkUiPicker>? _itemsSourceListener;
     private IList? _itemsSource;
     private BindingBase? _itemDisplayBinding;
     private BindableObject? _displayProbe;
+    private BindingBase? _itemEnabledBinding;
+    private BindableObject? _enabledProbe;
+    private BindingBase? _selectedItemDisplayBinding;
+    private BindableObject? _fieldProbe;
     private bool _hasPendingSelectedIndex;
     private int _pendingSelectedIndex = -1;
     private bool _settingSelectedIndexInternally;
@@ -50,7 +57,7 @@ public class SkUiPicker : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
     /// <summary>Creates a picker without items.</summary>
     public SkUiPicker()
     {
-        _model = new SkUiPickerModel(this) { Items = _items };
+        Model.Items = _items;
         _items.CollectionChanged += OnItemsCollectionChanged;
     }
 
@@ -67,79 +74,19 @@ public class SkUiPicker : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
 
     /// <summary>Bindable property for <see cref="SelectedItem"/> (two-way by default).</summary>
     public static readonly BindableProperty SelectedItemProperty = BindableProperty.Create(nameof(SelectedItem), typeof(object), typeof(SkUiPicker), null, BindingMode.TwoWay,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view).UpdateSelectedIndex(value));
+        propertyChanged: (view, _, value) => ((SkUiPicker)view).OnSelectedItemChanged(value));
 
-    /// <summary>Bindable property for <see cref="Title"/>.</summary>
-    public static readonly BindableProperty TitleProperty = BindableProperty.Create(nameof(Title), typeof(string), typeof(SkUiPicker), null,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view).Apply(model => model.Title = (string?)value, measure: true));
+    /// <summary>Bindable property for <see cref="SelectedItemTemplate"/>.</summary>
+    public static readonly BindableProperty SelectedItemTemplateProperty = BindableProperty.Create(nameof(SelectedItemTemplate), typeof(DataTemplate), typeof(SkUiPicker), null,
+        propertyChanged: (view, _, _) => ((SkUiPicker)view).UpdateFieldView(templateChanged: true));
 
-    /// <summary>Bindable property for <see cref="TitleColor"/>.</summary>
-    public static readonly BindableProperty TitleColorProperty = BindableProperty.Create(nameof(TitleColor), typeof(Color), typeof(SkUiPicker), null,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view).Apply(model => model.TitleColor = (Color?)value));
-
-    /// <summary>Bindable property for <see cref="TextColor"/>.</summary>
-    public static readonly BindableProperty TextColorProperty = BindableProperty.Create(nameof(TextColor), typeof(Color), typeof(SkUiPicker), null,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view).Apply(model => model.TextColor = (Color?)value));
-
-    /// <summary>Bindable property for <see cref="FontFamily"/>.</summary>
-    public static readonly BindableProperty FontFamilyProperty = BindableProperty.Create(nameof(FontFamily), typeof(string), typeof(SkUiPicker), null,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view).Apply(model => model.FontFamily = (string?)value, measure: true));
-
-    /// <summary>Bindable property for <see cref="FontSize"/>.</summary>
-    public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiPicker), SkUiPickerModel.DefaultFontSize,
-        validateValue: SkUiValidate.FinitePositive,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view).Apply(model => model.FontSize = (double)value, measure: true));
-
-    /// <summary>Bindable property for <see cref="FontAttributes"/>.</summary>
-    public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiPicker), FontAttributes.None,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view).Apply(model => model.FontAttributes = (FontAttributes)value, measure: true));
-
-    /// <summary>Bindable property for <see cref="FontAutoScalingEnabled"/>.</summary>
-    public static readonly BindableProperty FontAutoScalingEnabledProperty = BindableProperty.Create(nameof(FontAutoScalingEnabled), typeof(bool), typeof(SkUiPicker), true,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view).Apply(model => model.FontAutoScalingEnabled = (bool)value, measure: true));
-
-    /// <summary>Bindable property for <see cref="CharacterSpacing"/>.</summary>
-    public static readonly BindableProperty CharacterSpacingProperty = BindableProperty.Create(nameof(CharacterSpacing), typeof(double), typeof(SkUiPicker), 0d,
-        validateValue: SkUiValidate.Finite,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view).Apply(model => model.CharacterSpacing = (double)value, measure: true));
-
-    /// <summary>Bindable property for <see cref="HorizontalTextAlignment"/>.</summary>
-    public static readonly BindableProperty HorizontalTextAlignmentProperty = BindableProperty.Create(nameof(HorizontalTextAlignment), typeof(TextAlignment), typeof(SkUiPicker), TextAlignment.Start,
-        validateValue: (_, value) => Enum.IsDefined((TextAlignment)value),
-        propertyChanged: (view, _, value) => ((SkUiPicker)view).Apply(model => model.HorizontalTextAlignment = (TextAlignment)value));
-
-    /// <summary>Bindable property for <see cref="VerticalTextAlignment"/>.</summary>
-    public static readonly BindableProperty VerticalTextAlignmentProperty = BindableProperty.Create(nameof(VerticalTextAlignment), typeof(TextAlignment), typeof(SkUiPicker), TextAlignment.Center,
-        validateValue: (_, value) => Enum.IsDefined((TextAlignment)value),
-        propertyChanged: (view, _, value) => ((SkUiPicker)view).Apply(model => model.VerticalTextAlignment = (TextAlignment)value));
-
-    /// <summary>Bindable property for <see cref="IsOpen"/> (two-way by default).</summary>
-    public static readonly BindableProperty IsOpenProperty = BindableProperty.Create(nameof(IsOpen), typeof(bool), typeof(SkUiPicker), false, BindingMode.TwoWay,
-        // A picker that cannot show a popup stays closed (as a MAUI picker without a handler; unlike MAUI's, it does not open later).
-        coerceValue: (view, value) => (bool)value && !((SkUiPicker)view).CanOpen ? false : value,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view).OnIsOpenChanged((bool)value));
+    /// <summary>Bindable property for <see cref="SelectionBackground"/>.</summary>
+    public static readonly BindableProperty SelectionBackgroundProperty = BindableProperty.Create(nameof(SelectionBackground), typeof(Brush), typeof(SkUiPicker), null,
+        propertyChanged: (view, _, value) => ((SkUiPicker)view).Model.SelectionBackground = (Brush?)value);
 
     /// <summary>Bindable property for <see cref="ItemTemplate"/>.</summary>
     public static readonly BindableProperty ItemTemplateProperty = BindableProperty.Create(nameof(ItemTemplate), typeof(DataTemplate), typeof(SkUiPicker), null,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view)._model.ItemTemplate = (DataTemplate?)value);
-
-    /// <summary>Bindable property for <see cref="MaxPopupHeight"/>.</summary>
-    public static readonly BindableProperty MaxPopupHeightProperty = BindableProperty.Create(nameof(MaxPopupHeight), typeof(double), typeof(SkUiPicker), -1d,
-        validateValue: (_, value) => value is double number && SkUiPickerValidation.IsMaxPopupHeight(number),
-        propertyChanged: (view, _, value) => ((SkUiPicker)view)._model.MaxPopupHeight = (double)value);
-
-    /// <summary>Bindable property for <see cref="PopupPlacement"/>.</summary>
-    public static readonly BindableProperty PopupPlacementProperty = BindableProperty.Create(nameof(PopupPlacement), typeof(SkUiPopupPlacement), typeof(SkUiPicker), SkUiPopupPlacement.Default,
-        validateValue: (_, value) => Enum.IsDefined((SkUiPopupPlacement)value),
-        propertyChanged: (view, _, value) => ((SkUiPicker)view)._model.PopupPlacement = (SkUiPopupPlacement)value);
-
-    /// <summary>Bindable property for <see cref="PopupBounds"/>.</summary>
-    public static readonly BindableProperty PopupBoundsProperty = BindableProperty.Create(nameof(PopupBounds), typeof(Rect), typeof(SkUiPicker), Rect.Zero,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view)._model.PopupBounds = (Rect)value);
-
-    /// <summary>Bindable property for <see cref="PopupPresenter"/>.</summary>
-    public static readonly BindableProperty PopupPresenterProperty = BindableProperty.Create(nameof(PopupPresenter), typeof(ISkUiPopupPresenter), typeof(SkUiPicker), null,
-        propertyChanged: (view, _, value) => ((SkUiPicker)view)._model.PopupPresenter = (ISkUiPopupPresenter?)value);
+        propertyChanged: (view, _, value) => ((SkUiPicker)view).Model.ItemTemplate = (DataTemplate?)value);
 
     /// <summary>
     /// The item texts. Add to it to fill the picker (as MAUI's); while <see cref="ItemsSource"/> is set it holds the source's
@@ -173,48 +120,120 @@ public class SkUiPicker : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
         }
     }
 
+    /// <summary>
+    /// The binding that says whether an item can be chosen (a <c>bool</c> of the item of <see cref="ItemsSource"/>, or of the text of
+    /// <see cref="Items"/>: <c>{Binding IsAvailable}</c>); <c>null</c> (default): every item. Disabled items show (dimmed; a template's
+    /// root in the <c>Disabled</c> visual state) but taps, the keyboard and type-ahead pass them by, and <c>SelectAll</c> skips them.
+    /// The app may still select one from code. Read when the items change and on <see cref="RefreshItemStates"/> (an open list
+    /// follows). SkiaUi extension.
+    /// </summary>
+    public BindingBase? ItemEnabledBinding
+    {
+        get => _itemEnabledBinding;
+        set
+        {
+            if (ReferenceEquals(_itemEnabledBinding, value))
+                return;
+            OnPropertyChanging();
+            _itemEnabledBinding = value;
+            if (_enabledProbe is not null)
+            {
+                _enabledProbe.RemoveBinding(EnabledProperty);
+                _enabledProbe = null;
+            }
+            RefreshItemStates();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Reads which items can be chosen again (<see cref="ItemEnabledBinding"/>), after the app's data changed; an open list follows.</summary>
+    public void RefreshItemStates()
+    {
+        if (_itemEnabledBinding is null)
+        {
+            Model.ItemEnabled = null;
+            UpdateMultipleState();
+            return;
+        }
+        var states = new bool[_items.Count];
+        if (_enabledProbe is null)
+        {
+            _enabledProbe = new DisplayProbe();
+            _enabledProbe.SetBinding(EnabledProperty, _itemEnabledBinding);
+        }
+        for (var index = 0; index < states.Length; index++)
+        {
+            _enabledProbe.BindingContext = _itemsSource is { } source ? (index < source.Count ? source[index] : null) : _items[index];
+            states[index] = _enabledProbe.GetValue(EnabledProperty) is not false;
+        }
+        // The probe must not keep the last item alive.
+        _enabledProbe.BindingContext = null;
+        Model.ItemEnabled = states;
+        // Tokens: an item that can no longer be chosen keeps its token, without its ×.
+        UpdateMultipleState();
+    }
+
+    /// <summary>
+    /// The binding that picks the text the field shows for the selected item, when it differs from the item's text in the list
+    /// (<see cref="ItemDisplayBinding"/>): a narrow currency field shows <c>{Binding Code}</c> ("PLN") and its list
+    /// <c>{Binding Name}</c> ("Polish Zloty (PLN)"); with several choices the joined texts and the tokens use it too. <c>null</c>
+    /// (default): the item's text. Type-ahead and screen readers use the item's text. Syncfusion's <c>TextMemberPath</c>. SkiaUi extension.
+    /// </summary>
+    public BindingBase? SelectedItemDisplayBinding
+    {
+        get => _selectedItemDisplayBinding;
+        set
+        {
+            if (ReferenceEquals(_selectedItemDisplayBinding, value))
+                return;
+            OnPropertyChanging();
+            _selectedItemDisplayBinding = value;
+            if (_fieldProbe is not null)
+            {
+                _fieldProbe.RemoveBinding(FieldDisplayProperty);
+                _fieldProbe = null;
+            }
+            UpdateFieldText();
+            UpdateMultipleState();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Sets <see cref="SelectedItemDisplayBinding"/> (same as the property setter).</summary>
+    public SkUiPicker SetSelectedItemDisplayBinding(BindingBase? value) { SelectedItemDisplayBinding = value; return this; }
+
+    /// <summary>The field's text for the item at <paramref name="index"/>: <see cref="SelectedItemDisplayBinding"/>'s, else the item's text.</summary>
+    private string FieldTextOf(int index)
+    {
+        if (_selectedItemDisplayBinding is null || index < 0 || index >= _items.Count)
+            return index >= 0 && index < _items.Count ? _items[index] : string.Empty;
+        if (_fieldProbe is null)
+        {
+            _fieldProbe = new DisplayProbe();
+            _fieldProbe.SetBinding(FieldDisplayProperty, _selectedItemDisplayBinding);
+        }
+        _fieldProbe.BindingContext = _itemsSource is { } source ? (index < source.Count ? source[index] : null) : _items[index];
+        var text = (string?)_fieldProbe.GetValue(FieldDisplayProperty) ?? string.Empty;
+        // The probe must not keep the item alive.
+        _fieldProbe.BindingContext = null;
+        return text;
+    }
+
+    /// <summary>The field's text for the selected item (one choice).</summary>
+    private void UpdateFieldText()
+    {
+        Model.SelectedFieldText = _selectedItemDisplayBinding is null || _multiple || SelectedIndex < 0 ? null : FieldTextOf(SelectedIndex);
+        Model.TextChanged();
+    }
+
+    /// <summary>Sets <see cref="ItemEnabledBinding"/> (same as the property setter).</summary>
+    public SkUiPicker SetItemEnabledBinding(BindingBase? value) { ItemEnabledBinding = value; return this; }
+
     /// <summary>The index of the selected item; -1 (default): none. Two-way by default.</summary>
     public int SelectedIndex { get => (int)GetValue(SelectedIndexProperty); set => SetValue(SelectedIndexProperty, value); }
 
     /// <summary>The selected item (of <see cref="ItemsSource"/>, else of <see cref="Items"/>), or <c>null</c>. Two-way by default.</summary>
     public object? SelectedItem { get => GetValue(SelectedItemProperty); set => SetValue(SelectedItemProperty, value); }
-
-    /// <summary>Shown while nothing is selected (in <see cref="TitleColor"/>), and as the title of window popups and action sheets.</summary>
-    public string? Title { get => (string?)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
-
-    /// <summary>The color of <see cref="Title"/> in the field; <c>null</c> (default): the color scheme's muted color.</summary>
-    public Color? TitleColor { get => (Color?)GetValue(TitleColorProperty); set => SetValue(TitleColorProperty, value); }
-
-    /// <summary>The selected item's text color (also the chevron and the list's rows); <c>null</c> (default): the color scheme's foreground.</summary>
-    public Color? TextColor { get => (Color?)GetValue(TextColorProperty); set => SetValue(TextColorProperty, value); }
-
-    /// <summary>System font family, or a name registered with <see cref="SkUiFonts.Register"/> / MAUI's <c>ConfigureFonts</c>.</summary>
-    public string? FontFamily { get => (string?)GetValue(FontFamilyProperty); set => SetValue(FontFamilyProperty, value); }
-
-    /// <summary>Font size in DIPs (default 16).</summary>
-    [System.ComponentModel.TypeConverter(typeof(FontSizeConverter))]
-    public double FontSize { get => (double)GetValue(FontSizeProperty); set => SetValue(FontSizeProperty, value); }
-
-    /// <summary>Bold and italic.</summary>
-    public FontAttributes FontAttributes { get => (FontAttributes)GetValue(FontAttributesProperty); set => SetValue(FontAttributesProperty, value); }
-
-    /// <summary>Whether the text follows the system text size (<see cref="SkUiFontScaling"/>), as MAUI's. Default <c>true</c>.</summary>
-    public bool FontAutoScalingEnabled { get => (bool)GetValue(FontAutoScalingEnabledProperty); set => SetValue(FontAutoScalingEnabledProperty, value); }
-
-    /// <summary>DIPs added after each character.</summary>
-    public double CharacterSpacing { get => (double)GetValue(CharacterSpacingProperty); set => SetValue(CharacterSpacingProperty, value); }
-
-    /// <summary>The text's horizontal alignment in the field (default start; Start follows the text's direction).</summary>
-    public TextAlignment HorizontalTextAlignment { get => (TextAlignment)GetValue(HorizontalTextAlignmentProperty); set => SetValue(HorizontalTextAlignmentProperty, value); }
-
-    /// <summary>The text's vertical alignment in the field (default centered).</summary>
-    public TextAlignment VerticalTextAlignment { get => (TextAlignment)GetValue(VerticalTextAlignmentProperty); set => SetValue(VerticalTextAlignmentProperty, value); }
-
-    /// <summary>
-    /// Whether the list is open (MAUI 10's). Set it to open or close the list; it goes back to <c>false</c> when the popup
-    /// closes. A picker that is disabled, hidden or not on a drawn surface does not open (it stays <c>false</c>). Two-way by default.
-    /// </summary>
-    public bool IsOpen { get => (bool)GetValue(IsOpenProperty); set => SetValue(IsOpenProperty, value); }
 
     /// <summary>
     /// The rows of the list: a template of drawn views (<c>SkUi*</c>) bound to the items of <see cref="ItemsSource"/> (or to the
@@ -223,31 +242,27 @@ public class SkUiPicker : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
     /// </summary>
     public DataTemplate? ItemTemplate { get => (DataTemplate?)GetValue(ItemTemplateProperty); set => SetValue(ItemTemplateProperty, value); }
 
-    /// <summary>The most the list is tall, in DIPs; -1 (default): as tall as its window allows. SkiaUi extension.</summary>
-    public double MaxPopupHeight { get => (double)GetValue(MaxPopupHeightProperty); set => SetValue(MaxPopupHeightProperty, value); }
+    /// <summary>
+    /// What is behind the selected rows of the list (the highlighted row; with several choices the chosen ones), as a collection
+    /// view's <c>SelectionBackground</c>: a brush (in XAML a color); <c>null</c> (default): the look's
+    /// <see cref="SkUiLook.PopupHighlightColor"/>; <c>Transparent</c>: none, to style selected rows only through the
+    /// <c>Selected</c> visual state of the <see cref="ItemTemplate"/>'s root. Applies from the next opening. SkiaUi extension.
+    /// </summary>
+    public Brush? SelectionBackground { get => (Brush?)GetValue(SelectionBackgroundProperty); set => SetValue(SelectionBackgroundProperty, value); }
 
     /// <summary>
-    /// Where the list opens: <see cref="SkUiPopupPlacement.Anchored"/> (below or above the picker, at least its width, as a combo
-    /// box), <see cref="SkUiPopupPlacement.Window"/> (in the window, aligned by the look: centered by default),
-    /// <see cref="SkUiPopupPlacement.Absolute"/> (at <see cref="PopupBounds"/>) or <see cref="SkUiPopupPlacement.Default"/>
-    /// (default: the look's, <see cref="SkUiLook.DefaultPopupPlacement"/>, per platform and idiom). SkiaUi extension.
+    /// How the field shows the selected item: drawn views (<c>SkUi*</c>) bound to <see cref="SelectedItem"/> (a
+    /// <see cref="DataTemplateSelector"/> picks per item), inside the field's chrome, before the chevron (and the clear button);
+    /// they take no taps (the field does). <c>null</c> (default): the item's text. While nothing is selected, and with several
+    /// choices, the field shows its text. Screen readers read the item's text. SkiaUi extension.
     /// </summary>
-    public SkUiPopupPlacement PopupPlacement { get => (SkUiPopupPlacement)GetValue(PopupPlacementProperty); set => SetValue(PopupPlacementProperty, value); }
+    public DataTemplate? SelectedItemTemplate { get => (DataTemplate?)GetValue(SelectedItemTemplateProperty); set => SetValue(SelectedItemTemplateProperty, value); }
 
-    /// <summary>The window rectangle an <see cref="SkUiPopupPlacement.Absolute"/> list opens at (empty: as a window popup). SkiaUi extension.</summary>
-    public Rect PopupBounds { get => (Rect)GetValue(PopupBoundsProperty); set => SetValue(PopupBoundsProperty, value); }
-
-    /// <summary>The presenter of this picker's list; <c>null</c> (default): the app's (<see cref="SkUiPopups.Presenter"/>). SkiaUi extension.</summary>
-    public ISkUiPopupPresenter? PopupPresenter { get => (ISkUiPopupPresenter?)GetValue(PopupPresenterProperty); set => SetValue(PopupPresenterProperty, value); }
+    /// <summary>Sets <see cref="SelectedItemTemplate"/> (same as the property setter).</summary>
+    public SkUiPicker SetSelectedItemTemplate(DataTemplate? value) { SelectedItemTemplate = value; return this; }
 
     /// <summary>Raised when <see cref="SelectedIndex"/> changes (by the user or the app; not when an index set before the items applies).</summary>
     public event EventHandler? SelectedIndexChanged;
-
-    /// <summary>Raised when <see cref="IsOpen"/> becomes <c>true</c> (the list opens).</summary>
-    public event EventHandler<PickerOpenedEventArgs>? Opened;
-
-    /// <summary>Raised when <see cref="IsOpen"/> becomes <c>false</c> (the list closes).</summary>
-    public event EventHandler<PickerClosedEventArgs>? Closed;
 
     /// <summary>Sets <see cref="ItemsSource"/> (same as the property setter).</summary>
     public SkUiPicker SetItemsSource(IList? value) { ItemsSource = value; return this; }
@@ -261,82 +276,101 @@ public class SkUiPicker : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
     /// <summary>Sets <see cref="SelectedItem"/> (same as the property setter).</summary>
     public SkUiPicker SetSelectedItem(object? value) { SelectedItem = value; return this; }
 
-    /// <summary>Sets <see cref="Title"/> (same as the property setter).</summary>
-    public SkUiPicker SetTitle(string? value) { Title = value; return this; }
-
-    /// <summary>Sets <see cref="TitleColor"/> (same as the property setter).</summary>
-    public SkUiPicker SetTitleColor(Color? value) { TitleColor = value; return this; }
-
-    /// <summary>Sets <see cref="TextColor"/> (same as the property setter).</summary>
-    public SkUiPicker SetTextColor(Color? value) { TextColor = value; return this; }
-
-    /// <summary>Sets <see cref="FontFamily"/> (same as the property setter).</summary>
-    public SkUiPicker SetFontFamily(string? value) { FontFamily = value; return this; }
-
-    /// <summary>Sets <see cref="FontSize"/> (same as the property setter).</summary>
-    public SkUiPicker SetFontSize(double value) { SkUiValidate.ThrowIfNotFinitePositive(value, nameof(value)); FontSize = value; return this; }
-
-    /// <summary>Sets <see cref="FontAttributes"/> (same as the property setter).</summary>
-    public SkUiPicker SetFontAttributes(FontAttributes value) { FontAttributes = value; return this; }
-
-    /// <summary>Sets <see cref="FontAutoScalingEnabled"/> (same as the property setter).</summary>
-    public SkUiPicker SetFontAutoScalingEnabled(bool value) { FontAutoScalingEnabled = value; return this; }
-
-    /// <summary>Sets <see cref="CharacterSpacing"/> (same as the property setter).</summary>
-    public SkUiPicker SetCharacterSpacing(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); CharacterSpacing = value; return this; }
-
-    /// <summary>Sets <see cref="HorizontalTextAlignment"/> (same as the property setter).</summary>
-    public SkUiPicker SetHorizontalTextAlignment(TextAlignment value)
-    {
-        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
-        HorizontalTextAlignment = value;
-        return this;
-    }
-
-    /// <summary>Sets <see cref="VerticalTextAlignment"/> (same as the property setter).</summary>
-    public SkUiPicker SetVerticalTextAlignment(TextAlignment value)
-    {
-        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
-        VerticalTextAlignment = value;
-        return this;
-    }
-
-    /// <summary>Sets <see cref="IsOpen"/> (same as the property setter).</summary>
-    public SkUiPicker SetIsOpen(bool value) { IsOpen = value; return this; }
-
     /// <summary>Sets <see cref="ItemTemplate"/> (same as the property setter).</summary>
     public SkUiPicker SetItemTemplate(DataTemplate? value) { ItemTemplate = value; return this; }
 
-    /// <summary>Sets <see cref="MaxPopupHeight"/> (same as the property setter; -1: no limit).</summary>
-    public SkUiPicker SetMaxPopupHeight(double value)
-    {
-        SkUiPickerValidation.ThrowIfNotMaxPopupHeight(value, nameof(value));
-        MaxPopupHeight = value;
-        return this;
-    }
+    /// <summary>Sets <see cref="SelectionBackground"/> (same as the property setter).</summary>
+    public SkUiPicker SetSelectionBackground(Brush? value) { SelectionBackground = value; return this; }
 
-    /// <summary>Sets <see cref="PopupPlacement"/> (same as the property setter).</summary>
-    public SkUiPicker SetPopupPlacement(SkUiPopupPlacement value)
-    {
-        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
-        PopupPlacement = value;
-        return this;
-    }
+    /// <summary>Sets <see cref="SkUiPickerBase.Title"/> (same as the property setter).</summary>
+    public new SkUiPicker SetTitle(string? value) { base.SetTitle(value); return this; }
 
-    /// <summary>Sets <see cref="PopupBounds"/> (same as the property setter).</summary>
-    public SkUiPicker SetPopupBounds(Rect value) { PopupBounds = value; return this; }
+    /// <summary>Sets <see cref="SkUiPickerBase.TitleColor"/> (same as the property setter).</summary>
+    public new SkUiPicker SetTitleColor(Color? value) { base.SetTitleColor(value); return this; }
 
-    /// <summary>Sets <see cref="PopupPresenter"/> (same as the property setter).</summary>
-    public SkUiPicker SetPopupPresenter(ISkUiPopupPresenter? value) { PopupPresenter = value; return this; }
+    /// <summary>Sets <see cref="SkUiPickerBase.TextColor"/> (same as the property setter).</summary>
+    public new SkUiPicker SetTextColor(Color? value) { base.SetTextColor(value); return this; }
 
-    private void Apply(Action<SkUiPickerModel> apply, bool measure = false)
-    {
-        apply(_model);
-        if (measure)
-            _model.TextChanged();
-        else
-            _model.PaintChanged();
-    }
+    /// <summary>Sets <see cref="SkUiPickerBase.FontFamily"/> (same as the property setter).</summary>
+    public new SkUiPicker SetFontFamily(string? value) { base.SetFontFamily(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.FontSize"/> (same as the property setter).</summary>
+    public new SkUiPicker SetFontSize(double value) { base.SetFontSize(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.FontAttributes"/> (same as the property setter).</summary>
+    public new SkUiPicker SetFontAttributes(FontAttributes value) { base.SetFontAttributes(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.FontAutoScalingEnabled"/> (same as the property setter).</summary>
+    public new SkUiPicker SetFontAutoScalingEnabled(bool value) { base.SetFontAutoScalingEnabled(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.CharacterSpacing"/> (same as the property setter).</summary>
+    public new SkUiPicker SetCharacterSpacing(double value) { base.SetCharacterSpacing(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.HorizontalTextAlignment"/> (same as the property setter).</summary>
+    public new SkUiPicker SetHorizontalTextAlignment(TextAlignment value) { base.SetHorizontalTextAlignment(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.VerticalTextAlignment"/> (same as the property setter).</summary>
+    public new SkUiPicker SetVerticalTextAlignment(TextAlignment value) { base.SetVerticalTextAlignment(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.IsOpen"/> (same as the property setter).</summary>
+    public new SkUiPicker SetIsOpen(bool value) { base.SetIsOpen(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.MaxPopupHeight"/> (same as the property setter; -1: no limit).</summary>
+    public new SkUiPicker SetMaxPopupHeight(double value) { base.SetMaxPopupHeight(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.PopupPlacement"/> (same as the property setter).</summary>
+    public new SkUiPicker SetPopupPlacement(SkUiPopupPlacement value) { base.SetPopupPlacement(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.PopupBounds"/> (same as the property setter).</summary>
+    public new SkUiPicker SetPopupBounds(Rect value) { base.SetPopupBounds(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.PopupPresenter"/> (same as the property setter).</summary>
+    public new SkUiPicker SetPopupPresenter(ISkUiPopupPresenter? value) { base.SetPopupPresenter(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.UpdateMode"/> (same as the property setter).</summary>
+    public new SkUiPicker SetUpdateMode(SkUiPickerUpdateMode value) { base.SetUpdateMode(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.AcceptText"/> (same as the property setter).</summary>
+    public new SkUiPicker SetAcceptText(string? value) { base.SetAcceptText(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.CancelText"/> (same as the property setter).</summary>
+    public new SkUiPicker SetCancelText(string? value) { base.SetCancelText(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.MinPopupWidth"/> (same as the property setter).</summary>
+    public new SkUiPicker SetMinPopupWidth(double value) { base.SetMinPopupWidth(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.MaxPopupWidth"/> (same as the property setter).</summary>
+    public new SkUiPicker SetMaxPopupWidth(double value) { base.SetMaxPopupWidth(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.PopupHeaderTemplate"/> (same as the property setter).</summary>
+    public new SkUiPicker SetPopupHeaderTemplate(DataTemplate? value) { base.SetPopupHeaderTemplate(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.PopupFooterTemplate"/> (same as the property setter).</summary>
+    public new SkUiPicker SetPopupFooterTemplate(DataTemplate? value) { base.SetPopupFooterTemplate(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.IsClearButtonVisible"/> (same as the property setter).</summary>
+    public new SkUiPicker SetIsClearButtonVisible(bool value) { base.SetIsClearButtonVisible(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.IsPopupClearButtonVisible"/> (same as the property setter).</summary>
+    public new SkUiPicker SetIsPopupClearButtonVisible(bool value) { base.SetIsPopupClearButtonVisible(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.ClearText"/> (same as the property setter).</summary>
+    public new SkUiPicker SetClearText(string? value) { base.SetClearText(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.Placeholder"/> (same as the property setter).</summary>
+    public new SkUiPicker SetPlaceholder(string? value) { base.SetPlaceholder(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.PlaceholderColor"/> (same as the property setter).</summary>
+    public new SkUiPicker SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.PopupWidth"/> (same as the property setter).</summary>
+    public new SkUiPicker SetPopupWidth(double value) { base.SetPopupWidth(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.SelectionChangedCommand"/> (same as the property setter).</summary>
+    public new SkUiPicker SetSelectionChangedCommand(ICommand? value) { base.SetSelectionChangedCommand(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.SelectionChangedCommandParameter"/> (same as the property setter).</summary>
+    public new SkUiPicker SetSelectionChangedCommandParameter(object? value) { base.SetSelectionChangedCommandParameter(value); return this; }
 
     #endregion
 
@@ -365,10 +399,19 @@ public class SkUiPicker : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
 
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
-        _model.Items = _items;
+        Model.Items = _items;
+        if (_itemEnabledBinding is not null)
+            RefreshItemStates();
+        if (_selectedItemDisplayBinding is not null)
+            UpdateFieldText();
         // Changes made by the picker from its source reconcile the selection themselves.
         if (_items.IsReadOnly)
             return;
+        if (_multiple)
+        {
+            ReconcileMultiple(keepUnknown: args.Action == NotifyCollectionChangedAction.Add && _items.Count == args.NewItems?.Count);
+            return;
+        }
         if (!TryApplyPendingSelectedIndex(forceClamp: false))
             ClampSelectedIndex(GetSelectedIndex());
     }
@@ -401,7 +444,13 @@ public class SkUiPicker : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
     {
         if (_itemsSource is not { } source)
             return;
+        var wasEmpty = _items.Count == 0;
         _items.Reset(DisplayTexts(source));
+        if (_multiple)
+        {
+            ReconcileMultiple(keepUnknown: wasEmpty);
+            return;
+        }
         if (!TryApplyPendingSelectedIndex(forceClamp: true))
             ClampSelectedIndex(SelectedIndex);
     }
@@ -410,7 +459,13 @@ public class SkUiPicker : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
     {
         if (_itemsSource is not { } source)
             return;
+        var wasEmpty = _items.Count == 0;
         _items.Reset(DisplayTexts(source));
+        if (_multiple)
+        {
+            ReconcileMultiple(keepUnknown: wasEmpty);
+            return;
+        }
         if (TryApplyPendingSelectedIndex(forceClamp: false))
             return;
         ClampSelectedIndex(SelectedItem is { } selected ? source.IndexOf(selected) : SelectedIndex);
@@ -418,6 +473,9 @@ public class SkUiPicker : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
 
     private object CoerceSelectedIndex(int value)
     {
+        // Several choices: SelectedItems holds them; the single selection stays empty.
+        if (_multiple)
+            return -1;
         if (!_settingSelectedIndexInternally)
         {
             if (_items.Count == 0)
@@ -436,11 +494,15 @@ public class SkUiPicker : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
 
     private void OnSelectedIndexChanged()
     {
-        _model.SelectedIndex = SelectedIndex;
+        Model.SelectedIndex = SelectedIndex;
         UpdateSelectedItem(SelectedIndex);
-        _model.SelectionChanged();
-        if (!_suppressSelectedIndexChanged)
-            SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
+        if (_selectedItemDisplayBinding is not null)
+            UpdateFieldText();
+        Model.SelectionChanged();
+        if (_suppressSelectedIndexChanged)
+            return;
+        Model.RunSelectionChangedCommand();
+        SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private int GetSelectedIndex()
@@ -542,195 +604,105 @@ public class SkUiPicker : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
 
     #endregion
 
-    #region Popup
+    #region Field template
 
-    private void OnIsOpenChanged(bool value)
+    private SkUiView? _fieldView;
+    private DataTemplate? _fieldTemplate;
+    private ISkUiView[] _fieldChildren = [];
+
+    /// <summary>The view the field shows for the selected item (tests), or <c>null</c>.</summary>
+    internal SkUiView? FieldView => _fieldView;
+
+    private void OnSelectedItemChanged(object? value)
     {
-        if (value)
+        UpdateSelectedIndex(value);
+        UpdateFieldView();
+    }
+
+    /// <summary>The field's view for the selected item: created (or swapped by a selector), bound, or removed; the field draws no text under it.</summary>
+    private void UpdateFieldView(bool templateChanged = false)
+    {
+        var template = _multiple ? null : SelectedItemTemplate;
+        var item = SelectedItem;
+        if (template is null || SelectedIndex < 0)
         {
-            Opened?.Invoke(this, OpenedArgs);
-            _model.Open();
+            RemoveFieldView();
+            return;
         }
-        else
+        var chosen = template is DataTemplateSelector selector ? selector.SelectTemplate(item, this) : template;
+        if (templateChanged || _fieldView is null || !ReferenceEquals(chosen, _fieldTemplate))
         {
-            Closed?.Invoke(this, ClosedArgs);
-            _model.Close();
+            RemoveFieldView();
+            if (chosen?.CreateContent() is not SkUiView view)
+                return;
+            _fieldTemplate = chosen;
+            _fieldView = view;
+            // The field takes the taps; screen readers read the field (the item's text).
+            view.InputTransparent = true;
+            AutomationProperties.SetIsInAccessibleTree(view, false);
+            _fieldChildren = [view];
+            AttachChild(view);
         }
+        _fieldView!.BindingContext = item;
+        Model.HidesText = true;
+        InvalidateMeasureOverride();
         InvalidatePaint();
     }
 
-    /// <summary>The open popup's request (tests), or <c>null</c>.</summary>
-    internal SkUiPopupRequest? PopupRequest => _model.Request;
+    private void RemoveFieldView()
+    {
+        if (_fieldView is null)
+            return;
+        var view = _fieldView;
+        _fieldView = null;
+        _fieldTemplate = null;
+        _fieldChildren = [];
+        view.BindingContext = null;
+        DetachChild(view);
+        Model.HidesText = false;
+        InvalidatePaint();
+    }
 
-    /// <summary>Whether a popup is showing (or closing) now.</summary>
-    internal bool IsPopupShown => _model.IsOpen;
-
-    private bool CanOpen => IsEnabled && IsVisible && SkUiDiagnostics.GetSurfaceRoot(this) is not null;
-
-    #endregion
-
-    #region Field
+    /// <inheritdoc />
+    internal override IEnumerable<ISkUiView> SkiaChildren => _fieldChildren;
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        _model.HasExplicitMinimumHeight = MinimumHeightRequest >= 0;
-        return _model.Measure(widthConstraint, heightConstraint);
+        if (_fieldView is null)
+            return base.MeasureContent(widthConstraint, heightConstraint);
+        Model.HasExplicitMinimumHeight = MinimumHeightRequest >= 0;
+        var inset = Model.ContentInset;
+        var content = ((IView)_fieldView).Measure(Math.Max(0, widthConstraint - inset.HorizontalThickness), Math.Max(0, heightConstraint - inset.VerticalThickness));
+        return Model.MeasureAround(content);
     }
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas) => _model.Draw(canvas, (float)Width, (float)Height);
-
-    /// <inheritdoc />
-    protected override bool HandlesTap => true;
-
-    /// <inheritdoc />
-    protected override bool CanReceiveTap => IsEnabled;
-
-    /// <inheritdoc />
-    protected override void OnTapped(SkUiTappedEventArgs args)
+    protected override void ArrangeContent(Size size)
     {
-        RaiseTapped(args);
-        ExecuteTappedCommand();
-        IsOpen = !IsOpen;
+        base.ArrangeContent(size);
+        if (_fieldView is null)
+            return;
+        // Left to right: drawn children are mirrored in right-to-left layouts.
+        var inset = Model.ContentInset;
+        var bounds = new Rect(inset.Left, inset.Top, Math.Max(0, size.Width - inset.HorizontalThickness), Math.Max(0, size.Height - inset.VerticalThickness));
+        ((IView)_fieldView).Measure(bounds.Width, bounds.Height);
+        ((IView)_fieldView).Arrange(bounds);
     }
-
-    /// <inheritdoc />
-    protected override void OnPressedChanged() => _model.SetPressed(IsPressed, PressPosition);
-
-    /// <inheritdoc />
-    protected override void OnPropertyChanged(string? propertyName = null)
-    {
-        base.OnPropertyChanged(propertyName);
-        switch (propertyName)
-        {
-            case nameof(IsEnabled):
-                _model.IsEnabled = IsEnabled;
-                _model.PaintChanged();
-                if (!IsEnabled)
-                    ClosePopup();
-                break;
-            case nameof(IsVisible) when !IsVisible:
-                ClosePopup();
-                break;
-            case nameof(IsPointerOver):
-                _model.IsPointerOver = IsPointerOver;
-                _model.PaintChanged();
-                break;
-            case nameof(IsFocused):
-                _model.SetFocused(IsFocused);
-                break;
-            case nameof(MinimumHeightRequest):
-                InvalidateMeasureOverride();
-                break;
-        }
-    }
-
-    /// <summary>The picker can no longer show its popup: it closes (<see cref="IsOpen"/> goes to <c>false</c>, raising <see cref="Closed"/>).</summary>
-    private void ClosePopup()
-    {
-        if (IsOpen)
-            IsOpen = false;
-        else
-            _model.Close();
-    }
-
-    /// <inheritdoc />
-    protected override void OnAnimationRootChanged(bool subtreeDetached = false)
-    {
-        base.OnAnimationRootChanged(subtreeDetached);
-        if (subtreeDetached || SkUiDiagnostics.GetSurfaceRoot(this) is null)
-            ClosePopup();
-    }
-
-    /// <inheritdoc />
-    internal override void OnEffectiveFlowDirectionChanged()
-    {
-        base.OnEffectiveFlowDirectionChanged();
-        _model.TextChanged();
-    }
-
-    /// <inheritdoc />
-    internal override void ReleaseDrawingResources()
-    {
-        base.ReleaseDrawingResources();
-        _model.ReleaseDrawingResources();
-        // The surface was torn down or the picker left it: its popup goes (IsOpen follows once it has).
-        _model.Close();
-    }
-
-    /// <inheritdoc />
-    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
-    {
-        base.OnPopulateSemantics(info);
-        _model.PopulateSemantics(info);
-    }
-
-    /// <inheritdoc />
-    internal override bool TakesKeyboardFocus => true;
-
-    bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key) => _model.OnKeyDown(key);
 
     #endregion
 
-    #region Owner
+    #region Base
 
-    ISkUiRenderable ISkUiPickerOwner.Node => this;
+    /// <inheritdoc />
+    private protected override IList? PopupItemsSource => _itemsSource;
 
-    bool ISkUiPickerOwner.IsRightToLeft => IsRightToLeft;
-
-    SkUiTextDirection ISkUiPickerOwner.TextDirection
+    /// <inheritdoc />
+    private protected override void ChooseItem(int index)
     {
-        get
-        {
-            var effective = ((IVisualElementController)this).EffectiveFlowDirection;
-            if (effective.HasFlag(EffectiveFlowDirection.RightToLeft)) return SkUiTextDirection.RightToLeft;
-            return effective.HasFlag(EffectiveFlowDirection.Explicit) ? SkUiTextDirection.LeftToRight : SkUiTextDirection.Auto;
-        }
-    }
-
-    bool ISkUiPickerOwner.CanOpen => CanOpen;
-
-    IList? ISkUiPickerOwner.ItemsSource => _itemsSource;
-
-    void ISkUiPickerOwner.Choose(int index)
-    {
-        if (index >= 0 && index < _items.Count && index != SelectedIndex)
+        if (!_multiple && index >= 0 && index < _items.Count && index != SelectedIndex)
             SelectedIndex = index;
     }
 
-    void ISkUiPickerOwner.SetIsOpen(bool open)
-    {
-        if (IsOpen != open)
-            IsOpen = open;
-    }
-
-    void ISkUiPickerOwner.FocusField()
-    {
-        if (IsEnabled && IsVisible)
-            Focus();
-    }
-
-    void ISkUiPickerOwner.InvalidateMeasure() => InvalidateMeasureOverride();
-
-    void ISkUiPickerOwner.InvalidatePaint() => InvalidatePaint();
-
-    void ISkUiPickerOwner.InvalidateSemantics() => InvalidateSemantics();
-
     #endregion
-}
-
-/// <summary>Checks of the pickers' own values.</summary>
-internal static class SkUiPickerValidation
-{
-    /// <summary>How close to -1 a <c>MaxPopupHeight</c> must be to mean "no limit".</summary>
-    internal const double Tolerance = 1e-9;
-
-    public static bool IsMaxPopupHeight(double value) => !double.IsNaN(value) && (value >= 0 || Math.Abs(value + 1) < Tolerance);
-
-    public static void ThrowIfNotMaxPopupHeight(double value, string name)
-    {
-        if (!IsMaxPopupHeight(value))
-            throw new ArgumentOutOfRangeException(name, value, "The height must be at least 0, or -1 for no limit.");
-    }
 }

@@ -244,3 +244,33 @@ public readonly record struct SkUiIndicatorPaint(
 public readonly record struct SkUiPickerFieldPaint(
     SKRect Bounds, SKRect ChevronBounds, SKColor Accent, SKColor Border, SKColor Foreground, float Focused, float Open, SkUiPressVisual Press,
     bool IsPointerOver, bool IsEnabled, bool IsRightToLeft);
+
+/// <summary>What a look draws a picker field's clear button with (<see cref="SkUiLook.DrawPickerClearButton"/>).</summary>
+/// <param name="Bounds">The button's room in the field (before the chevron, the end side).</param>
+/// <param name="Color">The button's color (the color scheme's muted color).</param>
+/// <param name="Background">The field's background color (the cross's color in the default look).</param>
+/// <param name="IsPressed">The button is pressed.</param>
+/// <param name="IsEnabled">The field is enabled.</param>
+public readonly record struct SkUiPickerClearButtonPaint(SKRect Bounds, SKColor Color, SKColor Background, bool IsPressed, bool IsEnabled);
+
+/// <summary>A button of a popup's footer (<see cref="SkUiLook.StylePopupButton"/>).</summary>
+public enum SkUiPopupButton
+{
+    /// <summary>OK: applies what was chosen in the popup.</summary>
+    Accept,
+    /// <summary>Cancel: closes, discarding what was chosen in the popup.</summary>
+    Cancel,
+    /// <summary>Clear: clears the choice.</summary>
+    Clear
+}
+
+/// <summary>What a look draws a picker field's token with (<see cref="SkUiLook.DrawPickerToken"/>).</summary>
+/// <param name="Bounds">The token's rectangle in the field.</param>
+/// <param name="RemoveBounds">Its ×'s room at the end side; empty when it cannot be removed (an item that cannot be chosen, "+N").</param>
+/// <param name="Fill">The token's background (the look's popup highlight color).</param>
+/// <param name="Foreground">The ×'s color (the color scheme's muted color).</param>
+/// <param name="IsRemovePressed">The × is pressed.</param>
+/// <param name="IsEnabled">The field is enabled.</param>
+/// <param name="IsMore">The token stands for the chosen items that do not fit ("+N").</param>
+public readonly record struct SkUiPickerTokenPaint(SKRect Bounds, SKRect RemoveBounds, SKColor Fill, SKColor Foreground, bool IsRemovePressed, bool IsEnabled,
+    bool IsMore);

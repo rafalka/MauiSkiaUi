@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Date and time pickers in XAML over a view model (BookingSample.xaml.cs): MAUI's DatePicker and TimePicker with the prefix
+  changed, plus SkiaUi's own options: a range from today, holidays and weekends that cannot be chosen, opening hours in quarter
+  hours, a reminder (a day and a time on one popup), and a card's expiry on two wheels (month and year).
+-->
+<samples:SamplePage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                    xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+                    xmlns:samples="clr-namespace:MauiSkiaUiSamples"
+                    xmlns:local="clr-namespace:MauiSkiaUiSamples.Samples.Controls.Pickers"
+                    x:Class="MauiSkiaUiSamples.Samples.Controls.Pickers.BookingSample"
+                    x:DataType="local:BookingModel">
+
+    <sk:SkUiVerticalStackLayout Spacing="10" Padding="16" BackgroundColor="{x:Static samples:SampleColors.Surface}">
+
+        <sk:SkUiLabel Text="DAY" FontSize="13" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Caption}" />
+        <!-- A MAUI DatePicker with the prefix changed; the weekdays-only rule (DateEnabled) is set in the code-behind. -->
+        <sk:SkUiDatePicker x:Name="Day" Title="Day" Date="{Binding Day}" MinimumDate="{Binding FirstDay}" MaximumDate="{Binding LastDay}"
+                           BlackoutDates="{Binding Holidays}" Format="D" AreColumnHeadersVisible="True"
+                           TextColor="{x:Static samples:SampleColors.Ink}" />
+
+        <sk:SkUiLabel Text="TIME" FontSize="13" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Caption}" />
+        <!-- Opening hours in quarter hours, chosen with OK; nothing chosen yet, so the wheels show 9:00. -->
+        <sk:SkUiTimePicker Title="Time" Time="{Binding Time}" Placeholder="Choose a time" MinimumTime="08:00" MaximumTime="17:30"
+                           MinuteInterval="15" DefaultHighlightedTime="09:00" UpdateMode="WhenFinished" IsClearButtonVisible="True"
+                           TextColor="{x:Static samples:SampleColors.Ink}" />
+
+        <sk:SkUiLabel Text="REMINDER" FontSize="13" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Caption}" />
+        <!-- A day and a time on one popup, in half hours; the field shows the weekday too. -->
+        <sk:SkUiDateTimePicker Title="Reminder" Date="{Binding Reminder}" Placeholder="No reminder" MinimumDate="{Binding FirstDay}"
+                               MaximumDate="{Binding LastDay}" Format="ddd d MMM, HH:mm" MinuteInterval="30"
+                               IsPopupClearButtonVisible="True" ClearText="No reminder" TextColor="{x:Static samples:SampleColors.Ink}" />
+
+        <sk:SkUiLabel Text="CARD EXPIRY" FontSize="13" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Caption}" />
+        <!-- Two wheels, month and year: the date is the 1st of the month. -->
+        <sk:SkUiDatePicker Title="Expiry" Date="{Binding Expiry}" WheelFormat="MM/yy" Format="MM/yy" MinimumDate="{Binding FirstDay}"
+                           MaximumDate="{Binding LastExpiry}" PopupPlacement="Anchored" HorizontalOptions="Start" WidthRequest="140"
+                           TextColor="{x:Static samples:SampleColors.Ink}" />
+
+        <sk:SkUiLabel Text="{Binding Summary}" FontSize="15" Margin="0,12,0,0" TextColor="{x:Static samples:SampleColors.Ink}" />
+    </sk:SkUiVerticalStackLayout>
+</samples:SamplePage>

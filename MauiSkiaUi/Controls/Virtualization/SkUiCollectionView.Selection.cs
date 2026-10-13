@@ -15,7 +15,6 @@ public partial class SkUiCollectionView
     private IReadOnlyList<object> _selectedSnapshot = [];
     private SelectedItemsObserver? _selectedItemsObserver;
     private bool _changingSelection;
-    private static Func<string> _selectedStateText = () => "Selected";
 
     /// <summary>Bindable property for <see cref="SelectionMode"/>.</summary>
     public static readonly BindableProperty SelectionModeProperty = BindableProperty.Create(nameof(SelectionMode), typeof(SkUiSelectionMode),
@@ -137,16 +136,6 @@ public partial class SkUiCollectionView
     /// <see cref="SelectionMode"/>; raised after the tap changed the selection.
     /// </summary>
     public event EventHandler<SkUiItemTappedEventArgs>? ItemTapped;
-
-    /// <summary>
-    /// The value screen readers read for a selected item ("Selected" by default). Set it once at startup to localize (it is
-    /// called each time the semantics are read, so it may follow the current culture).
-    /// </summary>
-    public static Func<string> SelectedStateText
-    {
-        get => _selectedStateText;
-        set => _selectedStateText = value ?? throw new ArgumentNullException(nameof(value));
-    }
 
     /// <summary>Sets <see cref="SelectionMode"/> (same as the property setter).</summary>
     public SkUiCollectionView SetSelectionMode(SkUiSelectionMode value)

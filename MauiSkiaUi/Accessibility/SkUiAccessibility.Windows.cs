@@ -460,6 +460,8 @@ internal static class SkUiWindowsKeys
         Windows.System.VirtualKey.PageDown => SkUiKey.PageDown,
         Windows.System.VirtualKey.Home => SkUiKey.Home,
         Windows.System.VirtualKey.End => SkUiKey.End,
+        Windows.System.VirtualKey.Back => SkUiKey.Backspace,
+        Windows.System.VirtualKey.Delete => SkUiKey.Delete,
         _ => SkUiKey.None
     };
 

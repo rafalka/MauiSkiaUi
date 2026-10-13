@@ -158,6 +158,50 @@ public class SkUiPopupRequest
     public bool IsAnimated { get; init; } = true;
 
     /// <summary>
+    /// Whether a choice takes effect only when accepted (the control's <c>UpdateMode</c> is
+    /// <see cref="SkUiPickerUpdateMode.WhenFinished"/>): the popup needs an OK and a Cancel button, and a dismissal discards what
+    /// was chosen in it. The drawn <see cref="Content"/> shows the buttons (drawn on every platform, so they look the same everywhere);
+    /// a presenter that shows its own UI for a typed request instead calls <see cref="Accept"/> and <see cref="Cancel"/>.
+    /// </summary>
+    public bool RequiresAccept { get; init; }
+
+    /// <summary>The text of the accept button: the control's <c>AcceptText</c>, else <see cref="SkUiStrings.AcceptText"/> ("OK").</summary>
+    public string AcceptText { get; init; } = SkUiStrings.Current.AcceptText;
+
+    /// <summary>The text of the cancel button: the control's <c>CancelText</c>, else <see cref="SkUiStrings.CancelText"/> ("Cancel").</summary>
+    public string CancelText { get; init; } = SkUiStrings.Current.CancelText;
+
+    /// <summary>
+    /// Takes what was chosen in the popup (the highlighted item of a list, the checked items, the wheels' items) as the result and
+    /// asks the popup to close: the OK button. Returns <c>false</c> when nothing can be taken (a list with nothing highlighted
+    /// only closes) or the popup is already closing.
+    /// </summary>
+    public bool Accept() => !IsCompleted && !CloseRequested.IsCancellationRequested && AcceptCore();
+
+    /// <summary>
+    /// Asks the popup to close without a result: the Cancel button (the same as a dismissal). With
+    /// <see cref="RequiresAccept"/>, what was chosen in the popup is discarded; otherwise it has already been applied.
+    /// </summary>
+    public void Cancel() => Close();
+
+    /// <summary>
+    /// Clears the choice: the popup's Clear button. Without <see cref="RequiresAccept"/> it applies at once (a list of one choice
+    /// then closes); with it, the draft is cleared and <see cref="Accept"/> applies that. Returns <c>false</c> when the request has
+    /// no choice to clear or the popup is closing.
+    /// </summary>
+    public bool Clear() => !IsCompleted && !CloseRequested.IsCancellationRequested && ClearCore();
+
+    /// <summary>What <see cref="Clear"/> does for this kind of request: by default, nothing.</summary>
+    private protected virtual bool ClearCore() => false;
+
+    /// <summary>What <see cref="Accept"/> does for this kind of request: by default, closes.</summary>
+    private protected virtual bool AcceptCore()
+    {
+        Close();
+        return false;
+    }
+
+    /// <summary>
     /// Cancelled when the popup must close: after the content completed the request (a choice), or when the control closed it.
     /// The same token is passed to <see cref="ISkUiPopupPresenter.ShowAsync"/>.
     /// </summary>
@@ -225,11 +269,15 @@ public class SkUiPopupRequest<TResult> : SkUiPopupRequest
     {
         if (IsCompleted || HasResult || CloseRequested.IsCancellationRequested || !IsValidResult(result))
             return false;
+        OnCompleting(result);
         Result = result;
         HasResult = true;
         Close();
         return true;
     }
+
+    /// <summary>Runs before <paramref name="result"/> is taken as the result (a live selection applies it).</summary>
+    private protected virtual void OnCompleting(TResult result) { }
 
     /// <summary>Whether <paramref name="result"/> is a choice this request offers (a list: an index of its items).</summary>
     private protected virtual bool IsValidResult(TResult result) => true;
@@ -237,18 +285,62 @@ public class SkUiPopupRequest<TResult> : SkUiPopupRequest
 
 /// <summary>
 /// A request for a list to choose one item from (a picker's): the item texts, the selected one and a title, for presenters
-/// that show their own list instead of <see cref="SkUiPopupRequest.Content"/>; the result is the chosen index.
+/// that show their own list instead of <see cref="SkUiPopupRequest.Content"/>; the result is the chosen index, or -1 to clear
+/// the choice (<see cref="SkUiPopupRequest.Clear"/>).
 /// </summary>
 public sealed class SkUiListPopupRequest : SkUiPopupRequest<int>
 {
     private IReadOnlyList<string> _items;
 
-    internal SkUiListPopupRequest(View anchor, View? platformAnchor, View? content, in SkUiPopupLayout layout, IReadOnlyList<string> items, int selectedIndex)
+    internal SkUiListPopupRequest(View anchor, View? platformAnchor, View? content, in SkUiPopupLayout layout, IReadOnlyList<string> items, int selectedIndex,
+        IReadOnlyList<bool>? itemsEnabled = null)
         : base(anchor, platformAnchor, content, layout)
     {
         _items = items;
+        ItemsEnabled = itemsEnabled;
         SelectedIndex = selectedIndex;
+        CurrentIndex = selectedIndex;
     }
+
+    /// <summary>
+    /// The item the popup has highlighted now (-1: none): the selection when it opened, then the item the user moved to (a tap
+    /// when the choice waits for <see cref="SkUiPopupRequest.Accept"/>, the keyboard). What <see cref="SkUiPopupRequest.Accept"/> chooses.
+    /// </summary>
+    public int CurrentIndex { get; private set; }
+
+    /// <summary>
+    /// Which items can be chosen (<c>null</c>: all; else one flag per item): disabled items show (dimmed) but cannot be chosen
+    /// (<see cref="SkUiPopupRequest{TResult}.Complete"/> and <see cref="SetCurrentIndex"/> refuse them). Follows the picker while
+    /// the popup is open.
+    /// </summary>
+    public IReadOnlyList<bool>? ItemsEnabled { get; private set; }
+
+    /// <summary>The picker's item states changed while open.</summary>
+    internal void SetItemStates(IReadOnlyList<bool>? states) => ItemsEnabled = states;
+
+    /// <summary>Highlights the item at <paramref name="index"/> (a presenter's own list, before <see cref="SkUiPopupRequest.Accept"/>); <c>false</c> for an index that is not an item, or a disabled one.</summary>
+    public bool SetCurrentIndex(int index)
+    {
+        if (index < -1 || index >= _items.Count || !SkUiItemStates.IsEnabled(ItemsEnabled, index))
+            return false;
+        CurrentIndex = index;
+        if (index >= 0)
+            _cleared = false;
+        return true;
+    }
+
+    private bool _cleared;
+
+    /// <inheritdoc />
+    private protected override bool ClearCore()
+    {
+        CurrentIndex = -1;
+        _cleared = true;
+        return RequiresAccept || Complete(-1);
+    }
+
+    /// <inheritdoc />
+    private protected override bool AcceptCore() => CurrentIndex >= 0 ? Complete(CurrentIndex) : _cleared ? Complete(-1) : base.AcceptCore();
 
     /// <summary>The items' display texts, in order (empty once the request completed).</summary>
     public IReadOnlyList<string> Items => _items;
@@ -257,8 +349,279 @@ public sealed class SkUiListPopupRequest : SkUiPopupRequest<int>
     public int SelectedIndex { get; }
 
     /// <inheritdoc />
-    private protected override bool IsValidResult(int result) => result >= 0 && result < _items.Count;
+    private protected override bool IsValidResult(int result) => result >= -1 && result < _items.Count && SkUiItemStates.IsEnabled(ItemsEnabled, result);
 
     /// <inheritdoc />
     private protected override void OnCompleted() => _items = [];
+}
+
+/// <summary>
+/// A request whose popup changes a selection as the user goes (a multi-select list, the wheels of a multi-column picker): the
+/// drawn content reports each change with <see cref="SetSelection"/>. Without <see cref="SkUiPopupRequest.RequiresAccept"/> the
+/// control applies each change at once, so dismissing the popup keeps what was chosen; with it, the changes are a draft that
+/// <see cref="SkUiPopupRequest.Accept"/> (or <c>Complete</c> with a selection) applies and a dismissal discards. Presenters that
+/// show their own UI do the same.
+/// </summary>
+public abstract class SkUiSelectionPopupRequest : SkUiPopupRequest<IReadOnlyList<int>>
+{
+    private int[] _selected;
+    private Action<IReadOnlyList<int>>? _apply;
+
+    internal SkUiSelectionPopupRequest(View anchor, View? platformAnchor, View? content, in SkUiPopupLayout layout, IReadOnlyList<int> selected,
+        Action<IReadOnlyList<int>> apply)
+        : base(anchor, platformAnchor, content, layout)
+    {
+        _selected = [.. selected];
+        _apply = apply;
+    }
+
+    /// <summary>
+    /// The selection in the popup now: the indices of the chosen items (a list: in ascending order), or one index per column
+    /// (-1: none). Follows the changes made here and by the app while the popup is open; with
+    /// <see cref="SkUiPopupRequest.RequiresAccept"/>, the draft not yet applied.
+    /// </summary>
+    public IReadOnlyList<int> SelectedIndices => _selected;
+
+    /// <summary>
+    /// Changes the selection: applied to the control at once, or (with <see cref="SkUiPopupRequest.RequiresAccept"/>) kept as the
+    /// draft <see cref="SkUiPopupRequest.Accept"/> applies. Returns <c>false</c> (and changes nothing) when
+    /// <paramref name="indices"/> is not a selection this request offers, or the popup is closing.
+    /// </summary>
+    public bool SetSelection(IReadOnlyList<int> indices)
+    {
+        ArgumentNullException.ThrowIfNull(indices);
+        if (IsCompleted || CloseRequested.IsCancellationRequested || _apply is not { } apply || !IsValidSelection(indices))
+            return false;
+        _selected = [.. indices];
+        if (!RequiresAccept)
+            apply(_selected);
+        return true;
+    }
+
+    /// <inheritdoc />
+    private protected override bool AcceptCore() => Complete(_selected);
+
+    /// <inheritdoc />
+    private protected override bool ClearCore() => SetSelection(EmptySelection);
+
+    /// <summary>The selection with nothing chosen.</summary>
+    private protected abstract IReadOnlyList<int> EmptySelection { get; }
+
+    /// <summary>The app changed the selection while the popup is open: <see cref="SelectedIndices"/> follows (the control already has it).</summary>
+    internal void Refresh(IReadOnlyList<int> indices) => _selected = [.. indices];
+
+    /// <summary>Whether <paramref name="indices"/> is a selection of this request's items.</summary>
+    private protected abstract bool IsValidSelection(IReadOnlyList<int> indices);
+
+    /// <inheritdoc />
+    private protected sealed override bool IsValidResult(IReadOnlyList<int> result) => result is not null && IsValidSelection(result);
+
+    /// <inheritdoc />
+    private protected sealed override void OnCompleting(IReadOnlyList<int> result)
+    {
+        // The final selection: applied now (again, unchanged, when each change already was).
+        _selected = [.. result];
+        _apply?.Invoke(_selected);
+    }
+
+    /// <inheritdoc />
+    private protected override void OnCompleted()
+    {
+        _apply = null;
+        base.OnCompleted();
+    }
+}
+
+/// <summary>
+/// A request for a list to choose several items from (a picker with <c>SelectionMode</c> <c>Multiple</c>): the item texts and the
+/// chosen indices, for presenters that show their own list instead of <see cref="SkUiPopupRequest.Content"/>.
+/// </summary>
+public sealed class SkUiMultiListPopupRequest : SkUiSelectionPopupRequest
+{
+    private IReadOnlyList<string> _items;
+
+    internal SkUiMultiListPopupRequest(View anchor, View? platformAnchor, View? content, in SkUiPopupLayout layout, IReadOnlyList<string> items,
+        IReadOnlyList<int> selected, Action<IReadOnlyList<int>> apply, IReadOnlyList<bool>? itemsEnabled = null)
+        : base(anchor, platformAnchor, content, layout, selected, apply)
+    {
+        _items = items;
+        ItemsEnabled = itemsEnabled;
+    }
+
+    /// <summary>
+    /// Which items can be chosen (<c>null</c>: all; else one flag per item): a selection may not add or remove a disabled item
+    /// (one the app chose stays). Follows the picker while the popup is open.
+    /// </summary>
+    public IReadOnlyList<bool>? ItemsEnabled { get; private set; }
+
+    /// <summary>The picker's item states changed while open.</summary>
+    internal void SetItemStates(IReadOnlyList<bool>? states) => ItemsEnabled = states;
+
+    /// <summary>The items' display texts, in order (empty once the request completed).</summary>
+    public IReadOnlyList<string> Items => _items;
+
+    /// <inheritdoc />
+    /// <remarks>Disabled items the app chose stay chosen.</remarks>
+    private protected override IReadOnlyList<int> EmptySelection => [.. SelectedIndices.Where(index => !SkUiItemStates.IsEnabled(ItemsEnabled, index))];
+
+    /// <summary>Chooses or un-chooses the item at <paramref name="index"/> (see <see cref="SkUiSelectionPopupRequest.SetSelection"/>).</summary>
+    public bool SetSelected(int index, bool selected)
+    {
+        if (index < 0 || index >= _items.Count)
+            return false;
+        var chosen = SelectedIndices.ToList();
+        if (selected == chosen.Contains(index))
+            return true;
+        if (selected)
+        {
+            chosen.Add(index);
+            chosen.Sort();
+        }
+        else
+        {
+            chosen.Remove(index);
+        }
+        return SetSelection(chosen);
+    }
+
+    /// <inheritdoc />
+    private protected override bool IsValidSelection(IReadOnlyList<int> indices)
+    {
+        var previous = -1;
+        foreach (var index in indices)
+        {
+            // Ascending and distinct.
+            if (index <= previous || index >= _items.Count)
+                return false;
+            previous = index;
+        }
+        if (ItemsEnabled is null)
+            return true;
+        // Disabled items keep their state: chosen ones stay chosen, others cannot be chosen.
+        var current = SelectedIndices;
+        for (var index = 0; index < _items.Count; index++)
+            if (!SkUiItemStates.IsEnabled(ItemsEnabled, index) && indices.Contains(index) != current.Contains(index))
+                return false;
+        return true;
+    }
+
+    /// <inheritdoc />
+    private protected override void OnCompleted()
+    {
+        _items = [];
+        base.OnCompleted();
+    }
+}
+
+/// <summary>
+/// A request for wheels, one per column, to choose one item from each (a multi-column picker): the columns' item texts, whether
+/// they loop and the chosen index of each, for presenters that show their own UI instead of <see cref="SkUiPopupRequest.Content"/>.
+/// Date and time pickers' requests say more (<see cref="SkUiDatePopupRequest"/>, <see cref="SkUiTimePopupRequest"/>).
+/// </summary>
+public class SkUiColumnsPopupRequest : SkUiSelectionPopupRequest
+{
+    private IReadOnlyList<IReadOnlyList<string>> _columns;
+    private IReadOnlyList<bool> _loops;
+
+    internal SkUiColumnsPopupRequest(View anchor, View? platformAnchor, View? content, in SkUiPopupLayout layout, IReadOnlyList<IReadOnlyList<string>> columns,
+        IReadOnlyList<bool> loops, IReadOnlyList<int> selected, Action<IReadOnlyList<int>> apply, IReadOnlyList<string?>? headers = null)
+        : base(anchor, platformAnchor, content, layout, selected, apply)
+    {
+        _columns = columns;
+        _loops = loops;
+        Headers = headers ?? new string?[columns.Count];
+    }
+
+    /// <summary>The columns' headers ("Hour", "Minute"; <c>null</c>: none).</summary>
+    public IReadOnlyList<string?> Headers { get; }
+
+    /// <summary>The display texts of each column's items (empty once the request completed).</summary>
+    public IReadOnlyList<IReadOnlyList<string>> Columns => _columns;
+
+    /// <summary>Whether each column's items repeat without an end.</summary>
+    public IReadOnlyList<bool> Loops => _loops;
+
+    /// <inheritdoc />
+    private protected override IReadOnlyList<int> EmptySelection => Enumerable.Repeat(-1, _columns.Count).ToArray();
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Wheels always show an item in their middle rows, so they cannot show that nothing is chosen: Clear chooses nothing and
+    /// closes, also when the popup waits for OK.
+    /// </remarks>
+    private protected override bool ClearCore() => Complete(EmptySelection);
+
+    /// <summary>
+    /// Which items of each column can be chosen (<c>null</c> for a column: all): disabled items show (dimmed), but a wheel does not
+    /// stop on them and a selection cannot choose them. Follows the columns while the popup is open.
+    /// </summary>
+    public IReadOnlyList<IReadOnlyList<bool>?> ItemsEnabled => _itemsEnabled;
+
+    private IReadOnlyList<bool>?[] _itemsEnabled = [];
+
+    /// <summary>The states the popup opened with, and their changes while open.</summary>
+    internal void SetItemStates(int column, IReadOnlyList<bool>? states)
+    {
+        if (_itemsEnabled.Length != _columns.Count)
+            _itemsEnabled = new IReadOnlyList<bool>?[_columns.Count];
+        if (column >= 0 && column < _itemsEnabled.Length)
+            _itemsEnabled[column] = states;
+    }
+
+    /// <summary>Chooses <paramref name="indices"/> after taking <paramref name="rules"/>' item states for them (a day the old month lacked).</summary>
+    private protected bool Choose(ISkUiColumnsRules rules, int[] indices)
+    {
+        TakeStates(rules, indices);
+        return SetSelection(indices);
+    }
+
+    /// <summary>Completes with <paramref name="indices"/> after taking <paramref name="rules"/>' item states for them.</summary>
+    private protected bool CompleteWith(ISkUiColumnsRules rules, int[] indices)
+    {
+        TakeStates(rules, indices);
+        return Complete(indices);
+    }
+
+    private void TakeStates(ISkUiColumnsRules rules, int[] indices)
+    {
+        if (IsCompleted || CloseRequested.IsCancellationRequested)
+            return;
+        for (var column = 0; column < _columns.Count; column++)
+            SetItemStates(column, rules.ItemStates(column, indices));
+    }
+
+    /// <summary>Chooses the item at <paramref name="index"/> in the column <paramref name="column"/> (see <see cref="SkUiSelectionPopupRequest.SetSelection"/>).</summary>
+    public bool SetSelectedIndex(int column, int index)
+    {
+        if (column < 0 || column >= _columns.Count)
+            return false;
+        var chosen = SelectedIndices.ToArray();
+        chosen[column] = index;
+        return SetSelection(chosen);
+    }
+
+    /// <inheritdoc />
+    private protected override bool IsValidSelection(IReadOnlyList<int> indices)
+    {
+        if (indices.Count != _columns.Count)
+            return false;
+        for (var column = 0; column < indices.Count; column++)
+        {
+            if (indices[column] < -1 || indices[column] >= _columns[column].Count)
+                return false;
+            // A disabled item cannot be chosen (one the app chose may stay).
+            var states = column < _itemsEnabled.Length ? _itemsEnabled[column] : null;
+            if (indices[column] >= 0 && !SkUiItemStates.IsEnabled(states, indices[column]) && indices[column] != SelectedIndices[column])
+                return false;
+        }
+        return true;
+    }
+
+    /// <inheritdoc />
+    private protected override void OnCompleted()
+    {
+        _columns = [];
+        _loops = [];
+        base.OnCompleted();
+    }
 }
