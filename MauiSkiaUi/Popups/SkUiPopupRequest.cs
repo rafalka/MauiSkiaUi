@@ -184,6 +184,16 @@ public class SkUiPopupRequest
     /// </summary>
     public void Cancel() => Close();
 
+    /// <summary>
+    /// Clears the choice: the popup's Clear button. Without <see cref="RequiresAccept"/> it applies at once (a list of one choice
+    /// then closes); with it, the draft is cleared and <see cref="Accept"/> applies that. Returns <c>false</c> when the request has
+    /// no choice to clear or the popup is closing.
+    /// </summary>
+    public bool Clear() => !IsCompleted && !CloseRequested.IsCancellationRequested && ClearCore();
+
+    /// <summary>What <see cref="Clear"/> does for this kind of request: by default, nothing.</summary>
+    private protected virtual bool ClearCore() => false;
+
     /// <summary>What <see cref="Accept"/> does for this kind of request: by default, closes.</summary>
     private protected virtual bool AcceptCore()
     {
@@ -275,7 +285,8 @@ public class SkUiPopupRequest<TResult> : SkUiPopupRequest
 
 /// <summary>
 /// A request for a list to choose one item from (a picker's): the item texts, the selected one and a title, for presenters
-/// that show their own list instead of <see cref="SkUiPopupRequest.Content"/>; the result is the chosen index.
+/// that show their own list instead of <see cref="SkUiPopupRequest.Content"/>; the result is the chosen index, or -1 to clear
+/// the choice (<see cref="SkUiPopupRequest.Clear"/>).
 /// </summary>
 public sealed class SkUiListPopupRequest : SkUiPopupRequest<int>
 {
@@ -301,11 +312,23 @@ public sealed class SkUiListPopupRequest : SkUiPopupRequest<int>
         if (index < -1 || index >= _items.Count)
             return false;
         CurrentIndex = index;
+        if (index >= 0)
+            _cleared = false;
         return true;
     }
 
+    private bool _cleared;
+
     /// <inheritdoc />
-    private protected override bool AcceptCore() => CurrentIndex >= 0 ? Complete(CurrentIndex) : base.AcceptCore();
+    private protected override bool ClearCore()
+    {
+        CurrentIndex = -1;
+        _cleared = true;
+        return RequiresAccept || Complete(-1);
+    }
+
+    /// <inheritdoc />
+    private protected override bool AcceptCore() => CurrentIndex >= 0 ? Complete(CurrentIndex) : _cleared ? Complete(-1) : base.AcceptCore();
 
     /// <summary>The items' display texts, in order (empty once the request completed).</summary>
     public IReadOnlyList<string> Items => _items;
@@ -314,7 +337,7 @@ public sealed class SkUiListPopupRequest : SkUiPopupRequest<int>
     public int SelectedIndex { get; }
 
     /// <inheritdoc />
-    private protected override bool IsValidResult(int result) => result >= 0 && result < _items.Count;
+    private protected override bool IsValidResult(int result) => result >= -1 && result < _items.Count;
 
     /// <inheritdoc />
     private protected override void OnCompleted() => _items = [];
@@ -366,6 +389,12 @@ public abstract class SkUiSelectionPopupRequest : SkUiPopupRequest<IReadOnlyList
     /// <inheritdoc />
     private protected override bool AcceptCore() => Complete(_selected);
 
+    /// <inheritdoc />
+    private protected override bool ClearCore() => SetSelection(EmptySelection);
+
+    /// <summary>The selection with nothing chosen.</summary>
+    private protected abstract IReadOnlyList<int> EmptySelection { get; }
+
     /// <summary>The app changed the selection while the popup is open: <see cref="SelectedIndices"/> follows (the control already has it).</summary>
     internal void Refresh(IReadOnlyList<int> indices) => _selected = [.. indices];
 
@@ -408,6 +437,9 @@ public sealed class SkUiMultiListPopupRequest : SkUiSelectionPopupRequest
 
     /// <summary>The items' display texts, in order (empty once the request completed).</summary>
     public IReadOnlyList<string> Items => _items;
+
+    /// <inheritdoc />
+    private protected override IReadOnlyList<int> EmptySelection => [];
 
     /// <summary>Chooses or un-chooses the item at <paramref name="index"/> (see <see cref="SkUiSelectionPopupRequest.SetSelection"/>).</summary>
     public bool SetSelected(int index, bool selected)
@@ -473,6 +505,9 @@ public sealed class SkUiColumnsPopupRequest : SkUiSelectionPopupRequest
 
     /// <summary>Whether each column's items repeat without an end.</summary>
     public IReadOnlyList<bool> Loops => _loops;
+
+    /// <inheritdoc />
+    private protected override IReadOnlyList<int> EmptySelection => Enumerable.Repeat(-1, _columns.Count).ToArray();
 
     /// <summary>Chooses the item at <paramref name="index"/> in the column <paramref name="column"/> (see <see cref="SkUiSelectionPopupRequest.SetSelection"/>).</summary>
     public bool SetSelectedIndex(int column, int index)

@@ -7,9 +7,14 @@ namespace MauiSkiaUi;
 
 /// <summary>
 /// Whether a popup's choice waits to be accepted (<see cref="SkUiPickerUpdateMode.WhenFinished"/>): then its content shows the OK
-/// and Cancel buttons, with these texts.
+/// and Cancel buttons, with these texts; and whether it shows a Clear button (the picker's <c>IsPopupClearButtonVisible</c>).
 /// </summary>
-internal readonly record struct SkUiPickerPopupChrome(bool RequiresAccept, string AcceptText, string CancelText);
+internal readonly record struct SkUiPickerPopupChrome(bool RequiresAccept, string AcceptText, string CancelText, bool ShowsClear = false,
+    string? ClearText = null)
+{
+    /// <summary>Whether the content has a footer of buttons.</summary>
+    public bool HasButtons => RequiresAccept || ShowsClear;
+}
 
 /// <summary>What a popup's content is built for: where it goes, its title, the picker's text style and its buttons.</summary>
 internal readonly record struct SkUiPickerPopupContext(SkUiPopupPlacement Placement, string? Title, bool RightToLeft, SkUiPickerRowStyle RowStyle,
@@ -63,6 +68,9 @@ internal interface ISkUiPickerOwner : ISkUiTransitionHost
 
     /// <summary>The user chose <paramref name="index"/> (in the popup, or with an arrow key on the closed field).</summary>
     void Choose(int index);
+
+    /// <summary>The user cleared the choice (the field's clear button, Delete, the popup's Clear button).</summary>
+    void ClearChoice();
 
     /// <summary>Sets the control's <c>IsOpen</c> from the popup's lifetime (raising <c>Opened</c> / <c>Closed</c>).</summary>
     void SetIsOpen(bool open);
@@ -137,6 +145,9 @@ internal sealed class SkUiPickerModel
     public string? Placeholder;
     public Color? PlaceholderColor;
     public double PopupWidth = -1;
+    public bool ShowsClearButton;
+    public bool ShowsPopupClearButton;
+    public string? ClearText;
     public System.Windows.Input.ICommand? SelectionChangedCommand;
     public object? SelectionChangedCommandParameter;
     public Color? TextColor;
@@ -192,10 +203,10 @@ internal sealed class SkUiPickerModel
     public string? SelectedText => UsesValueText ? ValueText
         : SelectedIndex >= 0 && SelectedIndex < _items.Count ? _items[SelectedIndex] ?? string.Empty : null;
 
-    /// <summary>The text the field shows: the selection's, else the title (else nothing).</summary>
     /// <summary>The hint the field shows while nothing is chosen: the placeholder, else the title.</summary>
     private string? PlaceholderText => Placeholder ?? Title;
 
+    /// <summary>The text the field shows: the selection's, else the hint (else nothing).</summary>
     private string DisplayText => SelectedText ?? PlaceholderText ?? string.Empty;
 
     /// <summary>The shown text, the font or the items changed: lay the text out again and measure.</summary>
@@ -235,7 +246,7 @@ internal sealed class SkUiPickerModel
         {
             var look = SkUiLook.Current;
             var padding = look.PickerFieldPadding;
-            var chevron = look.PickerChevronWidth;
+            var chevron = look.PickerChevronWidth + (ClearButtonShown ? look.PickerClearButtonWidth : 0);
             return _owner.IsRightToLeft
                 ? new Thickness(padding.Right + chevron, padding.Top, padding.Left, padding.Bottom)
                 : new Thickness(padding.Left, padding.Top, padding.Right + chevron, padding.Bottom);
@@ -248,6 +259,22 @@ internal sealed class SkUiPickerModel
         var chevron = (float)SkUiLook.Current.PickerChevronWidth;
         return _owner.IsRightToLeft ? new SKRect(0, 0, chevron, height) : new SKRect(width - chevron, 0, width, height);
     }
+
+    /// <summary>Whether the field shows its clear button: it has one and something is chosen.</summary>
+    internal bool ClearButtonShown => ShowsClearButton && SelectedText is not null;
+
+    /// <summary>The clear button's rectangle in a field of <paramref name="width"/> × <paramref name="height"/>: before the chevron, at the end side.</summary>
+    private SKRect ClearButtonBounds(float width, float height)
+    {
+        var look = SkUiLook.Current;
+        var chevron = (float)look.PickerChevronWidth;
+        var clear = (float)look.PickerClearButtonWidth;
+        return _owner.IsRightToLeft ? new SKRect(chevron, 0, chevron + clear, height) : new SKRect(width - chevron - clear, 0, width - chevron, height);
+    }
+
+    /// <summary>Whether <paramref name="point"/> (field coordinates) is on the shown clear button.</summary>
+    public bool HitsClearButton(Point point, double width, double height) =>
+        ClearButtonShown && ClearButtonBounds((float)width, (float)height).Contains((float)point.X, (float)point.Y);
 
     /// <summary>The field's size: the shown text (or the title) with the padding and chevron, at least the look's touch height.</summary>
     public Size Measure(double widthConstraint, double heightConstraint)
@@ -269,6 +296,13 @@ internal sealed class SkUiPickerModel
         SkUiLook.Current.DrawPickerField(canvas, new SkUiPickerFieldPaint(new SKRect(0, 0, width, height), ChevronBounds(width, height),
             ToSkColor(SkUiColors.Accent), ToSkColor(SkUiColors.Muted), foreground, _focus.Value, _open.Value, _press?.Visual ?? SkUiPressVisual.None,
             IsPointerOver, IsEnabled, _owner.IsRightToLeft));
+        if (ClearButtonShown)
+        {
+            var bounds = ClearButtonBounds(width, height);
+            var pressed = _press?.Visual is { Pressed: > 0 } && bounds.Contains((float)_pressOrigin.X, (float)_pressOrigin.Y);
+            SkUiLook.Current.DrawPickerClearButton(canvas, new SkUiPickerClearButtonPaint(bounds, ToSkColor(SkUiColors.Muted),
+                ToSkColor(SkUiColors.DefaultBackground), pressed, IsEnabled));
+        }
         var selected = SelectedText;
         var text = selected ?? PlaceholderText;
         if (string.IsNullOrEmpty(text))
@@ -291,9 +325,13 @@ internal sealed class SkUiPickerModel
     /// <summary>The field is pressed or released (<paramref name="origin"/>: the press point).</summary>
     public void SetPressed(bool pressed, Point origin)
     {
+        if (pressed)
+            _pressOrigin = origin;
         (_press ??= new SkUiPressAnimator(_owner, ripple: false)).SetPressed(pressed, origin);
         _owner.InvalidatePaint();
     }
+
+    private Point _pressOrigin;
 
     /// <summary>The field gained or lost keyboard focus.</summary>
     public void SetFocused(bool focused) => UpdateHighlight(focused);
@@ -328,6 +366,12 @@ internal sealed class SkUiPickerModel
         if ((key.Modifiers & SkUiKeyModifiers.Alt) != 0 && key.Key is SkUiKey.Down or SkUiKey.Up)
         {
             _owner.SetIsOpen(true);
+            return true;
+        }
+        // The clear button's key.
+        if (ClearButtonShown && key.Key is SkUiKey.Delete or SkUiKey.Backspace && !key.HasCommandModifier)
+        {
+            _owner.ClearChoice();
             return true;
         }
         if (key.HasCommandModifier || _items.Count == 0 || !ClosedFieldSelects)
@@ -423,7 +467,7 @@ internal sealed class SkUiPickerModel
     }
 
     /// <summary>The popup is gone: applies a choice, then <c>IsOpen</c> goes back to <c>false</c> (or the next popup opens).</summary>
-    private void Ended(PopupSession session, int choice, bool hadFocus)
+    private void Ended(PopupSession session, int choice, bool cleared, bool hadFocus)
     {
         if (!ReferenceEquals(_session, session))
             return;
@@ -431,7 +475,9 @@ internal sealed class SkUiPickerModel
         UpdateHighlight();
         _owner.InvalidateSemantics();
         choice = session.ItemsChanged ? session.CurrentIndexOf(choice) : choice;
-        if (choice >= 0 && choice < _items.Count)
+        if (cleared)
+            _owner.ClearChoice();
+        else if (choice >= 0 && choice < _items.Count)
             _owner.Choose(choice);
         if (hadFocus)
             _owner.FocusField();
@@ -514,7 +560,8 @@ internal sealed class SkUiPickerModel
             var requiresAccept = model.UpdateMode == SkUiPickerUpdateMode.WhenFinished;
             // The texts are read at each opening, so a culture switch applies to the next popup.
             var strings = SkUiStrings.Current;
-            var chrome = new SkUiPickerPopupChrome(requiresAccept, model.AcceptText ?? strings.AcceptText, model.CancelText ?? strings.CancelText);
+            var chrome = new SkUiPickerPopupChrome(requiresAccept, model.AcceptText ?? strings.AcceptText, model.CancelText ?? strings.CancelText,
+                model.ShowsPopupClearButton, model.ClearText ?? strings.ClearText);
             var context = new SkUiPickerPopupContext(placement, placement == SkUiPopupPlacement.Anchored ? null : model.Title, rightToLeft, rowStyle, chrome);
             var content = model.ContentFactory is { } factory ? factory(context) : BuildList(context);
             var maximumHeight = model.MaxPopupHeight >= 0 ? model.MaxPopupHeight : double.PositiveInfinity;
@@ -569,11 +616,13 @@ internal sealed class SkUiPickerModel
             {
                 StopWatching();
                 var choice = request is SkUiListPopupRequest { HasResult: true } list ? list.Result : -1;
+                // A list completed with -1: the popup's Clear.
+                var cleared = request is SkUiListPopupRequest { HasResult: true, Result: -1 };
                 var hadFocus = _content?.IsFocused == true;
                 request.MarkCompleted();
                 _content?.Release();
                 _content = null;
-                model.Ended(this, choice, hadFocus);
+                model.Ended(this, choice, cleared, hadFocus);
                 _sourceItems = null;
             }
         }

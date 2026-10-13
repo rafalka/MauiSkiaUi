@@ -244,3 +244,11 @@ public readonly record struct SkUiIndicatorPaint(
 public readonly record struct SkUiPickerFieldPaint(
     SKRect Bounds, SKRect ChevronBounds, SKColor Accent, SKColor Border, SKColor Foreground, float Focused, float Open, SkUiPressVisual Press,
     bool IsPointerOver, bool IsEnabled, bool IsRightToLeft);
+
+/// <summary>What a look draws a picker field's clear button with (<see cref="SkUiLook.DrawPickerClearButton"/>).</summary>
+/// <param name="Bounds">The button's room in the field (before the chevron, the end side).</param>
+/// <param name="Color">The button's color (the color scheme's muted color).</param>
+/// <param name="Background">The field's background color (the cross's color in the default look).</param>
+/// <param name="IsPressed">The button is pressed.</param>
+/// <param name="IsEnabled">The field is enabled.</param>
+public readonly record struct SkUiPickerClearButtonPaint(SKRect Bounds, SKColor Color, SKColor Background, bool IsPressed, bool IsEnabled);

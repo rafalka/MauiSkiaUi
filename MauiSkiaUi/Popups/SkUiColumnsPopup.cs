@@ -105,7 +105,7 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
         Grid.SetColumnSpan(band, Math.Max(1, texts.Length));
         // The band sits behind the wheels; the wheels are transparent, so the chosen texts stay clear.
         _title = title is null ? null : SkUiPopupParts.Title(title, style);
-        _footer = chrome.RequiresAccept ? SkUiPopupParts.Buttons(chrome, style, () => Request) : null;
+        _footer = chrome.HasButtons ? SkUiPopupParts.Buttons(chrome, style, () => Request, () => Request?.Clear()) : null;
         Content = SkUiPopupParts.Compose(_title, wheels, _footer);
         // Handlers last: setting the starting positions is not a choice.
         foreach (var wheel in _wheels)

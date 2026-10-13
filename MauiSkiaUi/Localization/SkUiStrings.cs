@@ -81,6 +81,9 @@ public class SkUiStrings
     /// </summary>
     public virtual string CancelText { get; set => Set(ref field, value); } = "Cancel";
 
+    /// <summary>The Clear button of popups (a picker's <c>IsPopupClearButtonVisible</c>), unless the picker sets its own <c>ClearText</c>. Default "Clear".</summary>
+    public virtual string ClearText { get; set => Set(ref field, value); } = "Clear";
+
     /// <summary>The default load-more button of a collection view (<see cref="SkUiCollectionView.LoadMoreMode"/> <c>Manual</c>). Default "Load more".</summary>
     public virtual string LoadMoreText { get; set => Set(ref field, value); } = "Load more";
 

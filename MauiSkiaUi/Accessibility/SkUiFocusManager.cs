@@ -18,6 +18,10 @@ internal enum SkUiKey
     PageDown,
     Home,
     End,
+    /// <summary>Backspace (Delete on Mac keyboards).</summary>
+    Backspace,
+    /// <summary>The forward Delete key.</summary>
+    Delete,
     /// <summary>A character key (a letter, a digit, punctuation): <see cref="SkUiKeyEvent.Character"/> (type-ahead in lists).</summary>
     Character
 }

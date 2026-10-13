@@ -122,8 +122,8 @@ public partial class SkUiPicker
         ReplaceSelectedItems(all);
     }
 
-    /// <summary>Clears the choice (<see cref="SkUiSelectionMode.Multiple"/>: <see cref="SelectedItems"/>; else <see cref="SelectedIndex"/>), raising the change event once.</summary>
-    public void ClearSelection()
+    /// <inheritdoc />
+    private protected override void ClearChoice()
     {
         if (_multiple)
             ReplaceSelectedItems([]);

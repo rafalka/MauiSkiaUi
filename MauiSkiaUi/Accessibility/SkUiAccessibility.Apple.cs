@@ -297,6 +297,8 @@ internal static class SkUiAppleKeys
         UIKeyboardHidUsage.KeyboardPageDown => SkUiKey.PageDown,
         UIKeyboardHidUsage.KeyboardHome => SkUiKey.Home,
         UIKeyboardHidUsage.KeyboardEnd => SkUiKey.End,
+        UIKeyboardHidUsage.KeyboardDeleteOrBackspace => SkUiKey.Backspace,
+        UIKeyboardHidUsage.KeyboardDeleteForward => SkUiKey.Delete,
         _ => SkUiKey.None
     };
 

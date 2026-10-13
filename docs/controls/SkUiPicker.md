@@ -52,6 +52,16 @@ Several columns of wheels (hours and minutes, an amount and a unit) are a contro
                AcceptText="{Binding Strings[Apply]}" />
 ```
 
+## Clearing the choice
+
+Every picker (lists, several choices, [wheels](SkUiMultiColumnPicker.md)) can be cleared: no selected item, no chosen items, no item in any column; the field shows its placeholder.
+
+- **The field's clear button** (`IsClearButtonVisible`, default `false`): drawn by the look before the chevron while something is chosen (`SkUiLook.DrawPickerClearButton` / `PickerClearButtonPainter`, room `PickerClearButtonWidth`). A tap on it clears without opening the popup; on the focused field Delete or Backspace does the same.
+- **The popup's Clear button** (`IsPopupClearButtonVisible`, default `false`): at the start of the popup's footer, text `ClearText` or `SkUiStrings.ClearText` ("Clear"). With `UpdateMode="Immediately"` it clears at once (a list of one choice then closes); with `WhenFinished` it clears the draft, and OK applies it.
+- **From code:** `ClearSelection()` on every picker. A presenter's own UI calls `request.Clear()`, or completes a `SkUiListPopupRequest` with `-1`.
+
+Clearing raises the change events (`SelectedIndexChanged`, `SelectionChanged`) and `SelectionChangedCommand` as any other change.
+
 ## Popups on your popup system
 
 SkiaUi has no popup windows. A picker asks an `ISkUiPopupPresenter` to show its list: the picker's `PopupPresenter`, else the app's `SkUiPopups.Presenter` (also set by `UseSkiaUi(options => options.PopupPresenter = …)`), else MAUI's action sheet (`SkUiActionSheetPopupPresenter`: plain item texts, centered, MAUI's own UI; one trace line says so the first time).
@@ -126,7 +136,7 @@ The current look ([ControlLook.md](../design/ControlLook.md)) draws every picker
 - `SkUiLook.DrawPickerField(canvas, SkUiPickerFieldPaint)` (or the `PickerFieldPainter` delegate) draws the chrome and the chevron behind the text: the field's `Bounds`, `ChevronBounds`, the accent, border and foreground colors, `Focused` (keyboard focus or an open list, animated by `SkUiTransitionKind.FieldFocus`) and `Open` (animated by `PickerOpen`), the press, pointer-over and enabled states, right to left.
 - `DefaultSkUiLook.PickerFieldStyle`: `Default` (the look's `DefaultPickerFieldStyle`: an outline, the same on every platform), `Underline`, `Outline`, `Filled` or `None`. Call `SkUiLook.NotifyChanged()` after changing it.
 - Platform looks mimic one platform each (`DefaultSkUiLook.ForCurrentPlatform()` picks the one the app runs on; set it with `UseSkiaUi(options => options.Look = …)` or `SkUiLook.Current`): `AndroidSkUiLook` underlines the field (Material's), `IosSkUiLook` opens window popups as a sheet at the bottom on phones; `MacSkUiLook` and `WindowsSkUiLook` match the default look so far.
-- `PickerFieldPadding`, `PickerChevronWidth`, `DefaultPickerMinimumHeight` (44).
+- `PickerFieldPadding`, `PickerChevronWidth`, `PickerClearButtonWidth` (32), `DefaultPickerMinimumHeight` (44); `DrawPickerClearButton` / `PickerClearButtonPainter` (`SkUiPickerClearButtonPaint`) draws the field's clear button.
 - Popups: `DefaultPopupPlacement` (`DefaultSkUiLook.PopupPlacement`, default the device's, `DevicePopupPlacement`: anchored on desktops and tablets; on phones a dialog centered in the window), `PopupHorizontalOptions` / `PopupVerticalOptions` (window popups, default centered; `Fill` / `End` makes a bottom sheet, as `IosSkUiLook` on phones), `PopupMargin` (8), `PopupAnchorGap` (4), `PopupPreferredWidth` (320, window popups), `PopupItemHeight` (44) and `PopupItemPadding` (rows without a template), `PopupHighlightColor` (the selection: the accent at 12 %), `GetPopupOverlayColor(placement)`.
 
 ## Shared conventions
@@ -235,6 +245,7 @@ host.SetContent(picker);
 | `PopupWidth` | `-1` | The popup's width (within the window; an anchored popup is then not widened to the field); -1: the content's (SkiaUi) |
 | `SelectionChangedCommand` / `SelectionChangedCommandParameter` | `null` | Runs after each change of the choice (when it can execute), before `SelectedIndexChanged` / `SelectionChanged` (SkiaUi) |
 | `IsPopupClosedOnSelection` | `false` | Several choices: the list closes after each toggled row (SkiaUi) |
+| `IsClearButtonVisible` / `IsPopupClearButtonVisible` / `ClearText` | `false` / `false` / `null` | The field's clear button and the popup's Clear button ([Clearing the choice](#clearing-the-choice)) (SkiaUi) |
 | `PopupPresenter` | `null` | The app's presenter (SkiaUi) |
 | `SelectionMode` | `Single` | `Multiple`: check boxes, the list stays open (SkiaUi) |
 | `UpdateMode` | `Immediately` | `WhenFinished`: a draft until OK, with Cancel and OK buttons (MAUI's iOS `Picker.UpdateMode`, on every platform) |

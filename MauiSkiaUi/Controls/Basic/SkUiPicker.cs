@@ -206,6 +206,15 @@ public partial class SkUiPicker : SkUiPickerBase
     /// <summary>Sets <see cref="SkUiPickerBase.CancelText"/> (same as the property setter).</summary>
     public new SkUiPicker SetCancelText(string? value) { base.SetCancelText(value); return this; }
 
+    /// <summary>Sets <see cref="SkUiPickerBase.IsClearButtonVisible"/> (same as the property setter).</summary>
+    public new SkUiPicker SetIsClearButtonVisible(bool value) { base.SetIsClearButtonVisible(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.IsPopupClearButtonVisible"/> (same as the property setter).</summary>
+    public new SkUiPicker SetIsPopupClearButtonVisible(bool value) { base.SetIsPopupClearButtonVisible(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.ClearText"/> (same as the property setter).</summary>
+    public new SkUiPicker SetClearText(string? value) { base.SetClearText(value); return this; }
+
     /// <summary>Sets <see cref="SkUiPickerBase.Placeholder"/> (same as the property setter).</summary>
     public new SkUiPicker SetPlaceholder(string? value) { base.SetPlaceholder(value); return this; }
 

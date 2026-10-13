@@ -121,6 +121,15 @@ public class SkUiCoreMultiColumnPicker : SkUiCorePickerBase
     /// <summary>Sets <see cref="SkUiCorePickerBase.CancelText"/> (same as the property setter).</summary>
     public new SkUiCoreMultiColumnPicker SetCancelText(string? value) { base.SetCancelText(value); return this; }
 
+    /// <summary>Sets <see cref="SkUiCorePickerBase.IsClearButtonVisible"/> (same as the property setter).</summary>
+    public new SkUiCoreMultiColumnPicker SetIsClearButtonVisible(bool value) { base.SetIsClearButtonVisible(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.IsPopupClearButtonVisible"/> (same as the property setter).</summary>
+    public new SkUiCoreMultiColumnPicker SetIsPopupClearButtonVisible(bool value) { base.SetIsPopupClearButtonVisible(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.ClearText"/> (same as the property setter).</summary>
+    public new SkUiCoreMultiColumnPicker SetClearText(string? value) { base.SetClearText(value); return this; }
+
     /// <summary>Sets <see cref="SkUiCorePickerBase.Placeholder"/> (same as the property setter).</summary>
     public new SkUiCoreMultiColumnPicker SetPlaceholder(string? value) { base.SetPlaceholder(value); return this; }
 
@@ -135,6 +144,13 @@ public class SkUiCoreMultiColumnPicker : SkUiCorePickerBase
 
     /// <summary>Sets <see cref="SkUiCorePickerBase.SelectionChangedCommandParameter"/> (same as the property setter).</summary>
     public new SkUiCoreMultiColumnPicker SetSelectionChangedCommandParameter(object? value) { base.SetSelectionChangedCommandParameter(value); return this; }
+
+    /// <inheritdoc />
+    private protected override void ClearChoice()
+    {
+        foreach (var column in Columns)
+            column.SelectedIndex = -1;
+    }
 
     /// <summary>Adds <paramref name="column"/> after the others.</summary>
     public SkUiCoreMultiColumnPicker AddColumn(SkUiPickerColumn column)

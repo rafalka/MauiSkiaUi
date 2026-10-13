@@ -96,6 +96,15 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     /// <summary>The parameter of <see cref="SelectionChangedCommand"/>.</summary>
     public object? SelectionChangedCommandParameter { get => Model.SelectionChangedCommandParameter; set => SetSelectionChangedCommandParameter(value); }
 
+    /// <summary>Whether the field shows a clear button while something is chosen (see <c>SkUiPickerBase.IsClearButtonVisible</c>).</summary>
+    public bool IsClearButtonVisible { get => Model.ShowsClearButton; set => SetIsClearButtonVisible(value); }
+
+    /// <summary>Whether the popup shows a Clear button (see <c>SkUiPickerBase.IsPopupClearButtonVisible</c>).</summary>
+    public bool IsPopupClearButtonVisible { get => Model.ShowsPopupClearButton; set => SetIsPopupClearButtonVisible(value); }
+
+    /// <summary>The popup's Clear button's text; <c>null</c> (default): <see cref="SkUiStrings.ClearText"/>.</summary>
+    public string? ClearText { get => Model.ClearText; set => SetClearText(value); }
+
     /// <summary>Raised when <see cref="IsOpen"/> becomes <c>true</c>.</summary>
     public event EventHandler<PickerOpenedEventArgs>? Opened;
 
@@ -206,6 +215,15 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     /// <summary>Sets <see cref="CancelText"/>.</summary>
     public SkUiCorePickerBase SetCancelText(string? value) => Update(ref Model.CancelText, value, nameof(CancelText), paint: false);
 
+    /// <summary>Sets <see cref="IsClearButtonVisible"/>.</summary>
+    public SkUiCorePickerBase SetIsClearButtonVisible(bool value) => Update(ref Model.ShowsClearButton, value, nameof(IsClearButtonVisible), measure: true);
+
+    /// <summary>Sets <see cref="IsPopupClearButtonVisible"/>.</summary>
+    public SkUiCorePickerBase SetIsPopupClearButtonVisible(bool value) => Update(ref Model.ShowsPopupClearButton, value, nameof(IsPopupClearButtonVisible), paint: false);
+
+    /// <summary>Sets <see cref="ClearText"/>.</summary>
+    public SkUiCorePickerBase SetClearText(string? value) => Update(ref Model.ClearText, value, nameof(ClearText), paint: false);
+
     /// <summary>Sets <see cref="Placeholder"/>.</summary>
     public SkUiCorePickerBase SetPlaceholder(string? value) => Update(ref Model.Placeholder, value, nameof(Placeholder), measure: true);
 
@@ -246,6 +264,15 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     /// <summary>The objects a list popup's templated rows bind to (the picker's <c>ItemsSource</c>), or <c>null</c>.</summary>
     private protected virtual IList? PopupItemsSource => null;
 
+    /// <summary>
+    /// Clears the choice: no selected item (a list), no chosen items (several choices), no item in any column (wheels); the field
+    /// shows its placeholder. Raises the change events (and <see cref="SelectionChangedCommand"/>) when something was chosen.
+    /// </summary>
+    public void ClearSelection() => ClearChoice();
+
+    /// <summary>What <see cref="ClearSelection"/> clears, for this kind of picker.</summary>
+    private protected abstract void ClearChoice();
+
     /// <summary>The user chose the item at <paramref name="index"/> in the popup or with an arrow key on the closed field (lists).</summary>
     private protected virtual void ChooseItem(int index)
     {
@@ -274,7 +301,14 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     internal override bool HasIntrinsicTap => true;
 
     /// <inheritdoc />
-    internal override void OnIntrinsicTap(SkUiTappedEventArgs args) => SetIsOpen(!_isOpen);
+    internal override void OnIntrinsicTap(SkUiTappedEventArgs args)
+    {
+        // The clear button clears without opening.
+        if (Model.HitsClearButton(args.Position, Frame.Width, Frame.Height))
+            ClearChoice();
+        else
+            SetIsOpen(!_isOpen);
+    }
 
     /// <inheritdoc />
     internal override void OnGesturePressedChanged(bool pressed) => Model.SetPressed(pressed, PressPosition);
@@ -345,6 +379,8 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     IList? ISkUiPickerOwner.ItemsSource => PopupItemsSource;
 
     void ISkUiPickerOwner.Choose(int index) => ChooseItem(index);
+
+    void ISkUiPickerOwner.ClearChoice() => ClearChoice();
 
     void ISkUiPickerOwner.SetIsOpen(bool open) => SetIsOpen(open);
 

@@ -110,7 +110,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             _list.SelectedItem = _rows[_highlighted];
         _list.ItemTapped += OnItemTapped;
         _title = title is null ? null : SkUiPopupParts.Title(title, style);
-        _footer = chrome.RequiresAccept ? SkUiPopupParts.Buttons(chrome, style, () => Request) : null;
+        _footer = chrome.HasButtons ? SkUiPopupParts.Buttons(chrome, style, () => Request, ClearChoice) : null;
         Content = SkUiPopupParts.Compose(_title, _list, _footer);
         var first = _multiple ? (_initialChecked.Length > 0 ? _initialChecked[0] : -1) : _highlighted;
         if (first >= 0 && first < _rows.Length)
@@ -298,6 +298,21 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             return false;
         Highlight(Math.Clamp(target, 0, count - 1));
         return true;
+    }
+
+    /// <summary>The Clear button: no row chosen (several choices: through the list, so the request follows), no highlight.</summary>
+    internal void ClearChoice()
+    {
+        if (Request is not { } request || request.CloseRequested.IsCancellationRequested)
+            return;
+        if (_multiple)
+        {
+            _list.SelectedItems.Clear();
+            return;
+        }
+        _highlighted = -1;
+        _list.SelectedItem = null;
+        request.Clear();
     }
 
     /// <summary>The row at the keyboard's cursor (several choices) shows it.</summary>

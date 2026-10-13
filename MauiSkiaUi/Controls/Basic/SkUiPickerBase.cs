@@ -222,6 +222,27 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
     /// <summary>The parameter of <see cref="SelectionChangedCommand"/>. SkiaUi extension.</summary>
     public object? SelectionChangedCommandParameter { get => (object?)GetValue(SelectionChangedCommandParameterProperty); set => SetValue(SelectionChangedCommandParameterProperty, value); }
 
+    /// <summary>Bindable property for <see cref="IsClearButtonVisible"/>.</summary>
+    public static readonly BindableProperty IsClearButtonVisibleProperty = BindableProperty.Create(nameof(IsClearButtonVisible), typeof(bool), typeof(SkUiPickerBase), false,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.ShowsClearButton = (bool)value, measure: true));
+
+    /// <summary>Whether the field shows a clear button (drawn by the look, before the chevron) while something is chosen: a tap on it, or Delete / Backspace on the focused field, clears the choice (<see cref="ClearSelection"/>) without opening the popup. Default <c>false</c>. SkiaUi extension.</summary>
+    public bool IsClearButtonVisible { get => (bool)GetValue(IsClearButtonVisibleProperty); set => SetValue(IsClearButtonVisibleProperty, value); }
+
+    /// <summary>Bindable property for <see cref="IsPopupClearButtonVisible"/>.</summary>
+    public static readonly BindableProperty IsPopupClearButtonVisibleProperty = BindableProperty.Create(nameof(IsPopupClearButtonVisible), typeof(bool), typeof(SkUiPickerBase), false,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Model.ShowsPopupClearButton = (bool)value);
+
+    /// <summary>Whether the popup shows a Clear button (at the start of its footer): it clears the choice, at once and closing a single choice's list with <see cref="SkUiPickerUpdateMode.Immediately"/>, or in the draft OK applies with <see cref="SkUiPickerUpdateMode.WhenFinished"/>. Default <c>false</c>. SkiaUi extension.</summary>
+    public bool IsPopupClearButtonVisible { get => (bool)GetValue(IsPopupClearButtonVisibleProperty); set => SetValue(IsPopupClearButtonVisibleProperty, value); }
+
+    /// <summary>Bindable property for <see cref="ClearText"/>.</summary>
+    public static readonly BindableProperty ClearTextProperty = BindableProperty.Create(nameof(ClearText), typeof(string), typeof(SkUiPickerBase), null,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Model.ClearText = (string?)value);
+
+    /// <summary>The popup's Clear button's text; <c>null</c> (default): <see cref="SkUiStrings.ClearText"/> ("Clear"). SkiaUi extension.</summary>
+    public string? ClearText { get => (string?)GetValue(ClearTextProperty); set => SetValue(ClearTextProperty, value); }
+
     /// <summary>Raised when <see cref="IsOpen"/> becomes <c>true</c> (the list opens).</summary>
     public event EventHandler<PickerOpenedEventArgs>? Opened;
 
@@ -307,6 +328,15 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
     /// <summary>Sets <see cref="CancelText"/> (same as the property setter).</summary>
     public SkUiPickerBase SetCancelText(string? value) { CancelText = value; return this; }
 
+    /// <summary>Sets <see cref="IsClearButtonVisible"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetIsClearButtonVisible(bool value) { IsClearButtonVisible = value; return this; }
+
+    /// <summary>Sets <see cref="IsPopupClearButtonVisible"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetIsPopupClearButtonVisible(bool value) { IsPopupClearButtonVisible = value; return this; }
+
+    /// <summary>Sets <see cref="ClearText"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetClearText(string? value) { ClearText = value; return this; }
+
     /// <summary>Sets <see cref="Placeholder"/> (same as the property setter).</summary>
     public SkUiPickerBase SetPlaceholder(string? value) { Placeholder = value; return this; }
 
@@ -333,6 +363,15 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
 
     /// <summary>The objects a list popup's templated rows bind to (the picker's <c>ItemsSource</c>), or <c>null</c>.</summary>
     private protected virtual IList? PopupItemsSource => null;
+
+    /// <summary>
+    /// Clears the choice: no selected item (a list), no chosen items (several choices), no item in any column (wheels); the field
+    /// shows its placeholder. Raises the change events (and <see cref="SelectionChangedCommand"/>) when something was chosen.
+    /// </summary>
+    public void ClearSelection() => ClearChoice();
+
+    /// <summary>What <see cref="ClearSelection"/> clears, for this kind of picker.</summary>
+    private protected abstract void ClearChoice();
 
     /// <summary>The user chose the item at <paramref name="index"/> in the popup or with an arrow key on the closed field (lists).</summary>
     private protected virtual void ChooseItem(int index)
@@ -391,7 +430,11 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
     {
         RaiseTapped(args);
         ExecuteTappedCommand();
-        IsOpen = !IsOpen;
+        // The clear button clears without opening.
+        if (Model.HitsClearButton(args.Position, Width, Height))
+            ClearChoice();
+        else
+            IsOpen = !IsOpen;
     }
 
     /// <inheritdoc />
@@ -493,6 +536,8 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
     IList? ISkUiPickerOwner.ItemsSource => PopupItemsSource;
 
     void ISkUiPickerOwner.Choose(int index) => ChooseItem(index);
+
+    void ISkUiPickerOwner.ClearChoice() => ClearChoice();
 
     void ISkUiPickerOwner.SetIsOpen(bool open)
     {
