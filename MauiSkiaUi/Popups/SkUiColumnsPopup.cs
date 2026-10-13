@@ -294,7 +294,8 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
         var padding = SkUiLook.Current.PopupItemPadding.Left;
         var total = padding + ColumnWidths().Sum();
         var width = Math.Clamp(Math.Ceiling(total), Math.Min(minimumWidth, maximumWidth), maximumWidth);
-        var headers = _headers.Max(header => header?.Measure(width / Math.Max(1, _headers.Length), double.PositiveInfinity).Height ?? 0);
+        // A picker without columns has no headers (and no wheels).
+        var headers = _headers.Select(header => header?.Measure(width / Math.Max(1, _headers.Length), double.PositiveInfinity).Height ?? 0).DefaultIfEmpty(0).Max();
         var height = _rows * _rowHeight + headers + SkUiPopupParts.ExtraHeight(width, _title, _appHeader, _appFooter, _footer);
         return new Size(width, height);
     }

@@ -68,7 +68,18 @@ public sealed class SkUiActionSheetPopupPresenter : ISkUiPopupPresenter
         if (chosen is null || chosen == cancel || cancellationToken.IsCancellationRequested)
             return;
         var chosenIndex = Array.IndexOf(buttons, chosen);
-        if (chosenIndex >= 0)
+        if (chosenIndex < 0)
+            return;
+        // The sheet has no OK button: a tap on an item is the choice and the acceptance at once (its cancel button is Cancel), so a
+        // choice that waits for OK (RequiresAccept) is highlighted and accepted.
+        if (list.RequiresAccept)
+        {
+            if (list.SetCurrentIndex(chosenIndex))
+                list.Accept();
+        }
+        else
+        {
             list.Complete(chosenIndex);
+        }
     }
 }

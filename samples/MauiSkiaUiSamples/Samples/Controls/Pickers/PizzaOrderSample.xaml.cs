@@ -106,6 +106,7 @@ public sealed class PizzaOrderModel : INotifyPropertyChanged
             if (Equals(_size, value)) return;
             _size = value;
             PropertyChanged?.Invoke(this, SizeChanged);
+            Update();
         }
     }
 

@@ -91,6 +91,24 @@ public sealed class MultiColumnPickerTests : IDisposable
     }
 
     [Fact]
+    public void ARangeUpToTheLargestNumberEnds()
+    {
+        var column = SkUiPickerColumn.Range(int.MaxValue - 2, int.MaxValue, 2);
+        Assert.Equal([int.MaxValue - 2, int.MaxValue], column.ItemsSource!.Cast<int>());
+        Assert.Equal([int.MaxValue], SkUiPickerColumn.Range(int.MaxValue, int.MaxValue).ItemsSource!.Cast<int>());
+    }
+
+    [Fact]
+    public void APickerWithoutColumnsOpens()
+    {
+        var picker = new SkUiMultiColumnPicker { Title = "Nothing yet" };
+        Arrange(picker);
+        var content = Open(picker, out var request);
+        Assert.Empty(request.Columns);
+        Assert.True(content.PreferredSize(200, 400).Height >= 0);
+    }
+
+    [Fact]
     public void AColumnsSelectionFollowsTheRulesOfThePicker()
     {
         var column = new SkUiPickerColumn { SelectedIndex = 3 }; // before the items: kept

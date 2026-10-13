@@ -99,7 +99,7 @@ Clearing raises the change events (`SelectedIndexChanged`, `SelectionChanged`) a
 
 ## Popups on your popup system
 
-SkiaUi has no popup windows. A picker asks an `ISkUiPopupPresenter` to show its list: the picker's `PopupPresenter`, else the app's `SkUiPopups.Presenter` (also set by `UseSkiaUi(options => options.PopupPresenter = …)`), else MAUI's action sheet (`SkUiActionSheetPopupPresenter`: plain item texts, centered, MAUI's own UI; one trace line says so the first time).
+SkiaUi has no popup windows. A picker asks an `ISkUiPopupPresenter` to show its list: the picker's `PopupPresenter`, else the app's `SkUiPopups.Presenter` (also set by `UseSkiaUi(options => options.PopupPresenter = …)`), else MAUI's action sheet (`SkUiActionSheetPopupPresenter`: plain item texts, centered, MAUI's own UI; one trace line says so the first time). The action sheet has no OK button: with `UpdateMode="WhenFinished"` a tap on an item chooses and accepts it at once, and its cancel button (or a tap outside) changes nothing; lists with several choices and wheels need a presenter of their own.
 
 With CommunityToolkit.Maui, the **SkiaUi.Maui.CommunityToolkit** package is the presenter:
 

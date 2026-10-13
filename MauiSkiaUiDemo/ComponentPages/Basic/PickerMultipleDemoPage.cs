@@ -74,8 +74,6 @@ public sealed class PickerMultipleDemoPage : ComponentDemoPage
         Toggle(nameof(SkUiPicker.IsPopupClosedOnSelection), false, value => _picker.IsPopupClosedOnSelection = value, () => _picker.IsPopupClosedOnSelection);
         Toggle(nameof(SkUiPicker.IsClearButtonVisible), false, value => _picker.IsClearButtonVisible = value, () => _picker.IsClearButtonVisible);
         Toggle(nameof(SkUiPicker.IsPopupClearButtonVisible), false, value => _picker.IsPopupClearButtonVisible = value, () => _picker.IsPopupClearButtonVisible);
-        Choice(nameof(SkUiPicker.UpdateMode), [SkUiPickerUpdateMode.Immediately, SkUiPickerUpdateMode.WhenFinished], SkUiPickerUpdateMode.Immediately,
-            value => _picker.UpdateMode = value, () => _picker.UpdateMode);
         Toggle("Spider Monkey cannot be chosen (ItemEnabledBinding)", false,
             value => _picker.ItemEnabledBinding = value ? new Binding(".", converter: NotSpider.Instance) : null, () => _picker.ItemEnabledBinding is not null);
         ActionButton("Open (IsOpen = true)", () => _picker.IsOpen = true);

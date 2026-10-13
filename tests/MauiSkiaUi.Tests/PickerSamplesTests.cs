@@ -102,6 +102,10 @@ public sealed class PickerSamplesTests : IDisposable
 
         size.SelectedIndex = 3;
         Assert.Equal(model.Sizes[3], model.Size);
+        // The total follows the size however it changes (here from code, without the picker's command).
+        var withSize = model.Total;
+        model.Size = model.Sizes[0];
+        Assert.NotEqual(withSize, model.Total);
         Assert.Equal("Choose a crust", crust.Placeholder);
         crust.SelectedIndex = 0;
         Assert.Equal("Thin", model.Crust);

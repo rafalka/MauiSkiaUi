@@ -187,8 +187,9 @@ public class SkUiPickerColumn : BindableObject
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(step);
         var values = new List<int>();
-        for (var value = start; value <= end; value += step)
-            values.Add(value);
+        // Counted in a long: the last step may pass int.MaxValue.
+        for (long value = start; value <= end; value += step)
+            values.Add((int)value);
         return new SkUiPickerColumn
         {
             ItemDisplay = item => item is int number ? number.ToString(format, System.Globalization.CultureInfo.CurrentCulture) : item?.ToString() ?? string.Empty,

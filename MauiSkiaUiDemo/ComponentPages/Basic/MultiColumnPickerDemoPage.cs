@@ -82,8 +82,6 @@ public sealed class MultiColumnPickerDemoPage : ComponentDemoPage
         Toggle("Column headers", false, value => { _headers = value; ApplyColumnSettings(); }, () => _headers);
         Toggle(nameof(SkUiMultiColumnPicker.IsClearButtonVisible), false, value => _picker.IsClearButtonVisible = value, () => _picker.IsClearButtonVisible);
         Toggle(nameof(SkUiMultiColumnPicker.IsPopupClearButtonVisible), false, value => _picker.IsPopupClearButtonVisible = value, () => _picker.IsPopupClearButtonVisible);
-        Choice(nameof(SkUiMultiColumnPicker.UpdateMode), [SkUiPickerUpdateMode.Immediately, SkUiPickerUpdateMode.WhenFinished], SkUiPickerUpdateMode.Immediately,
-            value => _picker.UpdateMode = value, () => _picker.UpdateMode);
         ActionButton("Open (IsOpen = true)", () => _picker.IsOpen = true);
         ActionButton("Choose the first item of every column", () => { foreach (var column in _picker.Columns) column.SelectedIndex = 0; });
         SetColumns(Time);
