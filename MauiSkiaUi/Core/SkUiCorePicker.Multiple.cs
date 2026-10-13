@@ -213,11 +213,17 @@ public partial class SkUiCorePicker
         foreach (var item in _selected)
             if (IndexOfItem(item) is var index and >= 0)
                 indices.Add(index);
+        var changed = !_selectedIndices.SequenceEqual(indices);
         _selectedIndices = [.. indices];
         Model.ShowsTokens = _selectedItemsDisplay == SkUiSelectedItemsDisplay.Tokens;
         Model.Tokens = [.. _selectedIndices.Select(index => new SkUiPickerToken(FieldTextOf(index), index, Model.IsItemEnabled(index)))];
         Model.ValueText = ComposeSelectedText();
-        Model.SelectionChanged();
+        // Only a change of the chosen items reaches an open popup: its checks follow them, which would wipe a draft waiting for
+        // OK (WhenFinished) on a change of the field's text alone (the separator, the count format, tokens, the items' states).
+        if (changed)
+            Model.SelectionChanged();
+        else
+            Model.TextChanged();
     }
 
     private string? ComposeSelectedText()

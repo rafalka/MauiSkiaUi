@@ -347,7 +347,9 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
             ChooseByRules(column, index, coerce);
             return;
         }
-        if (Request is not SkUiSelectionPopupRequest request || index < 0 || index >= _texts[column].Length || request.SelectedIndices[column] == index
+        // The item already chosen is chosen again only while another column has nothing chosen (it then takes its wheel's item).
+        if (Request is not SkUiSelectionPopupRequest request || index < 0 || index >= _texts[column].Length
+            || (request.SelectedIndices[column] == index && !request.SelectedIndices.Contains(-1))
             || !SkUiItemStates.IsEnabled(_states[column], index))
             return;
         // The other columns with nothing chosen take what their wheels show: a time is never half chosen ("01:").

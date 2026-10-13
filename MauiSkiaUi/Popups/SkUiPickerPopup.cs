@@ -136,6 +136,12 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         var first = _multiple ? (_initialChecked.Length > 0 ? _initialChecked[0] : -1) : _highlighted;
         if (first >= 0 && first < _rows.Length)
             _ = _list.ScrollToIndex(first, ScrollToPosition.Center, animated: false);
+        // Several choices: the keyboard's cursor starts on the first checked row (the one scrolled to and focused).
+        if (_multiple && first >= 0 && first < _rows.Length)
+        {
+            _highlighted = first;
+            ShowCursor(first);
+        }
     }
 
     /// <summary>The request this content completes (set before it is shown; cleared once it has gone).</summary>
@@ -359,6 +365,13 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
                 request.Accept();
                 return true;
             case SkUiKey.Space when _multiple && !key.IsRepeat:
+                // Without a cursor yet, Space puts it on the first row that can be chosen (Space again toggles it).
+                if (_highlighted < 0)
+                {
+                    if (SkUiItemStates.Nearest(_itemEnabled, count, 0, 1) is var firstEnabled and >= 0)
+                        Highlight(firstEnabled);
+                    return count > 0;
+                }
                 ToggleRow(_highlighted);
                 return true;
             case SkUiKey.Enter or SkUiKey.Space when !key.IsRepeat:

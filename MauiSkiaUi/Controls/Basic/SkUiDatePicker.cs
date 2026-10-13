@@ -67,7 +67,7 @@ public class SkUiDatePicker : SkUiDateTimePickerBase
     /// <summary>The chosen date (its time is midnight); <c>null</c>: none. Today by default. Kept between <see cref="MinimumDate"/> and <see cref="MaximumDate"/>. Two-way by default.</summary>
     public DateTime? Date { get => (DateTime?)GetValue(DateProperty); set => SetValue(DateProperty, value); }
 
-    /// <summary>The earliest date that can be chosen (default 1 January 1900); <c>null</c>: none.</summary>
+    /// <summary>The earliest date that can be chosen (default 1 January 1900); <c>null</c>: none (the year wheel then shows 200 years either side of the date).</summary>
     public DateTime? MinimumDate { get => (DateTime?)GetValue(MinimumDateProperty); set => SetValue(MinimumDateProperty, value); }
 
     /// <summary>The latest date that can be chosen (default 31 December 2100); <c>null</c>: none.</summary>

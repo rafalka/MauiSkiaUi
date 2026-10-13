@@ -209,6 +209,24 @@ public sealed class MultiColumnPickerTests : IDisposable
     }
 
     [Fact]
+    public void TappingTheChosenItemFillsTheColumnsWithNothingChosen()
+    {
+        var picker = TimePicker();
+        picker.Columns[0].SelectedIndex = 5; // half chosen: the minutes and the part of the day are not
+        var content = Open(picker, out var request);
+        using var surface = new SkUiTestSurface(content, 360, 400);
+        surface.Frame();
+        Assert.Equal([5, -1, -1], request.SelectedIndices);
+
+        var item = Assert.IsAssignableFrom<SkUiView>(content.Wheel(0).GetRealizedView(5));
+        Assert.NotNull(SkUiDiagnostics.SimulateTap(item));
+        _ui.RunPending();
+
+        Assert.Equal([5, 0, 0], request.SelectedIndices);
+        Assert.Equal([5, 0, 0], picker.SelectedIndices);
+    }
+
+    [Fact]
     public void APresenterOfItsOwnChoosesThroughTheRequest()
     {
         var picker = TimePicker();

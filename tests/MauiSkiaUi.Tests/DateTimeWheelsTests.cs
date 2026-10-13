@@ -216,6 +216,35 @@ public sealed class DateTimeWheelsTests
     }
 
     [Fact]
+    public void ARangeWithoutLimitsShowsYearsAroundTheValue()
+    {
+        var unlimited = Wheels(SkUiDateTimeKind.Date, "dd MM yyyy", minimum: DateTime.MinValue, maximum: DateTime.MaxValue.Date, value: new DateTime(2026, 5, 4));
+        var years = unlimited.Columns[2].Values;
+        Assert.Equal(2 * SkUiDateTimeWheels.YearSpan + 1, years.Length);
+        Assert.Equal((1826, 2226), (years[0], years[^1]));
+        Assert.Equal(new DateTime(1826, 1, 1), unlimited.Minimum);
+        Assert.Equal([3, 4, 200], unlimited.IndicesOf(new DateTime(2026, 5, 4)));
+
+        // A range that ends near the value keeps its end.
+        var past = Wheels(SkUiDateTimeKind.Date, "dd MM yyyy", minimum: DateTime.MinValue, maximum: new DateTime(2030, 12, 31), value: new DateTime(2026, 5, 4));
+        Assert.Equal((1826, 2030), (past.Columns[2].Values[0], past.Columns[2].Values[^1]));
+    }
+
+    [Fact]
+    public void BlockedDaysNeedADayWheel()
+    {
+        var christmas = new DateTime(2026, 12, 25);
+        var monthly = Wheels(SkUiDateTimeKind.Date, "MM/yy", blackout: [new DateTime(2026, 12, 1), christmas], enabled: _ => false);
+        // Without a day wheel the rules do not apply, the same when asked and when choosing.
+        Assert.True(monthly.IsDateEnabled(christmas));
+        Assert.NotNull(monthly.IndicesOfChoice(new DateTime(2026, 12, 1)));
+
+        var daily = Wheels(SkUiDateTimeKind.Date, "dd MM yyyy", blackout: [christmas]);
+        Assert.False(daily.IsDateEnabled(christmas));
+        Assert.Null(daily.IndicesOfChoice(christmas));
+    }
+
+    [Fact]
     public void HeadersComeFromTheStrings()
     {
         var strings = new SkUiStrings { DayText = "Tag", MonthText = "Monat", YearText = "Jahr" };

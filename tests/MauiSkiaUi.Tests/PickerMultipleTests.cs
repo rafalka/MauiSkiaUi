@@ -169,6 +169,67 @@ public sealed class PickerMultipleTests : IDisposable
     }
 
     [Fact]
+    public void TheCursorStartsOnTheFirstCheckedRowAndSpaceWithoutOneShowsIt()
+    {
+        var picker = Picker(Monkeys);
+        picker.SelectedItems.Add(Monkeys[2]);
+        picker.SelectedItems.Add(Monkeys[4]);
+        picker.IsOpen = true;
+        var content = Assert.IsType<SkUiPickerPopup>(Shown().Content);
+        var handler = (ISkUiKeyHandler)content;
+        bool Press(SkUiKey key) => handler.OnKeyDown(new SkUiKeyEvent(key, SkUiKeyModifiers.None, false));
+
+        Assert.Equal(2, content.HighlightedIndex);
+        Assert.True(Press(SkUiKey.Space)); // toggles the row the cursor is on
+        Assert.Equal([4], picker.SelectedIndices);
+        Assert.True(Press(SkUiKey.Down));
+        Assert.Equal(3, content.HighlightedIndex);
+        picker.IsOpen = false;
+        _ui.RunPending();
+
+        // Nothing checked: no cursor; Space puts it on the first row and toggles nothing.
+        picker.ClearSelection();
+        picker.IsOpen = true;
+        content = Assert.IsType<SkUiPickerPopup>(Shown().Content);
+        handler = content;
+        Assert.Equal(-1, content.HighlightedIndex);
+        Assert.True(Press(SkUiKey.Space));
+        Assert.Equal(0, content.HighlightedIndex);
+        Assert.Empty(picker.SelectedIndices);
+    }
+
+    [Fact]
+    public void ADraftWaitingForOkSurvivesChangesOfTheFieldsText()
+    {
+        var picker = Picker(Monkeys);
+        picker.UpdateMode = SkUiPickerUpdateMode.WhenFinished;
+        picker.SelectedItems.Add(Monkeys[0]);
+        picker.IsOpen = true;
+        var request = Shown();
+        Assert.True(request.SetSelected(3, true));
+        Assert.Equal([0, 3], request.SelectedIndices);
+
+        // Only the field's text changes: the draft stays.
+        picker.SelectedTextSeparator = " + ";
+        picker.SelectedCountFormat = "{0} monkeys";
+        picker.SelectedItemsDisplay = SkUiSelectedItemsDisplay.Tokens;
+        picker.ItemEnabledBinding = new Binding(".", converter: new NotHowler());
+        Assert.Equal([0, 3], request.SelectedIndices);
+        Assert.Equal([0], picker.SelectedIndices);
+
+        // A change of the chosen items still reaches the popup.
+        picker.SelectedItems.Add(Monkeys[1]);
+        Assert.Equal([0, 1], request.SelectedIndices);
+    }
+
+    private sealed class NotHowler : IValueConverter
+    {
+        public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => value as string != "Howler Monkey";
+
+        public object ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => throw new NotSupportedException();
+    }
+
+    [Fact]
     public void TheClosedFieldDoesNotChangeTheChoiceWithArrowKeys()
     {
         var picker = Picker(Monkeys);

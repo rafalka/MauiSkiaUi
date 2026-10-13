@@ -71,6 +71,12 @@ internal sealed class SkUiDateTimeWheels : ISkUiColumnsRules
     /// <summary>The date of a time picker's values (its wheels never show it).</summary>
     internal static readonly DateTime TimeDate = new(2000, 1, 1);
 
+    /// <summary>
+    /// The most years before and after the value (else the highlighted date) the year wheel shows when the range is wider (no
+    /// limit: <c>null</c> bounds are the ends of <see cref="DateTime"/>), so a wheel never holds thousands of years.
+    /// </summary>
+    internal const int YearSpan = 200;
+
     /// <summary>How far (in days) a choice on a date that cannot be chosen looks for one that can.</summary>
     private const int NearestDateSearch = 3660;
 
@@ -103,17 +109,18 @@ internal sealed class SkUiDateTimeWheels : ISkUiColumnsRules
         SecondInterval = settings.SecondInterval;
         var info = culture.DateTimeFormat;
         var tokens = Tokens(settings.WheelFormat, settings.Kind, info);
+        var highlighted = settings.Highlighted ?? DefaultHighlight(settings.Kind);
+        var around = (settings.Value ?? highlighted).Year;
         _twelveHour = tokens.Any(token => token is { Unit: SkUiDateTimeUnit.Hour, Letter: 'h' });
         _order = _twelveHour
             ? [SkUiDateTimeUnit.Year, SkUiDateTimeUnit.Month, SkUiDateTimeUnit.Day, SkUiDateTimeUnit.Half, SkUiDateTimeUnit.Hour, SkUiDateTimeUnit.Minute, SkUiDateTimeUnit.Second]
             : [SkUiDateTimeUnit.Year, SkUiDateTimeUnit.Month, SkUiDateTimeUnit.Day, SkUiDateTimeUnit.Hour, SkUiDateTimeUnit.Minute, SkUiDateTimeUnit.Second];
-        _columns = [.. tokens.Select(token => CreateColumn(token, settings, culture, strings))];
+        _columns = [.. tokens.Select(token => CreateColumn(token, settings, culture, strings, around))];
         Array.Fill(_columnOf, -1);
         for (var column = 0; column < _columns.Length; column++)
             _columnOf[(int)_columns[column].Unit] = column;
 
         // Parts without a column: above the smallest shown one they keep the value's (else the highlighted one's), below it their least.
-        var highlighted = settings.Highlighted ?? DefaultHighlight(settings.Kind);
         var basis = Decompose(settings.Value ?? highlighted);
         var smallest = _order.Where(unit => _columnOf[(int)unit] >= 0).Select(unit => Array.IndexOf(_order, unit)).DefaultIfEmpty(-1).Max();
         for (var level = 0; level < _order.Length; level++)
@@ -239,8 +246,9 @@ internal sealed class SkUiDateTimeWheels : ISkUiColumnsRules
     }
 
     /// <summary>Whether the day <paramref name="date"/> can be chosen: in the range, not a blackout date, allowed by the app.</summary>
+    /// <remarks>Blackout dates and the app's rule apply with a day wheel only (as when choosing): a month and year picker allows every day.</remarks>
     public bool IsDateEnabled(DateTime date) =>
-        date.Date >= Minimum.Date && date.Date <= Maximum.Date && (Kind == SkUiDateTimeKind.Time || IsDateAllowed(date.Date));
+        date.Date >= Minimum.Date && date.Date <= Maximum.Date && (!_datesRuled || IsDateAllowed(date.Date));
 
     /// <summary><paramref name="value"/> in the range, on a date that can be chosen (the nearest one, earlier first).</summary>
     public DateTime Coerce(DateTime value)
@@ -565,7 +573,7 @@ internal sealed class SkUiDateTimeWheels : ISkUiColumnsRules
         return kept;
     }
 
-    private static Column CreateColumn(Token token, in SkUiDateTimeSettings settings, CultureInfo culture, SkUiStrings strings)
+    private static Column CreateColumn(Token token, in SkUiDateTimeSettings settings, CultureInfo culture, SkUiStrings strings, int around)
     {
         var info = culture.DateTimeFormat;
         var twoDigits = token.Length >= 2;
@@ -575,8 +583,10 @@ internal sealed class SkUiDateTimeWheels : ISkUiColumnsRules
         switch (token.Unit)
         {
             case SkUiDateTimeUnit.Year:
-                var first = settings.Minimum.Year;
-                values = [.. Enumerable.Range(first, Math.Max(1, settings.Maximum.Year - first + 1))];
+                // The range's years, at most YearSpan either side of the value's (a range without limits has 9999).
+                var first = Math.Max(settings.Minimum.Year, Math.Min(around, settings.Maximum.Year) - YearSpan);
+                var last = Math.Min(settings.Maximum.Year, Math.Max(around, settings.Minimum.Year) + YearSpan);
+                values = [.. Enumerable.Range(first, Math.Max(1, last - first + 1))];
                 text = token.Length == 2 ? year => (year % 100).ToString("00", culture) : year => year.ToString(new string('0', Math.Max(1, token.Length)), culture);
                 header = strings.YearText;
                 break;
