@@ -309,6 +309,24 @@ public class SkUiAvatarView : SkUiBorder
     // The Border members replace the toolkit's defaults once set (also by a style), and the defaults return when cleared.
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Set to a value equal to the old one (<c>CornerRadius = 0</c> for a square avatar), MAUI raises no change, but the
+    /// default gives way all the same; cleared, it comes back: redraw either way.
+    /// </remarks>
+    private protected override void OnSetOrCleared(BindableProperty property)
+    {
+        if (ReferenceEquals(property, CornerRadiusProperty))
+        {
+            InvalidateShape();
+        }
+        else if (ReferenceEquals(property, PaddingProperty) || ReferenceEquals(property, StrokeThicknessProperty))
+        {
+            InvalidateMeasureOverride(); // the content is inset by the padding and the border
+            InvalidateShape();
+        }
+    }
+
+    /// <inheritdoc />
     private protected override Paint? OutlinePaint => base.OutlinePaint ?? _borderPaint;
 
     /// <inheritdoc />

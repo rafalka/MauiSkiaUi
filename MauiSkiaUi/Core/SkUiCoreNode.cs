@@ -776,16 +776,49 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             props.Shadow = effects.GetShadow(_shadow, this, props);
         }
         if (_skeletonState is { } skeleton)
+        {
+            var own = props.Drawable;
             SkUiSkeletonScope.ApplyProps(this, ref props, skeleton);
+            if (own is not null && !ReferenceEquals(own, props.Drawable))
+                ReleaseReplacedDrawable(own);
+        }
     }
+
+    /// <summary>
+    /// The skeleton's bones took the place of the node's own drawable (a shimmer bone or a shimmer as one bone): the node
+    /// forgets it, since the compositor disposes a committed drawable once a commit replaces it; one never committed is
+    /// disposed here, as no one else knows of it.
+    /// </summary>
+    private void ReleaseReplacedDrawable(SkUiRenderDrawable own)
+    {
+        ForgetOwnDrawable();
+        if (!(_renderState is { HasCommitted: true } state && ReferenceEquals(state.Committed.Drawable, own)))
+            own.Dispose();
+    }
+
+    /// <summary>Forgets the drawable the node commits from <see cref="OnGetRenderProps"/> (its slot), so a new one is made next time.</summary>
+    private protected virtual void ForgetOwnDrawable() { }
 
     private SkUiSkeletonState? _skeletonState;
 
     /// <summary>The node's skeleton state (its <see cref="SkUiCoreShimmer.SkeletonProperty"/> value, place and bones), once it mattered.</summary>
     internal SkUiSkeletonState? SkeletonState => _skeletonState;
 
-    /// <summary>The skeleton state's field, for <see cref="SkUiSkeletonScope"/> to make it.</summary>
-    internal ref SkUiSkeletonState? SkeletonStateRef => ref _skeletonState;
+    ref SkUiSkeletonState? ISkUiRenderable.SkeletonStateRef => ref _skeletonState;
+
+    SkUiSkeleton ISkUiRenderable.DefaultSkeleton => DefaultSkeleton;
+
+    bool ISkUiRenderable.IsSkeletonContainer => IsSkeletonContainer;
+
+    void ISkUiRenderable.OnSkeletonChanged() => OnSkeletonChanged();
+
+    void ISkUiRenderable.AddSkeletonBones(SkUiSkeletonBuilder bones, bool block)
+    {
+        if (block)
+            bones.AddShape(bones.Bounds, PressEffectCornerRadii);
+        else
+            AddSkeletonBones(bones);
+    }
 
     /// <summary>Whether the node is in a skeleton made from content and draws something else than itself (its bones, or nothing).</summary>
     private bool DrawsSkeletonInstead => _skeletonState is { InSkeleton: true } skeleton && !SkUiSkeletonScope.Resolve(this, skeleton).DrawsAsIs;

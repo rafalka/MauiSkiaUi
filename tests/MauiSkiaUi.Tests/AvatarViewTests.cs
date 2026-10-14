@@ -403,4 +403,27 @@ public sealed class AvatarViewTests : IDisposable
         try { avatar.FontSize = 0; } catch (ArgumentException) { } // MAUI ignores (or rejects) an invalid value
         Assert.Equal(12, avatar.FontSize);
     }
+
+    [Fact]
+    public void ACornerRadiusEqualToItsDefaultValueStillMakesItSquare()
+    {
+        // MAUI raises no change for CornerRadius = 0 (the property's default), but the fully rounded default gives way.
+        var avatar = new SkUiAvatarView { BackgroundColor = Colors.Red, BorderWidth = 0 };
+        using var surface = new SkUiTestSurface(new SkUiContentView { Content = avatar, Background = Colors.White }, 48, 48);
+        Assert.Equal(SKColors.White, surface.Frame().GetPixel(3, 3)); // a circle
+        avatar.CornerRadius = new CornerRadius(0);
+        Assert.Equal(SKColors.Red, surface.Frame().GetPixel(3, 3)); // a square
+        avatar.ClearValue(SkUiBorder.CornerRadiusProperty);
+        Assert.Equal(SKColors.White, surface.Frame().GetPixel(3, 3)); // round again
+    }
+
+    [Fact]
+    public void ACoreAvatarRepaintsWhenItsBackgroundIsSetToTheFieldsDefault()
+    {
+        var avatar = new SkUiCoreAvatar { Text = "Ada Lovelace" };
+        using var surface = new SkUiTestSurface(new SkUiContentView { Content = new SkUiCoreHost().SetContent(avatar), Background = Colors.White }, 48, 48);
+        Assert.NotEqual(SKColors.White, surface.Frame().GetPixel(24, 40)); // the look's color
+        avatar.SetBackgroundColor(Colors.Transparent); // equal to the field's default: still replaces the look's fill
+        Assert.Equal(SKColors.White, surface.Frame().GetPixel(24, 40));
+    }
 }

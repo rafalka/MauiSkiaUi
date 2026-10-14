@@ -94,8 +94,9 @@ public class SkUiCoreBorder : SkUiCoreContentView
     public SkUiCoreBorder SetBackgroundColor(Color value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        _backgroundColorSet = true;
-        if (!SetProperty(ref _backgroundColor, value, nameof(BackgroundColor))) return this;
+        var wasSet = _backgroundColorSet;
+        _backgroundColorSet = true; // a set color replaces a default fill (an avatar's), even one equal to the field's
+        if (!SetProperty(ref _backgroundColor, value, nameof(BackgroundColor)) && wasSet) return this;
         InvalidatePaint();
         return this;
     }

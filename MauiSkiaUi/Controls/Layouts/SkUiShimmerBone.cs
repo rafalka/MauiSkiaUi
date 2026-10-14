@@ -81,6 +81,9 @@ public class SkUiShimmerBone : SkUiView, ISkUiShimmerBone
     }
 
     /// <inheritdoc />
+    private protected override void ForgetOwnDrawable() => _drawable.Forget();
+
+    /// <inheritdoc />
     internal override void ReleaseDrawingResources()
     {
         base.ReleaseDrawingResources();

@@ -316,6 +316,35 @@ public class ShimmerTests
     }
 
     [Fact]
+    public void ShowingTheSkeletonAgainCommitsANewSilhouette()
+    {
+        // The compositor disposes the silhouette once the content replaces it: coming back must not commit it again.
+        var shimmer = Shimmer();
+        using var surface = Surface(shimmer);
+        surface.Frame();
+        var first = shimmer.RenderState.Node.Props.Drawable;
+        Assert.IsType<SkUiShimmerSilhouette>(first);
+        shimmer.IsLoading = false;
+        surface.Frame();
+        Assert.Null(shimmer.RenderState.Node.Props.Drawable);
+        shimmer.IsLoading = true;
+        surface.Frame();
+        Assert.IsType<SkUiShimmerSilhouette>(shimmer.RenderState.Node.Props.Drawable);
+        Assert.NotSame(first, shimmer.RenderState.Node.Props.Drawable);
+
+        var core = new SkUiCoreShimmer { SkeletonContent = new SkUiCoreBox { Color = Colors.Red }, Content = new SkUiCoreBox { Color = Colors.Green } };
+        using var coreSurface = Surface(new SkUiCoreHost().SetContent(core));
+        coreSurface.Frame();
+        var coreFirst = core.RenderState.Node.Props.Drawable;
+        Assert.NotNull(coreFirst);
+        core.IsLoading = false;
+        coreSurface.Frame();
+        core.IsLoading = true;
+        coreSurface.Frame();
+        Assert.NotSame(coreFirst, core.RenderState.Node.Props.Drawable);
+    }
+
+    [Fact]
     public void ShowingTheSkeletonAgainDrawsTheWave()
     {
         // Back from the content: the effect is drawn again (once, a disposed effect drew a black band here).

@@ -345,6 +345,26 @@ public class ShimmerContentSkeletonTests
     }
 
     [Fact]
+    public void ABoneShownAsABlockMakesANewDrawableOnceTheSkeletonReplacedItsOwn()
+    {
+        var bone = new SkUiShimmerBone { WidthRequest = 40, HeightRequest = 10, HorizontalOptions = LayoutOptions.Start };
+        SkUiShimmer.SetSkeleton(bone, SkUiSkeleton.Bone);
+        var shimmer = Shimmer(new SkUiVerticalStackLayout { Children = { bone } });
+        shimmer.IsLoading = false;
+        using var surface = Surface(shimmer);
+        surface.Frame();
+        var own = bone.RenderState.Node.Props.Drawable;
+        Assert.NotNull(own);
+        shimmer.IsLoading = true; // the skeleton's block replaces it: the compositor disposes it
+        surface.Frame();
+        Assert.NotSame(own, bone.RenderState.Node.Props.Drawable);
+        shimmer.IsLoading = false;
+        surface.Frame();
+        Assert.NotNull(bone.RenderState.Node.Props.Drawable);
+        Assert.NotSame(own, bone.RenderState.Node.Props.Drawable); // a new one, not the disposed one
+    }
+
+    [Fact]
     public void AViewMovedOutOfTheSkeletonDrawsItselfAgain()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
@@ -540,6 +560,31 @@ public class ShimmerContentSkeletonTests
     public sealed record Person(string Name);
 
     private static SkUiLabel NameOf(ISkUiView row) => (SkUiLabel)((SkUiVerticalStackLayout)row).Children[0];
+
+    /// <summary>A selector as apps write them: it reads the item, so it throws for none.</summary>
+    private sealed class PersonSelector(DataTemplate template) : DataTemplateSelector
+    {
+        protected override DataTemplate OnSelectTemplate(object item, BindableObject container) => ((Person)item).Name.Length > 0 ? template : template;
+    }
+
+    [Fact]
+    public void ASelectorThatNeedsAnItemGetsPlainPlaceholderRows()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var people = new System.Collections.ObjectModel.ObservableCollection<Person>();
+        var list = List(people);
+        list.ItemTemplate = new PersonSelector(list.ItemTemplate!);
+        using var surface = Surface(Shimmer(list), 200, 200);
+        surface.Frame(); // no exception from the app's selector during layout
+        SkUiTestHelpers.Arrange(surface.Root, 200, 200);
+        surface.Frame();
+        Assert.True(list.ShowsPlaceholders);
+        Assert.All(list.PlaceholderItems, item => Assert.IsType<SkUiLabel>(item)); // a placeholder line each
+        people.Add(new Person("Ada"));
+        surface.Frame();
+        Assert.False(list.ShowsPlaceholders); // items still use the selector
+    }
 
     [Fact]
     public void AnEmptyListShowsPlaceholderRowsOfItsTemplateUntilItemsCome()

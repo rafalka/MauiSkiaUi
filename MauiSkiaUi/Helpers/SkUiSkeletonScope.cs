@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using MauiSkiaUi.Rendering;
 using SkiaSharp;
 
@@ -121,7 +120,7 @@ internal static class SkUiSkeletonScope
                 }
                 if (place.Shimmer is null)
                     continue;
-                OnSkeletonChanged(child);
+                child.OnSkeletonChanged();
                 if (child is not ISkUiShimmer)
                     InvalidateContent(child);
             }
@@ -152,11 +151,11 @@ internal static class SkUiSkeletonScope
     /// <summary>Gives <paramref name="node"/> its place and, when it changed, passes the node's place on to its subtree.</summary>
     private static void Enter(ISkUiRenderable node, SkUiSkeletonInherited place)
     {
-        ref var state = ref StateRef(node);
-        if (Unsafe.IsNullRef(ref state) || (state?.Place ?? default).Is(place))
+        ref var state = ref node.SkeletonStateRef;
+        if ((state?.Place ?? default).Is(place))
             return;
         (state ??= new SkUiSkeletonState()).Place = place;
-        OnSkeletonChanged(node);
+        node.OnSkeletonChanged();
         EnterChildren(node);
     }
 
@@ -178,32 +177,7 @@ internal static class SkUiSkeletonScope
         }
     }
 
-    private static void OnSkeletonChanged(ISkUiRenderable node)
-    {
-        switch (node)
-        {
-            case SkUiView view: view.OnSkeletonChanged(); break;
-            case Core.SkUiCoreNode core: core.OnSkeletonChanged(); break;
-            default: SkUiRenderInvalidation.Mark(node, SkUiRenderDirty.Content | SkUiRenderDirty.Props); break;
-        }
-    }
-
-    private static ref SkUiSkeletonState? StateRef(ISkUiRenderable node)
-    {
-        switch (node)
-        {
-            case SkUiView view: return ref view.SkeletonStateRef;
-            case Core.SkUiCoreNode core: return ref core.SkeletonStateRef;
-            default: return ref Unsafe.NullRef<SkUiSkeletonState?>();
-        }
-    }
-
-    private static SkUiSkeletonInherited PlaceOf(ISkUiRenderable node) => node switch
-    {
-        SkUiView view => view.SkeletonState?.Place ?? default,
-        Core.SkUiCoreNode core => core.SkeletonState?.Place ?? default,
-        _ => default
-    };
+    private static SkUiSkeletonInherited PlaceOf(ISkUiRenderable node) => node.SkeletonStateRef?.Place ?? default;
 
     /// <summary>
     /// How <paramref name="node"/> draws: as it is unless it is in a skeleton made from content; then by its own
@@ -211,12 +185,7 @@ internal static class SkUiSkeletonScope
     /// nearest <see cref="SkUiSkeleton.Keep"/> keeps what has no value of its own), else its bones, or its chrome if it has
     /// children. O(1) for nodes in no skeleton.
     /// </summary>
-    public static SkUiSkeletonContext Resolve(ISkUiRenderable node) => Resolve(node, node switch
-    {
-        SkUiView view => view.SkeletonState,
-        Core.SkUiCoreNode core => core.SkeletonState,
-        _ => null
-    });
+    public static SkUiSkeletonContext Resolve(ISkUiRenderable node) => Resolve(node, node.SkeletonStateRef);
 
     /// <inheritdoc cref="Resolve(ISkUiRenderable)" />
     public static SkUiSkeletonContext Resolve(ISkUiRenderable node, SkUiSkeletonState? state) =>
@@ -235,22 +204,11 @@ internal static class SkUiSkeletonScope
         }
         if (inherited == SkUiSkeleton.Keep)
             return SkUiSkeletonDraw.Keep;
-        var container = node switch
-        {
-            SkUiView view => view.IsSkeletonContainer,
-            Core.SkUiCoreNode core => core.IsSkeletonContainer,
-            _ => true
-        };
-        return container ? SkUiSkeletonDraw.Container : SkUiSkeletonDraw.Bones;
+        return node.IsSkeletonContainer ? SkUiSkeletonDraw.Container : SkUiSkeletonDraw.Bones;
     }
 
     /// <summary>A node's value: set on it, else its type's (scroll bars are hidden).</summary>
-    private static SkUiSkeleton ValueOf(ISkUiRenderable node) => node switch
-    {
-        SkUiView view => view.SkeletonState?.Value ?? view.DefaultSkeleton,
-        Core.SkUiCoreNode core => core.SkeletonState?.Value ?? core.DefaultSkeleton,
-        _ => SkUiSkeleton.Default
-    };
+    private static SkUiSkeleton ValueOf(ISkUiRenderable node) => node.SkeletonStateRef?.Value ?? node.DefaultSkeleton;
 
     /// <summary>Whether a node has render children (a view with children is a container by default).</summary>
     public static bool HasRenderChildren(ISkUiRenderable node)
@@ -297,14 +255,7 @@ internal static class SkUiSkeletonScope
         var bones = _bones ??= [];
         bones.Clear();
         var builder = new SkUiSkeletonBuilder(bones, props.Width, props.Height);
-        var block = context.Draw == SkUiSkeletonDraw.Block;
-        switch (node)
-        {
-            case SkUiView view when block: builder.AddShape(builder.Bounds, view.PressEffectCornerRadii); break;
-            case SkUiView view: view.AddSkeletonBones(builder); break;
-            case Core.SkUiCoreNode core when block: builder.AddShape(builder.Bounds, core.PressEffectCornerRadii); break;
-            case Core.SkUiCoreNode core: core.AddSkeletonBones(builder); break;
-        }
+        node.AddSkeletonBones(builder, block: context.Draw == SkUiSkeletonDraw.Block);
         props.Drawable = state.Bones.Get(node, null, bones);
         bones.Clear();
     }

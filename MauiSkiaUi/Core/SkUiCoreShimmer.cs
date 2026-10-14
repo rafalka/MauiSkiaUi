@@ -129,6 +129,9 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     /// <inheritdoc />
     internal override bool StartsSkeleton => ShowsContentAsSkeleton;
 
+    /// <inheritdoc />
+    private protected override void ForgetOwnDrawable() => _silhouette.Forget();
+
     /// <summary>The effect settings (tests).</summary>
     internal SkUiShimmerSettings Settings => _settings;
 
@@ -394,12 +397,19 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     {
         base.OnGetRenderProps(ref props);
         UpdateContentSkeleton(); // drawn again after a reset
+        // A silhouette not committed now is disposed by the compositor (it replaces it): never hand it out again.
         if (!_shown || _attached is null)
+        {
+            _silhouette.Forget();
             return;
+        }
         // The space the wave crosses; in a silhouette, the skeleton as one group with the effect drawn over it.
         props.DrawableSpace = true;
         if (_settings.Mode != SkUiShimmerMode.Silhouette)
+        {
+            _silhouette.Forget();
             return;
+        }
         _styles.Update(_settings, new Size(props.Width, props.Height), IsRightToLeft); // the look's colors may have changed
         props.ChildrenLayer = true;
         props.Drawable = _silhouette.Get(_styles.Current!, _styles.Current!, static style => new SkUiShimmerSilhouette(style));

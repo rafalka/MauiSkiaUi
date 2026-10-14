@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MauiSkiaUi.Rendering;
 
 namespace MauiSkiaUi;
@@ -12,6 +13,7 @@ public partial class SkUiCollectionView
     private const int UnboundedPlaceholderRows = 3;
 
     private bool _showsPlaceholders;
+    private DataTemplateSelector? _failedPlaceholderSelector; // threw when asked for no item: not asked again
     private double _viewportLength = double.NaN;
 
     /// <summary>
@@ -57,13 +59,34 @@ public partial class SkUiCollectionView
         UpdateEmpty();
     }
 
-    /// <summary>A placeholder item: the template's view for no item (a selector is asked with <c>null</c>), else a default label.</summary>
+    /// <summary>
+    /// A placeholder item: the template's view for no item, else a default label. A selector is asked with <c>null</c>
+    /// (MAUI never asks it so); one that throws for it (a cast of the item) gets the default label, with a warning once.
+    /// </summary>
     private ISkUiView CreatePlaceholderItem()
     {
-        var view = SelectTemplate(_itemTemplate, null) is { } template ? CreateFromTemplate(template, nameof(ItemTemplate)) : new SkUiLabel();
+        var view = PlaceholderTemplate() is { } template ? CreateFromTemplate(template, nameof(ItemTemplate)) : new SkUiLabel();
         // No item: bindings give their defaults (empty texts draw placeholder lines), not the page's context inherited.
         ((BindableObject)view).BindingContext = null;
         return view;
+    }
+
+    private DataTemplate? PlaceholderTemplate()
+    {
+        if (_itemTemplate is not DataTemplateSelector selector)
+            return _itemTemplate;
+        if (ReferenceEquals(selector, _failedPlaceholderSelector))
+            return null;
+        try
+        {
+            return selector.SelectTemplate(null, this);
+        }
+        catch (Exception exception) // the app's code, during layout: a placeholder row is not worth a crash
+        {
+            _failedPlaceholderSelector = selector;
+            Trace.WriteLine($"SkiaUi: {nameof(SkUiCollectionView)}'s {selector.GetType().Name} cannot choose a template without an item ({exception.GetType().Name}: {exception.Message}); placeholder rows show a placeholder line instead. Return a template for null to choose them.");
+            return null;
+        }
     }
 
     /// <summary>

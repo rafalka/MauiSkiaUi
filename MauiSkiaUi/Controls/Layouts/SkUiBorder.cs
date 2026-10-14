@@ -37,7 +37,8 @@ public class SkUiBorder : SkUiContentView
     /// <summary>Bindable <see cref="StrokeThickness"/>.</summary>
     public static readonly BindableProperty StrokeThicknessProperty = BindableProperty.Create(nameof(StrokeThickness), typeof(double), typeof(SkUiBorder), 1d,
         validateValue: SkUiValidate.NonNegative,
-        propertyChanged: (view, _, value) => ((SkUiBorder)view).OnStrokeThicknessChanged((double)value));
+        propertyChanged: (view, _, value) => ((SkUiBorder)view).OnStrokeThicknessChanged((double)value),
+        coerceValue: (view, value) => ((SkUiBorder)view).OnSetOrCleared(StrokeThicknessProperty!, value)); // runs once the field is set
     /// <summary>Bindable <see cref="StrokeDashArray"/>.</summary>
     public static readonly BindableProperty StrokeDashArrayProperty = BindableProperty.Create(nameof(StrokeDashArray), typeof(DoubleCollection), typeof(SkUiBorder), null,
         defaultValueCreator: _ => new DoubleCollection(),
@@ -59,7 +60,8 @@ public class SkUiBorder : SkUiContentView
     /// <summary>Bindable <see cref="CornerRadius"/>.</summary>
     public static readonly BindableProperty CornerRadiusProperty = BindableProperty.Create(nameof(CornerRadius), typeof(CornerRadius), typeof(SkUiBorder), default(CornerRadius),
         validateValue: SkUiValidate.CornerRadii,
-        propertyChanged: (view, _, value) => ((SkUiBorder)view).OnCornerRadiusChanged((CornerRadius)value));
+        propertyChanged: (view, _, value) => ((SkUiBorder)view).OnCornerRadiusChanged((CornerRadius)value),
+        coerceValue: (view, value) => ((SkUiBorder)view).OnSetOrCleared(CornerRadiusProperty!, value)); // runs once the field is set
 
     /// <summary>Creates a border that paints fill in <see cref="SkUiView.PaintBackground"/> and stroke in <see cref="SkUiView.PaintOverlay"/> (after content).</summary>
     public SkUiBorder()
