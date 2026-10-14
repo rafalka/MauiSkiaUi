@@ -13,6 +13,20 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Avatar view (C8):** `SkUiAvatarView` (and the Core `SkUiCoreAvatar`) is the Community Toolkit's `AvatarView`, drawn by SkiaUi and in the main package (no Community Toolkit needed). The toolkit's XAML ports by changing the prefix ([SkUiAvatarView.md](docs/controls/SkUiAvatarView.md)).
+  - The toolkit's API: `Text` (default `"?"`), `ImageSource`, `TextColor`, `TextTransform`, font properties, `CharacterSpacing`, `FontAutoScalingEnabled`, `BorderColor` / `BorderWidth`, `CornerRadius`, and the `Border` members its view inherits (`StrokeShape`, `Stroke`, `StrokeThickness`, `Background`, `Padding`). Its defaults: 48 × 48, centered, a white 1-wide border, padding 1. Corners are fully rounded at any size until `CornerRadius` is set, and style setters apply to everything the toolkit's constructor sets locally.
+  - One drawn node: the image once it has loaded, else the text, both clipped to the stroke shape. The image comes from the shared cache, decoded just large enough to cover the avatar, so a list of repeated faces decodes each face once. A new text or image in a recycled list row re-records only the avatar.
+  - Beyond the toolkit, after Syncfusion's `SfAvatarView`: initials of `Text` (`Initials`: `None`, the default, shows the text as it is; `FirstWord`; `FirstAndLastWord`), colors from the look by `AvatarColorMode` (`Default`, or a light or dark hue picked by the text), `Aspect`, and text sized to the avatar while `FontSize` is not set. A status badge: `BadgeColor`, `BadgePosition`, `BadgeBorderColor`, drawn by the look, by a per-avatar `BadgePainter` (counts, icons, shapes of your own) or by a subclass's `OnPaintBadge` / `HasBadge`.
+  - Look: `SkUiLook.DefaultAvatarSize`, `GetAvatarFontSize`, `GetAvatarColors` (`SkUiAvatarColors`), `AvatarPaletteIndex`, `GetAvatarBadgeBounds`, `GetAvatarBadgeRingWidth` and `DrawAvatarBadge` / `AvatarBadgePainter` (`SkUiAvatarBadgePaint`).
+  - Screen readers read an image described by the whole `Text` (the name, not its initials).
+
+### Other
+
+- Images with a text of their own (an avatar's name) are screen-reader elements. Images without one stay decorative unless semantic properties describe them.
+- Demo: the avatar next to the toolkit's `AvatarView`, and a contact list of avatars in a collection view. Samples app: "Avatars with presence", Microsoft Teams-style status badges drawn by an avatar subclass (`OnPaintBadge`) and by a `BadgePainter`. Leak scenario `AvatarsShown`, benchmark `skui-avatars`: 1,000 avatars build about 60 % faster than a round border around a label, with 40 % fewer allocations.
+
 ## 1.0.0-Prerelease11
 
 ### New features

@@ -359,7 +359,8 @@ internal sealed class SkUiSemanticsTree
             {
                 SkUiSemanticsRole.None => info.Actions != SkUiSemanticsActions.None,
                 SkUiSemanticsRole.Text => text is not null || info.Actions != SkUiSemanticsActions.None,
-                SkUiSemanticsRole.Image => info.Actions != SkUiSemanticsActions.None,
+                // Decorative unless described: by semantic properties, or by its own text (an avatar's name).
+                SkUiSemanticsRole.Image => text is not null || info.Actions != SkUiSemanticsActions.None,
                 _ => true
             };
         }

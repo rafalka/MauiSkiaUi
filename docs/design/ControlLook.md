@@ -59,6 +59,12 @@ public class SkUiLook
     // GetColor, as hit-tested); drawn again while the selection moves. DefaultSkUiLook: dots or a pill (IndicatorStyle).
     public void DrawIndicators(SKCanvas canvas, SkUiIndicatorPaint paint) { … } // → IndicatorPainter ?? DrawIndicatorsCore
     public virtual double DefaultIndicatorSpacing => 8;    // and GetSelectedIndicatorExtraLength(size, shape) (a pill's room)
+    // Avatars (C8): the intrinsic size, the text size for the content area, colors by mode and name (palette index by a
+    // stable hash: AvatarPaletteIndex), and the status badge over the border on the outline's corner arc.
+    public virtual Size DefaultAvatarSize => new(48, 48);  // and GetAvatarFontSize(content) (40 % of the smaller side)
+    public virtual SkUiAvatarColors GetAvatarColors(SkUiAvatarColorMode mode, string? key) { … } // Default: TrackOff / DefaultForeground
+    public void DrawAvatarBadge(SKCanvas canvas, SkUiAvatarBadgePaint paint) { … } // → AvatarBadgePainter ?? DrawAvatarBadgeCore
+                                                           // GetAvatarBadgeBounds(avatar, position, cornerRadius), GetAvatarBadgeRingWidth
     // Picker fields (C6): chrome and chevron behind the control's text; Focused / Open animate (FieldFocus, PickerOpen).
     // DefaultSkUiLook: PickerFieldStyle (Default → DefaultPickerFieldStyle: outline; underline, filled, none);
     // AndroidSkUiLook: underline.

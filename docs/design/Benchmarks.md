@@ -101,6 +101,7 @@ The catalog lives in [benchmarks/Scenarios/Scenarios.cs](../../benchmarks/Scenar
 | `core-labels-fit`, `skui-labels-fit` | Labels with `ShrinkToFit` and `AllowsTightening` whose texts fit, shrink a little, shrink a lot and do not fit at the minimum; update = new texts, fitted again. Libraries without the options draw them truncated, so a comparison with one is the cost of fitting (the options are set by reflection, which adds to `generate`) |
 | `core-labels-fit-idle` | The same options on texts that fit: the cost of having them on |
 | `core-labels-grow` | Numbers with `GrowToFill` (up to 3×) filling their cells; update = new numbers |
+| `skui-avatars` | 1,000 `SkUiAvatarView` with initials colored by name; update = new names (re-record, no layout). Libraries without the control build a round `SkUiBorder` around an `SkUiLabel`, so a baseline from before C8 compares one drawn node against the composition |
 | `scroll-fling` `[device]` | Render-thread `AnimateScrollTo` through 400 buttons |
 | `virtual-fling` | `SkUiVirtualScrollView` over 10,000 buttons of three heights (recycled template views): the first frame realizes only the rows near the viewport; on a device, render-thread `AnimateScrollTo` towards the end while rows are realized, measured and anchored |
 | `spinners` `[device]` | 120 activity indicators (render-thread content spin) |

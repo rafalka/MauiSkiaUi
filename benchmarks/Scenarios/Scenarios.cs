@@ -25,6 +25,7 @@ public static class Scenarios
         new CoreLabelsFit(idle: true),
         new SkUiLabelsFit(),
         new CoreLabelsGrow(),
+        new SkUiAvatars(),
         new ScrollFling(),
         new VirtualListFling(),
         new Spinners(),
@@ -115,6 +116,79 @@ public sealed class SkUiLabels : BenchScenario
         grid.EndUpdating();
         return Scenarios.Scroll(grid);
     }
+}
+
+/// <summary>
+/// C8: 1,000 avatars showing initials, colored by name, as in a contact list; update = new names (re-records the avatars,
+/// no layout). Libraries without <c>SkUiAvatarView</c> build what an app composed instead (a round border around a
+/// label), so a comparison with them is one drawn node against the composition.
+/// </summary>
+public sealed class SkUiAvatars : BenchScenario
+{
+    private const double Size = 32;
+    private static readonly string[] FirstNames = ["Ada", "Grace", "Alan", "Edsger", "Barbara", "Donald", "Margaret"];
+    private static readonly string[] LastNames = ["Lovelace", "Hopper", "Turing", "Dijkstra", "Liskov", "Knuth", "Hamilton", "Torvalds"];
+    // Looked up by name: the scenario compiles against libraries from before the control.
+    private static readonly Type? AvatarType = typeof(SkUiView).Assembly.GetType("MauiSkiaUi.SkUiAvatarView");
+    private int _round;
+
+    public override string Name => "skui-avatars";
+    public override string Description => "1,000 SkUiAvatarView with initials colored by name (a bordered label without it); update = new names (re-record only)";
+
+    private static string Person(int index) => $"{FirstNames[index % FirstNames.Length]} {LastNames[index / FirstNames.Length % LastNames.Length]}";
+
+    public override View Build()
+    {
+        var grid = Scenarios.SkUiGrid(Scenarios.Count);
+        grid.StartUpdating();
+        for (var i = 0; i < Scenarios.Count; i++)
+        {
+            var avatar = Create(Person(i));
+            Grid.SetRow(avatar, i / 2);
+            Grid.SetColumn(avatar, i % 2);
+            grid.Children.Add(avatar);
+        }
+        grid.EndUpdating();
+        return Scenarios.Scroll(grid);
+    }
+
+    private static SkUiView Create(string name)
+    {
+        if (AvatarType is not null)
+        {
+            var avatar = (SkUiView)Activator.CreateInstance(AvatarType)!;
+            avatar.WidthRequest = avatar.HeightRequest = Size;
+            TrySetOption(avatar, "AvatarColorMode", "LightBackground");
+            TrySetOption(avatar, "Initials", "FirstAndLastWord");
+            TrySetOption(avatar, "Text", name);
+            return avatar;
+        }
+        return new SkUiBorder
+        {
+            WidthRequest = Size, HeightRequest = Size, HorizontalOptions = LayoutOptions.Center, CornerRadius = Size / 2,
+            Stroke = Colors.White, Background = Colors.LightSteelBlue,
+            Content = new SkUiLabel { Text = Initials(name), FontSize = 13, HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center }
+        };
+    }
+
+    private static string Initials(string name) => string.Concat(name.Split(' ').Select(word => word[0]));
+
+    public override Action<View>? Update => root =>
+    {
+        _round++;
+        var grid = (SkUiGrid)((SkUiScrollView)root).Content!;
+        grid.StartUpdating();
+        var index = 0;
+        foreach (var child in grid.Children)
+        {
+            var name = Person(index++ + _round);
+            if (AvatarType is not null)
+                TrySetOption(child, "Text", name);
+            else
+                ((SkUiLabel)((SkUiBorder)child).Content!).Text = Initials(name);
+        }
+        grid.EndUpdating();
+    };
 }
 
 /// <summary>Stress-page equivalent: 1,000 Core buttons.</summary>

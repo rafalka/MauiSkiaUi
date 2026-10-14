@@ -33,6 +33,7 @@ public static class LeakScenarios
         new("EffectsRestyled", Controls, "Gradient backgrounds, shadows (outline and content shadows, on both layers) and clips from long-lived shared brushes, geometries and Core shadows; brushes, gradient stops, shadows and clips changed while shown; shadowed cards scrolled and animated.", () => new EffectsRun()),
         new("ContentTemplated", Controls, "Buttons with images (a long-lived shared icon, edited while shown; stream images; content layouts changed) on both layers; radio buttons with text and view content, bordered, and with a long-lived shared ControlTemplate whose presenters show the content; tapped, content swapped, the template removed and applied again; Core radio buttons in their own rows grouped by `SkUiCoreRadioButtons.Group` with a long-lived callback, tapped.", () => new ContentRun()),
         new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image; a long-lived icon source shared by images that are never disposed, edited while shown.", () => new ImagesRun()),
+        new("AvatarsShown", Controls, "SkUiAvatarView rows in a SkUiCollectionView over a long-lived collection (initials from bound names, colors by name, badges), avatars with a cached photo and the long-lived shared icon, a Core avatar: the list flung so rows recycle, a name replaced, an avatar enlarged (decoded again while the smaller image stays), photos swapped and cleared; closed mid-fling.", () => new AvatarsRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
         new("BindableLayoutItems", Layouts, "MAUI BindableLayout on a wrap layout bound to a long-lived collection and on a stack with a template selector and an empty view: items added, inserted, replaced, moved and removed, the collection cleared to the empty view and refilled, the items source swapped.", () => new BindableLayoutRun()),
         new("StatesSwitched", Layouts, "SkUiStateContainer on a grid and a stack: loading (spinner running), error (retry button with a long-lived command) and empty states switched directly and with the fade, a change rejected while one runs; hidden state views removed; automatic state change animations (one shared long-lived animation) retargeted while running; closed while one runs.", () => new StatesRun()),
@@ -626,6 +627,62 @@ public static class LeakScenarios
                 return $"A Core image did not load: {core.LoadError?.Message ?? "still loading"}.";
             return failed.Count == 0 ? null : $"{failed.Count} image(s) did not load: {failed[0].LoadError?.Message ?? "still loading"}.";
         }
+    }
+
+    private sealed class AvatarsRun : LeakScenarioRun
+    {
+        private SkUiCollectionView? _list;
+        private SkUiAvatarView? _photo;
+        private SkUiCoreAvatar? _core;
+        private bool _photoShown;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 60; index++)
+                LeakItems.Shared.Add($"Person{index} Family{index % 7}");
+            _list = context.Track(new SkUiCollectionView
+            {
+                ItemsSource = LeakItems.Shared,
+                HeightRequest = 240,
+                ItemTemplate = new DataTemplate(() =>
+                {
+                    var avatar = context.Track(new SkUiAvatarView
+                    {
+                        WidthRequest = 40, HeightRequest = 40, Margin = new Thickness(8, 4),
+                        AvatarColorMode = SkUiAvatarColorMode.LightBackground, Initials = SkUiAvatarInitials.FirstAndLastWord, BadgeColor = Colors.LimeGreen
+                    }, "avatar row");
+                    avatar.SetBinding(SkUiAvatarView.TextProperty, static (string name) => name);
+                    return avatar;
+                })
+            }, "avatar list");
+            _photo = context.Track(new SkUiAvatarView { ImageSource = LeakImages.Cached(SKColors.Teal), Text = "P" }, "photo avatar");
+            var icon = new SkUiAvatarView { ImageSource = SharedIcon, Aspect = Aspect.Center };
+            _core = new SkUiCoreAvatar().SetText("Core Avatar").SetInitials(SkUiAvatarInitials.FirstAndLastWord).SetBadge(Colors.Red, SkUiAvatarBadgePosition.TopRight)
+                .SetImageSource(SkUiImageSource.FromStream(LeakImages.CachedStream(SKColors.Olive), "leak-olive"));
+            var row = new SkUiHorizontalStackLayout { Spacing = 8, Children = { _photo, icon, new SkUiCoreHost().SetContent(_core) } };
+            return Root(new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12), Children = { row, _list } });
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.WaitForAsync(_photo!.ImageLoadingTask);
+            await context.WaitForAsync(_core!.ImageLoadingTask);
+            _photoShown = _photo.IsShowingImage;
+            await context.DragAsync(_list!, 0, -300, durationMs: 80); // fling: rows recycle
+            await context.WaitAsync(200);
+            LeakItems.Shared[0] = "Renamed Person";
+            _photo.WidthRequest = _photo.HeightRequest = 96; // decoded again, larger
+            await context.SettleAsync();
+            await context.WaitForAsync(_photo.ImageLoadingTask);
+            _photo.ImageSource = LeakImages.Create(SKColors.Purple);
+            _core.SetImageSource(null);
+            await context.WaitForAsync(_photo.ImageLoadingTask);
+            await context.DragAsync(_list!, 0, -400, durationMs: 60); // closes mid-fling
+        }
+
+        public override string? CheckInteraction() =>
+            !_photoShown ? "The cached photo did not show." : !_photo!.IsShowingImage ? "The swapped photo did not show." : null;
     }
 
     private sealed class SlidersRun : LeakScenarioRun

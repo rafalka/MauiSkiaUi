@@ -21,6 +21,8 @@ public class SkUiCoreBorder : SkUiCoreContentView
     private CornerRadius _cornerRadius;
     private IShape? _strokeShape;
     private Color _backgroundColor = Colors.Transparent;
+    private bool _backgroundColorSet;
+    private bool _cornerRadiusSet;
     private readonly SkUiBorderGeometry _geometry = new();
     private readonly SkUiWeakListener<SkUiCoreBorder> _shapeListener;
 
@@ -92,6 +94,7 @@ public class SkUiCoreBorder : SkUiCoreContentView
     public SkUiCoreBorder SetBackgroundColor(Color value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        _backgroundColorSet = true;
         if (!SetProperty(ref _backgroundColor, value, nameof(BackgroundColor))) return this;
         InvalidatePaint();
         return this;
@@ -177,11 +180,20 @@ public class SkUiCoreBorder : SkUiCoreContentView
     public SkUiCoreBorder SetCornerRadius(CornerRadius value)
     {
         SkUiCornerRadii.Validate(value, nameof(value));
-        if (SetProperty(ref _cornerRadius, value, nameof(CornerRadius))) InvalidateShape();
+        var wasSet = _cornerRadiusSet;
+        _cornerRadiusSet = true;
+        if (SetProperty(ref _cornerRadius, value, nameof(CornerRadius)) || !wasSet) InvalidateShape();
         return this;
     }
 
-    private void InvalidateShape()
+    /// <summary>Whether <see cref="BackgroundColor"/> was set (subclasses with a default fill draw it only until then).</summary>
+    private protected bool IsBackgroundColorSet => _backgroundColorSet;
+
+    /// <summary>Whether <see cref="CornerRadius"/> was set (subclasses with default radii use them only until then).</summary>
+    private protected bool IsCornerRadiusSet => _cornerRadiusSet;
+
+    /// <summary>The outline changed: repaint and re-clip the content.</summary>
+    private protected void InvalidateShape()
     {
         InvalidatePaint();
         InvalidateRender(Rendering.SkUiRenderDirty.Props);
@@ -190,10 +202,13 @@ public class SkUiCoreBorder : SkUiCoreContentView
     /// <summary>As MAUI's Border, the content sits inside the padding plus the stroke.</summary>
     private protected override Thickness ContentInset => Padding + _strokeThickness;
 
+    /// <summary>The radii of the outline without a <see cref="StrokeShape"/>, for a border of that size (<see cref="CornerRadius"/>).</summary>
+    private protected virtual CornerRadius OutlineCornerRadius(double width, double height) => _cornerRadius;
+
     /// <inheritdoc />
     internal override CornerRadius PressEffectCornerRadii => _strokeShape switch
     {
-        null => _cornerRadius,
+        null => OutlineCornerRadius(Frame.Width, Frame.Height),
         SkUiCoreRoundRectangle shape => shape.CornerRadius,
         _ => default
     };
@@ -209,7 +224,8 @@ public class SkUiCoreBorder : SkUiCoreContentView
         SkUiShapePainter.Fill(canvas, Outline(), fill, new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height));
     }
 
-    private SkUiFill BorderFill => Background is { } background ? SkUiFill.From(background) : SkUiFill.From(_backgroundColor);
+    /// <summary>The fill of the outline: <see cref="SkUiCoreNode.Background"/>, else <see cref="BackgroundColor"/>.</summary>
+    private protected virtual SkUiFill BorderFill => Background is { } background ? SkUiFill.From(background) : SkUiFill.From(_backgroundColor);
 
     /// <inheritdoc />
     internal override void ReleaseDrawingResources()
@@ -230,15 +246,28 @@ public class SkUiCoreBorder : SkUiCoreContentView
     /// </summary>
     protected void PaintBorderOverlay(SKCanvas canvas)
     {
-        if (_strokeThickness <= 0 || !SkUiShapePainter.IsVisible(_stroke)) return;
-        float[]? dashes = _strokeDashArray.Length == 0 ? null : Array.ConvertAll(_strokeDashArray, value => (float)value);
-        SkUiShapePainter.Stroke(canvas, Outline(), _stroke, new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
-            new SkUiStrokeStyle(_strokeThickness, dashes, _strokeDashOffset, _strokeLineCap, _strokeLineJoin, _strokeMiterLimit));
+        if (_strokeThickness > 0 && SkUiShapePainter.IsVisible(_stroke))
+        {
+            float[]? dashes = _strokeDashArray.Length == 0 ? null : Array.ConvertAll(_strokeDashArray, value => (float)value);
+            SkUiShapePainter.Stroke(canvas, Outline(), _stroke, new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
+                new SkUiStrokeStyle(_strokeThickness, dashes, _strokeDashOffset, _strokeLineCap, _strokeLineJoin, _strokeMiterLimit));
+        }
+        PaintOverOutline(canvas);
     }
 
-    private SKPath Outline() => _geometry.Outline(_strokeShape, _cornerRadius, (float)Frame.Width, (float)Frame.Height, _strokeThickness);
+    /// <summary>Draws over the stroked outline (an avatar's badge); nothing by default.</summary>
+    private protected virtual void PaintOverOutline(SKCanvas canvas) { }
+
+    private SKPath Outline() => _geometry.Outline(_strokeShape, OutlineCornerRadius(Frame.Width, Frame.Height), (float)Frame.Width, (float)Frame.Height, _strokeThickness);
+
+    /// <summary>
+    /// The inside of the stroke at the current size, to clip what the border draws itself while recording (children are
+    /// clipped by the compositor). The path is the one committed for the children: recording copies it, never dispose it.
+    /// </summary>
+    private protected SKPath ContentClip() =>
+        _geometry.ContentClip(_strokeShape, OutlineCornerRadius(Frame.Width, Frame.Height), (float)Frame.Width, (float)Frame.Height, _strokeThickness);
 
     /// <summary>Clips children to the inside of the stroke (applied by the compositor).</summary>
     internal override void OnGetRenderProps(ref MauiSkiaUi.Rendering.SkUiRenderProps props) =>
-        props.ChildrenClipPath = _geometry.ContentClip(_strokeShape, _cornerRadius, props.Width, props.Height, _strokeThickness);
+        props.ChildrenClipPath = _geometry.ContentClip(_strokeShape, OutlineCornerRadius(props.Width, props.Height), props.Width, props.Height, _strokeThickness);
 }

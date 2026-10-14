@@ -134,6 +134,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `FlexLayout` | `SkUiFlexLayout` | Also `SkUiWrapLayout` for chips and tags |
 | Toolkit `StateContainer` / `StateView` (attached properties) | `SkUiStateContainer` / `SkUiStateView` | Same properties and `ChangeStateWithAnimation` overloads, on any drawn layout ([SkUiStateContainer.md](controls/SkUiStateContainer.md)) |
 | Toolkit `Expander` | `SkUiExpander` | Same properties and `ExpandedChanged`; `Header` / `Content` must be drawn views. `ExpandDirection` → `SkUiExpandDirection`, `ExpandedChangedEventArgs` → `SkUiExpandedChangedEventArgs`; drop `HandleHeaderTapped` (a native list view workaround). `IsExpanded` is two-way by default. Plus `ContentTemplate`, `LazyContentExpansion`, `AnimationLength` / `AnimationEasing` ([SkUiExpander.md](controls/SkUiExpander.md)) |
+| Toolkit `AvatarView` | `SkUiAvatarView` | Prefix swap; in SkiaUi.Maui itself. Defaults that differ and Syncfusion's `SfAvatarView`: see [Avatar view](#avatar-view) |
 | `SwipeView` | `SkUiSwipeView` | Prefix swap: `SwipeItems` / `SwipeItem` stay MAUI's, `SwipeItemView` → `SkUiSwipeItemView` with drawn content; same events, `Threshold`, modes and `Open` / `Close`. Plus `IsOpen`; scrolling around it and a new binding context close it ([SkUiSwipeView.md](controls/SkUiSwipeView.md)) |
 | `ScrollView` | `SkUiScrollView` | Plus snap points, overscroll and its events (`Overscrolled`, `PullReleased`, `PullEdges`) |
 | `RefreshView` (around other content) | `SkUiRefreshView` | Prefix swap with drawn content: same `IsRefreshing`, `Command`, `RefreshColor`, `IsRefreshEnabled`, `Refreshing`. Pulls through the content's vertical scrollers at their top, or the view itself over content that does not scroll ([SkUiRefreshView.md](controls/SkUiRefreshView.md)). Mouse drags no longer pull unless `IsMousePullEnabled`. Plus `RefreshStyle` (overlay badge or inline, the platform's by default), `RefreshTriggerDistance`, and `RefreshCompletion="Automatic"`: the view ends the refresh when an async command (busy while it runs) or the deferrals taken in `Refreshing` are done, instead of the view model setting `IsRefreshing` back |
@@ -342,6 +343,32 @@ Platform differences go: the list is the same drawn list everywhere, anchored to
 **`DatePicker` and `TimePicker`** become `SkUiDatePicker` and `SkUiTimePicker` by the prefix ([SkUiDatePicker.md](controls/SkUiDatePicker.md), [SkUiTimePicker.md](controls/SkUiTimePicker.md)): the same `Date` / `MinimumDate` / `MaximumDate` / `Format` / `DateSelected`, `Time` / `Format` / `TimeSelected`, `IsOpen` / `Opened` / `Closed` (MAUI's event types), the text and font properties. Instead of the platform's dialog or wheels, drawn wheels open on the same presenter as the picker's list, ordered and named by the culture; a presenter can still show a platform dialog by handling `SkUiDatePopupRequest` / `SkUiTimePopupRequest`. SkiaUi keeps a time between `MinimumTime` and `MaximumTime` as MAUI keeps a date in its range. New, from Syncfusion's and Telerik's pickers: `WheelFormat` (which wheels: a month and year picker), `BlackoutDates` / `DateEnabled`, `MinimumTime` / `MaximumTime`, `HourInterval` / `MinuteInterval` / `SecondInterval`, `DefaultHighlightedDate` / `DefaultHighlightedTime`, headers, `UpdateMode`, clearing, and `SkUiDateTimePicker` for a day and a time on one popup.
 
 Coming from **Syncfusion** `SfDatePicker` / `SfTimePicker` / `SfDateTimePicker`: `SelectedDate` / `SelectedTime` → `Date` / `Time`; `Format` (an enum of the columns) → `WheelFormat` (a .NET format, `"dd MM yyyy"`); `MinuteInterval` and the other intervals keep their names; `BlackoutDates` keeps its name; `ColumnHeaderView` texts → `AreColumnHeadersVisible` with `SkUiStrings`' texts; `EnableLooping` → `IsLooping`; `IsOpen`, `Mode="Dialog"` → `PopupPlacement="Window"`; the footer's OK / Cancel → `UpdateMode="WhenFinished"`. From **Telerik** `RadDatePicker` / `RadTimePicker` / `RadDateTimePicker`: `SpinnerFormat` → `WheelFormat`, `DisplayStringFormat` → `Format`, `HourStep` / `MinuteStep` / `SecondStep` → `HourInterval` / `MinuteInterval` / `SecondInterval`, `DefaultHighlightedDate` / `DefaultHighlightedTime` keep their names, `AreSpinnerHeadersVisible` → `AreColumnHeadersVisible`, `IsClearButtonVisible` and `Placeholder` keep theirs. Not available: a drawn calendar popup (planned), `RadTimeSpanPicker`'s durations over a day (use `SkUiMultiColumnPicker` with `SkUiPickerColumn.Range` columns).
+
+## Avatar view
+
+`SkUiAvatarView` ([SkUiAvatarView.md](controls/SkUiAvatarView.md)) is in the main package and does not need the Community Toolkit.
+
+**From the Community Toolkit's `AvatarView`:** change the prefix. `Text`, `ImageSource`, `TextColor`, `TextTransform`, the font properties, `CharacterSpacing`, `BorderColor` / `BorderWidth`, `CornerRadius`, `Padding` and the `Border` members stay. Three defaults differ:
+
+- **Corners:** fully rounded at any size. The toolkit's are 24 at any size. Where a larger avatar relied on that, add `CornerRadius="24"`.
+- **Background and text color:** from the look until set. The toolkit's background is transparent; add `BackgroundColor="Transparent"` to keep it.
+- **Text size:** sized to the avatar while `FontSize` is not set.
+
+Styles now apply to everything the toolkit's constructor set (padding, stroke, sizes). Drop workarounds that set these in code after construction. The toolkit's `Font` property is not there: set the font properties.
+
+**From Syncfusion's `SfAvatarView`:**
+
+| Syncfusion | SkiaUi |
+| --- | --- |
+| `AvatarName` with `InitialsType` | `Text` with `Initials`: `SingleCharacter` → `FirstWord`, `DoubleCharacter` → `FirstAndLastWord` (a one-word name gives one letter; Syncfusion's gives its first and last letters). `Initials` defaults to `None` (the text as it is) |
+| `AvatarColorMode`, `Aspect`, `ImageSource`, `Stroke`, `StrokeThickness`, `CornerRadius`, `FontFamily` / `FontSize` / `FontAttributes` / `FontAutoScalingEnabled` | Same names. `AvatarColorMode` picks the color by the text, so it is stable in recycled rows (Syncfusion cycles colors per avatar created) |
+| `ContentType` | Drop it: the image shows once it has loaded, else `Text` or its initials |
+| `InitialsColor` | `TextColor` |
+| `ContentPadding` | `Padding` |
+| `AvatarShape="Circle"` / `"Square"` | The default / `CornerRadius="4"` |
+| `AvatarSize` | `WidthRequest` / `HeightRequest`: ExtraLarge 72, Large 56, Medium 48, Small 40, ExtraSmall 32 (Syncfusion's font sizes are 28, 24, 16, 16, 16; the avatar sizes its text by itself) |
+| `SfBadgeView` with a status icon around the avatar | `BadgeColor` and `BadgePosition` on the avatar (a dot); a count, an icon or a shape of your own through `BadgePainter` |
+| `ContentType="Group"` (`GroupSource`, member paths), `AvatarCharacter` | Not available: keep `SfAvatarView` outside the drawn surface, or compose drawn avatars |
 
 ## Not available yet
 

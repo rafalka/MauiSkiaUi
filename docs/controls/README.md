@@ -24,6 +24,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiButton` | [SkUiButton.md](SkUiButton.md) | Button |
 | `SkUiImage` | [SkUiImage.md](SkUiImage.md) | Image |
 | `SkUiImageButton` | [SkUiImageButton.md](SkUiImageButton.md) | ImageButton |
+| `SkUiAvatarView` / `SkUiCoreAvatar` | [SkUiAvatarView.md](SkUiAvatarView.md) | Community Toolkit `AvatarView` (plus initials of the text, colors by the text, a status badge) |
 | `SkUiActivityIndicator` | [SkUiActivityIndicator.md](SkUiActivityIndicator.md) | ActivityIndicator |
 | `SkUiSwitch` | [SkUiSwitch.md](SkUiSwitch.md) | Switch |
 | `SkUiCheckBox` | [SkUiCheckBox.md](SkUiCheckBox.md) | CheckBox |

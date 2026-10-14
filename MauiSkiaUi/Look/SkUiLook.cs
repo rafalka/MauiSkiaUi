@@ -938,6 +938,117 @@ public class SkUiLook
 
     #endregion
 
+    #region Avatar
+
+    // Hues the avatar palette picks from by name; light backgrounds are tints, dark ones shades, text the other way round.
+    private static readonly Color[] AvatarHues =
+    [
+        Color.FromArgb("#E53935"), Color.FromArgb("#D81B60"), Color.FromArgb("#8E24AA"), Color.FromArgb("#5E35B1"),
+        Color.FromArgb("#3949AB"), Color.FromArgb("#1E88E5"), Color.FromArgb("#00897B"), Color.FromArgb("#43A047"),
+        Color.FromArgb("#7CB342"), Color.FromArgb("#F4511E"), Color.FromArgb("#6D4C41"), Color.FromArgb("#546E7A")
+    ];
+    // Built once: avatars resolve their colors on every recording.
+    private static readonly SkUiAvatarColors[] LightAvatarColors = [.. AvatarHues.Select(hue => new SkUiAvatarColors(Blend(hue, Colors.White, 0.8f), Blend(hue, Colors.Black, 0.45f)))];
+    private static readonly SkUiAvatarColors[] DarkAvatarColors = [.. AvatarHues.Select(hue => new SkUiAvatarColors(Blend(hue, Colors.Black, 0.2f), Colors.White))];
+
+    private static Color Blend(Color from, Color to, float amount) => new(
+        from.Red + (to.Red - from.Red) * amount, from.Green + (to.Green - from.Green) * amount, from.Blue + (to.Blue - from.Blue) * amount);
+
+    /// <summary>The size of avatars that set no size of their own, in DIPs (48 × 48, the Community Toolkit's).</summary>
+    public virtual Size DefaultAvatarSize => new(48, 48);
+
+    /// <summary>
+    /// The text size of avatars that set no <c>FontSize</c>, for a content area of <paramref name="content"/> DIPs (inside
+    /// the padding and the border): 40 % of its smaller side, as Material's avatars. Text that is still too wide shrinks.
+    /// </summary>
+    public virtual double GetAvatarFontSize(Size content) => 0.4 * Math.Min(content.Width, content.Height);
+
+    /// <summary>
+    /// The colors of an avatar whose background is not set: <see cref="SkUiAvatarColorMode.Default"/> draws the color
+    /// scheme's <see cref="SkUiColorScheme.TrackOff"/> with <see cref="SkUiColorScheme.DefaultForeground"/> text; the other
+    /// modes pick a hue from a palette by <paramref name="key"/> (the avatar's name, else its text: the same name always gets
+    /// the same color, also in recycled list rows).
+    /// </summary>
+    public virtual SkUiAvatarColors GetAvatarColors(SkUiAvatarColorMode mode, string? key)
+    {
+        if (mode == SkUiAvatarColorMode.Default)
+            return new SkUiAvatarColors(SkUiColors.TrackOff, SkUiColors.DefaultForeground);
+        var index = AvatarPaletteIndex(key, AvatarHues.Length);
+        return mode == SkUiAvatarColorMode.LightBackground ? LightAvatarColors[index] : DarkAvatarColors[index];
+    }
+
+    /// <summary>
+    /// A palette index for <paramref name="key"/> that is the same in every run (FNV-1a over its upper-case letters; string
+    /// hash codes change per process): looks with their own palettes use it to pick a color.
+    /// </summary>
+    public static int AvatarPaletteIndex(string? key, int count)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
+        var hash = 2166136261u;
+        foreach (var character in (key ?? string.Empty).AsSpan().Trim())
+        {
+            hash ^= char.ToUpperInvariant(character);
+            hash *= 16777619u;
+        }
+        return (int)(hash % (uint)count);
+    }
+
+    /// <summary>
+    /// Where an avatar's badge sits in <paramref name="avatar"/> (the avatar's bounds): a circle about 28 % of the avatar's
+    /// smaller side, centered on the outline's corner arc at 45° (<paramref name="cornerRadius"/>: the radius of that
+    /// corner; a circle's is half its side), kept inside the bounds.
+    /// </summary>
+    public virtual SKRect GetAvatarBadgeBounds(SKRect avatar, SkUiAvatarBadgePosition position, double cornerRadius)
+    {
+        var side = Math.Min(avatar.Width, avatar.Height);
+        if (side <= 0)
+            return SKRect.Empty;
+        var diameter = Math.Max(8, 0.28f * side);
+        var radius = (float)Math.Clamp(cornerRadius, 0, side / 2);
+        var inset = Math.Max(diameter / 2, radius * (1 - MathF.Sqrt(0.5f)));
+        var right = position is SkUiAvatarBadgePosition.BottomRight or SkUiAvatarBadgePosition.TopRight;
+        var bottom = position is SkUiAvatarBadgePosition.BottomRight or SkUiAvatarBadgePosition.BottomLeft;
+        var x = right ? avatar.Right - inset : avatar.Left + inset;
+        var y = bottom ? avatar.Bottom - inset : avatar.Top + inset;
+        return new SKRect(x - diameter / 2, y - diameter / 2, x + diameter / 2, y + diameter / 2);
+    }
+
+    /// <summary>The width of the ring around an avatar badge <paramref name="diameter"/> DIPs wide (about 15 %, at least 1.5).</summary>
+    public virtual float GetAvatarBadgeRingWidth(float diameter) => Math.Max(1.5f, 0.15f * diameter);
+
+    /// <summary>Optional avatar badge painter; when set, replaces <see cref="DrawAvatarBadgeCore"/>.</summary>
+    public Action<SKCanvas, SkUiAvatarBadgePaint>? AvatarBadgePainter { get; set; }
+
+    /// <summary>Draws an avatar's badge (delegate or <see cref="DrawAvatarBadgeCore"/>) over its border, in <see cref="SkUiAvatarBadgePaint.Bounds"/>.</summary>
+    public void DrawAvatarBadge(SKCanvas canvas, SkUiAvatarBadgePaint paint)
+    {
+        if (AvatarBadgePainter is { } painter)
+        {
+            painter(canvas, paint);
+            return;
+        }
+        DrawAvatarBadgeCore(canvas, paint);
+    }
+
+    /// <summary>Default badge: a dot in the badge's color inside a ring of the ring color.</summary>
+    protected virtual void DrawAvatarBadgeCore(SKCanvas canvas, SkUiAvatarBadgePaint paint)
+    {
+        var bounds = paint.Bounds;
+        var radius = Math.Min(bounds.Width, bounds.Height) / 2;
+        if (radius <= 0)
+            return;
+        using var fill = new SKPaint { IsAntialias = true };
+        if (paint.RingWidth > 0 && paint.Ring.Alpha > 0)
+        {
+            fill.Color = paint.Ring;
+            canvas.DrawCircle(bounds.MidX, bounds.MidY, radius, fill);
+        }
+        fill.Color = paint.Color;
+        canvas.DrawCircle(bounds.MidX, bounds.MidY, Math.Max(0, radius - paint.RingWidth), fill);
+    }
+
+    #endregion
+
     #region Image
 
     /// <summary>Optional image painter.</summary>

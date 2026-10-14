@@ -598,16 +598,17 @@ SkiaUi does not replace navigation: it ships no pages and no popup windows. Draw
 
 ### FR-30 — Avatar view
 
-**Status:** planned (C8 in [ImplementationPlan.md](ImplementationPlan.md)).
+**Status:** shipped (C8 in [ImplementationPlan.md](ImplementationPlan.md)); device runs open. Control page: [SkUiAvatarView.md](../controls/SkUiAvatarView.md).
 
-- [ ] **`SkUiAvatarView`** with the Community Toolkit's `AvatarView` API, so XAML ports by prefix: `Text`, `ImageSource`, `TextColor`, `TextTransform`, font properties, `CharacterSpacing`, `FontAutoScalingEnabled`, `BorderColor` / `BorderWidth` / `CornerRadius`, and the `Border` members the toolkit's view inherits (`StrokeShape`, `Stroke`, `Background`, `Padding`); the toolkit's defaults (48 × 48, centered, text `?`, a 1-wide border, fully rounded).
-- [ ] **Content as the toolkit's:** the image (aspect fill) once it has loaded, else the text; both clipped to the stroke shape, inset by the stroke and padding.
-- [ ] **One drawn node:** no child image or label; the image through the shared loader and cache (P4), downsampled to the avatar's pixel size; the text through the shared text engine; the clip through the shared border geometry (P6); a new `Text` or `ImageSource` (recycled list rows) re-records only this node.
-- [ ] **Core twin** `SkUiCoreAvatar` (fluent `Set*`), the same pixels as `SkUiAvatarView`.
-- [ ] **Look and colors:** default background and text colors from the color scheme (FR-19); drawn by the look (FR-18).
-- [ ] **Accessibility (FR-28):** an image element described by `Text`, unless semantic properties are set.
-- [ ] Beyond the toolkit, if cheap (decide with C8): initials from a name, a background color picked from the text, a status badge.
-- [ ] The toolkit's docs samples with the prefix changed; headless tests; demo page next to the toolkit's `AvatarView`; a leak scenario.
+- [x] **`SkUiAvatarView`** with the Community Toolkit's `AvatarView` API, so XAML ports by prefix: `Text`, `ImageSource`, `TextColor`, `TextTransform`, font properties, `CharacterSpacing`, `FontAutoScalingEnabled`, `BorderColor` / `BorderWidth` / `CornerRadius`, and the `Border` members the toolkit's view inherits (`StrokeShape`, `Stroke`, `Background`, `Padding`); the toolkit's defaults (48 × 48, centered, text `?`, a 1-wide border, fully rounded), which styles can replace. In the main package, independent of the Community Toolkit.
+- [x] **Content as the toolkit's:** the image (aspect fill) once it has loaded, else the text; both clipped to the stroke shape, inset by the stroke and padding.
+- [x] **One drawn node:** no child image or label; the image through the shared loader and cache (P4), decoded to cover the avatar's pixel size; the text through the shared text engine; the clip through the shared border geometry (P6); a new `Text` or `ImageSource` (recycled list rows) re-records only this node.
+- [x] **Core twin** `SkUiCoreAvatar` (fluent `Set*`), the same pixels as `SkUiAvatarView`.
+- [x] **Look and colors:** default background and text colors from the color scheme (FR-19); sizes, colors by the text and the badge drawn by the look (FR-18).
+- [x] **Accessibility (FR-28):** an image element described by the whole `Text` (a name, not its initials), unless semantic properties are set.
+- [x] Beyond the toolkit (decided with C8, names from Syncfusion's `SfAvatarView`): initials of `Text` (`Initials`: `None`, `FirstWord`, `FirstAndLastWord`; one text instead of Syncfusion's separate `AvatarName`), a background color picked from the text (`AvatarColorMode`), a status badge (`BadgeColor`, `BadgePosition`, `BadgeBorderColor`; customizable per avatar with `BadgePainter` or in a subclass with `OnPaintBadge`), `Aspect`, text sized to the avatar.
+- [x] The toolkit's docs samples with the prefix changed; headless tests; demo page next to the toolkit's `AvatarView`; a contact list demo; a leak scenario (`AvatarsShown`); a benchmark (`skui-avatars`).
+- [ ] Device runs (Android, iOS, Mac Catalyst, Windows). Later, on demand: group avatars (Syncfusion's `GroupSource`), a badge view around any content (`SfBadgeView`).
 
 ### FR-31 — Shimmer (skeleton loading)
 
@@ -746,7 +747,6 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - Scroll details still open in [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#open-items): how FR-21 / FR-22 provide their extent inside an outer scroller.
 - **Control look (FR-18)** remaining: per-tree look attachment (vs process-wide `Current`), and optional OS theme sync helpers. Type names, `Current`, virtual/delegate painters, and default size tokens are decided — see Decided and [ControlLook.md](ControlLook.md).
 - **Shimmer (FR-31):** whether C9b's skeleton from the content draws in the overlay phase or a separate skeleton recording, and how the wave's mask is built from the bones.
-- **Avatar view (FR-30):** which extras beyond the toolkit ship (initials from a name, a color from the text, a status badge).
 - **Calendar (FR-33):** the per-day style callback's shape (a struct returned per day, or a painter), and how far `DayTemplate` goes (views per day for the visible month only).
 - **Color scheme (FR-19)** remaining: optional OS light/dark synchronization helpers. Type names, light/dark packs, `Current`, and construction-snapshot vs paint-time token reads are decided — see Decided and [ColorScheme.md](ColorScheme.md).
 
@@ -762,6 +762,7 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - **Properties — BindableProperty + direct setters (FR-10):** use `BindableProperty` for near drop-in MAUI / XAML / binding parity. Also expose fluent direct setters (e.g. `SetBackgroundColor`), the property setters in chainable form; bindable property changed callbacks **call** those setters to apply values. Getters read the store and direct setters write it (revised: the earlier "direct setters do not write back" rule broke binding sources). Both paths honor `StartUpdating()` / `EndUpdating()` semi-transactions: defer measure/draw invalidation until `EndUpdating()`.
 - **Coordinate system:** same as MAUI — `ISkUiView` sizes, positions, and touch coordinates use MAUI device-independent units (DIPs) and the same density semantics as the host; `SkUiContentView` maps to/from the Skia pixel surface as an implementation detail of the bridge.
 - **Public type naming:** `SkUi*` (e.g. `SkUiView`, `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, `SkUiLabel`, `SkUiMauiContentView`, `ISkUiView`). Project/assembly name remains `MauiSkiaUi`; NuGet package id is **`SkiaUi.Maui`**.
+- **Avatar view (FR-30):** in the main package (no Community Toolkit dependency). Extras beyond the toolkit, from Syncfusion's `SfAvatarView`: initials of `Text` (`Initials`, `None` by default, so the text shows as the toolkit's), colors by a stable hash of the text (`AvatarColorMode`), `Aspect`, and a status badge drawn by the look. Group avatars and a general badge view are left for later.
 - **NuGet:** publish **`SkiaUi.Maui`** as a NuGet package; **`MauiSkiaUiDemo`** is in-repo only (not published).
 - **Drawing layers (FR-9) — Option A:** dedicated layer structure (Background / Content / Overlay paint phases on the control), not nested `ISkUiView` hosts for chrome. Layers need the owning control’s data (e.g. table/grid draws Background **lines** from its own row/column measurements). Nested hosting remains for layout `Children` only. Toolkit notes (Flutter composition vs engine `Layer` tree, Avalonia/Uno templates, DrawnUi child trees) stay relevant as reference for caching/reuse, not as the chosen chrome model. **Customization:** Background/Overlay via `PaintBackground` / `PaintOverlay` delegates; Content remains virtual `OnPaintContent`. Same on Core. Details: [DrawingMechanism.md](DrawingMechanism.md).
 - **Code performance (NFR-2):** critical paths (especially animation tick + paint) aim for **maximum speed** and **zero / near-zero allocations**, using modern C#/.NET techniques including **`unsafe`** where justified. **Correctness-first workflow:** ship simple, readable code first; after tests confirm behavior, optimize for max performance and min allocations.
