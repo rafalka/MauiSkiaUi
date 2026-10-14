@@ -1,6 +1,6 @@
 # SkUiPicker
 
-A drawn picker: a field that shows the selected item (or a title), and a list to choose from that opens on **your app's popup system** (CommunityToolkit's `Popup`, Syncfusion's `SfPopup`, Telerik's `RadPopup`, a navigation service of your own, or MAUI's action sheet).
+A drawn picker: a field that shows the selected item (or a title), and a list to choose from that opens on **your app's popup system** (CommunityToolkit's `Popup`, a popup control or navigation service of your own, or MAUI's action sheet).
 
 **MAUI counterpart:** `Picker`. Its XAML ports by changing the prefix. Beyond MAUI: several choices (`SelectionMode`, [below](#several-choices)), choices that wait for OK (`UpdateMode`, [below](#when-a-choice-takes-effect)), `PopupPlacement` (anchored like a combo box, in the window like a dialog or a sheet, at a rectangle), `PopupBounds`, `ItemTemplate` (drawn rows), `MaxPopupHeight`, `PopupPresenter`. Core twin: `SkUiCorePicker` (fluent setters, `ItemDisplay` as a function instead of a binding, `SetSelectedItems` instead of a mutable list, the same field and list). What every drawn picker shares (the field, fonts and colors, `IsOpen`, the popup's placement and presenter) is in the base class `SkUiPickerBase` (Core: `SkUiCorePickerBase`).
 
@@ -46,7 +46,7 @@ Several columns of wheels (hours and minutes, an amount and a unit) are a contro
 - App-wide: `SkUiStrings.Current.AcceptText` and `CancelText` (default "OK" and "Cancel"), with SkiaUi's other texts in one object you replace as a whole or derive from to read your resources ([Localization.md](../design/Localization.md)). They are read each time a popup opens, so a language switch applies to the next popup. `CancelText` is also the cancel button of MAUI's action sheet (the fallback presenter).
 - Per picker: `AcceptText` / `CancelText` (bindable: `AcceptText="{x:Static res:AppResources.Choose}"` or a binding to a localization service); `null` (default) uses the app's.
 
-**The buttons are drawn by SkiaUi on every platform** and with every presenter, so they look the same everywhere (a popup system's own footer, such as `SfPopup`'s, stays off). A presenter that shows its own UI for a typed request instead of the drawn content reads `request.RequiresAccept` and the resolved `request.AcceptText` / `request.CancelText`, and calls `request.Accept()` / `request.Cancel()` from its own buttons.
+**The buttons are drawn by SkiaUi on every platform** and with every presenter, so they look the same everywhere (a popup system's own footer stays off). A presenter that shows its own UI for a typed request instead of the drawn content reads `request.RequiresAccept` and the resolved `request.AcceptText` / `request.CancelText`, and calls `request.Accept()` / `request.Cancel()` from its own buttons.
 
 ```xml
 <sk:SkUiPicker Title="Toppings" SelectionMode="Multiple" UpdateMode="WhenFinished"
@@ -66,7 +66,7 @@ A popup is as wide as its items want (the widest text of the first 200 items, or
 - **At most:** `MaxPopupWidth`, and the window's safe area less the margin; longer items are truncated at the end.
 - **Exactly:** `PopupWidth`, which replaces both.
 
-So a narrow field opens a wider list when its items are wider. With `SelectedItemDisplayBinding` the field shows a short text of the selected item while the list shows the whole one: a currency field shows "PLN", its anchored list "Polish Zloty (PLN)" (Syncfusion's `TextMemberPath` next to `DisplayMemberPath`). Type-ahead and screen readers use the whole text; with several choices the joined texts and the tokens use the short one. Core: `SelectedItemDisplay`, a function.
+So a narrow field opens a wider list when its items are wider. With `SelectedItemDisplayBinding` the field shows a short text of the selected item while the list shows the whole one: a currency field shows "PLN", its anchored list "Polish Zloty (PLN)". Type-ahead and screen readers use the whole text; with several choices the joined texts and the tokens use the short one. Core: `SelectedItemDisplay`, a function.
 
 ```xml
 <sk:SkUiPicker ItemsSource="{Binding Currencies}" SelectedItem="{Binding Currency}" HorizontalOptions="Start"
@@ -123,7 +123,7 @@ What the request carries:
 
 | Member | What |
 | --- | --- |
-| `Anchor` / `PlatformAnchor` | The picker (for `SkUiCorePicker`, its `SkUiCoreHost`) / the nearest view with a platform view (its surface), for popups placed relative to a view (`SfPopup.ShowRelativeToView`, Telerik's `PlacementTarget`) |
+| `Anchor` / `PlatformAnchor` | The picker (for `SkUiCorePicker`, its `SkUiCoreHost`) / the nearest view with a platform view (its surface), for popups placed relative to a view |
 | `AnchorBounds` / `AnchorBoundsInPlatformAnchor` | The picker's rectangle in the window / in its surface, through drawn offsets, transforms and scrolling |
 | `Placement` | `Anchored`, `Window` or `Absolute` (`Default` is resolved by the look) |
 | `Bounds`, `OpensAbove`, `SpaceAbove` / `SpaceBelow` | Where SkiaUi puts the popup: anchored below the picker or above when it fits better, start-aligned (mirrored in right-to-left), at least the picker's width, inside the safe area less `Margin`; window popups aligned there; absolute ones at `PopupBounds` |
@@ -133,35 +133,13 @@ What the request carries:
 | `CloseRequested` | The token `ShowAsync` gets |
 | `HasResult`, `IsCompleted` | Whether a choice was made; whether the presenter's task finished |
 
-**Showing your own UI instead** (a platform list, a vendor picker): read the typed request, `SkUiListPopupRequest` (`Items` texts, `SelectedIndex`, `Title`), and call `request.Complete(index)` with the choice; then close and return. Choices that wait for OK: `request.RequiresAccept`; move the highlight with `SetCurrentIndex(index)` and call `request.Accept()` / `Cancel()`, or `Complete(index)` directly. Several choices and wheels have typed requests of their own that report each change (`SkUiSelectionPopupRequest`, applied at once or kept as a draft until `Accept`: `SkUiMultiListPopupRequest`, [above](#several-choices), and `SkUiColumnsPopupRequest`, [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md#presenters)). Date and time pickers (C7) will add their own.
+**Showing your own UI instead** (a platform list, a picker of your own): read the typed request, `SkUiListPopupRequest` (`Items` texts, `SelectedIndex`, `Title`), and call `request.Complete(index)` with the choice; then close and return. Choices that wait for OK: `request.RequiresAccept`; move the highlight with `SetCurrentIndex(index)` and call `request.Accept()` / `Cancel()`, or `Complete(index)` directly. Several choices and wheels have typed requests of their own that report each change (`SkUiSelectionPopupRequest`, applied at once or kept as a draft until `Accept`: `SkUiMultiListPopupRequest`, [above](#several-choices), and `SkUiColumnsPopupRequest`, [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md#presenters)). Date and time pickers (C7) will add their own.
 
 ### Presenter examples
 
 - **CommunityToolkit.Maui** (`Popup`, modal pages placed by alignment and margins): `SkUiToolkitPopupPresenter` in the **SkiaUi.Maui.CommunityToolkit** package (source: `MauiSkiaUi.CommunityToolkit/`; a model for presenters of your own), used by the samples and the demo. Window popups are aligned by the request's options inside the safe area (the popup page is edge to edge, MAUI 10's default) and dimmed; anchored ones are placed at `Bounds` through their margins over a transparent page, and moved once shown by how far the popup page is from the window's origin. `CornerRadius` and `Shadow` are settable (`new SkUiToolkitPopupPresenter { CornerRadius = 4 }`).
 - **MAUI's action sheet:** `SkUiActionSheetPopupPresenter` (built in; the fallback).
-- **Syncfusion `SfPopup`** (a sketch, not compiled here):
-
-  ```csharp
-  public async Task ShowAsync(SkUiPopupRequest request, CancellationToken token)
-  {
-      var popup = new SfPopup
-      {
-          ContentTemplate = new DataTemplate(() => request.Content), ShowHeader = false, ShowFooter = false,
-          WidthRequest = request.Bounds.Width, HeightRequest = request.Bounds.Height,
-          StaysOpen = !request.IsDismissible, ShowOverlayAlways = request.OverlayColor is not null
-      };
-      var closed = new TaskCompletionSource();
-      popup.Closed += (_, _) => closed.TrySetResult();
-      using var registration = token.Register(popup.Dismiss);
-      if (request.Placement == SkUiPopupPlacement.Window || request.PlatformAnchor is not { } surface)
-          popup.Show(request.Bounds.X, request.Bounds.Y);
-      else
-          popup.ShowRelativeToView(surface, request.OpensAbove ? PopupRelativePosition.AlignTop : PopupRelativePosition.AlignBottom,
-              request.AnchorBoundsInPlatformAnchor.X, request.OpensAbove ? request.AnchorBoundsInPlatformAnchor.Top : request.AnchorBoundsInPlatformAnchor.Bottom);
-      await closed.Task;
-  }
-  ```
-- **Telerik `RadPopup`**: the same shape: `PlacementTarget = request.PlatformAnchor`, `Placement = Relative` with `HorizontalOffset` / `VerticalOffset` from `AnchorBoundsInPlatformAnchor` (or `Center` for window popups), `IsModal = !request.IsDismissible`, `OutsideBackgroundColor = request.OverlayColor`; close with `IsOpen = false` on the token, return on `Closed`.
+- **A popup control of your own** (one that shows a view at a position, or relative to another view): set its content to `request.Content` and its size to `request.Bounds`; for `Placement` `Window` (or without `PlatformAnchor`) show it at `request.Bounds`, else relative to `request.PlatformAnchor`, below or above (`request.OpensAbove`) `request.AnchorBoundsInPlatformAnchor`; keep it open on outside taps unless `request.IsDismissible`, dim with `request.OverlayColor`; close it when the token is cancelled (`token.Register`), and return once it has closed.
 - **A navigation service with a popup stack** (open / close / bring to front): push a page or overlay with `request.Content`, pop it on the token, and complete when it was popped; keeping the request on the stack is fine (it holds nothing).
 
 ## Look

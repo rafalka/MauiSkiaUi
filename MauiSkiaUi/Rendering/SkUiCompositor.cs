@@ -134,6 +134,7 @@ internal sealed class SkUiCompositor : IDisposable
     /// </summary>
     internal const int MaxShadowRasterizationsPerFrame = 3;
     private float _scale = 1;
+    private SKMatrix _surfaceMatrix = SKMatrix.Identity;
     private int _touchStamp;
     private int _epoch;
     private int _activeAnimations;
@@ -257,6 +258,8 @@ internal sealed class SkUiCompositor : IDisposable
 #endif
             if (_rootWidth > 0)
                 _scale = pixelWidth / _rootWidth;
+            if (_rootWidth > 0 && _rootHeight > 0)
+                _surfaceMatrix = SKMatrix.CreateScale(pixelWidth / _rootWidth, pixelHeight / _rootHeight);
 
             _clearPaint.Color = _clearColor;
             canvas.DrawRect(SKRect.Create(pixelWidth, pixelHeight), _clearPaint);
@@ -461,11 +464,13 @@ internal sealed class SkUiCompositor : IDisposable
         || !ReferenceEquals(a.ChildrenClipPath, b.ChildrenClipPath) || !ReferenceEquals(a.ClipPath, b.ClipPath)
         || a.ContentSpinPeriod != b.ContentSpinPeriod || a.ContentSlidePeriod != b.ContentSlidePeriod
         || a.ContentSlideDistance != b.ContentSlideDistance || !ReferenceEquals(a.ContentClipPath, b.ContentClipPath)
-        || a.Overflow != b.Overflow;
+        || a.Overflow != b.Overflow || a.ChildrenLayer != b.ChildrenLayer || a.ChildrenOpacity != b.ChildrenOpacity
+        || !ReferenceEquals(a.Timeline, b.Timeline);
 
     /// <summary>Children offsets and scales change how the animated node draws its children; the other properties only its place.</summary>
     private const int BodyAnimatedMask = (1 << (int)SkUiRenderProperty.ChildrenOffsetX) | (1 << (int)SkUiRenderProperty.ChildrenOffsetY)
-        | (1 << (int)SkUiRenderProperty.ChildrenScaleX) | (1 << (int)SkUiRenderProperty.ChildrenScaleY);
+        | (1 << (int)SkUiRenderProperty.ChildrenScaleX) | (1 << (int)SkUiRenderProperty.ChildrenScaleY)
+        | (1 << (int)SkUiRenderProperty.ChildrenOpacity);
 
     private const int ScrollOffsetMask = (1 << (int)SkUiRenderProperty.ChildrenOffsetX) | (1 << (int)SkUiRenderProperty.ChildrenOffsetY);
 
@@ -573,7 +578,21 @@ internal sealed class SkUiCompositor : IDisposable
 
     private void DrawNode(SKCanvas canvas, SkUiRenderNode node, bool isRoot)
     {
-        ref readonly var props = ref node.Props;
+        if (node.Props.Timeline is not { } timeline)
+        {
+            DrawNode(canvas, node, in node.Props, isRoot);
+            return;
+        }
+        // Driven by the clock while drawn: the frames keep coming (and stop once nothing with a timeline is drawn).
+        _spinning = true;
+        var timed = node.Props;
+        timeline.Apply(ref timed, _now);
+        DrawNode(canvas, node, in timed, isRoot);
+    }
+
+    /// <summary>Draws <paramref name="node"/> with <paramref name="props"/>: its committed ones, or with its timeline's values.</summary>
+    private void DrawNode(SKCanvas canvas, SkUiRenderNode node, in SkUiRenderProps props, bool isRoot)
+    {
         if (props.IsSkipped)
             return;
         SKMatrix matrix;
@@ -595,22 +614,33 @@ internal sealed class SkUiCompositor : IDisposable
         var save = canvas.Save();
         if (isRoot)
             matrix = matrix.PostConcat(SKMatrix.CreateTranslation(-props.X, -props.Y));
-        canvas.Concat(in matrix);
+        if (props.SurfaceAnchored && !isRoot)
+        {
+            // Placed in surface DIPs: the ancestors' transforms do not apply, their clips (on the canvas) still do.
+            var anchored = _surfaceMatrix.PreConcat(matrix);
+            canvas.SetMatrix(in anchored);
+        }
+        else
+        {
+            canvas.Concat(in matrix);
+        }
         if (canvas.QuickReject(props.InkBounds))
         {
             canvas.RestoreToCount(save);
             return;
         }
-        if (opacity < 1)
+        if (opacity < 1 || props.BlendMode != SKBlendMode.SrcOver)
         {
             _layerPaint.Color = SKColors.White.WithAlpha((byte)(255 * opacity));
+            _layerPaint.BlendMode = props.BlendMode;
             canvas.SaveLayer(props.LayerBounds, _layerPaint);
+            _layerPaint.BlendMode = SKBlendMode.SrcOver;
         }
         if (props.Shadow is { } shadow)
             DrawShadow(canvas, node, shadow);
         else if (node.ShadowCache is not null)
             DisposeShadowCache(node);
-        DrawBody(canvas, node, ownSave: false); // inside this node's save
+        DrawBody(canvas, node, in props, ownSave: false); // inside this node's save
         canvas.RestoreToCount(save);
     }
 
@@ -701,9 +731,11 @@ internal sealed class SkUiCompositor : IDisposable
     /// What the node draws in its own coordinates, inside its clips: content, children, overlay. Without
     /// <paramref name="ownSave"/> the clips stay on the canvas (the caller restores).
     /// </summary>
-    private void DrawBody(SKCanvas canvas, SkUiRenderNode node, bool ownSave)
+    private void DrawBody(SKCanvas canvas, SkUiRenderNode node, bool ownSave) => DrawBody(canvas, node, in node.Props, ownSave);
+
+    /// <inheritdoc cref="DrawBody(SKCanvas, SkUiRenderNode, bool)"/>
+    private void DrawBody(SKCanvas canvas, SkUiRenderNode node, in SkUiRenderProps props, bool ownSave)
     {
-        ref readonly var props = ref node.Props;
         var save = ownSave ? canvas.Save() : -1;
         if (props.ClipToBounds)
             canvas.ClipRect(props.Bounds);
@@ -744,37 +776,60 @@ internal sealed class SkUiCompositor : IDisposable
                 canvas.DrawPicture(before);
             }
         }
-        var children = node.Children;
-        if (children.Length > 0)
+        if (node.Children.Length > 0)
         {
-            var childSave = canvas.Save();
-            if (!props.ChildrenClipRect.IsEmpty)
-                canvas.ClipRect(props.ChildrenClipRect);
-            if (props.ChildrenClipPath is { } path)
-                canvas.ClipPath(path, antialias: true);
-            var pinned = false;
-            props.TransformChildren(canvas);
-            if (props.SortsChildrenByDepth && children.Length > 1)
-                pinned = DrawChildrenByDepth(canvas, children);
-            else
-                foreach (var child in children)
+            if (props.ChildrenLayer)
+            {
+                // The children as one group: their blend modes act within it, and it fades as one.
+                SKPaint? paint = null;
+                if (props.ChildrenOpacity < 1)
                 {
-                    if (child.Props.Pinned)
-                        pinned = true;
-                    else
-                        DrawNode(canvas, child, isRoot: false);
+                    _layerPaint.Color = SKColors.White.WithAlpha((byte)(255 * props.ChildrenOpacity));
+                    paint = _layerPaint;
                 }
-            canvas.RestoreToCount(childSave);
-            // Pinned children: in local coordinates, outside the children clip.
-            if (pinned)
-                foreach (var child in children)
-                    if (child.Props.Pinned)
-                        DrawNode(canvas, child, isRoot: false);
+                var layer = canvas.SaveLayer(props.Bounds, paint);
+                DrawChildren(canvas, node);
+                canvas.RestoreToCount(layer);
+            }
+            else
+            {
+                DrawChildren(canvas, node);
+            }
         }
         if (node.After is { } after)
             canvas.DrawPicture(after);
         if (save >= 0)
             canvas.RestoreToCount(save);
+    }
+
+    /// <summary>The node's children, inside its children clip and transform; pinned ones above, outside the children clip.</summary>
+    private void DrawChildren(SKCanvas canvas, SkUiRenderNode node)
+    {
+        ref readonly var props = ref node.Props;
+        var children = node.Children;
+        var childSave = canvas.Save();
+        if (!props.ChildrenClipRect.IsEmpty)
+            canvas.ClipRect(props.ChildrenClipRect);
+        if (props.ChildrenClipPath is { } path)
+            canvas.ClipPath(path, antialias: true);
+        var pinned = false;
+        props.TransformChildren(canvas);
+        if (props.SortsChildrenByDepth && children.Length > 1)
+            pinned = DrawChildrenByDepth(canvas, children);
+        else
+            foreach (var child in children)
+            {
+                if (child.Props.Pinned)
+                    pinned = true;
+                else
+                    DrawNode(canvas, child, isRoot: false);
+            }
+        canvas.RestoreToCount(childSave);
+        // Pinned children: in local coordinates, outside the children clip.
+        if (pinned)
+            foreach (var child in children)
+                if (child.Props.Pinned)
+                    DrawNode(canvas, child, isRoot: false);
     }
 
     /// <summary>The most children sorted on the stack; more are sorted in arrays from the pool.</summary>

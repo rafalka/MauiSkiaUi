@@ -4,7 +4,7 @@ namespace MauiSkiaUi.Tests;
 
 /// <summary>
 /// The time picker: MAUI's rules (midnight by default, a time of a day, <c>TimeSelected</c>, MAUI's opened and closed events), the
-/// range and the steps from Syncfusion's and Telerik's, the culture's clock, and a presenter's own time UI.
+/// range and the steps, the culture's clock, and a presenter's own time UI.
 /// </summary>
 [Collection(GlobalStateCollection.Name)]
 public sealed class TimePickerTests : IDisposable
@@ -141,7 +141,7 @@ public sealed class TimePickerTests : IDisposable
 }
 
 /// <summary>
-/// The date and time picker (no MAUI counterpart; Syncfusion's and Telerik's): no value by default, the time kept, the range's
+/// The date and time picker (no MAUI counterpart): no value by default, the time kept, the range's
 /// times on its first and last days; and the Core date and time pickers.
 /// </summary>
 [Collection(GlobalStateCollection.Name)]

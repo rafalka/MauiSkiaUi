@@ -2,7 +2,7 @@
 
 A person's picture, or their initials while there is none, in a round (or any) border, with an optional status badge. `SkUiCoreAvatar` is the Core twin and draws the same pixels.
 
-**Counterpart:** Community Toolkit [`AvatarView`](https://learn.microsoft.com/dotnet/communitytoolkit/maui/views/avatarview). The toolkit's XAML ports by changing the prefix. The control is in the main package (`SkiaUi.Maui`) and does not need the Community Toolkit. The extras follow Syncfusion's `SfAvatarView` (`AvatarColorMode` by its name; its `AvatarName` / `InitialsType` become `Text` with `Initials`).
+**Counterpart:** Community Toolkit [`AvatarView`](https://learn.microsoft.com/dotnet/communitytoolkit/maui/views/avatarview). The toolkit's XAML ports by changing the prefix. The control is in the main package (`SkiaUi.Maui`) and does not need the Community Toolkit.
 
 ## How it works
 
@@ -120,7 +120,7 @@ An image described by the whole `Text` (the name, not its initials), unless `Sem
 | `IImage` / `ILabel` members | Not exposed (`IsOpaque`, `LineHeight`, `TextDecorations`, …) |
 | Gestures | The arena's (`Tapped`, `TapGestureRecognizer`, …), as every drawn view |
 
-Syncfusion's `SfAvatarView` maps in [Migration.md](../Migration.md#avatar-view). Not built: group avatars (`ContentType="Group"`), built-in avatar characters, `AvatarSize` / `AvatarShape` presets (use sizes and `CornerRadius`), a general badge view (`SfBadgeView`) around any content (draw counts and icons with `BadgePainter`).
+Other avatar controls map in [Migration.md](../Migration.md#avatar-view). Not built: group avatars, built-in avatar characters, size and shape presets (use sizes and `CornerRadius`), a general badge view around any content (draw counts and icons with `BadgePainter`).
 
 ## Related
 

@@ -5,7 +5,7 @@ namespace MauiSkiaUiDemo;
 
 /// <summary>
 /// <see cref="SkUiTimePicker"/> (C7) next to MAUI's <see cref="TimePicker"/>: MAUI's properties set on both (the time, the field's
-/// format), and SkiaUi's own from Syncfusion's and Telerik's: the clock of the wheels (the culture's, 12 or 24 hours, seconds),
+/// format), and SkiaUi's own: the clock of the wheels (the culture's, 12 or 24 hours, seconds),
 /// steps, a range (opening hours), the time the wheels show while there is none, OK / Cancel and clearing.
 /// </summary>
 public sealed class TimePickerDemoPage : ComponentDemoPage

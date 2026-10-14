@@ -177,7 +177,7 @@ public partial class SkUiPicker : SkUiPickerBase
     /// The binding that picks the text the field shows for the selected item, when it differs from the item's text in the list
     /// (<see cref="ItemDisplayBinding"/>): a narrow currency field shows <c>{Binding Code}</c> ("PLN") and its list
     /// <c>{Binding Name}</c> ("Polish Zloty (PLN)"); with several choices the joined texts and the tokens use it too. <c>null</c>
-    /// (default): the item's text. Type-ahead and screen readers use the item's text. Syncfusion's <c>TextMemberPath</c>. SkiaUi extension.
+    /// (default): the item's text. Type-ahead and screen readers use the item's text. SkiaUi extension.
     /// </summary>
     public BindingBase? SelectedItemDisplayBinding
     {

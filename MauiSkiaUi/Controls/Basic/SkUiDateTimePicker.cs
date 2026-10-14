@@ -5,8 +5,8 @@ namespace MauiSkiaUi;
 
 /// <summary>
 /// A drawn picker of a day and a time of it, on one popup of wheels (day, month, year, hour, minute, AM / PM; ordered and named by
-/// the culture, or by <see cref="SkUiDateTimePickerBase.WheelFormat"/>): an appointment, a reminder, a departure. MAUI has none;
-/// Syncfusion's <c>SfDateTimePicker</c> and Telerik's <c>RadDateTimePicker</c> are its models. The API is
+/// the culture, or by <see cref="SkUiDateTimePickerBase.WheelFormat"/>): an appointment, a reminder, a departure. MAUI has none.
+/// The API is
 /// <see cref="SkUiDatePicker"/>'s with the time kept (<see cref="Date"/>, <see cref="MinimumDate"/> and <see cref="MaximumDate"/>
 /// include it), plus the time picker's steps (<see cref="HourInterval"/>, <see cref="MinuteInterval"/>,
 /// <see cref="SecondInterval"/>). Core twin: <see cref="Core.SkUiCoreDateTimePicker"/>.
@@ -86,7 +86,7 @@ public class SkUiDateTimePicker : SkUiDateTimePickerBase
     /// <summary>The moment the wheels show while <see cref="Date"/> is <c>null</c>; <c>null</c> (default): now. On the wheels' steps, in the range. SkiaUi extension.</summary>
     public DateTime? DefaultHighlightedDate { get => (DateTime?)GetValue(DefaultHighlightedDateProperty); set => SetValue(DefaultHighlightedDateProperty, value); }
 
-    /// <summary>Days that cannot be chosen (an empty list by default; read when the popup opens). Syncfusion's. SkiaUi extension.</summary>
+    /// <summary>Days that cannot be chosen (an empty list by default; read when the popup opens). SkiaUi extension.</summary>
     public IList<DateTime>? BlackoutDates { get => (IList<DateTime>?)GetValue(BlackoutDatesProperty); set => SetValue(BlackoutDatesProperty, value); }
 
     /// <summary>Whether a day can be chosen, a rule of the app's; <c>null</c> (default): every day in the range. Not bindable. SkiaUi extension.</summary>

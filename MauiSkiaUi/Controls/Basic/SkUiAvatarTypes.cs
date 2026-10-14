@@ -2,7 +2,7 @@ using SkiaSharp;
 
 namespace MauiSkiaUi;
 
-/// <summary>Whether an avatar shows its <c>Text</c> as it is or initials made from it (Syncfusion's <c>InitialsType</c>).</summary>
+/// <summary>Whether an avatar shows its <c>Text</c> as it is or initials made from it.</summary>
 public enum SkUiAvatarInitials
 {
     /// <summary>The text as it is (with its <c>TextTransform</c>), as the Community Toolkit's avatar.</summary>
@@ -15,7 +15,7 @@ public enum SkUiAvatarInitials
     FirstAndLastWord
 }
 
-/// <summary>Where an avatar's colors come from when its background is not set (Syncfusion's <c>AvatarColorMode</c>).</summary>
+/// <summary>Where an avatar's colors come from when its background is not set.</summary>
 public enum SkUiAvatarColorMode
 {
     /// <summary>The look's default background and text colors, the same for every avatar.</summary>
@@ -28,7 +28,7 @@ public enum SkUiAvatarColorMode
     DarkBackground
 }
 
-/// <summary>The corner of an avatar its badge sits on (Syncfusion's <c>BadgePosition</c> names).</summary>
+/// <summary>The corner of an avatar its badge sits on.</summary>
 public enum SkUiAvatarBadgePosition
 {
     /// <summary>The bottom right corner (default).</summary>

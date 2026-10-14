@@ -6,7 +6,7 @@ using System.Windows.Input;
 namespace MauiSkiaUi;
 
 /// <summary>Base for Skia-drawn views, with layout that does not require a handler.</summary>
-public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost, ISkUiShadowCaster
+public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost, ISkUiShadowCaster, ISkUiAnimationTarget
 {
     private bool _measureDirty = true;
     private bool _arrangeDirty = true;
@@ -826,6 +826,33 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         // A root's own content invalidation already raised PaintInvalidated in FlushInvalidation.
         if (fromDescendant)
             PaintInvalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    double ISkUiAnimationTarget.GetAnimatable(SkUiAnimatableProperty property) => property switch
+    {
+        SkUiAnimatableProperty.Opacity => Opacity,
+        SkUiAnimatableProperty.TranslationX => TranslationX,
+        SkUiAnimatableProperty.TranslationY => TranslationY,
+        SkUiAnimatableProperty.Rotation => Rotation,
+        SkUiAnimatableProperty.Scale => Scale,
+        SkUiAnimatableProperty.ScaleX => ScaleX,
+        SkUiAnimatableProperty.ScaleY => ScaleY,
+        _ => throw new ArgumentOutOfRangeException(nameof(property))
+    };
+
+    void ISkUiAnimationTarget.SetAnimatable(SkUiAnimatableProperty property, double value)
+    {
+        switch (property)
+        {
+            case SkUiAnimatableProperty.Opacity: Opacity = value; break;
+            case SkUiAnimatableProperty.TranslationX: TranslationX = value; break;
+            case SkUiAnimatableProperty.TranslationY: TranslationY = value; break;
+            case SkUiAnimatableProperty.Rotation: Rotation = value; break;
+            case SkUiAnimatableProperty.Scale: Scale = value; break;
+            case SkUiAnimatableProperty.ScaleX: ScaleX = value; break;
+            case SkUiAnimatableProperty.ScaleY: ScaleY = value; break;
+            default: throw new ArgumentOutOfRangeException(nameof(property));
+        }
     }
 
     /// <summary>

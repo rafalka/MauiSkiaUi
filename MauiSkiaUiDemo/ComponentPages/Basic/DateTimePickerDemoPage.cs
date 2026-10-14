@@ -4,8 +4,7 @@ using MauiSkiaUi.CommunityToolkit;
 namespace MauiSkiaUiDemo;
 
 /// <summary>
-/// <see cref="SkUiDateTimePicker"/> (C7): a day and a time on one popup of wheels, as Syncfusion's <c>SfDateTimePicker</c> and
-/// Telerik's <c>RadDateTimePicker</c> (MAUI has none). An appointment from now on: the range starts at the next quarter hour, the
+/// <see cref="SkUiDateTimePicker"/> (C7): a day and a time on one popup of wheels (MAUI has none). An appointment from now on: the range starts at the next quarter hour, the
 /// times before it on the first day are dimmed, weekends can be blocked, and the minutes come in steps.
 /// </summary>
 public sealed class DateTimePickerDemoPage : ComponentDemoPage

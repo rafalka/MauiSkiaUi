@@ -47,7 +47,7 @@ Every drawn node (`SkUiView`, `SkUiCoreNode`) implements `ISkUiRenderable`. It o
 | `Before` picture | Background + Content phases (`PaintBackground` / `OnPaintBackground`, `OnPaintContent`) | Re-record this node only |
 | `After` picture | Overlay phase | Re-record this node only |
 | Children | `GetRenderChildren` (paint order, ZIndex) | Children list resend, no re-record |
-| `SkUiRenderProps` | Frame offset/size, translation, rotation, perspective tilt, scale, anchor, opacity, `ClipToBounds`, clip path (`Clip`), shadow, children offset, scale and clip, pinned flag, scroll link, item effect and depth order, content spin, ink overflow | Nothing is recorded; composite-time only |
+| `SkUiRenderProps` | Frame offset/size, translation, rotation, perspective tilt, scale, anchor, opacity, `ClipToBounds`, clip path (`Clip`), shadow, children offset, scale and clip, pinned flag, scroll link, item effect and depth order, content spin, blend mode, children layer and opacity, surface anchoring, timeline, ink overflow | Nothing is recorded; composite-time only |
 
 Children are composited by the engine between the Content and Overlay pictures. Containers express how their children are drawn through properties instead of drawing them in `OnPaintContent`:
 
@@ -58,6 +58,7 @@ Children are composited by the engine between the Content and Overlay pictures. 
 - **Scroll corrections:** when content before the viewport changes size (a virtual list measuring items it estimated), the scroller's offset moves by the same amount. While a fling, animated scroll or snap runs on the render thread, the correction travels with the committed frame (`SkUiRenderUpdate.ScrollShift`) and the compositor shifts the running motion and the shown offset when it applies that frame, so the new layout and the corrected offset show together and the motion continues ([ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#virtual-stack-implemented)).
 - **Rounded clip:** `SkUiBorder` / `SkUiCoreBorder` set `ChildrenClipPath`.
 - **Spinning content:** activity indicators set `ContentSpinPeriod`, and the compositor rotates the recorded arc.
+- **Grouped and blended children, clock-driven values:** `ChildrenLayer`, `BlendMode`, `SurfaceAnchored` and `Timeline` ([below](#composite-time-effects)) compose effects out of plain nodes, such as a shimmer's skeleton.
 
 ### Invalidation rules
 
@@ -97,7 +98,8 @@ Render-thread animation rules:
 - Values are reported back to the UI thread: every frame for scroll offsets, at completion for `AnimateAsync`. The reported value is *acknowledged* (`SkUiRenderState.Acknowledge`), so writing it back to the bindable property does not count as a UI change.
 - If the UI explicitly sets an animated property, the animation is cancelled (superseded) and the UI's value wins.
 - A new animation of the same property cancels the previous one.
-- Detaching a node cancels its animations. Content spin needs no bookkeeping: it runs only while the node is actually drawn, so culled or hidden spinners stop requesting frames.
+- Detaching a node cancels its animations. Content spin, content slide and timelines need no bookkeeping: they run only while the node is actually drawn, so culled or hidden spinners and shimmers stop requesting frames.
+- **One clock** (`SkUiRenderClock`): every surface's render thread composites with the same monotonic time (the Metal loop, GL views, Windows and software surfaces, and headless renderers by default). Animations that follow the clock instead of their own start (spinners, sliding content, shimmers) are in phase on every surface.
 
 ## Hit-testing and input
 
@@ -119,6 +121,23 @@ Per node the compositor draws: transform → cull by `InkBounds` (visual bounds 
 **Subtree versions.** On the render thread every applied update and animation tick bumps `SkUiRenderNode.Version` on the affected node and its ancestors (once per pass). A node's own offset, transform and opacity only bump its ancestors, since the cached raster is in the node's own coordinates: moving, fading or scaling a shadowed node, and scrolling the list around it, reuse its raster. `SkUiCompositor.ShadowRasterizations` / `LiveShadows` count both paths for tests.
 
 Shadow and clip changes are `Props` changes: no re-record. The compositor disposes the clip paths (`ClipPath`, `ChildrenClipPath`, `ContentClipPath`) and shadow objects (outline, shader, blur filters) a commit replaces, on the render thread between frames: the UI side keeps only its newest ones, so nothing else uses them. It also disposes a node's committed ones when the node is removed, when the compositor is disposed and when a batch is never applied: a render node leaves the tree only when its UI node is reset (detached, surface torn down), and a reset node forgets them (`ISkUiRenderable.ReleaseDrawingResources`) and makes new ones, so none is committed or read again. Nothing is left to the finalizer, whose disposals would contend with drawing.
+
+## Composite-time effects
+
+Four generic render props let controls build effects out of ordinary nodes that are recorded once, with nothing recorded per frame. The engine knows no control that uses them.
+
+| Prop | What the compositor does |
+| --- | --- |
+| `BlendMode` | Composites the node onto what its parent drew before it with this mode (through a layer bounded to the node; `SrcOver`: none) |
+| `ChildrenLayer`, `ChildrenOpacity` | Draws the node's children into one layer on its bounds, composited with `ChildrenOpacity`: the children's blend modes act within the group only, and the group fades as one |
+| `SurfaceAnchored` | Places the node in surface DIPs instead of its parent's children space (the ancestors' clips and layers still apply): one gradient across separate views |
+| `Timeline` (`SkUiRenderTimeline`) | Drives translation, rotation, scale, opacity or children opacity from the render clock: from / to values per pass, `Reverse`, an easing; evaluated each time the node is drawn, replacing the committed values |
+
+A timeline's position is the shared clock's time in passes (`passes % 1`, or a triangle over two passes when reversing), not the time since it was committed, so nodes with the same timing are in phase on every surface, whenever they were shown or recycled. A node with a timeline requests the next frame whenever it is visited, also when it is itself outside the clip (a moving node passes out of view and back), and never while its parent is culled or hidden. Hit-testing and semantics keep the committed values, as for a carousel item's effect.
+
+**A shimmer (FR-31)** is built from them ([SkUiShimmer.md](../controls/SkUiShimmer.md)): the shimmer node has `ChildrenLayer`; its children are the skeleton's bones and, over them, internal nodes recorded once (`SkUiShimmerPart`): a tint rectangle drawn source-in (the bones in one color, their alpha kept), a color-shift rectangle (`BlendMode` `SrcATop`, an opacity timeline) and the wave band, recorded once with the look's shader in a source-atop paint (so it needs no layer; a translation timeline, `SurfaceAnchored` for the surface-wide region). A pulse is a timeline of the shimmer's `ChildrenOpacity`. Per frame: the children layer only, for every effect but the color shift (its rectangle's opacity is animated, so it is composited through a layer of its own).
+
+The immediate painter evaluates timelines at time zero (a still frame) and draws surface-anchored nodes in their parent's space. Content shadows of an ancestor of a surface-anchored node rasterize it in local coordinates.
 
 ## GPU pipeline warm-up
 

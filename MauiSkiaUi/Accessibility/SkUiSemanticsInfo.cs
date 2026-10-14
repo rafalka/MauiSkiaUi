@@ -108,6 +108,8 @@ public sealed class SkUiSemanticsInfo
     internal SemanticHeadingLevel HeadingLevel;
     internal bool? IsInAccessibleTree;
     internal bool ExcludedWithChildren;
+    /// <summary>The element stands for its subtree: its descendants are not read (a loading shimmer's skeleton).</summary>
+    internal bool ChildrenHidden;
     internal string? AutomationId;
     /// <summary>A hosted native view (<see cref="SkUiMauiContentView"/>): the platform reads it itself.</summary>
     internal bool IsNative;
@@ -125,6 +127,7 @@ public sealed class SkUiSemanticsInfo
         HeadingLevel = SemanticHeadingLevel.None;
         IsInAccessibleTree = null;
         ExcludedWithChildren = false;
+        ChildrenHidden = false;
         IsNative = false;
     }
 }

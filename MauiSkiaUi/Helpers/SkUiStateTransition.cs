@@ -1,3 +1,5 @@
+using MauiSkiaUi.Rendering;
+
 namespace MauiSkiaUi;
 
 /// <summary>
@@ -8,16 +10,16 @@ namespace MauiSkiaUi;
 /// </summary>
 internal static class SkUiStateTransition
 {
-    public static async Task RunAsync(SkUiView host, Func<IEnumerable<SkUiView>> shownViews, Action change,
+    public static async Task RunAsync(ISkUiRenderable host, Func<IEnumerable<ISkUiAnimationTarget>> shownViews, Action change,
         SkUiViewAnimation? before, SkUiViewAnimation? after, CancellationToken token)
     {
         var animate = host.RenderState.HasCommitted && (before is not null || after is not null);
         var shown = animate ? shownViews().ToDictionary(view => view, SkUiViewAnimation.Snapshot.Of) : [];
-        var incoming = new Dictionary<SkUiView, SkUiViewAnimation.Snapshot>();
+        var incoming = new Dictionary<ISkUiAnimationTarget, SkUiViewAnimation.Snapshot>();
         try
         {
             if (before is not null && shown.Count > 0)
-                await AllAsync(shown.Keys.Select(before.RunAsync), token);
+                await AllAsync(shown.Keys.Select(view => before.RunAsync(view)), token);
             change();
             if (animate && after is not null)
             {
@@ -29,7 +31,7 @@ internal static class SkUiStateTransition
                     incoming[view] = SkUiViewAnimation.Snapshot.Of(view);
                 }
                 if (incoming.Count > 0)
-                    await AllAsync(incoming.Keys.Select(after.RunAsync), token);
+                    await AllAsync(incoming.Keys.Select(view => after.RunAsync(view)), token);
             }
         }
         finally

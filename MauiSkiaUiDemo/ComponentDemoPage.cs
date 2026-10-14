@@ -307,6 +307,22 @@ public abstract class ComponentDemoPage : ContentPage
         SetSlider(slider, value, number.Apply);
     }
 
+    /// <summary>Moves a <see cref="Number"/> editor to <paramref name="value"/> (clamped) and applies it, as a user would (presets).</summary>
+    protected void SetNumber(string name, double value)
+    {
+        if (_numbers.TryGetValue(name, out var number))
+            SetSlider(number.Slider, Math.Clamp(value, number.Slider.Minimum, number.Slider.Maximum), number.Apply);
+    }
+
+    /// <summary>Moves a <see cref="Choice{T}"/> editor to <paramref name="value"/> and applies it, as a user would (presets).</summary>
+    protected void SetChoice<T>(string name, T value) where T : notnull
+    {
+        if (_choices.TryGetValue(name, out var choice) && Array.IndexOf(choice.Values, value) is >= 0 and var index)
+            choice.Picker.SelectedIndex = index;
+    }
+
+    private readonly Dictionary<string, (Picker Picker, object[] Values)> _choices = [];
+
     protected void Toggle(string name, bool initial, Action<bool> apply, Func<bool> skia, Func<bool>? native = null)
     {
         var toggle = new Switch { IsToggled = initial, OnColor = Accent, HorizontalOptions = LayoutOptions.Start, AutomationId = "Edit" + name };
@@ -362,6 +378,7 @@ public abstract class ComponentDemoPage : ContentPage
         picker.SelectedIndex = Array.IndexOf(values, initial);
         picker.SelectedIndexChanged += (_, _) => { if (picker.SelectedIndex >= 0) apply(values[picker.SelectedIndex]); };
         AddEditor(name, picker);
+        _choices[name] = (picker, values.Cast<object>().ToArray());
         var initialIndex = Array.IndexOf(values, initial);
         _resets.Add(() =>
         {

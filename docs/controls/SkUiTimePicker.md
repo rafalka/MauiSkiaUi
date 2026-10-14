@@ -1,6 +1,6 @@
 # SkUiTimePicker
 
-A drawn time picker with **MAUI's `TimePicker` API**: change the XAML prefix of a `TimePicker` and it becomes one. The popup holds wheels for the hour and the minute (and the second), and AM / PM on a 12-hour clock, as the culture says or `WheelFormat` chooses, on your app's popup system. Beyond MAUI, from Syncfusion's `SfTimePicker` and Telerik's `RadTimePicker`: a range (`MinimumTime`, `MaximumTime`), steps (`HourInterval`, `MinuteInterval`, `SecondInterval`), the time the wheels show while there is none (`DefaultHighlightedTime`), headers, OK / Cancel, clearing, and the app's own time UI through the presenter (`SkUiTimePopupRequest`).
+A drawn time picker with **MAUI's `TimePicker` API**: change the XAML prefix of a `TimePicker` and it becomes one. The popup holds wheels for the hour and the minute (and the second), and AM / PM on a 12-hour clock, as the culture says or `WheelFormat` chooses, on your app's popup system. Beyond MAUI: a range (`MinimumTime`, `MaximumTime`), steps (`HourInterval`, `MinuteInterval`, `SecondInterval`), the time the wheels show while there is none (`DefaultHighlightedTime`), headers, OK / Cancel, clearing, and the app's own time UI through the presenter (`SkUiTimePopupRequest`).
 
 **MAUI counterpart:** `TimePicker`. Core twin: `SkUiCoreTimePicker`. The wheels work as the date picker's: [SkUiDatePicker](SkUiDatePicker.md#the-wheels).
 

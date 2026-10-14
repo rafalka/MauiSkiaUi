@@ -234,7 +234,7 @@ public class CheckXamlTests
     }
 
     [Fact]
-    public void SuggestsTheDrawnAvatarForTheToolkitsAndSyncfusionsAvatars()
+    public void SuggestsTheDrawnAvatarForTheToolkitsAvatar()
     {
         var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
         try
@@ -242,11 +242,9 @@ public class CheckXamlTests
             File.WriteAllText(Path.Combine(project.FullName, "Page.xaml"), """
                 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
                              xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
-                             xmlns:mct="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
-                             xmlns:sf="clr-namespace:Syncfusion.Maui.Core;assembly=Syncfusion.Maui.Core">
+                             xmlns:mct="http://schemas.microsoft.com/dotnet/2022/maui/toolkit">
                   <sk:SkUiVerticalStackLayout>
                     <mct:AvatarView Text="ZS" />
-                    <sf:SfAvatarView AvatarName="Ada Lovelace" ContentType="Initials" />
                     <sk:SkUiAvatarView Text="ZS" />
                   </sk:SkUiVerticalStackLayout>
                   <mct:AvatarView Text="outside the drawn tree" />
@@ -255,9 +253,9 @@ public class CheckXamlTests
             var (exitCode, output) = Run(project.FullName);
             Assert.Equal(1, exitCode);
             var errors = output.Split('\n').Where(line => line.Contains("error:")).ToArray();
-            Assert.Equal(2, errors.Length);
-            Assert.Contains(errors, error => error.Contains("Page.xaml:6:") && error.Contains("sk:SkUiAvatarView"));
-            Assert.Contains(errors, error => error.Contains("Page.xaml:7:") && error.Contains("InitialsColor -> TextColor"));
+            var error = Assert.Single(errors);
+            Assert.Contains("Page.xaml:5:", error);
+            Assert.Contains("sk:SkUiAvatarView", error);
         }
         finally
         {

@@ -10,7 +10,7 @@ namespace MauiSkiaUi.Core;
 /// Implements <see cref="INotifyPropertyChanged"/>; fluent <c>Set*</c> methods are the single apply path
 /// and raise notifications via <see cref="SetProperty{T}"/>.
 /// </summary>
-public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost, ISkUiShadowCaster
+public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost, ISkUiShadowCaster, ISkUiAnimationTarget
 {
     private bool _measureDirty = true;
     private bool _arrangeDirty = true;
@@ -251,6 +251,30 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         return this;
     }
 
+    // Core nodes scale uniformly: ScaleX / ScaleY read and write the one scale.
+    double ISkUiAnimationTarget.GetAnimatable(SkUiAnimatableProperty property) => property switch
+    {
+        SkUiAnimatableProperty.Opacity => _opacity,
+        SkUiAnimatableProperty.TranslationX => _translationX,
+        SkUiAnimatableProperty.TranslationY => _translationY,
+        SkUiAnimatableProperty.Rotation => _rotation,
+        SkUiAnimatableProperty.Scale or SkUiAnimatableProperty.ScaleX or SkUiAnimatableProperty.ScaleY => _scale,
+        _ => throw new ArgumentOutOfRangeException(nameof(property))
+    };
+
+    void ISkUiAnimationTarget.SetAnimatable(SkUiAnimatableProperty property, double value)
+    {
+        switch (property)
+        {
+            case SkUiAnimatableProperty.Opacity: SetOpacity(value); break;
+            case SkUiAnimatableProperty.TranslationX: SetTranslationX(value); break;
+            case SkUiAnimatableProperty.TranslationY: SetTranslationY(value); break;
+            case SkUiAnimatableProperty.Rotation: SetRotation(value); break;
+            case SkUiAnimatableProperty.Scale or SkUiAnimatableProperty.ScaleX or SkUiAnimatableProperty.ScaleY: SetScale(value); break;
+            default: throw new ArgumentOutOfRangeException(nameof(property));
+        }
+    }
+
     /// <summary>
     /// Animates <see cref="Opacity"/>, translation, <see cref="Rotation"/> or <see cref="Scale"/> on the render thread;
     /// the property is updated to the final (or last shown, if cancelled) value when it ends.
@@ -385,6 +409,11 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         {
             content.OnAnimationRootChanged(subtreeDetached);
             content.PropagateAnimationRootChanged(subtreeDetached);
+        }
+        else if (this is SkUiCoreShimmer { ShownChild: { } shown })
+        {
+            shown.OnAnimationRootChanged(subtreeDetached);
+            shown.PropagateAnimationRootChanged(subtreeDetached);
         }
     }
 

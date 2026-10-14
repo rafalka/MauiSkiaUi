@@ -65,6 +65,11 @@ public class SkUiLook
     public virtual SkUiAvatarColors GetAvatarColors(SkUiAvatarColorMode mode, string? key) { … } // Default: TrackOff / DefaultForeground
     public void DrawAvatarBadge(SKCanvas canvas, SkUiAvatarBadgePaint paint) { … } // → AvatarBadgePainter ?? DrawAvatarBadgeCore
                                                            // GetAvatarBadgeBounds(avatar, position, cornerRadius), GetAvatarBadgeRingWidth
+    // Shimmers (C9): default colors from the scheme, the default wave's tilt, and the wave band's shader: the band is filled
+    // with it once (source-atop over the bones) when a shimmer's wave changes, then moved on the render thread.
+    public virtual SkUiShimmerColors GetShimmerColors() { … } // Bone: TrackOff halfway to the background; Highlight: lighter
+    public virtual double ShimmerWaveTilt => 20;
+    public SKShader CreateShimmerWaveShader(SkUiShimmerWavePaint wave) { … } // → ShimmerWaveShader ?? CreateShimmerWaveShaderCore
     // Picker fields (C6): chrome and chevron behind the control's text; Focused / Open animate (FieldFocus, PickerOpen).
     // DefaultSkUiLook: PickerFieldStyle (Default → DefaultPickerFieldStyle: outline; underline, filled, none);
     // AndroidSkUiLook: underline.

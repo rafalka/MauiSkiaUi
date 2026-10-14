@@ -31,6 +31,7 @@ public static class ComponentDemos
         new(typeof(SkUiContentPresenter), typeof(RadioButtonTemplateDemoPage), "RadioButton ControlTemplate (ContentPresenter)", ComponentCategory.BasicControls, () => new RadioButtonTemplateDemoPage()),
         new(typeof(SkUiContentView), typeof(ContentViewDemoPage), nameof(ContentView), ComponentCategory.Layouts, () => new ContentViewDemoPage()),
         new(typeof(SkUiAlternateContentView), typeof(AlternateContentViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new AlternateContentViewDemoPage()),
+        new(typeof(SkUiShimmer), typeof(ShimmerDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new ShimmerDemoPage()),
         new(typeof(SkUiExpander), typeof(ExpanderDemoPage), "Community Toolkit Expander", ComponentCategory.Layouts, () => new ExpanderDemoPage()),
         new(typeof(SkUiExpander), typeof(ExpanderNestingDemoPage), "Community Toolkit Expander (nested, in a scroller)", ComponentCategory.Layouts,
             () => new ExpanderNestingDemoPage(), Key: "SkUiExpanderNested"),
@@ -69,6 +70,8 @@ public static class ComponentDemos
             () => new PickerRowsDemoPage(), Key: "SkUiCollectionViewPickerRows"),
         new(typeof(SkUiCollectionView), typeof(AvatarRowsDemoPage), "CollectionView with AvatarView rows (contacts)", ComponentCategory.ScrollingAndCollections,
             () => new AvatarRowsDemoPage(), Key: "SkUiCollectionViewAvatarRows"),
+        new(typeof(SkUiCollectionView), typeof(ShimmerRowsDemoPage), "CollectionView with shimmering rows (loading)", ComponentCategory.ScrollingAndCollections,
+            () => new ShimmerRowsDemoPage(), Key: "SkUiCollectionViewShimmerRows"),
         new(typeof(SkUiRefreshView), typeof(RefreshViewDemoPage), nameof(RefreshView), ComponentCategory.ScrollingAndCollections, () => new RefreshViewDemoPage()),
         new(typeof(SkUiCarouselView), typeof(CarouselViewDemoPage), nameof(CarouselView), ComponentCategory.ScrollingAndCollections, () => new CarouselViewDemoPage()),
         new(typeof(SkUiIndicatorView), typeof(IndicatorViewDemoPage), nameof(IndicatorView), ComponentCategory.ScrollingAndCollections, () => new IndicatorViewDemoPage()),
@@ -81,7 +84,8 @@ public static class ComponentDemos
         new(typeof(SkUiCoreVerticalShrinkLayout), typeof(CoreVerticalShrinkLayoutDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreVerticalShrinkLayoutDemoPage()),
         new(typeof(SkUiCoreScrollView), typeof(CoreScrollViewDemoPage), "ScrollView + gestures", ComponentCategory.Core, () => new CoreScrollViewDemoPage()),
         new(typeof(SkUiCoreBorder), typeof(CorePressEffectDemoPage), "Composite buttons (press effect)", ComponentCategory.Core,
-            () => new CorePressEffectDemoPage(), Key: "CompositeButtons")
+            () => new CorePressEffectDemoPage(), Key: "CompositeButtons"),
+        new(typeof(SkUiCoreShimmer), typeof(CoreShimmerDemoPage), "A feed loading (shimmer)", ComponentCategory.Core, () => new CoreShimmerDemoPage())
     ];
 
     /// <summary>MAUI-compatible <c>SkUi*</c> demos shown on the Components flyout.</summary>

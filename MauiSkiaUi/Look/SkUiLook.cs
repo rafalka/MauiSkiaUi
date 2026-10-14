@@ -1049,6 +1049,49 @@ public class SkUiLook
 
     #endregion
 
+    #region Shimmer
+
+    /// <summary>
+    /// A shimmer's colors while its <c>BoneColor</c> / <c>HighlightColor</c> are not set: bones halfway between the color scheme's
+    /// <see cref="SkUiColorScheme.TrackOff"/> and its background, and a wave lighter than the bones (towards white on a
+    /// light background, a little towards the foreground on a dark one).
+    /// </summary>
+    public virtual SkUiShimmerColors GetShimmerColors()
+    {
+        var background = SkUiColors.DefaultBackground;
+        var fill = Blend(SkUiColors.TrackOff, background, 0.5f);
+        var light = 0.299f * background.Red + 0.587f * background.Green + 0.114f * background.Blue >= 0.5f;
+        return new SkUiShimmerColors(fill, light ? Blend(fill, Colors.White, 0.7f) : Blend(fill, SkUiColors.DefaultForeground, 0.15f));
+    }
+
+    /// <summary>
+    /// How far a shimmer's wave in <see cref="SkUiShimmerWaveDirection.Default"/> leans from upright, in degrees (default 20:
+    /// its top leads); the explicit directions move straight.
+    /// </summary>
+    public virtual double ShimmerWaveTilt => 20;
+
+    /// <summary>Optional shimmer wave shader factory; when set, replaces <see cref="CreateShimmerWaveShaderCore"/>.</summary>
+    public Func<SkUiShimmerWavePaint, SKShader>? ShimmerWaveShader { get; set; }
+
+    /// <summary>
+    /// Makes the shader of a shimmer's wave band (delegate or <see cref="CreateShimmerWaveShaderCore"/>) for
+    /// <see cref="SkUiShimmerWavePaint.Bounds"/>, x across the band in the direction it moves. The shimmer fills the band with
+    /// it, blended over the bones (source-atop, so no layer of its own), when the wave's settings or size change; the band is
+    /// then moved on the render thread. The caller disposes the shader.
+    /// </summary>
+    public SKShader CreateShimmerWaveShader(SkUiShimmerWavePaint wave) =>
+        ShimmerWaveShader is { } factory ? factory(wave) : CreateShimmerWaveShaderCore(wave);
+
+    /// <summary>Default wave: a soft band, transparent at both edges and <see cref="SkUiShimmerWavePaint.Color"/> in the middle.</summary>
+    protected virtual SKShader CreateShimmerWaveShaderCore(SkUiShimmerWavePaint wave)
+    {
+        var bounds = wave.Bounds;
+        return SKShader.CreateLinearGradient(new SKPoint(bounds.Left, 0), new SKPoint(Math.Max(bounds.Left + 1, bounds.Right), 0),
+            [wave.Color.WithAlpha(0), wave.Color, wave.Color.WithAlpha(0)], [0, 0.5f, 1], SKShaderTileMode.Clamp);
+    }
+
+    #endregion
+
     #region Image
 
     /// <summary>Optional image painter.</summary>

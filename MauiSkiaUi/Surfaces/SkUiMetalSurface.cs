@@ -591,7 +591,6 @@ internal static class SkUiMetalRenderLoop
 {
     private static readonly object Gate = new();
     private static readonly List<SkUiMetalSurface> Surfaces = [];
-    private static readonly Stopwatch Clock = Stopwatch.StartNew();
     private static readonly Lazy<IMTLDevice> LazyDevice = new(() =>
         MTLDevice.SystemDefault ?? throw new PlatformNotSupportedException("Metal is not available on this device."));
     private static SkUiMetalSurface[] _snapshot = [];
@@ -682,10 +681,10 @@ internal static class SkUiMetalRenderLoop
         using var pool = new NSAutoreleasePool();
         var busy = RenderSurfaces();
         if (busy)
-            _lastBusy = Clock.Elapsed;
+            _lastBusy = SkUiRenderClock.Now;
         // Idle for a while: compile the next batch of GPU pipelines, one step per tick.
         var warmingUp = !_suspended && _context is not null && !WarmUp.IsDone;
-        if (!busy && warmingUp && Clock.Elapsed - _lastBusy >= SkUiGpuWarmUp.IdleDelay)
+        if (!busy && warmingUp && SkUiRenderClock.Now - _lastBusy >= SkUiGpuWarmUp.IdleDelay)
         {
             try { WarmUp.RunNext(_context!, SKColorType.Bgra8888); }
             catch (Exception exception) { Debug.WriteLine($"SkiaUi GPU warm-up failed: {exception}"); }
@@ -702,7 +701,7 @@ internal static class SkUiMetalRenderLoop
         var busy = false;
         if (!_suspended && _queue is { } queue)
         {
-            var now = Clock.Elapsed;
+            var now = SkUiRenderClock.Now;
             foreach (var surface in _snapshot)
             {
                 if (!surface.WantsFrame)
@@ -736,7 +735,7 @@ internal static class SkUiMetalRenderLoop
             // Render on commit when idle: waiting for the next display-link tick would add up to a full refresh
             // period of latency to every UI-driven change. While frames are flowing (animations) the tick paces them.
             var period = _link is { Duration: > 0 } running ? TimeSpan.FromSeconds(running.Duration) : TimeSpan.FromMilliseconds(16.7);
-            if (Clock.Elapsed - _lastPresent >= period / 2)
+            if (SkUiRenderClock.Now - _lastPresent >= period / 2)
             {
                 using var pool = new NSAutoreleasePool();
                 RenderSurfaces();

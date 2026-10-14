@@ -105,10 +105,40 @@ internal record struct SkUiRenderProps
     /// <summary>Drop shadow drawn before the node, outside its clips (FR-20); <c>null</c> = none. Immutable once committed.</summary>
     public SkUiRenderShadow? Shadow;
 
+    /// <summary>
+    /// How the node is composited onto what its parent drew before it (in the parent's children layer, see
+    /// <see cref="ChildrenLayer"/>); <see cref="SKBlendMode.SrcOver"/> = normal. Any other mode draws the node through a layer.
+    /// </summary>
+    public SKBlendMode BlendMode;
+
+    /// <summary>
+    /// The children are drawn into a layer of their own, bounded to the layout rectangle and composited with
+    /// <see cref="ChildrenOpacity"/>: blend modes of the children act on the children drawn before them only, and the group
+    /// fades as one.
+    /// </summary>
+    public bool ChildrenLayer;
+
+    /// <summary>The opacity of the children's layer (<see cref="ChildrenLayer"/>); 1 = opaque.</summary>
+    public float ChildrenOpacity;
+
+    /// <summary>
+    /// The node is placed in surface coordinates: <see cref="X"/> / <see cref="Y"/> (and its transform) are in the surface's
+    /// DIPs instead of its parent's children space. Its ancestors' clips and layers still apply (content fixed to the window
+    /// that shows through its parent, e.g. one gradient across separate views).
+    /// </summary>
+    public bool SurfaceAnchored;
+
+    /// <summary>
+    /// Values of composite-time properties driven by the render clock, evaluated each time the node is drawn (and only then:
+    /// a node out of view requests no frames); <c>null</c> = none. They replace the committed values of their properties.
+    /// Immutable once committed.
+    /// </summary>
+    public SkUiRenderTimeline? Timeline;
+
     public static SkUiRenderProps Default => new()
     {
         ScaleX = 1, ScaleY = 1, AnchorX = 0.5f, AnchorY = 0.5f, Opacity = 1, IsVisible = true, ClipToBounds = true,
-        ChildrenScaleX = 1, ChildrenScaleY = 1
+        ChildrenScaleX = 1, ChildrenScaleY = 1, ChildrenOpacity = 1, BlendMode = SKBlendMode.SrcOver
     };
 
     /// <summary>Local layout rectangle.</summary>
@@ -208,6 +238,7 @@ internal record struct SkUiRenderProps
         SkUiRenderProperty.ChildrenOffsetY => ChildrenOffsetY,
         SkUiRenderProperty.ChildrenScaleX => ChildrenScaleX,
         SkUiRenderProperty.ChildrenScaleY => ChildrenScaleY,
+        SkUiRenderProperty.ChildrenOpacity => ChildrenOpacity,
         _ => throw new ArgumentOutOfRangeException(nameof(property))
     };
 
@@ -226,6 +257,7 @@ internal record struct SkUiRenderProps
             case SkUiRenderProperty.ChildrenOffsetY: ChildrenOffsetY = value; break;
             case SkUiRenderProperty.ChildrenScaleX: ChildrenScaleX = value; break;
             case SkUiRenderProperty.ChildrenScaleY: ChildrenScaleY = value; break;
+            case SkUiRenderProperty.ChildrenOpacity: ChildrenOpacity = value; break;
             default: throw new ArgumentOutOfRangeException(nameof(property));
         }
     }
@@ -253,12 +285,13 @@ internal enum SkUiRenderProperty
     ChildrenOffsetX,
     ChildrenOffsetY,
     ChildrenScaleX,
-    ChildrenScaleY
+    ChildrenScaleY,
+    ChildrenOpacity
 }
 
 internal static class SkUiRenderPropertyCount
 {
-    public const int Value = 10;
+    public const int Value = 11;
 }
 
 /// <summary>

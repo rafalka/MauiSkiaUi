@@ -2,7 +2,7 @@ namespace MauiSkiaUi;
 
 /// <summary>
 /// Shows the popups of drawn controls (a picker's list) through the app's own popup system: MAUI's built-in UI,
-/// CommunityToolkit's <c>Popup</c>, Syncfusion's <c>SfPopup</c>, Telerik's <c>RadPopup</c>, a navigation service of the app's,
+/// CommunityToolkit's <c>Popup</c>, a popup control or navigation service of the app's,
 /// an overlay of its own. SkiaUi ships no popup windows: register a presenter app-wide (<see cref="SkUiPopups.Presenter"/>,
 /// also from <c>UseSkiaUi</c>) or per control (<c>PopupPresenter</c>).
 /// </summary>

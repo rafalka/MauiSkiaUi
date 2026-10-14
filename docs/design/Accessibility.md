@@ -22,7 +22,7 @@ Built by `SkUiSemanticsTree.Build(root)` from the unified render tree (`ISkUiRen
 
 **Which nodes are elements** (`Builder.IsElement`), after native platforms:
 
-- Controls (any role but `None`, `Text`, `Image`) always; text with text; images and plain containers only with a description, a heading level or an action. `IsInAccessibleTree` forces either way (children are still walked); `ExcludedWithChildren` drops the subtree.
+- Controls (any role but `None`, `Text`, `Image`) always; text with text; images and plain containers only with a description, a heading level or an action. `IsInAccessibleTree` forces either way (children are still walked); `ExcludedWithChildren` drops the subtree. A control that stands for its subtree hides its descendants (an active shimmer: one "Loading" progress element instead of its bones).
 - A **disabled** node (pointers and keys blocked) disables its subtree's elements too, and actions on them do nothing.
 - An **actionable** element (an Activate / LongPress action, or a button, toggle or slider role) reads the text of its non-actionable descendant elements as its name, joined with ", ", and they are not elements themselves (Android merges clickable groups the same way); actionable descendants stay separate elements, children of it. A **description** replaces the text; then descendant text is dropped (iOS: a labelled container is one element).
 - A hosted `SkUiMauiContentView` is a `IsNative` placeholder: platforms read the native view itself.

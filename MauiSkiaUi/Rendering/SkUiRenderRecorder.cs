@@ -175,6 +175,7 @@ internal static class SkUiImmediatePainter
 {
     [ThreadStatic] private static SKPaint? _layerPaint;
     [ThreadStatic] private static SKPaint? _shadowPaint;
+    [ThreadStatic] private static SKPaint? _childrenPaint;
     [ThreadStatic] private static List<ISkUiRenderable>? _children;
 
     internal static void Paint(ISkUiRenderable node, SKCanvas canvas, bool applyOffset) =>
@@ -192,6 +193,8 @@ internal static class SkUiImmediatePainter
             return props.Pinned;
         if (!applyOffset)
             props.X = props.Y = 0;
+        // A still frame: clock-driven values at time zero. A surface-anchored node stays in its parent's space (no surface).
+        props.Timeline?.Apply(ref props, TimeSpan.Zero);
         if (props.IsSkipped)
             return false;
         var save = canvas.Save();
@@ -201,11 +204,13 @@ internal static class SkUiImmediatePainter
             canvas.Concat(in matrix);
             if (canvas.QuickReject(props.InkBounds))
                 return false;
-            if (props.Opacity < 1)
+            if (props.Opacity < 1 || props.BlendMode != SKBlendMode.SrcOver)
             {
                 var paint = _layerPaint ??= new SKPaint();
                 paint.Color = SKColors.White.WithAlpha((byte)(255 * props.Opacity));
+                paint.BlendMode = props.BlendMode;
                 canvas.SaveLayer(props.LayerBounds, paint);
+                paint.BlendMode = SKBlendMode.SrcOver;
             }
             if (props.Shadow is { } shadow)
             {
@@ -236,35 +241,21 @@ internal static class SkUiImmediatePainter
             if (props.ClipPath is { } clipPath)
                 canvas.ClipPath(clipPath, antialias: true);
             node.RecordContent(canvas);
-            var children = _children ??= [];
-            var start = children.Count;
-            node.GetRenderChildren(children);
-            var end = children.Count;
-            if (end > start)
+            if (props.ChildrenLayer)
             {
-                var childSave = canvas.Save();
-                if (!props.ChildrenClipRect.IsEmpty)
-                    canvas.ClipRect(props.ChildrenClipRect);
-                if (props.ChildrenClipPath is { } path)
-                    canvas.ClipPath(path, antialias: true);
-                try
+                SKPaint? paint = null;
+                if (props.ChildrenOpacity < 1)
                 {
-                    // Unpinned children in the children space, then pinned ones (in local coordinates, outside the
-                    // children clip) above them.
-                    props.TransformChildren(canvas);
-                    var pinned = false;
-                    for (var index = start; index < end; index++)
-                        pinned |= Paint(children[index], canvas, applyOffset: true, pinned: false);
-                    canvas.RestoreToCount(childSave);
-                    if (pinned)
-                        for (var index = start; index < end; index++)
-                            Paint(children[index], canvas, applyOffset: true, pinned: true);
+                    paint = _childrenPaint ??= new SKPaint();
+                    paint.Color = SKColors.White.WithAlpha((byte)(255 * props.ChildrenOpacity));
                 }
-                finally
-                {
-                    canvas.RestoreToCount(childSave);
-                    children.RemoveRange(start, end - start);
-                }
+                var layer = canvas.SaveLayer(props.Bounds, paint);
+                PaintChildren(node, canvas, props);
+                canvas.RestoreToCount(layer);
+            }
+            else
+            {
+                PaintChildren(node, canvas, props);
             }
             if (node.HasOverlay)
                 node.RecordOverlay(canvas);
@@ -272,6 +263,40 @@ internal static class SkUiImmediatePainter
         finally
         {
             canvas.RestoreToCount(save);
+        }
+    }
+
+    /// <summary>The node's children, inside its children clip and transform; pinned ones above, outside the children clip.</summary>
+    private static void PaintChildren(ISkUiRenderable node, SKCanvas canvas, in SkUiRenderProps props)
+    {
+        var children = _children ??= [];
+        var start = children.Count;
+        node.GetRenderChildren(children);
+        var end = children.Count;
+        if (end == start)
+            return;
+        var childSave = canvas.Save();
+        if (!props.ChildrenClipRect.IsEmpty)
+            canvas.ClipRect(props.ChildrenClipRect);
+        if (props.ChildrenClipPath is { } path)
+            canvas.ClipPath(path, antialias: true);
+        try
+        {
+            // Unpinned children in the children space, then pinned ones (in local coordinates, outside the
+            // children clip) above them.
+            props.TransformChildren(canvas);
+            var pinned = false;
+            for (var index = start; index < end; index++)
+                pinned |= Paint(children[index], canvas, applyOffset: true, pinned: false);
+            canvas.RestoreToCount(childSave);
+            if (pinned)
+                for (var index = start; index < end; index++)
+                    Paint(children[index], canvas, applyOffset: true, pinned: true);
+        }
+        finally
+        {
+            canvas.RestoreToCount(childSave);
+            children.RemoveRange(start, end - start);
         }
     }
 }
