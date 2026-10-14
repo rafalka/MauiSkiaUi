@@ -7,7 +7,7 @@ namespace MauiSkiaUi;
 public class SkUiEllipse : SkUiShape
 {
     /// <summary>In a skeleton made from content: a circle (a pill when the ellipse is not round).</summary>
-    internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) =>
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) =>
         bones.AddShape(bones.Bounds, new CornerRadius(Math.Min(bones.Width, bones.Height) / 2));
 
     private protected override Stretch DefaultAspect => Stretch.Fill;

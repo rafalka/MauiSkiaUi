@@ -376,7 +376,17 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// The SkUi* view that owns this node as a Core tree root, if any: a <see cref="SkUiCoreHost"/>, or a control drawing
     /// internal Core parts (a scroll view's scroll bars).
     /// </summary>
-    internal SkUiView? HostOwner { get; set; }
+    internal SkUiView? HostOwner
+    {
+        get;
+        set
+        {
+            if (ReferenceEquals(field, value)) return;
+            field = value;
+            if (_skeletonState is not null || value is { MayPassSkeleton: true })
+                SkUiSkeletonScope.OnParentChanged(this); // the host is its drawn parent
+        }
+    }
 
     /// <summary>
     /// The node is pinned to its parent's viewport (<see cref="Rendering.SkUiRenderProps.Pinned"/>): its frame is in the parent's
@@ -448,6 +458,9 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         var detached = parent is null && !HasInheritedHostClock;
         OnAnimationRootChanged(detached);
         PropagateAnimationRootChanged(detached);
+        // In a skeleton made from content, or out of one: before it measures (empty labels measure placeholder lines).
+        if (_skeletonState is not null || parent is SkUiCoreNode { MayPassSkeleton: true })
+            SkUiSkeletonScope.OnParentChanged(this);
     }
 
     private string? _automationId;
@@ -762,16 +775,20 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             props.ClipPath = effects.GetClipPath(_clip, props.Width, props.Height);
             props.Shadow = effects.GetShadow(_shadow, this, props);
         }
-        if (SkUiSkeletonScope.IsActive)
-            SkUiSkeletonScope.ApplyProps(this, ref props, ref _skeletonState);
-        else
-            _skeletonState?.Bones.Forget();
+        if (_skeletonState is { } skeleton)
+            SkUiSkeletonScope.ApplyProps(this, ref props, skeleton);
     }
 
     private SkUiSkeletonState? _skeletonState;
 
-    /// <summary>The node's skeleton state (its <see cref="SkUiCoreShimmer.SkeletonProperty"/> value and bones), once it mattered.</summary>
+    /// <summary>The node's skeleton state (its <see cref="SkUiCoreShimmer.SkeletonProperty"/> value, place and bones), once it mattered.</summary>
     internal SkUiSkeletonState? SkeletonState => _skeletonState;
+
+    /// <summary>The skeleton state's field, for <see cref="SkUiSkeletonScope"/> to make it.</summary>
+    internal ref SkUiSkeletonState? SkeletonStateRef => ref _skeletonState;
+
+    /// <summary>Whether the node is in a skeleton made from content and draws something else than itself (its bones, or nothing).</summary>
+    private bool DrawsSkeletonInstead => _skeletonState is { InSkeleton: true } skeleton && !SkUiSkeletonScope.Resolve(this, skeleton).DrawsAsIs;
 
     /// <summary>How the node draws in a skeleton made from content when nothing is set on it (scroll bars: hidden).</summary>
     internal virtual SkUiSkeleton DefaultSkeleton => SkUiSkeleton.Default;
@@ -782,15 +799,35 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// </summary>
     internal virtual bool IsSkeletonContainer => SkUiSkeletonScope.HasRenderChildren(this);
 
-    /// <summary>Adds the node's bones in a skeleton made from content: by default its rectangle with its corner radii.</summary>
-    internal virtual void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.AddShape(bones.Bounds, PressEffectCornerRadii);
+    /// <summary>
+    /// Adds the bones the node stands for while it is in a skeleton made from a shimmer's content (a shimmer without
+    /// <c>SkeletonContent</c>): by default its rectangle with its corner radii. Override it in a control that draws itself
+    /// (a bar per text line, a track, a few shapes), in its own coordinates (<see cref="SkUiSkeletonBuilder.Bounds"/>). It is
+    /// called on the UI thread when the node enters the skeleton or its size changes, not per frame; call
+    /// <see cref="InvalidatePaint"/> when something else they depend on changes (its text). Views with children
+    /// are containers and are not asked: their children draw their own bones (<see cref="SkUiCoreShimmer.SkeletonProperty"/> changes that).
+    /// </summary>
+    protected internal virtual void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.AddShape(bones.Bounds, PressEffectCornerRadii);
 
     /// <summary>The node entered or left a skeleton made from content, or how it draws in it changed: it records again.</summary>
     internal virtual void OnSkeletonChanged()
     {
         _skeletonState?.Bones.Forget();
-        InvalidateRender(SkUiRenderDirty.Content | SkUiRenderDirty.Props);
+        if (_renderState is { HasCommitted: true }) // else it records from scratch anyway (content built while detached)
+            InvalidateRender(SkUiRenderDirty.Content | SkUiRenderDirty.Props);
     }
+
+    /// <summary>
+    /// Whether children added to the node may be in a skeleton made from content: it is in one, or it is a shimmer. Else
+    /// a child without skeleton state skips <see cref="SkUiSkeletonScope.OnParentChanged"/> (two field reads per attach).
+    /// </summary>
+    internal bool MayPassSkeleton => _skeletonState is { InSkeleton: true } || IsShimmer;
+
+    /// <summary>Whether the node is a shimmer (one may show its content as a skeleton).</summary>
+    internal virtual bool IsShimmer => false;
+
+    /// <summary>Whether the node has a measure cached (a change of what it measures must invalidate it).</summary>
+    internal bool HasValidMeasure => !_measureDirty;
 
     /// <summary>Sets the <see cref="ClipToBounds"/> default without notifications (constructors only).</summary>
     internal void InitClipToBounds(bool value) => _clipToBounds = value;
@@ -805,7 +842,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
 
     void ISkUiRenderable.RecordContent(SKCanvas canvas)
     {
-        if (SkUiSkeletonScope.IsActive && !SkUiSkeletonScope.Resolve(this).DrawsAsIs)
+        if (DrawsSkeletonInstead)
             return; // the bones are drawn instead
         if (_paintBackground is { } paintBackground)
             paintBackground(canvas);
@@ -815,11 +852,11 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     }
 
     bool ISkUiRenderable.HasOverlay => (_paintOverlay is not null || _showsPressEffect || _focusRingVisible)
-        && (!SkUiSkeletonScope.IsActive || SkUiSkeletonScope.Resolve(this).DrawsAsIs);
+        && !DrawsSkeletonInstead;
 
     void ISkUiRenderable.RecordOverlay(SKCanvas canvas)
     {
-        if (SkUiSkeletonScope.IsActive && !SkUiSkeletonScope.Resolve(this).DrawsAsIs)
+        if (DrawsSkeletonInstead)
             return;
         _paintOverlay?.Invoke(canvas);
         if (_showsPressEffect)
@@ -1300,7 +1337,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     {
         if (ReferenceEquals(property, SkUiCoreShimmer.SkeletonProperty))
             OnSkeletonValueChanged();
-        else if (ReferenceEquals(property, SkUiCoreShimmer.SkeletonLinesProperty) && SkUiSkeletonScope.IsActive)
+        else if (ReferenceEquals(property, SkUiCoreShimmer.SkeletonLinesProperty) && _skeletonState is { InSkeleton: true })
             OnSkeletonChanged();
         OnPropertyChanged(property.Name);
         if (property.AffectsParentMeasure)
@@ -1313,7 +1350,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         if (value is null && _skeletonState is null)
             return;
         (_skeletonState ??= new SkUiSkeletonState()).Value = value;
-        if (!SkUiSkeletonScope.IsActive)
+        if (!_skeletonState.InSkeleton)
             return;
         OnSkeletonChanged();
         SkUiSkeletonScope.InvalidateContent(this);

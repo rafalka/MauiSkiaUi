@@ -48,7 +48,7 @@ public class SkUiCoreActivityIndicator : SkUiCoreNode
         SkUiLook.Current.MeasureActivityIndicator(widthConstraint, heightConstraint);
 
     /// <summary>A circle while running (a stopped indicator draws nothing).</summary>
-    internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)
     {
         if (_isRunning)
             bones.Add(SkUiSkeletonPartKind.ActivityIndicator, bones.Bounds);

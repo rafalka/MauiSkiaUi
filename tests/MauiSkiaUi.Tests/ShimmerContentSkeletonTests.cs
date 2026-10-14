@@ -293,6 +293,126 @@ public class ShimmerContentSkeletonTests
     }
 
     [Fact]
+    public void ViewsOutsideTheSkeletonKeepNoSkeletonState()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var inside = Label();
+        var beside = Label();
+        var page = new SkUiVerticalStackLayout { Children = { Shimmer(new SkUiVerticalStackLayout { Children = { inside } }), beside } };
+        using var surface = Surface(page);
+        var core = new SkUiCoreLabel { Text = TwoWords, FontFamily = SkUiTestHelpers.BundledFontFamily };
+        using var other = Surface(new SkUiCoreHost().SetContent(new SkUiCoreVerticalStackLayout().Add(core)));
+        surface.Frame();
+        other.Frame();
+        Assert.True(inside.SkeletonState?.InSkeleton);
+        // Nodes beside a skeleton or on another surface never look for one: no state, nothing to resolve.
+        Assert.Null(beside.SkeletonState);
+        Assert.Null(page.SkeletonState);
+        Assert.Null(core.SkeletonState);
+        Assert.Null(beside.RenderState.Node.Props.Drawable);
+    }
+
+    [Fact]
+    public void AnEmptyLabelAddedWhileLoadingMeasuresPlaceholderLinesBeforeItIsDrawn()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var stack = new SkUiVerticalStackLayout();
+        using var surface = Surface(Shimmer(stack));
+        surface.Frame();
+        var empty = new SkUiLabel { FontFamily = SkUiTestHelpers.BundledFontFamily, FontSize = 20 };
+        stack.Children.Add(empty);
+        // Its place comes with its parent: the first measure already has its placeholder line.
+        Assert.True(((IView)empty).Measure(200, double.PositiveInfinity).Height > 20);
+    }
+
+    [Fact]
+    public void AViewMovedOutOfTheSkeletonDrawsItselfAgain()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var label = Label();
+        var skeleton = new SkUiVerticalStackLayout { Children = { label } };
+        var outside = new SkUiVerticalStackLayout();
+        using var surface = Surface(new SkUiVerticalStackLayout { Children = { Shimmer(skeleton), outside } });
+        surface.Frame();
+        Assert.IsType<SkUiShimmerBoneDrawable>(label.RenderState.Node.Props.Drawable);
+        skeleton.Children.Remove(label);
+        Assert.False(label.SkeletonState!.InSkeleton); // a detached view keeps no shimmer alive
+        outside.Children.Add(label);
+        surface.Frame();
+        Assert.False(label.SkeletonState.InSkeleton);
+        Assert.Null(label.RenderState.Node.Props.Drawable);
+        Assert.Equal(SkUiSkeletonDraw.None, SkUiSkeletonScope.Resolve(label).Draw);
+    }
+
+    [Fact]
+    public void ALoadedShimmerInASkeletonDrawsItsContentAsItIs()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var label = Label();
+        var inner = Shimmer(new SkUiVerticalStackLayout { Children = { label } });
+        inner.IsLoading = false;
+        var outer = Shimmer(new SkUiVerticalStackLayout { Children = { inner } });
+        using var surface = Surface(outer);
+        surface.Frame();
+        Assert.Equal(SkUiSkeletonDraw.None, SkUiSkeletonScope.Resolve(label).Draw);
+        Assert.Null(label.RenderState.Node.Props.Drawable);
+        inner.IsLoading = true;
+        surface.Frame();
+        Assert.Same(inner, SkUiSkeletonScope.Resolve(label).Shimmer);
+        Assert.IsType<SkUiShimmerBoneDrawable>(label.RenderState.Node.Props.Drawable);
+        outer.IsLoading = false;
+        surface.Frame();
+        Assert.Same(inner, SkUiSkeletonScope.Resolve(label).Shimmer); // the inner one still loads
+    }
+
+    /// <summary>A custom drawn control with bones of its own: a dot and a bar beside it.</summary>
+    private sealed class Rating : SkUiView
+    {
+        public Rating()
+        {
+            WidthRequest = 120;
+            HeightRequest = 20;
+        }
+
+        // An app overrides it as protected; this assembly sees the library's internals (InternalsVisibleTo).
+        protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)
+        {
+            bones.AddShape(new SKRect(0, 0, bones.Height, bones.Height), new CornerRadius(bones.Height / 2));
+            bones.Add(SkUiSkeletonPartKind.TextLine, new SKRect(bones.Height + 8, 0, bones.Width, bones.Height));
+        }
+    }
+
+    /// <summary>The Core twin of <see cref="Rating"/>.</summary>
+    private sealed class CoreRating : SkUiCoreNode
+    {
+        public CoreRating()
+        {
+            Width = 120;
+            Height = 20;
+        }
+
+        protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) =>
+            bones.AddShape(new SKRect(0, 0, bones.Height, bones.Height), new CornerRadius(bones.Height / 2));
+    }
+
+    [Fact]
+    public void ACustomControlAddsItsOwnBones()
+    {
+        var rating = new Rating();
+        var coreRating = new CoreRating();
+        var host = new SkUiCoreHost().SetContent(new SkUiCoreVerticalStackLayout().Add(coreRating));
+        using var surface = Surface(Shimmer(new SkUiVerticalStackLayout { Children = { rating, host } }));
+        surface.Frame();
+        var bones = Bones(rating).BoneBounds;
+        Assert.Equal(2, bones.Length);
+        Assert.Equal(new SKRect(0, 0, 20, 20), bones[0]);
+        Assert.Equal(28, bones[1].Left, 1);
+        Assert.Equal(120, bones[1].Right, 1);
+        Assert.True(bones[1].Height < 20); // a text line's bar is thinner than its line
+        Assert.Equal(new SKRect(0, 0, 20, 20), Assert.Single(Bones(coreRating).BoneBounds));
+    }
+
+    [Fact]
     public void ReducedMotionShowsStillBones()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

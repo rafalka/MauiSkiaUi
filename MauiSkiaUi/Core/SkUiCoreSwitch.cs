@@ -84,7 +84,7 @@ public class SkUiCoreSwitch : SkUiCoreToggleControl
         SkUiToggleDrawing.DrawSwitch(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, ToggleVisual, _onColor, _thumbColor, enabled: true);
 
     /// <inheritdoc />
-    internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.Add(SkUiSkeletonPartKind.Switch, bones.Bounds);
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.Add(SkUiSkeletonPartKind.Switch, bones.Bounds);
 
     /// <inheritdoc />
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)

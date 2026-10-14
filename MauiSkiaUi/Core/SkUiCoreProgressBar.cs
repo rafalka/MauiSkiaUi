@@ -95,7 +95,7 @@ public class SkUiCoreProgressBar : SkUiCoreNode
         SkUiLook.Current.MeasureProgressBar(widthConstraint, heightConstraint);
 
     /// <inheritdoc />
-    internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.Add(SkUiSkeletonPartKind.ProgressBar, bones.Bounds);
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.Add(SkUiSkeletonPartKind.ProgressBar, bones.Bounds);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>

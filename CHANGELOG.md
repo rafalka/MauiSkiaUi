@@ -36,6 +36,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - Per view, the attached `SkUiShimmer.Skeleton` (Core: `SkUiCoreShimmer.SkeletonProperty`): `Keep` (a title known before the data), `Hidden`, `Bone` (one block for the view and what is in it), `Children` (no chrome of its own).
   - The bones draw on the render thread with the shimmer's effect, as `SkUiShimmerBone`s do: nothing recorded per frame; entering and leaving the skeleton records each control once. The content takes no input while it is a skeleton (`ShowsContentAsSkeleton`): no taps or keyboard focus reach it, while a scroller around the shimmer still scrolls it.
   - Look: `AddSkeletonBones` / `SkeletonBones` turn a control's part (`SkUiSkeletonPart`: a text line, a shape, a switch, …) into bones (`SkUiSkeletonBone`).
+  - Custom controls that draw themselves add their own bones: override `AddSkeletonBones(SkUiSkeletonBuilder)` on `SkUiView` or `SkUiCoreNode` (`AddShape`, `Add(SkUiSkeletonPartKind.TextLine, …)`); by default a control is one bone of its rectangle.
+  - Views outside a skeleton pay nothing for it while one is shown: each view keeps its place in a skeleton, set from the shimmer down and when it is added.
 - **View animations on Core nodes:** `SkUiViewAnimation.RunAsync(SkUiCoreNode)` runs the state containers' animations (`FadeIn`, `FadeOut`, your own) on Core nodes; they scale uniformly, so `ScaleX` / `ScaleY` are not supported there.
 
 ### Other

@@ -525,7 +525,7 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
     internal override bool IsSkeletonContainer => _templateRoot is not null;
 
     /// <summary>The circle, and a bar per line of its text (view content draws its own bones).</summary>
-    internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)
     {
         var rightToLeft = IsRightToLeft;
         var placement = SkUiRadioButtonContent.Arrange(Width, Height, ContentInset, HasContent);

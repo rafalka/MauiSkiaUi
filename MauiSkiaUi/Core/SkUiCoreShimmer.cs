@@ -26,7 +26,6 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     private bool _isLoading = true;
     private bool _shown = true;
     private bool _animating;
-    private bool _contentSkeleton; // registered as showing its content as a skeleton
     private SkUiViewAnimation? _beforeStateChangeAnimation;
     private SkUiViewAnimation? _afterStateChangeAnimation;
 
@@ -120,12 +119,15 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     /// <inheritdoc />
     SkUiShimmerMode ISkUiShimmer.Mode => _settings.Mode;
 
-    /// <summary>Registers the content as a skeleton while it is one, so its controls draw their bones.</summary>
+    /// <summary>Passes a change of <see cref="ShowsContentAsSkeleton"/> down to the content, so its controls draw their bones (or themselves again).</summary>
     private void UpdateContentSkeleton() =>
-        _contentSkeleton = SkUiSkeletonScope.SetActive(this, _contentSkeleton, ShowsContentAsSkeleton);
+        SkUiSkeletonScope.Update(this);
 
     /// <inheritdoc />
     internal override bool HitTestsChildren => !ShowsContentAsSkeleton;
+
+    /// <inheritdoc />
+    internal override bool IsShimmer => true;
 
     /// <summary>The effect settings (tests).</summary>
     internal SkUiShimmerSettings Settings => _settings;
@@ -270,7 +272,7 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
         var mode = _settings.Mode;
         _settings = value;
         // A container's chrome draws in Bones mode only.
-        if (_settings.Mode != mode && _contentSkeleton)
+        if (_settings.Mode != mode && ShowsContentAsSkeleton && RenderState.HasCommitted) // not drawn yet: nothing to redraw
             SkUiSkeletonScope.InvalidateContent(this);
         OnPropertyChanged(propertyName);
         UpdateStyle(Frame.Size);
@@ -407,9 +409,7 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     internal override void ReleaseDrawingResources()
     {
         base.ReleaseDrawingResources();
-        _silhouette.Forget();
-        // Not drawn: other trees stop looking for skeletons (a reset re-records the content anyway).
-        _contentSkeleton = SkUiSkeletonScope.SetActive(this, _contentSkeleton, false, invalidate: false);
+        _silhouette.Forget(); // the content keeps its place in the skeleton: nodes outside it never look for one
     }
 
     /// <inheritdoc />

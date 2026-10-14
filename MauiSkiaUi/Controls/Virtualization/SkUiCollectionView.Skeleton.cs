@@ -30,7 +30,7 @@ public partial class SkUiCollectionView
 
     /// <summary>Whether an empty list should show placeholder items now.</summary>
     private bool WantsPlaceholders() =>
-        SkUiSkeletonScope.IsActive && SkUiShimmer.GetSkeletonItemCount(this) != 0
+        SkeletonState is { InSkeleton: true } && SkUiShimmer.GetSkeletonItemCount(this) != 0
         && SkUiSkeletonScope.Resolve(this) is { Shimmer: not null, Draw: SkUiSkeletonDraw.Container or SkUiSkeletonDraw.Children };
 
     /// <summary>Shows or drops the placeholder items (dropped views go: a later skeleton makes new ones).</summary>

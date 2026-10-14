@@ -751,7 +751,7 @@ public class SkUiCoreLabel : SkUiCoreNode
         : 0;
 
     /// <inheritdoc />
-    internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)
     {
         // A label with a background is a chip: its shape. Otherwise a bar per line, or placeholder lines while empty.
         if (ChromeFill.IsVisible || _chrome.HasBorder)
@@ -776,8 +776,8 @@ public class SkUiCoreLabel : SkUiCoreNode
     internal override void OnSkeletonChanged()
     {
         base.OnSkeletonChanged();
-        if (!HasText && HasSkeletonPlaceholder)
-            InvalidateMeasure(); // placeholder lines come or go
+        if (!HasText && HasSkeletonPlaceholder && HasValidMeasure)
+            InvalidateMeasure(); // placeholder lines come or go (not measured yet: nothing to invalidate)
     }
 
     /// <summary>The text's size without padding when wrapped to <paramref name="widthConstraint"/> (buttons place an image beside it).</summary>

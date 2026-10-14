@@ -233,7 +233,7 @@ Platform behaviors (any `PlatformBehavior`, such as `TouchBehavior`) and effects
 | What the custom control is | Port to |
 | --- | --- |
 | A `ContentView` composing other views in XAML or code | A `SkUiContentView` subclass composing drawn views (`x:Class` XAML or C#). Bindable properties carry over |
-| A control drawn with `GraphicsView` / `SKCanvasView` | A `SkUiView` subclass: `MeasureContent` for its size, `OnPaintContent(SKCanvas)` for drawing, gesture events for input |
+| A control drawn with `GraphicsView` / `SKCanvasView` | A `SkUiView` subclass: `MeasureContent` for its size, `OnPaintContent(SKCanvas)` for drawing, gesture events for input, `AddSkeletonBones` for its bones in a [skeleton from the content](controls/SkUiShimmer.md#a-skeleton-from-the-content) (else one bone of its rectangle) |
 | A control with a custom handler or renderer, an `Effect`, or platform code | Redraw it as above, or keep it native inside `SkUiMauiContentView`. Common effects have drawn equivalents: rounded corners → `SkUiBorder StrokeShape` or `Clip`, shadows → `Shadow` |
 | A templated control (`ControlTemplate`) | A `SkUiContentView` subclass (or a style on `SkUiContentView`) with a `ControlTemplate` of drawn views and an `SkUiContentPresenter`; `TemplateBinding` becomes `RelativeSource AncestorType` ([below](#templated-controls)) |
 | Many small repeated parts (cells, tiles, chips) where allocation matters | Core nodes (`SkUiCore*`) under a `SkUiCoreHost`: no `BindableObject` per part ([SkUiCore.md](controls/SkUiCore.md)) |

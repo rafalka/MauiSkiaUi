@@ -36,7 +36,6 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     private bool _shown = true;  // the skeleton is on screen
     private bool _target = true; // the side animated changes go to
     private bool _animating;
-    private bool _contentSkeleton; // registered as showing its content as a skeleton
 
     /// <summary>Bindable <see cref="SkeletonContent"/>.</summary>
     public static readonly BindableProperty SkeletonContentProperty = BindableProperty.Create(
@@ -76,7 +75,7 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
         validateValue: (_, value) => (int)value >= 0,
         propertyChanged: (bindable, _, _) =>
         {
-            if (bindable is SkUiView view && SkUiSkeletonScope.IsActive)
+            if (bindable is SkUiView { SkeletonState.InSkeleton: true } view)
                 view.OnSkeletonChanged();
         });
 
@@ -89,7 +88,7 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
         validateValue: (_, value) => (int)value >= -1,
         propertyChanged: (bindable, _, _) =>
         {
-            if (bindable is SkUiView view && SkUiSkeletonScope.IsActive)
+            if (bindable is SkUiView { SkeletonState.InSkeleton: true } view)
                 view.OnSkeletonChanged();
         });
 
@@ -389,7 +388,7 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
         var mode = _settings.Mode;
         _settings = change(_settings);
         // A container's chrome draws in Bones mode only.
-        if (_settings.Mode != mode && _contentSkeleton)
+        if (_settings.Mode != mode && ShowsContentAsSkeleton && RenderState.HasCommitted) // not drawn yet: nothing to redraw
             SkUiSkeletonScope.InvalidateContent(this);
         UpdateStyle(new Size(Math.Max(0, Width), Math.Max(0, Height)));
     }
@@ -415,12 +414,15 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     /// <inheritdoc />
     SkUiShimmerMode ISkUiShimmer.Mode => _settings.Mode;
 
-    /// <summary>Registers the content as a skeleton while it is one, so its controls draw their bones.</summary>
+    /// <summary>Passes a change of <see cref="ShowsContentAsSkeleton"/> down to the content, so its controls draw their bones (or themselves again).</summary>
     private void UpdateContentSkeleton() =>
-        _contentSkeleton = SkUiSkeletonScope.SetActive(this, _contentSkeleton, ShowsContentAsSkeleton);
+        SkUiSkeletonScope.Update(this);
 
     /// <inheritdoc />
     internal override bool HitTestsChildren => !ShowsContentAsSkeleton;
+
+    /// <inheritdoc />
+    internal override bool IsShimmer => true;
 
     /// <inheritdoc />
     private protected override ISkUiView? ContentToShow => _shown && HasSkeleton ? SkeletonContent : Content;
@@ -548,9 +550,7 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     internal override void ReleaseDrawingResources()
     {
         base.ReleaseDrawingResources();
-        _silhouette.Forget();
-        // Not drawn: other trees stop looking for skeletons (a reset re-records the content anyway).
-        _contentSkeleton = SkUiSkeletonScope.SetActive(this, _contentSkeleton, false, invalidate: false);
+        _silhouette.Forget(); // the content keeps its place in the skeleton: nodes outside it never look for one
     }
 
     /// <inheritdoc />

@@ -119,6 +119,19 @@ Leave `SkeletonContent` out and the content is its own skeleton while loading (`
 
 `Hidden` and `Bone` win over what is inside them; the nearest `Keep` applies to views without a value of their own. `SkUiShimmerBone`s in the content draw themselves as usual. A shimmer inside the content decides for its own content (a row's shimmer that has loaded shows its row).
 
+**Custom controls.** A control made of other controls (a `SkUiContentView` subclass, a template) needs nothing: it is a container and its parts draw their bones. A control that draws itself (`OnPaintContent`) is one bone of its rectangle with its corner radii until it overrides `AddSkeletonBones` (both layers, `protected`), which adds the bones of its parts in its own coordinates through an `SkUiSkeletonBuilder`: `AddShape(bounds, radii)` for a shape, `Add(SkUiSkeletonPartKind.TextLine, lineBox)` for a text line's bar (the look decides the bar), `Add(kind, bounds)` for the other parts the look knows (a switch, a check box, a track). It runs on the UI thread when the control enters the skeleton or its size changes, not per frame; `InvalidatePaint()` makes it run again (the control's text changed).
+
+```csharp
+public sealed class Rating : SkUiView
+{
+    protected override void AddSkeletonBones(SkUiSkeletonBuilder bones)
+    {
+        bones.AddShape(new SKRect(0, 0, bones.Height, bones.Height), new CornerRadius(bones.Height / 2)); // the badge
+        bones.Add(SkUiSkeletonPartKind.TextLine, new SKRect(bones.Height + 8, 0, bones.Width, bones.Height)); // the score
+    }
+}
+```
+
 **Behavior.**
 
 - The bones are the controls' drawables, drawn on the render thread with the shimmer's effect as `SkUiShimmerBone`s are (`Mode="Bones"`: each with no layer, one wave across all of them) or tinted with the silhouette (`Silhouette`). Nothing is recorded per frame. Entering and leaving the skeleton records each control once; a control's bones are made again only when its size, text or skeleton changes.
@@ -126,7 +139,7 @@ Leave `SkeletonContent` out and the content is its own skeleton while loading (`
 - Data that arrives while loading (rows added to a stack, texts set) shows as bones until `IsLoading` turns false.
 - **An empty collection view shows placeholder items** instead of its `EmptyView` (`ShowsPlaceholders`): views of its `ItemTemplate` without an item (no binding context, a `DataTemplateSelector` asked with `null`), so their texts draw placeholder lines and their shapes bones, laid out with its `Span`, `ItemSpacing` and `SpanSpacing`. `SkUiShimmer.SkeletonItemCount` on the list sets how many (default -1: enough rows to fill it, three when it is not bounded along its axis; 0: none, the empty view shows). They are not items: no selection, no events, no load-more; they go as soon as items come or the skeleton ends, and the empty view shows if the list is still empty.
 - The switch to the content is the same views drawing themselves again. `BeforeStateChangeAnimation="FadeOut 200"` fades the bones out and shows the content at once; add `AfterStateChangeAnimation="FadeIn 200"` to fade it in.
-- Not in a skeleton (no shimmer showing its content), controls check nothing: one static read per recording.
+- Views outside a skeleton pay nothing for it, wherever skeletons are shown: each view keeps its place in a skeleton, set from the top when a shimmer starts or stops showing its content and when the view is added, and views in none keep no state (one null check per recording). 1,000 labels beside a loading content skeleton record as fast as with none (a first version that walked up the parents per recording cost them 26 % headless).
 
 ### Loading in stages
 

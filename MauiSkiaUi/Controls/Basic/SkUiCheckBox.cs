@@ -63,7 +63,7 @@ public class SkUiCheckBox : SkUiToggleControl
         SkUiToggleDrawing.DrawCheckBox(canvas, (float)Width, (float)Height, IsRightToLeft, ToggleVisual, _color, IsEnabled);
 
     /// <summary>The box: as large as the control's smaller side, at its start, from the top.</summary>
-    internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)
     {
         var size = Math.Min(bones.Width, bones.Height);
         bones.Add(SkUiSkeletonPartKind.CheckBox, SKRect.Create(IsRightToLeft ? bones.Width - size : 0, 0, size, size));

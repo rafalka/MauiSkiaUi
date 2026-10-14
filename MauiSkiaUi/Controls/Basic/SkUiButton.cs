@@ -80,7 +80,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     private protected override bool HasSkeletonPlaceholder => false;
 
     /// <summary>A button's bone is its chrome's shape, with or without a fill.</summary>
-    internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.AddShape(bones.Bounds, PressEffectCornerRadii);
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.AddShape(bones.Bounds, PressEffectCornerRadii);
 
     /// <summary>Raised for a valid enabled tap, even without a command.</summary>
     public event EventHandler? Clicked;

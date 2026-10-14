@@ -101,6 +101,8 @@ internal sealed class SkUiRenderRecorder : IDisposable
             if (changed)
                 state.CommittedSources = count == 0 ? [] : _scratch.GetRange(start, count).ToArray();
             _scratch.RemoveRange(start, count);
+            if (changed)
+                SkUiSkeletonScope.SyncChildren(node, state.CommittedSources); // new children take their place in a skeleton before they record
             // Child render nodes are replaced when a child is reset, so always resend identities on a children pass.
             var sources = state.CommittedSources;
             var nodes = new SkUiRenderNode[sources.Length];

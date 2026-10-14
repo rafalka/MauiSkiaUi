@@ -136,7 +136,7 @@ public class SkUiCoreSlider : SkUiCoreNode
         SkUiLook.Current.MeasureSlider(widthConstraint, heightConstraint, _orientation);
 
     /// <inheritdoc />
-    internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) => SkUiSliderMath.AddSkeletonBones(bones, _orientation);
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) => SkUiSliderMath.AddSkeletonBones(bones, _orientation);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)

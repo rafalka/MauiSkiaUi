@@ -141,7 +141,7 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     private protected override bool HasSkeletonPlaceholder => false;
 
     /// <summary>A button's bone is its chrome's shape, with or without a fill.</summary>
-    internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.AddShape(bones.Bounds, PressEffectCornerRadii);
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.AddShape(bones.Bounds, PressEffectCornerRadii);
 
     /// <summary>Sets fill color.</summary>
     public new SkUiCoreButton SetFillColor(Color value) { base.SetFillColor(value); return this; }

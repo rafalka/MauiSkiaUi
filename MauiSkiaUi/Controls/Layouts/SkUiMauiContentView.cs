@@ -350,7 +350,7 @@ public partial class SkUiMauiContentView : SkUiView
     internal override void OnGetRenderProps(ref SkUiRenderProps props)
     {
         base.OnGetRenderProps(ref props);
-        if (SkUiSkeletonScope.IsActive || _inSkeleton)
+        if (SkeletonState is { InSkeleton: true } || _inSkeleton)
             UpdateSkeletonHidden(); // added to a skeleton, or left one
     }
 
