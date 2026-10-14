@@ -574,7 +574,7 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--s
 
 ### FR-29 — Pickers on the app's popup system
 
-**Status:** popup presenter and `SkUiPicker` / `SkUiCorePicker` shipped (C6); several choices and `SkUiMultiColumnPicker` shipped (C6b); date and time pickers shipped (C7); a drawn month calendar planned (C7b in [ImplementationPlan.md](ImplementationPlan.md#popups-through-the-apps-popup-system)).
+**Status:** popup presenter and `SkUiPicker` / `SkUiCorePicker` shipped (C6); several choices and `SkUiMultiColumnPicker` shipped (C6b); date and time pickers shipped (C7); a drawn month calendar as the date picker's popup planned with the calendar control ([FR-33](#fr-33--calendar), Phase F in [ImplementationPlan.md](ImplementationPlan.md#phase-f--calendar-skuicalendar)).
 
 SkiaUi does not replace navigation: it ships no pages and no popup windows. Drawn controls that need a popup open it through an abstraction the app implements on its own popup system (MAUI's built-in UI, CommunityToolkit's `Popup`, Syncfusion's `SfPopup` or `SfPicker`, its own overlay).
 
@@ -590,7 +590,7 @@ SkiaUi does not replace navigation: it ships no pages and no popup windows. Draw
 - [x] **`SkUiMultiColumnPicker` / `SkUiCoreMultiColumnPicker`:** bindable `SkUiPickerColumn`s (items, display binding, two-way selection, loop, width) on wheels side by side (snapping, looping or stopping, `VisibleRows`), choosing as they move; `Separator` / `Format` for the field; keyboard per column; `SkUiColumnsPopupRequest` (C6b).
 - [x] **`SkUiDatePicker` / `SkUiTimePicker` (+ Core):** MAUI's API (`Date` / `Time` nullable, `MinimumDate` / `MaximumDate`, `Format`, `DateSelected` / `TimeSelected`, `IsOpen` / `Opened` / `Closed`); drawn wheels ordered and formatted by culture on the same presenter (C7).
 - [x] **Beyond MAUI (C7):** `SkUiDateTimePicker` (+ Core); `WheelFormat`; blackout dates and a day rule; a time range and steps; the highlighted value; headers and looping; wheels that depend on each other in both update modes; typed requests for presenters' own date and time UI.
-- [ ] **A drawn month calendar** as the date picker's popup (C7b).
+- [ ] **A drawn month calendar** as the date picker's popup ([FR-33](#fr-33--calendar), F6).
 - [x] **Input and accessibility (FR-28):** open by tap, Space, Enter or Alt+Down; arrow keys change the selection on the closed field; keyboard navigation and type-ahead in the list; a combo-box / pop-up-button role with the expanded state and the selection as value.
 - [x] **Fallback** without a registered presenter: MAUI's `DisplayActionSheetAsync` on the anchor's page (`SkUiActionSheetPopupPresenter`), plus one `Trace` line.
 - [x] Presenters: MAUI's action sheet (built in) and CommunityToolkit's `Popup` (package SkiaUi.Maui.CommunityToolkit, used by the samples app and the demo), Syncfusion `SfPopup` and Telerik `RadPopup` sketches in the control docs; headless tests with a recording presenter; demo pages next to MAUI's picker; leak scenarios `PickerOpened` and `PickerWheelsOpened`.
@@ -637,6 +637,20 @@ SkiaUi does not replace navigation: it ships no pages and no popup windows. Draw
 - [x] **Keyboard and screen readers (FR-28):** arrow keys, Home and End step the carousel item by item (`ISkUiScrollStepper`), screen readers' scroll actions page item by item; the indicator is adjustable.
 - [x] Headless tests (`CarouselViewTests`, `CarouselViewXamlTests`, `IndicatorViewTests`), demo pages next to MAUI's, leak scenario `CarouselSwiped`, migration guide and skills (`check_xaml.py`).
 - [ ] Left open: autoplay, several items per snap point, `ItemsUpdatingScrollMode`, `VisibleViews`, `IndicatorTemplate`, a Core carousel, device runs (feel of snaps and effects, fling across the move back to the middle on a phone).
+
+### FR-33 — Calendar
+
+**Status:** planned (Phase F in [ImplementationPlan.md](ImplementationPlan.md#phase-f--calendar-skuicalendar); formerly C7b).
+
+- [ ] **`SkUiCalendar` / `SkUiCoreCalendar`:** SkiaUi's own API (MAUI has no calendar) with names from Syncfusion's toolkit `SfCalendar` and Telerik's `RadCalendar` where they fit, and MAUI's date picker names for the range (`MinimumDate` / `MaximumDate`); a conversion path from both in [Migration.md](../Migration.md) and the migration skills.
+- [ ] **Month view:** `DisplayDate`, `SelectedDate` (two-way), day names, leading and trailing days, today, week numbers, the culture's first day of the week; days outside the range, blackout dates and the day rule (`DateEnabled`) shared with the date pickers (FR-29), so both agree on what can be chosen.
+- [ ] **One drawn node per month:** cells laid out, hit-tested and drawn by the calendar, not a view per day; per-day styling through a callback read while recording; `DayTemplate` views as an opt-in slow path.
+- [ ] **Navigation:** swipe between months (horizontal or vertical) with render-thread snapping and flings on the carousel's engine; header buttons; year, decade and century views (`DisplayMode`, `MinDisplayMode` / `MaxDisplayMode`); `GoToDate`.
+- [ ] **Selection:** `None`, `Single`, `Multiple` (`SelectedDates`), `Range` (`SelectedDateRange`, a band drawn by the look, drag to select); cancelable `SelectionChanging`, `SelectionChanged` + command.
+- [ ] **Look and colors:** header, buttons, cells, today, selection and range drawn by the look (FR-18) from the color scheme (FR-19); platform looks draw their platform's calendar (L3).
+- [ ] **Accessibility and keyboard (FR-28):** a grid with each day an element (full date, state), arrow / page / Home / End keys skipping days that cannot be chosen.
+- [ ] **Date pickers:** a calendar popup (`PopupStyle`: wheels, calendar, the look's default) on the date pickers of both layers and the date and time picker; a date range picker on the range selection.
+- [ ] Headless tests (cultures, RTL, rules, selection modes, no recording while a swipe settles), demo pages, samples app booking, leak scenario, benchmark, device runs.
 
 ## Non-functional requirements
 
@@ -733,7 +747,7 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - **Control look (FR-18)** remaining: per-tree look attachment (vs process-wide `Current`), and optional OS theme sync helpers. Type names, `Current`, virtual/delegate painters, and default size tokens are decided — see Decided and [ControlLook.md](ControlLook.md).
 - **Shimmer (FR-31):** whether C9b's skeleton from the content draws in the overlay phase or a separate skeleton recording, and how the wave's mask is built from the bones.
 - **Avatar view (FR-30):** which extras beyond the toolkit ship (initials from a name, a color from the text, a status badge).
-- **Pickers (FR-29):** the month calendar's API (C7b): its own control (`SkUiCalendar`) that the date picker's popup can show, or a popup mode of the date picker. Decided with C7: wheels first, as iOS and the vendors' pickers.
+- **Calendar (FR-33):** the per-day style callback's shape (a struct returned per day, or a painter), and how far `DayTemplate` goes (views per day for the visible month only).
 - **Color scheme (FR-19)** remaining: optional OS light/dark synchronization helpers. Type names, light/dark packs, `Current`, and construction-snapshot vs paint-time token reads are decided — see Decided and [ColorScheme.md](ColorScheme.md).
 
 ## Decided

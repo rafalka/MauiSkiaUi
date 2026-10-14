@@ -82,6 +82,6 @@ host.SetContent(core);
 | `DateSelected` | | MAUI's `DateChangedEventArgs` |
 | `Title`, `Placeholder`, `TextColor`, font properties, alignments, `IsOpen` / `Opened` / `Closed`, `PopupPlacement`, popup sizes, `PopupPresenter`, `UpdateMode`, `AcceptText`, `CancelText`, `IsClearButtonVisible`, `IsPopupClearButtonVisible`, `ClearText`, `PopupHeaderTemplate`, `PopupFooterTemplate`, `SelectionChangedCommand` | | As `SkUiPicker`'s (`SkUiPickerBase`); `ClearSelection()` sets `Date` to `null` |
 
-Not yet: a drawn month calendar as the popup (a later milestone); screen-reader elements for the wheels.
+Not yet: a drawn month calendar as the popup (with `SkUiCalendar`, [Phase F](../design/ImplementationPlan.md#phase-f--calendar-skuicalendar)); screen-reader elements for the wheels.
 
 Shared conventions (DIPs, bindable properties with fluent `Set*` setters, the gesture arena) as for every control: [SkUiView.md](SkUiView.md).
