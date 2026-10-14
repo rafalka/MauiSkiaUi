@@ -43,6 +43,9 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(Content))]
 public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
 {
+    /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
+    internal override bool IsSkeletonContainer => true;
+
     /// <summary>Length of the indicator's return when a pull of the view itself is released before the trigger, in milliseconds.</summary>
     internal const uint PullBackLength = 200;
 

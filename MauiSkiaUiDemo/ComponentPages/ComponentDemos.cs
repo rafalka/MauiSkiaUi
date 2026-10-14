@@ -33,6 +33,8 @@ public static class ComponentDemos
         new(typeof(SkUiAlternateContentView), typeof(AlternateContentViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new AlternateContentViewDemoPage()),
         new(typeof(SkUiShimmer), typeof(ShimmerDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new ShimmerDemoPage()),
         new(typeof(SkUiShimmerBone), typeof(ShimmerBonesDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new ShimmerBonesDemoPage()),
+        new(typeof(SkUiShimmer), typeof(ShimmerContentDemoPage), "Skeleton from the content (a feed loading)", ComponentCategory.Layouts,
+            () => new ShimmerContentDemoPage(), Key: "SkUiShimmerFromContent"),
         new(typeof(SkUiExpander), typeof(ExpanderDemoPage), "Community Toolkit Expander", ComponentCategory.Layouts, () => new ExpanderDemoPage()),
         new(typeof(SkUiExpander), typeof(ExpanderNestingDemoPage), "Community Toolkit Expander (nested, in a scroller)", ComponentCategory.Layouts,
             () => new ExpanderNestingDemoPage(), Key: "SkUiExpanderNested"),

@@ -648,9 +648,53 @@ public class SkUiLabel : SkUiView
     }
 
     /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => UsesRichText
-        ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint, heightConstraint)
-        : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint, heightConstraint);
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint)
+    {
+        if (!HasText && SkeletonPlaceholderLines is > 0 and var lines)
+            return SkUiSkeletonScope.PlaceholderSize(lines, _layout.LineSpacing(TextStyle), _fontSize, _padding, widthConstraint);
+        return UsesRichText
+            ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint, heightConstraint)
+            : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint, heightConstraint);
+    }
+
+    /// <summary>Whether an empty label shows placeholder lines in a skeleton made from content (buttons: their shape is the bone).</summary>
+    private protected virtual bool HasSkeletonPlaceholder => true;
+
+    /// <summary>The placeholder lines while the label is a bone of a skeleton made from content (<see cref="SkUiShimmer.SkeletonLinesProperty"/>), else 0.</summary>
+    private int SkeletonPlaceholderLines => HasSkeletonPlaceholder && SkUiSkeletonScope.Resolve(this).Draw == SkUiSkeletonDraw.Bones
+        ? SkUiShimmer.GetSkeletonLines(this)
+        : 0;
+
+    /// <inheritdoc />
+    internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)
+    {
+        // A label with a background is a chip: its shape. Otherwise a bar per line, or placeholder lines while empty.
+        if (HasChrome || ResolveBackgroundFill() is { IsVisible: true })
+        {
+            bones.AddShape(bones.Bounds, _chrome.Radii);
+            return;
+        }
+        if (!HasText)
+        {
+            bones.AddPlaceholderLines(SkeletonPlaceholderLines, _layout.LineSpacing(TextStyle), TextInset, _horizontalTextAlignment,
+                _verticalTextAlignment, IsRightToLeft);
+            return;
+        }
+        var lines = SkUiSkeletonScope.LineScratch();
+        if (UsesRichText)
+            RichLayout.AddLineBoxes(lines, RichText, TextStyle, TextInset, Width, Height, _horizontalTextAlignment, _verticalTextAlignment);
+        else
+            _layout.AddLineBoxes(lines, _displayText, TextStyle, TextInset, Width, Height, _horizontalTextAlignment, _verticalTextAlignment);
+        bones.AddLines(lines);
+    }
+
+    /// <inheritdoc />
+    internal override void OnSkeletonChanged()
+    {
+        base.OnSkeletonChanged();
+        if (!HasText && HasSkeletonPlaceholder)
+            InvalidateMeasureOverride(); // placeholder lines come or go
+    }
 
     /// <summary>The text's size without padding when wrapped to <paramref name="widthConstraint"/> (buttons place an image beside it).</summary>
     private protected Size MeasureText(double widthConstraint) => UsesRichText

@@ -113,6 +113,19 @@ internal sealed class SkUiTextFit
         return save;
     }
 
+    /// <summary>
+    /// The slot's coordinates for the unscaled lines of a <paramref name="scale"/>d text, without a canvas (see
+    /// <see cref="BeginScaled"/>): turns the slot into the lines' and returns the matrix from theirs to the slot's.
+    /// </summary>
+    internal static SKMatrix LinePlacement(float scale, ref Thickness padding, ref double width, ref double height)
+    {
+        if (scale == 1)
+            return SKMatrix.Identity;
+        var placement = SKMatrix.CreateScaleTranslation(scale, scale, (float)padding.Left, (float)padding.Top);
+        UnscaleSlot(scale, ref padding, ref width, ref height);
+        return placement;
+    }
+
     /// <summary>The padded slot as the unscaled lines of a <paramref name="scale"/>d text see it: their size, no padding (see <see cref="BeginScaled"/>).</summary>
     internal static void UnscaleSlot(float scale, ref Thickness padding, ref double width, ref double height)
     {

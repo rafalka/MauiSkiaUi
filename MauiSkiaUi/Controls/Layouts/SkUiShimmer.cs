@@ -29,13 +29,14 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(Content))]
 public class SkUiShimmer : SkUiContentView, ISkUiShimmer
 {
-    private readonly SkUiContentSlot _skeleton;
+    private readonly SkUiContentSlot _skeletonSlot;
     private readonly SkUiShimmerStyles _styles;
     private SkUiDrawableSlot<SkUiShimmerStyle> _silhouette;
     private SkUiShimmerSettings _settings = SkUiShimmerSettings.Default;
     private bool _shown = true;  // the skeleton is on screen
     private bool _target = true; // the side animated changes go to
     private bool _animating;
+    private bool _contentSkeleton; // registered as showing its content as a skeleton
 
     /// <summary>Bindable <see cref="SkeletonContent"/>.</summary>
     public static readonly BindableProperty SkeletonContentProperty = BindableProperty.Create(
@@ -52,6 +53,75 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     public static readonly BindableProperty SkeletonContentTemplateProperty = BindableProperty.Create(
         nameof(SkeletonContentTemplate), typeof(DataTemplate), typeof(SkUiShimmer), null,
         propertyChanged: (bindable, _, _) => ((SkUiShimmer)bindable).OnSkeletonContentTemplateChanged());
+
+    /// <summary>
+    /// Attached: how a view draws in a skeleton made from a shimmer's content (default <see cref="SkUiSkeleton.Default"/>:
+    /// its own bones). XAML: <c>sk:SkUiShimmer.Skeleton="Keep"</c>.
+    /// </summary>
+    public static readonly BindableProperty SkeletonProperty = BindableProperty.CreateAttached(
+        "Skeleton", typeof(SkUiSkeleton), typeof(SkUiShimmer), SkUiSkeleton.Default,
+        validateValue: (_, value) => Enum.IsDefined((SkUiSkeleton)value),
+        propertyChanged: (bindable, _, newValue) =>
+        {
+            if (bindable is SkUiView view)
+                view.SetSkeletonValue(bindable.IsSet(SkeletonProperty) ? (SkUiSkeleton)newValue : null);
+        });
+
+    /// <summary>
+    /// Attached: the placeholder lines an empty label (or button text) shows in a skeleton made from content, measured
+    /// as that many lines of its font (default 1; 0: none, the label keeps its size).
+    /// </summary>
+    public static readonly BindableProperty SkeletonLinesProperty = BindableProperty.CreateAttached(
+        "SkeletonLines", typeof(int), typeof(SkUiShimmer), 1,
+        validateValue: (_, value) => (int)value >= 0,
+        propertyChanged: (bindable, _, _) =>
+        {
+            if (bindable is SkUiView view && SkUiSkeletonScope.IsActive)
+                view.OnSkeletonChanged();
+        });
+
+    /// <summary>
+    /// Attached to a collection view: how many placeholder items it shows while it is empty in a skeleton made from content,
+    /// made from its item template without an item (default -1: enough rows to fill it; 0: none, its empty view shows).
+    /// </summary>
+    public static readonly BindableProperty SkeletonItemCountProperty = BindableProperty.CreateAttached(
+        "SkeletonItemCount", typeof(int), typeof(SkUiShimmer), -1,
+        validateValue: (_, value) => (int)value >= -1,
+        propertyChanged: (bindable, _, _) =>
+        {
+            if (bindable is SkUiView view && SkUiSkeletonScope.IsActive)
+                view.OnSkeletonChanged();
+        });
+
+    /// <summary>Gets <see cref="SkeletonItemCountProperty"/> of <paramref name="view"/>.</summary>
+    public static int GetSkeletonItemCount(BindableObject view) => (int)view.GetValue(SkeletonItemCountProperty);
+
+    /// <summary>Sets <see cref="SkeletonItemCountProperty"/> on <paramref name="view"/> (-1: fill the list; 0: none).</summary>
+    public static void SetSkeletonItemCount(BindableObject view, int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(value, -1);
+        view.SetValue(SkeletonItemCountProperty, value);
+    }
+
+    /// <summary>Gets <see cref="SkeletonProperty"/> of <paramref name="view"/>.</summary>
+    public static SkUiSkeleton GetSkeleton(BindableObject view) => (SkUiSkeleton)view.GetValue(SkeletonProperty);
+
+    /// <summary>Sets <see cref="SkeletonProperty"/> on <paramref name="view"/>.</summary>
+    public static void SetSkeleton(BindableObject view, SkUiSkeleton value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        view.SetValue(SkeletonProperty, value);
+    }
+
+    /// <summary>Gets <see cref="SkeletonLinesProperty"/> of <paramref name="view"/>.</summary>
+    public static int GetSkeletonLines(BindableObject view) => (int)view.GetValue(SkeletonLinesProperty);
+
+    /// <summary>Sets <see cref="SkeletonLinesProperty"/> on <paramref name="view"/>.</summary>
+    public static void SetSkeletonLines(BindableObject view, int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        view.SetValue(SkeletonLinesProperty, value);
+    }
 
     /// <summary>Bindable <see cref="IsLoading"/>.</summary>
     public static readonly BindableProperty IsLoadingProperty = BindableProperty.Create(nameof(IsLoading), typeof(bool), typeof(SkUiShimmer), true,
@@ -122,11 +192,15 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     /// <summary>Creates a loading shimmer (it shows its skeleton until <see cref="IsLoading"/> is set to <c>false</c>).</summary>
     public SkUiShimmer()
     {
-        _skeleton = new SkUiContentSlot(this, SkeletonContentProperty, SkeletonContentTemplateProperty);
+        _skeletonSlot = new SkUiContentSlot(this, SkeletonContentProperty, SkeletonContentTemplateProperty);
         _styles = new SkUiShimmerStyles(this);
     }
 
-    /// <summary>The skeleton shown while <see cref="IsLoading"/>: drawn views of either layer (an <c>SkUiCoreHost</c> for Core bones).</summary>
+    /// <summary>
+    /// The skeleton shown while <see cref="IsLoading"/>: drawn views of either layer (an <c>SkUiCoreHost</c> for Core bones).
+    /// Without one (nor a <see cref="SkeletonContentTemplate"/>), the content itself is the skeleton: every control in it
+    /// draws its bones (<see cref="SkeletonProperty"/>).
+    /// </summary>
     public ISkUiView? SkeletonContent
     {
         get => (ISkUiView?)GetValue(SkeletonContentProperty);
@@ -211,6 +285,14 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     /// <c>PropertyChanged</c>, so a skeleton without content can hide itself once its fade-out ended.
     /// </summary>
     public bool IsShowingSkeleton => _shown;
+
+    /// <summary>
+    /// Whether the content is shown as the skeleton: loading, without <see cref="SkeletonContent"/> or
+    /// <see cref="SkeletonContentTemplate"/>. The content then takes no input.
+    /// </summary>
+    public bool ShowsContentAsSkeleton => _shown && !HasSkeleton;
+
+    private bool HasSkeleton => SkeletonContent is not null || SkeletonContentTemplate is not null;
 
     /// <summary>Whether a switch is animating (the shown content still follows <see cref="IsLoading"/>).</summary>
     public bool IsSwitching => _animating;
@@ -304,7 +386,11 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
 
     private void UpdateSettings(Func<SkUiShimmerSettings, SkUiShimmerSettings> change)
     {
+        var mode = _settings.Mode;
         _settings = change(_settings);
+        // A container's chrome draws in Bones mode only.
+        if (_settings.Mode != mode && _contentSkeleton)
+            SkUiSkeletonScope.InvalidateContent(this);
         UpdateStyle(new Size(Math.Max(0, Width), Math.Max(0, Height)));
     }
 
@@ -327,43 +413,55 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     }
 
     /// <inheritdoc />
-    private protected override ISkUiView? ContentToShow => _shown ? SkeletonContent : Content;
+    SkUiShimmerMode ISkUiShimmer.Mode => _settings.Mode;
+
+    /// <summary>Registers the content as a skeleton while it is one, so its controls draw their bones.</summary>
+    private void UpdateContentSkeleton() =>
+        _contentSkeleton = SkUiSkeletonScope.SetActive(this, _contentSkeleton, ShowsContentAsSkeleton);
+
+    /// <inheritdoc />
+    internal override bool HitTestsChildren => !ShowsContentAsSkeleton;
+
+    /// <inheritdoc />
+    private protected override ISkUiView? ContentToShow => _shown && HasSkeleton ? SkeletonContent : Content;
 
     /// <inheritdoc />
     private protected override void EnsureContentToShow()
     {
-        if (!_shown)
+        if (!_shown || !HasSkeleton)
             base.EnsureContentToShow();
         else if (IsContentLoaded && Parent is not null && CanPresentContent)
-            _skeleton.Ensure();
+            _skeletonSlot.Ensure();
     }
 
     /// <inheritdoc />
     private protected override void ClearTemplateContent()
     {
         base.ClearTemplateContent();
-        _skeleton.Clear();
+        _skeletonSlot.Clear();
     }
 
     private void OnSkeletonContentChanged(ISkUiView? value)
     {
-        _skeleton.OnContentChanged();
-        if (_shown && !(value is null && _skeleton.IsSetting))
+        _skeletonSlot.OnContentChanged();
+        if (_shown && !(value is null && _skeletonSlot.IsSetting))
             RefreshContent();
+        UpdateContentSkeleton();
     }
 
     private void OnSkeletonContentTemplateChanged()
     {
-        _skeleton.OnTemplateChanged();
+        _skeletonSlot.OnTemplateChanged();
         if (_shown)
             RefreshContent();
+        UpdateContentSkeleton();
     }
 
     /// <inheritdoc />
     protected override void OnBindingContextChanged()
     {
         base.OnBindingContextChanged();
-        if (_skeleton.Reselect() && _shown)
+        if (_skeletonSlot.Reselect() && _shown)
             RefreshContent();
     }
 
@@ -384,6 +482,7 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
             return;
         _shown = _target;
         RefreshContent();
+        UpdateContentSkeleton();
         InvalidateRender(SkUiRenderDirty.Props);
         InvalidateSemantics();
         OnPropertyChanged(nameof(IsShowingSkeleton));
@@ -416,6 +515,13 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     }
 
     /// <inheritdoc />
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint)
+    {
+        UpdateContentSkeleton(); // before the content measures: empty labels measure as placeholder lines
+        return base.MeasureContent(widthConstraint, heightConstraint);
+    }
+
+    /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
         base.ArrangeContent(size);
@@ -426,6 +532,7 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     internal override void OnGetRenderProps(ref SkUiRenderProps props)
     {
         base.OnGetRenderProps(ref props);
+        UpdateContentSkeleton(); // drawn again after a reset
         if (!_shown || LayoutChild is null)
             return;
         // The space the wave crosses; in a silhouette, the skeleton as one group with the effect drawn over it.
@@ -442,6 +549,8 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     {
         base.ReleaseDrawingResources();
         _silhouette.Forget();
+        // Not drawn: other trees stop looking for skeletons (a reset re-records the content anyway).
+        _contentSkeleton = SkUiSkeletonScope.SetActive(this, _contentSkeleton, false, invalidate: false);
     }
 
     /// <inheritdoc />

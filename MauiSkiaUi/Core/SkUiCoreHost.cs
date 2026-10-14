@@ -9,6 +9,9 @@ namespace MauiSkiaUi.Core;
 /// </summary>
 public class SkUiCoreHost : SkUiView, IVisualTreeElement
 {
+    /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
+    internal override bool IsSkeletonContainer => true;
+
     private SkUiCoreNode? _content;
 
     /// <summary>Root of the hosted Core tree, or <c>null</c>.</summary>

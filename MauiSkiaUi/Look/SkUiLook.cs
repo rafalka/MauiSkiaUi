@@ -1083,6 +1083,71 @@ public class SkUiLook
     public SKShader CreateShimmerWaveShader(SkUiShimmerWavePaint wave) =>
         ShimmerWaveShader is { } factory ? factory(wave) : CreateShimmerWaveShaderCore(wave);
 
+    /// <summary>Optional skeleton bones provider; when set, replaces <see cref="AddSkeletonBonesCore"/>.</summary>
+    public Action<SkUiSkeletonPart, IList<SkUiSkeletonBone>>? SkeletonBones { get; set; }
+
+    /// <summary>
+    /// Adds the bones a part of a control stands for in a skeleton made from a shimmer's content (delegate or
+    /// <see cref="AddSkeletonBonesCore"/>): a label's lines, a button's chrome, a switch's track. Called on the UI thread when
+    /// the control's size or skeleton changes, not per frame; the shimmer draws the bones with its effect.
+    /// </summary>
+    public void AddSkeletonBones(SkUiSkeletonPart part, IList<SkUiSkeletonBone> bones)
+    {
+        if (SkeletonBones is { } provider)
+            provider(part, bones);
+        else
+            AddSkeletonBonesCore(part, bones);
+    }
+
+    /// <summary>
+    /// Default bones: shapes as they are; a text line as a bar 60 % of its spacing high, centered on it, with 4 DIP corners;
+    /// a switch's track as a pill; a check box's box with the default box's corners; a radio button's and an activity
+    /// indicator's circle; a slider's and a progress bar's track as a pill (a slider's as high as its thumb's radius).
+    /// </summary>
+    protected virtual void AddSkeletonBonesCore(SkUiSkeletonPart part, IList<SkUiSkeletonBone> bones)
+    {
+        var bounds = part.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+        switch (part.Kind)
+        {
+            case SkUiSkeletonPartKind.TextLine:
+            {
+                var height = Math.Max(2, bounds.Height * 0.6f);
+                var top = bounds.MidY - height / 2;
+                bones.Add(new SkUiSkeletonBone(new SKRect(bounds.Left, top, bounds.Right, top + height), new CornerRadius(Math.Min(4, height / 2))));
+                break;
+            }
+            case SkUiSkeletonPartKind.Switch:
+                bones.Add(new SkUiSkeletonBone(bounds, new CornerRadius(bounds.Height / 2)));
+                break;
+            case SkUiSkeletonPartKind.CheckBox:
+                bones.Add(new SkUiSkeletonBone(bounds, new CornerRadius(Math.Min(bounds.Width, bounds.Height) * 0.2)));
+                break;
+            case SkUiSkeletonPartKind.RadioButton or SkUiSkeletonPartKind.ActivityIndicator:
+            {
+                var diameter = Math.Min(bounds.Width, bounds.Height);
+                var circle = SKRect.Create(bounds.MidX - diameter / 2, bounds.MidY - diameter / 2, diameter, diameter);
+                bones.Add(new SkUiSkeletonBone(circle, new CornerRadius(diameter / 2)));
+                break;
+            }
+            case SkUiSkeletonPartKind.Slider:
+            {
+                var height = Math.Min(bounds.Height, SliderThumbRadius);
+                var inset = Math.Min(bounds.Width / 2, SliderThumbRadius - height / 2);
+                var track = new SKRect(bounds.Left + inset, bounds.MidY - height / 2, bounds.Right - inset, bounds.MidY + height / 2);
+                bones.Add(new SkUiSkeletonBone(track, new CornerRadius(height / 2)));
+                break;
+            }
+            case SkUiSkeletonPartKind.ProgressBar:
+                bones.Add(new SkUiSkeletonBone(bounds, new CornerRadius(GetProgressBarCornerRadius(bounds.Height))));
+                break;
+            default:
+                bones.Add(new SkUiSkeletonBone(bounds, part.CornerRadius));
+                break;
+        }
+    }
+
     /// <summary>Default wave: a soft band, transparent at both edges and <see cref="SkUiShimmerWavePaint.Color"/> in the middle.</summary>
     protected virtual SKShader CreateShimmerWaveShaderCore(SkUiShimmerWavePaint wave)
     {

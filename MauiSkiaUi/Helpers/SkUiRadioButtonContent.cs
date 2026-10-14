@@ -93,6 +93,21 @@ internal sealed class SkUiRadioButtonContent(object owner)
         canvas.RestoreToCount(save);
     }
 
+    /// <summary>Adds the boxes of the lines <see cref="DrawText"/> draws in <paramref name="area"/> (a skeleton's text bars).</summary>
+    public void AddLineBoxes(List<SKRect> boxes, string text, in SkUiTextStyle style, Rect area)
+    {
+        if (text.Length == 0 || area.Width <= 0 || area.Height <= 0)
+            return;
+        var start = boxes.Count;
+        _layout.AddLineBoxes(boxes, text, style, default, area.Width, area.Height, TextAlignment.Start, TextAlignment.Center);
+        for (var index = start; index < boxes.Count; index++)
+        {
+            var box = boxes[index];
+            box.Offset((float)area.X, (float)area.Y);
+            boxes[index] = box;
+        }
+    }
+
     /// <summary>Draws the circle in <paramref name="circle"/> (already mirrored) through the shared toggle drawing.</summary>
     public static void DrawCircle(SKCanvas canvas, Rect circle, SkUiToggleVisual visual, Color color, bool enabled)
     {

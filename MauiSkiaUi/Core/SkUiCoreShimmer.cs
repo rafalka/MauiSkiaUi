@@ -26,8 +26,23 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     private bool _isLoading = true;
     private bool _shown = true;
     private bool _animating;
+    private bool _contentSkeleton; // registered as showing its content as a skeleton
     private SkUiViewAnimation? _beforeStateChangeAnimation;
     private SkUiViewAnimation? _afterStateChangeAnimation;
+
+    /// <summary>
+    /// Attached: how a node draws in a skeleton made from a shimmer's content (default <see cref="SkUiSkeleton.Default"/>:
+    /// its own bones); see <see cref="SkUiShimmer.SkeletonProperty"/>.
+    /// </summary>
+    public static readonly SkUiCoreAttachedProperty<SkUiSkeleton> SkeletonProperty = new("Skeleton", typeof(SkUiCoreShimmer), SkUiSkeleton.Default,
+        affectsParentMeasure: false, validate: Enum.IsDefined);
+
+    /// <summary>
+    /// Attached: the placeholder lines an empty label shows in a skeleton made from content (default 1); see
+    /// <see cref="SkUiShimmer.SkeletonLinesProperty"/>.
+    /// </summary>
+    public static readonly SkUiCoreAttachedProperty<int> SkeletonLinesProperty = new("SkeletonLines", typeof(SkUiCoreShimmer), 1,
+        affectsParentMeasure: false, validate: value => value >= 0);
 
     /// <summary>Creates a loading shimmer; it does not clip its child by default.</summary>
     public SkUiCoreShimmer()
@@ -39,7 +54,10 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     /// <summary>The content shown once the shimmer is no longer loading.</summary>
     public SkUiCoreNode? Content { get => _content; set => SetContent(value); }
 
-    /// <summary>The skeleton shown while <see cref="IsLoading"/>: Core nodes whose shapes are the bones.</summary>
+    /// <summary>
+    /// The skeleton shown while <see cref="IsLoading"/>: Core nodes whose shapes are the bones. Without one, the content
+    /// itself is the skeleton: every control in it draws its bones (<see cref="SkeletonProperty"/>).
+    /// </summary>
     public SkUiCoreNode? SkeletonContent { get => _skeletonContent; set => SetSkeletonContent(value); }
 
     /// <summary>Inset around the shown child in DIPs.</summary>
@@ -96,6 +114,19 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     /// <summary>Whether a switch is animating.</summary>
     public bool IsSwitching => _animating;
 
+    /// <summary>Whether the content is shown as the skeleton: loading, without <see cref="SkeletonContent"/>. The content then takes no input.</summary>
+    public bool ShowsContentAsSkeleton => _shown && _skeletonContent is null;
+
+    /// <inheritdoc />
+    SkUiShimmerMode ISkUiShimmer.Mode => _settings.Mode;
+
+    /// <summary>Registers the content as a skeleton while it is one, so its controls draw their bones.</summary>
+    private void UpdateContentSkeleton() =>
+        _contentSkeleton = SkUiSkeletonScope.SetActive(this, _contentSkeleton, ShowsContentAsSkeleton);
+
+    /// <inheritdoc />
+    internal override bool HitTestsChildren => !ShowsContentAsSkeleton;
+
     /// <summary>The effect settings (tests).</summary>
     internal SkUiShimmerSettings Settings => _settings;
 
@@ -118,6 +149,7 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
         _skeletonContent = value;
         OnPropertyChanged(nameof(SkeletonContent));
         AttachShown();
+        UpdateContentSkeleton();
         return this;
     }
 
@@ -235,7 +267,11 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     private SkUiCoreShimmer UpdateSettings(SkUiShimmerSettings value, string propertyName)
     {
         if (value == _settings) return this;
+        var mode = _settings.Mode;
         _settings = value;
+        // A container's chrome draws in Bones mode only.
+        if (_settings.Mode != mode && _contentSkeleton)
+            SkUiSkeletonScope.InvalidateContent(this);
         OnPropertyChanged(propertyName);
         UpdateStyle(Frame.Size);
         return this;
@@ -262,6 +298,7 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
             return;
         _shown = _isLoading;
         AttachShown();
+        UpdateContentSkeleton();
         InvalidateSemantics();
         OnPropertyChanged(nameof(IsShowingSkeleton));
     }
@@ -269,7 +306,7 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     /// <summary>Attaches the side to show, detaching the other one (its drawing resources are released).</summary>
     private void AttachShown()
     {
-        var value = _shown ? _skeletonContent : _content;
+        var value = _shown ? _skeletonContent ?? _content : _content;
         if (ReferenceEquals(_attached, value))
         {
             InvalidateRender(SkUiRenderDirty.Props);
@@ -335,6 +372,7 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
+        UpdateContentSkeleton(); // before the content measures: empty labels measure as placeholder lines
         var size = _attached?.Measure(
             Math.Max(0, widthConstraint - _padding.HorizontalThickness),
             Math.Max(0, heightConstraint - _padding.VerticalThickness)) ?? Size.Zero;
@@ -353,6 +391,7 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     internal override void OnGetRenderProps(ref SkUiRenderProps props)
     {
         base.OnGetRenderProps(ref props);
+        UpdateContentSkeleton(); // drawn again after a reset
         if (!_shown || _attached is null)
             return;
         // The space the wave crosses; in a silhouette, the skeleton as one group with the effect drawn over it.
@@ -369,6 +408,8 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     {
         base.ReleaseDrawingResources();
         _silhouette.Forget();
+        // Not drawn: other trees stop looking for skeletons (a reset re-records the content anyway).
+        _contentSkeleton = SkUiSkeletonScope.SetActive(this, _contentSkeleton, false, invalidate: false);
     }
 
     /// <inheritdoc />

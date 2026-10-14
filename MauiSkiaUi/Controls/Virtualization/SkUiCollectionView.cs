@@ -38,6 +38,9 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(ItemTemplate))]
 public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefreshOwner
 {
+    /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
+    internal override bool IsSkeletonContainer => true;
+
     private readonly ItemsPart _items;
     private readonly ItemsModel _model;
     private readonly SkUiScrollView _scroller;
@@ -302,6 +305,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         // Views of the old templates go (after the rows released them); every row is measured again with the new ones.
         _model.Rebuild();
         DropViews();
+        _body.PlaceholderHost?.Clear(); // made again from the new template
     }
 
     /// <summary>Drops recycled views and grid cells (their templates no longer create the same views).</summary>
@@ -695,11 +699,15 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     private void UpdateEmpty()
     {
         var empty = _model.RowCount == 0;
-        if (empty == _isEmpty && _body.EmptyHost.IsVisible == empty)
+        // In a skeleton made from content, an empty list shows placeholder items instead of its empty view.
+        var placeholders = empty && WantsPlaceholders();
+        var showsEmptyView = empty && !placeholders;
+        if (empty == _isEmpty && placeholders == _showsPlaceholders && _body.EmptyHost.IsVisible == showsEmptyView)
             return;
         _isEmpty = empty;
-        _body.EmptyHost.IsVisible = empty;
-        if (empty && Parent is not null)
+        SetPlaceholders(placeholders);
+        _body.EmptyHost.IsVisible = showsEmptyView;
+        if (showsEmptyView && Parent is not null)
             _emptySlot.Ensure();
         _body.InvalidateBody();
     }
@@ -855,6 +863,10 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// </remarks>
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
+        // Placeholder items fill the viewport (a list added to a skeleton finds out here).
+        var viewport = Along(new Size(widthConstraint, heightConstraint));
+        _viewportLength = double.IsFinite(viewport) ? viewport : Along(new Size(Width, Height));
+        UpdateEmpty();
         var header = MeasurePart(_stickyHeaderHost, widthConstraint, heightConstraint);
         var footer = MeasurePart(_stickyFooterHost, widthConstraint, heightConstraint);
         _scroller.Insets = (Along(header), Along(footer));

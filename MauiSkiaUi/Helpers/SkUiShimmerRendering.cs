@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using MauiSkiaUi.Rendering;
 using SkiaSharp;
 
@@ -272,8 +273,10 @@ internal sealed class SkUiShimmerStyles(ISkUiRenderable owner)
     /// Has the bones of <paramref name="shimmer"/>'s skeleton record their render properties again (the style or the mode
     /// changed); nested shimmers keep theirs.
     /// </summary>
-    public static void InvalidateBones(ISkUiRenderable shimmer)
+    public static void InvalidateBones(ISkUiShimmer shimmer)
     {
+        // In a skeleton made from content, every control may draw bones.
+        var content = shimmer.ShowsContentAsSkeleton;
         var children = new List<ISkUiRenderable>();
         shimmer.GetRenderChildren(children);
         for (var index = 0; index < children.Count; index++)
@@ -281,7 +284,9 @@ internal sealed class SkUiShimmerStyles(ISkUiRenderable owner)
             var child = children[index];
             if (child is ISkUiShimmerBone bone)
                 bone.OnShimmerChanged();
-            else if (child is not ISkUiShimmer)
+            else if (content)
+                SkUiRenderInvalidation.Mark(child, SkUiRenderDirty.Props);
+            if (child is not ISkUiShimmer && (content || child is not ISkUiShimmerBone))
                 child.GetRenderChildren(children);
         }
     }
@@ -299,6 +304,12 @@ internal sealed class SkUiShimmerStyles(ISkUiRenderable owner)
 /// <summary>A shimmer of either layer, as its bones see it.</summary>
 internal interface ISkUiShimmer : ISkUiRenderable
 {
+    /// <summary>Whether it shows its content as the skeleton: loading, with no skeleton of its own (C9b).</summary>
+    bool ShowsContentAsSkeleton { get; }
+
+    /// <summary>What of the skeleton animates.</summary>
+    SkUiShimmerMode Mode { get; }
+
     /// <summary>
     /// The style its bones animate with (<see cref="SkUiShimmerMode.Bones"/>), made again if the look's colors changed;
     /// <c>null</c> while the shimmer draws a silhouette (the bones stand still and are tinted with everything else).
@@ -364,110 +375,134 @@ internal sealed class SkUiShimmerSilhouette(SkUiShimmerStyle style) : SkUiRender
 }
 
 /// <summary>
-/// A bone that draws itself (<see cref="SkUiShimmerBone"/> / <see cref="Core.SkUiCoreShimmerBone"/>): its shape in its color,
-/// shifted or pulsed, and the part of the wave band that crosses it, positioned in its shimmer's coordinates so the band
-/// moves across every bone as one. No layer: one fill per bone and frame. While the band crosses a bone that is only moved
-/// relative to its shimmer (the usual case) and has one corner radius, the fill is the bone color with the band over it in
-/// one shader, moved by translating the canvas against the shape; otherwise the band is drawn clipped to the shape.
+/// Bones that draw themselves (<see cref="SkUiShimmerBone"/> / <see cref="Core.SkUiCoreShimmerBone"/>, and the bones of a
+/// control in a skeleton made from content): each shape in the bone color, shifted or pulsed, and the part of the wave band
+/// that crosses it, positioned in its shimmer's coordinates so the band moves across every bone as one. No layer: one fill
+/// per bone and frame. While the band crosses a bone with one corner radius, and the node is only moved relative to its
+/// shimmer (the usual case), the fill is the bone color with the band over it in one shader, moved by translating the
+/// canvas against the shape; otherwise the band is drawn clipped to the shape.
 /// </summary>
 internal sealed class SkUiShimmerBoneDrawable : SkUiRenderDrawable
 {
-    /// <summary>How close the bone's axes must be to the band's for the one-draw path.</summary>
+    /// <summary>How close the node's axes must be to the band's for the one-draw path.</summary>
     private const float AxisTolerance = 1e-3f;
 
     private readonly SkUiShimmerStyle? _style;
     private readonly SKColor _color;
-    private readonly SKRoundRect? _shape;
-    private readonly float _radius = -1; // one radius for every corner; -1: several
+    private readonly Shape[] _shapes;
     private readonly SKShader? _band;    // the look's band, in the band's coordinates
     private readonly SKShader? _turned;  // the band turned to its angle
     private readonly SKShader? _filled;  // the bone color with the turned band over it
 
-    /// <param name="style">The shimmer's style; <c>null</c>: the bone stands still.</param>
-    /// <param name="color">The bone's color.</param>
-    /// <param name="size">The bone's size.</param>
-    /// <param name="radii">Its corner radii.</param>
-    public SkUiShimmerBoneDrawable(SkUiShimmerStyle? style, SKColor color, SKSize size, CornerRadius radii)
+    /// <summary>
+    /// A bone: its rectangle, one radius for every corner (-1: corners of different radii) and its rounded rectangle (<c>null</c>:
+    /// square corners).
+    /// </summary>
+    private readonly record struct Shape(SKRect Bounds, float Radius, SKRoundRect? Round);
+
+    /// <param name="style">The shimmer's style; <c>null</c>: the bones stand still.</param>
+    /// <param name="color">The bones' color.</param>
+    /// <param name="bones">The bones, in the node's coordinates.</param>
+    public SkUiShimmerBoneDrawable(SkUiShimmerStyle? style, SKColor color, ReadOnlySpan<SkUiSkeletonBone> bones)
     {
         _style = style;
         _color = color;
-        if (SkUiCornerRadii.HasAny(radii))
-        {
-            _shape = new SKRoundRect();
-            _shape.SetRectRadii(SKRect.Create(size), [
-                Radius(radii.TopLeft), Radius(radii.TopRight), Radius(radii.BottomRight), Radius(radii.BottomLeft)]);
-            // Uniform corners are drawn as a rectangle with radii (the shape's radii, already scaled down to fit).
-            if (_shape.Type is SKRoundRectType.Simple or SKRoundRectType.Oval)
-                _radius = _shape.Radii[0].X == _shape.Radii[0].Y ? _shape.Radii[0].X : -1;
-        }
-        else
-        {
-            _radius = 0;
-        }
+        _shapes = new Shape[bones.Length];
+        for (var index = 0; index < bones.Length; index++)
+            _shapes[index] = CreateShape(bones[index]);
         if (style is not { Waves: true })
             return;
         _band = style.CreateWaveShader();
-        if (_radius < 0)
-            return;
         _turned = _band.WithLocalMatrix(style.BandRotation);
         using var fill = SKShader.CreateColor(color);
         _filled = SKShader.CreateCompose(fill, _turned, SKBlendMode.SrcOver);
+    }
+
+    private static Shape CreateShape(in SkUiSkeletonBone bone)
+    {
+        var bounds = bone.Bounds;
+        var radii = bone.CornerRadius;
+        if (!SkUiCornerRadii.HasAny(radii))
+            return new Shape(bounds, 0, null);
+        var round = new SKRoundRect();
+        round.SetRectRadii(bounds, [Radius(radii.TopLeft), Radius(radii.TopRight), Radius(radii.BottomRight), Radius(radii.BottomLeft)]);
+        // Uniform corners are drawn as a rectangle with radii (the shape's radii, already scaled down to fit).
+        var corner = round.Radii[0];
+        var uniform = round.Type switch
+        {
+            SKRoundRectType.Rect or SKRoundRectType.Empty => 0,
+            SKRoundRectType.Simple or SKRoundRectType.Oval when corner.X == corner.Y => corner.X,
+            _ => -1f
+        };
+        return new Shape(bounds, uniform, round);
     }
 
     private static SKPoint Radius(double radius) => new((float)radius, (float)radius);
 
     public override bool IsAnimated => _style is { Animated: true };
 
+    /// <summary>The bones' rectangles (tests).</summary>
+    internal SKRect[] BoneBounds => Array.ConvertAll(_shapes, shape => shape.Bounds);
+
+    /// <summary>The bones' color (tests).</summary>
+    internal SKColor Color => _color;
+
     public override void Draw(SKCanvas canvas, in SkUiRenderDrawContext context)
     {
         var paint = context.Paint;
-        var bounds = context.Bounds;
         var progress = _style?.Progress(context.Now) ?? 0;
         var color = _style?.ColorAt(_color, progress) ?? _color;
         var opacity = _style?.OpacityAt(progress) ?? 1;
-        paint.Color = opacity < 1 ? color.WithAlpha((byte)(color.Alpha * opacity)) : color;
-        if (_band is null || !_style!.TryGetBandToLocal(canvas, context, progress, out var bandToLocal) || _style.BandMisses(bandToLocal, bounds))
+        color = opacity < 1 ? color.WithAlpha((byte)(color.Alpha * opacity)) : color;
+        var bandToLocal = SKMatrix.Identity;
+        var waves = _band is not null && _style!.TryGetBandToLocal(canvas, context, progress, out bandToLocal);
+        var turned = waves && IsTurnedLike(bandToLocal, _style!.BandRotation);
+        foreach (var shape in _shapes)
         {
-            DrawShape(canvas, bounds, paint);
-            return;
-        }
-        if (_filled is not null && IsTurnedLike(bandToLocal, _style.BandRotation))
-        {
-            // The band only moved against the bone: move the canvas by the band's offset and the shape back, so the shader
-            // (the bone color under the turned band) lands where the band is. One draw, no clip.
+            paint.Color = color;
+            if (!waves || _style!.BandMisses(bandToLocal, shape.Bounds))
+            {
+                DrawShape(canvas, shape, paint);
+                continue;
+            }
+            if (turned && shape.Radius >= 0)
+            {
+                // The band only moved against the bone: move the canvas by the band's offset and the shape back, so the
+                // shader (the bone color under the turned band) lands where the band is. One draw, no clip.
+                paint.Color = SKColors.White;
+                paint.Shader = _filled;
+                var save = canvas.Save();
+                canvas.Translate(bandToLocal.TransX, bandToLocal.TransY);
+                var shifted = shape.Bounds;
+                shifted.Offset(-bandToLocal.TransX, -bandToLocal.TransY);
+                canvas.DrawRoundRect(shifted, shape.Radius, shape.Radius, paint);
+                canvas.RestoreToCount(save);
+                paint.Shader = null;
+                continue;
+            }
+            DrawShape(canvas, shape, paint);
+            var clip = canvas.Save();
+            if (shape.Round is { } round)
+                canvas.ClipRoundRect(round, antialias: true);
+            else
+                canvas.ClipRect(shape.Bounds, antialias: true);
+            canvas.Concat(in bandToLocal);
             paint.Color = SKColors.White;
-            paint.Shader = _filled;
-            var save = canvas.Save();
-            canvas.Translate(bandToLocal.TransX, bandToLocal.TransY);
-            var shifted = bounds;
-            shifted.Offset(-bandToLocal.TransX, -bandToLocal.TransY);
-            canvas.DrawRoundRect(shifted, _radius, _radius, paint);
-            canvas.RestoreToCount(save);
+            paint.Shader = _band;
+            canvas.DrawRect(_style!.Band, paint);
             paint.Shader = null;
-            return;
+            canvas.RestoreToCount(clip);
         }
-        DrawShape(canvas, bounds, paint);
-        var clip = canvas.Save();
-        if (_shape is not null)
-            canvas.ClipRoundRect(_shape, antialias: true);
-        else
-            canvas.ClipRect(bounds, antialias: true);
-        canvas.Concat(in bandToLocal);
-        paint.Color = SKColors.White;
-        paint.Shader = _band;
-        canvas.DrawRect(_style.Band, paint);
-        paint.Shader = null;
-        canvas.RestoreToCount(clip);
     }
 
-    private void DrawShape(SKCanvas canvas, SKRect bounds, SKPaint paint)
+    private static void DrawShape(SKCanvas canvas, in Shape shape, SKPaint paint)
     {
-        if (_shape is null)
-            canvas.DrawRect(bounds, paint);
-        else if (_radius >= 0)
-            canvas.DrawRoundRect(bounds, _radius, _radius, paint);
+        if (shape.Radius > 0)
+            canvas.DrawRoundRect(shape.Bounds, shape.Radius, shape.Radius, paint);
+        else if (shape.Round is { } round && shape.Radius < 0)
+            canvas.DrawRoundRect(round, paint);
         else
-            canvas.DrawRoundRect(_shape, paint);
+            canvas.DrawRect(shape.Bounds, paint);
     }
 
     /// <summary>Whether <paramref name="matrix"/> turns and moves as <paramref name="turn"/> does, with no scale or perspective.</summary>
@@ -478,7 +513,8 @@ internal sealed class SkUiShimmerBoneDrawable : SkUiRenderDrawable
 
     public override void Dispose()
     {
-        _shape?.Dispose();
+        foreach (var shape in _shapes)
+            shape.Round?.Dispose();
         _filled?.Dispose();
         _turned?.Dispose();
         _band?.Dispose();
@@ -510,22 +546,60 @@ internal struct SkUiDrawableSlot<TKey> where TKey : notnull
     }
 }
 
-/// <summary>What a bone's drawable depends on.</summary>
-internal readonly record struct SkUiShimmerBoneKey(SkUiShimmerStyle? Style, SKColor Color, float Width, float Height, CornerRadius Radii)
+/// <summary>
+/// The drawable of a node's bones, kept while the bones, their color and the shimmer's style stay the same (committing the
+/// same frame twice commits the same object). Committed to the compositor, which disposes it once a commit replaces it or the
+/// node goes: never disposed here.
+/// </summary>
+internal struct SkUiBoneSlot
 {
+    private SkUiRenderDrawable? _drawable;
+    private SkUiShimmerStyle? _style;
+    private SKColor _color;
+    private SkUiSkeletonBone[]? _bones;
+
     /// <summary>
-    /// The drawable of <paramref name="bone"/> (<paramref name="color"/>: its own, else its shimmer's or the look's), from
-    /// <paramref name="slot"/> while nothing it depends on changed; <c>null</c> while it has no size.
+    /// The drawable of <paramref name="bones"/> for <paramref name="node"/>, in <paramref name="color"/> (its own), else its
+    /// shimmer's bone color or the look's; animated with the shimmer's style in <see cref="SkUiShimmerMode.Bones"/>.
+    /// <c>null</c> without bones. Allocates only when something changed.
     /// </summary>
-    public static SkUiRenderDrawable? GetDrawable(ref SkUiDrawableSlot<SkUiShimmerBoneKey> slot, ISkUiRenderable bone, Color? color,
-        CornerRadius radii, float width, float height)
+    public SkUiRenderDrawable? Get(ISkUiRenderable node, Color? color, List<SkUiSkeletonBone> bones)
     {
-        if (width <= 0 || height <= 0)
+        if (bones.Count == 0)
+        {
+            Forget();
             return null;
-        var style = SkUiShimmerStyles.Find(bone)?.GetBoneStyle();
+        }
+        var style = SkUiShimmerStyles.Find(node)?.GetBoneStyle();
         var fill = color is not null ? SkUiShapePainter.ToSkColor(color)
             : style?.Bone ?? SkUiShapePainter.ToSkColor(SkUiLook.Current.GetShimmerColors().Bone);
-        var key = new SkUiShimmerBoneKey(style, fill, width, height, radii);
-        return slot.Get(key, key, static key => new SkUiShimmerBoneDrawable(key.Style, key.Color, new SKSize(key.Width, key.Height), key.Radii));
+        if (_drawable is not null && ReferenceEquals(style, _style) && fill == _color && CollectionsMarshal.AsSpan(bones).SequenceEqual(_bones))
+            return _drawable;
+        _style = style;
+        _color = fill;
+        _bones = [.. bones];
+        return _drawable = new SkUiShimmerBoneDrawable(style, fill, _bones);
+    }
+
+    [ThreadStatic] private static List<SkUiSkeletonBone>? _one;
+
+    /// <summary>The drawable of one bone (a <see cref="SkUiShimmerBone"/>): its <paramref name="width"/> × <paramref name="height"/> rectangle; <c>null</c> while it has no size.</summary>
+    public SkUiRenderDrawable? GetSingle(ISkUiRenderable node, Color? color, CornerRadius radii, float width, float height)
+    {
+        var one = _one ??= [];
+        one.Clear();
+        if (width > 0 && height > 0)
+            one.Add(new SkUiSkeletonBone(new SKRect(0, 0, width, height), radii));
+        var drawable = Get(node, color, one);
+        one.Clear();
+        return drawable;
+    }
+
+    /// <summary>Forgets the drawable (the node was reset or left the skeleton; the compositor disposes it).</summary>
+    public void Forget()
+    {
+        _drawable = null;
+        _style = null;
+        _bones = null;
     }
 }

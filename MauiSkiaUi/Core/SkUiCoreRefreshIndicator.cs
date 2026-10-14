@@ -19,6 +19,9 @@ namespace MauiSkiaUi.Core;
 /// </remarks>
 public class SkUiCoreRefreshIndicator : SkUiCoreNode
 {
+    /// <summary>Not part of a skeleton made from content.</summary>
+    internal override SkUiSkeleton DefaultSkeleton => SkUiSkeleton.Hidden;
+
     private Color? _color;
     private SkUiRefreshStyle _style;
     private double _pullProgress;

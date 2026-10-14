@@ -27,6 +27,15 @@ internal static class SkUiSliderMath
         return minimum + (Math.Max(minimum, maximum) - minimum) * fraction;
     }
 
+    /// <summary>The track's bones (the look's <see cref="SkUiSkeletonPartKind.Slider"/>), turned as <see cref="Draw"/> turns a vertical slider.</summary>
+    public static void AddSkeletonBones(SkUiSkeletonBuilder bones, StackOrientation orientation)
+    {
+        if (orientation == StackOrientation.Vertical)
+            bones.AddTurned(SkUiSkeletonPartKind.Slider, new SKRect(0, 0, bones.Height, bones.Width));
+        else
+            bones.Add(SkUiSkeletonPartKind.Slider, bones.Bounds);
+    }
+
     /// <summary>Draws through the look in horizontal left-to-right coordinates (rotated / mirrored as needed).</summary>
     public static void Draw(SKCanvas canvas, float width, float height, StackOrientation orientation, bool rightToLeft,
         float fraction, SKColor minimumTrack, SKColor maximumTrack, SKColor thumb, float pressed, bool enabled, SkUiImageSlot? thumbImage = null)

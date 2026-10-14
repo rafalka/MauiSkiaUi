@@ -29,6 +29,9 @@ public sealed class SkUiExpandedChangedEventArgs(bool isExpanded) : EventArgs
 [ContentProperty(nameof(Content))]
 public class SkUiExpander : SkUiView
 {
+    /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
+    internal override bool IsSkeletonContainer => true;
+
     private readonly HeaderPart _headerPart;
     private readonly ContentPart _contentPart;
     private readonly SkUiContentSlot _slot;

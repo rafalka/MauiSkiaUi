@@ -28,6 +28,9 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(Content))]
 public partial class SkUiSwipeView : SkUiView
 {
+    /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
+    internal override bool IsSkeletonContainer => true;
+
     /// <summary>Width of a <see cref="SwipeItem"/> beside the content in <see cref="SwipeMode.Reveal"/> (MAUI's handlers' size).</summary>
     internal const double SwipeItemWidth = 100;
 

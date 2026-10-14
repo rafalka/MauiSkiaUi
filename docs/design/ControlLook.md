@@ -70,6 +70,9 @@ public class SkUiLook
     public virtual SkUiShimmerColors GetShimmerColors() { … } // Bone: TrackOff halfway to the background; Highlight: lighter
     public virtual double ShimmerWaveTilt => 20;
     public SKShader CreateShimmerWaveShader(SkUiShimmerWavePaint wave) { … } // → ShimmerWaveShader ?? CreateShimmerWaveShaderCore
+    // Skeletons from the content (C9b): a control's part (a text line, a shape, a switch, a slider…) to rounded-rectangle
+    // bones, when its size, text or skeleton changes (not per frame); the shimmer draws them with its effect.
+    public void AddSkeletonBones(SkUiSkeletonPart part, IList<SkUiSkeletonBone> bones) { … } // → SkeletonBones ?? AddSkeletonBonesCore
     // Picker fields (C6): chrome and chevron behind the control's text; Focused / Open animate (FieldFocus, PickerOpen).
     // DefaultSkUiLook: PickerFieldStyle (Default → DefaultPickerFieldStyle: outline; underline, filled, none);
     // AndroidSkUiLook: underline.

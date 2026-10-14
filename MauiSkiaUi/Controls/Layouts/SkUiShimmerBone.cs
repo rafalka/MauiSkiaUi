@@ -18,7 +18,7 @@ public class SkUiShimmerBone : SkUiView, ISkUiShimmerBone
 {
     private Color? _color;
     private CornerRadius _cornerRadius;
-    private SkUiDrawableSlot<SkUiShimmerBoneKey> _drawable;
+    private SkUiBoneSlot _drawable;
 
     /// <summary>Bindable <see cref="Color"/>.</summary>
     public static readonly BindableProperty ColorProperty = BindableProperty.Create(nameof(Color), typeof(Color), typeof(SkUiShimmerBone), null,
@@ -64,6 +64,9 @@ public class SkUiShimmerBone : SkUiView, ISkUiShimmerBone
 
     void ISkUiShimmerBone.OnShimmerChanged() => InvalidateRender(SkUiRenderDirty.Props);
 
+    /// <summary>In a skeleton made from content a bone draws itself, as it is.</summary>
+    internal override SkUiSkeleton DefaultSkeleton => SkUiSkeleton.Keep;
+
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => new(40, 40);
 
@@ -74,7 +77,7 @@ public class SkUiShimmerBone : SkUiView, ISkUiShimmerBone
     internal override void OnGetRenderProps(ref SkUiRenderProps props)
     {
         base.OnGetRenderProps(ref props);
-        props.Drawable = SkUiShimmerBoneKey.GetDrawable(ref _drawable, this, _color, _cornerRadius, props.Width, props.Height);
+        props.Drawable = _drawable.GetSingle(this, _color, _cornerRadius, props.Width, props.Height);
     }
 
     /// <inheritdoc />

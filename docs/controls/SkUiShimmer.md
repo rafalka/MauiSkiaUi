@@ -1,6 +1,6 @@
 # SkUiShimmer
 
-A skeleton loading view: while data loads it shows a skeleton of the page or part of it (the bones) with an animation over it, then the content. `SkUiCoreShimmer` is the Core twin and draws the same pixels; it is the recommended way to build loading screens. `SkUiShimmerBone` / `SkUiCoreShimmerBone` are bones that shimmer by themselves among content that does not (`Mode="Bones"`), also in a skeleton laid over a page that stays in MAUI.
+A skeleton loading view: while data loads it shows a skeleton of the page or part of it (the bones) with an animation over it, then the content. The skeleton is hand-made (`SkeletonContent`) or the content itself, each control drawing its bones ([below](#a-skeleton-from-the-content)). `SkUiCoreShimmer` is the Core twin and draws the same pixels; it is the recommended way to build loading screens. `SkUiShimmerBone` / `SkUiCoreShimmerBone` are bones that shimmer by themselves among content that does not (`Mode="Bones"`), also in a skeleton laid over a page that stays in MAUI.
 
 **Counterpart:** none in MAUI or the Community Toolkit: SkiaUi's own API. The skeleton is yours (no built-in layouts). Porting a hand-made skeleton view: [Migration.md](../Migration.md#shimmer).
 
@@ -8,7 +8,7 @@ A skeleton loading view: while data loads it shows a skeleton of the page or par
 
 `SkUiShimmer` derives from [`SkUiContentView`](SkUiContentView.md) (`SkUiCoreShimmer` from `SkUiCoreNode`). It owns two children and shows one:
 
-- **While `IsLoading`** (the default: a shimmer is usually created while its data loads): `SkeletonContent`, any drawn views of either layer. Their shapes are the bones: boxes, rounded rectangles, ellipses, borders, shapes, also labels and images.
+- **While `IsLoading`** (the default: a shimmer is usually created while its data loads): `SkeletonContent`, any drawn views of either layer. Their shapes are the bones: boxes, rounded rectangles, ellipses, borders, shapes, also labels and images. Without a `SkeletonContent` (nor `SkeletonContentTemplate`), `Content` is shown as the skeleton ([a skeleton from the content](#a-skeleton-from-the-content)).
 - **Otherwise:** `Content`. The side not shown is detached from the drawn tree, so its pictures are released.
 
 **What is a bone** depends on `Mode`:
@@ -73,6 +73,87 @@ A skeleton often has parts that must not shimmer: white cards with a border arou
 ```
 
 The samples app's **Loading skeleton over a MAUI page** is a whole leaderboard built this way.
+
+### A skeleton from the content
+
+Leave `SkeletonContent` out and the content is its own skeleton while loading (`ShowsContentAsSkeleton`): every control in it draws its bones instead of itself, so the skeleton has the size and shape of what loads, without a second layout to keep in step (as SwiftUI's `redacted(reason: .placeholder)` and Flutter's `skeletonizer`).
+
+```xml
+<sk:SkUiShimmer Mode="Bones" IsLoading="{Binding IsLoading}" AfterStateChangeAnimation="FadeIn 250">
+    <sk:SkUiVerticalStackLayout Padding="12" Spacing="12">
+        <sk:SkUiLabel Text="Team updates" FontSize="20" sk:SkUiShimmer.Skeleton="Keep" />
+        <sk:SkUiBorder Stroke="{StaticResource Gray200}" StrokeShape="RoundRectangle 8" BackgroundColor="White" Padding="12">
+            <sk:SkUiGrid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <sk:SkUiAvatarView Text="{Binding Author}" WidthRequest="40" HeightRequest="40" CornerRadius="20" />
+                <sk:SkUiVerticalStackLayout Grid.Column="1" Spacing="6">
+                    <sk:SkUiLabel Text="{Binding Author}" FontAttributes="Bold" />
+                    <sk:SkUiLabel Text="{Binding Message}" sk:SkUiShimmer.SkeletonLines="2" />
+                </sk:SkUiVerticalStackLayout>
+            </sk:SkUiGrid>
+        </sk:SkUiBorder>
+    </sk:SkUiVerticalStackLayout>
+</sk:SkUiShimmer>
+```
+
+**What each control draws** (the look decides the exact bones, `AddSkeletonBones`):
+
+| Control | Bones |
+| --- | --- |
+| Labels | A bar per laid-out line (plain text, spans, HTML), as wide as the line and aligned as it (right to left too), 60 % of the line spacing high. A label with a background or a border is a chip: its shape |
+| Empty labels | Placeholder lines: the label measures as `SkUiShimmer.SkeletonLines` lines of its font (default 1; 0: none) as wide as it may be, the last of several 60 % wide. Bindings that are empty while loading keep a sensible skeleton |
+| Buttons, image buttons, boxes, images, avatars, pickers, borders without content | Their shape: the rectangle with their corner radii (and their `Clip`); ellipses a circle |
+| Switches, check boxes, radio buttons (with their text), sliders, progress bars | Their outline: the track, the box, the circle, the bar |
+| Activity indicators | A circle while running; nothing while stopped |
+| Hosted native views (`SkUiMauiContentView`) | Their rectangle; the native view is hidden meanwhile |
+| Views with children: layouts, borders and content views with content, scrollers, collection views, carousels | Nothing: a container. With `Mode="Bones"` its own drawing (a card's background and border) draws as it is around its children's bones; in a silhouette nothing of it draws. Scroll bars and pull-to-refresh indicators are hidden |
+
+**Per view, `SkUiShimmer.Skeleton`** (Core: `node.SetValue(SkUiCoreShimmer.SkeletonProperty, …)`):
+
+| Value | The view |
+| --- | --- |
+| `Default` | Its own bones as above |
+| `Bone` | One bone, its rectangle, for itself and what is in it (a whole row as a block) |
+| `Keep` | Draws as it is, and what is in it: a title known before the data, an icon. In a silhouette it is tinted with the bones |
+| `Hidden` | Draws nothing, nor what is in it; it keeps its space |
+| `Children` | Nothing of its own (not even a card's chrome in `Bones` mode); its children draw their bones |
+
+`Hidden` and `Bone` win over what is inside them; the nearest `Keep` applies to views without a value of their own. `SkUiShimmerBone`s in the content draw themselves as usual. A shimmer inside the content decides for its own content (a row's shimmer that has loaded shows its row).
+
+**Behavior.**
+
+- The bones are the controls' drawables, drawn on the render thread with the shimmer's effect as `SkUiShimmerBone`s are (`Mode="Bones"`: each with no layer, one wave across all of them) or tinted with the silhouette (`Silhouette`). Nothing is recorded per frame. Entering and leaving the skeleton records each control once; a control's bones are made again only when its size, text or skeleton changes.
+- The content takes no input while it is a skeleton: pointers and keyboard focus skip it (taps, and scrollers inside it). Views around the shimmer react as usual, so to scroll a long skeleton put the shimmer inside the scroller (`SkUiScrollView` → `SkUiShimmer` → the page), not the scroller inside the shimmer; put a Cancel button outside the shimmer too, or use a hand-made skeleton. Screen readers read one "Loading" element.
+- Data that arrives while loading (rows added to a stack, texts set) shows as bones until `IsLoading` turns false.
+- **An empty collection view shows placeholder items** instead of its `EmptyView` (`ShowsPlaceholders`): views of its `ItemTemplate` without an item (no binding context, a `DataTemplateSelector` asked with `null`), so their texts draw placeholder lines and their shapes bones, laid out with its `Span`, `ItemSpacing` and `SpanSpacing`. `SkUiShimmer.SkeletonItemCount` on the list sets how many (default -1: enough rows to fill it, three when it is not bounded along its axis; 0: none, the empty view shows). They are not items: no selection, no events, no load-more; they go as soon as items come or the skeleton ends, and the empty view shows if the list is still empty.
+- The switch to the content is the same views drawing themselves again. `BeforeStateChangeAnimation="FadeOut 200"` fades the bones out and shows the content at once; add `AfterStateChangeAnimation="FadeIn 200"` to fade it in.
+- Not in a skeleton (no shimmer showing its content), controls check nothing: one static read per recording.
+
+### Loading in stages
+
+Pages often load in steps: a first request brings the list (names only), then a request per row brings its details. Use one shimmer per step, each its content's own skeleton:
+
+1. **The page:** a shimmer around the page, `IsLoading` bound to the first request. Its empty collection view shows placeholder rows of its own template meanwhile.
+2. **Each row's details:** a shimmer inside the item template around the parts that load later, `IsLoading` bound to the row (`IsLoadingDetails`). A shimmer decides for its own content: once the page has loaded, rows show their names while their details are still bones. Placeholder rows, which have no item, show their details as bones too.
+3. Give every shimmer `WaveRegion="Surface"`, so the page's and the rows' waves are one wave.
+
+```xml
+<sk:SkUiShimmer Mode="Bones" WaveRegion="Surface" IsLoading="{Binding IsLoadingTeam}">
+    <sk:SkUiCollectionView ItemsSource="{Binding Members}">
+        <sk:SkUiCollectionView.ItemTemplate>
+            <DataTemplate x:DataType="local:MemberRow">
+                <sk:SkUiVerticalStackLayout>
+                    <sk:SkUiLabel Text="{Binding Name}" FontAttributes="Bold" />
+                    <sk:SkUiShimmer Mode="Bones" WaveRegion="Surface" IsLoading="{Binding IsLoadingDetails}">
+                        <sk:SkUiLabel Text="{Binding Activity}" sk:SkUiShimmer.SkeletonLines="2" />
+                    </sk:SkUiShimmer>
+                </sk:SkUiVerticalStackLayout>
+            </DataTemplate>
+        </sk:SkUiCollectionView.ItemTemplate>
+    </sk:SkUiCollectionView>
+</sk:SkUiShimmer>
+```
+
+The samples app's **Loading in stages** is a team page loaded this way when Load is tapped (one label before), with simulated requests (one for the team, then one per member, three at a time).
 
 ### Core bones, one bound property
 
@@ -148,7 +229,7 @@ Skeleton views built from MAUI shapes and `Animation`s (one animation per box) p
 
 | Property | Default | Notes |
 | --- | --- | --- |
-| `SkeletonContent` | `null` | The bones (SkUi: also `SkeletonContentTemplate`, created the first time the skeleton shows) |
+| `SkeletonContent` | `null` | The bones (SkUi: also `SkeletonContentTemplate`, created the first time the skeleton shows). Without one, `Content` is the skeleton (`ShowsContentAsSkeleton`) |
 | `Content` | `null` | Shown once no longer loading (SkUi: also `ContentTemplate`, `ContentLoading`) |
 | `IsLoading` | `true` | Skeleton or content. `IsShowingSkeleton` follows it after a switch animation (raises `PropertyChanged`); `IsSwitching` while one runs |
 | `Mode` | `Silhouette` | `Silhouette`: everything in the skeleton is a bone. `Bones`: only `SkUiShimmerBone`s / `SkUiCoreShimmerBone`s, the rest draws as it is |
@@ -164,6 +245,8 @@ Skeleton views built from MAUI shapes and `Animation`s (one animation per box) p
 | `PulseOpacity` | 0.4 | The bones' opacity at a pulse's low point, 0–1 |
 | `BeforeStateChangeAnimation` / `AfterStateChangeAnimation` | `null` | `SkUiViewAnimation`s on the child that leaves and the one that comes, as [`SkUiStateContainer`](SkUiStateContainer.md)'s (XAML `"FadeOut 350 CubicInOut"`). Core: uniform `Scale` only |
 
+Attached, for views in a skeleton made from the content: `SkUiShimmer.Skeleton` (`SkUiSkeleton`: `Default`, `Bone`, `Keep`, `Hidden`, `Children`) `SkUiShimmer.SkeletonLines` (an empty label's placeholder lines, default 1) and, on a collection view, `SkUiShimmer.SkeletonItemCount` (its placeholder items while empty, default -1: fill it); `GetSkeleton` / `SetSkeleton`, `GetSkeletonLines` / `SetSkeletonLines`, `GetSkeletonItemCount` / `SetSkeletonItemCount`. Core: `SkUiCoreShimmer.SkeletonProperty` and `SkeletonLinesProperty` (`node.SetValue(…)`).
+
 Fluent setters: `SetSkeletonContent`, `SetIsLoading`, `SetMode`, `SetEffect`, `SetBoneColor`, `SetHighlightColor`, `SetWaveWidth`, `SetWaveDirection`, `SetWaveRegion`, `SetDuration`, `SetRepeatMode`, `SetEasing`, `SetPulseOpacity`; Core also `SetContent`, `SetPadding`, `SetBeforeStateChangeAnimation`, `SetAfterStateChangeAnimation`. Invalid values (a width or duration that is not positive, an opacity outside 0–1) are ignored by the bindable properties and rejected by the setters.
 
 **`SkUiShimmerBone` / `SkUiCoreShimmerBone`:** `CornerRadius` (per corner; larger radii are scaled down), `Color` (`null`: the shimmer's `BoneColor`, else the look's). Measures 40 × 40 unless sized, as MAUI's `BoxView`. Fluent `SetColor`, `SetCornerRadius`.
@@ -172,12 +255,13 @@ Fluent setters: `SetSkeletonContent`, `SetIsLoading`, `SetMode`, `SetEffect`, `S
 
 - `GetShimmerColors()` returns `SkUiShimmerColors(Bone, Highlight)`: by default bones halfway between the scheme's `TrackOff` and its background, a wave lighter than the bones.
 - `ShimmerWaveTilt`: the default direction's tilt in degrees.
+- `AddSkeletonBones(SkUiSkeletonPart, IList<SkUiSkeletonBone>)` / `SkeletonBones`: the bones of a control's part in a skeleton from the content. The part's `Kind` (`Shape`, `TextLine`, `Switch`, `CheckBox`, `RadioButton`, `Slider`, `ProgressBar`, `ActivityIndicator`), its `Bounds` and `CornerRadius` in the control's coordinates; a bone is a rectangle with corner radii. Default: shapes as they are, a text line as a bar 60 % of its spacing with 4 DIP corners, a switch's track as a pill, a check box's box, a radio button's or an activity indicator's circle, a slider's track as high as its thumb's radius, a progress bar's track.
 - `CreateShimmerWaveShader(SkUiShimmerWavePaint)` / `ShimmerWaveShader`: the wave band's shader for its `Bounds` (x across the band, in the direction it moves). The default is a soft gradient, transparent at both edges. The shader is made once when the wave's settings or size change (one per bone in `Bones` mode) and the band filled with it is moved on the render thread, drawn only where bones are: a look's wave is as cheap as the default one.
 
 ## Integration
 
 - **State container:** a shimmer is a drawn view, so it can be the loading state view of an [`SkUiStateContainer`](SkUiStateContainer.md) (a shimmer with only `SkeletonContent`), with the container's fade.
-- **Collection views:** a shimmer around the list with placeholder rows (above), or a shimmer per row bound to the row's own loading state, with `WaveRegion="Surface"` so the rows show one wave.
+- **Collection views:** a shimmer around the list, its content the skeleton: while it is empty, placeholder items of its own template ([above](#a-skeleton-from-the-content)); a shimmer around the list with hand-made placeholder rows (above); or a shimmer per row bound to the row's own loading state, with `WaveRegion="Surface"` so the rows show one wave.
 
 ## Accessibility
 
@@ -185,8 +269,8 @@ While the skeleton shows, the shimmer is one element, a progress bar read as "Lo
 
 ## Not built yet
 
-C9b ([ImplementationPlan.md](../design/ImplementationPlan.md)): a skeleton made from the content itself (each control drawing its own bones: label lines, image and chrome shapes), placeholder rows over a collection view's item template.
+Device runs of the skeleton from the content ([ImplementationPlan.md](../design/ImplementationPlan.md)).
 
 ## Related
 
-Gallery: `ShimmerDemoPage` (playground with presets: the default wave, a skeleton's fade, a color shift), `ShimmerBonesDemoPage` (cards with bones, bones or silhouette), `CoreShimmerDemoPage` (a feed loading, on the Core flyout), `CoreShimmerBonesDemoPage` (Core cards with bones), `ShimmerRowsDemoPage` (a collection view of shimmering rows). Samples app: **Loading skeleton over a MAUI page**. Leak scenario `ShimmersShown`, benchmarks `shimmer-page`, `shimmer-rows` and `shimmer-bones`.
+Gallery: `ShimmerDemoPage` (playground with presets: the default wave, a skeleton's fade, a color shift), `ShimmerBonesDemoPage` (cards with bones, bones or silhouette), `CoreShimmerDemoPage` (a feed loading, on the Core flyout), `CoreShimmerBonesDemoPage` (Core cards with bones), `ShimmerContentDemoPage` (a feed that is its own skeleton, its empty member list showing placeholder rows, next to a hand-made skeleton), `ShimmerRowsDemoPage` (a collection view of shimmering rows). Samples app: **Loading skeleton over a MAUI page**, **Loading in stages**. Leak scenario `ShimmersShown`, benchmarks `shimmer-page`, `shimmer-rows`, `shimmer-bones` and `shimmer-content`; tests `ShimmerContentSkeletonTests`.

@@ -423,6 +423,9 @@ public partial class SkUiCollectionView
 
         public SkUiContentView EmptyHost { get; } = new();
 
+        /// <summary>The placeholder items of an empty list in a skeleton made from content, created the first time they show.</summary>
+        public PlaceholderPart? PlaceholderHost;
+
         public bool LoadMoreAtStart
         {
             get => _loadMoreAtStart;
@@ -436,7 +439,7 @@ public partial class SkUiCollectionView
         }
 
         /// <summary>Attaches a host created on demand.</summary>
-        public T Adopt<T>(T host) where T : SkUiContentView
+        public T Adopt<T>(T host) where T : SkUiView
         {
             AttachChild(host);
             return host;
@@ -454,6 +457,8 @@ public partial class SkUiCollectionView
                     yield return LoadMoreHost;
                 yield return _owner._items;
                 yield return EmptyHost;
+                if (PlaceholderHost is not null)
+                    yield return PlaceholderHost;
                 if (LoadMoreHost is not null && !_loadMoreAtStart)
                     yield return LoadMoreHost;
                 if (FooterHost is not null)

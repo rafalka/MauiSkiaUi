@@ -12,7 +12,7 @@ public class SkUiCoreShimmerBone : SkUiCoreNode, ISkUiShimmerBone
 {
     private Color? _color;
     private CornerRadius _cornerRadius;
-    private SkUiDrawableSlot<SkUiShimmerBoneKey> _drawable;
+    private SkUiBoneSlot _drawable;
 
     /// <summary>The bone's color (<c>null</c>, the default: the shimmer's bone color, else the look's).</summary>
     public Color? Color { get => _color; set => SetColor(value); }
@@ -37,6 +37,9 @@ public class SkUiCoreShimmerBone : SkUiCoreNode, ISkUiShimmerBone
 
     void ISkUiShimmerBone.OnShimmerChanged() => InvalidateRender(SkUiRenderDirty.Props);
 
+    /// <summary>In a skeleton made from content a bone draws itself, as it is.</summary>
+    internal override SkUiSkeleton DefaultSkeleton => SkUiSkeleton.Keep;
+
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => new(40, 40);
 
@@ -47,7 +50,7 @@ public class SkUiCoreShimmerBone : SkUiCoreNode, ISkUiShimmerBone
     internal override void OnGetRenderProps(ref SkUiRenderProps props)
     {
         base.OnGetRenderProps(ref props);
-        props.Drawable = SkUiShimmerBoneKey.GetDrawable(ref _drawable, this, _color, _cornerRadius, props.Width, props.Height);
+        props.Drawable = _drawable.GetSingle(this, _color, _cornerRadius, props.Width, props.Height);
     }
 
     /// <inheritdoc />

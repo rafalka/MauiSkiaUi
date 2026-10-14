@@ -612,7 +612,7 @@ SkiaUi does not replace navigation: it ships no pages and no popup windows. Draw
 
 ### FR-31 — Shimmer (skeleton loading)
 
-**Status:** C9a shipped, bones included (C9 in [ImplementationPlan.md](ImplementationPlan.md)); C9b (the skeleton from the content) and device runs open. Control page: [SkUiShimmer.md](../controls/SkUiShimmer.md).
+**Status:** shipped: C9a, bones included, and C9b, the skeleton from the content (C9 in [ImplementationPlan.md](ImplementationPlan.md)); device runs open. Control page: [SkUiShimmer.md](../controls/SkUiShimmer.md).
 
 - [x] **`SkUiShimmer` / `SkUiCoreShimmer`:** shows a skeleton with a moving wave while `IsLoading`, then `Content`; SkiaUi's own API (`BoneColor`, `HighlightColor`, `WaveWidth`, `WaveDirection`, `Duration`) and a conversion path for hand-made skeleton views in [Migration.md](../Migration.md#shimmer).
 - [x] **Skeleton from views:** `SkeletonContent` of drawn views of either layer (boxes, round rectangles, ellipses, borders, any drawn view) as the bones, drawn in `BoneColor` (their shapes and opacity kept; a transparent `BoneColor` keeps their colors).
@@ -624,8 +624,8 @@ SkiaUi does not replace navigation: it ships no pages and no popup windows. Draw
 - [x] **Integration:** a state view in `SkUiStateContainer`; placeholder rows in `SkUiCollectionView` while loading (rows of bones in one shimmer, or a shimmer per row); an optional render-thread animation of the switch to the content (`BeforeStateChangeAnimation` / `AfterStateChangeAnimation`, the state container's `SkUiViewAnimation`s, which now run on Core nodes too).
 - [x] **Accessibility (FR-28):** one "loading" element (`SkUiStrings.LoadingText`) instead of the bones.
 - [x] **Generic engine:** the effect is drawn through the compositor's generic primitives (clock-driven drawables, a children layer, drawable spaces); the engine has no shimmer-specific code, and pays nothing more than a shimmer-specific path would.
-- [ ] **Skeleton from the content (to explore, C9b):** the content's own controls draw their bones (label lines, image and chrome shapes, toggle outlines) in their overlay paint phase while a shimmer ancestor is active, so the skeleton matches what is displayed; per-control bone painters in the look; a per-view override (`Skeleton`: `Bone`, `Hidden`, `Children`, `Default`); placeholder lines for empty text; placeholder rows over a collection view's item template.
-- [x] Headless tests (`ShimmerTests`, `ShimmerBoneTests`, `RenderPrimitivesTests`), demo pages, a samples-app page (a skeleton over a MAUI page), leak scenario (`ShimmersShown`), benchmarks (`shimmer-page`, `shimmer-rows`, `shimmer-bones`).
+- [x] **Skeleton from the content (C9b):** a shimmer without `SkeletonContent` shows its content as the skeleton: the controls draw their bones (label lines, image and chrome shapes, toggle outlines) through drawables while it loads, so the skeleton matches what is displayed; bones from the look (`AddSkeletonBones`: parts to rounded rectangles); a per-view override (`Skeleton`: `Bone`, `Keep`, `Hidden`, `Children`, `Default`); placeholder lines for empty text (`SkeletonLines`); containers keep their chrome in `Bones` mode; hosted native views hidden behind their bone; no input meanwhile; placeholder items of an empty collection view's item template, filling it (`SkeletonItemCount`).
+- [x] Headless tests (`ShimmerTests`, `ShimmerBoneTests`, `ShimmerContentSkeletonTests`, `RenderPrimitivesTests`), demo pages, a samples-app page (a skeleton over a MAUI page), leak scenario (`ShimmersShown`), benchmarks (`shimmer-page`, `shimmer-rows`, `shimmer-bones`, `shimmer-content`).
 - [ ] Frame time on a device with a list of shimmering rows (Galaxy S9: measured idle, 60 fps, 2.4 ms per frame for one shimmer around 60 rows and 5.7 ms for a shimmer per row, 2.6 ms for 60 cards of bones (as one silhouette layer), [Benchmarks.md](Benchmarks.md); left: while the list scrolls); device runs (Android, iOS, Mac Catalyst, Windows).
 
 ### FR-32 — Carousel and indicator view
@@ -751,7 +751,6 @@ When borrowing an idea, note the source briefly in design discussion or code com
 - Exact public names for animation helpers / `ISkUiAnimator` (tier APIs sketched in [AnimationMechanism.md](AnimationMechanism.md)).
 - Scroll details still open in [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#open-items): how FR-21 / FR-22 provide their extent inside an outer scroller.
 - **Control look (FR-18)** remaining: per-tree look attachment (vs process-wide `Current`), and optional OS theme sync helpers. Type names, `Current`, virtual/delegate painters, and default size tokens are decided — see Decided and [ControlLook.md](ControlLook.md).
-- **Shimmer (FR-31):** whether C9b's skeleton from the content draws in the overlay phase or a separate skeleton recording. (The wave's mask is decided with C9a: the bones drawn into one layer, the effect drawn `SrcATop` by the shimmer's drawable; a skeleton from the content would reuse it.)
 - **Calendar (FR-33):** the per-day style callback's shape (a struct returned per day, or a painter), and how far `DayTemplate` goes (views per day for the visible month only).
 - **Color scheme (FR-19)** remaining: optional OS light/dark synchronization helpers. Type names, light/dark packs, `Current`, and construction-snapshot vs paint-time token reads are decided — see Decided and [ColorScheme.md](ColorScheme.md).
 

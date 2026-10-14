@@ -14,6 +14,9 @@ namespace MauiSkiaUi.Core;
 /// </summary>
 public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
 {
+    /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
+    internal override bool IsSkeletonContainer => true;
+
     private readonly SkUiScrollController _scroller;
     private bool _rtlStartApplied;
 

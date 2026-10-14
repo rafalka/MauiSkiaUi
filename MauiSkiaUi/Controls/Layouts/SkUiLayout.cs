@@ -10,6 +10,9 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(Children))]
 public class SkUiLayout : SkUiView, ILayout, IBindableLayout
 {
+    /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
+    internal override bool IsSkeletonContainer => true;
+
     private Thickness _padding;
     private ISkUiView[]? _paintOrder;
     private ISkUiView[] PaintOrder => _paintOrder ??= Children.OrderBy(child => child.ZIndex).ToArray();

@@ -42,6 +42,13 @@ public class SkUiCoreRadioButton : SkUiCoreToggleControl
     protected override void OnPaintContent(SKCanvas canvas) =>
         SkUiToggleDrawing.DrawRadioButton(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, ToggleVisual, _color, enabled: true);
 
+    /// <summary>The circle: as large as the control's smaller side, at its start, from the top.</summary>
+    internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)
+    {
+        var size = Math.Min(bones.Width, bones.Height);
+        bones.Add(SkUiSkeletonPartKind.RadioButton, SKRect.Create(IsRightToLeft ? bones.Width - size : 0, 0, size, size));
+    }
+
     /// <inheritdoc />
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
     {

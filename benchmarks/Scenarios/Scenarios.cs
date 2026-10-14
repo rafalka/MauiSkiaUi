@@ -29,6 +29,7 @@ public static class Scenarios
         new ShimmerSkeleton(perRow: false),
         new ShimmerSkeleton(perRow: true),
         new ShimmerBones(),
+        new ShimmerContent(),
         new ScrollFling(),
         new VirtualListFling(),
         new Spinners(),
@@ -300,6 +301,80 @@ public sealed class ShimmerBones : BenchScenario
         var width = _round % 2 == 0 ? 100 : 90;
         foreach (var bar in _bars)
             bar.Width = width;
+    };
+
+    public override Func<View, IDisposable?>? Motion => _ => null;
+}
+
+/// <summary>
+/// C9b: a loading screen made from its content: 60 real cards (white, bordered, an avatar circle, a name, a two-line
+/// message, a value) in one <c>SkUiCoreShimmer</c> without a skeleton of its own, <c>Mode = Bones</c>: every label draws a
+/// bar per line and the avatar its circle, the cards draw as they are; update = new texts (new line bars, nothing
+/// recorded for the labels); motion = the wave (device frame stats). Libraries without it draw the cards themselves.
+/// </summary>
+public sealed class ShimmerContent : BenchScenario
+{
+    private const int Cards = 60;
+    private static readonly string[] Messages =
+    [
+        "The quarterly numbers are in; the team beat its target by a wide margin.",
+        "Shipped the release notes.",
+        "Reviewing the profile page skeleton next, then the settings screen."
+    ];
+    // Looked up by name: the scenario compiles against libraries from before the skeleton from content.
+    private static readonly Type? CoreShimmerType = typeof(SkUiView).Assembly.GetType("MauiSkiaUi.Core.SkUiCoreShimmer");
+    private static readonly bool FromContent = CoreShimmerType?.GetProperty("ShowsContentAsSkeleton") is not null;
+    private readonly List<SkUiCoreLabel> _messages = [];
+    private int _round;
+
+    public override string Name => "shimmer-content";
+    public override string Description => "60 bordered cards (avatar, name, two-line message, value) as their own skeleton in one SkUiCoreShimmer (Mode = Bones; the cards themselves before C9b); update = new texts; motion = the wave (frame stats)";
+
+    private SkUiCoreBorder Card(int index)
+    {
+        var message = new SkUiCoreLabel { Text = Messages[index % Messages.Length], FontSize = 13, MaxLines = 2 };
+        _messages.Add(message);
+        var text = new SkUiCoreVerticalStackLayout { Spacing = 4 }
+            .Add(new SkUiCoreLabel { Text = $"Person {index}", FontSize = 15, FontAttributes = FontAttributes.Bold })
+            .Add(message);
+        var grid = new SkUiCoreGrid()
+            .SetColumnDefinitions([new SkUiCoreColumnDefinition(SkUiCoreGridLength.Auto), new SkUiCoreColumnDefinition(SkUiCoreGridLength.Star),
+                new SkUiCoreColumnDefinition(SkUiCoreGridLength.Auto)])
+            .SetColumnSpacing(12);
+        grid.Add(new SkUiCoreBox { Color = Colors.SteelBlue, CornerRadius = 16, Width = 32, Height = 32, VerticalAlignment = LayoutAlignment.Start });
+        grid.Add(text);
+        grid.SetColumn(text, 1);
+        var value = new SkUiCoreLabel { Text = $"{index * 7 % 100} pts", FontSize = 15 };
+        grid.Add(value);
+        grid.SetColumn(value, 2);
+        return new SkUiCoreBorder().SetBackgroundColor(Colors.White).SetStroke(Colors.LightGray).SetStrokeThickness(1).SetCornerRadius(8)
+            .SetPadding(new Thickness(16)).SetContent(grid);
+    }
+
+    // Release builds trim: keep the reflected shimmer's constructor and properties.
+    [System.Diagnostics.CodeAnalysis.DynamicDependency(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties, "MauiSkiaUi.Core.SkUiCoreShimmer", "MauiSkiaUi")]
+    public override View Build()
+    {
+        _messages.Clear();
+        var cards = new SkUiCoreVerticalStackLayout { Spacing = 12, Padding = new Thickness(12) };
+        for (var i = 0; i < Cards; i++)
+            cards.Add(Card(i));
+        SkUiCoreNode root = cards;
+        if (FromContent)
+        {
+            root = (SkUiCoreNode)Activator.CreateInstance(CoreShimmerType!)!;
+            TrySet(root, "Mode", "Bones");
+            TrySet(root, "Content", cards);
+        }
+        return Scenarios.Scroll(new SkUiCoreHost().SetContent(root));
+    }
+
+    public override Action<View>? Update => _ =>
+    {
+        _round++;
+        for (var index = 0; index < _messages.Count; index++)
+            _messages[index].Text = Messages[(index + _round) % Messages.Length];
     };
 
     public override Func<View, IDisposable?>? Motion => _ => null;
