@@ -46,6 +46,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiContentPresenter` | [SkUiContentPresenter.md](SkUiContentPresenter.md) | ContentPresenter (in drawn `ControlTemplate`s) |
 | `SkUiAlternateContentView` | [SkUiAlternateContentView.md](SkUiAlternateContentView.md) | — (content or alternate content, animated switches) |
 | `SkUiShimmer` / `SkUiCoreShimmer` | [SkUiShimmer.md](SkUiShimmer.md) | — (a skeleton of your views while loading: wave, pulse or color effects on the render thread, every shimmer in phase) |
+| `SkUiShimmerBone` / `SkUiCoreShimmerBone` | [SkUiShimmer.md](SkUiShimmer.md#bones-a-skeleton-with-chrome) | — (a bone that shimmers by itself among chrome that does not) |
 | `SkUiMauiContentView` | [SkUiMauiContentView.md](SkUiMauiContentView.md) | — (native host) |
 | `SkUiBorder` | [SkUiBorder.md](SkUiBorder.md) | Border |
 | `SkUiLayout` | [SkUiLayout.md](SkUiLayout.md) | — (overlay) |

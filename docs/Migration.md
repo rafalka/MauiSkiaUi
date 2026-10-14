@@ -361,7 +361,7 @@ Styles now apply to everything the toolkit's constructor set (padding, stroke, s
 
 ## Shimmer
 
-`SkUiShimmer` ([SkUiShimmer.md](controls/SkUiShimmer.md)) shows `SkeletonContent` while `IsLoading`, then `Content`; the effect runs on the render thread and every shimmer is in phase. Build loading screens from Core bones (`SkUiCoreBox` in an `SkUiCoreHost`, or a whole `SkUiCoreShimmer`) and bind only `IsLoading`. A shimmer control with built-in layouts ports by building the skeleton from boxes (`SkUiBox` / `SkUiCoreBox` with `CornerRadius`) as `SkeletonContent`.
+`SkUiShimmer` ([SkUiShimmer.md](controls/SkUiShimmer.md)) shows `SkeletonContent` while `IsLoading`, then `Content`; the effect runs on the render thread and every shimmer is in phase. Build loading screens from Core bones (`SkUiCoreBox` in an `SkUiCoreHost`, or a whole `SkUiCoreShimmer`) and bind only `IsLoading`. A shimmer control with built-in layouts ports by building the skeleton from boxes (`SkUiBox` / `SkUiCoreBox` with `CornerRadius`) as `SkeletonContent`. A skeleton with parts that must not shimmer (cards around the bones, a Cancel button) uses `Mode="Bones"` with `SkUiShimmerBone` / `SkUiCoreShimmerBone` as the bones; it can also be laid over a page that stays in MAUI ([Bones](controls/SkUiShimmer.md#bones-a-skeleton-with-chrome)).
 
 **From a hand-made skeleton view** (MAUI shapes, one `Animation` per box, `IsLoading` passed down): replace the boxes with bones (`SkUiCoreBox` / `SkUiBox`, any color) inside one shimmer, and the animation with settings:
 
@@ -371,6 +371,8 @@ Styles now apply to everything the toolkit's constructor set (padding, stroke, s
 | Color from a start to an end color linearly in 750 ms, restarting | `Effect="Color" BoneColor="{start}" HighlightColor="{end}" Duration="750" RepeatMode="Restart" Easing="Linear"` |
 | Fade out of the skeleton when loading ends | `BeforeStateChangeAnimation="FadeOut 350 CubicInOut"` |
 | `IsLoading` on every box | `IsLoading` on the shimmer |
+| Boxes inside the real layout's cards, beside a Cancel button | `Mode="Bones"`: `SkUiShimmerBone`s in their places, the cards and the button as drawn views |
+| A skeleton view swapped with the MAUI page (a state container) | The page stays; one `SkUiShimmer` with only `SkeletonContent` over it, hidden once faded (`IsVisible` bound to `IsShowingSkeleton`) |
 | Pausing on `Unloaded`, hardware layers, per-box animation names | Drop: a shimmer not drawn requests no frames; the bones are one recorded picture in one layer |
 
 ## Not available yet

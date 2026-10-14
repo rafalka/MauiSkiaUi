@@ -1075,9 +1075,10 @@ public class SkUiLook
 
     /// <summary>
     /// Makes the shader of a shimmer's wave band (delegate or <see cref="CreateShimmerWaveShaderCore"/>) for
-    /// <see cref="SkUiShimmerWavePaint.Bounds"/>, x across the band in the direction it moves. The shimmer fills the band with
-    /// it, blended over the bones (source-atop, so no layer of its own), when the wave's settings or size change; the band is
-    /// then moved on the render thread. The caller disposes the shader.
+    /// <see cref="SkUiShimmerWavePaint.Bounds"/>, x across the band in the direction it moves. It is made when the wave's
+    /// settings or size change (per bone in <see cref="SkUiShimmerMode.Bones"/>) and moved on the render thread, drawn over
+    /// the bones only. Outside the band it must be transparent (a gradient clamped to transparent ends, as the default, or
+    /// decal): a bone fills its whole shape with it. The caller disposes the shader.
     /// </summary>
     public SKShader CreateShimmerWaveShader(SkUiShimmerWavePaint wave) =>
         ShimmerWaveShader is { } factory ? factory(wave) : CreateShimmerWaveShaderCore(wave);

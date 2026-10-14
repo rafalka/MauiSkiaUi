@@ -20,6 +20,7 @@ public static class SampleCatalog
         SampleEntry.For<CardsWithShadowsSample>(),
         SampleEntry.For<ContentViewsSample>(),
         SampleEntry.For<OrderListSample>(),
+        SampleEntry.For<LeaderboardLoadingSample>(),
         SampleEntry.For<ContactsSample>(),
         SampleEntry.For<PlanPickerSample>(),
         SampleEntry.For<PickerPopupsSample>(),

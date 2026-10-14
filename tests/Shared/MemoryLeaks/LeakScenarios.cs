@@ -36,7 +36,7 @@ public static class LeakScenarios
         new("AvatarsShown", Controls, "SkUiAvatarView rows in a SkUiCollectionView over a long-lived collection (initials from bound names, colors by name, badges), avatars with a cached photo and the long-lived shared icon, a Core avatar: the list flung so rows recycle, a name replaced, an avatar enlarged (decoded again while the smaller image stays), photos swapped and cleared; closed mid-fling.", () => new AvatarsRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
         new("BindableLayoutItems", Layouts, "MAUI BindableLayout on a wrap layout bound to a long-lived collection and on a stack with a template selector and an empty view: items added, inserted, replaced, moved and removed, the collection cleared to the empty view and refilled, the items source swapped.", () => new BindableLayoutRun()),
-        new("ShimmersShown", Layouts, "Skeleton loading: a SkUiShimmer of Core bones (wave in the surface region) switched to its content and back with a long-lived shared fade, its effect changed while shown (pulse, color shift, none); a SkUiCoreShimmer switched with a fade; SkUiShimmer rows (IsLoading bound to a long-lived source) in a SkUiCollectionView over a long-lived collection, flung so rows recycle; closed while shimmering.", () => new ShimmersRun()),
+        new("ShimmersShown", Layouts, "Skeleton loading: a SkUiShimmer of Core bones (wave in the surface region) switched to its content and back with a long-lived shared fade, its effect changed while shown (pulse, color shift, none); a SkUiShimmer of bones (SkUi and Core bones in a bordered card) switched between bones and silhouette and to its content; a SkUiCoreShimmer switched with a fade; SkUiShimmer rows (IsLoading bound to a long-lived source) in a SkUiCollectionView over a long-lived collection, flung so rows recycle; closed while shimmering.", () => new ShimmersRun()),
         new("StatesSwitched", Layouts, "SkUiStateContainer on a grid and a stack: loading (spinner running), error (retry button with a long-lived command) and empty states switched directly and with the fade, a change rejected while one runs; hidden state views removed; automatic state change animations (one shared long-lived animation) retargeted while running; closed while one runs.", () => new StatesRun()),
         new("ContentDeferred", Layouts, "Three tabs of SkUiContentView sections that load when shown (explicit content and templates with a long-lived command, some with a delay or a fade-in): tabs switched so some load, a waiting section removed, closed with sections still waiting and delay timers pending.", () => new DeferredRun()),
         new("ExpanderToggled", Layouts, "SkUiExpander sections (explicit, template and lazy content, a hosted Entry, a long-lived command, both directions): expanded and collapsed by header taps, animated and not, reversed mid-animation, content replaced while collapsed; closed mid-collapse.", () => new ExpanderRun()),
@@ -984,6 +984,7 @@ public static class LeakScenarios
     private sealed class ShimmersRun : LeakScenarioRun
     {
         private SkUiShimmer? _shimmer;
+        private SkUiShimmer? _bones;
         private SkUiCoreShimmer? _core;
         private SkUiCollectionView? _list;
 
@@ -1005,6 +1006,14 @@ public static class LeakScenarios
                 SkeletonContent = Bones(), Content = Text("Loaded"), WaveRegion = SkUiShimmerWaveRegion.Surface,
                 BeforeStateChangeAnimation = ShimmerFade
             }, "shimmer");
+            var boneRow = new SkUiHorizontalStackLayout { Spacing = 8 };
+            boneRow.Children.Add(context.Track(new SkUiShimmerBone { WidthRequest = 24, HeightRequest = 24, CornerRadius = 12 }, "bone"));
+            boneRow.Children.Add(new SkUiCoreHost().SetContent(new SkUiCoreShimmerBone { Width = 120, Height = 10, CornerRadius = 4, VerticalAlignment = LayoutAlignment.Center }));
+            _bones = context.Track(new SkUiShimmer
+            {
+                Mode = SkUiShimmerMode.Bones, Content = Text("Bones loaded"),
+                SkeletonContent = new SkUiBorder { Stroke = Colors.Gray, StrokeThickness = 1, Padding = new Thickness(8), Content = boneRow }
+            }, "bones shimmer");
             _core = new SkUiCoreShimmer
             {
                 SkeletonContent = new SkUiCoreBox { Color = Colors.Black, CornerRadius = 4, Height = 16 },
@@ -1021,7 +1030,7 @@ public static class LeakScenarios
                     return row;
                 })
             }, "shimmer list");
-            return Root(new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12), Children = { _shimmer, new SkUiCoreHost().SetContent(_core), _list } });
+            return Root(new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12), Children = { _shimmer, _bones, new SkUiCoreHost().SetContent(_core), _list } });
         }
 
         public override async Task InteractAsync(LeakScenarioContext context)
@@ -1036,8 +1045,15 @@ public static class LeakScenarios
             foreach (var effect in new[] { SkUiShimmerEffect.Pulse, SkUiShimmerEffect.Color, SkUiShimmerEffect.None, SkUiShimmerEffect.Wave })
             {
                 _shimmer.Effect = effect;
+                _bones!.Effect = effect;
                 await context.SettleAsync();
             }
+            _bones!.Mode = SkUiShimmerMode.Silhouette;
+            await context.SettleAsync();
+            _bones.Mode = SkUiShimmerMode.Bones;
+            _bones.IsLoading = false;
+            await context.SettleAsync();
+            _bones.IsLoading = true;
             await context.DragAsync(_list!, 0, -300, durationMs: 80); // fling: rows recycle, shimmering
             await context.WaitAsync(200); // closed while shimmering
         }

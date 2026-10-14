@@ -32,6 +32,7 @@ public static class ComponentDemos
         new(typeof(SkUiContentView), typeof(ContentViewDemoPage), nameof(ContentView), ComponentCategory.Layouts, () => new ContentViewDemoPage()),
         new(typeof(SkUiAlternateContentView), typeof(AlternateContentViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new AlternateContentViewDemoPage()),
         new(typeof(SkUiShimmer), typeof(ShimmerDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new ShimmerDemoPage()),
+        new(typeof(SkUiShimmerBone), typeof(ShimmerBonesDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new ShimmerBonesDemoPage()),
         new(typeof(SkUiExpander), typeof(ExpanderDemoPage), "Community Toolkit Expander", ComponentCategory.Layouts, () => new ExpanderDemoPage()),
         new(typeof(SkUiExpander), typeof(ExpanderNestingDemoPage), "Community Toolkit Expander (nested, in a scroller)", ComponentCategory.Layouts,
             () => new ExpanderNestingDemoPage(), Key: "SkUiExpanderNested"),
@@ -85,7 +86,8 @@ public static class ComponentDemos
         new(typeof(SkUiCoreScrollView), typeof(CoreScrollViewDemoPage), "ScrollView + gestures", ComponentCategory.Core, () => new CoreScrollViewDemoPage()),
         new(typeof(SkUiCoreBorder), typeof(CorePressEffectDemoPage), "Composite buttons (press effect)", ComponentCategory.Core,
             () => new CorePressEffectDemoPage(), Key: "CompositeButtons"),
-        new(typeof(SkUiCoreShimmer), typeof(CoreShimmerDemoPage), "A feed loading (shimmer)", ComponentCategory.Core, () => new CoreShimmerDemoPage())
+        new(typeof(SkUiCoreShimmer), typeof(CoreShimmerDemoPage), "A feed loading (shimmer)", ComponentCategory.Core, () => new CoreShimmerDemoPage()),
+        new(typeof(SkUiCoreShimmerBone), typeof(CoreShimmerBonesDemoPage), "Cards with shimmering bones", ComponentCategory.Core, () => new CoreShimmerBonesDemoPage())
     ];
 
     /// <summary>MAUI-compatible <c>SkUi*</c> demos shown on the Components flyout.</summary>

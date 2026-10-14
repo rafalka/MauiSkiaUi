@@ -12,12 +12,13 @@ namespace MauiSkiaUi;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The bones are recorded once and drawn in <see cref="BoneColor"/> (their own colors are replaced; their shapes and opacity
-/// stay). The effect runs on the render thread at composite time: a band of <see cref="HighlightColor"/> moving across them
+/// In a <see cref="SkUiShimmerMode.Silhouette"/> (default) the bones are recorded once and drawn in <see cref="BoneColor"/>
+/// (their own colors are replaced; their shapes and opacity stay); with <see cref="SkUiShimmerMode.Bones"/> only the
+/// <see cref="SkUiShimmerBone"/>s animate and the rest of the skeleton (cards, dividers, buttons) draws as it is. The effect
+/// runs on the render thread: a band of <see cref="HighlightColor"/> moving across the bones
 /// (<see cref="SkUiShimmerEffect.Wave"/>), an opacity pulse, or a color shift. Nothing is recorded and the UI thread does
-/// nothing per frame; one shimmer around a whole skeleton (a page, a card, a list of placeholder rows) costs one layer per
-/// frame however many bones it has, and every shimmer with the same timing is in phase, on any surface. While the
-/// system reduces motion the bones stand still.
+/// nothing per frame; a silhouette costs one layer per frame however many bones it has, bones no layer, and every shimmer
+/// with the same timing is in phase, on any surface. While the system reduces motion the bones stand still.
 /// </para>
 /// <para>
 /// Screen readers read one "Loading" element (<see cref="SkUiStrings.LoadingText"/>) instead of the bones. With
@@ -26,10 +27,11 @@ namespace MauiSkiaUi;
 /// </para>
 /// </remarks>
 [ContentProperty(nameof(Content))]
-public class SkUiShimmer : SkUiContentView
+public class SkUiShimmer : SkUiContentView, ISkUiShimmer
 {
     private readonly SkUiContentSlot _skeleton;
-    private readonly SkUiShimmerParts _parts;
+    private readonly SkUiShimmerStyles _styles;
+    private SkUiDrawableSlot<SkUiShimmerStyle> _silhouette;
     private SkUiShimmerSettings _settings = SkUiShimmerSettings.Default;
     private bool _shown = true;  // the skeleton is on screen
     private bool _target = true; // the side animated changes go to
@@ -59,6 +61,11 @@ public class SkUiShimmer : SkUiContentView
     public static readonly BindableProperty EffectProperty = BindableProperty.Create(nameof(Effect), typeof(SkUiShimmerEffect), typeof(SkUiShimmer), SkUiShimmerEffect.Wave,
         validateValue: (_, value) => Enum.IsDefined((SkUiShimmerEffect)value),
         propertyChanged: (bindable, _, newValue) => ((SkUiShimmer)bindable).UpdateSettings(settings => settings with { Effect = (SkUiShimmerEffect)newValue }));
+
+    /// <summary>Bindable <see cref="Mode"/>.</summary>
+    public static readonly BindableProperty ModeProperty = BindableProperty.Create(nameof(Mode), typeof(SkUiShimmerMode), typeof(SkUiShimmer), SkUiShimmerMode.Silhouette,
+        validateValue: (_, value) => Enum.IsDefined((SkUiShimmerMode)value),
+        propertyChanged: (bindable, _, newValue) => ((SkUiShimmer)bindable).UpdateSettings(settings => settings with { Mode = (SkUiShimmerMode)newValue }));
 
     /// <summary>Bindable <see cref="BoneColor"/>.</summary>
     public static readonly BindableProperty BoneColorProperty = BindableProperty.Create(nameof(BoneColor), typeof(Color), typeof(SkUiShimmer), null,
@@ -116,7 +123,7 @@ public class SkUiShimmer : SkUiContentView
     public SkUiShimmer()
     {
         _skeleton = new SkUiContentSlot(this, SkeletonContentProperty, SkeletonContentTemplateProperty);
-        _parts = new SkUiShimmerParts(this, InvalidateRender);
+        _styles = new SkUiShimmerStyles(this);
     }
 
     /// <summary>The skeleton shown while <see cref="IsLoading"/>: drawn views of either layer (an <c>SkUiCoreHost</c> for Core bones).</summary>
@@ -141,6 +148,12 @@ public class SkUiShimmer : SkUiContentView
 
     /// <summary>How the skeleton animates (default <see cref="SkUiShimmerEffect.Wave"/>).</summary>
     public SkUiShimmerEffect Effect { get => (SkUiShimmerEffect)GetValue(EffectProperty); set => SetValue(EffectProperty, value); }
+
+    /// <summary>
+    /// What of the skeleton animates: its whole silhouette (default) or only its <see cref="SkUiShimmerBone"/>s, with
+    /// everything else (cards, dividers, buttons) drawn as it is (<see cref="SkUiShimmerMode.Bones"/>).
+    /// </summary>
+    public SkUiShimmerMode Mode { get => (SkUiShimmerMode)GetValue(ModeProperty); set => SetValue(ModeProperty, value); }
 
     /// <summary>
     /// The bones' color (<c>null</c>: the look's, from the color scheme, <see cref="SkUiLook.GetShimmerColors"/>); transparent
@@ -193,7 +206,10 @@ public class SkUiShimmer : SkUiContentView
         set => SetValue(AfterStateChangeAnimationProperty, value);
     }
 
-    /// <summary>Whether the skeleton is shown (it follows <see cref="IsLoading"/>, after a switch animation).</summary>
+    /// <summary>
+    /// Whether the skeleton is shown (it follows <see cref="IsLoading"/>, after a switch animation); raises
+    /// <c>PropertyChanged</c>, so a skeleton without content can hide itself once its fade-out ended.
+    /// </summary>
     public bool IsShowingSkeleton => _shown;
 
     /// <summary>Whether a switch is animating (the shown content still follows <see cref="IsLoading"/>).</summary>
@@ -215,6 +231,14 @@ public class SkUiShimmer : SkUiContentView
     {
         if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
         Effect = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="Mode"/>.</summary>
+    public SkUiShimmer SetMode(SkUiShimmerMode value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        Mode = value;
         return this;
     }
 
@@ -281,14 +305,25 @@ public class SkUiShimmer : SkUiContentView
     private void UpdateSettings(Func<SkUiShimmerSettings, SkUiShimmerSettings> change)
     {
         _settings = change(_settings);
-        UpdateParts();
+        UpdateStyle(new Size(Math.Max(0, Width), Math.Max(0, Height)));
     }
 
-    /// <summary>Lays the effect's parts out for the current settings, size and direction.</summary>
-    private void UpdateParts()
+    /// <summary>Makes the style for the current settings, size and direction; a new one reaches the drawables of the shimmer and its bones.</summary>
+    private void UpdateStyle(Size size)
     {
-        _parts.Update(_settings, _shown && LayoutChild is not null, new Size(Math.Max(0, Width), Math.Max(0, Height)), IsRightToLeft);
+        if (!_styles.Update(_settings, size, IsRightToLeft))
+            return;
         InvalidateRender(SkUiRenderDirty.Props);
+        SkUiShimmerStyles.InvalidateBones(this);
+    }
+
+    /// <inheritdoc />
+    SkUiShimmerStyle? ISkUiShimmer.GetBoneStyle()
+    {
+        if (_settings.Mode != SkUiShimmerMode.Bones)
+            return null;
+        _styles.Update(_settings, new Size(Math.Max(0, Width), Math.Max(0, Height)), IsRightToLeft); // the look's colors may have changed
+        return _styles.Current;
     }
 
     /// <inheritdoc />
@@ -349,8 +384,9 @@ public class SkUiShimmer : SkUiContentView
             return;
         _shown = _target;
         RefreshContent();
-        UpdateParts();
+        InvalidateRender(SkUiRenderDirty.Props);
         InvalidateSemantics();
+        OnPropertyChanged(nameof(IsShowingSkeleton));
     }
 
     // One animated switch at a time, each to the newest value: a value set during the "before" animation replaces the
@@ -383,7 +419,7 @@ public class SkUiShimmer : SkUiContentView
     protected override void ArrangeContent(Size size)
     {
         base.ArrangeContent(size);
-        _parts.Update(_settings, _shown && LayoutChild is not null, size, IsRightToLeft);
+        UpdateStyle(size);
     }
 
     /// <inheritdoc />
@@ -392,16 +428,20 @@ public class SkUiShimmer : SkUiContentView
         base.OnGetRenderProps(ref props);
         if (!_shown || LayoutChild is null)
             return;
-        // The bones and the parts over them as one group; the pulse fades the group.
+        // The space the wave crosses; in a silhouette, the skeleton as one group with the effect drawn over it.
+        props.DrawableSpace = true;
+        if (_settings.Mode != SkUiShimmerMode.Silhouette)
+            return;
+        _styles.Update(_settings, new Size(props.Width, props.Height), IsRightToLeft); // the look's colors may have changed
         props.ChildrenLayer = true;
-        props.Timeline = _parts.Pulse;
+        props.Drawable = _silhouette.Get(_styles.Current!, _styles.Current!, static style => new SkUiShimmerSilhouette(style));
     }
 
     /// <inheritdoc />
-    internal override void AddRenderChildren(List<ISkUiRenderable> children)
+    internal override void ReleaseDrawingResources()
     {
-        base.AddRenderChildren(children);
-        _parts.AddTo(children);
+        base.ReleaseDrawingResources();
+        _silhouette.Forget();
     }
 
     /// <inheritdoc />
@@ -409,14 +449,14 @@ public class SkUiShimmer : SkUiContentView
     {
         base.OnPropertyChanged(propertyName);
         if (propertyName == nameof(FlowDirection))
-            UpdateParts();
+            UpdateStyle(new Size(Math.Max(0, Width), Math.Max(0, Height)));
     }
 
     /// <inheritdoc />
     internal override void OnEffectiveFlowDirectionChanged()
     {
         base.OnEffectiveFlowDirectionChanged();
-        UpdateParts();
+        UpdateStyle(new Size(Math.Max(0, Width), Math.Max(0, Height)));
     }
 
     /// <inheritdoc />

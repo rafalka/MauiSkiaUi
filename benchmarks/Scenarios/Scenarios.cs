@@ -28,6 +28,7 @@ public static class Scenarios
         new SkUiAvatars(),
         new ShimmerSkeleton(perRow: false),
         new ShimmerSkeleton(perRow: true),
+        new ShimmerBones(),
         new ScrollFling(),
         new VirtualListFling(),
         new Spinners(),
@@ -212,6 +213,94 @@ public sealed class ShimmerSkeleton(bool perRow) : BenchScenario
 
     private static SkUiCoreHost Host(IView child) =>
         child as SkUiCoreHost ?? (SkUiCoreHost)ShimmerType!.GetProperty("SkeletonContent")!.GetValue(child)!;
+
+    public override Func<View, IDisposable?>? Motion => _ => null;
+}
+
+/// <summary>
+/// C9: a loading screen of 60 placeholder cards (white, bordered: chrome that must not shimmer) with five Core bones each,
+/// in one <c>SkUiCoreShimmer</c> with <c>Mode = Bones</c>: the bones draw themselves (no layer), the cards as they are;
+/// update = the bones resized; motion = the wave (device frame stats). Libraries without bones build the same cards with
+/// boxes under a silhouette shimmer (one layer; the cards turn into bones), so a comparison is bones against one layer.
+/// </summary>
+public sealed class ShimmerBones : BenchScenario
+{
+    private const int Cards = 60;
+    // Looked up by name: the scenario compiles against libraries from before the controls.
+    private static readonly Type? CoreShimmerType = typeof(SkUiView).Assembly.GetType("MauiSkiaUi.Core.SkUiCoreShimmer");
+    private static readonly Type? BoneType = typeof(SkUiView).Assembly.GetType("MauiSkiaUi.Core.SkUiCoreShimmerBone");
+    // Looked up once: 300 bones per build, and the reflection must not weigh on "generate".
+    private static readonly System.Reflection.PropertyInfo? BoneCornerRadius = BoneType?.GetProperty("CornerRadius");
+    private readonly List<SkUiCoreNode> _bars = [];
+    private int _round;
+
+    public override string Name => "shimmer-bones";
+    public override string Description => "60 bordered cards with 5 Core bones each in one SkUiCoreShimmer (Mode = Bones); update = bones resized; motion = the wave (frame stats)";
+
+    private SkUiCoreNode Bone(double width, double height, double radius, LayoutAlignment alignment = LayoutAlignment.Fill)
+    {
+        SkUiCoreNode bone;
+        if (BoneType is not null)
+        {
+            bone = (SkUiCoreNode)Activator.CreateInstance(BoneType)!;
+            BoneCornerRadius?.SetValue(bone, new CornerRadius(radius));
+        }
+        else
+        {
+            bone = new SkUiCoreBox { Color = Colors.Black, CornerRadius = radius };
+        }
+        bone.Width = width;
+        bone.Height = height;
+        bone.HorizontalAlignment = alignment;
+        return bone;
+    }
+
+    private SkUiCoreBorder Card()
+    {
+        var name = new SkUiCoreVerticalStackLayout { Spacing = 4, VerticalAlignment = LayoutAlignment.Center };
+        var bar = Bone(100, 18, 4, LayoutAlignment.Start);
+        _bars.Add(bar);
+        name.Add(bar);
+        name.Add(Bone(80, 14, 4, LayoutAlignment.Start));
+        var value = new SkUiCoreVerticalStackLayout { Spacing = 4, VerticalAlignment = LayoutAlignment.Center, HorizontalAlignment = LayoutAlignment.End };
+        value.Add(Bone(60, 18, 4, LayoutAlignment.End));
+        value.Add(Bone(40, 14, 4, LayoutAlignment.End));
+        var row = new SkUiCoreHorizontalStackLayout { Spacing = 12 };
+        row.Add(Bone(32, 32, 16));
+        row.Add(name);
+        row.Add(value);
+        return new SkUiCoreBorder().SetBackgroundColor(Colors.White).SetStroke(Colors.LightGray).SetStrokeThickness(1).SetCornerRadius(8)
+            .SetPadding(new Thickness(16)).SetContent(row);
+    }
+
+    // Release builds trim: keep the reflected types' constructors and properties.
+    [System.Diagnostics.CodeAnalysis.DynamicDependency(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties, "MauiSkiaUi.Core.SkUiCoreShimmer", "MauiSkiaUi")]
+    [System.Diagnostics.CodeAnalysis.DynamicDependency(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties, "MauiSkiaUi.Core.SkUiCoreShimmerBone", "MauiSkiaUi")]
+    public override View Build()
+    {
+        _bars.Clear();
+        var cards = new SkUiCoreVerticalStackLayout { Spacing = 12, Padding = new Thickness(12) };
+        for (var i = 0; i < Cards; i++)
+            cards.Add(Card());
+        SkUiCoreNode root = cards;
+        if (CoreShimmerType is not null)
+        {
+            root = (SkUiCoreNode)Activator.CreateInstance(CoreShimmerType)!;
+            TrySet(root, "Mode", "Bones");
+            TrySet(root, "SkeletonContent", cards);
+        }
+        return Scenarios.Scroll(new SkUiCoreHost().SetContent(root));
+    }
+
+    public override Action<View>? Update => _ =>
+    {
+        _round++;
+        var width = _round % 2 == 0 ? 100 : 90;
+        foreach (var bar in _bars)
+            bar.Width = width;
+    };
 
     public override Func<View, IDisposable?>? Motion => _ => null;
 }

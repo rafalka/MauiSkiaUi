@@ -175,11 +175,25 @@ internal static class SkUiImmediatePainter
 {
     [ThreadStatic] private static SKPaint? _layerPaint;
     [ThreadStatic] private static SKPaint? _shadowPaint;
-    [ThreadStatic] private static SKPaint? _childrenPaint;
+    [ThreadStatic] private static SKPaint? _drawablePaint;
+    [ThreadStatic] private static SKMatrix _surface;
+    [ThreadStatic] private static SKMatrix _space;
     [ThreadStatic] private static List<ISkUiRenderable>? _children;
 
-    internal static void Paint(ISkUiRenderable node, SKCanvas canvas, bool applyOffset) =>
-        Paint(node, canvas, applyOffset, pinned: null);
+    internal static void Paint(ISkUiRenderable node, SKCanvas canvas, bool applyOffset)
+    {
+        // The painted node stands for the surface: drawables are positioned from the canvas it is painted on.
+        var (surface, space) = (_surface, _space);
+        _surface = _space = canvas.TotalMatrix;
+        try
+        {
+            Paint(node, canvas, applyOffset, pinned: null);
+        }
+        finally
+        {
+            (_surface, _space) = (surface, space);
+        }
+    }
 
     /// <summary>
     /// Paints <paramref name="node"/> when its <see cref="SkUiRenderProps.Pinned"/> matches <paramref name="pinned"/> (any
@@ -193,8 +207,6 @@ internal static class SkUiImmediatePainter
             return props.Pinned;
         if (!applyOffset)
             props.X = props.Y = 0;
-        // A still frame: clock-driven values at time zero. A surface-anchored node stays in its parent's space (no surface).
-        props.Timeline?.Apply(ref props, TimeSpan.Zero);
         if (props.IsSkipped)
             return false;
         var save = canvas.Save();
@@ -204,13 +216,11 @@ internal static class SkUiImmediatePainter
             canvas.Concat(in matrix);
             if (canvas.QuickReject(props.InkBounds))
                 return false;
-            if (props.Opacity < 1 || props.BlendMode != SKBlendMode.SrcOver)
+            if (props.Opacity < 1)
             {
                 var paint = _layerPaint ??= new SKPaint();
                 paint.Color = SKColors.White.WithAlpha((byte)(255 * props.Opacity));
-                paint.BlendMode = props.BlendMode;
                 canvas.SaveLayer(props.LayerBounds, paint);
-                paint.BlendMode = SKBlendMode.SrcOver;
             }
             if (props.Shadow is { } shadow)
             {
@@ -221,7 +231,11 @@ internal static class SkUiImmediatePainter
                 else
                     SkUiShadowPainter.DrawFromContent(canvas, shadow, shadowPaint, (node, props), static (c, state) => PaintBody(state.node, c, state.props));
             }
+            var space = _space;
+            if (props.DrawableSpace)
+                _space = canvas.TotalMatrix;
             PaintBody(node, canvas, props);
+            _space = space;
             return false;
         }
         finally
@@ -241,22 +255,18 @@ internal static class SkUiImmediatePainter
             if (props.ClipPath is { } clipPath)
                 canvas.ClipPath(clipPath, antialias: true);
             node.RecordContent(canvas);
-            if (props.ChildrenLayer)
+            var layer = props.ChildrenLayer ? canvas.SaveLayer(props.Bounds, null) : -1;
+            PaintChildren(node, canvas, props);
+            if (props.Drawable is { } drawable)
             {
-                SKPaint? paint = null;
-                if (props.ChildrenOpacity < 1)
-                {
-                    paint = _childrenPaint ??= new SKPaint();
-                    paint.Color = SKColors.White.WithAlpha((byte)(255 * props.ChildrenOpacity));
-                }
-                var layer = canvas.SaveLayer(props.Bounds, paint);
-                PaintChildren(node, canvas, props);
+                // A still frame: the drawable at time zero.
+                var paint = _drawablePaint ??= new SKPaint();
+                paint.Reset();
+                paint.IsAntialias = true;
+                drawable.Draw(canvas, new SkUiRenderDrawContext(props.Bounds, TimeSpan.Zero, in _surface, in _space, paint));
+            }
+            if (layer >= 0)
                 canvas.RestoreToCount(layer);
-            }
-            else
-            {
-                PaintChildren(node, canvas, props);
-            }
             if (node.HasOverlay)
                 node.RecordOverlay(canvas);
         }

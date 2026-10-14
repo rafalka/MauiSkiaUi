@@ -18,6 +18,22 @@ public enum SkUiShimmerEffect
     None
 }
 
+/// <summary>What of its skeleton a shimmer animates.</summary>
+public enum SkUiShimmerMode
+{
+    /// <summary>
+    /// Everything the skeleton draws is a bone: the skeleton's silhouette is drawn in <c>BoneColor</c> and animated as one
+    /// (default). Build the skeleton from plain shapes, or from real views whose shapes stand for the content.
+    /// </summary>
+    Silhouette,
+
+    /// <summary>
+    /// Only the <see cref="SkUiShimmerBone"/>s (<c>SkUiCoreShimmerBone</c>s) of the skeleton are bones and animate; everything
+    /// else draws as it is: cards, dividers, backgrounds, a Cancel button between the bones. No layer per frame.
+    /// </summary>
+    Bones
+}
+
 /// <summary>Where a shimmer's wave moves.</summary>
 public enum SkUiShimmerWaveDirection
 {
@@ -72,9 +88,9 @@ public enum SkUiShimmerWaveRegion
 public readonly record struct SkUiShimmerColors(Color Bone, Color Highlight);
 
 /// <summary>
-/// A shimmer's wave band (<see cref="SkUiLook.CreateShimmerWaveShader"/>): the band, in the band's own coordinates (x across it,
-/// in the direction the wave moves; y along it), and the wave's color. The band is filled with the look's shader once, drawn
-/// over the bones (only where bones are), and moved across them on the render thread.
+/// A shimmer's wave band (<see cref="SkUiLook.CreateShimmerWaveShader"/>): the band, in the band's own coordinates (centered on
+/// the origin; x across it, in the direction the wave moves; y along it), and the wave's color. The shader is made once and
+/// the band filled with it is moved across the bones on the render thread, drawn only where bones are.
 /// </summary>
 /// <param name="Bounds">The band: <c>WaveWidth</c> wide, long enough to cross the region at the wave's angle.</param>
 /// <param name="Color">The wave's color (<c>HighlightColor</c>, else the look's).</param>

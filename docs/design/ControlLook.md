@@ -65,8 +65,8 @@ public class SkUiLook
     public virtual SkUiAvatarColors GetAvatarColors(SkUiAvatarColorMode mode, string? key) { … } // Default: TrackOff / DefaultForeground
     public void DrawAvatarBadge(SKCanvas canvas, SkUiAvatarBadgePaint paint) { … } // → AvatarBadgePainter ?? DrawAvatarBadgeCore
                                                            // GetAvatarBadgeBounds(avatar, position, cornerRadius), GetAvatarBadgeRingWidth
-    // Shimmers (C9): default colors from the scheme, the default wave's tilt, and the wave band's shader: the band is filled
-    // with it once (source-atop over the bones) when a shimmer's wave changes, then moved on the render thread.
+    // Shimmers (C9): default colors from the scheme, the default wave's tilt, and the wave band's shader: made once when a
+    // shimmer's wave changes (per bone in Bones mode); the band filled with it is moved on the render thread.
     public virtual SkUiShimmerColors GetShimmerColors() { … } // Bone: TrackOff halfway to the background; Highlight: lighter
     public virtual double ShimmerWaveTilt => 20;
     public SKShader CreateShimmerWaveShader(SkUiShimmerWavePaint wave) { … } // → ShimmerWaveShader ?? CreateShimmerWaveShaderCore

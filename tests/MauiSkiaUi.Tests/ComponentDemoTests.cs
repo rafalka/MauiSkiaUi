@@ -91,6 +91,11 @@ public class ComponentDemoTests
         {
             return ContainsCoreInstance(content, type);
         }
+        else if (node is SkUiCoreShimmer shimmer)
+        {
+            return (shimmer.SkeletonContent is { } skeleton && ContainsCoreInstance(skeleton, type))
+                || (shimmer.Content is { } loaded && ContainsCoreInstance(loaded, type));
+        }
 
         return false;
     }

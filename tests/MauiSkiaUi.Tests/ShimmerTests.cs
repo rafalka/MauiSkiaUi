@@ -73,7 +73,8 @@ public class ShimmerTests
         Assert.Equal(SKColors.Green, surface.Frame().GetPixel(100, 10));
         Assert.Null(skeleton.Parent);
         Assert.False(skeleton.RenderState.HasCommitted); // its pictures went with it
-        Assert.False(shimmer.RenderState.Node.Props.ChildrenLayer); // no group, no effect parts drawn
+        Assert.False(shimmer.RenderState.Node.Props.ChildrenLayer); // no group, no effect drawn
+        Assert.Null(shimmer.RenderState.Node.Props.Drawable);
 
         shimmer.IsLoading = true;
         AssertNear(Gray, surface.Frame().GetPixel(100, 10));
@@ -295,37 +296,29 @@ public class ShimmerTests
         Assert.Throws<ArgumentOutOfRangeException>(() => core.SetEffect((SkUiShimmerEffect)42));
     }
 
-    /// <summary>The wave part: the internal node over the bones that carries the wave's timeline.</summary>
-    private static SkUiRenderProps WavePart(ISkUiRenderable shimmer)
-    {
-        var children = new List<ISkUiRenderable>();
-        shimmer.GetRenderChildren(children);
-        return children.OfType<SkUiShimmerPart>().Select(part => part.RenderState.Node.Props).Single(props => props.Timeline is not null);
-    }
-
     [Fact]
-    public void AnUnchangedLayoutCommitsTheSameTimelineAndAChangeANewOne()
+    public void AnUnchangedLayoutCommitsTheSameDrawableAndAChangeANewOne()
     {
         var shimmer = Shimmer();
         using var surface = Surface(shimmer);
         surface.Frame();
-        Assert.True(shimmer.RenderState.Node.Props.ChildrenLayer);
-        var first = WavePart(shimmer).Timeline;
-        Assert.Equal(SKBlendMode.SrcOver, WavePart(shimmer).BlendMode); // blended in its recording: no layer of its own
+        var props = shimmer.RenderState.Node.Props;
+        Assert.True(props.ChildrenLayer);
+        var first = Assert.IsType<SkUiShimmerSilhouette>(props.Drawable);
         var recorded = surface.RecordedPictures;
         surface.Frame(16);
-        Assert.Same(first, WavePart(shimmer).Timeline); // nothing changed: nothing new committed or recorded
+        Assert.Same(first, shimmer.RenderState.Node.Props.Drawable); // nothing changed: nothing new committed or recorded
         Assert.Equal(recorded, surface.RecordedPictures);
 
         shimmer.Duration = 500;
         surface.Frame(32);
-        Assert.NotSame(first, WavePart(shimmer).Timeline);
+        Assert.NotSame(first, shimmer.RenderState.Node.Props.Drawable);
     }
 
     [Fact]
     public void ShowingTheSkeletonAgainDrawsTheWave()
     {
-        // Back from the content: the parts show again with their timelines (once, a disposed effect drew a black band here).
+        // Back from the content: the effect is drawn again (once, a disposed effect drew a black band here).
         var shimmer = Shimmer();
         using var surface = Surface(shimmer);
         surface.Frame();
@@ -455,7 +448,7 @@ public class ShimmerGlobalStateTests
             surface.Frame();
             surface.Frame(16);
             Assert.False(surface.NeedsFrame);
-            Assert.Null(shimmer.RenderState.Node.Props.Timeline);
+            Assert.False(shimmer.RenderState.Node.Props.Drawable!.IsAnimated);
             Assert.Equal(SKColors.Black, surface.Frame(500).GetPixel(50, 5));
         }
         finally
