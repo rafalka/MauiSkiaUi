@@ -5,6 +5,10 @@ namespace MauiSkiaUi.Core;
 /// <summary>Ellipse or circle filling its bounds (Core analogue of <c>SkUiEllipse</c>, MAUI's <c>Ellipse</c>).</summary>
 public class SkUiCoreEllipse : SkUiCoreShape
 {
+    /// <summary>In a skeleton made from content: a circle (a pill when the ellipse is not round).</summary>
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) =>
+        bones.AddShape(bones.Bounds, new CornerRadius(Math.Min(bones.Width, bones.Height) / 2));
+
     private protected override SkUiCoreStretch DefaultAspect => SkUiCoreStretch.Fill;
     private protected override bool SizesToBounds => true;
     private protected override PathF CreatePath(Rect area) => SkUiShapeGeometry.Ellipse(area);

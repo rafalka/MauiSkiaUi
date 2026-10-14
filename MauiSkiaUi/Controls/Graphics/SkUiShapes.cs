@@ -6,6 +6,10 @@ namespace MauiSkiaUi;
 /// <summary>An ellipse or circle filling its bounds, as MAUI's <c>Ellipse</c>; input uses the rectangular bounds.</summary>
 public class SkUiEllipse : SkUiShape
 {
+    /// <summary>In a skeleton made from content: a circle (a pill when the ellipse is not round).</summary>
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) =>
+        bones.AddShape(bones.Bounds, new CornerRadius(Math.Min(bones.Width, bones.Height) / 2));
+
     private protected override Stretch DefaultAspect => Stretch.Fill;
     private protected override bool SizesToBounds => true;
     private protected override PathF CreatePath(Rect area) => SkUiShapeGeometry.Ellipse(area);

@@ -1,6 +1,6 @@
 # SkUiDateTimePicker
 
-A drawn picker of **a day and a time of it** on one popup of wheels (an appointment, a reminder, a departure): day, month and year, then hour, minute and AM / PM, ordered and named by the culture or by `WheelFormat`. MAUI has none; Syncfusion's `SfDateTimePicker` and Telerik's `RadDateTimePicker` are its models. Its API is [SkUiDatePicker](SkUiDatePicker.md)'s with the time kept, plus the time picker's steps.
+A drawn picker of **a day and a time of it** on one popup of wheels (an appointment, a reminder, a departure): day, month and year, then hour, minute and AM / PM, ordered and named by the culture or by `WheelFormat`. MAUI has none. Its API is [SkUiDatePicker](SkUiDatePicker.md)'s with the time kept, plus the time picker's steps.
 
 **MAUI counterpart:** none (MAUI apps pair a `DatePicker` with a `TimePicker`). Core twin: `SkUiCoreDateTimePicker`.
 

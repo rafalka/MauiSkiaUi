@@ -109,8 +109,12 @@ internal sealed class SkUiImageSlot
             ShowPlaceholder(IsLoading ? loading : LoadError is not null ? error : null);
     }
 
-    /// <summary>Loads <paramref name="source"/> (<c>null</c> clears). Errors land in <see cref="LoadError"/>; a replaced load is dropped.</summary>
-    public Task Load(SkUiImageSource? source, in SkUiImageOptions options)
+    /// <summary>
+    /// Loads <paramref name="source"/> (<c>null</c> clears). Errors land in <see cref="LoadError"/>; a replaced load is dropped.
+    /// With <paramref name="keepShown"/>, the image shown stays until the new one has loaded (the same source decoded at
+    /// another size) instead of clearing while it loads.
+    /// </summary>
+    public Task Load(SkUiImageSource? source, in SkUiImageOptions options, bool keepShown = false)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var placeholderOptionsChanged = _options != options;
@@ -145,10 +149,13 @@ internal sealed class SkUiImageSlot
             Complete(load, version);
             return LoadingTask = Task.CompletedTask;
         }
-        Replace(null);
+        if (!keepShown || _image is null)
+        {
+            Replace(null);
+            ShowPlaceholder(_loadingPlaceholder);
+        }
         LoadError = null;
         IsLoading = true;
-        ShowPlaceholder(_loadingPlaceholder);
         _changed();
         LoadingStarted?.Invoke(new SkUiImageLoadStartedEventArgs(source));
         return LoadingTask = CompleteAsync(load, version, dispatcher);

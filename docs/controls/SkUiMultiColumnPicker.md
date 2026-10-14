@@ -22,7 +22,7 @@ A drawn picker with several columns: a field that shows the chosen item of each 
 
 The wheels open on the presenter of the picker's list ([SkUiPicker](SkUiPicker.md#popups-on-your-popup-system)): `PopupPresenter`, else `SkUiPopups.Presenter`, else MAUI's action sheet, which shows lists of one choice only: without a presenter the wheels close at once, with a trace line. A presenter shows `request.Content` as for a list.
 
-**Showing your own UI instead** (a vendor's wheel picker): read the typed request, `SkUiColumnsPopupRequest`: `Columns` (each column's texts), `Loops`, `SelectedIndices` (one per column, -1: none, following the changes). Call `SetSelectedIndex(column, index)` (or `SetSelection(indices)`) as the user changes a column: the picker applies it at once, or, when `request.RequiresAccept`, keeps it as the draft `request.Accept()` applies. Or call `Complete(indices)` with the final choice, which also closes the popup. Both return `false` for a choice the request does not offer, or once the popup is closing.
+**Showing your own UI instead** (a wheel picker of your own): read the typed request, `SkUiColumnsPopupRequest`: `Columns` (each column's texts), `Loops`, `SelectedIndices` (one per column, -1: none, following the changes). Call `SetSelectedIndex(column, index)` (or `SetSelection(indices)`) as the user changes a column: the picker applies it at once, or, when `request.RequiresAccept`, keeps it as the draft `request.Accept()` applies. Or call `Complete(indices)` with the final choice, which also closes the popup. Both return `false` for a choice the request does not offer, or once the popup is closing.
 
 ## How to use
 

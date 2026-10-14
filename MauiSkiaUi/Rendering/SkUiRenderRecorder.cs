@@ -101,6 +101,7 @@ internal sealed class SkUiRenderRecorder : IDisposable
             if (changed)
                 state.CommittedSources = count == 0 ? [] : _scratch.GetRange(start, count).ToArray();
             _scratch.RemoveRange(start, count);
+            SkUiSkeletonScope.SyncChildren(node, state.CommittedSources, changed); // children take their place in a skeleton before they record
             // Child render nodes are replaced when a child is reset, so always resend identities on a children pass.
             var sources = state.CommittedSources;
             var nodes = new SkUiRenderNode[sources.Length];
@@ -175,10 +176,25 @@ internal static class SkUiImmediatePainter
 {
     [ThreadStatic] private static SKPaint? _layerPaint;
     [ThreadStatic] private static SKPaint? _shadowPaint;
+    [ThreadStatic] private static SKPaint? _drawablePaint;
+    [ThreadStatic] private static SKMatrix _surface;
+    [ThreadStatic] private static SKMatrix _space;
     [ThreadStatic] private static List<ISkUiRenderable>? _children;
 
-    internal static void Paint(ISkUiRenderable node, SKCanvas canvas, bool applyOffset) =>
-        Paint(node, canvas, applyOffset, pinned: null);
+    internal static void Paint(ISkUiRenderable node, SKCanvas canvas, bool applyOffset)
+    {
+        // The painted node stands for the surface: drawables are positioned from the canvas it is painted on.
+        var (surface, space) = (_surface, _space);
+        _surface = _space = canvas.TotalMatrix;
+        try
+        {
+            Paint(node, canvas, applyOffset, pinned: null);
+        }
+        finally
+        {
+            (_surface, _space) = (surface, space);
+        }
+    }
 
     /// <summary>
     /// Paints <paramref name="node"/> when its <see cref="SkUiRenderProps.Pinned"/> matches <paramref name="pinned"/> (any
@@ -216,7 +232,11 @@ internal static class SkUiImmediatePainter
                 else
                     SkUiShadowPainter.DrawFromContent(canvas, shadow, shadowPaint, (node, props), static (c, state) => PaintBody(state.node, c, state.props));
             }
+            var space = _space;
+            if (props.DrawableSpace)
+                _space = canvas.TotalMatrix;
             PaintBody(node, canvas, props);
+            _space = space;
             return false;
         }
         finally
@@ -236,42 +256,58 @@ internal static class SkUiImmediatePainter
             if (props.ClipPath is { } clipPath)
                 canvas.ClipPath(clipPath, antialias: true);
             node.RecordContent(canvas);
-            var children = _children ??= [];
-            var start = children.Count;
-            node.GetRenderChildren(children);
-            var end = children.Count;
-            if (end > start)
+            var layer = props.ChildrenLayer ? canvas.SaveLayer(props.Bounds, null) : -1;
+            PaintChildren(node, canvas, props);
+            if (props.Drawable is { } drawable)
             {
-                var childSave = canvas.Save();
-                if (!props.ChildrenClipRect.IsEmpty)
-                    canvas.ClipRect(props.ChildrenClipRect);
-                if (props.ChildrenClipPath is { } path)
-                    canvas.ClipPath(path, antialias: true);
-                try
-                {
-                    // Unpinned children in the children space, then pinned ones (in local coordinates, outside the
-                    // children clip) above them.
-                    props.TransformChildren(canvas);
-                    var pinned = false;
-                    for (var index = start; index < end; index++)
-                        pinned |= Paint(children[index], canvas, applyOffset: true, pinned: false);
-                    canvas.RestoreToCount(childSave);
-                    if (pinned)
-                        for (var index = start; index < end; index++)
-                            Paint(children[index], canvas, applyOffset: true, pinned: true);
-                }
-                finally
-                {
-                    canvas.RestoreToCount(childSave);
-                    children.RemoveRange(start, end - start);
-                }
+                // A still frame: the drawable at time zero.
+                var paint = _drawablePaint ??= new SKPaint();
+                paint.Reset();
+                paint.IsAntialias = true;
+                drawable.Draw(canvas, new SkUiRenderDrawContext(props.Bounds, TimeSpan.Zero, in _surface, in _space, paint));
             }
+            if (layer >= 0)
+                canvas.RestoreToCount(layer);
             if (node.HasOverlay)
                 node.RecordOverlay(canvas);
         }
         finally
         {
             canvas.RestoreToCount(save);
+        }
+    }
+
+    /// <summary>The node's children, inside its children clip and transform; pinned ones above, outside the children clip.</summary>
+    private static void PaintChildren(ISkUiRenderable node, SKCanvas canvas, in SkUiRenderProps props)
+    {
+        var children = _children ??= [];
+        var start = children.Count;
+        node.GetRenderChildren(children);
+        var end = children.Count;
+        if (end == start)
+            return;
+        var childSave = canvas.Save();
+        if (!props.ChildrenClipRect.IsEmpty)
+            canvas.ClipRect(props.ChildrenClipRect);
+        if (props.ChildrenClipPath is { } path)
+            canvas.ClipPath(path, antialias: true);
+        try
+        {
+            // Unpinned children in the children space, then pinned ones (in local coordinates, outside the
+            // children clip) above them.
+            props.TransformChildren(canvas);
+            var pinned = false;
+            for (var index = start; index < end; index++)
+                pinned |= Paint(children[index], canvas, applyOffset: true, pinned: false);
+            canvas.RestoreToCount(childSave);
+            if (pinned)
+                for (var index = start; index < end; index++)
+                    Paint(children[index], canvas, applyOffset: true, pinned: true);
+        }
+        finally
+        {
+            canvas.RestoreToCount(childSave);
+            children.RemoveRange(start, end - start);
         }
     }
 }

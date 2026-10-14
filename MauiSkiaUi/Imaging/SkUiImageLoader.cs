@@ -8,17 +8,21 @@ namespace MauiSkiaUi;
 /// <param name="DownsampleWidth">Decode at most this wide, in DIPs (0: no bound); the intrinsic size stays the source's.</param>
 /// <param name="DownsampleHeight">Decode at most this high, in DIPs (0: no bound).</param>
 /// <param name="Transformations">Applied in order to the decoded image; <c>null</c> or empty: none.</param>
+/// <param name="DownsampleToFill">
+/// With both bounds, decode just large enough to cover them (aspect fill: an avatar's photo) instead of fitting inside them.
+/// </param>
 internal readonly record struct SkUiImageOptions(
     SkUiImageCacheType CacheType = SkUiImageCacheType.All,
     double DownsampleWidth = 0,
     double DownsampleHeight = 0,
-    IReadOnlyList<ISkUiImageTransformation>? Transformations = null);
+    IReadOnlyList<ISkUiImageTransformation>? Transformations = null,
+    bool DownsampleToFill = false);
 
 /// <summary>A lease on a loaded image and where it came from (<see cref="SkUiImageOrigin.MemoryCache"/> for a cache hit).</summary>
 internal readonly record struct SkUiImageLoad(SkUiCachedImage Image, SkUiImageOrigin Origin);
 
 /// <summary>What a source needs while loading: the display scale, whether it may use the disk cache, decode bounds.</summary>
-internal sealed class SkUiImageLoadContext(float displayScale, bool useDiskCache, SKSizeI maxPixels, string? sourceKey)
+internal sealed class SkUiImageLoadContext(float displayScale, bool useDiskCache, SKSizeI maxPixels, string? sourceKey, bool fill = false)
 {
     /// <summary>Where the source read its bytes from; each source sets it while loading.</summary>
     public SkUiImageOrigin Origin { get; set; } = SkUiImageOrigin.Stream;
@@ -35,6 +39,9 @@ internal sealed class SkUiImageLoadContext(float displayScale, bool useDiskCache
     /// <summary>Decode bounds in pixels per axis (0: none).</summary>
     public SKSizeI MaxPixels { get; } = maxPixels;
 
+    /// <summary>Whether <see cref="MaxPixels"/> is covered (aspect fill) rather than fitted.</summary>
+    public bool Fill { get; } = fill;
+
     /// <summary>Decodes off the UI thread, a few images at a time so a list of images does not flood the thread pool.</summary>
     public async Task<SkUiDecodedImage> DecodeAsync(byte[] bytes, float sourceScale, CancellationToken token)
     {
@@ -42,7 +49,8 @@ internal sealed class SkUiImageLoadContext(float displayScale, bool useDiskCache
         try
         {
             var bounds = MaxPixels;
-            return await Task.Run(() => SkUiImageDecoder.Decode(bytes, sourceScale, bounds), token).ConfigureAwait(false);
+            var fill = Fill;
+            return await Task.Run(() => SkUiImageDecoder.Decode(bytes, sourceScale, bounds, fill), token).ConfigureAwait(false);
         }
         finally
         {
@@ -129,11 +137,12 @@ internal static class SkUiImageLoader
         {
             return Task.FromException<SkUiCachedImage>(new InvalidOperationException("SkUiImageCache.CacheKeyFactory failed.", error));
         }
-        var context = new SkUiImageLoadContext(scale, options.CacheType is SkUiImageCacheType.All or SkUiImageCacheType.Disk, maxPixels, sourceKey);
+        var fill = options.DownsampleToFill && maxPixels.Width > 0 && maxPixels.Height > 0;
+        var context = new SkUiImageLoadContext(scale, options.CacheType is SkUiImageCacheType.All or SkUiImageCacheType.Disk, maxPixels, sourceKey, fill);
         // The key and the work use the same settings: copies taken now.
         var transformations = SkUiImageTransformation.Snapshot(options.Transformations);
         var key = options.CacheType is SkUiImageCacheType.All or SkUiImageCacheType.Memory
-            ? KeyFor(sourceKey, options with { Transformations = transformations }, maxPixels) : null;
+            ? KeyFor(sourceKey, options with { Transformations = transformations, DownsampleToFill = fill }, maxPixels) : null;
         if (key is null)
             return LoadCoreAsync(source, transformations, context, null, token);
         if (SkUiImageMemoryCache.TryGet(key) is { } hit)
@@ -167,6 +176,8 @@ internal static class SkUiImageLoader
         var key = new StringBuilder(sourceKey.Length + 32)
             .Append(sourceKey).Append(SkUiImageMemoryCache.OptionsSeparator)
             .Append(maxPixels.Width).Append('x').Append(maxPixels.Height).Append('/').Append(SkUiImageDecoder.MaxDecodeDimension);
+        if (options.DownsampleToFill)
+            key.Append("/fill");
         if (options.Transformations is { Count: > 0 } transformations)
         {
             foreach (var transformation in transformations)

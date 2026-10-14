@@ -78,14 +78,14 @@ public class SkUiDatePicker : SkUiDateTimePickerBase
 
     /// <summary>
     /// The date the wheels show while <see cref="Date"/> is <c>null</c> (a date of birth's wheels on 1990); <c>null</c> (default):
-    /// today. Kept in the range. Telerik's. SkiaUi extension.
+    /// today. Kept in the range. SkiaUi extension.
     /// </summary>
     public DateTime? DefaultHighlightedDate { get => (DateTime?)GetValue(DefaultHighlightedDateProperty); set => SetValue(DefaultHighlightedDateProperty, value); }
 
     /// <summary>
     /// Days that cannot be chosen (holidays, booked days): their day items are dimmed and passed by, as days outside the range.
     /// An empty list by default (add to it, or set your own); read when the popup opens. The app may still set such a
-    /// <see cref="Date"/>. Syncfusion's. SkiaUi extension.
+    /// <see cref="Date"/>. SkiaUi extension.
     /// </summary>
     public IList<DateTime>? BlackoutDates { get => (IList<DateTime>?)GetValue(BlackoutDatesProperty); set => SetValue(BlackoutDatesProperty, value); }
 

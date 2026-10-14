@@ -186,11 +186,12 @@ internal sealed class SkUiFocusManager(SkUiView root)
     }
 
     /// <summary>
-    /// Whether keyboard focus skips <paramref name="node"/> and its subtree: hidden, input-transparent, disabled, or taken
-    /// out of accessibility (<see cref="SkUiView.IsAccessibilityEnabled"/>).
+    /// Whether keyboard focus skips <paramref name="node"/> and its subtree: hidden, input-transparent, disabled, hiding its
+    /// subtree from input (a skeleton), or taken out of accessibility (<see cref="SkUiView.IsAccessibilityEnabled"/>).
     /// </summary>
     private static bool IsBlocked(ISkUiRenderable node) =>
-        (node is ISkUiInputNode input && (!input.IsHitTestVisible || !input.IsInputEnabled)) || node is SkUiView { IsAccessibilityEnabled: false };
+        (node is ISkUiInputNode input && (!input.IsHitTestVisible || !input.IsInputEnabled || !input.HitTestsChildren))
+        || node is SkUiView { IsAccessibilityEnabled: false };
 
     /// <summary>Platform hooks are set and the surface starts without keyboard focus.</summary>
     public void Connect() => _hasNativeFocus = false;

@@ -39,6 +39,9 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(ItemTemplate))]
 public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
 {
+    /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
+    internal override bool IsSkeletonContainer => true;
+
     /// <summary>The visual state of the current item's view.</summary>
     public const string CurrentItemVisualState = "CurrentItem";
 

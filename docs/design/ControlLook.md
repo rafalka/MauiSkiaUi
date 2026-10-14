@@ -59,6 +59,20 @@ public class SkUiLook
     // GetColor, as hit-tested); drawn again while the selection moves. DefaultSkUiLook: dots or a pill (IndicatorStyle).
     public void DrawIndicators(SKCanvas canvas, SkUiIndicatorPaint paint) { … } // → IndicatorPainter ?? DrawIndicatorsCore
     public virtual double DefaultIndicatorSpacing => 8;    // and GetSelectedIndicatorExtraLength(size, shape) (a pill's room)
+    // Avatars (C8): the intrinsic size, the text size for the content area, colors by mode and name (palette index by a
+    // stable hash: AvatarPaletteIndex), and the status badge over the border on the outline's corner arc.
+    public virtual Size DefaultAvatarSize => new(48, 48);  // and GetAvatarFontSize(content) (40 % of the smaller side)
+    public virtual SkUiAvatarColors GetAvatarColors(SkUiAvatarColorMode mode, string? key) { … } // Default: TrackOff / DefaultForeground
+    public void DrawAvatarBadge(SKCanvas canvas, SkUiAvatarBadgePaint paint) { … } // → AvatarBadgePainter ?? DrawAvatarBadgeCore
+                                                           // GetAvatarBadgeBounds(avatar, position, cornerRadius), GetAvatarBadgeRingWidth
+    // Shimmers (C9): default colors from the scheme, the default wave's tilt, and the wave band's shader: made once when a
+    // shimmer's wave changes (per bone in Bones mode); the band filled with it is moved on the render thread.
+    public virtual SkUiShimmerColors GetShimmerColors() { … } // Bone: TrackOff halfway to the background; Highlight: lighter
+    public virtual double ShimmerWaveTilt => 20;
+    public SKShader CreateShimmerWaveShader(SkUiShimmerWavePaint wave) { … } // → ShimmerWaveShader ?? CreateShimmerWaveShaderCore
+    // Skeletons from the content (C9b): a control's part (a text line, a shape, a switch, a slider…) to rounded-rectangle
+    // bones, when its size, text or skeleton changes (not per frame); the shimmer draws them with its effect.
+    public void AddSkeletonBones(SkUiSkeletonPart part, IList<SkUiSkeletonBone> bones) { … } // → SkeletonBones ?? AddSkeletonBonesCore
     // Picker fields (C6): chrome and chevron behind the control's text; Focused / Open animate (FieldFocus, PickerOpen).
     // DefaultSkUiLook: PickerFieldStyle (Default → DefaultPickerFieldStyle: outline; underline, filled, none);
     // AndroidSkUiLook: underline.

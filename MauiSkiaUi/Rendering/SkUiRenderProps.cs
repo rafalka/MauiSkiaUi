@@ -105,6 +105,27 @@ internal record struct SkUiRenderProps
     /// <summary>Drop shadow drawn before the node, outside its clips (FR-20); <c>null</c> = none. Immutable once committed.</summary>
     public SkUiRenderShadow? Shadow;
 
+    /// <summary>
+    /// The children are drawn into a layer of their own, bounded to the layout rectangle, with <see cref="Drawable"/> over
+    /// them: blend modes drawn after the children (a tint drawn source-in) act on the children only, not on what is under
+    /// the node.
+    /// </summary>
+    public bool ChildrenLayer;
+
+    /// <summary>
+    /// What the compositor draws itself each time it draws the node, after its children (inside <see cref="ChildrenLayer"/>)
+    /// and before its overlay; <c>null</c> = none. An animated one is drawn from the render clock, with nothing recorded
+    /// per frame, and requests frames only while it is drawn. Immutable and owned by the compositor once committed.
+    /// </summary>
+    public SkUiRenderDrawable? Drawable;
+
+    /// <summary>
+    /// The node's own coordinates are the space the drawables of its descendants are positioned in
+    /// (<see cref="SkUiRenderDrawContext.Space"/>): one effect across many nodes (a wave crossing every bone of a skeleton)
+    /// follows the node wherever it moves, scrolls or animates.
+    /// </summary>
+    public bool DrawableSpace;
+
     public static SkUiRenderProps Default => new()
     {
         ScaleX = 1, ScaleY = 1, AnchorX = 0.5f, AnchorY = 0.5f, Opacity = 1, IsVisible = true, ClipToBounds = true,

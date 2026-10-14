@@ -28,12 +28,26 @@ public class SkUiContentView : SkUiView, ISkUiTemplatedContent
 
     /// <summary>Bindable inset around content.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiContentView), default(Thickness),
-        propertyChanged: (view, _, value) => ((SkUiContentView)view).OnPaddingChanged((Thickness)value));
+        propertyChanged: (view, _, value) => ((SkUiContentView)view).OnPaddingChanged((Thickness)value),
+        coerceValue: (view, value) => ((SkUiContentView)view).OnSetOrCleared(PaddingProperty!, value)); // runs once the field is set
     /// <summary>Inset around the hosted content.</summary>
     public Thickness Padding { get => (Thickness)GetValue(PaddingProperty); set => SetValue(PaddingProperty, value); }
     /// <summary>Sets padding (same as the property setter).</summary>
     public SkUiContentView SetPadding(Thickness value) { Padding = value; return this; }
     private void OnPaddingChanged(Thickness value) { _padding = value; InvalidateMeasureOverride(); }
+
+    /// <summary>
+    /// <paramref name="property"/> is being set or was cleared (MAUI coerces on both, also to an equal value, which raises no
+    /// change): views whose defaults depend on <see cref="BindableObject.IsSet"/> (an avatar's) redraw. Returns the value.
+    /// </summary>
+    private protected object OnSetOrCleared(BindableProperty property, object value)
+    {
+        OnSetOrCleared(property);
+        return value;
+    }
+
+    /// <inheritdoc cref="OnSetOrCleared(BindableProperty, object)" />
+    private protected virtual void OnSetOrCleared(BindableProperty property) { }
 
     /// <summary>The bindable single-child content property.</summary>
     public static readonly BindableProperty ContentProperty = BindableProperty.Create(

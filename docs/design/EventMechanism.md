@@ -43,6 +43,7 @@ Platform pointer (GL / Metal surface, MAUI SKCanvasView)
 SkUiPointerRouter (one per surface root)
         │  Press: hit-test once through the drawn tree (SkUi* + Core)
         │         → topmost node that participates (has recognizers) or blocks (disabled)
+        │           (a node with HitTestsChildren = false, a shimmer's content skeleton, is tried without its subtree)
         │  Arena: recognizers of that node, then of each ancestor up to the root (innermost first)
         ▼
 SkUiGestureArena (one per pointer)

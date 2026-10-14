@@ -123,6 +123,9 @@ public class SkUiStrings
     /// <summary>What screen readers read after the header of a collapsed expander or collection view group. Default "Collapsed".</summary>
     public virtual string CollapsedStateText { get; set => Set(ref field, value); } = "Collapsed";
 
+    /// <summary>What screen readers read for a loading shimmer instead of its skeleton. Default "Loading".</summary>
+    public virtual string LoadingText { get; set => Set(ref field, value); } = "Loading";
+
     /// <summary>The expanded or collapsed state's text.</summary>
     internal string ExpansionStateText(bool expanded) => expanded ? ExpandedStateText : CollapsedStateText;
 

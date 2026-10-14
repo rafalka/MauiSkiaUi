@@ -5,7 +5,7 @@ Usage: audit_maui_app.py [--top N] APP_FOLDER
 
 Reads every .xaml and .cs file under APP_FOLDER (skipping bin, obj and hidden folders). Reports:
 - MAUI controls by migration path (drawn equivalent, native island, no drawn equivalent yet), with the Community
-  Toolkit controls SkiaUi draws (Expander);
+  Toolkit controls SkiaUi draws (Expander, AvatarView);
 - gesture input (recognizers by type, toolkit TouchBehavior, other behaviors, effects), in XAML and in code;
 - MAUI view animations in code (render-thread conversions);
 - BindableLayout, templates, custom handlers / renderers / effects, canvas views, third-party XAML namespaces;
@@ -34,7 +34,7 @@ DRAWN = {
     "DatePicker", "TimePicker",
 }
 # Community Toolkit controls with a drawn equivalent, counted as "Toolkit <name>".
-TOOLKIT_DRAWN = {"Expander"}
+TOOLKIT_DRAWN = {"Expander", "AvatarView"}
 NATIVE_ISLAND = {"Entry", "Editor", "SearchBar", "WebView", "HybridWebView", "BlazorWebView", "Map"}
 # CollectionViews SkUiCollectionView cannot take, counted apart from the ones that port.
 BLOCKED_COLLECTION_VIEW = "CollectionView (reorderable or with snap points)"

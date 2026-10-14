@@ -6,7 +6,7 @@ using System.Windows.Input;
 namespace MauiSkiaUi;
 
 /// <summary>Base for Skia-drawn views, with layout that does not require a handler.</summary>
-public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost, ISkUiShadowCaster
+public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureElement, ISkUiTransitionHost, ISkUiShadowCaster, ISkUiAnimationTarget
 {
     private bool _measureDirty = true;
     private bool _arrangeDirty = true;
@@ -275,6 +275,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         // A focused node that left its surface is no longer focused.
         SkUiFocusManager.ValidateAll();
         SkUiShownTracker.OnParentSet(this);
+        // In a skeleton made from content, or out of one: before it measures (empty labels measure placeholder lines).
+        if (_skeletonState is not null || SkiaParent is { MayPassSkeleton: true })
+            SkUiSkeletonScope.OnParentChanged(this);
     }
 
     /// <summary>
@@ -730,7 +733,105 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
             props.ClipPath = effects.GetClipPath(_clip, props.Width, props.Height);
             props.Shadow = effects.GetShadow(_shadow, this, props);
         }
+        if (_skeletonState is { } skeleton)
+        {
+            var own = props.Drawable;
+            SkUiSkeletonScope.ApplyProps(this, ref props, skeleton);
+            if (own is not null && !ReferenceEquals(own, props.Drawable))
+                ReleaseReplacedDrawable(own);
+        }
     }
+
+    /// <summary>
+    /// The skeleton's bones took the place of the view's own drawable (a shimmer bone or a shimmer as one bone): the view
+    /// forgets it, since the compositor disposes a committed drawable once a commit replaces it; one never committed is
+    /// disposed here, as no one else knows of it.
+    /// </summary>
+    private void ReleaseReplacedDrawable(SkUiRenderDrawable own)
+    {
+        ForgetOwnDrawable();
+        if (!(_renderState is { HasCommitted: true } state && ReferenceEquals(state.Committed.Drawable, own)))
+            own.Dispose();
+    }
+
+    /// <summary>Forgets the drawable the view commits from <see cref="OnGetRenderProps"/> (its slot), so a new one is made next time.</summary>
+    private protected virtual void ForgetOwnDrawable() { }
+
+    private SkUiSkeletonState? _skeletonState;
+
+    /// <summary>The view's skeleton state (its <see cref="SkUiShimmer.SkeletonProperty"/> value, place and bones), once it mattered.</summary>
+    internal SkUiSkeletonState? SkeletonState => _skeletonState;
+
+    ref SkUiSkeletonState? ISkUiRenderable.SkeletonStateRef => ref _skeletonState;
+
+    SkUiSkeleton ISkUiRenderable.DefaultSkeleton => DefaultSkeleton;
+
+    bool ISkUiRenderable.IsSkeletonContainer => IsSkeletonContainer;
+
+    void ISkUiRenderable.OnSkeletonChanged() => OnSkeletonChanged();
+
+    void ISkUiRenderable.AddSkeletonBones(SkUiSkeletonBuilder bones, bool block)
+    {
+        if (block)
+            bones.AddShape(bones.Bounds, PressEffectCornerRadii);
+        else
+            AddSkeletonBones(bones);
+    }
+
+    /// <summary>Whether the view is in a skeleton made from content and draws something else than itself (its bones, or nothing).</summary>
+    private bool DrawsSkeletonInstead => _skeletonState is { InSkeleton: true } skeleton && !SkUiSkeletonScope.Resolve(this, skeleton).DrawsAsIs;
+
+    /// <summary>Its <see cref="SkUiShimmer.SkeletonProperty"/> value changed: it and what is in it draw again.</summary>
+    internal void SetSkeletonValue(SkUiSkeleton? value)
+    {
+        if (value is null && _skeletonState is null)
+            return;
+        (_skeletonState ??= new SkUiSkeletonState()).Value = value;
+        if (!_skeletonState.InSkeleton)
+            return;
+        OnSkeletonChanged();
+        SkUiSkeletonScope.InvalidateContent(this);
+    }
+
+    /// <summary>How the view draws in a skeleton made from content when nothing is set on it (scroll bars: hidden).</summary>
+    internal virtual SkUiSkeleton DefaultSkeleton => SkUiSkeleton.Default;
+
+    /// <summary>
+    /// Whether the view is a container in a skeleton made from content: its own drawing is chrome (drawn as it is in
+    /// <see cref="SkUiShimmerMode.Bones"/>), its children the bones. By default, while it has children.
+    /// </summary>
+    internal virtual bool IsSkeletonContainer => SkUiSkeletonScope.HasRenderChildren(this);
+
+    /// <summary>
+    /// Adds the bones the view stands for while it is in a skeleton made from a shimmer's content (a shimmer without
+    /// <c>SkeletonContent</c>): by default its rectangle with its corner radii. Override it in a control that draws itself
+    /// (a bar per text line, a track, a few shapes), in its own coordinates (<see cref="SkUiSkeletonBuilder.Bounds"/>). It is
+    /// called on the UI thread when the view enters the skeleton or its size changes, not per frame; call
+    /// <see cref="InvalidatePaint"/> when something else they depend on changes (its text). Views with children
+    /// are containers and are not asked: their children draw their own bones (<see cref="SkUiShimmer.SkeletonProperty"/> changes that).
+    /// </summary>
+    protected internal virtual void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.AddShape(bones.Bounds, PressEffectCornerRadii);
+
+    /// <summary>The view entered or left a skeleton made from content, or how it draws in it changed: it records again.</summary>
+    internal virtual void OnSkeletonChanged()
+    {
+        _skeletonState?.Bones.Forget();
+        if (_renderState is { HasCommitted: true }) // else it records from scratch anyway (content built while detached)
+            InvalidateRender(SkUiRenderDirty.Content | SkUiRenderDirty.Props);
+    }
+
+    /// <summary>
+    /// Whether children added to the view may be in a skeleton made from content: it is in one, or it is a shimmer showing
+    /// its content as one. Else a child without skeleton state skips <see cref="SkUiSkeletonScope.OnParentChanged"/> (two
+    /// field reads per attach; a loaded shimmer around a recycling list adds nothing per row).
+    /// </summary>
+    internal bool MayPassSkeleton => _skeletonState is { InSkeleton: true } || StartsSkeleton;
+
+    /// <summary>Whether the view is a shimmer showing its content as a skeleton.</summary>
+    internal virtual bool StartsSkeleton => false;
+
+    /// <summary>Whether the view has a measure cached (a change of what it measures must invalidate it).</summary>
+    internal bool HasValidMeasure => !_measureDirty;
 
     private SkUiVisualEffects? _effects;
     private Microsoft.Maui.Controls.Shapes.Geometry? _clip;
@@ -783,6 +884,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     void ISkUiRenderable.RecordContent(SKCanvas canvas)
     {
+        if (DrawsSkeletonInstead)
+            return; // the bones are drawn instead
         if (_paintBackground is { } paintBackground)
             paintBackground(canvas);
         else
@@ -790,10 +893,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         OnPaintContent(canvas);
     }
 
-    bool ISkUiRenderable.HasOverlay => _paintOverlay is not null || _showsPressEffect || _focusRingVisible;
+    bool ISkUiRenderable.HasOverlay => (_paintOverlay is not null || _showsPressEffect || _focusRingVisible)
+        && !DrawsSkeletonInstead;
 
     void ISkUiRenderable.RecordOverlay(SKCanvas canvas)
     {
+        if (DrawsSkeletonInstead)
+            return;
         _paintOverlay?.Invoke(canvas);
         if (_showsPressEffect)
             SkUiLook.Current.DrawPressOverlay(canvas, new SkUiPressOverlayPaint(new SKRect(0, 0, (float)Width, (float)Height),
@@ -818,7 +924,11 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// Disposes native objects kept only for drawing (see <see cref="ISkUiRenderable.ReleaseDrawingResources"/>): the node
     /// left its drawn parent or its surface was torn down. They are made again when the node is drawn again.
     /// </summary>
-    internal virtual void ReleaseDrawingResources() => _effects?.Forget();
+    internal virtual void ReleaseDrawingResources()
+    {
+        _effects?.Forget();
+        _skeletonState?.Bones.Forget();
+    }
 
     void ISkUiRenderable.OnRenderRootDirty(bool fromDescendant)
     {
@@ -826,6 +936,33 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         // A root's own content invalidation already raised PaintInvalidated in FlushInvalidation.
         if (fromDescendant)
             PaintInvalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    double ISkUiAnimationTarget.GetAnimatable(SkUiAnimatableProperty property) => property switch
+    {
+        SkUiAnimatableProperty.Opacity => Opacity,
+        SkUiAnimatableProperty.TranslationX => TranslationX,
+        SkUiAnimatableProperty.TranslationY => TranslationY,
+        SkUiAnimatableProperty.Rotation => Rotation,
+        SkUiAnimatableProperty.Scale => Scale,
+        SkUiAnimatableProperty.ScaleX => ScaleX,
+        SkUiAnimatableProperty.ScaleY => ScaleY,
+        _ => throw new ArgumentOutOfRangeException(nameof(property))
+    };
+
+    void ISkUiAnimationTarget.SetAnimatable(SkUiAnimatableProperty property, double value)
+    {
+        switch (property)
+        {
+            case SkUiAnimatableProperty.Opacity: Opacity = value; break;
+            case SkUiAnimatableProperty.TranslationX: TranslationX = value; break;
+            case SkUiAnimatableProperty.TranslationY: TranslationY = value; break;
+            case SkUiAnimatableProperty.Rotation: Rotation = value; break;
+            case SkUiAnimatableProperty.Scale: Scale = value; break;
+            case SkUiAnimatableProperty.ScaleX: ScaleX = value; break;
+            case SkUiAnimatableProperty.ScaleY: ScaleY = value; break;
+            default: throw new ArgumentOutOfRangeException(nameof(property));
+        }
     }
 
     /// <summary>
@@ -1098,6 +1235,11 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     bool ISkUiInputNode.IsHitTestVisible => IsVisible && !InputTransparent;
 
     bool ISkUiInputNode.IsInputEnabled => IsEnabled && CanReceiveTap;
+
+    bool ISkUiInputNode.HitTestsChildren => HitTestsChildren;
+
+    /// <inheritdoc cref="ISkUiInputNode.HitTestsChildren" />
+    internal virtual bool HitTestsChildren => true;
 
     void ISkUiInputNode.CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers) => CollectGestureRecognizers(recognizers);
 

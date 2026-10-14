@@ -90,7 +90,8 @@ internal sealed class SkUiSemanticsNode
 /// <c>ExcludedWithChildren</c> drops the subtree).</item>
 /// <item>An actionable element (a tappable card, a button) reads the text of its non-actionable descendants as its name,
 /// and they are not elements of their own (like Android's merged clickable groups); actionable descendants stay separate
-/// elements. A description replaces the text, and then descendant text is not read at all.</item>
+/// elements. A description replaces the text, and then descendant text is not read at all. A node that stands for its
+/// subtree (a loading shimmer: one "Loading" element instead of its skeleton) hides its descendants.</item>
 /// <item>Order is the drawn tree's (children in paint order). Bounds are the visible part: elements scrolled or clipped
 /// out of view are left out (scroll actions bring them in).</item>
 /// </list>
@@ -281,6 +282,7 @@ internal sealed class SkUiSemanticsTree
                 return;
             var element = parent;
             var childAbsorber = absorber;
+            var childrenHidden = false;
             if (node is ISkUiAccessibleNode accessible)
             {
                 _info.Reset();
@@ -288,6 +290,7 @@ internal sealed class SkUiSemanticsTree
                 _info.IsEnabled &= enabled;
                 if (_info.ExcludedWithChildren)
                     return;
+                childrenHidden = _info.ChildrenHidden;
                 if (_info.IsNative)
                 {
                     if (!visible.IsEmpty)
@@ -315,6 +318,9 @@ internal sealed class SkUiSemanticsTree
                     }
                 }
             }
+
+            if (childrenHidden)
+                return;
 
             // Children: in the children space (scroll offset, overscroll scale), clipped as drawn; pinned children (scroll
             // bars, pinned headers) in local coordinates, outside the children clip.
@@ -359,7 +365,8 @@ internal sealed class SkUiSemanticsTree
             {
                 SkUiSemanticsRole.None => info.Actions != SkUiSemanticsActions.None,
                 SkUiSemanticsRole.Text => text is not null || info.Actions != SkUiSemanticsActions.None,
-                SkUiSemanticsRole.Image => info.Actions != SkUiSemanticsActions.None,
+                // Decorative unless described: by semantic properties, or by its own text (an avatar's name).
+                SkUiSemanticsRole.Image => text is not null || info.Actions != SkUiSemanticsActions.None,
                 _ => true
             };
         }

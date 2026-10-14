@@ -56,7 +56,7 @@ public abstract class SkUiDateTimePickerBase : SkUiPickerBase
     /// picker does not choose (a time in a date picker) too. <c>"MMMM yyyy"</c> makes a month picker, <c>"MM/yy"</c> a card's expiry.
     /// A part without a wheel keeps the value's when it is above the smallest wheel (a time picker's date), and is its least below it
     /// (a month picker chooses the 1st). <c>null</c> (default): the culture's short date order with month names, and its short time.
-    /// Telerik's <c>SpinnerFormat</c>. SkiaUi extension.
+    /// SkiaUi extension.
     /// </summary>
     public string? WheelFormat { get => (string?)GetValue(WheelFormatProperty); set => SetValue(WheelFormatProperty, value); }
 

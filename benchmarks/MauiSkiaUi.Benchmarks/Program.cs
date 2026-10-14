@@ -6,6 +6,9 @@ using SkiaSharp;
 // Tier-1 headless benchmark runner. Output: a median table on stdout, one "SKUIBENCH {json}" line per sample,
 // and (with --json) a results file consumed by scripts/bench_compare.py.
 var options = BenchArgs.Parse(args);
+// SKUIBENCH_RETAINED=1: also print the managed heap the tree keeps (SKUIRETAINED lines; full collections between phases,
+// so timings are not comparable). Exact only for scenarios that keep nothing of the previous iteration's tree.
+var measureRetained = Environment.GetEnvironmentVariable("SKUIBENCH_RETAINED") == "1";
 if (options.List)
 {
     foreach (var scenario in Scenarios.All)
@@ -19,7 +22,7 @@ foreach (var scenario in selected)
 {
     for (var iteration = 0; iteration < options.Warmup + options.Runs; iteration++)
     {
-        var sample = Run(scenario, iteration - options.Warmup);
+        var sample = Run(scenario, iteration - options.Warmup, measureRetained);
         if (iteration >= options.Warmup)
         {
             samples.Add(sample);
@@ -33,12 +36,13 @@ if (options.JsonPath is { } path)
     BenchReport.Write(path, "headless", options.Label, samples);
 return 0;
 
-static BenchSample Run(BenchScenario scenario, int iteration)
+static BenchSample Run(BenchScenario scenario, int iteration, bool measureRetained)
 {
     const double width = 400, height = 800;
     GC.Collect();
     GC.WaitForPendingFinalizers();
     GC.Collect();
+    var retainedBefore = measureRetained ? GC.GetTotalMemory(true) : 0;
     var allocated = GC.GetAllocatedBytesForCurrentThread();
     var watch = Stopwatch.StartNew();
     var root = scenario.Build();
@@ -72,6 +76,9 @@ static BenchSample Run(BenchScenario scenario, int iteration)
         paint = watch.Elapsed.TotalMilliseconds;
     }
 
+    if (measureRetained)
+        Console.WriteLine($"SKUIRETAINED {scenario.Name} {(GC.GetTotalMemory(true) - retainedBefore) / 1024.0:F0} KB after first frame");
+
     double? update = null;
     if (scenario.Update is { } apply)
     {
@@ -89,6 +96,8 @@ static BenchSample Run(BenchScenario scenario, int iteration)
             Paint(root, width, height);
         }
         update = watch.Elapsed.TotalMilliseconds;
+        if (measureRetained)
+            Console.WriteLine($"SKUIRETAINED {scenario.Name} {(GC.GetTotalMemory(true) - retainedBefore) / 1024.0:F0} KB after update");
     }
 
     return new BenchSample(scenario.Name, "headless", iteration, generate, null, measure, arrange, paint, composite, null, update, null, null, null,

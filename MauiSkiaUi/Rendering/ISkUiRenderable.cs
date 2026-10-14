@@ -47,6 +47,23 @@ internal interface ISkUiRenderable
     /// it is drawn again.
     /// </summary>
     void ReleaseDrawingResources();
+
+    // A skeleton made from a shimmer's content (SkUiSkeletonScope): every drawn node takes part.
+
+    /// <summary>The node's skeleton state field (its <c>Skeleton</c> value, its place in a skeleton, its bones), made when it first matters.</summary>
+    ref SkUiSkeletonState? SkeletonStateRef { get; }
+
+    /// <summary>How the node draws in a skeleton made from content when nothing is set on it (scroll bars: hidden).</summary>
+    SkUiSkeleton DefaultSkeleton { get; }
+
+    /// <summary>Whether the node is a container in such a skeleton (its children draw the bones): by default, while it has children.</summary>
+    bool IsSkeletonContainer { get; }
+
+    /// <summary>The node entered or left such a skeleton, or how it draws in it changed: it records again.</summary>
+    void OnSkeletonChanged();
+
+    /// <summary>Adds the node's bones: its own (<paramref name="block"/> <c>false</c>), or one bone of its rectangle (<see cref="SkUiSkeleton.Bone"/>).</summary>
+    void AddSkeletonBones(SkUiSkeletonBuilder bones, bool block);
 }
 
 /// <summary>What changed on a node since it was last recorded.</summary>

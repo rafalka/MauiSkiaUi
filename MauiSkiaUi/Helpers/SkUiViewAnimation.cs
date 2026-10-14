@@ -135,12 +135,30 @@ public sealed class SkUiViewAnimation
     /// Runs the animation on <paramref name="view"/>; <c>true</c> when every property ran to completion. Each property
     /// ends at its exact end value. Off screen, the view jumps to the end values.
     /// </summary>
-    public async Task<bool> RunAsync(SkUiView view)
+    public Task<bool> RunAsync(SkUiView view)
     {
         ArgumentNullException.ThrowIfNull(view);
+        return RunAsync((ISkUiAnimationTarget)view);
+    }
+
+    /// <summary>
+    /// Runs the animation on a Core node, as <see cref="RunAsync(SkUiView)"/>. Core nodes scale uniformly:
+    /// <see cref="SkUiAnimatableProperty.ScaleX"/> and <see cref="SkUiAnimatableProperty.ScaleY"/> are not supported.
+    /// </summary>
+    public Task<bool> RunAsync(Core.SkUiCoreNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        foreach (var property in Properties)
+            if (property.Property is SkUiAnimatableProperty.ScaleX or SkUiAnimatableProperty.ScaleY)
+                throw new NotSupportedException($"Core nodes scale uniformly: animate {nameof(SkUiAnimatableProperty.Scale)} instead of {property.Property}.");
+        return RunAsync((ISkUiAnimationTarget)node);
+    }
+
+    internal async Task<bool> RunAsync(ISkUiAnimationTarget view)
+    {
         Freeze();
         var own = Snapshot.Of(view);
-        if (!view.RenderState.HasCommitted && view.SkiaParent?.RenderState.HasCommitted != true)
+        if (!view.RenderState.HasCommitted && view.RenderParent?.RenderState.HasCommitted != true)
         {
             ApplyEnd(view, own);
             return true;
@@ -175,26 +193,13 @@ public sealed class SkUiViewAnimation
     }
 
     /// <summary>Sets every animated property of <paramref name="view"/> to its end value (exact, unlike render-thread floats).</summary>
-    internal void ApplyEnd(SkUiView view, Snapshot own)
+    internal void ApplyEnd(ISkUiAnimationTarget view, Snapshot own)
     {
         foreach (var property in Properties)
             Set(view, property.Property, property.To ?? own.Get(property.Property));
     }
 
-    internal static void Set(SkUiView view, SkUiAnimatableProperty property, double value)
-    {
-        switch (property)
-        {
-            case SkUiAnimatableProperty.Opacity: view.Opacity = value; break;
-            case SkUiAnimatableProperty.TranslationX: view.TranslationX = value; break;
-            case SkUiAnimatableProperty.TranslationY: view.TranslationY = value; break;
-            case SkUiAnimatableProperty.Rotation: view.Rotation = value; break;
-            case SkUiAnimatableProperty.Scale: view.Scale = value; break;
-            case SkUiAnimatableProperty.ScaleX: view.ScaleX = value; break;
-            case SkUiAnimatableProperty.ScaleY: view.ScaleY = value; break;
-            default: throw new ArgumentOutOfRangeException(nameof(property));
-        }
-    }
+    internal static void Set(ISkUiAnimationTarget view, SkUiAnimatableProperty property, double value) => view.SetAnimatable(property, value);
 
     private void ThrowIfFrozen()
     {
@@ -205,8 +210,11 @@ public sealed class SkUiViewAnimation
     /// <summary>A view's composite-time properties at one moment.</summary>
     internal readonly record struct Snapshot(double Opacity, double TranslationX, double TranslationY, double Rotation, double Scale, double ScaleX, double ScaleY)
     {
-        public static Snapshot Of(SkUiView view) =>
-            new(view.Opacity, view.TranslationX, view.TranslationY, view.Rotation, view.Scale, view.ScaleX, view.ScaleY);
+        public static Snapshot Of(ISkUiAnimationTarget view) => new(
+            view.GetAnimatable(SkUiAnimatableProperty.Opacity), view.GetAnimatable(SkUiAnimatableProperty.TranslationX),
+            view.GetAnimatable(SkUiAnimatableProperty.TranslationY), view.GetAnimatable(SkUiAnimatableProperty.Rotation),
+            view.GetAnimatable(SkUiAnimatableProperty.Scale), view.GetAnimatable(SkUiAnimatableProperty.ScaleX),
+            view.GetAnimatable(SkUiAnimatableProperty.ScaleY));
 
         public double Get(SkUiAnimatableProperty property) => property switch
         {
@@ -220,15 +228,15 @@ public sealed class SkUiViewAnimation
             _ => throw new ArgumentOutOfRangeException(nameof(property))
         };
 
-        public void Restore(SkUiView view)
+        public void Restore(ISkUiAnimationTarget view)
         {
-            view.Opacity = Opacity;
-            view.TranslationX = TranslationX;
-            view.TranslationY = TranslationY;
-            view.Rotation = Rotation;
-            view.Scale = Scale;
-            view.ScaleX = ScaleX;
-            view.ScaleY = ScaleY;
+            view.SetAnimatable(SkUiAnimatableProperty.Opacity, Opacity);
+            view.SetAnimatable(SkUiAnimatableProperty.TranslationX, TranslationX);
+            view.SetAnimatable(SkUiAnimatableProperty.TranslationY, TranslationY);
+            view.SetAnimatable(SkUiAnimatableProperty.Rotation, Rotation);
+            view.SetAnimatable(SkUiAnimatableProperty.Scale, Scale);
+            view.SetAnimatable(SkUiAnimatableProperty.ScaleX, ScaleX);
+            view.SetAnimatable(SkUiAnimatableProperty.ScaleY, ScaleY);
         }
     }
 
@@ -260,6 +268,22 @@ public sealed class SkUiViewAnimation
             base.ClearItems();
         }
     }
+}
+
+/// <summary>
+/// A drawn node of either layer whose composite-time properties a <see cref="SkUiViewAnimation"/> animates on the render
+/// thread (<see cref="SkUiView"/>, <see cref="Core.SkUiCoreNode"/>).
+/// </summary>
+internal interface ISkUiAnimationTarget : Rendering.ISkUiRenderable
+{
+    /// <summary>The property's value (a Core node's <see cref="SkUiAnimatableProperty.ScaleX"/> / <see cref="SkUiAnimatableProperty.ScaleY"/>: its uniform scale).</summary>
+    double GetAnimatable(SkUiAnimatableProperty property);
+
+    /// <summary>Sets the property (a Core node takes <see cref="SkUiAnimatableProperty.ScaleX"/> / <see cref="SkUiAnimatableProperty.ScaleY"/> as its uniform scale).</summary>
+    void SetAnimatable(SkUiAnimatableProperty property, double value);
+
+    /// <summary>Animates the property on the render thread (the node's <c>AnimateAsync</c>).</summary>
+    Task<bool> AnimateAsync(SkUiAnimatableProperty property, double to, uint length, Easing? easing);
 }
 
 /// <summary>Converts <c>"FadeIn"</c> / <c>"FadeOut"</c> [length] [easing] to a <see cref="SkUiViewAnimation"/> (<see cref="SkUiViewAnimation.Parse"/>).</summary>

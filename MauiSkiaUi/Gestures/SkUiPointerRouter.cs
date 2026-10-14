@@ -12,6 +12,12 @@ internal interface ISkUiInputNode : ISkUiRenderable
     /// <summary><c>false</c>: the node blocks pointers (disabled) — it is hit, but neither it nor its subtree reacts.</summary>
     bool IsInputEnabled { get; }
 
+    /// <summary>
+    /// <c>false</c>: pointers and keyboard focus do not reach the node's subtree (a shimmer showing its content as a skeleton);
+    /// the node itself and its ancestors react as usual (a scroller around it scrolls).
+    /// </summary>
+    bool HitTestsChildren => true;
+
     /// <summary>Appends this node's active recognizers (innermost priority first); nothing when passive.</summary>
     void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers);
 
@@ -380,7 +386,8 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     {
         for (ISkUiRenderable? current = node; current is not null; current = current.RenderParent)
         {
-            if (current is ISkUiInputNode input && (!input.IsHitTestVisible || !input.IsInputEnabled))
+            if (current is ISkUiInputNode input && (!input.IsHitTestVisible || !input.IsInputEnabled
+                    || (!input.HitTestsChildren && !ReferenceEquals(current, node))))
                 return false;
             if (ReferenceEquals(current, root))
                 return true;
@@ -434,6 +441,8 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
             return node;
         var clip = props.ChildrenClipRect;
         var insideClip = clip.IsEmpty || clip.Contains(local.X, local.Y);
+        // Pinned children, then (inside the clip) the others; none when the node hides its subtree from pointers.
+        var passes = !node.HitTestsChildren ? 0 : insideClip ? 2 : 1;
         var start = _children.Count;
         node.GetRenderChildren(_children);
         var childrenPoint = props.MapToChildren(local);
@@ -441,7 +450,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         {
             // Pinned children draw above the others, in local coordinates and outside the children clip: they are hit
             // first; the others only inside the clip.
-            for (var pass = 0; pass < (insideClip ? 2 : 1); pass++)
+            for (var pass = 0; pass < passes; pass++)
                 for (var index = _children.Count - 1; index >= start; index--)
                 {
                     if (_children[index] is not ISkUiInputNode child || !child.IsHitTestVisible)

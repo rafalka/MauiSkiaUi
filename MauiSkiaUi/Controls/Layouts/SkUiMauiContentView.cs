@@ -1,3 +1,4 @@
+using MauiSkiaUi.Rendering;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -334,7 +335,34 @@ public partial class SkUiMauiContentView : SkUiView
     /// Whether the native view is hidden: a snapshot is drawn in its place, or this view is not shown (it or a drawn
     /// ancestor is invisible, e.g. the collapsed content of an expander), since the overlay sits above the surface.
     /// </summary>
-    internal bool IsNativeHidden => _snapshot is not null || _notShown;
+    internal bool IsNativeHidden => _snapshot is not null || _notShown || _inSkeleton;
+
+    private bool _inSkeleton; // a bone of a skeleton made from content stands in its place
+
+    /// <summary>In a skeleton made from content the native view is hidden and a bone of its bounds drawn instead.</summary>
+    internal override void OnSkeletonChanged()
+    {
+        base.OnSkeletonChanged();
+        UpdateSkeletonHidden();
+    }
+
+    /// <inheritdoc />
+    internal override void OnGetRenderProps(ref SkUiRenderProps props)
+    {
+        base.OnGetRenderProps(ref props);
+        if (SkeletonState is { InSkeleton: true } || _inSkeleton)
+            UpdateSkeletonHidden(); // added to a skeleton, or left one
+    }
+
+    /// <summary>Hides the native view while a bone stands in its place (also when it is added to a skeleton).</summary>
+    private void UpdateSkeletonHidden()
+    {
+        var inSkeleton = !SkUiSkeletonScope.Resolve(this).DrawsAsIs;
+        if (inSkeleton == _inSkeleton)
+            return;
+        _inSkeleton = inSkeleton;
+        ApplyNativeHidden();
+    }
 
     private void ApplyNativeHidden() => SetNativeHidden(IsNativeHidden);
 

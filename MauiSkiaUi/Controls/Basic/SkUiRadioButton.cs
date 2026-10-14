@@ -521,6 +521,22 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
         TextContent.DrawText(canvas, _text, TextStyle, area, ToSkColor(IsEnabled ? _textColor : _textColor.MultiplyAlpha(0.5f)));
     }
 
+    /// <summary>A templated radio button is a container (the template's views are the bones).</summary>
+    internal override bool IsSkeletonContainer => _templateRoot is not null;
+
+    /// <summary>The circle, and a bar per line of its text (view content draws its own bones).</summary>
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)
+    {
+        var rightToLeft = IsRightToLeft;
+        var placement = SkUiRadioButtonContent.Arrange(Width, Height, ContentInset, HasContent);
+        bones.Add(SkUiSkeletonPartKind.RadioButton, rightToLeft ? SkUiRadioButtonContent.Mirror(placement.Circle, Width) : placement.Circle);
+        if (_text.Length == 0 || _hostedContent is not null)
+            return;
+        var lines = SkUiSkeletonScope.LineScratch();
+        TextContent.AddLineBoxes(lines, _text, TextStyle, rightToLeft ? SkUiRadioButtonContent.Mirror(placement.Content, Width) : placement.Content);
+        bones.AddLines(lines);
+    }
+
     /// <inheritdoc />
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
     {

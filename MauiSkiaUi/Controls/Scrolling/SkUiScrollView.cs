@@ -27,6 +27,9 @@ internal interface ISkUiScrollListener
 /// </summary>
 public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
 {
+    /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
+    internal override bool IsSkeletonContainer => true;
+
     // Assigned in the constructor; base-constructor property callbacks can run before that.
     private readonly SkUiScrollController _scroller = null!;
     /// <summary>Registered <see cref="SkUiMauiContentView"/> descendants that need offset sync (avoids O(tree) walks).</summary>

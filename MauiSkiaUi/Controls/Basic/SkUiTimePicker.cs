@@ -7,7 +7,7 @@ namespace MauiSkiaUi;
 /// <see cref="SkUiPickerBase.IsOpen"/> with <see cref="Opened"/> and <see cref="Closed"/>), so a XAML <c>TimePicker</c> becomes one by
 /// changing the prefix; the field is drawn as the other pickers' and the popup holds wheels for the hour, the minute (and the
 /// second), and AM / PM on a 12-hour clock (<see cref="SkUiDateTimePickerBase"/>), as the culture or
-/// <see cref="SkUiDateTimePickerBase.WheelFormat"/> says. Beyond MAUI, from Syncfusion's and Telerik's time pickers: a range
+/// <see cref="SkUiDateTimePickerBase.WheelFormat"/> says. Beyond MAUI: a range
 /// (<see cref="MinimumTime"/>, <see cref="MaximumTime"/>), steps (<see cref="HourInterval"/>, <see cref="MinuteInterval"/>,
 /// <see cref="SecondInterval"/>), <see cref="DefaultHighlightedTime"/>, a clear button, a placeholder, OK / Cancel, and the app's own
 /// time UI through the presenter (<see cref="SkUiTimePopupRequest"/>). Core twin: <see cref="Core.SkUiCoreTimePicker"/>.
@@ -75,7 +75,7 @@ public class SkUiTimePicker : SkUiDateTimePickerBase
     /// <summary>The chosen time of the day (0 to less than 24 hours); <c>null</c>: none. Midnight by default. Kept between <see cref="MinimumTime"/> and <see cref="MaximumTime"/>. Two-way by default.</summary>
     public TimeSpan? Time { get => (TimeSpan?)GetValue(TimeProperty); set => SetValue(TimeProperty, value); }
 
-    /// <summary>The earliest time that can be chosen (default 0:00). Syncfusion's and Telerik's. SkiaUi extension.</summary>
+    /// <summary>The earliest time that can be chosen (default 0:00). SkiaUi extension.</summary>
     public TimeSpan MinimumTime { get => (TimeSpan)GetValue(MinimumTimeProperty); set => SetValue(MinimumTimeProperty, value); }
 
     /// <summary>The latest time that can be chosen (default 23:59:59). SkiaUi extension.</summary>
@@ -84,7 +84,7 @@ public class SkUiTimePicker : SkUiDateTimePickerBase
     /// <summary>The field's .NET time format (default <c>"t"</c>, the culture's short time): <c>"T"</c>, <c>"HH:mm"</c>, <c>"h:mm tt"</c>, … The wheels follow <see cref="SkUiDateTimePickerBase.WheelFormat"/>.</summary>
     public string Format { get => (string)GetValue(FormatProperty); set => SetValue(FormatProperty, value); }
 
-    /// <summary>The time the wheels show while <see cref="Time"/> is <c>null</c>; <c>null</c> (default): now. On the wheels' steps, in the range. Telerik's. SkiaUi extension.</summary>
+    /// <summary>The time the wheels show while <see cref="Time"/> is <c>null</c>; <c>null</c> (default): now. On the wheels' steps, in the range. SkiaUi extension.</summary>
     public TimeSpan? DefaultHighlightedTime { get => (TimeSpan?)GetValue(DefaultHighlightedTimeProperty); set => SetValue(DefaultHighlightedTimeProperty, value); }
 
     /// <summary>The hour wheel's step (default 1; 1–23). SkiaUi extension.</summary>

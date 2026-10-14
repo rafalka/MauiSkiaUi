@@ -116,6 +116,9 @@ public class SkUiSwitch : SkUiToggleControl
         SkUiToggleDrawing.DrawSwitch(canvas, (float)Width, (float)Height, IsRightToLeft, ToggleVisual, _onColor, _thumbColor, IsEnabled);
 
     /// <inheritdoc />
+    protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.Add(SkUiSkeletonPartKind.Switch, bones.Bounds);
+
+    /// <inheritdoc />
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
     {
         base.OnPopulateSemantics(info);

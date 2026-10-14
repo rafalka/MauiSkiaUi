@@ -569,6 +569,24 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
         return -1;
     }
 
+    /// <summary>
+    /// Adds the box of each line <see cref="Draw"/> draws to <paramref name="boxes"/>, in the slot's coordinates (see
+    /// <see cref="SkUiTextLayout.AddLineBoxes"/>).
+    /// </summary>
+    internal void AddLineBoxes(List<SKRect> boxes, SkUiRichText text, in SkUiTextStyle style, Thickness padding,
+        double width, double height, TextAlignment horizontal, TextAlignment vertical)
+    {
+        if (text.Text.Length == 0)
+            return;
+        var fitted = Fitted(text, style, Math.Max(0, width - padding.HorizontalThickness), SkUiTextFit.ContentHeight(height, padding));
+        var placement = SkUiTextFit.LinePlacement(fitted.Scale, ref padding, ref width, ref height);
+        var available = Math.Max(0, width - padding.HorizontalThickness);
+        EnsureLines(text, available, SkUiTextFit.Unscaled(fitted));
+        foreach (var (line, left, top) in Placed(padding, height, horizontal, vertical, available))
+            if (line.Width > 0)
+                boxes.Add(placement.MapRect(new SKRect(left, top, left + line.Width, top + line.Height)));
+    }
+
     private (float Top, float Gap) Vertical(Thickness padding, double height, TextAlignment vertical)
     {
         var total = 0f;

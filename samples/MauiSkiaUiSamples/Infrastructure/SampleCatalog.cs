@@ -20,6 +20,8 @@ public static class SampleCatalog
         SampleEntry.For<CardsWithShadowsSample>(),
         SampleEntry.For<ContentViewsSample>(),
         SampleEntry.For<OrderListSample>(),
+        SampleEntry.For<LeaderboardLoadingSample>(),
+        SampleEntry.For<StagedLoadingSample>(),
         SampleEntry.For<ContactsSample>(),
         SampleEntry.For<PlanPickerSample>(),
         SampleEntry.For<PickerPopupsSample>(),
@@ -29,6 +31,7 @@ public static class SampleCatalog
         SampleEntry.For<DateOfBirthSample>(),
         SampleEntry.For<BookingSample>(),
         SampleEntry.For<CrossCheckBoxSample>(),
+        SampleEntry.For<PresenceAvatarsSample>(),
         SampleEntry.For<TranslatedPickerTextsSample>(),
         SampleEntry.For<CorePickersSample>(),
     ];

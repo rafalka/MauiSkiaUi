@@ -92,6 +92,8 @@ public sealed class Meter : SkUiView
 
 Coordinates are DIPs in the view's own space. Call `InvalidatePaint()` when a property changes the drawing and `InvalidateMeasure()` when it changes the size. Input: the gesture events (`Tapped`, `PanUpdated`, …) or a recognizer in `Gestures`.
 
+If the control shows in a loading screen made from its content (a shimmer without `SkeletonContent`), it is one bone of its rectangle. To draw its parts as bones, override `AddSkeletonBones(SkUiSkeletonBuilder bones)`: `bones.AddShape(rect, radii)` per shape, `bones.Add(SkUiSkeletonPartKind.TextLine, lineBox)` per text line, in its own coordinates (`bones.Bounds`).
+
 ## Platform handler tweaks
 
 Custom handlers and mapper changes registered for MAUI types (`Label`, `Button`, `Entry`, `ScrollView`, …) do not affect drawn controls. For each one that applied to converted controls, find what it changed (removed button padding or shadow, auto-fit text, disabled scroll bars, …) and set the drawn equivalent properties (`Padding`, `MaxLines` / `LineBreakMode`, `VerticalScrollBarVisibility`, …). Handlers for native islands (`Entry`, `Editor`, `WebView`) still apply inside `SkUiMauiContentView`.

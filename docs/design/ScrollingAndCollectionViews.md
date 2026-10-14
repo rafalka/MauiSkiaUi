@@ -437,33 +437,33 @@ Unlike most SkUi* controls, **`SkUiCollectionView` is not required to mirror MAU
 
 **Later (not FR-22 MVP):** reordering (long-press drag, gesture arena); row swipe actions (shipped as `SkUiSwipeView`, C1); horizontal-only polish; keyboard-focused item navigation; animated insert / remove.
 
-### Product backlog (Syncfusion [SfListView](https://help.syncfusion.com/maui/listview/overview) and peers)
+### Product backlog (common list control features)
 
-Syncfusion’s control is a useful benchmark for **list UX**, not an API target. SkiaUi keeps **SkUi-first** FR-22; the items below are candidates to add to FR-22 or Phase C when they fit the single-surface model.
+Feature-rich list controls are a useful benchmark for **list UX**, not an API target. SkiaUi keeps **SkUi-first** FR-22; the items below are candidates to add to FR-22 or Phase C when they fit the single-surface model.
 
-| Area | Syncfusion / market pattern | SkUi today | Recommendation |
+| Area | Common pattern | SkUi today | Recommendation |
 | --- | --- | --- | --- |
 | Virtualization | View reuse, templates, selector | FR-21 + FR-22 recycling | **Ship** (core) |
 | Layout | Linear, grid, orientation | Planned linear + grid | **Ship** |
 | Variable height | `AutoFitMode`, `QueryItemSize`, `DynamicHeight` | Per-index measure default (FR-21 / FR-22) | **In FR-22:** optional **`QueryItemSize`**, **`RemeasureItem`**; no uniform-height default |
 | Grouping | Descriptors, sticky headers | Sticky group headers | **Ship** |
-| Expand / collapse | `AllowGroupExpandCollapse`, ExpandAll / CollapseAll | Expandable groups (FR-22) | **Add:** **`ExpandAll` / `CollapseAll`**, optional **`AutoExpandGroups`** for new groups ([grouping](https://help.syncfusion.com/maui/listview/grouping)) |
+| Expand / collapse | `AllowGroupExpandCollapse`, ExpandAll / CollapseAll | Expandable groups (FR-22) | **Add:** **`ExpandAll` / `CollapseAll`**, optional **`AutoExpandGroups`** for new groups |
 | Multi-level groups | Nested `GroupDescriptor` | Not specified | **Candidate:** hierarchical groups + indented headers (later) |
 | Sort / filter | `SortDescriptors`, `Filter`, `LiveDataUpdateMode`, custom comparers | App / view model | **Light built-in optional:** `Filter` predicate + **`RefreshFilter`**; sort stays in VM unless we add optional **`SortDescriptor`**s (heavier; defer) |
-| Filtering UI | `FilteringUITemplate`, popup | — | **Out of control** — app composes chips / search above the list ([filtering](https://help.syncfusion.com/maui/listview/filtering)) |
-| Selection | Single, SingleDeselect, Multiple, Extended; SelectAll | FR-22 | **In FR-22:** SingleDeselect, Multiple, SelectionChanging, SelectAll / ClearSelection; **Extended** desktop later ([selection](https://help.syncfusion.com/maui/listview/selection)) |
+| Filtering UI | `FilteringUITemplate`, popup | — | **Out of control** — app composes chips / search above the list |
+| Selection | Single, SingleDeselect, Multiple, Extended; SelectAll | FR-22 | **In FR-22:** SingleDeselect, Multiple, SelectionChanging, SelectAll / ClearSelection; **Extended** desktop later |
 | Select → scroll | Auto `ScrollTo` when `SelectedItem` changes | — | **Candidate:** `ScrollSelectedIntoView` (optional) |
-| Load more | Manual / Auto / AutoOnScroll; top or bottom; template row | FR-22 load-more API | **In FR-22** ([load more](https://help.syncfusion.com/maui/listview/loadmore)) |
-| Pull to refresh | Often `SfPullToRefresh` wrapper | Built-in on collection | **Ship**; document horizontal list limitation (Syncfusion: no PTR on horizontal) |
-| Swipe actions | Start/end templates, threshold, full swipe delete | `SkUiSwipeView` in the item template (C1): MAUI's `SwipeView` API, `Threshold`, `Execute` mode for a full swipe, `Open` / `Close` | **Shipped** ([swiping](https://help.syncfusion.com/maui/listview/swiping)) |
-| Reorder | OnHold / drag indicator, drag template | FR-22 later | **Ship later** with **`DragStartMode`**, optional **`DragItemTemplate`** ([drag and drop](https://help.syncfusion.com/maui/listview/item-drag-and-drop)) |
-| Scroll / scroll-to | `ScrollTo` / `ScrollToRowIndex`, animated | FR-17 + FR-22 | **Ship**; grouped + variable height may weaken exact `Center` first time (document like Syncfusion) ([scrolling](https://help.syncfusion.com/maui/listview/scrolling)) |
+| Load more | Manual / Auto / AutoOnScroll; top or bottom; template row | FR-22 load-more API | **In FR-22** |
+| Pull to refresh | Often a separate pull-to-refresh wrapper | Built-in on collection | **Ship**; document the horizontal list limitation |
+| Swipe actions | Start/end templates, threshold, full swipe delete | `SkUiSwipeView` in the item template (C1): MAUI's `SwipeView` API, `Threshold`, `Execute` mode for a full swipe, `Open` / `Close` | **Shipped** |
+| Reorder | OnHold / drag indicator, drag template | FR-22 later | **Ship later** with **`DragStartMode`**, optional **`DragItemTemplate`** |
+| Scroll / scroll-to | `ScrollTo` / `ScrollToRowIndex`, animated | FR-17 + FR-22 | **Ship**; grouped + variable height may weaken exact `Center` first time (document it) |
 | Item tap context | `ItemType` (Header, GroupHeader, Record, LoadMore) | Item + index + group | **Add:** **`ItemTappedEventArgs.ItemKind`** (record, header, footer, group header, load-more) |
-| Appearance | Item fade on appear, fade on scroll | — | **Look / optional:** `EnableFadeOnScroll`; **`ItemAppearing`** hook for light animation (FR-7 render thread preferred) ([appearance](https://help.syncfusion.com/maui/listview/viewappearance)) |
-| RTL | `FlowDirection` | FR-17 RTL scroll bars | **Inherit** MAUI `FlowDirection` on list + items ([RTL](https://help.syncfusion.com/maui/listview/right-to-left)) |
-| Accessibility | Screen reader, keyboard nav (partial in Syncfusion table) | FR-10 | **Ship** with collection: roles, group expanded/collapsed, list item position |
+| Appearance | Item fade on appear, fade on scroll | — | **Look / optional:** `EnableFadeOnScroll`; **`ItemAppearing`** hook for light animation (FR-7 render thread preferred) |
+| RTL | `FlowDirection` | FR-17 RTL scroll bars | **Inherit** MAUI `FlowDirection` on list + items |
+| Accessibility | Screen reader, keyboard nav (often partial) | FR-10 | **Ship** with collection: roles, group expanded/collapsed, list item position |
 
-**Intentionally not a Syncfusion-style `DataSource`:** grouping, sorting, and filtering logic can stay in the view model (`CollectionView` / LINQ / dynamic data) for v1; built-in filter + load-more modes cover most list screens without a second data layer inside the control.
+**Intentionally no `DataSource` layer inside the control:** grouping, sorting, and filtering logic can stay in the view model (`CollectionView` / LINQ / dynamic data) for v1; built-in filter + load-more modes cover most list screens without a second data layer inside the control.
 
 ### Behavior and cost
 

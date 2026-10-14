@@ -18,7 +18,6 @@ internal sealed class SkUiFrameRenderer : IDisposable
     private readonly Action _requestRender;
     private readonly Action _beforeFrame;
     private readonly SkUiRenderRecorder _recorder = new();
-    private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly object _sizeLock = new();
     private SKSizeI _pixelSize;
     private Size _dipSize;
@@ -51,8 +50,8 @@ internal sealed class SkUiFrameRenderer : IDisposable
     /// <summary>Pictures recorded so far (diagnostics / tests).</summary>
     internal int RecordedPictures => _recorder.RecordedPictures;
 
-    /// <summary>Monotonic time used for render-thread animations when no explicit time is given.</summary>
-    internal TimeSpan Now => _clock.Elapsed;
+    /// <summary>Monotonic time used for render-thread animations when no explicit time is given (shared by every surface).</summary>
+    internal TimeSpan Now => SkUiRenderClock.Now;
 
     internal static void EnsureStandalone(SkUiView root)
     {
@@ -132,7 +131,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
             return false;
         }
         _frameStarted = Stopwatch.GetTimestamp();
-        var needsFrame = Compositor.Render(canvas, info.Width, info.Height, now ?? _clock.Elapsed);
+        var needsFrame = Compositor.Render(canvas, info.Width, info.Height, now ?? SkUiRenderClock.Now);
         lock (_sizeLock)
         {
             _pixelSize = info.Size;

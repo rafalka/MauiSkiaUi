@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  A page that loads in stages and is its own skeleton at every stage. No hand-made skeleton: each shimmer shows its content
+  as bones while it loads. Nothing loads until Load is tapped; until then the page is one label.
+  1. The team request: the page's shimmer draws the header card and the member list as bones; the list has no members yet,
+     so it shows placeholder rows made from its own item template.
+  2. The members arrive (names and roles only): the page's shimmer stops loading; each row's details stay bones in the row's
+     own shimmer, bound to the row's IsLoadingDetails.
+  3. One request per member, a few at a time: each row's details appear when its request ends.
+  The code-behind (StagedLoadingSample.xaml.cs) has the page's description and the view model with the simulated requests.
+-->
+<samples:SamplePage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                    xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+                    xmlns:samples="clr-namespace:MauiSkiaUiSamples"
+                    xmlns:local="clr-namespace:MauiSkiaUiSamples.Samples.Controls"
+                    x:Class="MauiSkiaUiSamples.Samples.Controls.StagedLoadingSample"
+                    x:DataType="local:StagedLoadingModel">
+
+    <Grid RowDefinitions="Auto,*" RowSpacing="8">
+        <HorizontalStackLayout Spacing="12">
+            <Button Text="Load" Command="{Binding LoadCommand}" />
+            <Label Text="{Binding Status}" FontSize="13" VerticalOptions="Center" TextColor="{x:Static samples:SampleColors.Caption}" />
+        </HorizontalStackLayout>
+
+        <!-- Before the first load: nothing but this label. -->
+        <Label Grid.Row="1" Text="Nothing loaded yet. Tap Load to load the team and its members." IsVisible="{Binding IsIdle}"
+               HorizontalOptions="Center" VerticalOptions="Center" HorizontalTextAlignment="Center" Margin="24"
+               TextColor="{x:Static samples:SampleColors.Caption}" />
+
+        <!-- Stage 1: the whole page is its own skeleton while the team loads (no SkeletonContent). -->
+        <sk:SkUiShimmer Grid.Row="1" Mode="Bones" WaveRegion="Surface" IsLoading="{Binding IsLoadingTeam}" IsVisible="{Binding HasStarted}"
+                        AfterStateChangeAnimation="FadeIn 200">
+            <sk:SkUiGrid RowDefinitions="Auto,Auto,*" RowSpacing="12" Padding="16" BackgroundColor="{x:Static samples:SampleColors.Page}">
+                <sk:SkUiBorder Stroke="{x:Static samples:SampleColors.Border}" StrokeShape="RoundRectangle 10" StrokeThickness="1"
+                               BackgroundColor="White" Padding="16">
+                    <sk:SkUiGrid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                        <sk:SkUiBox WidthRequest="44" HeightRequest="44" CornerRadius="12" Color="{x:Static samples:SampleColors.Accent}" />
+                        <sk:SkUiVerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <sk:SkUiLabel Text="{Binding Team}" FontSize="17" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Ink}" />
+                            <sk:SkUiLabel Text="{Binding TeamSummary}" FontSize="13" TextColor="{x:Static samples:SampleColors.Caption}" />
+                        </sk:SkUiVerticalStackLayout>
+                    </sk:SkUiGrid>
+                </sk:SkUiBorder>
+
+                <!-- Known before any data: drawn as it is. -->
+                <sk:SkUiLabel Grid.Row="1" Text="Members" FontSize="15" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Ink}"
+                              sk:SkUiShimmer.Skeleton="Keep" />
+
+                <!-- Empty while the team loads: placeholder rows of its ItemTemplate fill it. -->
+                <sk:SkUiCollectionView Grid.Row="2" ItemsSource="{Binding Members}" ItemSpacing="10">
+                    <sk:SkUiCollectionView.EmptyView>
+                        <sk:SkUiLabel Text="No members" HorizontalOptions="Center" Padding="24" TextColor="{x:Static samples:SampleColors.Caption}" />
+                    </sk:SkUiCollectionView.EmptyView>
+                    <sk:SkUiCollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="local:MemberRow">
+                            <sk:SkUiBorder Stroke="{x:Static samples:SampleColors.Border}" StrokeShape="RoundRectangle 8" StrokeThickness="1"
+                                           BackgroundColor="White" Padding="12">
+                                <sk:SkUiGrid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                    <sk:SkUiAvatarView Text="{Binding Name}" Initials="FirstAndLastWord" WidthRequest="40" HeightRequest="40"
+                                                       CornerRadius="20" BorderWidth="0" VerticalOptions="Start" />
+                                    <sk:SkUiVerticalStackLayout Grid.Column="1" Spacing="4">
+                                        <sk:SkUiLabel Text="{Binding Name}" FontSize="15" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Ink}" />
+                                        <sk:SkUiLabel Text="{Binding Role}" FontSize="12" TextColor="{x:Static samples:SampleColors.Caption}" />
+                                        <!-- Stage 2: the row's details are their own skeleton until its request ends. -->
+                                        <sk:SkUiShimmer Mode="Bones" WaveRegion="Surface" IsLoading="{Binding IsLoadingDetails}" Margin="0,4,0,0">
+                                            <sk:SkUiVerticalStackLayout Spacing="6">
+                                                <sk:SkUiLabel Text="{Binding Activity}" FontSize="13" MaxLines="2" sk:SkUiShimmer.SkeletonLines="2"
+                                                              TextColor="{x:Static samples:SampleColors.Ink}" />
+                                                <sk:SkUiGrid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                    <sk:SkUiProgressBar Progress="{Binding Progress}" ProgressColor="{x:Static samples:SampleColors.Accent}"
+                                                                        VerticalOptions="Center" />
+                                                    <sk:SkUiLabel Grid.Column="1" Text="{Binding Score}" WidthRequest="64" HorizontalTextAlignment="End"
+                                                                  FontSize="13" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Accent}" />
+                                                </sk:SkUiGrid>
+                                            </sk:SkUiVerticalStackLayout>
+                                        </sk:SkUiShimmer>
+                                    </sk:SkUiVerticalStackLayout>
+                                </sk:SkUiGrid>
+                            </sk:SkUiBorder>
+                        </DataTemplate>
+                    </sk:SkUiCollectionView.ItemTemplate>
+                </sk:SkUiCollectionView>
+            </sk:SkUiGrid>
+        </sk:SkUiShimmer>
+    </Grid>
+</samples:SamplePage>

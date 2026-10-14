@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  A loading skeleton over a page that stays in MAUI: the leaderboard below is plain MAUI views; only its skeleton is drawn,
+  by one SkUiShimmer in Mode="Bones" laid over it. The bones shimmer; the skeleton's cards, divider and Cancel button draw
+  as they are. When loading ends the skeleton fades out and hides itself. The code-behind
+  (LeaderboardLoadingSample.xaml.cs) has the page's description and the view model.
+-->
+<samples:SamplePage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                    xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+                    xmlns:samples="clr-namespace:MauiSkiaUiSamples"
+                    xmlns:local="clr-namespace:MauiSkiaUiSamples.Samples.Controls"
+                    x:Class="MauiSkiaUiSamples.Samples.Controls.LeaderboardLoadingSample"
+                    x:DataType="local:LeaderboardLoadingModel">
+
+    <Grid RowDefinitions="Auto,*" RowSpacing="8">
+        <Button Text="Reload" Command="{Binding ReloadCommand}" HorizontalOptions="Start" />
+
+        <Grid Grid.Row="1">
+            <!-- The page itself: MAUI views, unchanged. -->
+            <Grid RowDefinitions="Auto,1,*" BackgroundColor="{x:Static samples:SampleColors.Page}">
+                <Grid ColumnDefinitions="Auto,*,Auto" Padding="8,0" HeightRequest="44">
+                    <Label Text="Weekly sales ▾" FontSize="15" FontAttributes="Bold" VerticalOptions="Center"
+                           TextColor="{x:Static samples:SampleColors.Ink}" />
+                    <Label Grid.Column="2" Text="Store 12" FontSize="13" VerticalOptions="Center"
+                           TextColor="{x:Static samples:SampleColors.Accent}" />
+                </Grid>
+                <BoxView Grid.Row="1" Color="{x:Static samples:SampleColors.Border}" />
+                <ScrollView Grid.Row="2">
+                    <VerticalStackLayout Spacing="16" Padding="24,24,24,0">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                            <Border WidthRequest="40" HeightRequest="40" StrokeThickness="0" StrokeShape="RoundRectangle 10"
+                                    BackgroundColor="{x:Static samples:SampleColors.Accent}">
+                                <Label Text="★" TextColor="White" FontSize="20" HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Leaderboard" FontSize="17" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Ink}" />
+                                <Label Text="Sales this week" FontSize="13" TextColor="{x:Static samples:SampleColors.Caption}" />
+                            </VerticalStackLayout>
+                        </Grid>
+                        <VerticalStackLayout Spacing="16" BindableLayout.ItemsSource="{Binding Entries}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="local:LeaderboardEntry">
+                                    <Border Stroke="{x:Static samples:SampleColors.Border}" StrokeShape="RoundRectangle 8" StrokeThickness="1"
+                                            BackgroundColor="White" Padding="16">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                            <Border WidthRequest="32" HeightRequest="32" StrokeThickness="0" StrokeShape="RoundRectangle 16"
+                                                    BackgroundColor="{x:Static samples:SampleColors.Page}">
+                                                <Label Text="{Binding Rank}" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center"
+                                                       TextColor="{x:Static samples:SampleColors.Ink}" />
+                                            </Border>
+                                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                                <Label Text="{Binding Name}" FontSize="15" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Ink}" />
+                                                <Label Text="{Binding Team}" FontSize="12" TextColor="{x:Static samples:SampleColors.Caption}" />
+                                            </VerticalStackLayout>
+                                            <VerticalStackLayout Grid.Column="2" Spacing="2" VerticalOptions="Center">
+                                                <Label Text="{Binding Value}" FontSize="15" FontAttributes="Bold" HorizontalOptions="End"
+                                                       TextColor="{x:Static samples:SampleColors.Ink}" />
+                                                <Label Text="{Binding Change}" FontSize="12" HorizontalOptions="End"
+                                                       TextColor="{x:Static samples:SampleColors.Accent}" />
+                                            </VerticalStackLayout>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Grid>
+
+            <!--
+              The skeleton: one drawn surface over the page while it loads. Mode="Bones": only the SkUiShimmerBones shimmer,
+              in one wave. It fades out when loading ends, then hides (IsShowingSkeleton), so the page below gets the taps.
+            -->
+            <sk:SkUiShimmer Mode="Bones" IsLoading="{Binding IsLoading}" BeforeStateChangeAnimation="FadeOut 350 CubicInOut"
+                            IsVisible="{Binding IsShowingSkeleton, Source={RelativeSource Self}, x:DataType=sk:SkUiShimmer}">
+                <sk:SkUiShimmer.SkeletonContent>
+                    <sk:SkUiGrid RowDefinitions="Auto,1,*" BackgroundColor="{x:Static samples:SampleColors.Page}">
+                        <sk:SkUiGrid ColumnDefinitions="Auto,*,Auto" Padding="8,0" HeightRequest="44">
+                            <sk:SkUiShimmerBone WidthRequest="100" HeightRequest="28" CornerRadius="10" VerticalOptions="Center" />
+                            <sk:SkUiShimmerBone Grid.Column="2" WidthRequest="56" HeightRequest="16" CornerRadius="4" VerticalOptions="Center" />
+                        </sk:SkUiGrid>
+                        <sk:SkUiBox Grid.Row="1" Color="{x:Static samples:SampleColors.Border}" />
+                        <sk:SkUiScrollView Grid.Row="2">
+                            <sk:SkUiVerticalStackLayout Spacing="16" Padding="24,24,24,0">
+                                <sk:SkUiGrid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                    <sk:SkUiShimmerBone WidthRequest="40" HeightRequest="40" CornerRadius="10" />
+                                    <sk:SkUiVerticalStackLayout Grid.Column="1" Spacing="6" VerticalOptions="Center">
+                                        <sk:SkUiShimmerBone WidthRequest="180" HeightRequest="18" CornerRadius="4" HorizontalOptions="Start" />
+                                        <sk:SkUiShimmerBone WidthRequest="120" HeightRequest="14" CornerRadius="4" HorizontalOptions="Start" />
+                                    </sk:SkUiVerticalStackLayout>
+                                </sk:SkUiGrid>
+                                <!-- Placeholder cards: real cards (white, bordered) with bones in them. -->
+                                <sk:SkUiVerticalStackLayout Spacing="16" BindableLayout.ItemsSource="{Binding Placeholders}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="local:LeaderboardPlaceholder">
+                                            <sk:SkUiBorder Stroke="{x:Static samples:SampleColors.Border}" StrokeShape="RoundRectangle 8" StrokeThickness="1"
+                                                           BackgroundColor="White" Padding="16">
+                                                <sk:SkUiGrid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                                    <sk:SkUiShimmerBone WidthRequest="32" HeightRequest="32" CornerRadius="16" VerticalOptions="Center" />
+                                                    <sk:SkUiVerticalStackLayout Grid.Column="1" Spacing="4" VerticalOptions="Center">
+                                                        <sk:SkUiShimmerBone WidthRequest="{Binding Name}" HeightRequest="18" CornerRadius="4" HorizontalOptions="Start" />
+                                                        <sk:SkUiShimmerBone WidthRequest="{Binding Team}" HeightRequest="14" CornerRadius="4" HorizontalOptions="Start" />
+                                                    </sk:SkUiVerticalStackLayout>
+                                                    <sk:SkUiVerticalStackLayout Grid.Column="2" Spacing="4" VerticalOptions="Center">
+                                                        <sk:SkUiShimmerBone WidthRequest="{Binding Value}" HeightRequest="18" CornerRadius="4" HorizontalOptions="End" />
+                                                        <sk:SkUiShimmerBone WidthRequest="{Binding Change}" HeightRequest="14" CornerRadius="4" HorizontalOptions="End" />
+                                                    </sk:SkUiVerticalStackLayout>
+                                                </sk:SkUiGrid>
+                                            </sk:SkUiBorder>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </sk:SkUiVerticalStackLayout>
+                                <!-- A real button among the bones: it keeps working, and does not shimmer. -->
+                                <sk:SkUiButton Text="Cancel" Command="{Binding CancelCommand}" HorizontalOptions="Center" Margin="0,8,0,0" />
+                            </sk:SkUiVerticalStackLayout>
+                        </sk:SkUiScrollView>
+                    </sk:SkUiGrid>
+                </sk:SkUiShimmer.SkeletonContent>
+            </sk:SkUiShimmer>
+        </Grid>
+    </Grid>
+</samples:SamplePage>

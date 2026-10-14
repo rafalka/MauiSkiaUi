@@ -233,6 +233,36 @@ public class CheckXamlTests
         }
     }
 
+    [Fact]
+    public void SuggestsTheDrawnAvatarForTheToolkitsAvatar()
+    {
+        var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
+        try
+        {
+            File.WriteAllText(Path.Combine(project.FullName, "Page.xaml"), """
+                <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+                             xmlns:mct="http://schemas.microsoft.com/dotnet/2022/maui/toolkit">
+                  <sk:SkUiVerticalStackLayout>
+                    <mct:AvatarView Text="ZS" />
+                    <sk:SkUiAvatarView Text="ZS" />
+                  </sk:SkUiVerticalStackLayout>
+                  <mct:AvatarView Text="outside the drawn tree" />
+                </ContentPage>
+                """);
+            var (exitCode, output) = Run(project.FullName);
+            Assert.Equal(1, exitCode);
+            var errors = output.Split('\n').Where(line => line.Contains("error:")).ToArray();
+            var error = Assert.Single(errors);
+            Assert.Contains("Page.xaml:5:", error);
+            Assert.Contains("sk:SkUiAvatarView", error);
+        }
+        finally
+        {
+            project.Delete(recursive: true);
+        }
+    }
+
     private static (int ExitCode, string Output) Run(string project)
     {
         var start = new ProcessStartInfo("python3") { RedirectStandardOutput = true, RedirectStandardError = true };

@@ -51,7 +51,7 @@ public sealed partial class ContactsSample : SamplePage, ISample
                 "`Selected` state); a recycled row shows closed.",
             "Group headers are templates too: their checkbox state (all, some, none) is a property of the group, kept by the " +
                 "view model.",
-            "The photos are MIT-licensed portraits from the Syncfusion Toolkit for .NET MAUI gallery (Resources/Images/README.md).",
+            "The photos are MIT-licensed portraits (their source and license: Resources/Images/README.md).",
             "The page fills the screen below this description, as an app's page would."
         ])
     {

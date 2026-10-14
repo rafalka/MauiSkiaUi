@@ -28,6 +28,9 @@ namespace MauiSkiaUi.Core;
 /// </remarks>
 public sealed class SkUiCoreScrollBar : SkUiCoreNode
 {
+    /// <summary>Not part of a skeleton made from content.</summary>
+    internal override SkUiSkeleton DefaultSkeleton => SkUiSkeleton.Hidden;
+
     private readonly SkUiScrollController _scroller;
     private readonly ScrollOrientation _orientation;
     private readonly Thumb _thumb;

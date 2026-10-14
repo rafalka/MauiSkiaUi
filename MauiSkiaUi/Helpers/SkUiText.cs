@@ -837,6 +837,42 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
     }
 
     /// <summary>
+    /// Adds the box of each line <see cref="Draw"/> draws (its width and line spacing, where it is placed) to
+    /// <paramref name="boxes"/>, in the slot's coordinates: a skeleton's text bars (FR-31). Empty lines add none.
+    /// </summary>
+    internal void AddLineBoxes(List<SKRect> boxes, string text, in SkUiTextStyle style, Thickness padding,
+        double width, double height, TextAlignment horizontal, TextAlignment vertical)
+    {
+        if (text.Length == 0)
+            return;
+        var fitted = Fitted(text, style, Math.Max(0, width - padding.HorizontalThickness), SkUiTextFit.ContentHeight(height, padding));
+        var placement = SkUiTextFit.LinePlacement(fitted.Scale, ref padding, ref width, ref height);
+        var available = Math.Max(0, width - padding.HorizontalThickness);
+        var lineStyle = SkUiTextFit.Unscaled(fitted);
+        EnsureLines(text, available, lineStyle, Primary(lineStyle));
+        var total = 0f;
+        foreach (var line in _lines)
+            total += line.Height;
+        var (top, gap) = PlaceVertically(total, _lines.Count, padding, height, vertical);
+        foreach (var line in _lines)
+        {
+            if (line.Width > 0)
+            {
+                var left = LineLeft(line.BaseLevel, line.Width, horizontal, padding, available);
+                boxes.Add(placement.MapRect(new SKRect(left, top, left + line.Width, top + line.Height)));
+            }
+            top += line.Height + gap;
+        }
+    }
+
+    /// <summary>The spacing of one line of <paramref name="style"/>'s font (with its line height): a skeleton's placeholder lines.</summary>
+    internal float LineSpacing(in SkUiTextStyle style)
+    {
+        var spacing = Primary(SkUiTextFit.Unscaled(style)).Spacing;
+        return style.LineHeight > 0 ? (float)(spacing * style.LineHeight) : spacing;
+    }
+
+    /// <summary>
     /// Where the first line starts (<paramref name="vertical"/> alignment of <paramref name="total"/> DIPs of lines in the
     /// padded <paramref name="height"/>) and the gap added between lines (vertical Justify; one line: Start).
     /// </summary>

@@ -47,7 +47,7 @@ Every drawn node (`SkUiView`, `SkUiCoreNode`) implements `ISkUiRenderable`. It o
 | `Before` picture | Background + Content phases (`PaintBackground` / `OnPaintBackground`, `OnPaintContent`) | Re-record this node only |
 | `After` picture | Overlay phase | Re-record this node only |
 | Children | `GetRenderChildren` (paint order, ZIndex) | Children list resend, no re-record |
-| `SkUiRenderProps` | Frame offset/size, translation, rotation, perspective tilt, scale, anchor, opacity, `ClipToBounds`, clip path (`Clip`), shadow, children offset, scale and clip, pinned flag, scroll link, item effect and depth order, content spin, ink overflow | Nothing is recorded; composite-time only |
+| `SkUiRenderProps` | Frame offset/size, translation, rotation, perspective tilt, scale, anchor, opacity, `ClipToBounds`, clip path (`Clip`), shadow, children offset, scale and clip, pinned flag, scroll link, item effect and depth order, content spin, children layer, drawable and drawable space, ink overflow | Nothing is recorded; composite-time only |
 
 Children are composited by the engine between the Content and Overlay pictures. Containers express how their children are drawn through properties instead of drawing them in `OnPaintContent`:
 
@@ -58,6 +58,7 @@ Children are composited by the engine between the Content and Overlay pictures. 
 - **Scroll corrections:** when content before the viewport changes size (a virtual list measuring items it estimated), the scroller's offset moves by the same amount. While a fling, animated scroll or snap runs on the render thread, the correction travels with the committed frame (`SkUiRenderUpdate.ScrollShift`) and the compositor shifts the running motion and the shown offset when it applies that frame, so the new layout and the corrected offset show together and the motion continues ([ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#virtual-stack-implemented)).
 - **Rounded clip:** `SkUiBorder` / `SkUiCoreBorder` set `ChildrenClipPath`.
 - **Spinning content:** activity indicators set `ContentSpinPeriod`, and the compositor rotates the recorded arc.
+- **Clock-driven drawing:** a node's `Drawable`, drawn by the compositor itself each frame from the shared clock, over its children grouped in a `ChildrenLayer`, positioned in an ancestor's `DrawableSpace` ([below](#composite-time-effects)): a shimmer's effect and its bones.
 
 ### Invalidation rules
 
@@ -97,7 +98,8 @@ Render-thread animation rules:
 - Values are reported back to the UI thread: every frame for scroll offsets, at completion for `AnimateAsync`. The reported value is *acknowledged* (`SkUiRenderState.Acknowledge`), so writing it back to the bindable property does not count as a UI change.
 - If the UI explicitly sets an animated property, the animation is cancelled (superseded) and the UI's value wins.
 - A new animation of the same property cancels the previous one.
-- Detaching a node cancels its animations. Content spin needs no bookkeeping: it runs only while the node is actually drawn, so culled or hidden spinners stop requesting frames.
+- Detaching a node cancels its animations. Content spin, content slide and timelines need no bookkeeping: they run only while the node is actually drawn, so culled or hidden spinners and shimmers stop requesting frames.
+- **One clock** (`SkUiRenderClock`): every surface's render thread composites with the same monotonic time (the Metal loop, GL views, Windows and software surfaces, and headless renderers by default). Animations that follow the clock instead of their own start (spinners, sliding content, shimmers) are in phase on every surface.
 
 ## Hit-testing and input
 
@@ -118,7 +120,27 @@ Per node the compositor draws: transform → cull by `InkBounds` (visual bounds 
 
 **Subtree versions.** On the render thread every applied update and animation tick bumps `SkUiRenderNode.Version` on the affected node and its ancestors (once per pass). A node's own offset, transform and opacity only bump its ancestors, since the cached raster is in the node's own coordinates: moving, fading or scaling a shadowed node, and scrolling the list around it, reuse its raster. `SkUiCompositor.ShadowRasterizations` / `LiveShadows` count both paths for tests.
 
-Shadow and clip changes are `Props` changes: no re-record. The compositor disposes the clip paths (`ClipPath`, `ChildrenClipPath`, `ContentClipPath`) and shadow objects (outline, shader, blur filters) a commit replaces, on the render thread between frames: the UI side keeps only its newest ones, so nothing else uses them. It also disposes a node's committed ones when the node is removed, when the compositor is disposed and when a batch is never applied: a render node leaves the tree only when its UI node is reset (detached, surface torn down), and a reset node forgets them (`ISkUiRenderable.ReleaseDrawingResources`) and makes new ones, so none is committed or read again. Nothing is left to the finalizer, whose disposals would contend with drawing.
+Shadow, clip and drawable changes are `Props` changes: no re-record. The compositor disposes the clip paths (`ClipPath`, `ChildrenClipPath`, `ContentClipPath`), shadow objects (outline, shader, blur filters) and drawables (with their shaders and shapes) a commit replaces, on the render thread between frames: the UI side keeps only its newest ones, so nothing else uses them. It also disposes a node's committed ones when the node is removed, when the compositor is disposed and when a batch is never applied: a render node leaves the tree only when its UI node is reset (detached, surface torn down), and a reset node forgets them (`ISkUiRenderable.ReleaseDrawingResources`) and makes new ones, so none is committed or read again. Nothing is left to the finalizer, whose disposals would contend with drawing.
+
+## Composite-time effects
+
+Three generic render props let controls draw what changes every frame on the render thread, with nothing recorded or committed per frame. The engine knows no control that uses them.
+
+| Prop | What the compositor does |
+| --- | --- |
+| `Drawable` (`SkUiRenderDrawable`) | Calls the drawable each time it draws the node, after the children and before the overlay, inside the node's clips. An animated drawable (`IsAnimated`) requests the next frame whenever it is drawn, and none while the node or its parent is culled or hidden |
+| `ChildrenLayer` | Draws the node's children, and its drawable over them, into one layer on its bounds: what the drawable blends (source-in, source-atop, destination-in) acts on the children only |
+| `DrawableSpace` | Makes the node's coordinates, as drawn this frame (moved, scrolled, animated), the `Space` of its descendants' drawables: one effect across many nodes follows the node |
+
+A drawable gets an `SkUiRenderDrawContext`: the node's bounds, the render clock (`SkUiRenderClock`, one time base for every surface's render thread), the surface's matrix (surface DIPs to pixels), the nearest drawable space's matrix (the surface without one) and a scratch paint reset for each call. Its position follows the clock, not the moment it was committed, so drawables with the same timing are in phase on every surface, whenever they were shown or recycled. It is made on the UI thread, immutable once committed, and owned by the compositor like clip paths: disposed when a commit replaces it or the node goes, forgotten by the UI side on reset. A node keeps its drawable while what it depends on is unchanged, so committing the same frame twice commits the same object. Hit-testing and semantics are not affected.
+
+**A shimmer (FR-31)** uses them ([SkUiShimmer.md](../controls/SkUiShimmer.md)); the effect's code is the shimmer's (`SkUiShimmerRendering.cs`), not the compositor's:
+
+- *Silhouette* (default): the shimmer node has `ChildrenLayer` and a drawable that draws, over the recorded bones, the bone color source-in (the color shift: a color between bone and highlight), the wave band filled with the look's shader source-atop (moved from the clock, in the shimmer's or the surface's coordinates) and the pulse destination-in. One layer per frame, whatever the effect.
+- *Bones*: the shimmer node is a `DrawableSpace` and draws nothing; each `SkUiShimmerBone` / `SkUiCoreShimmerBone` has a drawable that fills its rounded rectangle (shifted or pulsed) and, while the band crosses it, the band clipped to its shape, positioned in the shimmer's space so one band crosses every bone. No layer; everything else in the skeleton draws as it is.
+- *A skeleton from the content* (C9b): while a shimmer shows its content as the skeleton, every control under it records nothing and gets the same bone drawable with its bones (several rounded rectangles: a bar per text line, its shape, its outline), made on the UI thread when its size, text or skeleton changes; containers record their chrome only in `Bones` mode. Each node keeps its place in such a skeleton (the shimmer and what its ancestors pass on: `Keep`, `Hidden`) in its skeleton state, set from the top: by the shimmer when it starts or stops showing its content, when the node gets a parent (before it measures: empty labels measure placeholder lines) and, as a safety net, in the recorder's children pass. Only nodes whose place changes are visited. `RecordContent`, `HasOverlay` and `GetRenderProps` read it (`SkUiSkeletonScope.Resolve`, O(1)); nodes in no skeleton have no state, so other trees pay a null check while skeletons show. Entering and leaving re-records each node once; this is UI-thread work, the compositor sees ordinary drawables.
+
+The immediate painter draws drawables at time zero (a still frame), with the painted node standing for the surface. Content shadows of a node with an animated drawable are drawn live.
 
 ## GPU pipeline warm-up
 

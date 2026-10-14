@@ -34,9 +34,10 @@ public static class SkUiImageDecoder
     /// Decodes <paramref name="bytes"/>. The intrinsic size (DIPs) is the oriented source size divided by
     /// <paramref name="sourceScale"/> (pixels per DIP: 3 for an Android xxhdpi drawable or an iOS <c>@3x</c> file).
     /// <paramref name="maxPixels"/> bounds the decoded size per axis (0: unbounded), on top of <see cref="MaxDecodeDimension"/>;
-    /// images are never upscaled.
+    /// with <paramref name="fill"/> and both bounds, the image is decoded just large enough to cover them (aspect fill).
+    /// Images are never upscaled.
     /// </summary>
-    internal static SkUiDecodedImage Decode(byte[] bytes, float sourceScale = 1, SKSizeI maxPixels = default)
+    internal static SkUiDecodedImage Decode(byte[] bytes, float sourceScale = 1, SKSizeI maxPixels = default, bool fill = false)
     {
         using var data = SKData.CreateCopy(bytes);
         using var codec = SKCodec.Create(data) ?? throw new InvalidDataException("Unsupported or corrupt image.");
@@ -44,7 +45,7 @@ public static class SkUiImageDecoder
         var swaps = SwapsAxes(origin);
         var encoded = new SKSizeI(codec.Info.Width, codec.Info.Height);
         var oriented = swaps ? new SKSizeI(encoded.Height, encoded.Width) : encoded;
-        var target = Target(oriented, maxPixels);
+        var target = Target(oriented, maxPixels, fill);
         var targetEncoded = swaps ? new SKSizeI(target.Height, target.Width) : target;
         var size = new Size(oriented.Width / (double)sourceScale, oriented.Height / (double)sourceScale);
 
@@ -95,15 +96,25 @@ public static class SkUiImageDecoder
         return SKImage.FromBitmap(bitmap) ?? throw new InvalidDataException("Image creation failed.");
     }
 
-    /// <summary>The decoded (oriented) size: the source fitted inside the bounds, aspect kept, never upscaled.</summary>
-    private static SKSizeI Target(SKSizeI source, SKSizeI maxPixels)
+    /// <summary>
+    /// The decoded (oriented) size: the source fitted inside the bounds (with <paramref name="fill"/> and both bounds:
+    /// covering them), aspect kept, never upscaled.
+    /// </summary>
+    private static SKSizeI Target(SKSizeI source, SKSizeI maxPixels, bool fill)
     {
         var max = MaxDecodeDimension;
         var scale = Math.Min(1f, max / (float)Math.Max(source.Width, source.Height));
-        if (maxPixels.Width > 0)
-            scale = Math.Min(scale, maxPixels.Width / (float)source.Width);
-        if (maxPixels.Height > 0)
-            scale = Math.Min(scale, maxPixels.Height / (float)source.Height);
+        if (fill && maxPixels.Width > 0 && maxPixels.Height > 0)
+        {
+            scale = Math.Min(scale, Math.Max(maxPixels.Width / (float)source.Width, maxPixels.Height / (float)source.Height));
+        }
+        else
+        {
+            if (maxPixels.Width > 0)
+                scale = Math.Min(scale, maxPixels.Width / (float)source.Width);
+            if (maxPixels.Height > 0)
+                scale = Math.Min(scale, maxPixels.Height / (float)source.Height);
+        }
         return scale >= 1 ? source
             : new SKSizeI(Math.Max(1, (int)Math.Round(source.Width * scale)), Math.Max(1, (int)Math.Round(source.Height * scale)));
     }

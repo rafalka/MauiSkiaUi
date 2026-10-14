@@ -70,6 +70,57 @@ public class SamplesTests
     }
 
     [Fact]
+    public void PresenceAvatarsDrawTeamsBadgesAndChangeOnTap()
+    {
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var page = new PresenceAvatarsSample();
+        var root = Assert.IsAssignableFrom<SkUiView>(page.SampleContent);
+        root.HeightRequest = 1200;
+        using var surface = new SkUiTestSurface(root, 380, 1200);
+        var bitmap = surface.Frame();
+        if (Environment.GetEnvironmentVariable("SKIAUI_SAMPLE_PNG") is { Length: > 0 } png)
+        {
+            using var file = File.Create(png);
+            bitmap.Encode(file, SKEncodedImageFormat.Png, 100);
+        }
+        var avatars = Descendants(root).OfType<PresenceAvatar>().ToList();
+        var available = avatars.First(avatar => avatar.Presence == Presence.Available);
+        var offline = avatars.First(avatar => avatar.Presence == Presence.Offline);
+
+        // The badge sits at the look's place for a dot at the bottom right, in the avatar's local space.
+        var tree = SkUiSemanticsTree.Build(root).Flatten().ToList();
+        Point Origin(SkUiView avatar) => tree.Single(element => ReferenceEquals(element.Source, avatar)).Bounds.Location; // surface coordinates
+        SKPointI BadgeCenter(SkUiView avatar)
+        {
+            var bounds = SkUiLook.Current.GetAvatarBadgeBounds(new SKRect(0, 0, (float)avatar.Width, (float)avatar.Height), SkUiAvatarBadgePosition.BottomRight, avatar.Width / 2);
+            var origin = Origin(avatar);
+            return new SKPointI((int)(origin.X + bounds.MidX), (int)(origin.Y + bounds.MidY));
+        }
+        var green = bitmap.GetPixel(BadgeCenter(available).X - 3, BadgeCenter(available).Y);
+        Assert.True(green.Green > 150 && green.Red < 140 && green.Blue < 80, $"Available: green badge, got {green}");
+        var white = bitmap.GetPixel(BadgeCenter(offline).X - 3, BadgeCenter(offline).Y - 1);
+        Assert.True(white is { Red: > 230, Green: > 230, Blue: > 230 }, $"Offline: a white badge with a grey ring, got {white}");
+
+        // A tap moves to the next status and screen readers hear it.
+        var center = Origin(available);
+        var id = 1;
+        root.Touch(new(id, SkUiTouchAction.Pressed, new Point(center.X + 10, center.Y + 10), TimeSpan.FromSeconds(1)));
+        root.Touch(new(id, SkUiTouchAction.Released, new Point(center.X + 10, center.Y + 10), TimeSpan.FromSeconds(1.02)));
+        Assert.Equal(Presence.Busy, available.Presence);
+        var info = SkUiSemanticsTree.Build(root).Flatten().Single(element => ReferenceEquals(element.Source, available));
+        Assert.Equal($"{available.Text}, Busy", info.Label);
+    }
+
+    private static IEnumerable<ISkUiView> Descendants(ISkUiView view)
+    {
+        yield return view;
+        if (view is SkUiView node)
+            foreach (var child in node.SkiaChildren)
+                foreach (var descendant in Descendants(child))
+                    yield return descendant;
+    }
+
+    [Fact]
     public void CrossCheckBoxArmsSpreadFromADot()
     {
         var previous = SkUiLook.Current;
