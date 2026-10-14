@@ -788,13 +788,14 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     }
 
     /// <summary>
-    /// Whether children added to the view may be in a skeleton made from content: it is in one, or it is a shimmer. Else
-    /// a child without skeleton state skips <see cref="SkUiSkeletonScope.OnParentChanged"/> (two field reads per attach).
+    /// Whether children added to the view may be in a skeleton made from content: it is in one, or it is a shimmer showing
+    /// its content as one. Else a child without skeleton state skips <see cref="SkUiSkeletonScope.OnParentChanged"/> (two
+    /// field reads per attach; a loaded shimmer around a recycling list adds nothing per row).
     /// </summary>
-    internal bool MayPassSkeleton => _skeletonState is { InSkeleton: true } || IsShimmer;
+    internal bool MayPassSkeleton => _skeletonState is { InSkeleton: true } || StartsSkeleton;
 
-    /// <summary>Whether the view is a shimmer (one may show its content as a skeleton).</summary>
-    internal virtual bool IsShimmer => false;
+    /// <summary>Whether the view is a shimmer showing its content as a skeleton.</summary>
+    internal virtual bool StartsSkeleton => false;
 
     /// <summary>Whether the view has a measure cached (a change of what it measures must invalidate it).</summary>
     internal bool HasValidMeasure => !_measureDirty;

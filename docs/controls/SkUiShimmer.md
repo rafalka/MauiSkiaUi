@@ -76,7 +76,7 @@ The samples app's **Loading skeleton over a MAUI page** is a whole leaderboard b
 
 ### A skeleton from the content
 
-Leave `SkeletonContent` out and the content is its own skeleton while loading (`ShowsContentAsSkeleton`): every control in it draws its bones instead of itself, so the skeleton has the size and shape of what loads, without a second layout to keep in step (as SwiftUI's `redacted(reason: .placeholder)` and Flutter's `skeletonizer`).
+Leave `SkeletonContent` and `SkeletonContentTemplate` out (both: a template is a skeleton of its own, even before it has made one, so clear it rather than leave it empty) and the content is its own skeleton while loading (`ShowsContentAsSkeleton`): every control in it draws its bones instead of itself, so the skeleton has the size and shape of what loads, without a second layout to keep in step (as SwiftUI's `redacted(reason: .placeholder)` and Flutter's `skeletonizer`).
 
 ```xml
 <sk:SkUiShimmer Mode="Bones" IsLoading="{Binding IsLoading}" AfterStateChangeAnimation="FadeIn 250">

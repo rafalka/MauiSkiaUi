@@ -326,6 +326,25 @@ public class ShimmerContentSkeletonTests
     }
 
     [Fact]
+    public void ViewsAddedUnderALoadedShimmerKeepNoStateUntilItLoadsAgain()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var stack = new SkUiVerticalStackLayout();
+        var shimmer = Shimmer(stack);
+        shimmer.IsLoading = false;
+        using var surface = Surface(shimmer);
+        surface.Frame();
+        var label = Label();
+        stack.Children.Add(label);
+        surface.Frame();
+        Assert.Null(label.SkeletonState); // a loaded shimmer passes nothing on: recycled rows skip the skeleton path
+        shimmer.IsLoading = true;
+        surface.Frame();
+        Assert.True(label.SkeletonState?.InSkeleton);
+        Assert.IsType<SkUiShimmerBoneDrawable>(label.RenderState.Node.Props.Drawable);
+    }
+
+    [Fact]
     public void AViewMovedOutOfTheSkeletonDrawsItselfAgain()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

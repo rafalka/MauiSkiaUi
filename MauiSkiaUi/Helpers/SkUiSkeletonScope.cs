@@ -81,14 +81,18 @@ internal static class SkUiSkeletonScope
         Enter(node, node.RenderParent is { } parent ? ChildPlace(parent) : default);
 
     /// <summary>
-    /// <paramref name="parent"/>'s drawn children changed (the recorder's children pass): any of them whose place is stale
-    /// takes it, before it records. Parent changes already set it; this covers children drawn without one.
+    /// The recorder's children pass of <paramref name="parent"/>: any child whose place is stale takes it, before it records.
+    /// Parent changes already set it; this covers children drawn without one. Runs when the drawn children changed
+    /// (<paramref name="listChanged"/>), and on every children pass of a parent that passes a skeleton on (a check per child),
+    /// so a child is never recorded once as itself in a skeleton; other trees skip it unless their list changed.
     /// </summary>
-    public static void SyncChildren(ISkUiRenderable parent, ISkUiRenderable[] children)
+    public static void SyncChildren(ISkUiRenderable parent, ISkUiRenderable[] children, bool listChanged)
     {
         if (children.Length == 0)
             return;
         var place = ChildPlace(parent);
+        if (!listChanged && place.Shimmer is null)
+            return;
         foreach (var child in children)
             if (!PlaceOf(child).Is(place))
                 Enter(child, place);
@@ -103,23 +107,29 @@ internal static class SkUiSkeletonScope
         var place = ChildPlace(node);
         var children = _children ??= [];
         var start = children.Count;
-        node.GetRenderChildren(children);
-        var end = children.Count;
-        for (var index = start; index < end; index++)
+        try
         {
-            var child = children[index];
-            if (!PlaceOf(child).Is(place))
+            node.GetRenderChildren(children);
+            var end = children.Count;
+            for (var index = start; index < end; index++)
             {
-                Enter(child, place);
-                continue;
+                var child = children[index];
+                if (!PlaceOf(child).Is(place))
+                {
+                    Enter(child, place);
+                    continue;
+                }
+                if (place.Shimmer is null)
+                    continue;
+                OnSkeletonChanged(child);
+                if (child is not ISkUiShimmer)
+                    InvalidateContent(child);
             }
-            if (place.Shimmer is null)
-                continue;
-            OnSkeletonChanged(child);
-            if (child is not ISkUiShimmer)
-                InvalidateContent(child);
         }
-        children.RemoveRange(start, end - start);
+        finally
+        {
+            children.RemoveRange(start, children.Count - start); // also when a child's handler throws: no stale scratch
+        }
     }
 
     /// <summary>The place <paramref name="parent"/> passes to its children.</summary>
@@ -155,11 +165,17 @@ internal static class SkUiSkeletonScope
         var place = ChildPlace(node);
         var children = _children ??= [];
         var start = children.Count;
-        node.GetRenderChildren(children);
-        var end = children.Count;
-        for (var index = start; index < end; index++)
-            Enter(children[index], place);
-        children.RemoveRange(start, end - start);
+        try
+        {
+            node.GetRenderChildren(children);
+            var end = children.Count;
+            for (var index = start; index < end; index++)
+                Enter(children[index], place);
+        }
+        finally
+        {
+            children.RemoveRange(start, children.Count - start);
+        }
     }
 
     private static void OnSkeletonChanged(ISkUiRenderable node)
@@ -241,10 +257,15 @@ internal static class SkUiSkeletonScope
     {
         var children = _children ??= [];
         var start = children.Count;
-        node.GetRenderChildren(children);
-        var any = children.Count > start;
-        children.RemoveRange(start, children.Count - start);
-        return any;
+        try
+        {
+            node.GetRenderChildren(children);
+            return children.Count > start;
+        }
+        finally
+        {
+            children.RemoveRange(start, children.Count - start);
+        }
     }
 
     /// <summary>

@@ -127,7 +127,7 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     internal override bool HitTestsChildren => !ShowsContentAsSkeleton;
 
     /// <inheritdoc />
-    internal override bool IsShimmer => true;
+    internal override bool StartsSkeleton => ShowsContentAsSkeleton;
 
     /// <summary>The effect settings (tests).</summary>
     internal SkUiShimmerSettings Settings => _settings;

@@ -422,7 +422,7 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     internal override bool HitTestsChildren => !ShowsContentAsSkeleton;
 
     /// <inheritdoc />
-    internal override bool IsShimmer => true;
+    internal override bool StartsSkeleton => ShowsContentAsSkeleton;
 
     /// <inheritdoc />
     private protected override ISkUiView? ContentToShow => _shown && HasSkeleton ? SkeletonContent : Content;
