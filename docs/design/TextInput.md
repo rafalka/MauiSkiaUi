@@ -113,6 +113,61 @@ Left open in D2–D8: Android autofill of drawn fields ([D14](ImplementationPlan
 
 Left open in D15: handles clipped by a scrolling ancestor can still be grabbed where they are hidden; Windows has no touch magnifier.
 
+## Numeric entry (D16, proposed)
+
+An entry meant for numbers only, with optional − / + buttons in its chrome. Not a MAUI control: MAUI apps use an `Entry` with `Keyboard="Numeric"` and a converter, or a vendor control. Reference controls: Syncfusion `SfNumericEntry` / `SfNumericUpDown` (the open toolkit) and Telerik `RadNumericInput`. It is a composition of the entry's field engine (`SkUiTextFieldModel`), not a new editor, and keeps `SkUiStepper` (buttons only, MAUI's) as it is.
+
+### Order: after D9 and D11
+
+It could be started now, but its two hardest parts are exactly what D9 and D11 generalize, so building it first would mean private versions of both, replaced later:
+
+- **Filtering input is D9.** Nothing between the platform proxy and `SkUiTextEditor.Replace` can refuse or rewrite an edit today (only `MaxLength`, `TextTransform` and read-only). The numeric filter is a D9 formatter.
+- **Buttons in the field are D11.** The clear button and the search icon are special cases in `SkUiTextFieldModel` (`Inset`, `HitsClearButton`, `MousePressed`, `Tapped`). Stepper buttons would be a third, harder one: they repeat while held, which the clear button does not.
+
+So: D9's engine, then D11, then D16 as the acceptance case that shapes both APIs. D10 is optional (an out-of-range value shown as an error instead of clamped).
+
+What already exists and keeps D9 / D11 small:
+- **The proxies accept a field that changes an edit.** Android diffs the mirror into the field and pushes back what the field did differently (as for `MaxLength`); iOS answers geometry and text from the field itself; Windows copies the field's state back into its `TextBox`. A formatter needs no proxy work (to confirm on Windows).
+- **The value math.** `SkUiStepperMath<T>`: typed steps that never overflow, MAUI's rounding for binary floating point, exact `decimal` and integers.
+- **`SkUiTextFieldModel.FieldArea`.** The field can take part of the node, which fits buttons at both ends (`Split`).
+
+Can be done before D9 / D11 without rework: the press-and-repeat handling moved out of `SkUiStepperModel` (`SkUiStepperGestures`, `Press` / `Repeat` / `Release`) into a helper both controls use; a headless parse / format engine (`SkUiNumericText<T>`) with tests; the iOS keyboard for numbers with a sign (below), which affects today's `SkUiEntry` with `Keyboard.Numeric` too.
+
+### API
+
+- **Controls.** `SkUiNumericEntry` on `double?` (as both vendors) and `SkUiNumericEntry<T>` with `Value` of type `T?` (`where T : struct, INumber<T>, IMinMaxValue<T>`, as `SkUiStepper<T>`; `x:TypeArguments` in compiled XAML, Native AOT), on a shared `SkUiNumericEntryBase` with `private protected` abstract value members (as the steppers); Core twins `SkUiCoreNumericEntry` / `SkUiCoreNumericEntry<T>`. The entry's members by name (`Placeholder`, fonts, alignments, `ReturnType`, `ReturnCommand`, `Completed`, `ClearButtonVisibility`, `CursorPosition`, `SelectionLength`, `IsReadOnly`, …); `Text` is read-only (the shown text).
+- **Value.** `Value` (two-way), `Minimum`, `Maximum`, `Increment` (default 1), `LargeIncrement` (Page Up / Page Down; default 10 × `Increment`), `ValueChanged` with old and new value (raised synchronously, unlike Syncfusion's). `AllowNull` (default `true`): empty text is `null`; with `false`, empty text commits 0 clamped into the range.
+- **Buttons.** `ButtonPlacement`: `None` (default), `End` (both at the end side), `Start`, `Split` (− at the start, + at the end); `ButtonOrientation` (`StackOrientation`): side by side or stacked. `End` / `Start` follow RTL. The four common layouts: `End` + horizontal, `End` + vertical (+ above −, a spinner), `Split` + horizontal (Telerik's − [ 5 ] +), `Split` + vertical (+ above the text, − below it; full-width bars). Syncfusion's `UpDownButtonAlignment` `Left` / `Right` / `Both` × `UpDownPlacementMode` `Inline` / `InlineVertical` map onto these. `DecrementText` / `IncrementText` with the font group, `ButtonColor`, as on the stepper; the look draws them (`DrawTextFieldStepButtons`: pressed, disabled at an end, dividers to the text).
+- **Formatting.** `Format` (a .NET numeric format string: `"N2"`, `"C0"`, `"P1"`, `"0.## kg"`) and `Culture` (default the current culture). Unfocused, the field shows `Value` formatted; focused, the plain number (no group separators) with everything selected. Unlike Syncfusion, losing focus does not round `Value` to the shown digits; `MaximumDecimalDigits` (default: none for `decimal` / binary floating point, 0 for integers) is the only rounding, applied while typing and on commit.
+- **Committing.** `ValueChangeMode`: `OnCompleted` (default: Return, focus loss, a button, a key step) or `OnKeystroke` (every edit that parses). Out of range is clamped on commit, never while typing (with `Minimum` 10 the user must be able to type the 1 of 15). Escape restores the last committed value. A value set by the app is clamped at once, with the stepper's rule that the asked value returns when the range widens.
+- **Behavior.** `IsEditable` (default `true`; `false`: buttons and keys only, Telerik's `IsReadOnly`; MAUI's `IsReadOnly` still means nothing changes). `AutoReverse`: past `Maximum` wraps to `Minimum` and back. Held buttons repeat (`StepperRepeatDelay`, `StepperRepeatInterval`), optionally accelerating (`RepeatAcceleration`).
+
+### Input rules (a D9 formatter)
+
+- Digits, the culture's decimal separator (once; typing it again moves the caret after it; refused when `MaximumDecimalDigits` is 0 or `T` is an integer) and its negative sign (only when `Minimum` < 0). Both `.` and `,` from a decimal pad map to the culture's separator.
+- The sign toggles wherever the caret is ("−" on `12|3` gives `-123`); the caret never goes before it. A leading separator gets a 0 (`,5` → `0,5`); leading zeros are trimmed on commit.
+- Paste is cleaned (`"1 234,50 €"` → `1234,50`); text that cannot become a number after cleaning is refused.
+- Integer types refuse what would overflow `T` while typing (a `byte` field refuses 256); the range is still applied only on commit.
+- A composition is filtered when committed, not while composing (numeric keyboards rarely compose).
+
+### Buttons, keys and focus
+
+- **Buttons do not take focus.** On an unfocused field a button steps `Value` without focusing it or showing the keyboard (a phone user taps + without the keyboard covering the form). On a focused field the typed text is committed first, then stepped; focus and the keyboard stay. Touch steps on lift and repeats after a long press (a drag still scrolls), as `SkUiStepperGestures`.
+- **Keys** (focused): Up / Down step, Page Up / Page Down by `LargeIncrement`, Enter commits, Escape reverts; Home / End stay caret keys. **Wheel**: steps while the field is focused (desktop).
+- **Keyboard picked from the type and range** (instead of `Keyboard.Numeric`'s one mapping): a non-negative integer → Android `ClassNumber`, iOS `NumberPad`; decimals → `NumberFlagDecimal`, `DecimalPad`; a negative minimum → `NumberFlagSigned`, and on iOS `NumbersAndPunctuation` or an input accessory bar with − (Syncfusion's iPhone toolbar), since `DecimalPad` has no minus key; Windows `InputScopeNameValue.Number`. Today the iOS proxy maps `Keyboard.Numeric` to `DecimalPad` (`SkUiTextInputView.KeyboardType`), so no SkiaUi field can take a negative number on an iPhone.
+
+### Screen readers
+
+A text field (`SkUiSemanticsRole.TextField`, value = the shown text) with `Increment` / `Decrement` actions. To spike on devices: VoiceOver's adjustable trait and a text field do not combine cleanly (swipe up / down vs character navigation); TalkBack exposes the actions as custom actions; Narrator a `RangeValue` pattern next to `Value`.
+
+### Later, if asked for
+
+`IncrementCommand` / `DecrementCommand` (Telerik); a percent mode (Syncfusion `PercentDisplayMode`: `Value` 50 shown as 50 % instead of 0.5); a unit before or after the number as a D11 adornment instead of in `Format`; out-of-range shown as an error (D10) instead of clamped; expressions (`2+3*4`, WinUI `NumberBox.AcceptsExpression`); dragging on the field to change the value (design tools).
+
+### When it ships
+
+Control page in `docs/controls/`, a demo gallery page next to the stepper, `NumericEntryTests` / `TypedNumericEntryTests`, a migration table in [Migration.md](../Migration.md) and the migration skills: `SfNumericEntry` / `SfNumericUpDown`, `RadNumericInput`, and the `Entry` + `Keyboard="Numeric"` + converter pattern.
+
 ## Possible future extensions
 
 Not scheduled for 1.0; ordered from most to less important among ideas that fit the drawn-field architecture (engine, look, proxy, or a thin composition on `SkUiEntry`). Planned next steps for drawn fields are [Phase D extensions](ImplementationPlan.md#phase-d-extensions) in the implementation plan.
@@ -121,7 +176,7 @@ Not scheduled for 1.0; ordered from most to less important among ideas that fit 
 | --- | --- | --- |
 | 1 | **Floating label** | Material 3 / Avalonia `UseFloatingPlaceholder`: label animates above the field when focused or non-empty; distinct from `Placeholder` |
 | 2 | **Autocomplete / typeahead** | Telerik AutoComplete suggest / append modes; separate control on the entry engine + popup overlay, not a second editor |
-| 3 | **Numeric entry** | Telerik NumericInput: display format, min / max, optional ± buttons; distinct from `SkUiStepper` (coarse steps) |
+| 3 | **Numeric entry** | Planned as D16, see [Numeric entry](#numeric-entry-d16-proposed) |
 | 4 | **Preset masks** | Phone, card spacing, IP, email presets on top of input formatters (Telerik MaskedEntry mask types); stored value without literal characters |
 | 5 | **Select-all on focus** | Flutter `selectAllOnFocus`; common on desktop login fields |
 | 6 | **`AcceptsReturn` / `AcceptsTab` (editor)** | Avalonia: Return inserts a newline vs moves focus; Tab inserts a tab vs focus navigation |
