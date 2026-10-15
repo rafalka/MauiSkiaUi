@@ -1,3 +1,4 @@
+using SkiaSharp;
 using MauiSkiaUi.Core;
 using Xunit;
 
@@ -5,7 +6,7 @@ namespace MauiSkiaUi.Tests;
 
 /// <summary>
 /// The drawn stepper (D7): MAUI's <c>Stepper</c> coercion, the look's − and + buttons (taps, held repeats, the range's ends), keys,
-/// screen readers, the optional editable value (committed on Return or unfocus) and the Core twin.
+/// screen readers, the vertical orientation, texts in place of − and + and the Core twin.
 /// </summary>
 [Collection(GlobalStateCollection.Name)]
 public class StepperTests
@@ -111,49 +112,181 @@ public class StepperTests
     }
 
     [Fact]
-    public void TheShownValueIsEditedAndCommitted()
+    public void FocusDoesNotAttachTheTextInput()
     {
-        using var _ = SkUiTestHelpers.UseBundledFont();
-        var stepper = new SkUiStepper { Value = 5, Maximum = 50 };
-        var buttonsOnly = ((IView)stepper).Measure(double.PositiveInfinity, double.PositiveInfinity).Width;
-        stepper.IsValueVisible = true;
-        Assert.True(((IView)stepper).Measure(double.PositiveInfinity, double.PositiveInfinity).Width > buttonsOnly + 40);
-        var (root, _) = Field(stepper);
-        Assert.Equal("5", stepper.Model.Field.Editor.Text);
-        stepper.Focus();
-        stepper.Model.Field.Editor.SelectAll();
-        foreach (var character in "42")
-            root.FocusManager.KeyDown(SkUiKey.Character, character: character);
-        Assert.Equal(5, stepper.Value);
-        root.FocusManager.KeyDown(SkUiKey.Enter);
-        Assert.Equal(42, stepper.Value);
-        // Not a number: the field goes back to the value; out of range: coerced.
-        stepper.Model.Field.Editor.SelectAll();
-        root.FocusManager.KeyDown(SkUiKey.Character, character: 'x');
-        stepper.Unfocus();
-        Assert.Equal("42", stepper.Model.Field.Editor.Text);
-        stepper.Focus();
-        stepper.Model.Field.Editor.SelectAll();
-        foreach (var character in "500")
-            root.FocusManager.KeyDown(SkUiKey.Character, character: character);
-        stepper.Unfocus();
-        Assert.Equal(50, stepper.Value);
-        Assert.Equal("50", stepper.Model.Field.Editor.Text);
-    }
-
-    [Fact]
-    public void OnlyAShownValueAttachesTheTextInput()
-    {
-        using var _ = SkUiTestHelpers.UseBundledFont();
         var proxy = new RecordingProxy();
         var (root, stepper) = Field();
         root.FocusManager.TextInput = proxy;
-        stepper.Focus();
+        Assert.True(stepper.Focus());
         Assert.Empty(proxy.Calls);
-        stepper.IsValueVisible = true;
-        Assert.Equal(["attach"], proxy.Calls);
-        stepper.IsValueVisible = false;
-        Assert.Equal(["attach", "detach"], proxy.Calls);
+    }
+
+    [Fact]
+    public void VerticalStacksPlusOnTop()
+    {
+        var button = SkUiLook.Current.StepperButtonSize;
+        var stepper = new SkUiStepper { Value = 5, Orientation = StackOrientation.Vertical, FlowDirection = FlowDirection.RightToLeft };
+        var size = ((IView)stepper).Measure(double.PositiveInfinity, double.PositiveInfinity);
+        Assert.Equal(new Size(button.Width, button.Height * 2), size);
+        var (root, _) = Field(stepper);
+        Tap(root, new Point(button.Width / 2, button.Height / 2));
+        Assert.Equal(6, stepper.Value);
+        Tap(root, new Point(button.Width / 2, button.Height * 1.5), 1000);
+        Tap(root, new Point(button.Width / 2, button.Height * 1.5), 2000);
+        Assert.Equal(4, stepper.Value);
+        var info = new SkUiSemanticsInfo();
+        ((ISkUiAccessibleNode)stepper).GetSemantics(info);
+        Assert.False(info.IsHorizontal);
+        // Back to side by side; an invalid orientation is ignored by the property and refused by the setter.
+        stepper.Orientation = StackOrientation.Horizontal;
+        Assert.Equal(new Size(button.Width * 2, button.Height), ((IView)stepper).Measure(double.PositiveInfinity, double.PositiveInfinity));
+        stepper.Orientation = (StackOrientation)7;
+        Assert.Equal(StackOrientation.Horizontal, stepper.Orientation);
+        Assert.Throws<ArgumentOutOfRangeException>(() => stepper.SetOrientation((StackOrientation)7));
+    }
+
+    [Fact]
+    public void AWiderStepperSplitsItsWidthBetweenTheButtons()
+    {
+        var stepper = new SkUiStepper { Value = 5, WidthRequest = 300 };
+        var (root, _) = Field(stepper);
+        Assert.Equal(300, stepper.Width);
+        // Just right of the middle is +, just left of it is −.
+        Tap(root, new Point(160, 10));
+        Assert.Equal(6, stepper.Value);
+        Tap(root, new Point(140, 10), 1000);
+        Assert.Equal(5, stepper.Value);
+    }
+
+    [Fact]
+    public void TextsReplaceTheGlyphsAndWidenTheButtons()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var button = SkUiLook.Current.StepperButtonSize;
+        var stepper = new SkUiStepper
+        {
+            Value = 5, DecrementText = "Less", IncrementText = "More", FontFamily = SkUiTestHelpers.BundledFontFamily, FontSize = 24,
+            TextColor = Colors.Red
+        };
+        var size = ((IView)stepper).Measure(double.PositiveInfinity, double.PositiveInfinity);
+        Assert.True(size.Width > button.Width * 2 + 20, $"{size}");
+        Assert.True(size.Height >= button.Height);
+        // A bigger font widens it further; without texts it is the look's size again.
+        stepper.FontSize = 32;
+        Assert.True(((IView)stepper).Measure(double.PositiveInfinity, double.PositiveInfinity).Width > size.Width);
+        stepper.FontSize = 24;
+
+        var look = DefaultSkUiLook.Instance;
+        try
+        {
+            SkUiStepperPaint? drawn = null;
+            // No chrome: only the control's texts reach the bitmap.
+            look.StepperPainter = (_, paint) => drawn = paint;
+            using var surface = new SkUiTestSurface(stepper, 300, 60);
+            var bitmap = surface.Frame(0);
+            Assert.True(drawn is { HasDecrementText: true, HasIncrementText: true });
+            Assert.True(HasRed(bitmap, 0, 150) && HasRed(bitmap, 150, 300));
+            stepper.DecrementText = null;
+            bitmap = surface.Frame(16);
+            Assert.True(drawn is { HasDecrementText: false, HasIncrementText: true });
+            Assert.False(HasRed(bitmap, 0, 150));
+            Assert.True(HasRed(bitmap, 150, 300));
+        }
+        finally
+        {
+            look.StepperPainter = null;
+        }
+        stepper.IncrementText = string.Empty;
+        Assert.Equal(new Size(button.Width * 2, button.Height), ((IView)stepper).Measure(double.PositiveInfinity, double.PositiveInfinity));
+
+        static bool HasRed(SKBitmap bitmap, int from, int to)
+        {
+            for (var x = from; x < to; x++)
+            for (var y = 0; y < bitmap.Height; y++)
+                if (bitmap.GetPixel(x, y) is { Red: > 200, Green: < 80, Alpha: > 200 })
+                    return true;
+            return false;
+        }
+    }
+
+    [Fact]
+    public void CornerRadiusAndOutlineAreDrawn()
+    {
+        var stepper = new SkUiStepper();
+        Assert.Equal((8, 0d, (Color?)null), (stepper.CornerRadius, stepper.BorderWidth, stepper.BorderColor));
+        stepper.CornerRadius = -1;
+        stepper.BorderWidth = -2;
+        stepper.BorderWidth = double.NaN;
+        Assert.Equal((8, 0d), (stepper.CornerRadius, stepper.BorderWidth));
+        Assert.Throws<ArgumentOutOfRangeException>(() => stepper.SetCornerRadius(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => stepper.SetBorderWidth(double.PositiveInfinity));
+        Assert.Same(stepper, stepper.SetCornerRadius(0).SetBorderWidth(4).SetBorderColor(Colors.Blue));
+
+        var look = DefaultSkUiLook.Instance;
+        using var surface = new SkUiTestSurface(stepper, 300, 60);
+        try
+        {
+            SkUiStepperPaint? drawn = null;
+            look.StepperPainter = (_, paint) => drawn = paint;
+            surface.Frame(0);
+            Assert.True(drawn is { CornerRadius: 0, BorderWidth: 4 }, $"{drawn}");
+            Assert.Equal(new SKColor(0, 0, 255), drawn!.Value.BorderColor);
+            // No color: the color scheme's muted color, as the segments' tint.
+            stepper.BorderColor = null;
+            surface.Frame(16);
+            Assert.Equal(drawn!.Value.Border, drawn.Value.BorderColor);
+            stepper.BorderColor = Colors.Blue;
+        }
+        finally
+        {
+            look.StepperPainter = null;
+        }
+        // Square corners: the outline fills them; the divider crosses the whole height in the outline's color.
+        var bitmap = surface.Frame(32);
+        Assert.True(IsBlue(bitmap, 1, 1) && IsBlue(bitmap, 1, 30) && IsBlue(bitmap, 150, 2) && IsBlue(bitmap, 150, 30));
+        Assert.False(IsBlue(bitmap, 75, 30));
+        // A pill: the corners are cut.
+        stepper.CornerRadius = 100;
+        bitmap = surface.Frame(48);
+        Assert.False(IsBlue(bitmap, 1, 1));
+        Assert.True(IsBlue(bitmap, 1, 30) && IsBlue(bitmap, 150, 30));
+
+        // Texts keep clear of the outline: a wider outline widens a stepper with texts.
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        stepper.SetDecrementText("Less").SetIncrementText("More").SetFontFamily(SkUiTestHelpers.BundledFontFamily);
+        var thin = ((IView)stepper).Measure(double.PositiveInfinity, double.PositiveInfinity);
+        stepper.BorderWidth = 12;
+        Assert.True(((IView)stepper).Measure(double.PositiveInfinity, double.PositiveInfinity).Width > thin.Width);
+
+        static bool IsBlue(SKBitmap bitmap, int x, int y) => bitmap.GetPixel(x, y) is { Blue: > 200, Red: < 60, Green: < 60, Alpha: > 200 };
+    }
+
+    [Fact]
+    public void CoreStepperHasTheCornerRadiusAndOutlineToo()
+    {
+        var core = new SkUiCoreStepper();
+        Assert.Equal((8d, 0d, (Color?)null), (core.CornerRadius, core.BorderWidth, core.BorderColor));
+        var changed = new List<string?>();
+        core.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+        SkUiCoreStepper chained = core.SetCornerRadius(4.5).SetBorderWidth(2).SetBorderColor(Colors.Red);
+        Assert.Same(core, chained);
+        Assert.Equal([nameof(core.CornerRadius), nameof(core.BorderWidth), nameof(core.BorderColor)], changed);
+        Assert.Throws<ArgumentOutOfRangeException>(() => core.SetCornerRadius(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => core.SetBorderWidth(double.NaN));
+        var look = DefaultSkUiLook.Instance;
+        try
+        {
+            SkUiStepperPaint? drawn = null;
+            look.StepperPainter = (_, paint) => drawn = paint;
+            using var surface = new SkUiTestSurface(new SkUiCoreHost().SetContent(core), 300, 60);
+            surface.Frame(0);
+            Assert.True(drawn is { CornerRadius: 4.5f, BorderWidth: 2 }, $"{drawn}");
+            Assert.Equal(new SKColor(255, 0, 0), drawn!.Value.BorderColor);
+        }
+        finally
+        {
+            look.StepperPainter = null;
+        }
     }
 
     [Fact]
@@ -171,6 +304,21 @@ public class StepperTests
         var plus = new Point(core.Frame.Width - SkUiLook.Current.StepperButtonSize.Width / 2, core.Frame.Height / 2);
         Tap(root, plus);
         Assert.Equal(17, core.Value);
+        core.SetOrientation(StackOrientation.Vertical);
+        SkUiTestHelpers.Arrange(root, 400, 200);
+        var button = SkUiLook.Current.StepperButtonSize;
+        // It fills the host's width (as Core nodes do); the buttons stack.
+        Assert.Equal(button.Height * 2, core.Frame.Height, 3);
+        Tap(root, new Point(button.Width / 2, button.Height * 1.5), 1000);
+        Assert.Equal(16, core.Value);
+        Assert.Throws<ArgumentOutOfRangeException>(() => core.SetOrientation((StackOrientation)7));
+        // Texts in place of − and + widen the stepper as on the SkUi layer.
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var plain = core.Measure(double.PositiveInfinity, double.PositiveInfinity);
+        core.SetOrientation(StackOrientation.Horizontal).SetIncrementText("More").SetDecrementText("Less")
+            .SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetFontSize(24);
+        Assert.True(core.Measure(double.PositiveInfinity, double.PositiveInfinity).Width > plain.Width * 2 + 20);
+        Assert.Throws<ArgumentOutOfRangeException>(() => core.SetFontSize(0));
     }
 
     private sealed class RecordingProxy : ISkUiTextInputProxy

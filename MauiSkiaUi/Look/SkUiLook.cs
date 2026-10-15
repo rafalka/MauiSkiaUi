@@ -1171,11 +1171,18 @@ public class SkUiLook
 
     #region Stepper
 
-    /// <summary>The size of each of a stepper's two buttons, in DIPs (default 47 × 32: the pair is iOS's 94 × 32 stepper).</summary>
+    /// <summary>
+    /// The size of each of a stepper's two buttons, in DIPs (default 47 × 32: the pair is iOS's 94 × 32 stepper; stacked, 47 × 64).
+    /// </summary>
     public virtual Size StepperButtonSize => new(47, 32);
 
-    /// <summary>The least width of a stepper's value between its buttons when it shows it (<c>IsValueVisible</c>), in DIPs (default 56).</summary>
-    public virtual double StepperValueMinimumWidth => 56;
+    /// <summary>The opacity of a stepper's − and + (glyphs or texts) on a button that cannot step, and of its outline when disabled.</summary>
+    internal const float StepperDimmedOpacity = 0.35f;
+
+    internal const float DefaultStepperCornerRadius = 8;
+
+    /// <summary>A stepper's corner radius in DIPs when its <c>CornerRadius</c> is not set (default 8).</summary>
+    public virtual double StepperCornerRadius => DefaultStepperCornerRadius;
 
     /// <summary>How long a held stepper button waits before it repeats (default 400 ms).</summary>
     public virtual TimeSpan StepperRepeatDelay => TimeSpan.FromMilliseconds(400);
@@ -1188,8 +1195,11 @@ public class SkUiLook
 
     /// <summary>
     /// Draws a stepper (delegate or <see cref="DrawStepperCore"/>): its − and + buttons in <see cref="SkUiStepperPaint.DecrementBounds"/>
-    /// and <see cref="SkUiStepperPaint.IncrementBounds"/> with their pressed and disabled states (a button is disabled at its end of the
-    /// range), and the frame around the value in <see cref="SkUiStepperPaint.ValueBounds"/> when it shows; the control draws the value.
+    /// and <see cref="SkUiStepperPaint.IncrementBounds"/>, side by side or stacked (<see cref="SkUiStepperPaint.Orientation"/>), with
+    /// their pressed and disabled states (a button is disabled at its end of the range). A button with a text of the control's own
+    /// (<see cref="SkUiStepperPaint.HasDecrementText"/>, <see cref="SkUiStepperPaint.HasIncrementText"/>) gets no glyph: the control
+    /// draws its text over the look's drawing. The shape is rounded by <see cref="SkUiStepperPaint.CornerRadius"/> and outlined by
+    /// <see cref="SkUiStepperPaint.BorderWidth"/> in <see cref="SkUiStepperPaint.BorderColor"/>.
     /// </summary>
     public void DrawStepper(SKCanvas canvas, SkUiStepperPaint stepper)
     {
@@ -1202,15 +1212,20 @@ public class SkUiLook
     }
 
     /// <summary>
-    /// Default stepper: one rounded, lightly filled segment per button (and the value between them), divided by lines, a − and a +
-    /// drawn in the foreground (dimmed when the button cannot step), a darker fill while pressed and an accent outline while focused.
+    /// Default stepper: one rounded (<see cref="SkUiStepperPaint.CornerRadius"/>), lightly filled segment per button, divided by a
+    /// short line, a − and a + drawn in the foreground (dimmed when the button cannot step), a darker fill while pressed and an accent
+    /// outline while focused. With a <see cref="SkUiStepperPaint.BorderWidth"/>, an outline in <see cref="SkUiStepperPaint.BorderColor"/>
+    /// and a divider of the same width and color across the whole stepper, as a segmented control's.
     /// </summary>
     protected virtual void DrawStepperCore(SKCanvas canvas, SkUiStepperPaint stepper)
     {
         var bounds = stepper.Bounds;
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return;
-        const float radius = 8;
+        // A radius past half the short side gives a pill.
+        var radius = Math.Clamp(stepper.CornerRadius, 0, Math.Min(bounds.Width, bounds.Height) / 2);
+        var borderWidth = Math.Clamp(stepper.BorderWidth, 0, Math.Min(bounds.Width, bounds.Height) / 2);
+        var bordered = borderWidth > 0 && stepper.BorderColor.Alpha > 0;
         var enabled = stepper.IsEnabled;
         using var paint = new SKPaint { IsAntialias = true };
         paint.Color = stepper.Border.WithAlpha((byte)(stepper.Border.Alpha * (enabled ? 0.18f : 0.1f)));
@@ -1229,27 +1244,55 @@ public class SkUiLook
         Press(stepper.DecrementBounds, stepper.DecrementPressed);
         Press(stepper.IncrementBounds, stepper.IncrementPressed);
         canvas.RestoreToCount(save);
-        // Dividers between the segments.
-        paint.Color = stepper.Border.WithAlpha((byte)(stepper.Border.Alpha * 0.6f));
         paint.Style = SKPaintStyle.Stroke;
-        paint.StrokeWidth = 1;
-        var inset = bounds.Height * 0.22f;
-        foreach (var x in Dividers(stepper))
+        // The outline, inside the bounds.
+        var borderColor = stepper.BorderColor.WithAlpha((byte)(stepper.BorderColor.Alpha * (enabled ? 1f : StepperDimmedOpacity)));
+        if (bordered)
+        {
+            var outline = bounds;
+            outline.Inflate(-borderWidth / 2, -borderWidth / 2);
+            var outlineRadius = Math.Max(0, radius - borderWidth / 2);
+            paint.Color = borderColor;
+            paint.StrokeWidth = borderWidth;
+            canvas.DrawRoundRect(outline, outlineRadius, outlineRadius, paint);
+        }
+        // The divider between the buttons: across the stepper in the outline's width and color, or a short muted line.
+        if (bordered)
+            paint.Color = borderColor;
+        else
+        {
+            paint.Color = stepper.Border.WithAlpha((byte)(stepper.Border.Alpha * 0.6f));
+            paint.StrokeWidth = 1;
+        }
+        if (stepper.Orientation == StackOrientation.Vertical)
+        {
+            var y = (stepper.IncrementBounds.Bottom + stepper.DecrementBounds.Top) / 2;
+            var inset = bordered ? borderWidth : bounds.Width * 0.22f;
+            canvas.DrawLine(bounds.Left + inset, y, bounds.Right - inset, y, paint);
+        }
+        else
+        {
+            var (start, end) = stepper.IsRightToLeft ? (stepper.IncrementBounds, stepper.DecrementBounds) : (stepper.DecrementBounds, stepper.IncrementBounds);
+            var x = (start.Right + end.Left) / 2;
+            var inset = bordered ? borderWidth : bounds.Height * 0.22f;
             canvas.DrawLine(x, bounds.Top + inset, x, bounds.Bottom - inset, paint);
+        }
         // − and +.
         paint.StrokeWidth = 1.75f;
         paint.StrokeCap = SKStrokeCap.Round;
         void Glyph(SKRect button, bool plus, bool canStep)
         {
             var color = stepper.Foreground;
-            paint.Color = color.WithAlpha((byte)(color.Alpha * (enabled && canStep ? 1f : 0.35f)));
+            paint.Color = color.WithAlpha((byte)(color.Alpha * (enabled && canStep ? 1f : StepperDimmedOpacity)));
             var arm = Math.Min(6f, Math.Min(button.Width, button.Height) / 4);
             canvas.DrawLine(button.MidX - arm, button.MidY, button.MidX + arm, button.MidY, paint);
             if (plus)
                 canvas.DrawLine(button.MidX, button.MidY - arm, button.MidX, button.MidY + arm, paint);
         }
-        Glyph(stepper.DecrementBounds, plus: false, stepper.CanDecrement);
-        Glyph(stepper.IncrementBounds, plus: true, stepper.CanIncrement);
+        if (!stepper.HasDecrementText)
+            Glyph(stepper.DecrementBounds, plus: false, stepper.CanDecrement);
+        if (!stepper.HasIncrementText)
+            Glyph(stepper.IncrementBounds, plus: true, stepper.CanIncrement);
         if (enabled && stepper.Focused > 0)
         {
             var width = 2 * Math.Clamp(stepper.Focused, 0, 1);
@@ -1257,19 +1300,9 @@ public class SkUiLook
             ring.Inflate(-width / 2, -width / 2);
             paint.Color = stepper.Accent;
             paint.StrokeWidth = width;
-            canvas.DrawRoundRect(ring, radius - width / 2, radius - width / 2, paint);
+            var ringRadius = Math.Max(0, radius - width / 2);
+            canvas.DrawRoundRect(ring, ringRadius, ringRadius, paint);
         }
-    }
-
-    /// <summary>The x of each line between a stepper's segments.</summary>
-    private static IEnumerable<float> Dividers(SkUiStepperPaint stepper)
-    {
-        var edges = new List<SKRect> { stepper.DecrementBounds, stepper.IncrementBounds };
-        if (!stepper.ValueBounds.IsEmpty)
-            edges.Add(stepper.ValueBounds);
-        edges.Sort((a, b) => a.Left.CompareTo(b.Left));
-        for (var index = 1; index < edges.Count; index++)
-            yield return (edges[index - 1].Right + edges[index].Left) / 2;
     }
 
     #endregion

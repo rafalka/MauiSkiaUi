@@ -287,11 +287,11 @@ public readonly record struct SkUiSearchFieldPaint(
 
 /// <summary>What a look draws a stepper with (<see cref="SkUiLook.DrawStepper"/>).</summary>
 /// <param name="Bounds">The stepper's rectangle.</param>
-/// <param name="DecrementBounds">The − button (at the start side).</param>
-/// <param name="IncrementBounds">The + button (at the end side).</param>
-/// <param name="ValueBounds">The value between the buttons, or empty when the stepper does not show it.</param>
+/// <param name="DecrementBounds">The − button (at the start side, or at the bottom when vertical).</param>
+/// <param name="IncrementBounds">The + button (at the end side, or on top when vertical).</param>
+/// <param name="Orientation">Whether the buttons sit side by side or stacked.</param>
 /// <param name="Accent">The focus color (the color scheme's accent).</param>
-/// <param name="Border">The segments' color (the color scheme's muted color).</param>
+/// <param name="Border">The segments' tint and the divider's color (the color scheme's muted color).</param>
 /// <param name="Foreground">The − and + color (the stepper's text color).</param>
 /// <param name="DecrementPressed">How pressed the − button is, 0–1.</param>
 /// <param name="IncrementPressed">How pressed the + button is, 0–1.</param>
@@ -300,11 +300,17 @@ public readonly record struct SkUiSearchFieldPaint(
 /// <param name="Focused">How focused the stepper is, 0–1, animated by <see cref="SkUiTransitionKind.FieldFocus"/>.</param>
 /// <param name="IsPointerOver">A hovering pointer is over the stepper.</param>
 /// <param name="IsEnabled">The stepper is enabled.</param>
-/// <param name="IsRightToLeft">The stepper lays out right to left (+ on the left).</param>
+/// <param name="IsRightToLeft">The stepper lays out right to left (+ on the left when horizontal).</param>
+/// <param name="HasDecrementText">The control draws a text of its own on the − button (its <c>DecrementText</c>): no − glyph.</param>
+/// <param name="HasIncrementText">The control draws a text of its own on the + button (its <c>IncrementText</c>): no + glyph.</param>
+/// <param name="CornerRadius">The stepper's corner radius in DIPs (its <c>CornerRadius</c>, or <see cref="SkUiLook.StepperCornerRadius"/>).</param>
+/// <param name="BorderWidth">The outline's width in DIPs (its <c>BorderWidth</c>); 0: no outline.</param>
+/// <param name="BorderColor">The outline's color (its <c>BorderColor</c>, or the color scheme's muted color).</param>
 public readonly record struct SkUiStepperPaint(
-    SKRect Bounds, SKRect DecrementBounds, SKRect IncrementBounds, SKRect ValueBounds, SKColor Accent, SKColor Border, SKColor Foreground,
+    SKRect Bounds, SKRect DecrementBounds, SKRect IncrementBounds, StackOrientation Orientation, SKColor Accent, SKColor Border, SKColor Foreground,
     float DecrementPressed, float IncrementPressed, bool CanDecrement, bool CanIncrement, float Focused, bool IsPointerOver, bool IsEnabled,
-    bool IsRightToLeft);
+    bool IsRightToLeft, bool HasDecrementText = false, bool HasIncrementText = false, float CornerRadius = SkUiLook.DefaultStepperCornerRadius,
+    float BorderWidth = 0, SKColor BorderColor = default);
 
 /// <summary>What a look draws a picker field's clear button with (<see cref="SkUiLook.DrawPickerClearButton"/>).</summary>
 /// <param name="Bounds">The button's room in the field (before the chevron, the end side).</param>

@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace MauiSkiaUi;
 
 /// <summary>
@@ -28,6 +30,16 @@ internal static class SkUiValidate
 
     public static bool CornerRadii(BindableObject bindable, object? value) => value is CornerRadius radii && SkUiCornerRadii.IsValid(radii);
 
+    /// <summary>A finite number of type <typeparamref name="T"/> (integers and <see cref="decimal"/> always are).</summary>
+    public static bool FiniteNumber<T>(BindableObject bindable, object? value) where T : struct, INumber<T> => value is T number && T.IsFinite(number);
+
+    /// <summary>A finite number of type <typeparamref name="T"/> above zero.</summary>
+    public static bool PositiveNumber<T>(BindableObject bindable, object? value) where T : struct, INumber<T> =>
+        value is T number && T.IsFinite(number) && number > T.Zero;
+
+    /// <summary>A defined <see cref="StackOrientation"/> (horizontal or vertical).</summary>
+    public static bool Orientation(BindableObject bindable, object? value) => value is StackOrientation orientation && Enum.IsDefined(orientation);
+
     /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is finite and not negative (the rule of <see cref="NonNegative"/>).</summary>
     public static void ThrowIfNegativeOrNotFinite(double value, string name)
     {
@@ -54,6 +66,27 @@ internal static class SkUiValidate
     {
         if (!double.IsFinite(value) || value < 1)
             throw new ArgumentOutOfRangeException(name, value, "The value must be finite and at least 1.");
+    }
+
+    /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is a defined orientation (the rule of <see cref="Orientation"/>).</summary>
+    public static void ThrowIfNotOrientation(StackOrientation value, string name)
+    {
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(name, value, "The orientation must be horizontal or vertical.");
+    }
+
+    /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is finite (the rule of <see cref="FiniteNumber{T}"/>).</summary>
+    public static void ThrowIfNotFiniteNumber<T>(T value, string name) where T : struct, INumber<T>
+    {
+        if (!T.IsFinite(value))
+            throw new ArgumentOutOfRangeException(name, value, "The value must be finite.");
+    }
+
+    /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is finite and above zero (the rule of <see cref="PositiveNumber{T}"/>).</summary>
+    public static void ThrowIfNotPositiveNumber<T>(T value, string name) where T : struct, INumber<T>
+    {
+        if (!T.IsFinite(value) || value <= T.Zero)
+            throw new ArgumentOutOfRangeException(name, value, "The value must be finite and above zero.");
     }
 
     /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is finite and positive.</summary>

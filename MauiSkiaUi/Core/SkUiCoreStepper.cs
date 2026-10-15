@@ -1,15 +1,13 @@
-using MauiSkiaUi.Rendering;
-using SkiaSharp;
+using System.Globalization;
 
 namespace MauiSkiaUi.Core;
 
 /// <summary>
-/// A stepper on the Core layer (the twin of <see cref="SkUiStepper"/>, on the same engine): look-drawn − and + buttons, held buttons
-/// repeating, keys and screen readers, and the optional editable value between the buttons (<see cref="IsValueVisible"/>). The value
-/// is kept within the range and rounded by the increment as MAUI's stepper does.
+/// A stepper on the Core layer (the twin of <see cref="SkUiStepper"/>): <see cref="SkUiCoreStepperBase"/>'s buttons over a
+/// <see cref="double"/> value, kept within the range and rounded by the increment as MAUI's stepper does. For values of another type
+/// use <see cref="SkUiCoreStepper{T}"/>.
 /// </summary>
-/// <remarks>Core nodes have no enabled state: the stepper always reacts (hide it, or remove it, to stop it).</remarks>
-public class SkUiCoreStepper : SkUiCoreNode, ISkUiStepperOwner, ISkUiKeyHandler, ISkUiTextInputNode
+public class SkUiCoreStepper : SkUiCoreStepperBase
 {
     private double _value;
     private double _minimum;
@@ -17,17 +15,6 @@ public class SkUiCoreStepper : SkUiCoreNode, ISkUiStepperOwner, ISkUiKeyHandler,
     private double _increment = 1;
     private int _digits = 4;
     private double _requestedValue;
-
-    /// <summary>The engine shared with <see cref="SkUiStepper"/>.</summary>
-    internal SkUiStepperModel Model { get; }
-
-    /// <summary>Creates a stepper from 0 to 100 by 1.</summary>
-    public SkUiCoreStepper()
-    {
-        Model = new SkUiStepperModel(this);
-        Focused += (_, _) => Model.SetFocused(true);
-        Unfocused += (_, _) => Model.SetFocused(false);
-    }
 
     /// <summary>The value, rounded and kept within the range.</summary>
     public double Value { get => _value; set => SetValue(value); }
@@ -40,15 +27,6 @@ public class SkUiCoreStepper : SkUiCoreNode, ISkUiStepperOwner, ISkUiKeyHandler,
 
     /// <summary>How much a button changes the value (default 1).</summary>
     public double Increment { get => _increment; set => SetIncrement(value); }
-
-    /// <summary>Whether the value shows between the buttons, editable.</summary>
-    public bool IsValueVisible { get => Model.IsValueVisible; set => SetIsValueVisible(value); }
-
-    /// <summary>How the shown value is formatted (a .NET numeric format; default "G").</summary>
-    public string? ValueFormat { get => Model.ValueFormat; set => SetValueFormat(value); }
-
-    /// <summary>The color of − and + and of the shown value; <c>null</c> (default): the color scheme's foreground.</summary>
-    public Color? TextColor { get => Model.TextColor; set => SetTextColor(value); }
 
     /// <summary>Raised when <see cref="Value"/> changes.</summary>
     public event EventHandler<ValueChangedEventArgs>? ValueChanged;
@@ -63,9 +41,9 @@ public class SkUiCoreStepper : SkUiCoreNode, ISkUiStepperOwner, ISkUiKeyHandler,
     private SkUiCoreStepper ApplyValue(double value)
     {
         var old = _value;
-        if (!SetProperty(ref _value, Math.Clamp(Math.Round(value, _digits), _minimum, _maximum), nameof(Value)))
+        if (!SetProperty(ref _value, SkUiStepperMath<double>.Coerce(value, _minimum, _maximum, _digits), nameof(Value)))
             return this;
-        Model.ValueChanged();
+        OnValueOrRangeChanged();
         ValueChanged?.Invoke(this, new ValueChangedEventArgs(old, _value));
         return this;
     }
@@ -93,153 +71,58 @@ public class SkUiCoreStepper : SkUiCoreNode, ISkUiStepperOwner, ISkUiKeyHandler,
     private void Recoerce()
     {
         ApplyValue(_requestedValue);
-        Model.ValueChanged();
+        OnValueOrRangeChanged();
     }
 
     /// <summary>Sets <see cref="Increment"/>.</summary>
     public SkUiCoreStepper SetIncrement(double value)
     {
         if (SetProperty(ref _increment, value, nameof(Increment)))
-            _digits = (int)Math.Clamp(-Math.Log10(value) + 4, 1, 15);
+            _digits = SkUiStepperMath<double>.Digits(value);
         return this;
     }
 
-    /// <summary>Sets <see cref="IsValueVisible"/>.</summary>
-    public SkUiCoreStepper SetIsValueVisible(bool value)
-    {
-        if (!Model.SetValueVisible(value))
-            return this;
-        OnPropertyChanged(nameof(IsValueVisible));
-        InvalidateMeasure();
-        if (IsFocused)
-            Model.Field.SetFocused(value);
-        SkUiSemantics.RootOf(this)?.FocusManagerIfCreated?.TextInputChanged(this);
-        return this;
-    }
+    /// <summary>Sets <see cref="SkUiCoreStepperBase.Orientation"/>.</summary>
+    public new SkUiCoreStepper SetOrientation(StackOrientation value) { base.SetOrientation(value); return this; }
 
-    /// <summary>Sets <see cref="ValueFormat"/>.</summary>
-    public SkUiCoreStepper SetValueFormat(string? value)
-    {
-        if (SetProperty(ref Model.ValueFormat, value, nameof(ValueFormat)))
-            Model.ValueChanged();
-        return this;
-    }
+    /// <summary>Sets <see cref="SkUiCoreStepperBase.TextColor"/>.</summary>
+    public new SkUiCoreStepper SetTextColor(Color? value) { base.SetTextColor(value); return this; }
 
-    /// <summary>Sets <see cref="TextColor"/>.</summary>
-    public SkUiCoreStepper SetTextColor(Color? value)
-    {
-        if (!SetProperty(ref Model.TextColor, value, nameof(TextColor)))
-            return this;
-        Model.Field.TextColor = value;
-        InvalidatePaint();
-        return this;
-    }
+    /// <summary>Sets <see cref="SkUiCoreStepperBase.DecrementText"/>.</summary>
+    public new SkUiCoreStepper SetDecrementText(string? value) { base.SetDecrementText(value); return this; }
 
-    #region Node
+    /// <summary>Sets <see cref="SkUiCoreStepperBase.IncrementText"/>.</summary>
+    public new SkUiCoreStepper SetIncrementText(string? value) { base.SetIncrementText(value); return this; }
 
-    /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => Model.Measure(widthConstraint, heightConstraint);
+    /// <summary>Sets <see cref="SkUiCoreStepperBase.FontFamily"/>.</summary>
+    public new SkUiCoreStepper SetFontFamily(string? value) { base.SetFontFamily(value); return this; }
 
-    /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas) => Model.Draw(canvas, (float)Frame.Width, (float)Frame.Height);
+    /// <summary>Sets <see cref="SkUiCoreStepperBase.FontSize"/>.</summary>
+    public new SkUiCoreStepper SetFontSize(double value) { base.SetFontSize(value); return this; }
 
-    /// <inheritdoc />
-    internal override void OnGetRenderProps(ref SkUiRenderProps props)
-    {
-        base.OnGetRenderProps(ref props);
-        props.Drawable = Model.GetCaretDrawable((float)props.Width, (float)props.Height);
-    }
+    /// <summary>Sets <see cref="SkUiCoreStepperBase.FontAttributes"/>.</summary>
+    public new SkUiCoreStepper SetFontAttributes(FontAttributes value) { base.SetFontAttributes(value); return this; }
 
-    /// <inheritdoc />
-    private protected override void ForgetOwnDrawable() => Model.Field.ForgetCaret();
+    /// <summary>Sets <see cref="SkUiCoreStepperBase.FontAutoScalingEnabled"/>.</summary>
+    public new SkUiCoreStepper SetFontAutoScalingEnabled(bool value) { base.SetFontAutoScalingEnabled(value); return this; }
 
-    /// <inheritdoc />
-    internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
-    {
-        base.CollectGestureRecognizers(recognizers);
-        Model.CollectGestureRecognizers(recognizers);
-    }
+    /// <summary>Sets <see cref="SkUiCoreStepperBase.CornerRadius"/>.</summary>
+    public new SkUiCoreStepper SetCornerRadius(double value) { base.SetCornerRadius(value); return this; }
 
-    /// <inheritdoc />
-    internal override void OnPointerOverChanged(bool isOver)
-    {
-        Model.IsPointerOver = isOver;
-        InvalidatePaint();
-    }
+    /// <summary>Sets <see cref="SkUiCoreStepperBase.BorderWidth"/>.</summary>
+    public new SkUiCoreStepper SetBorderWidth(double value) { base.SetBorderWidth(value); return this; }
 
-    /// <inheritdoc />
-    internal override void ReleaseDrawingResources()
-    {
-        base.ReleaseDrawingResources();
-        Model.ReleaseDrawingResources();
-    }
+    /// <summary>Sets <see cref="SkUiCoreStepperBase.BorderColor"/>.</summary>
+    public new SkUiCoreStepper SetBorderColor(Color? value) { base.SetBorderColor(value); return this; }
 
-    /// <inheritdoc />
-    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
-    {
-        base.OnPopulateSemantics(info);
-        Model.PopulateSemantics(info);
-    }
+    private protected override bool CanStep(int direction) => direction < 0 ? _value > _minimum : _value < _maximum;
 
-    /// <inheritdoc />
-    protected override bool OnSemanticsAction(SkUiSemanticsActions action) => Model.PerformSemanticsAction(action) || base.OnSemanticsAction(action);
+    // As MAUI's: the next value is coerced to the range.
+    private protected override void Step(int direction) => SetValue(_value + direction * _increment);
 
-    /// <inheritdoc />
-    protected override bool OnSemanticsSetValue(double value)
-    {
-        SetValue(value);
-        return true;
-    }
+    private protected override SkUiSemanticsRange SemanticsRange => new(_minimum, _maximum, _value);
 
-    /// <inheritdoc />
-    internal override bool TakesKeyboardFocus => true;
+    private protected override string ValueText => _value.ToString("G", CultureInfo.CurrentCulture);
 
-    /// <inheritdoc />
-    internal override bool ShowsFocusRing => false;
-
-    bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key) => Model.OnKeyDown(key);
-
-    ISkUiTextInputClient ISkUiTextInputNode.TextInputClient => Model.Field;
-
-    bool ISkUiTextInputNode.WantsTextInput => Model.IsValueVisible;
-
-    bool ISkUiTextInputNode.CanTakeTextFocus => IsVisible;
-
-    #endregion
-
-    #region Owner
-
-    void ISkUiStepperOwner.SetValueFromUser(double value) => SetValue(value);
-
-    ISkUiRenderable ISkUiTextFieldOwner.Node => this;
-
-    Size ISkUiTextFieldOwner.FieldSize => Frame.Size;
-
-    bool ISkUiTextFieldOwner.IsRightToLeft => IsRightToLeft;
-
-    SkUiTextDirection ISkUiTextFieldOwner.TextDirection => InheritedDirection();
-
-    bool ISkUiTextFieldOwner.IsFocused => IsFocused;
-
-    void ISkUiTextFieldOwner.TextEdited(string text) => Model.FieldEdited();
-
-    void ISkUiTextFieldOwner.SelectionEdited(int start, int length)
-    {
-    }
-
-    void ISkUiTextFieldOwner.Completed() => Model.Commit();
-
-    bool ISkUiTextFieldOwner.RequestFocus() => Focus();
-
-    void ISkUiTextFieldOwner.ReleaseFocus() => Unfocus();
-
-    void ISkUiTextFieldOwner.InvalidateMeasure() => InvalidateMeasure();
-
-    void ISkUiTextFieldOwner.InvalidatePaint() => InvalidatePaint();
-
-    void ISkUiTextFieldOwner.InvalidateSemantics() => InvalidateSemantics();
-
-    void ISkUiTextFieldOwner.InvalidateCaret() => InvalidateRender(SkUiRenderDirty.Props);
-
-    #endregion
+    private protected override void SetValueFromSemantics(double value) => SetValue(value);
 }

@@ -55,7 +55,7 @@ public static class LeakScenarios
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
         new("SurfaceReplaced", Rendering, "A page replaces its GPU surface with a software one and back; the discarded surfaces are disconnected.", () => new SurfaceReplacedRun()),
         new("MovedBetweenSurfaces", Rendering, "A subtree with gestures, a scroller and a native Entry moves between two surfaces and back.", () => new MoveRun()),
-        new("TextFieldsEdited", Input, "Drawn entries (a password, a search bar with a long-lived command), an editor and a stepper showing its value, with their Core twins: focused (the platform's text input attached), typed in, a word long-pressed (selection handles and the edit menu), tabbed through, the editor scrolled, the stepper stepped and its value typed, text set by code; closed with a field focused.", () => new TextFieldsRun()),
+        new("TextFieldsEdited", Input, "Drawn entries (a password, a search bar with a long-lived command), an editor and steppers (on double, a typed decimal one with texts, a typed uint Core one), with their Core twins: focused (the platform's text input attached), typed in, a word long-pressed (selection handles and the edit menu), tabbed through, the editor scrolled, the steppers stepped, text set by code; closed with a field focused.", () => new TextFieldsRun()),
         new("AccessibleFocused", Input, "Drawn and Core controls with semantic properties, read through a semantics tree that reports changes; focused by Focus() and Tab, activated by Space / Enter and screen-reader actions, a slider stepped; a focused row removed; a button given a long-lived Tag.", () => new AccessibilityRun()),
         new("CoreControls", Core, "Core buttons (long-lived command), toggles, a table and a scroll view: clicked, scrolled, rows removed, columns changed.", () => new CoreRun()),
         new("NativeOverlays", Native, "Entry / Editor overlays in a drawn scroller (snapshot mode): scrolled, an Entry focused, overlay content replaced.", () => new OverlaysRun()),
@@ -696,6 +696,9 @@ public static class LeakScenarios
         private SkUiStepper? _stepper;
         private SkUiCoreEntry? _coreEntry;
         private SkUiCoreStepper? _coreStepper;
+        private SkUiStepper<decimal>? _typedStepper;
+        private SkUiCoreStepper<uint>? _typedCoreStepper;
+        private SkUiScrollView? _scroll;
         private int _changes;
 
         public override View Build(LeakScenarioContext context)
@@ -704,35 +707,52 @@ public static class LeakScenarios
             _password = new SkUiEntry { Placeholder = "Password", IsPassword = true };
             _search = new SkUiSearchBar { Placeholder = "Search", SearchCommand = LeakCommands.Shared };
             _editor = new SkUiEditor { HeightRequest = 90, Text = string.Join("\n", Enumerable.Range(1, 12).Select(index => $"Line {index}")) };
-            _stepper = new SkUiStepper { IsValueVisible = true, Maximum = 10, HorizontalOptions = LayoutOptions.Start };
+            _stepper = new SkUiStepper { Maximum = 10, HorizontalOptions = LayoutOptions.Start };
             _entry.TextChanged += (_, _) => _changes++;
             _editor.TextChanged += (_, _) => _changes++;
             _stepper.ValueChanged += (_, _) => _changes++;
+            _typedStepper = new SkUiStepper<decimal> { Increment = 0.25m, Maximum = 2.5m, DecrementText = "Less", IncrementText = "More", HorizontalOptions = LayoutOptions.Start };
+            _typedStepper.ValueChanged += (_, _) => _changes++;
             _coreEntry = new SkUiCoreEntry().SetPlaceholder("Core");
             _coreEntry.SetHeight(44);
             _coreEntry.TextChanged += (_, _) => _changes++;
-            _coreStepper = new SkUiCoreStepper().SetIsValueVisible(true);
+            _coreStepper = new SkUiCoreStepper().SetOrientation(StackOrientation.Vertical);
             var coreStack = new SkUiCoreVerticalStackLayout().SetSpacing(8);
             coreStack.Add(_coreEntry);
             coreStack.Add(new SkUiCoreEditor().SetText("Core editor").SetHeight(60));
             coreStack.Add(new SkUiCoreSearchBar().SetPlaceholder("Core search"));
             coreStack.Add(_coreStepper);
-            var host = new SkUiCoreHost { HeightRequest = 240 };
+            _typedCoreStepper = new SkUiCoreStepper<uint>().SetIncrement(5).SetValue(3);
+            coreStack.Add(_typedCoreStepper);
+            var host = new SkUiCoreHost { HeightRequest = 300 };
             host.SetContent(coreStack);
-            return Root(new SkUiScrollView
+            _scroll = new SkUiScrollView
             {
                 Content = new SkUiVerticalStackLayout
                 {
                     Spacing = 12, Padding = new Thickness(12),
-                    Children = { _entry, _password, _search, _editor, _stepper, host }
+                    Children = { _entry, _password, _search, _editor, _stepper, _typedStepper, host }
                 }
-            });
+            };
+            return Root(_scroll);
         }
 
+        /// <summary>
+        /// Types into the focused field as the platform would: key presses where SkiaUi turns them into text (Android, headless), or
+        /// the input method's insertions through the attached client where the platform delivers typed characters itself (Apple,
+        /// Windows: their proxies ignore character keys).
+        /// </summary>
         private static void Type(object field, string text)
         {
             if (SkUiSemantics.RootOf((MauiSkiaUi.Rendering.ISkUiRenderable)field)?.FocusManager is not { } focus)
                 return;
+            if (focus.TextInput?.ReceivesCharacters ?? false)
+            {
+                var client = ((ISkUiTextInputNode)field).TextInputClient;
+                foreach (var character in text)
+                    client.InsertText(character.ToString());
+                return;
+            }
             foreach (var character in text)
                 focus.KeyDown(character == ' ' ? SkUiKey.Space : SkUiKey.Character, character: character);
         }
@@ -754,9 +774,13 @@ public static class LeakScenarios
             _editor!.Text = "replaced";
             await context.TapAsync(_stepper!);
             await context.TapAsync(_coreStepper!);
+            await context.TapAsync(_typedStepper!);
+            await context.TapAsync(_typedCoreStepper!);
             await context.TapAsync(_coreEntry!);
             Type(_coreEntry!, "core");
             _coreEntry!.SetText("set by code");
+            // The Core fields scrolled the page: back to the top for the first entry.
+            await _scroll!.ScrollToAsync(0, 0, animated: false);
             await context.SettleAsync();
             // Closed with a field focused (the keyboard up, the platform's input attached).
             await context.TapAsync(_entry!);

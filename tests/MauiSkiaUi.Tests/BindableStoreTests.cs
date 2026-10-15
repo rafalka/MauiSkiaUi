@@ -184,8 +184,11 @@ public class BindableStoreTests
     public void FieldsAgreeWithTheStoreOnEveryControl()
     {
         var mismatches = new List<string>();
-        foreach (var type in typeof(SkUiView).Assembly.GetTypes().Where(type => type.IsPublic && !type.IsAbstract && typeof(SkUiView).IsAssignableFrom(type)
-                     && type.GetConstructor(Type.EmptyTypes) is not null))
+        // Generic controls (SkUiStepper<T>) are checked closed over int.
+        foreach (var type in typeof(SkUiView).Assembly.GetTypes()
+                     .Where(type => type.IsPublic && !type.IsAbstract && typeof(SkUiView).IsAssignableFrom(type))
+                     .Select(type => type.IsGenericTypeDefinition ? type.MakeGenericType(typeof(int)) : type)
+                     .Where(type => type.GetConstructor(Type.EmptyTypes) is not null))
         {
             var view = (SkUiView)Activator.CreateInstance(type)!;
             for (var owner = type; owner is not null && owner.Assembly == type.Assembly; owner = owner.BaseType)

@@ -31,7 +31,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiRadioButton` | [SkUiRadioButton.md](SkUiRadioButton.md) | RadioButton (`Content`, `ControlTemplate`; MAUI's `RadioButtonGroup` works on drawn layouts) |
 | `SkUiSlider` | [SkUiSlider.md](SkUiSlider.md) | Slider (plus vertical) |
 | `SkUiProgressBar` | [SkUiProgressBar.md](SkUiProgressBar.md) | ProgressBar (plus indeterminate) |
-| `SkUiStepper` / `SkUiCoreStepper` | [SkUiStepper.md](SkUiStepper.md) | Stepper (plus the value between the buttons, editable) |
+| `SkUiStepper` / `SkUiCoreStepper`, `SkUiStepper<T>` / `SkUiCoreStepper<T>` | [SkUiStepper.md](SkUiStepper.md) | Stepper (plus stacked buttons, `Orientation`, texts in place of − / +, corner radius and outline, and typed values) |
 | `SkUiEntry` / `SkUiCoreEntry` | [SkUiEntry.md](SkUiEntry.md) | Entry (drawn; the platform's keyboard and input methods through a proxy) |
 | `SkUiEditor` / `SkUiCoreEditor` | [SkUiEditor.md](SkUiEditor.md) | Editor (drawn) |
 | `SkUiSearchBar` / `SkUiCoreSearchBar` | [SkUiSearchBar.md](SkUiSearchBar.md) | SearchBar (drawn) |

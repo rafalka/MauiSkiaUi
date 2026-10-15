@@ -38,7 +38,7 @@ MAUI page
 - **Composition substrate** — build custom chrome and complex controls from Core primitives, then expose a thin `SkUi*` or host them via `SkUiCoreHost`.
 - **XAML where you want it** — bindable properties, styles, VisualStateManager on `SkUi*`; batch updates with `StartUpdating` / `EndUpdating`.
 - **GPU when it helps** — `HwAccelerated` on hosts (Metal/GL where supported); software path for leaves and constrained devices.
-- **Drawn text input** — `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar` and `SkUiStepper` are drawn; the platform keyboard, IME, autocorrect and edit menu reach them through a proxy.
+- **Drawn text input** — `SkUiEntry`, `SkUiEditor` and `SkUiSearchBar` (and `SkUiStepper`) are drawn; the platform keyboard, IME, autocorrect and edit menu reach them through a proxy.
 - **Native when Skia isn’t enough** — `SkUiMauiContentView` keeps real WebView, maps or any native control as overlays.
 - **Shared look & palette** — control look and color scheme drive defaults for both layers without fighting MAUI `AppTheme` alone.
 - **Same gesture model** — SkiaUi tap / commands on drawn nodes; overlays keep platform input.

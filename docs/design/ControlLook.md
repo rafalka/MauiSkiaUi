@@ -89,10 +89,11 @@ public class SkUiLook
     public void DrawTextInsertionHandle(SKCanvas canvas, SkUiTextInsertionHandlePaint handle) { … } // the caret's drop (Android);
                                                            // ShowsTextInsertionHandle, GetTextInsertionHandleBounds, TextInsertionHandleTimeout (4 s)
     public void DrawSearchField(SKCanvas canvas, SkUiSearchFieldPaint field) { … }  // a pill with a magnifier; SearchIconWidth (28)
-    // Stepper (D7): two segments with − and +, dividers, pressed / disabled per button, focus.
+    // Stepper (D7): two segments with − and + (or none where the control draws its text), side by side or stacked, a divider,
+    // pressed / disabled per button, focus; the control's corner radius and outline (width, color), the divider then in the outline's.
     public void DrawStepper(SKCanvas canvas, SkUiStepperPaint stepper) { … }
-    public virtual Size StepperButtonSize => new(47, 32);  // and StepperValueMinimumWidth (56), StepperRepeatDelay (400 ms),
-                                                           // StepperRepeatInterval (100 ms)
+    public virtual Size StepperButtonSize => new(47, 32);  // and StepperRepeatDelay (400 ms), StepperRepeatInterval (100 ms)
+    public virtual double StepperCornerRadius => 8;        // until the stepper's CornerRadius is set
     // Popups of drawn controls (C6): where they go and what they look like; the app's presenter shows them.
     public virtual SkUiPopupPlacement DefaultPopupPlacement => SkUiPopupPlacement.Anchored; // DefaultSkUiLook: the device's
     public virtual Thickness PopupMargin => new(8);         // and PopupAnchorGap (4), PopupPreferredWidth (320),

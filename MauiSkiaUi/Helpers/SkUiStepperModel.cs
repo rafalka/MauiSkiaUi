@@ -1,25 +1,40 @@
-using System.Globalization;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
 
 /// <summary>What the shared stepper engine (<see cref="SkUiStepperModel"/>) needs from its control, on either layer.</summary>
-internal interface ISkUiStepperOwner : ISkUiTextFieldOwner
+internal interface ISkUiStepperOwner : ISkUiTransitionHost
 {
-    double Value { get; }
-    double Minimum { get; }
-    double Maximum { get; }
-    double Increment { get; }
+    /// <summary>Whether the value can move down (-1) or up (+1) within the range.</summary>
+    bool CanStep(int direction);
 
-    /// <summary>The user stepped or typed a value: the control sets its <c>Value</c> (coerced to the range as MAUI's).</summary>
-    void SetValueFromUser(double value);
+    /// <summary>One step down (-1) or up (+1), by the user: the control sets its <c>Value</c> (coerced to the range).</summary>
+    void Step(int direction);
+
+    /// <summary>The range and the value for screen readers.</summary>
+    SkUiSemanticsRange SemanticsRange { get; }
+
+    /// <summary>The value as screen readers read it (current culture).</summary>
+    string ValueText { get; }
+
+    /// <summary>The stepper's arranged size.</summary>
+    Size StepperSize { get; }
+
+    /// <summary>Whether the stepper lays out right to left (+ on the left when horizontal).</summary>
+    bool IsRightToLeft { get; }
+
+    void InvalidateMeasure();
+    void InvalidatePaint();
+    void InvalidateSemantics();
 }
 
 /// <summary>
-/// The engine both steppers share (<see cref="SkUiStepper"/>, <see cref="Core.SkUiCoreStepper"/>): the − and + buttons drawn by the
-/// look (pressed, disabled at the range's ends, focused), taps and held buttons repeating, keys and screen readers, and the optional
-/// value between the buttons (<see cref="IsValueVisible"/>), edited in a text field on the shared field engine: a numeric keyboard,
-/// committed on Return or when focus leaves, coerced to the range; text that is not a number goes back to the value.
+/// The engine every stepper shares (<see cref="SkUiStepperBase"/>, <see cref="Core.SkUiCoreStepperBase"/>: on <see cref="double"/> as
+/// MAUI's, or typed): the value stays the control's, asked through <see cref="ISkUiStepperOwner"/>. The − and + buttons drawn by the
+/// look side by side or stacked (<see cref="Orientation"/>; pressed, disabled at the range's ends, focused), or texts of the control's
+/// own on them (<see cref="DecrementText"/>, <see cref="IncrementText"/>: words or an icon font's symbols), the shape's corner radius and
+/// outline (<see cref="CornerRadius"/>, <see cref="BorderWidth"/>, <see cref="BorderColor"/>), taps and held buttons repeating, keys and
+/// screen readers.
 /// </summary>
 internal sealed class SkUiStepperModel
 {
@@ -30,6 +45,9 @@ internal sealed class SkUiStepperModel
     private readonly SkUiStepperGestures _gestures;
     private IDisposable? _repeat;
     private int _held;
+    // The buttons' texts, laid out on the shared text engine; made the first time a text is set.
+    private SkUiTextLayout? _decrementLayout;
+    private SkUiTextLayout? _incrementLayout;
 
     public SkUiStepperModel(ISkUiStepperOwner owner)
     {
@@ -37,182 +55,186 @@ internal sealed class SkUiStepperModel
         _decrementPress = new SkUiTween(owner);
         _incrementPress = new SkUiTween(owner);
         _focus = new SkUiTween(owner);
-        Field = new SkUiTextFieldModel(owner)
-        {
-            DrawsChrome = false,
-            HorizontalTextAlignment = TextAlignment.Center,
-            Keyboard = Keyboard.Numeric,
-            Padding = new Thickness(4, 0)
-        };
         _gestures = new SkUiStepperGestures(this);
     }
 
-    /// <summary>The value's text field (shown between the buttons with <see cref="IsValueVisible"/>).</summary>
-    public SkUiTextFieldModel Field { get; }
-
-    /// <summary>The recognizers of the buttons and of the value field (the controls add them).</summary>
-    internal void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
-    {
-        recognizers.Add(_gestures);
-        if (IsValueVisible)
-            recognizers.Add(Field.Gestures);
-    }
+    /// <summary>The recognizer of the buttons (the controls add it).</summary>
+    internal void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers) => recognizers.Add(_gestures);
 
     #region State the controls copy in
 
     public bool IsEnabled = true;
     public bool IsPointerOver;
     public Color? TextColor;
-    public string? ValueFormat;
 
-    /// <summary>Whether the value shows between the buttons, editable (SkiaUi; MAUI's stepper has buttons only).</summary>
-    public bool IsValueVisible { get; private set; }
+    /// <summary>Whether the buttons sit side by side (− at the start side) or stacked (+ on top).</summary>
+    public StackOrientation Orientation = StackOrientation.Horizontal;
 
-    /// <summary>Shows or hides the value field; returns whether it changed.</summary>
-    public bool SetValueVisible(bool visible)
-    {
-        if (IsValueVisible == visible)
-            return false;
-        IsValueVisible = visible;
-        UpdateText();
-        return true;
-    }
+    /// <summary>The − button's text; <c>null</c> or empty: the look draws its −.</summary>
+    public string? DecrementText;
+
+    /// <summary>The + button's text; <c>null</c> or empty: the look draws its +.</summary>
+    public string? IncrementText;
+
+    public string? FontFamily;
+    public double FontSize = DefaultFontSize;
+    public FontAttributes FontAttributes;
+    public bool FontAutoScalingEnabled = true;
+
+    internal const double DefaultFontSize = 16;
+
+    /// <summary>The corner radius in DIPs; <c>null</c>: the look's (<see cref="SkUiLook.StepperCornerRadius"/>).</summary>
+    public double? CornerRadius;
+
+    /// <summary>The outline's width in DIPs; 0: no outline.</summary>
+    public double BorderWidth;
+
+    /// <summary>The outline's color; <c>null</c>: the color scheme's muted color.</summary>
+    public Color? BorderColor;
+
+    private bool IsVertical => Orientation == StackOrientation.Vertical;
 
     #endregion
 
     #region Value
 
-    /// <summary>The value as the field shows it (<see cref="ValueFormat"/>, the current culture).</summary>
-    internal string FormatValue(double value) => value.ToString(string.IsNullOrEmpty(ValueFormat) ? "G" : ValueFormat, CultureInfo.CurrentCulture);
-
-    /// <summary>The control's value changed: the field shows it (unless the user is typing in it).</summary>
+    /// <summary>The control's value changed: the buttons' enabled states and the screen reader's value follow.</summary>
     public void ValueChanged()
     {
-        if (!IsValueVisible || (_owner.IsFocused && _editing))
-        {
-            _owner.InvalidatePaint();
-            _owner.InvalidateSemantics();
-            return;
-        }
-        UpdateText();
-    }
-
-    // Whether the field holds text the user typed and has not committed.
-    private bool _editing;
-
-    private void UpdateText()
-    {
-        _editing = false;
-        Field.SetText(IsValueVisible ? FormatValue(_owner.Value) : string.Empty);
-        _owner.InvalidateMeasure();
         _owner.InvalidatePaint();
         _owner.InvalidateSemantics();
     }
 
-    /// <summary>The field's text changed by the user (not yet committed).</summary>
-    public void FieldEdited() => _editing = true;
-
-    /// <summary>
-    /// Commits what the user typed (Return, focus leaving): a number sets the value (coerced to the range), anything else is
-    /// dropped; the field shows the value either way.
-    /// </summary>
-    public void Commit()
-    {
-        if (!_editing)
-            return;
-        _editing = false;
-        var text = Field.Editor.Text.Trim();
-        if (double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out var typed) && double.IsFinite(typed))
-            _owner.SetValueFromUser(typed);
-        UpdateText();
-    }
-
-    private bool CanStep(int direction) => direction < 0 ? _owner.Value > _owner.Minimum : _owner.Value < _owner.Maximum;
+    private bool CanStep(int direction) => _owner.CanStep(direction);
 
     /// <summary>One step down (-1) or up (+1), if the range allows; returns whether the value moved.</summary>
     public bool Step(int direction)
     {
         if (!IsEnabled || !CanStep(direction))
             return false;
-        Commit();
-        _owner.SetValueFromUser(_owner.Value + direction * _owner.Increment);
+        _owner.Step(direction);
         return true;
+    }
+
+    #endregion
+
+    #region Texts
+
+    // Around a button's text: it never touches the button's edges.
+    private static readonly Thickness TextPadding = new(8, 4);
+
+    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(FontSize, FontAutoScalingEnabled),
+        LineBreakMode.TailTruncation, null, 1, -1, 0, _owner.IsRightToLeft ? SkUiTextDirection.RightToLeft : SkUiTextDirection.Auto,
+        SkUiTextRendering.Default, FontAttributes);
+
+    // A text keeps clear of the outline too.
+    private Thickness TextInset => new(TextPadding.Left + BorderWidth, TextPadding.Top + BorderWidth, TextPadding.Right + BorderWidth,
+        TextPadding.Bottom + BorderWidth);
+
+    /// <summary>A text, the font or the outline's width changed: the buttons are measured and drawn again.</summary>
+    public void TextChanged()
+    {
+        _decrementLayout?.Invalidate();
+        _incrementLayout?.Invalidate();
+        _owner.InvalidateMeasure();
+        _owner.InvalidatePaint();
+    }
+
+    private SkUiTextLayout? Layout(int button)
+    {
+        var text = button < 0 ? DecrementText : IncrementText;
+        if (string.IsNullOrEmpty(text))
+            return null;
+        return button < 0 ? _decrementLayout ??= new SkUiTextLayout(_owner) : _incrementLayout ??= new SkUiTextLayout(_owner);
+    }
+
+    private void DrawText(SKCanvas canvas, int button, SKRect rect, in SkUiTextStyle style, SKColor foreground)
+    {
+        if (Layout(button) is not { } layout || rect.Width <= 0 || rect.Height <= 0)
+            return;
+        var paint = SkUiTextResources.TextPaint;
+        // Dimmed as the look's glyph when the button cannot step.
+        paint.Color = foreground.WithAlpha((byte)(foreground.Alpha * (IsEnabled && CanStep(button) ? 1f : SkUiLook.StepperDimmedOpacity)));
+        var save = canvas.Save();
+        canvas.Translate(rect.Left, rect.Top);
+        layout.Draw(canvas, button < 0 ? DecrementText! : IncrementText!, style, TextInset, rect.Width, rect.Height, TextAlignment.Center,
+            TextAlignment.Center, paint);
+        canvas.RestoreToCount(save);
     }
 
     #endregion
 
     #region Layout and drawing
 
-    private static SKRect Mirror(SKRect rect, float width, bool rightToLeft) =>
-        rightToLeft ? new SKRect(width - rect.Right, rect.Top, width - rect.Left, rect.Bottom) : rect;
-
-    /// <summary>The −, value and + rectangles in a stepper of the given size (− at the start side).</summary>
-    internal (SKRect Decrement, SKRect Value, SKRect Increment) Parts(float width, float height)
+    /// <summary>
+    /// The − and + rectangles in a stepper of the given size, each half of it: side by side with − at the start side, or stacked with +
+    /// on top.
+    /// </summary>
+    internal (SKRect Decrement, SKRect Increment) Parts(float width, float height)
     {
-        var button = SkUiLook.Current.StepperButtonSize;
-        var buttonWidth = (float)Math.Min(button.Width, width / 2);
-        var decrement = new SKRect(0, 0, buttonWidth, height);
-        var increment = new SKRect(width - buttonWidth, 0, width, height);
-        var value = IsValueVisible ? new SKRect(buttonWidth, 0, width - buttonWidth, height) : SKRect.Empty;
-        var rightToLeft = _owner.IsRightToLeft;
-        return (Mirror(decrement, width, rightToLeft), IsValueVisible ? Mirror(value, width, rightToLeft) : value, Mirror(increment, width, rightToLeft));
+        if (IsVertical)
+        {
+            var middle = height / 2;
+            return (new SKRect(0, middle, width, height), new SKRect(0, 0, width, middle));
+        }
+        var center = width / 2;
+        var start = new SKRect(0, 0, center, height);
+        var end = new SKRect(center, 0, width, height);
+        return _owner.IsRightToLeft ? (end, start) : (start, end);
     }
 
-    /// <summary>The stepper's size: two buttons (the look's), and the value's width between them when it shows.</summary>
+    /// <summary>
+    /// The stepper's size: two buttons, side by side or stacked, each the look's size or, when a text needs more, its padded text's
+    /// (clear of the outline).
+    /// </summary>
     public Size Measure(double widthConstraint, double heightConstraint)
     {
-        var look = SkUiLook.Current;
-        var button = look.StepperButtonSize;
-        var width = button.Width * 2;
-        var height = button.Height;
-        if (IsValueVisible)
+        var button = SkUiLook.Current.StepperButtonSize;
+        if (Layout(-1) is not null || Layout(1) is not null)
         {
-            Field.FieldArea = null;
-            var value = Field.Measure(double.PositiveInfinity, heightConstraint);
-            // The widest of the range's ends, so the stepper keeps its width as the value changes.
-            width += Math.Max(look.StepperValueMinimumWidth, value.Width);
+            var style = TextStyle;
+            var inset = TextInset;
+            foreach (var direction in (ReadOnlySpan<int>)[-1, 1])
+            {
+                if (Layout(direction) is not { } layout)
+                    continue;
+                var text = layout.Measure(direction < 0 ? DecrementText! : IncrementText!, style, inset, double.PositiveInfinity);
+                button = new Size(Math.Max(button.Width, Math.Ceiling(text.Width)), Math.Max(button.Height, Math.Ceiling(text.Height)));
+            }
         }
-        return new Size(Math.Min(widthConstraint, width), Math.Min(heightConstraint, height));
+        var size = IsVertical ? new Size(button.Width, button.Height * 2) : new Size(button.Width * 2, button.Height);
+        return new Size(Math.Min(widthConstraint, size.Width), Math.Min(heightConstraint, size.Height));
     }
 
-    /// <summary>Draws the look's stepper, then the value field between the buttons.</summary>
+    /// <summary>Draws the look's stepper, then the buttons' texts (the look leaves out the glyphs they replace).</summary>
     public void Draw(SKCanvas canvas, float width, float height)
     {
-        var (decrement, value, increment) = Parts(width, height);
+        var (decrement, increment) = Parts(width, height);
         var foreground = SkUiToggleDrawing.ToSkColor(TextColor ?? SkUiColors.DefaultForeground);
-        SkUiLook.Current.DrawStepper(canvas, new SkUiStepperPaint(new SKRect(0, 0, width, height), decrement, increment, value,
+        var decrementText = Layout(-1) is not null;
+        var incrementText = Layout(1) is not null;
+        SkUiLook.Current.DrawStepper(canvas, new SkUiStepperPaint(new SKRect(0, 0, width, height), decrement, increment, Orientation,
             SkUiToggleDrawing.ToSkColor(SkUiColors.Accent), SkUiToggleDrawing.ToSkColor(SkUiColors.Muted), foreground,
-            _decrementPress.Value, _incrementPress.Value, CanStep(-1), CanStep(1), _focus.Value, IsPointerOver, IsEnabled, _owner.IsRightToLeft));
-        if (!IsValueVisible)
+            _decrementPress.Value, _incrementPress.Value, CanStep(-1), CanStep(1), _focus.Value, IsPointerOver, IsEnabled, _owner.IsRightToLeft,
+            decrementText, incrementText, (float)(CornerRadius ?? SkUiLook.Current.StepperCornerRadius), (float)BorderWidth,
+            SkUiToggleDrawing.ToSkColor(BorderColor ?? SkUiColors.Muted)));
+        if (!decrementText && !incrementText)
             return;
-        Field.FieldArea = value;
-        Field.Draw(canvas, width, height);
-    }
-
-    /// <summary>The value field's caret while it is focused (composite-time).</summary>
-    public Rendering.SkUiRenderDrawable? GetCaretDrawable(float width, float height)
-    {
-        if (!IsValueVisible)
-            return null;
-        Field.FieldArea = Parts(width, height).Value;
-        return Field.GetCaretDrawable(width, height);
+        var style = TextStyle;
+        DrawText(canvas, -1, decrement, style, foreground);
+        DrawText(canvas, 1, increment, style, foreground);
     }
 
     #endregion
 
     #region Input
 
-    /// <summary>The stepper gained or lost keyboard focus; losing it commits what was typed.</summary>
+    /// <summary>The stepper gained or lost keyboard focus; losing it stops a held button.</summary>
     public void SetFocused(bool focused)
     {
         _focus.AnimateTo(focused ? 1f : 0f, SkUiLook.Current.GetTransition(SkUiTransitionKind.FieldFocus));
-        if (IsValueVisible)
-            Field.SetFocused(focused);
         if (!focused)
-        {
-            Commit();
             Release();
-        }
         _owner.InvalidatePaint();
     }
 
@@ -247,50 +269,39 @@ internal sealed class SkUiStepperModel
         _held = 0;
     }
 
-    /// <summary>Which button <paramref name="local"/> is on: -1 (−), +1 (+), 0 (neither: the value field, or outside).</summary>
+    /// <summary>Which button <paramref name="local"/> is on: -1 (−), +1 (+), 0 (outside).</summary>
     internal int ButtonAt(Point local)
     {
-        var size = _owner.FieldSize;
-        var (decrement, _, increment) = Parts((float)size.Width, (float)size.Height);
+        var size = _owner.StepperSize;
+        var (decrement, increment) = Parts((float)size.Width, (float)size.Height);
         var (x, y) = ((float)local.X, (float)local.Y);
         return decrement.Contains(x, y) ? -1 : increment.Contains(x, y) ? 1 : 0;
     }
 
     /// <summary>
-    /// Keys: Up / Down step (also while the value is edited; Return commits it). Without the value, Left / Right, Home / End and
-    /// Page Up / Down reach the focus manager's range keys (stepping, the ends).
+    /// Keys: Up / Down step; Left / Right, Home / End and Page Up / Down reach the focus manager's range keys (stepping, the ends).
     /// </summary>
     public bool OnKeyDown(in SkUiKeyEvent key)
     {
-        if (!IsEnabled)
+        if (!IsEnabled || key.Key is not (SkUiKey.Up or SkUiKey.Down) || key.HasCommandModifier)
             return false;
-        if (key.Key is SkUiKey.Up or SkUiKey.Down && !key.HasCommandModifier)
-        {
-            Step(key.Key == SkUiKey.Up ? 1 : -1);
-            return true;
-        }
-        if (!IsValueVisible)
-            return false;
-        if (key.Key == SkUiKey.Enter)
-        {
-            Commit();
-            return true;
-        }
-        return Field.OnKeyDown(key);
+        Step(key.Key == SkUiKey.Up ? 1 : -1);
+        return true;
     }
 
     /// <summary>An adjustable value for screen readers: the range, increment and decrement.</summary>
     public void PopulateSemantics(SkUiSemanticsInfo info)
     {
         info.Role = SkUiSemanticsRole.Slider;
-        info.Range = new SkUiSemanticsRange(_owner.Minimum, _owner.Maximum, _owner.Value);
-        info.Value = FormatValue(_owner.Value);
+        info.Range = _owner.SemanticsRange;
+        info.Value = _owner.ValueText;
+        info.IsHorizontal = !IsVertical;
         info.IsEnabled &= IsEnabled;
         if (IsEnabled)
             info.Actions |= SkUiSemanticsActions.Increment | SkUiSemanticsActions.Decrement;
     }
 
-    /// <summary>A screen reader's increment / decrement, or setting the value.</summary>
+    /// <summary>A screen reader's increment / decrement.</summary>
     public bool PerformSemanticsAction(SkUiSemanticsActions action) => action switch
     {
         SkUiSemanticsActions.Increment => Step(1),
@@ -298,11 +309,12 @@ internal sealed class SkUiStepperModel
         _ => false
     };
 
-    /// <summary>The drawing resources go (the stepper left its surface).</summary>
+    /// <summary>The stepper left its surface: a held button stops and the texts' blobs go.</summary>
     public void ReleaseDrawingResources()
     {
-        Field.ReleaseDrawingResources();
         Release();
+        _decrementLayout?.Release();
+        _incrementLayout?.Release();
     }
 
     #endregion

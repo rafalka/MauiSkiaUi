@@ -151,7 +151,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `Slider`, `ProgressBar`, `ActivityIndicator` | `SkUiSlider`, `SkUiProgressBar`, `SkUiActivityIndicator` | Vertical slider, indeterminate progress |
 | `GraphicsView`, `SKCanvasView` | A `SkUiView` subclass | Override `MeasureContent` and `OnPaintContent(SKCanvas)` |
 | `Entry`, `Editor`, `SearchBar` | `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar` | Prefix swap; drawn, typed through the platform keyboard: see [Text input](#text-input-entry-editor-searchbar) |
-| `Stepper` | `SkUiStepper` | Prefix swap; plus `IsValueVisible` (the value, editable, between the buttons) |
+| `Stepper` | `SkUiStepper` | Prefix swap; plus `Orientation` (stacked buttons), `DecrementText` / `IncrementText` + font (custom − / +), `CornerRadius` / `BorderWidth` / `BorderColor`; `SkUiStepper<T>` for `int` / `decimal` / … values |
 | `Picker` | `SkUiPicker` | Prefix swap; its list opens on your popup system: see [Pickers](#pickers-picker) |
 | `DatePicker`, `TimePicker` | `SkUiDatePicker`, `SkUiTimePicker` | Prefix swap; wheels on your popup system like the picker's list: see [Pickers](#pickers-picker) |
 | `WebView`, maps, media | Wrapped in `SkUiMauiContentView` | Native by design |
@@ -356,7 +356,7 @@ What changes:
 - **Default font size** is 16 (SkiaUi's labels), not the platform's; set `FontSize` where it mattered.
 - **`TextTransform`** transforms the text itself (typed, pasted, set by the app, and what is already there when it changes); `Text` and a two-way binding get the transformed text.
 
-`Stepper` becomes `SkUiStepper` by the prefix ([SkUiStepper.md](controls/SkUiStepper.md)), with MAUI's coercion; a label bound to its value next to it can go with `IsValueVisible="True"`.
+`Stepper` becomes `SkUiStepper` by the prefix ([SkUiStepper.md](controls/SkUiStepper.md)), with MAUI's coercion; buttons only, as MAUI's (keep the label bound to its value). `Orientation="Vertical"` stacks the buttons, + on top; `DecrementText` / `IncrementText` with `FontFamily` / `FontSize` put words or icon-font symbols on them; `CornerRadius`, `BorderWidth` and `BorderColor` shape and outline it (a stepper styled through a platform handler or effect moves to these). A stepper bound to an `int` or `decimal` through a converter (or a `double` property kept only for it) can become typed: `<sk:SkUiStepper x:TypeArguments="x:Int32" Value="{Binding Quantity}" />` binds the `int` directly; its `ValueChanged` carries `SkUiValueChangedEventArgs<int>` instead of MAUI's `ValueChangedEventArgs`.
 
 ## Avatar view
 

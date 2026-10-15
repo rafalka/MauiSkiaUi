@@ -15,7 +15,8 @@ namespace MauiSkiaUiSamples.Samples.Controls.Pickers;
 /// <item>A toppings picker with several choices (<c>SelectionMode="Multiple"</c>, <c>SelectedItems</c> bound to the view model's
 /// list) shown as tokens, an "All toppings" row, toppings out of stock that cannot be chosen (<c>ItemEnabledBinding</c>),
 /// a footer of the app's in the popup, and a draft until Add (<c>UpdateMode="WhenFinished"</c>).</item>
-/// <item>The total, recomputed by <c>SelectionChangedCommand</c>.</item>
+/// <item>The quantity, a typed stepper (<c>SkUiStepper&lt;int&gt;</c>, <c>x:TypeArguments="x:Int32"</c>) bound to an <c>int</c>.</item>
+/// <item>The total, recomputed by <c>SelectionChangedCommand</c> and the quantity.</item>
 /// </list>
 /// </summary>
 public sealed partial class PizzaOrderSample : SamplePage, ISample
@@ -33,7 +34,9 @@ public sealed partial class PizzaOrderSample : SamplePage, ISample
                 "`SelectedItemsDisplay=\"Tokens\"`, `IsSelectAllVisible=\"True\"`.",
             "Items that cannot be chosen: `<sk:SkUiPicker.ItemEnabledBinding><Binding Path=\"InStock\" x:DataType=\"local:Topping\" /></…>`.",
             "Wait for OK: `UpdateMode=\"WhenFinished\"`; name the buttons with `AcceptText` / `CancelText` (or translate them app-wide).",
-            "Recompute on every change with `SelectionChangedCommand` (it runs before `SelectionChanged` / `SelectedIndexChanged`)."
+            "Recompute on every change with `SelectionChangedCommand` (it runs before `SelectionChanged` / `SelectedIndexChanged`).",
+            "Count with a typed stepper: `<sk:SkUiStepper x:TypeArguments=\"x:Int32\" Minimum=\"1\" Value=\"{Binding Quantity}\" />` " +
+                "binds an `int` without converting through `double`."
         ],
         ThingsToKnow:
         [
@@ -69,11 +72,13 @@ public sealed class PizzaOrderModel : INotifyPropertyChanged
 {
     private static readonly PropertyChangedEventArgs SizeChanged = new(nameof(Size));
     private static readonly PropertyChangedEventArgs CrustChanged = new(nameof(Crust));
+    private static readonly PropertyChangedEventArgs QuantityChanged = new(nameof(Quantity));
     private static readonly PropertyChangedEventArgs TotalChanged = new(nameof(Total));
     private static readonly PropertyChangedEventArgs SummaryChanged = new(nameof(Summary));
 
     private PizzaSize? _size;
     private string? _crust;
+    private int _quantity = 1;
 
     public PizzaOrderModel()
     {
@@ -122,6 +127,19 @@ public sealed class PizzaOrderModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>How many pizzas (the typed stepper's <c>Value</c>).</summary>
+    public int Quantity
+    {
+        get => _quantity;
+        set
+        {
+            if (_quantity == value) return;
+            _quantity = value;
+            PropertyChanged?.Invoke(this, QuantityChanged);
+            Update();
+        }
+    }
+
     /// <summary>Recomputes the total (the pickers' <c>SelectionChangedCommand</c>).</summary>
     public ICommand UpdateCommand { get; }
 
@@ -134,9 +152,9 @@ public sealed class PizzaOrderModel : INotifyPropertyChanged
     private void Update()
     {
         var toppings = ChosenToppings.OfType<Topping>().ToList();
-        var total = (_size?.Price ?? 0) + toppings.Sum(topping => topping.Price);
+        var total = _quantity * ((_size?.Price ?? 0) + toppings.Sum(topping => topping.Price));
         Total = "Total " + total.ToString("C", CultureInfo.CurrentCulture);
-        Summary = $"{_size?.Name ?? "No size"} · {_crust ?? "crust not chosen"} · " +
+        Summary = $"{_quantity} × {_size?.Name ?? "No size"} · {_crust ?? "crust not chosen"} · " +
                   (toppings.Count == 0 ? "no toppings" : string.Join(", ", toppings.Select(topping => topping.Name)));
         PropertyChanged?.Invoke(this, TotalChanged);
         PropertyChanged?.Invoke(this, SummaryChanged);

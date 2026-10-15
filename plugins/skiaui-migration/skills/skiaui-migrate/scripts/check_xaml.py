@@ -77,7 +77,7 @@ REPLACE = {
     "Entry": "SkUiEntry (drawn; the platform keyboard types into it: CaretColor / SelectionColor / the look replace handler tweaks, AutofillHint replaces content types)",
     "Editor": "SkUiEditor (drawn; AutoSize as MAUI's)",
     "SearchBar": "SkUiSearchBar (drawn; same SearchCommand / SearchButtonPressed)",
-    "Stepper": "SkUiStepper (same Value / Minimum / Maximum / Increment / ValueChanged; IsValueVisible shows the value)",
+    "Stepper": "SkUiStepper (same Value / Minimum / Maximum / Increment / ValueChanged; Orientation=Vertical stacks the buttons)",
     "TimePicker": "SkUiTimePicker (same Time / Format / TimeSelected; its wheels open on the app's popup system: register a presenter with UseSkiaUi(options => options.PopupPresenter = ...) or SkUiPopups.Presenter)",
 }
 WRAP = {"WebView", "HybridWebView", "BlazorWebView", "Map"}
