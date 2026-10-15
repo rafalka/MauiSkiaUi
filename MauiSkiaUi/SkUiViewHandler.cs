@@ -474,8 +474,10 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #if ANDROID
         // Keyboard focus for drawn controls; focusable in touch mode only while one is focused (else a tap would take focus
         // from a hosted Entry).
-        container.Focusable = active;
-        if (!active)
+        container.KeyboardFocusable = active;
+        if (!container.IsFocused)
+            container.Focusable = active;
+        if (!active && !container.IsFocused)
             container.FocusableInTouchMode = false;
 #elif WINDOWS
         container.IsTabStop = active;
@@ -539,6 +541,12 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         if (_container is not { } container)
             return;
         container.KeyboardFocus = null;
+#if IOS || MACCATALYST
+        container.TextInput?.Dispose();
+        container.TextInput = null;
+#elif ANDROID
+        container.TextInput = null;
+#endif
         container.Accessibility?.Detach();
 #if ANDROID
         AndroidX.Core.View.ViewCompat.SetAccessibilityDelegate(container, null);
@@ -555,12 +563,19 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         if (_container is not { } container)
             return false;
         // Also UIKit's focus system, so the next Tab goes on from the surface.
+        if (container.TextInputHasFocus)
+            return true;
         if (!container.Focused && container.CanBecomeFocused)
             UIKit.UIFocusSystem.Create(container)?.RequestFocusUpdate(container);
         return container.IsFirstResponder || container.BecomeFirstResponder();
 #elif WINDOWS
-        return _container is { } container
-            && (container.FocusState != Microsoft.UI.Xaml.FocusState.Unfocused || container.Focus(Microsoft.UI.Xaml.FocusState.Programmatic));
+        if (_container is not { } container)
+            return false;
+        if (container.TextInput?.HasFocus == true || container.FocusState != Microsoft.UI.Xaml.FocusState.Unfocused)
+            return true;
+        // A text field takes focus also while accessibility (keyboard focus of other drawn controls) is off.
+        container.IsTabStop = true;
+        return container.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
 #else
         return false;
 #endif
@@ -574,6 +589,8 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #elif IOS || MACCATALYST
         if (_container is { IsFirstResponder: true } container)
             container.ResignFirstResponder();
+        else if (_container?.TextInput?.View is { IsFirstResponder: true } textInput)
+            textInput.ResignFirstResponder();
 #endif
         // Windows has no way to drop focus without moving it elsewhere: the container keeps it (Tab goes on from there).
     }
@@ -618,7 +635,19 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         focus.PointerPressFocuses = OperatingSystem.IsWindows();
         focus.Connect();
         if (_container is { } container)
+        {
             container.KeyboardFocus = focus;
+#if IOS || MACCATALYST
+            container.TextInput = new SkUiAppleTextInput(container);
+            focus.TextInput = container.TextInput;
+#elif ANDROID
+            container.TextInput = new SkUiAndroidTextInput(container);
+            focus.TextInput = container.TextInput;
+#elif WINDOWS
+            container.TextInput ??= new SkUiWindowsTextInput(container);
+            focus.TextInput = container.TextInput;
+#endif
+        }
         SkUiAccessibility.Changed += OnAccessibilitySwitched;
         _renderer = new SkUiFrameRenderer(VirtualView,
             action => VirtualView.Dispatcher.Dispatch(action), RequestRender, beforeFrame: static () => { });
@@ -1141,7 +1170,16 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             return;
 #endif
         args.Handled = _renderer?.TouchPixels(new(args.Id, action.Value,
-            new Point(args.Location.X, args.Location.Y), null, args.WheelDelta, Device: SkUiPointerDevices.From(args.DeviceType))) == true;
+            new Point(args.Location.X, args.Location.Y), null, args.WheelDelta, Device: SkUiPointerDevices.From(args.DeviceType))
+        {
+            Buttons = args.MouseButton switch
+            {
+                SKMouseButton.Right => SkUiPointerButtons.Secondary,
+                SKMouseButton.Middle => SkUiPointerButtons.Middle,
+                SKMouseButton.Left => SkUiPointerButtons.Primary,
+                _ => SkUiPointerButtons.None
+            }
+        }) == true;
         if (SkUiDiagnostics.TraceOn)
             SkUiDiagnostics.Write($"touch {action} id={args.Id} {args.DeviceType} px={args.Location.X:F0},{args.Location.Y:F0} handled={args.Handled} native={GetNativeGestureState()} arenas={VirtualView?.Router.ActiveArenaCount} root={VirtualView?.AutomationId ?? VirtualView?.GetType().Name}");
 #if WINDOWS
@@ -1194,9 +1232,52 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
     private readonly HashSet<Android.Views.Keycode> _handledKeys = [];
     private bool _requestingFocus;
 
+    /// <summary>The surface's text input: a focused drawn field's input connection.</summary>
+    internal SkUiAndroidTextInput? TextInput { get; set; }
+
+    /// <summary>Whether the container takes part in keyboard focus while no drawn field needs it (accessibility on).</summary>
+    internal bool KeyboardFocusable { get; set; }
+
+    /// <summary>A text editor while a drawn field is attached: the input method connects through <see cref="OnCreateInputConnection"/>.</summary>
+    public override bool OnCheckIsTextEditor() => TextInput?.Client is not null;
+
+    public override Android.Views.InputMethods.IInputConnection? OnCreateInputConnection(Android.Views.InputMethods.EditorInfo? outAttrs) =>
+        TextInput?.CreateInputConnection(outAttrs);
+
+    /// <summary>
+    /// The focused drawn field's rectangle while one is attached: the window pans to it when the soft keyboard shows (MAUI's
+    /// default adjust-pan), as it does for a native field, instead of to the whole surface.
+    /// </summary>
+    public override void GetFocusedRect(Android.Graphics.Rect? r)
+    {
+        if (r is not null && TextInput?.Client is { } client)
+        {
+            var bounds = client.GetFieldBounds();
+            var density = Resources?.DisplayMetrics?.Density ?? 1;
+            r.Set((int)Math.Floor(bounds.Left * density), (int)Math.Floor(bounds.Top * density),
+                (int)Math.Ceiling(bounds.Right * density), (int)Math.Ceiling(bounds.Bottom * density));
+            return;
+        }
+        base.GetFocusedRect(r);
+    }
+
+    /// <summary>The surface resized (the soft keyboard with adjust-resize): a focused field is shown again in its scrollers.</summary>
+    protected override void OnSizeChanged(int w, int h, int oldw, int oldh)
+    {
+        base.OnSizeChanged(w, h, oldw, oldh);
+        if (h < oldh && TextInput?.Client is { } client)
+            Post(() =>
+            {
+                if (ReferenceEquals(TextInput?.Client, client))
+                    SkUiSemantics.BringIntoView(client.Node);
+            });
+    }
+
     /// <summary>Takes keyboard focus for a drawn node (focusable in touch mode until it is given up).</summary>
     internal bool RequestDrawnFocus()
     {
+        // A text field takes focus also while accessibility (keyboard focus of other drawn controls) is off.
+        Focusable = true;
         FocusableInTouchMode = true;
         if (IsFocused)
             return true;
@@ -1218,6 +1299,7 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
         if (IsFocused)
             ClearFocus();
         FocusableInTouchMode = false;
+        Focusable = KeyboardFocusable;
     }
 
     /// <summary>Explore by touch: hover over drawn elements goes to TalkBack's helper; over hosted views, on to them.</summary>
@@ -1233,6 +1315,9 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
             {
                 var key = SkUiAndroidKeys.Map(e.KeyCode);
                 var character = key == SkUiKey.None ? SkUiAndroidKeys.Character(e) : '\0';
+                // Ctrl + a letter: a shortcut by its letter (select all, copy, paste, undo).
+                if (key == SkUiKey.None && character == '\0' && e.IsCtrlPressed && e.KeyCode is >= Android.Views.Keycode.A and <= Android.Views.Keycode.Z)
+                    character = (char)('a' + (e.KeyCode - Android.Views.Keycode.A));
                 if (character != '\0')
                     key = SkUiKey.Character;
                 if (key != SkUiKey.None && focus.KeyDown(key, SkUiAndroidKeys.Modifiers(e), isRepeat: e.RepeatCount > 0, character))
@@ -1253,7 +1338,10 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
     {
         base.OnFocusChanged(gainFocus, direction, previouslyFocusedRect);
         if (!gainFocus)
+        {
             FocusableInTouchMode = false;
+            Focusable = KeyboardFocusable;
+        }
         bool? forward = _requestingFocus ? null : direction switch
         {
             Android.Views.FocusSearchDirection.Forward or Android.Views.FocusSearchDirection.Down or Android.Views.FocusSearchDirection.Right => true,
@@ -1614,9 +1702,60 @@ internal sealed class SkUiOverlayContainer : MauiView
     public override bool ResignFirstResponder()
     {
         var resigned = base.ResignFirstResponder();
-        if (resigned)
+        // Handing first responder to the focused field's text input view keeps the drawn focus.
+        if (resigned && !_handingTextInput)
             KeyboardFocus?.OnNativeFocusChanged(false);
         return resigned;
+    }
+
+    private bool _handingTextInput;
+
+    /// <summary>The surface's text input (set by the handler): a focused drawn field's hidden <c>UITextInput</c> view.</summary>
+    internal SkUiAppleTextInput? TextInput { get; set; }
+
+    /// <summary>Whether the focused field's text input view is first responder (the surface has the keyboard focus through it).</summary>
+    internal bool TextInputHasFocus => TextInput?.View is { IsFirstResponder: true };
+
+    /// <summary>Whether the container is taking first responder back from the text input view (not a focus loss).</summary>
+    internal bool IsTakingTextInputBack { get; private set; }
+
+    /// <summary>Makes the focused field's text input view first responder (the keyboard shows); the drawn focus stays.</summary>
+    internal void HandTextInput(SkUiTextInputView view)
+    {
+        _handingTextInput = true;
+        try
+        {
+            view.BecomeFirstResponder();
+        }
+        finally
+        {
+            _handingTextInput = false;
+        }
+    }
+
+    /// <summary>
+    /// The text input view gives first responder up: to the container when a drawn node keeps focus (<paramref name="keepFocus"/>;
+    /// the keyboard hides), else to nobody (focus left the surface). Another field taking focus keeps the view (and the keyboard).
+    /// </summary>
+    /// <param name="view">The text input view.</param>
+    /// <param name="keepFocus">Whether a drawn node keeps focus (the container becomes first responder).</param>
+    /// <param name="hideOnly">Hiding the keyboard of the field that stays focused (otherwise a focused field keeps the view).</param>
+    internal void TakeTextInputBack(SkUiTextInputView view, bool keepFocus, bool hideOnly = false)
+    {
+        if (!view.IsFirstResponder || (!hideOnly && KeyboardFocus?.Focused is ISkUiTextInputNode { WantsTextInput: true }))
+            return;
+        IsTakingTextInputBack = true;
+        try
+        {
+            if (keepFocus)
+                BecomeFirstResponder();
+            else
+                view.ResignFirstResponder();
+        }
+        finally
+        {
+            IsTakingTextInputBack = false;
+        }
     }
 
     /// <summary>Hardware keyboard keys go to the drawn tree; what it does not use goes on up the responder chain.</summary>
@@ -1811,9 +1950,14 @@ internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.
 
     private void OnContainerLosingFocus(Microsoft.UI.Xaml.UIElement sender, Microsoft.UI.Xaml.Input.LosingFocusEventArgs args)
     {
-        if (ReferenceEquals(args.OldFocusedElement, this) && !ReferenceEquals(args.NewFocusedElement, this))
+        // The focused field's text box taking focus keeps the drawn focus.
+        if (ReferenceEquals(args.OldFocusedElement, this) && !ReferenceEquals(args.NewFocusedElement, this)
+            && TextInput?.IsTextBox(args.NewFocusedElement) != true)
             KeyboardFocus?.OnNativeFocusChanged(false);
     }
+
+    /// <summary>The surface's text input: a focused drawn field's hidden text box.</summary>
+    internal SkUiWindowsTextInput? TextInput { get; set; }
 
     /// <summary>Keys go to the drawn tree while the container itself has focus; what it does not use goes on (Tab past the end).</summary>
     private void OnContainerKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs args)

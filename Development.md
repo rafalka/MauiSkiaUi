@@ -104,6 +104,7 @@ Architecture, requirements, and mechanism checklists live under **[docs/design/]
 | [ColorScheme.md](docs/design/ColorScheme.md) | Shared default palette (FR-19) |
 | [Localization.md](docs/design/Localization.md) | SkiaUi's own texts (`SkUiStrings`): button texts and screen-reader states, translated at once |
 | [EventMechanism.md](docs/design/EventMechanism.md) | SkiaUi-owned gestures (FR-15) |
+| [TextInput.md](docs/design/TextInput.md) | Drawn text input: the editing engine, the edit layout and the platform input proxy (FR-16, Phase D) |
 | [Accessibility.md](docs/design/Accessibility.md) | Semantics tree and platform accessibility bridges, keyboard focus, OS font scaling (FR-28, P10) |
 | [AnimationMechanism.md](docs/design/AnimationMechanism.md) | Vsync clock, paint / transform animation (FR-7) |
 | [ScrollingAndCollectionViews.md](docs/design/ScrollingAndCollectionViews.md) | `SkUiScrollView`, virtual lists, collections (FR-17, FR-21, FR-22) |

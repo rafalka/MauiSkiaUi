@@ -143,6 +143,21 @@ public enum SkUiPickerFieldStyle
     None
 }
 
+/// <summary>How <see cref="DefaultSkUiLook"/> draws text fields (<see cref="DefaultSkUiLook.TextFieldStyle"/>).</summary>
+public enum SkUiTextFieldStyle
+{
+    /// <summary>The look's (<see cref="DefaultSkUiLook.DefaultTextFieldStyle"/>): an outline; Material's underline in <see cref="AndroidSkUiLook"/>.</summary>
+    Default,
+    /// <summary>A line under the field, thicker and in the accent color while focused.</summary>
+    Underline,
+    /// <summary>A rounded outline, thicker and in the accent color while focused.</summary>
+    Outline,
+    /// <summary>A tinted fill with rounded top corners over an underline (Material's filled field).</summary>
+    Filled,
+    /// <summary>No chrome (the app draws its own, e.g. with a border around the field).</summary>
+    None
+}
+
 /// <summary>Press feedback style of <see cref="DefaultSkUiLook"/> buttons.</summary>
 public enum SkUiPressEffect
 {

@@ -161,6 +161,22 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
 
     SkUiScrollController ISkUiScrollHost.Scroller => _scroller;
 
+    /// <summary>The soft keyboard's cover of the viewport's bottom (see <see cref="SkUiScrollController.KeyboardInset"/>), set by the focus manager.</summary>
+    internal double KeyboardInset
+    {
+        get => _scroller.KeyboardInset;
+        set
+        {
+            // Exact: a layout pass only when the cover changed.
+            if (_scroller.KeyboardInset == value)
+                return;
+            _scroller.KeyboardInset = value;
+            InvalidateMeasure();
+        }
+    }
+
+    double ISkUiScrollHost.KeyboardInset { get => KeyboardInset; set => KeyboardInset = value; }
+
     /// <summary>Enabled axes; Neither disables scrolling.</summary>
     public ScrollOrientation Orientation
     {
@@ -241,6 +257,9 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
             ? _scroller.GetOffsetFor(bounds, position)
             : new Point(ScrollX, ScrollY);
 
+    // The keyboard's cover at the end of a vertical scroller.
+    private double KeyboardEnd => _scroller.Vertical ? _scroller.KeyboardInset : 0;
+
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
@@ -255,6 +274,8 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
             height = SkUiScrollController.CrossConstraint(height, content.Height, content.MaximumHeight, content.Margin.VerticalThickness + Padding.VerticalThickness);
         }
         var extent = base.MeasureContent(_scroller.Horizontal ? double.PositiveInfinity : width, _scroller.Vertical ? double.PositiveInfinity : height);
+        // The keyboard's cover (the only inset a Core scroller has) extends the end, so the content's end scrolls out from under it.
+        extent = new Size(extent.Width, extent.Height + KeyboardEnd);
         _scroller.Extent = extent;
         return new Size(Math.Min(widthConstraint, extent.Width + left + right), Math.Min(heightConstraint, extent.Height + bottom));
     }
@@ -266,7 +287,7 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
         var viewport = _scroller.Viewport;
         var extent = _scroller.Extent;
         // Content keeps its layout origin; the offset is a composite-time children translation.
-        base.ArrangeContent(new Size(Math.Max(extent.Width, viewport.Width), Math.Max(extent.Height, viewport.Height)));
+        base.ArrangeContent(new Size(Math.Max(extent.Width, viewport.Width), Math.Max(0, Math.Max(extent.Height, viewport.Height) - KeyboardEnd)));
         InvalidateRender(SkUiRenderDirty.Props);
         if (!_rtlStartApplied && IsRightToLeft && _scroller.Horizontal && _scroller.MaxX > 0)
         {

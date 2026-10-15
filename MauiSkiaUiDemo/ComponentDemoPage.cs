@@ -366,9 +366,12 @@ public abstract class ComponentDemoPage : ContentPage
             if (editor.Text == initial) apply(initial);
             else editor.Text = initial;
         });
-        _checks.Add((name, () => skia() == editor.Text && (native is null || native() == editor.Text)));
+        // Line breaks compared as \n: MAUI's Editor on Windows gives them as \r, a drawn editor takes them as \n.
+        _checks.Add((name, () => Lines(skia()) == Lines(editor.Text) && (native is null || Lines(native()) == Lines(editor.Text))));
         apply(initial);
         return editor;
+
+        static string Lines(string? text) => (text ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n');
     }
 
     protected void Choice<T>(string name, T[] values, T initial, Action<T> apply, Func<T> skia, Func<T>? native = null) where T : notnull

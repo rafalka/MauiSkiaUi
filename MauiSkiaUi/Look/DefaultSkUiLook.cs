@@ -471,13 +471,39 @@ public class DefaultSkUiLook : SkUiLook
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return;
         var style = PickerFieldStyle == SkUiPickerFieldStyle.Default ? DefaultPickerFieldStyle : PickerFieldStyle;
-        var focus = field.IsEnabled ? Math.Clamp(field.Focused, 0, 1) : 0;
-        var idle = field.IsPointerOver && field.IsEnabled ? Mix(field.Border, field.Foreground, 0.35f) : field.Border;
-        var line = Mix(idle, field.Accent, focus);
-        if (!field.IsEnabled)
+        DrawFieldFrame(canvas, bounds, style, field.Accent, field.Border, field.Foreground, field.Focused, field.IsPointerOver, field.IsEnabled);
+        const float radius = FieldRadius;
+        if (field.IsEnabled && field.Press.Pressed > 0)
+        {
+            var press = Paint(field.Foreground.WithAlpha((byte)(18 * field.Press.Pressed)));
+            if (style == SkUiPickerFieldStyle.Outline)
+                canvas.DrawRoundRect(bounds, radius, radius, press);
+            else
+                canvas.DrawRect(bounds, press);
+        }
+        DrawChevron(canvas, field);
+    }
+
+    /// <summary>The opacity of disabled field chrome.</summary>
+    private const float DisabledAlpha = 0.38f;
+
+    /// <summary>The corner radius of outlined and filled fields.</summary>
+    private const float FieldRadius = 6;
+
+    /// <summary>
+    /// A field's frame (pickers and text fields): idle in the border color (darker while a pointer is over it), in the accent
+    /// color and thicker while focused; dimmed when disabled.
+    /// </summary>
+    private static void DrawFieldFrame(SKCanvas canvas, SKRect bounds, SkUiPickerFieldStyle style, SKColor accent, SKColor border, SKColor foreground,
+        float focused, bool pointerOver, bool enabled)
+    {
+        var focus = enabled ? Math.Clamp(focused, 0, 1) : 0;
+        var idle = pointerOver && enabled ? Mix(border, foreground, 0.35f) : border;
+        var line = Mix(idle, accent, focus);
+        if (!enabled)
             line = line.WithAlpha((byte)(line.Alpha * DisabledAlpha));
         var paint = Paint(line);
-        const float radius = 6;
+        const float radius = FieldRadius;
         switch (style)
         {
             case SkUiPickerFieldStyle.Outline:
@@ -493,8 +519,8 @@ public class DefaultSkUiLook : SkUiLook
             {
                 if (style == SkUiPickerFieldStyle.Filled)
                 {
-                    var tint = Mix(field.Border, field.Foreground, field.IsPointerOver && field.IsEnabled ? 0.2f : 0);
-                    paint.Color = tint.WithAlpha((byte)(field.IsEnabled ? 40 : 20));
+                    var tint = Mix(border, foreground, pointerOver && enabled ? 0.2f : 0);
+                    paint.Color = tint.WithAlpha((byte)(enabled ? 40 : 20));
                     using var fill = new SKRoundRect(bounds, radius);
                     fill.SetRectRadii(bounds, [new SKPoint(radius, radius), new SKPoint(radius, radius), default, default]);
                     canvas.DrawRoundRect(fill, paint);
@@ -505,19 +531,39 @@ public class DefaultSkUiLook : SkUiLook
                 break;
             }
         }
-        if (field.IsEnabled && field.Press.Pressed > 0)
-        {
-            var press = Paint(field.Foreground.WithAlpha((byte)(18 * field.Press.Pressed)));
-            if (style == SkUiPickerFieldStyle.Outline)
-                canvas.DrawRoundRect(bounds, radius, radius, press);
-            else
-                canvas.DrawRect(bounds, press);
-        }
-        DrawChevron(canvas, field);
     }
 
-    /// <summary>The opacity of disabled field chrome.</summary>
-    private const float DisabledAlpha = 0.38f;
+    /// <summary>
+    /// How text fields draw (default <see cref="SkUiTextFieldStyle.Default"/>: the look's, <see cref="DefaultTextFieldStyle"/>). Call
+    /// <see cref="SkUiLook.NotifyChanged"/> after changing it.
+    /// </summary>
+    public SkUiTextFieldStyle TextFieldStyle { get; set; }
+
+    /// <summary>
+    /// The text field a <see cref="SkUiTextFieldStyle.Default"/> <see cref="TextFieldStyle"/> draws: an outline, the same on every
+    /// platform. Platform looks draw their platform's (<see cref="AndroidSkUiLook"/>: Material's underline).
+    /// </summary>
+    public virtual SkUiTextFieldStyle DefaultTextFieldStyle => SkUiTextFieldStyle.Outline;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// <see cref="TextFieldStyle"/>'s chrome, as picker fields': idle in the border color (darker while a pointer is over it), in the
+    /// accent color and thicker while focused; dimmed when disabled.
+    /// </remarks>
+    protected override void DrawTextFieldCore(SKCanvas canvas, SkUiTextFieldPaint field)
+    {
+        var bounds = field.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+        var style = (TextFieldStyle == SkUiTextFieldStyle.Default ? DefaultTextFieldStyle : TextFieldStyle) switch
+        {
+            SkUiTextFieldStyle.Underline => SkUiPickerFieldStyle.Underline,
+            SkUiTextFieldStyle.Filled => SkUiPickerFieldStyle.Filled,
+            SkUiTextFieldStyle.None => SkUiPickerFieldStyle.None,
+            _ => SkUiPickerFieldStyle.Outline
+        };
+        DrawFieldFrame(canvas, bounds, style, field.Accent, field.Border, field.Foreground, field.Focused, field.IsPointerOver, field.IsEnabled);
+    }
 
     /// <summary>A down-pointing chevron centered in the field's chevron bounds, turned upwards as the popup opens.</summary>
     private static void DrawChevron(SKCanvas canvas, SkUiPickerFieldPaint field)

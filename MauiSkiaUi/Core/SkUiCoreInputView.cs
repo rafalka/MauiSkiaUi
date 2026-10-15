@@ -1,0 +1,394 @@
+using System.Windows.Input;
+using MauiSkiaUi.Rendering;
+using SkiaSharp;
+
+namespace MauiSkiaUi.Core;
+
+/// <summary>
+/// What the Core text fields share (the twin of <see cref="SkUiInputView"/>, on the same engine; <see cref="SkUiCoreEntry"/>,
+/// <see cref="SkUiCoreEditor"/>): drawn text, caret, selection and placeholder, the look's chrome, and the platform's keyboard and
+/// input methods through the surface's text input proxy. Fluent <c>Set*</c> setters and <see cref="System.ComponentModel.INotifyPropertyChanged"/>.
+/// </summary>
+/// <remarks>Core nodes have no enabled state: use <see cref="IsReadOnly"/> to stop editing (or hide the node).</remarks>
+public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISkUiKeyHandler, ISkUiTextInputNode, ISkUiWheelHandler
+{
+    private string? _text;
+    private int _cursorPosition;
+    private int _selectionLength;
+    private bool _minimumHeightExplicit;
+
+    /// <summary>The field engine shared with <see cref="SkUiInputView"/>.</summary>
+    internal SkUiTextFieldModel Model { get; }
+
+    private protected SkUiCoreInputView(bool multiline)
+    {
+        Model = new SkUiTextFieldModel(this, multiline);
+        Focused += (_, _) => Model.SetFocused(true);
+        Unfocused += (_, _) => Model.SetFocused(false);
+    }
+
+    #region Properties
+
+    /// <summary>The text. Typing, the input method, paste and undo set it and raise <see cref="TextChanged"/>.</summary>
+    public string? Text { get => _text; set => SetText(value); }
+
+    /// <summary>Shown while the text is empty.</summary>
+    public string? Placeholder { get => Model.Placeholder; set => SetPlaceholder(value); }
+
+    /// <summary>The placeholder's color; <c>null</c> (default): the color scheme's muted color.</summary>
+    public Color? PlaceholderColor { get => Model.PlaceholderColor; set => SetPlaceholderColor(value); }
+
+    /// <summary>The text's color; <c>null</c> (default): the color scheme's foreground.</summary>
+    public Color? TextColor { get => Model.TextColor; set => SetTextColor(value); }
+
+    /// <summary>DIPs added after each character.</summary>
+    public double CharacterSpacing { get => Model.CharacterSpacing; set => SetCharacterSpacing(value); }
+
+    /// <summary>Upper or lower case: typed and pasted text is transformed.</summary>
+    public TextTransform TextTransform { get => Model.Editor.Transform; set => SetTextTransform(value); }
+
+    /// <summary>Font family (see <see cref="SkUiInputView.FontFamily"/>).</summary>
+    public string? FontFamily { get => Model.FontFamily; set => SetFontFamily(value); }
+
+    /// <summary>Font size in DIPs (default 16).</summary>
+    public double FontSize { get => Model.FontSize; set => SetFontSize(value); }
+
+    /// <summary>Bold and italic.</summary>
+    public FontAttributes FontAttributes { get => Model.FontAttributes; set => SetFontAttributes(value); }
+
+    /// <summary>Whether the text follows the system text size. Default <c>true</c>.</summary>
+    public bool FontAutoScalingEnabled { get => Model.FontAutoScalingEnabled; set => SetFontAutoScalingEnabled(value); }
+
+    /// <summary>Horizontal text alignment (default Start, which follows the text's direction).</summary>
+    public TextAlignment HorizontalTextAlignment { get => Model.HorizontalTextAlignment; set => SetHorizontalTextAlignment(value); }
+
+    /// <summary>Vertical text alignment in the field (default Center for an entry, Start for an editor).</summary>
+    public TextAlignment VerticalTextAlignment { get => Model.VerticalTextAlignment; set => SetVerticalTextAlignment(value); }
+
+    /// <summary>The most characters (UTF-16 code units) the text may have (default <see cref="int.MaxValue"/>).</summary>
+    public int MaxLength { get => Model.Editor.MaxLength; set => SetMaxLength(value); }
+
+    /// <summary>Whether the text cannot be changed by the user (it can still be selected and copied).</summary>
+    public bool IsReadOnly { get => Model.Editor.IsReadOnly; set => SetIsReadOnly(value); }
+
+    /// <summary>The soft keyboard's layout.</summary>
+    public Keyboard Keyboard { get => Model.Keyboard; set => SetKeyboard(value); }
+
+    /// <summary>Whether spelling is checked (default <c>true</c>; off for passwords).</summary>
+    public bool IsSpellCheckEnabled { get => Model.IsSpellCheckEnabled; set => SetIsSpellCheckEnabled(value); }
+
+    /// <summary>Whether the keyboard suggests words (default <c>true</c>; off for passwords).</summary>
+    public bool IsTextPredictionEnabled { get => Model.IsTextPredictionEnabled; set => SetIsTextPredictionEnabled(value); }
+
+    /// <summary>Where the caret is (the selection's start); follows the user.</summary>
+    public int CursorPosition { get => _cursorPosition; set => SetCursorPosition(value); }
+
+    /// <summary>How many characters are selected from <see cref="CursorPosition"/>; follows the user.</summary>
+    public int SelectionLength { get => _selectionLength; set => SetSelectionLength(value); }
+
+    /// <summary>The caret's color; <c>null</c> (default): the look's.</summary>
+    public Color? CaretColor { get => Model.CaretColor; set => SetCaretColor(value); }
+
+    /// <summary>The color behind selected text; <c>null</c> (default): the look's.</summary>
+    public Color? SelectionColor { get => Model.SelectionColor; set => SetSelectionColor(value); }
+
+    /// <summary>What the field holds for password managers and autofill (<see cref="SkUiAutofillHints"/>).</summary>
+    public string? AutofillHint { get => Model.AutofillHint; set => SetAutofillHint(value); }
+
+    /// <summary>Raised when the text changes (by the user or the app), with the old and new text.</summary>
+    public event EventHandler<TextChangedEventArgs>? TextChanged;
+
+
+    #endregion
+
+    #region Setters
+
+    /// <summary>Sets <see cref="Text"/>.</summary>
+    public SkUiCoreInputView SetText(string? value)
+    {
+        var old = _text;
+        if (!SetProperty(ref _text, value, nameof(Text)))
+            return this;
+        var shown = Model.SetText(value);
+        TextChanged?.Invoke(this, new TextChangedEventArgs(old, _text));
+        // Cut or transformed: Text follows what the field shows.
+        return shown is null ? this : SetText(shown);
+    }
+
+    /// <summary>Sets <see cref="Placeholder"/>.</summary>
+    public SkUiCoreInputView SetPlaceholder(string? value) => Update(ref Model.Placeholder, value, nameof(Placeholder), measure: true);
+
+    /// <summary>Sets <see cref="PlaceholderColor"/>.</summary>
+    public SkUiCoreInputView SetPlaceholderColor(Color? value) => Update(ref Model.PlaceholderColor, value, nameof(PlaceholderColor));
+
+    /// <summary>Sets <see cref="TextColor"/>.</summary>
+    public SkUiCoreInputView SetTextColor(Color? value) => Update(ref Model.TextColor, value, nameof(TextColor));
+
+    /// <summary>Sets <see cref="CharacterSpacing"/>.</summary>
+    public SkUiCoreInputView SetCharacterSpacing(double value)
+    {
+        SkUiValidate.ThrowIfNotFinite(value, nameof(value));
+        return Update(ref Model.CharacterSpacing, value, nameof(CharacterSpacing), measure: true);
+    }
+
+    /// <summary>Sets <see cref="TextTransform"/>.</summary>
+    public SkUiCoreInputView SetTextTransform(TextTransform value)
+    {
+        ThrowIfUndefined(value);
+        if (Model.Editor.Transform == value)
+            return this;
+        var shown = Model.SetTransform(value);
+        OnPropertyChanged(nameof(TextTransform));
+        return shown is null ? this : SetText(shown);
+    }
+
+    /// <summary>Sets <see cref="FontFamily"/>.</summary>
+    public SkUiCoreInputView SetFontFamily(string? value) => Update(ref Model.FontFamily, value, nameof(FontFamily), measure: true);
+
+    /// <summary>Sets <see cref="FontSize"/>.</summary>
+    public SkUiCoreInputView SetFontSize(double value)
+    {
+        SkUiValidate.ThrowIfNotFinitePositive(value, nameof(value));
+        return Update(ref Model.FontSize, value, nameof(FontSize), measure: true);
+    }
+
+    /// <summary>Sets <see cref="FontAttributes"/>.</summary>
+    public SkUiCoreInputView SetFontAttributes(FontAttributes value) => Update(ref Model.FontAttributes, value, nameof(FontAttributes), measure: true);
+
+    /// <summary>Sets <see cref="FontAutoScalingEnabled"/>.</summary>
+    public SkUiCoreInputView SetFontAutoScalingEnabled(bool value) => Update(ref Model.FontAutoScalingEnabled, value, nameof(FontAutoScalingEnabled), measure: true);
+
+    /// <summary>Sets <see cref="HorizontalTextAlignment"/>.</summary>
+    public SkUiCoreInputView SetHorizontalTextAlignment(TextAlignment value)
+    {
+        ThrowIfUndefined(value);
+        return Update(ref Model.HorizontalTextAlignment, value, nameof(HorizontalTextAlignment));
+    }
+
+    /// <summary>Sets <see cref="VerticalTextAlignment"/>.</summary>
+    public SkUiCoreInputView SetVerticalTextAlignment(TextAlignment value)
+    {
+        ThrowIfUndefined(value);
+        return Update(ref Model.VerticalTextAlignment, value, nameof(VerticalTextAlignment));
+    }
+
+    /// <summary>Sets <see cref="MaxLength"/>: longer text is cut.</summary>
+    public SkUiCoreInputView SetMaxLength(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        if (Model.Editor.MaxLength == value)
+            return this;
+        Model.Editor.MaxLength = value;
+        OnPropertyChanged(nameof(MaxLength));
+        if (_text is { } text && text.Length > value)
+            SetText(text[..value]);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="IsReadOnly"/>.</summary>
+    public SkUiCoreInputView SetIsReadOnly(bool value)
+    {
+        if (Model.Editor.IsReadOnly == value)
+            return this;
+        Model.Editor.IsReadOnly = value;
+        OnPropertyChanged(nameof(IsReadOnly));
+        Model.OptionsChanged();
+        Model.PaintChanged();
+        return this;
+    }
+
+    /// <summary>Sets <see cref="Keyboard"/>.</summary>
+    public SkUiCoreInputView SetKeyboard(Keyboard value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return UpdateOptions(ref Model.Keyboard, value, nameof(Keyboard));
+    }
+
+    /// <summary>Sets <see cref="IsSpellCheckEnabled"/>.</summary>
+    public SkUiCoreInputView SetIsSpellCheckEnabled(bool value) => UpdateOptions(ref Model.IsSpellCheckEnabled, value, nameof(IsSpellCheckEnabled));
+
+    /// <summary>Sets <see cref="IsTextPredictionEnabled"/>.</summary>
+    public SkUiCoreInputView SetIsTextPredictionEnabled(bool value) => UpdateOptions(ref Model.IsTextPredictionEnabled, value, nameof(IsTextPredictionEnabled));
+
+    /// <summary>Sets <see cref="CursorPosition"/>.</summary>
+    public SkUiCoreInputView SetCursorPosition(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        if (SetProperty(ref _cursorPosition, value, nameof(CursorPosition)))
+            Model.SetSelection(_cursorPosition, _selectionLength);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="SelectionLength"/>.</summary>
+    public SkUiCoreInputView SetSelectionLength(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        if (SetProperty(ref _selectionLength, value, nameof(SelectionLength)))
+            Model.SetSelection(_cursorPosition, _selectionLength);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="CaretColor"/>.</summary>
+    public SkUiCoreInputView SetCaretColor(Color? value) => Update(ref Model.CaretColor, value, nameof(CaretColor));
+
+    /// <summary>Sets <see cref="SelectionColor"/>.</summary>
+    public SkUiCoreInputView SetSelectionColor(Color? value) => Update(ref Model.SelectionColor, value, nameof(SelectionColor));
+
+    /// <summary>Sets <see cref="AutofillHint"/>.</summary>
+    public SkUiCoreInputView SetAutofillHint(string? value) => UpdateOptions(ref Model.AutofillHint, value, nameof(AutofillHint));
+
+    /// <inheritdoc />
+    public override SkUiCoreNode SetMinimumHeight(double value)
+    {
+        _minimumHeightExplicit = true;
+        return base.SetMinimumHeight(value);
+    }
+
+    private protected SkUiCoreInputView Update<T>(ref T field, T value, string name, bool measure = false)
+    {
+        if (!SetProperty(ref field, value, name))
+            return this;
+        if (measure)
+            Model.TextChanged();
+        else
+            Model.PaintChanged();
+        return this;
+    }
+
+    private protected SkUiCoreInputView UpdateOptions<T>(ref T field, T value, string name)
+    {
+        if (SetProperty(ref field, value, name))
+            Model.OptionsChanged();
+        return this;
+    }
+
+    private protected static void ThrowIfUndefined<T>(T value) where T : struct, Enum
+    {
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(nameof(value), value, null);
+    }
+
+    #endregion
+
+    #region Node
+
+    /// <inheritdoc />
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint)
+    {
+        Model.HasExplicitMinimumHeight = _minimumHeightExplicit;
+        return Model.Measure(widthConstraint, heightConstraint);
+    }
+
+    /// <inheritdoc />
+    protected override void OnPaintContent(SKCanvas canvas) => Model.Draw(canvas, (float)Frame.Width, (float)Frame.Height);
+
+    /// <inheritdoc />
+    internal override void OnGetRenderProps(ref SkUiRenderProps props)
+    {
+        base.OnGetRenderProps(ref props);
+        Model.GetRenderProps(ref props);
+    }
+
+    /// <inheritdoc />
+    private protected override void ForgetOwnDrawable() => Model.ForgetCaret();
+
+    /// <inheritdoc />
+    internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
+    {
+        base.CollectGestureRecognizers(recognizers);
+        recognizers.Add(Model.Gestures);
+    }
+
+    /// <inheritdoc />
+    internal override void OnPointerOverChanged(bool isOver)
+    {
+        Model.IsPointerOver = isOver;
+        Model.PaintChanged();
+    }
+
+    /// <inheritdoc />
+    internal override void OnEffectiveFlowDirectionChanged()
+    {
+        base.OnEffectiveFlowDirectionChanged();
+        Model.TextChanged();
+    }
+
+    /// <inheritdoc />
+    internal override void ReleaseDrawingResources()
+    {
+        base.ReleaseDrawingResources();
+        Model.ReleaseDrawingResources();
+    }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        Model.PopulateSemantics(info);
+    }
+
+    /// <inheritdoc />
+    protected override bool OnSemanticsAction(SkUiSemanticsActions action) =>
+        action == SkUiSemanticsActions.Activate ? Model.Activate() : base.OnSemanticsAction(action);
+
+    /// <inheritdoc />
+    internal override bool TakesKeyboardFocus => true;
+
+    /// <inheritdoc />
+    internal override bool ShowsFocusRing => false;
+
+    bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key) => Model.OnKeyDown(key);
+
+    ISkUiTextInputClient ISkUiTextInputNode.TextInputClient => Model;
+
+    bool ISkUiTextInputNode.WantsTextInput => true;
+
+    Point ISkUiWheelHandler.OnWheel(double deltaX, double deltaY) => Model.Wheel(deltaX, deltaY);
+
+    bool ISkUiTextInputNode.CanTakeTextFocus => IsVisible;
+
+    bool ISkUiTextInputNode.HitsTextHandle(Point local) => Model.HandleAt(local) != 0;
+
+    #endregion
+
+    #region Owner
+
+    ISkUiRenderable ISkUiTextFieldOwner.Node => this;
+
+    Size ISkUiTextFieldOwner.FieldSize => Frame.Size;
+
+    bool ISkUiTextFieldOwner.IsRightToLeft => IsRightToLeft;
+
+    SkUiTextDirection ISkUiTextFieldOwner.TextDirection => InheritedDirection();
+
+    bool ISkUiTextFieldOwner.IsFocused => IsFocused;
+
+    void ISkUiTextFieldOwner.TextEdited(string text) => SetText(text);
+
+    void ISkUiTextFieldOwner.SelectionEdited(int start, int length)
+    {
+        SetProperty(ref _cursorPosition, start, nameof(CursorPosition));
+        SetProperty(ref _selectionLength, length, nameof(SelectionLength));
+    }
+
+    void ISkUiTextFieldOwner.Completed() => OnReturnPressed();
+
+    /// <summary>The return key in a single-line field (an entry's <c>Completed</c>).</summary>
+    private protected virtual void OnReturnPressed()
+    {
+    }
+
+    bool ISkUiTextFieldOwner.RequestFocus() => Focus();
+
+    void ISkUiTextFieldOwner.ReleaseFocus() => Unfocus();
+
+    void ISkUiTextFieldOwner.InvalidateMeasure() => InvalidateMeasure();
+
+    void ISkUiTextFieldOwner.InvalidatePaint() => InvalidatePaint();
+
+    void ISkUiTextFieldOwner.InvalidateSemantics() => InvalidateSemantics();
+
+    void ISkUiTextFieldOwner.InvalidateCaret() => InvalidateRender(SkUiRenderDirty.Props);
+
+    #endregion
+}

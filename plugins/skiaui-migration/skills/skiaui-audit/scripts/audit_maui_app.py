@@ -31,14 +31,14 @@ DRAWN = {
     "ScrollView", "Border", "Frame", "Label", "Button", "Image", "ImageButton", "BoxView", "Ellipse", "Line", "Rectangle",
     "RoundRectangle", "Path", "Polygon", "Polyline", "CheckBox", "Switch", "RadioButton", "Slider", "ProgressBar",
     "ActivityIndicator", "GraphicsView", "CollectionView", "SwipeView", "RefreshView", "CarouselView", "IndicatorView", "Picker",
-    "DatePicker", "TimePicker",
+    "DatePicker", "TimePicker", "Entry", "Editor", "SearchBar", "Stepper",
 }
 # Community Toolkit controls with a drawn equivalent, counted as "Toolkit <name>".
 TOOLKIT_DRAWN = {"Expander", "AvatarView"}
-NATIVE_ISLAND = {"Entry", "Editor", "SearchBar", "WebView", "HybridWebView", "BlazorWebView", "Map"}
+NATIVE_ISLAND = {"WebView", "HybridWebView", "BlazorWebView", "Map"}
 # CollectionViews SkUiCollectionView cannot take, counted apart from the ones that port.
 BLOCKED_COLLECTION_VIEW = "CollectionView (reorderable or with snap points)"
-NOT_YET = {BLOCKED_COLLECTION_VIEW, "ListView", "TableView", "Stepper"}
+NOT_YET = {BLOCKED_COLLECTION_VIEW, "ListView", "TableView"}
 PAGES = {"ContentPage", "TabbedPage", "FlyoutPage", "NavigationPage", "Shell"}
 GESTURES = {"TapGestureRecognizer", "SwipeGestureRecognizer", "PanGestureRecognizer", "PinchGestureRecognizer",
             "PointerGestureRecognizer", "DragGestureRecognizer", "DropGestureRecognizer"}

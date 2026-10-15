@@ -31,6 +31,7 @@ public sealed class SkUiStringsTests : IDisposable
 
         Assert.Equal(("OK", "Cancel", "Load more"), (strings.AcceptText, strings.CancelText, strings.LoadMoreText));
         Assert.Equal(("Selected", "Expanded", "Collapsed"), (strings.SelectedStateText, strings.ExpandedStateText, strings.CollapsedStateText));
+        Assert.Equal(("Cut", "Copy", "Paste", "Select all"), (strings.CutText, strings.CopyText, strings.PasteText, strings.SelectAllText));
         Assert.Throws<ArgumentNullException>(() => strings.AcceptText = null!);
         Assert.Throws<ArgumentNullException>(() => SkUiStrings.Current = null!);
     }

@@ -84,8 +84,21 @@ public class SkUiStrings
     /// <summary>The Clear button of popups (a picker's <c>IsPopupClearButtonVisible</c>), unless the picker sets its own <c>ClearText</c>. Default "Clear".</summary>
     public virtual string ClearText { get; set => Set(ref field, value); } = "Clear";
 
-    /// <summary>The "Select all" row above a list with several choices (a picker's <c>IsSelectAllVisible</c>), unless the picker sets its own <c>SelectAllText</c>. Default "Select all".</summary>
+    /// <summary>
+    /// The "Select all" row above a list with several choices (a picker's <c>IsSelectAllVisible</c>), unless the picker sets its own
+    /// <c>SelectAllText</c>; and the item of a text field's edit menu where the platform's menu has no text of its own (Windows).
+    /// Default "Select all".
+    /// </summary>
     public virtual string SelectAllText { get; set => Set(ref field, value); } = "Select all";
+
+    /// <summary>The Cut item of a text field's edit menu where the platform's menu has no text of its own (Windows). Default "Cut".</summary>
+    public virtual string CutText { get; set => Set(ref field, value); } = "Cut";
+
+    /// <summary>The Copy item of a text field's edit menu (Windows). Default "Copy".</summary>
+    public virtual string CopyText { get; set => Set(ref field, value); } = "Copy";
+
+    /// <summary>The Paste item of a text field's edit menu (Windows). Default "Paste".</summary>
+    public virtual string PasteText { get; set => Set(ref field, value); } = "Paste";
 
     /// <summary>
     /// The token that stands for the chosen items that do not fit in a picker's field (<c>MaxTokenLines</c>), a <c>string.Format</c>

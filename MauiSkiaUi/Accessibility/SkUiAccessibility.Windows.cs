@@ -115,20 +115,25 @@ internal sealed class SkUiAccessibilityBridge
             ? FrameworkElementAutomationPeer.CreatePeerForElement(native)
             : null;
 
-    /// <summary>Window DIPs of a surface rectangle (what WinUI's own peers report).</summary>
+    /// <summary>
+    /// A surface rectangle in the window's client pixels: WinUI only offsets a custom peer's rectangle to the screen, so a peer reports
+    /// physical pixels (DIPs times the rasterization scale; DIPs put drawn elements short of their place on a scaled display).
+    /// </summary>
     internal WinRect ToWindow(Rect bounds)
     {
-        if (_container.XamlRoot is null)
+        if (_container.XamlRoot is not { } root)
             return default;
+        var scale = root.RasterizationScale;
         var origin = _container.TransformToVisual(null).TransformPoint(new WinPoint(bounds.X, bounds.Y));
-        return new WinRect(origin.X, origin.Y, bounds.Width, bounds.Height);
+        return new WinRect(origin.X * scale, origin.Y * scale, bounds.Width * scale, bounds.Height * scale);
     }
 
-    /// <summary>Surface DIPs of a window point.</summary>
+    /// <summary>Surface DIPs of a window point in client pixels (the inverse of <see cref="ToWindow"/>).</summary>
     internal Point FromWindow(WinPoint point)
     {
+        var scale = _container.XamlRoot?.RasterizationScale ?? 1;
         var origin = _container.TransformToVisual(null).TransformPoint(new WinPoint(0, 0));
-        return new Point(point.X - origin.X, point.Y - origin.Y);
+        return new Point(point.X / scale - origin.X, point.Y / scale - origin.Y);
     }
 
     private void OnSemanticsChanged(bool structureChanged, IReadOnlyList<int> changed)
@@ -148,6 +153,13 @@ internal sealed class SkUiAccessibilityBridge
             if (_peers.TryGetValue(id, out var peer) && tree.Find(id) is { } node)
                 peer.RaiseChanges(node);
     }
+
+    /// <summary>The peer of the drawn element with keyboard focus (the field the hidden text box types into), while a client listens.</summary>
+    internal AutomationPeer? FocusedPeer() =>
+        AutomationPeer.ListenerExists(AutomationEvents.AutomationFocusChanged) && _root.FocusManagerIfCreated?.Focused is { } focused
+            && Tree.Find(focused) is { } element
+            ? PeerOf(element.Id)
+            : null;
 
     private void OnKeyboardFocusChanged(ISkUiAccessibleNode? node)
     {
@@ -289,6 +301,7 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
         SkUiSemanticsRole.ProgressBar => AutomationControlType.ProgressBar,
         SkUiSemanticsRole.ScrollView => AutomationControlType.Pane,
         SkUiSemanticsRole.ComboBox => AutomationControlType.ComboBox,
+        SkUiSemanticsRole.TextField => AutomationControlType.Edit,
         _ => Node is { Actions: var actions } && (actions & SkUiSemanticsActions.Activate) != 0 ? AutomationControlType.Button : AutomationControlType.Group
     };
 
@@ -316,6 +329,9 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
 
     /// <inheritdoc />
     protected override bool HasKeyboardFocusCore() => Node?.IsFocused == true;
+
+    /// <inheritdoc />
+    protected override bool IsPasswordCore() => Node?.TextField?.IsPassword == true;
 
     /// <inheritdoc />
     protected override bool IsOffscreenCore() => Node is null;
@@ -357,8 +373,9 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
             PatternInterface.RangeValue when node.Range is not null => this,
             // A combo box opens through ExpandCollapse (as WinUI's), not Invoke.
             PatternInterface.ExpandCollapse when node.IsExpanded is not null => this,
-            PatternInterface.Value when node.Role == SkUiSemanticsRole.ComboBox => this,
-            PatternInterface.Invoke when node.CheckState is null && node.IsExpanded is null && (actions & SkUiSemanticsActions.Activate) != 0 => this,
+            PatternInterface.Value when node.Role is SkUiSemanticsRole.ComboBox or SkUiSemanticsRole.TextField => this,
+            PatternInterface.Invoke when node.CheckState is null && node.IsExpanded is null && node.TextField is null
+                                         && (actions & SkUiSemanticsActions.Activate) != 0 => this,
             _ => null
         };
     }
@@ -417,12 +434,16 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
             Perform(SkUiSemanticsActions.Activate);
     }
 
-    // Value (a combo box's selected text; read-only, as WinUI's non-editable ComboBox)
-    string IValueProvider.Value => _text = Node is { Role: SkUiSemanticsRole.ComboBox } node ? node.Value ?? string.Empty : string.Empty;
+    // Value: a combo box's selected text (read-only, as WinUI's non-editable ComboBox); a text field's text (Narrator edits it, as a TextBox's).
+    string IValueProvider.Value => _text = Node is { Role: SkUiSemanticsRole.ComboBox or SkUiSemanticsRole.TextField } node ? node.Value ?? string.Empty : string.Empty;
 
-    bool IValueProvider.IsReadOnly => true;
+    bool IValueProvider.IsReadOnly => Node is not { TextField.IsReadOnly: false, IsEnabled: true };
 
-    void IValueProvider.SetValue(string value) { }
+    void IValueProvider.SetValue(string value)
+    {
+        if (Node is { TextField: not null })
+            bridge.Owner?.SetText(id, value ?? string.Empty);
+    }
 }
 
 /// <summary>WinUI key events of a focused surface container as <see cref="SkUiKey"/>s.</summary>

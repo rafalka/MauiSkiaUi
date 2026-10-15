@@ -56,6 +56,8 @@ internal sealed class SkUiSemanticsNode
     public bool IsHorizontal;
     /// <summary>Whether a combo box's list is open; <c>null</c> when the element does not expand.</summary>
     public bool? IsExpanded;
+    /// <summary>An editable text field's selection and flags; <c>null</c> for other elements.</summary>
+    public SkUiSemanticsTextField? TextField;
     public SemanticHeadingLevel HeadingLevel;
     public string? AutomationId;
     public bool IsFocusable;
@@ -72,7 +74,8 @@ internal sealed class SkUiSemanticsNode
     public bool ContentEquals(SkUiSemanticsNode other) =>
         Id == other.Id && ReferenceEquals(Source, other.Source) && Bounds == other.Bounds && Role == other.Role && Label == other.Label
         && Hint == other.Hint && Value == other.Value && CheckState == other.CheckState && Range == other.Range && IsEnabled == other.IsEnabled
-        && Actions == other.Actions && IsHorizontal == other.IsHorizontal && IsExpanded == other.IsExpanded && HeadingLevel == other.HeadingLevel
+        && Actions == other.Actions && IsHorizontal == other.IsHorizontal && IsExpanded == other.IsExpanded && TextField == other.TextField
+        && HeadingLevel == other.HeadingLevel
         && AutomationId == other.AutomationId && IsFocusable == other.IsFocusable && IsFocused == other.IsFocused && IsNative == other.IsNative;
 
     /// <summary>The value read for a range element without an explicit one: a percentage (as native sliders).</summary>
@@ -389,6 +392,7 @@ internal sealed class SkUiSemanticsTree
                 Actions = info.Actions,
                 IsHorizontal = info.IsHorizontal,
                 IsExpanded = info.IsExpanded,
+                TextField = info.TextField,
                 HeadingLevel = info.HeadingLevel,
                 AutomationId = info.AutomationId,
                 IsFocusable = !native && source.IsKeyboardFocusable,

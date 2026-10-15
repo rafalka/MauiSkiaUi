@@ -15,7 +15,7 @@ You replace a **subtree** of a page with drawn controls. Everything around it st
 | Pages, Shell, navigation, popups | The controls inside the drawn region: `Label` → `SkUiLabel`, `Grid` → `SkUiGrid`, … |
 | View models, commands, `INotifyPropertyChanged` | Styles get a new `TargetType` (`sk:SkUiLabel`) |
 | Bindings, `x:DataType`, converters, triggers, `VisualStateManager` | Gestures: `TapGestureRecognizer` keeps working; other recognizers and `TouchBehavior` become gesture events |
-| Resources, `StaticResource` / `DynamicResource`, `AppThemeBinding` | Native-only controls (Entry, Editor, pickers, WebView) are wrapped in `SkUiMauiContentView` |
+| Resources, `StaticResource` / `DynamicResource`, `AppThemeBinding` | Native-only controls (WebView, maps, media, third-party controls) are wrapped in `SkUiMauiContentView` |
 | Fonts from `ConfigureFonts`, `MauiImage` / `FontImageSource` images | Custom handlers, renderers and effects do not apply to drawn controls |
 | `SemanticProperties`, `AutomationProperties`, `AutomationId` | |
 
@@ -61,7 +61,7 @@ ContentPage                      ← MAUI (navigation, toolbar, Shell)
     │       └── sk:SkUiVerticalStackLayout
     │           ├── sk:SkUiLabel, sk:SkUiButton, …     drawn
     │           └── sk:SkUiMauiContentView             native island
-    │               └── Entry                          real native Entry
+    │               └── WebView                        real native WebView
     └── Button                   ← MAUI, outside the surface
 ```
 
@@ -110,9 +110,7 @@ Pick the subtree and put it in a surface root. Keep the outer page, toolbar and 
                         <sk:SkUiImage Grid.Column="1" Source="chevron.png" />
                     </sk:SkUiGrid>
                 </sk:SkUiBorder>
-                <sk:SkUiMauiContentView>
-                    <Entry Text="{Binding Note}" Placeholder="Note" />
-                </sk:SkUiMauiContentView>
+                <sk:SkUiEntry Text="{Binding Note}" Placeholder="Note" />
                 <sk:SkUiButton Text="Save" Command="{Binding SaveCommand}" />
             </sk:SkUiVerticalStackLayout>
         </sk:SkUiScrollView>
@@ -152,7 +150,8 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `CheckBox`, `Switch`, `RadioButton` | `SkUiCheckBox`, `SkUiSwitch`, `SkUiRadioButton` | Optional third state; radio `Content` and `ControlTemplate` |
 | `Slider`, `ProgressBar`, `ActivityIndicator` | `SkUiSlider`, `SkUiProgressBar`, `SkUiActivityIndicator` | Vertical slider, indeterminate progress |
 | `GraphicsView`, `SKCanvasView` | A `SkUiView` subclass | Override `MeasureContent` and `OnPaintContent(SKCanvas)` |
-| `Entry`, `Editor`, `SearchBar` | Wrapped in `SkUiMauiContentView` | Native for now; drawn `SkUiEntry` / `SkUiEditor` / `SkUiSearchBar` using the platform keyboard are planned ([Phase D](design/ImplementationPlan.md#phase-d--drawn-text-input-fr-16-amended)) |
+| `Entry`, `Editor`, `SearchBar` | `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar` | Prefix swap; drawn, typed through the platform keyboard: see [Text input](#text-input-entry-editor-searchbar) |
+| `Stepper` | `SkUiStepper` | Prefix swap; plus `Orientation` (stacked buttons), `DecrementText` / `IncrementText` + font (custom − / +), `CornerRadius` / `BorderWidth` / `BorderColor`; `SkUiStepper<T>` for `int` / `decimal` / … values |
 | `Picker` | `SkUiPicker` | Prefix swap; its list opens on your popup system: see [Pickers](#pickers-picker) |
 | `DatePicker`, `TimePicker` | `SkUiDatePicker`, `SkUiTimePicker` | Prefix swap; wheels on your popup system like the picker's list: see [Pickers](#pickers-picker) |
 | `WebView`, maps, media | Wrapped in `SkUiMauiContentView` | Native by design |
@@ -164,7 +163,7 @@ Per-control differences: [docs/controls/](controls/README.md).
 
 ```xml
 <sk:SkUiMauiContentView>
-    <Entry Text="{Binding Name}" />
+    <WebView Source="{Binding HelpUrl}" />
 </sk:SkUiMauiContentView>
 ```
 
@@ -345,6 +344,20 @@ Platform differences go: the list is the same drawn list everywhere, anchored to
 
 Coming from other date and time pickers: a format that lists the columns → `WheelFormat` (a .NET format, `"dd MM yyyy"`); the display format → `Format`; minute and hour steps → `HourInterval` / `MinuteInterval` / `SecondInterval`; blocked days → `BlackoutDates` (or `DateEnabled`); the value shown while there is none → `DefaultHighlightedDate` / `DefaultHighlightedTime`; column headers → `AreColumnHeadersVisible` with `SkUiStrings`' texts; looping wheels → `IsLooping`; a dialog mode → `PopupPlacement="Window"`; an OK / Cancel footer → `UpdateMode="WhenFinished"`; a clear button and a placeholder → `IsClearButtonVisible`, `Placeholder`. Not available: a drawn calendar popup (planned), durations longer than a day (use `SkUiMultiColumnPicker` with `SkUiPickerColumn.Range` columns).
 
+## Text input (`Entry`, `Editor`, `SearchBar`)
+
+`SkUiEntry`, `SkUiEditor` and `SkUiSearchBar` ([SkUiEntry.md](controls/SkUiEntry.md), [SkUiEditor.md](controls/SkUiEditor.md), [SkUiSearchBar.md](controls/SkUiSearchBar.md)) keep MAUI's API: change the prefix. `Text` (two-way), `TextChanged`, `Placeholder`, `Keyboard`, `ReturnType`, `ReturnCommand` / `Completed`, `IsPassword`, `MaxLength`, `IsReadOnly`, `CursorPosition` / `SelectionLength`, `ClearButtonVisibility`, the editor's `AutoSize`, the search bar's `SearchCommand` / `SearchButtonPressed` stay. The text is drawn; the platform's keyboard, input methods, autocorrect, dictation, clipboard and edit menu still do the typing. A field moved out of `SkUiMauiContentView` loses the overlay limits: it clips and scrolls with the page (no snapshots), drawn popups cover it, and it works in collection view rows and Core trees.
+
+What changes:
+
+- **Platform customizations.** Handler mapper tweaks on `Entry` (removing the underline, the caret color, `ios:Entry.CursorColor`, padding) do not apply: use `CaretColor`, `SelectionColor`, `BackgroundColor` and the look (`TextFieldPadding`, `DefaultSkUiLook.TextFieldStyle`: `Underline`, `Outline`, `Filled`; or `TextFieldPainter` for chrome of your own).
+- **Autofill.** `AutofillHint` (`SkUiAutofillHints.Username`, `Password`, `OneTimeCode`, …) replaces platform-specific content types; Android autofill of drawn fields is not wired yet, so keep a hosted `Entry` for a login form that depends on it there.
+- **Keyboard avoidance.** A focused field scrolls above the soft keyboard inside drawn scrollers (`SkUiScrollView`, `SkUiCoreScrollView`, nested ones too). Custom code that moves the page for the keyboard (resizing a grid row, `WindowSoftInputModeAdjust` tricks) can usually go; keep the app's soft input mode.
+- **Default font size** is 16 (SkiaUi's labels), not the platform's; set `FontSize` where it mattered.
+- **`TextTransform`** transforms the text itself (typed, pasted, set by the app, and what is already there when it changes); `Text` and a two-way binding get the transformed text.
+
+`Stepper` becomes `SkUiStepper` by the prefix ([SkUiStepper.md](controls/SkUiStepper.md)), with MAUI's coercion; buttons only, as MAUI's (keep the label bound to its value). `Orientation="Vertical"` stacks the buttons, + on top; `DecrementText` / `IncrementText` with `FontFamily` / `FontSize` put words or icon-font symbols on them; `CornerRadius`, `BorderWidth` and `BorderColor` shape and outline it (a stepper styled through a platform handler or effect moves to these). A stepper bound to an `int` or `decimal` through a converter (or a `double` property kept only for it) can become typed: `<sk:SkUiStepper x:TypeArguments="x:Int32" Value="{Binding Quantity}" />` binds the `int` directly; its `ValueChanged` carries `SkUiValueChangedEventArgs<int>` instead of MAUI's `ValueChangedEventArgs`.
+
 ## Avatar view
 
 `SkUiAvatarView` ([SkUiAvatarView.md](controls/SkUiAvatarView.md)) is in the main package and does not need the Community Toolkit.
@@ -381,7 +394,6 @@ Styles now apply to everything the toolkit's constructor set (padding, stroke, s
 | MAUI | Status | Meanwhile |
 | --- | --- | --- |
 | `CollectionView`: reordering (`CanReorderItems`), snap points on the items layout | Not available | Keep the MAUI `CollectionView` with native item templates (outside the drawn region); everything else ports ([Lists](#lists-collectionview)) |
-| `Stepper` | Planned (D7, with a drawn value entry) | Two `SkUiButton`s |
 | Drag and drop, tooltips, context flyouts | Not planned | Keep native |
 | `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists), `SkUiBorder` |
 | Shell, pages, navigation | Out of scope | Stay MAUI |

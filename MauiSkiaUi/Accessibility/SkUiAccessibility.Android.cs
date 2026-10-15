@@ -183,11 +183,27 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
             return;
         }
         node.ClassName = ClassName(element);
-        if (element.Role is SkUiSemanticsRole.Text or SkUiSemanticsRole.Button)
+        if (element.TextField is { } field)
+        {
+            // As an EditText: the text (bullets for a password) with its selection; the placeholder and description as the hint.
+            node.Text = element.Value ?? string.Empty;
+            node.Editable = !field.IsReadOnly;
+            node.Password = field.IsPassword;
+            node.MultiLine = field.IsMultiline;
+            node.SetTextSelection(field.SelectionStart, field.SelectionEnd);
+            if (OperatingSystem.IsAndroidVersionAtLeast(26) && element.Label is { } placeholder)
+                node.HintText = placeholder;
+            node.Focused = element.IsFocused;
+            if (!field.IsReadOnly && element.IsEnabled)
+                node.AddAction(AccessibilityNodeInfoCompat.ActionSetText);
+            if (element.IsEnabled)
+                node.AddAction(AccessibilityNodeInfoCompat.ActionSetSelection);
+        }
+        else if (element.Role is SkUiSemanticsRole.Text or SkUiSemanticsRole.Button)
             node.Text = element.Label ?? string.Empty;
         else
             node.ContentDescription = SpokenName(element);
-        if (Hint(element) is { } hint && OperatingSystem.IsAndroidVersionAtLeast(26))
+        if (element.TextField is null && Hint(element) is { } hint && OperatingSystem.IsAndroidVersionAtLeast(26))
             node.HintText = hint;
         if (element.HeadingLevel != SemanticHeadingLevel.None)
             node.Heading = true;
@@ -209,7 +225,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         {
             // Before Android 16's partial state a mixed check box would be read as unchecked: say it (unless the control does).
             // A combo box's value is its name (SpokenName), not a state.
-            if (element.Value is { } value && element.Role != SkUiSemanticsRole.ComboBox)
+            if (element.Value is { } value && element.Role is not (SkUiSemanticsRole.ComboBox or SkUiSemanticsRole.TextField))
                 node.StateDescription = value;
             else if (element.CheckState == SkUiCheckState.Indeterminate && !OperatingSystem.IsAndroidVersionAtLeast(36))
                 node.StateDescription = MixedStateDescription;
@@ -298,6 +314,14 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
             case AccessibilityNodeInfoCompat.ActionScrollBackward:
                 done = owner.Perform(virtualViewId, element.Range is not null ? SkUiSemanticsActions.Decrement : SkUiSemanticsActions.ScrollBackward);
                 break;
+            case AccessibilityNodeInfoCompat.ActionSetText:
+                done = owner.SetText(virtualViewId, arguments?.GetCharSequence(AccessibilityNodeInfoCompat.ActionArgumentSetTextCharsequence) ?? string.Empty);
+                break;
+            case AccessibilityNodeInfoCompat.ActionSetSelection:
+                var start = arguments?.GetInt(AccessibilityNodeInfoCompat.ActionArgumentSelectionStartInt, -1) ?? -1;
+                var end = arguments?.GetInt(AccessibilityNodeInfoCompat.ActionArgumentSelectionEndInt, start) ?? start;
+                done = start >= 0 && owner.SetSelection(virtualViewId, start, Math.Max(start, end));
+                break;
             default:
                 if (OperatingSystem.IsAndroidVersionAtLeast(24) && action == Android.Resource.Id.AccessibilityActionSetProgress
                     && arguments?.ContainsKey(AccessibilityNodeInfoCompat.ActionArgumentProgressValue) == true)
@@ -347,6 +371,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         SkUiSemanticsRole.ProgressBar => "android.widget.ProgressBar",
         SkUiSemanticsRole.ScrollView => node.IsHorizontal ? "android.widget.HorizontalScrollView" : "android.widget.ScrollView",
         SkUiSemanticsRole.ComboBox => "android.widget.Spinner",
+        SkUiSemanticsRole.TextField => "android.widget.EditText",
         _ => "android.view.View"
     };
 }

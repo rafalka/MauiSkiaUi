@@ -5,9 +5,10 @@ namespace MauiSkiaUi;
 /// same on every platform; <see cref="DefaultSkUiLook.ForCurrentPlatform"/> picks it on Android.
 /// </summary>
 /// <remarks>
-/// So far: picker fields underlined (<see cref="SkUiPickerFieldStyle.Underline"/>, Material's text field) and buttons that ripple
-/// when pressed (<see cref="SkUiPressEffect.Ripple"/>). Settable options (<see cref="DefaultSkUiLook.PressEffect"/>,
-/// <see cref="DefaultSkUiLook.PickerFieldStyle"/>) still override it.
+/// So far: picker and text fields underlined (<see cref="SkUiPickerFieldStyle.Underline"/>, <see cref="SkUiTextFieldStyle.Underline"/>:
+/// Material's text field) and buttons that ripple when pressed (<see cref="SkUiPressEffect.Ripple"/>). Settable options
+/// (<see cref="DefaultSkUiLook.PressEffect"/>, <see cref="DefaultSkUiLook.PickerFieldStyle"/>, <see cref="DefaultSkUiLook.TextFieldStyle"/>)
+/// still override it.
 /// </remarks>
 public class AndroidSkUiLook : DefaultSkUiLook
 {
@@ -20,4 +21,8 @@ public class AndroidSkUiLook : DefaultSkUiLook
     /// <inheritdoc />
     /// <remarks>Material's underlined field.</remarks>
     public override SkUiPickerFieldStyle DefaultPickerFieldStyle => SkUiPickerFieldStyle.Underline;
+
+    /// <inheritdoc />
+    /// <remarks>Material's underlined field.</remarks>
+    public override SkUiTextFieldStyle DefaultTextFieldStyle => SkUiTextFieldStyle.Underline;
 }

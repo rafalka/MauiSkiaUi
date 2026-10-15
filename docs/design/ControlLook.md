@@ -78,6 +78,22 @@ public class SkUiLook
     // AndroidSkUiLook: underline.
     public void DrawPickerField(SKCanvas canvas, SkUiPickerFieldPaint field) { … } // → PickerFieldPainter ?? DrawPickerFieldCore
     public virtual Thickness PickerFieldPadding => new(12, 8); // and PickerChevronWidth (32), DefaultPickerMinimumHeight (44)
+    // Text fields (Phase D, TextInput.md): chrome behind the text, as the picker field's (FieldFocus);
+    // DefaultSkUiLook: TextFieldStyle (Default → DefaultTextFieldStyle: outline; underline, filled); AndroidSkUiLook: underline.
+    public void DrawTextField(SKCanvas canvas, SkUiTextFieldPaint field) { … }      // → TextFieldPainter ?? DrawTextFieldCore
+    public virtual Thickness TextFieldPadding => new(12, 8); // and DefaultTextFieldMinimumHeight (44), TextFieldClearButtonWidth (32)
+    public virtual float CaretWidth => 2;                  // and CaretBlinkInterval (500 ms; zero: no blink), CaretColor, TextSelectionColor
+    public void DrawTextFieldClearButton(…) { … }          // → TextFieldClearButtonPainter
+    public void DrawTextSelectionHandle(SKCanvas canvas, SkUiTextSelectionHandlePaint handle) { … } // touch handles (a bar and a knob);
+                                                           // TextSelectionHandleTouchRadius (22), GetTextSelectionHandleBounds
+    public void DrawTextInsertionHandle(SKCanvas canvas, SkUiTextInsertionHandlePaint handle) { … } // the caret's drop (Android);
+                                                           // ShowsTextInsertionHandle, GetTextInsertionHandleBounds, TextInsertionHandleTimeout (4 s)
+    public void DrawSearchField(SKCanvas canvas, SkUiSearchFieldPaint field) { … }  // a pill with a magnifier; SearchIconWidth (28)
+    // Stepper (D7): two segments with − and + (or none where the control draws its text), side by side or stacked, a divider,
+    // pressed / disabled per button, focus; the control's corner radius and outline (width, color), the divider then in the outline's.
+    public void DrawStepper(SKCanvas canvas, SkUiStepperPaint stepper) { … }
+    public virtual Size StepperButtonSize => new(47, 32);  // and StepperRepeatDelay (400 ms), StepperRepeatInterval (100 ms)
+    public virtual double StepperCornerRadius => 8;        // until the stepper's CornerRadius is set
     // Popups of drawn controls (C6): where they go and what they look like; the app's presenter shows them.
     public virtual SkUiPopupPlacement DefaultPopupPlacement => SkUiPopupPlacement.Anchored; // DefaultSkUiLook: the device's
     public virtual Thickness PopupMargin => new(8);         // and PopupAnchorGap (4), PopupPreferredWidth (320),
@@ -164,7 +180,7 @@ Drawing the blend makes interruptions free: a switch toggled back mid-way revers
 | Ripple | 450 ms, cubic out (only with `PressEffect = Ripple`, else none: no frames spent) |
 | SliderThumb | 150 ms, cubic out (taps only; drags and code follow at once) |
 | IndicatorPosition | 250 ms, cubic out (an indicator view's selection; a linked carousel's scrolling drives it instead) |
-| FieldFocus | 150 ms, cubic out (a picker field's focus and open highlight) |
+| FieldFocus | 150 ms, cubic out (a picker field's focus and open highlight, a text field's focus) |
 | PickerOpen | 200 ms, cubic in-out (a picker's chevron turns while its popup opens and closes) |
 | Progress | None, as MAUI's `ProgressBar` (`ProgressTo` animates on its own) |
 

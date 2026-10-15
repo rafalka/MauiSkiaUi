@@ -84,13 +84,18 @@ internal sealed class SkUiMetalView : UIView
         }
     }
 
-    public override void TouchesBegan(NSSet touches, UIEvent? evt) => Deliver(touches, SkUiTouchAction.Pressed);
-    public override void TouchesMoved(NSSet touches, UIEvent? evt) => Deliver(touches, SkUiTouchAction.Moved);
-    public override void TouchesEnded(NSSet touches, UIEvent? evt) => Deliver(touches, SkUiTouchAction.Released);
-    public override void TouchesCancelled(NSSet touches, UIEvent? evt) => Deliver(touches, SkUiTouchAction.Cancelled);
+    public override void TouchesBegan(NSSet touches, UIEvent? evt) => Deliver(touches, SkUiTouchAction.Pressed, evt);
+    public override void TouchesMoved(NSSet touches, UIEvent? evt) => Deliver(touches, SkUiTouchAction.Moved, evt);
+    public override void TouchesEnded(NSSet touches, UIEvent? evt) => Deliver(touches, SkUiTouchAction.Released, evt);
+    public override void TouchesCancelled(NSSet touches, UIEvent? evt) => Deliver(touches, SkUiTouchAction.Cancelled, evt);
 
-    private void Deliver(NSSet touches, SkUiTouchAction action)
+    private void Deliver(NSSet touches, SkUiTouchAction action, UIEvent? evt = null)
     {
+        // A secondary click (a right click or a two-finger trackpad click on Mac Catalyst and iPad).
+        var buttons = evt is not null && (OperatingSystem.IsIOSVersionAtLeast(13, 4) || OperatingSystem.IsMacCatalystVersionAtLeast(13, 4))
+                      && evt.ButtonMask.HasFlag(UIEventButtonMask.Secondary)
+            ? SkUiPointerButtons.Secondary
+            : SkUiPointerButtons.None;
         foreach (var item in touches)
         {
             if (item is not UITouch touch)
@@ -101,7 +106,10 @@ internal sealed class SkUiMetalView : UIView
             if (action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
                 _touchIds.Remove(key);
             var location = touch.LocationInView(this);
-            TouchHandler?.Invoke(new SkUiTouchEvent(id, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp), Device: SkUiPointerDevices.From(touch)));
+            TouchHandler?.Invoke(new SkUiTouchEvent(id, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp), Device: SkUiPointerDevices.From(touch))
+            {
+                Buttons = buttons
+            });
         }
         _gate.Sync(NativeGestureState?.Invoke() ?? SkUiNativeGestureState.None, ended: _touchIds.Count == 0);
     }

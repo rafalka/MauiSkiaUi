@@ -54,21 +54,25 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 | `Picker` | `sk:SkUiPicker` | Prefix swap: same `ItemsSource` / `Items`, `ItemDisplayBinding`, `SelectedIndex` / `SelectedItem` (two-way), `SelectedIndexChanged`, `Title` / `TitleColor`, text and font properties, alignments, `IsOpen` / `Opened` / `Closed`. Its list opens on the app's popup system: register a presenter once (with CommunityToolkit.Maui: the `SkiaUi.Maui.CommunityToolkit` package and `UseSkiaUiCommunityToolkit()`; see the note below), else MAUI's action sheet shows the items. `ios:Picker.UpdateMode="WhenFinished"` → `UpdateMode="WhenFinished"` on `sk:SkUiPicker` (every platform; Cancel / OK buttons, texts from `SkUiStrings.Current` (app-wide, all of SkiaUi's texts; derive it to read the app's resources) or `AcceptText` / `CancelText` on the picker: wire them to the app's localization); drop `ios:Picker.UpdateMode="Immediately"` (the default). Optional: `PopupPlacement` (`Anchored` combo box, `Window` dialog or sheet), `ItemTemplate` of drawn rows, `MaxPopupHeight`, `SelectionMode="Multiple"` with `SelectedItems` (several choices) |
 | `DatePicker` | `sk:SkUiDatePicker` | Prefix swap: same `Date` (`DateTime?`, two-way, today by default), `MinimumDate` / `MaximumDate`, `Format`, `DateSelected`, `IsOpen` / `Opened` / `Closed` (MAUI's event args), text and font properties. Its wheels open on the app's popup system (the presenter registered for `SkUiPicker`). Optional: `WheelFormat` (`"MMMM yyyy"` a month picker), `BlackoutDates`, `DateEnabled` (code), `DefaultHighlightedDate`, `AreColumnHeadersVisible`, `UpdateMode="WhenFinished"`, `IsClearButtonVisible`, `Placeholder`; `sk:SkUiDateTimePicker` for a day and a time together |
 | `TimePicker` | `sk:SkUiTimePicker` | Prefix swap: same `Time` (`TimeSpan?`, two-way), `Format`, `TimeSelected`, `IsOpen` / `Opened` / `Closed`, text and font properties; wheels on the app's popup system. Optional: `MinimumTime` / `MaximumTime`, `MinuteInterval` (and `HourInterval`, `SecondInterval`), `WheelFormat` (`"HH:mm"`), `DefaultHighlightedTime` |
+| `Entry` | `sk:SkUiEntry` | Prefix swap, drawn (the platform keyboard and input methods type into it): same `Text` (two-way), `TextChanged`, `Placeholder` / `PlaceholderColor`, `Keyboard`, `ReturnType`, `ReturnCommand` / `Completed`, `IsPassword`, `MaxLength`, `IsReadOnly`, `CursorPosition` / `SelectionLength`, `ClearButtonVisibility`, `IsSpellCheckEnabled`, `IsTextPredictionEnabled`, text and font properties. Default `FontSize` 16. Handler / mapper tweaks (no underline, caret color, `ios:Entry.CursorColor`) → `CaretColor`, `SelectionColor`, the look's `DefaultSkUiLook.TextFieldStyle` (`Underline`, `Outline`, `Filled`); platform content types → `AutofillHint` (`SkUiAutofillHints`). Keyboard-avoidance code for fields inside a drawn `SkUiScrollView` can go (the focused field scrolls above the keyboard). Keep a hosted `Entry` only for an Android login form that needs the autofill service (not wired for drawn fields yet) |
+| `Editor` | `sk:SkUiEditor` | As `Entry`, multiline: `AutoSize="TextChanges"` grows with the text; scrolls inside |
+| `SearchBar` | `sk:SkUiSearchBar` | As `Entry`: `SearchCommand` / `SearchCommandParameter`, `SearchButtonPressed`, `CancelButtonColor`; plus `SearchIconColor` |
+| `Stepper` | `sk:SkUiStepper` | Prefix swap: same `Value` (two-way), `Minimum`, `Maximum`, `Increment`, `ValueChanged`, MAUI's coercion; buttons only, so a label showing the value stays. `Orientation="Vertical"` stacks the buttons (+ on top); `DecrementText` / `IncrementText` with `FontFamily` / `FontSize` replace − / + (words, icon-font symbols); `CornerRadius` / `BorderWidth` / `BorderColor` replace handler or effect styling of its outline. A `Value` bound to an `int` / `decimal` through a converter → `x:TypeArguments="x:Int32"` (`SkUiStepper<T>`), drop the converter; `ValueChanged` handlers then take `SkUiValueChangedEventArgs<T>` |
 | `GraphicsView`, `SKCanvasView` | A `SkUiView` subclass | See [custom-controls.md](custom-controls.md) |
 
 `FFImageLoading`'s `CachedImage` → `sk:SkUiImage` (its circle / rounded / blur transformations have drawn equivalents in `Transformations`).
 
 ## Native islands
 
-`Entry`, `Editor`, `SearchBar`, `WebView`, maps, media and third-party controls stay native inside the drawn tree (drawn `Entry`, `Editor` and `SearchBar` equivalents are planned; until they ship, wrap these too):
+`WebView`, maps, media and third-party controls stay native inside the drawn tree:
 
 ```xml
 <sk:SkUiMauiContentView>
-    <Entry Text="{Binding Name}" Placeholder="Name" />
+    <WebView Source="{Binding HelpUrl}" />
 </sk:SkUiMauiContentView>
 ```
 
-The wrapper is measured and arranged like a drawn view; the native control sits above the surface. Drawn content cannot cover it (a drawn dropdown over an Entry is hidden behind it). One control per wrapper.
+The wrapper is measured and arranged like a drawn view; the native control sits above the surface. Drawn content cannot cover it (a drawn dropdown over a hosted view is hidden behind it). One control per wrapper.
 
 ## Every drawn view
 

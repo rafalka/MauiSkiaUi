@@ -6,8 +6,9 @@ public readonly struct SkUiPointer
     private readonly SkUiPointerRouter? _router;
 
     internal SkUiPointer(long id, Point position, Point startPosition, TimeSpan timestamp, SkUiPointerRouter router,
-        SkUiPointerDevice device = SkUiPointerDevice.Touch)
+        SkUiPointerDevice device = SkUiPointerDevice.Touch, SkUiPointerButtons buttons = SkUiPointerButtons.None)
     {
+        Buttons = buttons;
         Id = id;
         Position = position;
         StartPosition = startPosition;
@@ -30,6 +31,9 @@ public readonly struct SkUiPointer
 
     /// <summary>What produces the pointer's samples (a finger, a mouse, a pen), as reported when it was pressed.</summary>
     public SkUiPointerDevice Device { get; }
+
+    /// <summary>The buttons the pointer was pressed with (a right click: <see cref="SkUiPointerButtons.Secondary"/>).</summary>
+    public SkUiPointerButtons Buttons { get; }
 
     /// <summary>Distance moved since the press (surface DIPs).</summary>
     public double TotalX => Position.X - StartPosition.X;

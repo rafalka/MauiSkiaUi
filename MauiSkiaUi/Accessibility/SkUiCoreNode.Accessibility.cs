@@ -173,6 +173,9 @@ public partial class SkUiCoreNode : ISkUiAccessibleNode
     /// <summary>Corner radii of the focus ring (default: the press effect's).</summary>
     internal virtual CornerRadius FocusRingCornerRadii => PressEffectCornerRadii;
 
+    /// <summary>Whether the look's focus ring is drawn while the node has keyboard focus from the keyboard (a text field shows its own highlight instead).</summary>
+    internal virtual bool ShowsFocusRing => true;
+
     void ISkUiAccessibleNode.GetSemantics(SkUiSemanticsInfo info)
     {
         info.IsEnabled = IsSemanticsEnabled;
@@ -216,7 +219,7 @@ public partial class SkUiCoreNode : ISkUiAccessibleNode
             OnPropertyChanged(nameof(IsFocused));
             (focused ? Focused : Unfocused)?.Invoke(this, EventArgs.Empty);
         }
-        var ring = focused && ringVisible;
+        var ring = focused && ringVisible && ShowsFocusRing;
         if (_focusRingVisible == ring)
             return;
         _focusRingVisible = ring;

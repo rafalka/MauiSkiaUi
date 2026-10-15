@@ -938,6 +938,375 @@ public class SkUiLook
 
     #endregion
 
+    #region Text fields
+
+    /// <summary>The minimum height of text fields (entries, search bars) that do not set their own, in DIPs (default 44, a touch target).</summary>
+    public virtual double DefaultTextFieldMinimumHeight => 44;
+
+    /// <summary>The space between a text field's edges and its text, in DIPs (a clear button's room is added at the end).</summary>
+    public virtual Thickness TextFieldPadding => new(12, 8);
+
+    /// <summary>The room a text field keeps for its clear button (<c>ClearButtonVisibility</c>) at the end, in DIPs (default 32).</summary>
+    public virtual double TextFieldClearButtonWidth => 32;
+
+    /// <summary>The caret's width in DIPs (default 2).</summary>
+    public virtual float CaretWidth => 2;
+
+    /// <summary>
+    /// How long the caret shows, then hides, while it blinks (default 500 ms; zero: it does not blink). Typing and moving the
+    /// caret show it solid until the next interval.
+    /// </summary>
+    public virtual TimeSpan CaretBlinkInterval => TimeSpan.FromMilliseconds(500);
+
+    /// <summary>The caret's color for fields that set none (default: the color scheme's accent).</summary>
+    public virtual Color CaretColor => SkUiColors.Accent;
+
+    /// <summary>The color behind selected text (default: the color scheme's accent, 30 % opaque).</summary>
+    public virtual Color TextSelectionColor => SkUiColors.Accent.WithAlpha(0.3f);
+
+    /// <summary>
+    /// Optional painter of the handles of a selection made by touch; when set, replaces <see cref="DrawTextSelectionHandleCore"/>.
+    /// </summary>
+    public Action<SKCanvas, SkUiTextSelectionHandlePaint>? TextSelectionHandlePainter { get; set; }
+
+    /// <summary>
+    /// Draws a handle of a text selection made by touch (delegate or <see cref="DrawTextSelectionHandleCore"/>): dragging it moves that
+    /// end of the selection. The handle sits on the selection's edge (<see cref="SkUiTextSelectionHandlePaint.Edge"/>), inside the field.
+    /// </summary>
+    public void DrawTextSelectionHandle(SKCanvas canvas, SkUiTextSelectionHandlePaint handle)
+    {
+        if (TextSelectionHandlePainter is { } painter)
+        {
+            painter(canvas, handle);
+            return;
+        }
+        DrawTextSelectionHandleCore(canvas, handle);
+    }
+
+    /// <summary>Default handle (as iOS's): a bar along the selection's edge with a knob above the start and below the end.</summary>
+    protected virtual void DrawTextSelectionHandleCore(SKCanvas canvas, SkUiTextSelectionHandlePaint handle)
+    {
+        var edge = handle.Edge;
+        using var paint = new SKPaint { IsAntialias = true, Color = handle.Color };
+        canvas.DrawRect(new SKRect(edge.MidX - 1, edge.Top, edge.MidX + 1, edge.Bottom), paint);
+        const float knob = 4.5f;
+        canvas.DrawCircle(edge.MidX, handle.IsStart ? edge.Top - knob + 1 : edge.Bottom + knob - 1, knob, paint);
+    }
+
+    /// <summary>
+    /// The rectangle a selection handle draws in around its <paramref name="edge"/> (field coordinates): it may hang outside the
+    /// field, and a touch grabs the handle near it. Default: the edge with its knob above the start or below the end.
+    /// </summary>
+    public virtual SKRect GetTextSelectionHandleBounds(SKRect edge, bool isStart) => isStart
+        ? new SKRect(edge.MidX - 5, edge.Top - 9, edge.MidX + 5, edge.Bottom)
+        : new SKRect(edge.MidX - 5, edge.Top, edge.MidX + 5, edge.Bottom + 9);
+
+    /// <summary>The distance within which a touch grabs a selection handle, in DIPs (default 22).</summary>
+    public virtual double TextSelectionHandleTouchRadius => 22;
+
+    /// <summary>
+    /// Whether a tap in a text field shows a handle under the caret that drags it, as Android's fields do (default: on Android).
+    /// Elsewhere the caret itself is dragged, as on iOS. Both show the platform's magnifier while the caret moves.
+    /// </summary>
+    public virtual bool ShowsTextInsertionHandle => OperatingSystem.IsAndroid();
+
+    /// <summary>How long the insertion handle stays after a tap when it is not used (default 4 s, as Android's).</summary>
+    public virtual TimeSpan TextInsertionHandleTimeout => TimeSpan.FromSeconds(4);
+
+    /// <summary>
+    /// Optional painter of the insertion handle (<see cref="ShowsTextInsertionHandle"/>); when set, replaces
+    /// <see cref="DrawTextInsertionHandleCore"/>. It draws inside <see cref="GetTextInsertionHandleBounds"/>.
+    /// </summary>
+    public Action<SKCanvas, SkUiTextInsertionHandlePaint>? TextInsertionHandlePainter { get; set; }
+
+    /// <summary>
+    /// Draws the handle under a text field's caret after a tap (delegate or <see cref="DrawTextInsertionHandleCore"/>): dragging it
+    /// moves the caret. It hangs below the caret, also outside the field.
+    /// </summary>
+    public void DrawTextInsertionHandle(SKCanvas canvas, SkUiTextInsertionHandlePaint handle)
+    {
+        if (TextInsertionHandlePainter is { } painter)
+        {
+            painter(canvas, handle);
+            return;
+        }
+        DrawTextInsertionHandleCore(canvas, handle);
+    }
+
+    /// <summary>Default insertion handle (as Android's): a drop hanging from the caret's bottom.</summary>
+    protected virtual void DrawTextInsertionHandleCore(SKCanvas canvas, SkUiTextInsertionHandlePaint handle)
+    {
+        var bounds = GetTextInsertionHandleBounds(handle.Caret);
+        var radius = bounds.Width / 2;
+        var center = new SKPoint(bounds.MidX, bounds.Bottom - radius);
+        using var paint = new SKPaint { IsAntialias = true, Color = handle.Color };
+        canvas.DrawCircle(center, radius, paint);
+        // The point: from the caret down to where its lines touch the circle (45° either side, the circle being √2 radii below).
+        var tangent = radius / MathF.Sqrt(2);
+        using var builder = new SKPathBuilder();
+        builder.MoveTo(bounds.MidX, bounds.Top);
+        builder.LineTo(center.X + tangent, center.Y - tangent);
+        builder.LineTo(center.X, center.Y);
+        builder.LineTo(center.X - tangent, center.Y - tangent);
+        builder.Close();
+        using var path = builder.Detach();
+        canvas.DrawPath(path, paint);
+    }
+
+    /// <summary>
+    /// The insertion handle's rectangle under <paramref name="caret"/> (field coordinates): where it draws and where a touch grabs
+    /// it. Default: a drop 22 DIPs wide, its point at the caret's bottom.
+    /// </summary>
+    public virtual SKRect GetTextInsertionHandleBounds(SKRect caret)
+    {
+        const float radius = 11;
+        return new SKRect(caret.MidX - radius, caret.Bottom, caret.MidX + radius, caret.Bottom + radius * (1 + MathF.Sqrt(2)));
+    }
+
+    /// <summary>Optional text field painter; when set, replaces <see cref="DrawTextFieldCore"/>.</summary>
+    public Action<SKCanvas, SkUiTextFieldPaint>? TextFieldPainter { get; set; }
+
+    /// <summary>
+    /// Draws a text field's chrome behind its text (delegate or <see cref="DrawTextFieldCore"/>): an underline, an outline or a fill
+    /// with its states (pointer over, focused, read-only, disabled; <see cref="SkUiTextFieldPaint.Focused"/> animates with the look's
+    /// <see cref="SkUiTransitionKind.FieldFocus"/> transition). The control draws the selection, text, placeholder and caret over it.
+    /// </summary>
+    public void DrawTextField(SKCanvas canvas, SkUiTextFieldPaint field)
+    {
+        if (TextFieldPainter is { } painter)
+        {
+            painter(canvas, field);
+            return;
+        }
+        DrawTextFieldCore(canvas, field);
+    }
+
+    /// <summary>Default text field: none (<see cref="DefaultSkUiLook"/> draws <see cref="DefaultSkUiLook.TextFieldStyle"/>).</summary>
+    protected virtual void DrawTextFieldCore(SKCanvas canvas, SkUiTextFieldPaint field) { }
+
+    /// <summary>Optional painter of a text field's clear button; when set, replaces <see cref="DrawTextFieldClearButtonCore"/>.</summary>
+    public Action<SKCanvas, SkUiPickerClearButtonPaint>? TextFieldClearButtonPainter { get; set; }
+
+    /// <summary>
+    /// Draws the clear button of a text field (delegate or <see cref="DrawTextFieldClearButtonCore"/>) in
+    /// <see cref="SkUiPickerClearButtonPaint.Bounds"/>, at the field's end; shown while it is focused and has text.
+    /// </summary>
+    public void DrawTextFieldClearButton(SKCanvas canvas, SkUiPickerClearButtonPaint button)
+    {
+        if (TextFieldClearButtonPainter is { } painter)
+        {
+            painter(canvas, button);
+            return;
+        }
+        DrawTextFieldClearButtonCore(canvas, button);
+    }
+
+    /// <summary>Default text field clear button: the picker's (<see cref="DrawPickerClearButtonCore"/>).</summary>
+    protected virtual void DrawTextFieldClearButtonCore(SKCanvas canvas, SkUiPickerClearButtonPaint button) => DrawPickerClearButtonCore(canvas, button);
+
+    #endregion
+
+    #region Search bar
+
+    /// <summary>The room a search bar keeps for its icon at the start, in DIPs (default 28).</summary>
+    public virtual double SearchIconWidth => 28;
+
+    /// <summary>Optional search field painter; when set, replaces <see cref="DrawSearchFieldCore"/>.</summary>
+    public Action<SKCanvas, SkUiSearchFieldPaint>? SearchFieldPainter { get; set; }
+
+    /// <summary>
+    /// Draws a search bar's field behind its text (delegate or <see cref="DrawSearchFieldCore"/>): its background and the search icon
+    /// in <see cref="SkUiSearchFieldPaint.IconBounds"/>, with its states. The control draws the text, the clear button and the caret.
+    /// </summary>
+    public void DrawSearchField(SKCanvas canvas, SkUiSearchFieldPaint field)
+    {
+        if (SearchFieldPainter is { } painter)
+        {
+            painter(canvas, field);
+            return;
+        }
+        DrawSearchFieldCore(canvas, field);
+    }
+
+    /// <summary>
+    /// Default search field: a lightly filled pill (a little darker under a pointer, an accent outline while focused) and a
+    /// magnifying glass in the icon color.
+    /// </summary>
+    protected virtual void DrawSearchFieldCore(SKCanvas canvas, SkUiSearchFieldPaint field)
+    {
+        var bounds = field.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+        var radius = Math.Min(10, bounds.Height / 2);
+        using var paint = new SKPaint { IsAntialias = true };
+        var fill = field.IsPointerOver && field.IsEnabled ? 0.24f : 0.16f;
+        paint.Color = field.Border.WithAlpha((byte)(field.Border.Alpha * (field.IsEnabled ? fill : fill / 2)));
+        canvas.DrawRoundRect(bounds, radius, radius, paint);
+        if (field.IsEnabled && field.Focused > 0)
+        {
+            var width = 1.5f * Math.Clamp(field.Focused, 0, 1);
+            var ring = bounds;
+            ring.Inflate(-width / 2, -width / 2);
+            paint.Style = SKPaintStyle.Stroke;
+            paint.StrokeWidth = width;
+            paint.Color = field.Accent;
+            canvas.DrawRoundRect(ring, radius - width / 2, radius - width / 2, paint);
+        }
+        // The magnifying glass: a ring and a handle to the bottom right (left in right-to-left layouts).
+        var icon = field.IconBounds;
+        var size = Math.Min(14f, Math.Min(icon.Width, icon.Height) * 0.7f);
+        var ringRadius = size * 0.36f;
+        var center = new SKPoint(icon.MidX - size * 0.1f * (field.IsRightToLeft ? -1 : 1), icon.MidY - size * 0.1f);
+        paint.Style = SKPaintStyle.Stroke;
+        paint.StrokeWidth = 1.75f;
+        paint.StrokeCap = SKStrokeCap.Round;
+        paint.Color = field.IconColor.WithAlpha((byte)(field.IconColor.Alpha * (field.IsEnabled ? 1f : 0.5f)));
+        canvas.DrawCircle(center, ringRadius, paint);
+        var direction = field.IsRightToLeft ? -1 : 1;
+        var start = new SKPoint(center.X + direction * ringRadius * 0.72f, center.Y + ringRadius * 0.72f);
+        canvas.DrawLine(start, new SKPoint(start.X + direction * size * 0.3f, start.Y + size * 0.3f), paint);
+    }
+
+    #endregion
+
+    #region Stepper
+
+    /// <summary>
+    /// The size of each of a stepper's two buttons, in DIPs (default 47 × 32: the pair is iOS's 94 × 32 stepper; stacked, 47 × 64).
+    /// </summary>
+    public virtual Size StepperButtonSize => new(47, 32);
+
+    /// <summary>The opacity of a stepper's − and + (glyphs or texts) on a button that cannot step, and of its outline when disabled.</summary>
+    internal const float StepperDimmedOpacity = 0.35f;
+
+    internal const float DefaultStepperCornerRadius = 8;
+
+    /// <summary>A stepper's corner radius in DIPs when its <c>CornerRadius</c> is not set (default 8).</summary>
+    public virtual double StepperCornerRadius => DefaultStepperCornerRadius;
+
+    /// <summary>How long a held stepper button waits before it repeats (default 400 ms).</summary>
+    public virtual TimeSpan StepperRepeatDelay => TimeSpan.FromMilliseconds(400);
+
+    /// <summary>How often a held stepper button repeats (default every 100 ms).</summary>
+    public virtual TimeSpan StepperRepeatInterval => TimeSpan.FromMilliseconds(100);
+
+    /// <summary>Optional stepper painter; when set, replaces <see cref="DrawStepperCore"/>.</summary>
+    public Action<SKCanvas, SkUiStepperPaint>? StepperPainter { get; set; }
+
+    /// <summary>
+    /// Draws a stepper (delegate or <see cref="DrawStepperCore"/>): its − and + buttons in <see cref="SkUiStepperPaint.DecrementBounds"/>
+    /// and <see cref="SkUiStepperPaint.IncrementBounds"/>, side by side or stacked (<see cref="SkUiStepperPaint.Orientation"/>), with
+    /// their pressed and disabled states (a button is disabled at its end of the range). A button with a text of the control's own
+    /// (<see cref="SkUiStepperPaint.HasDecrementText"/>, <see cref="SkUiStepperPaint.HasIncrementText"/>) gets no glyph: the control
+    /// draws its text over the look's drawing. The shape is rounded by <see cref="SkUiStepperPaint.CornerRadius"/> and outlined by
+    /// <see cref="SkUiStepperPaint.BorderWidth"/> in <see cref="SkUiStepperPaint.BorderColor"/>.
+    /// </summary>
+    public void DrawStepper(SKCanvas canvas, SkUiStepperPaint stepper)
+    {
+        if (StepperPainter is { } painter)
+        {
+            painter(canvas, stepper);
+            return;
+        }
+        DrawStepperCore(canvas, stepper);
+    }
+
+    /// <summary>
+    /// Default stepper: one rounded (<see cref="SkUiStepperPaint.CornerRadius"/>), lightly filled segment per button, divided by a
+    /// short line, a − and a + drawn in the foreground (dimmed when the button cannot step), a darker fill while pressed and an accent
+    /// outline while focused. With a <see cref="SkUiStepperPaint.BorderWidth"/>, an outline in <see cref="SkUiStepperPaint.BorderColor"/>
+    /// and a divider of the same width and color across the whole stepper, as a segmented control's.
+    /// </summary>
+    protected virtual void DrawStepperCore(SKCanvas canvas, SkUiStepperPaint stepper)
+    {
+        var bounds = stepper.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+        // A radius past half the short side gives a pill.
+        var radius = Math.Clamp(stepper.CornerRadius, 0, Math.Min(bounds.Width, bounds.Height) / 2);
+        var borderWidth = Math.Clamp(stepper.BorderWidth, 0, Math.Min(bounds.Width, bounds.Height) / 2);
+        var bordered = borderWidth > 0 && stepper.BorderColor.Alpha > 0;
+        var enabled = stepper.IsEnabled;
+        using var paint = new SKPaint { IsAntialias = true };
+        paint.Color = stepper.Border.WithAlpha((byte)(stepper.Border.Alpha * (enabled ? 0.18f : 0.1f)));
+        canvas.DrawRoundRect(bounds, radius, radius, paint);
+        // Pressed buttons darken (clipped to the rounded shape).
+        var save = canvas.Save();
+        using (var clip = new SKRoundRect(bounds, radius))
+            canvas.ClipRoundRect(clip, antialias: true);
+        void Press(SKRect button, float amount)
+        {
+            if (amount <= 0)
+                return;
+            paint.Color = stepper.Foreground.WithAlpha((byte)(28 * Math.Clamp(amount, 0, 1)));
+            canvas.DrawRect(button, paint);
+        }
+        Press(stepper.DecrementBounds, stepper.DecrementPressed);
+        Press(stepper.IncrementBounds, stepper.IncrementPressed);
+        canvas.RestoreToCount(save);
+        paint.Style = SKPaintStyle.Stroke;
+        // The outline, inside the bounds.
+        var borderColor = stepper.BorderColor.WithAlpha((byte)(stepper.BorderColor.Alpha * (enabled ? 1f : StepperDimmedOpacity)));
+        if (bordered)
+        {
+            var outline = bounds;
+            outline.Inflate(-borderWidth / 2, -borderWidth / 2);
+            var outlineRadius = Math.Max(0, radius - borderWidth / 2);
+            paint.Color = borderColor;
+            paint.StrokeWidth = borderWidth;
+            canvas.DrawRoundRect(outline, outlineRadius, outlineRadius, paint);
+        }
+        // The divider between the buttons: across the stepper in the outline's width and color, or a short muted line.
+        if (bordered)
+            paint.Color = borderColor;
+        else
+        {
+            paint.Color = stepper.Border.WithAlpha((byte)(stepper.Border.Alpha * 0.6f));
+            paint.StrokeWidth = 1;
+        }
+        if (stepper.Orientation == StackOrientation.Vertical)
+        {
+            var y = (stepper.IncrementBounds.Bottom + stepper.DecrementBounds.Top) / 2;
+            var inset = bordered ? borderWidth : bounds.Width * 0.22f;
+            canvas.DrawLine(bounds.Left + inset, y, bounds.Right - inset, y, paint);
+        }
+        else
+        {
+            var (start, end) = stepper.IsRightToLeft ? (stepper.IncrementBounds, stepper.DecrementBounds) : (stepper.DecrementBounds, stepper.IncrementBounds);
+            var x = (start.Right + end.Left) / 2;
+            var inset = bordered ? borderWidth : bounds.Height * 0.22f;
+            canvas.DrawLine(x, bounds.Top + inset, x, bounds.Bottom - inset, paint);
+        }
+        // − and +.
+        paint.StrokeWidth = 1.75f;
+        paint.StrokeCap = SKStrokeCap.Round;
+        void Glyph(SKRect button, bool plus, bool canStep)
+        {
+            var color = stepper.Foreground;
+            paint.Color = color.WithAlpha((byte)(color.Alpha * (enabled && canStep ? 1f : StepperDimmedOpacity)));
+            var arm = Math.Min(6f, Math.Min(button.Width, button.Height) / 4);
+            canvas.DrawLine(button.MidX - arm, button.MidY, button.MidX + arm, button.MidY, paint);
+            if (plus)
+                canvas.DrawLine(button.MidX, button.MidY - arm, button.MidX, button.MidY + arm, paint);
+        }
+        if (!stepper.HasDecrementText)
+            Glyph(stepper.DecrementBounds, plus: false, stepper.CanDecrement);
+        if (!stepper.HasIncrementText)
+            Glyph(stepper.IncrementBounds, plus: true, stepper.CanIncrement);
+        if (enabled && stepper.Focused > 0)
+        {
+            var width = 2 * Math.Clamp(stepper.Focused, 0, 1);
+            var ring = bounds;
+            ring.Inflate(-width / 2, -width / 2);
+            paint.Color = stepper.Accent;
+            paint.StrokeWidth = width;
+            var ringRadius = Math.Max(0, radius - width / 2);
+            canvas.DrawRoundRect(ring, ringRadius, ringRadius, paint);
+        }
+    }
+
+    #endregion
+
     #region Avatar
 
     // Hues the avatar palette picks from by name; light backgrounds are tints, dark ones shades, text the other way round.

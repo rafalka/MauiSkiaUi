@@ -158,6 +158,10 @@ internal sealed class SkUiAccessibilityBridge
                 // As UIKit's pop-up button (UIButton with a menu): a button read with its selection as the value.
                 traits |= UIAccessibilityTrait.Button;
                 break;
+            case SkUiSemanticsRole.TextField:
+                // As a UITextField: the text as the value (the placeholder, as the label, while empty); activating focuses it.
+                value = string.IsNullOrEmpty(node.Value) ? null : node.Value;
+                break;
             default:
                 if ((node.Actions & SkUiSemanticsActions.Activate) != 0)
                     traits |= UIAccessibilityTrait.Button;

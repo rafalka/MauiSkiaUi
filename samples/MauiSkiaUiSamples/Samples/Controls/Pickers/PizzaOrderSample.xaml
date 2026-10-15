@@ -2,8 +2,8 @@
 <!--
   Pickers in XAML over a view model (PizzaOrderSample.xaml.cs): a size picker whose field and rows are drawn by templates, a
   crust picker with a placeholder and a clear button, and a toppings picker with several choices shown as tokens, "All
-  toppings", items out of stock that cannot be chosen, and OK / Cancel. The total follows every change through
-  SelectionChangedCommand.
+  toppings", items out of stock that cannot be chosen, and OK / Cancel, then a typed stepper for the quantity
+  (x:TypeArguments="x:Int32"). The total follows every change through SelectionChangedCommand and the quantity's binding.
 -->
 <samples:SamplePage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
@@ -104,6 +104,13 @@
                 </DataTemplate>
             </sk:SkUiPicker.PopupFooterTemplate>
         </sk:SkUiPicker>
+
+        <!-- How many pizzas: a typed stepper (SkUiStepper<int>) bound to the view model's int. -->
+        <sk:SkUiLabel Text="QUANTITY" FontSize="13" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Caption}" />
+        <sk:SkUiHorizontalStackLayout Spacing="12">
+            <sk:SkUiStepper x:TypeArguments="x:Int32" Minimum="1" Maximum="20" Value="{Binding Quantity}" />
+            <sk:SkUiLabel Text="{Binding Quantity}" FontSize="18" TextColor="{x:Static samples:SampleColors.Ink}" VerticalOptions="Center" />
+        </sk:SkUiHorizontalStackLayout>
 
         <sk:SkUiLabel Text="{Binding Total}" FontSize="22" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Ink}" Margin="0,8,0,0" />
         <sk:SkUiLabel Text="{Binding Summary}" FontSize="13" TextColor="{x:Static samples:SampleColors.Caption}" />
