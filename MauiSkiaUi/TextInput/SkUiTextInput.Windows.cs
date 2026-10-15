@@ -20,10 +20,13 @@ namespace MauiSkiaUi;
 /// CoreTextEditContext (the protocol on the surface itself) needs <c>CoreTextServicesManager.GetForCurrentView()</c>, which depends
 /// on a CoreWindow WinUI 3 desktop apps do not have; a hidden text box works in every host (see docs/design/TextInput.md).
 /// </remarks>
-internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
+internal sealed partial class SkUiWindowsTextInput : ISkUiTextInputProxy
 {
+    /// <summary>What a password field's box holds for each UTF-16 unit of its text (as MAUI's password text box).</summary>
+    private const char MaskCharacter = '\u25CF';
+
     private readonly SkUiOverlayContainer _container;
-    private readonly Microsoft.UI.Xaml.Controls.TextBox _box;
+    private readonly InputBox _box;
     private ISkUiTextInputClient? _client;
     private int _pushing;
     private bool _composing;
@@ -32,7 +35,7 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
     public SkUiWindowsTextInput(SkUiOverlayContainer container)
     {
         _container = container;
-        _box = new Microsoft.UI.Xaml.Controls.TextBox
+        _box = new InputBox
         {
             Opacity = 0,
             // Not IsHitTestVisible = false: WinUI then raises neither TextChanged nor SelectionChanged (only TextChanging). An
@@ -135,8 +138,13 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
 
     public void OptionsChanged(ISkUiTextInputClient client)
     {
-        if (ReferenceEquals(_client, client))
-            Configure(client);
+        if (!ReferenceEquals(_client, client))
+            return;
+        var masked = _box.IsPassword;
+        Configure(client);
+        // Shown or hidden password: the box takes the text or its mask.
+        if (_box.IsPassword != masked && !_composing)
+            Copy(client);
     }
 
     public void GeometryChanged(ISkUiTextInputClient client)
@@ -206,6 +214,7 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
     private void Configure(ISkUiTextInputClient client)
     {
         var options = client.Options;
+        _box.IsPassword = options.IsPassword;
         _box.AcceptsReturn = options.IsMultiline;
         _box.TextWrapping = options.IsMultiline ? Microsoft.UI.Xaml.TextWrapping.Wrap : Microsoft.UI.Xaml.TextWrapping.NoWrap;
         _box.IsSpellCheckEnabled = options.IsSpellCheckEnabled && !options.IsPassword;
@@ -265,7 +274,7 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
         {
             if (text != old)
             {
-                var (start, end, inserted) = SkUiTextEditor.Diff(old, text);
+                var (start, end, inserted) = _box.IsPassword ? MaskedEdit(client.Editor, old, text) : SkUiTextEditor.Diff(old, text);
                 client.ReplaceText(start, end, FromBox(inserted));
             }
             if (SelectionDiffers(client))
@@ -291,11 +300,14 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
     /// <summary>
     /// The field's text as the box holds it, one character for one (the indexes match): WinUI's text box keeps a line break as
     /// <c>\r</c>, so the field's <c>\n</c> copied in comes back as another text, which copied out again would never settle. A
-    /// single line shows breaks the app set as spaces.
+    /// single line shows breaks the app set as spaces. A password is masked: UI Automation reads the box's text (through its
+    /// RichEdit, whatever the peer reports), as it reads a <c>PasswordBox</c>'s bullets.
     /// </summary>
-    private static string ToBox(SkUiTextEditor editor)
+    private string ToBox(SkUiTextEditor editor)
     {
         var text = editor.Text;
+        if (_box.IsPassword)
+            return new string(MaskCharacter, text.Length);
         if (text.AsSpan().IndexOfAny('\r', '\n') < 0)
             return text;
         return editor.IsMultiline ? text.Replace('\n', '\r') : text.Replace('\r', ' ').Replace('\n', ' ');
@@ -306,6 +318,28 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
     /// method ever bring one (the box keeps <c>\r</c>).
     /// </summary>
     private static string FromBox(string text) => SkUiTextEditor.NormalizeLineBreaks(text);
+
+    /// <summary>
+    /// A masked box's edit, placed by the field's selection and the box's caret: a diff cannot place it, since the mask is one
+    /// character repeated. Text typed over the selection ends at the caret; a deletion (Backspace and Delete are the field's own
+    /// keys, so only from the input method) ends or starts at the caret. Another shape falls back to the diff.
+    /// </summary>
+    private (int Start, int End, string Inserted) MaskedEdit(SkUiTextEditor editor, string old, string text)
+    {
+        var start = editor.SelectionStart;
+        var end = start + editor.SelectionLength;
+        var caret = _box.SelectionStart;
+        if (_box.SelectionLength == 0)
+        {
+            var typed = text.Length - old.Length + editor.SelectionLength;
+            if (typed >= 0 && caret == start + typed)
+                return (start, end, text.Substring(start, typed));
+            var deleted = old.Length - text.Length;
+            if (deleted > 0 && editor.SelectionLength == 0 && (caret + deleted == start || caret == start))
+                return (caret, caret + deleted, string.Empty);
+        }
+        return SkUiTextEditor.Diff(old, text);
+    }
 
     /// <summary>Whether the box's selection is another range than the field's (the box's has no direction).</summary>
     private bool SelectionDiffers(ISkUiTextInputClient client) =>
@@ -376,6 +410,21 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
             if (ReferenceEquals(_client, client) && !HasFocus && _container.FocusState == FocusState.Unfocused)
                 _container.KeyboardFocus?.OnNativeFocusChanged(false);
         });
+    }
+
+    /// <summary>The text box, whose automation peer is a password's (as a <c>PasswordBox</c>'s) while a password field is attached.</summary>
+    private sealed partial class InputBox : Microsoft.UI.Xaml.Controls.TextBox
+    {
+        /// <summary>Whether the attached field is a password: the box holds its mask (see <see cref="ToBox"/>).</summary>
+        public bool IsPassword { get; set; }
+
+        protected override Microsoft.UI.Xaml.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => new InputBoxPeer(this);
+    }
+
+    /// <summary>A text box's peer (the touch keyboard and the input method rely on it) that tells UI Automation a password is a password.</summary>
+    private sealed partial class InputBoxPeer(InputBox owner) : Microsoft.UI.Xaml.Automation.Peers.TextBoxAutomationPeer(owner)
+    {
+        protected override bool IsPasswordCore() => owner.IsPassword;
     }
 }
 #endif

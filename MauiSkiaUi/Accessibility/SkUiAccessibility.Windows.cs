@@ -319,6 +319,9 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
     protected override bool HasKeyboardFocusCore() => Node?.IsFocused == true;
 
     /// <inheritdoc />
+    protected override bool IsPasswordCore() => Node?.TextField?.IsPassword == true;
+
+    /// <inheritdoc />
     protected override bool IsOffscreenCore() => Node is null;
 
     /// <inheritdoc />
