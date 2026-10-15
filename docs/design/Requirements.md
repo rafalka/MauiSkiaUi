@@ -113,7 +113,7 @@ Measure, Arrange, and Paint must be **selective**: parents (especially layouts) 
 
 ### MAUI control hosting (`SkUiMauiContentView`)
 
-Some MAUI controls cannot be replaced by Skia drawing alone (a real browser engine for `WebView`; maps, media). SkiaUi does **not** ship a `SkUiWebView`. `Entry` / `Editor` get drawn equivalents (`SkUiEntry`, `SkUiEditor`) whose keyboard and IME input goes through a platform proxy (FR-16, planned as Phase D); until then, and for native-only needs, they are hosted too. Hosting:
+Some MAUI controls cannot be replaced by Skia drawing alone (a real browser engine for `WebView`; maps, media). SkiaUi does **not** ship a `SkUiWebView`. `Entry` / `Editor` / `SearchBar` have drawn equivalents (`SkUiEntry`, `SkUiEditor`, `SkUiSearchBar`) whose keyboard and IME input goes through a platform proxy (FR-16, Phase D, [TextInput.md](TextInput.md)); for native-only needs they can still be hosted. Hosting:
 
 - **`SkUiMauiContentView : SkUiView`** is an `ISkUiView` placeholder that participates in SkiaUi measure / arrange / z-order like any other child of `SkUiGrid` / `SkUiLayout` / `SkUiContentView`.
 - It exposes **`Content`** of type MAUI **`VisualElement`**, marked `[ContentProperty(nameof(Content))]` — e.g. `Entry`, `Editor`, `WebView`, `Picker`, `MediaElement`.
@@ -202,7 +202,7 @@ Design and checklist: [LayoutSystem.md](LayoutSystem.md).
 
 - [x] Initial **Skia-drawn** control set (no nested MAUI visuals for these types), including at least `SkUiLabel` (or equivalent text control).
 - [x] Do **not** implement a custom Skia `SkUiWebView` — use **`SkUiMauiContentView`** hosting instead (FR-16).
-- [ ] Drawn `SkUiEntry` / `SkUiEditor` (and Core twins) with an IME proxy (FR-16, Phase D).
+- [x] Drawn `SkUiEntry` / `SkUiEditor` (and Core twins) with an IME proxy (FR-16, Phase D); also `SkUiSearchBar` and `SkUiStepper` on the same engine ([TextInput.md](TextInput.md)). Device checks of IME composition, dictation and password managers are open.
 - [x] Each Skia-drawn control derives from **`SkUiView`** (implements `ISkUiView`), is XAML-constructible, works under `SkUiContentView` / `SkUiLayout`, and can be used standalone in the MAUI tree (FR-13).
 - [x] Labels (both layers) have MAUI Label's text properties (`MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`) and custom line breaking (`SkUiTextLineBreaker`), so text can get shorter in its own way (fewer decimals, another ellipsis) instead of the stock ellipsis.
 - [x] Labels (both layers) fit text to their size (C3): text that does not fit is tightened (`AllowsTightening`) and shrunk (`ShrinkToFit`, down to `MinimumFontScale`), every font size alike, as little as needed so nothing is truncated, left past `MaxLines` or broken inside a word, and the lines fit the label's height; text with room grows (`GrowToFill`, up to `MaximumFontScale`).
@@ -359,6 +359,7 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 - [x] **Z-order / clipping:** overlays are added after the Skia surface (so they paint on top). Each overlay sits in a clip wrapper sized to its visible rectangle (ancestor scroll viewports / clipping ancestors); it is hidden when fully scrolled out. Masking by drawn content on top of an overlay (drawn popups over native views) is still open (review 2.8).
 - [x] **Scope for v1 demos:** `MauiContentViewDemoPage` hosts both **`Editor`** and **`WebView`** (switchable) under a `SkUiContentView` in the gallery.
 - [x] Explicitly **out of product scope:** `SkUiWebView` (and similar Skia reimplementations of platform-engine controls). `SkUiEntry` / `SkUiEditor` are back in scope with an IME proxy (Phase D).
+- [x] **Drawn text input (Phase D):** `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar`, `SkUiStepper` and their Core twins draw text, caret, selection and chrome; the platform keyboard, IME composition, autocorrect, the clipboard and the edit menu are reached through one proxy per surface (Android `InputConnection` on the overlay container, a hidden `UITextInput` view on iOS / Mac Catalyst, a hidden `TextBox` on Windows). Focused fields scroll above the soft keyboard in drawn scrollers and are editable text fields for screen readers ([TextInput.md](TextInput.md)).
 - [x] Document cost: each hosted control is a real platform view; prefer few overlays, not one per collection cell, unless measured acceptable.
 - [x] XML docs on `SkUiMauiContentView` describing overlay model, gesture boundary vs FR-15, and the v1 limits above.
 Primary references: DrawnUi `SkiaMauiElement`; MAUI handlers for Entry / Editor / WebView; Flutter platform views / Avalonia `NativeControlHost` for composition tradeoffs.

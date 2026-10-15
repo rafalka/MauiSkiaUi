@@ -73,6 +73,82 @@ internal static partial class SkUiShaping
     }
 
     /// <summary>
+    /// Where each code unit of a line sits (editing: carets, hit-testing, selection): its left and right x on the line as
+    /// drawn (visual order, from the line's left edge) and its bidi level. A cluster drawn as one glyph (a ligature) is
+    /// split evenly between its graphemes; the later code units of a grapheme share its edges. Reused between lines.
+    /// </summary>
+    internal sealed class CaretEdges
+    {
+        /// <summary>The first code unit of the line in its paragraph.</summary>
+        public int Start;
+        /// <summary>Code units of the line.</summary>
+        public int Count;
+        public float[] Left = [];
+        public float[] Right = [];
+        public byte[] Levels = [];
+
+        internal void Reset(int start, int count)
+        {
+            Start = start;
+            Count = count;
+            if (Left.Length < count)
+            {
+                var capacity = Math.Max(count, Left.Length * 2);
+                Left = new float[capacity];
+                Right = new float[capacity];
+                Levels = new byte[capacity];
+            }
+            Left.AsSpan(0, count).Fill(float.NaN);
+            Right.AsSpan(0, count).Fill(float.NaN);
+            Levels.AsSpan(0, count).Clear();
+        }
+
+        /// <summary>Widens the edges of the code unit <paramref name="unit"/> (paragraph index) by a glyph spanning <paramref name="x0"/>–<paramref name="x1"/>.</summary>
+        internal void Add(int unit, float x0, float x1)
+        {
+            var index = unit - Start;
+            if ((uint)index >= (uint)Count)
+                return;
+            var (low, high) = x0 <= x1 ? (x0, x1) : (x1, x0);
+            Left[index] = float.IsNaN(Left[index]) ? low : Math.Min(Left[index], low);
+            Right[index] = float.IsNaN(Right[index]) ? high : Math.Max(Right[index], high);
+        }
+
+        /// <summary>
+        /// Gives the code units no glyph started at (the rest of a cluster) their share: the cluster's graphemes split its
+        /// width evenly (in the run's direction); units inside a grapheme share its edges.
+        /// </summary>
+        internal void FillClusters(string text)
+        {
+            var unit = 0;
+            while (unit < Count)
+            {
+                var head = unit;
+                var end = unit + 1;
+                while (end < Count && float.IsNaN(Left[end])) end++;
+                if (float.IsNaN(Left[head]))
+                    (Left[head], Right[head]) = head > 0 ? (Right[head - 1], Right[head - 1]) : (0f, 0f);
+                var graphemes = 0;
+                for (var index = head; index < end; index += Math.Max(1, System.Globalization.StringInfo.GetNextTextElementLength(text.AsSpan(Start + index, end - index))))
+                    graphemes++;
+                var (left, right) = (Left[head], Right[head]);
+                var width = graphemes > 1 ? (right - left) / graphemes : right - left;
+                var rtl = Levels[head] % 2 == 1;
+                var grapheme = 0;
+                for (var index = head; index < end; grapheme++)
+                {
+                    var length = Math.Max(1, System.Globalization.StringInfo.GetNextTextElementLength(text.AsSpan(Start + index, end - index)));
+                    var (x0, x1) = rtl ? (right - (grapheme + 1) * width, right - grapheme * width) : (left + grapheme * width, left + (grapheme + 1) * width);
+                    for (var part = index; part < index + length && part < end; part++)
+                        (Left[part], Right[part], Levels[part]) = (x0, x1, Levels[head]);
+                    index += length;
+                }
+                unit = end;
+            }
+        }
+    }
+
+    /// <summary>
     /// Fast path: text made only of Latin / digits / common punctuation that the primary font fully covers, in a
     /// left-to-right paragraph, needs no bidi, no fallback and (for UI text) no HarfBuzz — glyphs and advances come
     /// straight from Skia, like the pre-HarfBuzz renderer. Returns <c>null</c> when the text is not simple.
@@ -338,18 +414,22 @@ internal static partial class SkUiShaping
 
     /// <summary>
     /// Builds the visual line for logical range <c>[start, end)</c> of <paramref name="paragraph"/>; with
-    /// <paramref name="justifyWidth"/>, the spaces in it widen so the line is that wide (justified text).
+    /// <paramref name="justifyWidth"/>, the spaces in it widen so the line is that wide (justified text). With
+    /// <paramref name="edges"/>, also fills in where each code unit of the line sits (editing).
     /// </summary>
-    internal static Line BuildLine(Paragraph paragraph, int start, int end, SKFont primary, Func<SKTypeface, SKFont> fonts, float? justifyWidth = null)
+    internal static Line BuildLine(Paragraph paragraph, int start, int end, SKFont primary, Func<SKTypeface, SKFont> fonts, float? justifyWidth = null, CaretEdges? edges = null)
     {
         var line = new Line { BaseLevel = paragraph.BaseLevel };
         var metrics = primary.Metrics;
         line.Ascent = -metrics.Ascent;
         line.Height = primary.Spacing;
+        edges?.Reset(start, Math.Max(0, end - start));
         if (end <= start)
             return line;
         if (paragraph.IsSimple)
         {
+            if (edges is not null)
+                SimpleEdges(paragraph, start, end, primary, edges);
             if (paragraph.Spacing != 0 || justifyWidth is not null)
                 return BuildSpacedSimpleLine(line, paragraph, start, end, primary, justifyWidth);
             line.Text = start == 0 && end == paragraph.Text.Length ? paragraph.Text : paragraph.Text[start..end];
@@ -407,16 +487,46 @@ internal static partial class SkUiShaping
                 var positions = buffer.Positions;
                 for (var glyph = 0; glyph < piece.Glyphs.Length; glyph++)
                 {
-                    positions[glyph] = new SKPoint(pen + shift + piece.Positions[glyph].X, piece.Positions[glyph].Y);
+                    var x = pen + shift + piece.Positions[glyph].X;
+                    positions[glyph] = new SKPoint(x, piece.Positions[glyph].Y);
                     if (extra != 0 && text[Math.Clamp((int)piece.Clusters[glyph], 0, text.Length - 1)] == ' ')
                         shift += extra;
+                    if (edges is not null)
+                    {
+                        var next = glyph + 1 < piece.Glyphs.Length ? pen + shift + piece.Positions[glyph + 1].X : pen + piece.Width + shift;
+                        edges.Add(Math.Clamp((int)piece.Clusters[glyph], piece.Start, piece.Start + piece.Length - 1), x, next);
+                    }
                 }
             }
             pen += piece.Width;
         }
         line.Width = pen + shift;
         line.Blob = builder.Build();
+        if (edges is not null)
+        {
+            for (var unit = 0; unit < edges.Count; unit++)
+                edges.Levels[unit] = paragraph.Levels[start + unit];
+            edges.FillClusters(text);
+        }
         return line;
+    }
+
+    /// <summary>Edges of a simple line: its code units' advances side by side, left to right (no bidi on the simple path).</summary>
+    private static void SimpleEdges(Paragraph paragraph, int start, int end, SKFont primary, CaretEdges edges)
+    {
+        EnsureAdvances(paragraph, primary);
+        var x = 0f;
+        for (var unit = start; unit < end; unit++)
+        {
+            var advance = unit < paragraph.Advances.Length ? paragraph.Advances[unit] : 0;
+            edges.Left[unit - start] = x;
+            edges.Right[unit - start] = x + advance;
+            x += advance;
+        }
+        // A surrogate pair's width sits on its high surrogate: the low one shares the pair's edges.
+        for (var unit = start + 1; unit < end; unit++)
+            if (char.IsLowSurrogate(paragraph.Text[unit]))
+                (edges.Left[unit - start], edges.Right[unit - start]) = (edges.Left[unit - start - 1], edges.Right[unit - start - 1]);
     }
 
     /// <summary>

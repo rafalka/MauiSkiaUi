@@ -139,6 +139,16 @@ internal sealed class SkUiSemanticsOwner
     public bool SetValue(int id, double value) =>
         Tree.Find(id) is { Source: { } source, IsEnabled: true, Range: not null } && IsInputLive(source) && source.SetSemanticsValue(value);
 
+    /// <summary>Replaces the text of the editable field <paramref name="id"/> (TalkBack's set text, Narrator's value); returns whether it was done.</summary>
+    public bool SetText(int id, string text) =>
+        Tree.Find(id) is { Source: ISkUiTextInputNode { WantsTextInput: true } field, IsEnabled: true, TextField.IsReadOnly: false }
+        && IsInputLive(field) && field.TextInputClient.SetTextFromAssistant(text);
+
+    /// <summary>Selects <c>[start, end)</c> in the editable field <paramref name="id"/>; returns whether it was done.</summary>
+    public bool SetSelection(int id, int start, int end) =>
+        Tree.Find(id) is { Source: ISkUiTextInputNode { WantsTextInput: true } field, IsEnabled: true } && IsInputLive(field)
+        && field.TextInputClient.SelectFromAssistant(start, end);
+
     /// <summary>Whether no ancestor blocks input now (disabled), as for pointers and keys.</summary>
     private static bool IsInputLive(ISkUiRenderable node)
     {

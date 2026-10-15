@@ -54,6 +54,26 @@ public readonly record struct SkUiTouchEvent(long Id, SkUiTouchAction Action, Po
         : this(Id, Action, Position, Timestamp, WheelDelta, WheelDeltaX, SkUiPointerDevice.Touch)
     {
     }
+
+    /// <summary>
+    /// The mouse (or pen) buttons of a press: <see cref="SkUiPointerButtons.Secondary"/> for a right click (a text field's context
+    /// menu); <see cref="SkUiPointerButtons.None"/> when the platform does not tell (a touch, the primary button).
+    /// </summary>
+    public SkUiPointerButtons Buttons { get; init; }
+}
+
+/// <summary>Mouse and pen buttons of a press (<see cref="SkUiTouchEvent.Buttons"/>, <see cref="SkUiPointer.Buttons"/>).</summary>
+[Flags]
+public enum SkUiPointerButtons
+{
+    /// <summary>Not told (a touch), or the primary button.</summary>
+    None = 0,
+    /// <summary>The primary (left) button.</summary>
+    Primary = 1,
+    /// <summary>The secondary (right) button: a context click.</summary>
+    Secondary = 2,
+    /// <summary>The middle button.</summary>
+    Middle = 4
 }
 
 /// <summary>What produces a pointer's samples (<see cref="SkUiTouchEvent.Device"/>, <see cref="SkUiPointer.Device"/>).</summary>

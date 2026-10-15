@@ -290,7 +290,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         }
         _measureViewport = new Size(width, height);
         var extent = base.MeasureContent(_scroller.Horizontal ? double.PositiveInfinity : width, _scroller.Vertical ? double.PositiveInfinity : height);
-        var insets = _scroller.Insets;
+        var insets = _scroller.EffectiveInsets;
         extent = _scroller.InsetsVertical
             ? new Size(extent.Width, extent.Height + insets.Start + insets.End)
             : new Size(extent.Width + insets.Start + insets.End, extent.Height);
@@ -306,7 +306,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         var extent = _scroller.Extent;
         // Content stays arranged at its layout origin (after the start inset; mirrored in right-to-left layouts); the offset is a
         // composite-time children translation.
-        var (start, end) = _scroller.Insets;
+        var (start, end) = _scroller.EffectiveInsets;
         var (top, bottom, left, right) = _scroller.InsetsVertical ? (start, end, 0d, 0d) : (0d, 0d, start, end);
         LayoutChild?.Arrange(new Rect(
             Padding.Left + left, Padding.Top + top,
@@ -353,6 +353,20 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
             if (_scroller.Insets == value)
                 return;
             _scroller.Insets = value;
+            InvalidateMeasureOverride();
+        }
+    }
+
+    /// <summary>The soft keyboard's cover of the viewport's bottom (see <see cref="SkUiScrollController.KeyboardInset"/>), set by the focus manager.</summary>
+    internal double KeyboardInset
+    {
+        get => _scroller.KeyboardInset;
+        set
+        {
+            // Exact: a layout pass only when the cover changed.
+            if (_scroller.KeyboardInset == value)
+                return;
+            _scroller.KeyboardInset = value;
             InvalidateMeasureOverride();
         }
     }

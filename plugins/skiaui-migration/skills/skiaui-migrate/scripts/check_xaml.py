@@ -74,14 +74,17 @@ REPLACE = {
     "IndicatorView": "SkUiIndicatorView (IndicatorTemplate is not supported: the look draws the indicators)",
     "Picker": "SkUiPicker (its list opens on the app's popup system: register a presenter with UseSkiaUi(options => options.PopupPresenter = ...) or SkUiPopups.Presenter; without one, MAUI's action sheet)",
     "DatePicker": "SkUiDatePicker (same Date / MinimumDate / MaximumDate / Format / DateSelected; its wheels open on the app's popup system: register a presenter with UseSkiaUi(options => options.PopupPresenter = ...) or SkUiPopups.Presenter)",
+    "Entry": "SkUiEntry (drawn; the platform keyboard types into it: CaretColor / SelectionColor / the look replace handler tweaks, AutofillHint replaces content types)",
+    "Editor": "SkUiEditor (drawn; AutoSize as MAUI's)",
+    "SearchBar": "SkUiSearchBar (drawn; same SearchCommand / SearchButtonPressed)",
+    "Stepper": "SkUiStepper (same Value / Minimum / Maximum / Increment / ValueChanged; IsValueVisible shows the value)",
     "TimePicker": "SkUiTimePicker (same Time / Format / TimeSelected; its wheels open on the app's popup system: register a presenter with UseSkiaUi(options => options.PopupPresenter = ...) or SkUiPopups.Presenter)",
 }
-WRAP = {"Entry", "Editor", "SearchBar", "WebView", "HybridWebView", "BlazorWebView", "Map"}
+WRAP = {"WebView", "HybridWebView", "BlazorWebView", "Map"}
 NO_DRAWN = {
     "CollectionView": "use sk:SkUiCollectionView (SkiaUi's own API: convert member by member, see references/collection-view.md); reorderable lists (CanReorderItems): keep the list outside the drawn tree",
     "ListView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",
     "TableView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",
-    "Stepper": "no drawn Stepper yet: two SkUiButtons",
 }
 GESTURE_ADVICE = {
     "SwipeGestureRecognizer": "use SwipeDirections + Swiped / SwipedCommand (parameter = direction), or SkUiSwipeGestureRecognizer in Gestures",

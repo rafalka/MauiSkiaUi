@@ -101,6 +101,27 @@ internal sealed class SkUiFocusManager(SkUiView root)
     public Action<Rect>? RequestNativeReveal { get; set; }
 
     /// <summary>
+    /// Set by the platform handler (or tests): the platform's text input, which a focused text field
+    /// (<see cref="ISkUiTextInputNode"/>) is attached to while it has focus.
+    /// </summary>
+    public ISkUiTextInputProxy? TextInput
+    {
+        get => _textInput;
+        set
+        {
+            if (ReferenceEquals(_textInput, value))
+                return;
+            if (_focused is ISkUiTextInputNode { WantsTextInput: true } attached)
+                _textInput?.Detach(attached.TextInputClient);
+            _textInput = value;
+            if (_focused is ISkUiTextInputNode { WantsTextInput: true } focused && _hasNativeFocus)
+                value?.Attach(focused.TextInputClient);
+        }
+    }
+
+    private ISkUiTextInputProxy? _textInput;
+
+    /// <summary>
     /// Whether a pointer press focuses the interactive node it hits (the node or its nearest focusable ancestor), without
     /// the ring: on Windows, as WinUI's controls. Off by default.
     /// </summary>
@@ -189,9 +210,19 @@ internal sealed class SkUiFocusManager(SkUiView root)
     /// Whether keyboard focus skips <paramref name="node"/> and its subtree: hidden, input-transparent, disabled, hiding its
     /// subtree from input (a skeleton), or taken out of accessibility (<see cref="SkUiView.IsAccessibilityEnabled"/>).
     /// </summary>
-    private static bool IsBlocked(ISkUiRenderable node) =>
+    /// <param name="node">The node.</param>
+    /// <param name="textInput">For a text field: subtrees taken out of accessibility do not block it (a field is typed in either way).</param>
+    private static bool IsBlocked(ISkUiRenderable node, bool textInput = false) =>
         (node is ISkUiInputNode input && (!input.IsHitTestVisible || !input.IsInputEnabled || !input.HitTestsChildren))
-        || node is SkUiView { IsAccessibilityEnabled: false };
+        || (!textInput && node is SkUiView { IsAccessibilityEnabled: false });
+
+    /// <summary>
+    /// Whether <paramref name="node"/> can have focus now: a text field when it can take text focus (visible and enabled, also
+    /// without being a tab stop or with accessibility off), any other node when it is keyboard focusable and accessibility is on.
+    /// </summary>
+    private bool CanFocus(ISkUiAccessibleNode node) => node is ISkUiTextInputNode { WantsTextInput: true } textField
+        ? textField.CanTakeTextFocus && IsLive(node, textInput: true)
+        : SkUiAccessibility.IsEnabled && node.IsKeyboardFocusable && IsLive(node);
 
     /// <summary>Platform hooks are set and the surface starts without keyboard focus.</summary>
     public void Connect() => _hasNativeFocus = false;
@@ -200,6 +231,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
     public void Disconnect()
     {
         SetFocused(null, ring: false);
+        TextInput = null;
         RequestNativeFocus = null;
         ReleaseNativeFocus = null;
         RequestNativeReveal = null;
@@ -209,7 +241,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
     /// <summary>Focuses <paramref name="node"/> (taking the surface's platform focus first); returns whether it is focused.</summary>
     public bool Focus(ISkUiAccessibleNode node, bool? ring = null)
     {
-        if (!SkUiAccessibility.IsEnabled || !node.IsKeyboardFocusable || !IsLive(node))
+        if (!CanFocus(node))
             return false;
         // Asked every time rather than trusting the last report: platform focus events can arrive late (WinUI raises
         // GotFocus / LostFocus asynchronously). The request returns at once when the surface has focus already; the gain it
@@ -228,6 +260,88 @@ internal sealed class SkUiFocusManager(SkUiView root)
         if (SkUiSemantics.BringIntoView(node) is { } bounds)
             RequestNativeReveal?.Invoke(bounds);
         return true;
+    }
+
+    private double _keyboardTop = double.PositiveInfinity;
+    private WeakReference<SkUiScrollView>? _keyboardScroller;
+    private Rect _fieldBounds;
+
+    /// <summary>
+    /// Set by the platform's text input: where the soft keyboard begins, in surface DIPs (positive infinity: no keyboard over the
+    /// surface). A focused text field is kept above it: its innermost vertical drawn scroller lets its content scroll out from under
+    /// the keyboard and shows the field; without one, native scrollers around the surface are asked to show it.
+    /// </summary>
+    public void SetKeyboardTop(double surfaceY)
+    {
+        // Exact: the same report changes nothing.
+        if (surfaceY == _keyboardTop)
+            return;
+        _keyboardTop = surfaceY;
+        RevealFocusedField();
+    }
+
+    /// <summary>Keeps the focused text field above the soft keyboard (see <see cref="SetKeyboardTop"/>).</summary>
+    internal void RevealFocusedField()
+    {
+        SkUiScrollView? scroller = null;
+        if (_focused is ISkUiTextInputNode { WantsTextInput: true } field && !double.IsPositiveInfinity(_keyboardTop))
+        {
+            for (var current = field.RenderParent; current is not null; current = current.RenderParent)
+                if (current is SkUiScrollView { Orientation: ScrollOrientation.Vertical or ScrollOrientation.Both } candidate)
+                {
+                    scroller = candidate;
+                    break;
+                }
+            var fieldBounds = field.TextInputClient.GetFieldBounds();
+            if (scroller is not null && SkUiDiagnostics.GetRootBounds(scroller) is { } port)
+            {
+                scroller.KeyboardInset = Math.Max(0, Math.Min(port.Height, port.Bottom - _keyboardTop));
+                _ = field switch
+                {
+                    Element element => scroller.ScrollToAsync(element, ScrollToPosition.MakeVisible, animated: true),
+                    Core.SkUiCoreNode node => scroller.ScrollToAsync(node, ScrollToPosition.MakeVisible, animated: true),
+                    _ => Task.CompletedTask
+                };
+            }
+            else if (fieldBounds.Bottom > _keyboardTop)
+            {
+                RequestNativeReveal?.Invoke(fieldBounds);
+            }
+        }
+        // The scroller that made room before (another field's, or none now) gives it back.
+        if (_keyboardScroller?.TryGetTarget(out var previous) == true && !ReferenceEquals(previous, scroller))
+            previous.KeyboardInset = 0;
+        _keyboardScroller = scroller is null ? null : new WeakReference<SkUiScrollView>(scroller);
+    }
+
+    /// <summary>
+    /// A frame was committed: a focused text field that moved (scrolled, laid out again) tells the platform's text input, whose
+    /// candidate window and menus follow it.
+    /// </summary>
+    internal void OnFrameCommitted()
+    {
+        if (_textInput is null || _focused is not ISkUiTextInputNode { WantsTextInput: true } field)
+            return;
+        var client = field.TextInputClient;
+        var bounds = client.GetFieldBounds();
+        if (bounds == _fieldBounds)
+            return;
+        _fieldBounds = bounds;
+        _textInput.GeometryChanged(client);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="node"/> edits text changed (a stepper showing or hiding its value): while focused, it is attached to
+    /// or detached from the platform's text input.
+    /// </summary>
+    internal void TextInputChanged(ISkUiTextInputNode node)
+    {
+        if (!ReferenceEquals(_focused, node) || !_hasNativeFocus)
+            return;
+        if (node.WantsTextInput)
+            _textInput?.Attach(node.TextInputClient);
+        else
+            _textInput?.Detach(node.TextInputClient);
     }
 
     /// <summary>Unfocuses <paramref name="node"/> when it is the focused node; the surface gives its platform focus up.</summary>
@@ -249,7 +363,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
     /// <param name="character">The character of a <see cref="SkUiKey.Character"/> key.</param>
     public bool KeyDown(SkUiKey key, SkUiKeyModifiers modifiers = SkUiKeyModifiers.None, bool isRepeat = false, char character = '\0')
     {
-        if (!SkUiAccessibility.IsEnabled)
+        if (!SkUiAccessibility.IsEnabled && _focused is not ISkUiTextInputNode { WantsTextInput: true })
             return false;
         _lastInputWasPointer = false;
         Validate();
@@ -329,7 +443,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
     /// </summary>
     public void Validate()
     {
-        if (_focused is { } focused && (!SkUiAccessibility.IsEnabled || !focused.IsKeyboardFocusable || !IsLive(focused)))
+        if (_focused is { } focused && !CanFocus(focused))
             SetFocused(null, ring: false);
     }
 
@@ -362,8 +476,15 @@ internal sealed class SkUiFocusManager(SkUiView root)
         _ringVisible = ring && node is not null;
         if (node is not null && previous is null)
             _holders.Add(new WeakReference<SkUiFocusManager>(this));
+        // The platform's text input follows: the field leaving lets it go before the next one takes it.
+        if (previous is ISkUiTextInputNode { WantsTextInput: true } left)
+            _textInput?.Detach(left.TextInputClient);
         previous?.SetKeyboardFocus(false, false);
         node?.SetKeyboardFocus(true, _ringVisible);
+        if (node is ISkUiTextInputNode { WantsTextInput: true } entered && ReferenceEquals(_focused, node))
+            _textInput?.Attach(entered.TextInputClient);
+        if (!double.IsPositiveInfinity(_keyboardTop))
+            RevealFocusedField();
         SkUiSemantics.Invalidate(root);
         FocusChanged?.Invoke(node);
     }
@@ -499,11 +620,11 @@ internal sealed class SkUiFocusManager(SkUiView root)
     }
 
     /// <summary>Whether <paramref name="node"/> is under this surface's root, with no hidden, disabled or detached ancestor.</summary>
-    private bool IsLive(ISkUiRenderable node)
+    private bool IsLive(ISkUiRenderable node, bool textInput = false)
     {
         for (ISkUiRenderable? current = node; current is not null; current = current.RenderParent)
         {
-            if (IsBlocked(current))
+            if (IsBlocked(current, textInput))
                 return false;
             if (ReferenceEquals(current, root))
                 return true;

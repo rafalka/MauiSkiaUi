@@ -59,6 +59,15 @@ internal interface ISkUiWheelProxy : ISkUiInputNode
 }
 
 /// <summary>
+/// A node that scrolls something of its own by wheel and trackpad without a scroll controller (an editor's text): it uses what it
+/// can of a delta (positive towards the start of each axis) and returns the rest for the scrollers around it.
+/// </summary>
+internal interface ISkUiWheelHandler : ISkUiInputNode
+{
+    Point OnWheel(double deltaX, double deltaY);
+}
+
+/// <summary>
 /// Scroll state and motion shared by the SkUi* and Core scroll views: clamped offsets applied as a composite-time
 /// children translation, render-thread tweens / flings with offsets reported back, wheel input, nested-scroll
 /// chaining, overscroll past the edges (through the generic children transform: <see cref="SkUiOverscroll"/>), scroll
@@ -148,15 +157,24 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// </summary>
     public (double Start, double End) Insets { get; set; }
 
+    /// <summary>
+    /// The part of the viewport's bottom the soft keyboard covers while a text field in the scroller is focused (DIPs; vertical
+    /// scrollers only): added to the end inset, so the content's end can be scrolled out from under the keyboard.
+    /// </summary>
+    public double KeyboardInset { get; set; }
+
+    /// <summary><see cref="Insets"/> with the <see cref="KeyboardInset"/> at the end of a vertical scroller.</summary>
+    public (double Start, double End) EffectiveInsets => Vertical && KeyboardInset > 0 ? (Insets.Start, Insets.End + KeyboardInset) : Insets;
+
     /// <summary>Whether <see cref="Insets"/> apply to the vertical axis (else to the horizontal one).</summary>
     public bool InsetsVertical => Vertical;
 
     /// <summary><see cref="Insets"/> as physical left / right (0 when they apply to the vertical axis).</summary>
     private (double Left, double Right) HorizontalInsets =>
-        InsetsVertical ? (0, 0) : _rightToLeft ? (Insets.End, Insets.Start) : (Insets.Start, Insets.End);
+        InsetsVertical ? (0, 0) : _rightToLeft ? (EffectiveInsets.End, EffectiveInsets.Start) : (EffectiveInsets.Start, EffectiveInsets.End);
 
     /// <summary><see cref="Insets"/> as top / bottom (0 when they apply to the horizontal axis).</summary>
-    private (double Top, double Bottom) VerticalInsets => InsetsVertical ? Insets : (0, 0);
+    private (double Top, double Bottom) VerticalInsets => InsetsVertical ? EffectiveInsets : (0, 0);
 
     /// <summary>The scroller's arranged size (scrollport and gutters).</summary>
     public Size Bounds { get; private set; }

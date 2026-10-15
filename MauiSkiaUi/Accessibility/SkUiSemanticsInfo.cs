@@ -30,7 +30,12 @@ public enum SkUiSemanticsRole
     /// A combo box / pop-up button (a picker): activating it opens its list; <see cref="SkUiSemanticsInfo.Value"/> is the
     /// selected item's text and <see cref="SkUiSemanticsInfo.IsExpanded"/> whether the list is open.
     /// </summary>
-    ComboBox
+    ComboBox,
+    /// <summary>
+    /// An editable text field (an entry, an editor): <see cref="SkUiSemanticsInfo.Value"/> is its text (bullets for a password),
+    /// <see cref="SkUiSemanticsInfo.Text"/> its placeholder; activating it focuses it for typing.
+    /// </summary>
+    TextField
 }
 
 /// <summary>Actions assistive technologies (and the keyboard) can perform on a drawn element.</summary>
@@ -52,6 +57,14 @@ public enum SkUiSemanticsActions
     /// <summary>Scroll one page towards the start.</summary>
     ScrollBackward = 32
 }
+
+/// <summary>An editable text field as screen readers see it: its selection (UTF-16 indices of the text read), and whether it can be changed.</summary>
+/// <param name="SelectionStart">Start of the selection (the caret without one).</param>
+/// <param name="SelectionEnd">End of the selection.</param>
+/// <param name="IsPassword">The text is masked (read as bullets).</param>
+/// <param name="IsReadOnly">The text cannot be changed.</param>
+/// <param name="IsMultiline">Several lines (an editor).</param>
+internal readonly record struct SkUiSemanticsTextField(int SelectionStart, int SelectionEnd, bool IsPassword, bool IsReadOnly, bool IsMultiline);
 
 /// <summary>A range value: a slider's or a determinate progress bar's.</summary>
 /// <param name="Minimum">Lowest value.</param>
@@ -103,6 +116,9 @@ public sealed class SkUiSemanticsInfo
     /// <summary>Whether a combo box's list is open; <c>null</c> when the element does not expand.</summary>
     public bool? IsExpanded { get; set; }
 
+    /// <summary>An editable text field's state (<see cref="SkUiSemanticsRole.TextField"/>): screen readers edit and select its text.</summary>
+    internal SkUiSemanticsTextField? TextField;
+
     internal string? Description;
     internal string? Hint;
     internal SemanticHeadingLevel HeadingLevel;
@@ -124,6 +140,7 @@ public sealed class SkUiSemanticsInfo
         Actions = SkUiSemanticsActions.None;
         IsHorizontal = false;
         IsExpanded = null;
+        TextField = null;
         HeadingLevel = SemanticHeadingLevel.None;
         IsInAccessibleTree = null;
         ExcludedWithChildren = false;

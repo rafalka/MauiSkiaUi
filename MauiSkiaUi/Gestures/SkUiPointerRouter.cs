@@ -45,6 +45,9 @@ internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router,
     public Point Start { get; } = start;
     /// <summary>What produces the pointer's samples, as reported on its press.</summary>
     public SkUiPointerDevice Device { get; } = device;
+
+    /// <summary>The buttons the pointer was pressed with.</summary>
+    public SkUiPointerButtons Buttons { get; init; }
     public List<SkUiGestureRecognizer> Members { get; } = [];
     public SkUiGestureRecognizer? Winner { get; private set; }
     /// <summary>The winner claimed explicitly (its gesture started) rather than winning by default.</summary>
@@ -220,7 +223,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
             EndArena(arena, cancelled: true);
             return handled;
         }
-        var pointer = new SkUiPointer(touch.Id, touch.Position, arena.Start, time, this, arena.Device);
+        var pointer = new SkUiPointer(touch.Id, touch.Position, arena.Start, time, this, arena.Device, arena.Buttons);
         var slop = SkUiGestureSettings.TouchSlop;
         if (!arena.SlopExceeded && (Math.Pow(pointer.TotalX, 2) + Math.Pow(pointer.TotalY, 2)) > slop * slop)
         {
@@ -294,11 +297,11 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     {
         if (_arenas.TryGetValue(touch.Id, out var stale))
             EndArena(stale, cancelled: true);
-        if (FindTarget(root, ToSk(touch.Position), isRoot: true, requireParticipant: true) is not { } leaf)
+        if ((FocusedTextHandleAt(touch) ?? FindTarget(root, ToSk(touch.Position), isRoot: true, requireParticipant: true)) is not { } leaf)
             return false;
         if (root is SkUiView { FocusManagerIfCreated: { PointerPressFocuses: true } focus })
             focus.OnPointerPressed(leaf);
-        var arena = new SkUiGestureArena(touch.Id, this, touch.Position, touch.Device);
+        var arena = new SkUiGestureArena(touch.Id, this, touch.Position, touch.Device) { Buttons = touch.Buttons };
         if (!leaf.IsInputEnabled)
         {
             // Disabled: blocks the pointer until release without reacting.
@@ -311,13 +314,25 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         return Open(arena, touch, time);
     }
 
+    /// <summary>
+    /// The focused text field when a finger presses one of its handles: they hang outside the field (the insertion handle under
+    /// the caret), where the hit test, bounded by each node's rectangle, would not find it.
+    /// </summary>
+    private ISkUiInputNode? FocusedTextHandleAt(SkUiTouchEvent touch)
+    {
+        if (touch.Device != SkUiPointerDevice.Touch || root is not SkUiView { FocusManagerIfCreated.Focused: ISkUiTextInputNode field }
+            || field is not ISkUiInputNode node || !node.IsHitTestVisible || !node.IsInputEnabled || !IsLive(node))
+            return null;
+        return field.HitsTextHandle(MapToNode(node, touch.Position)) ? node : null;
+    }
+
     private bool PressFromOverlay(SkUiTouchEvent touch, TimeSpan time, ISkUiInputNode overlay)
     {
         if (_arenas.TryGetValue(touch.Id, out var stale))
             EndArena(stale, cancelled: true);
         if (overlay.RenderParent is not ISkUiInputNode parent || !IsLive(overlay))
             return false;
-        var arena = new SkUiGestureArena(touch.Id, this, touch.Position, touch.Device);
+        var arena = new SkUiGestureArena(touch.Id, this, touch.Position, touch.Device) { Buttons = touch.Buttons };
         AddMembers(arena, parent, continuousOnly: true);
         return Open(arena, touch, time);
     }
@@ -346,7 +361,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     {
         _arenas[touch.Id] = arena;
         ActiveArenas++;
-        var pointer = new SkUiPointer(touch.Id, touch.Position, touch.Position, time, this, arena.Device);
+        var pointer = new SkUiPointer(touch.Id, touch.Position, touch.Position, time, this, arena.Device, arena.Buttons);
         foreach (var member in arena.Members.ToArray())
             if (arena.Members.Contains(member) && !member.OnPointerPressed(pointer))
                 arena.Remove(member, rejected: false);
@@ -410,6 +425,12 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
             if (((node as ISkUiScrollHost)?.Scroller ?? (node as ISkUiWheelProxy)?.WheelScroller) is { } scroller)
             {
                 rest = scroller.Wheel(rest.X, rest.Y);
+                if (rest.X == 0 && rest.Y == 0)
+                    return true;
+            }
+            else if (node is ISkUiWheelHandler handler)
+            {
+                rest = handler.OnWheel(rest.X, rest.Y);
                 if (rest.X == 0 && rest.Y == 0)
                     return true;
             }

@@ -65,9 +65,7 @@ SkiaUi draws a subtree of a MAUI page on one Skia surface. Pages, Shell, navigat
                     <sk:SkUiImage Grid.Column="1" Source="chevron.png" />
                 </sk:SkUiGrid>
             </sk:SkUiBorder>
-            <sk:SkUiMauiContentView>
-                <Entry Text="{Binding Note}" />
-            </sk:SkUiMauiContentView>
+            <sk:SkUiEntry Text="{Binding Note}" />
         </sk:SkUiVerticalStackLayout>
     </sk:SkUiScrollView>
 </sk:SkUiContentView>

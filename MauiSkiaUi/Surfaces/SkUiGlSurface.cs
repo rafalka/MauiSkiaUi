@@ -120,7 +120,11 @@ internal sealed class SkUiGlTextureView : GLTextureView
 
     private SkUiTouchEvent Event(MotionEvent e, int index, SkUiTouchAction action, TimeSpan time) =>
         new(e.GetPointerId(index), action, new Point(e.GetX(index) / _density, e.GetY(index) / _density), time,
-            Device: SkUiPointerDevices.From(e, index));
+            Device: SkUiPointerDevices.From(e, index))
+        {
+            Buttons = (e.ButtonState.HasFlag(MotionEventButtonState.Secondary) ? SkUiPointerButtons.Secondary : 0)
+                | (e.ButtonState.HasFlag(MotionEventButtonState.Tertiary) ? SkUiPointerButtons.Middle : 0)
+        };
 
     private sealed class Renderer(SkUiGlTextureView owner) : SKGLTextureViewRenderer
     {

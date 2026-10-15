@@ -107,6 +107,8 @@ internal sealed class SkUiFrameRenderer : IDisposable
                 _requestRender();
                 // What screen readers read may have moved or changed with the frame.
                 _root.SemanticsOwner?.Invalidate();
+                // A focused text field that moved: the platform's input method follows it.
+                _root.FocusManagerIfCreated?.OnFrameCommitted();
             }
         }
         finally

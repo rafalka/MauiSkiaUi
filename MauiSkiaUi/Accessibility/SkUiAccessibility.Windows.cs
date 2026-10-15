@@ -289,6 +289,7 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
         SkUiSemanticsRole.ProgressBar => AutomationControlType.ProgressBar,
         SkUiSemanticsRole.ScrollView => AutomationControlType.Pane,
         SkUiSemanticsRole.ComboBox => AutomationControlType.ComboBox,
+        SkUiSemanticsRole.TextField => AutomationControlType.Edit,
         _ => Node is { Actions: var actions } && (actions & SkUiSemanticsActions.Activate) != 0 ? AutomationControlType.Button : AutomationControlType.Group
     };
 
@@ -357,8 +358,9 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
             PatternInterface.RangeValue when node.Range is not null => this,
             // A combo box opens through ExpandCollapse (as WinUI's), not Invoke.
             PatternInterface.ExpandCollapse when node.IsExpanded is not null => this,
-            PatternInterface.Value when node.Role == SkUiSemanticsRole.ComboBox => this,
-            PatternInterface.Invoke when node.CheckState is null && node.IsExpanded is null && (actions & SkUiSemanticsActions.Activate) != 0 => this,
+            PatternInterface.Value when node.Role is SkUiSemanticsRole.ComboBox or SkUiSemanticsRole.TextField => this,
+            PatternInterface.Invoke when node.CheckState is null && node.IsExpanded is null && node.TextField is null
+                                         && (actions & SkUiSemanticsActions.Activate) != 0 => this,
             _ => null
         };
     }
@@ -417,12 +419,16 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
             Perform(SkUiSemanticsActions.Activate);
     }
 
-    // Value (a combo box's selected text; read-only, as WinUI's non-editable ComboBox)
-    string IValueProvider.Value => _text = Node is { Role: SkUiSemanticsRole.ComboBox } node ? node.Value ?? string.Empty : string.Empty;
+    // Value: a combo box's selected text (read-only, as WinUI's non-editable ComboBox); a text field's text (Narrator edits it, as a TextBox's).
+    string IValueProvider.Value => _text = Node is { Role: SkUiSemanticsRole.ComboBox or SkUiSemanticsRole.TextField } node ? node.Value ?? string.Empty : string.Empty;
 
-    bool IValueProvider.IsReadOnly => true;
+    bool IValueProvider.IsReadOnly => Node is not { TextField.IsReadOnly: false, IsEnabled: true };
 
-    void IValueProvider.SetValue(string value) { }
+    void IValueProvider.SetValue(string value)
+    {
+        if (Node is { TextField: not null })
+            bridge.Owner?.SetText(id, value ?? string.Empty);
+    }
 }
 
 /// <summary>WinUI key events of a focused surface container as <see cref="SkUiKey"/>s.</summary>
