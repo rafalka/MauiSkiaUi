@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.0.0-Prerelease12
+
 ### New features
 
 - **Avatar view (C8):** `SkUiAvatarView` (and the Core `SkUiCoreAvatar`) is the Community Toolkit's `AvatarView`, drawn by SkiaUi and in the main package (no Community Toolkit needed). The toolkit's XAML ports by changing the prefix ([SkUiAvatarView.md](docs/controls/SkUiAvatarView.md)).
