@@ -161,6 +161,25 @@ public class EditorTests
     }
 
     [Fact]
+    public void TextSetWithCarriageReturnsShowsItsLinesAndFollowsWithNewlines()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        // A Windows text box (MAUI's Editor there) gives line breaks as \r.
+        var (_, editor) = Field();
+        editor.Text = "ala\rma\r\nkota";
+        Assert.Equal("ala\nma\nkota", editor.Text);
+        editor.Model.Measure(200, 600);
+        Assert.Equal(3, editor.Model.Layout.Lines.Count);
+        var core = new SkUiCoreEditor().SetText("a\rb");
+        Assert.Equal("a\nb", core.Text);
+        // A single line keeps the app's text and shows each break as a space.
+        var entry = new SkUiEntry { Text = "a\rb" };
+        Assert.Equal("a\rb", entry.Text);
+        entry.Model.Measure(200, 600);
+        Assert.Single(entry.Model.Layout.Lines);
+    }
+
+    [Fact]
     public void CoreEditorEditsLikeTheSkUiEditor()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

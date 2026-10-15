@@ -127,17 +127,26 @@ internal sealed class SkUiFocusManager(SkUiView root)
     /// </summary>
     public bool PointerPressFocuses { get; set; }
 
-    /// <summary>A press hit <paramref name="leaf"/>: focuses its nearest focusable node when <see cref="PointerPressFocuses"/>.</summary>
+    /// <summary>
+    /// A press hit <paramref name="leaf"/>: focuses its nearest focusable node when <see cref="PointerPressFocuses"/>, unless
+    /// that is a text field.
+    /// </summary>
     internal void OnPointerPressed(ISkUiRenderable leaf)
     {
         if (!PointerPressFocuses || !SkUiAccessibility.IsEnabled)
             return;
         for (ISkUiRenderable? current = leaf; current is not null; current = current.RenderParent)
+        {
+            // A text field focuses itself: on a click, or on a tap (a touch that scrolls does not), whose handling depends on
+            // whether the field had focus before (a tap on the caret of a focused field opens the edit menu).
+            if (current is ISkUiTextInputNode { WantsTextInput: true })
+                return;
             if (current is ISkUiAccessibleNode { IsKeyboardFocusable: true } node)
             {
                 Focus(node, ring: false);
                 return;
             }
+        }
     }
 
     /// <summary>Raised after the focused node changed (the platform bridge moves the screen reader's keyboard focus).</summary>

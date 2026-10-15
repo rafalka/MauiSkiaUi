@@ -35,7 +35,9 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
         _box = new Microsoft.UI.Xaml.Controls.TextBox
         {
             Opacity = 0,
-            IsHitTestVisible = false,
+            // Not IsHitTestVisible = false: WinUI then raises neither TextChanged nor SelectionChanged (only TextChanging). An
+            // empty clip leaves nothing to hit (clicks reach the surface), and the box keeps its place for the input method.
+            Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry(),
             MinWidth = 0,
             MinHeight = 0,
             Padding = new XamlThickness(0),
@@ -90,7 +92,16 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
             return;
         if (next is not null && HasFocus)
             _container.Focus(FocusState.Programmatic);
-        _box.Visibility = XamlVisibility.Collapsed;
+        // Not now: the field may be detached during a focus change (the box losing focus), and WinUI moves focus off an element
+        // it collapses, which it does not allow then. A box keeping focus gives it to the container (keys go on to the surface).
+        _container.DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_client is not null)
+                return;
+            if (HasFocus)
+                _container.Focus(FocusState.Programmatic);
+            _box.Visibility = XamlVisibility.Collapsed;
+        });
     }
 
     public void ShowKeyboard(ISkUiTextInputClient client)
@@ -155,7 +166,21 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
         Add(SkUiTextEditAction.Paste, strings.PasteText);
         menu.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
         Add(SkUiTextEditAction.SelectAll, strings.SelectAllText);
+        // Set before it opens: the menu takes focus from the box (see OnBoxLosingFocus) and gives it back when it closes.
         _menu = menu;
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_menu, menu))
+                _menu = null;
+            // Dismissed by a click outside (which the menu takes) or hidden by the field, WinUI does not give focus back to the
+            // box but to some other control; the box takes it back after that settles, as a native text box keeps focus when its
+            // context menu closes. A menu replacing this one keeps it.
+            _container.DispatcherQueue.TryEnqueue(() =>
+            {
+                if (_client is not null && _menu is null && !HasFocus)
+                    _box.Focus(FocusState.Programmatic);
+            });
+        };
         menu.ShowAt(_container, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions
         {
             Position = new Windows.Foundation.Point(anchor.X, anchor.Bottom)
@@ -212,8 +237,9 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
         _pushing++;
         try
         {
-            if (_box.Text != editor.Text)
-                _box.Text = editor.Text;
+            var text = ToBox(editor);
+            if (_box.Text != text)
+                _box.Text = text;
             if (_box.SelectionStart != editor.SelectionStart || _box.SelectionLength != editor.SelectionLength)
                 _box.Select(editor.SelectionStart, editor.SelectionLength);
         }
@@ -229,7 +255,11 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
         if (_pushing > 0 || _client is not { } client)
             return;
         var text = _box.Text ?? string.Empty;
-        var old = client.Editor.Text;
+        var old = ToBox(client.Editor);
+        // WinUI raises TextChanged after the change, so the field's own changes copied into the box come back here too: they
+        // match the field, and must not end its undo step or turn a backward selection around.
+        if (text == old && !SelectionDiffers(client))
+            return;
         client.BeginInputBatch();
         try
         {
@@ -242,25 +272,47 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
                 var suffix = 0;
                 while (suffix < limit - prefix && text[text.Length - 1 - suffix] == old[old.Length - 1 - suffix])
                     suffix++;
-                client.ReplaceText(prefix, old.Length - suffix, text.Substring(prefix, text.Length - suffix - prefix));
+                client.ReplaceText(prefix, old.Length - suffix, FromBox(text.Substring(prefix, text.Length - suffix - prefix)));
             }
-            client.SetSelection(_box.SelectionStart, _box.SelectionStart + _box.SelectionLength);
+            if (SelectionDiffers(client))
+                client.SetSelection(_box.SelectionStart, _box.SelectionStart + _box.SelectionLength);
         }
         finally
         {
             client.EndInputBatch();
         }
         // The field changed the edit (a max length, a transform): the box follows it.
-        if (!_composing && client.Editor.Text != text)
+        if (!_composing && ToBox(client.Editor) != text)
             Copy(client);
     }
 
     private void OnBoxSelectionChanged(object sender, RoutedEventArgs args)
     {
-        if (_pushing > 0 || _client is not { } client || _box.Text != client.Editor.Text)
+        // Raised after the change, as TextChanged: the field's own selection copied into the box comes back here too.
+        if (_pushing > 0 || _client is not { } client || _box.Text != ToBox(client.Editor) || !SelectionDiffers(client))
             return;
         client.SetSelection(_box.SelectionStart, _box.SelectionStart + _box.SelectionLength);
     }
+
+    /// <summary>
+    /// The field's text as the box holds it, one character for one (the indexes match): WinUI's text box keeps a line break as
+    /// <c>\r</c>, so the field's <c>\n</c> copied in comes back as another text, which copied out again would never settle. A
+    /// single line shows breaks the app set as spaces.
+    /// </summary>
+    private static string ToBox(SkUiTextEditor editor)
+    {
+        var text = editor.Text;
+        if (text.AsSpan().IndexOfAny('\r', '\n') < 0)
+            return text;
+        return editor.IsMultiline ? text.Replace('\n', '\r') : text.Replace('\r', ' ').Replace('\n', ' ');
+    }
+
+    /// <summary>Text typed into the box as the field takes it (a line break as <c>\n</c>).</summary>
+    private static string FromBox(string text) => text.Replace('\r', '\n');
+
+    /// <summary>Whether the box's selection is another range than the field's (the box's has no direction).</summary>
+    private bool SelectionDiffers(ISkUiTextInputClient client) =>
+        _box.SelectionStart != client.Editor.SelectionStart || _box.SelectionLength != client.Editor.SelectionLength;
 
     private void OnCompositionChanged(Microsoft.UI.Xaml.Controls.TextBox sender, Microsoft.UI.Xaml.Controls.TextCompositionChangedEventArgs args)
     {
@@ -311,12 +363,22 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
             args.Handled = true;
     }
 
-    /// <summary>Focus leaving the box for something else than the container (a native control): the drawn field loses focus.</summary>
+    /// <summary>
+    /// Focus leaving the box for something else than the container or the field's edit menu (a native control): the drawn field
+    /// loses focus.
+    /// </summary>
     private void OnBoxLosingFocus(UIElement sender, LosingFocusEventArgs args)
     {
-        if (_client is null || ReferenceEquals(args.NewFocusedElement, _container) || ReferenceEquals(args.NewFocusedElement, _box))
+        if (_client is not { } client || _menu is not null || ReferenceEquals(args.NewFocusedElement, _container)
+            || ReferenceEquals(args.NewFocusedElement, _box))
             return;
-        _container.KeyboardFocus?.OnNativeFocusChanged(false);
+        // After the focus change: unfocusing raises the field's Unfocused, whose handlers may move focus, and WinUI fails fast on a
+        // focus change inside LosingFocus (0x802B0020). Focus back on the box or the container by then keeps the field focused.
+        _container.DispatcherQueue.TryEnqueue(() =>
+        {
+            if (ReferenceEquals(_client, client) && !HasFocus && _container.FocusState == FocusState.Unfocused)
+                _container.KeyboardFocus?.OnNativeFocusChanged(false);
+        });
     }
 }
 #endif

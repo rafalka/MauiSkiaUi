@@ -622,13 +622,17 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
         }
     }
 
+    /// <summary>Line breaks as <c>\n</c>: <c>\r\n</c> and <c>\r</c> (as a Windows text box gives them) are one break each.</summary>
+    internal static string NormalizeLineBreaks(string text) =>
+        text.Contains('\r') ? text.Replace("\r\n", "\n").Replace('\r', '\n') : text;
+
     /// <summary>Input text as the field takes it: line breaks normalized (or spaces in a single line), transformed.</summary>
     private string Clean(string text)
     {
         if (text.Length == 0)
             return text;
         if (text.AsSpan().IndexOfAny('\r', '\n') >= 0)
-            text = IsMultiline ? text.Replace("\r\n", "\n").Replace('\r', '\n') : text.Replace("\r\n", " ").Replace('\r', ' ').Replace('\n', ' ');
+            text = IsMultiline ? NormalizeLineBreaks(text) : NormalizeLineBreaks(text).Replace('\n', ' ');
         return SkUiTextTransform.Apply(text, Transform);
     }
 

@@ -647,6 +647,28 @@ public class EntryTests
     }
 
     [Fact]
+    public void WhereAPressFocusesTheFieldFocusesOnTheTapWithoutTheEditMenu()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var proxy = new TestProxy(receivesCharacters: true);
+        var (root, entry) = Field(new SkUiEntry(), proxy);
+        // Windows: a press focuses the control it hits, but a text field focuses itself, so the first tap on an empty field is
+        // not taken for a tap on the caret of a focused one (which opens the edit menu).
+        root.FocusManager.PointerPressFocuses = true;
+        var at = new Point(20, entry.Height / 2);
+        root.Touch(new SkUiTouchEvent(1, SkUiTouchAction.Pressed, at, TimeSpan.Zero));
+        Assert.False(entry.IsFocused);
+        root.Touch(new SkUiTouchEvent(1, SkUiTouchAction.Released, at, TimeSpan.FromMilliseconds(100)));
+        Assert.True(entry.IsFocused);
+        Assert.False(entry.Model.IsEditMenuShown);
+        // A later tap on the caret of the focused field opens it.
+        root.Touch(new SkUiTouchEvent(2, SkUiTouchAction.Pressed, at, TimeSpan.FromSeconds(2)));
+        root.Touch(new SkUiTouchEvent(2, SkUiTouchAction.Released, at, TimeSpan.FromSeconds(2.1)));
+        Assert.True(entry.Model.IsEditMenuShown);
+    }
+
+    [Fact]
     public void ATapShowsTheInsertionHandleBelowTheFieldAndDraggingItMovesTheCaret()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

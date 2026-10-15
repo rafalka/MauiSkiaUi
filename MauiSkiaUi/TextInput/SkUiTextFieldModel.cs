@@ -152,14 +152,16 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     public bool AutoSize;
 
     /// <summary>
-    /// The text the control holds: the app set it (not an edit of the user). The field shows it cut to <c>MaxLength</c> and
+    /// The text the control holds: the app set it (not an edit of the user). The field shows it with an editor's line breaks as
+    /// <c>\n</c> (<c>\r\n</c> and <c>\r</c>, as a Windows text box gives them, are one break each), cut to <c>MaxLength</c> and
     /// transformed (<c>TextTransform</c>); returns that text when it differs, for the control's <c>Text</c> to follow (as MAUI's
     /// fields push the text they show back), else <c>null</c>. The control raises its own change first, then follows.
     /// </summary>
     public string? SetText(string? text)
     {
         var source = text ?? string.Empty;
-        var cut = Editor.MaxLength < int.MaxValue && source.Length > Editor.MaxLength ? source[..Editor.MaxLength] : source;
+        var lines = IsMultiline ? SkUiTextEditor.NormalizeLineBreaks(source) : source;
+        var cut = Editor.MaxLength < int.MaxValue && lines.Length > Editor.MaxLength ? lines[..Editor.MaxLength] : lines;
         var shown = SkUiTextTransform.Apply(cut, Editor.Transform);
         if (shown != Editor.Text)
             Editor.SetText(shown);
@@ -297,7 +299,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             return new string('•', count);
         }
         _bulletStarts = null;
-        return !IsMultiline && text.Contains('\n') ? text.Replace('\n', ' ') : text;
+        return !IsMultiline && text.AsSpan().IndexOfAny('\r', '\n') >= 0 ? text.Replace('\r', ' ').Replace('\n', ' ') : text;
     }
 
     /// <summary>A text index in the shown text (a bullet index for a password).</summary>
