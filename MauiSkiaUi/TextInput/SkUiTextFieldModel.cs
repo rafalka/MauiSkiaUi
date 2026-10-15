@@ -806,15 +806,15 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         var anchor = rects.Count > 0 ? rects[0] : GetCaretBounds(Editor.Caret);
         for (var index = 1; index < rects.Count; index++)
             anchor = anchor.Union(rects[index]);
-        ShowEditMenu(anchor);
+        ShowEditMenu(anchor, byTouch: true);
     }
 
-    private void ShowEditMenu(Rect anchor)
+    private void ShowEditMenu(Rect anchor, bool byTouch)
     {
         if (_proxy is null)
             return;
         _menuShown = true;
-        _proxy.ShowEditMenu(this, anchor);
+        _proxy.ShowEditMenu(this, anchor, byTouch);
     }
 
     private void HideEditMenu()
@@ -836,7 +836,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         if (!Editor.HasSelection || index < Editor.SelectionStart || index > Editor.SelectionEnd)
             Editor.Select(index, index, upstream);
         var field = GetFieldBounds();
-        ShowEditMenu(new Rect(field.X + local.X, field.Y + local.Y, 0, 0));
+        ShowEditMenu(new Rect(field.X + local.X, field.Y + local.Y, 0, 0), byTouch: false);
     }
 
     #endregion

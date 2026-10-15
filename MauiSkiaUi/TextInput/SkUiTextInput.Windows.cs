@@ -77,6 +77,7 @@ internal sealed partial class SkUiWindowsTextInput : ISkUiTextInputProxy
         Configure(client);
         Copy(client);
         UpdateBounds(client);
+        SpeakFor(_container.Accessibility?.FocusedPeer());
         _box.Visibility = XamlVisibility.Visible;
         if (!HasFocus)
             _box.Focus(FocusState.Programmatic);
@@ -89,6 +90,7 @@ internal sealed partial class SkUiWindowsTextInput : ISkUiTextInputProxy
             return;
         _client = null;
         _composing = false;
+        SpeakFor(null);
         // Another field taking focus keeps the box (and the touch keyboard); another drawn node gives focus to the container.
         var next = _container.KeyboardFocus?.Focused;
         if (next is ISkUiTextInputNode { WantsTextInput: true })
@@ -105,6 +107,20 @@ internal sealed partial class SkUiWindowsTextInput : ISkUiTextInputProxy
                 _container.Focus(FocusState.Programmatic);
             _box.Visibility = XamlVisibility.Collapsed;
         });
+    }
+
+    /// <summary>
+    /// Screen readers hear the drawn field, not the box: WinUI reports focus on the box (UI Automation's focused element, the box's
+    /// focus events) as its peer's <c>EventsSource</c>, the field's element. Without it the box, kept out of the control view, took
+    /// focus silently: Narrator said nothing on entering a field.
+    /// </summary>
+    private void SpeakFor(Microsoft.UI.Xaml.Automation.Peers.AutomationPeer? field)
+    {
+        var peer = field is null
+            ? Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(_box)
+            : Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.CreatePeerForElement(_box);
+        if (peer is not null)
+            peer.EventsSource = field;
     }
 
     public void ShowKeyboard(ISkUiTextInputClient client)
@@ -153,28 +169,61 @@ internal sealed partial class SkUiWindowsTextInput : ISkUiTextInputProxy
             UpdateBounds(client);
     }
 
-    private Microsoft.UI.Xaml.Controls.MenuFlyout? _menu;
+    private Microsoft.UI.Xaml.Controls.CommandBarFlyout? _menu;
 
-    /// <summary>A context menu of the actions the field can run now (texts from <see cref="SkUiStrings"/>), at <paramref name="anchor"/>.</summary>
-    public void ShowEditMenu(ISkUiTextInputClient client, Rect anchor)
+    /// <summary>
+    /// The actions the field can run now (texts from <see cref="SkUiStrings"/>) at <paramref name="anchor"/>, as a native text box's
+    /// command bar: cut, copy and paste as icons, select all under "more". From touch it opens above the selection without taking
+    /// focus (as a text box's selection flyout), so the touch keyboard stays up; from a right click it opens at the point and
+    /// takes focus (keyboard navigation), as its context flyout.
+    /// </summary>
+    public void ShowEditMenu(ISkUiTextInputClient client, Rect anchor, bool byTouch)
     {
         if (!ReferenceEquals(_client, client))
             return;
         _menu?.Hide();
         var strings = SkUiStrings.Current;
-        var menu = new Microsoft.UI.Xaml.Controls.MenuFlyout();
-        void Add(SkUiTextEditAction action, string text)
+        var menu = new Microsoft.UI.Xaml.Controls.CommandBarFlyout { AllowFocusOnInteraction = !byTouch };
+        var keyboardShown = byTouch && InputPane() is { Visible: true };
+        Microsoft.UI.Xaml.Controls.AppBarButton? Button(SkUiTextEditAction action, string text, Microsoft.UI.Xaml.Controls.Symbol? symbol)
         {
-            var item = new Microsoft.UI.Xaml.Controls.MenuFlyoutItem { Text = text, IsEnabled = client.CanPerformEditAction(action) };
-            item.Click += (_, _) => client.PerformEditAction(action);
-            menu.Items.Add(item);
+            // As a text box's bar: only what can run now.
+            if (!client.CanPerformEditAction(action))
+                return null;
+            var button = new Microsoft.UI.Xaml.Controls.AppBarButton { Label = text, AllowFocusOnInteraction = !byTouch };
+            if (symbol is { } icon)
+            {
+                button.Icon = new Microsoft.UI.Xaml.Controls.SymbolIcon(icon);
+                Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(button, text);
+            }
+            button.Click += (_, _) =>
+            {
+                menu.Hide();
+                client.PerformEditAction(action);
+                // The touch keyboard hides on a tap outside the text box (a text box's own bar is exempt, ours is not): it comes back,
+                // as it stays up over a text box's bar.
+                if (keyboardShown && ReferenceEquals(_client, client))
+                    _container.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (ReferenceEquals(_client, client) && HasFocus)
+                            InputPane()?.TryShow();
+                    });
+            };
+            return button;
         }
-        Add(SkUiTextEditAction.Cut, strings.CutText);
-        Add(SkUiTextEditAction.Copy, strings.CopyText);
-        Add(SkUiTextEditAction.Paste, strings.PasteText);
-        menu.Items.Add(new Microsoft.UI.Xaml.Controls.MenuFlyoutSeparator());
-        Add(SkUiTextEditAction.SelectAll, strings.SelectAllText);
-        // Set before it opens: the menu takes focus from the box (see OnBoxLosingFocus) and gives it back when it closes.
+        foreach (var (action, text, symbol) in new[]
+                 {
+                     (SkUiTextEditAction.Cut, strings.CutText, Microsoft.UI.Xaml.Controls.Symbol.Cut),
+                     (SkUiTextEditAction.Copy, strings.CopyText, Microsoft.UI.Xaml.Controls.Symbol.Copy),
+                     (SkUiTextEditAction.Paste, strings.PasteText, Microsoft.UI.Xaml.Controls.Symbol.Paste)
+                 })
+            if (Button(action, text, symbol) is { } button)
+                menu.PrimaryCommands.Add(button);
+        if (Button(SkUiTextEditAction.SelectAll, strings.SelectAllText, null) is { } selectAll)
+            menu.SecondaryCommands.Add(selectAll);
+        if (menu.PrimaryCommands.Count == 0 && menu.SecondaryCommands.Count == 0)
+            return;
+        // Set before it opens: a right click's menu takes focus from the box (see OnBoxLosingFocus) and gives it back when it closes.
         _menu = menu;
         menu.Closed += (_, _) =>
         {
@@ -189,10 +238,27 @@ internal sealed partial class SkUiWindowsTextInput : ISkUiTextInputProxy
                     _box.Focus(FocusState.Programmatic);
             });
         };
-        menu.ShowAt(_container, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions
-        {
-            Position = new Windows.Foundation.Point(anchor.X, anchor.Bottom)
-        });
+        menu.ShowAt(_container, byTouch
+            ? new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions
+            {
+                Position = new Windows.Foundation.Point(anchor.Center.X, anchor.Top),
+                Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Top,
+                ShowMode = Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowMode.Transient
+            }
+            : new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions
+            {
+                Position = new Windows.Foundation.Point(anchor.X, anchor.Bottom),
+                ShowMode = Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowMode.Standard
+            });
+    }
+
+    /// <summary>The touch keyboard of the box's window (desktop apps reach it through the window handle).</summary>
+    private Windows.UI.ViewManagement.InputPane? InputPane()
+    {
+        if (_container.XamlRoot?.ContentIslandEnvironment is not { } environment)
+            return null;
+        var window = Microsoft.UI.Win32Interop.GetWindowFromWindowId(environment.AppWindowId);
+        return window == IntPtr.Zero ? null : Windows.UI.ViewManagement.InputPaneInterop.GetForWindow(window);
     }
 
     public void HideEditMenu(ISkUiTextInputClient client)
@@ -235,6 +301,9 @@ internal sealed partial class SkUiWindowsTextInput : ISkUiTextInputProxy
             : options.IsSearch ? InputScopeNameValue.Search
             : InputScopeNameValue.Default;
         var inputScope = new InputScope();
+        // As MAUI's entry: a search Return key comes from the Search scope, put before the keyboard's (WinUI uses the first name).
+        if (options.ReturnType == ReturnType.Search && !options.IsMultiline && !options.IsPassword && scope != InputScopeNameValue.Search)
+            inputScope.Names.Add(new InputScopeName(InputScopeNameValue.Search));
         inputScope.Names.Add(new InputScopeName(scope));
         _box.InputScope = inputScope;
     }

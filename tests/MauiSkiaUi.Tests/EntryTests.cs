@@ -40,7 +40,7 @@ public class EntryTests
         public void StateChanged(ISkUiTextInputClient client, bool textChanged) => Calls.Add(textChanged ? "text" : "selection");
         public void OptionsChanged(ISkUiTextInputClient client) => Calls.Add("options");
         public void GeometryChanged(ISkUiTextInputClient client) => Calls.Add("geometry");
-        public void ShowEditMenu(ISkUiTextInputClient client, Rect anchor) => Calls.Add("menu");
+        public void ShowEditMenu(ISkUiTextInputClient client, Rect anchor, bool byTouch) => Calls.Add("menu");
         public void HideEditMenu(ISkUiTextInputClient client) => Calls.Add("hide menu");
         public void ShowMagnifier(ISkUiTextInputClient client, Rect caret) => Calls.Add("magnifier");
         public void HideMagnifier(ISkUiTextInputClient client) => Calls.Add("hide magnifier");

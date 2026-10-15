@@ -356,7 +356,7 @@ public class StepperTests
         public void StateChanged(ISkUiTextInputClient client, bool textChanged) { }
         public void OptionsChanged(ISkUiTextInputClient client) { }
         public void GeometryChanged(ISkUiTextInputClient client) { }
-        public void ShowEditMenu(ISkUiTextInputClient client, Rect anchor) { }
+        public void ShowEditMenu(ISkUiTextInputClient client, Rect anchor, bool byTouch) { }
         public void HideEditMenu(ISkUiTextInputClient client) { }
     }
 }

@@ -110,4 +110,4 @@ MAUI's `Semantics` mapping of the root view is replaced (`SkUiViewHandler` mappe
 - Windows' text scaling is applied linearly; WinUI grows large text less.
 - Android: MAUI maps a root's `AutomationId` to the surface container's content description (what Appium finds it by), so TalkBack may read that id on the container itself.
 - Font images keep the text size of when their source was created.
-- Text fields: VoiceOver's text navigation (characters, words, lines through the rotor) and TalkBack / Narrator editing are not yet checked on devices.
+- Text fields: VoiceOver's text navigation (characters, words, lines through the rotor) and TalkBack / Narrator editing are not yet checked on devices. On Windows Narrator does not read the selected text (the drawn field has no Text pattern) and UI Automation's focused element is the surface, not the field ([TextInput.md](TextInput.md#text-fields-d3)).

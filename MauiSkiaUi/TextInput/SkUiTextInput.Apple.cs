@@ -99,7 +99,7 @@ internal sealed class SkUiAppleTextInput(SkUiOverlayContainer container) : ISkUi
             view.UpdateFrame();
     }
 
-    public void ShowEditMenu(ISkUiTextInputClient client, Rect anchor)
+    public void ShowEditMenu(ISkUiTextInputClient client, Rect anchor, bool byTouch)
     {
         if (_view is { } view && ReferenceEquals(view.Client, client))
             view.ShowEditMenu(anchor);

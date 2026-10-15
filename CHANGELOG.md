@@ -56,6 +56,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `CornerRadius` (default the look's `StepperCornerRadius`, 8; a pill at half the height), `BorderWidth` and `BorderColor` (default the color scheme's muted color): an outline inside the stepper, and a divider of the same width and color across it. They reach the look as `SkUiStepperPaint.CornerRadius`, `BorderWidth` and `BorderColor`.
 - **Pointer buttons:** `SkUiTouchEvent.Buttons` and `SkUiPointer.Buttons` (`SkUiPointerButtons`: primary, secondary, middle) tell gesture recognizers which mouse button is pressed, on every platform.
 
+### Fixes
+
+- Windows: drawn elements reported their UI Automation rectangles in DIPs, so on a scaled display Narrator's highlight, touch exploration and hit-testing missed them; they are in physical pixels now, as WinUI expects from a custom peer.
+
 ### Other
 
 - Samples app: the **Pizza order** sample counts pizzas with a typed stepper in XAML (`SkUiStepper<int>`, `x:TypeArguments="x:Int32"`). Demo gallery: a `SkUiStepper<decimal>` page next to MAUI's `Stepper`.

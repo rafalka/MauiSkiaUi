@@ -103,7 +103,7 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
     private SkUiEditMenu? _menu;
 
     /// <summary>Android's floating text selection toolbar (cut, copy, paste, select all, in the system's language) over <paramref name="anchor"/>.</summary>
-    public void ShowEditMenu(ISkUiTextInputClient client, Rect anchor)
+    public void ShowEditMenu(ISkUiTextInputClient client, Rect anchor, bool byTouch)
     {
         if (!ReferenceEquals(Client, client) || !OperatingSystem.IsAndroidVersionAtLeast(23))
             return;

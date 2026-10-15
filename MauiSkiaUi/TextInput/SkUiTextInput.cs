@@ -177,9 +177,10 @@ internal interface ISkUiTextInputProxy
 
     /// <summary>
     /// Shows the platform's edit menu (cut, copy, paste, select all: what <see cref="ISkUiTextInputClient.CanPerformEditAction"/>
-    /// allows) at <paramref name="anchor"/> (surface DIPs: the selection, the caret or the clicked point).
+    /// allows) at <paramref name="anchor"/> (surface DIPs: the selection, the caret or the clicked point). <paramref name="byTouch"/>: a
+    /// touch gesture opened it (a double tap, a long press, a handle), so it must not take focus from the keyboard; else a right click.
     /// </summary>
-    void ShowEditMenu(ISkUiTextInputClient client, Rect anchor);
+    void ShowEditMenu(ISkUiTextInputClient client, Rect anchor, bool byTouch);
 
     /// <summary>Hides the edit menu (typing, moving the selection, focus leaving).</summary>
     void HideEditMenu(ISkUiTextInputClient client);
