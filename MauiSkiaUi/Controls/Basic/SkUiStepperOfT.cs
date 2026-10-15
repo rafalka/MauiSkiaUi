@@ -15,7 +15,8 @@ namespace MauiSkiaUi;
 /// <remarks>
 /// Native AOT compiles each <typeparamref name="T"/> an app uses ahead of time; XAML names the type at build time (XamlC or the
 /// XAML source generator). Bind <see cref="Value"/> to a property of type <typeparamref name="T"/>: a binding of another type makes
-/// MAUI convert the values.
+/// MAUI convert the values. Screen readers get the range and value as <see cref="double"/>: near the ends of <see cref="long"/>,
+/// <see cref="ulong"/> or <see cref="decimal"/> they hear the nearest <see cref="double"/>, while the stepper itself stays exact.
 /// </remarks>
 public class SkUiStepper<T> : SkUiStepperBase where T : struct, INumber<T>, IMinMaxValue<T>
 {

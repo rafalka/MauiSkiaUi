@@ -271,14 +271,21 @@ internal sealed class SkUiFocusManager(SkUiView root)
         return true;
     }
 
+    // A field this close above the keyboard's top counts as above it.
+    private const double KeyboardTolerance = 0.5;
+
     private double _keyboardTop = double.PositiveInfinity;
-    private WeakReference<SkUiScrollView>? _keyboardScroller;
+    // The drawn scrollers that made room for the keyboard, innermost first.
+    private readonly List<WeakReference<SkUiScrollView>> _keyboardScrollers = [];
+    // Bumped by each reveal: one still scrolling stops when a newer one (another field, keyboard top) started.
+    private int _revealVersion;
     private Rect _fieldBounds;
 
     /// <summary>
     /// Set by the platform's text input: where the soft keyboard begins, in surface DIPs (positive infinity: no keyboard over the
-    /// surface). A focused text field is kept above it: its innermost vertical drawn scroller lets its content scroll out from under
-    /// the keyboard and shows the field; without one, native scrollers around the surface are asked to show it.
+    /// surface). A focused text field is kept above it: its vertical drawn scrollers let their content scroll out from under the
+    /// keyboard and show the field, innermost first; without one, or when they cannot, native scrollers around the surface are
+    /// asked to show it.
     /// </summary>
     public void SetKeyboardTop(double surfaceY)
     {
@@ -292,35 +299,53 @@ internal sealed class SkUiFocusManager(SkUiView root)
     /// <summary>Keeps the focused text field above the soft keyboard (see <see cref="SetKeyboardTop"/>).</summary>
     internal void RevealFocusedField()
     {
-        SkUiScrollView? scroller = null;
+        var version = ++_revealVersion;
+        List<SkUiScrollView>? scrollers = null;
         if (_focused is ISkUiTextInputNode { WantsTextInput: true } field && !double.IsPositiveInfinity(_keyboardTop))
         {
+            // Every vertical drawn scroller around the field makes room for the part of its viewport the keyboard covers.
             for (var current = field.RenderParent; current is not null; current = current.RenderParent)
-                if (current is SkUiScrollView { Orientation: ScrollOrientation.Vertical or ScrollOrientation.Both } candidate)
+                if (current is SkUiScrollView { Orientation: ScrollOrientation.Vertical or ScrollOrientation.Both } scroller
+                    && SkUiDiagnostics.GetRootBounds(scroller) is { } port)
                 {
-                    scroller = candidate;
-                    break;
+                    scroller.KeyboardInset = Math.Max(0, Math.Min(port.Height, port.Bottom - _keyboardTop));
+                    (scrollers ??= []).Add(scroller);
                 }
-            var fieldBounds = field.TextInputClient.GetFieldBounds();
-            if (scroller is not null && SkUiDiagnostics.GetRootBounds(scroller) is { } port)
-            {
-                scroller.KeyboardInset = Math.Max(0, Math.Min(port.Height, port.Bottom - _keyboardTop));
-                _ = field switch
-                {
-                    Element element => scroller.ScrollToAsync(element, ScrollToPosition.MakeVisible, animated: true),
-                    Core.SkUiCoreNode node => scroller.ScrollToAsync(node, ScrollToPosition.MakeVisible, animated: true),
-                    _ => Task.CompletedTask
-                };
-            }
-            else if (fieldBounds.Bottom > _keyboardTop)
-            {
+            if (scrollers is not null)
+                _ = RevealAsync(field, scrollers, version);
+            else if (field.TextInputClient.GetFieldBounds() is var fieldBounds && fieldBounds.Bottom > _keyboardTop)
                 RequestNativeReveal?.Invoke(fieldBounds);
-            }
         }
-        // The scroller that made room before (another field's, or none now) gives it back.
-        if (_keyboardScroller?.TryGetTarget(out var previous) == true && !ReferenceEquals(previous, scroller))
-            previous.KeyboardInset = 0;
-        _keyboardScroller = scroller is null ? null : new WeakReference<SkUiScrollView>(scroller);
+        // The scrollers that made room before and no longer hold the focused field (another field's, or none now) give it back.
+        foreach (var reference in _keyboardScrollers)
+            if (reference.TryGetTarget(out var previous) && scrollers?.Contains(previous) != true)
+                previous.KeyboardInset = 0;
+        _keyboardScrollers.Clear();
+        if (scrollers is not null)
+            foreach (var scroller in scrollers)
+                _keyboardScrollers.Add(new WeakReference<SkUiScrollView>(scroller));
+    }
+
+    /// <summary>
+    /// Shows the field from the innermost scroller out, each after the one inside it settled, while the keyboard still covers it
+    /// (a short scroller nested in a taller one cannot show it alone); native scrollers around the surface last.
+    /// </summary>
+    private async Task RevealAsync(ISkUiTextInputNode field, List<SkUiScrollView> scrollers, int version)
+    {
+        foreach (var scroller in scrollers)
+        {
+            await (field switch
+            {
+                Element element => scroller.ScrollToAsync(element, ScrollToPosition.MakeVisible, animated: true),
+                Core.SkUiCoreNode node => scroller.ScrollToAsync(node, ScrollToPosition.MakeVisible, animated: true),
+                _ => Task.CompletedTask
+            });
+            if (version != _revealVersion || !ReferenceEquals(_focused, field))
+                return;
+            if (field.TextInputClient.GetFieldBounds().Bottom <= _keyboardTop + KeyboardTolerance)
+                return;
+        }
+        RequestNativeReveal?.Invoke(field.TextInputClient.GetFieldBounds());
     }
 
     /// <summary>

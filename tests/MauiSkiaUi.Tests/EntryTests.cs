@@ -542,6 +542,34 @@ public class EntryTests
     }
 
     [Fact]
+    public void AFieldInAShortScrollerUnderTheKeyboardIsShownByTheScrollerAroundIt()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var field = new SkUiEntry { FontFamily = SkUiTestHelpers.BundledFontFamily };
+        var inner = new SkUiScrollView { HeightRequest = 150, Content = new SkUiVerticalStackLayout { Children = { new SkUiBox { HeightRequest = 100 }, field } } };
+        var column = new SkUiVerticalStackLayout();
+        for (var index = 0; index < 7; index++)
+            column.Children.Add(new SkUiBox { HeightRequest = 60 });
+        column.Children.Add(inner);
+        var outer = new SkUiScrollView { Content = column };
+        using var surface = new SkUiTestSurface(new SkUiContentView { Content = outer }, 300, 600);
+        var root = surface.Root;
+        surface.Frame();
+        Assert.True(field.Focus());
+        // The keyboard covers the whole inner scroller (y 420 to 570): only the outer one can bring the field above it.
+        root.FocusManager.SetKeyboardTop(300);
+        for (var time = 0; time <= 2000; time += 50)
+            surface.Frame(time);
+        Assert.Equal(150, inner.KeyboardInset, 1);
+        Assert.Equal(300, outer.KeyboardInset, 1);
+        var bounds = SkUiDiagnostics.GetRootBounds(field)!.Value;
+        Assert.True(bounds.Bottom <= 300.5, $"field bottom {bounds.Bottom}");
+        root.FocusManager.SetKeyboardTop(double.PositiveInfinity);
+        Assert.Equal(0, inner.KeyboardInset);
+        Assert.Equal(0, outer.KeyboardInset);
+    }
+
+    [Fact]
     public void TheInputMethodFollowsAScrolledField()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

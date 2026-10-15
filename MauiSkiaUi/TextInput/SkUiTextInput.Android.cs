@@ -219,7 +219,8 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
         info.InitialSelStart = editor.SelectionStart;
         info.InitialSelEnd = editor.SelectionEnd;
         info.InitialCapsMode = TextUtils.GetCapsMode(new String(editor.Text), editor.SelectionStart, (CapitalizationMode)(int)(type & InputTypes.MaskFlags));
-        if (OperatingSystem.IsAndroidVersionAtLeast(30))
+        // Never a password's text (Android drops it for password input types too; this does not rely on that).
+        if (OperatingSystem.IsAndroidVersionAtLeast(30) && !options.IsPassword)
             info.SetInitialSurroundingText(new String(editor.Text));
     }
 }

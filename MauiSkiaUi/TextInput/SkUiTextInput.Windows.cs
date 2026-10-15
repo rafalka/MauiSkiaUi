@@ -307,8 +307,11 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
         return editor.IsMultiline ? text.Replace('\n', '\r') : text.Replace('\r', ' ').Replace('\n', ' ');
     }
 
-    /// <summary>Text typed into the box as the field takes it (a line break as <c>\n</c>).</summary>
-    private static string FromBox(string text) => text.Replace('\r', '\n');
+    /// <summary>
+    /// Text typed into the box as the field takes it: a line break as <c>\n</c>, one for <c>\r\n</c> too should a paste or an input
+    /// method ever bring one (the box keeps <c>\r</c>).
+    /// </summary>
+    private static string FromBox(string text) => SkUiTextEditor.NormalizeLineBreaks(text);
 
     /// <summary>Whether the box's selection is another range than the field's (the box's has no direction).</summary>
     private bool SelectionDiffers(ISkUiTextInputClient client) =>

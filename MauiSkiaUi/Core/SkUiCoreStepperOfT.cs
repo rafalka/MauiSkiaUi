@@ -9,6 +9,10 @@ namespace MauiSkiaUi.Core;
 /// and a step stops at the range's end, also at the type's limits.
 /// </summary>
 /// <typeparam name="T">The value's type: a number with a minimum and a maximum value (generic math).</typeparam>
+/// <remarks>
+/// Screen readers get the range and value as <see cref="double"/>: near the ends of <see cref="long"/>, <see cref="ulong"/> or
+/// <see cref="decimal"/> they hear the nearest <see cref="double"/>, while the stepper itself stays exact.
+/// </remarks>
 public class SkUiCoreStepper<T> : SkUiCoreStepperBase where T : struct, INumber<T>, IMinMaxValue<T>
 {
     private T _value;
