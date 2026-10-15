@@ -1,8 +1,9 @@
 name: Demo publish
 
-# Builds publishable MauiSkiaUiDemo packages and uploads them as artifacts.
-# Android APK is produced unsigned/debug-keystore style for sideload testing unless
-# ANDROID_KEYSTORE_* secrets are configured. Mac Catalyst requires a macOS runner.
+# Builds publishable packages of the demo app (MauiSkiaUiDemo) and/or the samples app (MauiSkiaUiSamples) and
+# uploads them as artifacts. Android APK is produced unsigned/debug-keystore style for sideload testing unless
+# ANDROID_KEYSTORE_* secrets are configured. Mac Catalyst requires a macOS runner and is published as an unsigned
+# .app in a zip (right-click > Open on first launch).
 
 on:
   workflow_dispatch:
@@ -15,6 +16,15 @@ on:
           - Release
           - Debug
         default: Release
+      app:
+        description: Which app to publish
+        required: true
+        type: choice
+        options:
+          - demo
+          - samples
+          - demo-and-samples
+        default: demo
       platforms:
         description: Which platforms to publish
         required: true
@@ -34,12 +44,46 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
+  # Turns the inputs into one matrix per platform (a job `if` cannot read the matrix, so the choice is made here).
+  # A tag push publishes the Android APK of both apps.
+  prepare:
+    name: Select apps
+    runs-on: ubuntu-24.04
+    outputs:
+      android: ${{ steps.select.outputs.android }}
+      maccatalyst: ${{ steps.select.outputs.maccatalyst }}
+    steps:
+      - name: Select apps and platforms
+        id: select
+        env:
+          EVENT: ${{ github.event_name }}
+          APP: ${{ inputs.app }}
+          PLATFORMS: ${{ inputs.platforms }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          demo='{"app":"demo","project":"MauiSkiaUiDemo/MauiSkiaUiDemo.csproj"}'
+          samples='{"app":"samples","project":"samples/MauiSkiaUiSamples/MauiSkiaUiSamples.csproj"}'
+          if [[ "$EVENT" == "push" ]]; then APP=demo-and-samples; PLATFORMS=android; fi
+          case "$APP" in
+            demo) apps="$demo" ;;
+            samples) apps="$samples" ;;
+            *) apps="$demo,$samples" ;;
+          esac
+          android='[]'; maccatalyst='[]'
+          [[ "$PLATFORMS" == android* ]] && android="[$apps]"
+          [[ "$PLATFORMS" == *maccatalyst ]] && maccatalyst="[$apps]"
+          echo "android=$android" >> "$GITHUB_OUTPUT"
+          echo "maccatalyst=$maccatalyst" >> "$GITHUB_OUTPUT"
+
   android:
-    name: Publish Android demo
-    if: >
-      github.event_name == 'push' ||
-      inputs.platforms == 'android' ||
-      inputs.platforms == 'android-and-maccatalyst'
+    name: Publish Android ${{ matrix.app }}
+    needs: prepare
+    if: needs.prepare.outputs.android != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.android) }}
     # Pin until ubuntu-latest migrates to 26 (Oct 2026).
     runs-on: ubuntu-24.04
     steps:
@@ -86,12 +130,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/demo/android
+          mkdir -p artifacts/${{ matrix.app }}/android
           # Scope TFMs to Android so the multi-TFM library is not restored for net10.0 with an
           # Android RID. Use a single Android RID (not the host linux-x64) — desktop Mono packs
           # were removed in .NET 9+ and host RID leakage causes NU1102 Mono.linux-x64.
           ARGS=(
-            MauiSkiaUiDemo/MauiSkiaUiDemo.csproj
+            "${{ matrix.project }}"
             -f net10.0-android
             -c "$CONFIG"
             -p:TargetFrameworks=net10.0-android
@@ -99,7 +143,7 @@ jobs:
             -p:EnableProfiling=false
             -p:ContinuousIntegrationBuild=true
             -p:AndroidPackageFormats=apk
-            -o artifacts/demo/android
+            -o artifacts/${{ matrix.app }}/android
           )
           if [[ "${{ steps.keystore.outputs.signed }}" == "true" ]]; then
             ARGS+=(
@@ -111,22 +155,25 @@ jobs:
             )
           fi
           dotnet publish "${ARGS[@]}"
-          find artifacts/demo/android -type f \( -name '*.apk' -o -name '*.aab' \) -print
+          find artifacts/${{ matrix.app }}/android -type f \( -name '*.apk' -o -name '*.aab' \) -print
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: demo-android
+          name: ${{ matrix.app }}-android
           path: |
-            artifacts/demo/android/**/*.apk
-            artifacts/demo/android/**/*.aab
+            artifacts/${{ matrix.app }}/android/**/*.apk
+            artifacts/${{ matrix.app }}/android/**/*.aab
           if-no-files-found: error
 
   maccatalyst:
-    name: Publish Mac Catalyst demo
-    if: >
-      (github.event_name == 'workflow_dispatch' &&
-        (inputs.platforms == 'maccatalyst' || inputs.platforms == 'android-and-maccatalyst'))
+    name: Publish Mac Catalyst ${{ matrix.app }}
+    needs: prepare
+    if: needs.prepare.outputs.maccatalyst != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.maccatalyst) }}
     runs-on: macos-15
     steps:
       - name: Checkout
@@ -138,26 +185,49 @@ jobs:
           workloads: maui-maccatalyst
           java-version: ""
 
+      # Building an app (unlike the library) needs the Xcode version the installed MAUI workload was built for (its
+      # SDK pack name ends in it, e.g. ..._26.0); the image may default to another. Take its newest patch release.
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          pack="$(ls -d "${DOTNET_ROOT:-$HOME/.dotnet}"/packs/Microsoft.MacCatalyst.Sdk.net*_* | sort -V | tail -1)"
+          want="${pack##*_}"
+          echo "Mac Catalyst SDK pack $(basename "$pack") needs Xcode $want"
+          xcode="$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' \
+            | grep -E "/Xcode_${want//./\\.}(\.[0-9]+)*\.app$" | sort -V | tail -1)"
+          [[ -n "$xcode" ]] || { echo "No Xcode $want on this runner image." >&2; exit 1; }
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+
       - name: Publish Mac Catalyst
         env:
           CONFIG: ${{ github.event_name == 'workflow_dispatch' && inputs.configuration || 'Release' }}
         run: |
           set -euo pipefail
-          mkdir -p artifacts/demo/maccatalyst
-          dotnet publish MauiSkiaUiDemo/MauiSkiaUiDemo.csproj \
+          # Scope TFMs to Mac Catalyst: the libraries are multi-targeted, and restoring their Android TFM needs the
+          # android workload (NETSDK1147). No `-o`: with the two Mac Catalyst RIDs it nests the output under the
+          # absolute project path, and the universal .app is built into bin/<config>/net10.0-maccatalyst anyway.
+          # No `.pkg` (CreatePackage): it needs a signing identity the runner does not have.
+          dotnet publish "${{ matrix.project }}" \
             -f net10.0-maccatalyst \
             -c "$CONFIG" \
+            -p:TargetFrameworks=net10.0-maccatalyst \
             -p:EnableProfiling=false \
             -p:ContinuousIntegrationBuild=true \
-            -p:CreatePackage=true \
-            -o artifacts/demo/maccatalyst
-          find artifacts/demo/maccatalyst -type f \( -name '*.pkg' -o -name '*.app' \) -print || true
-          # `head` closes early; with pipefail `ls` can exit 141 (SIGPIPE). Ignore that.
-          ls -laR artifacts/demo/maccatalyst | head -80 || true
+            -p:CreatePackage=false
+          bin="$(dirname "${{ matrix.project }}")/bin/$CONFIG/net10.0-maccatalyst"
+          app="$(find "$bin" -maxdepth 1 -name '*.app' -print -quit)"
+          [[ -n "$app" ]] || { echo "No .app in $bin" >&2; ls -la "$bin"; exit 1; }
+          echo "Publishing $app"
+          lipo -info "$app/Contents/MacOS/"* || true
+          mkdir -p artifacts/${{ matrix.app }}/maccatalyst
+          # ditto keeps symlinks and permissions, which a plain artifact zip would drop.
+          ditto -c -k --keepParent "$app" "artifacts/${{ matrix.app }}/maccatalyst/${{ matrix.app }}-maccatalyst.zip"
+          ls -la artifacts/${{ matrix.app }}/maccatalyst
 
       - name: Upload Mac Catalyst artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: demo-maccatalyst
-          path: artifacts/demo/maccatalyst
+          name: ${{ matrix.app }}-maccatalyst
+          path: artifacts/${{ matrix.app }}/maccatalyst
           if-no-files-found: error
