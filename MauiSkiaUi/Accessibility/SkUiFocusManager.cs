@@ -276,7 +276,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
 
     private double _keyboardTop = double.PositiveInfinity;
     // The drawn scrollers that made room for the keyboard, innermost first.
-    private readonly List<WeakReference<SkUiScrollView>> _keyboardScrollers = [];
+    private readonly List<WeakReference<ISkUiScrollHost>> _keyboardScrollers = [];
     // Bumped by each reveal: one still scrolling stops when a newer one (another field, keyboard top) started.
     private int _revealVersion;
     private Rect _fieldBounds;
@@ -300,13 +300,12 @@ internal sealed class SkUiFocusManager(SkUiView root)
     internal void RevealFocusedField()
     {
         var version = ++_revealVersion;
-        List<SkUiScrollView>? scrollers = null;
+        List<ISkUiScrollHost>? scrollers = null;
         if (_focused is ISkUiTextInputNode { WantsTextInput: true } field && !double.IsPositiveInfinity(_keyboardTop))
         {
             // Every vertical drawn scroller around the field makes room for the part of its viewport the keyboard covers.
             for (var current = field.RenderParent; current is not null; current = current.RenderParent)
-                if (current is SkUiScrollView { Orientation: ScrollOrientation.Vertical or ScrollOrientation.Both } scroller
-                    && SkUiDiagnostics.GetRootBounds(scroller) is { } port)
+                if (current is ISkUiScrollHost { Scroller.Vertical: true } scroller && SkUiDiagnostics.GetRootBounds(scroller) is { } port)
                 {
                     scroller.KeyboardInset = Math.Max(0, Math.Min(port.Height, port.Bottom - _keyboardTop));
                     (scrollers ??= []).Add(scroller);
@@ -323,21 +322,22 @@ internal sealed class SkUiFocusManager(SkUiView root)
         _keyboardScrollers.Clear();
         if (scrollers is not null)
             foreach (var scroller in scrollers)
-                _keyboardScrollers.Add(new WeakReference<SkUiScrollView>(scroller));
+                _keyboardScrollers.Add(new WeakReference<ISkUiScrollHost>(scroller));
     }
 
     /// <summary>
     /// Shows the field from the innermost scroller out, each after the one inside it settled, while the keyboard still covers it
     /// (a short scroller nested in a taller one cannot show it alone); native scrollers around the surface last.
     /// </summary>
-    private async Task RevealAsync(ISkUiTextInputNode field, List<SkUiScrollView> scrollers, int version)
+    private async Task RevealAsync(ISkUiTextInputNode field, List<ISkUiScrollHost> scrollers, int version)
     {
         foreach (var scroller in scrollers)
         {
-            await (field switch
+            await ((scroller, field) switch
             {
-                Element element => scroller.ScrollToAsync(element, ScrollToPosition.MakeVisible, animated: true),
-                Core.SkUiCoreNode node => scroller.ScrollToAsync(node, ScrollToPosition.MakeVisible, animated: true),
+                (SkUiScrollView view, Element element) => view.ScrollToAsync(element, ScrollToPosition.MakeVisible, animated: true),
+                (SkUiScrollView view, Core.SkUiCoreNode node) => view.ScrollToAsync(node, ScrollToPosition.MakeVisible, animated: true),
+                (Core.SkUiCoreScrollView view, Core.SkUiCoreNode node) => view.ScrollToAsync(node, ScrollToPosition.MakeVisible, animated: true),
                 _ => Task.CompletedTask
             });
             if (version != _revealVersion || !ReferenceEquals(_focused, field))

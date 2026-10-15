@@ -352,7 +352,7 @@ What changes:
 
 - **Platform customizations.** Handler mapper tweaks on `Entry` (removing the underline, the caret color, `ios:Entry.CursorColor`, padding) do not apply: use `CaretColor`, `SelectionColor`, `BackgroundColor` and the look (`TextFieldPadding`, `DefaultSkUiLook.TextFieldStyle`: `Underline`, `Outline`, `Filled`; or `TextFieldPainter` for chrome of your own).
 - **Autofill.** `AutofillHint` (`SkUiAutofillHints.Username`, `Password`, `OneTimeCode`, …) replaces platform-specific content types; Android autofill of drawn fields is not wired yet, so keep a hosted `Entry` for a login form that depends on it there.
-- **Keyboard avoidance.** A focused field scrolls above the soft keyboard inside a drawn `SkUiScrollView`. Custom code that moves the page for the keyboard (resizing a grid row, `WindowSoftInputModeAdjust` tricks) can usually go; keep the app's soft input mode.
+- **Keyboard avoidance.** A focused field scrolls above the soft keyboard inside drawn scrollers (`SkUiScrollView`, `SkUiCoreScrollView`, nested ones too). Custom code that moves the page for the keyboard (resizing a grid row, `WindowSoftInputModeAdjust` tricks) can usually go; keep the app's soft input mode.
 - **Default font size** is 16 (SkiaUi's labels), not the platform's; set `FontSize` where it mattered.
 - **`TextTransform`** transforms the text itself (typed, pasted, set by the app, and what is already there when it changes); `Text` and a two-way binding get the transformed text.
 

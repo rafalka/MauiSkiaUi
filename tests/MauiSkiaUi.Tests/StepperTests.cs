@@ -27,6 +27,30 @@ public class StepperTests
     }
 
     [Fact]
+    public void InvalidValuesAreIgnoredAndRefusedBySetters()
+    {
+        var stepper = new SkUiStepper { Minimum = 0, Maximum = 10 };
+        stepper.Increment = 0;
+        stepper.Increment = -0.5;
+        stepper.Increment = double.NaN;
+        Assert.Equal(1, stepper.Increment);
+        stepper.Value = double.NaN;
+        stepper.Maximum = double.PositiveInfinity;
+        stepper.Minimum = double.NaN;
+        Assert.Equal((0d, 0d, 10d), (stepper.Value, stepper.Minimum, stepper.Maximum));
+        Assert.Throws<ArgumentOutOfRangeException>(() => stepper.SetIncrement(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => stepper.SetIncrement(-0.5));
+        Assert.Throws<ArgumentOutOfRangeException>(() => stepper.SetValue(double.NaN));
+        Assert.Throws<ArgumentOutOfRangeException>(() => stepper.SetMaximum(double.PositiveInfinity));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiStepper(0, 5, 5, 0));
+        var core = new Core.SkUiCoreStepper();
+        Assert.Throws<ArgumentOutOfRangeException>(() => core.SetIncrement(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => core.SetValue(double.NaN));
+        Assert.Throws<ArgumentOutOfRangeException>(() => core.SetMinimum(double.NegativeInfinity));
+        Assert.Equal((1d, 0d), (core.Increment, core.Value));
+    }
+
+    [Fact]
     public void ValueIsCoercedAsMauisStepper()
     {
         var stepper = new SkUiStepper { Minimum = 0, Maximum = 10 };

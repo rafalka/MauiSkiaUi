@@ -381,14 +381,22 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
     {
         if (IsReadOnly)
             return;
-        var (start, end) = HasComposition ? (CompositionStart, CompositionEnd) : (SelectionStart, SelectionEnd);
+        var composing = HasComposition;
+        var (start, end) = composing ? (CompositionStart, CompositionEnd) : (SelectionStart, SelectionEnd);
+        // A new composition is an undo step of its own: an input method committing with insertText (iOS CJK keyboards) never ends
+        // the last one, so phrases would otherwise join into one step.
+        if (!composing)
+            _coalesce = false;
         BeginBatch();
         try
         {
             var cleaned = Clean(text);
             ClearComposition();
+            var lengthBefore = Text.Length;
             Replace(start, end, cleaned, SkUiTextEditKind.Composing);
-            var inserted = Math.Min(cleaned.Length, Text.Length - start);
+            // What the edit inserted, not what was asked: MaxLength may cut or refuse the marked text, and the composition must not
+            // cover the text after it.
+            var inserted = Math.Max(0, Text.Length - lengthBefore + (end - start));
             if (inserted > 0)
             {
                 CompositionStart = start;
@@ -620,6 +628,27 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
         {
             ClearComposition();
         }
+    }
+
+    /// <summary>
+    /// The one edit that turns <paramref name="old"/> into <paramref name="text"/> (the platform proxies' mirrors): the common
+    /// prefix and suffix stay, <c>[Start, End)</c> of <paramref name="old"/> becomes <c>Inserted</c>. Neither end falls inside a
+    /// surrogate pair, so the edit (its undo step, its kind) covers whole characters.
+    /// </summary>
+    internal static (int Start, int End, string Inserted) Diff(string old, string text)
+    {
+        var limit = Math.Min(text.Length, old.Length);
+        var prefix = 0;
+        while (prefix < limit && text[prefix] == old[prefix])
+            prefix++;
+        if (prefix > 0 && char.IsHighSurrogate(old[prefix - 1]))
+            prefix--;
+        var suffix = 0;
+        while (suffix < limit - prefix && text[text.Length - 1 - suffix] == old[old.Length - 1 - suffix])
+            suffix++;
+        if (suffix > 0 && char.IsLowSurrogate(old[old.Length - suffix]))
+            suffix--;
+        return (prefix, old.Length - suffix, text.Substring(prefix, text.Length - suffix - prefix));
     }
 
     /// <summary>Line breaks as <c>\n</c>: <c>\r\n</c> and <c>\r</c> (as a Windows text box gives them) are one break each.</summary>

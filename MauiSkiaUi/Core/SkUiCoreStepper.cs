@@ -25,7 +25,7 @@ public class SkUiCoreStepper : SkUiCoreStepperBase
     /// <summary>The largest value (default 100).</summary>
     public double Maximum { get => _maximum; set => SetMaximum(value); }
 
-    /// <summary>How much a button changes the value (default 1).</summary>
+    /// <summary>How much a button changes the value (default 1); above zero.</summary>
     public double Increment { get => _increment; set => SetIncrement(value); }
 
     /// <summary>Raised when <see cref="Value"/> changes.</summary>
@@ -34,6 +34,7 @@ public class SkUiCoreStepper : SkUiCoreStepperBase
     /// <summary>Sets <see cref="Value"/> (kept within the range; the asked value comes back when the range widens).</summary>
     public SkUiCoreStepper SetValue(double value)
     {
+        SkUiValidate.ThrowIfNotFiniteNumber(value, nameof(value));
         _requestedValue = value;
         return ApplyValue(value);
     }
@@ -51,6 +52,7 @@ public class SkUiCoreStepper : SkUiCoreStepperBase
     /// <summary>Sets <see cref="Minimum"/> (not above <see cref="Maximum"/>).</summary>
     public SkUiCoreStepper SetMinimum(double value)
     {
+        SkUiValidate.ThrowIfNotFiniteNumber(value, nameof(value));
         if (value > _maximum)
             throw new ArgumentOutOfRangeException(nameof(value));
         if (SetProperty(ref _minimum, value, nameof(Minimum)))
@@ -61,6 +63,7 @@ public class SkUiCoreStepper : SkUiCoreStepperBase
     /// <summary>Sets <see cref="Maximum"/> (not below <see cref="Minimum"/>).</summary>
     public SkUiCoreStepper SetMaximum(double value)
     {
+        SkUiValidate.ThrowIfNotFiniteNumber(value, nameof(value));
         if (value < _minimum)
             throw new ArgumentOutOfRangeException(nameof(value));
         if (SetProperty(ref _maximum, value, nameof(Maximum)))
@@ -74,9 +77,10 @@ public class SkUiCoreStepper : SkUiCoreStepperBase
         OnValueOrRangeChanged();
     }
 
-    /// <summary>Sets <see cref="Increment"/>.</summary>
+    /// <summary>Sets <see cref="Increment"/> (finite, above zero).</summary>
     public SkUiCoreStepper SetIncrement(double value)
     {
+        SkUiValidate.ThrowIfNotPositiveNumber(value, nameof(value));
         if (SetProperty(ref _increment, value, nameof(Increment)))
             _digits = SkUiStepperMath<double>.Digits(value);
         return this;

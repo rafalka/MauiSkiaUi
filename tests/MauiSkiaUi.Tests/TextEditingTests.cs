@@ -268,6 +268,54 @@ public class TextEditingTests
         Assert.Equal(3, editor.Caret);
     }
 
+    [Theory]
+    [InlineData("abc", "abXc", 2, 2, "X")]
+    [InlineData("abc", "ac", 1, 2, "")]
+    [InlineData("a\U0001F600b", "a\U0001F601b", 1, 3, "\U0001F601")]
+    [InlineData("\U0001F600\U0001F600", "\U0001F600", 2, 4, "")]
+    [InlineData("a\U0001F600", "a\U00010600", 1, 3, "\U00010600")]
+    [InlineData("x\U0001F600", "x\U0001F600\U0001F601", 3, 3, "\U0001F601")]
+    public void DiffNeverSplitsASurrogatePair(string old, string text, int start, int end, string inserted)
+    {
+        Assert.Equal((start, end, inserted), SkUiTextEditor.Diff(old, text));
+    }
+
+    [Fact]
+    public void PhrasesCommittedWithInsertTextAreUndoneOneByOne()
+    {
+        var editor = Editor("");
+        editor.SetComposingText("nihao");
+        editor.InsertText("你好");
+        editor.SetComposingText("shijie");
+        editor.InsertText("世界");
+        Assert.Equal("你好世界", editor.Text);
+        editor.Undo();
+        Assert.Equal("你好", editor.Text);
+        editor.Undo();
+        Assert.Equal("", editor.Text);
+    }
+
+    [Fact]
+    public void CompositionCutByMaxLengthCoversOnlyTheMarkedText()
+    {
+        var full = Editor("abcde", 2);
+        full.MaxLength = 5;
+        full.SetComposingText("x");
+        Assert.Equal("abcde", full.Text);
+        Assert.False(full.HasComposition);
+        full.SetComposingText("y");
+        Assert.Equal("abcde", full.Text);
+
+        var room = Editor("abcd", 2);
+        room.MaxLength = 5;
+        room.SetComposingText("xyz");
+        Assert.Equal("abxcd", room.Text);
+        Assert.Equal((2, 3), (room.CompositionStart, room.CompositionEnd));
+        Assert.Equal(3, room.Caret);
+        room.SetComposingText("xy");
+        Assert.Equal("abxcd", room.Text);
+    }
+
     [Fact]
     public void CancelledCompositionRemovesItsText()
     {

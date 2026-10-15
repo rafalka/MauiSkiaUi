@@ -51,6 +51,8 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
 
     SkUiScrollController ISkUiScrollHost.Scroller => _scroller;
 
+    double ISkUiScrollHost.KeyboardInset { get => KeyboardInset; set => KeyboardInset = value; }
+
     /// <summary>Bindable enabled scroll axes.</summary>
     public static readonly BindableProperty OrientationProperty = BindableProperty.Create(nameof(Orientation), typeof(ScrollOrientation), typeof(SkUiScrollView), ScrollOrientation.Vertical,
         validateValue: (_, value) => Enum.IsDefined((ScrollOrientation)value),

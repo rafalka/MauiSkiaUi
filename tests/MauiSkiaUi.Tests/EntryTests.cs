@@ -542,6 +542,32 @@ public class EntryTests
     }
 
     [Fact]
+    public void ACoreFieldIsKeptAboveTheKeyboardInItsCoreScroller()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var stack = new SkUiCoreVerticalStackLayout();
+        for (var index = 0; index < 8; index++)
+            stack.Add(new SkUiCoreBox().SetHeight(60));
+        var field = new SkUiCoreEntry().SetFontFamily(SkUiTestHelpers.BundledFontFamily);
+        stack.Add(field);
+        var scroller = new SkUiCoreScrollView();
+        scroller.SetContent(stack);
+        using var surface = new SkUiTestSurface(new SkUiContentView { Content = new SkUiCoreHost().SetContent(scroller) }, 300, 600);
+        var root = surface.Root;
+        surface.Frame();
+        Assert.True(field.Focus());
+        // No SkUi scroller: the Core one makes room and scrolls the field (at y 480) above the keyboard.
+        root.FocusManager.SetKeyboardTop(300);
+        for (var time = 0; time <= 1000; time += 50)
+            surface.Frame(time);
+        Assert.Equal(300, scroller.KeyboardInset, 1);
+        var bounds = SkUiDiagnostics.GetRootBounds(field)!.Value;
+        Assert.True(bounds.Bottom <= 300.5, $"field bottom {bounds.Bottom}");
+        root.FocusManager.SetKeyboardTop(double.PositiveInfinity);
+        Assert.Equal(0, scroller.KeyboardInset);
+    }
+
+    [Fact]
     public void AFieldInAShortScrollerUnderTheKeyboardIsShownByTheScrollerAroundIt()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
@@ -835,6 +861,61 @@ public class EntryTests
         root.Touch(new SkUiTouchEvent(2, SkUiTouchAction.Released, At(10.6), TimeSpan.FromSeconds(2.2)));
         Assert.Contains("hide magnifier", proxy.Calls);
         Assert.Equal("two thr", entry.Model.Editor.SelectedText);
+    }
+
+    [Fact]
+    public void ACancelledHandleDragHidesTheMagnifier()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var proxy = new TestProxy(receivesCharacters: true);
+        var (root, entry) = Field(new SkUiEntry { Text = "one two three" }, proxy);
+        entry.Model.Measure(300, 200);
+        var padding = SkUiLook.Current.TextFieldPadding.Left;
+        var advance = entry.Model.Layout.Width / 13;
+        Point At(double character) => new(padding + advance * character, entry.Height / 2);
+        // A long press cancelled by the system: the magnifier goes, no menu.
+        root.Touch(new SkUiTouchEvent(1, SkUiTouchAction.Pressed, At(5), TimeSpan.Zero));
+        TestDispatcherProvider.RunDelayed();
+        Assert.Contains("magnifier", proxy.Calls);
+        proxy.Calls.Clear();
+        root.Touch(new SkUiTouchEvent(1, SkUiTouchAction.Cancelled, At(5), TimeSpan.FromSeconds(1)));
+        Assert.Contains("hide magnifier", proxy.Calls);
+        Assert.DoesNotContain("menu", proxy.Calls);
+        // A selection handle's drag cancelled: the magnifier goes, the menu comes back.
+        proxy.Calls.Clear();
+        root.Touch(new SkUiTouchEvent(2, SkUiTouchAction.Pressed, At(7), TimeSpan.FromSeconds(2)));
+        root.Touch(new SkUiTouchEvent(2, SkUiTouchAction.Moved, At(10.6), TimeSpan.FromSeconds(2.1)));
+        Assert.Contains("magnifier", proxy.Calls);
+        root.Touch(new SkUiTouchEvent(2, SkUiTouchAction.Cancelled, At(10.6), TimeSpan.FromSeconds(2.2)));
+        Assert.Contains("hide magnifier", proxy.Calls);
+        Assert.True(entry.Model.IsEditMenuShown);
+    }
+
+    [Fact]
+    public void AppTextCutByMaxLengthKeepsSurrogatePairsWhole()
+    {
+        var entry = new SkUiEntry { MaxLength = 3, Text = "ab\U0001F600" };
+        Assert.Equal("ab", entry.Text);
+        Assert.Equal("ab", entry.Model.Editor.Text);
+    }
+
+    [Fact]
+    public void PasswordBulletsFollowAnEditBeforeTheNextLayout()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var (_, entry) = Field(new SkUiEntry { Text = "abcd", IsPassword = true });
+        entry.Focus();
+        entry.Model.Measure(300, 200);
+        // Typed, and asked by a screen reader before a frame lays the field out again.
+        entry.Model.Editor.InsertText("e");
+        var info = new SkUiSemanticsInfo();
+        ((ISkUiAccessibleNode)entry).GetSemantics(info);
+        Assert.Equal("•••••", info.Value);
+        var field = info.TextField!.Value;
+        Assert.Equal((5, 5), (field.SelectionStart, field.SelectionEnd));
+        ((ISkUiTextInputClient)entry.Model).SelectFromAssistant(5, 5);
+        Assert.Equal(5, entry.Model.Editor.Caret);
     }
 
     [Fact]

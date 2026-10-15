@@ -26,6 +26,9 @@ public class SkUiStepper : SkUiStepperBase
     /// <summary>Creates a stepper with a range, a value and an increment (MAUI's constructor).</summary>
     public SkUiStepper(double min, double max, double val, double increment) : this()
     {
+        SkUiValidate.ThrowIfNotFiniteNumber(min, nameof(min));
+        SkUiValidate.ThrowIfNotFiniteNumber(max, nameof(max));
+        SkUiValidate.ThrowIfNotFiniteNumber(val, nameof(val));
         if (min >= max)
             throw new ArgumentOutOfRangeException(nameof(min));
         if (max > Minimum)
@@ -38,7 +41,7 @@ public class SkUiStepper : SkUiStepperBase
             Minimum = min;
             Maximum = max;
         }
-        Increment = increment;
+        SetIncrement(increment);
         Value = Math.Clamp(val, min, max);
     }
 
@@ -46,21 +49,23 @@ public class SkUiStepper : SkUiStepperBase
 
     /// <summary>Bindable property for <see cref="Maximum"/>.</summary>
     public static readonly BindableProperty MaximumProperty = BindableProperty.Create(nameof(Maximum), typeof(double), typeof(SkUiStepper), 100d,
-        validateValue: (view, value) => (double)value >= ((SkUiStepper)view).Minimum,
+        validateValue: (view, value) => SkUiValidate.Finite(view, value) && (double)value >= ((SkUiStepper)view).Minimum,
         propertyChanged: (view, _, _) => ((SkUiStepper)view).Recoerce());
 
     /// <summary>Bindable property for <see cref="Minimum"/>.</summary>
     public static readonly BindableProperty MinimumProperty = BindableProperty.Create(nameof(Minimum), typeof(double), typeof(SkUiStepper), 0d,
-        validateValue: (view, value) => (double)value <= ((SkUiStepper)view).Maximum,
+        validateValue: (view, value) => SkUiValidate.Finite(view, value) && (double)value <= ((SkUiStepper)view).Maximum,
         propertyChanged: (view, _, _) => ((SkUiStepper)view).Recoerce());
 
     /// <summary>Bindable property for <see cref="Value"/> (two-way by default).</summary>
     public static readonly BindableProperty ValueProperty = BindableProperty.Create(nameof(Value), typeof(double), typeof(SkUiStepper), 0d, BindingMode.TwoWay,
+        validateValue: SkUiValidate.Finite,
         coerceValue: (view, value) => ((SkUiStepper)view).Coerce((double)value),
         propertyChanged: (view, oldValue, newValue) => ((SkUiStepper)view).OnValueChanged((double)oldValue, (double)newValue));
 
     /// <summary>Bindable property for <see cref="Increment"/>.</summary>
     public static readonly BindableProperty IncrementProperty = BindableProperty.Create(nameof(Increment), typeof(double), typeof(SkUiStepper), 1d,
+        validateValue: SkUiValidate.FinitePositive,
         propertyChanged: (view, _, value) => ((SkUiStepper)view)._digits = SkUiStepperMath<double>.Digits((double)value));
 
     #endregion
@@ -76,23 +81,23 @@ public class SkUiStepper : SkUiStepperBase
     /// <summary>The value (two-way by default), rounded and kept within the range as MAUI's.</summary>
     public double Value { get => (double)GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
 
-    /// <summary>How much a button changes the value (default 1).</summary>
+    /// <summary>How much a button changes the value (default 1); above zero.</summary>
     public double Increment { get => (double)GetValue(IncrementProperty); set => SetValue(IncrementProperty, value); }
 
     /// <summary>Raised when <see cref="Value"/> changes.</summary>
     public event EventHandler<ValueChangedEventArgs>? ValueChanged;
 
     /// <summary>Sets <see cref="Maximum"/>.</summary>
-    public SkUiStepper SetMaximum(double value) { if (value < Minimum) throw new ArgumentOutOfRangeException(nameof(value)); Maximum = value; return this; }
+    public SkUiStepper SetMaximum(double value) { SkUiValidate.ThrowIfNotFiniteNumber(value, nameof(value)); if (value < Minimum) throw new ArgumentOutOfRangeException(nameof(value)); Maximum = value; return this; }
 
     /// <summary>Sets <see cref="Minimum"/>.</summary>
-    public SkUiStepper SetMinimum(double value) { if (value > Maximum) throw new ArgumentOutOfRangeException(nameof(value)); Minimum = value; return this; }
+    public SkUiStepper SetMinimum(double value) { SkUiValidate.ThrowIfNotFiniteNumber(value, nameof(value)); if (value > Maximum) throw new ArgumentOutOfRangeException(nameof(value)); Minimum = value; return this; }
 
     /// <summary>Sets <see cref="Value"/>.</summary>
-    public SkUiStepper SetValue(double value) { Value = value; return this; }
+    public SkUiStepper SetValue(double value) { SkUiValidate.ThrowIfNotFiniteNumber(value, nameof(value)); Value = value; return this; }
 
     /// <summary>Sets <see cref="Increment"/>.</summary>
-    public SkUiStepper SetIncrement(double value) { Increment = value; return this; }
+    public SkUiStepper SetIncrement(double value) { SkUiValidate.ThrowIfNotPositiveNumber(value, nameof(value)); Increment = value; return this; }
 
     /// <summary>Sets <see cref="SkUiStepperBase.Orientation"/>.</summary>
     public new SkUiStepper SetOrientation(StackOrientation value) { base.SetOrientation(value); return this; }

@@ -75,6 +75,8 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     private string _display = string.Empty;
     // Password: where each shown bullet's grapheme starts in the text (and the text's length last).
     private int[]? _bulletStarts;
+    // The text the bullet starts were built from: an edit makes them stale until the next layout (or a screen reader's query).
+    private string? _bulletText;
     private float _scrollX;
     private float _scrollY;
     private bool _caretShown = true;
@@ -161,7 +163,15 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     {
         var source = text ?? string.Empty;
         var lines = IsMultiline ? SkUiTextEditor.NormalizeLineBreaks(source) : source;
-        var cut = Editor.MaxLength < int.MaxValue && lines.Length > Editor.MaxLength ? lines[..Editor.MaxLength] : lines;
+        var cut = lines;
+        if (Editor.MaxLength < int.MaxValue && lines.Length > Editor.MaxLength)
+        {
+            // Never splits a surrogate pair (as typed text is cut).
+            var length = Editor.MaxLength;
+            if (length > 0 && char.IsLowSurrogate(lines[length]))
+                length--;
+            cut = lines[..length];
+        }
         var shown = SkUiTextTransform.Apply(cut, Editor.Transform);
         if (shown != Editor.Text)
             Editor.SetText(shown);
@@ -296,9 +306,11 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
                 starts[bullet++] = index;
             starts[count] = text.Length;
             _bulletStarts = starts;
+            _bulletText = text;
             return new string('•', count);
         }
         _bulletStarts = null;
+        _bulletText = null;
         return !IsMultiline && text.AsSpan().IndexOfAny('\r', '\n') >= 0 ? text.Replace('\r', ' ').Replace('\n', ' ') : text;
     }
 
@@ -1223,8 +1235,9 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         }
         var wasFocused = _owner.IsFocused;
         Focus();
-        if (wasFocused)
-            _proxy?.ShowKeyboard(this);
+        // A tap asks for the keyboard (also the one that focuses: Android's focus alone asks implicitly, which an input method may
+        // decline); the proxies ignore it while the keyboard shows.
+        _proxy?.ShowKeyboard(this);
         if (taps >= 2)
         {
             SelectByTouch(() => SelectUnitAt(local, 2));
@@ -1278,6 +1291,9 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         HideMagnifier();
         ShowEditMenuAtSelection();
     }
+
+    /// <summary>A long press was cancelled (the system took the touch): the magnifier goes, the selection stays, no menu.</summary>
+    internal void CancelLongPress() => HideMagnifier();
 
     private void SelectUnitAt(Point local, int unit)
     {
@@ -1370,17 +1386,20 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     {
         info.Role = SkUiSemanticsRole.TextField;
         info.Text = Placeholder;
-        info.Value = IsPassword ? new string('•', _bulletStarts is { } starts ? starts.Length - 1 : Editor.Text.Length) : Editor.Text;
+        info.Value = IsPassword ? new string('•', ToDisplayIndex(Editor.Text.Length)) : Editor.Text;
         info.IsEnabled &= IsEnabled;
         info.Actions |= SkUiSemanticsActions.Activate;
         var (start, end) = IsPassword ? (ToDisplayIndex(Editor.SelectionStart), ToDisplayIndex(Editor.SelectionEnd)) : (Editor.SelectionStart, Editor.SelectionEnd);
         info.TextField = new SkUiSemanticsTextField(start, end, IsPassword, Editor.IsReadOnly, IsMultiline);
     }
 
-    /// <summary>A text index as the bullets of a password count it (screen readers read the bullets).</summary>
+    /// <summary>
+    /// A text index as the bullets of a password count it (screen readers read the bullets). The bullets are counted again when the
+    /// text changed since the last layout: the semantics tree may be built before the next frame lays the field out.
+    /// </summary>
     private int ToDisplayIndex(int index)
     {
-        if (_bulletStarts is null)
+        if (_bulletStarts is null || _bulletText != Editor.Text)
             DisplayText(Editor.Text);
         return ToDisplay(index);
     }
@@ -1938,6 +1957,21 @@ internal sealed class SkUiTextFieldGestures(SkUiTextFieldModel model) : SkUiGest
         _longPress?.Dispose();
         _longPress = null;
         if (_mouse)
+        {
             model.MouseReleased(_startLocal, cancelled: true);
+            return;
+        }
+        // A cancelled touch (ACTION_CANCEL, a system edge gesture) ends what it started: the magnifier goes, the caret blinks again.
+        if (_handle != 0)
+        {
+            // As a drag: a cancelled touch on the caret does not toggle the menu; a selection handle's menu comes back.
+            model.EndHandleDrag(moved: true);
+            _handle = 0;
+        }
+        else if (_longPressed)
+        {
+            model.CancelLongPress();
+            _longPressed = false;
+        }
     }
 }

@@ -21,6 +21,12 @@ internal enum SkUiPullInput
 internal interface ISkUiScrollHost : ISkUiInputNode
 {
     SkUiScrollController Scroller { get; }
+
+    /// <summary>
+    /// The soft keyboard's cover of the viewport's bottom (<see cref="SkUiScrollController.KeyboardInset"/>), set by the focus
+    /// manager; the scroller lays its content out again when it changes.
+    /// </summary>
+    double KeyboardInset { get; set; }
 }
 
 /// <summary>

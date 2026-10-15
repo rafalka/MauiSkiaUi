@@ -154,7 +154,10 @@ internal interface ISkUiTextInputProxy
     /// <summary>The field lost keyboard focus: disconnect it and hide the keyboard (unless another field takes it at once).</summary>
     void Detach(ISkUiTextInputClient client);
 
-    /// <summary>Shows the soft keyboard for the attached field (a tap on the focused field after the keyboard was dismissed).</summary>
+    /// <summary>
+    /// The user asked for the soft keyboard for the attached field (a tap on it, also after the keyboard was dismissed; a screen
+    /// reader's activation); nothing happens while it shows.
+    /// </summary>
     void ShowKeyboard(ISkUiTextInputClient client);
 
     /// <summary>Hides the soft keyboard; the field keeps focus.</summary>

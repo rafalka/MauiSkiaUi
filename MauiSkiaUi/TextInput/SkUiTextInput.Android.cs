@@ -36,7 +36,8 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
         client.InputAttached(this);
         _connection = null;
         _imm?.RestartInput(container);
-        ShowKeyboard(client);
+        // Focus alone: an implicit request, which the input method may decline (a hardware keyboard attached).
+        Show(client, ShowFlags.Implicit);
     }
 
     public void Detach(ISkUiTextInputClient client)
@@ -54,7 +55,10 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
             _imm?.HideSoftInputFromWindow(container.WindowToken, HideSoftInputFlags.None);
     }
 
-    public void ShowKeyboard(ISkUiTextInputClient client)
+    /// <summary>The user asked for the keyboard (a tap on the field, a screen reader's activation): explicit, as <c>TextView</c> asks on a tap.</summary>
+    public void ShowKeyboard(ISkUiTextInputClient client) => Show(client, 0);
+
+    private void Show(ISkUiTextInputClient client, ShowFlags flags)
     {
         if (!ReferenceEquals(Client, client) || client.Options.IsReadOnly)
             return;
@@ -62,7 +66,7 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
         container.Post(() =>
         {
             if (ReferenceEquals(Client, client))
-                _imm?.ShowSoftInput(container, ShowFlags.Implicit);
+                _imm?.ShowSoftInput(container, flags);
         });
     }
 
@@ -289,6 +293,13 @@ internal sealed class SkUiInputConnection : BaseInputConnection
     private bool _monitorCursor;
     private ExtractedTextRequest? _extractRequest;
     private CursorAnchorInfo.Builder? _anchor;
+    // Reused by each cursor update (it runs on every selection change and moved frame while the input method monitors it).
+    private readonly int[] _location = new int[2];
+    private Android.Graphics.Matrix? _matrix;
+    // What the last update reported: an update that would report the same is skipped.
+    private string? _anchorText;
+    private (int, int, int, int, int, int, float) _anchorState;
+    private Rect _anchorCaret;
 
     public SkUiInputConnection(View view, ISkUiTextInputClient client, InputMethodManager? imm) : base(view, true)
     {
@@ -352,14 +363,8 @@ internal sealed class SkUiInputConnection : BaseInputConnection
         {
             if (text != old)
             {
-                var prefix = 0;
-                var limit = Math.Min(text.Length, old.Length);
-                while (prefix < limit && text[prefix] == old[prefix])
-                    prefix++;
-                var suffix = 0;
-                while (suffix < limit - prefix && text[text.Length - 1 - suffix] == old[old.Length - 1 - suffix])
-                    suffix++;
-                _client.ReplaceText(prefix, old.Length - suffix, text.Substring(prefix, text.Length - suffix - prefix));
+                var (start, end, inserted) = SkUiTextEditor.Diff(old, text);
+                _client.ReplaceText(start, end, inserted);
             }
             if (composingStart >= 0 && composingEnd > composingStart)
                 _client.SetComposingRegion(composingStart, composingEnd);
@@ -540,21 +545,24 @@ internal sealed class SkUiInputConnection : BaseInputConnection
         if (_imm is null || !_connected || (!force && !_monitorCursor))
             return;
         var editor = _client.Editor;
+        var density = _view.Resources?.DisplayMetrics?.Density ?? 1f;
+        _view.GetLocationOnScreen(_location);
+        var caret = _client.GetCaretBounds(editor.Caret);
+        // Exact: the same numbers are the same report (the text by reference: any edit makes a new string).
+        var state = (editor.SelectionStart, editor.SelectionEnd, editor.CompositionStart, editor.CompositionEnd, _location[0], _location[1], density);
+        if (!force && ReferenceEquals(_anchorText, editor.Text) && state == _anchorState && caret == _anchorCaret)
+            return;
+        (_anchorText, _anchorState, _anchorCaret) = (editor.Text, state, caret);
         var builder = _anchor ??= new CursorAnchorInfo.Builder();
         builder.Reset();
         builder.SetSelectionRange(editor.SelectionStart, editor.SelectionEnd);
+        // Reset leaves no composing text.
         if (editor.HasComposition)
             builder.SetComposingText(editor.CompositionStart, new String(editor.Text.Substring(editor.CompositionStart, editor.CompositionEnd - editor.CompositionStart)));
-        else
-            builder.SetComposingText(-1, new String(string.Empty));
-        var density = _view.Resources?.DisplayMetrics?.Density ?? 1f;
-        var location = new int[2];
-        _view.GetLocationOnScreen(location);
-        var matrix = new Android.Graphics.Matrix();
+        var matrix = _matrix ??= new Android.Graphics.Matrix();
         matrix.SetScale(density, density);
-        matrix.PostTranslate(location[0], location[1]);
+        matrix.PostTranslate(_location[0], _location[1]);
         builder.SetMatrix(matrix);
-        var caret = _client.GetCaretBounds(editor.Caret);
         builder.SetInsertionMarkerLocation((float)caret.X, (float)caret.Y, (float)caret.Bottom, (float)caret.Bottom,
             CursorAnchorFlags.HasVisibleRegion);
         _imm.UpdateCursorAnchorInfo(_view, builder.Build());

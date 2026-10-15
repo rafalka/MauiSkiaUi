@@ -265,14 +265,8 @@ internal sealed class SkUiWindowsTextInput : ISkUiTextInputProxy
         {
             if (text != old)
             {
-                var prefix = 0;
-                var limit = Math.Min(text.Length, old.Length);
-                while (prefix < limit && text[prefix] == old[prefix])
-                    prefix++;
-                var suffix = 0;
-                while (suffix < limit - prefix && text[text.Length - 1 - suffix] == old[old.Length - 1 - suffix])
-                    suffix++;
-                client.ReplaceText(prefix, old.Length - suffix, FromBox(text.Substring(prefix, text.Length - suffix - prefix)));
+                var (start, end, inserted) = SkUiTextEditor.Diff(old, text);
+                client.ReplaceText(start, end, FromBox(inserted));
             }
             if (SelectionDiffers(client))
                 client.SetSelection(_box.SelectionStart, _box.SelectionStart + _box.SelectionLength);
