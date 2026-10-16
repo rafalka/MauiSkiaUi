@@ -12,7 +12,8 @@ namespace MauiSkiaUi;
 /// <item>The sign toggles wherever the caret is (<c>-</c> on <c>12|3</c> gives <c>-123</c>; <c>+</c> removes it); nothing goes
 /// before it. A separator typed first gets a 0 (<c>,5</c> → <c>0,5</c>).</item>
 /// <item>Pasted text is cleaned of spaces, group separators, currency and percent signs (<c>1 234,50 €</c> → <c>1234,50</c>);
-/// text that is still no number is refused.</item>
+/// a group separator groups only before exactly three digits, else <c>.</c> and <c>,</c> are the decimal separator
+/// (<c>3.14</c> in de-DE is 3,14); text that is still no number is refused.</item>
 /// <item>No more decimal digits than allowed; nothing that would overflow the value's type (a <see cref="byte"/> entry refuses
 /// 256). The range is not applied while typing.</item>
 /// </list>
@@ -101,7 +102,8 @@ internal sealed class SkUiNumericInputRules(SkUiNumericEntryModel entry) : SkUiT
             }
             if (char.IsWhiteSpace(character) || char.GetUnicodeCategory(character) == UnicodeCategory.Format || character is '\'' or '’')
                 continue;
-            if (groupIsSeparator && string.CompareOrdinal(inserted, index, symbols.GroupSeparator, 0, symbols.GroupSeparator.Length) == 0)
+            if (groupIsSeparator && string.CompareOrdinal(inserted, index, symbols.GroupSeparator, 0, symbols.GroupSeparator.Length) == 0
+                && GroupsDigits(inserted, index + symbols.GroupSeparator.Length))
             {
                 index += symbols.GroupSeparator.Length - 1;
                 continue;
@@ -146,6 +148,18 @@ internal sealed class SkUiNumericInputRules(SkUiNumericEntryModel entry) : SkUiT
             insertion = "0" + insertion;
         var candidate = before + insertion + after;
         return IsValid(candidate, symbols) ? new SkUiTextEditValue(candidate, candidate.Length - after.Length) : oldValue;
+    }
+
+    /// <summary>
+    /// Whether a group separator before <paramref name="digits"/> groups: exactly three digits follow it, then no digit. Else it is
+    /// read as a decimal key (<c>3.14</c> pasted in de-DE is 3,14, not 314) or refuses the text.
+    /// </summary>
+    private static bool GroupsDigits(string text, int digits)
+    {
+        var end = digits;
+        while (end < text.Length && char.IsDigit(text[end]))
+            end++;
+        return end - digits == 3;
     }
 
     private static int Skip(string text, int index, string symbol) =>

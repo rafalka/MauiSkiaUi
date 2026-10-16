@@ -340,7 +340,14 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
     /// method composes). The caret goes after the insertion (or to <paramref name="caret"/>, or where the formatters put it).
     /// Returns whether the text changed.
     /// </summary>
-    public bool Replace(int start, int end, string text, SkUiTextEditKind kind = SkUiTextEditKind.Other, int? caret = null)
+    public bool Replace(int start, int end, string text, SkUiTextEditKind kind = SkUiTextEditKind.Other, int? caret = null) =>
+        ReplaceCore(start, end, text, kind, caret, formatBase: null);
+
+    /// <summary>
+    /// <see cref="Replace"/>, with <paramref name="formatBase"/> the value the <see cref="Formatters"/> see before the edit
+    /// (<c>null</c>: the current text and selection).
+    /// </summary>
+    private bool ReplaceCore(int start, int end, string text, SkUiTextEditKind kind, int? caret, SkUiTextEditValue? formatBase)
     {
         if (IsReadOnly)
         {
@@ -369,7 +376,7 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
         {
             var proposed = string.Concat(Text.AsSpan(0, start), text, Text.AsSpan(end));
             var proposedCaret = Math.Clamp(caret ?? start + text.Length, 0, proposed.Length);
-            return ApplyFormatted(new SkUiTextEditValue(proposed, proposedCaret), kind);
+            return ApplyFormatted(new SkUiTextEditValue(proposed, proposedCaret), kind, formatBase);
         }
         var removed = Text.Substring(start, end - start);
         if (removed == text)
@@ -394,12 +401,13 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
     /// <summary>
     /// Runs the <see cref="Formatters"/> on <paramref name="proposed"/> (the text an edit would make) and applies what they
     /// return as one edit of <paramref name="kind"/>: the text changes by the one replacement that turns the current text into
-    /// it, and the selection goes where they put it. Returns whether the text changed.
+    /// it, and the selection goes where they put it. <paramref name="formatBase"/>: the value the formatters see before the edit
+    /// (<c>null</c>: the current text and selection). Returns whether the text changed.
     /// </summary>
-    private bool ApplyFormatted(SkUiTextEditValue proposed, SkUiTextEditKind kind)
+    private bool ApplyFormatted(SkUiTextEditValue proposed, SkUiTextEditKind kind, SkUiTextEditValue? formatBase = null)
     {
         var old = Text;
-        var before = new SkUiTextEditValue(old, SelectionStart, SelectionEnd);
+        var before = formatBase ?? new SkUiTextEditValue(old, SelectionStart, SelectionEnd);
         var value = Format(before, InputRules is { } rules ? rules.Format(before, proposed).Clamped() : proposed);
         var result = value.Text;
         // Formatters that add characters (a mask's literals) still keep the text within MaxLength.
@@ -458,11 +466,13 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
             kind = SkUiTextEditKind.Composing;
         else if (kind == SkUiTextEditKind.Typing && end > start)
             kind = SkUiTextEditKind.Other;
+        // A commit over the marked text is formatted as an insertion into the text without it.
+        var formatBase = composing ? WithoutComposition() : (SkUiTextEditValue?)null;
         BeginBatch();
         try
         {
             ClearComposition();
-            return Replace(start, end, text, kind);
+            return ReplaceCore(start, end, text, kind, caret: null, formatBase);
         }
         finally
         {
@@ -537,12 +547,14 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
         if (CompositionStart < 0)
             return;
         var committed = HasComposition;
+        // The formatters see the commit as an insertion of the composed text into the text without it, as they see typing.
+        var formatBase = committed ? WithoutComposition() : default;
         BeginBatch();
         try
         {
             ClearComposition();
             if (committed && FormatsInput && !IsReadOnly)
-                ApplyFormatted(new SkUiTextEditValue(Text, SelectionStart, SelectionEnd), SkUiTextEditKind.Composing);
+                ApplyFormatted(new SkUiTextEditValue(Text, SelectionStart, SelectionEnd), SkUiTextEditKind.Composing, formatBase);
             _coalesce = false;
             RaiseSelection();
         }
@@ -551,6 +563,10 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
             EndBatch();
         }
     }
+
+    /// <summary>The text without the composition, with the caret where the composition starts: the value before its commit.</summary>
+    private SkUiTextEditValue WithoutComposition() =>
+        new(Text.Remove(CompositionStart, CompositionEnd - CompositionStart), CompositionStart);
 
     /// <summary>Removes the composition's text (the input method cancelled it).</summary>
     public void CancelComposition()

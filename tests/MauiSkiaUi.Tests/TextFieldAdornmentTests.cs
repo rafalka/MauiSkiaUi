@@ -179,8 +179,8 @@ public class TextFieldAdornmentTests
     public void ALabelsTextIsReadWithTheFieldAndAButtonIsItsOwnElement()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
-        var button = new SkUiButton { Text = "Scan", HeightRequest = 32 };
-        var (root, _) = Field(new SkUiEntry { Placeholder = "Weight", TrailingView = new SkUiLabel { Text = "kg" }, LeadingView = button });
+        var button = new SkUiButton { Text = "Scan", HeightRequest = 32, FontFamily = SkUiTestHelpers.BundledFontFamily };
+        var (root, _) = Field(new SkUiEntry { Placeholder = "Weight", TrailingView = new SkUiLabel { Text = "kg", FontFamily = SkUiTestHelpers.BundledFontFamily }, LeadingView = button });
         var owner = new SkUiSemanticsOwner(root);
         var nodes = owner.Tree.Flatten();
         var field = nodes.Single(node => node.Role == SkUiSemanticsRole.TextField);

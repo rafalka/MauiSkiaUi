@@ -430,7 +430,7 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
             return;
         if (text == "\n" && !client.Options.IsMultiline)
         {
-            client.FinishComposing();
+            Edit(client, string.Empty, static (client, _) => client.FinishComposing());
             client.PerformReturn();
             return;
         }
@@ -446,7 +446,8 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
     /// <summary>
     /// An edit from UIKit: when the field made it differently (a formatter, <c>MaxLength</c>, a transform, read-only), UIKit is told the
     /// text changed, as for the app's edits; it otherwise keeps the text it sent (suggestions and autocorrect on the wrong word).
-    /// Not for marked text: telling UIKit mid-composition would end it.
+    /// Not for marked text: telling UIKit mid-composition would end it. Committing it (<see cref="UnmarkText"/>) is an edit: the
+    /// composition has ended, and the formatters may have rewritten what it committed.
     /// </summary>
     private void Edit(ISkUiTextInputClient client, string text, Action<ISkUiTextInputClient, string> edit)
     {
@@ -502,7 +503,11 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
         client.SetComposingText(text, (int)Math.Clamp(selectedRange.Location, 0, text.Length));
     }
 
-    public void UnmarkText() => Client?.FinishComposing();
+    public void UnmarkText()
+    {
+        if (Client is { } client)
+            Edit(client, string.Empty, static (client, _) => client.FinishComposing());
+    }
 
     public UITextPosition BeginningOfDocument => new SkUiTextPosition(0);
 

@@ -181,6 +181,50 @@ public class NumericEntryTests
         Assert.Equal(-1000.5, entry.Value);
     }
 
+    [Theory]
+    [InlineData("de-DE", "3.14", "3,14", 3.14)]
+    [InlineData("en-US", "3,14", "3.14", 3.14)]
+    [InlineData("de-DE", "1.234", "1234", 1234d)]
+    [InlineData("en-US", "1,234,567.5", "1234567.5", 1234567.5)]
+    [InlineData("de-DE", "1.234,50 €", "1234,50", 1234.5)]
+    public void APastedGroupSeparatorGroupsOnlyBeforeThreeDigits(string culture, string pasted, string text, double value)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var (_, entry) = Field(new SkUiNumericEntry { Culture = CultureInfo.GetCultureInfo(culture) });
+        Assert.True(entry.Focus());
+        entry.Model.Editor.InsertText(pasted, SkUiTextEditKind.Other);
+        Assert.Equal(text, entry.Text);
+        entry.Unfocus();
+        Assert.Equal(value, entry.Value);
+    }
+
+    [Fact]
+    public void APastedNumberWithAmbiguousSeparatorsIsRefused()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var (_, entry) = Field(new SkUiNumericEntry { Culture = German });
+        Assert.True(entry.Focus());
+        entry.Model.Editor.InsertText("1,234.5", SkUiTextEditKind.Other);
+        Assert.Equal(string.Empty, entry.Text);
+    }
+
+    [Fact]
+    public void ACommittedCompositionOfFullWidthDigitsIsANumber()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var (_, entry) = Field(new SkUiNumericEntry());
+        Assert.True(entry.Focus());
+        var editor = entry.Model.Editor;
+        editor.SetComposingText("１２");
+        editor.FinishComposing();
+        Assert.Equal("12", entry.Text);
+        editor.SetComposingText("あ");
+        editor.FinishComposing();
+        Assert.Equal("12", entry.Text);
+        entry.Unfocus();
+        Assert.Equal(12, entry.Value);
+    }
+
     [Fact]
     public void OnKeystrokeTakesEachNumberInTheRange()
     {

@@ -264,6 +264,33 @@ public class InputFormatterTests
     }
 
     [Fact]
+    public void ACommittedCompositionIsAnInsertionToTheFormatters()
+    {
+        var limited = Editor(new SkUiLengthLimitingFormatter(3));
+        limited.InsertText("12");
+        limited.SetComposingText("あい");
+        limited.FinishComposing();
+        Assert.Equal(("12あ", 3), (limited.Text, limited.Caret));
+
+        // A commit over the marked text (iOS's insertText) too, and a formatter can refuse it by returning the old value.
+        var refusing = Editor(SkUiTextInputFormatter.Create((old, value) => value.Text.Length > 2 ? old : value));
+        refusing.InsertText("12");
+        refusing.SetComposingText("あ");
+        refusing.InsertText("あ");
+        Assert.Equal(("12", 2), (refusing.Text, refusing.Caret));
+        Assert.False(refusing.HasComposition);
+
+        SkUiTextEditValue? seenOld = null;
+        var watching = Editor(SkUiTextInputFormatter.Create((old, value) => { seenOld = old; return value; }));
+        watching.InsertText("ab");
+        watching.Select(1, 1);
+        watching.SetComposingText("か");
+        watching.FinishComposing();
+        Assert.Equal(new SkUiTextEditValue("ab", 1), seenOld);
+        Assert.Equal("aかb", watching.Text);
+    }
+
+    [Fact]
     public void MaxLengthStillHoldsAfterFormatters()
     {
         var editor = Editor(new SkUiMaskFormatter("(000) 000"));
