@@ -163,6 +163,27 @@ public class TextFieldAdornmentTests
     }
 
     [Fact]
+    public void ATapOnEmptySpaceInALayoutAroundAButtonIsTheFields()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var clicks = 0;
+        var button = new SkUiButton { Text = "", WidthRequest = 32, HeightRequest = 32 };
+        button.Clicked += (_, _) => clicks++;
+        var stack = new SkUiHorizontalStackLayout { Children = { new SkUiBox { WidthRequest = 40, HeightRequest = 32 }, button } };
+        var (root, entry) = Field(new SkUiEntry { Text = "abc", TrailingView = stack });
+
+        // The spacer: no dead zone, the field takes the tap.
+        Tap(root, new Point(stack.Frame.X + 20, entry.Height / 2), 1);
+        Assert.True(entry.IsFocused);
+        Assert.Equal(0, clicks);
+
+        entry.Unfocus();
+        Tap(root, new Point(stack.Frame.X + button.Frame.Center.X, entry.Height / 2), 2);
+        Assert.Equal(1, clicks);
+        Assert.False(entry.IsFocused);
+    }
+
+    [Fact]
     public void APressOnAButtonInAFieldDoesNotTakeFocusOnWindows()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

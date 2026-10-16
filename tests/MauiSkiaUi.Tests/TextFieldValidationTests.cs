@@ -302,6 +302,32 @@ public class TextFieldValidationTests
     }
 
     [Fact]
+    public void ATapOnAMessageHangingBelowTheFieldReachesNeitherTheFieldNorWhatIsUnderIt()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var clicks = 0;
+        // A button behind the field (earlier in the grid, so drawn under it), where the message hangs.
+        var under = new SkUiButton { Text = "", VerticalOptions = LayoutOptions.Start, HeightRequest = 200 };
+        under.Clicked += (_, _) => clicks++;
+        var entry = new SkUiEntry
+        {
+            FontFamily = SkUiTestHelpers.BundledFontFamily, HelperText = "help", HeightRequest = MinimumHeight,
+            VerticalOptions = LayoutOptions.Start
+        };
+        var root = new SkUiGrid { Children = { under, entry } };
+        SkUiTestHelpers.Arrange(root, Width, 400);
+        Assert.Equal(MinimumHeight, entry.Height, 3);
+        Assert.True(entry.Model.HitsOverflowMessage(new Point(Padding.Left + 4, entry.Height + Spacing + 2)));
+
+        Tap(root, new Point(Padding.Left + 4, entry.Height + Spacing + 2), 1);
+        Assert.Equal(0, clicks);
+        Assert.False(entry.IsFocused);
+        // Past the message, the button.
+        Tap(root, new Point(Padding.Left + 4, 150), 2);
+        Assert.Equal(1, clicks);
+    }
+
+    [Fact]
     public void TheValidityStatesFollowTheErrorAndFocus()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

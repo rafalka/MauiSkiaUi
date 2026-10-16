@@ -332,6 +332,54 @@ public class NumericEntryTests
     }
 
     [Fact]
+    public void FromAnEmptyValueBothButtonsStartAtTheRangeEndNearestZero()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var (_, plus) = Field(new SkUiNumericEntry<int> { Minimum = 10, Maximum = 20 });
+        Assert.True(plus.Numeric.Step(1, large: false));
+        Assert.Equal(10, plus.Value);
+        var (_, minus) = Field(new SkUiNumericEntry<int> { Minimum = 10, Maximum = 20 });
+        Assert.True(minus.Numeric.Step(-1, large: false));
+        Assert.Equal(10, minus.Value);
+        var (_, negative) = Field(new SkUiNumericEntry<int> { Minimum = -20, Maximum = -10 });
+        Assert.True(negative.Numeric.Step(1, large: false));
+        Assert.Equal(-10, negative.Value);
+        // A range holding 0: one step from it.
+        var (_, around) = Field(new SkUiNumericEntry<int> { Minimum = -5, Maximum = 5 });
+        Assert.True(around.Numeric.Step(1, large: false));
+        Assert.Equal(1, around.Value);
+    }
+
+    [Fact]
+    public void DeletionsWorkInTextThatStoppedBeingANumberWhileTyped()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var (root, entry) = Field(new SkUiNumericEntry<int> { Minimum = -100, Maximum = 100 });
+        Assert.True(entry.Focus());
+        Type(root, "-12");
+        Assert.Equal("-12", entry.Text);
+        // The range loses its negatives while the user types: "-12" is no longer a number the entry takes.
+        entry.Minimum = 0;
+        Key(root, SkUiKey.Backspace);
+        Assert.Equal("-1", entry.Text);
+        entry.Model.Editor.Select(0, 1);
+        Key(root, SkUiKey.Backspace);
+        Assert.Equal("1", entry.Text);
+        // Typing into it is still refused.
+        Type(root, "-");
+        Assert.Equal("1", entry.Text);
+
+        var (decimalRoot, decimals) = Field(new SkUiNumericEntry { MaximumDecimalDigits = 3 });
+        Assert.True(decimals.Focus());
+        Type(decimalRoot, "1.234");
+        decimals.MaximumDecimalDigits = 1;
+        Key(decimalRoot, SkUiKey.Backspace);
+        Assert.Equal("1.23", decimals.Text);
+        Type(decimalRoot, "9");
+        Assert.Equal("1.23", decimals.Text);
+    }
+
+    [Fact]
     public void PlacementsAndOrientationsLayTheButtonsOut()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

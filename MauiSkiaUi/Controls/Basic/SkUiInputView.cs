@@ -119,6 +119,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
 
     /// <summary>Bindable property for <see cref="AutofillHint"/>.</summary>
     public static readonly BindableProperty AutofillHintProperty = BindableProperty.Create(nameof(AutofillHint), typeof(string), typeof(SkUiInputView), null,
+        validateValue: SkUiValidate.AutofillHint,
         propertyChanged: (view, _, value) => ((SkUiInputView)view).ApplyOptions(model => model.AutofillHint = (string?)value));
 
     /// <summary>Bindable property for <see cref="FormatsAssignedText"/>.</summary>
@@ -201,7 +202,11 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// <summary>The text's vertical alignment in the field (default Center for an entry, Start for an editor).</summary>
     public TextAlignment VerticalTextAlignment { get => (TextAlignment)GetValue(VerticalTextAlignmentProperty); set => SetValue(VerticalTextAlignmentProperty, value); }
 
-    /// <summary>The most characters (UTF-16 code units) the text may have (default <see cref="int.MaxValue"/>): input is cut there; longer text the app sets is cut.</summary>
+    /// <summary>
+    /// The most characters (UTF-16 code units) the text may have (default <see cref="int.MaxValue"/>): input is cut there; longer text
+    /// the app sets is cut. It counts the whole text as shown, after <see cref="InputFormatters"/> (a mask's literals too); cap a
+    /// masked field by its mask, and digits or graphemes with <see cref="SkUiLengthLimitingFormatter"/>.
+    /// </summary>
     public int MaxLength { get => (int)GetValue(MaxLengthProperty); set => SetValue(MaxLengthProperty, value); }
 
     /// <summary>Whether the text cannot be changed by the user (it can still be selected and copied).</summary>
@@ -232,7 +237,10 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// What the field holds for password managers and autofill (SkiaUi; <see cref="SkUiAutofillHints"/>, or a platform's own hint);
     /// <c>null</c> (default): a password field is a password, others none.
     /// </summary>
-    /// <remarks>One hint. Hints have no white space: it is reserved for a list of hints (as Android and Flutter take) later.</remarks>
+    /// <remarks>
+    /// One hint: a value with white space is ignored with a warning (white space is reserved for a list of hints, as
+    /// Android and Flutter take, later).
+    /// </remarks>
     public string? AutofillHint { get => (string?)GetValue(AutofillHintProperty); set => SetValue(AutofillHintProperty, value); }
 
     /// <summary>
@@ -375,7 +383,13 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     public SkUiInputView SetSelectionColor(Color? value) { SelectionColor = value; return this; }
 
     /// <summary>Sets <see cref="AutofillHint"/>.</summary>
-    public SkUiInputView SetAutofillHint(string? value) { AutofillHint = value; return this; }
+    /// <exception cref="ArgumentException"><paramref name="value"/> has white space.</exception>
+    public SkUiInputView SetAutofillHint(string? value)
+    {
+        SkUiValidate.ThrowIfNotAutofillHint(value, nameof(value));
+        AutofillHint = value;
+        return this;
+    }
 
     /// <summary>Replaces <see cref="InputFormatters"/> with <paramref name="formatters"/> (in order).</summary>
     public SkUiInputView SetInputFormatters(params IEnumerable<SkUiTextInputFormatter> formatters)
@@ -685,6 +699,8 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
 
     bool ISkUiTextInputNode.HitsTextHandle(Point local) => Model.HandleAt(local) != 0;
 
+    bool ISkUiTextInputNode.HitsOverflowMessage(Point local) => Model.HitsOverflowMessage(local);
+
     #endregion
 
     #region Owner
@@ -755,8 +771,8 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     void ISkUiTextFieldOwner.InvalidateCaret() => InvalidateRender(SkUiRenderDirty.Props);
 
     bool ISkUiTextFieldOwner.AdornmentTakesPointer(Point local) =>
-        SkUiTextFieldAdornments.TakesPointer(LeadingView as ISkUiRenderable, LeadingView?.Frame ?? Rect.Zero, local)
-        || SkUiTextFieldAdornments.TakesPointer(TrailingView as ISkUiRenderable, TrailingView?.Frame ?? Rect.Zero, local);
+        SkUiTextFieldAdornments.TakesPointer(LeadingView as ISkUiRenderable, local)
+        || SkUiTextFieldAdornments.TakesPointer(TrailingView as ISkUiRenderable, local);
 
     #endregion
 }

@@ -262,8 +262,10 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
         if (!options.IsPassword)
             node.SetText(editor.Text, editor.SelectionStart, editor.SelectionEnd);
         node.SetVisibility(ViewStates.Visible);
-        node.SetEnabled(true);
-        node.SetFocusable(true);
+        // A read-only field (also a numeric entry that only steps) as a disabled EditText: services read its value but do not fill it.
+        var editable = !editor.IsReadOnly;
+        node.SetEnabled(editable);
+        node.SetFocusable(editable);
         node.SetFocused(ReferenceEquals(Client, client));
         if (OperatingSystem.IsAndroidVersionAtLeast(28) && editor.MaxLength < int.MaxValue)
             node.SetMaxTextLength(editor.MaxLength);

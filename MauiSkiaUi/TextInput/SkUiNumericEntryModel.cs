@@ -387,9 +387,12 @@ internal sealed class SkUiNumericEntryModel<T> : SkUiNumericEntryModel where T :
         T next;
         if (Values.Value is not { } value)
         {
-            // From no value: from 0 (within the range), one step if it can.
+            // From no value: one step from 0 when the range holds 0; otherwise the end of the range nearest 0, whichever button (so
+            // with a minimum of 10, − and + both start at 10).
             var start = T.Clamp(T.Zero, Minimum, Maximum);
-            next = SkUiStepperMath<T>.CanStep(start, Minimum, Maximum, direction) ? SkUiStepperMath<T>.Step(start, increment, Minimum, Maximum, direction) : start;
+            next = T.IsZero(start) && SkUiStepperMath<T>.CanStep(start, Minimum, Maximum, direction)
+                ? SkUiStepperMath<T>.Step(start, increment, Minimum, Maximum, direction)
+                : start;
         }
         else if (!SkUiStepperMath<T>.CanStep(value, Minimum, Maximum, direction))
         {

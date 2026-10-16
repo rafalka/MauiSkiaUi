@@ -1527,6 +1527,20 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         return Area(width, height).Contains((float)local.X, (float)local.Y);
     }
 
+    /// <summary>
+    /// Whether <paramref name="local"/> (node coordinates) is on the message hanging below the node (a field of fixed height too
+    /// short for it), outside the node's bounds.
+    /// </summary>
+    internal bool HitsOverflowMessage(Point local)
+    {
+        if (FieldArea is not null || Message is null)
+            return false;
+        var (width, height) = Size;
+        var message = MessageHeight(width);
+        var (x, y) = ((float)local.X, (float)local.Y);
+        return message > 0 && x >= 0 && x < width && y >= height && y < Area(width, height).Bottom + message;
+    }
+
     // Pointer selection: what a drag extends by (characters, words, paragraphs) from the range the press selected.
     private int _dragUnit;
     private (int Start, int End) _dragOrigin;

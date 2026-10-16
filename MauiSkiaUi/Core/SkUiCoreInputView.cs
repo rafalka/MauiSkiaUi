@@ -67,7 +67,10 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     /// <summary>Vertical text alignment in the field (default Center for an entry, Start for an editor).</summary>
     public TextAlignment VerticalTextAlignment { get => Model.VerticalTextAlignment; set => SetVerticalTextAlignment(value); }
 
-    /// <summary>The most characters (UTF-16 code units) the text may have (default <see cref="int.MaxValue"/>).</summary>
+    /// <summary>
+    /// The most characters (UTF-16 code units) the text may have (default <see cref="int.MaxValue"/>), counted on the whole text as
+    /// shown, after <see cref="InputFormatters"/> (see <see cref="SkUiInputView.MaxLength"/>).
+    /// </summary>
     public int MaxLength { get => Model.Editor.MaxLength; set => SetMaxLength(value); }
 
     /// <summary>Whether the text cannot be changed by the user (it can still be selected and copied).</summary>
@@ -95,7 +98,7 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     public Color? SelectionColor { get => Model.SelectionColor; set => SetSelectionColor(value); }
 
     /// <summary>What the field holds for password managers and autofill (<see cref="SkUiAutofillHints"/>, or a platform's own hint).</summary>
-    /// <remarks>One hint. Hints have no white space: it is reserved for a list of hints (as Android and Flutter take) later.</remarks>
+    /// <remarks>One hint: a value with white space throws (white space is reserved for a list of hints later).</remarks>
     public string? AutofillHint { get => Model.AutofillHint; set => SetAutofillHint(value); }
 
     /// <summary>
@@ -282,7 +285,12 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     public SkUiCoreInputView SetSelectionColor(Color? value) => Update(ref Model.SelectionColor, value, nameof(SelectionColor));
 
     /// <summary>Sets <see cref="AutofillHint"/>.</summary>
-    public SkUiCoreInputView SetAutofillHint(string? value) => UpdateOptions(ref Model.AutofillHint, value, nameof(AutofillHint));
+    /// <exception cref="ArgumentException"><paramref name="value"/> has white space.</exception>
+    public SkUiCoreInputView SetAutofillHint(string? value)
+    {
+        SkUiValidate.ThrowIfNotAutofillHint(value, nameof(value));
+        return UpdateOptions(ref Model.AutofillHint, value, nameof(AutofillHint));
+    }
 
     /// <summary>Replaces <see cref="InputFormatters"/> with <paramref name="formatters"/> (in order).</summary>
     public SkUiCoreInputView SetInputFormatters(params IEnumerable<SkUiTextInputFormatter> formatters)
@@ -523,6 +531,8 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
 
     bool ISkUiTextInputNode.HitsTextHandle(Point local) => Model.HandleAt(local) != 0;
 
+    bool ISkUiTextInputNode.HitsOverflowMessage(Point local) => Model.HitsOverflowMessage(local);
+
     #endregion
 
     #region Owner
@@ -577,8 +587,7 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     void ISkUiTextFieldOwner.InvalidateCaret() => InvalidateRender(SkUiRenderDirty.Props);
 
     bool ISkUiTextFieldOwner.AdornmentTakesPointer(Point local) =>
-        SkUiTextFieldAdornments.TakesPointer(_leadingView, _leadingView?.Frame ?? Rect.Zero, local)
-        || SkUiTextFieldAdornments.TakesPointer(_trailingView, _trailingView?.Frame ?? Rect.Zero, local);
+        SkUiTextFieldAdornments.TakesPointer(_leadingView, local) || SkUiTextFieldAdornments.TakesPointer(_trailingView, local);
 
     #endregion
 }

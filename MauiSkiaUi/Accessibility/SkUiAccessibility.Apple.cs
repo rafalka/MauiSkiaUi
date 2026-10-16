@@ -179,6 +179,7 @@ internal sealed class SkUiAccessibilityBridge
                 if (element is SkUiTextFieldAccessibilityElement field)
                     field.Field = (node.Source as ISkUiTextInputNode)?.TextInputClient;
                 traits |= (UIAccessibilityTrait)TextFieldTraits;
+                ApplyError(element, node);
                 break;
             default:
                 if ((node.Actions & SkUiSemanticsActions.Activate) != 0)
@@ -191,6 +192,27 @@ internal sealed class SkUiAccessibilityBridge
             traits |= UIAccessibilityTrait.NotEnabled;
         element.AccessibilityTraits = (ulong)traits;
         element.AccessibilityValue = value;
+    }
+
+    /// <summary>
+    /// A text field's error (<c>HasError</c> with an error text): UIKit has no invalid state, and a hint is not read by users who turn
+    /// hints off, so the error joins the label (and leaves the hint), and it is announced when it appears on the field VoiceOver is on.
+    /// </summary>
+    private static void ApplyError(SkUiAccessibilityElement element, SkUiSemanticsNode node)
+    {
+        if (node.TextField is not { HasError: true, Message: { } message } || string.IsNullOrWhiteSpace(message))
+        {
+            element.AnnouncedError = null;
+            return;
+        }
+        var error = message.Trim();
+        element.AccessibilityLabel = node.Label is { } label ? $"{label}, {error}" : error;
+        // The tree's hint reads the message first ("error, app's hint"): only the app's hint stays.
+        var hint = node.Hint;
+        element.AccessibilityHint = hint == error ? null : hint?.StartsWith(error + ", ", StringComparison.Ordinal) == true ? hint[(error.Length + 2)..] : hint;
+        if (element.AnnouncedError != error && element.AccessibilityElementIsFocused())
+            UIAccessibility.PostNotification(UIAccessibilityPostNotification.Announcement, new NSString(error));
+        element.AnnouncedError = error;
     }
 
     /// <summary>UISwitch's traits (a private switch trait among them); <c>None</c> until VoiceOver has run once, as in MAUI.</summary>
@@ -318,6 +340,9 @@ internal class SkUiAccessibilityElement : UIAccessibilityElement
     }
 
     public int Id { get; }
+
+    /// <summary>A text field's error as last applied (announced once when it appears while VoiceOver is on the field).</summary>
+    internal string? AnnouncedError { get; set; }
 
     /// <summary>The bridge, while the surface is there.</summary>
     protected SkUiAccessibilityBridge? Bridge => _bridge.TryGetTarget(out var bridge) ? bridge : null;

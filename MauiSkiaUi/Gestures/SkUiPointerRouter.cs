@@ -491,14 +491,16 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
 
     /// <summary>
     /// Topmost node under <paramref name="local"/> that reacts (has recognizers) or blocks (disabled); passive nodes
-    /// let the search continue underneath. Nodes are only hit inside their arranged rectangle (the root always).
+    /// let the search continue underneath. Nodes are only hit inside their arranged rectangle (the root always), and a text field
+    /// also on the message it hangs below a fixed height (<see cref="ISkUiTextInputNode.HitsOverflowMessage"/>).
     /// </summary>
     private ISkUiInputNode? FindTarget(ISkUiInputNode node, SKPoint local, bool isRoot, bool requireParticipant)
     {
         if (!node.IsHitTestVisible)
             return null;
         var props = GetProps(node);
-        if (!isRoot && !props.Bounds.Contains(local.X, local.Y))
+        if (!isRoot && !props.Bounds.Contains(local.X, local.Y)
+            && !(node is ISkUiTextInputNode field && field.HitsOverflowMessage(new Point(local.X, local.Y))))
             return null;
         if (!node.IsInputEnabled)
             return node;

@@ -291,6 +291,44 @@ public class InputFormatterTests
     }
 
     [Fact]
+    public void BackspaceOverACompositionTheFormattersRefuseKeepsTheCommittedText()
+    {
+        var editor = Editor(SkUiFilteringFormatter.DigitsOnly());
+        editor.InsertText("1");
+        editor.SetComposingText("か");
+        Assert.True(editor.DeleteBackward());
+        Assert.Equal(("1", 1), (editor.Text, editor.Caret));
+        editor.SetComposingText("か");
+        Assert.True(editor.DeleteForward());
+        Assert.Equal("1", editor.Text);
+
+        // A composition the formatters take as it is: Backspace commits it and deletes its last character, as without formatters.
+        editor.SetComposingText("23");
+        Assert.True(editor.DeleteBackward());
+        Assert.Equal(("12", 2), (editor.Text, editor.Caret));
+    }
+
+    [Fact]
+    public void AnAllowFilterThatNothingMatchesRefusesTheEditInsteadOfClearingTheField()
+    {
+        var editor = Editor(new SkUiFilteringFormatter("^[0-9]*$"));
+        editor.InsertText("12");
+        Assert.False(editor.InsertText("a"));
+        Assert.Equal(("12", 2), (editor.Text, editor.Caret));
+        Assert.True(editor.InsertText("3"));
+        Assert.Equal("123", editor.Text);
+        // A deletion stands even when what is left does not match.
+        var exact = Editor(new SkUiFilteringFormatter("^[0-9]{3}$"));
+        exact.InsertText("123");
+        Assert.True(exact.DeleteBackward());
+        Assert.Equal("12", exact.Text);
+        // An open pattern keeps what matches, as before.
+        var open = Editor(new SkUiFilteringFormatter("[0-9]*"));
+        open.InsertText("1a2");
+        Assert.Equal("12", open.Text);
+    }
+
+    [Fact]
     public void MaxLengthStillHoldsAfterFormatters()
     {
         var editor = Editor(new SkUiMaskFormatter("(000) 000"));

@@ -113,7 +113,9 @@ public enum SkUiFilteringMode
 /// Keeps (<see cref="SkUiFilteringMode.Allow"/>) or removes (<see cref="SkUiFilteringMode.Deny"/>) the text that matches
 /// <see cref="Pattern"/> (a .NET regular expression), or the characters a predicate accepts: typed and pasted text loses what
 /// does not belong, and the caret stays after what was typed. A removed stretch is replaced by <see cref="Replacement"/>
-/// (default: nothing). An edit that only adds refused text changes nothing.
+/// (default: nothing). An edit that only adds refused text changes nothing. With <see cref="SkUiFilteringMode.Allow"/>, an edit
+/// after which nothing matches is refused (a deletion stands), so a whole-text pattern (<c>^[0-9]*$</c>) refuses a wrong
+/// character instead of clearing the field.
 /// </summary>
 /// <example><c>&lt;skui:SkUiFilteringFormatter Pattern="[0-9]" /&gt;</c> (digits only), <c>Pattern="\s" Mode="Deny"</c> (no spaces).</example>
 public sealed class SkUiFilteringFormatter : SkUiTextInputFormatter
@@ -222,6 +224,10 @@ public sealed class SkUiFilteringFormatter : SkUiTextInputFormatter
         }
         if (removed.Count == 0)
             return newValue;
+        // Nothing matches at all (a whole-text pattern such as ^[0-9]*$ after a wrong character): the edit is refused rather than
+        // the field cleared; a deletion stands.
+        if (Mode == SkUiFilteringMode.Allow && removed is [(0, var removedEnd, _)] && removedEnd == text.Length)
+            return SkUiTextEditor.Diff(oldValue.Text, text).Inserted.Length == 0 ? newValue : oldValue;
         var builder = new StringBuilder(text.Length);
         var kept = 0;
         foreach (var (start, end, _) in removed)

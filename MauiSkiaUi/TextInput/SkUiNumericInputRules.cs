@@ -34,8 +34,10 @@ internal sealed class SkUiNumericInputRules(SkUiNumericEntryModel entry) : SkUiT
         var after = old[(old.Length - suffix)..];
         var inserted = text[prefix..(text.Length - suffix)];
         var symbols = entry.Symbols;
+        // A deletion stands when it leaves a number being typed, and always in text that is no longer one (the decimal digits or the
+        // range changed while the user typed): the user can delete their way out of it.
         if (inserted.Length == 0)
-            return IsValid(before + after, symbols) ? newValue : oldValue;
+            return IsValid(before + after, symbols) || !IsValid(old, symbols) ? newValue : oldValue;
         return inserted.Length == 1 ? Typed(inserted[0], oldValue, before, after, symbols) : Pasted(inserted, oldValue, before, after, symbols);
     }
 

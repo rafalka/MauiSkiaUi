@@ -542,10 +542,13 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
     }
 
     /// <summary>Commits the composition: its text stays, unmarked (and the <see cref="Formatters"/> format it now).</summary>
-    public void FinishComposing()
+    public void FinishComposing() => CommitComposition();
+
+    /// <summary><see cref="FinishComposing"/>; returns whether the formatters changed the committed text (rewrote or refused it).</summary>
+    private bool CommitComposition()
     {
         if (CompositionStart < 0)
-            return;
+            return false;
         var committed = HasComposition;
         // The formatters see the commit as an insertion of the composed text into the text without it, as they see typing.
         var formatBase = committed ? WithoutComposition() : default;
@@ -553,10 +556,11 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
         try
         {
             ClearComposition();
-            if (committed && FormatsInput && !IsReadOnly)
-                ApplyFormatted(new SkUiTextEditValue(Text, SelectionStart, SelectionEnd), SkUiTextEditKind.Composing, formatBase);
+            var formatted = committed && FormatsInput && !IsReadOnly
+                && ApplyFormatted(new SkUiTextEditValue(Text, SelectionStart, SelectionEnd), SkUiTextEditKind.Composing, formatBase);
             _coalesce = false;
             RaiseSelection();
+            return formatted;
         }
         finally
         {
@@ -593,10 +597,16 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
 
     private void ClearComposition() => CompositionStart = CompositionEnd = -1;
 
-    /// <summary>Backspace: deletes the selection, else the grapheme (or word) before the caret.</summary>
+    /// <summary>
+    /// Backspace: deletes the selection, else the grapheme (or word) before the caret. Over an input method's composition it
+    /// commits it first; when the formatters rewrite or refuse that commit, that is all it does.
+    /// </summary>
     public bool DeleteBackward(bool word = false, bool toLineStart = false, ISkUiTextEditGeometry? geometry = null)
     {
-        FinishComposing();
+        // The formatters rewrote or refused the composition this key commits: that was the key's edit (it never reaches the text
+        // committed before the composition).
+        if (CommitComposition())
+            return true;
         if (HasSelection)
             return Replace(SelectionStart, SelectionEnd, string.Empty, SkUiTextEditKind.Other);
         var start = toLineStart ? geometry?.LineStart(Caret, CaretUpstream) ?? SkUiTextBoundaries.ParagraphAt(Text, Caret).Start
@@ -607,10 +617,13 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
         return start < Caret && Replace(start, Caret, string.Empty, SkUiTextEditKind.Deleting);
     }
 
-    /// <summary>Delete: deletes the selection, else the grapheme (or word) after the caret.</summary>
+    /// <summary>Delete: deletes the selection, else the grapheme (or word) after the caret (after a composition as Backspace).</summary>
     public bool DeleteForward(bool word = false)
     {
-        FinishComposing();
+        // The formatters rewrote or refused the composition this key commits: that was the key's edit (it never reaches the text
+        // committed before the composition).
+        if (CommitComposition())
+            return true;
         if (HasSelection)
             return Replace(SelectionStart, SelectionEnd, string.Empty, SkUiTextEditKind.Other);
         var end = word ? SkUiTextBoundaries.NextWordStart(Text, Caret) : SkUiTextBoundaries.NextGrapheme(Text, Caret);

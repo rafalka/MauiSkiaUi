@@ -126,4 +126,23 @@ public class TextFieldAutofillTests
         entry.Text = "after";
         Assert.Equal(2, autofill.Calls.Count);
     }
+
+    [Fact]
+    public void AnAutofillHintIsOneHintWithoutWhiteSpace()
+    {
+        var entry = new SkUiEntry { AutofillHint = SkUiAutofillHints.Username };
+        // Ignored, as MAUI ignores an invalid bindable value: white space is reserved for a list of hints.
+        entry.AutofillHint = "username password";
+        Assert.Equal(SkUiAutofillHints.Username, entry.AutofillHint);
+        Assert.Throws<ArgumentException>(() => entry.SetAutofillHint("a b"));
+        entry.AutofillHint = "";
+        Assert.Equal("", entry.AutofillHint);
+        entry.AutofillHint = null;
+        Assert.Null(entry.AutofillHint);
+
+        var core = new SkUiCoreEntry().SetAutofillHint(SkUiAutofillHints.Password);
+        Assert.Throws<ArgumentException>(() => core.SetAutofillHint("new\tpassword"));
+        Assert.Throws<ArgumentException>(() => core.AutofillHint = " ");
+        Assert.Equal(SkUiAutofillHints.Password, core.AutofillHint);
+    }
 }
