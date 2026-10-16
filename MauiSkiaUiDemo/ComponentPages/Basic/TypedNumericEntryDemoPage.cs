@@ -5,7 +5,7 @@ namespace MauiSkiaUiDemo;
 
 /// <summary>
 /// Property playground for <see cref="SkUiNumericEntry{T}"/> on <see cref="decimal"/> values (a price): exact steps, the culture's
-/// currency format while not edited, two decimal digits typed at most, and − / + split around the value (Telerik's layout).
+/// currency format while not edited, two decimal digits typed at most, and − / + split around the value.
 /// </summary>
 public sealed class TypedNumericEntryDemoPage : ComponentDemoPage
 {

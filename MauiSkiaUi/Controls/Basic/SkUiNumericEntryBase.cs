@@ -160,7 +160,7 @@ public abstract class SkUiNumericEntryBase : SkUiEntry, ISkUiNumericEntryHost
 
     /// <summary>
     /// Whether the value can be typed (default <c>true</c>); with <c>false</c>, the buttons, keys and wheel still step and no keyboard
-    /// shows (Telerik's <c>IsReadOnly</c>). <see cref="SkUiInputView.IsReadOnly"/> stops every change, the buttons included.
+    /// shows. <see cref="SkUiInputView.IsReadOnly"/> stops every change, the buttons included.
     /// </summary>
     public bool IsEditable { get => (bool)GetValue(IsEditableProperty); set => SetValue(IsEditableProperty, value); }
 

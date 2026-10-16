@@ -11,8 +11,8 @@ namespace MauiSkiaUi;
 /// <see cref="Value"/> of type <typeparamref name="T"/>? and the range, <see cref="Increment"/> and <see cref="LargeIncrement"/> of
 /// type <typeparamref name="T"/>. Integer types take no decimal separator and refuse what would overflow them while typing (a
 /// <see cref="byte"/> entry refuses 256); a minus sign can be typed only when <see cref="Minimum"/> is negative. In XAML:
-/// <c>&lt;sk:SkUiNumericEntry x:TypeArguments="x:Int32" … /&gt;</c>. <see cref="SkUiNumericEntry"/> is the <see cref="double"/> one
-/// (as Syncfusion's <c>SfNumericEntry</c>). The Core twin is <see cref="Core.SkUiCoreNumericEntry{T}"/>.
+/// <c>&lt;sk:SkUiNumericEntry x:TypeArguments="x:Int32" … /&gt;</c>. <see cref="SkUiNumericEntry"/> is the <see cref="double"/> one.
+/// The Core twin is <see cref="Core.SkUiCoreNumericEntry{T}"/>.
 /// </summary>
 /// <typeparam name="T">The value's type: a number with a minimum and a maximum value (generic math).</typeparam>
 /// <remarks>
@@ -74,7 +74,7 @@ public class SkUiNumericEntry<[DynamicallyAccessedMembers(DynamicallyAccessedMem
     /// </summary>
     public T? Value { get => (T?)GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
 
-    /// <summary>The smallest value (default the type's smallest, as Syncfusion's); a minus sign can be typed only when it is negative.</summary>
+    /// <summary>The smallest value (default the type's smallest); a minus sign can be typed only when it is negative.</summary>
     public T Minimum { get => (T)GetValue(MinimumProperty); set => SetValue(MinimumProperty, value); }
 
     /// <summary>The largest value (default the type's largest).</summary>
@@ -343,8 +343,7 @@ public class SkUiNumericEntry<[DynamicallyAccessedMembers(DynamicallyAccessedMem
 }
 
 /// <summary>
-/// A numeric entry on <see cref="double"/>? (D16; as Syncfusion's <c>SfNumericEntry</c> and Telerik's <c>RadNumericInput</c>): see
-/// <see cref="SkUiNumericEntryBase"/> and <see cref="SkUiNumericEntry{T}"/>. For other number types (<see cref="int"/>,
+/// A numeric entry on <see cref="double"/>? (D16): see <see cref="SkUiNumericEntryBase"/> and <see cref="SkUiNumericEntry{T}"/>. For other number types (<see cref="int"/>,
 /// <see cref="decimal"/>, …) use <see cref="SkUiNumericEntry{T}"/>. The Core twin is <see cref="Core.SkUiCoreNumericEntry"/>.
 /// </summary>
 public class SkUiNumericEntry : SkUiNumericEntry<double>

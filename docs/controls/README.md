@@ -35,7 +35,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiEntry` / `SkUiCoreEntry` | [SkUiEntry.md](SkUiEntry.md) | Entry (drawn; the platform's keyboard and input methods through a proxy) |
 | `SkUiEditor` / `SkUiCoreEditor` | [SkUiEditor.md](SkUiEditor.md) | Editor (drawn) |
 | `SkUiSearchBar` / `SkUiCoreSearchBar` | [SkUiSearchBar.md](SkUiSearchBar.md) | SearchBar (drawn) |
-| `SkUiNumericEntry` / `SkUiCoreNumericEntry`, `SkUiNumericEntry<T>` / `SkUiCoreNumericEntry<T>` | [SkUiNumericEntry.md](SkUiNumericEntry.md) | — (replaces an `Entry` with `Keyboard.Numeric`, Syncfusion `SfNumericEntry` / `SfNumericUpDown`, Telerik `RadNumericInput`: numbers only, − / + in the field, a formatted value, typed values) |
+| `SkUiNumericEntry` / `SkUiCoreNumericEntry`, `SkUiNumericEntry<T>` / `SkUiCoreNumericEntry<T>` | [SkUiNumericEntry.md](SkUiNumericEntry.md) | — (replaces an `Entry` with `Keyboard.Numeric` and component libraries' numeric entries: numbers only, − / + in the field, a formatted value, typed values) |
 | `SkUiPicker` / `SkUiCorePicker` | [SkUiPicker.md](SkUiPicker.md) | Picker (the list on the app's popup system: `ISkUiPopupPresenter`; plus several choices) |
 | `SkUiMultiColumnPicker` / `SkUiCoreMultiColumnPicker` | [SkUiMultiColumnPicker.md](SkUiMultiColumnPicker.md) | — (wheels of several columns on the app's popup system) |
 | `SkUiDatePicker` / `SkUiCoreDatePicker` | [SkUiDatePicker.md](SkUiDatePicker.md) | DatePicker (wheels of the day, month and year) |

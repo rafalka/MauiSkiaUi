@@ -304,12 +304,12 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     public const string ValidVisualState = "Valid";
 
     /// <summary>
-    /// The visual state while <see cref="HasError"/> is set and the field is enabled (SkiaUi; Telerik's <c>Invalid</c>); also while it
+    /// The visual state while <see cref="HasError"/> is set and the field is enabled (SkiaUi); also while it
     /// is focused when no group has <see cref="InvalidFocusedVisualState"/>.
     /// </summary>
     public const string InvalidVisualState = "Invalid";
 
-    /// <summary>The visual state while <see cref="HasError"/> is set and the field is focused (SkiaUi; Telerik's <c>InvalidFocused</c>), when a group has it.</summary>
+    /// <summary>The visual state while <see cref="HasError"/> is set and the field is focused (SkiaUi), when a group has it.</summary>
     public const string InvalidFocusedVisualState = "InvalidFocused";
 
     /// <summary>Raised when the text changes (by the user or the app), with the old and new text.</summary>
