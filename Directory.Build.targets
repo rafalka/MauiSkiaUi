@@ -1,4 +1,13 @@
-<Project>
+<Project TreatAsLocalProperty="EnableMauiXamlDiagnostics">
+  <!--
+    The VS Code MAUI extension passes -p:EnableMauiXamlDiagnostics=True, the default (CLI, Rider) is "true". The value is written
+    into obj/*.GeneratedMSBuildEditorConfig.editorconfig, so the different casing alone made every switch between the two
+    recompile all projects. Normalize the casing so both produce the same file.
+  -->
+  <PropertyGroup Condition="'$(EnableMauiXamlDiagnostics)' != ''">
+    <EnableMauiXamlDiagnostics>$(EnableMauiXamlDiagnostics.ToLowerInvariant())</EnableMauiXamlDiagnostics>
+  </PropertyGroup>
+
   <!--
     Apple app heads (iOS, Mac Catalyst): after a SkiaSharp bump, drop the extracted native frameworks and the app bundle once.
     The SDK re-extracts libSkiaSharp.framework.zip (and HarfBuzzSharp's) only when the zip is newer than the stamp it left in obj
