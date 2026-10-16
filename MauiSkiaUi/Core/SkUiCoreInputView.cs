@@ -112,9 +112,20 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     /// <summary>A node inside the field at its end side, after the text (see <see cref="SkUiInputView.TrailingView"/>).</summary>
     public SkUiCoreNode? TrailingView { get => _trailingView; set => SetTrailingView(value); }
 
+    /// <summary>Whether the field's input is invalid: error chrome and message (see <see cref="SkUiInputView.HasError"/>).</summary>
+    public bool HasError { get => Model.HasError; set => SetHasError(value); }
+
+    /// <summary>The message under the field while <see cref="HasError"/> is set, in place of <see cref="HelperText"/> (see <see cref="SkUiInputView.ErrorText"/>).</summary>
+    public string? ErrorText { get => Model.ErrorText; set => SetErrorText(value); }
+
+    /// <summary>A message under the field (see <see cref="SkUiInputView.HelperText"/>).</summary>
+    public string? HelperText { get => Model.HelperText; set => SetHelperText(value); }
+
+    /// <summary>The error chrome's and message's color; <c>null</c> (default): the color scheme's (see <see cref="SkUiInputView.ErrorColor"/>).</summary>
+    public Color? ErrorColor { get => Model.ErrorColor; set => SetErrorColor(value); }
+
     /// <summary>Raised when the text changes (by the user or the app), with the old and new text.</summary>
     public event EventHandler<TextChangedEventArgs>? TextChanged;
-
 
     #endregion
 
@@ -283,6 +294,25 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
 
     /// <summary>Sets <see cref="TrailingView"/>.</summary>
     public SkUiCoreInputView SetTrailingView(SkUiCoreNode? value) => SetAdornment(ref _trailingView, value, _leadingView, nameof(TrailingView));
+
+    /// <summary>Sets <see cref="HasError"/>.</summary>
+    public SkUiCoreInputView SetHasError(bool value) => UpdateMessage(ref Model.HasError, value, nameof(HasError));
+
+    /// <summary>Sets <see cref="ErrorText"/>.</summary>
+    public SkUiCoreInputView SetErrorText(string? value) => UpdateMessage(ref Model.ErrorText, value, nameof(ErrorText));
+
+    /// <summary>Sets <see cref="HelperText"/>.</summary>
+    public SkUiCoreInputView SetHelperText(string? value) => UpdateMessage(ref Model.HelperText, value, nameof(HelperText));
+
+    /// <summary>Sets <see cref="ErrorColor"/>.</summary>
+    public SkUiCoreInputView SetErrorColor(Color? value) => Update(ref Model.ErrorColor, value, nameof(ErrorColor));
+
+    private SkUiCoreInputView UpdateMessage<T>(ref T field, T value, string name)
+    {
+        if (SetProperty(ref field, value, name))
+            Model.MessageChanged();
+        return this;
+    }
 
     private SkUiCoreInputView SetAdornment(ref SkUiCoreNode? slot, SkUiCoreNode? value, SkUiCoreNode? other, string name)
     {

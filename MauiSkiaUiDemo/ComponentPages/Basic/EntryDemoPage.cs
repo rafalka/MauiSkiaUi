@@ -18,6 +18,10 @@ public sealed class EntryDemoPage : ComponentDemoPage
     private const string PrefixView = "Label \"$\"";
     private const string UnitView = "Label \"kg\"";
     private const string ButtonView = "Button (upper case)";
+    private const string EmailError = "Enter an email address";
+    private const string NoError = "False";
+    private const string WithError = "True";
+    private const string ValidateEmail = "Validate as email";
 
     public EntryDemoPage() : base(nameof(SkUiEntry), new SkUiEntry { Placeholder = Placeholder }, new Entry { Placeholder = Placeholder })
     {
@@ -62,8 +66,25 @@ public sealed class EntryDemoPage : ComponentDemoPage
             value => skia.LeadingView = AdornmentOf(leading = value, skia), () => leading);
         Choice(nameof(SkUiEntry.TrailingView), [NoView, UnitView, ButtonView], NoView,
             value => skia.TrailingView = AdornmentOf(trailing = value, skia), () => trailing);
+        // SkiaUi only: validation chrome. The app decides when the input is invalid; here, a check on each change.
+        Text(nameof(SkUiEntry.HelperText), string.Empty, value => skia.HelperText = value, () => skia.HelperText ?? string.Empty);
+        Text(nameof(SkUiEntry.ErrorText), EmailError, value => skia.ErrorText = value, () => skia.ErrorText ?? string.Empty);
+        skia.ErrorText = EmailError;
+        // One editor owns HasError: set by hand, or by an email check on each change.
+        var validates = false;
+        skia.TextChanged += (_, args) =>
+        {
+            if (validates)
+                skia.HasError = !IsEmail(args.NewTextValue);
+        };
+        Choice(nameof(SkUiEntry.HasError), [NoError, WithError, ValidateEmail], NoError, value =>
+        {
+            validates = value == ValidateEmail;
+            skia.HasError = validates ? !IsEmail(skia.Text) : value == WithError;
+        }, () => validates ? ValidateEmail : skia.HasError ? WithError : NoError);
         ColorEditor(nameof(SkUiEntry.TextColor), Ink, value => { skia.TextColor = value; native.TextColor = value; }, () => skia.TextColor ?? Ink, () => native.TextColor ?? Ink);
         ColorEditor(nameof(SkUiEntry.CaretColor), Accent, value => skia.CaretColor = value, () => skia.CaretColor ?? Accent);
+        ColorEditor(nameof(SkUiEntry.ErrorColor), SkUiColors.Error, value => skia.ErrorColor = value, () => skia.ErrorColor ?? SkUiColors.Error);
         ActionButton("Select all", () =>
         {
             skia.CursorPosition = 0;
@@ -73,6 +94,10 @@ public sealed class EntryDemoPage : ComponentDemoPage
         });
         ActionButton("Focus", () => skia.Focus());
     }
+
+    // Empty is valid (nothing typed yet); otherwise one @ with text on both sides and a dot after it.
+    private static bool IsEmail(string? text) =>
+        string.IsNullOrEmpty(text) || System.Text.RegularExpressions.Regex.IsMatch(text, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
 
     private ISkUiView? AdornmentOf(string name, SkUiEntry entry)
     {

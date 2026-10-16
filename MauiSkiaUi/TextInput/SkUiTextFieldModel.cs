@@ -74,6 +74,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     private readonly ISkUiTextFieldOwner _owner;
     private readonly SkUiTextEditLayout _layout = new();
     private readonly SkUiTextLayout _placeholderLayout;
+    private readonly SkUiTextLayout _messageLayout;
     private readonly SkUiTween _focus;
     private readonly List<SKRect> _rects = [];
     private readonly SkUiTextFieldGestures _gestures;
@@ -92,6 +93,8 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     private IDisposable? _blink;
     private SkUiDrawableSlot<CaretKey> _caret;
     private bool _clearPressed;
+    // The field's own height (without its message) at the last measure: a node too short for both keeps the field at this height.
+    private float _fieldHeight;
 
     private readonly record struct CaretKey(SKRect Rect, SKRect Clip, SKColor Color);
 
@@ -99,6 +102,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     {
         _owner = owner;
         _placeholderLayout = new SkUiTextLayout(owner);
+        _messageLayout = new SkUiTextLayout(owner);
         _focus = new SkUiTween(owner);
         Editor = new SkUiTextEditor(this) { IsMultiline = multiline };
         IsMultiline = multiline;
@@ -170,6 +174,18 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
 
     /// <summary>The control's <c>FormatsAssignedText</c>: text the app sets goes through the input formatters too.</summary>
     public bool FormatsAssignedText;
+
+    /// <summary>The control's <c>HasError</c>: the chrome and the message are drawn in the error color.</summary>
+    public bool HasError;
+
+    /// <summary>The control's <c>ErrorText</c>: the message under the field while <see cref="HasError"/> (in place of the helper text).</summary>
+    public string? ErrorText;
+
+    /// <summary>The control's <c>HelperText</c>: the message under the field (unless an error's text replaces it).</summary>
+    public string? HelperText;
+
+    /// <summary>The control's <c>ErrorColor</c>: the error chrome's and message's color; <c>null</c>: the color scheme's error color.</summary>
+    public Color? ErrorColor;
 
     /// <summary>
     /// The text the control holds: the app set it (not an edit of the user). The field shows it with an editor's line breaks as
@@ -250,6 +266,21 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     {
         _layoutDirty = true;
         _placeholderLayout.Invalidate();
+        _messageLayout.Invalidate();
+        _owner.InvalidateMeasure();
+        _owner.InvalidatePaint();
+        _owner.InvalidateSemantics();
+        _owner.InvalidateCaret();
+    }
+
+    /// <summary>
+    /// What the message under the field depends on changed (<see cref="HasError"/>, <see cref="ErrorText"/>,
+    /// <see cref="HelperText"/>): the field is measured and drawn again, and screen readers read the new message.
+    /// </summary>
+    public void MessageChanged()
+    {
+        // The layout keeps its lines until told: its key is the style and width, not the text.
+        _messageLayout.Invalidate();
         _owner.InvalidateMeasure();
         _owner.InvalidatePaint();
         _owner.InvalidateSemantics();
@@ -328,8 +359,45 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         }
     }
 
-    /// <summary>The field's rectangle in a node of the given size: <see cref="FieldArea"/>, else the whole node.</summary>
-    private SKRect Area(float width, float height) => FieldArea ?? new SKRect(0, 0, width, height);
+    /// <summary>
+    /// The field's rectangle in a node of the given size: <see cref="FieldArea"/>, else the node above the message (the whole node
+    /// without one). A node too short for the field and its message (a fixed height) keeps the field at its own height and the
+    /// message hangs below the node (<see cref="GetOverflow"/>).
+    /// </summary>
+    private SKRect Area(float width, float height)
+    {
+        if (FieldArea is { } area)
+            return area;
+        var message = MessageHeight(width);
+        return message <= 0 ? new SKRect(0, 0, width, height)
+            : new SKRect(0, 0, width, Math.Min(height, Math.Max(height - message, _fieldHeight)));
+    }
+
+    /// <summary>
+    /// The message under the field: <see cref="ErrorText"/> while <see cref="HasError"/> (when it has text, as Material's error
+    /// text replaces the supporting text), else <see cref="HelperText"/>; <c>null</c>: none.
+    /// </summary>
+    internal string? Message => HasError && !string.IsNullOrEmpty(ErrorText) ? ErrorText : string.IsNullOrEmpty(HelperText) ? null : HelperText;
+
+    /// <summary>The message's text: the field's font family at the look's message size, wrapped.</summary>
+    private SkUiTextStyle MessageStyle => new(SkUiTypefaces.Resolve(FontFamily),
+        SkUiFontScaling.ScaleFontSize(SkUiLook.Current.TextFieldMessageFontSize, FontAutoScalingEnabled), Direction: _owner.TextDirection);
+
+    /// <summary>The message's padding in its band: the field's horizontal padding (start and end), the look's spacing above it.</summary>
+    private Thickness MessagePadding
+    {
+        get
+        {
+            var look = SkUiLook.Current;
+            var padding = Padding ?? look.TextFieldPadding;
+            var (left, right) = _owner.IsRightToLeft ? (padding.Right, padding.Left) : (padding.Left, padding.Right);
+            return new Thickness(left, look.TextFieldMessageSpacing, right, 0);
+        }
+    }
+
+    /// <summary>The height of the message's band under the field (its spacing and wrapped lines) in a node <paramref name="width"/> DIPs wide; 0 without one.</summary>
+    private float MessageHeight(float width) =>
+        FieldArea is null && Message is { } message ? (float)_messageLayout.Measure(message, MessageStyle, MessagePadding, width).Height : 0;
 
     /// <summary>The stretch from <paramref name="from"/> to <paramref name="to"/> DIPs past the area's start side (its left, or its right in right-to-left).</summary>
     private SKRect FromStart(SKRect area, float from, float to, float top, float bottom) => _owner.IsRightToLeft
@@ -480,7 +548,15 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         width += SkUiLook.Current.CaretWidth;
         var size = new Size(Math.Min(widthConstraint, width + inset.HorizontalThickness),
             Math.Max(height + inset.VerticalThickness, Math.Max(LeadingSize.Height, TrailingSize.Height)));
-        return HasExplicitMinimumHeight ? size : new Size(size.Width, Math.Max(size.Height, SkUiLook.Current.DefaultTextFieldMinimumHeight));
+        if (!HasExplicitMinimumHeight)
+            size.Height = Math.Max(size.Height, SkUiLook.Current.DefaultTextFieldMinimumHeight);
+        _fieldHeight = (float)size.Height;
+        if (FieldArea is not null || Message is not { } message)
+            return size;
+        // The message under the field, wrapped at the width the field may take: the field is at least as wide as the message's
+        // longest line, so the lines drawn at the arranged width are never more than the lines measured here.
+        var band = _messageLayout.Measure(message, MessageStyle, MessagePadding, widthConstraint);
+        return new Size(Math.Min(widthConstraint, Math.Max(size.Width, band.Width)), size.Height + band.Height);
     }
 
     /// <summary>Where the text's box (its first line's top-left) is drawn in the field, scrolled.</summary>
@@ -552,10 +628,11 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         if (IsSearch)
             SkUiLook.Current.DrawSearchField(canvas, new SkUiSearchFieldPaint(Area(width, height), SearchIconBounds(width, height),
                 ToSkColor(SkUiColors.Accent), ToSkColor(SkUiColors.Muted), ToSkColor(SearchIconColor ?? SkUiColors.Muted), _focus.Value, IsPointerOver,
-                IsEnabled, _owner.IsRightToLeft));
+                IsEnabled, _owner.IsRightToLeft, HasError, ToSkColor(ErrorColor ?? SkUiColors.Error)));
         else if (DrawsChrome)
             SkUiLook.Current.DrawTextField(canvas, new SkUiTextFieldPaint(Area(width, height), ToSkColor(SkUiColors.Accent),
-                ToSkColor(SkUiColors.Muted), foreground, _focus.Value, IsPointerOver, IsEnabled, Editor.IsReadOnly, IsMultiline, _owner.IsRightToLeft));
+                ToSkColor(SkUiColors.Muted), foreground, _focus.Value, IsPointerOver, IsEnabled, Editor.IsReadOnly, IsMultiline, _owner.IsRightToLeft,
+                HasError, ToSkColor(ErrorColor ?? SkUiColors.Error)));
         var box = TextBox(width, height);
         EnsureLayout(box.Width);
         KeepCaretInView(box);
@@ -597,6 +674,20 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         if (ClearButtonShown)
             SkUiLook.Current.DrawTextFieldClearButton(canvas, new SkUiPickerClearButtonPaint(ClearButtonBounds(width, height), ToSkColor(ClearButtonColor ?? SkUiColors.Muted),
                 ToSkColor(SkUiColors.DefaultBackground), _clearPressed, IsEnabled));
+        DrawMessage(canvas, width, height, paint);
+    }
+
+    /// <summary>The message under the field: the error color (<see cref="ErrorColor"/>) with an error (also for helper text), else the muted color; dimmed when disabled.</summary>
+    private void DrawMessage(SKCanvas canvas, float width, float height, SKPaint paint)
+    {
+        if (FieldArea is not null || Message is not { } message)
+            return;
+        var color = ToSkColor(HasError ? ErrorColor ?? SkUiColors.Error : SkUiColors.Muted);
+        paint.Color = IsEnabled ? color : color.WithAlpha((byte)(color.Alpha * 0.5f));
+        var padding = MessagePadding;
+        var top = Area(width, height).Bottom;
+        _messageLayout.Draw(canvas, message, MessageStyle, new Thickness(padding.Left, top + padding.Top, padding.Right, 0), width, height,
+            TextAlignment.Start, TextAlignment.Start, paint);
     }
 
     /// <summary>Whether the selection shows its handles: made by touch, while focused.</summary>
@@ -606,12 +697,13 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     private bool InsertionHandleShown => _insertionHandle && _owner.IsFocused && !Editor.HasSelection && IsEnabled && !Editor.IsReadOnly;
 
     /// <summary>
-    /// What the field draws outside its bounds (the handles hang there): positive amounts per side (<see cref="SkUiRenderProps.Overflow"/>);
-    /// <c>null</c>: nothing. The node then stops clipping to its bounds (the field clips its text itself).
+    /// What the field draws outside its bounds (the handles hang there, and a message that does not fit under a field of fixed
+    /// height): positive amounts per side (<see cref="SkUiRenderProps.Overflow"/>); <c>null</c>: nothing. The node then stops
+    /// clipping to its bounds (the field clips its text itself).
     /// </summary>
     internal SKRect? GetOverflow(float width, float height)
     {
-        SKRect bounds;
+        var bounds = new SKRect(0, 0, width, height);
         var look = SkUiLook.Current;
         if (HandlesShown)
         {
@@ -622,10 +714,8 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         {
             bounds = look.GetTextInsertionHandleBounds(CaretEdge(width, height));
         }
-        else
-        {
-            return null;
-        }
+        if (FieldArea is null && MessageHeight(width) is > 0 and var message)
+            bounds.Bottom = Math.Max(bounds.Bottom, Area(width, height).Bottom + message);
         var overflow = new SKRect(Math.Max(0, -bounds.Left), Math.Max(0, -bounds.Top), Math.Max(0, bounds.Right - width), Math.Max(0, bounds.Bottom - height));
         return overflow is { Left: <= 0, Top: <= 0, Right: <= 0, Bottom: <= 0 } ? null : overflow;
     }
@@ -997,6 +1087,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     {
         _layout.Release();
         _placeholderLayout.Release();
+        _messageLayout.Release();
         _layoutDirty = true;
         _caret.Forget();
     }
@@ -1270,14 +1361,18 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     }
 
     /// <summary>
-    /// Whether the field reacts to a pointer pressed at <paramref name="local"/> (node coordinates): enabled, inside its area, and
-    /// not on a leading or trailing view that handles the pointer itself (a press on an icon or a label focuses the field).
+    /// Whether the field reacts to a pointer pressed at <paramref name="local"/> (node coordinates): enabled, inside its area (not on
+    /// the message under it), and not on a leading or trailing view that handles the pointer itself (a press on an icon or a label
+    /// focuses the field).
     /// </summary>
     internal bool AcceptsPointerAt(Point local)
     {
         if (!IsEnabled || _owner.AdornmentTakesPointer(local))
             return false;
-        return FieldArea is not { } area || area.Contains((float)local.X, (float)local.Y);
+        if (FieldArea is null && Message is null)
+            return true;
+        var (width, height) = Size;
+        return Area(width, height).Contains((float)local.X, (float)local.Y);
     }
 
     // Pointer selection: what a drag extends by (characters, words, paragraphs) from the range the press selected.
@@ -1499,7 +1594,10 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
 
     #region Screen readers
 
-    /// <summary>An editable text field: the placeholder as its name, the text (bullets for a password) as its value.</summary>
+    /// <summary>
+    /// An editable text field: the placeholder as its name, the text (bullets for a password) as its value, the message under it
+    /// (helper or error text) read after them, and whether its input is invalid.
+    /// </summary>
     public void PopulateSemantics(SkUiSemanticsInfo info)
     {
         info.Role = SkUiSemanticsRole.TextField;
@@ -1508,7 +1606,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         info.IsEnabled &= IsEnabled;
         info.Actions |= SkUiSemanticsActions.Activate;
         var (start, end) = IsPassword ? (ToDisplayIndex(Editor.SelectionStart), ToDisplayIndex(Editor.SelectionEnd)) : (Editor.SelectionStart, Editor.SelectionEnd);
-        info.TextField = new SkUiSemanticsTextField(start, end, IsPassword, Editor.IsReadOnly, IsMultiline);
+        info.TextField = new SkUiSemanticsTextField(start, end, IsPassword, Editor.IsReadOnly, IsMultiline, HasError, Message);
     }
 
     /// <summary>

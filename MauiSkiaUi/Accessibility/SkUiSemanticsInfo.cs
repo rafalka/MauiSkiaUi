@@ -64,7 +64,10 @@ public enum SkUiSemanticsActions
 /// <param name="IsPassword">The text is masked (read as bullets).</param>
 /// <param name="IsReadOnly">The text cannot be changed.</param>
 /// <param name="IsMultiline">Several lines (an editor).</param>
-internal readonly record struct SkUiSemanticsTextField(int SelectionStart, int SelectionEnd, bool IsPassword, bool IsReadOnly, bool IsMultiline);
+/// <param name="HasError">The input is invalid (the field's <c>HasError</c>).</param>
+/// <param name="Message">The message under the field (its helper text, or its error text with an error), read after the field.</param>
+internal readonly record struct SkUiSemanticsTextField(int SelectionStart, int SelectionEnd, bool IsPassword, bool IsReadOnly, bool IsMultiline,
+    bool HasError = false, string? Message = null);
 
 /// <summary>A range value: a slider's or a determinate progress bar's.</summary>
 /// <param name="Minimum">Lowest value.</param>

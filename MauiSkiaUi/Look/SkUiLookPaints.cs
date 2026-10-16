@@ -256,9 +256,11 @@ public readonly record struct SkUiPickerFieldPaint(
 /// <param name="IsReadOnly">The field's text cannot be changed.</param>
 /// <param name="IsMultiline">The field is an editor (several lines).</param>
 /// <param name="IsRightToLeft">The field lays out right to left.</param>
+/// <param name="HasError">The field's input is invalid (its <c>HasError</c>): drawn in <paramref name="Error"/> instead of the border and accent colors.</param>
+/// <param name="Error">The error color (the field's <c>ErrorColor</c>, else the color scheme's <see cref="SkUiColorScheme.Error"/>).</param>
 public readonly record struct SkUiTextFieldPaint(
     SKRect Bounds, SKColor Accent, SKColor Border, SKColor Foreground, float Focused, bool IsPointerOver, bool IsEnabled, bool IsReadOnly,
-    bool IsMultiline, bool IsRightToLeft);
+    bool IsMultiline, bool IsRightToLeft, bool HasError = false, SKColor Error = default);
 
 /// <summary>What a look draws a handle of a touch selection with (<see cref="SkUiLook.DrawTextSelectionHandle"/>).</summary>
 /// <param name="Edge">The selection's edge the handle belongs to: a zero-width rectangle as tall as its line (field coordinates).</param>
@@ -281,9 +283,11 @@ public readonly record struct SkUiTextInsertionHandlePaint(SKRect Caret, SKColor
 /// <param name="IsPointerOver">A hovering pointer is over the field.</param>
 /// <param name="IsEnabled">The field is enabled.</param>
 /// <param name="IsRightToLeft">The field lays out right to left (the icon on the right).</param>
+/// <param name="HasError">The search bar's input is invalid (its <c>HasError</c>): outlined in <paramref name="Error"/>.</param>
+/// <param name="Error">The error color (the field's <c>ErrorColor</c>, else the color scheme's <see cref="SkUiColorScheme.Error"/>).</param>
 public readonly record struct SkUiSearchFieldPaint(
     SKRect Bounds, SKRect IconBounds, SKColor Accent, SKColor Border, SKColor IconColor, float Focused, bool IsPointerOver, bool IsEnabled,
-    bool IsRightToLeft);
+    bool IsRightToLeft, bool HasError = false, SKColor Error = default);
 
 /// <summary>What a look draws a stepper with (<see cref="SkUiLook.DrawStepper"/>).</summary>
 /// <param name="Bounds">The stepper's rectangle.</param>

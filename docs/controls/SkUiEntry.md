@@ -2,7 +2,7 @@
 
 A single-line text field drawn by SkiaUi: the text, caret, selection, placeholder and chrome are drawn on the surface, and the platform's keyboard and input methods (composition, autocorrect, dictation, the edit menu) reach it through the surface's text input proxy. No native view is created for it, so it clips, scrolls, transforms and fades with the drawn tree, sits under drawn popups, and works in Core trees and in recycled list rows.
 
-**MAUI counterpart:** [`Entry`](https://learn.microsoft.com/dotnet/maui/user-interface/controls/entry), by member name: a page ports by changing the prefix. Beyond MAUI: `CaretColor`, `SelectionColor`, `AutofillHint`, `InputFormatters` / `FormatsAssignedText`, `LeadingView` / `TrailingView`. Core twin: `SkUiCoreEntry` (fluent `Set*`, `INotifyPropertyChanged`; no enabled state: use `IsReadOnly`). The fields share their base with [`SkUiEditor`](SkUiEditor.md) and [`SkUiSearchBar`](SkUiSearchBar.md) (`SkUiInputView` / `SkUiCoreInputView`, MAUI's `InputView`); [`SkUiStepper`](SkUiStepper.md) edits its value with the same engine.
+**MAUI counterpart:** [`Entry`](https://learn.microsoft.com/dotnet/maui/user-interface/controls/entry), by member name: a page ports by changing the prefix. Beyond MAUI: `CaretColor`, `SelectionColor`, `AutofillHint`, `InputFormatters` / `FormatsAssignedText`, `LeadingView` / `TrailingView`, `HasError` / `ErrorText` / `HelperText` / `ErrorColor`. Core twin: `SkUiCoreEntry` (fluent `Set*`, `INotifyPropertyChanged`; no enabled state: use `IsReadOnly`). The fields share their base with [`SkUiEditor`](SkUiEditor.md) and [`SkUiSearchBar`](SkUiSearchBar.md) (`SkUiInputView` / `SkUiCoreInputView`, MAUI's `InputView`); [`SkUiStepper`](SkUiStepper.md) edits its value with the same engine.
 
 ## How it works
 
@@ -16,12 +16,13 @@ A single-line text field drawn by SkiaUi: the text, caret, selection, placeholde
 - **Caret.** A bar in `CaretColor` (else the look's), blinking by `SkUiLook.CaretBlinkInterval`: a composite-time drawable, so moving or blinking it records nothing; typing shows it solid.
 - **Input formatters.** `InputFormatters` rewrite or refuse the user's edits, in order (Flutter's `TextInputFormatter`): typing, an input method's committed text (a composition is formatted when committed, not while composed), paste, cut, Backspace / Delete and a screen reader's set-text. Each gets the value before the edit and the value after it (`SkUiTextEditValue`: text and selection) and returns the value the field takes, so a formatter can filter, cap, re-mask the whole text and place the caret. What the last returns is one edit and one undo step; undo / redo are not formatted, and text the app sets is formatted only with `FormatsAssignedText` (as if pasted into an empty field; `Text` follows the result). Built in: `SkUiFilteringFormatter` (allow or deny by a regular expression or a character predicate, `DigitsOnly`), `SkUiLengthLimitingFormatter` (graphemes, digits, or letters and digits) and `SkUiMaskFormatter` (`0` digit, `L` letter, `A` letter or digit, `&` any, `\` escapes; literals typed in as the user reaches them; `Unmask`, `IsComplete`). `SkUiTextInputFormatter.Create` wraps a function; a subclass overrides `Format`. `MaxLength` still holds after them.
 - **Leading and trailing views.** `LeadingView` and `TrailingView` put any drawn view inside the field's chrome, before and after the text (Material's leading / trailing icons and prefix / suffix text; Avalonia's `InnerLeftContent` / `InnerRightContent`): an `SkUiImage` icon, an `SkUiLabel` unit, an `SkUiImageButton`. Each is measured at its own size (a taller one makes the field taller), placed inside the padding with `TextFieldAdornmentSpacing` (8) to the text, and aligned with the text (`VerticalTextAlignment`: centered in an entry, at the top of an editor); the text is inset so they never overlap, and they mirror in right-to-left. A search bar's icon comes before the leading view; the clear button sits between the text and the trailing view. A press on a view that handles pointers itself (a button, a view with a tap gesture) is the view's: it does not focus the field, move its caret or (on Windows) take focus from it, so a button can act on a focused field with its keyboard up. A press on an icon or a label focuses the field. The views are the field's children: they inherit its binding context, a hidden one (`IsVisible="False"`) takes no room, and screen readers read a label's text with the field's name and a button as its own element. A view is in one slot of one field.
+- **Validation chrome.** `HasError` marks the input invalid (Material 3's error state; Telerik's `Invalid`): the look draws the outline or underline in the error color (`ErrorColor`, else the color scheme's `Error`), thicker while focused. `HelperText` is a message under the field (Material's supporting text: a hint that stays while the user types, unlike `Placeholder`) in the muted color; while `HasError` is set, `ErrorText` takes its place in that color (an empty `ErrorText` keeps the helper text, in the error color). The message wraps at the field's width and makes the field taller (an unconstrained field is at least as wide as its message); in a field of fixed height it takes its room from the field while the field keeps its own height, and hangs below the field otherwise (over what follows: leave room, or let the field size itself). A press on it does not focus the field. The field does not validate: the app sets `HasError` (bound to a view model's error, a Community Toolkit validation behavior's `IsNotValid`, or set in `TextChanged`), so it complements whatever validation the app uses. Visual states while enabled: `Invalid`, `InvalidFocused` (focused, when defined; else `Invalid`) and `Valid`, in a group of their own (`ValidityStates`) or as `Invalid` / `InvalidFocused` in `CommonStates`, where they take the place of the field's state. Screen readers read the message after the field; TalkBack also hears the error as an `EditText`'s error.
 - **Password.** `IsPassword` draws one bullet per character (grapheme), turns off copying, cutting and suggestions, and asks for a password keyboard (and the password autofill hint).
-- **Screen readers.** An editable text field (TalkBack's `EditText`, Narrator's Edit with a settable value, VoiceOver's value): the placeholder is its name, the text (bullets for a password) its value, with the selection; TalkBack and Narrator can set the text and the selection.
+- **Screen readers.** An editable text field (TalkBack's `EditText`, Narrator's Edit with a settable value, VoiceOver's value): the placeholder is its name, the text (bullets for a password) its value, with the selection; TalkBack and Narrator can set the text and the selection. The helper or error text is read after it (TalkBack: the hint, or the `EditText`'s error and invalid state).
 
 ## Look
 
-The look draws the chrome behind the text: `SkUiLook.DrawTextField(canvas, SkUiTextFieldPaint)` (or `TextFieldPainter`), with the field's bounds, accent, border and text colors, how focused it is (0–1, the `FieldFocus` transition), pointer over, enabled, read-only, multiline and right to left. `DefaultSkUiLook.TextFieldStyle` picks `Underline`, `Outline` or `Filled` (`Default`: the look's `DefaultTextFieldStyle`, an outline; `AndroidSkUiLook`: Material's underline). The clear button: `DrawTextFieldClearButton` (or `TextFieldClearButtonPainter`); selection handles: `DrawTextSelectionHandle` (or `TextSelectionHandlePainter`). The caret's handle (where `ShowsTextInsertionHandle`, default on Android): `DrawTextInsertionHandle` (or `TextInsertionHandlePainter`), `GetTextInsertionHandleBounds`, `TextInsertionHandleTimeout` (4 s). Sizes and timing: `DefaultTextFieldMinimumHeight` (44), `TextFieldPadding` (12, 8), `TextFieldClearButtonWidth` (32), `TextFieldAdornmentSpacing` (8, between a leading or trailing view and the text), `CaretWidth` (2), `CaretBlinkInterval` (500 ms; zero: no blinking), `CaretColor` and `TextSelectionColor` (the accent, and the accent at 30 %), `TextSelectionHandleTouchRadius` (22).
+The look draws the chrome behind the text: `SkUiLook.DrawTextField(canvas, SkUiTextFieldPaint)` (or `TextFieldPainter`), with the field's bounds (above its message), accent, border and text colors, how focused it is (0–1, the `FieldFocus` transition), pointer over, enabled, read-only, multiline, right to left, and an error (`HasError`, and `Error`: the field's `ErrorColor`, else the scheme's). `DefaultSkUiLook.TextFieldStyle` picks `Underline`, `Outline` or `Filled` (`Default`: the look's `DefaultTextFieldStyle`, an outline; `AndroidSkUiLook`: Material's underline). The clear button: `DrawTextFieldClearButton` (or `TextFieldClearButtonPainter`); selection handles: `DrawTextSelectionHandle` (or `TextSelectionHandlePainter`). The caret's handle (where `ShowsTextInsertionHandle`, default on Android): `DrawTextInsertionHandle` (or `TextInsertionHandlePainter`), `GetTextInsertionHandleBounds`, `TextInsertionHandleTimeout` (4 s). Sizes and timing: `DefaultTextFieldMinimumHeight` (44), `TextFieldPadding` (12, 8), `TextFieldClearButtonWidth` (32), `TextFieldAdornmentSpacing` (8, between a leading or trailing view and the text), `TextFieldMessageSpacing` (4, between the field and its message) and `TextFieldMessageFontSize` (12), `CaretWidth` (2), `CaretBlinkInterval` (500 ms; zero: no blinking), `CaretColor` and `TextSelectionColor` (the accent, and the accent at 30 %), `TextSelectionHandleTouchRadius` (22).
 
 ## Shared conventions
 
@@ -56,6 +57,31 @@ Input formatters (mask-as-you-type, filters, caps):
         <sk:SkUiLengthLimitingFormatter MaxLength="6" />
     </sk:SkUiEntry.InputFormatters>
 </sk:SkUiEntry>
+```
+
+Validation chrome (a helper text, an error the view model reports):
+
+```xml
+<sk:SkUiEntry Placeholder="Email" Keyboard="Email" Text="{Binding Email}"
+              HelperText="Your work address"
+              HasError="{Binding HasEmailError}" ErrorText="{Binding EmailError}">
+    <VisualStateManager.VisualStateGroups>
+        <VisualStateGroup x:Name="ValidityStates">
+            <VisualState x:Name="Valid" />
+            <VisualState x:Name="Invalid">
+                <VisualState.Setters>
+                    <Setter Property="TextColor" Value="DarkRed" />
+                </VisualState.Setters>
+            </VisualState>
+        </VisualStateGroup>
+    </VisualStateManager.VisualStateGroups>
+</sk:SkUiEntry>
+```
+
+```csharp
+var age = new SkUiEntry().SetPlaceholder("Age").SetKeyboard(Keyboard.Numeric).SetErrorText("Enter a whole number");
+age.TextChanged += (_, e) => age.HasError = !int.TryParse(e.NewTextValue, out _);
+var core = new SkUiCoreEntry().SetPlaceholder("Code").SetHelperText("6 digits");
 ```
 
 Leading and trailing views (icons, units, buttons):
@@ -104,6 +130,10 @@ var tag = new SkUiEntry().SetInputFormatters(
 | `InputFormatters` (SkiaUi) | empty | `SkUiTextInputFormatter`s run in order on the user's edits (see above); changing them formats the text already in the field, and `Text` follows |
 | `FormatsAssignedText` (SkiaUi) | `false` | Text the app sets goes through `InputFormatters` too, and `Text` follows; turning it on formats the text already there |
 | `LeadingView`, `TrailingView` (SkiaUi) | `null` | Drawn views inside the field before and after the text (Core: `SkUiCoreNode`s); see above |
+| `HasError` (SkiaUi) | `false` | Error chrome: the outline and message in the color scheme's `Error`; visual states `Invalid` / `InvalidFocused` / `Valid` |
+| `ErrorText` (SkiaUi) | `null` | The message under the field while `HasError`, in place of `HelperText` |
+| `HelperText` (SkiaUi) | `null` | A message under the field (muted); wraps and makes the field taller |
+| `ErrorColor` (SkiaUi) | `null` | The error chrome's and message's color; the color scheme's `Error` by default |
 | `AutofillHint` (SkiaUi) | `null` | `SkUiAutofillHints` (`Username`, `Password`, `NewPassword`, `OneTimeCode`, …) or a platform's own hint; a password field is a password |
 
 ## Differences from MAUI Entry

@@ -191,8 +191,15 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
             node.Password = field.IsPassword;
             node.MultiLine = field.IsMultiline;
             node.SetTextSelection(field.SelectionStart, field.SelectionEnd);
-            if (OperatingSystem.IsAndroidVersionAtLeast(26) && element.Label is { } placeholder)
-                node.HintText = placeholder;
+            // An error as an EditText's (TalkBack reads "error" with it); a helper text after the placeholder in the hint.
+            if (field.HasError)
+            {
+                node.ContentInvalid = true;
+                node.Error = field.Message;
+            }
+            var hintText = field is { HasError: false, Message: { } helper } ? element.Label is { } label ? $"{label}, {helper}" : helper : element.Label;
+            if (OperatingSystem.IsAndroidVersionAtLeast(26) && hintText is not null)
+                node.HintText = hintText;
             node.Focused = element.IsFocused;
             if (!field.IsReadOnly && element.IsEnabled)
                 node.AddAction(AccessibilityNodeInfoCompat.ActionSetText);

@@ -955,6 +955,15 @@ public class SkUiLook
     /// </summary>
     public virtual double TextFieldAdornmentSpacing => 8;
 
+    /// <summary>
+    /// The space between a text field and its message under it (<c>HelperText</c>, or <c>ErrorText</c> while it has an error), in
+    /// DIPs (default 4).
+    /// </summary>
+    public virtual double TextFieldMessageSpacing => 4;
+
+    /// <summary>The font size of a text field's message under it, in DIPs before the system text size (default 12).</summary>
+    public virtual double TextFieldMessageFontSize => 12;
+
     /// <summary>The caret's width in DIPs (default 2).</summary>
     public virtual float CaretWidth => 2;
 
@@ -1074,8 +1083,9 @@ public class SkUiLook
 
     /// <summary>
     /// Draws a text field's chrome behind its text (delegate or <see cref="DrawTextFieldCore"/>): an underline, an outline or a fill
-    /// with its states (pointer over, focused, read-only, disabled; <see cref="SkUiTextFieldPaint.Focused"/> animates with the look's
-    /// <see cref="SkUiTransitionKind.FieldFocus"/> transition). The control draws the selection, text, placeholder and caret over it.
+    /// with its states (pointer over, focused, read-only, disabled, an error; <see cref="SkUiTextFieldPaint.Focused"/> animates with
+    /// the look's <see cref="SkUiTransitionKind.FieldFocus"/> transition). The control draws the selection, text, placeholder and
+    /// caret over it, and its message (helper or error text) under it.
     /// </summary>
     public void DrawTextField(SKCanvas canvas, SkUiTextFieldPaint field)
     {
@@ -1135,8 +1145,8 @@ public class SkUiLook
     }
 
     /// <summary>
-    /// Default search field: a lightly filled pill (a little darker under a pointer, an accent outline while focused) and a
-    /// magnifying glass in the icon color.
+    /// Default search field: a lightly filled pill (a little darker under a pointer, an accent outline while focused, an outline in
+    /// the error color while it has an error) and a magnifying glass in the icon color.
     /// </summary>
     protected virtual void DrawSearchFieldCore(SKCanvas canvas, SkUiSearchFieldPaint field)
     {
@@ -1148,14 +1158,17 @@ public class SkUiLook
         var fill = field.IsPointerOver && field.IsEnabled ? 0.24f : 0.16f;
         paint.Color = field.Border.WithAlpha((byte)(field.Border.Alpha * (field.IsEnabled ? fill : fill / 2)));
         canvas.DrawRoundRect(bounds, radius, radius, paint);
-        if (field.IsEnabled && field.Focused > 0)
+        var focus = field.IsEnabled ? Math.Clamp(field.Focused, 0, 1) : 0;
+        if (focus > 0 || field.HasError)
         {
-            var width = 1.5f * Math.Clamp(field.Focused, 0, 1);
+            // An error outlines the pill while unfocused too (1 DIP), as an error outlines a text field.
+            var width = field.HasError ? 1 + 0.5f * focus : 1.5f * focus;
             var ring = bounds;
             ring.Inflate(-width / 2, -width / 2);
             paint.Style = SKPaintStyle.Stroke;
             paint.StrokeWidth = width;
-            paint.Color = field.Accent;
+            paint.Color = !field.HasError ? field.Accent
+                : field.IsEnabled ? field.Error : field.Error.WithAlpha((byte)(field.Error.Alpha / 2));
             canvas.DrawRoundRect(ring, radius - width / 2, radius - width / 2, paint);
         }
         // The magnifying glass: a ring and a handle to the bottom right (left in right-to-left layouts).

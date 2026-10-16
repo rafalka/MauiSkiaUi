@@ -8,7 +8,8 @@ namespace MauiSkiaUi;
 /// What the drawn text fields share (MAUI's <c>InputView</c>; <see cref="SkUiEntry"/>, <see cref="SkUiEditor"/>): the text, caret,
 /// selection and placeholder drawn on the surface, the look's chrome, and the platform's keyboard and input methods (composition,
 /// autocorrect, dictation, autofill) through the surface's text input proxy. MAUI's members by name; beyond MAUI:
-/// <see cref="CaretColor"/>, <see cref="SelectionColor"/> and <see cref="AutofillHint"/>.
+/// <see cref="CaretColor"/>, <see cref="SelectionColor"/>, <see cref="AutofillHint"/>, input formatters, leading and trailing
+/// views, and validation chrome (<see cref="HasError"/>, <see cref="ErrorText"/>, <see cref="HelperText"/>).
 /// </summary>
 public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHandler, ISkUiTextInputNode, ISkUiWheelHandler
 {
@@ -130,6 +131,22 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// <summary>Bindable property for <see cref="TrailingView"/>.</summary>
     public static readonly BindableProperty TrailingViewProperty = AdornmentProperty(nameof(TrailingView));
 
+    /// <summary>Bindable property for <see cref="HasError"/>.</summary>
+    public static readonly BindableProperty HasErrorProperty = BindableProperty.Create(nameof(HasError), typeof(bool), typeof(SkUiInputView), false,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).OnHasErrorChanged((bool)value));
+
+    /// <summary>Bindable property for <see cref="ErrorText"/>.</summary>
+    public static readonly BindableProperty ErrorTextProperty = BindableProperty.Create(nameof(ErrorText), typeof(string), typeof(SkUiInputView), null,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).ApplyMessage(model => model.ErrorText = (string?)value));
+
+    /// <summary>Bindable property for <see cref="HelperText"/>.</summary>
+    public static readonly BindableProperty HelperTextProperty = BindableProperty.Create(nameof(HelperText), typeof(string), typeof(SkUiInputView), null,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).ApplyMessage(model => model.HelperText = (string?)value));
+
+    /// <summary>Bindable property for <see cref="ErrorColor"/>.</summary>
+    public static readonly BindableProperty ErrorColorProperty = BindableProperty.Create(nameof(ErrorColor), typeof(Color), typeof(SkUiInputView), null,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.ErrorColor = (Color?)value));
+
     private static BindableProperty AdornmentProperty(string name) => BindableProperty.Create(name, typeof(ISkUiView), typeof(SkUiInputView), null,
         validateValue: (bindable, value) =>
         {
@@ -246,6 +263,46 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// </summary>
     public ISkUiView? TrailingView { get => (ISkUiView?)GetValue(TrailingViewProperty); set => SetValue(TrailingViewProperty, value); }
 
+    /// <summary>
+    /// Whether the field's input is invalid (SkiaUi; Material's error state): the look draws the field's outline or underline in the
+    /// color scheme's <see cref="SkUiColorScheme.Error"/> and the message under it (<see cref="ErrorText"/>, else
+    /// <see cref="HelperText"/>) in that color; screen readers are told. The app decides when (a validation library, a view model's
+    /// errors, a behavior); the field does not validate. <see cref="ErrorColor"/> overrides the color. Visual states: <see cref="InvalidVisualState"/> /
+    /// <see cref="InvalidFocusedVisualState"/> while set, <see cref="ValidVisualState"/> otherwise.
+    /// </summary>
+    public bool HasError { get => (bool)GetValue(HasErrorProperty); set => SetValue(HasErrorProperty, value); }
+
+    /// <summary>
+    /// The message under the field while <see cref="HasError"/> is set (SkiaUi; Material's error text), in the error color; it
+    /// replaces <see cref="HelperText"/> then. <c>null</c> or empty: the helper text stays (in the error color).
+    /// </summary>
+    public string? ErrorText { get => (string?)GetValue(ErrorTextProperty); set => SetValue(ErrorTextProperty, value); }
+
+    /// <summary>
+    /// A message under the field (SkiaUi; Material's supporting text): a hint that stays while the user types, unlike
+    /// <see cref="Placeholder"/>, in the color scheme's muted color and the look's <see cref="SkUiLook.TextFieldMessageFontSize"/>. It
+    /// wraps at the field's width and makes the field taller; screen readers read it after the field.
+    /// </summary>
+    public string? HelperText { get => (string?)GetValue(HelperTextProperty); set => SetValue(HelperTextProperty, value); }
+
+    /// <summary>
+    /// The color of the error chrome and message while <see cref="HasError"/> is set (SkiaUi); <c>null</c> (default): the color
+    /// scheme's <see cref="SkUiColorScheme.Error"/>.
+    /// </summary>
+    public Color? ErrorColor { get => (Color?)GetValue(ErrorColorProperty); set => SetValue(ErrorColorProperty, value); }
+
+    /// <summary>The visual state while <see cref="HasError"/> is not set (SkiaUi; with <see cref="InvalidVisualState"/>, in a group of their own).</summary>
+    public const string ValidVisualState = "Valid";
+
+    /// <summary>
+    /// The visual state while <see cref="HasError"/> is set and the field is enabled (SkiaUi; Telerik's <c>Invalid</c>); also while it
+    /// is focused when no group has <see cref="InvalidFocusedVisualState"/>.
+    /// </summary>
+    public const string InvalidVisualState = "Invalid";
+
+    /// <summary>The visual state while <see cref="HasError"/> is set and the field is focused (SkiaUi; Telerik's <c>InvalidFocused</c>), when a group has it.</summary>
+    public const string InvalidFocusedVisualState = "InvalidFocused";
+
     /// <summary>Raised when the text changes (by the user or the app), with the old and new text.</summary>
     public event EventHandler<TextChangedEventArgs>? TextChanged;
 
@@ -342,6 +399,18 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// <summary>Sets <see cref="TrailingView"/>.</summary>
     public SkUiInputView SetTrailingView(ISkUiView? value) { TrailingView = value; return this; }
 
+    /// <summary>Sets <see cref="HasError"/>.</summary>
+    public SkUiInputView SetHasError(bool value) { HasError = value; return this; }
+
+    /// <summary>Sets <see cref="ErrorText"/>.</summary>
+    public SkUiInputView SetErrorText(string? value) { ErrorText = value; return this; }
+
+    /// <summary>Sets <see cref="HelperText"/>.</summary>
+    public SkUiInputView SetHelperText(string? value) { HelperText = value; return this; }
+
+    /// <summary>Sets <see cref="ErrorColor"/>.</summary>
+    public SkUiInputView SetErrorColor(Color? value) { ErrorColor = value; return this; }
+
     private protected static void ThrowIfUndefined<T>(T value) where T : struct, Enum
     {
         if (!Enum.IsDefined(value))
@@ -365,6 +434,19 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     {
         apply(Model);
         Model.OptionsChanged();
+    }
+
+    private void ApplyMessage(Action<SkUiTextFieldModel> apply)
+    {
+        apply(Model);
+        Model.MessageChanged();
+    }
+
+    private void OnHasErrorChanged(bool value)
+    {
+        Model.HasError = value;
+        Model.MessageChanged();
+        ChangeVisualState();
     }
 
     private void OnTextChanged(string? oldValue, string? newValue)
@@ -485,6 +567,23 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) => Model.Draw(canvas, (float)Width, (float)Height);
+
+    /// <summary>
+    /// The common and focus states, then, while enabled, the validity states: <see cref="InvalidFocusedVisualState"/> (focused,
+    /// when a group has it) or <see cref="InvalidVisualState"/> while <see cref="HasError"/>, else <see cref="ValidVisualState"/>.
+    /// Put them in a group of their own (e.g. <c>ValidityStates</c>), or <c>Invalid</c> / <c>InvalidFocused</c> in
+    /// <c>CommonStates</c>, where they take the place of the state the field would be in.
+    /// </summary>
+    protected override void ChangeVisualState()
+    {
+        base.ChangeVisualState();
+        if (!IsVisualStateEnabled)
+            return;
+        if (!HasError)
+            VisualStateManager.GoToState(this, ValidVisualState);
+        else if (!IsFocused || !VisualStateManager.GoToState(this, InvalidFocusedVisualState))
+            VisualStateManager.GoToState(this, InvalidVisualState);
+    }
 
     /// <inheritdoc />
     internal override void OnGetRenderProps(ref SkUiRenderProps props)

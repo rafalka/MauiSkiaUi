@@ -24,6 +24,9 @@ public static class SkUiColors
     /// <summary>Disabled fill from the current color scheme.</summary>
     public static Color Disabled => SkUiColorScheme.Current.Disabled;
 
+    /// <summary>Invalid input color (text field errors) from the current color scheme.</summary>
+    public static Color Error => SkUiColorScheme.Current.Error;
+
     /// <summary>Linear mix of two colors (<paramref name="amount"/> 0 = <paramref name="from"/>, 1 = <paramref name="to"/>).</summary>
     internal static Color Mix(Color from, Color to, float amount = 0.5f) => new(
         from.Red + (to.Red - from.Red) * amount,

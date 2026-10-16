@@ -10,7 +10,7 @@
 | Caret stops | `SkUiTextBoundaries` | Grapheme clusters (`StringInfo`), words (letters / digits / marks / connectors; each CJK ideograph or kana its own word; punctuation runs; white space), paragraphs. No allocations |
 | Edit layout | `SkUiTextEditLayout` | Lines of editable text on the shared shaping engine (`SkUiShaping`: Latin fast path, HarfBuzz, bidi, fallback fonts), keeping what a label's layout drops: each line's text range and where each code unit sits (`SkUiShaping.CaretEdges`). Carets, hit-testing and selection boxes follow clusters and bidi runs. Paragraphs are kept by content: an edit re-shapes only the paragraphs it changed |
 | Input formatters | `SkUiTextInputFormatter` (`TextInput/SkUiTextInputFormatter.cs`, D9) | Rewrite or refuse the user's edits before the editor applies them: filtering, length caps, masks, or the app's own |
-| Field model | `SkUiTextFieldModel` (`TextInput/`, D3) | The control's state shared by both layers: drawing (chrome through the look, text, selection, composition underline, caret), the row of adornments beside the text (D11), scrolling inside the field, keys, pointer selection, and the input client the proxy talks to |
+| Field model | `SkUiTextFieldModel` (`TextInput/`, D3) | The control's state shared by both layers: drawing (chrome through the look, text, selection, composition underline, caret), the row of adornments beside the text (D11), the message under the field (D10), scrolling inside the field, keys, pointer selection, and the input client the proxy talks to |
 | Input proxy | `ISkUiTextInputProxy`, one per surface, set by `SkUiViewHandler` (`TextInput/SkUiTextInput.*.cs`, D2) | Attaches the focused field to the platform's text input (see below); shows / hides the soft keyboard; reports caret and composition rectangles |
 
 ## Proxy decision (D0)
@@ -131,6 +131,19 @@ Left open: device checks of formatted input with suggestions, autocorrect and CJ
 
 Left open: device checks (a trailing button tapped while the keyboard is up on iOS and Android, Windows touch); a built-in drawn adornment with no view (D16's step buttons) and a visibility mode as UIKit's `rightViewMode` (today: bind `IsVisible`).
 
+## Validation chrome (D10)
+
+`HasError`, `ErrorText`, `HelperText` and `ErrorColor` on every drawn field (both layers), after Material 3's text fields (web `md-outlined-text-field`: `error`, `errorText` "replaces supporting text when error is true", `supportingText`) and Telerik's `Invalid` / `InvalidFocused` states. Chrome only: the field never validates. MAUI has no validation of its own (`INotifyDataErrorInfo` is not wired into its controls; the Community Toolkit's validation behaviors switch styles), so the app sets `HasError` from whatever it uses, and the field shows it the same on every platform and both layers.
+
+- **Message.** `Message` is `ErrorText` while `HasError` and it has text, else `HelperText`, else none. It sits in a band under the field: `TextFieldMessageSpacing` (4) above it, the field's horizontal padding at its sides (mirrored in right-to-left), the field's font family at `TextFieldMessageFontSize` (12, scaled with the system text size), wrapped, start-aligned; the color scheme's muted color, or the error color with an error (`ErrorColor`, else the scheme's new `Error` token; dimmed when disabled). Its own `SkUiTextLayout` (blobs released with the drawing resources).
+- **The field above it.** The model's area (`Area`: everything the chrome, the row of adornments, the text box, the clear button and hit-testing are placed in) is the node minus the band, so nothing else changed for the message: the look draws the chrome in the area, and a press on the band is declined (it does not focus the field or move the caret). With a fixed height (an editor's `HeightRequest`, a stretched field) the band takes its room from the field, but never below the field's own height at the last measure (`_fieldHeight`): a node too short for both (a size fixed to the field alone, as a style's `HeightRequest` or the demo's previews) keeps the field whole and the message hangs below the node, reported as `Overflow` as the selection handles are (the node then draws unclipped; recording covers it).
+- **Measure.** The band is measured at the width constraint and added under the field's height (the minimum height applies to the field part); the measured width is at least the message's longest line, so the arranged width (never less than measured) wraps the message on no more lines than were measured. A message changing invalidates measure, paint, semantics and the caret's props (`MessageChanged`), not the text's layout.
+- **Look.** `SkUiTextFieldPaint` and `SkUiSearchFieldPaint` carry `HasError` and `Error` (optional last parameters, so painters and code built against D11 still compile). `DefaultSkUiLook` draws the frame in the error color instead of the border / accent mix (1 DIP, 2 while focused, as the focused frame); the search pill gets an error outline also unfocused.
+- **Visual states.** `SkUiInputView.ChangeVisualState` after the common and focus groups, while enabled: `InvalidFocused` (focused; when no group has it, `Invalid`), `Invalid`, or `Valid`. A group of their own keeps the common states; `Invalid` in `CommonStates` replaces the field's common state while it has an error (Telerik's model). Core nodes have no visual states.
+- **Screen readers.** `SkUiSemanticsTextField` carries `HasError` and the message; the tree puts the message first in the node's hint (VoiceOver's hint, Narrator's help text). Android reads no hint for text fields but the placeholder, so there an error is the `EditText`'s (`Error`, `ContentInvalid`; TalkBack says "error") and a helper text follows the placeholder in its hint text.
+
+Left open: Windows' `IsDataValidForForm` (Narrator does not say "invalid"); a character counter in the band (future extension 10); device checks with TalkBack, VoiceOver and Narrator.
+
 ## Moving the caret by touch, magnifier (D15)
 
 - **Insertion handle** (where `SkUiLook.ShowsTextInsertionHandle`: Android by default). A touch tap that places the caret (or taps it) shows a handle under it, drawn by the look (`DrawTextInsertionHandle` inside `GetTextInsertionHandleBounds`: a drop hanging from the caret). It goes after `TextInsertionHandleTimeout` (4 s) unused, when typing, selecting, using a mouse or losing focus. A finger on it that moves past the touch slop drags the caret; a tap on it is a tap on the caret (it toggles the edit menu, paste), and it counts towards a double tap: the second tap of a double tap often lands within the reach of the handle the first one showed, and still selects the word.
@@ -152,7 +165,7 @@ Its two hardest parts are what D9 and D11 generalize, so building it first would
 - **Filtering input is D9 (shipped).** `SkUiTextEditor.Replace` runs the field's input formatters ([Input formatters](#input-formatters-d9)); the numeric filter is one of them.
 - **Buttons in the field are D11 (shipped).** The search icon, the leading view, the clear button and the trailing view are parts of one row in `SkUiTextFieldModel` ([Leading and trailing views](#leading-and-trailing-views-d11)). Stepper buttons become look-drawn parts of that row (they repeat while held, which the clear button does not, and must not focus the field); an app's own buttons can already be a `TrailingView`.
 
-So: D9's engine and D11's row (shipped), then D16 as the acceptance case that shapes both APIs. D10 is optional (an out-of-range value shown as an error instead of clamped).
+So: D9's engine and D11's row (shipped), then D16 as the acceptance case that shapes both APIs. D10 (shipped) lets it show an out-of-range value as an error instead of clamping it.
 
 What already exists and keeps D9 / D11 small:
 - **The proxies accept a field that changes an edit.** Android diffs the mirror into the field and pushes back what the field did differently (as for `MaxLength`); iOS answers geometry and text from the field itself; Windows copies the field's state back into its `TextBox`. A formatter needs no proxy work (to confirm on Windows).
@@ -190,7 +203,7 @@ A text field (`SkUiSemanticsRole.TextField`, value = the shown text) with `Incre
 
 ### Later, if asked for
 
-`IncrementCommand` / `DecrementCommand` (Telerik); a percent mode (Syncfusion `PercentDisplayMode`: `Value` 50 shown as 50 % instead of 0.5); a unit before or after the number as a `LeadingView` / `TrailingView` (D11) instead of in `Format`; out-of-range shown as an error (D10) instead of clamped; expressions (`2+3*4`, WinUI `NumberBox.AcceptsExpression`); dragging on the field to change the value (design tools).
+`IncrementCommand` / `DecrementCommand` (Telerik); a percent mode (Syncfusion `PercentDisplayMode`: `Value` 50 shown as 50 % instead of 0.5); a unit before or after the number as a `LeadingView` / `TrailingView` (D11) instead of in `Format`; out-of-range shown as an error (`HasError`, D10) instead of clamped; expressions (`2+3*4`, WinUI `NumberBox.AcceptsExpression`); dragging on the field to change the value (design tools).
 
 ### When it ships
 
@@ -210,5 +223,5 @@ Not scheduled for 1.0; ordered from most to less important among ideas that fit 
 | 6 | **`AcceptsReturn` / `AcceptsTab` (editor)** | Avalonia: Return inserts a newline vs moves focus; Tab inserts a tab vs focus navigation |
 | 7 | **Custom edit / context menu** | Flutter `contextMenuBuilder`: app items alongside platform Cut / Copy / Paste |
 | 8 | **OTP-friendly defaults** | Single field with `AutofillHint.OneTimeCode`, numeric keyboard, non-secure entry; segmented OTP UI would be a separate control |
-| 9 | **Helper / supporting text** | Material 3 supporting text under the field (hints separate from `Placeholder`); a11y via description or `SemanticHint` |
+| 9 | **Helper / supporting text** | Shipped with D10 as `HelperText` ([validation chrome](#validation-chrome-d10)) |
 | 10 | **Character counter** | Show `length / MaxLength` when `MaxLength` is set (Material 3 counter) |
