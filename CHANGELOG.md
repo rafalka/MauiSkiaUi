@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.0.0-Prerelease13
+
 ### New features
 
 - **Drawn text input (Phase D):** `SkUiEntry`, `SkUiEditor` and `SkUiSearchBar` (and the Core `SkUiCoreEntry`, `SkUiCoreEditor`, `SkUiCoreSearchBar`) are MAUI's `Entry`, `Editor` and `SearchBar`, drawn by SkiaUi: a page ports by changing the prefix, with no native view per field ([SkUiEntry.md](docs/controls/SkUiEntry.md), [TextInput.md](docs/design/TextInput.md)). Fields clip, scroll, transform and fade with the drawn tree, sit under drawn popups, and work in Core trees and recycled list rows.
