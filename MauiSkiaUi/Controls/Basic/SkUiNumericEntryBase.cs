@@ -53,12 +53,12 @@ public abstract class SkUiNumericEntryBase : SkUiEntry, ISkUiNumericEntryHost
     public static readonly BindableProperty ButtonFontFamilyProperty = BindableProperty.Create(nameof(ButtonFontFamily), typeof(string), typeof(SkUiNumericEntryBase), null,
         propertyChanged: (view, _, value) => ((SkUiNumericEntryBase)view).ApplySteps(steps => steps.FontFamily = (string?)value));
 
-    /// <summary>Bindable property for <see cref="ButtonColor"/>.</summary>
-    public static readonly BindableProperty ButtonColorProperty = BindableProperty.Create(nameof(ButtonColor), typeof(Color), typeof(SkUiNumericEntryBase), null,
+    /// <summary>Bindable property for <see cref="ButtonTextColor"/>.</summary>
+    public static readonly BindableProperty ButtonTextColorProperty = BindableProperty.Create(nameof(ButtonTextColor), typeof(Color), typeof(SkUiNumericEntryBase), null,
         propertyChanged: (view, _, value) =>
         {
             var entry = (SkUiNumericEntryBase)view;
-            entry.Steps.ButtonColor = (Color?)value;
+            entry.Steps.ButtonTextColor = (Color?)value;
             entry.Model.PaintChanged();
         });
 
@@ -128,7 +128,7 @@ public abstract class SkUiNumericEntryBase : SkUiEntry, ISkUiNumericEntryHost
     public string? ButtonFontFamily { get => (string?)GetValue(ButtonFontFamilyProperty); set => SetValue(ButtonFontFamilyProperty, value); }
 
     /// <summary>The color of − and + or of their texts; <c>null</c> (default): the entry's text color.</summary>
-    public Color? ButtonColor { get => (Color?)GetValue(ButtonColorProperty); set => SetValue(ButtonColorProperty, value); }
+    public Color? ButtonTextColor { get => (Color?)GetValue(ButtonTextColorProperty); set => SetValue(ButtonTextColorProperty, value); }
 
     /// <summary>
     /// Whether the value can be empty (default <c>true</c>: empty text is a <c>null</c> value, the placeholder shows). With
@@ -189,8 +189,8 @@ public abstract class SkUiNumericEntryBase : SkUiEntry, ISkUiNumericEntryHost
     /// <summary>Sets <see cref="ButtonFontFamily"/>.</summary>
     public SkUiNumericEntryBase SetButtonFontFamily(string? value) { ButtonFontFamily = value; return this; }
 
-    /// <summary>Sets <see cref="ButtonColor"/>.</summary>
-    public SkUiNumericEntryBase SetButtonColor(Color? value) { ButtonColor = value; return this; }
+    /// <summary>Sets <see cref="ButtonTextColor"/>.</summary>
+    public SkUiNumericEntryBase SetButtonTextColor(Color? value) { ButtonTextColor = value; return this; }
 
     /// <summary>Sets <see cref="AllowNull"/>.</summary>
     public SkUiNumericEntryBase SetAllowNull(bool value) { AllowNull = value; return this; }

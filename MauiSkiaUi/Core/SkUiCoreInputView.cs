@@ -94,7 +94,8 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     /// <summary>The color behind selected text; <c>null</c> (default): the look's.</summary>
     public Color? SelectionColor { get => Model.SelectionColor; set => SetSelectionColor(value); }
 
-    /// <summary>What the field holds for password managers and autofill (<see cref="SkUiAutofillHints"/>).</summary>
+    /// <summary>What the field holds for password managers and autofill (<see cref="SkUiAutofillHints"/>, or a platform's own hint).</summary>
+    /// <remarks>One hint. Hints have no white space: it is reserved for a list of hints (as Android and Flutter take) later.</remarks>
     public string? AutofillHint { get => Model.AutofillHint; set => SetAutofillHint(value); }
 
     /// <summary>

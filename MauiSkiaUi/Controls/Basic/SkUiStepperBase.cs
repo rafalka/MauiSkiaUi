@@ -61,7 +61,7 @@ public abstract class SkUiStepperBase : SkUiView, ISkUiStepperOwner, ISkUiKeyHan
 
     /// <summary>Bindable property for <see cref="CornerRadius"/>.</summary>
     public static readonly BindableProperty CornerRadiusProperty = BindableProperty.Create(nameof(CornerRadius), typeof(int), typeof(SkUiStepperBase), 0,
-        defaultValueCreator: _ => (int)Math.Round(SkUiLook.Current.StepperCornerRadius), validateValue: SkUiValidate.NonNegative,
+        defaultValueCreator: _ => (int)Math.Round(SkUiLook.Current.DefaultStepperCornerRadius), validateValue: SkUiValidate.NonNegative,
         propertyChanged: (view, _, value) => ((SkUiStepperBase)view).OnChromeChanged(model => model.CornerRadius = (int)value));
 
     /// <summary>Bindable property for <see cref="BorderWidth"/>.</summary>
@@ -115,7 +115,7 @@ public abstract class SkUiStepperBase : SkUiView, ISkUiStepperOwner, ISkUiKeyHan
     public bool FontAutoScalingEnabled { get => (bool)GetValue(FontAutoScalingEnabledProperty); set => SetValue(FontAutoScalingEnabledProperty, value); }
 
     /// <summary>
-    /// The corner radius in DIPs, an <c>int</c> as MAUI Button's (SkiaUi; default the look's <see cref="SkUiLook.StepperCornerRadius"/>,
+    /// The corner radius in DIPs, an <c>int</c> as MAUI Button's (SkiaUi; default the look's <see cref="SkUiLook.DefaultStepperCornerRadius"/>,
     /// 8). 0 gives square corners; half the stepper's height or more, a pill.
     /// </summary>
     public int CornerRadius { get => (int)GetValue(CornerRadiusProperty); set => SetValue(CornerRadiusProperty, value); }

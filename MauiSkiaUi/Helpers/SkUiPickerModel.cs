@@ -433,7 +433,7 @@ internal sealed class SkUiPickerModel
         {
             var bounds = ClearButtonBounds(width, height);
             var pressed = _press?.Visual is { Pressed: > 0 } && bounds.Contains((float)_pressOrigin.X, (float)_pressOrigin.Y);
-            SkUiLook.Current.DrawPickerClearButton(canvas, new SkUiPickerClearButtonPaint(bounds, ToSkColor(SkUiColors.Muted),
+            SkUiLook.Current.DrawPickerClearButton(canvas, new SkUiClearButtonPaint(bounds, ToSkColor(SkUiColors.Muted),
                 ToSkColor(SkUiColors.DefaultBackground), pressed, IsEnabled));
         }
         if (TokensShown)

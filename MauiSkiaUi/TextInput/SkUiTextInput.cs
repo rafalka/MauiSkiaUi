@@ -325,7 +325,8 @@ public static partial class SkUiAutofill
 
 /// <summary>
 /// Common values of a text field's <c>AutofillHint</c>: what password managers and the platform's autofill fill in. Any other
-/// string is passed to the platform as it is (Android autofill hints, Apple text content types).
+/// string is passed to the platform as it is (Android autofill hints, Apple text content types). A field takes one hint; white
+/// space is reserved for a list of hints later.
 /// </summary>
 public static class SkUiAutofillHints
 {

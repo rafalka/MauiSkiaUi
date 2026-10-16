@@ -24,7 +24,7 @@ public class InputFormatterTests
     [Fact]
     public void AllowFilterDropsWhatDoesNotMatchAndKeepsTheCaretAfterTheTyping()
     {
-        var editor = Editor(SkUiFilteringFormatter.DigitsOnly);
+        var editor = Editor(SkUiFilteringFormatter.DigitsOnly());
         Type(editor, "1a2");
         Assert.Equal("12", editor.Text);
         Assert.Equal(2, editor.Caret);
@@ -47,7 +47,7 @@ public class InputFormatterTests
             return editor.InputAdjusted;
         }
 
-        var editor = Editor(SkUiFilteringFormatter.DigitsOnly);
+        var editor = Editor(SkUiFilteringFormatter.DigitsOnly());
         Assert.False(Adjusted(editor, e => e.InsertText("1")));
         Assert.True(Adjusted(editor, e => e.InsertText("x")));
         Assert.True(Adjusted(editor, e => e.InsertText("2 3")));
@@ -78,7 +78,7 @@ public class InputFormatterTests
         editor.InsertText("ab1cD", SkUiTextEditKind.Other);
         Assert.Equal("abc", editor.Text);
 
-        editor = Editor(new SkUiFilteringFormatter(@"\s+", SkUiFilterMode.Deny, "_"));
+        editor = Editor(new SkUiFilteringFormatter(@"\s+", SkUiFilteringMode.Deny, "_"));
         editor.InsertText("a  b c", SkUiTextEditKind.Other);
         Assert.Equal(("a_b_c", 5), (editor.Text, editor.Caret));
     }
@@ -86,7 +86,7 @@ public class InputFormatterTests
     [Fact]
     public void PredicateFiltersWorkOnRunes()
     {
-        var editor = Editor(new SkUiFilteringFormatter(rune => rune.Value > 0xFFFF, SkUiFilterMode.Deny));
+        var editor = Editor(new SkUiFilteringFormatter(rune => rune.Value > 0xFFFF, SkUiFilteringMode.Deny));
         editor.InsertText("a👍b", SkUiTextEditKind.Other);
         Assert.Equal(("ab", 2), (editor.Text, editor.Caret));
     }
@@ -110,7 +110,7 @@ public class InputFormatterTests
     [Fact]
     public void DigitLimitCountsDigitsOnly()
     {
-        var editor = Editor(new SkUiLengthLimitingFormatter(4, SkUiLengthUnit.Digits));
+        var editor = Editor(new SkUiLengthLimitingFormatter(4, SkUiTextLengthUnit.Digits));
         editor.InsertText("12-3", SkUiTextEditKind.Other);
         Assert.Equal("12-3", editor.Text);
         // One digit fits: the separator after it goes with the rest.
@@ -187,6 +187,24 @@ public class InputFormatterTests
         Assert.Equal("ab-z0?", editor.Text);
     }
 
+    [Theory]
+    [InlineData("(999) 000-0000")]
+    [InlineData("#000")]
+    [InlineData("Code 000")]
+    [InlineData(">LL")]
+    public void MaskRefusesReservedCharacters(string mask)
+    {
+        Assert.Throws<ArgumentException>(() => new SkUiMaskFormatter(mask));
+    }
+
+    [Fact]
+    public void MaskTakesEscapedReservedCharacters()
+    {
+        var editor = Editor(new SkUiMaskFormatter(@"\#\9-00"));
+        editor.InsertText("12", SkUiTextEditKind.Other);
+        Assert.Equal("#9-12", editor.Text);
+    }
+
     [Fact]
     public void FormattersRunInOrder()
     {
@@ -230,7 +248,7 @@ public class InputFormatterTests
     [Fact]
     public void ACompositionIsFormattedWhenCommitted()
     {
-        var editor = Editor(SkUiFilteringFormatter.DigitsOnly);
+        var editor = Editor(SkUiFilteringFormatter.DigitsOnly());
         editor.InsertText("1");
         editor.SetComposingText("か");
         Assert.Equal("1か", editor.Text);
@@ -257,7 +275,7 @@ public class InputFormatterTests
     [Fact]
     public void SetTextIsNotFormatted()
     {
-        var editor = Editor(SkUiFilteringFormatter.DigitsOnly);
+        var editor = Editor(SkUiFilteringFormatter.DigitsOnly());
         editor.SetText("a1");
         Assert.Equal("a1", editor.Text);
     }
@@ -297,7 +315,7 @@ public class InputFormatterControlTests
         var entry = new SkUiEntry { Text = "a1 b2" };
         var changes = new List<string?>();
         entry.TextChanged += (_, args) => changes.Add(args.NewTextValue);
-        entry.InputFormatters.Add(SkUiFilteringFormatter.DigitsOnly);
+        entry.InputFormatters.Add(SkUiFilteringFormatter.DigitsOnly());
         Assert.Equal("12", entry.Text);
         Assert.Equal("12", entry.Model.Editor.Text);
         entry.SetInputFormatters(new SkUiMaskFormatter("0-0"));
@@ -307,7 +325,7 @@ public class InputFormatterControlTests
         Assert.Equal("1-2", entry.Text);
         Assert.Equal(["12", "1-2"], changes);
 
-        var core = new SkUiCoreEntry().SetText("x9y").SetInputFormatters(SkUiFilteringFormatter.DigitsOnly);
+        var core = new SkUiCoreEntry().SetText("x9y").SetInputFormatters(SkUiFilteringFormatter.DigitsOnly());
         Assert.Equal("9", core.Text);
     }
 
@@ -325,7 +343,7 @@ public class InputFormatterControlTests
         entry.Text = "98 76 54";
         Assert.Equal("987-654", entry.Text);
         // A formatter added later formats it again.
-        entry.InputFormatters.Insert(0, new SkUiLengthLimitingFormatter(4, SkUiLengthUnit.Digits));
+        entry.InputFormatters.Insert(0, new SkUiLengthLimitingFormatter(4, SkUiTextLengthUnit.Digits));
         Assert.Equal("987-6", entry.Text);
     }
 
@@ -333,7 +351,7 @@ public class InputFormatterControlTests
     public void CoreEntryFormatsLikeTheSkUiEntry()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
-        var core = new SkUiCoreEntry().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetInputFormatters(SkUiFilteringFormatter.DigitsOnly);
+        var core = new SkUiCoreEntry().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetInputFormatters(SkUiFilteringFormatter.DigitsOnly());
         var root = new SkUiVerticalStackLayout { Children = { new SkUiCoreHost().SetContent(core) } };
         SkUiTestHelpers.Arrange(root, 300, 200);
         Assert.True(core.Focus());
@@ -351,7 +369,7 @@ public class InputFormatterControlTests
     public void InputFromThePlatformIsFormattedAndTheProxyFollows()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
-        var entry = new SkUiEntry { FontFamily = SkUiTestHelpers.BundledFontFamily }.SetInputFormatters(SkUiFilteringFormatter.DigitsOnly);
+        var entry = new SkUiEntry { FontFamily = SkUiTestHelpers.BundledFontFamily }.SetInputFormatters(SkUiFilteringFormatter.DigitsOnly());
         var root = new SkUiVerticalStackLayout { Children = { entry } };
         SkUiTestHelpers.Arrange(root, 300, 200);
         ISkUiTextInputClient client = entry.Model;

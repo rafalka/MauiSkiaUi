@@ -222,16 +222,17 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// <summary>How many characters are selected from <see cref="CursorPosition"/>; follows the user.</summary>
     public int SelectionLength { get => (int)GetValue(SelectionLengthProperty); set => SetValue(SelectionLengthProperty, value); }
 
-    /// <summary>The caret's color (SkiaUi); <c>null</c> (default): the look's (<see cref="SkUiLook.CaretColor"/>).</summary>
+    /// <summary>The caret's color (SkiaUi); <c>null</c> (default): the look's (<see cref="SkUiLook.DefaultCaretColor"/>).</summary>
     public Color? CaretColor { get => (Color?)GetValue(CaretColorProperty); set => SetValue(CaretColorProperty, value); }
 
-    /// <summary>The color behind selected text (SkiaUi); <c>null</c> (default): the look's (<see cref="SkUiLook.TextSelectionColor"/>).</summary>
+    /// <summary>The color behind selected text (SkiaUi); <c>null</c> (default): the look's (<see cref="SkUiLook.DefaultSelectionColor"/>).</summary>
     public Color? SelectionColor { get => (Color?)GetValue(SelectionColorProperty); set => SetValue(SelectionColorProperty, value); }
 
     /// <summary>
     /// What the field holds for password managers and autofill (SkiaUi; <see cref="SkUiAutofillHints"/>, or a platform's own hint);
     /// <c>null</c> (default): a password field is a password, others none.
     /// </summary>
+    /// <remarks>One hint. Hints have no white space: it is reserved for a list of hints (as Android and Flutter take) later.</remarks>
     public string? AutofillHint { get => (string?)GetValue(AutofillHintProperty); set => SetValue(AutofillHintProperty, value); }
 
     /// <summary>

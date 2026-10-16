@@ -8,12 +8,30 @@ namespace MauiSkiaUi;
 /// A text field's text and selection as <see cref="SkUiTextInputFormatter"/>s see them: <c>[SelectionStart, SelectionEnd)</c> in
 /// UTF-16 code units; equal ends are the caret.
 /// </summary>
-public readonly record struct SkUiTextEditValue(string Text, int SelectionStart, int SelectionEnd)
+/// <remarks>Not positional (no <c>Deconstruct</c>), so later members (a composition's range) come as properties.</remarks>
+public readonly record struct SkUiTextEditValue
 {
+    /// <summary>Text with <c>[<paramref name="selectionStart"/>, <paramref name="selectionEnd"/>)</c> selected.</summary>
+    public SkUiTextEditValue(string text, int selectionStart, int selectionEnd)
+    {
+        Text = text;
+        SelectionStart = selectionStart;
+        SelectionEnd = selectionEnd;
+    }
+
     /// <summary>Text with the caret at <paramref name="caret"/>.</summary>
     public SkUiTextEditValue(string text, int caret) : this(text, caret, caret)
     {
     }
+
+    /// <summary>The field's text.</summary>
+    public string Text { get; init; }
+
+    /// <summary>Where the selection starts (the caret when nothing is selected), in UTF-16 code units.</summary>
+    public int SelectionStart { get; init; }
+
+    /// <summary>Where the selection ends (exclusive; <see cref="SelectionStart"/> when nothing is selected).</summary>
+    public int SelectionEnd { get; init; }
 
     /// <summary>How many characters are selected.</summary>
     public int SelectionLength => SelectionEnd - SelectionStart;
@@ -82,7 +100,7 @@ public abstract class SkUiTextInputFormatter
 }
 
 /// <summary>Whether <see cref="SkUiFilteringFormatter"/> keeps what matches or removes it.</summary>
-public enum SkUiFilterMode
+public enum SkUiFilteringMode
 {
     /// <summary>Only what matches stays (Flutter's <c>FilteringTextInputFormatter.allow</c>).</summary>
     Allow,
@@ -92,7 +110,7 @@ public enum SkUiFilterMode
 }
 
 /// <summary>
-/// Keeps (<see cref="SkUiFilterMode.Allow"/>) or removes (<see cref="SkUiFilterMode.Deny"/>) the text that matches
+/// Keeps (<see cref="SkUiFilteringMode.Allow"/>) or removes (<see cref="SkUiFilteringMode.Deny"/>) the text that matches
 /// <see cref="Pattern"/> (a .NET regular expression), or the characters a predicate accepts: typed and pasted text loses what
 /// does not belong, and the caret stays after what was typed. A removed stretch is replaced by <see cref="Replacement"/>
 /// (default: nothing). An edit that only adds refused text changes nothing.
@@ -109,7 +127,7 @@ public sealed class SkUiFilteringFormatter : SkUiTextInputFormatter
     }
 
     /// <summary>A filter by a regular expression.</summary>
-    public SkUiFilteringFormatter(string pattern, SkUiFilterMode mode = SkUiFilterMode.Allow, string replacement = "")
+    public SkUiFilteringFormatter(string pattern, SkUiFilteringMode mode = SkUiFilteringMode.Allow, string replacement = "")
     {
         Pattern = pattern;
         Mode = mode;
@@ -117,7 +135,7 @@ public sealed class SkUiFilteringFormatter : SkUiTextInputFormatter
     }
 
     /// <summary>A filter by character: <paramref name="predicate"/> tells which characters match.</summary>
-    public SkUiFilteringFormatter(Func<Rune, bool> predicate, SkUiFilterMode mode = SkUiFilterMode.Allow, string replacement = "")
+    public SkUiFilteringFormatter(Func<Rune, bool> predicate, SkUiFilteringMode mode = SkUiFilteringMode.Allow, string replacement = "")
     {
         ArgumentNullException.ThrowIfNull(predicate);
         _predicate = predicate;
@@ -125,8 +143,8 @@ public sealed class SkUiFilteringFormatter : SkUiTextInputFormatter
         Replacement = replacement;
     }
 
-    /// <summary>Digits 0–9 only (a new formatter each time).</summary>
-    public static SkUiFilteringFormatter DigitsOnly => new(static rune => rune.Value is >= '0' and <= '9');
+    /// <summary>A new formatter that keeps the digits 0–9 only.</summary>
+    public static SkUiFilteringFormatter DigitsOnly() => new(static rune => rune.Value is >= '0' and <= '9');
 
     /// <summary>The regular expression (culture-invariant); <c>null</c> with no predicate: everything matches.</summary>
     public string? Pattern
@@ -142,7 +160,7 @@ public sealed class SkUiFilteringFormatter : SkUiTextInputFormatter
     }
 
     /// <summary>Keep what matches (default) or remove it.</summary>
-    public SkUiFilterMode Mode
+    public SkUiFilteringMode Mode
     {
         get;
         set
@@ -171,7 +189,7 @@ public sealed class SkUiFilteringFormatter : SkUiTextInputFormatter
             {
                 var rune = Rune.GetRuneAt(text, i);
                 var matches = _predicate(rune);
-                if (matches == (Mode == SkUiFilterMode.Deny))
+                if (matches == (Mode == SkUiFilteringMode.Deny))
                 {
                     if (start < 0)
                         start = i;
@@ -193,13 +211,13 @@ public sealed class SkUiFilteringFormatter : SkUiTextInputFormatter
             {
                 if (match.Length == 0)
                     continue;
-                if (Mode == SkUiFilterMode.Deny)
+                if (Mode == SkUiFilteringMode.Deny)
                     removed.Add((match.Index, match.Index + match.Length, replacement));
                 else if (match.Index > last)
                     removed.Add((last, match.Index, replacement));
                 last = match.Index + match.Length;
             }
-            if (Mode == SkUiFilterMode.Allow && last < text.Length)
+            if (Mode == SkUiFilteringMode.Allow && last < text.Length)
                 removed.Add((last, text.Length, replacement));
         }
         if (removed.Count == 0)
@@ -218,7 +236,7 @@ public sealed class SkUiFilteringFormatter : SkUiTextInputFormatter
 }
 
 /// <summary>What <see cref="SkUiLengthLimitingFormatter"/> counts.</summary>
-public enum SkUiLengthUnit
+public enum SkUiTextLengthUnit
 {
     /// <summary>User-perceived characters (an emoji with its modifiers, a letter with its marks: one each).</summary>
     Graphemes,
@@ -232,7 +250,7 @@ public enum SkUiLengthUnit
 
 /// <summary>
 /// Caps the text at <see cref="MaxLength"/> <see cref="Unit"/>s: what an edit adds past the cap is cut (whole graphemes; with
-/// <see cref="SkUiLengthUnit.Digits"/>, after the last digit that fits), so paste keeps what fits. Unlike the field's
+/// <see cref="SkUiTextLengthUnit.Digits"/>, after the last digit that fits), so paste keeps what fits. Unlike the field's
 /// <c>MaxLength</c> (UTF-16 code units of the whole text), it counts what the user sees, or only the digits. Text already over
 /// the cap (set by the app) is not cut, but cannot grow.
 /// </summary>
@@ -244,7 +262,7 @@ public sealed class SkUiLengthLimitingFormatter : SkUiTextInputFormatter
     }
 
     /// <summary>A cap of <paramref name="maxLength"/> <paramref name="unit"/>s.</summary>
-    public SkUiLengthLimitingFormatter(int maxLength, SkUiLengthUnit unit = SkUiLengthUnit.Graphemes)
+    public SkUiLengthLimitingFormatter(int maxLength, SkUiTextLengthUnit unit = SkUiTextLengthUnit.Graphemes)
     {
         MaxLength = maxLength;
         Unit = unit;
@@ -262,7 +280,7 @@ public sealed class SkUiLengthLimitingFormatter : SkUiTextInputFormatter
     } = int.MaxValue;
 
     /// <summary>What is counted (default graphemes).</summary>
-    public SkUiLengthUnit Unit
+    public SkUiTextLengthUnit Unit
     {
         get;
         set
@@ -291,7 +309,7 @@ public sealed class SkUiLengthLimitingFormatter : SkUiTextInputFormatter
 
     private int Count(ReadOnlySpan<char> text)
     {
-        if (Unit == SkUiLengthUnit.Graphemes)
+        if (Unit == SkUiTextLengthUnit.Graphemes)
         {
             var count = 0;
             for (var i = 0; i < text.Length; i += StringInfo.GetNextTextElementLength(text[i..]))
@@ -308,7 +326,7 @@ public sealed class SkUiLengthLimitingFormatter : SkUiTextInputFormatter
     // UTF-16 code units of the start of `inserted` that hold at most `room` units (whole graphemes).
     private int Fit(string inserted, int room)
     {
-        if (Unit != SkUiLengthUnit.Graphemes)
+        if (Unit != SkUiTextLengthUnit.Graphemes)
             return CutBeforeUnit(inserted, Math.Max(0, room));
         var length = 0;
         for (var n = 0; n < room && length < inserted.Length; n++)
@@ -336,7 +354,7 @@ public sealed class SkUiLengthLimitingFormatter : SkUiTextInputFormatter
 
     private bool Counts(char character) => Unit switch
     {
-        SkUiLengthUnit.Digits => character is >= '0' and <= '9',
+        SkUiTextLengthUnit.Digits => character is >= '0' and <= '9',
         _ => character is >= '0' and <= '9' || char.IsLetter(character)
     };
 }
@@ -346,13 +364,19 @@ public sealed class SkUiLengthLimitingFormatter : SkUiTextInputFormatter
 /// literals the field inserts as the user reaches them (<c>"(000) 000-0000"</c>: typing <c>5551234567</c> shows
 /// <c>(555) 123-4567</c>). Placeholders, as .NET's <c>MaskedTextProvider</c> (and the vendors' masked entries) required ones:
 /// <c>0</c> a digit, <c>L</c> a letter, <c>A</c> a letter or digit, <c>&amp;</c> any character; <c>\</c> makes the next mask
-/// character a literal. Characters that fit no placeholder are dropped, typed literals are kept, pasted text is re-masked, text
-/// past the mask is cut, and literals after the last typed character are not shown until something follows them (a deletion
-/// removes them). Backspace or Delete on a literal removes the character before (after) it.
+/// character a literal. <c>MaskedTextProvider</c>'s other mask characters (<c>9 # ? a C &lt; &gt; |</c>) are reserved: a mask
+/// with one of them unescaped is refused, so a mask ported from it does not show them as literals. Characters that fit no
+/// placeholder are dropped, typed literals are kept, pasted text is re-masked, text past the mask is cut, and literals after the
+/// last typed character are not shown until something follows them (a deletion removes them). Backspace or Delete on a literal
+/// removes the character before (after) it.
 /// </summary>
 public sealed class SkUiMaskFormatter : SkUiTextInputFormatter
 {
     private enum SlotKind : byte { Literal, Digit, Letter, LetterOrDigit, Any }
+
+    // MaskedTextProvider's optional placeholders and case shifts: refused until SkiaUi supports them, so supporting them later does not
+    // change what an existing mask shows.
+    private const string ReservedMaskCharacters = "9#?aC<>|";
 
     private (SlotKind Kind, char Literal)[] _slots = [];
 
@@ -367,7 +391,10 @@ public sealed class SkUiMaskFormatter : SkUiTextInputFormatter
         Mask = mask;
     }
 
-    /// <summary>The mask (see the class); <c>null</c> or empty: the text is not masked.</summary>
+    /// <summary>
+    /// The mask (see the class); <c>null</c> or empty: the text is not masked.
+    /// </summary>
+    /// <exception cref="ArgumentException">The mask has a reserved character (<c>9 # ? a C &lt; &gt; |</c>) that is not escaped.</exception>
     public string? Mask
     {
         get;
@@ -387,6 +414,8 @@ public sealed class SkUiMaskFormatter : SkUiTextInputFormatter
                         'L' => (SlotKind.Letter, '\0'),
                         'A' => (SlotKind.LetterOrDigit, '\0'),
                         '&' => (SlotKind.Any, '\0'),
+                        _ when ReservedMaskCharacters.Contains(character) => throw new ArgumentException(
+                            $"'{character}' is a reserved mask character (MaskedTextProvider's); escape it as \\{character} for a literal.", nameof(value)),
                         _ => (SlotKind.Literal, character)
                     });
             }

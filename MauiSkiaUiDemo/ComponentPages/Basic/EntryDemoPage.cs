@@ -123,10 +123,10 @@ public sealed class EntryDemoPage : ComponentDemoPage
     // SkiaUi only (MAUI's Entry has no formatters): filters, a mask, a digit cap with groups, a function.
     private static SkUiTextInputFormatter[] FormattersOf(string name) => name switch
     {
-        DigitsOnly => [SkUiFilteringFormatter.DigitsOnly],
+        DigitsOnly => [SkUiFilteringFormatter.DigitsOnly()],
         PhoneMask => [new SkUiMaskFormatter(PhoneMaskText)],
         CardNumber => [new SkUiMaskFormatter(CardMaskText)],
-        NoSpaces => [new SkUiFilteringFormatter(@"\s", SkUiFilterMode.Deny),
+        NoSpaces => [new SkUiFilteringFormatter(@"\s", SkUiFilteringMode.Deny),
             SkUiTextInputFormatter.Create((_, value) => value with { Text = value.Text.ToLowerInvariant() })],
         _ => []
     };

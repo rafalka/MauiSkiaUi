@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using System.Windows.Input;
 
 namespace MauiSkiaUi.Core;
 
@@ -125,8 +126,8 @@ public class SkUiCoreNumericEntry<T> : SkUiCoreNumericEntryBase, ISkUiNumericVal
     /// <inheritdoc cref="SkUiCoreNumericEntryBase.SetButtonFontFamily" />
     public new SkUiCoreNumericEntry<T> SetButtonFontFamily(string? value) { base.SetButtonFontFamily(value); return this; }
 
-    /// <inheritdoc cref="SkUiCoreNumericEntryBase.SetButtonColor" />
-    public new SkUiCoreNumericEntry<T> SetButtonColor(Color? value) { base.SetButtonColor(value); return this; }
+    /// <inheritdoc cref="SkUiCoreNumericEntryBase.SetButtonTextColor" />
+    public new SkUiCoreNumericEntry<T> SetButtonTextColor(Color? value) { base.SetButtonTextColor(value); return this; }
 
     /// <inheritdoc cref="SkUiCoreNumericEntryBase.SetAllowNull" />
     public new SkUiCoreNumericEntry<T> SetAllowNull(bool value) { base.SetAllowNull(value); return this; }
@@ -163,6 +164,96 @@ public class SkUiCoreNumericEntry<T> : SkUiCoreNumericEntryBase, ISkUiNumericVal
 
     /// <inheritdoc cref="SkUiCoreInputView.SetIsReadOnly" />
     public new SkUiCoreNumericEntry<T> SetIsReadOnly(bool value) { base.SetIsReadOnly(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetText" />
+    public new SkUiCoreNumericEntry<T> SetText(string? value) { base.SetText(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetPlaceholderColor" />
+    public new SkUiCoreNumericEntry<T> SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetTextColor" />
+    public new SkUiCoreNumericEntry<T> SetTextColor(Color? value) { base.SetTextColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetCharacterSpacing" />
+    public new SkUiCoreNumericEntry<T> SetCharacterSpacing(double value) { base.SetCharacterSpacing(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetTextTransform" />
+    public new SkUiCoreNumericEntry<T> SetTextTransform(TextTransform value) { base.SetTextTransform(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetFontAttributes" />
+    public new SkUiCoreNumericEntry<T> SetFontAttributes(FontAttributes value) { base.SetFontAttributes(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetFontAutoScalingEnabled" />
+    public new SkUiCoreNumericEntry<T> SetFontAutoScalingEnabled(bool value) { base.SetFontAutoScalingEnabled(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetVerticalTextAlignment" />
+    public new SkUiCoreNumericEntry<T> SetVerticalTextAlignment(TextAlignment value) { base.SetVerticalTextAlignment(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetMaxLength" />
+    public new SkUiCoreNumericEntry<T> SetMaxLength(int value) { base.SetMaxLength(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetKeyboard" />
+    public new SkUiCoreNumericEntry<T> SetKeyboard(Keyboard value) { base.SetKeyboard(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetIsSpellCheckEnabled" />
+    public new SkUiCoreNumericEntry<T> SetIsSpellCheckEnabled(bool value) { base.SetIsSpellCheckEnabled(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetIsTextPredictionEnabled" />
+    public new SkUiCoreNumericEntry<T> SetIsTextPredictionEnabled(bool value) { base.SetIsTextPredictionEnabled(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetCursorPosition" />
+    public new SkUiCoreNumericEntry<T> SetCursorPosition(int value) { base.SetCursorPosition(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetSelectionLength" />
+    public new SkUiCoreNumericEntry<T> SetSelectionLength(int value) { base.SetSelectionLength(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetCaretColor" />
+    public new SkUiCoreNumericEntry<T> SetCaretColor(Color? value) { base.SetCaretColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetSelectionColor" />
+    public new SkUiCoreNumericEntry<T> SetSelectionColor(Color? value) { base.SetSelectionColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetAutofillHint" />
+    public new SkUiCoreNumericEntry<T> SetAutofillHint(string? value) { base.SetAutofillHint(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetInputFormatters" />
+    public new SkUiCoreNumericEntry<T> SetInputFormatters(params IEnumerable<SkUiTextInputFormatter> formatters) { base.SetInputFormatters(formatters); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetFormatsAssignedText" />
+    public new SkUiCoreNumericEntry<T> SetFormatsAssignedText(bool value) { base.SetFormatsAssignedText(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetLeadingView" />
+    public new SkUiCoreNumericEntry<T> SetLeadingView(SkUiCoreNode? value) { base.SetLeadingView(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetTrailingView" />
+    public new SkUiCoreNumericEntry<T> SetTrailingView(SkUiCoreNode? value) { base.SetTrailingView(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetHasError" />
+    public new SkUiCoreNumericEntry<T> SetHasError(bool value) { base.SetHasError(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetErrorText" />
+    public new SkUiCoreNumericEntry<T> SetErrorText(string? value) { base.SetErrorText(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetHelperText" />
+    public new SkUiCoreNumericEntry<T> SetHelperText(string? value) { base.SetHelperText(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetErrorColor" />
+    public new SkUiCoreNumericEntry<T> SetErrorColor(Color? value) { base.SetErrorColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreEntry.SetIsPassword" />
+    public new SkUiCoreNumericEntry<T> SetIsPassword(bool value) { base.SetIsPassword(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreEntry.SetReturnType" />
+    public new SkUiCoreNumericEntry<T> SetReturnType(ReturnType value) { base.SetReturnType(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreEntry.SetReturnCommand" />
+    public new SkUiCoreNumericEntry<T> SetReturnCommand(ICommand? value) { base.SetReturnCommand(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreEntry.SetReturnCommandParameter" />
+    public new SkUiCoreNumericEntry<T> SetReturnCommandParameter(object? value) { base.SetReturnCommandParameter(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreEntry.SetClearButtonVisibility" />
+    public new SkUiCoreNumericEntry<T> SetClearButtonVisibility(ClearButtonVisibility value) { base.SetClearButtonVisibility(value); return this; }
 
     private protected override void Recoerce()
     {

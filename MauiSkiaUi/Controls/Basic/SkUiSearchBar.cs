@@ -135,6 +135,30 @@ public class SkUiSearchBar : SkUiInputView
     /// <inheritdoc cref="SkUiInputView.SetAutofillHint" />
     public new SkUiSearchBar SetAutofillHint(string? value) { base.SetAutofillHint(value); return this; }
 
+    /// <inheritdoc cref="SkUiInputView.SetInputFormatters" />
+    public new SkUiSearchBar SetInputFormatters(params IEnumerable<SkUiTextInputFormatter> formatters) { base.SetInputFormatters(formatters); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetFormatsAssignedText" />
+    public new SkUiSearchBar SetFormatsAssignedText(bool value) { base.SetFormatsAssignedText(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetLeadingView" />
+    public new SkUiSearchBar SetLeadingView(ISkUiView? value) { base.SetLeadingView(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetTrailingView" />
+    public new SkUiSearchBar SetTrailingView(ISkUiView? value) { base.SetTrailingView(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetHasError" />
+    public new SkUiSearchBar SetHasError(bool value) { base.SetHasError(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetErrorText" />
+    public new SkUiSearchBar SetErrorText(string? value) { base.SetErrorText(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetHelperText" />
+    public new SkUiSearchBar SetHelperText(string? value) { base.SetHelperText(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetErrorColor" />
+    public new SkUiSearchBar SetErrorColor(Color? value) { base.SetErrorColor(value); return this; }
+
     /// <inheritdoc />
     private protected override void OnReturnPressed()
     {

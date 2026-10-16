@@ -82,7 +82,7 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
 
     internal const double DefaultFontSize = 16;
 
-    /// <summary>The corner radius in DIPs; <c>null</c>: the look's (<see cref="SkUiLook.StepperCornerRadius"/>).</summary>
+    /// <summary>The corner radius in DIPs; <c>null</c>: the look's (<see cref="SkUiLook.DefaultStepperCornerRadius"/>).</summary>
     public double? CornerRadius;
 
     /// <summary>The outline's width in DIPs; 0: no outline.</summary>
@@ -212,11 +212,29 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
         var foreground = SkUiToggleDrawing.ToSkColor(TextColor ?? SkUiColors.DefaultForeground);
         var decrementText = Layout(-1) is not null;
         var incrementText = Layout(1) is not null;
-        SkUiLook.Current.DrawStepper(canvas, new SkUiStepperPaint(new SKRect(0, 0, width, height), decrement, increment, Orientation,
-            SkUiToggleDrawing.ToSkColor(SkUiColors.Accent), SkUiToggleDrawing.ToSkColor(SkUiColors.Muted), foreground,
-            _decrementPress.Value, _incrementPress.Value, CanStep(-1), CanStep(1), _focus.Value, IsPointerOver, IsEnabled, _owner.IsRightToLeft,
-            decrementText, incrementText, (float)(CornerRadius ?? SkUiLook.Current.StepperCornerRadius), (float)BorderWidth,
-            SkUiToggleDrawing.ToSkColor(BorderColor ?? SkUiColors.Muted)));
+        SkUiLook.Current.DrawStepper(canvas, new SkUiStepperPaint
+        {
+            Bounds = new SKRect(0, 0, width, height),
+            DecrementBounds = decrement,
+            IncrementBounds = increment,
+            Orientation = Orientation,
+            Accent = SkUiToggleDrawing.ToSkColor(SkUiColors.Accent),
+            Border = SkUiToggleDrawing.ToSkColor(SkUiColors.Muted),
+            Foreground = foreground,
+            DecrementPressed = _decrementPress.Value,
+            IncrementPressed = _incrementPress.Value,
+            CanDecrement = CanStep(-1),
+            CanIncrement = CanStep(1),
+            Focused = _focus.Value,
+            IsPointerOver = IsPointerOver,
+            IsEnabled = IsEnabled,
+            IsRightToLeft = _owner.IsRightToLeft,
+            HasDecrementText = decrementText,
+            HasIncrementText = incrementText,
+            CornerRadius = (float)(CornerRadius ?? SkUiLook.Current.DefaultStepperCornerRadius),
+            BorderWidth = (float)BorderWidth,
+            BorderColor = SkUiToggleDrawing.ToSkColor(BorderColor ?? SkUiColors.Muted)
+        });
         if (!decrementText && !incrementText)
             return;
         var style = TextStyle;

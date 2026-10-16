@@ -866,13 +866,13 @@ public class SkUiLook
     public virtual double PickerClearButtonWidth => 32;
 
     /// <summary>Optional painter of a picker field's clear button; when set, replaces <see cref="DrawPickerClearButtonCore"/>.</summary>
-    public Action<SKCanvas, SkUiPickerClearButtonPaint>? PickerClearButtonPainter { get; set; }
+    public Action<SKCanvas, SkUiClearButtonPaint>? PickerClearButtonPainter { get; set; }
 
     /// <summary>
     /// Draws the clear button of a picker field (delegate or <see cref="DrawPickerClearButtonCore"/>) in
-    /// <see cref="SkUiPickerClearButtonPaint.Bounds"/>, over the field's chrome; shown while something is chosen.
+    /// <see cref="SkUiClearButtonPaint.Bounds"/>, over the field's chrome; shown while something is chosen.
     /// </summary>
-    public void DrawPickerClearButton(SKCanvas canvas, SkUiPickerClearButtonPaint button)
+    public void DrawPickerClearButton(SKCanvas canvas, SkUiClearButtonPaint button)
     {
         if (PickerClearButtonPainter is { } painter)
         {
@@ -883,7 +883,7 @@ public class SkUiLook
     }
 
     /// <summary>Default clear button: a filled circle in the muted color with a cross in the field's background color, centered.</summary>
-    protected virtual void DrawPickerClearButtonCore(SKCanvas canvas, SkUiPickerClearButtonPaint button)
+    protected virtual void DrawPickerClearButtonCore(SKCanvas canvas, SkUiClearButtonPaint button)
     {
         const float radius = 8;
         const float arm = 3.5f;
@@ -965,7 +965,7 @@ public class SkUiLook
     public virtual double TextFieldMessageFontSize => 12;
 
     /// <summary>The caret's width in DIPs (default 2).</summary>
-    public virtual float CaretWidth => 2;
+    public virtual double CaretWidth => 2;
 
     /// <summary>
     /// How long the caret shows, then hides, while it blinks (default 500 ms; zero: it does not blink). Typing and moving the
@@ -973,11 +973,14 @@ public class SkUiLook
     /// </summary>
     public virtual TimeSpan CaretBlinkInterval => TimeSpan.FromMilliseconds(500);
 
-    /// <summary>The caret's color for fields that set none (default: the color scheme's accent).</summary>
-    public virtual Color CaretColor => SkUiColors.Accent;
+    /// <summary>The caret's color for fields that set none (their <c>CaretColor</c>; default: the color scheme's accent).</summary>
+    public virtual Color DefaultCaretColor => SkUiColors.Accent;
 
-    /// <summary>The color behind selected text (default: the color scheme's accent, 30 % opaque).</summary>
-    public virtual Color TextSelectionColor => SkUiColors.Accent.WithAlpha(0.3f);
+    /// <summary>
+    /// The color behind selected text for fields that set none (their <c>SelectionColor</c>; default: the color scheme's accent, 30 %
+    /// opaque).
+    /// </summary>
+    public virtual Color DefaultSelectionColor => SkUiColors.Accent.WithAlpha(0.3f);
 
     /// <summary>
     /// Optional painter of the handles of a selection made by touch; when set, replaces <see cref="DrawTextSelectionHandleCore"/>.
@@ -1213,13 +1216,13 @@ public class SkUiLook
     }
 
     /// <summary>Optional painter of a text field's clear button; when set, replaces <see cref="DrawTextFieldClearButtonCore"/>.</summary>
-    public Action<SKCanvas, SkUiPickerClearButtonPaint>? TextFieldClearButtonPainter { get; set; }
+    public Action<SKCanvas, SkUiClearButtonPaint>? TextFieldClearButtonPainter { get; set; }
 
     /// <summary>
     /// Draws the clear button of a text field (delegate or <see cref="DrawTextFieldClearButtonCore"/>) in
-    /// <see cref="SkUiPickerClearButtonPaint.Bounds"/>, at the field's end; shown while it is focused and has text.
+    /// <see cref="SkUiClearButtonPaint.Bounds"/>, at the field's end; shown while it is focused and has text.
     /// </summary>
-    public void DrawTextFieldClearButton(SKCanvas canvas, SkUiPickerClearButtonPaint button)
+    public void DrawTextFieldClearButton(SKCanvas canvas, SkUiClearButtonPaint button)
     {
         if (TextFieldClearButtonPainter is { } painter)
         {
@@ -1230,7 +1233,7 @@ public class SkUiLook
     }
 
     /// <summary>Default text field clear button: the picker's (<see cref="DrawPickerClearButtonCore"/>).</summary>
-    protected virtual void DrawTextFieldClearButtonCore(SKCanvas canvas, SkUiPickerClearButtonPaint button) => DrawPickerClearButtonCore(canvas, button);
+    protected virtual void DrawTextFieldClearButtonCore(SKCanvas canvas, SkUiClearButtonPaint button) => DrawPickerClearButtonCore(canvas, button);
 
     #endregion
 
@@ -1268,7 +1271,7 @@ public class SkUiLook
         var radius = Math.Min(10, bounds.Height / 2);
         using var paint = new SKPaint { IsAntialias = true };
         var fill = field.IsPointerOver && field.IsEnabled ? 0.24f : 0.16f;
-        paint.Color = field.Border.WithAlpha((byte)(field.Border.Alpha * (field.IsEnabled ? fill : fill / 2)));
+        paint.Color = field.Fill.WithAlpha((byte)(field.Fill.Alpha * (field.IsEnabled ? fill : fill / 2)));
         canvas.DrawRoundRect(bounds, radius, radius, paint);
         var focus = field.IsEnabled ? Math.Clamp(field.Focused, 0, 1) : 0;
         if (focus > 0 || field.HasError)
@@ -1310,10 +1313,10 @@ public class SkUiLook
     /// <summary>The opacity of a stepper's − and + (glyphs or texts) on a button that cannot step, and of its outline when disabled.</summary>
     internal const float StepperDimmedOpacity = 0.35f;
 
-    internal const float DefaultStepperCornerRadius = 8;
+    internal const float StepperCornerRadiusValue = 8;
 
     /// <summary>A stepper's corner radius in DIPs when its <c>CornerRadius</c> is not set (default 8).</summary>
-    public virtual double StepperCornerRadius => DefaultStepperCornerRadius;
+    public virtual double DefaultStepperCornerRadius => StepperCornerRadiusValue;
 
     /// <summary>How long a held stepper button waits before it repeats (default 400 ms).</summary>
     public virtual TimeSpan StepperRepeatDelay => TimeSpan.FromMilliseconds(400);

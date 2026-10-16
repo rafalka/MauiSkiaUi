@@ -44,7 +44,7 @@ public abstract class SkUiCoreNumericEntryBase : SkUiCoreEntry, ISkUiNumericEntr
     public string? ButtonFontFamily { get => Steps.FontFamily; set => SetButtonFontFamily(value); }
 
     /// <summary>The color of − and + or of their texts; <c>null</c> (default): the entry's text color.</summary>
-    public Color? ButtonColor { get => Steps.ButtonColor; set => SetButtonColor(value); }
+    public Color? ButtonTextColor { get => Steps.ButtonTextColor; set => SetButtonTextColor(value); }
 
     /// <summary>Whether the value can be empty (default <c>true</c>; see <see cref="SkUiNumericEntryBase.AllowNull"/>).</summary>
     public bool AllowNull { get => Numeric.AllowNull; set => SetAllowNull(value); }
@@ -97,10 +97,10 @@ public abstract class SkUiCoreNumericEntryBase : SkUiCoreEntry, ISkUiNumericEntr
     /// <summary>Sets <see cref="ButtonFontFamily"/>.</summary>
     public SkUiCoreNumericEntryBase SetButtonFontFamily(string? value) => UpdateSteps(ref Steps.FontFamily, value, nameof(ButtonFontFamily));
 
-    /// <summary>Sets <see cref="ButtonColor"/>.</summary>
-    public SkUiCoreNumericEntryBase SetButtonColor(Color? value)
+    /// <summary>Sets <see cref="ButtonTextColor"/>.</summary>
+    public SkUiCoreNumericEntryBase SetButtonTextColor(Color? value)
     {
-        if (SetProperty(ref Steps.ButtonColor, value, nameof(ButtonColor)))
+        if (SetProperty(ref Steps.ButtonTextColor, value, nameof(ButtonTextColor)))
             Model.PaintChanged();
         return this;
     }

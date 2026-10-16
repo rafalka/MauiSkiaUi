@@ -63,7 +63,7 @@ public sealed class NumericEntryDemoPage : ComponentDemoPage
         Choice(nameof(SkUiNumericEntry.HorizontalTextAlignment), [TextAlignment.Start, TextAlignment.Center, TextAlignment.End], TextAlignment.Start,
             value => { skia.HorizontalTextAlignment = value; native.HorizontalTextAlignment = value; }, () => skia.HorizontalTextAlignment, () => native.HorizontalTextAlignment);
         Number(nameof(SkUiNumericEntry.FontSize), 10, 32, 16, value => { skia.FontSize = value; native.FontSize = value; }, () => skia.FontSize, () => native.FontSize);
-        ColorEditor(nameof(SkUiNumericEntry.ButtonColor), Ink, value => skia.ButtonColor = value, () => skia.ButtonColor ?? Ink);
+        ColorEditor(nameof(SkUiNumericEntry.ButtonTextColor), Ink, value => skia.ButtonTextColor = value, () => skia.ButtonTextColor ?? Ink);
         ActionButton("Clear value", () => skia.Value = null);
         ActionButton("Focus", () => skia.Focus());
     }

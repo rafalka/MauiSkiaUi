@@ -35,6 +35,8 @@ public class SkUiLook
     // Controls call the public, non-virtual entry points; each uses its painter delegate when set,
     // else the protected virtual *Core method that subclasses override. Each takes one paint struct
     // (room to grow without new overloads). Colors arrive resolved (disabled dimming applied).
+    // Phase D's paints (text fields, search field, handles, steppers) are init-only properties, not positional records, so
+    // members added in 1.x do not change a constructor or Deconstruct; the older ones are still positional.
     public void DrawSwitch(SKCanvas canvas, SkUiSwitchPaint toggle) { … }            // → SwitchPainter ?? DrawSwitchCore
     public void DrawCheckBox(SKCanvas canvas, SkUiCheckBoxPaint box) { … }           // → CheckBoxPainter ?? DrawCheckBoxCore
     public void DrawRadioButton(SKCanvas canvas, SkUiRadioButtonPaint radio) { … }   // → RadioButtonPainter ?? DrawRadioButtonCore
@@ -82,7 +84,7 @@ public class SkUiLook
     // DefaultSkUiLook: TextFieldStyle (Default → DefaultTextFieldStyle: outline; underline, filled); AndroidSkUiLook: underline.
     public void DrawTextField(SKCanvas canvas, SkUiTextFieldPaint field) { … }      // → TextFieldPainter ?? DrawTextFieldCore
     public virtual Thickness TextFieldPadding => new(12, 8); // and DefaultTextFieldMinimumHeight (44), TextFieldClearButtonWidth (32)
-    public virtual float CaretWidth => 2;                  // and CaretBlinkInterval (500 ms; zero: no blink), CaretColor, TextSelectionColor
+    public virtual double CaretWidth => 2;                 // and CaretBlinkInterval (500 ms; zero: no blink), DefaultCaretColor, DefaultSelectionColor
     public void DrawTextFieldClearButton(…) { … }          // → TextFieldClearButtonPainter
     public void DrawTextSelectionHandle(SKCanvas canvas, SkUiTextSelectionHandlePaint handle) { … } // touch handles (a bar and a knob);
                                                            // TextSelectionHandleTouchRadius (22), GetTextSelectionHandleBounds
@@ -93,7 +95,7 @@ public class SkUiLook
     // pressed / disabled per button, focus; the control's corner radius and outline (width, color), the divider then in the outline's.
     public void DrawStepper(SKCanvas canvas, SkUiStepperPaint stepper) { … }
     public virtual Size StepperButtonSize => new(47, 32);  // and StepperRepeatDelay (400 ms), StepperRepeatInterval (100 ms)
-    public virtual double StepperCornerRadius => 8;        // until the stepper's CornerRadius is set
+    public virtual double DefaultStepperCornerRadius => 8; // until the stepper's CornerRadius is set
     // Popups of drawn controls (C6): where they go and what they look like; the app's presenter shows them.
     public virtual SkUiPopupPlacement DefaultPopupPlacement => SkUiPopupPlacement.Anchored; // DefaultSkUiLook: the device's
     public virtual Thickness PopupMargin => new(8);         // and PopupAnchorGap (4), PopupPreferredWidth (320),

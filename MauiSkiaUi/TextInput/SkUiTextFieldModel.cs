@@ -689,7 +689,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         if (_layout.Lines.Count == 0)
             return;
         var caret = _layout.CaretRect(ToDisplay(Editor.Caret), Editor.CaretUpstream);
-        var caretWidth = SkUiLook.Current.CaretWidth;
+        var caretWidth = (float)SkUiLook.Current.CaretWidth;
         if (!IsMultiline)
         {
             var line = _layout.Lines[0];
@@ -738,13 +738,36 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     {
         var foreground = ToSkColor(TextColor ?? SkUiColors.DefaultForeground);
         if (IsSearch)
-            SkUiLook.Current.DrawSearchField(canvas, new SkUiSearchFieldPaint(Area(width, height), SearchIconBounds(width, height),
-                ToSkColor(SkUiColors.Accent), ToSkColor(SkUiColors.Muted), ToSkColor(SearchIconColor ?? SkUiColors.Muted), _focus.Value, IsPointerOver,
-                IsEnabled, _owner.IsRightToLeft, HasError, ToSkColor(ErrorColor ?? SkUiColors.Error)));
+            SkUiLook.Current.DrawSearchField(canvas, new SkUiSearchFieldPaint
+            {
+                Bounds = Area(width, height),
+                IconBounds = SearchIconBounds(width, height),
+                Accent = ToSkColor(SkUiColors.Accent),
+                Fill = ToSkColor(SkUiColors.Muted),
+                IconColor = ToSkColor(SearchIconColor ?? SkUiColors.Muted),
+                Focused = _focus.Value,
+                IsPointerOver = IsPointerOver,
+                IsEnabled = IsEnabled,
+                IsRightToLeft = _owner.IsRightToLeft,
+                HasError = HasError,
+                Error = ToSkColor(ErrorColor ?? SkUiColors.Error)
+            });
         else if (DrawsChrome)
-            SkUiLook.Current.DrawTextField(canvas, new SkUiTextFieldPaint(Area(width, height), ToSkColor(SkUiColors.Accent),
-                ToSkColor(SkUiColors.Muted), foreground, _focus.Value, IsPointerOver, IsEnabled, Editor.IsReadOnly, IsMultiline, _owner.IsRightToLeft,
-                HasError, ToSkColor(ErrorColor ?? SkUiColors.Error)));
+            SkUiLook.Current.DrawTextField(canvas, new SkUiTextFieldPaint
+            {
+                Bounds = Area(width, height),
+                Accent = ToSkColor(SkUiColors.Accent),
+                Border = ToSkColor(SkUiColors.Muted),
+                Foreground = foreground,
+                Focused = _focus.Value,
+                IsPointerOver = IsPointerOver,
+                IsEnabled = IsEnabled,
+                IsReadOnly = Editor.IsReadOnly,
+                IsMultiline = IsMultiline,
+                IsRightToLeft = _owner.IsRightToLeft,
+                HasError = HasError,
+                Error = ToSkColor(ErrorColor ?? SkUiColors.Error)
+            });
         if (Steps is { HasButtons: true } steps)
         {
             var (decrement, increment) = StepButtonBounds(width, height);
@@ -761,7 +784,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         {
             _rects.Clear();
             _layout.AddRangeRects(ToDisplay(Editor.SelectionStart), ToDisplay(Editor.SelectionEnd), _rects);
-            paint.Color = ToSkColor(SelectionColor ?? SkUiLook.Current.TextSelectionColor);
+            paint.Color = ToSkColor(SelectionColor ?? SkUiLook.Current.DefaultSelectionColor);
             foreach (var rect in _rects)
                 canvas.DrawRect(rect.Left + origin.X, rect.Top + origin.Y, rect.Width, rect.Height, paint);
         }
@@ -789,7 +812,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         else if (InsertionHandleShown)
             DrawInsertionHandle(canvas, width, height);
         if (ClearButtonShown)
-            SkUiLook.Current.DrawTextFieldClearButton(canvas, new SkUiPickerClearButtonPaint(ClearButtonBounds(width, height), ToSkColor(ClearButtonColor ?? SkUiColors.Muted),
+            SkUiLook.Current.DrawTextFieldClearButton(canvas, new SkUiClearButtonPaint(ClearButtonBounds(width, height), ToSkColor(ClearButtonColor ?? SkUiColors.Muted),
                 ToSkColor(SkUiColors.DefaultBackground), _clearPressed, IsEnabled));
         DrawMessage(canvas, width, height, paint);
     }
@@ -894,18 +917,19 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     private void DrawHandles(SKCanvas canvas, float width, float height)
     {
         var (start, end) = HandleEdges(width, height);
-        var color = ToSkColor(CaretColor ?? SkUiLook.Current.CaretColor);
+        var color = ToSkColor(CaretColor ?? SkUiLook.Current.DefaultCaretColor);
         if (InView(start, width, height))
-            SkUiLook.Current.DrawTextSelectionHandle(canvas, new SkUiTextSelectionHandlePaint(start, IsStart: true, color));
+            SkUiLook.Current.DrawTextSelectionHandle(canvas, new SkUiTextSelectionHandlePaint { Edge = start, IsStart = true, Color = color });
         if (InView(end, width, height))
-            SkUiLook.Current.DrawTextSelectionHandle(canvas, new SkUiTextSelectionHandlePaint(end, IsStart: false, color));
+            SkUiLook.Current.DrawTextSelectionHandle(canvas, new SkUiTextSelectionHandlePaint { Edge = end, IsStart = false, Color = color });
     }
 
     private void DrawInsertionHandle(SKCanvas canvas, float width, float height)
     {
         var caret = CaretEdge(width, height);
         if (InView(caret, width, height))
-            SkUiLook.Current.DrawTextInsertionHandle(canvas, new SkUiTextInsertionHandlePaint(caret, ToSkColor(CaretColor ?? SkUiLook.Current.CaretColor)));
+            SkUiLook.Current.DrawTextInsertionHandle(canvas,
+                new SkUiTextInsertionHandlePaint { Caret = caret, Color = ToSkColor(CaretColor ?? SkUiLook.Current.DefaultCaretColor) });
     }
 
     /// <summary>
@@ -1187,13 +1211,13 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         KeepCaretInView(box);
         var origin = TextOrigin(box);
         var look = SkUiLook.Current;
-        var caretWidth = look.CaretWidth;
+        var caretWidth = (float)look.CaretWidth;
         var caret = _layout.CaretRect(ToDisplay(Editor.Caret), Editor.CaretUpstream);
         // Centered on the caret position, kept inside the box at its edges.
         var left = caret.Left + origin.X - caretWidth / 2;
         left = Math.Clamp(left, box.Left, Math.Max(box.Left, box.Right - caretWidth));
         var rect = new SKRect(left, caret.Top + origin.Y, left + caretWidth, caret.Bottom + origin.Y);
-        var color = ToSkColor(CaretColor ?? look.CaretColor);
+        var color = ToSkColor(CaretColor ?? look.DefaultCaretColor);
         var clip = box;
         clip.Inflate(caretWidth, 0);
         return _caret.Get(new CaretKey(rect, clip, color), (rect, clip, color), static state => new SkUiCaretDrawable(state.rect, state.clip, state.color));

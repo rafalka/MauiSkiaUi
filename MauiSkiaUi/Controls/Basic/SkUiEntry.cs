@@ -136,6 +136,30 @@ public class SkUiEntry : SkUiInputView
     /// <inheritdoc cref="SkUiInputView.SetAutofillHint" />
     public new SkUiEntry SetAutofillHint(string? value) { base.SetAutofillHint(value); return this; }
 
+    /// <inheritdoc cref="SkUiInputView.SetInputFormatters" />
+    public new SkUiEntry SetInputFormatters(params IEnumerable<SkUiTextInputFormatter> formatters) { base.SetInputFormatters(formatters); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetFormatsAssignedText" />
+    public new SkUiEntry SetFormatsAssignedText(bool value) { base.SetFormatsAssignedText(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetLeadingView" />
+    public new SkUiEntry SetLeadingView(ISkUiView? value) { base.SetLeadingView(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetTrailingView" />
+    public new SkUiEntry SetTrailingView(ISkUiView? value) { base.SetTrailingView(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetHasError" />
+    public new SkUiEntry SetHasError(bool value) { base.SetHasError(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetErrorText" />
+    public new SkUiEntry SetErrorText(string? value) { base.SetErrorText(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetHelperText" />
+    public new SkUiEntry SetHelperText(string? value) { base.SetHelperText(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetErrorColor" />
+    public new SkUiEntry SetErrorColor(Color? value) { base.SetErrorColor(value); return this; }
+
     private void OnIsPasswordChanged(bool value)
     {
         Model.IsPassword = value;

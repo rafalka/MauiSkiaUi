@@ -76,7 +76,7 @@ internal sealed class SkUiTextFieldSteps : ISkUiStepButtons
     public string? FontFamily;
 
     /// <summary>The glyphs' and texts' color; <c>null</c>: the field's text color.</summary>
-    public Color? ButtonColor;
+    public Color? ButtonTextColor;
 
     #endregion
 
@@ -184,14 +184,29 @@ internal sealed class SkUiTextFieldSteps : ISkUiStepButtons
     {
         if (!HasButtons)
             return;
-        var foreground = ButtonColor is { } color ? SkUiToggleDrawing.ToSkColor(color) : textColor;
+        var foreground = ButtonTextColor is { } color ? SkUiToggleDrawing.ToSkColor(color) : textColor;
         var decrementText = Layout(-1) is not null;
         var incrementText = Layout(1) is not null;
         var canDecrement = _owner.CanStep(-1);
         var canIncrement = _owner.CanStep(1);
-        SkUiLook.Current.DrawTextFieldStepButtons(canvas, new SkUiTextFieldStepButtonsPaint(area, decrement, increment, Placement, Orientation,
-            border, foreground, _decrementPress.Value, _incrementPress.Value, canDecrement, canIncrement, enabled, rightToLeft, decrementText,
-            incrementText));
+        SkUiLook.Current.DrawTextFieldStepButtons(canvas, new SkUiTextFieldStepButtonsPaint
+        {
+            Field = area,
+            DecrementBounds = decrement,
+            IncrementBounds = increment,
+            Placement = Placement,
+            Orientation = Orientation,
+            Border = border,
+            Foreground = foreground,
+            DecrementPressed = _decrementPress.Value,
+            IncrementPressed = _incrementPress.Value,
+            CanDecrement = canDecrement,
+            CanIncrement = canIncrement,
+            IsEnabled = enabled,
+            IsRightToLeft = rightToLeft,
+            HasDecrementText = decrementText,
+            HasIncrementText = incrementText
+        });
         if (!decrementText && !incrementText)
             return;
         var style = TextStyle;
