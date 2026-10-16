@@ -73,8 +73,9 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
 
     private readonly ISkUiTextFieldOwner _owner;
     private readonly SkUiTextEditLayout _layout = new();
-    private readonly SkUiTextLayout _placeholderLayout;
-    private readonly SkUiTextLayout _messageLayout;
+    // Made when the field first has a placeholder or a message (a field without either, as a sheet's cells, never makes them).
+    private SkUiTextLayout? _placeholderLayout;
+    private SkUiTextLayout? _messageLayout;
     private readonly SkUiTween _focus;
     private readonly List<SKRect> _rects = [];
     private readonly SkUiTextFieldGestures _gestures;
@@ -101,8 +102,6 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     public SkUiTextFieldModel(ISkUiTextFieldOwner owner, bool multiline = false)
     {
         _owner = owner;
-        _placeholderLayout = new SkUiTextLayout(owner);
-        _messageLayout = new SkUiTextLayout(owner);
         _focus = new SkUiTween(owner);
         Editor = new SkUiTextEditor(this) { IsMultiline = multiline };
         IsMultiline = multiline;
@@ -265,8 +264,8 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     public void TextChanged()
     {
         _layoutDirty = true;
-        _placeholderLayout.Invalidate();
-        _messageLayout.Invalidate();
+        _placeholderLayout?.Invalidate();
+        _messageLayout?.Invalidate();
         _owner.InvalidateMeasure();
         _owner.InvalidatePaint();
         _owner.InvalidateSemantics();
@@ -280,7 +279,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     public void MessageChanged()
     {
         // The layout keeps its lines until told: its key is the style and width, not the text.
-        _messageLayout.Invalidate();
+        _messageLayout?.Invalidate();
         _owner.InvalidateMeasure();
         _owner.InvalidatePaint();
         _owner.InvalidateSemantics();
@@ -397,7 +396,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
 
     /// <summary>The height of the message's band under the field (its spacing and wrapped lines) in a node <paramref name="width"/> DIPs wide; 0 without one.</summary>
     private float MessageHeight(float width) =>
-        FieldArea is null && Message is { } message ? (float)_messageLayout.Measure(message, MessageStyle, MessagePadding, width).Height : 0;
+        FieldArea is null && Message is { } message ? (float)MessageLayout.Measure(message, MessageStyle, MessagePadding, width).Height : 0;
 
     /// <summary>The stretch from <paramref name="from"/> to <paramref name="to"/> DIPs past the area's start side (its left, or its right in right-to-left).</summary>
     private SKRect FromStart(SKRect area, float from, float to, float top, float bottom) => _owner.IsRightToLeft
@@ -472,6 +471,13 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         return FromStart(area, row.StartPadding, row.StartPadding + (float)SkUiLook.Current.SearchIconWidth, area.Top, area.Bottom);
     }
 
+    private SkUiTextLayout PlaceholderLayout => _placeholderLayout ??= new SkUiTextLayout(_owner);
+
+    /// <summary>Whether the placeholder's and the message's layouts were made (tests: a field without either makes none).</summary>
+    internal (bool Placeholder, bool Message) HasLayouts => (_placeholderLayout is not null, _messageLayout is not null);
+
+    private SkUiTextLayout MessageLayout => _messageLayout ??= new SkUiTextLayout(_owner);
+
     /// <summary>The text as drawn: bullets for a password, spaces for line breaks in a single-line field.</summary>
     private string DisplayText(string text)
     {
@@ -540,7 +546,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         var height = (double)Math.Max(_layout.Height, LineHeight);
         if (Editor.Text.Length == 0 && !string.IsNullOrEmpty(Placeholder))
         {
-            var placeholder = _placeholderLayout.Measure(Placeholder, PlaceholderStyle, default, available);
+            var placeholder = PlaceholderLayout.Measure(Placeholder, PlaceholderStyle, default, available);
             width = Math.Max(width, placeholder.Width);
             height = Math.Max(height, placeholder.Height);
         }
@@ -555,7 +561,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             return size;
         // The message under the field, wrapped at the width the field may take: the field is at least as wide as the message's
         // longest line, so the lines drawn at the arranged width are never more than the lines measured here.
-        var band = _messageLayout.Measure(message, MessageStyle, MessagePadding, widthConstraint);
+        var band = MessageLayout.Measure(message, MessageStyle, MessagePadding, widthConstraint);
         return new Size(Math.Min(widthConstraint, Math.Max(size.Width, band.Width)), size.Height + band.Height);
     }
 
@@ -655,7 +661,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
                 var color = ToSkColor(PlaceholderColor ?? SkUiColors.Muted);
                 paint.Color = IsEnabled ? color : color.WithAlpha((byte)(color.Alpha * 0.5f));
                 var inset = new Thickness(box.Left, origin.Y, width - box.Right, 0);
-                _placeholderLayout.Draw(canvas, Placeholder, PlaceholderStyle, inset, width, Math.Max(origin.Y + _layout.Height, height),
+                PlaceholderLayout.Draw(canvas, Placeholder, PlaceholderStyle, inset, width, Math.Max(origin.Y + _layout.Height, height),
                     HorizontalTextAlignment, TextAlignment.Start, paint);
             }
         }
@@ -686,7 +692,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         paint.Color = IsEnabled ? color : color.WithAlpha((byte)(color.Alpha * 0.5f));
         var padding = MessagePadding;
         var top = Area(width, height).Bottom;
-        _messageLayout.Draw(canvas, message, MessageStyle, new Thickness(padding.Left, top + padding.Top, padding.Right, 0), width, height,
+        MessageLayout.Draw(canvas, message, MessageStyle, new Thickness(padding.Left, top + padding.Top, padding.Right, 0), width, height,
             TextAlignment.Start, TextAlignment.Start, paint);
     }
 
@@ -1086,8 +1092,8 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     public void ReleaseDrawingResources()
     {
         _layout.Release();
-        _placeholderLayout.Release();
-        _messageLayout.Release();
+        _placeholderLayout?.Release();
+        _messageLayout?.Release();
         _layoutDirty = true;
         _caret.Forget();
     }

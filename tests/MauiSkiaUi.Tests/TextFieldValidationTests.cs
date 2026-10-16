@@ -101,6 +101,27 @@ public class TextFieldValidationTests
     }
 
     [Fact]
+    public void AFieldWithoutAPlaceholderOrAMessageMakesNoLayoutsForThem()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        // As a sheet's cells: text only.
+        var entry = new SkUiEntry { FontFamily = SkUiTestHelpers.BundledFontFamily, Text = "42", VerticalOptions = LayoutOptions.Start };
+        using var surface = new SkUiTestSurface(new SkUiContentView { Content = entry, Background = Colors.White }, 300, 100);
+        surface.Frame();
+        entry.HasError = true; // no error text: no message either
+        surface.Frame();
+        Assert.Equal((false, false), entry.Model.HasLayouts);
+
+        entry.HelperText = "help";
+        surface.Frame();
+        Assert.Equal((false, true), entry.Model.HasLayouts);
+        entry.Text = null;
+        entry.Placeholder = "Value";
+        surface.Frame();
+        Assert.Equal((true, true), entry.Model.HasLayouts);
+    }
+
+    [Fact]
     public void TheErrorTextReplacesTheHelperTextOnlyWhileThereIsAnError()
     {
         var entry = new SkUiEntry { HelperText = "help", ErrorText = "wrong" };

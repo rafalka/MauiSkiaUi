@@ -31,6 +31,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `ErrorColor` on each field overrides the color scheme's `Error` for its chrome and message (a brand's error red, a warning in amber).
   - `SkUiTextFieldPaint` and `SkUiSearchFieldPaint` have `HasError` and `Error` (optional, last; the field's error color), for custom painters.
 
+### Other
+
+- **Lighter text fields:** a drawn text field makes its placeholder's and its message's text layouts only when it first has a placeholder or a helper / error text, so fields with text only (a sheet of cells) keep about 0.5 KB less each (1,000 Core entries: 12 % less memory after the first frame, 10 % fewer allocations; layout and drawing times unchanged). New benchmark scenarios `core-entries`, `core-entries-update` and `skui-entries` (`scripts/bench.sh -S core-entries`).
+
 ## 1.0.0-Prerelease12
 
 ### New features
