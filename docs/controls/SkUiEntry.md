@@ -15,7 +15,7 @@ A single-line text field drawn by SkiaUi: the text, caret, selection, placeholde
 - **Scrolling.** Text longer than the field scrolls horizontally to keep the caret in view. In drawn scrollers (`SkUiScrollView`, `SkUiCoreScrollView`, nested ones too), a focused field is kept above the soft keyboard ([keyboard avoidance](../design/TextInput.md#integration-d6)).
 - **Caret.** A bar in `CaretColor` (else the look's), blinking by `SkUiLook.CaretBlinkInterval`: a composite-time drawable, so moving or blinking it records nothing; typing shows it solid.
 - **Password.** `IsPassword` draws one bullet per character (grapheme), turns off copying, cutting and suggestions, and asks for a password keyboard (and the password autofill hint).
-- **Screen readers.** An editable text field (TalkBack's `EditText`, Narrator's Edit with a settable value, VoiceOver's value): the placeholder is its name, the text (bullets for a password) its value, with the selection; TalkBack and Narrator can set the text and the selection.
+- **Screen readers.** An editable text field (TalkBack's `EditText`, Narrator's Edit with a settable value, VoiceOver's text field): the placeholder is its name, the text (bullets for a password) its value, with the selection; TalkBack and Narrator can set the text and the selection. VoiceOver's rotor moves through the characters, words and lines (an editor's wrapped lines) with the caret following, and reads the selection; a password is read as bullets only.
 
 ## Look
 

@@ -1705,6 +1705,19 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         return _layout.Lines[_layout.LineIndexOf(ToDisplay(index))].IsRightToLeft;
     }
 
+    public (int Start, int End) GetLineAt(int index)
+    {
+        ISkUiTextEditGeometry geometry = this;
+        index = Math.Clamp(index, 0, Editor.Text.Length);
+        return (geometry.LineStart(index, upstream: false), geometry.LineEnd(index, upstream: false).Index);
+    }
+
+    public int MoveByLines(int index, int lines)
+    {
+        float? goalX = null;
+        return ((ISkUiTextEditGeometry)this).MoveVertically(Math.Clamp(index, 0, Editor.Text.Length), upstream: false, lines, ref goalX).Index;
+    }
+
     #endregion
 
     #region Geometry (caret movement across lines)

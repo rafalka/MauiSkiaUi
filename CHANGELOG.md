@@ -13,6 +13,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **VoiceOver text navigation in drawn text fields (D6):** on iOS and Mac Catalyst a drawn `SkUiEntry` / `SkUiEditor` (and their Core twins, the search bar) is read as a text field, and VoiceOver's rotor moves through its characters, words and lines with the caret following what it reads; the selection is read. Lines are the field's visual lines (an editor's wrapped lines). Passwords stay value only (bullets).
+
 ## 1.0.0-Prerelease12
 
 ### New features
