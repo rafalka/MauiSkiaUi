@@ -19,7 +19,7 @@ A search field drawn by SkiaUi: an entry with the look's search field (a search 
 
 ## Key properties
 
-The entry's text properties (`Text`, `Placeholder`, `PlaceholderColor`, `TextColor`, fonts, alignment, `MaxLength`, `IsReadOnly`, `Keyboard`, `CursorPosition`, `SelectionLength`, …), plus `SearchCommand`, `SearchCommandParameter`, `CancelButtonColor`, `SearchIconColor`, `ReturnType` (Search). Events: `SearchButtonPressed`, `TextChanged`.
+The entry's text properties (`Text`, `Placeholder`, `PlaceholderColor`, `TextColor`, fonts, alignment, `MaxLength`, `IsReadOnly`, `Keyboard`, `CursorPosition`, `SelectionLength`, `InputFormatters`, `FormatsAssignedText`, …), plus `SearchCommand`, `SearchCommandParameter`, `CancelButtonColor`, `SearchIconColor`, `ReturnType` (Search). Events: `SearchButtonPressed`, `TextChanged`.
 
 ## Related
 

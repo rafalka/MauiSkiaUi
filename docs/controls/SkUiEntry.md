@@ -2,7 +2,7 @@
 
 A single-line text field drawn by SkiaUi: the text, caret, selection, placeholder and chrome are drawn on the surface, and the platform's keyboard and input methods (composition, autocorrect, dictation, the edit menu) reach it through the surface's text input proxy. No native view is created for it, so it clips, scrolls, transforms and fades with the drawn tree, sits under drawn popups, and works in Core trees and in recycled list rows.
 
-**MAUI counterpart:** [`Entry`](https://learn.microsoft.com/dotnet/maui/user-interface/controls/entry), by member name: a page ports by changing the prefix. Beyond MAUI: `CaretColor`, `SelectionColor`, `AutofillHint`. Core twin: `SkUiCoreEntry` (fluent `Set*`, `INotifyPropertyChanged`; no enabled state: use `IsReadOnly`). The fields share their base with [`SkUiEditor`](SkUiEditor.md) and [`SkUiSearchBar`](SkUiSearchBar.md) (`SkUiInputView` / `SkUiCoreInputView`, MAUI's `InputView`); [`SkUiStepper`](SkUiStepper.md) edits its value with the same engine.
+**MAUI counterpart:** [`Entry`](https://learn.microsoft.com/dotnet/maui/user-interface/controls/entry), by member name: a page ports by changing the prefix. Beyond MAUI: `CaretColor`, `SelectionColor`, `AutofillHint`, `InputFormatters` / `FormatsAssignedText`. Core twin: `SkUiCoreEntry` (fluent `Set*`, `INotifyPropertyChanged`; no enabled state: use `IsReadOnly`). The fields share their base with [`SkUiEditor`](SkUiEditor.md) and [`SkUiSearchBar`](SkUiSearchBar.md) (`SkUiInputView` / `SkUiCoreInputView`, MAUI's `InputView`); [`SkUiStepper`](SkUiStepper.md) edits its value with the same engine.
 
 ## How it works
 
@@ -14,6 +14,7 @@ A single-line text field drawn by SkiaUi: the text, caret, selection, placeholde
 - **Pointer.** A mouse click places the caret, a drag selects, a double click selects a word and a triple click the text; a right click opens the edit menu. On touch, a tap places the caret (a tap on the caret toggles the edit menu), a double tap selects a word, and a long press selects the word under it (a drag after it extends the selection by words); the selection then shows handles to drag its ends, and the platform's edit menu (cut, copy, paste, select all) opens over it. The caret moves by touch too: on Android a tap shows a handle under the caret (for a few seconds) that drags it; elsewhere the caret itself is dragged, as on iOS. The platform's magnifier (Android's magnifier, iOS's loupe) shows the text under the finger while a handle or the caret moves. A drag that does not start on a handle or the caret scrolls the page.
 - **Scrolling.** Text longer than the field scrolls horizontally to keep the caret in view. In drawn scrollers (`SkUiScrollView`, `SkUiCoreScrollView`, nested ones too), a focused field is kept above the soft keyboard ([keyboard avoidance](../design/TextInput.md#integration-d6)).
 - **Caret.** A bar in `CaretColor` (else the look's), blinking by `SkUiLook.CaretBlinkInterval`: a composite-time drawable, so moving or blinking it records nothing; typing shows it solid.
+- **Input formatters.** `InputFormatters` rewrite or refuse the user's edits, in order (Flutter's `TextInputFormatter`): typing, an input method's committed text (a composition is formatted when committed, not while composed), paste, cut, Backspace / Delete and a screen reader's set-text. Each gets the value before the edit and the value after it (`SkUiTextEditValue`: text and selection) and returns the value the field takes, so a formatter can filter, cap, re-mask the whole text and place the caret. What the last returns is one edit and one undo step; undo / redo are not formatted, and text the app sets is formatted only with `FormatsAssignedText` (as if pasted into an empty field; `Text` follows the result). Built in: `SkUiFilteringFormatter` (allow or deny by a regular expression or a character predicate, `DigitsOnly`), `SkUiLengthLimitingFormatter` (graphemes, digits, or letters and digits) and `SkUiMaskFormatter` (`0` digit, `L` letter, `A` letter or digit, `&` any, `\` escapes; literals typed in as the user reaches them; `Unmask`, `IsComplete`). `SkUiTextInputFormatter.Create` wraps a function; a subclass overrides `Format`. `MaxLength` still holds after them.
 - **Password.** `IsPassword` draws one bullet per character (grapheme), turns off copying, cutting and suggestions, and asks for a password keyboard (and the password autofill hint).
 - **Screen readers.** An editable text field (TalkBack's `EditText`, Narrator's Edit with a settable value, VoiceOver's value): the placeholder is its name, the text (bullets for a password) its value, with the selection; TalkBack and Narrator can set the text and the selection.
 
@@ -40,6 +41,28 @@ name.Completed += (_, _) => Save(name.Text);
 var core = new SkUiCoreEntry().SetPlaceholder("Search").SetKeyboard(Keyboard.Plain);
 ```
 
+Input formatters (mask-as-you-type, filters, caps):
+
+```xml
+<sk:SkUiEntry Placeholder="Phone" Keyboard="Telephone" Text="{Binding Phone}" FormatsAssignedText="True">
+    <sk:SkUiEntry.InputFormatters>
+        <sk:SkUiMaskFormatter Mask="(000) 000-0000" />
+    </sk:SkUiEntry.InputFormatters>
+</sk:SkUiEntry>
+<sk:SkUiEntry Placeholder="Code" Keyboard="Numeric">
+    <sk:SkUiEntry.InputFormatters>
+        <sk:SkUiFilteringFormatter Pattern="[0-9]" />
+        <sk:SkUiLengthLimitingFormatter MaxLength="6" />
+    </sk:SkUiEntry.InputFormatters>
+</sk:SkUiEntry>
+```
+
+```csharp
+var tag = new SkUiEntry().SetInputFormatters(
+    new SkUiFilteringFormatter(@"\s", SkUiFilterMode.Deny, "-"),
+    SkUiTextInputFormatter.Create((old, value) => value with { Text = value.Text.ToLowerInvariant() }));
+```
+
 ## Key properties
 
 | Property | Default | Notes |
@@ -58,6 +81,8 @@ var core = new SkUiCoreEntry().SetPlaceholder("Search").SetKeyboard(Keyboard.Pla
 | `ReturnCommand`, `ReturnCommandParameter` | | Run after `Completed` |
 | `CaretColor` (SkiaUi) | `null` | The look's `CaretColor` |
 | `SelectionColor` (SkiaUi) | `null` | The look's `TextSelectionColor` |
+| `InputFormatters` (SkiaUi) | empty | `SkUiTextInputFormatter`s run in order on the user's edits (see above); changing them formats the text already in the field, and `Text` follows |
+| `FormatsAssignedText` (SkiaUi) | `false` | Text the app sets goes through `InputFormatters` too, and `Text` follows; turning it on formats the text already there |
 | `AutofillHint` (SkiaUi) | `null` | `SkUiAutofillHints` (`Username`, `Password`, `NewPassword`, `OneTimeCode`, …) or a platform's own hint; a password field is a password |
 
 ## Differences from MAUI Entry

@@ -6,6 +6,13 @@ namespace MauiSkiaUiDemo;
 public sealed class EntryDemoPage : ComponentDemoPage
 {
     private const string Placeholder = "Type here";
+    private const string NoFormatters = "None";
+    private const string DigitsOnly = "Digits only";
+    private const string PhoneMask = "Phone (000) 000-0000";
+    private const string CardNumber = "Card 0000 0000 0000 0000";
+    private const string NoSpaces = "No spaces, lower case";
+    private const string PhoneMaskText = "(000) 000-0000";
+    private const string CardMaskText = "0000 0000 0000 0000";
 
     public EntryDemoPage() : base(nameof(SkUiEntry), new SkUiEntry { Placeholder = Placeholder }, new Entry { Placeholder = Placeholder })
     {
@@ -40,6 +47,9 @@ public sealed class EntryDemoPage : ComponentDemoPage
         Number(nameof(SkUiEntry.FontSize), 10, 32, 16, value => { skia.FontSize = value; native.FontSize = value; }, () => skia.FontSize, () => native.FontSize);
         Number(nameof(SkUiEntry.CharacterSpacing), 0, 6, 0, value => { skia.CharacterSpacing = value; native.CharacterSpacing = value; },
             () => skia.CharacterSpacing, () => native.CharacterSpacing);
+        Choice(nameof(SkUiEntry.InputFormatters), [NoFormatters, DigitsOnly, PhoneMask, CardNumber, NoSpaces], NoFormatters,
+            value => skia.SetInputFormatters(FormattersOf(value)), () => NameOf(skia.InputFormatters));
+        Toggle(nameof(SkUiEntry.FormatsAssignedText), false, value => skia.FormatsAssignedText = value, () => skia.FormatsAssignedText);
         ColorEditor(nameof(SkUiEntry.TextColor), Ink, value => { skia.TextColor = value; native.TextColor = value; }, () => skia.TextColor ?? Ink, () => native.TextColor ?? Ink);
         ColorEditor(nameof(SkUiEntry.CaretColor), Accent, value => skia.CaretColor = value, () => skia.CaretColor ?? Accent);
         ActionButton("Select all", () =>
@@ -51,6 +61,26 @@ public sealed class EntryDemoPage : ComponentDemoPage
         });
         ActionButton("Focus", () => skia.Focus());
     }
+
+    // SkiaUi only (MAUI's Entry has no formatters): filters, a mask, a digit cap with groups, a function.
+    private static SkUiTextInputFormatter[] FormattersOf(string name) => name switch
+    {
+        DigitsOnly => [SkUiFilteringFormatter.DigitsOnly],
+        PhoneMask => [new SkUiMaskFormatter(PhoneMaskText)],
+        CardNumber => [new SkUiMaskFormatter(CardMaskText)],
+        NoSpaces => [new SkUiFilteringFormatter(@"\s", SkUiFilterMode.Deny),
+            SkUiTextInputFormatter.Create((_, value) => value with { Text = value.Text.ToLowerInvariant() })],
+        _ => []
+    };
+
+    private static string NameOf(IList<SkUiTextInputFormatter> formatters) => formatters switch
+    {
+        [] => NoFormatters,
+        [SkUiMaskFormatter { Mask: PhoneMaskText }] => PhoneMask,
+        [SkUiMaskFormatter { Mask: CardMaskText }] => CardNumber,
+        [SkUiFilteringFormatter] => DigitsOnly,
+        _ => NoSpaces
+    };
 
     private static Keyboard KeyboardOf(string name) => name switch
     {

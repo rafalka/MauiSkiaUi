@@ -9,6 +9,7 @@
 | Editing engine | `SkUiTextEditor` (`Helpers/SkUiTextEditor.cs`) | The text, the selection (an anchor and the caret), the input method's composition (marked text), undo / redo, `MaxLength`, read-only, single-line, `TextTransform`. Caret movement by graphemes, words and lines. No drawing, no platform: headless tests drive it directly |
 | Caret stops | `SkUiTextBoundaries` | Grapheme clusters (`StringInfo`), words (letters / digits / marks / connectors; each CJK ideograph or kana its own word; punctuation runs; white space), paragraphs. No allocations |
 | Edit layout | `SkUiTextEditLayout` | Lines of editable text on the shared shaping engine (`SkUiShaping`: Latin fast path, HarfBuzz, bidi, fallback fonts), keeping what a label's layout drops: each line's text range and where each code unit sits (`SkUiShaping.CaretEdges`). Carets, hit-testing and selection boxes follow clusters and bidi runs. Paragraphs are kept by content: an edit re-shapes only the paragraphs it changed |
+| Input formatters | `SkUiTextInputFormatter` (`TextInput/SkUiTextInputFormatter.cs`, D9) | Rewrite or refuse the user's edits before the editor applies them: filtering, length caps, masks, or the app's own |
 | Field model | `SkUiTextFieldModel` (`TextInput/`, D3) | The control's state shared by both layers: drawing (chrome through the look, text, selection, composition underline, caret), scrolling inside the field, keys, pointer selection, and the input client the proxy talks to |
 | Input proxy | `ISkUiTextInputProxy`, one per surface, set by `SkUiViewHandler` (`TextInput/SkUiTextInput.*.cs`, D2) | Attaches the focused field to the platform's text input (see below); shows / hides the soft keyboard; reports caret and composition rectangles |
 
@@ -105,6 +106,19 @@ Still to check on devices ([Testing.md](Testing.md)): CJK and Korean composition
 
 Left open in D2–D8: Android autofill of drawn fields ([D14](ImplementationPlan.md#phase-d-extensions)), VoiceOver text navigation, a dedicated editable-cell sample.
 
+## Input formatters (D9)
+
+`InputFormatters` on every drawn field (both layers; the editor's `Formatters` holds the control's list): an ordered list of `SkUiTextInputFormatter`s, Flutter's `TextInputFormatter` model. Chosen over a per-edit hook (start, end, inserted) because masks and numbers rewrite the whole text and place the caret, which an insertion-only hook cannot express.
+
+- **Where.** `SkUiTextEditor.Replace`, the one edit every input path goes through (keys, the platform proxies' diffs, paste, cut, Backspace / Delete, a screen reader's set-text). After the editor's own cleaning (line breaks, `TextTransform`) and `MaxLength` cut, the proposed text (the old text with the range replaced, the caret after the insertion) goes through the formatters in order, each getting the value before the edit and the previous one's result (`SkUiTextEditValue`: text, selection). The result, clamped, becomes one edit: `Diff(old, result)` is recorded as one undo step of the edit's kind (so typing still joins word by word), the selection goes where the formatters put it. A result equal to the old text refuses the edit but still moves the caret (a typed separator stepping over the one already there).
+- **Composition.** Marked text is not formatted while composed (`SetComposingText`, `CancelComposition`, and edits while a composition exists skip the formatters): the input method must see its own text. Committing (`InsertText` over the composition, `FinishComposing`) formats the committed text as an edit joining the composition's undo step.
+- **Not formatted.** Undo / redo (they restore states the formatters produced), and `SetText` (the app). `FormatsAssignedText` (default off, as Flutter) formats text the app sets in the field model, as if pasted into an empty field, and the control's `Text` follows the result (as for `MaxLength` and `TextTransform`); turning it on formats the text already there. Changing the formatters always formats the text already in the field (as `TextTransform` does when it changes), so the field never holds text its formatters would refuse.
+- **`MaxLength`.** Applied to the insertion before the formatters; a result longer than both `MaxLength` and the old text (a mask's literals) is cut.
+- **Proxies.** Android diffs its mirror into the field and pushes back whatever the field did differently; Windows copies the field back into its `TextBox` when the text or (new with D9) the selection differs; iOS answers text and geometry from the field. iOS is not told (`textWillChange`) when a formatter changes text UIKit inserted, as with `MaxLength` today.
+- **Built in.** `SkUiFilteringFormatter` (regex via `EnumerateMatches`, or a `Rune` predicate; allow or deny, with a replacement; the caret maps through the removed stretches), `SkUiLengthLimitingFormatter` (cuts what the edit inserts past the cap: whole graphemes, or up to the last digit that fits; text already over the cap is not cut but cannot grow), `SkUiMaskFormatter` (.NET `MaskedTextProvider`'s required placeholders `0`, `L`, `A`, `&` and `\` escapes; walks the new text against the mask, inserting literals only in front of a character that fills a placeholder, keeping typed literals, dropping what fits nowhere; a deletion that only removed literals removes the input character beyond them; a deletion drops literals left at the end).
+
+Left open: device checks of formatted input with suggestions, autocorrect and CJK commits.
+
 ## Moving the caret by touch, magnifier (D15)
 
 - **Insertion handle** (where `SkUiLook.ShowsTextInsertionHandle`: Android by default). A touch tap that places the caret (or taps it) shows a handle under it, drawn by the look (`DrawTextInsertionHandle` inside `GetTextInsertionHandleBounds`: a drop hanging from the caret). It goes after `TextInsertionHandleTimeout` (4 s) unused, when typing, selecting, using a mouse or losing focus. A finger on it that moves past the touch slop drags the caret; a tap on it is a tap on the caret (it toggles the edit menu, paste), and it counts towards a double tap: the second tap of a double tap often lands within the reach of the handle the first one showed, and still selects the word.
@@ -121,12 +135,12 @@ An entry meant for numbers only, with optional − / + buttons in its chrome. No
 
 ### Order: after D9 and D11
 
-It could be started now, but its two hardest parts are exactly what D9 and D11 generalize, so building it first would mean private versions of both, replaced later:
+Its two hardest parts are what D9 and D11 generalize, so building it first would mean private versions of both, replaced later:
 
-- **Filtering input is D9.** Nothing between the platform proxy and `SkUiTextEditor.Replace` can refuse or rewrite an edit today (only `MaxLength`, `TextTransform` and read-only). The numeric filter is a D9 formatter.
+- **Filtering input is D9 (shipped).** `SkUiTextEditor.Replace` runs the field's input formatters ([Input formatters](#input-formatters-d9)); the numeric filter is one of them.
 - **Buttons in the field are D11.** The clear button and the search icon are special cases in `SkUiTextFieldModel` (`Inset`, `HitsClearButton`, `MousePressed`, `Tapped`). Stepper buttons would be a third, harder one: they repeat while held, which the clear button does not.
 
-So: D9's engine, then D11, then D16 as the acceptance case that shapes both APIs. D10 is optional (an out-of-range value shown as an error instead of clamped).
+So: D9's engine (shipped), then D11, then D16 as the acceptance case that shapes both APIs. D10 is optional (an out-of-range value shown as an error instead of clamped).
 
 What already exists and keeps D9 / D11 small:
 - **The proxies accept a field that changes an edit.** Android diffs the mirror into the field and pushes back what the field did differently (as for `MaxLength`); iOS answers geometry and text from the field itself; Windows copies the field's state back into its `TextBox`. A formatter needs no proxy work (to confirm on Windows).
@@ -179,7 +193,7 @@ Not scheduled for 1.0; ordered from most to less important among ideas that fit 
 | 1 | **Floating label** | Material 3 / Avalonia `UseFloatingPlaceholder`: label animates above the field when focused or non-empty; distinct from `Placeholder` |
 | 2 | **Autocomplete / typeahead** | Telerik AutoComplete suggest / append modes; separate control on the entry engine + popup overlay, not a second editor |
 | 3 | **Numeric entry** | Planned as D16, see [Numeric entry](#numeric-entry-d16-proposed) |
-| 4 | **Preset masks** | Phone, card spacing, IP, email presets on top of input formatters (Telerik MaskedEntry mask types); stored value without literal characters |
+| 4 | **Preset masks** | Phone, card spacing, IP, email presets on top of `SkUiMaskFormatter` (Telerik MaskedEntry mask types); optional placeholders (`9`, `?`, `a`, `C`), a prompt character shown for empty slots, and a bindable value without literal characters (today `SkUiMaskFormatter.Unmask`) |
 | 5 | **Select-all on focus** | Flutter `selectAllOnFocus`; common on desktop login fields |
 | 6 | **`AcceptsReturn` / `AcceptsTab` (editor)** | Avalonia: Return inserts a newline vs moves focus; Tab inserts a tab vs focus navigation |
 | 7 | **Custom edit / context menu** | Flutter `contextMenuBuilder`: app items alongside platform Cut / Copy / Paste |

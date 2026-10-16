@@ -120,6 +120,10 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     public static readonly BindableProperty AutofillHintProperty = BindableProperty.Create(nameof(AutofillHint), typeof(string), typeof(SkUiInputView), null,
         propertyChanged: (view, _, value) => ((SkUiInputView)view).ApplyOptions(model => model.AutofillHint = (string?)value));
 
+    /// <summary>Bindable property for <see cref="FormatsAssignedText"/>.</summary>
+    public static readonly BindableProperty FormatsAssignedTextProperty = BindableProperty.Create(nameof(FormatsAssignedText), typeof(bool), typeof(SkUiInputView), false,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).OnFormatsAssignedTextChanged((bool)value));
+
     #endregion
 
     #region Properties
@@ -194,6 +198,20 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// </summary>
     public string? AutofillHint { get => (string?)GetValue(AutofillHintProperty); set => SetValue(AutofillHintProperty, value); }
 
+    /// <summary>
+    /// Formatters that rewrite or refuse the user's edits, in order (SkiaUi; <see cref="SkUiTextInputFormatter"/>: filtering,
+    /// length limits, masks): typing, committed input method text, paste, cut and deletion. Changing them formats the text
+    /// already in the field (<see cref="Text"/> follows); text the app sets later is formatted only with <see cref="FormatsAssignedText"/>.
+    /// </summary>
+    public IList<SkUiTextInputFormatter> InputFormatters => field ??= CreateInputFormatters();
+
+    /// <summary>
+    /// Whether text the app sets (<see cref="Text"/>, a binding) goes through <see cref="InputFormatters"/> too (SkiaUi; default
+    /// <c>false</c>, as Flutter): the field shows the formatted text and <see cref="Text"/> follows it. Turning it on formats the
+    /// text already there.
+    /// </summary>
+    public bool FormatsAssignedText { get => (bool)GetValue(FormatsAssignedTextProperty); set => SetValue(FormatsAssignedTextProperty, value); }
+
     /// <summary>Raised when the text changes (by the user or the app), with the old and new text.</summary>
     public event EventHandler<TextChangedEventArgs>? TextChanged;
 
@@ -267,6 +285,23 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// <summary>Sets <see cref="AutofillHint"/>.</summary>
     public SkUiInputView SetAutofillHint(string? value) { AutofillHint = value; return this; }
 
+    /// <summary>Replaces <see cref="InputFormatters"/> with <paramref name="formatters"/> (in order).</summary>
+    public SkUiInputView SetInputFormatters(params IEnumerable<SkUiTextInputFormatter> formatters)
+    {
+        ArgumentNullException.ThrowIfNull(formatters);
+        var list = formatters.ToList();
+        if (list.Contains(null!))
+            throw new ArgumentException("A formatter is null.", nameof(formatters));
+        var target = InputFormatters;
+        target.Clear();
+        foreach (var formatter in list)
+            target.Add(formatter);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="FormatsAssignedText"/>.</summary>
+    public SkUiInputView SetFormatsAssignedText(bool value) { FormatsAssignedText = value; return this; }
+
     private protected static void ThrowIfUndefined<T>(T value) where T : struct, Enum
     {
         if (!Enum.IsDefined(value))
@@ -298,6 +333,27 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
         TextChanged?.Invoke(this, new TextChangedEventArgs(oldValue, newValue));
         // Cut or transformed: Text follows what the field shows (and a two-way binding gets it).
         if (shown is not null)
+            SetValue(TextProperty, shown);
+    }
+
+    private System.Collections.ObjectModel.ObservableCollection<SkUiTextInputFormatter> CreateInputFormatters()
+    {
+        var formatters = new System.Collections.ObjectModel.ObservableCollection<SkUiTextInputFormatter>();
+        formatters.CollectionChanged += (_, _) => OnFormattersChanged();
+        Model.Editor.Formatters = formatters;
+        return formatters;
+    }
+
+    private void OnFormatsAssignedTextChanged(bool value)
+    {
+        Model.FormatsAssignedText = value;
+        if (value)
+            OnFormattersChanged();
+    }
+
+    private void OnFormattersChanged()
+    {
+        if (Model.FormatsChanged() is { } shown)
             SetValue(TextProperty, shown);
     }
 

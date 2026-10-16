@@ -62,6 +62,9 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     private static readonly SkUiTextInputOptions DefaultOptions = new(Keyboard.Default, ReturnType.Default, false, false, true, true, false,
         TextTransform.Default, null);
 
+    // What assigned text is formatted against (D9).
+    private static readonly SkUiTextEditValue EmptyValue = new(string.Empty, 0);
+
     private readonly ISkUiTextFieldOwner _owner;
     private readonly SkUiTextEditLayout _layout = new();
     private readonly SkUiTextLayout _placeholderLayout;
@@ -153,29 +156,56 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     /// <summary>An editor's <c>AutoSize</c>: its measured height follows the text (otherwise typing does not measure it again).</summary>
     public bool AutoSize;
 
+    /// <summary>The control's <c>FormatsAssignedText</c>: text the app sets goes through the input formatters too.</summary>
+    public bool FormatsAssignedText;
+
     /// <summary>
     /// The text the control holds: the app set it (not an edit of the user). The field shows it with an editor's line breaks as
-    /// <c>\n</c> (<c>\r\n</c> and <c>\r</c>, as a Windows text box gives them, are one break each), cut to <c>MaxLength</c> and
-    /// transformed (<c>TextTransform</c>); returns that text when it differs, for the control's <c>Text</c> to follow (as MAUI's
-    /// fields push the text they show back), else <c>null</c>. The control raises its own change first, then follows.
+    /// <c>\n</c> (<c>\r\n</c> and <c>\r</c>, as a Windows text box gives them, are one break each), cut to <c>MaxLength</c>,
+    /// transformed (<c>TextTransform</c>) and, with <see cref="FormatsAssignedText"/>, formatted by the input formatters; returns
+    /// that text when it differs, for the control's <c>Text</c> to follow (as MAUI's fields push the text they show back), else
+    /// <c>null</c>. The control raises its own change first, then follows.
     /// </summary>
     public string? SetText(string? text)
     {
         var source = text ?? string.Empty;
         var lines = IsMultiline ? SkUiTextEditor.NormalizeLineBreaks(source) : source;
-        var cut = lines;
-        if (Editor.MaxLength < int.MaxValue && lines.Length > Editor.MaxLength)
-        {
-            // Never splits a surrogate pair (as typed text is cut).
-            var length = Editor.MaxLength;
-            if (length > 0 && char.IsLowSurrogate(lines[length]))
-                length--;
-            cut = lines[..length];
-        }
-        var shown = SkUiTextTransform.Apply(cut, Editor.Transform);
+        var shown = SkUiTextTransform.Apply(Cut(lines), Editor.Transform);
+        if (FormatsAssignedText && Editor.HasFormatters)
+            shown = FormatAssigned(shown);
         if (shown != Editor.Text)
             Editor.SetText(shown);
         return shown == source ? null : shown;
+    }
+
+    /// <summary>
+    /// The input formatters changed (or <see cref="FormatsAssignedText"/> was turned on): the text already in the field is
+    /// formatted by them, as <c>TextTransform</c> transforms it when it changes (as if pasted into an empty field; the caret
+    /// stays). Returns the new text for the control's <c>Text</c> to follow, or <c>null</c>.
+    /// </summary>
+    public string? FormatsChanged()
+    {
+        if (!Editor.HasFormatters)
+            return null;
+        var shown = FormatAssigned(Editor.Text);
+        if (shown == Editor.Text)
+            return null;
+        Editor.SetText(shown, keepCaret: true);
+        return shown;
+    }
+
+    // Text the app set, through the formatters as if it were pasted into an empty field (and still within MaxLength).
+    private string FormatAssigned(string text) => Cut(Editor.Format(EmptyValue, new SkUiTextEditValue(text, text.Length)).Text);
+
+    // Cut to MaxLength, never splitting a surrogate pair (as typed text is cut).
+    private string Cut(string text)
+    {
+        if (Editor.MaxLength == int.MaxValue || text.Length <= Editor.MaxLength)
+            return text;
+        var length = Editor.MaxLength;
+        if (length > 0 && char.IsLowSurrogate(text[length]))
+            length--;
+        return text[..length];
     }
 
     /// <summary>

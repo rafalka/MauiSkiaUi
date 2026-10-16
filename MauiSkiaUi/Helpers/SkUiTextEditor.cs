@@ -97,6 +97,8 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
     private bool _batchSelectionChanged;
     private string _batchOldText = string.Empty;
     private bool _batchByUser;
+    // Set while an input method's marked text is replaced (formatters wait for the commit).
+    private bool _updatingComposition;
 
     private sealed class Edit
     {
@@ -147,6 +149,15 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
 
     /// <summary>Ctrl / Alt + Right goes to the current word's end (Apple) rather than the next word's start.</summary>
     public bool WordRightGoesToWordEnd { get; set; } = OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst();
+
+    /// <summary>
+    /// The field's input formatters (D9), run in order on each edit of the user (not on undo / redo or <see cref="SetText"/>);
+    /// <c>null</c> items are skipped. The list is the control's, read on each edit.
+    /// </summary>
+    public IList<SkUiTextInputFormatter>? Formatters { get; set; }
+
+    /// <summary>Whether <see cref="Formatters"/> holds any.</summary>
+    public bool HasFormatters => Formatters is { Count: > 0 };
 
     /// <summary>The x line movement keeps (set by the first Up / Down, cleared by other moves).</summary>
     public float? GoalX { get; set; }
@@ -309,8 +320,9 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
     /// <summary>
     /// Replaces <c>[start, end)</c> with <paramref name="text"/> as input: refused when read-only; line breaks become spaces
     /// in a single-line field; <see cref="Transform"/> applies; what would pass <see cref="MaxLength"/> is cut (a refused or
-    /// emptied insertion changes nothing). The caret goes after the insertion (or to <paramref name="caret"/>). Returns whether
-    /// the text changed.
+    /// emptied insertion changes nothing); then the <see cref="Formatters"/> rewrite or refuse the result (not while an input
+    /// method composes). The caret goes after the insertion (or to <paramref name="caret"/>, or where the formatters put it).
+    /// Returns whether the text changed.
     /// </summary>
     public bool Replace(int start, int end, string text, SkUiTextEditKind kind = SkUiTextEditKind.Other, int? caret = null)
     {
@@ -330,6 +342,12 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
             if (text.Length == 0 && end == start)
                 return false;
         }
+        if (HasFormatters && !_updatingComposition && !HasComposition)
+        {
+            var proposed = string.Concat(Text.AsSpan(0, start), text, Text.AsSpan(end));
+            var proposedCaret = Math.Clamp(caret ?? start + text.Length, 0, proposed.Length);
+            return ApplyFormatted(new SkUiTextEditValue(proposed, proposedCaret), kind);
+        }
         var removed = Text.Substring(start, end - start);
         if (removed == text)
         {
@@ -348,6 +366,60 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
         RaiseText(old, byUser: true);
         RaiseSelection();
         return true;
+    }
+
+    /// <summary>
+    /// Runs the <see cref="Formatters"/> on <paramref name="proposed"/> (the text an edit would make) and applies what they
+    /// return as one edit of <paramref name="kind"/>: the text changes by the one replacement that turns the current text into
+    /// it, and the selection goes where they put it. Returns whether the text changed.
+    /// </summary>
+    private bool ApplyFormatted(SkUiTextEditValue proposed, SkUiTextEditKind kind)
+    {
+        var old = Text;
+        var value = Format(new SkUiTextEditValue(old, SelectionStart, SelectionEnd), proposed);
+        var result = value.Text;
+        // Formatters that add characters (a mask's literals) still keep the text within MaxLength.
+        if (result.Length > MaxLength && result.Length > old.Length)
+        {
+            var length = Math.Max(MaxLength, old.Length);
+            if (length > 0 && char.IsLowSurrogate(result[length]))
+                length--;
+            result = result[..length];
+            value = value with { Text = result };
+        }
+        var anchor = Math.Clamp(value.SelectionStart, 0, result.Length);
+        var caret = Math.Clamp(value.SelectionEnd, 0, result.Length);
+        if (result == old)
+        {
+            // Refused (or only the caret moved, as a typed separator that steps over the one already there).
+            Select(anchor, caret);
+            return false;
+        }
+        var (start, end, inserted) = Diff(old, result);
+        var anchorBefore = Anchor;
+        var caretBefore = Caret;
+        Text = result;
+        SetSelectionCore(anchor, caret, false);
+        GoalX = null;
+        ShiftComposition(start, end, inserted.Length);
+        Record(start, old.Substring(start, end - start), inserted, anchorBefore, caretBefore, kind);
+        RaiseText(old, byUser: true);
+        RaiseSelection();
+        return true;
+    }
+
+    /// <summary>
+    /// <paramref name="value"/> through the <see cref="Formatters"/> in order (each on the previous one's result), with
+    /// <paramref name="old"/> the value before the edit; the result has its selection inside its text.
+    /// </summary>
+    internal SkUiTextEditValue Format(SkUiTextEditValue old, SkUiTextEditValue value)
+    {
+        if (Formatters is not { } formatters)
+            return value;
+        for (var i = 0; i < formatters.Count; i++)
+            if (formatters[i] is { } formatter)
+                value = formatter.Format(old, value).Clamped();
+        return value;
     }
 
     /// <summary>Inserts <paramref name="text"/> over the composition, else over the selection (typing, an input method's commit, paste).</summary>
@@ -388,6 +460,7 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
         if (!composing)
             _coalesce = false;
         BeginBatch();
+        _updatingComposition = true;
         try
         {
             var cleaned = Clean(text);
@@ -408,6 +481,7 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
         }
         finally
         {
+            _updatingComposition = false;
             EndBatch();
         }
     }
@@ -431,14 +505,25 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
         RaiseSelection();
     }
 
-    /// <summary>Commits the composition: its text stays, unmarked.</summary>
+    /// <summary>Commits the composition: its text stays, unmarked (and the <see cref="Formatters"/> format it now).</summary>
     public void FinishComposing()
     {
         if (CompositionStart < 0)
             return;
-        ClearComposition();
-        _coalesce = false;
-        RaiseSelection();
+        var committed = HasComposition;
+        BeginBatch();
+        try
+        {
+            ClearComposition();
+            if (committed && HasFormatters && !IsReadOnly)
+                ApplyFormatted(new SkUiTextEditValue(Text, SelectionStart, SelectionEnd), SkUiTextEditKind.Composing);
+            _coalesce = false;
+            RaiseSelection();
+        }
+        finally
+        {
+            EndBatch();
+        }
     }
 
     /// <summary>Removes the composition's text (the input method cancelled it).</summary>
@@ -451,6 +536,7 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
         }
         var (start, end) = (CompositionStart, CompositionEnd);
         BeginBatch();
+        _updatingComposition = true;
         try
         {
             ClearComposition();
@@ -458,6 +544,7 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
         }
         finally
         {
+            _updatingComposition = false;
             EndBatch();
         }
     }

@@ -95,6 +95,15 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     /// <summary>What the field holds for password managers and autofill (<see cref="SkUiAutofillHints"/>).</summary>
     public string? AutofillHint { get => Model.AutofillHint; set => SetAutofillHint(value); }
 
+    /// <summary>
+    /// Formatters that rewrite or refuse the user's edits, in order (<see cref="SkUiTextInputFormatter"/>; see
+    /// <see cref="SkUiInputView.InputFormatters"/>).
+    /// </summary>
+    public IList<SkUiTextInputFormatter> InputFormatters => field ??= CreateInputFormatters();
+
+    /// <summary>Whether text the app sets goes through <see cref="InputFormatters"/> too (default <c>false</c>; see <see cref="SkUiInputView.FormatsAssignedText"/>).</summary>
+    public bool FormatsAssignedText { get => Model.FormatsAssignedText; set => SetFormatsAssignedText(value); }
+
     /// <summary>Raised when the text changes (by the user or the app), with the old and new text.</summary>
     public event EventHandler<TextChangedEventArgs>? TextChanged;
 
@@ -236,6 +245,44 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
 
     /// <summary>Sets <see cref="AutofillHint"/>.</summary>
     public SkUiCoreInputView SetAutofillHint(string? value) => UpdateOptions(ref Model.AutofillHint, value, nameof(AutofillHint));
+
+    /// <summary>Replaces <see cref="InputFormatters"/> with <paramref name="formatters"/> (in order).</summary>
+    public SkUiCoreInputView SetInputFormatters(params IEnumerable<SkUiTextInputFormatter> formatters)
+    {
+        ArgumentNullException.ThrowIfNull(formatters);
+        var list = formatters.ToList();
+        if (list.Contains(null!))
+            throw new ArgumentException("A formatter is null.", nameof(formatters));
+        var target = InputFormatters;
+        target.Clear();
+        foreach (var formatter in list)
+            target.Add(formatter);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="FormatsAssignedText"/>.</summary>
+    public SkUiCoreInputView SetFormatsAssignedText(bool value)
+    {
+        if (!SetProperty(ref Model.FormatsAssignedText, value, nameof(FormatsAssignedText)))
+            return this;
+        if (value)
+            OnFormattersChanged();
+        return this;
+    }
+
+    private System.Collections.ObjectModel.ObservableCollection<SkUiTextInputFormatter> CreateInputFormatters()
+    {
+        var formatters = new System.Collections.ObjectModel.ObservableCollection<SkUiTextInputFormatter>();
+        formatters.CollectionChanged += (_, _) => OnFormattersChanged();
+        Model.Editor.Formatters = formatters;
+        return formatters;
+    }
+
+    private void OnFormattersChanged()
+    {
+        if (Model.FormatsChanged() is { } shown)
+            SetText(shown);
+    }
 
     /// <inheritdoc />
     public override SkUiCoreNode SetMinimumHeight(double value)

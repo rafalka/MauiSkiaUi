@@ -353,8 +353,8 @@ internal sealed partial class SkUiWindowsTextInput : ISkUiTextInputProxy
         {
             client.EndInputBatch();
         }
-        // The field changed the edit (a max length, a transform): the box follows it.
-        if (!_composing && ToBox(client.Editor) != text)
+        // The field changed the edit (a max length, a transform, an input formatter, which may also move the caret): the box follows it.
+        if (!_composing && (ToBox(client.Editor) != text || SelectionDiffers(client)))
             Copy(client);
     }
 

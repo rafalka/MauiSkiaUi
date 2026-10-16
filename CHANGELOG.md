@@ -13,6 +13,14 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Input formatters (D9):** `InputFormatters` on `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar` and their Core twins rewrite or refuse the user's edits, in order, as Flutter's `TextInputFormatter` ([SkUiEntry.md](docs/controls/SkUiEntry.md#how-it-works), [design](docs/design/TextInput.md#input-formatters-d9)).
+  - A formatter (`SkUiTextInputFormatter`) gets the value before the edit and after it (`SkUiTextEditValue`: text and selection) and returns the value the field takes: it can filter, cap or re-mask the whole text and place the caret. `SkUiTextInputFormatter.Create` wraps a function.
+  - Typing, an input method's committed text, paste, cut, Backspace / Delete and a screen reader's set-text are formatted; the result is one edit and one undo step. A composition is formatted when committed, not while composed; undo / redo are not formatted; `MaxLength` still holds.
+  - Built in: `SkUiFilteringFormatter` (allow or deny by a regular expression or a character predicate, with a replacement; `DigitsOnly`), `SkUiLengthLimitingFormatter` (cap graphemes, digits, or letters and digits; a paste keeps what fits) and `SkUiMaskFormatter` (mask-as-you-type: `0` digit, `L` letter, `A` letter or digit, `&` any, `\` escapes; literals inserted as the user reaches them, Backspace / Delete over a literal, `Unmask`, `IsComplete`).
+  - Changing the formatters formats the text already in the field (as `TextTransform` does). `FormatsAssignedText` (default off): text the app sets goes through the formatters too. Either way `Text` (and a two-way binding) follows the formatted text.
+
 ## 1.0.0-Prerelease12
 
 ### New features
