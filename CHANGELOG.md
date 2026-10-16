@@ -46,6 +46,13 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - Screen readers read the message after the field (VoiceOver and Narrator in the hint); TalkBack gets an `EditText`'s error and invalid state, and the helper text in the hint.
   - `ErrorColor` on each field overrides the color scheme's `Error` for its chrome and message (a brand's error red, a warning in amber).
   - `SkUiTextFieldPaint` and `SkUiSearchFieldPaint` have `HasError` and `Error` (optional, last; the field's error color), for custom painters.
+- **Numeric entry (D16):** `SkUiNumericEntry` (`double?`) and `SkUiNumericEntry<T>` (any number type: `int`, `long`, `decimal`, `float`, …), and the Core `SkUiCoreNumericEntry` / `SkUiCoreNumericEntry<T>`: an entry for numbers only with optional − / + buttons in its chrome, replacing an `Entry` with `Keyboard="Numeric"` and a converter, Syncfusion's `SfNumericEntry` / `SfNumericUpDown` and Telerik's `RadNumericInput` ([SkUiNumericEntry.md](docs/controls/SkUiNumericEntry.md), [design](docs/design/TextInput.md#numeric-entry-d16)).
+  - `Value` (two-way; `null` while empty with `AllowNull`, the default), `Minimum` / `Maximum` (the type's range by default), `Increment`, `LargeIncrement`, `ValueChanged` (`SkUiValueChangedEventArgs<T?>`, synchronous). A value the app sets is clamped at once (the asked value comes back when the range widens); typed text only when the user is done (Return, focus leaving, a step) or, with `ValueChangeMode="OnKeystroke"`, on each edit that is within the range. Escape reverts. `MaximumDecimalDigits` limits typing and rounds.
+  - Shown in `Format` (`"N2"`, `"C0"`, `"0.## kg"`) and `Culture` when not edited, as the plain number with everything selected while edited.
+  - Typing takes digits, the culture's decimal separator once (`.` and `,` both type it), and a minus sign only when `Minimum` is negative (it toggles the sign wherever the caret is); pasted text is cleaned (`1 234,50 €` → `1234,50`); integer types refuse what would overflow them.
+  - `ButtonPlacement` (`None`, `End`, `Start`, `Split`) × `ButtonOrientation` (side by side, or stacked: a spinner column, or bars above and below the text). Buttons step without focusing the field or showing the keyboard, repeat while held, and take `DecrementText` / `IncrementText` (`ButtonFontFamily`) and `ButtonColor`. Up / Down, Page Up / Page Down and the wheel (while focused) step; `AutoReverse` wraps; `IsEditable="False"` steps without typing. Screen readers get a text field that increments and decrements.
+  - The keyboard is picked from the type and range: digits, a decimal separator, a minus sign (on iOS, `NumbersAndPunctuation` when the value can be negative, since the number pads have no minus key).
+  - Look: `DrawTextFieldStepButtons` / `TextFieldStepButtonsPainter` (`SkUiTextFieldStepButtonsPaint`), `TextFieldStepButtonSize`.
 
 
 ### Fixes
@@ -58,6 +65,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 - Samples app: the **Pizza order** sample counts pizzas with a typed stepper in XAML (`SkUiStepper<int>`, `x:TypeArguments="x:Int32"`). Demo gallery: a `SkUiStepper<decimal>` page next to MAUI's `Stepper`.
 - Text fields take keyboard focus also when accessibility is switched off and when they are not tab stops; they draw their own focus highlight instead of the focus ring.
 - Demo: **Entry**, **Editor**, **SearchBar** and **Stepper** pages next to MAUI's controls. Leak scenario `TextFieldsEdited`.
+- Demo: **Numeric entry** pages: `SkUiNumericEntry` next to an `Entry` with `Keyboard.Numeric`, and a `SkUiNumericEntry<decimal>` price.
 
 ## 1.0.0-Prerelease12
 

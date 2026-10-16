@@ -611,6 +611,10 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
         get
         {
             var options = Options;
+            // A numeric entry's: neither number pad has a minus key, so a value that can be negative gets numbers and punctuation.
+            if (options.IsNumber)
+                return options.IsSignedNumber ? UIKeyboardType.NumbersAndPunctuation
+                    : options.IsDecimalNumber ? UIKeyboardType.DecimalPad : UIKeyboardType.NumberPad;
             if (options.IsNumeric) return UIKeyboardType.DecimalPad;
             if (options.IsTelephone) return UIKeyboardType.PhonePad;
             if (options.IsEmail) return UIKeyboardType.EmailAddress;
@@ -643,7 +647,7 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
                 return UITextAutocapitalizationType.Words;
             if (flags.HasFlag(KeyboardFlags.CapitalizeSentence) || options.IsChat || ReferenceEquals(options.Keyboard, Keyboard.Text))
                 return UITextAutocapitalizationType.Sentences;
-            if (options.IsPassword || options.IsEmail || options.IsUrl || options.IsPlain || options.IsNumeric || options.IsTelephone
+            if (options.IsPassword || options.IsEmail || options.IsUrl || options.IsPlain || options.IsNumeric || options.IsNumber || options.IsTelephone
                 || options.TextTransform == TextTransform.Lowercase || flags.HasFlag(KeyboardFlags.CapitalizeNone))
                 return UITextAutocapitalizationType.None;
             return UITextAutocapitalizationType.Sentences;

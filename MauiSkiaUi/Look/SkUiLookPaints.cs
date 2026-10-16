@@ -316,6 +316,30 @@ public readonly record struct SkUiStepperPaint(
     bool IsRightToLeft, bool HasDecrementText = false, bool HasIncrementText = false, float CornerRadius = SkUiLook.DefaultStepperCornerRadius,
     float BorderWidth = 0, SKColor BorderColor = default);
 
+/// <summary>What a look draws a numeric entry's − and + buttons with (<see cref="SkUiLook.DrawTextFieldStepButtons"/>).</summary>
+/// <param name="Field">The field's rectangle (its chrome's bounds; the buttons are inside it).</param>
+/// <param name="DecrementBounds">The − button.</param>
+/// <param name="IncrementBounds">The + button.</param>
+/// <param name="Placement">Where the buttons sit: at the end side, the start side, or split (− at the start or bottom, + at the end or top).</param>
+/// <param name="Orientation">
+/// Side by side (<see cref="StackOrientation.Horizontal"/>) or stacked (<see cref="StackOrientation.Vertical"/>): + above −
+/// in one column, or with <see cref="SkUiStepButtonPlacement.Split"/>, bars across the field above and below the text.
+/// </param>
+/// <param name="Border">The dividers' and the pressed tint's color (the color scheme's muted color).</param>
+/// <param name="Foreground">The − and + color (the entry's <c>ButtonColor</c>, else its text color).</param>
+/// <param name="DecrementPressed">How pressed the − button is, 0–1.</param>
+/// <param name="IncrementPressed">How pressed the + button is, 0–1.</param>
+/// <param name="CanDecrement">The − button can step (above the minimum, or the value wraps).</param>
+/// <param name="CanIncrement">The + button can step.</param>
+/// <param name="IsEnabled">The entry is enabled.</param>
+/// <param name="IsRightToLeft">The entry lays out right to left (the rectangles are already mirrored).</param>
+/// <param name="HasDecrementText">The entry draws a text of its own on the − button (its <c>DecrementText</c>): no − glyph.</param>
+/// <param name="HasIncrementText">The entry draws a text of its own on the + button (its <c>IncrementText</c>): no + glyph.</param>
+public readonly record struct SkUiTextFieldStepButtonsPaint(
+    SKRect Field, SKRect DecrementBounds, SKRect IncrementBounds, SkUiStepButtonPlacement Placement, StackOrientation Orientation, SKColor Border,
+    SKColor Foreground, float DecrementPressed, float IncrementPressed, bool CanDecrement, bool CanIncrement, bool IsEnabled, bool IsRightToLeft,
+    bool HasDecrementText, bool HasIncrementText);
+
 /// <summary>What a look draws a picker field's clear button with (<see cref="SkUiLook.DrawPickerClearButton"/>).</summary>
 /// <param name="Bounds">The button's room in the field (before the chevron, the end side).</param>
 /// <param name="Color">The button's color (the color scheme's muted color).</param>

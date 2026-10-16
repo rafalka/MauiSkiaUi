@@ -16,6 +16,10 @@ namespace MauiSkiaUi;
 /// <param name="TextTransform">Upper or lower case input: the keyboard starts in that case where it can.</param>
 /// <param name="AutofillHint">What the field holds for password managers and autofill (<see cref="SkUiAutofillHints"/>), or <c>null</c>.</param>
 /// <param name="IsSearch">A search bar: the platform's search keyboard where it has one.</param>
+/// <param name="NumberKeyboard">
+/// A numeric entry's keyboard (D16), in place of <paramref name="Keyboard"/>: digits, with a decimal separator and a minus sign
+/// when the value can have them. <see cref="SkUiNumberKeyboard.None"/>: <paramref name="Keyboard"/>.
+/// </param>
 internal readonly record struct SkUiTextInputOptions(
     Keyboard Keyboard,
     ReturnType ReturnType,
@@ -26,8 +30,18 @@ internal readonly record struct SkUiTextInputOptions(
     bool IsReadOnly,
     TextTransform TextTransform,
     string? AutofillHint,
-    bool IsSearch = false)
+    bool IsSearch = false,
+    SkUiNumberKeyboard NumberKeyboard = SkUiNumberKeyboard.None)
 {
+    /// <summary>Whether the keyboard is a numeric entry's (<see cref="NumberKeyboard"/>).</summary>
+    internal bool IsNumber => (NumberKeyboard & SkUiNumberKeyboard.Digits) != 0;
+
+    /// <summary>A numeric entry's value can have decimals: the keyboard has a decimal separator.</summary>
+    internal bool IsDecimalNumber => (NumberKeyboard & SkUiNumberKeyboard.Decimal) != 0;
+
+    /// <summary>A numeric entry's value can be negative: the keyboard has a minus sign.</summary>
+    internal bool IsSignedNumber => (NumberKeyboard & SkUiNumberKeyboard.Signed) != 0;
+
     /// <summary>The keyboard's capitalization: MAUI's custom keyboard flags, else sentences for chat / text keyboards.</summary>
     internal KeyboardFlags Flags => Keyboard is CustomKeyboard custom ? custom.Flags : KeyboardFlags.None;
 
@@ -39,6 +53,25 @@ internal readonly record struct SkUiTextInputOptions(
     internal bool IsUrl => ReferenceEquals(Keyboard, Keyboard.Url);
     internal bool IsChat => ReferenceEquals(Keyboard, Keyboard.Chat);
     internal bool IsPlain => ReferenceEquals(Keyboard, Keyboard.Plain);
+}
+
+/// <summary>A numeric entry's keyboard (D16): picked from the value's type and range instead of MAUI's one <c>Keyboard.Numeric</c>.</summary>
+[Flags]
+internal enum SkUiNumberKeyboard
+{
+    /// <summary>Not a numeric entry: the field's <c>Keyboard</c>.</summary>
+    None = 0,
+
+    /// <summary>Digits (Android <c>ClassNumber</c>, iOS <c>NumberPad</c>, Windows <c>Number</c>).</summary>
+    Digits = 1,
+
+    /// <summary>With a decimal separator (Android <c>NumberFlagDecimal</c>, iOS <c>DecimalPad</c>).</summary>
+    Decimal = 2,
+
+    /// <summary>
+    /// With a minus sign (Android <c>NumberFlagSigned</c>; iOS <c>NumbersAndPunctuation</c>, since neither number pad has a minus key).
+    /// </summary>
+    Signed = 4
 }
 
 /// <summary>

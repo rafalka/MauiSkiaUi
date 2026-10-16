@@ -1100,6 +1100,118 @@ public class SkUiLook
     /// <summary>Default text field: none (<see cref="DefaultSkUiLook"/> draws <see cref="DefaultSkUiLook.TextFieldStyle"/>).</summary>
     protected virtual void DrawTextFieldCore(SKCanvas canvas, SkUiTextFieldPaint field) { }
 
+    /// <summary>
+    /// The size of a numeric entry's − or + button, in DIPs (default 36 × 28): its width beside the text (both buttons side by side
+    /// take twice that, stacked in one column once), its height as a bar above or below the text (split and stacked). A button's
+    /// own text that needs more makes it larger.
+    /// </summary>
+    public virtual Size TextFieldStepButtonSize => new(36, 28);
+
+    /// <summary>Optional painter of a numeric entry's − and + buttons; when set, replaces <see cref="DrawTextFieldStepButtonsCore"/>.</summary>
+    public Action<SKCanvas, SkUiTextFieldStepButtonsPaint>? TextFieldStepButtonsPainter { get; set; }
+
+    /// <summary>
+    /// Draws a numeric entry's − and + buttons (delegate or <see cref="DrawTextFieldStepButtonsCore"/>) in
+    /// <see cref="SkUiTextFieldStepButtonsPaint.DecrementBounds"/> and <see cref="SkUiTextFieldStepButtonsPaint.IncrementBounds"/>,
+    /// inside the field's chrome, with their pressed states and dimmed when they cannot step. A button with a text of the entry's
+    /// own (<see cref="SkUiTextFieldStepButtonsPaint.HasDecrementText"/>, <see cref="SkUiTextFieldStepButtonsPaint.HasIncrementText"/>)
+    /// gets no glyph: the entry draws its text over the look's drawing.
+    /// </summary>
+    public void DrawTextFieldStepButtons(SKCanvas canvas, SkUiTextFieldStepButtonsPaint buttons)
+    {
+        if (TextFieldStepButtonsPainter is { } painter)
+        {
+            painter(canvas, buttons);
+            return;
+        }
+        DrawTextFieldStepButtonsCore(canvas, buttons);
+    }
+
+    /// <summary>
+    /// Default step buttons: a light rounded tint while pressed, a short muted divider between the buttons and the text and between
+    /// the two buttons, and a − and a + in the foreground (dimmed when the button cannot step or the entry is disabled).
+    /// </summary>
+    protected virtual void DrawTextFieldStepButtonsCore(SKCanvas canvas, SkUiTextFieldStepButtonsPaint buttons)
+    {
+        var decrement = buttons.DecrementBounds;
+        var increment = buttons.IncrementBounds;
+        if (decrement.IsEmpty && increment.IsEmpty)
+            return;
+        var enabled = buttons.IsEnabled;
+        using var paint = new SKPaint { IsAntialias = true };
+        void Press(SKRect button, float amount)
+        {
+            if (amount <= 0 || button.Width <= 4 || button.Height <= 4)
+                return;
+            paint.Color = buttons.Foreground.WithAlpha((byte)(28 * Math.Clamp(amount, 0, 1)));
+            var tint = button;
+            tint.Inflate(-2, -2);
+            canvas.DrawRoundRect(tint, 4, 4, paint);
+        }
+        Press(decrement, buttons.DecrementPressed);
+        Press(increment, buttons.IncrementPressed);
+        paint.Style = SKPaintStyle.Stroke;
+        paint.StrokeWidth = 1;
+        paint.Color = buttons.Border.WithAlpha((byte)(buttons.Border.Alpha * (enabled ? 0.6f : 0.3f)));
+        var field = buttons.Field;
+        // A divider on the side of a button that faces the text (or the other button), short as the stepper's.
+        void Divider(SKRect button)
+        {
+            if (button.IsEmpty)
+                return;
+            if (button.Width >= field.Width - 0.5f)
+            {
+                // A bar across the field: its edge towards the text.
+                var y = button.MidY < field.MidY ? button.Bottom : button.Top;
+                var inset = Math.Min(12, field.Width / 4);
+                canvas.DrawLine(field.Left + inset, y, field.Right - inset, y, paint);
+                return;
+            }
+            var x = button.MidX < field.MidX ? button.Right : button.Left;
+            var vertical = button.Height * 0.22f;
+            canvas.DrawLine(x, button.Top + vertical, x, button.Bottom - vertical, paint);
+        }
+        if (buttons.Orientation == StackOrientation.Vertical && buttons.Placement != SkUiStepButtonPlacement.Split)
+        {
+            // One column: its edge towards the text, and a line between + and −.
+            Divider(SKRect.Union(decrement, increment));
+            var y = (increment.Bottom + decrement.Top) / 2;
+            var inset = decrement.Width * 0.22f;
+            canvas.DrawLine(decrement.Left + inset, y, decrement.Right - inset, y, paint);
+        }
+        else if (buttons.Placement == SkUiStepButtonPlacement.Split)
+        {
+            Divider(decrement);
+            Divider(increment);
+        }
+        else
+        {
+            // Side by side at one end: the inner button's edge towards the text, and a line between the two.
+            var (outer, inner) = Math.Abs(decrement.MidX - field.MidX) > Math.Abs(increment.MidX - field.MidX) ? (decrement, increment) : (increment, decrement);
+            Divider(inner);
+            var x = outer.MidX < inner.MidX ? outer.Right : outer.Left;
+            var vertical = outer.Height * 0.22f;
+            canvas.DrawLine(x, outer.Top + vertical, x, outer.Bottom - vertical, paint);
+        }
+        paint.StrokeWidth = 1.75f;
+        paint.StrokeCap = SKStrokeCap.Round;
+        void Glyph(SKRect button, bool plus, bool canStep)
+        {
+            if (button.IsEmpty)
+                return;
+            var color = buttons.Foreground;
+            paint.Color = color.WithAlpha((byte)(color.Alpha * (enabled && canStep ? 1f : StepperDimmedOpacity)));
+            var arm = Math.Min(5.5f, Math.Min(button.Width, button.Height) / 4);
+            canvas.DrawLine(button.MidX - arm, button.MidY, button.MidX + arm, button.MidY, paint);
+            if (plus)
+                canvas.DrawLine(button.MidX, button.MidY - arm, button.MidX, button.MidY + arm, paint);
+        }
+        if (!buttons.HasDecrementText)
+            Glyph(decrement, plus: false, buttons.CanDecrement);
+        if (!buttons.HasIncrementText)
+            Glyph(increment, plus: true, buttons.CanIncrement);
+    }
+
     /// <summary>Optional painter of a text field's clear button; when set, replaces <see cref="DrawTextFieldClearButtonCore"/>.</summary>
     public Action<SKCanvas, SkUiPickerClearButtonPaint>? TextFieldClearButtonPainter { get; set; }
 

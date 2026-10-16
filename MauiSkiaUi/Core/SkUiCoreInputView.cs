@@ -71,7 +71,7 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     public int MaxLength { get => Model.Editor.MaxLength; set => SetMaxLength(value); }
 
     /// <summary>Whether the text cannot be changed by the user (it can still be selected and copied).</summary>
-    public bool IsReadOnly { get => Model.Editor.IsReadOnly; set => SetIsReadOnly(value); }
+    public bool IsReadOnly { get => Model.IsReadOnly; set => SetIsReadOnly(value); }
 
     /// <summary>The soft keyboard's layout.</summary>
     public Keyboard Keyboard { get => Model.Keyboard; set => SetKeyboard(value); }
@@ -140,7 +140,24 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
         var shown = Model.SetText(value);
         TextChanged?.Invoke(this, new TextChangedEventArgs(old, _text));
         // Cut or transformed: Text follows what the field shows.
-        return shown is null ? this : SetText(shown);
+        if (shown is not null)
+            return SetText(shown);
+        if (!_textEditing)
+            OnTextAssigned();
+        return this;
+    }
+
+    // The user's edit is setting Text (not the app).
+    private bool _textEditing;
+
+    /// <summary>The app set <see cref="Text"/> (not the user's edit), after the field took it.</summary>
+    private protected virtual void OnTextAssigned()
+    {
+    }
+
+    /// <summary>The user edited the text (typing, the input method, paste, undo), after <see cref="Text"/> followed.</summary>
+    private protected virtual void OnTextEdited()
+    {
     }
 
     /// <summary>Sets <see cref="Placeholder"/>.</summary>
@@ -216,14 +233,15 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     /// <summary>Sets <see cref="IsReadOnly"/>.</summary>
     public SkUiCoreInputView SetIsReadOnly(bool value)
     {
-        if (Model.Editor.IsReadOnly == value)
+        if (Model.IsReadOnly == value)
             return this;
-        Model.Editor.IsReadOnly = value;
+        ApplyReadOnly(value);
         OnPropertyChanged(nameof(IsReadOnly));
-        Model.OptionsChanged();
-        Model.PaintChanged();
         return this;
     }
+
+    /// <summary><see cref="IsReadOnly"/> changed: the field model follows (a numeric entry adds its <c>IsEditable</c>).</summary>
+    private protected virtual void ApplyReadOnly(bool value) => Model.SetReadOnly(value);
 
     /// <summary>Sets <see cref="Keyboard"/>.</summary>
     public SkUiCoreInputView SetKeyboard(Keyboard value)
@@ -451,6 +469,8 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     {
         base.CollectGestureRecognizers(recognizers);
         recognizers.Add(Model.Gestures);
+        if (Model.Steps is { HasButtons: true } steps)
+            recognizers.Add(steps.Gestures);
     }
 
     /// <inheritdoc />
@@ -482,8 +502,7 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     }
 
     /// <inheritdoc />
-    protected override bool OnSemanticsAction(SkUiSemanticsActions action) =>
-        action == SkUiSemanticsActions.Activate ? Model.Activate() : base.OnSemanticsAction(action);
+    protected override bool OnSemanticsAction(SkUiSemanticsActions action) => Model.PerformSemanticsAction(action) || base.OnSemanticsAction(action);
 
     /// <inheritdoc />
     internal override bool TakesKeyboardFocus => true;
@@ -517,7 +536,19 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
 
     bool ISkUiTextFieldOwner.IsFocused => IsFocused;
 
-    void ISkUiTextFieldOwner.TextEdited(string text) => SetText(text);
+    void ISkUiTextFieldOwner.TextEdited(string text)
+    {
+        _textEditing = true;
+        try
+        {
+            SetText(text);
+        }
+        finally
+        {
+            _textEditing = false;
+        }
+        OnTextEdited();
+    }
 
     void ISkUiTextFieldOwner.SelectionEdited(int start, int length)
     {

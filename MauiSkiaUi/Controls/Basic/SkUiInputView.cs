@@ -456,6 +456,21 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
         // Cut or transformed: Text follows what the field shows (and a two-way binding gets it).
         if (shown is not null)
             SetValue(TextProperty, shown);
+        else if (!_textEditing)
+            OnTextAssigned();
+    }
+
+    // The user's edit is setting Text (not the app).
+    private bool _textEditing;
+
+    /// <summary>The app set <see cref="Text"/> (not the user's edit), after the field took it.</summary>
+    private protected virtual void OnTextAssigned()
+    {
+    }
+
+    /// <summary>The user edited the text (typing, the input method, paste, undo), after <see cref="Text"/> followed.</summary>
+    private protected virtual void OnTextEdited()
+    {
     }
 
     private System.Collections.ObjectModel.ObservableCollection<SkUiTextInputFormatter> CreateInputFormatters()
@@ -493,12 +508,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
             Text = text[..value];
     }
 
-    private void OnIsReadOnlyChanged(bool value)
-    {
-        Model.Editor.IsReadOnly = value;
-        Model.OptionsChanged();
-        Model.PaintChanged();
-    }
+    private protected virtual void OnIsReadOnlyChanged(bool value) => Model.SetReadOnly(value);
 
     private void OnAdornmentChanged(ISkUiView? oldValue, ISkUiView? newValue)
     {
@@ -599,8 +609,11 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
     {
         base.CollectGestureRecognizers(recognizers);
-        if (IsEnabled)
-            recognizers.Add(Model.Gestures);
+        if (!IsEnabled)
+            return;
+        recognizers.Add(Model.Gestures);
+        if (Model.Steps is { HasButtons: true } steps)
+            recognizers.Add(steps.Gestures);
     }
 
     /// <inheritdoc />
@@ -611,7 +624,10 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
         {
             case nameof(IsEnabled):
                 Model.IsEnabled = IsEnabled;
+                if (!IsEnabled)
+                    Model.Steps?.Release();
                 Model.PaintChanged();
+                Model.SemanticsChanged();
                 break;
             case nameof(IsPointerOver):
                 Model.IsPointerOver = IsPointerOver;
@@ -648,8 +664,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     }
 
     /// <inheritdoc />
-    protected override bool OnSemanticsAction(SkUiSemanticsActions action) =>
-        action == SkUiSemanticsActions.Activate ? Model.Activate() : base.OnSemanticsAction(action);
+    protected override bool OnSemanticsAction(SkUiSemanticsActions action) => Model.PerformSemanticsAction(action) || base.OnSemanticsAction(action);
 
     /// <inheritdoc />
     internal override bool TakesKeyboardFocus => true;
@@ -691,7 +706,19 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
 
     bool ISkUiTextFieldOwner.IsFocused => IsFocused;
 
-    void ISkUiTextFieldOwner.TextEdited(string text) => SetValue(TextProperty, text);
+    void ISkUiTextFieldOwner.TextEdited(string text)
+    {
+        _textEditing = true;
+        try
+        {
+            SetValue(TextProperty, text);
+        }
+        finally
+        {
+            _textEditing = false;
+        }
+        OnTextEdited();
+    }
 
     void ISkUiTextFieldOwner.SelectionEdited(int start, int length)
     {

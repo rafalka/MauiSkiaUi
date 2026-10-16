@@ -159,6 +159,15 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
     /// <summary>Whether <see cref="Formatters"/> holds any.</summary>
     public bool HasFormatters => Formatters is { Count: > 0 };
 
+    /// <summary>
+    /// The control's own input rules (a numeric entry's, D16): a formatter run on each edit of the user before
+    /// <see cref="Formatters"/>, but never on text the app sets (also with <c>FormatsAssignedText</c>), which the control shows itself.
+    /// </summary>
+    public SkUiTextInputFormatter? InputRules { get; set; }
+
+    // Whether the user's edits are formatted (the control's rules or the app's formatters).
+    private bool FormatsInput => InputRules is not null || HasFormatters;
+
     /// <summary>The x line movement keeps (set by the first Up / Down, cleared by other moves).</summary>
     public float? GoalX { get; set; }
 
@@ -342,7 +351,7 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
             if (text.Length == 0 && end == start)
                 return false;
         }
-        if (HasFormatters && !_updatingComposition && !HasComposition)
+        if (FormatsInput && !_updatingComposition && !HasComposition)
         {
             var proposed = string.Concat(Text.AsSpan(0, start), text, Text.AsSpan(end));
             var proposedCaret = Math.Clamp(caret ?? start + text.Length, 0, proposed.Length);
@@ -376,7 +385,8 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
     private bool ApplyFormatted(SkUiTextEditValue proposed, SkUiTextEditKind kind)
     {
         var old = Text;
-        var value = Format(new SkUiTextEditValue(old, SelectionStart, SelectionEnd), proposed);
+        var before = new SkUiTextEditValue(old, SelectionStart, SelectionEnd);
+        var value = Format(before, InputRules is { } rules ? rules.Format(before, proposed).Clamped() : proposed);
         var result = value.Text;
         // Formatters that add characters (a mask's literals) still keep the text within MaxLength.
         if (result.Length > MaxLength && result.Length > old.Length)
@@ -515,7 +525,7 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
         try
         {
             ClearComposition();
-            if (committed && HasFormatters && !IsReadOnly)
+            if (committed && FormatsInput && !IsReadOnly)
                 ApplyFormatted(new SkUiTextEditValue(Text, SelectionStart, SelectionEnd), SkUiTextEditKind.Composing);
             _coalesce = false;
             RaiseSelection();

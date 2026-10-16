@@ -152,6 +152,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `GraphicsView`, `SKCanvasView` | A `SkUiView` subclass | Override `MeasureContent` and `OnPaintContent(SKCanvas)` |
 | `Entry`, `Editor`, `SearchBar` | `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar` | Prefix swap; drawn, typed through the platform keyboard: see [Text input](#text-input-entry-editor-searchbar) |
 | `Stepper` | `SkUiStepper` | Prefix swap; plus `Orientation` (stacked buttons), `DecrementText` / `IncrementText` + font (custom − / +), `CornerRadius` / `BorderWidth` / `BorderColor`; `SkUiStepper<T>` for `int` / `decimal` / … values |
+| `Entry` with `Keyboard="Numeric"` + a converter; Syncfusion `SfNumericEntry` / `SfNumericUpDown`, Telerik `RadNumericInput` | `SkUiNumericEntry`, `SkUiNumericEntry<T>` | SkiaUi's own API: see [Numbers](#numbers-numeric-entries) |
 | `Picker` | `SkUiPicker` | Prefix swap; its list opens on your popup system: see [Pickers](#pickers-picker) |
 | `DatePicker`, `TimePicker` | `SkUiDatePicker`, `SkUiTimePicker` | Prefix swap; wheels on your popup system like the picker's list: see [Pickers](#pickers-picker) |
 | `WebView`, maps, media | Wrapped in `SkUiMauiContentView` | Native by design |
@@ -360,6 +361,17 @@ What changes:
 - **`TextTransform`** transforms the text itself (typed, pasted, set by the app, and what is already there when it changes); `Text` and a two-way binding get the transformed text.
 
 `Stepper` becomes `SkUiStepper` by the prefix ([SkUiStepper.md](controls/SkUiStepper.md)), with MAUI's coercion; buttons only, as MAUI's (keep the label bound to its value). `Orientation="Vertical"` stacks the buttons, + on top; `DecrementText` / `IncrementText` with `FontFamily` / `FontSize` put words or icon-font symbols on them; `CornerRadius`, `BorderWidth` and `BorderColor` shape and outline it (a stepper styled through a platform handler or effect moves to these). A stepper bound to an `int` or `decimal` through a converter (or a `double` property kept only for it) can become typed: `<sk:SkUiStepper x:TypeArguments="x:Int32" Value="{Binding Quantity}" />` binds the `int` directly; its `ValueChanged` carries `SkUiValueChangedEventArgs<int>` instead of MAUI's `ValueChangedEventArgs`.
+
+### Numbers (numeric entries)
+
+MAUI has no numeric entry: pages use an `Entry` with `Keyboard="Numeric"`, a converter from text to the number (or a `string` property parsed in the view model), and often a `TextChanged` handler that strips what is not a digit, sometimes a `Stepper` beside it. `SkUiNumericEntry` (`double?`) and `SkUiNumericEntry<T>` (`int`, `decimal`, … through `x:TypeArguments`) replace the whole group ([SkUiNumericEntry.md](controls/SkUiNumericEntry.md)): bind `Value` to the number and drop the converter and the handler; the entry takes numbers only, clamps into `Minimum` / `Maximum` when the user is done (not while typing), shows the value in `Format` when not edited, and picks the keyboard from the type and range (on an iPhone, a minus sign is typeable only through this: `Keyboard.Numeric` is a pad without one). A `Stepper` beside it becomes `ButtonPlacement="End"` (or `Split`), the label showing its value goes. A `string` property kept only for the entry can become a `T?` (or `T` with `AllowNull="False"`).
+
+| From | To |
+| --- | --- |
+| `<Entry Keyboard="Numeric" Text="{Binding Amount, Converter={StaticResource DecimalConverter}}" />` | `<sk:SkUiNumericEntry x:TypeArguments="x:Decimal" Value="{Binding Amount}" />` |
+| Syncfusion `SfNumericEntry` (`Value`, `Minimum`, `Maximum`, `CustomFormat`, `Culture`, `AllowNull`, `ValueChangeMode` `OnLostFocus` / `OnKeyFocus`, `MaximumNumberDecimalDigits`, `IsEditable`, `ShowClearButton`) | `SkUiNumericEntry`: `Value`, `Minimum`, `Maximum`, `Format`, `Culture`, `AllowNull`, `ValueChangeMode` `OnCompleted` / `OnKeystroke`, `MaximumDecimalDigits`, `IsEditable`, `ClearButtonVisibility="WhileEditing"`. Its `ValueChanged` runs synchronously here; losing focus does not round `Value` to the shown digits (`MaximumDecimalDigits` does). `PercentDisplayMode` has no counterpart (format with `P`) |
+| Syncfusion `SfNumericUpDown` (`SmallChange` / `LargeChange`, `UpDownPlacementMode` `Inline` / `InlineVertical`, `UpDownButtonAlignment` `Left` / `Right` / `Both`, `UpDownButtonColor`, `AutoReverse`) | `SkUiNumericEntry`: `Increment` / `LargeIncrement`, `ButtonOrientation` (`Inline` → `Horizontal`, `InlineVertical` → `Vertical`) with `ButtonPlacement` `Start` / `End` / `Split`, `ButtonColor`, `AutoReverse`. Button templates → `DecrementText` / `IncrementText` (words or icon-font symbols) or the look's `TextFieldStepButtonsPainter` |
+| Telerik `RadNumericInput` (− [ value ] +) | `SkUiNumericEntry` with `ButtonPlacement="Split"`: `Value`, `Minimum`, `Maximum`, `Increment`, `Format`; Telerik's `IsReadOnly` (buttons still step) is `IsEditable="False"` (`IsReadOnly` stops the buttons too). Its increment / decrement commands have no counterpart yet: handle `ValueChanged` |
 
 ## Avatar view
 

@@ -177,7 +177,10 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
         var options = client.Options;
         var editor = client.Editor;
         InputTypes type;
-        if (options.IsNumeric)
+        if (options.IsNumber)
+            type = InputTypes.ClassNumber | (options.IsDecimalNumber ? InputTypes.NumberFlagDecimal : 0)
+                   | (options.IsSignedNumber ? InputTypes.NumberFlagSigned : 0) | (options.IsPassword ? InputTypes.NumberVariationPassword : 0);
+        else if (options.IsNumeric)
             type = InputTypes.ClassNumber | InputTypes.NumberFlagDecimal | InputTypes.NumberFlagSigned
                    | (options.IsPassword ? InputTypes.NumberVariationPassword : 0);
         else if (options.IsTelephone)

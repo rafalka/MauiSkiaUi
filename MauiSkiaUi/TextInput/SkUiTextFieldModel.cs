@@ -186,6 +186,31 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     /// <summary>The control's <c>ErrorColor</c>: the error chrome's and message's color; <c>null</c>: the color scheme's error color.</summary>
     public Color? ErrorColor;
 
+    /// <summary>A numeric entry's − and + buttons, keys and wheel (D16); <c>null</c>: none.</summary>
+    public SkUiTextFieldSteps? Steps;
+
+    /// <summary>A numeric entry's keyboard (digits, a decimal separator, a sign), in place of <see cref="Keyboard"/>; none: <see cref="Keyboard"/>.</summary>
+    public SkUiNumberKeyboard NumberKeyboard;
+
+    /// <summary>A tap that focuses the field selects all its text instead of placing the caret (a numeric entry: typing replaces the value).</summary>
+    public bool SelectsAllOnFocusTap;
+
+    /// <summary>The control's <c>IsReadOnly</c> (the editor is also read-only while the text is not editable).</summary>
+    public bool IsReadOnly { get; private set; }
+
+    /// <summary>Whether the user may type (a numeric entry's <c>IsEditable</c>; its buttons and keys still step).</summary>
+    public bool IsTextEditable { get; private set; } = true;
+
+    /// <summary>The control's <c>IsReadOnly</c> or a numeric entry's <c>IsEditable</c> changed: the editor and the keyboard follow.</summary>
+    public void SetReadOnly(bool isReadOnly, bool isTextEditable = true)
+    {
+        IsReadOnly = isReadOnly;
+        IsTextEditable = isTextEditable;
+        Editor.IsReadOnly = isReadOnly || !isTextEditable;
+        OptionsChanged();
+        PaintChanged();
+    }
+
     /// <summary>
     /// The text the control holds: the app set it (not an edit of the user). The field shows it with an editor's line breaks as
     /// <c>\n</c> (<c>\r\n</c> and <c>\r</c>, as a Windows text box gives them, are one break each), cut to <c>MaxLength</c>,
@@ -266,6 +291,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         _layoutDirty = true;
         _placeholderLayout?.Invalidate();
         _messageLayout?.Invalidate();
+        Steps?.InvalidateLayout();
         _owner.InvalidateMeasure();
         _owner.InvalidatePaint();
         _owner.InvalidateSemantics();
@@ -293,6 +319,9 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         _owner.InvalidateCaret();
     }
 
+    /// <summary>What screen readers read changed (a numeric entry's range: its increment and decrement actions).</summary>
+    public void SemanticsChanged() => _owner.InvalidateSemantics();
+
     /// <summary>A property the platform's input reads changed (keyboard, return type, password, corrections): it restarts.</summary>
     public void OptionsChanged()
     {
@@ -307,6 +336,12 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(FontSize, FontAutoScalingEnabled),
         LineBreakMode.WordWrap, null, -1, -1, CharacterSpacing, _owner.TextDirection, SkUiTextRendering.Default, FontAttributes);
 
+    /// <summary>A step button's text: one line in <paramref name="fontFamily"/> (else the field's) at the field's size.</summary>
+    internal SkUiTextStyle ButtonTextStyle(string? fontFamily) => TextStyle with
+    {
+        Typeface = SkUiTypefaces.Resolve(fontFamily ?? FontFamily, FontAttributes), LineBreakMode = LineBreakMode.TailTruncation, MaxLines = 1
+    };
+
     private SkUiTextStyle PlaceholderStyle => TextStyle with { LineBreakMode = IsMultiline ? LineBreakMode.WordWrap : LineBreakMode.TailTruncation, MaxLines = IsMultiline ? -1 : 1 };
 
     /// <summary>Whether the clear button shows: <see cref="ClearButtonVisibility.WhileEditing"/>, focused, with text, editable.</summary>
@@ -315,17 +350,18 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
 
     /// <summary>
     /// What sits across the field's width, as room taken from its start and its end side (mirrored in right-to-left): at the start
-    /// the padding, a search bar's icon, the leading view and the space after it; at the end the padding, the trailing view, then
-    /// the clear button (or the space before the trailing view). The text box takes what is left between them.
+    /// a numeric entry's step buttons, the padding, a search bar's icon, the leading view and the space after it; at the end the
+    /// step buttons, the padding, the trailing view, then the clear button (or the space before the trailing view). The text box
+    /// takes what is left between them.
     /// </summary>
-    private readonly record struct AdornmentRow(float StartPadding, float SearchIcon, float Leading, float LeadingSpacing,
-        float EndPadding, float Trailing, float Clear, float TrailingSpacing)
+    private readonly record struct AdornmentRow(float StartButtons, float StartPadding, float SearchIcon, float Leading, float LeadingSpacing,
+        float EndButtons, float EndPadding, float Trailing, float Clear, float TrailingSpacing)
     {
         /// <summary>The room before the text box, from the start side.</summary>
-        public float Start => StartPadding + SearchIcon + Leading + LeadingSpacing;
+        public float Start => StartButtons + StartPadding + SearchIcon + Leading + LeadingSpacing;
 
         /// <summary>The room after the text box, from the end side.</summary>
-        public float End => EndPadding + Trailing + Clear + TrailingSpacing;
+        public float End => EndButtons + EndPadding + Trailing + Clear + TrailingSpacing;
     }
 
     private AdornmentRow Row
@@ -339,23 +375,91 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             var leading = (float)LeadingSize.Width;
             var trailing = (float)TrailingSize.Width;
             var clear = ClearButtonShown ? (float)look.TextFieldClearButtonWidth : 0;
-            return new AdornmentRow((float)(rightToLeft ? padding.Right : padding.Left), IsSearch ? (float)look.SearchIconWidth : 0,
-                leading, leading > 0 ? spacing : 0, (float)(rightToLeft ? padding.Left : padding.Right), trailing, clear,
+            var buttons = Steps?.Room ?? default;
+            return new AdornmentRow(buttons.Start, (float)(rightToLeft ? padding.Right : padding.Left), IsSearch ? (float)look.SearchIconWidth : 0,
+                leading, leading > 0 ? spacing : 0, buttons.End, (float)(rightToLeft ? padding.Left : padding.Right), trailing, clear,
                 trailing > 0 && clear <= 0 ? spacing : 0);
         }
     }
 
-    /// <summary>Where the text box sits in the field: the look's padding, with the adornments' room at the start and end sides.</summary>
+    /// <summary>
+    /// Where the text box sits in the field: the look's padding, with the adornments' room at the start and end sides (and a split,
+    /// stacked numeric entry's bars above and below).
+    /// </summary>
     private Thickness Inset
     {
         get
         {
             var padding = Padding ?? SkUiLook.Current.TextFieldPadding;
             var row = Row;
+            var (top, bottom) = BarRoom;
             return _owner.IsRightToLeft
-                ? new Thickness(row.End, padding.Top, row.Start, padding.Bottom)
-                : new Thickness(row.Start, padding.Top, row.End, padding.Bottom);
+                ? new Thickness(row.End, padding.Top + top, row.Start, padding.Bottom + bottom)
+                : new Thickness(row.Start, padding.Top + top, row.End, padding.Bottom + bottom);
         }
+    }
+
+    /// <summary>The heights a split, stacked numeric entry's bars take above and below the text (else none).</summary>
+    private (float Top, float Bottom) BarRoom
+    {
+        get
+        {
+            if (Steps is not { } steps)
+                return default;
+            var room = steps.Room;
+            return (room.Top, room.Bottom);
+        }
+    }
+
+    /// <summary>The field's area without a split, stacked numeric entry's bars: where the row of adornments sits.</summary>
+    private SKRect RowArea(SKRect area)
+    {
+        var (top, bottom) = BarRoom;
+        if (top <= 0 && bottom <= 0)
+            return area;
+        var rowTop = Math.Min(area.Top + top, area.Bottom);
+        return new SKRect(area.Left, rowTop, area.Right, Math.Max(rowTop, area.Bottom - bottom));
+    }
+
+    /// <summary>
+    /// The − and + buttons' rectangles in a node of the given size (empty without buttons): beside the text at the start or end side
+    /// (side by side − then + in reading order, or stacked + above −), split (− at the start, + at the end; stacked: + in a bar above
+    /// the text, − in one below it). Mirrored in right-to-left.
+    /// </summary>
+    internal (SKRect Decrement, SKRect Increment) StepButtonBounds(float width, float height)
+    {
+        if (Steps is not { HasButtons: true } steps)
+            return default;
+        var area = Area(width, height);
+        var room = steps.Room;
+        var vertical = steps.Orientation == StackOrientation.Vertical;
+        switch (steps.Placement)
+        {
+            case SkUiStepButtonPlacement.Split when vertical:
+                return (new SKRect(area.Left, Math.Max(area.Top, area.Bottom - room.Bottom), area.Right, area.Bottom),
+                    new SKRect(area.Left, area.Top, area.Right, Math.Min(area.Bottom, area.Top + room.Top)));
+            case SkUiStepButtonPlacement.Split:
+                return (FromStart(area, 0, room.Start, area.Top, area.Bottom), FromEnd(area, 0, room.End, area.Top, area.Bottom));
+        }
+        var start = steps.Placement == SkUiStepButtonPlacement.Start;
+        var group = start ? FromStart(area, 0, room.Start, area.Top, area.Bottom) : FromEnd(area, 0, room.End, area.Top, area.Bottom);
+        if (vertical)
+        {
+            var middle = (group.Top + group.Bottom) / 2;
+            return (new SKRect(group.Left, middle, group.Right, group.Bottom), new SKRect(group.Left, group.Top, group.Right, middle));
+        }
+        // − before + in reading order: − on the left in left-to-right layouts, on the right in right-to-left.
+        var center = (group.Left + group.Right) / 2;
+        var left = new SKRect(group.Left, group.Top, center, group.Bottom);
+        var right = new SKRect(center, group.Top, group.Right, group.Bottom);
+        return _owner.IsRightToLeft ? (right, left) : (left, right);
+    }
+
+    /// <summary><see cref="StepButtonBounds(float, float)"/> at the field's arranged size.</summary>
+    internal (SKRect Decrement, SKRect Increment) StepButtonBounds()
+    {
+        var (width, height) = Size;
+        return StepButtonBounds(width, height);
     }
 
     /// <summary>
@@ -413,13 +517,14 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     /// </summary>
     internal (Rect Leading, Rect Trailing) AdornmentFrames(double width, double height)
     {
-        var area = Area((float)width, (float)height);
+        var area = RowArea(Area((float)width, (float)height));
         var row = Row;
         var (leadingTop, leadingBottom) = AdornmentBand(area, LeadingSize.Height);
         var (trailingTop, trailingBottom) = AdornmentBand(area, TrailingSize.Height);
-        var leadingStart = row.StartPadding + row.SearchIcon;
+        var leadingStart = row.StartButtons + row.StartPadding + row.SearchIcon;
         var leading = FromStart(area, leadingStart, leadingStart + row.Leading, leadingTop, leadingBottom);
-        var trailing = FromEnd(area, row.EndPadding, row.EndPadding + row.Trailing, trailingTop, trailingBottom);
+        var trailingStart = row.EndButtons + row.EndPadding;
+        var trailing = FromEnd(area, trailingStart, trailingStart + row.Trailing, trailingTop, trailingBottom);
         return (ToArranged(leading, width), ToArranged(trailing, width));
     }
 
@@ -457,18 +562,19 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     /// <summary>The clear button's room at the end side of the field, inside the trailing view.</summary>
     private SKRect ClearButtonBounds(float width, float height)
     {
-        var area = Area(width, height);
+        var area = RowArea(Area(width, height));
         var row = Row;
-        var from = row.EndPadding + row.Trailing;
+        var from = row.EndButtons + row.EndPadding + row.Trailing;
         return FromEnd(area, from, from + (float)SkUiLook.Current.TextFieldClearButtonWidth, area.Top, area.Bottom);
     }
 
     /// <summary>A search bar's icon room at the start side of the field, before the leading view.</summary>
     private SKRect SearchIconBounds(float width, float height)
     {
-        var area = Area(width, height);
+        var area = RowArea(Area(width, height));
         var row = Row;
-        return FromStart(area, row.StartPadding, row.StartPadding + (float)SkUiLook.Current.SearchIconWidth, area.Top, area.Bottom);
+        var from = row.StartButtons + row.StartPadding;
+        return FromStart(area, from, from + (float)SkUiLook.Current.SearchIconWidth, area.Top, area.Bottom);
     }
 
     private SkUiTextLayout PlaceholderLayout => _placeholderLayout ??= new SkUiTextLayout(_owner);
@@ -639,6 +745,11 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             SkUiLook.Current.DrawTextField(canvas, new SkUiTextFieldPaint(Area(width, height), ToSkColor(SkUiColors.Accent),
                 ToSkColor(SkUiColors.Muted), foreground, _focus.Value, IsPointerOver, IsEnabled, Editor.IsReadOnly, IsMultiline, _owner.IsRightToLeft,
                 HasError, ToSkColor(ErrorColor ?? SkUiColors.Error)));
+        if (Steps is { HasButtons: true } steps)
+        {
+            var (decrement, increment) = StepButtonBounds(width, height);
+            steps.Draw(canvas, Area(width, height), decrement, increment, ToSkColor(SkUiColors.Muted), foreground, IsEnabled, _owner.IsRightToLeft);
+        }
         var box = TextBox(width, height);
         EnsureLayout(box.Width);
         KeepCaretInView(box);
@@ -1094,6 +1205,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         _layout.Release();
         _placeholderLayout?.Release();
         _messageLayout?.Release();
+        Steps?.ReleaseDrawingResources();
         _layoutDirty = true;
         _caret.Forget();
     }
@@ -1239,6 +1351,9 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         var command = (modifiers & (IsApple ? SkUiKeyModifiers.Command : SkUiKeyModifiers.Control)) != 0;
         var word = (modifiers & (IsApple ? SkUiKeyModifiers.Alt : SkUiKeyModifiers.Control)) != 0;
         var lineModifier = IsApple && (modifiers & SkUiKeyModifiers.Command) != 0;
+        // A numeric entry's steps (Up / Down, Page Up / Down) and Escape (not while an input method composes).
+        if (Steps is { } steps && !(key.Key == SkUiKey.Escape && Editor.HasComposition) && steps.OnKeyDown(key))
+            return true;
         switch (key.Key)
         {
             case SkUiKey.Left or SkUiKey.Right:
@@ -1373,7 +1488,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     /// </summary>
     internal bool AcceptsPointerAt(Point local)
     {
-        if (!IsEnabled || _owner.AdornmentTakesPointer(local))
+        if (!IsEnabled || _owner.AdornmentTakesPointer(local) || Steps?.ButtonAt(local) is -1 or 1)
             return false;
         if (FieldArea is null && Message is null)
             return true;
@@ -1457,6 +1572,9 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         // A tap asks for the keyboard (also the one that focuses: Android's focus alone asks implicitly, which an input method may
         // decline); the proxies ignore it while the keyboard shows.
         _proxy?.ShowKeyboard(this);
+        // A numeric entry keeps everything selected when a tap focuses it: typing replaces the value.
+        if (!wasFocused && SelectsAllOnFocusTap && _owner.IsFocused && Editor.HasSelection)
+            return;
         if (taps >= 2)
         {
             SelectByTouch(() => SelectUnitAt(local, 2));
@@ -1587,6 +1705,8 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     /// <summary>A wheel or trackpad delta (positive towards the start): an editor scrolls its text and hands on the rest.</summary>
     internal Point Wheel(double deltaX, double deltaY)
     {
+        if (Steps is { } steps)
+            return IsEnabled ? steps.Wheel(deltaX, deltaY, _owner.IsFocused) : new Point(deltaX, deltaY);
         if (!IsMultiline || deltaY == 0)
             return new Point(deltaX, deltaY);
         var rest = ScrollBy(-deltaY);
@@ -1613,7 +1733,12 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         info.Actions |= SkUiSemanticsActions.Activate;
         var (start, end) = IsPassword ? (ToDisplayIndex(Editor.SelectionStart), ToDisplayIndex(Editor.SelectionEnd)) : (Editor.SelectionStart, Editor.SelectionEnd);
         info.TextField = new SkUiSemanticsTextField(start, end, IsPassword, Editor.IsReadOnly, IsMultiline, HasError, Message);
+        Steps?.PopulateSemantics(info);
     }
+
+    /// <summary>A screen reader's action: activation focuses the field, increment / decrement step a numeric entry.</summary>
+    public bool PerformSemanticsAction(SkUiSemanticsActions action) =>
+        action == SkUiSemanticsActions.Activate ? Activate() : Steps?.PerformSemanticsAction(action) ?? false;
 
     /// <summary>
     /// A text index as the bullets of a password count it (screen readers read the bullets). The bullets are counted again when the
@@ -1648,11 +1773,13 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         ReturnType = ReturnType,
         IsPassword = IsPassword,
         IsMultiline = IsMultiline,
-        IsSpellCheckEnabled = IsSpellCheckEnabled && !IsPassword,
-        IsTextPredictionEnabled = IsTextPredictionEnabled && !IsPassword,
+        // Numbers are not corrected or completed.
+        IsSpellCheckEnabled = IsSpellCheckEnabled && !IsPassword && NumberKeyboard == SkUiNumberKeyboard.None,
+        IsTextPredictionEnabled = IsTextPredictionEnabled && !IsPassword && NumberKeyboard == SkUiNumberKeyboard.None,
         IsReadOnly = Editor.IsReadOnly,
         TextTransform = Editor.Transform,
-        AutofillHint = AutofillHint ?? (IsPassword ? SkUiAutofillHints.Password : null)
+        AutofillHint = AutofillHint ?? (IsPassword ? SkUiAutofillHints.Password : null),
+        NumberKeyboard = NumberKeyboard
     };
 
     ISkUiRenderable ISkUiTextInputClient.Node => _owner.Node;

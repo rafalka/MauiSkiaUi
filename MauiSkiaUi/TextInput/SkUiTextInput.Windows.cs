@@ -293,7 +293,7 @@ internal sealed partial class SkUiWindowsTextInput : ISkUiTextInputProxy
             _ => Microsoft.UI.Xaml.Controls.CharacterCasing.Normal
         };
         var scope = options.IsPassword ? InputScopeNameValue.Password
-            : options.IsNumeric ? InputScopeNameValue.Number
+            : options.IsNumeric || options.IsNumber ? InputScopeNameValue.Number
             : options.IsTelephone ? InputScopeNameValue.TelephoneNumber
             : options.IsEmail ? InputScopeNameValue.EmailSmtpAddress
             : options.IsUrl ? InputScopeNameValue.Url
