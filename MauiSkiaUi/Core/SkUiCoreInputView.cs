@@ -16,6 +16,8 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     private int _cursorPosition;
     private int _selectionLength;
     private bool _minimumHeightExplicit;
+    private SkUiCoreNode? _leadingView;
+    private SkUiCoreNode? _trailingView;
 
     /// <summary>The field engine shared with <see cref="SkUiInputView"/>.</summary>
     internal SkUiTextFieldModel Model { get; }
@@ -104,6 +106,12 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     /// <summary>Whether text the app sets goes through <see cref="InputFormatters"/> too (default <c>false</c>; see <see cref="SkUiInputView.FormatsAssignedText"/>).</summary>
     public bool FormatsAssignedText { get => Model.FormatsAssignedText; set => SetFormatsAssignedText(value); }
 
+    /// <summary>A node inside the field at its start side, before the text (see <see cref="SkUiInputView.LeadingView"/>).</summary>
+    public SkUiCoreNode? LeadingView { get => _leadingView; set => SetLeadingView(value); }
+
+    /// <summary>A node inside the field at its end side, after the text (see <see cref="SkUiInputView.TrailingView"/>).</summary>
+    public SkUiCoreNode? TrailingView { get => _trailingView; set => SetTrailingView(value); }
+
     /// <summary>Raised when the text changes (by the user or the app), with the old and new text.</summary>
     public event EventHandler<TextChangedEventArgs>? TextChanged;
 
@@ -178,7 +186,7 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     public SkUiCoreInputView SetVerticalTextAlignment(TextAlignment value)
     {
         ThrowIfUndefined(value);
-        return Update(ref Model.VerticalTextAlignment, value, nameof(VerticalTextAlignment));
+        return Update(ref Model.VerticalTextAlignment, value, nameof(VerticalTextAlignment), measure: true);
     }
 
     /// <summary>Sets <see cref="MaxLength"/>: longer text is cut.</summary>
@@ -270,6 +278,45 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
         return this;
     }
 
+    /// <summary>Sets <see cref="LeadingView"/>.</summary>
+    public SkUiCoreInputView SetLeadingView(SkUiCoreNode? value) => SetAdornment(ref _leadingView, value, _trailingView, nameof(LeadingView));
+
+    /// <summary>Sets <see cref="TrailingView"/>.</summary>
+    public SkUiCoreInputView SetTrailingView(SkUiCoreNode? value) => SetAdornment(ref _trailingView, value, _leadingView, nameof(TrailingView));
+
+    private SkUiCoreInputView SetAdornment(ref SkUiCoreNode? slot, SkUiCoreNode? value, SkUiCoreNode? other, string name)
+    {
+        if (ReferenceEquals(slot, value))
+            return this;
+        if (value is not null)
+        {
+            if (ReferenceEquals(value, other))
+                throw new InvalidOperationException("The leading and trailing views must be different nodes.");
+            if (value.Parent is not null)
+                throw new InvalidOperationException("Child already has a parent.");
+            if (WouldCreateParentCycle(value))
+                throw new InvalidOperationException("A view cannot create a parent cycle.");
+        }
+        // Visual tree index: the leading view comes first.
+        var index = name == nameof(TrailingView) && other is not null ? 1 : 0;
+        var previous = slot;
+        if (previous is not null)
+        {
+            previous.AttachTo(null);
+            SkUiDiagnostics.NotifyChildRemoved(this, previous, index);
+        }
+        slot = value;
+        if (value is not null)
+        {
+            value.AttachTo(this);
+            SkUiDiagnostics.NotifyChildAdded(this, value, index);
+        }
+        OnPropertyChanged(name);
+        InvalidateRender(SkUiRenderDirty.Children);
+        Model.TextChanged();
+        return this;
+    }
+
     private System.Collections.ObjectModel.ObservableCollection<SkUiTextInputFormatter> CreateInputFormatters()
     {
         var formatters = new System.Collections.ObjectModel.ObservableCollection<SkUiTextInputFormatter>();
@@ -323,7 +370,37 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         Model.HasExplicitMinimumHeight = _minimumHeightExplicit;
+        Model.LeadingSize = _leadingView is { IsVisible: true } leading ? leading.Measure(widthConstraint, heightConstraint) : Size.Zero;
+        Model.TrailingSize = _trailingView is { IsVisible: true } trailing ? trailing.Measure(widthConstraint, heightConstraint) : Size.Zero;
         return Model.Measure(widthConstraint, heightConstraint);
+    }
+
+    /// <inheritdoc />
+    protected override void ArrangeContent(Size size)
+    {
+        if (_leadingView is null && _trailingView is null)
+            return;
+        var (leading, trailing) = Model.AdornmentFrames(size.Width, size.Height);
+        _leadingView?.Arrange(leading);
+        _trailingView?.Arrange(trailing);
+    }
+
+    /// <inheritdoc />
+    internal override IReadOnlyList<IVisualTreeElement> VisualChildren => (_leadingView, _trailingView) switch
+    {
+        (null, null) => [],
+        ({ } leading, null) => [leading],
+        (null, { } trailing) => [trailing],
+        ({ } leading, { } trailing) => [leading, trailing]
+    };
+
+    /// <inheritdoc />
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
+    {
+        if (_leadingView is not null)
+            children.Add(_leadingView);
+        if (_trailingView is not null)
+            children.Add(_trailingView);
     }
 
     /// <inheritdoc />
@@ -436,6 +513,10 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     void ISkUiTextFieldOwner.InvalidateSemantics() => InvalidateSemantics();
 
     void ISkUiTextFieldOwner.InvalidateCaret() => InvalidateRender(SkUiRenderDirty.Props);
+
+    bool ISkUiTextFieldOwner.AdornmentTakesPointer(Point local) =>
+        SkUiTextFieldAdornments.TakesPointer(_leadingView, _leadingView?.Frame ?? Rect.Zero, local)
+        || SkUiTextFieldAdornments.TakesPointer(_trailingView, _trailingView?.Frame ?? Rect.Zero, local);
 
     #endregion
 }

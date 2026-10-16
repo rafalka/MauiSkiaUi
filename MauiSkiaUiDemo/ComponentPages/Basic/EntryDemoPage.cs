@@ -13,6 +13,11 @@ public sealed class EntryDemoPage : ComponentDemoPage
     private const string NoSpaces = "No spaces, lower case";
     private const string PhoneMaskText = "(000) 000-0000";
     private const string CardMaskText = "0000 0000 0000 0000";
+    private const string NoView = "None";
+    private const string IconView = "Icon";
+    private const string PrefixView = "Label \"$\"";
+    private const string UnitView = "Label \"kg\"";
+    private const string ButtonView = "Button (upper case)";
 
     public EntryDemoPage() : base(nameof(SkUiEntry), new SkUiEntry { Placeholder = Placeholder }, new Entry { Placeholder = Placeholder })
     {
@@ -50,6 +55,13 @@ public sealed class EntryDemoPage : ComponentDemoPage
         Choice(nameof(SkUiEntry.InputFormatters), [NoFormatters, DigitsOnly, PhoneMask, CardNumber, NoSpaces], NoFormatters,
             value => skia.SetInputFormatters(FormattersOf(value)), () => NameOf(skia.InputFormatters));
         Toggle(nameof(SkUiEntry.FormatsAssignedText), false, value => skia.FormatsAssignedText = value, () => skia.FormatsAssignedText);
+        // SkiaUi only (MAUI's Entry has none): drawn views inside the field; the button acts without taking focus from it.
+        var leading = NoView;
+        var trailing = NoView;
+        Choice(nameof(SkUiEntry.LeadingView), [NoView, IconView, PrefixView], NoView,
+            value => skia.LeadingView = AdornmentOf(leading = value, skia), () => leading);
+        Choice(nameof(SkUiEntry.TrailingView), [NoView, UnitView, ButtonView], NoView,
+            value => skia.TrailingView = AdornmentOf(trailing = value, skia), () => trailing);
         ColorEditor(nameof(SkUiEntry.TextColor), Ink, value => { skia.TextColor = value; native.TextColor = value; }, () => skia.TextColor ?? Ink, () => native.TextColor ?? Ink);
         ColorEditor(nameof(SkUiEntry.CaretColor), Accent, value => skia.CaretColor = value, () => skia.CaretColor ?? Accent);
         ActionButton("Select all", () =>
@@ -60,6 +72,27 @@ public sealed class EntryDemoPage : ComponentDemoPage
             native.SelectionLength = native.Text?.Length ?? 0;
         });
         ActionButton("Focus", () => skia.Focus());
+    }
+
+    private ISkUiView? AdornmentOf(string name, SkUiEntry entry)
+    {
+        switch (name)
+        {
+            case IconView:
+                return new SkUiImage { Source = DemoAssets.BadgeImage, WidthRequest = 20, HeightRequest = 20 };
+            case PrefixView or UnitView:
+                return new SkUiLabel { Text = name == PrefixView ? "$" : "kg", TextColor = DemoColors.Caption, FontSize = 15 };
+            case ButtonView:
+                var button = new SkUiButton { Text = "ABC", FontSize = 12, Padding = new Thickness(8, 2), HeightRequest = 28, CornerRadius = 14 };
+                button.Clicked += (_, _) =>
+                {
+                    entry.Text = entry.Text?.ToUpperInvariant();
+                    Feedback($"Button: \"{entry.Text}\" (focused: {entry.IsFocused})");
+                };
+                return button;
+            default:
+                return null;
+        }
     }
 
     // SkiaUi only (MAUI's Entry has no formatters): filters, a mask, a digit cap with groups, a function.

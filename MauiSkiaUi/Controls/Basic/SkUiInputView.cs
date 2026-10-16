@@ -73,7 +73,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// <summary>Bindable property for <see cref="VerticalTextAlignment"/>.</summary>
     public static readonly BindableProperty VerticalTextAlignmentProperty = BindableProperty.Create(nameof(VerticalTextAlignment), typeof(TextAlignment), typeof(SkUiInputView), TextAlignment.Center,
         validateValue: (_, value) => Enum.IsDefined((TextAlignment)value),
-        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.VerticalTextAlignment = (TextAlignment)value),
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.VerticalTextAlignment = (TextAlignment)value, measure: true),
         defaultValueCreator: view => view is SkUiEditor ? TextAlignment.Start : TextAlignment.Center);
 
     /// <summary>Bindable property for <see cref="MaxLength"/>.</summary>
@@ -123,6 +123,25 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// <summary>Bindable property for <see cref="FormatsAssignedText"/>.</summary>
     public static readonly BindableProperty FormatsAssignedTextProperty = BindableProperty.Create(nameof(FormatsAssignedText), typeof(bool), typeof(SkUiInputView), false,
         propertyChanged: (view, _, value) => ((SkUiInputView)view).OnFormatsAssignedTextChanged((bool)value));
+
+    /// <summary>Bindable property for <see cref="LeadingView"/>.</summary>
+    public static readonly BindableProperty LeadingViewProperty = AdornmentProperty(nameof(LeadingView));
+
+    /// <summary>Bindable property for <see cref="TrailingView"/>.</summary>
+    public static readonly BindableProperty TrailingViewProperty = AdornmentProperty(nameof(TrailingView));
+
+    private static BindableProperty AdornmentProperty(string name) => BindableProperty.Create(name, typeof(ISkUiView), typeof(SkUiInputView), null,
+        validateValue: (bindable, value) =>
+        {
+            var owner = (SkUiInputView)bindable;
+            if (value is not ISkUiView child || ReferenceEquals(owner.GetValue(name == nameof(LeadingView) ? LeadingViewProperty : TrailingViewProperty), child))
+                return true;
+            if (ReferenceEquals(owner.LeadingView, child) || ReferenceEquals(owner.TrailingView, child))
+                throw new InvalidOperationException("The leading and trailing views must be different views.");
+            owner.ValidateChild(child);
+            return true;
+        },
+        propertyChanged: (bindable, oldValue, newValue) => ((SkUiInputView)bindable).OnAdornmentChanged((ISkUiView?)oldValue, (ISkUiView?)newValue));
 
     #endregion
 
@@ -211,6 +230,21 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// text already there.
     /// </summary>
     public bool FormatsAssignedText { get => (bool)GetValue(FormatsAssignedTextProperty); set => SetValue(FormatsAssignedTextProperty, value); }
+
+    /// <summary>
+    /// A drawn view inside the field at its start side, before the text (SkiaUi; Material's leading icon or prefix): an icon
+    /// (<see cref="SkUiImage"/>), a short label (<see cref="SkUiLabel"/>), a button. It is measured at its own size and placed
+    /// beside the text, aligned with it (<see cref="VerticalTextAlignment"/>); the text is inset so they never overlap. A press
+    /// on a view that handles pointers itself (a button) is the view's, and does not focus the field; a press on an icon or a
+    /// label focuses the field. A search bar's icon comes before it.
+    /// </summary>
+    public ISkUiView? LeadingView { get => (ISkUiView?)GetValue(LeadingViewProperty); set => SetValue(LeadingViewProperty, value); }
+
+    /// <summary>
+    /// A drawn view inside the field at its end side, after the text (SkiaUi; Material's trailing icon or suffix); see
+    /// <see cref="LeadingView"/>. The clear button comes before it.
+    /// </summary>
+    public ISkUiView? TrailingView { get => (ISkUiView?)GetValue(TrailingViewProperty); set => SetValue(TrailingViewProperty, value); }
 
     /// <summary>Raised when the text changes (by the user or the app), with the old and new text.</summary>
     public event EventHandler<TextChangedEventArgs>? TextChanged;
@@ -302,6 +336,12 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// <summary>Sets <see cref="FormatsAssignedText"/>.</summary>
     public SkUiInputView SetFormatsAssignedText(bool value) { FormatsAssignedText = value; return this; }
 
+    /// <summary>Sets <see cref="LeadingView"/>.</summary>
+    public SkUiInputView SetLeadingView(ISkUiView? value) { LeadingView = value; return this; }
+
+    /// <summary>Sets <see cref="TrailingView"/>.</summary>
+    public SkUiInputView SetTrailingView(ISkUiView? value) { TrailingView = value; return this; }
+
     private protected static void ThrowIfUndefined<T>(T value) where T : struct, Enum
     {
         if (!Enum.IsDefined(value))
@@ -378,6 +418,15 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
         Model.PaintChanged();
     }
 
+    private void OnAdornmentChanged(ISkUiView? oldValue, ISkUiView? newValue)
+    {
+        if (oldValue is not null)
+            DetachChild(oldValue);
+        if (newValue is not null)
+            AttachChild(newValue);
+        Model.TextChanged();
+    }
+
     private bool _settingSelection;
 
     private void OnCursorChanged()
@@ -394,7 +443,44 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         Model.HasExplicitMinimumHeight = MinimumHeightRequest >= 0;
+        Model.LeadingSize = MeasureAdornment(LeadingView, widthConstraint, heightConstraint);
+        Model.TrailingSize = MeasureAdornment(TrailingView, widthConstraint, heightConstraint);
         return Model.Measure(widthConstraint, heightConstraint);
+    }
+
+    private static Size MeasureAdornment(ISkUiView? view, double widthConstraint, double heightConstraint) =>
+        view is null || view.Visibility == Visibility.Collapsed ? Size.Zero : view.Measure(widthConstraint, heightConstraint);
+
+    /// <inheritdoc />
+    protected override void ArrangeContent(Size size)
+    {
+        if (LeadingView is null && TrailingView is null)
+            return;
+        var (leading, trailing) = Model.AdornmentFrames(size.Width, size.Height);
+        LeadingView?.Arrange(leading);
+        TrailingView?.Arrange(trailing);
+    }
+
+    /// <inheritdoc />
+    internal override IEnumerable<ISkUiView> SkiaChildren
+    {
+        get
+        {
+            if (LeadingView is { } leading)
+                yield return leading;
+            if (TrailingView is { } trailing)
+                yield return trailing;
+        }
+    }
+
+    /// <inheritdoc />
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
+    {
+        // Without the iterator: no allocation per walk.
+        if (LeadingView is ISkUiRenderable leading)
+            children.Add(leading);
+        if (TrailingView is ISkUiRenderable trailing)
+            children.Add(trailing);
     }
 
     /// <inheritdoc />
@@ -540,6 +626,10 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     void ISkUiTextFieldOwner.InvalidateSemantics() => InvalidateSemantics();
 
     void ISkUiTextFieldOwner.InvalidateCaret() => InvalidateRender(SkUiRenderDirty.Props);
+
+    bool ISkUiTextFieldOwner.AdornmentTakesPointer(Point local) =>
+        SkUiTextFieldAdornments.TakesPointer(LeadingView as ISkUiRenderable, LeadingView?.Frame ?? Rect.Zero, local)
+        || SkUiTextFieldAdornments.TakesPointer(TrailingView as ISkUiRenderable, TrailingView?.Frame ?? Rect.Zero, local);
 
     #endregion
 }

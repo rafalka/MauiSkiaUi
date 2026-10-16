@@ -949,6 +949,12 @@ public class SkUiLook
     /// <summary>The room a text field keeps for its clear button (<c>ClearButtonVisibility</c>) at the end, in DIPs (default 32).</summary>
     public virtual double TextFieldClearButtonWidth => 32;
 
+    /// <summary>
+    /// The space between a text field's leading or trailing view (<c>LeadingView</c>, <c>TrailingView</c>) and its text, in DIPs
+    /// (default 8). A clear button between the text and the trailing view is the space there.
+    /// </summary>
+    public virtual double TextFieldAdornmentSpacing => 8;
+
     /// <summary>The caret's width in DIPs (default 2).</summary>
     public virtual float CaretWidth => 2;
 

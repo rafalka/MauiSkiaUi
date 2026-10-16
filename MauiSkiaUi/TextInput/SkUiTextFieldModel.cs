@@ -42,6 +42,12 @@ internal interface ISkUiTextFieldOwner : ISkUiTransitionHost
 
     /// <summary>The caret moved, showed or hid: the field's composite-time props are built again (nothing is recorded).</summary>
     void InvalidateCaret();
+
+    /// <summary>
+    /// Whether a press at <paramref name="local"/> (field coordinates) belongs to a leading or trailing view that handles pointers
+    /// itself (a button): the field's own gestures leave it alone.
+    /// </summary>
+    bool AdornmentTakesPointer(Point local);
 }
 
 /// <summary>
@@ -152,6 +158,12 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
 
     /// <summary>The clear button's color (a search bar's <c>CancelButtonColor</c>); <c>null</c>: the color scheme's muted color.</summary>
     public Color? ClearButtonColor;
+
+    /// <summary>The leading view's measured size (with its margin; <see cref="Size.Zero"/>: none or hidden).</summary>
+    public Size LeadingSize;
+
+    /// <summary>The trailing view's measured size (with its margin; <see cref="Size.Zero"/>: none or hidden).</summary>
+    public Size TrailingSize;
 
     /// <summary>An editor's <c>AutoSize</c>: its measured height follows the text (otherwise typing does not measure it again).</summary>
     public bool AutoSize;
@@ -271,23 +283,99 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     internal bool ClearButtonShown => (IsSearch || (ClearButtonVisibility == ClearButtonVisibility.WhileEditing && _owner.IsFocused))
         && Editor.Text.Length > 0 && IsEnabled && !Editor.IsReadOnly;
 
-    /// <summary>Where the text box sits in the field: the look's padding, with the clear button's room at the end side.</summary>
-    private Thickness Inset
+    /// <summary>
+    /// What sits across the field's width, as room taken from its start and its end side (mirrored in right-to-left): at the start
+    /// the padding, a search bar's icon, the leading view and the space after it; at the end the padding, the trailing view, then
+    /// the clear button (or the space before the trailing view). The text box takes what is left between them.
+    /// </summary>
+    private readonly record struct AdornmentRow(float StartPadding, float SearchIcon, float Leading, float LeadingSpacing,
+        float EndPadding, float Trailing, float Clear, float TrailingSpacing)
+    {
+        /// <summary>The room before the text box, from the start side.</summary>
+        public float Start => StartPadding + SearchIcon + Leading + LeadingSpacing;
+
+        /// <summary>The room after the text box, from the end side.</summary>
+        public float End => EndPadding + Trailing + Clear + TrailingSpacing;
+    }
+
+    private AdornmentRow Row
     {
         get
         {
             var look = SkUiLook.Current;
             var padding = Padding ?? look.TextFieldPadding;
-            var clear = ClearButtonShown ? look.TextFieldClearButtonWidth : 0;
-            var icon = IsSearch ? look.SearchIconWidth : 0;
+            var rightToLeft = _owner.IsRightToLeft;
+            var spacing = (float)look.TextFieldAdornmentSpacing;
+            var leading = (float)LeadingSize.Width;
+            var trailing = (float)TrailingSize.Width;
+            var clear = ClearButtonShown ? (float)look.TextFieldClearButtonWidth : 0;
+            return new AdornmentRow((float)(rightToLeft ? padding.Right : padding.Left), IsSearch ? (float)look.SearchIconWidth : 0,
+                leading, leading > 0 ? spacing : 0, (float)(rightToLeft ? padding.Left : padding.Right), trailing, clear,
+                trailing > 0 && clear <= 0 ? spacing : 0);
+        }
+    }
+
+    /// <summary>Where the text box sits in the field: the look's padding, with the adornments' room at the start and end sides.</summary>
+    private Thickness Inset
+    {
+        get
+        {
+            var padding = Padding ?? SkUiLook.Current.TextFieldPadding;
+            var row = Row;
             return _owner.IsRightToLeft
-                ? new Thickness(padding.Left + clear, padding.Top, padding.Right + icon, padding.Bottom)
-                : new Thickness(padding.Left + icon, padding.Top, padding.Right + clear, padding.Bottom);
+                ? new Thickness(row.End, padding.Top, row.Start, padding.Bottom)
+                : new Thickness(row.Start, padding.Top, row.End, padding.Bottom);
         }
     }
 
     /// <summary>The field's rectangle in a node of the given size: <see cref="FieldArea"/>, else the whole node.</summary>
     private SKRect Area(float width, float height) => FieldArea ?? new SKRect(0, 0, width, height);
+
+    /// <summary>The stretch from <paramref name="from"/> to <paramref name="to"/> DIPs past the area's start side (its left, or its right in right-to-left).</summary>
+    private SKRect FromStart(SKRect area, float from, float to, float top, float bottom) => _owner.IsRightToLeft
+        ? new SKRect(area.Right - to, top, area.Right - from, bottom)
+        : new SKRect(area.Left + from, top, area.Left + to, bottom);
+
+    /// <summary>The stretch from <paramref name="from"/> to <paramref name="to"/> DIPs before the area's end side.</summary>
+    private SKRect FromEnd(SKRect area, float from, float to, float top, float bottom) => FromStart(area, area.Width - to, area.Width - from, top, bottom);
+
+    /// <summary>
+    /// The rectangles to arrange the leading and trailing views in (node coordinates as a parent arranges a child: the views
+    /// mirror themselves in right-to-left): their measured size, beside the text box, aligned with the text
+    /// (<see cref="VerticalTextAlignment"/>) and kept inside the field.
+    /// </summary>
+    internal (Rect Leading, Rect Trailing) AdornmentFrames(double width, double height)
+    {
+        var area = Area((float)width, (float)height);
+        var row = Row;
+        var (leadingTop, leadingBottom) = AdornmentBand(area, LeadingSize.Height);
+        var (trailingTop, trailingBottom) = AdornmentBand(area, TrailingSize.Height);
+        var leadingStart = row.StartPadding + row.SearchIcon;
+        var leading = FromStart(area, leadingStart, leadingStart + row.Leading, leadingTop, leadingBottom);
+        var trailing = FromEnd(area, row.EndPadding, row.EndPadding + row.Trailing, trailingTop, trailingBottom);
+        return (ToArranged(leading, width), ToArranged(trailing, width));
+    }
+
+    // A child's rectangle as its parent arranges it: in right-to-left, the child mirrors the rectangle it is given in the parent's width.
+    private Rect ToArranged(SKRect rect, double width) =>
+        new(_owner.IsRightToLeft ? width - rect.Right : rect.Left, rect.Top, rect.Width, rect.Height);
+
+    /// <summary>Where an adornment <paramref name="height"/> DIPs tall sits: aligned with the text box as the text is, inside the area.</summary>
+    private (float Top, float Bottom) AdornmentBand(SKRect area, double height)
+    {
+        var padding = Padding ?? SkUiLook.Current.TextFieldPadding;
+        var size = (float)Math.Min(height, area.Height);
+        var top = area.Top + (float)padding.Top;
+        var bottom = Math.Max(top, area.Bottom - (float)padding.Bottom);
+        var y = VerticalTextAlignment switch
+        {
+            TextAlignment.Start => top,
+            TextAlignment.End => bottom - size,
+            _ => top + (bottom - top - size) / 2
+        };
+        y = Math.Clamp(y, area.Top, Math.Max(area.Top, area.Bottom - size));
+        return (y, y + size);
+    }
 
     /// <summary>The text box in a node of the given size (node coordinates).</summary>
     private SKRect TextBox(float width, float height)
@@ -299,27 +387,21 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         return new SKRect(left, top, Math.Max(left, area.Right - (float)inset.Right), Math.Max(top, area.Bottom - (float)inset.Bottom));
     }
 
+    /// <summary>The clear button's room at the end side of the field, inside the trailing view.</summary>
     private SKRect ClearButtonBounds(float width, float height)
     {
         var area = Area(width, height);
-        var look = SkUiLook.Current;
-        var clear = (float)look.TextFieldClearButtonWidth;
-        var padding = look.TextFieldPadding;
-        return _owner.IsRightToLeft
-            ? new SKRect(area.Left + (float)padding.Left, area.Top, area.Left + (float)padding.Left + clear, area.Bottom)
-            : new SKRect(area.Right - (float)padding.Right - clear, area.Top, area.Right - (float)padding.Right, area.Bottom);
+        var row = Row;
+        var from = row.EndPadding + row.Trailing;
+        return FromEnd(area, from, from + (float)SkUiLook.Current.TextFieldClearButtonWidth, area.Top, area.Bottom);
     }
 
-    /// <summary>A search bar's icon room at the start side of the field.</summary>
+    /// <summary>A search bar's icon room at the start side of the field, before the leading view.</summary>
     private SKRect SearchIconBounds(float width, float height)
     {
         var area = Area(width, height);
-        var look = SkUiLook.Current;
-        var icon = (float)look.SearchIconWidth;
-        var padding = (float)look.TextFieldPadding.Left;
-        return _owner.IsRightToLeft
-            ? new SKRect(area.Right - padding - icon, area.Top, area.Right - padding, area.Bottom)
-            : new SKRect(area.Left + padding, area.Top, area.Left + padding + icon, area.Bottom);
+        var row = Row;
+        return FromStart(area, row.StartPadding, row.StartPadding + (float)SkUiLook.Current.SearchIconWidth, area.Top, area.Bottom);
     }
 
     /// <summary>The text as drawn: bullets for a password, spaces for line breaks in a single-line field.</summary>
@@ -377,7 +459,10 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         }
     }
 
-    /// <summary>The field's size: its text (or placeholder) with the padding, at least the look's touch height.</summary>
+    /// <summary>
+    /// The field's size: its text (or placeholder) with the padding and the adornments beside it (<see cref="LeadingSize"/> and
+    /// <see cref="TrailingSize"/>, measured first), at least the look's touch height and the adornments' height.
+    /// </summary>
     public Size Measure(double widthConstraint, double heightConstraint)
     {
         var inset = Inset;
@@ -393,7 +478,8 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         }
         // Room for the caret at the end of the text.
         width += SkUiLook.Current.CaretWidth;
-        var size = new Size(Math.Min(widthConstraint, width + inset.HorizontalThickness), height + inset.VerticalThickness);
+        var size = new Size(Math.Min(widthConstraint, width + inset.HorizontalThickness),
+            Math.Max(height + inset.VerticalThickness, Math.Max(LeadingSize.Height, TrailingSize.Height)));
         return HasExplicitMinimumHeight ? size : new Size(size.Width, Math.Max(size.Height, SkUiLook.Current.DefaultTextFieldMinimumHeight));
     }
 
@@ -1183,12 +1269,14 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         return ClearButtonShown && ClearButtonBounds(width, height).Contains((float)local.X, (float)local.Y);
     }
 
-    /// <summary>Whether the field reacts to a pointer pressed at <paramref name="local"/> (node coordinates): enabled, inside its area.</summary>
+    /// <summary>
+    /// Whether the field reacts to a pointer pressed at <paramref name="local"/> (node coordinates): enabled, inside its area, and
+    /// not on a leading or trailing view that handles the pointer itself (a press on an icon or a label focuses the field).
+    /// </summary>
     internal bool AcceptsPointerAt(Point local)
     {
-        if (!IsEnabled)
+        if (!IsEnabled || _owner.AdornmentTakesPointer(local))
             return false;
-        var (width, height) = Size;
         return FieldArea is not { } area || area.Contains((float)local.X, (float)local.Y);
     }
 

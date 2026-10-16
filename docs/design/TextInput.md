@@ -10,7 +10,7 @@
 | Caret stops | `SkUiTextBoundaries` | Grapheme clusters (`StringInfo`), words (letters / digits / marks / connectors; each CJK ideograph or kana its own word; punctuation runs; white space), paragraphs. No allocations |
 | Edit layout | `SkUiTextEditLayout` | Lines of editable text on the shared shaping engine (`SkUiShaping`: Latin fast path, HarfBuzz, bidi, fallback fonts), keeping what a label's layout drops: each line's text range and where each code unit sits (`SkUiShaping.CaretEdges`). Carets, hit-testing and selection boxes follow clusters and bidi runs. Paragraphs are kept by content: an edit re-shapes only the paragraphs it changed |
 | Input formatters | `SkUiTextInputFormatter` (`TextInput/SkUiTextInputFormatter.cs`, D9) | Rewrite or refuse the user's edits before the editor applies them: filtering, length caps, masks, or the app's own |
-| Field model | `SkUiTextFieldModel` (`TextInput/`, D3) | The control's state shared by both layers: drawing (chrome through the look, text, selection, composition underline, caret), scrolling inside the field, keys, pointer selection, and the input client the proxy talks to |
+| Field model | `SkUiTextFieldModel` (`TextInput/`, D3) | The control's state shared by both layers: drawing (chrome through the look, text, selection, composition underline, caret), the row of adornments beside the text (D11), scrolling inside the field, keys, pointer selection, and the input client the proxy talks to |
 | Input proxy | `ISkUiTextInputProxy`, one per surface, set by `SkUiViewHandler` (`TextInput/SkUiTextInput.*.cs`, D2) | Attaches the focused field to the platform's text input (see below); shows / hides the soft keyboard; reports caret and composition rectangles |
 
 ## Proxy decision (D0)
@@ -119,6 +119,18 @@ Left open in D2–D8: Android autofill of drawn fields ([D14](ImplementationPlan
 
 Left open: device checks of formatted input with suggestions, autocorrect and CJK commits.
 
+## Leading and trailing views (D11)
+
+`LeadingView` / `TrailingView` on every drawn field (`ISkUiView` on the SkUi layer, `SkUiCoreNode` on Core): drawn views inside the field's chrome, before and after the text. Views rather than descriptors (an icon source, a text, a command), as Avalonia's `InnerLeftContent` / `InnerRightContent` and Syncfusion's `LeadingView` / `TrailingView`: any drawn control fits (an image, a label, an image button, an activity indicator), each keeps its own gestures, states and semantics, and nothing new is drawn by the field for it.
+
+- **One row.** The field model lays its width out as one row (`AdornmentRow`): from the start side the padding, a search bar's icon, the leading view and `TextFieldAdornmentSpacing`; from the end side the padding, the trailing view, then the clear button (whose room is the space before the trailing view, as UIKit's clear button before `rightView`) or the spacing. The text box takes the rest, so `Inset`, the clear button's and the search icon's bounds, hit-testing, the proxies' text bounds and the caret all follow from it. D16's step buttons are planned as more parts of this row.
+- **Measure and arrange.** The facades measure the views first (the field's constraints; a collapsed view is zero) and hand their sizes to the model, which adds their widths to the text's and takes the tallest as a minimum height. Arranged at their measured size beside the text box, aligned with the text (`VerticalTextAlignment`: an entry centers them on the text box, an editor puts them at its top), kept inside the field; the rectangles are given in the parent's arrange coordinates, so the views mirror themselves in right-to-left as any child does. Changing `VerticalTextAlignment` arranges them again.
+- **Children.** Logical / visual children of the field (binding context, resources, diagnostics, native overlays through `SkiaChildren`), drawn after the field's own content. A view is in one slot of one field (validated as other hosted views).
+- **Pointers.** The hit test finds a view only when it (or a descendant) has gesture recognizers. A press on such a view is the view's: the field's gestures decline presses there (`ISkUiTextFieldOwner.AdornmentTakesPointer`), so a mouse click on a trailing button does not move the caret, and on Windows a press inside a text field focuses no other node (`SkUiFocusManager.OnPointerPressed`), so the field keeps focus and its keyboard. A press on an icon or a label reaches the field (it focuses it, the caret goes to the nearest end).
+- **Screen readers.** The field is actionable, so a label's text is read with its name ("Weight, kg"); a button is its own element inside it.
+
+Left open: device checks (a trailing button tapped while the keyboard is up on iOS and Android, Windows touch); a built-in drawn adornment with no view (D16's step buttons) and a visibility mode as UIKit's `rightViewMode` (today: bind `IsVisible`).
+
 ## Moving the caret by touch, magnifier (D15)
 
 - **Insertion handle** (where `SkUiLook.ShowsTextInsertionHandle`: Android by default). A touch tap that places the caret (or taps it) shows a handle under it, drawn by the look (`DrawTextInsertionHandle` inside `GetTextInsertionHandleBounds`: a drop hanging from the caret). It goes after `TextInsertionHandleTimeout` (4 s) unused, when typing, selecting, using a mouse or losing focus. A finger on it that moves past the touch slop drags the caret; a tap on it is a tap on the caret (it toggles the edit menu, paste), and it counts towards a double tap: the second tap of a double tap often lands within the reach of the handle the first one showed, and still selects the word.
@@ -133,14 +145,14 @@ Left open in D15: handles clipped by a scrolling ancestor can still be grabbed w
 
 An entry meant for numbers only, with optional − / + buttons in its chrome. Not a MAUI control: MAUI apps use an `Entry` with `Keyboard="Numeric"` and a converter, or a vendor control. Reference controls: Syncfusion `SfNumericEntry` / `SfNumericUpDown` (the open toolkit) and Telerik `RadNumericInput`. It is a composition of the entry's field engine (`SkUiTextFieldModel`), not a new editor, and keeps `SkUiStepper` (buttons only, MAUI's) as it is.
 
-### Order: after D9 and D11
+### Order: after D9 and D11 (both shipped)
 
 Its two hardest parts are what D9 and D11 generalize, so building it first would mean private versions of both, replaced later:
 
 - **Filtering input is D9 (shipped).** `SkUiTextEditor.Replace` runs the field's input formatters ([Input formatters](#input-formatters-d9)); the numeric filter is one of them.
-- **Buttons in the field are D11.** The clear button and the search icon are special cases in `SkUiTextFieldModel` (`Inset`, `HitsClearButton`, `MousePressed`, `Tapped`). Stepper buttons would be a third, harder one: they repeat while held, which the clear button does not.
+- **Buttons in the field are D11 (shipped).** The search icon, the leading view, the clear button and the trailing view are parts of one row in `SkUiTextFieldModel` ([Leading and trailing views](#leading-and-trailing-views-d11)). Stepper buttons become look-drawn parts of that row (they repeat while held, which the clear button does not, and must not focus the field); an app's own buttons can already be a `TrailingView`.
 
-So: D9's engine (shipped), then D11, then D16 as the acceptance case that shapes both APIs. D10 is optional (an out-of-range value shown as an error instead of clamped).
+So: D9's engine and D11's row (shipped), then D16 as the acceptance case that shapes both APIs. D10 is optional (an out-of-range value shown as an error instead of clamped).
 
 What already exists and keeps D9 / D11 small:
 - **The proxies accept a field that changes an edit.** Android diffs the mirror into the field and pushes back what the field did differently (as for `MaxLength`); iOS answers geometry and text from the field itself; Windows copies the field's state back into its `TextBox`. A formatter needs no proxy work (to confirm on Windows).
@@ -178,7 +190,7 @@ A text field (`SkUiSemanticsRole.TextField`, value = the shown text) with `Incre
 
 ### Later, if asked for
 
-`IncrementCommand` / `DecrementCommand` (Telerik); a percent mode (Syncfusion `PercentDisplayMode`: `Value` 50 shown as 50 % instead of 0.5); a unit before or after the number as a D11 adornment instead of in `Format`; out-of-range shown as an error (D10) instead of clamped; expressions (`2+3*4`, WinUI `NumberBox.AcceptsExpression`); dragging on the field to change the value (design tools).
+`IncrementCommand` / `DecrementCommand` (Telerik); a percent mode (Syncfusion `PercentDisplayMode`: `Value` 50 shown as 50 % instead of 0.5); a unit before or after the number as a `LeadingView` / `TrailingView` (D11) instead of in `Format`; out-of-range shown as an error (D10) instead of clamped; expressions (`2+3*4`, WinUI `NumberBox.AcceptsExpression`); dragging on the field to change the value (design tools).
 
 ### When it ships
 
