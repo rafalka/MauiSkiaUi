@@ -293,7 +293,7 @@ internal sealed partial class SkUiWindowsTextInput : ISkUiTextInputProxy
             _ => Microsoft.UI.Xaml.Controls.CharacterCasing.Normal
         };
         var scope = options.IsPassword ? InputScopeNameValue.Password
-            : options.IsNumeric ? InputScopeNameValue.Number
+            : options.IsNumeric || options.IsNumber ? InputScopeNameValue.Number
             : options.IsTelephone ? InputScopeNameValue.TelephoneNumber
             : options.IsEmail ? InputScopeNameValue.EmailSmtpAddress
             : options.IsUrl ? InputScopeNameValue.Url
@@ -353,8 +353,8 @@ internal sealed partial class SkUiWindowsTextInput : ISkUiTextInputProxy
         {
             client.EndInputBatch();
         }
-        // The field changed the edit (a max length, a transform): the box follows it.
-        if (!_composing && ToBox(client.Editor) != text)
+        // The field changed the edit (a max length, a transform, an input formatter, which may also move the caret): the box follows it.
+        if (!_composing && (ToBox(client.Editor) != text || SelectionDiffers(client)))
             Copy(client);
     }
 

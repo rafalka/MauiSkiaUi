@@ -316,14 +316,56 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
 
     /// <summary>
     /// The focused text field when a finger presses one of its handles: they hang outside the field (the insertion handle under
-    /// the caret), where the hit test, bounded by each node's rectangle, would not find it.
+    /// the caret), where the hit test, bounded by each node's rectangle, would not find it. Only where they are drawn: inside the
+    /// clips of the field's ancestors (a scroller's viewport hides a handle hanging past it).
     /// </summary>
     private ISkUiInputNode? FocusedTextHandleAt(SkUiTouchEvent touch)
     {
         if (touch.Device != SkUiPointerDevice.Touch || root is not SkUiView { FocusManagerIfCreated.Focused: ISkUiTextInputNode field }
             || field is not ISkUiInputNode node || !node.IsHitTestVisible || !node.IsInputEnabled || !IsLive(node))
             return null;
-        return field.HitsTextHandle(MapToNode(node, touch.Position)) ? node : null;
+        return MapInsideClips(node, touch.Position) is { } local && field.HitsTextHandle(local) ? node : null;
+    }
+
+    private readonly List<ISkUiRenderable> _chain = [];
+
+    /// <summary>
+    /// <paramref name="rootPoint"/> in <paramref name="node"/>'s local coordinates (as <see cref="MapToNode"/>), or <c>null</c> when an
+    /// ancestor clips it away: outside a children clip (a scroller's viewport) or the bounds of an ancestor that clips to them.
+    /// </summary>
+    private Point? MapInsideClips(ISkUiRenderable node, Point rootPoint)
+    {
+        _chain.Clear();
+        for (ISkUiRenderable? current = node; current is not null && !ReferenceEquals(current, root); current = current.RenderParent)
+            _chain.Add(current);
+        try
+        {
+            if (_chain.Count == 0 || _chain[^1].RenderParent is null)
+                return ReferenceEquals(node, root) ? rootPoint : null;
+            var point = ToSk(rootPoint);
+            var parentProps = GetProps(root);
+            for (var index = _chain.Count - 1; index >= 0; index--)
+            {
+                var props = GetProps(_chain[index]);
+                if (!props.Pinned)
+                {
+                    if (!parentProps.ChildrenClipRect.IsEmpty && !parentProps.ChildrenClipRect.Contains(point.X, point.Y))
+                        return null;
+                    point = parentProps.MapToChildren(point);
+                }
+                if (props.Matrix.TryInvert(out var inverse))
+                    point = inverse.MapPoint(point);
+                // The node itself draws its handles past its bounds; its ancestors' clips hold.
+                if (index > 0 && props.ClipToBounds && !props.Bounds.Contains(point.X, point.Y))
+                    return null;
+                parentProps = props;
+            }
+            return new Point(point.X, point.Y);
+        }
+        finally
+        {
+            _chain.Clear();
+        }
     }
 
     private bool PressFromOverlay(SkUiTouchEvent touch, TimeSpan time, ISkUiInputNode overlay)
@@ -449,14 +491,16 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
 
     /// <summary>
     /// Topmost node under <paramref name="local"/> that reacts (has recognizers) or blocks (disabled); passive nodes
-    /// let the search continue underneath. Nodes are only hit inside their arranged rectangle (the root always).
+    /// let the search continue underneath. Nodes are only hit inside their arranged rectangle (the root always), and a text field
+    /// also on the message it hangs below a fixed height (<see cref="ISkUiTextInputNode.HitsOverflowMessage"/>).
     /// </summary>
     private ISkUiInputNode? FindTarget(ISkUiInputNode node, SKPoint local, bool isRoot, bool requireParticipant)
     {
         if (!node.IsHitTestVisible)
             return null;
         var props = GetProps(node);
-        if (!isRoot && !props.Bounds.Contains(local.X, local.Y))
+        if (!isRoot && !props.Bounds.Contains(local.X, local.Y)
+            && !(node is ISkUiTextInputNode field && field.HitsOverflowMessage(new Point(local.X, local.Y))))
             return null;
         if (!node.IsInputEnabled)
             return node;

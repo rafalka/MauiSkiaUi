@@ -16,6 +16,8 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     private int _cursorPosition;
     private int _selectionLength;
     private bool _minimumHeightExplicit;
+    private SkUiCoreNode? _leadingView;
+    private SkUiCoreNode? _trailingView;
 
     /// <summary>The field engine shared with <see cref="SkUiInputView"/>.</summary>
     internal SkUiTextFieldModel Model { get; }
@@ -65,11 +67,14 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     /// <summary>Vertical text alignment in the field (default Center for an entry, Start for an editor).</summary>
     public TextAlignment VerticalTextAlignment { get => Model.VerticalTextAlignment; set => SetVerticalTextAlignment(value); }
 
-    /// <summary>The most characters (UTF-16 code units) the text may have (default <see cref="int.MaxValue"/>).</summary>
+    /// <summary>
+    /// The most characters (UTF-16 code units) the text may have (default <see cref="int.MaxValue"/>), counted on the whole text as
+    /// shown, after <see cref="InputFormatters"/> (see <see cref="SkUiInputView.MaxLength"/>).
+    /// </summary>
     public int MaxLength { get => Model.Editor.MaxLength; set => SetMaxLength(value); }
 
     /// <summary>Whether the text cannot be changed by the user (it can still be selected and copied).</summary>
-    public bool IsReadOnly { get => Model.Editor.IsReadOnly; set => SetIsReadOnly(value); }
+    public bool IsReadOnly { get => Model.IsReadOnly; set => SetIsReadOnly(value); }
 
     /// <summary>The soft keyboard's layout.</summary>
     public Keyboard Keyboard { get => Model.Keyboard; set => SetKeyboard(value); }
@@ -92,12 +97,39 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     /// <summary>The color behind selected text; <c>null</c> (default): the look's.</summary>
     public Color? SelectionColor { get => Model.SelectionColor; set => SetSelectionColor(value); }
 
-    /// <summary>What the field holds for password managers and autofill (<see cref="SkUiAutofillHints"/>).</summary>
+    /// <summary>What the field holds for password managers and autofill (<see cref="SkUiAutofillHints"/>, or a platform's own hint).</summary>
+    /// <remarks>One hint: a value with white space throws (white space is reserved for a list of hints later).</remarks>
     public string? AutofillHint { get => Model.AutofillHint; set => SetAutofillHint(value); }
+
+    /// <summary>
+    /// Formatters that rewrite or refuse the user's edits, in order (<see cref="SkUiTextInputFormatter"/>; see
+    /// <see cref="SkUiInputView.InputFormatters"/>).
+    /// </summary>
+    public IList<SkUiTextInputFormatter> InputFormatters => field ??= CreateInputFormatters();
+
+    /// <summary>Whether text the app sets goes through <see cref="InputFormatters"/> too (default <c>false</c>; see <see cref="SkUiInputView.FormatsAssignedText"/>).</summary>
+    public bool FormatsAssignedText { get => Model.FormatsAssignedText; set => SetFormatsAssignedText(value); }
+
+    /// <summary>A node inside the field at its start side, before the text (see <see cref="SkUiInputView.LeadingView"/>).</summary>
+    public SkUiCoreNode? LeadingView { get => _leadingView; set => SetLeadingView(value); }
+
+    /// <summary>A node inside the field at its end side, after the text (see <see cref="SkUiInputView.TrailingView"/>).</summary>
+    public SkUiCoreNode? TrailingView { get => _trailingView; set => SetTrailingView(value); }
+
+    /// <summary>Whether the field's input is invalid: error chrome and message (see <see cref="SkUiInputView.HasError"/>).</summary>
+    public bool HasError { get => Model.HasError; set => SetHasError(value); }
+
+    /// <summary>The message under the field while <see cref="HasError"/> is set, in place of <see cref="HelperText"/> (see <see cref="SkUiInputView.ErrorText"/>).</summary>
+    public string? ErrorText { get => Model.ErrorText; set => SetErrorText(value); }
+
+    /// <summary>A message under the field (see <see cref="SkUiInputView.HelperText"/>).</summary>
+    public string? HelperText { get => Model.HelperText; set => SetHelperText(value); }
+
+    /// <summary>The error chrome's and message's color; <c>null</c> (default): the color scheme's (see <see cref="SkUiInputView.ErrorColor"/>).</summary>
+    public Color? ErrorColor { get => Model.ErrorColor; set => SetErrorColor(value); }
 
     /// <summary>Raised when the text changes (by the user or the app), with the old and new text.</summary>
     public event EventHandler<TextChangedEventArgs>? TextChanged;
-
 
     #endregion
 
@@ -112,7 +144,24 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
         var shown = Model.SetText(value);
         TextChanged?.Invoke(this, new TextChangedEventArgs(old, _text));
         // Cut or transformed: Text follows what the field shows.
-        return shown is null ? this : SetText(shown);
+        if (shown is not null)
+            return SetText(shown);
+        if (!_textEditing)
+            OnTextAssigned();
+        return this;
+    }
+
+    // The user's edit is setting Text (not the app).
+    private bool _textEditing;
+
+    /// <summary>The app set <see cref="Text"/> (not the user's edit), after the field took it.</summary>
+    private protected virtual void OnTextAssigned()
+    {
+    }
+
+    /// <summary>The user edited the text (typing, the input method, paste, undo), after <see cref="Text"/> followed.</summary>
+    private protected virtual void OnTextEdited()
+    {
     }
 
     /// <summary>Sets <see cref="Placeholder"/>.</summary>
@@ -169,7 +218,7 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     public SkUiCoreInputView SetVerticalTextAlignment(TextAlignment value)
     {
         ThrowIfUndefined(value);
-        return Update(ref Model.VerticalTextAlignment, value, nameof(VerticalTextAlignment));
+        return Update(ref Model.VerticalTextAlignment, value, nameof(VerticalTextAlignment), measure: true);
     }
 
     /// <summary>Sets <see cref="MaxLength"/>: longer text is cut.</summary>
@@ -188,14 +237,15 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     /// <summary>Sets <see cref="IsReadOnly"/>.</summary>
     public SkUiCoreInputView SetIsReadOnly(bool value)
     {
-        if (Model.Editor.IsReadOnly == value)
+        if (Model.IsReadOnly == value)
             return this;
-        Model.Editor.IsReadOnly = value;
+        ApplyReadOnly(value);
         OnPropertyChanged(nameof(IsReadOnly));
-        Model.OptionsChanged();
-        Model.PaintChanged();
         return this;
     }
+
+    /// <summary><see cref="IsReadOnly"/> changed: the field model follows (a numeric entry adds its <c>IsEditable</c>).</summary>
+    private protected virtual void ApplyReadOnly(bool value) => Model.SetReadOnly(value);
 
     /// <summary>Sets <see cref="Keyboard"/>.</summary>
     public SkUiCoreInputView SetKeyboard(Keyboard value)
@@ -235,7 +285,108 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     public SkUiCoreInputView SetSelectionColor(Color? value) => Update(ref Model.SelectionColor, value, nameof(SelectionColor));
 
     /// <summary>Sets <see cref="AutofillHint"/>.</summary>
-    public SkUiCoreInputView SetAutofillHint(string? value) => UpdateOptions(ref Model.AutofillHint, value, nameof(AutofillHint));
+    /// <exception cref="ArgumentException"><paramref name="value"/> has white space.</exception>
+    public SkUiCoreInputView SetAutofillHint(string? value)
+    {
+        SkUiValidate.ThrowIfNotAutofillHint(value, nameof(value));
+        return UpdateOptions(ref Model.AutofillHint, value, nameof(AutofillHint));
+    }
+
+    /// <summary>Replaces <see cref="InputFormatters"/> with <paramref name="formatters"/> (in order).</summary>
+    public SkUiCoreInputView SetInputFormatters(params IEnumerable<SkUiTextInputFormatter> formatters)
+    {
+        ArgumentNullException.ThrowIfNull(formatters);
+        var list = formatters.ToList();
+        if (list.Contains(null!))
+            throw new ArgumentException("A formatter is null.", nameof(formatters));
+        var target = InputFormatters;
+        target.Clear();
+        foreach (var formatter in list)
+            target.Add(formatter);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="FormatsAssignedText"/>.</summary>
+    public SkUiCoreInputView SetFormatsAssignedText(bool value)
+    {
+        if (!SetProperty(ref Model.FormatsAssignedText, value, nameof(FormatsAssignedText)))
+            return this;
+        if (value)
+            OnFormattersChanged();
+        return this;
+    }
+
+    /// <summary>Sets <see cref="LeadingView"/>.</summary>
+    public SkUiCoreInputView SetLeadingView(SkUiCoreNode? value) => SetAdornment(ref _leadingView, value, _trailingView, nameof(LeadingView));
+
+    /// <summary>Sets <see cref="TrailingView"/>.</summary>
+    public SkUiCoreInputView SetTrailingView(SkUiCoreNode? value) => SetAdornment(ref _trailingView, value, _leadingView, nameof(TrailingView));
+
+    /// <summary>Sets <see cref="HasError"/>.</summary>
+    public SkUiCoreInputView SetHasError(bool value) => UpdateMessage(ref Model.HasError, value, nameof(HasError));
+
+    /// <summary>Sets <see cref="ErrorText"/>.</summary>
+    public SkUiCoreInputView SetErrorText(string? value) => UpdateMessage(ref Model.ErrorText, value, nameof(ErrorText));
+
+    /// <summary>Sets <see cref="HelperText"/>.</summary>
+    public SkUiCoreInputView SetHelperText(string? value) => UpdateMessage(ref Model.HelperText, value, nameof(HelperText));
+
+    /// <summary>Sets <see cref="ErrorColor"/>.</summary>
+    public SkUiCoreInputView SetErrorColor(Color? value) => Update(ref Model.ErrorColor, value, nameof(ErrorColor));
+
+    private SkUiCoreInputView UpdateMessage<T>(ref T field, T value, string name)
+    {
+        if (SetProperty(ref field, value, name))
+            Model.MessageChanged();
+        return this;
+    }
+
+    private SkUiCoreInputView SetAdornment(ref SkUiCoreNode? slot, SkUiCoreNode? value, SkUiCoreNode? other, string name)
+    {
+        if (ReferenceEquals(slot, value))
+            return this;
+        if (value is not null)
+        {
+            if (ReferenceEquals(value, other))
+                throw new InvalidOperationException("The leading and trailing views must be different nodes.");
+            if (value.Parent is not null)
+                throw new InvalidOperationException("Child already has a parent.");
+            if (WouldCreateParentCycle(value))
+                throw new InvalidOperationException("A view cannot create a parent cycle.");
+        }
+        // Visual tree index: the leading view comes first.
+        var index = name == nameof(TrailingView) && other is not null ? 1 : 0;
+        var previous = slot;
+        if (previous is not null)
+        {
+            previous.AttachTo(null);
+            SkUiDiagnostics.NotifyChildRemoved(this, previous, index);
+        }
+        slot = value;
+        if (value is not null)
+        {
+            value.AttachTo(this);
+            SkUiDiagnostics.NotifyChildAdded(this, value, index);
+        }
+        OnPropertyChanged(name);
+        InvalidateRender(SkUiRenderDirty.Children);
+        Model.TextChanged();
+        return this;
+    }
+
+    private System.Collections.ObjectModel.ObservableCollection<SkUiTextInputFormatter> CreateInputFormatters()
+    {
+        var formatters = new System.Collections.ObjectModel.ObservableCollection<SkUiTextInputFormatter>();
+        formatters.CollectionChanged += (_, _) => OnFormattersChanged();
+        Model.Editor.Formatters = formatters;
+        return formatters;
+    }
+
+    private void OnFormattersChanged()
+    {
+        if (Model.FormatsChanged() is { } shown)
+            SetText(shown);
+    }
 
     /// <inheritdoc />
     public override SkUiCoreNode SetMinimumHeight(double value)
@@ -276,7 +427,37 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         Model.HasExplicitMinimumHeight = _minimumHeightExplicit;
+        Model.LeadingSize = _leadingView is { IsVisible: true } leading ? leading.Measure(widthConstraint, heightConstraint) : Size.Zero;
+        Model.TrailingSize = _trailingView is { IsVisible: true } trailing ? trailing.Measure(widthConstraint, heightConstraint) : Size.Zero;
         return Model.Measure(widthConstraint, heightConstraint);
+    }
+
+    /// <inheritdoc />
+    protected override void ArrangeContent(Size size)
+    {
+        if (_leadingView is null && _trailingView is null)
+            return;
+        var (leading, trailing) = Model.AdornmentFrames(size.Width, size.Height);
+        _leadingView?.Arrange(leading);
+        _trailingView?.Arrange(trailing);
+    }
+
+    /// <inheritdoc />
+    internal override IReadOnlyList<IVisualTreeElement> VisualChildren => (_leadingView, _trailingView) switch
+    {
+        (null, null) => [],
+        ({ } leading, null) => [leading],
+        (null, { } trailing) => [trailing],
+        ({ } leading, { } trailing) => [leading, trailing]
+    };
+
+    /// <inheritdoc />
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
+    {
+        if (_leadingView is not null)
+            children.Add(_leadingView);
+        if (_trailingView is not null)
+            children.Add(_trailingView);
     }
 
     /// <inheritdoc />
@@ -297,6 +478,8 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     {
         base.CollectGestureRecognizers(recognizers);
         recognizers.Add(Model.Gestures);
+        if (Model.Steps is { HasButtons: true } steps)
+            recognizers.Add(steps.Gestures);
     }
 
     /// <inheritdoc />
@@ -328,8 +511,7 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     }
 
     /// <inheritdoc />
-    protected override bool OnSemanticsAction(SkUiSemanticsActions action) =>
-        action == SkUiSemanticsActions.Activate ? Model.Activate() : base.OnSemanticsAction(action);
+    protected override bool OnSemanticsAction(SkUiSemanticsActions action) => Model.PerformSemanticsAction(action) || base.OnSemanticsAction(action);
 
     /// <inheritdoc />
     internal override bool TakesKeyboardFocus => true;
@@ -349,6 +531,8 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
 
     bool ISkUiTextInputNode.HitsTextHandle(Point local) => Model.HandleAt(local) != 0;
 
+    bool ISkUiTextInputNode.HitsOverflowMessage(Point local) => Model.HitsOverflowMessage(local);
+
     #endregion
 
     #region Owner
@@ -363,7 +547,19 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
 
     bool ISkUiTextFieldOwner.IsFocused => IsFocused;
 
-    void ISkUiTextFieldOwner.TextEdited(string text) => SetText(text);
+    void ISkUiTextFieldOwner.TextEdited(string text)
+    {
+        _textEditing = true;
+        try
+        {
+            SetText(text);
+        }
+        finally
+        {
+            _textEditing = false;
+        }
+        OnTextEdited();
+    }
 
     void ISkUiTextFieldOwner.SelectionEdited(int start, int length)
     {
@@ -389,6 +585,9 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     void ISkUiTextFieldOwner.InvalidateSemantics() => InvalidateSemantics();
 
     void ISkUiTextFieldOwner.InvalidateCaret() => InvalidateRender(SkUiRenderDirty.Props);
+
+    bool ISkUiTextFieldOwner.AdornmentTakesPointer(Point local) =>
+        SkUiTextFieldAdornments.TakesPointer(_leadingView, local) || SkUiTextFieldAdornments.TakesPointer(_trailingView, local);
 
     #endregion
 }

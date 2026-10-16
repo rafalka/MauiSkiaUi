@@ -38,7 +38,7 @@ MAUI page
 - **Composition substrate** — build custom chrome and complex controls from Core primitives, then expose a thin `SkUi*` or host them via `SkUiCoreHost`.
 - **XAML where you want it** — bindable properties, styles, VisualStateManager on `SkUi*`; batch updates with `StartUpdating` / `EndUpdating`.
 - **GPU when it helps** — `HwAccelerated` on hosts (Metal/GL where supported); software path for leaves and constrained devices.
-- **Drawn text input** — `SkUiEntry`, `SkUiEditor` and `SkUiSearchBar` (and `SkUiStepper`) are drawn; the platform keyboard, IME, autocorrect and edit menu reach them through a proxy.
+- **Drawn text input** — `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar` and `SkUiNumericEntry` (and `SkUiStepper`) are drawn; the platform keyboard, IME, autocorrect and edit menu reach them through a proxy.
 - **Native when Skia isn’t enough** — `SkUiMauiContentView` keeps real WebView, maps or any native control as overlays.
 - **Shared look & palette** — control look and color scheme drive defaults for both layers without fighting MAUI `AppTheme` alone.
 - **Same gesture model** — SkiaUi tap / commands on drawn nodes; overlays keep platform input.
@@ -109,7 +109,7 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 | Hosts & layout | `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiScrollView`, `SkUiBorder` |
 | Text & chrome | `SkUiLabel`, `SkUiButton`, `SkUiImage`, `SkUiImageButton`, `SkUiActivityIndicator` |
 | Toggles | `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton` |
-| Text input | `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar`, `SkUiStepper` |
+| Text input | `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar`, `SkUiNumericEntry` / `SkUiNumericEntry<T>`, `SkUiStepper` |
 | Shapes | `SkUiBox` (BoxView), MAUI's shapes with brushes, dashes and stretch: `SkUiEllipse`, `SkUiLine`, `SkUiRectangle`, `SkUiRoundRectangle`, `SkUiPath`, `SkUiPolygon`, `SkUiPolyline`; `SkUiBorder.StrokeShape` takes any of them |
 | Native overlay | `SkUiMauiContentView` (WebView, maps, …) |
 
@@ -119,7 +119,7 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 | --- | --- |
 | Bridge | `SkUiCoreHost` |
 | Layouts | `SkUiCoreAbsoluteLayout`, stacks, overlay, `SkUiCoreGrid` / `SkUiCoreTable`, `SkUiCoreContentView` / `SkUiCoreBorder` |
-| Controls | `SkUiCoreLabel`, `SkUiCoreButton`, toggles, image / image button, activity indicator, shapes, `SkUiCoreEntry` / `SkUiCoreEditor` / `SkUiCoreSearchBar` / `SkUiCoreStepper` |
+| Controls | `SkUiCoreLabel`, `SkUiCoreButton`, toggles, image / image button, activity indicator, shapes, `SkUiCoreEntry` / `SkUiCoreEditor` / `SkUiCoreSearchBar` / `SkUiCoreNumericEntry` / `SkUiCoreStepper` |
 
 Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](docs/controls/README.md)** · Core overview: **[docs/controls/SkUiCore.md](docs/controls/SkUiCore.md)**.
 

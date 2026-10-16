@@ -8,7 +8,8 @@ namespace MauiSkiaUi;
 /// What the drawn text fields share (MAUI's <c>InputView</c>; <see cref="SkUiEntry"/>, <see cref="SkUiEditor"/>): the text, caret,
 /// selection and placeholder drawn on the surface, the look's chrome, and the platform's keyboard and input methods (composition,
 /// autocorrect, dictation, autofill) through the surface's text input proxy. MAUI's members by name; beyond MAUI:
-/// <see cref="CaretColor"/>, <see cref="SelectionColor"/> and <see cref="AutofillHint"/>.
+/// <see cref="CaretColor"/>, <see cref="SelectionColor"/>, <see cref="AutofillHint"/>, input formatters, leading and trailing
+/// views, and validation chrome (<see cref="HasError"/>, <see cref="ErrorText"/>, <see cref="HelperText"/>).
 /// </summary>
 public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHandler, ISkUiTextInputNode, ISkUiWheelHandler
 {
@@ -73,7 +74,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// <summary>Bindable property for <see cref="VerticalTextAlignment"/>.</summary>
     public static readonly BindableProperty VerticalTextAlignmentProperty = BindableProperty.Create(nameof(VerticalTextAlignment), typeof(TextAlignment), typeof(SkUiInputView), TextAlignment.Center,
         validateValue: (_, value) => Enum.IsDefined((TextAlignment)value),
-        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.VerticalTextAlignment = (TextAlignment)value),
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.VerticalTextAlignment = (TextAlignment)value, measure: true),
         defaultValueCreator: view => view is SkUiEditor ? TextAlignment.Start : TextAlignment.Center);
 
     /// <summary>Bindable property for <see cref="MaxLength"/>.</summary>
@@ -118,7 +119,47 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
 
     /// <summary>Bindable property for <see cref="AutofillHint"/>.</summary>
     public static readonly BindableProperty AutofillHintProperty = BindableProperty.Create(nameof(AutofillHint), typeof(string), typeof(SkUiInputView), null,
+        validateValue: SkUiValidate.AutofillHint,
         propertyChanged: (view, _, value) => ((SkUiInputView)view).ApplyOptions(model => model.AutofillHint = (string?)value));
+
+    /// <summary>Bindable property for <see cref="FormatsAssignedText"/>.</summary>
+    public static readonly BindableProperty FormatsAssignedTextProperty = BindableProperty.Create(nameof(FormatsAssignedText), typeof(bool), typeof(SkUiInputView), false,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).OnFormatsAssignedTextChanged((bool)value));
+
+    /// <summary>Bindable property for <see cref="LeadingView"/>.</summary>
+    public static readonly BindableProperty LeadingViewProperty = AdornmentProperty(nameof(LeadingView));
+
+    /// <summary>Bindable property for <see cref="TrailingView"/>.</summary>
+    public static readonly BindableProperty TrailingViewProperty = AdornmentProperty(nameof(TrailingView));
+
+    /// <summary>Bindable property for <see cref="HasError"/>.</summary>
+    public static readonly BindableProperty HasErrorProperty = BindableProperty.Create(nameof(HasError), typeof(bool), typeof(SkUiInputView), false,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).OnHasErrorChanged((bool)value));
+
+    /// <summary>Bindable property for <see cref="ErrorText"/>.</summary>
+    public static readonly BindableProperty ErrorTextProperty = BindableProperty.Create(nameof(ErrorText), typeof(string), typeof(SkUiInputView), null,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).ApplyMessage(model => model.ErrorText = (string?)value));
+
+    /// <summary>Bindable property for <see cref="HelperText"/>.</summary>
+    public static readonly BindableProperty HelperTextProperty = BindableProperty.Create(nameof(HelperText), typeof(string), typeof(SkUiInputView), null,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).ApplyMessage(model => model.HelperText = (string?)value));
+
+    /// <summary>Bindable property for <see cref="ErrorColor"/>.</summary>
+    public static readonly BindableProperty ErrorColorProperty = BindableProperty.Create(nameof(ErrorColor), typeof(Color), typeof(SkUiInputView), null,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.ErrorColor = (Color?)value));
+
+    private static BindableProperty AdornmentProperty(string name) => BindableProperty.Create(name, typeof(ISkUiView), typeof(SkUiInputView), null,
+        validateValue: (bindable, value) =>
+        {
+            var owner = (SkUiInputView)bindable;
+            if (value is not ISkUiView child || ReferenceEquals(owner.GetValue(name == nameof(LeadingView) ? LeadingViewProperty : TrailingViewProperty), child))
+                return true;
+            if (ReferenceEquals(owner.LeadingView, child) || ReferenceEquals(owner.TrailingView, child))
+                throw new InvalidOperationException("The leading and trailing views must be different views.");
+            owner.ValidateChild(child);
+            return true;
+        },
+        propertyChanged: (bindable, oldValue, newValue) => ((SkUiInputView)bindable).OnAdornmentChanged((ISkUiView?)oldValue, (ISkUiView?)newValue));
 
     #endregion
 
@@ -161,7 +202,11 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// <summary>The text's vertical alignment in the field (default Center for an entry, Start for an editor).</summary>
     public TextAlignment VerticalTextAlignment { get => (TextAlignment)GetValue(VerticalTextAlignmentProperty); set => SetValue(VerticalTextAlignmentProperty, value); }
 
-    /// <summary>The most characters (UTF-16 code units) the text may have (default <see cref="int.MaxValue"/>): input is cut there; longer text the app sets is cut.</summary>
+    /// <summary>
+    /// The most characters (UTF-16 code units) the text may have (default <see cref="int.MaxValue"/>): input is cut there; longer text
+    /// the app sets is cut. It counts the whole text as shown, after <see cref="InputFormatters"/> (a mask's literals too); cap a
+    /// masked field by its mask, and digits or graphemes with <see cref="SkUiLengthLimitingFormatter"/>.
+    /// </summary>
     public int MaxLength { get => (int)GetValue(MaxLengthProperty); set => SetValue(MaxLengthProperty, value); }
 
     /// <summary>Whether the text cannot be changed by the user (it can still be selected and copied).</summary>
@@ -182,17 +227,90 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// <summary>How many characters are selected from <see cref="CursorPosition"/>; follows the user.</summary>
     public int SelectionLength { get => (int)GetValue(SelectionLengthProperty); set => SetValue(SelectionLengthProperty, value); }
 
-    /// <summary>The caret's color (SkiaUi); <c>null</c> (default): the look's (<see cref="SkUiLook.CaretColor"/>).</summary>
+    /// <summary>The caret's color (SkiaUi); <c>null</c> (default): the look's (<see cref="SkUiLook.DefaultCaretColor"/>).</summary>
     public Color? CaretColor { get => (Color?)GetValue(CaretColorProperty); set => SetValue(CaretColorProperty, value); }
 
-    /// <summary>The color behind selected text (SkiaUi); <c>null</c> (default): the look's (<see cref="SkUiLook.TextSelectionColor"/>).</summary>
+    /// <summary>The color behind selected text (SkiaUi); <c>null</c> (default): the look's (<see cref="SkUiLook.DefaultSelectionColor"/>).</summary>
     public Color? SelectionColor { get => (Color?)GetValue(SelectionColorProperty); set => SetValue(SelectionColorProperty, value); }
 
     /// <summary>
     /// What the field holds for password managers and autofill (SkiaUi; <see cref="SkUiAutofillHints"/>, or a platform's own hint);
     /// <c>null</c> (default): a password field is a password, others none.
     /// </summary>
+    /// <remarks>
+    /// One hint: a value with white space is ignored with a warning (white space is reserved for a list of hints, as
+    /// Android and Flutter take, later).
+    /// </remarks>
     public string? AutofillHint { get => (string?)GetValue(AutofillHintProperty); set => SetValue(AutofillHintProperty, value); }
+
+    /// <summary>
+    /// Formatters that rewrite or refuse the user's edits, in order (SkiaUi; <see cref="SkUiTextInputFormatter"/>: filtering,
+    /// length limits, masks): typing, committed input method text, paste, cut and deletion. Changing them formats the text
+    /// already in the field (<see cref="Text"/> follows); text the app sets later is formatted only with <see cref="FormatsAssignedText"/>.
+    /// </summary>
+    public IList<SkUiTextInputFormatter> InputFormatters => field ??= CreateInputFormatters();
+
+    /// <summary>
+    /// Whether text the app sets (<see cref="Text"/>, a binding) goes through <see cref="InputFormatters"/> too (SkiaUi; default
+    /// <c>false</c>, as Flutter): the field shows the formatted text and <see cref="Text"/> follows it. Turning it on formats the
+    /// text already there.
+    /// </summary>
+    public bool FormatsAssignedText { get => (bool)GetValue(FormatsAssignedTextProperty); set => SetValue(FormatsAssignedTextProperty, value); }
+
+    /// <summary>
+    /// A drawn view inside the field at its start side, before the text (SkiaUi; Material's leading icon or prefix): an icon
+    /// (<see cref="SkUiImage"/>), a short label (<see cref="SkUiLabel"/>), a button. It is measured at its own size and placed
+    /// beside the text, aligned with it (<see cref="VerticalTextAlignment"/>); the text is inset so they never overlap. A press
+    /// on a view that handles pointers itself (a button) is the view's, and does not focus the field; a press on an icon or a
+    /// label focuses the field. A search bar's icon comes before it.
+    /// </summary>
+    public ISkUiView? LeadingView { get => (ISkUiView?)GetValue(LeadingViewProperty); set => SetValue(LeadingViewProperty, value); }
+
+    /// <summary>
+    /// A drawn view inside the field at its end side, after the text (SkiaUi; Material's trailing icon or suffix); see
+    /// <see cref="LeadingView"/>. The clear button comes before it.
+    /// </summary>
+    public ISkUiView? TrailingView { get => (ISkUiView?)GetValue(TrailingViewProperty); set => SetValue(TrailingViewProperty, value); }
+
+    /// <summary>
+    /// Whether the field's input is invalid (SkiaUi; Material's error state): the look draws the field's outline or underline in the
+    /// color scheme's <see cref="SkUiColorScheme.Error"/> and the message under it (<see cref="ErrorText"/>, else
+    /// <see cref="HelperText"/>) in that color; screen readers are told. The app decides when (a validation library, a view model's
+    /// errors, a behavior); the field does not validate. <see cref="ErrorColor"/> overrides the color. Visual states: <see cref="InvalidVisualState"/> /
+    /// <see cref="InvalidFocusedVisualState"/> while set, <see cref="ValidVisualState"/> otherwise.
+    /// </summary>
+    public bool HasError { get => (bool)GetValue(HasErrorProperty); set => SetValue(HasErrorProperty, value); }
+
+    /// <summary>
+    /// The message under the field while <see cref="HasError"/> is set (SkiaUi; Material's error text), in the error color; it
+    /// replaces <see cref="HelperText"/> then. <c>null</c> or empty: the helper text stays (in the error color).
+    /// </summary>
+    public string? ErrorText { get => (string?)GetValue(ErrorTextProperty); set => SetValue(ErrorTextProperty, value); }
+
+    /// <summary>
+    /// A message under the field (SkiaUi; Material's supporting text): a hint that stays while the user types, unlike
+    /// <see cref="Placeholder"/>, in the color scheme's muted color and the look's <see cref="SkUiLook.TextFieldMessageFontSize"/>. It
+    /// wraps at the field's width and makes the field taller; screen readers read it after the field.
+    /// </summary>
+    public string? HelperText { get => (string?)GetValue(HelperTextProperty); set => SetValue(HelperTextProperty, value); }
+
+    /// <summary>
+    /// The color of the error chrome and message while <see cref="HasError"/> is set (SkiaUi); <c>null</c> (default): the color
+    /// scheme's <see cref="SkUiColorScheme.Error"/>.
+    /// </summary>
+    public Color? ErrorColor { get => (Color?)GetValue(ErrorColorProperty); set => SetValue(ErrorColorProperty, value); }
+
+    /// <summary>The visual state while <see cref="HasError"/> is not set (SkiaUi; with <see cref="InvalidVisualState"/>, in a group of their own).</summary>
+    public const string ValidVisualState = "Valid";
+
+    /// <summary>
+    /// The visual state while <see cref="HasError"/> is set and the field is enabled (SkiaUi); also while it
+    /// is focused when no group has <see cref="InvalidFocusedVisualState"/>.
+    /// </summary>
+    public const string InvalidVisualState = "Invalid";
+
+    /// <summary>The visual state while <see cref="HasError"/> is set and the field is focused (SkiaUi), when a group has it.</summary>
+    public const string InvalidFocusedVisualState = "InvalidFocused";
 
     /// <summary>Raised when the text changes (by the user or the app), with the old and new text.</summary>
     public event EventHandler<TextChangedEventArgs>? TextChanged;
@@ -265,7 +383,48 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     public SkUiInputView SetSelectionColor(Color? value) { SelectionColor = value; return this; }
 
     /// <summary>Sets <see cref="AutofillHint"/>.</summary>
-    public SkUiInputView SetAutofillHint(string? value) { AutofillHint = value; return this; }
+    /// <exception cref="ArgumentException"><paramref name="value"/> has white space.</exception>
+    public SkUiInputView SetAutofillHint(string? value)
+    {
+        SkUiValidate.ThrowIfNotAutofillHint(value, nameof(value));
+        AutofillHint = value;
+        return this;
+    }
+
+    /// <summary>Replaces <see cref="InputFormatters"/> with <paramref name="formatters"/> (in order).</summary>
+    public SkUiInputView SetInputFormatters(params IEnumerable<SkUiTextInputFormatter> formatters)
+    {
+        ArgumentNullException.ThrowIfNull(formatters);
+        var list = formatters.ToList();
+        if (list.Contains(null!))
+            throw new ArgumentException("A formatter is null.", nameof(formatters));
+        var target = InputFormatters;
+        target.Clear();
+        foreach (var formatter in list)
+            target.Add(formatter);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="FormatsAssignedText"/>.</summary>
+    public SkUiInputView SetFormatsAssignedText(bool value) { FormatsAssignedText = value; return this; }
+
+    /// <summary>Sets <see cref="LeadingView"/>.</summary>
+    public SkUiInputView SetLeadingView(ISkUiView? value) { LeadingView = value; return this; }
+
+    /// <summary>Sets <see cref="TrailingView"/>.</summary>
+    public SkUiInputView SetTrailingView(ISkUiView? value) { TrailingView = value; return this; }
+
+    /// <summary>Sets <see cref="HasError"/>.</summary>
+    public SkUiInputView SetHasError(bool value) { HasError = value; return this; }
+
+    /// <summary>Sets <see cref="ErrorText"/>.</summary>
+    public SkUiInputView SetErrorText(string? value) { ErrorText = value; return this; }
+
+    /// <summary>Sets <see cref="HelperText"/>.</summary>
+    public SkUiInputView SetHelperText(string? value) { HelperText = value; return this; }
+
+    /// <summary>Sets <see cref="ErrorColor"/>.</summary>
+    public SkUiInputView SetErrorColor(Color? value) { ErrorColor = value; return this; }
 
     private protected static void ThrowIfUndefined<T>(T value) where T : struct, Enum
     {
@@ -292,12 +451,61 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
         Model.OptionsChanged();
     }
 
+    private void ApplyMessage(Action<SkUiTextFieldModel> apply)
+    {
+        apply(Model);
+        Model.MessageChanged();
+    }
+
+    private void OnHasErrorChanged(bool value)
+    {
+        Model.HasError = value;
+        Model.MessageChanged();
+        ChangeVisualState();
+    }
+
     private void OnTextChanged(string? oldValue, string? newValue)
     {
         var shown = Model.SetText(newValue);
         TextChanged?.Invoke(this, new TextChangedEventArgs(oldValue, newValue));
         // Cut or transformed: Text follows what the field shows (and a two-way binding gets it).
         if (shown is not null)
+            SetValue(TextProperty, shown);
+        else if (!_textEditing)
+            OnTextAssigned();
+    }
+
+    // The user's edit is setting Text (not the app).
+    private bool _textEditing;
+
+    /// <summary>The app set <see cref="Text"/> (not the user's edit), after the field took it.</summary>
+    private protected virtual void OnTextAssigned()
+    {
+    }
+
+    /// <summary>The user edited the text (typing, the input method, paste, undo), after <see cref="Text"/> followed.</summary>
+    private protected virtual void OnTextEdited()
+    {
+    }
+
+    private System.Collections.ObjectModel.ObservableCollection<SkUiTextInputFormatter> CreateInputFormatters()
+    {
+        var formatters = new System.Collections.ObjectModel.ObservableCollection<SkUiTextInputFormatter>();
+        formatters.CollectionChanged += (_, _) => OnFormattersChanged();
+        Model.Editor.Formatters = formatters;
+        return formatters;
+    }
+
+    private void OnFormatsAssignedTextChanged(bool value)
+    {
+        Model.FormatsAssignedText = value;
+        if (value)
+            OnFormattersChanged();
+    }
+
+    private void OnFormattersChanged()
+    {
+        if (Model.FormatsChanged() is { } shown)
             SetValue(TextProperty, shown);
     }
 
@@ -315,11 +523,15 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
             Text = text[..value];
     }
 
-    private void OnIsReadOnlyChanged(bool value)
+    private protected virtual void OnIsReadOnlyChanged(bool value) => Model.SetReadOnly(value);
+
+    private void OnAdornmentChanged(ISkUiView? oldValue, ISkUiView? newValue)
     {
-        Model.Editor.IsReadOnly = value;
-        Model.OptionsChanged();
-        Model.PaintChanged();
+        if (oldValue is not null)
+            DetachChild(oldValue);
+        if (newValue is not null)
+            AttachChild(newValue);
+        Model.TextChanged();
     }
 
     private bool _settingSelection;
@@ -338,11 +550,65 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         Model.HasExplicitMinimumHeight = MinimumHeightRequest >= 0;
+        Model.LeadingSize = MeasureAdornment(LeadingView, widthConstraint, heightConstraint);
+        Model.TrailingSize = MeasureAdornment(TrailingView, widthConstraint, heightConstraint);
         return Model.Measure(widthConstraint, heightConstraint);
+    }
+
+    private static Size MeasureAdornment(ISkUiView? view, double widthConstraint, double heightConstraint) =>
+        view is null || view.Visibility == Visibility.Collapsed ? Size.Zero : view.Measure(widthConstraint, heightConstraint);
+
+    /// <inheritdoc />
+    protected override void ArrangeContent(Size size)
+    {
+        if (LeadingView is null && TrailingView is null)
+            return;
+        var (leading, trailing) = Model.AdornmentFrames(size.Width, size.Height);
+        LeadingView?.Arrange(leading);
+        TrailingView?.Arrange(trailing);
+    }
+
+    /// <inheritdoc />
+    internal override IEnumerable<ISkUiView> SkiaChildren
+    {
+        get
+        {
+            if (LeadingView is { } leading)
+                yield return leading;
+            if (TrailingView is { } trailing)
+                yield return trailing;
+        }
+    }
+
+    /// <inheritdoc />
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
+    {
+        // Without the iterator: no allocation per walk.
+        if (LeadingView is ISkUiRenderable leading)
+            children.Add(leading);
+        if (TrailingView is ISkUiRenderable trailing)
+            children.Add(trailing);
     }
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) => Model.Draw(canvas, (float)Width, (float)Height);
+
+    /// <summary>
+    /// The common and focus states, then, while enabled, the validity states: <see cref="InvalidFocusedVisualState"/> (focused,
+    /// when a group has it) or <see cref="InvalidVisualState"/> while <see cref="HasError"/>, else <see cref="ValidVisualState"/>.
+    /// Put them in a group of their own (e.g. <c>ValidityStates</c>), or <c>Invalid</c> / <c>InvalidFocused</c> in
+    /// <c>CommonStates</c>, where they take the place of the state the field would be in.
+    /// </summary>
+    protected override void ChangeVisualState()
+    {
+        base.ChangeVisualState();
+        if (!IsVisualStateEnabled)
+            return;
+        if (!HasError)
+            VisualStateManager.GoToState(this, ValidVisualState);
+        else if (!IsFocused || !VisualStateManager.GoToState(this, InvalidFocusedVisualState))
+            VisualStateManager.GoToState(this, InvalidVisualState);
+    }
 
     /// <inheritdoc />
     internal override void OnGetRenderProps(ref SkUiRenderProps props)
@@ -358,8 +624,11 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
     {
         base.CollectGestureRecognizers(recognizers);
-        if (IsEnabled)
-            recognizers.Add(Model.Gestures);
+        if (!IsEnabled)
+            return;
+        recognizers.Add(Model.Gestures);
+        if (Model.Steps is { HasButtons: true } steps)
+            recognizers.Add(steps.Gestures);
     }
 
     /// <inheritdoc />
@@ -370,7 +639,10 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
         {
             case nameof(IsEnabled):
                 Model.IsEnabled = IsEnabled;
+                if (!IsEnabled)
+                    Model.Steps?.Release();
                 Model.PaintChanged();
+                Model.SemanticsChanged();
                 break;
             case nameof(IsPointerOver):
                 Model.IsPointerOver = IsPointerOver;
@@ -407,8 +679,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     }
 
     /// <inheritdoc />
-    protected override bool OnSemanticsAction(SkUiSemanticsActions action) =>
-        action == SkUiSemanticsActions.Activate ? Model.Activate() : base.OnSemanticsAction(action);
+    protected override bool OnSemanticsAction(SkUiSemanticsActions action) => Model.PerformSemanticsAction(action) || base.OnSemanticsAction(action);
 
     /// <inheritdoc />
     internal override bool TakesKeyboardFocus => true;
@@ -427,6 +698,8 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     bool ISkUiTextInputNode.CanTakeTextFocus => IsVisible && IsEnabled;
 
     bool ISkUiTextInputNode.HitsTextHandle(Point local) => Model.HandleAt(local) != 0;
+
+    bool ISkUiTextInputNode.HitsOverflowMessage(Point local) => Model.HitsOverflowMessage(local);
 
     #endregion
 
@@ -450,7 +723,19 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
 
     bool ISkUiTextFieldOwner.IsFocused => IsFocused;
 
-    void ISkUiTextFieldOwner.TextEdited(string text) => SetValue(TextProperty, text);
+    void ISkUiTextFieldOwner.TextEdited(string text)
+    {
+        _textEditing = true;
+        try
+        {
+            SetValue(TextProperty, text);
+        }
+        finally
+        {
+            _textEditing = false;
+        }
+        OnTextEdited();
+    }
 
     void ISkUiTextFieldOwner.SelectionEdited(int start, int length)
     {
@@ -484,6 +769,10 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     void ISkUiTextFieldOwner.InvalidateSemantics() => InvalidateSemantics();
 
     void ISkUiTextFieldOwner.InvalidateCaret() => InvalidateRender(SkUiRenderDirty.Props);
+
+    bool ISkUiTextFieldOwner.AdornmentTakesPointer(Point local) =>
+        SkUiTextFieldAdornments.TakesPointer(LeadingView as ISkUiRenderable, local)
+        || SkUiTextFieldAdornments.TakesPointer(TrailingView as ISkUiRenderable, local);
 
     #endregion
 }

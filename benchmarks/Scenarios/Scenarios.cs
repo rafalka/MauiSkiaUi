@@ -26,6 +26,9 @@ public static class Scenarios
         new SkUiLabelsFit(),
         new CoreLabelsGrow(),
         new SkUiAvatars(),
+        new CoreEntries(),
+        new CoreEntriesUpdate(),
+        new SkUiEntries(),
         new ShimmerSkeleton(perRow: false),
         new ShimmerSkeleton(perRow: true),
         new ShimmerBones(),
@@ -585,6 +588,72 @@ public sealed class CoreLabelsUpdate : BenchScenario
             ((SkUiCoreLabel)child).SetText($"Value {index++ + _round:0000}");
         grid.EndUpdating();
     };
+}
+
+/// <summary>1,000 drawn Core text fields (a spreadsheet-like page), against <see cref="CoreLabels"/>.</summary>
+public sealed class CoreEntries : BenchScenario
+{
+    public override string Name => "core-entries";
+    public override string Description => "1,000 SkUiCoreEntry (plain Latin text, no options) in a 2-column SkUiCoreGrid";
+
+    public override View Build()
+    {
+        var grid = Scenarios.CoreGrid(Scenarios.Count);
+        grid.StartUpdating();
+        for (var i = 0; i < Scenarios.Count; i++)
+        {
+            var entry = new SkUiCoreEntry();
+            entry.SetText($"Label {i:0000}");
+            entry.SetFontSize(14);
+            grid.Add(entry, i / 2, i % 2);
+        }
+        grid.EndUpdating();
+        return Scenarios.Scroll(Scenarios.Host(grid));
+    }
+}
+
+/// <summary>Steady-state: every Core text field's text changes after the first frame (as a recalculated sheet).</summary>
+public sealed class CoreEntriesUpdate : BenchScenario
+{
+    private int _round;
+
+    public override string Name => "core-entries-update";
+    public override string Description => "1,000 SkUiCoreEntry; update = change every field's text (re-layout + re-record)";
+
+    public override View Build() => new CoreEntries().Build();
+
+    public override Action<View>? Update => root =>
+    {
+        _round++;
+        var grid = (SkUiCoreGrid)((SkUiCoreHost)((SkUiScrollView)root).Content!).Content!;
+        grid.StartUpdating();
+        var index = 0;
+        foreach (var child in grid.Children)
+            ((SkUiCoreEntry)child).SetText($"Value {index++ + _round:0000}");
+        grid.EndUpdating();
+    };
+}
+
+/// <summary>1,000 drawn SkUi text fields, against <see cref="SkUiLabels"/>.</summary>
+public sealed class SkUiEntries : BenchScenario
+{
+    public override string Name => "skui-entries";
+    public override string Description => "1,000 SkUiEntry (plain Latin text, no options) in a 2-column SkUiGrid";
+
+    public override View Build()
+    {
+        var grid = Scenarios.SkUiGrid(Scenarios.Count);
+        grid.StartUpdating();
+        for (var i = 0; i < Scenarios.Count; i++)
+        {
+            var entry = new SkUiEntry { Text = $"Label {i:0000}", FontSize = 14 };
+            Grid.SetRow(entry, i / 2);
+            Grid.SetColumn(entry, i % 2);
+            grid.Children.Add(entry);
+        }
+        grid.EndUpdating();
+        return Scenarios.Scroll(grid);
+    }
 }
 
 /// <summary>Steady-state: every SkUi label changes text after the first frame.</summary>

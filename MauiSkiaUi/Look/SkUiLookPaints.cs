@@ -246,79 +246,235 @@ public readonly record struct SkUiPickerFieldPaint(
     bool IsPointerOver, bool IsEnabled, bool IsRightToLeft);
 
 /// <summary>What a look draws a text field's chrome with (<see cref="SkUiLook.DrawTextField"/>).</summary>
-/// <param name="Bounds">The field's rectangle.</param>
-/// <param name="Accent">The focus color (the color scheme's accent).</param>
-/// <param name="Border">The idle underline or outline color (the color scheme's muted color).</param>
-/// <param name="Foreground">The field's text color.</param>
-/// <param name="Focused">How focused the field is, 0–1, animated by <see cref="SkUiTransitionKind.FieldFocus"/>.</param>
-/// <param name="IsPointerOver">A hovering pointer is over the field.</param>
-/// <param name="IsEnabled">The field is enabled.</param>
-/// <param name="IsReadOnly">The field's text cannot be changed.</param>
-/// <param name="IsMultiline">The field is an editor (several lines).</param>
-/// <param name="IsRightToLeft">The field lays out right to left.</param>
-public readonly record struct SkUiTextFieldPaint(
-    SKRect Bounds, SKColor Accent, SKColor Border, SKColor Foreground, float Focused, bool IsPointerOver, bool IsEnabled, bool IsReadOnly,
-    bool IsMultiline, bool IsRightToLeft);
+public readonly record struct SkUiTextFieldPaint
+{
+    /// <summary>The field's rectangle.</summary>
+    public SKRect Bounds { get; init; }
+
+    /// <summary>The focus color (the color scheme's accent).</summary>
+    public SKColor Accent { get; init; }
+
+    /// <summary>The idle underline or outline color (the color scheme's muted color).</summary>
+    public SKColor Border { get; init; }
+
+    /// <summary>The field's text color.</summary>
+    public SKColor Foreground { get; init; }
+
+    /// <summary>How focused the field is, 0–1, animated by <see cref="SkUiTransitionKind.FieldFocus"/>.</summary>
+    public float Focused { get; init; }
+
+    /// <summary>A hovering pointer is over the field.</summary>
+    public bool IsPointerOver { get; init; }
+
+    /// <summary>The field is enabled.</summary>
+    public bool IsEnabled { get; init; }
+
+    /// <summary>The field's text cannot be changed.</summary>
+    public bool IsReadOnly { get; init; }
+
+    /// <summary>The field is an editor (several lines).</summary>
+    public bool IsMultiline { get; init; }
+
+    /// <summary>The field lays out right to left.</summary>
+    public bool IsRightToLeft { get; init; }
+
+    /// <summary>
+    /// The field's input is invalid (its <c>HasError</c>): drawn in <see cref="Error"/> instead of the border and accent colors.
+    /// </summary>
+    public bool HasError { get; init; }
+
+    /// <summary>The error color (the field's <c>ErrorColor</c>, else the color scheme's <see cref="SkUiColorScheme.Error"/>).</summary>
+    public SKColor Error { get; init; }
+}
 
 /// <summary>What a look draws a handle of a touch selection with (<see cref="SkUiLook.DrawTextSelectionHandle"/>).</summary>
-/// <param name="Edge">The selection's edge the handle belongs to: a zero-width rectangle as tall as its line (field coordinates).</param>
-/// <param name="IsStart">The selection's start (else its end).</param>
-/// <param name="Color">The handle's color (the field's caret color).</param>
-public readonly record struct SkUiTextSelectionHandlePaint(SKRect Edge, bool IsStart, SKColor Color);
+public readonly record struct SkUiTextSelectionHandlePaint
+{
+    /// <summary>The selection's edge the handle belongs to: a zero-width rectangle as tall as its line (field coordinates).</summary>
+    public SKRect Edge { get; init; }
+
+    /// <summary>The selection's start (else its end).</summary>
+    public bool IsStart { get; init; }
+
+    /// <summary>The handle's color (the field's caret color).</summary>
+    public SKColor Color { get; init; }
+}
 
 /// <summary>What a look draws the handle under a text field's caret with (<see cref="SkUiLook.DrawTextInsertionHandle"/>).</summary>
-/// <param name="Caret">The caret's rectangle, field coordinates.</param>
-/// <param name="Color">The caret's color.</param>
-public readonly record struct SkUiTextInsertionHandlePaint(SKRect Caret, SKColor Color);
+public readonly record struct SkUiTextInsertionHandlePaint
+{
+    /// <summary>The caret's rectangle, field coordinates.</summary>
+    public SKRect Caret { get; init; }
+
+    /// <summary>The caret's color.</summary>
+    public SKColor Color { get; init; }
+}
 
 /// <summary>What a look draws a search bar's field with (<see cref="SkUiLook.DrawSearchField"/>).</summary>
-/// <param name="Bounds">The field's rectangle.</param>
-/// <param name="IconBounds">The search icon's room (at the start side).</param>
-/// <param name="Accent">The focus color (the color scheme's accent).</param>
-/// <param name="Border">The field's fill color (the color scheme's muted color).</param>
-/// <param name="IconColor">The search icon's color (the search bar's <c>SearchIconColor</c>).</param>
-/// <param name="Focused">How focused the field is, 0–1, animated by <see cref="SkUiTransitionKind.FieldFocus"/>.</param>
-/// <param name="IsPointerOver">A hovering pointer is over the field.</param>
-/// <param name="IsEnabled">The field is enabled.</param>
-/// <param name="IsRightToLeft">The field lays out right to left (the icon on the right).</param>
-public readonly record struct SkUiSearchFieldPaint(
-    SKRect Bounds, SKRect IconBounds, SKColor Accent, SKColor Border, SKColor IconColor, float Focused, bool IsPointerOver, bool IsEnabled,
-    bool IsRightToLeft);
+public readonly record struct SkUiSearchFieldPaint
+{
+    /// <summary>The field's rectangle.</summary>
+    public SKRect Bounds { get; init; }
+
+    /// <summary>The search icon's room (at the start side).</summary>
+    public SKRect IconBounds { get; init; }
+
+    /// <summary>The focus color (the color scheme's accent).</summary>
+    public SKColor Accent { get; init; }
+
+    /// <summary>The field's fill color (the color scheme's muted color).</summary>
+    public SKColor Fill { get; init; }
+
+    /// <summary>The search icon's color (the search bar's <c>SearchIconColor</c>).</summary>
+    public SKColor IconColor { get; init; }
+
+    /// <summary>How focused the field is, 0–1, animated by <see cref="SkUiTransitionKind.FieldFocus"/>.</summary>
+    public float Focused { get; init; }
+
+    /// <summary>A hovering pointer is over the field.</summary>
+    public bool IsPointerOver { get; init; }
+
+    /// <summary>The field is enabled.</summary>
+    public bool IsEnabled { get; init; }
+
+    /// <summary>The field lays out right to left (the icon on the right).</summary>
+    public bool IsRightToLeft { get; init; }
+
+    /// <summary>The search bar's input is invalid (its <c>HasError</c>): outlined in <see cref="Error"/>.</summary>
+    public bool HasError { get; init; }
+
+    /// <summary>The error color (the field's <c>ErrorColor</c>, else the color scheme's <see cref="SkUiColorScheme.Error"/>).</summary>
+    public SKColor Error { get; init; }
+}
 
 /// <summary>What a look draws a stepper with (<see cref="SkUiLook.DrawStepper"/>).</summary>
-/// <param name="Bounds">The stepper's rectangle.</param>
-/// <param name="DecrementBounds">The − button (at the start side, or at the bottom when vertical).</param>
-/// <param name="IncrementBounds">The + button (at the end side, or on top when vertical).</param>
-/// <param name="Orientation">Whether the buttons sit side by side or stacked.</param>
-/// <param name="Accent">The focus color (the color scheme's accent).</param>
-/// <param name="Border">The segments' tint and the divider's color (the color scheme's muted color).</param>
-/// <param name="Foreground">The − and + color (the stepper's text color).</param>
-/// <param name="DecrementPressed">How pressed the − button is, 0–1.</param>
-/// <param name="IncrementPressed">How pressed the + button is, 0–1.</param>
-/// <param name="CanDecrement">The − button can step (the value is above the minimum).</param>
-/// <param name="CanIncrement">The + button can step (the value is below the maximum).</param>
-/// <param name="Focused">How focused the stepper is, 0–1, animated by <see cref="SkUiTransitionKind.FieldFocus"/>.</param>
-/// <param name="IsPointerOver">A hovering pointer is over the stepper.</param>
-/// <param name="IsEnabled">The stepper is enabled.</param>
-/// <param name="IsRightToLeft">The stepper lays out right to left (+ on the left when horizontal).</param>
-/// <param name="HasDecrementText">The control draws a text of its own on the − button (its <c>DecrementText</c>): no − glyph.</param>
-/// <param name="HasIncrementText">The control draws a text of its own on the + button (its <c>IncrementText</c>): no + glyph.</param>
-/// <param name="CornerRadius">The stepper's corner radius in DIPs (its <c>CornerRadius</c>, or <see cref="SkUiLook.StepperCornerRadius"/>).</param>
-/// <param name="BorderWidth">The outline's width in DIPs (its <c>BorderWidth</c>); 0: no outline.</param>
-/// <param name="BorderColor">The outline's color (its <c>BorderColor</c>, or the color scheme's muted color).</param>
-public readonly record struct SkUiStepperPaint(
-    SKRect Bounds, SKRect DecrementBounds, SKRect IncrementBounds, StackOrientation Orientation, SKColor Accent, SKColor Border, SKColor Foreground,
-    float DecrementPressed, float IncrementPressed, bool CanDecrement, bool CanIncrement, float Focused, bool IsPointerOver, bool IsEnabled,
-    bool IsRightToLeft, bool HasDecrementText = false, bool HasIncrementText = false, float CornerRadius = SkUiLook.DefaultStepperCornerRadius,
-    float BorderWidth = 0, SKColor BorderColor = default);
+public readonly record struct SkUiStepperPaint
+{
+    /// <summary>The stepper's rectangle.</summary>
+    public SKRect Bounds { get; init; }
 
-/// <summary>What a look draws a picker field's clear button with (<see cref="SkUiLook.DrawPickerClearButton"/>).</summary>
-/// <param name="Bounds">The button's room in the field (before the chevron, the end side).</param>
-/// <param name="Color">The button's color (the color scheme's muted color).</param>
+    /// <summary>The − button (at the start side, or at the bottom when vertical).</summary>
+    public SKRect DecrementBounds { get; init; }
+
+    /// <summary>The + button (at the end side, or on top when vertical).</summary>
+    public SKRect IncrementBounds { get; init; }
+
+    /// <summary>Whether the buttons sit side by side or stacked.</summary>
+    public StackOrientation Orientation { get; init; }
+
+    /// <summary>The focus color (the color scheme's accent).</summary>
+    public SKColor Accent { get; init; }
+
+    /// <summary>The segments' tint and the divider's color (the color scheme's muted color).</summary>
+    public SKColor Border { get; init; }
+
+    /// <summary>The − and + color (the stepper's text color).</summary>
+    public SKColor Foreground { get; init; }
+
+    /// <summary>How pressed the − button is, 0–1.</summary>
+    public float DecrementPressed { get; init; }
+
+    /// <summary>How pressed the + button is, 0–1.</summary>
+    public float IncrementPressed { get; init; }
+
+    /// <summary>The − button can step (the value is above the minimum).</summary>
+    public bool CanDecrement { get; init; }
+
+    /// <summary>The + button can step (the value is below the maximum).</summary>
+    public bool CanIncrement { get; init; }
+
+    /// <summary>How focused the stepper is, 0–1, animated by <see cref="SkUiTransitionKind.FieldFocus"/>.</summary>
+    public float Focused { get; init; }
+
+    /// <summary>A hovering pointer is over the stepper.</summary>
+    public bool IsPointerOver { get; init; }
+
+    /// <summary>The stepper is enabled.</summary>
+    public bool IsEnabled { get; init; }
+
+    /// <summary>The stepper lays out right to left (+ on the left when horizontal).</summary>
+    public bool IsRightToLeft { get; init; }
+
+    /// <summary>The control draws a text of its own on the − button (its <c>DecrementText</c>): no − glyph.</summary>
+    public bool HasDecrementText { get; init; }
+
+    /// <summary>The control draws a text of its own on the + button (its <c>IncrementText</c>): no + glyph.</summary>
+    public bool HasIncrementText { get; init; }
+
+    /// <summary>
+    /// The stepper's corner radius in DIPs (its <c>CornerRadius</c>, or <see cref="SkUiLook.DefaultStepperCornerRadius"/>).
+    /// </summary>
+    public float CornerRadius { get; init; }
+
+    /// <summary>The outline's width in DIPs (its <c>BorderWidth</c>); 0: no outline.</summary>
+    public float BorderWidth { get; init; }
+
+    /// <summary>The outline's color (its <c>BorderColor</c>, or the color scheme's muted color).</summary>
+    public SKColor BorderColor { get; init; }
+}
+
+/// <summary>What a look draws a numeric entry's − and + buttons with (<see cref="SkUiLook.DrawTextFieldStepButtons"/>).</summary>
+public readonly record struct SkUiTextFieldStepButtonsPaint
+{
+    /// <summary>The field's rectangle (its chrome's bounds; the buttons are inside it).</summary>
+    public SKRect Field { get; init; }
+
+    /// <summary>The − button.</summary>
+    public SKRect DecrementBounds { get; init; }
+
+    /// <summary>The + button.</summary>
+    public SKRect IncrementBounds { get; init; }
+
+    /// <summary>Where the buttons sit: at the end side, the start side, or split (− at the start or bottom, + at the end or top).</summary>
+    public SkUiStepButtonPlacement Placement { get; init; }
+
+    /// <summary>
+    /// Side by side (<see cref="StackOrientation.Horizontal"/>) or stacked (<see cref="StackOrientation.Vertical"/>): + above − in one
+    /// column, or with <see cref="SkUiStepButtonPlacement.Split"/>, bars across the field above and below the text.
+    /// </summary>
+    public StackOrientation Orientation { get; init; }
+
+    /// <summary>The dividers' and the pressed tint's color (the color scheme's muted color).</summary>
+    public SKColor Border { get; init; }
+
+    /// <summary>The − and + color (the entry's <c>ButtonTextColor</c>, else its text color).</summary>
+    public SKColor Foreground { get; init; }
+
+    /// <summary>How pressed the − button is, 0–1.</summary>
+    public float DecrementPressed { get; init; }
+
+    /// <summary>How pressed the + button is, 0–1.</summary>
+    public float IncrementPressed { get; init; }
+
+    /// <summary>The − button can step (above the minimum, or the value wraps).</summary>
+    public bool CanDecrement { get; init; }
+
+    /// <summary>The + button can step.</summary>
+    public bool CanIncrement { get; init; }
+
+    /// <summary>The entry is enabled.</summary>
+    public bool IsEnabled { get; init; }
+
+    /// <summary>The entry lays out right to left (the rectangles are already mirrored).</summary>
+    public bool IsRightToLeft { get; init; }
+
+    /// <summary>The entry draws a text of its own on the − button (its <c>DecrementText</c>): no − glyph.</summary>
+    public bool HasDecrementText { get; init; }
+
+    /// <summary>The entry draws a text of its own on the + button (its <c>IncrementText</c>): no + glyph.</summary>
+    public bool HasIncrementText { get; init; }
+}
+
+/// <summary>
+/// What a look draws a field's clear button with: a picker's (<see cref="SkUiLook.DrawPickerClearButton"/>) or a text field's
+/// (<see cref="SkUiLook.DrawTextFieldClearButton"/>).
+/// </summary>
+/// <param name="Bounds">The button's room in the field (at the end side; a picker's before its chevron).</param>
+/// <param name="Color">The button's color (the color scheme's muted color, or a text field's <c>ClearButtonColor</c>).</param>
 /// <param name="Background">The field's background color (the cross's color in the default look).</param>
 /// <param name="IsPressed">The button is pressed.</param>
 /// <param name="IsEnabled">The field is enabled.</param>
-public readonly record struct SkUiPickerClearButtonPaint(SKRect Bounds, SKColor Color, SKColor Background, bool IsPressed, bool IsEnabled);
+public readonly record struct SkUiClearButtonPaint(SKRect Bounds, SKColor Color, SKColor Background, bool IsPressed, bool IsEnabled);
 
 /// <summary>A button of a popup's footer (<see cref="SkUiLook.StylePopupButton"/>).</summary>
 public enum SkUiPopupButton

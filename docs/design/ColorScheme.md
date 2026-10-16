@@ -38,6 +38,7 @@ public class SkUiColorScheme
     public virtual Color Muted { get; set; }
     public virtual Color TrackOff { get; set; }
     public virtual Color Disabled { get; set; }
+    public virtual Color Error { get; set; }  // invalid input: text fields' HasError chrome and message (D10)
     // … additional tokens as controls need them
 }
 

@@ -6,6 +6,22 @@ namespace MauiSkiaUiDemo;
 public sealed class EntryDemoPage : ComponentDemoPage
 {
     private const string Placeholder = "Type here";
+    private const string NoFormatters = "None";
+    private const string DigitsOnly = "Digits only";
+    private const string PhoneMask = "Phone (000) 000-0000";
+    private const string CardNumber = "Card 0000 0000 0000 0000";
+    private const string NoSpaces = "No spaces, lower case";
+    private const string PhoneMaskText = "(000) 000-0000";
+    private const string CardMaskText = "0000 0000 0000 0000";
+    private const string NoView = "None";
+    private const string IconView = "Icon";
+    private const string PrefixView = "Label \"$\"";
+    private const string UnitView = "Label \"kg\"";
+    private const string ButtonView = "Button (upper case)";
+    private const string EmailError = "Enter an email address";
+    private const string NoError = "False";
+    private const string WithError = "True";
+    private const string ValidateEmail = "Validate as email";
 
     public EntryDemoPage() : base(nameof(SkUiEntry), new SkUiEntry { Placeholder = Placeholder }, new Entry { Placeholder = Placeholder })
     {
@@ -40,8 +56,35 @@ public sealed class EntryDemoPage : ComponentDemoPage
         Number(nameof(SkUiEntry.FontSize), 10, 32, 16, value => { skia.FontSize = value; native.FontSize = value; }, () => skia.FontSize, () => native.FontSize);
         Number(nameof(SkUiEntry.CharacterSpacing), 0, 6, 0, value => { skia.CharacterSpacing = value; native.CharacterSpacing = value; },
             () => skia.CharacterSpacing, () => native.CharacterSpacing);
+        Choice(nameof(SkUiEntry.InputFormatters), [NoFormatters, DigitsOnly, PhoneMask, CardNumber, NoSpaces], NoFormatters,
+            value => skia.SetInputFormatters(FormattersOf(value)), () => NameOf(skia.InputFormatters));
+        Toggle(nameof(SkUiEntry.FormatsAssignedText), false, value => skia.FormatsAssignedText = value, () => skia.FormatsAssignedText);
+        // SkiaUi only (MAUI's Entry has none): drawn views inside the field; the button acts without taking focus from it.
+        var leading = NoView;
+        var trailing = NoView;
+        Choice(nameof(SkUiEntry.LeadingView), [NoView, IconView, PrefixView], NoView,
+            value => skia.LeadingView = AdornmentOf(leading = value, skia), () => leading);
+        Choice(nameof(SkUiEntry.TrailingView), [NoView, UnitView, ButtonView], NoView,
+            value => skia.TrailingView = AdornmentOf(trailing = value, skia), () => trailing);
+        // SkiaUi only: validation chrome. The app decides when the input is invalid; here, a check on each change.
+        Text(nameof(SkUiEntry.HelperText), string.Empty, value => skia.HelperText = value, () => skia.HelperText ?? string.Empty);
+        Text(nameof(SkUiEntry.ErrorText), EmailError, value => skia.ErrorText = value, () => skia.ErrorText ?? string.Empty);
+        skia.ErrorText = EmailError;
+        // One editor owns HasError: set by hand, or by an email check on each change.
+        var validates = false;
+        skia.TextChanged += (_, args) =>
+        {
+            if (validates)
+                skia.HasError = !IsEmail(args.NewTextValue);
+        };
+        Choice(nameof(SkUiEntry.HasError), [NoError, WithError, ValidateEmail], NoError, value =>
+        {
+            validates = value == ValidateEmail;
+            skia.HasError = validates ? !IsEmail(skia.Text) : value == WithError;
+        }, () => validates ? ValidateEmail : skia.HasError ? WithError : NoError);
         ColorEditor(nameof(SkUiEntry.TextColor), Ink, value => { skia.TextColor = value; native.TextColor = value; }, () => skia.TextColor ?? Ink, () => native.TextColor ?? Ink);
         ColorEditor(nameof(SkUiEntry.CaretColor), Accent, value => skia.CaretColor = value, () => skia.CaretColor ?? Accent);
+        ColorEditor(nameof(SkUiEntry.ErrorColor), SkUiColors.Error, value => skia.ErrorColor = value, () => skia.ErrorColor ?? SkUiColors.Error);
         ActionButton("Select all", () =>
         {
             skia.CursorPosition = 0;
@@ -51,6 +94,51 @@ public sealed class EntryDemoPage : ComponentDemoPage
         });
         ActionButton("Focus", () => skia.Focus());
     }
+
+    // Empty is valid (nothing typed yet); otherwise one @ with text on both sides and a dot after it.
+    private static bool IsEmail(string? text) =>
+        string.IsNullOrEmpty(text) || System.Text.RegularExpressions.Regex.IsMatch(text, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+
+    private ISkUiView? AdornmentOf(string name, SkUiEntry entry)
+    {
+        switch (name)
+        {
+            case IconView:
+                return new SkUiImage { Source = DemoAssets.BadgeImage, WidthRequest = 20, HeightRequest = 20 };
+            case PrefixView or UnitView:
+                return new SkUiLabel { Text = name == PrefixView ? "$" : "kg", TextColor = DemoColors.Caption, FontSize = 15 };
+            case ButtonView:
+                var button = new SkUiButton { Text = "ABC", FontSize = 12, Padding = new Thickness(8, 2), HeightRequest = 28, CornerRadius = 14 };
+                button.Clicked += (_, _) =>
+                {
+                    entry.Text = entry.Text?.ToUpperInvariant();
+                    Feedback($"Button: \"{entry.Text}\" (focused: {entry.IsFocused})");
+                };
+                return button;
+            default:
+                return null;
+        }
+    }
+
+    // SkiaUi only (MAUI's Entry has no formatters): filters, a mask, a digit cap with groups, a function.
+    private static SkUiTextInputFormatter[] FormattersOf(string name) => name switch
+    {
+        DigitsOnly => [SkUiFilteringFormatter.DigitsOnly()],
+        PhoneMask => [new SkUiMaskFormatter(PhoneMaskText)],
+        CardNumber => [new SkUiMaskFormatter(CardMaskText)],
+        NoSpaces => [new SkUiFilteringFormatter(@"\s", SkUiFilteringMode.Deny),
+            SkUiTextInputFormatter.Create((_, value) => value with { Text = value.Text.ToLowerInvariant() })],
+        _ => []
+    };
+
+    private static string NameOf(IList<SkUiTextInputFormatter> formatters) => formatters switch
+    {
+        [] => NoFormatters,
+        [SkUiMaskFormatter { Mask: PhoneMaskText }] => PhoneMask,
+        [SkUiMaskFormatter { Mask: CardMaskText }] => CardNumber,
+        [SkUiFilteringFormatter] => DigitsOnly,
+        _ => NoSpaces
+    };
 
     private static Keyboard KeyboardOf(string name) => name switch
     {

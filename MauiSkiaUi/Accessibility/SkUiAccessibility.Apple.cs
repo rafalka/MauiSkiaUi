@@ -13,14 +13,16 @@ namespace MauiSkiaUi;
 internal sealed class SkUiAccessibilityBridge
 {
     private static UIAccessibilityTrait? _switchTraits;
-    private readonly UIView _container;
+    private static ulong? _textFieldTraits;
+    private readonly SkUiOverlayContainer _container;
     private readonly SkUiView _root;
     private readonly Dictionary<int, SkUiAccessibilityElement> _elements = [];
     private SkUiSemanticsOwner? _owner;
     private NSArray? _array;
     private bool _listening;
+    private SkUiTextInputView? _idleTextInput;
 
-    public SkUiAccessibilityBridge(UIView container, SkUiView root)
+    public SkUiAccessibilityBridge(SkUiOverlayContainer container, SkUiView root)
     {
         _container = container;
         _root = root;
@@ -54,6 +56,8 @@ internal sealed class SkUiAccessibilityBridge
         _owner = null;
         _elements.Clear();
         _array = null;
+        _idleTextInput?.RemoveFromSuperview();
+        _idleTextInput = null;
     }
 
     /// <summary>The container's accessibility elements (<c>accessibilityElements</c>).</summary>
@@ -76,14 +80,17 @@ internal sealed class SkUiAccessibilityBridge
             // A scroller without a name is only a container: its children are the elements (they scroll it).
             if (node.Role == SkUiSemanticsRole.ScrollView && node.Label is null)
                 continue;
-            if (!_elements.TryGetValue(node.Id, out var element))
-                _elements[node.Id] = element = new SkUiAccessibilityElement(_container, this, node.Id);
+            if (!_elements.TryGetValue(node.Id, out var element) || element is SkUiTextFieldAccessibilityElement != NavigatesText(node))
+                _elements[node.Id] = element = NavigatesText(node)
+                    ? new SkUiTextFieldAccessibilityElement(_container, this, node.Id)
+                    : new SkUiAccessibilityElement(_container, this, node.Id);
             Apply(element, node);
             items.Add(element);
             live.Add(node.Id);
         }
         foreach (var id in _elements.Keys.Where(id => !live.Contains(id)).ToList())
             _elements.Remove(id);
+        ReleaseIdleTextInput();
         _builtVersion = _owner!.Version;
         return _array = NSArray.FromNSObjects(items.ToArray());
     }
@@ -98,14 +105,21 @@ internal sealed class SkUiAccessibilityBridge
             Listen(false);
             return;
         }
+        var tree = Tree;
+        // A field became or stopped being a password: its element changes kind, as when the structure changes.
+        if (!structureChanged)
+            foreach (var id in changed)
+                if (_elements.TryGetValue(id, out var element) && tree.Find(id) is { } node
+                    && element is SkUiTextFieldAccessibilityElement != NavigatesText(node))
+                    structureChanged = true;
         if (structureChanged)
         {
             _array = null;
+            ReleaseIdleTextInput();
             UIAccessibility.PostNotification(UIAccessibilityPostNotification.LayoutChanged, null);
             return;
         }
         // Values and states: update the elements in place (VoiceOver reads them when it next asks).
-        var tree = Tree;
         foreach (var id in changed)
             if (_elements.TryGetValue(id, out var element) && tree.Find(id) is { } node)
                 Apply(element, node);
@@ -159,8 +173,13 @@ internal sealed class SkUiAccessibilityBridge
                 traits |= UIAccessibilityTrait.Button;
                 break;
             case SkUiSemanticsRole.TextField:
-                // As a UITextField: the text as the value (the placeholder, as the label, while empty); activating focuses it.
+                // As a UITextField: its traits (read as a text field), the text as the value (the placeholder, as the label, while
+                // empty); activating focuses it. The element navigates the text itself (SkUiTextFieldAccessibilityElement).
                 value = string.IsNullOrEmpty(node.Value) ? null : node.Value;
+                if (element is SkUiTextFieldAccessibilityElement field)
+                    field.Field = (node.Source as ISkUiTextInputNode)?.TextInputClient;
+                traits |= (UIAccessibilityTrait)TextFieldTraits;
+                ApplyError(element, node);
                 break;
             default:
                 if ((node.Actions & SkUiSemanticsActions.Activate) != 0)
@@ -175,6 +194,27 @@ internal sealed class SkUiAccessibilityBridge
         element.AccessibilityValue = value;
     }
 
+    /// <summary>
+    /// A text field's error (<c>HasError</c> with an error text): UIKit has no invalid state, and a hint is not read by users who turn
+    /// hints off, so the error joins the label (and leaves the hint), and it is announced when it appears on the field VoiceOver is on.
+    /// </summary>
+    private static void ApplyError(SkUiAccessibilityElement element, SkUiSemanticsNode node)
+    {
+        if (node.TextField is not { HasError: true, Message: { } message } || string.IsNullOrWhiteSpace(message))
+        {
+            element.AnnouncedError = null;
+            return;
+        }
+        var error = message.Trim();
+        element.AccessibilityLabel = node.Label is { } label ? $"{label}, {error}" : error;
+        // The tree's hint reads the message first ("error, app's hint"): only the app's hint stays.
+        var hint = node.Hint;
+        element.AccessibilityHint = hint == error ? null : hint?.StartsWith(error + ", ", StringComparison.Ordinal) == true ? hint[(error.Length + 2)..] : hint;
+        if (element.AnnouncedError != error && element.AccessibilityElementIsFocused())
+            UIAccessibility.PostNotification(UIAccessibilityPostNotification.Announcement, new NSString(error));
+        element.AnnouncedError = error;
+    }
+
     /// <summary>UISwitch's traits (a private switch trait among them); <c>None</c> until VoiceOver has run once, as in MAUI.</summary>
     private static UIAccessibilityTrait SwitchTraits
     {
@@ -187,6 +227,58 @@ internal sealed class SkUiAccessibilityBridge
             return _switchTraits.Value;
         }
     }
+
+    /// <summary>UITextField's traits (private ones: VoiceOver reads "text field"); <c>0</c> until an accessibility client has run, as <see cref="SwitchTraits"/>.</summary>
+    private static ulong TextFieldTraits
+    {
+        get
+        {
+            if (_textFieldTraits is { } traits && traits != 0)
+                return traits;
+            using var probe = new UITextField();
+            _textFieldTraits = (ulong)probe.AccessibilityTraits;
+            return _textFieldTraits.Value;
+        }
+    }
+
+    /// <summary>
+    /// Whether the element of <paramref name="node"/> navigates its text (<see cref="SkUiTextFieldAccessibilityElement"/>): an
+    /// editable field, not a password.
+    /// </summary>
+    private static bool NavigatesText(SkUiSemanticsNode node) =>
+        node is { Role: SkUiSemanticsRole.TextField, TextField.IsPassword: false, Source: ISkUiTextInputNode };
+
+    /// <summary>The focused field's text input view when <paramref name="field"/> is that field (VoiceOver edits through it).</summary>
+    internal SkUiTextInputView? FocusedTextInput(ISkUiTextInputClient field) =>
+        _container.TextInput?.View is { } view && ReferenceEquals(view.Client, field) ? view : null;
+
+    /// <summary>
+    /// The view answering VoiceOver's text questions about <paramref name="field"/>: the focused field's text input view, else an
+    /// idle one of the same kind (never first responder, at the container's origin: its coordinates are the surface's) set to the
+    /// field until the next field asks or the elements are rebuilt.
+    /// </summary>
+    internal SkUiTextInputView TextInputFor(ISkUiTextInputClient field)
+    {
+        if (FocusedTextInput(field) is { } focused)
+            return focused;
+        if (_idleTextInput is null)
+        {
+            _idleTextInput = new SkUiTextInputView(_container) { Frame = new CGRect(0, 0, 1, 1) };
+            _container.AddSubview(_idleTextInput);
+        }
+        _idleTextInput.Client = field;
+        return _idleTextInput;
+    }
+
+    /// <summary>The idle view lets its field go (it would keep a removed field alive).</summary>
+    internal void ReleaseIdleTextInput()
+    {
+        if (_idleTextInput is { } idle)
+            idle.Client = null;
+    }
+
+    /// <summary>VoiceOver moves the caret or selects in field <paramref name="id"/>.</summary>
+    public bool SetSelection(int id, int start, int end) => _owner?.SetSelection(id, start, end) == true;
 
     public bool Perform(int id, SkUiSemanticsActions action) => _owner?.Perform(id, action) == true;
 
@@ -236,7 +328,7 @@ internal sealed class SkUiAccessibilityBridge
 }
 
 /// <summary>One drawn element as VoiceOver sees it.</summary>
-internal sealed class SkUiAccessibilityElement : UIAccessibilityElement
+internal class SkUiAccessibilityElement : UIAccessibilityElement
 {
     private readonly WeakReference<SkUiAccessibilityBridge> _bridge;
 
@@ -249,7 +341,13 @@ internal sealed class SkUiAccessibilityElement : UIAccessibilityElement
 
     public int Id { get; }
 
-    private bool Perform(SkUiSemanticsActions action) => _bridge.TryGetTarget(out var bridge) && bridge.Perform(Id, action);
+    /// <summary>A text field's error as last applied (announced once when it appears while VoiceOver is on the field).</summary>
+    internal string? AnnouncedError { get; set; }
+
+    /// <summary>The bridge, while the surface is there.</summary>
+    protected SkUiAccessibilityBridge? Bridge => _bridge.TryGetTarget(out var bridge) ? bridge : null;
+
+    private bool Perform(SkUiSemanticsActions action) => Bridge?.Perform(Id, action) == true;
 
     /// <summary>VoiceOver's double tap (an informal-protocol method: exported, not overridden).</summary>
     [Export("accessibilityActivate")]
@@ -259,14 +357,9 @@ internal sealed class SkUiAccessibilityElement : UIAccessibilityElement
 
     public override void AccessibilityDecrement() => Perform(SkUiSemanticsActions.Decrement);
 
-    public override bool AccessibilityScroll(UIAccessibilityScrollDirection direction) =>
-        _bridge.TryGetTarget(out var bridge) && bridge.Scroll(Id, direction);
+    public override bool AccessibilityScroll(UIAccessibilityScrollDirection direction) => Bridge?.Scroll(Id, direction) == true;
 
-    public override void AccessibilityElementDidBecomeFocused()
-    {
-        if (_bridge.TryGetTarget(out var bridge))
-            bridge.OnFocused(Id);
-    }
+    public override void AccessibilityElementDidBecomeFocused() => Bridge?.OnFocused(Id);
 }
 
 /// <summary>Hardware keyboard presses of a focused surface container as <see cref="SkUiKey"/>s.</summary>

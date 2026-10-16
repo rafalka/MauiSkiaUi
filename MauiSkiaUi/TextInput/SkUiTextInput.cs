@@ -16,6 +16,10 @@ namespace MauiSkiaUi;
 /// <param name="TextTransform">Upper or lower case input: the keyboard starts in that case where it can.</param>
 /// <param name="AutofillHint">What the field holds for password managers and autofill (<see cref="SkUiAutofillHints"/>), or <c>null</c>.</param>
 /// <param name="IsSearch">A search bar: the platform's search keyboard where it has one.</param>
+/// <param name="NumberKeyboard">
+/// A numeric entry's keyboard (D16), in place of <paramref name="Keyboard"/>: digits, with a decimal separator and a minus sign
+/// when the value can have them. <see cref="SkUiNumberKeyboard.None"/>: <paramref name="Keyboard"/>.
+/// </param>
 internal readonly record struct SkUiTextInputOptions(
     Keyboard Keyboard,
     ReturnType ReturnType,
@@ -26,8 +30,18 @@ internal readonly record struct SkUiTextInputOptions(
     bool IsReadOnly,
     TextTransform TextTransform,
     string? AutofillHint,
-    bool IsSearch = false)
+    bool IsSearch = false,
+    SkUiNumberKeyboard NumberKeyboard = SkUiNumberKeyboard.None)
 {
+    /// <summary>Whether the keyboard is a numeric entry's (<see cref="NumberKeyboard"/>).</summary>
+    internal bool IsNumber => (NumberKeyboard & SkUiNumberKeyboard.Digits) != 0;
+
+    /// <summary>A numeric entry's value can have decimals: the keyboard has a decimal separator.</summary>
+    internal bool IsDecimalNumber => (NumberKeyboard & SkUiNumberKeyboard.Decimal) != 0;
+
+    /// <summary>A numeric entry's value can be negative: the keyboard has a minus sign.</summary>
+    internal bool IsSignedNumber => (NumberKeyboard & SkUiNumberKeyboard.Signed) != 0;
+
     /// <summary>The keyboard's capitalization: MAUI's custom keyboard flags, else sentences for chat / text keyboards.</summary>
     internal KeyboardFlags Flags => Keyboard is CustomKeyboard custom ? custom.Flags : KeyboardFlags.None;
 
@@ -39,6 +53,25 @@ internal readonly record struct SkUiTextInputOptions(
     internal bool IsUrl => ReferenceEquals(Keyboard, Keyboard.Url);
     internal bool IsChat => ReferenceEquals(Keyboard, Keyboard.Chat);
     internal bool IsPlain => ReferenceEquals(Keyboard, Keyboard.Plain);
+}
+
+/// <summary>A numeric entry's keyboard (D16): picked from the value's type and range instead of MAUI's one <c>Keyboard.Numeric</c>.</summary>
+[Flags]
+internal enum SkUiNumberKeyboard
+{
+    /// <summary>Not a numeric entry: the field's <c>Keyboard</c>.</summary>
+    None = 0,
+
+    /// <summary>Digits (Android <c>ClassNumber</c>, iOS <c>NumberPad</c>, Windows <c>Number</c>).</summary>
+    Digits = 1,
+
+    /// <summary>With a decimal separator (Android <c>NumberFlagDecimal</c>, iOS <c>DecimalPad</c>).</summary>
+    Decimal = 2,
+
+    /// <summary>
+    /// With a minus sign (Android <c>NumberFlagSigned</c>; iOS <c>NumbersAndPunctuation</c>, since neither number pad has a minus key).
+    /// </summary>
+    Signed = 4
 }
 
 /// <summary>
@@ -117,11 +150,48 @@ internal interface ISkUiTextInputClient
     /// <summary>Whether the text runs right to left at <paramref name="index"/>.</summary>
     bool IsRightToLeftAt(int index);
 
-    /// <summary>A screen reader replaces the text (one undo step; the platform's input follows); returns whether it changed.</summary>
+    /// <summary>
+    /// The visual line holding the caret at <paramref name="index"/>: its start and its end (before a line break; where a wrapped
+    /// line continues). A screen reader's line navigation (VoiceOver's Lines rotor).
+    /// </summary>
+    (int Start, int End) GetLineAt(int index);
+
+    /// <summary>
+    /// The caret <paramref name="lines"/> visual lines below (negative: above) <paramref name="index"/>, at the same x; past the first
+    /// or last line the text's start or end (the platform's line movement: UIKit's up / down positions).
+    /// </summary>
+    int MoveByLines(int index, int lines);
+
+    /// <summary>
+    /// A screen reader or the platform's autofill replaces the text (one undo step, formatted as a paste; the platform's input
+    /// follows); returns whether it changed.
+    /// </summary>
     bool SetTextFromAssistant(string text);
+
+    /// <summary>The placeholder: the platform's autofill reads it as the field's hint.</summary>
+    string? Placeholder { get; }
+
+    /// <summary>
+    /// The platform's autofill that knows the field (Android, D14), or <c>null</c>: told when the text changes and when the field
+    /// leaves its surface. Set by that autofill when it first describes or enters the field.
+    /// </summary>
+    ISkUiAutofillHost? AutofillHost { get; set; }
 
     /// <summary>A screen reader moves the selection or caret; returns whether it was done.</summary>
     bool SelectFromAssistant(int start, int end);
+}
+
+/// <summary>
+/// The platform's autofill of a surface's drawn fields (Android's autofill framework, D14): password managers see the surface's
+/// fields as one form, fill them and save what was typed. The fields it knows report to it.
+/// </summary>
+internal interface ISkUiAutofillHost
+{
+    /// <summary>The field's text changed (typing, the app, a fill): the platform's autofill gets the new value.</summary>
+    void TextChanged(ISkUiTextInputClient client);
+
+    /// <summary>The field left its surface: the platform's autofill takes it as gone (and may offer to save what was typed).</summary>
+    void Removed(ISkUiTextInputClient client);
 }
 
 /// <summary>Edit menu actions (the platform's menu and keyboard shortcuts).</summary>
@@ -215,6 +285,13 @@ internal interface ISkUiTextInputNode : ISkUiAccessibleNode
     /// field (the insertion handle under the caret), so a press is offered to the focused field before the hit test.
     /// </summary>
     bool HitsTextHandle(Point local) => false;
+
+    /// <summary>
+    /// Whether <paramref name="local"/> (node coordinates, outside the node) is on the message the field hangs below a fixed height:
+    /// the hit test takes the press as the field's, which declines it as it declines a press on a message inside its bounds, so it
+    /// reaches neither the field nor what lies under the message.
+    /// </summary>
+    bool HitsOverflowMessage(Point local) => false;
 }
 
 /// <summary>The clipboard drawn text fields cut, copy and paste with: MAUI's <c>Clipboard</c>; tests replace it.</summary>
@@ -231,8 +308,32 @@ internal static class SkUiTextClipboard
 }
 
 /// <summary>
+/// The platform's autofill of drawn text fields: password managers fill the fields of a surface by their <c>AutofillHint</c> and
+/// offer to save what was typed (Android's autofill service; iOS and Mac Catalyst through the Passwords app, by the hint alone).
+/// Call <see cref="Commit"/> when a form is submitted (a sign-in, a new account), as Flutter's <c>finishAutofillContext</c>:
+/// otherwise Android offers to save only once the fields leave the screen, and only with services that ask for that.
+/// </summary>
+public static partial class SkUiAutofill
+{
+    /// <summary>
+    /// The form was submitted: the platform's autofill may offer to save or update what was typed (Android
+    /// <c>AutofillManager.commit()</c>). Nothing on platforms without such a call (iOS decides by itself, Windows has no autofill).
+    /// </summary>
+    public static void Commit() => FinishContext(save: true);
+
+    /// <summary>
+    /// The form was abandoned or its input refused (a failed sign-in): the platform's autofill forgets it without offering to save
+    /// (Android <c>AutofillManager.cancel()</c>).
+    /// </summary>
+    public static void Cancel() => FinishContext(save: false);
+
+    static partial void FinishContext(bool save);
+}
+
+/// <summary>
 /// Common values of a text field's <c>AutofillHint</c>: what password managers and the platform's autofill fill in. Any other
-/// string is passed to the platform as it is (Android autofill hints, Apple text content types).
+/// string is passed to the platform as it is (Android autofill hints, Apple text content types). A field takes one hint; white
+/// space is reserved for a list of hints later.
 /// </summary>
 public static class SkUiAutofillHints
 {

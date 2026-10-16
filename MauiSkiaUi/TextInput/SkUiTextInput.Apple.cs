@@ -206,7 +206,7 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
 
     private readonly SkUiOverlayContainer _container;
     private readonly HashSet<UIKeyboardHidUsage> _handledKeys = [];
-    private UITextInputStringTokenizer? _tokenizer;
+    private SkUiTextInputTokenizer? _tokenizer;
 
     public SkUiTextInputView(SkUiOverlayContainer container)
     {
@@ -430,14 +430,35 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
             return;
         if (text == "\n" && !client.Options.IsMultiline)
         {
-            client.FinishComposing();
+            Edit(client, string.Empty, static (client, _) => client.FinishComposing());
             client.PerformReturn();
             return;
         }
-        client.InsertText(text);
+        Edit(client, text, static (client, text) => client.InsertText(text));
     }
 
-    public void DeleteBackward() => Client?.DeleteBackward();
+    public void DeleteBackward()
+    {
+        if (Client is { } client)
+            Edit(client, string.Empty, static (client, _) => client.DeleteBackward());
+    }
+
+    /// <summary>
+    /// An edit from UIKit: when the field made it differently (a formatter, <c>MaxLength</c>, a transform, read-only), UIKit is told the
+    /// text changed, as for the app's edits; it otherwise keeps the text it sent (suggestions and autocorrect on the wrong word).
+    /// Not for marked text: telling UIKit mid-composition would end it. Committing it (<see cref="UnmarkText"/>) is an edit: the
+    /// composition has ended, and the formatters may have rewritten what it committed.
+    /// </summary>
+    private void Edit(ISkUiTextInputClient client, string text, Action<ISkUiTextInputClient, string> edit)
+    {
+        var editor = client.Editor;
+        editor.InputAdjusted = false;
+        edit(client, text);
+        if (!editor.InputAdjusted)
+            return;
+        editor.InputAdjusted = false;
+        NotifyChanged(textChanged: true);
+    }
 
     #endregion
 
@@ -454,8 +475,8 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
 
     public void ReplaceText(UITextRange range, string text)
     {
-        if (range is SkUiTextRange r)
-            Client?.ReplaceText(r.StartIndex, r.EndIndex, text);
+        if (range is SkUiTextRange r && Client is { } client)
+            Edit(client, text, (client, text) => client.ReplaceText(r.StartIndex, r.EndIndex, text));
     }
 
     public UITextRange? SelectedTextRange
@@ -482,7 +503,11 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
         client.SetComposingText(text, (int)Math.Clamp(selectedRange.Location, 0, text.Length));
     }
 
-    public void UnmarkText() => Client?.FinishComposing();
+    public void UnmarkText()
+    {
+        if (Client is { } client)
+            Edit(client, string.Empty, static (client, _) => client.FinishComposing());
+    }
 
     public UITextPosition BeginningOfDocument => new SkUiTextPosition(0);
 
@@ -490,7 +515,7 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
 
     public NSObject? WeakInputDelegate { get; set; }
 
-    public NSObject WeakTokenizer => _tokenizer ??= new UITextInputStringTokenizer(this);
+    public NSObject WeakTokenizer => _tokenizer ??= new SkUiTextInputTokenizer(this);
 
     #endregion
 
@@ -513,9 +538,9 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
         {
             UITextLayoutDirection.Left => index - (int)offset,
             UITextLayoutDirection.Right => index + (int)offset,
-            // Lines: a single-line field's start and end.
-            UITextLayoutDirection.Up => 0,
-            _ => Length
+            // Lines: the field's visual lines (VoiceOver's Lines rotor; a single-line field's start and end).
+            UITextLayoutDirection.Up => Client?.MoveByLines(index, -(int)offset) ?? 0,
+            _ => Client?.MoveByLines(index, (int)offset) ?? Length
         };
         return new SkUiTextPosition(Math.Clamp(moved, 0, Length));
     }
@@ -611,6 +636,10 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
         get
         {
             var options = Options;
+            // A numeric entry's: neither number pad has a minus key, so a value that can be negative gets numbers and punctuation.
+            if (options.IsNumber)
+                return options.IsSignedNumber ? UIKeyboardType.NumbersAndPunctuation
+                    : options.IsDecimalNumber ? UIKeyboardType.DecimalPad : UIKeyboardType.NumberPad;
             if (options.IsNumeric) return UIKeyboardType.DecimalPad;
             if (options.IsTelephone) return UIKeyboardType.PhonePad;
             if (options.IsEmail) return UIKeyboardType.EmailAddress;
@@ -643,7 +672,7 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
                 return UITextAutocapitalizationType.Words;
             if (flags.HasFlag(KeyboardFlags.CapitalizeSentence) || options.IsChat || ReferenceEquals(options.Keyboard, Keyboard.Text))
                 return UITextAutocapitalizationType.Sentences;
-            if (options.IsPassword || options.IsEmail || options.IsUrl || options.IsPlain || options.IsNumeric || options.IsTelephone
+            if (options.IsPassword || options.IsEmail || options.IsUrl || options.IsPlain || options.IsNumeric || options.IsNumber || options.IsTelephone
                 || options.TextTransform == TextTransform.Lowercase || flags.HasFlag(KeyboardFlags.CapitalizeNone))
                 return UITextAutocapitalizationType.None;
             return UITextAutocapitalizationType.Sentences;

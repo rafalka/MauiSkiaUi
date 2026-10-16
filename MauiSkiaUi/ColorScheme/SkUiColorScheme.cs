@@ -21,6 +21,7 @@ public class SkUiColorScheme
     private Color _muted = Color.FromArgb("#8A9A9C");
     private Color _trackOff = Color.FromArgb("#C5D4D6");
     private Color _disabled = Color.FromArgb("#596467");
+    private Color _error = Color.FromArgb("#B3261E");
 
     private static readonly SkUiWeakEvent _currentChanged = new();
     private readonly SkUiWeakEvent _changed = new();
@@ -99,6 +100,13 @@ public class SkUiColorScheme
         set => SetToken(ref _disabled, value);
     }
 
+    /// <summary>Invalid input: a text field's error outline and message (<c>HasError</c>, <c>ErrorText</c>).</summary>
+    public virtual Color Error
+    {
+        get => _error;
+        set => SetToken(ref _error, value);
+    }
+
     /// <summary>Copies token values from <paramref name="source"/> into this instance.</summary>
     public virtual void CopyFrom(SkUiColorScheme source)
     {
@@ -109,6 +117,7 @@ public class SkUiColorScheme
         Muted = source.Muted;
         TrackOff = source.TrackOff;
         Disabled = source.Disabled;
+        Error = source.Error;
     }
 
     private void SetToken(ref Color field, Color value)
@@ -135,6 +144,7 @@ public sealed class LightSkUiColorScheme : SkUiColorScheme
         Muted = Color.FromArgb("#8A9A9C");
         TrackOff = Color.FromArgb("#C5D4D6");
         Disabled = Color.FromArgb("#596467");
+        Error = Color.FromArgb("#B3261E");
     }
 }
 
@@ -153,5 +163,6 @@ public sealed class DarkSkUiColorScheme : SkUiColorScheme
         Muted = Color.FromArgb("#7A8E90");
         TrackOff = Color.FromArgb("#3A4A4C");
         Disabled = Color.FromArgb("#4A585A");
+        Error = Color.FromArgb("#F2B8B5");
     }
 }

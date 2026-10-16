@@ -866,13 +866,13 @@ public class SkUiLook
     public virtual double PickerClearButtonWidth => 32;
 
     /// <summary>Optional painter of a picker field's clear button; when set, replaces <see cref="DrawPickerClearButtonCore"/>.</summary>
-    public Action<SKCanvas, SkUiPickerClearButtonPaint>? PickerClearButtonPainter { get; set; }
+    public Action<SKCanvas, SkUiClearButtonPaint>? PickerClearButtonPainter { get; set; }
 
     /// <summary>
     /// Draws the clear button of a picker field (delegate or <see cref="DrawPickerClearButtonCore"/>) in
-    /// <see cref="SkUiPickerClearButtonPaint.Bounds"/>, over the field's chrome; shown while something is chosen.
+    /// <see cref="SkUiClearButtonPaint.Bounds"/>, over the field's chrome; shown while something is chosen.
     /// </summary>
-    public void DrawPickerClearButton(SKCanvas canvas, SkUiPickerClearButtonPaint button)
+    public void DrawPickerClearButton(SKCanvas canvas, SkUiClearButtonPaint button)
     {
         if (PickerClearButtonPainter is { } painter)
         {
@@ -883,7 +883,7 @@ public class SkUiLook
     }
 
     /// <summary>Default clear button: a filled circle in the muted color with a cross in the field's background color, centered.</summary>
-    protected virtual void DrawPickerClearButtonCore(SKCanvas canvas, SkUiPickerClearButtonPaint button)
+    protected virtual void DrawPickerClearButtonCore(SKCanvas canvas, SkUiClearButtonPaint button)
     {
         const float radius = 8;
         const float arm = 3.5f;
@@ -949,8 +949,23 @@ public class SkUiLook
     /// <summary>The room a text field keeps for its clear button (<c>ClearButtonVisibility</c>) at the end, in DIPs (default 32).</summary>
     public virtual double TextFieldClearButtonWidth => 32;
 
+    /// <summary>
+    /// The space between a text field's leading or trailing view (<c>LeadingView</c>, <c>TrailingView</c>) and its text, in DIPs
+    /// (default 8). A clear button between the text and the trailing view is the space there.
+    /// </summary>
+    public virtual double TextFieldAdornmentSpacing => 8;
+
+    /// <summary>
+    /// The space between a text field and its message under it (<c>HelperText</c>, or <c>ErrorText</c> while it has an error), in
+    /// DIPs (default 4).
+    /// </summary>
+    public virtual double TextFieldMessageSpacing => 4;
+
+    /// <summary>The font size of a text field's message under it, in DIPs before the system text size (default 12).</summary>
+    public virtual double TextFieldMessageFontSize => 12;
+
     /// <summary>The caret's width in DIPs (default 2).</summary>
-    public virtual float CaretWidth => 2;
+    public virtual double CaretWidth => 2;
 
     /// <summary>
     /// How long the caret shows, then hides, while it blinks (default 500 ms; zero: it does not blink). Typing and moving the
@@ -958,11 +973,14 @@ public class SkUiLook
     /// </summary>
     public virtual TimeSpan CaretBlinkInterval => TimeSpan.FromMilliseconds(500);
 
-    /// <summary>The caret's color for fields that set none (default: the color scheme's accent).</summary>
-    public virtual Color CaretColor => SkUiColors.Accent;
+    /// <summary>The caret's color for fields that set none (their <c>CaretColor</c>; default: the color scheme's accent).</summary>
+    public virtual Color DefaultCaretColor => SkUiColors.Accent;
 
-    /// <summary>The color behind selected text (default: the color scheme's accent, 30 % opaque).</summary>
-    public virtual Color TextSelectionColor => SkUiColors.Accent.WithAlpha(0.3f);
+    /// <summary>
+    /// The color behind selected text for fields that set none (their <c>SelectionColor</c>; default: the color scheme's accent, 30 %
+    /// opaque).
+    /// </summary>
+    public virtual Color DefaultSelectionColor => SkUiColors.Accent.WithAlpha(0.3f);
 
     /// <summary>
     /// Optional painter of the handles of a selection made by touch; when set, replaces <see cref="DrawTextSelectionHandleCore"/>.
@@ -1068,8 +1086,9 @@ public class SkUiLook
 
     /// <summary>
     /// Draws a text field's chrome behind its text (delegate or <see cref="DrawTextFieldCore"/>): an underline, an outline or a fill
-    /// with its states (pointer over, focused, read-only, disabled; <see cref="SkUiTextFieldPaint.Focused"/> animates with the look's
-    /// <see cref="SkUiTransitionKind.FieldFocus"/> transition). The control draws the selection, text, placeholder and caret over it.
+    /// with its states (pointer over, focused, read-only, disabled, an error; <see cref="SkUiTextFieldPaint.Focused"/> animates with
+    /// the look's <see cref="SkUiTransitionKind.FieldFocus"/> transition). The control draws the selection, text, placeholder and
+    /// caret over it, and its message (helper or error text) under it.
     /// </summary>
     public void DrawTextField(SKCanvas canvas, SkUiTextFieldPaint field)
     {
@@ -1084,14 +1103,126 @@ public class SkUiLook
     /// <summary>Default text field: none (<see cref="DefaultSkUiLook"/> draws <see cref="DefaultSkUiLook.TextFieldStyle"/>).</summary>
     protected virtual void DrawTextFieldCore(SKCanvas canvas, SkUiTextFieldPaint field) { }
 
+    /// <summary>
+    /// The size of a numeric entry's − or + button, in DIPs (default 36 × 28): its width beside the text (both buttons side by side
+    /// take twice that, stacked in one column once), its height as a bar above or below the text (split and stacked). A button's
+    /// own text that needs more makes it larger.
+    /// </summary>
+    public virtual Size TextFieldStepButtonSize => new(36, 28);
+
+    /// <summary>Optional painter of a numeric entry's − and + buttons; when set, replaces <see cref="DrawTextFieldStepButtonsCore"/>.</summary>
+    public Action<SKCanvas, SkUiTextFieldStepButtonsPaint>? TextFieldStepButtonsPainter { get; set; }
+
+    /// <summary>
+    /// Draws a numeric entry's − and + buttons (delegate or <see cref="DrawTextFieldStepButtonsCore"/>) in
+    /// <see cref="SkUiTextFieldStepButtonsPaint.DecrementBounds"/> and <see cref="SkUiTextFieldStepButtonsPaint.IncrementBounds"/>,
+    /// inside the field's chrome, with their pressed states and dimmed when they cannot step. A button with a text of the entry's
+    /// own (<see cref="SkUiTextFieldStepButtonsPaint.HasDecrementText"/>, <see cref="SkUiTextFieldStepButtonsPaint.HasIncrementText"/>)
+    /// gets no glyph: the entry draws its text over the look's drawing.
+    /// </summary>
+    public void DrawTextFieldStepButtons(SKCanvas canvas, SkUiTextFieldStepButtonsPaint buttons)
+    {
+        if (TextFieldStepButtonsPainter is { } painter)
+        {
+            painter(canvas, buttons);
+            return;
+        }
+        DrawTextFieldStepButtonsCore(canvas, buttons);
+    }
+
+    /// <summary>
+    /// Default step buttons: a light rounded tint while pressed, a short muted divider between the buttons and the text and between
+    /// the two buttons, and a − and a + in the foreground (dimmed when the button cannot step or the entry is disabled).
+    /// </summary>
+    protected virtual void DrawTextFieldStepButtonsCore(SKCanvas canvas, SkUiTextFieldStepButtonsPaint buttons)
+    {
+        var decrement = buttons.DecrementBounds;
+        var increment = buttons.IncrementBounds;
+        if (decrement.IsEmpty && increment.IsEmpty)
+            return;
+        var enabled = buttons.IsEnabled;
+        using var paint = new SKPaint { IsAntialias = true };
+        void Press(SKRect button, float amount)
+        {
+            if (amount <= 0 || button.Width <= 4 || button.Height <= 4)
+                return;
+            paint.Color = buttons.Foreground.WithAlpha((byte)(28 * Math.Clamp(amount, 0, 1)));
+            var tint = button;
+            tint.Inflate(-2, -2);
+            canvas.DrawRoundRect(tint, 4, 4, paint);
+        }
+        Press(decrement, buttons.DecrementPressed);
+        Press(increment, buttons.IncrementPressed);
+        paint.Style = SKPaintStyle.Stroke;
+        paint.StrokeWidth = 1;
+        paint.Color = buttons.Border.WithAlpha((byte)(buttons.Border.Alpha * (enabled ? 0.6f : 0.3f)));
+        var field = buttons.Field;
+        // A divider on the side of a button that faces the text (or the other button), short as the stepper's.
+        void Divider(SKRect button)
+        {
+            if (button.IsEmpty)
+                return;
+            if (button.Width >= field.Width - 0.5f)
+            {
+                // A bar across the field: its edge towards the text.
+                var y = button.MidY < field.MidY ? button.Bottom : button.Top;
+                var inset = Math.Min(12, field.Width / 4);
+                canvas.DrawLine(field.Left + inset, y, field.Right - inset, y, paint);
+                return;
+            }
+            var x = button.MidX < field.MidX ? button.Right : button.Left;
+            var vertical = button.Height * 0.22f;
+            canvas.DrawLine(x, button.Top + vertical, x, button.Bottom - vertical, paint);
+        }
+        if (buttons.Orientation == StackOrientation.Vertical && buttons.Placement != SkUiStepButtonPlacement.Split)
+        {
+            // One column: its edge towards the text, and a line between + and −.
+            Divider(SKRect.Union(decrement, increment));
+            var y = (increment.Bottom + decrement.Top) / 2;
+            var inset = decrement.Width * 0.22f;
+            canvas.DrawLine(decrement.Left + inset, y, decrement.Right - inset, y, paint);
+        }
+        else if (buttons.Placement == SkUiStepButtonPlacement.Split)
+        {
+            Divider(decrement);
+            Divider(increment);
+        }
+        else
+        {
+            // Side by side at one end: the inner button's edge towards the text, and a line between the two.
+            var (outer, inner) = Math.Abs(decrement.MidX - field.MidX) > Math.Abs(increment.MidX - field.MidX) ? (decrement, increment) : (increment, decrement);
+            Divider(inner);
+            var x = outer.MidX < inner.MidX ? outer.Right : outer.Left;
+            var vertical = outer.Height * 0.22f;
+            canvas.DrawLine(x, outer.Top + vertical, x, outer.Bottom - vertical, paint);
+        }
+        paint.StrokeWidth = 1.75f;
+        paint.StrokeCap = SKStrokeCap.Round;
+        void Glyph(SKRect button, bool plus, bool canStep)
+        {
+            if (button.IsEmpty)
+                return;
+            var color = buttons.Foreground;
+            paint.Color = color.WithAlpha((byte)(color.Alpha * (enabled && canStep ? 1f : StepperDimmedOpacity)));
+            var arm = Math.Min(5.5f, Math.Min(button.Width, button.Height) / 4);
+            canvas.DrawLine(button.MidX - arm, button.MidY, button.MidX + arm, button.MidY, paint);
+            if (plus)
+                canvas.DrawLine(button.MidX, button.MidY - arm, button.MidX, button.MidY + arm, paint);
+        }
+        if (!buttons.HasDecrementText)
+            Glyph(decrement, plus: false, buttons.CanDecrement);
+        if (!buttons.HasIncrementText)
+            Glyph(increment, plus: true, buttons.CanIncrement);
+    }
+
     /// <summary>Optional painter of a text field's clear button; when set, replaces <see cref="DrawTextFieldClearButtonCore"/>.</summary>
-    public Action<SKCanvas, SkUiPickerClearButtonPaint>? TextFieldClearButtonPainter { get; set; }
+    public Action<SKCanvas, SkUiClearButtonPaint>? TextFieldClearButtonPainter { get; set; }
 
     /// <summary>
     /// Draws the clear button of a text field (delegate or <see cref="DrawTextFieldClearButtonCore"/>) in
-    /// <see cref="SkUiPickerClearButtonPaint.Bounds"/>, at the field's end; shown while it is focused and has text.
+    /// <see cref="SkUiClearButtonPaint.Bounds"/>, at the field's end; shown while it is focused and has text.
     /// </summary>
-    public void DrawTextFieldClearButton(SKCanvas canvas, SkUiPickerClearButtonPaint button)
+    public void DrawTextFieldClearButton(SKCanvas canvas, SkUiClearButtonPaint button)
     {
         if (TextFieldClearButtonPainter is { } painter)
         {
@@ -1102,7 +1233,7 @@ public class SkUiLook
     }
 
     /// <summary>Default text field clear button: the picker's (<see cref="DrawPickerClearButtonCore"/>).</summary>
-    protected virtual void DrawTextFieldClearButtonCore(SKCanvas canvas, SkUiPickerClearButtonPaint button) => DrawPickerClearButtonCore(canvas, button);
+    protected virtual void DrawTextFieldClearButtonCore(SKCanvas canvas, SkUiClearButtonPaint button) => DrawPickerClearButtonCore(canvas, button);
 
     #endregion
 
@@ -1129,8 +1260,8 @@ public class SkUiLook
     }
 
     /// <summary>
-    /// Default search field: a lightly filled pill (a little darker under a pointer, an accent outline while focused) and a
-    /// magnifying glass in the icon color.
+    /// Default search field: a lightly filled pill (a little darker under a pointer, an accent outline while focused, an outline in
+    /// the error color while it has an error) and a magnifying glass in the icon color.
     /// </summary>
     protected virtual void DrawSearchFieldCore(SKCanvas canvas, SkUiSearchFieldPaint field)
     {
@@ -1140,16 +1271,19 @@ public class SkUiLook
         var radius = Math.Min(10, bounds.Height / 2);
         using var paint = new SKPaint { IsAntialias = true };
         var fill = field.IsPointerOver && field.IsEnabled ? 0.24f : 0.16f;
-        paint.Color = field.Border.WithAlpha((byte)(field.Border.Alpha * (field.IsEnabled ? fill : fill / 2)));
+        paint.Color = field.Fill.WithAlpha((byte)(field.Fill.Alpha * (field.IsEnabled ? fill : fill / 2)));
         canvas.DrawRoundRect(bounds, radius, radius, paint);
-        if (field.IsEnabled && field.Focused > 0)
+        var focus = field.IsEnabled ? Math.Clamp(field.Focused, 0, 1) : 0;
+        if (focus > 0 || field.HasError)
         {
-            var width = 1.5f * Math.Clamp(field.Focused, 0, 1);
+            // An error outlines the pill while unfocused too (1 DIP), as an error outlines a text field.
+            var width = field.HasError ? 1 + 0.5f * focus : 1.5f * focus;
             var ring = bounds;
             ring.Inflate(-width / 2, -width / 2);
             paint.Style = SKPaintStyle.Stroke;
             paint.StrokeWidth = width;
-            paint.Color = field.Accent;
+            paint.Color = !field.HasError ? field.Accent
+                : field.IsEnabled ? field.Error : field.Error.WithAlpha((byte)(field.Error.Alpha / 2));
             canvas.DrawRoundRect(ring, radius - width / 2, radius - width / 2, paint);
         }
         // The magnifying glass: a ring and a handle to the bottom right (left in right-to-left layouts).
@@ -1179,10 +1313,10 @@ public class SkUiLook
     /// <summary>The opacity of a stepper's − and + (glyphs or texts) on a button that cannot step, and of its outline when disabled.</summary>
     internal const float StepperDimmedOpacity = 0.35f;
 
-    internal const float DefaultStepperCornerRadius = 8;
+    internal const float StepperCornerRadiusValue = 8;
 
     /// <summary>A stepper's corner radius in DIPs when its <c>CornerRadius</c> is not set (default 8).</summary>
-    public virtual double StepperCornerRadius => DefaultStepperCornerRadius;
+    public virtual double DefaultStepperCornerRadius => StepperCornerRadiusValue;
 
     /// <summary>How long a held stepper button waits before it repeats (default 400 ms).</summary>
     public virtual TimeSpan StepperRepeatDelay => TimeSpan.FromMilliseconds(400);

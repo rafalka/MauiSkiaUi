@@ -24,6 +24,7 @@ public static class SampleCatalog
         SampleEntry.For<StagedLoadingSample>(),
         SampleEntry.For<ContactsSample>(),
         SampleEntry.For<PlanPickerSample>(),
+        SampleEntry.For<SignInFormSample>(),
         SampleEntry.For<PickerPopupsSample>(),
         SampleEntry.For<CurrencyConverterSample>(),
         SampleEntry.For<PizzaOrderSample>(),

@@ -129,24 +129,24 @@ internal sealed class SkUiFocusManager(SkUiView root)
 
     /// <summary>
     /// A press hit <paramref name="leaf"/>: focuses its nearest focusable node when <see cref="PointerPressFocuses"/>, unless
-    /// that is a text field.
+    /// that is a text field or inside one (a button in a field's leading or trailing view keeps the field focused).
     /// </summary>
     internal void OnPointerPressed(ISkUiRenderable leaf)
     {
         if (!PointerPressFocuses || !SkUiAccessibility.IsEnabled)
             return;
+        ISkUiAccessibleNode? target = null;
         for (ISkUiRenderable? current = leaf; current is not null; current = current.RenderParent)
         {
             // A text field focuses itself: on a click, or on a tap (a touch that scrolls does not), whose handling depends on
             // whether the field had focus before (a tap on the caret of a focused field opens the edit menu).
             if (current is ISkUiTextInputNode { WantsTextInput: true })
                 return;
-            if (current is ISkUiAccessibleNode { IsKeyboardFocusable: true } node)
-            {
-                Focus(node, ring: false);
-                return;
-            }
+            if (target is null && current is ISkUiAccessibleNode { IsKeyboardFocusable: true } node)
+                target = node;
         }
+        if (target is not null)
+            Focus(target, ring: false);
     }
 
     /// <summary>Raised after the focused node changed (the platform bridge moves the screen reader's keyboard focus).</summary>
@@ -646,6 +646,32 @@ internal sealed class SkUiFocusManager(SkUiView root)
         {
             for (var index = start; index < end; index++)
                 Collect(_scratch[index]);
+        }
+        finally
+        {
+            _scratch.RemoveRange(start, _scratch.Count - start);
+        }
+    }
+
+    /// <summary>
+    /// Adds the surface's text fields that can be typed in now (visible and enabled, also with accessibility off) to
+    /// <paramref name="fields"/>, in tree order: the form the platform's autofill sees (D14).
+    /// </summary>
+    internal void CollectTextFields(List<ISkUiTextInputClient> fields) => CollectTextFields(root, fields);
+
+    private void CollectTextFields(ISkUiRenderable node, List<ISkUiTextInputClient> fields)
+    {
+        if (IsBlocked(node, textInput: true))
+            return;
+        if (node is ISkUiTextInputNode { WantsTextInput: true, CanTakeTextFocus: true } field)
+            fields.Add(field.TextInputClient);
+        var start = _scratch.Count;
+        node.GetRenderChildren(_scratch);
+        var end = _scratch.Count;
+        try
+        {
+            for (var index = start; index < end; index++)
+                CollectTextFields(_scratch[index], fields);
         }
         finally
         {

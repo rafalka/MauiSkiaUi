@@ -37,6 +37,25 @@ internal static class SkUiValidate
     public static bool PositiveNumber<T>(BindableObject bindable, object? value) where T : struct, INumber<T> =>
         value is T number && T.IsFinite(number) && number > T.Zero;
 
+    /// <summary>An autofill hint: <c>null</c> or empty (none), or one hint without white space (white space is reserved for a list of hints).</summary>
+    public static bool AutofillHint(BindableObject bindable, object? value) => value is null || value is string hint && IsAutofillHint(hint);
+
+    /// <summary>Whether <paramref name="hint"/> is no hint (empty) or one: no white space.</summary>
+    public static bool IsAutofillHint(string hint)
+    {
+        foreach (var character in hint)
+            if (char.IsWhiteSpace(character))
+                return false;
+        return true;
+    }
+
+    /// <summary>Throws <see cref="ArgumentException"/> unless <paramref name="value"/> is <c>null</c> or one hint (the rule of <see cref="AutofillHint"/>).</summary>
+    public static void ThrowIfNotAutofillHint(string? value, string name)
+    {
+        if (value is not null && !IsAutofillHint(value))
+            throw new ArgumentException("An autofill hint has no white space (it is reserved for a list of hints).", name);
+    }
+
     /// <summary>A defined <see cref="StackOrientation"/> (horizontal or vertical).</summary>
     public static bool Orientation(BindableObject bindable, object? value) => value is StackOrientation orientation && Enum.IsDefined(orientation);
 

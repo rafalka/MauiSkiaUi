@@ -97,6 +97,30 @@ public class SkUiEditor : SkUiInputView
     /// <inheritdoc cref="SkUiInputView.SetAutofillHint" />
     public new SkUiEditor SetAutofillHint(string? value) { base.SetAutofillHint(value); return this; }
 
+    /// <inheritdoc cref="SkUiInputView.SetInputFormatters" />
+    public new SkUiEditor SetInputFormatters(params IEnumerable<SkUiTextInputFormatter> formatters) { base.SetInputFormatters(formatters); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetFormatsAssignedText" />
+    public new SkUiEditor SetFormatsAssignedText(bool value) { base.SetFormatsAssignedText(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetLeadingView" />
+    public new SkUiEditor SetLeadingView(ISkUiView? value) { base.SetLeadingView(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetTrailingView" />
+    public new SkUiEditor SetTrailingView(ISkUiView? value) { base.SetTrailingView(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetHasError" />
+    public new SkUiEditor SetHasError(bool value) { base.SetHasError(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetErrorText" />
+    public new SkUiEditor SetErrorText(string? value) { base.SetErrorText(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetHelperText" />
+    public new SkUiEditor SetHelperText(string? value) { base.SetHelperText(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetErrorColor" />
+    public new SkUiEditor SetErrorColor(Color? value) { base.SetErrorColor(value); return this; }
+
     private void OnAutoSizeChanged(EditorAutoSizeOption value)
     {
         Model.AutoSize = value == EditorAutoSizeOption.TextChanges;

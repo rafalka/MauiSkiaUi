@@ -12,7 +12,7 @@ namespace MauiSkiaUi;
 internal static class SkUiStepperMath<T> where T : struct, INumber<T>, IMinMaxValue<T>
 {
     // A constant per instantiation (each value type gets its own code, also under Native AOT): the checks below cost nothing.
-    private static bool IsBinaryFloatingPoint =>
+    internal static bool IsBinaryFloatingPoint =>
         typeof(T) == typeof(double) || typeof(T) == typeof(float) || typeof(T) == typeof(Half) || typeof(T) == typeof(NFloat);
 
     /// <summary>The default <c>Maximum</c>, 100 as MAUI's (it fits every numeric type, <see cref="sbyte"/> included).</summary>

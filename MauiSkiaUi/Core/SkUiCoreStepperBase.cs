@@ -50,10 +50,10 @@ public abstract class SkUiCoreStepperBase : SkUiCoreNode, ISkUiStepperOwner, ISk
     public bool FontAutoScalingEnabled { get => Model.FontAutoScalingEnabled; set => SetFontAutoScalingEnabled(value); }
 
     /// <summary>
-    /// The corner radius in DIPs (default the look's <see cref="SkUiLook.StepperCornerRadius"/>, 8): 0 gives square corners; half the
+    /// The corner radius in DIPs (default the look's <see cref="SkUiLook.DefaultStepperCornerRadius"/>, 8): 0 gives square corners; half the
     /// stepper's height or more, a pill.
     /// </summary>
-    public double CornerRadius { get => Model.CornerRadius ?? SkUiLook.Current.StepperCornerRadius; set => SetCornerRadius(value); }
+    public double CornerRadius { get => Model.CornerRadius ?? SkUiLook.Current.DefaultStepperCornerRadius; set => SetCornerRadius(value); }
 
     /// <summary>
     /// The outline's width in DIPs (default 0: no outline), drawn inside the stepper; the divider between the buttons takes its width and

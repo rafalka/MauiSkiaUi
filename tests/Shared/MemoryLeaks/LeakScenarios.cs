@@ -55,7 +55,7 @@ public static class LeakScenarios
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
         new("SurfaceReplaced", Rendering, "A page replaces its GPU surface with a software one and back; the discarded surfaces are disconnected.", () => new SurfaceReplacedRun()),
         new("MovedBetweenSurfaces", Rendering, "A subtree with gestures, a scroller and a native Entry moves between two surfaces and back.", () => new MoveRun()),
-        new("TextFieldsEdited", Input, "Drawn entries (a password, a search bar with a long-lived command), an editor and steppers (on double, a typed decimal one with texts, a typed uint Core one), with their Core twins: focused (the platform's text input attached), typed in, a word long-pressed (selection handles and the edit menu), tabbed through, the editor scrolled, the steppers stepped, text set by code; closed with a field focused.", () => new TextFieldsRun()),
+        new("TextFieldsEdited", Input, "Drawn entries (a password, a search bar with a long-lived command; a leading label and a trailing image button with a long-lived command), an editor, steppers (on double, a typed decimal one with texts, a typed uint Core one) and numeric entries (a typed int one with split buttons, a Core decimal one with end buttons), with their Core twins: focused (the platform's text input attached), typed in, a word long-pressed (selection handles and the edit menu), tabbed through, the editor scrolled, the steppers and numeric entries stepped, text set by code; closed with a field focused.", () => new TextFieldsRun()),
         new("AccessibleFocused", Input, "Drawn and Core controls with semantic properties, read through a semantics tree that reports changes; focused by Focus() and Tab, activated by Space / Enter and screen-reader actions, a slider stepped; a focused row removed; a button given a long-lived Tag.", () => new AccessibilityRun()),
         new("CoreControls", Core, "Core buttons (long-lived command), toggles, a table and a scroll view: clicked, scrolled, rows removed, columns changed.", () => new CoreRun()),
         new("NativeOverlays", Native, "Entry / Editor overlays in a drawn scroller (snapshot mode): scrolled, an Entry focused, overlay content replaced.", () => new OverlaysRun()),
@@ -698,6 +698,8 @@ public static class LeakScenarios
         private SkUiCoreStepper? _coreStepper;
         private SkUiStepper<decimal>? _typedStepper;
         private SkUiCoreStepper<uint>? _typedCoreStepper;
+        private SkUiNumericEntry<int>? _numeric;
+        private SkUiCoreNumericEntry<decimal>? _coreNumeric;
         private SkUiScrollView? _scroll;
         private int _changes;
 
@@ -705,7 +707,12 @@ public static class LeakScenarios
         {
             _entry = new SkUiEntry { Placeholder = "Name", ReturnType = ReturnType.Next, ClearButtonVisibility = ClearButtonVisibility.WhileEditing };
             _password = new SkUiEntry { Placeholder = "Password", IsPassword = true };
-            _search = new SkUiSearchBar { Placeholder = "Search", SearchCommand = LeakCommands.Shared };
+            _search = new SkUiSearchBar
+            {
+                Placeholder = "Search", SearchCommand = LeakCommands.Shared,
+                TrailingView = new SkUiImageButton { Source = LeakImages.Create(SKColors.Teal), Command = LeakCommands.Shared, WidthRequest = 24, HeightRequest = 24 }
+            };
+            _entry.LeadingView = new SkUiLabel { Text = "@", TextColor = LeakColors.Ink };
             _editor = new SkUiEditor { HeightRequest = 90, Text = string.Join("\n", Enumerable.Range(1, 12).Select(index => $"Line {index}")) };
             _stepper = new SkUiStepper { Maximum = 10, HorizontalOptions = LayoutOptions.Start };
             _entry.TextChanged += (_, _) => _changes++;
@@ -713,7 +720,10 @@ public static class LeakScenarios
             _stepper.ValueChanged += (_, _) => _changes++;
             _typedStepper = new SkUiStepper<decimal> { Increment = 0.25m, Maximum = 2.5m, DecrementText = "Less", IncrementText = "More", HorizontalOptions = LayoutOptions.Start };
             _typedStepper.ValueChanged += (_, _) => _changes++;
+            _numeric = new SkUiNumericEntry<int> { Minimum = 0, Maximum = 99, ButtonPlacement = SkUiStepButtonPlacement.Split, Format = "0 pcs", ReturnCommand = LeakCommands.Shared };
+            _numeric.ValueChanged += (_, _) => _changes++;
             _coreEntry = new SkUiCoreEntry().SetPlaceholder("Core");
+            _coreEntry.SetLeadingView(new SkUiCoreLabel().SetText("@"));
             _coreEntry.SetHeight(44);
             _coreEntry.TextChanged += (_, _) => _changes++;
             _coreStepper = new SkUiCoreStepper().SetOrientation(StackOrientation.Vertical);
@@ -724,14 +734,17 @@ public static class LeakScenarios
             coreStack.Add(_coreStepper);
             _typedCoreStepper = new SkUiCoreStepper<uint>().SetIncrement(5).SetValue(3);
             coreStack.Add(_typedCoreStepper);
-            var host = new SkUiCoreHost { HeightRequest = 300 };
+            _coreNumeric = new SkUiCoreNumericEntry<decimal>().SetIncrement(0.25m).SetMaximumDecimalDigits(2).SetButtonPlacement(SkUiStepButtonPlacement.End);
+            _coreNumeric.SetHeight(44);
+            coreStack.Add(_coreNumeric);
+            var host = new SkUiCoreHost { HeightRequest = 360 };
             host.SetContent(coreStack);
             _scroll = new SkUiScrollView
             {
                 Content = new SkUiVerticalStackLayout
                 {
                     Spacing = 12, Padding = new Thickness(12),
-                    Children = { _entry, _password, _search, _editor, _stepper, _typedStepper, host }
+                    Children = { _entry, _password, _search, _editor, _stepper, _typedStepper, host, _numeric }
                 }
             };
             return Root(_scroll);
@@ -776,6 +789,16 @@ public static class LeakScenarios
             await context.TapAsync(_coreStepper!);
             await context.TapAsync(_typedStepper!);
             await context.TapAsync(_typedCoreStepper!);
+            // The numeric entries sit below the fold: focused (which attaches the platform's input), typed in, stepped by keys.
+            _numeric!.Focus();
+            Type(_numeric!, "41");
+            SkUiSemantics.RootOf(_numeric!)?.FocusManager.KeyDown(SkUiKey.Up);
+            SkUiSemantics.RootOf(_numeric!)?.FocusManager.KeyDown(SkUiKey.Enter);
+            _coreNumeric!.Focus();
+            Type(_coreNumeric!, "1.5");
+            SkUiSemantics.RootOf(_coreNumeric!)?.FocusManager.KeyDown(SkUiKey.Down);
+            _coreNumeric.SetValue(2.75m);
+            await context.SettleAsync();
             await context.TapAsync(_coreEntry!);
             Type(_coreEntry!, "core");
             _coreEntry!.SetText("set by code");

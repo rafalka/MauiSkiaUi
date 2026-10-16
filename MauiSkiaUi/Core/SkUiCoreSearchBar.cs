@@ -139,6 +139,30 @@ public class SkUiCoreSearchBar : SkUiCoreInputView
     /// <inheritdoc cref="SkUiCoreInputView.SetAutofillHint" />
     public new SkUiCoreSearchBar SetAutofillHint(string? value) { base.SetAutofillHint(value); return this; }
 
+    /// <inheritdoc cref="SkUiCoreInputView.SetInputFormatters" />
+    public new SkUiCoreSearchBar SetInputFormatters(params IEnumerable<SkUiTextInputFormatter> formatters) { base.SetInputFormatters(formatters); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetFormatsAssignedText" />
+    public new SkUiCoreSearchBar SetFormatsAssignedText(bool value) { base.SetFormatsAssignedText(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetLeadingView" />
+    public new SkUiCoreSearchBar SetLeadingView(SkUiCoreNode? value) { base.SetLeadingView(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetTrailingView" />
+    public new SkUiCoreSearchBar SetTrailingView(SkUiCoreNode? value) { base.SetTrailingView(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetHasError" />
+    public new SkUiCoreSearchBar SetHasError(bool value) { base.SetHasError(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetErrorText" />
+    public new SkUiCoreSearchBar SetErrorText(string? value) { base.SetErrorText(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetHelperText" />
+    public new SkUiCoreSearchBar SetHelperText(string? value) { base.SetHelperText(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetErrorColor" />
+    public new SkUiCoreSearchBar SetErrorColor(Color? value) { base.SetErrorColor(value); return this; }
+
     /// <inheritdoc />
     private protected override void OnReturnPressed()
     {

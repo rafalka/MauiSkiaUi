@@ -36,15 +36,14 @@ internal interface ISkUiStepperOwner : ISkUiTransitionHost
 /// outline (<see cref="CornerRadius"/>, <see cref="BorderWidth"/>, <see cref="BorderColor"/>), taps and held buttons repeating, keys and
 /// screen readers.
 /// </summary>
-internal sealed class SkUiStepperModel
+internal sealed class SkUiStepperModel : ISkUiStepButtons
 {
     private readonly ISkUiStepperOwner _owner;
     private readonly SkUiTween _decrementPress;
     private readonly SkUiTween _incrementPress;
     private readonly SkUiTween _focus;
     private readonly SkUiStepperGestures _gestures;
-    private IDisposable? _repeat;
-    private int _held;
+    private readonly SkUiStepRepeat _repeat = new();
     // The buttons' texts, laid out on the shared text engine; made the first time a text is set.
     private SkUiTextLayout? _decrementLayout;
     private SkUiTextLayout? _incrementLayout;
@@ -83,7 +82,7 @@ internal sealed class SkUiStepperModel
 
     internal const double DefaultFontSize = 16;
 
-    /// <summary>The corner radius in DIPs; <c>null</c>: the look's (<see cref="SkUiLook.StepperCornerRadius"/>).</summary>
+    /// <summary>The corner radius in DIPs; <c>null</c>: the look's (<see cref="SkUiLook.DefaultStepperCornerRadius"/>).</summary>
     public double? CornerRadius;
 
     /// <summary>The outline's width in DIPs; 0: no outline.</summary>
@@ -213,11 +212,29 @@ internal sealed class SkUiStepperModel
         var foreground = SkUiToggleDrawing.ToSkColor(TextColor ?? SkUiColors.DefaultForeground);
         var decrementText = Layout(-1) is not null;
         var incrementText = Layout(1) is not null;
-        SkUiLook.Current.DrawStepper(canvas, new SkUiStepperPaint(new SKRect(0, 0, width, height), decrement, increment, Orientation,
-            SkUiToggleDrawing.ToSkColor(SkUiColors.Accent), SkUiToggleDrawing.ToSkColor(SkUiColors.Muted), foreground,
-            _decrementPress.Value, _incrementPress.Value, CanStep(-1), CanStep(1), _focus.Value, IsPointerOver, IsEnabled, _owner.IsRightToLeft,
-            decrementText, incrementText, (float)(CornerRadius ?? SkUiLook.Current.StepperCornerRadius), (float)BorderWidth,
-            SkUiToggleDrawing.ToSkColor(BorderColor ?? SkUiColors.Muted)));
+        SkUiLook.Current.DrawStepper(canvas, new SkUiStepperPaint
+        {
+            Bounds = new SKRect(0, 0, width, height),
+            DecrementBounds = decrement,
+            IncrementBounds = increment,
+            Orientation = Orientation,
+            Accent = SkUiToggleDrawing.ToSkColor(SkUiColors.Accent),
+            Border = SkUiToggleDrawing.ToSkColor(SkUiColors.Muted),
+            Foreground = foreground,
+            DecrementPressed = _decrementPress.Value,
+            IncrementPressed = _incrementPress.Value,
+            CanDecrement = CanStep(-1),
+            CanIncrement = CanStep(1),
+            Focused = _focus.Value,
+            IsPointerOver = IsPointerOver,
+            IsEnabled = IsEnabled,
+            IsRightToLeft = _owner.IsRightToLeft,
+            HasDecrementText = decrementText,
+            HasIncrementText = incrementText,
+            CornerRadius = (float)(CornerRadius ?? SkUiLook.Current.DefaultStepperCornerRadius),
+            BorderWidth = (float)BorderWidth,
+            BorderColor = SkUiToggleDrawing.ToSkColor(BorderColor ?? SkUiColors.Muted)
+        });
         if (!decrementText && !incrementText)
             return;
         var style = TextStyle;
@@ -239,38 +256,25 @@ internal sealed class SkUiStepperModel
     }
 
     /// <summary>A button pressed (-1: −, +1: +): it steps, then repeats while held.</summary>
-    internal void Press(int button)
+    public void Press(int button)
     {
         if (!IsEnabled)
             return;
-        _held = button;
         (button < 0 ? _decrementPress : _incrementPress).AnimateTo(1, SkUiLook.Current.GetTransition(SkUiTransitionKind.Press));
-        Step(button);
-        _repeat?.Dispose();
-        _repeat = SkUiGestureSettings.Schedule(SkUiLook.Current.StepperRepeatDelay, Repeat);
-    }
-
-    private void Repeat()
-    {
-        _repeat = null;
-        if (_held == 0 || !Step(_held))
-            return;
-        _repeat = SkUiGestureSettings.Schedule(SkUiLook.Current.StepperRepeatInterval, Repeat);
+        _repeat.Start(button, Step);
     }
 
     /// <summary>The held button was released (or the press cancelled).</summary>
-    internal void Release()
+    public void Release()
     {
-        _repeat?.Dispose();
-        _repeat = null;
-        if (_held == 0)
+        var held = _repeat.Held;
+        if (!_repeat.Stop())
             return;
-        (_held < 0 ? _decrementPress : _incrementPress).AnimateTo(0, SkUiLook.Current.GetTransition(SkUiTransitionKind.Release));
-        _held = 0;
+        (held < 0 ? _decrementPress : _incrementPress).AnimateTo(0, SkUiLook.Current.GetTransition(SkUiTransitionKind.Release));
     }
 
     /// <summary>Which button <paramref name="local"/> is on: -1 (−), +1 (+), 0 (outside).</summary>
-    internal int ButtonAt(Point local)
+    public int ButtonAt(Point local)
     {
         var size = _owner.StepperSize;
         var (decrement, increment) = Parts((float)size.Width, (float)size.Height);
@@ -321,10 +325,10 @@ internal sealed class SkUiStepperModel
 }
 
 /// <summary>
-/// A stepper's buttons: a mouse press steps at once and repeats while held; a touch steps when lifted (a drag scrolls the
-/// stepper's scroller instead), or repeats once held past the long-press time.
+/// Step buttons' pointer input (a stepper's, a numeric entry's): a mouse press steps at once and repeats while held; a touch steps
+/// when lifted (a drag scrolls the buttons' scroller instead), or repeats once held past the long-press time.
 /// </summary>
-internal sealed class SkUiStepperGestures(SkUiStepperModel model) : SkUiGestureRecognizer
+internal sealed class SkUiStepperGestures(ISkUiStepButtons model) : SkUiGestureRecognizer
 {
     private long? _pointer;
     private int _button;
@@ -413,5 +417,61 @@ internal sealed class SkUiStepperGestures(SkUiStepperModel model) : SkUiGestureR
         _hold?.Dispose();
         _hold = null;
         model.Release();
+    }
+}
+
+/// <summary>Step buttons a <see cref="SkUiStepperGestures"/> drives: a stepper's, a numeric entry's.</summary>
+internal interface ISkUiStepButtons
+{
+    /// <summary>Which button <paramref name="local"/> (node coordinates) is on: -1 (−), +1 (+), 0 (none).</summary>
+    int ButtonAt(Point local);
+
+    /// <summary>A button pressed: it steps, then repeats while held.</summary>
+    void Press(int button);
+
+    /// <summary>The held button was released (or the press cancelled).</summary>
+    void Release();
+}
+
+/// <summary>
+/// A held step button repeating: one step at once, then after the look's <see cref="SkUiLook.StepperRepeatDelay"/> one every
+/// <see cref="SkUiLook.StepperRepeatInterval"/> until stopped or a step cannot move.
+/// </summary>
+internal sealed class SkUiStepRepeat
+{
+    private IDisposable? _timer;
+    private Func<int, bool>? _step;
+
+    /// <summary>The held button (-1, +1), or 0.</summary>
+    public int Held { get; private set; }
+
+    /// <summary>Steps by <paramref name="button"/> once and keeps stepping while it is held.</summary>
+    public void Start(int button, Func<int, bool> step)
+    {
+        _timer?.Dispose();
+        Held = button;
+        _step = step;
+        step(button);
+        _timer = SkUiGestureSettings.Schedule(SkUiLook.Current.StepperRepeatDelay, Repeat);
+    }
+
+    private void Repeat()
+    {
+        _timer = null;
+        if (Held == 0 || _step is not { } step || !step(Held))
+            return;
+        _timer = SkUiGestureSettings.Schedule(SkUiLook.Current.StepperRepeatInterval, Repeat);
+    }
+
+    /// <summary>Stops repeating; returns whether a button was held.</summary>
+    public bool Stop()
+    {
+        _timer?.Dispose();
+        _timer = null;
+        _step = null;
+        if (Held == 0)
+            return false;
+        Held = 0;
+        return true;
     }
 }

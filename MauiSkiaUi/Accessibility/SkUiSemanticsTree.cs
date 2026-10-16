@@ -384,7 +384,7 @@ internal sealed class SkUiSemanticsTree
                 Bounds = new Rect(visible.Left, visible.Top, visible.Width, visible.Height),
                 Role = info.Role,
                 Label = label,
-                Hint = Clean(info.Hint),
+                Hint = Clean(WithMessage(info.Hint, info.TextField?.Message)),
                 Value = Clean(info.Value),
                 CheckState = info.CheckState,
                 Range = info.Range,
@@ -409,6 +409,10 @@ internal sealed class SkUiSemanticsTree
         }
 
         private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+        // A text field's message (its helper or error text) is read first in the hint, before the app's own hint.
+        private static string? WithMessage(string? hint, string? message) =>
+            string.IsNullOrWhiteSpace(message) ? hint : string.IsNullOrWhiteSpace(hint) ? message : $"{message.Trim()}, {hint.Trim()}";
 
         private static SKRect Intersect(SKRect a, SKRect b)
         {

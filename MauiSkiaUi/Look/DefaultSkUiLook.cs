@@ -492,14 +492,15 @@ public class DefaultSkUiLook : SkUiLook
 
     /// <summary>
     /// A field's frame (pickers and text fields): idle in the border color (darker while a pointer is over it), in the accent
-    /// color and thicker while focused; dimmed when disabled.
+    /// color and thicker while focused; in <paramref name="error"/> when set (a text field's error), thicker while focused; dimmed
+    /// when disabled.
     /// </summary>
     private static void DrawFieldFrame(SKCanvas canvas, SKRect bounds, SkUiPickerFieldStyle style, SKColor accent, SKColor border, SKColor foreground,
-        float focused, bool pointerOver, bool enabled)
+        float focused, bool pointerOver, bool enabled, SKColor? error = null)
     {
         var focus = enabled ? Math.Clamp(focused, 0, 1) : 0;
         var idle = pointerOver && enabled ? Mix(border, foreground, 0.35f) : border;
-        var line = Mix(idle, accent, focus);
+        var line = error ?? Mix(idle, accent, focus);
         if (!enabled)
             line = line.WithAlpha((byte)(line.Alpha * DisabledAlpha));
         var paint = Paint(line);
@@ -548,7 +549,7 @@ public class DefaultSkUiLook : SkUiLook
     /// <inheritdoc />
     /// <remarks>
     /// <see cref="TextFieldStyle"/>'s chrome, as picker fields': idle in the border color (darker while a pointer is over it), in the
-    /// accent color and thicker while focused; dimmed when disabled.
+    /// accent color and thicker while focused; in the error color with an error (thicker while focused); dimmed when disabled.
     /// </remarks>
     protected override void DrawTextFieldCore(SKCanvas canvas, SkUiTextFieldPaint field)
     {
@@ -562,7 +563,8 @@ public class DefaultSkUiLook : SkUiLook
             SkUiTextFieldStyle.None => SkUiPickerFieldStyle.None,
             _ => SkUiPickerFieldStyle.Outline
         };
-        DrawFieldFrame(canvas, bounds, style, field.Accent, field.Border, field.Foreground, field.Focused, field.IsPointerOver, field.IsEnabled);
+        DrawFieldFrame(canvas, bounds, style, field.Accent, field.Border, field.Foreground, field.Focused, field.IsPointerOver, field.IsEnabled,
+            field.HasError ? field.Error : null);
     }
 
     /// <summary>A down-pointing chevron centered in the field's chevron bounds, turned upwards as the popup opens.</summary>
