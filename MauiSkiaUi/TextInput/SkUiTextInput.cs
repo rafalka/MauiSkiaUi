@@ -151,6 +151,18 @@ internal interface ISkUiTextInputClient
     bool IsRightToLeftAt(int index);
 
     /// <summary>
+    /// The visual line holding the caret at <paramref name="index"/>: its start and its end (before a line break; where a wrapped
+    /// line continues). A screen reader's line navigation (VoiceOver's Lines rotor).
+    /// </summary>
+    (int Start, int End) GetLineAt(int index);
+
+    /// <summary>
+    /// The caret <paramref name="lines"/> visual lines below (negative: above) <paramref name="index"/>, at the same x; past the first
+    /// or last line the text's start or end (the platform's line movement: UIKit's up / down positions).
+    /// </summary>
+    int MoveByLines(int index, int lines);
+
+    /// <summary>
     /// A screen reader or the platform's autofill replaces the text (one undo step, formatted as a paste; the platform's input
     /// follows); returns whether it changed.
     /// </summary>

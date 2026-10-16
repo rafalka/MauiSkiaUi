@@ -206,7 +206,7 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
 
     private readonly SkUiOverlayContainer _container;
     private readonly HashSet<UIKeyboardHidUsage> _handledKeys = [];
-    private UITextInputStringTokenizer? _tokenizer;
+    private SkUiTextInputTokenizer? _tokenizer;
 
     public SkUiTextInputView(SkUiOverlayContainer container)
     {
@@ -510,7 +510,7 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
 
     public NSObject? WeakInputDelegate { get; set; }
 
-    public NSObject WeakTokenizer => _tokenizer ??= new UITextInputStringTokenizer(this);
+    public NSObject WeakTokenizer => _tokenizer ??= new SkUiTextInputTokenizer(this);
 
     #endregion
 
@@ -533,9 +533,9 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
         {
             UITextLayoutDirection.Left => index - (int)offset,
             UITextLayoutDirection.Right => index + (int)offset,
-            // Lines: a single-line field's start and end.
-            UITextLayoutDirection.Up => 0,
-            _ => Length
+            // Lines: the field's visual lines (VoiceOver's Lines rotor; a single-line field's start and end).
+            UITextLayoutDirection.Up => Client?.MoveByLines(index, -(int)offset) ?? 0,
+            _ => Client?.MoveByLines(index, (int)offset) ?? Length
         };
         return new SkUiTextPosition(Math.Clamp(moved, 0, Length));
     }

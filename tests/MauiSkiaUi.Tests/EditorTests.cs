@@ -96,6 +96,53 @@ public class EditorTests
     }
 
     [Fact]
+    public void ScreenReadersNavigateTheVisualLinesOnBothLayers()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        const string text = "one two three four five six\nseven";
+        var (_, editor) = Field(new SkUiEditor { Text = text }, width: 120);
+        var core = new SkUiCoreEditor().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetText(text);
+        core.SetWidth(120);
+        var coreRoot = new SkUiVerticalStackLayout { Children = { new SkUiCoreHost().SetContent(core) } };
+        SkUiTestHelpers.Arrange(coreRoot, 400, 600);
+        foreach (var model in new[] { editor.Model, core.Model })
+        {
+            model.Measure(120, 600);
+            var lines = model.Layout.Lines;
+            Assert.True(lines.Count > 2);
+            ISkUiTextInputClient client = model;
+            // A wrapped line ends where the next starts; a paragraph's line before its break.
+            Assert.Equal((0, lines[0].End), client.GetLineAt(1));
+            Assert.Equal((lines[1].Start, lines[1].End), client.GetLineAt(lines[1].Start));
+            var last = lines[^1];
+            Assert.Equal("seven", text[last.Start..last.End]);
+            Assert.Equal((last.Start, text.Length), client.GetLineAt(text.Length));
+            Assert.Equal('\n', text[lines[^2].End]);
+            // Up / down by lines (UIKit's line positions), clamped to the text's ends.
+            Assert.InRange(client.MoveByLines(0, 1), lines[1].Start, lines[1].End);
+            Assert.Equal(0, client.MoveByLines(client.MoveByLines(0, 1), -1));
+            Assert.Equal(0, client.MoveByLines(2, -1));
+            Assert.Equal(text.Length, client.MoveByLines(0, lines.Count));
+        }
+    }
+
+    [Fact]
+    public void ScreenReadersMoveTheCaretOfAnUnfocusedEditor()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var (root, editor) = Field(new SkUiEditor { Text = "ab\ncd" });
+        var owner = new SkUiSemanticsOwner(root);
+        var node = owner.Tree.Flatten().Single(n => n.Role == SkUiSemanticsRole.TextField);
+        Assert.Equal(new SkUiSemanticsTextField(5, 5, false, false, true), node.TextField);
+        // VoiceOver's rotor reads characters with the caret following, before the field is focused for typing.
+        Assert.True(owner.SetSelection(node.Id, 1, 1));
+        Assert.False(editor.IsFocused);
+        Assert.Equal(1, editor.CursorPosition);
+        owner.Invalidate();
+        Assert.Equal(new SkUiSemanticsTextField(1, 1, false, false, true), owner.Tree.Find(node.Id)!.TextField);
+    }
+
+    [Fact]
     public void AutoSizeGrowsTheEditorWithItsText()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
