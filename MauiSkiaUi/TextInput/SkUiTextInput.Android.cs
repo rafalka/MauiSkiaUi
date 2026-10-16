@@ -1,8 +1,11 @@
 #if ANDROID
+using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
 using Android.Content;
 using Android.Text;
+using Android.Util;
 using Android.Views;
+using Android.Views.Autofill;
 using Android.Views.InputMethods;
 using Android.Widget;
 using Java.Lang;
@@ -18,8 +21,9 @@ namespace MauiSkiaUi;
 /// <see cref="IEditable"/> mirror of the field. Android implements the protocol's details on the mirror (composing spans, surrounding
 /// text deletes, batch edits); after each batch the mirror's change reaches the field as one edit, and the field's changes from
 /// keys and the app go back to the mirror and the input method (<c>updateSelection</c>, <c>restartInput</c>).
+/// It is also the surface's autofill (D14): the drawn fields are virtual children of the container's autofill structure.
 /// </summary>
-internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISkUiTextInputProxy
+internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISkUiTextInputProxy, ISkUiAutofillHost, IDisposable
 {
     private readonly InputMethodManager? _imm = container.Context?.GetSystemService(Context.InputMethodService) as InputMethodManager;
     private SkUiInputConnection? _connection;
@@ -38,6 +42,9 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
         _imm?.RestartInput(container);
         // Focus alone: an implicit request, which the input method may decline (a hardware keyboard attached).
         Show(client, ShowFlags.Implicit);
+        // As a native field's focus: autofill offers what fits the form (asking for the structure the first time).
+        if (OperatingSystem.IsAndroidVersionAtLeast(26) && AutofillManager is { IsEnabled: true } autofill)
+            autofill.NotifyViewEntered(container, AutofillIdOf(client), ScreenBounds(client));
     }
 
     public void Detach(ISkUiTextInputClient client)
@@ -47,6 +54,8 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
             return;
         Client = null;
         HideMagnifier(client);
+        if (OperatingSystem.IsAndroidVersionAtLeast(26) && AutofillManager is { IsEnabled: true } autofill && _autofillIds.TryGetValue(client, out var id))
+            autofill.NotifyViewExited(container, (int)id);
         _connection?.Disconnect();
         _connection = null;
         _imm?.RestartInput(container);
@@ -161,6 +170,191 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
     private bool _magnifierShown;
     private bool _magnifierRefreshPending;
 
+    #region Autofill (D14)
+
+    private const string EditTextClass = "android.widget.EditText";
+
+    // Android's hint names (View.AUTOFILL_HINT_*, androidx.autofill.HintConstants) for SkUiAutofillHints.
+    private static readonly string[] UsernameHints = ["username"];
+    private static readonly string[] PasswordHints = ["password"];
+    private static readonly string[] NewPasswordHints = ["newPassword"];
+    private static readonly string[] EmailHints = ["emailAddress"];
+    private static readonly string[] PhoneHints = ["phoneNumber", "phone"];
+    private static readonly string[] OneTimeCodeHints = ["smsOTPCode"];
+    private static readonly string[] NameHints = ["personName", "name"];
+    private static readonly string[] PostalAddressHints = ["postalAddress"];
+    private static readonly string[] PostalCodeHints = ["postalCode"];
+    private static readonly string[] CreditCardHints = ["creditCardNumber"];
+
+    // Virtual ids of the fields autofill knows (stable while a field is on this surface), both ways.
+    private readonly ConditionalWeakTable<ISkUiTextInputClient, object> _autofillIds = new();
+    private readonly Dictionary<int, WeakReference<ISkUiTextInputClient>> _autofillFields = [];
+    private readonly List<ISkUiTextInputClient> _formFields = [];
+    private readonly int[] _location = new int[2];
+    private int _lastAutofillId;
+
+    /// <summary>The window's autofill manager (API 26+), or <c>null</c>.</summary>
+    [SupportedOSPlatform("android26.0")]
+    private AutofillManager? AutofillManager =>
+        field ??= container.Context?.GetSystemService(Java.Lang.Class.FromType(typeof(AutofillManager))) as AutofillManager;
+
+    /// <summary>The virtual id of <paramref name="client"/> in the container's autofill structure; the field reports to this surface from now on.</summary>
+    private int AutofillIdOf(ISkUiTextInputClient client)
+    {
+        if (_autofillIds.TryGetValue(client, out var known))
+            return (int)known;
+        var id = ++_lastAutofillId;
+        _autofillIds.Add(client, id);
+        _autofillFields[id] = new WeakReference<ISkUiTextInputClient>(client);
+        client.AutofillHost?.Removed(client);
+        client.AutofillHost = this;
+        return id;
+    }
+
+    /// <summary>
+    /// The container's <c>onProvideAutofillVirtualStructure</c>: the surface's drawn fields as <c>EditText</c>s (hints, value,
+    /// input type, placeholder, bounds), after the container's native children (hosted views keep their own autofill). Without
+    /// drawn fields, nothing: the container's children are described as usual.
+    /// </summary>
+    [SupportedOSPlatform("android26.0")]
+    internal void ProvideAutofillStructure(ViewStructure structure, AutofillFlags flags)
+    {
+        container.KeyboardFocus?.CollectTextFields(_formFields);
+        try
+        {
+            if (_formFields.Count == 0 || structure.AutofillId is not { } parent)
+                return;
+            var natives = 0;
+            for (var index = 0; index < container.ChildCount; index++)
+                if (container.GetChildAt(index) is { Visibility: ViewStates.Visible })
+                    natives++;
+            var next = structure.AddChildCount(natives + _formFields.Count);
+            for (var index = 0; index < container.ChildCount; index++)
+                if (container.GetChildAt(index) is { Visibility: ViewStates.Visible } child && structure.NewChild(next++) is { } node)
+                    child.DispatchProvideAutofillStructure(node, flags);
+            var density = container.Resources?.DisplayMetrics?.Density ?? 1;
+            foreach (var field in _formFields)
+                if (structure.NewChild(next++) is { } node)
+                    Describe(node, parent, field, density);
+        }
+        finally
+        {
+            _formFields.Clear();
+        }
+    }
+
+    [SupportedOSPlatform("android26.0")]
+    private void Describe(ViewStructure node, AutofillId parent, ISkUiTextInputClient client, float density)
+    {
+        var options = client.Options;
+        var editor = client.Editor;
+        node.SetAutofillId(parent, AutofillIdOf(client));
+        node.SetAutofillType(AutofillType.Text);
+        if (HintsOf(options.AutofillHint) is { } hints)
+            node.SetAutofillHints(hints);
+        node.SetAutofillValue(AutofillValue.ForText(editor.Text));
+        // Typed by the user, not from the app's resources (as a native field's).
+        node.SetDataIsSensitive(true);
+        node.SetClassName(EditTextClass);
+        node.SetInputType((int)InputTypeOf(options));
+        if (client.Placeholder is { Length: > 0 } placeholder)
+            node.Hint = placeholder;
+        if (!options.IsPassword)
+            node.SetText(editor.Text, editor.SelectionStart, editor.SelectionEnd);
+        node.SetVisibility(ViewStates.Visible);
+        node.SetEnabled(true);
+        node.SetFocusable(true);
+        node.SetFocused(ReferenceEquals(Client, client));
+        if (OperatingSystem.IsAndroidVersionAtLeast(28) && editor.MaxLength < int.MaxValue)
+            node.SetMaxTextLength(editor.MaxLength);
+        var bounds = client.GetFieldBounds();
+        node.SetDimens((int)Math.Floor(bounds.X * density), (int)Math.Floor(bounds.Y * density), 0, 0,
+            (int)Math.Ceiling(bounds.Width * density), (int)Math.Ceiling(bounds.Height * density));
+    }
+
+    /// <summary>Android's hints for a field's <c>AutofillHint</c>: <see cref="SkUiAutofillHints"/> mapped, any other string as it is.</summary>
+    private static string[]? HintsOf(string? hint) => hint switch
+    {
+        null or "" => null,
+        SkUiAutofillHints.Username => UsernameHints,
+        SkUiAutofillHints.Password => PasswordHints,
+        SkUiAutofillHints.NewPassword => NewPasswordHints,
+        SkUiAutofillHints.EmailAddress => EmailHints,
+        SkUiAutofillHints.PhoneNumber => PhoneHints,
+        SkUiAutofillHints.OneTimeCode => OneTimeCodeHints,
+        SkUiAutofillHints.Name => NameHints,
+        SkUiAutofillHints.PostalAddress => PostalAddressHints,
+        SkUiAutofillHints.PostalCode => PostalCodeHints,
+        SkUiAutofillHints.CreditCardNumber => CreditCardHints,
+        _ => [hint]
+    };
+
+    /// <summary>The container's <c>autofill(SparseArray)</c>: a service fills fields by virtual id, each as one undo step (formatted as a paste).</summary>
+    [SupportedOSPlatform("android26.0")]
+    internal void Autofill(SparseArray values)
+    {
+        for (var index = 0; index < values.Size(); index++)
+            if (values.ValueAt(index) is AutofillValue { IsText: true } value && _autofillFields.TryGetValue(values.KeyAt(index), out var known)
+                && known.TryGetTarget(out var client))
+                client.SetTextFromAssistant(value.TextValue?.ToString() ?? string.Empty);
+    }
+
+    /// <summary>A known field's text changed: autofill gets the value (which it saves on commit).</summary>
+    public void TextChanged(ISkUiTextInputClient client)
+    {
+        if (OperatingSystem.IsAndroidVersionAtLeast(26) && AutofillManager is { IsEnabled: true } autofill && _autofillIds.TryGetValue(client, out var id))
+            autofill.NotifyValueChanged(container, (int)id, AutofillValue.ForText(client.Editor.Text));
+    }
+
+    /// <summary>A known field left the surface: autofill sees it hidden (with a service that saves once a form's fields are gone, it offers to now).</summary>
+    public void Removed(ISkUiTextInputClient client)
+    {
+        if (!_autofillIds.TryGetValue(client, out var id))
+            return;
+        _autofillIds.Remove(client);
+        _autofillFields.Remove((int)id);
+        if (ReferenceEquals(client.AutofillHost, this))
+            client.AutofillHost = null;
+        if (OperatingSystem.IsAndroidVersionAtLeast(27) && AutofillManager is { IsEnabled: true } autofill)
+            autofill.NotifyViewVisibilityChanged(container, (int)id, false);
+    }
+
+    /// <summary>
+    /// The container became visible or hidden (its page shown or left, the container attached or detached): the known fields with
+    /// it, since autofill does not derive a virtual child's visibility from its parent's.
+    /// </summary>
+    internal void SurfaceVisibilityChanged(bool visible)
+    {
+        if (!OperatingSystem.IsAndroidVersionAtLeast(27) || AutofillManager is not { IsEnabled: true } autofill)
+            return;
+        foreach (var (id, known) in _autofillFields)
+            if (known.TryGetTarget(out _))
+                autofill.NotifyViewVisibilityChanged(container, id, visible);
+    }
+
+    /// <summary>The surface goes: its fields are hidden to autofill and let go.</summary>
+    public void Dispose()
+    {
+        SurfaceVisibilityChanged(false);
+        foreach (var known in _autofillFields.Values)
+            if (known.TryGetTarget(out var client) && ReferenceEquals(client.AutofillHost, this))
+                client.AutofillHost = null;
+        _autofillFields.Clear();
+        _autofillIds.Clear();
+    }
+
+    /// <summary>A field's bounds on the screen, in pixels (where autofill anchors its suggestions).</summary>
+    private Android.Graphics.Rect ScreenBounds(ISkUiTextInputClient client)
+    {
+        var bounds = client.GetFieldBounds();
+        var density = container.Resources?.DisplayMetrics?.Density ?? 1;
+        container.GetLocationOnScreen(_location);
+        return new Android.Graphics.Rect(_location[0] + (int)Math.Floor(bounds.Left * density), _location[1] + (int)Math.Floor(bounds.Top * density),
+            _location[0] + (int)Math.Ceiling(bounds.Right * density), _location[1] + (int)Math.Ceiling(bounds.Bottom * density));
+    }
+
+    #endregion
+
     /// <summary>The container's <c>onCreateInputConnection</c>: a connection to the attached field, or <c>null</c> without one.</summary>
     internal IInputConnection? CreateInputConnection(EditorInfo? info)
     {
@@ -176,6 +370,32 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
     {
         var options = client.Options;
         var editor = client.Editor;
+        var type = InputTypeOf(options);
+        info.InputType = type;
+        var action = options.IsMultiline ? ImeAction.None : options.ReturnType switch
+        {
+            ReturnType.Go => ImeAction.Go,
+            ReturnType.Next => ImeAction.Next,
+            ReturnType.Search => ImeAction.Search,
+            ReturnType.Send => ImeAction.Send,
+            _ => ImeAction.Done
+        };
+        info.ImeOptions = (ImeFlags)action | ImeFlags.NoFullscreen | ImeFlags.NoExtractUi;
+        if (options.IsMultiline)
+            info.ImeOptions |= ImeFlags.NoEnterAction;
+        if (options.IsPassword && OperatingSystem.IsAndroidVersionAtLeast(26))
+            info.ImeOptions |= ImeFlags.NoPersonalizedLearning;
+        info.InitialSelStart = editor.SelectionStart;
+        info.InitialSelEnd = editor.SelectionEnd;
+        info.InitialCapsMode = TextUtils.GetCapsMode(new String(editor.Text), editor.SelectionStart, (CapitalizationMode)(int)(type & InputTypes.MaskFlags));
+        // Never a password's text (Android drops it for password input types too; this does not rely on that).
+        if (OperatingSystem.IsAndroidVersionAtLeast(30) && !options.IsPassword)
+            info.SetInitialSurroundingText(new String(editor.Text));
+    }
+
+    /// <summary>The input type of a field: the keyboard's (<see cref="Configure"/>) and what autofill services read the field as.</summary>
+    private static InputTypes InputTypeOf(SkUiTextInputOptions options)
+    {
         InputTypes type;
         if (options.IsNumber)
             type = InputTypes.ClassNumber | (options.IsDecimalNumber ? InputTypes.NumberFlagDecimal : 0)
@@ -209,26 +429,7 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
             if (!options.IsTextPredictionEnabled || options.IsPlain || options.IsPassword)
                 type |= InputTypes.TextFlagNoSuggestions;
         }
-        info.InputType = type;
-        var action = options.IsMultiline ? ImeAction.None : options.ReturnType switch
-        {
-            ReturnType.Go => ImeAction.Go,
-            ReturnType.Next => ImeAction.Next,
-            ReturnType.Search => ImeAction.Search,
-            ReturnType.Send => ImeAction.Send,
-            _ => ImeAction.Done
-        };
-        info.ImeOptions = (ImeFlags)action | ImeFlags.NoFullscreen | ImeFlags.NoExtractUi;
-        if (options.IsMultiline)
-            info.ImeOptions |= ImeFlags.NoEnterAction;
-        if (options.IsPassword && OperatingSystem.IsAndroidVersionAtLeast(26))
-            info.ImeOptions |= ImeFlags.NoPersonalizedLearning;
-        info.InitialSelStart = editor.SelectionStart;
-        info.InitialSelEnd = editor.SelectionEnd;
-        info.InitialCapsMode = TextUtils.GetCapsMode(new String(editor.Text), editor.SelectionStart, (CapitalizationMode)(int)(type & InputTypes.MaskFlags));
-        // Never a password's text (Android drops it for password input types too; this does not rely on that).
-        if (OperatingSystem.IsAndroidVersionAtLeast(30) && !options.IsPassword)
-            info.SetInitialSurroundingText(new String(editor.Text));
+        return type;
     }
 }
 
@@ -569,6 +770,20 @@ internal sealed class SkUiInputConnection : BaseInputConnection
         builder.SetInsertionMarkerLocation((float)caret.X, (float)caret.Y, (float)caret.Bottom, (float)caret.Bottom,
             CursorAnchorFlags.HasVisibleRegion);
         _imm.UpdateCursorAnchorInfo(_view, builder.Build());
+    }
+}
+/// <summary>Android: the window's <c>AutofillManager</c> commits or cancels its autofill session.</summary>
+public static partial class SkUiAutofill
+{
+    static partial void FinishContext(bool save)
+    {
+        if (!OperatingSystem.IsAndroidVersionAtLeast(26)
+            || Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.GetSystemService(Java.Lang.Class.FromType(typeof(AutofillManager))) is not AutofillManager autofill)
+            return;
+        if (save)
+            autofill.Commit();
+        else
+            autofill.Cancel();
     }
 }
 #endif

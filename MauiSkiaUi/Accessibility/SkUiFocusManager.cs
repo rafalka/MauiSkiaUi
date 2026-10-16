@@ -653,6 +653,32 @@ internal sealed class SkUiFocusManager(SkUiView root)
         }
     }
 
+    /// <summary>
+    /// Adds the surface's text fields that can be typed in now (visible and enabled, also with accessibility off) to
+    /// <paramref name="fields"/>, in tree order: the form the platform's autofill sees (D14).
+    /// </summary>
+    internal void CollectTextFields(List<ISkUiTextInputClient> fields) => CollectTextFields(root, fields);
+
+    private void CollectTextFields(ISkUiRenderable node, List<ISkUiTextInputClient> fields)
+    {
+        if (IsBlocked(node, textInput: true))
+            return;
+        if (node is ISkUiTextInputNode { WantsTextInput: true, CanTakeTextFocus: true } field)
+            fields.Add(field.TextInputClient);
+        var start = _scratch.Count;
+        node.GetRenderChildren(_scratch);
+        var end = _scratch.Count;
+        try
+        {
+            for (var index = start; index < end; index++)
+                CollectTextFields(_scratch[index], fields);
+        }
+        finally
+        {
+            _scratch.RemoveRange(start, _scratch.Count - start);
+        }
+    }
+
     /// <summary>Whether <paramref name="node"/> is under this surface's root, with no hidden, disabled or detached ancestor.</summary>
     private bool IsLive(ISkUiRenderable node, bool textInput = false)
     {

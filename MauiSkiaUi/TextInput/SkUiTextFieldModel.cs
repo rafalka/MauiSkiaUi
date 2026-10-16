@@ -1208,6 +1208,12 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         Steps?.ReleaseDrawingResources();
         _layoutDirty = true;
         _caret.Forget();
+        // The field left its surface: that surface's autofill lets it go.
+        if (AutofillHost is { } autofill)
+        {
+            AutofillHost = null;
+            autofill.Removed(this);
+        }
     }
 
     /// <summary>Forgets the committed caret drawable (the node was reset; the compositor disposes it).</summary>
@@ -1297,6 +1303,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             _owner.TextEdited(Editor.Text);
         if (_fromInput == 0)
             _proxy?.StateChanged(this, textChanged: true);
+        AutofillHost?.TextChanged(this);
         // An entry is as wide as its text; an editor follows its text only with AutoSize.
         if (!IsMultiline || AutoSize)
             _owner.InvalidateMeasure();
@@ -1788,6 +1795,11 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     internal ISkUiTextInputProxy? Proxy => _proxy;
 
     void ISkUiTextInputClient.InputAttached(ISkUiTextInputProxy? proxy) => _proxy = proxy;
+
+    string? ISkUiTextInputClient.Placeholder => Placeholder;
+
+    /// <summary>The platform's autofill that knows the field (Android), or <c>null</c>.</summary>
+    public ISkUiAutofillHost? AutofillHost { get; set; }
 
     void ISkUiTextInputClient.BeginInputBatch()
     {

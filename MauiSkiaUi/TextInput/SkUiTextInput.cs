@@ -150,11 +150,36 @@ internal interface ISkUiTextInputClient
     /// <summary>Whether the text runs right to left at <paramref name="index"/>.</summary>
     bool IsRightToLeftAt(int index);
 
-    /// <summary>A screen reader replaces the text (one undo step; the platform's input follows); returns whether it changed.</summary>
+    /// <summary>
+    /// A screen reader or the platform's autofill replaces the text (one undo step, formatted as a paste; the platform's input
+    /// follows); returns whether it changed.
+    /// </summary>
     bool SetTextFromAssistant(string text);
+
+    /// <summary>The placeholder: the platform's autofill reads it as the field's hint.</summary>
+    string? Placeholder { get; }
+
+    /// <summary>
+    /// The platform's autofill that knows the field (Android, D14), or <c>null</c>: told when the text changes and when the field
+    /// leaves its surface. Set by that autofill when it first describes or enters the field.
+    /// </summary>
+    ISkUiAutofillHost? AutofillHost { get; set; }
 
     /// <summary>A screen reader moves the selection or caret; returns whether it was done.</summary>
     bool SelectFromAssistant(int start, int end);
+}
+
+/// <summary>
+/// The platform's autofill of a surface's drawn fields (Android's autofill framework, D14): password managers see the surface's
+/// fields as one form, fill them and save what was typed. The fields it knows report to it.
+/// </summary>
+internal interface ISkUiAutofillHost
+{
+    /// <summary>The field's text changed (typing, the app, a fill): the platform's autofill gets the new value.</summary>
+    void TextChanged(ISkUiTextInputClient client);
+
+    /// <summary>The field left its surface: the platform's autofill takes it as gone (and may offer to save what was typed).</summary>
+    void Removed(ISkUiTextInputClient client);
 }
 
 /// <summary>Edit menu actions (the platform's menu and keyboard shortcuts).</summary>
@@ -261,6 +286,29 @@ internal static class SkUiTextClipboard
 
     /// <summary>Whether the clipboard holds text (paste is offered).</summary>
     internal static Func<bool> HasText { get; set; } = () => Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.HasText;
+}
+
+/// <summary>
+/// The platform's autofill of drawn text fields: password managers fill the fields of a surface by their <c>AutofillHint</c> and
+/// offer to save what was typed (Android's autofill service; iOS and Mac Catalyst through the Passwords app, by the hint alone).
+/// Call <see cref="Commit"/> when a form is submitted (a sign-in, a new account), as Flutter's <c>finishAutofillContext</c>:
+/// otherwise Android offers to save only once the fields leave the screen, and only with services that ask for that.
+/// </summary>
+public static partial class SkUiAutofill
+{
+    /// <summary>
+    /// The form was submitted: the platform's autofill may offer to save or update what was typed (Android
+    /// <c>AutofillManager.commit()</c>). Nothing on platforms without such a call (iOS decides by itself, Windows has no autofill).
+    /// </summary>
+    public static void Commit() => FinishContext(save: true);
+
+    /// <summary>
+    /// The form was abandoned or its input refused (a failed sign-in): the platform's autofill forgets it without offering to save
+    /// (Android <c>AutofillManager.cancel()</c>).
+    /// </summary>
+    public static void Cancel() => FinishContext(save: false);
+
+    static partial void FinishContext(bool save);
 }
 
 /// <summary>

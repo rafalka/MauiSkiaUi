@@ -165,6 +165,13 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
     /// </summary>
     public SkUiTextInputFormatter? InputRules { get; set; }
 
+    /// <summary>
+    /// Set when an edit came out other than asked: cut by <see cref="MaxLength"/>, cleaned or transformed, rewritten or refused by
+    /// the formatters, refused as read-only. A platform input that assumes its edit landed as sent (UIKit's) clears it before
+    /// the edit and, when set after it, is told the text changed.
+    /// </summary>
+    internal bool InputAdjusted { get; set; }
+
     // Whether the user's edits are formatted (the control's rules or the app's formatters).
     private bool FormatsInput => InputRules is not null || HasFormatters;
 
@@ -336,10 +343,16 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
     public bool Replace(int start, int end, string text, SkUiTextEditKind kind = SkUiTextEditKind.Other, int? caret = null)
     {
         if (IsReadOnly)
+        {
+            InputAdjusted = true;
             return false;
+        }
         start = Math.Clamp(start, 0, Text.Length);
         end = Math.Clamp(end, start, Text.Length);
+        var asked = text;
         text = Clean(text);
+        if (!string.Equals(text, asked, StringComparison.Ordinal))
+            InputAdjusted = true;
         var room = MaxLength == int.MaxValue ? int.MaxValue : MaxLength - (Text.Length - (end - start));
         if (text.Length > room)
         {
@@ -348,6 +361,7 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
             if (length > 0 && length < text.Length && char.IsLowSurrogate(text[length]))
                 length--;
             text = text[..length];
+            InputAdjusted = true;
             if (text.Length == 0 && end == start)
                 return false;
         }
@@ -397,6 +411,8 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
             result = result[..length];
             value = value with { Text = result };
         }
+        if (!string.Equals(result, proposed.Text, StringComparison.Ordinal))
+            InputAdjusted = true;
         var anchor = Math.Clamp(value.SelectionStart, 0, result.Length);
         var caret = Math.Clamp(value.SelectionEnd, 0, result.Length);
         if (result == old)

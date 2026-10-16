@@ -37,6 +37,41 @@ public class InputFormatterTests
     }
 
     [Fact]
+    public void AnEditMadeDifferentlyThanAskedIsFlaggedForThePlatformInput()
+    {
+        // UIKit assumes its insertion landed as sent: the field flags what it changed so the view can tell UIKit.
+        static bool Adjusted(SkUiTextEditor editor, Action<SkUiTextEditor> edit)
+        {
+            editor.InputAdjusted = false;
+            edit(editor);
+            return editor.InputAdjusted;
+        }
+
+        var editor = Editor(SkUiFilteringFormatter.DigitsOnly);
+        Assert.False(Adjusted(editor, e => e.InsertText("1")));
+        Assert.True(Adjusted(editor, e => e.InsertText("x")));
+        Assert.True(Adjusted(editor, e => e.InsertText("2 3")));
+        Assert.Equal("123", editor.Text);
+        Assert.False(Adjusted(editor, e => e.DeleteBackward()));
+
+        var limited = new SkUiTextEditor { MaxLength = 3 };
+        Assert.False(Adjusted(limited, e => e.InsertText("ab")));
+        Assert.True(Adjusted(limited, e => e.InsertText("cd")));
+        Assert.Equal("abc", limited.Text);
+
+        var upper = new SkUiTextEditor { Transform = TextTransform.Uppercase };
+        Assert.True(Adjusted(upper, e => e.InsertText("a")));
+        Assert.False(Adjusted(upper, e => e.InsertText("B")));
+
+        var mask = Editor(new SkUiMaskFormatter("(000) 000"));
+        Assert.True(Adjusted(mask, e => e.InsertText("1")));
+        Assert.Equal("(1", mask.Text);
+
+        var readOnly = new SkUiTextEditor { IsReadOnly = true };
+        Assert.True(Adjusted(readOnly, e => e.InsertText("a")));
+    }
+
+    [Fact]
     public void RegexFiltersAllowOrDenyWithAReplacement()
     {
         var editor = Editor(new SkUiFilteringFormatter("[a-z]+"));

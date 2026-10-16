@@ -434,10 +434,30 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
             client.PerformReturn();
             return;
         }
-        client.InsertText(text);
+        Edit(client, text, static (client, text) => client.InsertText(text));
     }
 
-    public void DeleteBackward() => Client?.DeleteBackward();
+    public void DeleteBackward()
+    {
+        if (Client is { } client)
+            Edit(client, string.Empty, static (client, _) => client.DeleteBackward());
+    }
+
+    /// <summary>
+    /// An edit from UIKit: when the field made it differently (a formatter, <c>MaxLength</c>, a transform, read-only), UIKit is told the
+    /// text changed, as for the app's edits; it otherwise keeps the text it sent (suggestions and autocorrect on the wrong word).
+    /// Not for marked text: telling UIKit mid-composition would end it.
+    /// </summary>
+    private void Edit(ISkUiTextInputClient client, string text, Action<ISkUiTextInputClient, string> edit)
+    {
+        var editor = client.Editor;
+        editor.InputAdjusted = false;
+        edit(client, text);
+        if (!editor.InputAdjusted)
+            return;
+        editor.InputAdjusted = false;
+        NotifyChanged(textChanged: true);
+    }
 
     #endregion
 
@@ -454,8 +474,8 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
 
     public void ReplaceText(UITextRange range, string text)
     {
-        if (range is SkUiTextRange r)
-            Client?.ReplaceText(r.StartIndex, r.EndIndex, text);
+        if (range is SkUiTextRange r && Client is { } client)
+            Edit(client, text, (client, text) => client.ReplaceText(r.StartIndex, r.EndIndex, text));
     }
 
     public UITextRange? SelectedTextRange

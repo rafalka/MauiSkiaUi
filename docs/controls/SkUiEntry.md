@@ -144,8 +144,8 @@ var tag = new SkUiEntry().SetInputFormatters(
 | Default font size | 16 (as SkiaUi's labels), not the platform's |
 | `TextTransform` | The field holds the transformed text and `Text` follows it (a two-way binding gets it), as MAUI's Android and iOS fields push back the text they show; `Default` leaves text as it is (it does not restore the original case) |
 | Selection UI | Drawn handles (iOS-style bars for the selection, Android's drop under the caret) and the platform's edit menu and magnifier (Android 9+, iOS 17+) |
-| Autofill | `AutofillHint` on iOS (text content type); Android autofill of drawn fields is not wired yet |
-| Device verification | Typing, Gboard suggestions and the edit menu checked on an Android emulator and the iOS simulator; CJK composition, dictation and password managers still to be checked on devices ([plan](../design/ImplementationPlan.md#phase-d--drawn-text-input-fr-16-amended)) |
+| Autofill | `AutofillHint`: iOS's text content type; Android's autofill framework sees a surface's drawn fields as virtual `EditText`s (hints, value, input type, placeholder), so password managers fill them and save what was typed. Call `SkUiAutofill.Commit()` when the form is submitted (`Cancel()` when it is refused): Android then offers to save. In a Shell app on Android, a flyout or tab root page sits in a `ViewPager2` that hides it from autofill (MAUI's `Entry` too): put the sign-in form on a pushed page |
+| Device verification | Physical Android and iOS devices, Mac Catalyst, the Windows touch keyboard and IMEs; Android autofill with Samsung Pass on a Galaxy S9 (offered on the drawn fields, save offered on `Commit`); CJK and Korean composition, dictation and the other password managers still to be checked ([Testing.md](../design/Testing.md#input-method-composition-cjk-korean)) |
 
 ## Related
 

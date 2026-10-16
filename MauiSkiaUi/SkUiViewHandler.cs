@@ -545,6 +545,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         container.TextInput?.Dispose();
         container.TextInput = null;
 #elif ANDROID
+        container.TextInput?.Dispose();
         container.TextInput = null;
 #endif
         container.Accessibility?.Detach();
@@ -1218,7 +1219,12 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #if ANDROID
 internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
 {
-    public SkUiOverlayContainer(Android.Content.Context context) : base(context) { }
+    public SkUiOverlayContainer(Android.Content.Context context) : base(context)
+    {
+        // Described to autofill itself (its drawn fields are virtual children), not skipped as a plain layout.
+        if (OperatingSystem.IsAndroidVersionAtLeast(26))
+            ImportantForAutofill = Android.Views.ImportantForAutofill.Yes;
+    }
 
     /// <summary>JNI activation constructor, used if Java calls back after the managed peer was released.</summary>
     public SkUiOverlayContainer(IntPtr handle, Android.Runtime.JniHandleOwnership transfer) : base(handle, transfer) { }
@@ -1243,6 +1249,31 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
 
     public override Android.Views.InputMethods.IInputConnection? OnCreateInputConnection(Android.Views.InputMethods.EditorInfo? outAttrs) =>
         TextInput?.CreateInputConnection(outAttrs);
+
+    /// <summary>Autofill's view of the drawn fields: virtual children of this container (D14).</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("android26.0")]
+    public override void OnProvideAutofillVirtualStructure(Android.Views.ViewStructure? structure, Android.Views.AutofillFlags flags)
+    {
+        base.OnProvideAutofillVirtualStructure(structure, flags);
+        if (structure is not null)
+            TextInput?.ProvideAutofillStructure(structure, flags);
+    }
+
+    /// <summary>An autofill service fills drawn fields by their virtual ids.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("android26.0")]
+    public override void Autofill(Android.Util.SparseArray values)
+    {
+        base.Autofill(values);
+        TextInput?.Autofill(values);
+    }
+
+    /// <summary>Shown or hidden with its page: autofill learns it of the drawn fields, which it does not derive from this container.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("android24.0")]
+    public override void OnVisibilityAggregated(bool isVisible)
+    {
+        base.OnVisibilityAggregated(isVisible);
+        TextInput?.SurfaceVisibilityChanged(isVisible);
+    }
 
     /// <summary>
     /// The focused drawn field's rectangle while one is attached: the window pans to it when the soft keyboard shows (MAUI's

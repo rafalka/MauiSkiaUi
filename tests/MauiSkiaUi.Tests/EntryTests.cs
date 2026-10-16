@@ -775,6 +775,45 @@ public class EntryTests
     }
 
     [Fact]
+    public void AHandleHiddenByAnAncestorsClipIsNotGrabbedThere()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var previous = SkUiLook.Current;
+        SkUiLook.Current = new HandleLook(handle: true);
+        try
+        {
+            var proxy = new TestProxy(receivesCharacters: true);
+            var entry = new SkUiEntry { Text = "one two three", FontFamily = SkUiTestHelpers.BundledFontFamily };
+            // The field fills a box that clips to its bounds (as a scroller's viewport): the handle under the caret hangs out of it.
+            var box = new SkUiContentView { Content = entry, ClipToBounds = true, VerticalOptions = LayoutOptions.Start };
+            var below = new SkUiButton { Text = "Below" };
+            var tapped = 0;
+            below.Clicked += (_, _) => tapped++;
+            var root = new SkUiVerticalStackLayout { Children = { box, below } };
+            SkUiTestHelpers.Arrange(root, 300, 300);
+            root.FocusManager.TextInput = proxy;
+            var padding = SkUiLook.Current.TextFieldPadding.Left;
+            var advance = entry.Model.Layout.Width / 13;
+            var at = new Point(padding + advance * 2, entry.Height / 2);
+            root.Touch(new SkUiTouchEvent(1, SkUiTouchAction.Pressed, at, TimeSpan.Zero));
+            root.Touch(new SkUiTouchEvent(1, SkUiTouchAction.Released, at, TimeSpan.FromMilliseconds(50)));
+            var handle = new Point(at.X, entry.Height + 6);
+            Assert.Equal(SkUiTextFieldModel.CaretHandle, entry.Model.HandleAt(handle));
+
+            // The press lands where the handle is not drawn: it goes to what is drawn there, and the caret stays.
+            root.Touch(new SkUiTouchEvent(2, SkUiTouchAction.Pressed, handle, TimeSpan.FromSeconds(1)));
+            root.Touch(new SkUiTouchEvent(2, SkUiTouchAction.Released, handle, TimeSpan.FromSeconds(1.05)));
+            Assert.Equal(1, tapped);
+            Assert.Equal(2, entry.CursorPosition);
+        }
+        finally
+        {
+            SkUiLook.Current = previous;
+        }
+    }
+
+    [Fact]
     public void ADoubleTapSelectsTheWordAlsoNextToTheInsertionHandle()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
