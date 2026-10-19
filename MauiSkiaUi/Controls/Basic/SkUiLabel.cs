@@ -40,7 +40,7 @@ public class SkUiLabel : SkUiView
     private TextAlignment _horizontalTextAlignment;
     private TextAlignment _verticalTextAlignment;
     private Thickness _padding;
-    private readonly SkUiTextLayout _layout;
+    private readonly SkUiTextLayout _layout = new();
     private SkUiTextRendering _textRendering;
     private SkUiChromeState _chrome;
     private bool _syncingCornerRadius;
@@ -134,16 +134,19 @@ public class SkUiLabel : SkUiView
 
     /// <summary>
     /// Starts the applied state from the same defaults the bindable store reports (the <c>Default*</c> members, which
-    /// derived controls such as buttons override), without touching the store.
+    /// derived controls such as buttons override), without touching the store, unless a style already set them
+    /// (<see cref="SkUiView.StyledOr"/>).
     /// </summary>
     public SkUiLabel()
     {
-        _layout = new SkUiTextLayout(this);
-        _textColor = DefaultTextColor;
-        _horizontalTextAlignment = _verticalTextAlignment = DefaultTextAlignment;
-        _padding = DefaultPadding;
-        _lineBreakMode = DefaultLineBreakMode;
-        _chrome.SetRadii(new Microsoft.Maui.CornerRadius(DefaultCornerRadius));
+        _layout.Owner = this;
+        _textColor = StyledOr(TextColorProperty, DefaultTextColor);
+        _horizontalTextAlignment = StyledOr(HorizontalTextAlignmentProperty, DefaultTextAlignment);
+        _verticalTextAlignment = StyledOr(VerticalTextAlignmentProperty, DefaultTextAlignment);
+        _padding = StyledOr(PaddingProperty, DefaultPadding);
+        _lineBreakMode = StyledOr(LineBreakModeProperty, DefaultLineBreakMode);
+        if (!IsSet(CornerRadiiProperty) && !IsSet(CornerRadiusProperty))
+            _chrome.SetRadii(new Microsoft.Maui.CornerRadius(DefaultCornerRadius));
     }
 
     /// <summary>Default (uniform) corner radius used by derived controls and bindable value clearing.</summary>

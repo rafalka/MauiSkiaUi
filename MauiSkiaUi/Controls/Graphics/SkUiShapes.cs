@@ -140,7 +140,8 @@ public class SkUiPolyline : SkUiPolyShape
 /// <summary>Points and fill rule of <see cref="SkUiPolygon"/> and <see cref="SkUiPolyline"/>.</summary>
 public abstract class SkUiPolyShape : SkUiShape
 {
-    private readonly SkUiWeakListener<SkUiPolyShape> _pointsListener;
+    private SkUiWeakListener<SkUiPolyShape>? _pointsListener;
+    private SkUiWeakListener<SkUiPolyShape> PointsListener => _pointsListener ??= new(this, static (shape, _) => shape.InvalidateMeasureOverride());
 
     /// <summary>Bindable <see cref="Points"/>.</summary>
     public static readonly BindableProperty PointsProperty = BindableProperty.Create(nameof(Points), typeof(PointCollection), typeof(SkUiPolyShape), null,
@@ -150,7 +151,7 @@ public abstract class SkUiPolyShape : SkUiShape
     public static readonly BindableProperty FillRuleProperty = BindableProperty.Create(nameof(FillRule), typeof(FillRule), typeof(SkUiPolyShape), FillRule.EvenOdd,
         propertyChanged: (view, _, _) => ((SkUiPolyShape)view).InvalidatePaint());
 
-    private protected SkUiPolyShape() => _pointsListener = new(this, static (shape, _) => shape.InvalidateMeasureOverride());
+    private protected SkUiPolyShape() { }
 
     /// <summary>The vertices in local DIPs (<c>"0,0 40,0 20,30"</c> in XAML). Edits of the collection redraw.</summary>
     public PointCollection Points { get => (PointCollection)GetValue(PointsProperty); set => SetValue(PointsProperty, value); }
@@ -164,7 +165,7 @@ public abstract class SkUiPolyShape : SkUiShape
 
     private void OnPointsChanged(PointCollection? value)
     {
-        _pointsListener.Listen(value);
+        PointsListener.Listen(value);
         InvalidateMeasureOverride();
     }
 
@@ -176,7 +177,7 @@ public abstract class SkUiPolyShape : SkUiShape
     private protected override PathF CreatePath(Rect area)
     {
         var points = Points;
-        _pointsListener.Listen(points); // the default collection is created on first read
+        PointsListener.Listen(points); // the default collection is created on first read
         return SkUiShapeGeometry.Polyline(points, Closed);
     }
 }
@@ -191,9 +192,16 @@ public abstract class SkUiPolyShape : SkUiShape
 /// </remarks>
 public class SkUiPath : SkUiShape
 {
-    private readonly SkUiWeakListener<SkUiPath> _dataListener;
-    private readonly SkUiWeakListener<SkUiPath> _figuresListener;
-    private readonly SkUiWeakListener<SkUiPath> _transformListener;
+    private SkUiWeakListener<SkUiPath>? _dataListener;
+    private SkUiWeakListener<SkUiPath> DataListener => _dataListener ??= new(this, static (path, change) =>
+    {
+        if (change.PropertyName == nameof(PathGeometry.Figures)) path.ListenToFigures();
+        path.InvalidateMeasureOverride();
+    });
+    private SkUiWeakListener<SkUiPath>? _figuresListener;
+    private SkUiWeakListener<SkUiPath> FiguresListener => _figuresListener ??= new(this, static (path, _) => path.InvalidateMeasureOverride());
+    private SkUiWeakListener<SkUiPath>? _transformListener;
+    private SkUiWeakListener<SkUiPath> TransformListener => _transformListener ??= new(this, static (path, _) => path.InvalidatePaint());
 
     /// <summary>Bindable <see cref="Data"/>.</summary>
     public static readonly BindableProperty DataProperty = BindableProperty.Create(nameof(Data), typeof(Geometry), typeof(SkUiPath), null,
@@ -203,16 +211,7 @@ public class SkUiPath : SkUiShape
         propertyChanged: (view, _, value) => ((SkUiPath)view).OnRenderTransformChanged((Transform?)value));
 
     /// <summary>Creates an empty path.</summary>
-    public SkUiPath()
-    {
-        _dataListener = new(this, static (path, change) =>
-        {
-            if (change.PropertyName == nameof(PathGeometry.Figures)) path.ListenToFigures();
-            path.InvalidateMeasureOverride();
-        });
-        _figuresListener = new(this, static (path, _) => path.InvalidateMeasureOverride());
-        _transformListener = new(this, static (path, _) => path.InvalidatePaint());
-    }
+    public SkUiPath() { }
 
     /// <summary>Creates a path drawing <paramref name="data"/>.</summary>
     public SkUiPath(Geometry data) : this() => Data = data;
@@ -237,9 +236,9 @@ public class SkUiPath : SkUiShape
 
     private void OnDataChanged(Geometry? value)
     {
-        if (!ReferenceEquals(_dataListener.Source, value))
-            ReleaseBindingContext(_dataListener.Source as BindableObject);
-        _dataListener.Listen(value);
+        if (!ReferenceEquals(_dataListener?.Source, value))
+            ReleaseBindingContext(_dataListener?.Source as BindableObject);
+        DataListener.Listen(value);
         ListenToFigures();
         // Bindings inside the geometry (a bound radius, center or figure) resolve against the path, as in MAUI.
         if (value is not null)
@@ -247,13 +246,13 @@ public class SkUiPath : SkUiShape
         InvalidateMeasureOverride();
     }
 
-    private void ListenToFigures() => _figuresListener.Listen((Data as PathGeometry)?.Figures);
+    private void ListenToFigures() => FiguresListener.Listen((Data as PathGeometry)?.Figures);
 
     private void OnRenderTransformChanged(Transform? value)
     {
-        if (!ReferenceEquals(_transformListener.Source, value))
-            ReleaseBindingContext(_transformListener.Source as BindableObject);
-        _transformListener.Listen(value);
+        if (!ReferenceEquals(_transformListener?.Source, value))
+            ReleaseBindingContext(_transformListener?.Source as BindableObject);
+        TransformListener.Listen(value);
         if (value is not null)
             SetInheritedBindingContext(value, BindingContext);
         InvalidatePaint();

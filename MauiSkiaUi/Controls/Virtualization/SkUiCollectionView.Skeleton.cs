@@ -25,10 +25,10 @@ public partial class SkUiCollectionView
     public bool ShowsPlaceholders => _showsPlaceholders;
 
     /// <summary>Whether the empty view shows (tests).</summary>
-    internal bool ShowsEmptyView => _body.EmptyHost.IsVisible;
+    internal bool ShowsEmptyView => Body.EmptyHost.IsVisible;
 
     /// <summary>The placeholder items shown (tests).</summary>
-    internal IReadOnlyList<ISkUiView> PlaceholderItems => _body.PlaceholderHost?.Views ?? [];
+    internal IReadOnlyList<ISkUiView> PlaceholderItems => Body.PlaceholderHost?.Views ?? [];
 
     /// <summary>Whether an empty list should show placeholder items now.</summary>
     private bool WantsPlaceholders() =>
@@ -42,8 +42,8 @@ public partial class SkUiCollectionView
             return;
         _showsPlaceholders = show;
         if (show)
-            (_body.PlaceholderHost ??= _body.Adopt(new PlaceholderPart(this))).IsVisible = true;
-        else if (_body.PlaceholderHost is { } host)
+            (Body.PlaceholderHost ??= Body.Adopt(new PlaceholderPart(this))).IsVisible = true;
+        else if (Body.PlaceholderHost is { } host)
         {
             host.Clear();
             host.IsVisible = false;
@@ -55,7 +55,7 @@ public partial class SkUiCollectionView
     internal override void OnSkeletonChanged()
     {
         base.OnSkeletonChanged();
-        _body.PlaceholderHost?.InvalidateMeasure(); // the count may have changed
+        Body.PlaceholderHost?.InvalidateMeasure(); // the count may have changed
         UpdateEmpty();
     }
 

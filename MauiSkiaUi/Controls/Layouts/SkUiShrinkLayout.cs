@@ -32,9 +32,10 @@ public abstract class SkUiShrinkLayout : SkUiLayout
     private protected SkUiShrinkLayout(bool vertical)
     {
         _vertical = vertical;
-        // Unlike other layouts, clip: children stuck at their minimum size can still overflow (as the Core layout).
-        ClipToBounds = true;
     }
+
+    // Unlike other layouts, clip: children stuck at their minimum size can still overflow (as the Core layout).
+    private protected override bool DefaultClipToBounds => true;
 
     /// <summary>Gap between children in DIPs.</summary>
     public double Spacing { get => (double)GetValue(SpacingProperty); set => SetValue(SpacingProperty, value); }

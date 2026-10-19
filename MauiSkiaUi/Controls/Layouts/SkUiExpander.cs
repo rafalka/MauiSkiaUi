@@ -32,10 +32,15 @@ public class SkUiExpander : SkUiView
     /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
     internal override bool IsSkeletonContainer => true;
 
-    private readonly HeaderPart _headerPart;
-    private readonly ContentPart _contentPart;
-    private readonly SkUiContentSlot _slot;
-    private readonly SkUiTween _reveal; // 0 collapsed, 1 expanded; in between while animating
+    // Parts that need the expander are created on first use: property callbacks can run before the constructor (see SkUiView.StyledOr).
+    private HeaderPart? _headerPart;
+    private HeaderPart HeaderPartView => _headerPart ??= new HeaderPart(this);
+    private readonly ContentPart _contentPart = new() { IsVisible = false, AnchorY = 0 };
+    private SkUiContentSlot? _slot;
+    private SkUiContentSlot Slot => _slot ??= new SkUiContentSlot(this, ContentProperty, ContentTemplateProperty);
+    // 0 collapsed, 1 expanded; in between while animating
+    private SkUiTween? _reveal;
+    private SkUiTween RevealTween => _reveal ??= new SkUiTween(new RevealHost(this));
     private Thickness _padding;
     private SkUiExpandDirection _direction;
     private bool _expanded;
@@ -53,7 +58,7 @@ public class SkUiExpander : SkUiView
                 ((SkUiExpander)bindable).ValidateChild(child);
             return true;
         },
-        propertyChanged: (bindable, _, newValue) => ((SkUiExpander)bindable)._headerPart.Content = (ISkUiView?)newValue);
+        propertyChanged: (bindable, _, newValue) => ((SkUiExpander)bindable).HeaderPartView.Content = (ISkUiView?)newValue);
 
     /// <summary>Bindable <see cref="Content"/>.</summary>
     public static readonly BindableProperty ContentProperty = BindableProperty.Create(
@@ -114,11 +119,7 @@ public class SkUiExpander : SkUiView
     public SkUiExpander()
     {
         HwAccelerated = true;
-        _slot = new SkUiContentSlot(this, ContentProperty, ContentTemplateProperty);
-        _reveal = new SkUiTween(new RevealHost(this));
-        _headerPart = new HeaderPart(this);
-        _contentPart = new ContentPart { IsVisible = false, AnchorY = 0 };
-        AttachChild(_headerPart);
+        AttachChild(HeaderPartView);
         AttachChild(_contentPart);
     }
 
@@ -258,32 +259,32 @@ public class SkUiExpander : SkUiView
     public SkUiExpander SetPadding(Thickness value) { Padding = value; return this; }
 
     /// <summary>The header's host (tests).</summary>
-    internal SkUiView HeaderHost => _headerPart;
+    internal SkUiView HeaderHost => HeaderPartView;
 
     /// <summary>The content's host, scaled while animating (tests).</summary>
     internal SkUiView ContentHost => _contentPart;
 
     /// <summary>How far the content is shown, from 0 (collapsed) to 1 (expanded); past 1 while an easing overshoots, never below 0.</summary>
-    internal double Reveal => Math.Max(0, _reveal.Value);
+    internal double Reveal => Math.Max(0, RevealTween.Value);
 
     // The content is in the tree (non-lazy), or expanded or still collapsing (lazy); visible while expanded or collapsing.
-    private bool ShowsContent => _expanded || _reveal.Value > 0;
+    private bool ShowsContent => _expanded || RevealTween.Value > 0;
 
     /// <summary>Attaches or detaches the content and shows or hides its host for the current state.</summary>
     private void RefreshContent()
     {
         var attach = !_lazy || ShowsContent;
         if (attach && Parent is not null)
-            _slot.Ensure();
+            Slot.Ensure();
         _contentPart.Content = attach ? Content : null;
         _contentPart.IsVisible = ShowsContent;
     }
 
     private void OnContentChanged(ISkUiView? value)
     {
-        _slot.OnContentChanged();
+        Slot.OnContentChanged();
         // Cleared by the app: the template (if any) provides the content again.
-        if (value is null && !_slot.IsSetting)
+        if (value is null && !Slot.IsSetting)
             RefreshContent();
         else
             _contentPart.Content = !_lazy || ShowsContent ? value : null;
@@ -291,7 +292,7 @@ public class SkUiExpander : SkUiView
 
     private void OnContentTemplateChanged()
     {
-        _slot.OnTemplateChanged();
+        Slot.OnTemplateChanged();
         RefreshContent();
     }
 
@@ -307,14 +308,14 @@ public class SkUiExpander : SkUiView
         RefreshContent();
         var length = SkUiMotion.IsMotionReduced ? 0 : _animationLength;
         var target = value ? 1f : 0f;
-        _reveal.AnimateTo(target, length == 0 ? SkUiTransition.None : SkUiTransition.FromMilliseconds(length, _animationEasing ?? Easing.Linear),
+        RevealTween.AnimateTo(target, length == 0 ? SkUiTransition.None : SkUiTransition.FromMilliseconds(length, _animationEasing ?? Easing.Linear),
             _ =>
             {
                 RefreshContent();
                 UpdateIsAnimating();
-            }, durationScale: Math.Abs(target - _reveal.Value));
+            }, durationScale: Math.Abs(target - RevealTween.Value));
         UpdateIsAnimating();
-        _headerPart.OnExpandedChanged();
+        HeaderPartView.OnExpandedChanged();
         // The value and the views have changed: the app is told even when its command throws.
         try
         {
@@ -329,9 +330,9 @@ public class SkUiExpander : SkUiView
 
     private void UpdateIsAnimating()
     {
-        if (_isAnimating == _reveal.IsRunning)
+        if (_isAnimating == RevealTween.IsRunning)
             return;
-        _isAnimating = _reveal.IsRunning;
+        _isAnimating = RevealTween.IsRunning;
         OnPropertyChanged(nameof(IsAnimating));
     }
 
@@ -372,7 +373,7 @@ public class SkUiExpander : SkUiView
     protected override void OnBindingContextChanged()
     {
         base.OnBindingContextChanged();
-        if (_slot.Reselect())
+        if (Slot.Reselect())
             RefreshContent();
     }
 
@@ -384,13 +385,13 @@ public class SkUiExpander : SkUiView
             // Paint and focus order follow the screen order.
             if (_direction == SkUiExpandDirection.Down)
             {
-                yield return _headerPart;
+                yield return HeaderPartView;
                 yield return _contentPart;
             }
             else
             {
                 yield return _contentPart;
-                yield return _headerPart;
+                yield return HeaderPartView;
             }
         }
     }
@@ -402,7 +403,7 @@ public class SkUiExpander : SkUiView
         // at its full size (the same constraint every animation frame, so its cached measure is reused) and counts by
         // how far it is shown.
         var width = Math.Max(0, widthConstraint - _padding.HorizontalThickness);
-        var header = ((IView)_headerPart).Measure(width, double.PositiveInfinity);
+        var header = ((IView)HeaderPartView).Measure(width, double.PositiveInfinity);
         var body = _contentPart.IsVisible ? ((IView)_contentPart).Measure(width, double.PositiveInfinity) : Size.Zero;
         return new Size(
             Math.Max(header.Width, body.Width) + _padding.HorizontalThickness,
@@ -416,18 +417,18 @@ public class SkUiExpander : SkUiView
         // exactly the band between the header and the expander's edge.
         var x = _padding.Left;
         var width = Math.Max(0, size.Width - _padding.HorizontalThickness);
-        var headerHeight = ((IView)_headerPart).DesiredSize.Height;
+        var headerHeight = ((IView)HeaderPartView).DesiredSize.Height;
         var bodyHeight = _contentPart.IsVisible ? ((IView)_contentPart).DesiredSize.Height : 0;
         var shown = bodyHeight * Reveal;
         if (_direction == SkUiExpandDirection.Down)
         {
-            ((IView)_headerPart).Arrange(new Rect(x, _padding.Top, width, headerHeight));
+            ((IView)HeaderPartView).Arrange(new Rect(x, _padding.Top, width, headerHeight));
             ((IView)_contentPart).Arrange(new Rect(x, _padding.Top + headerHeight, width, bodyHeight));
         }
         else
         {
             ((IView)_contentPart).Arrange(new Rect(x, _padding.Top + shown - bodyHeight, width, bodyHeight));
-            ((IView)_headerPart).Arrange(new Rect(x, _padding.Top + shown, width, headerHeight));
+            ((IView)HeaderPartView).Arrange(new Rect(x, _padding.Top + shown, width, headerHeight));
         }
         // Native views in the content are clipped to the expander while it animates (they cannot be scaled): follow
         // the clip as the height changes, and drop it after the last frame.
@@ -436,7 +437,7 @@ public class SkUiExpander : SkUiView
     }
 
     /// <inheritdoc />
-    internal override bool ClipsHostedViews => base.ClipsHostedViews || _reveal.IsRunning;
+    internal override bool ClipsHostedViews => base.ClipsHostedViews || RevealTween.IsRunning;
 
     private sealed class RevealHost(SkUiExpander owner) : ISkUiTransitionHost
     {

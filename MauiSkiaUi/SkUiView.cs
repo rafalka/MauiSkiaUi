@@ -34,6 +34,16 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private ICommand? _tappedCommand;
     private object? _tappedCommandParameter;
 
+    /// <summary>
+    /// The value a constructor body starts the applied state of <paramref name="property"/> from: what a style already
+    /// set, else <paramref name="defaultValue"/>. MAUI applies app-level implicit styles while its base <c>View</c>
+    /// constructor runs, so property change callbacks can run before a control's constructor body, which must not reset
+    /// what they applied. State the callbacks use is therefore ready before any constructor body (field initializers, or
+    /// created on first use when it needs the control), and a constructor body that starts a field from a virtual
+    /// default goes through this. Reads the store only when the property is set: an unstyled control adds no entries.
+    /// </summary>
+    private protected T StyledOr<T>(BindableProperty property, T defaultValue) => IsSet(property) ? (T)GetValue(property) : defaultValue;
+
     /// <summary>Bindable opt-in tap command.</summary>
     public static readonly BindableProperty TappedCommandProperty = BindableProperty.Create(
         nameof(TappedCommand), typeof(ICommand), typeof(SkUiView), null,
@@ -213,10 +223,17 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// </summary>
     public static readonly BindableProperty ClipToBoundsProperty = BindableProperty.Create(
         nameof(ClipToBounds), typeof(bool), typeof(SkUiView), true,
-        defaultValueCreator: view => view is not (SkUiLayout or SkUiContentView or SkUiExpander or SkUiVirtualVerticalStackLayoutBase or Core.SkUiCoreHost));
+        defaultValueCreator: view => ((SkUiView)view).DefaultClipToBounds);
 
     /// <inheritdoc cref="ClipToBoundsProperty" />
     public bool ClipToBounds { get => (bool)GetValue(ClipToBoundsProperty); set => SetValue(ClipToBoundsProperty, value); }
+
+    /// <summary>
+    /// The control's <see cref="ClipToBounds"/> default. Controls that clip unlike their kind override it instead of
+    /// setting the property in their constructor, which would hide a style's value.
+    /// </summary>
+    private protected virtual bool DefaultClipToBounds =>
+        this is not (SkUiLayout or SkUiContentView or SkUiExpander or SkUiVirtualVerticalStackLayoutBase or Core.SkUiCoreHost);
 
     /// <summary>
     /// Whether hosted native views below are clipped to this node's arranged rectangle: <see cref="ClipToBounds"/>, or

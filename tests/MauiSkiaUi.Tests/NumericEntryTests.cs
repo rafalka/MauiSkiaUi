@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using MauiSkiaUi.Core;
 using SkiaSharp;
 using Xunit;
@@ -585,6 +586,105 @@ public class NumericEntryTests
         var plainCore = new SkUiCoreNumericEntry().SetFormat("F1").SetCulture(German).SetValue(2.26);
         Assert.Equal("2,3", plainCore.Text);
         Assert.Throws<ArgumentOutOfRangeException>(() => core.SetMaximumDecimalDigits(-1));
+    }
+
+    // Runs on its own (background) thread, so a loop fails the test instead of hanging the run.
+    private static void FinishesWithin(Action action, int milliseconds = 10_000)
+    {
+        ExceptionDispatchInfo? error = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception exception)
+            {
+                error = ExceptionDispatchInfo.Capture(exception);
+            }
+        }) { IsBackground = true };
+        thread.Start();
+        Assert.True(thread.Join(milliseconds), "The action did not finish (a loop).");
+        error?.Throw();
+    }
+
+    [Fact]
+    public void MaxLengthLimitsTypingButNeverCutsTheShownValue()
+    {
+        FinishesWithin(() =>
+        {
+            using var _ = SkUiTestHelpers.UseBundledFont();
+            var (root, entry) = Field(new SkUiNumericEntry<int> { Format = "0.00", Value = 31234 });
+            entry.MaxLength = 3;
+            Assert.Equal((31234, "31234.00"), (entry.Value, entry.Text));
+            Assert.True(entry.Focus());
+            Assert.Equal("31234", entry.Text);
+            // Everything is selected: typing replaces it, up to MaxLength.
+            Type(root, "4567");
+            Assert.Equal("456", entry.Text);
+            entry.Unfocus();
+            Assert.Equal((456, "456.00"), (entry.Value, entry.Text));
+            // Text the app sets is committed whole, and the value it makes shows uncut.
+            entry.SetValue(SkUiInputView.TextProperty, "98765");
+            Assert.Equal((98765, "98765.00"), (entry.Value, entry.Text));
+            entry.Value = 1234567;
+            Assert.Equal("1234567.00", entry.Text);
+        });
+    }
+
+    [Fact]
+    public void AFormatLongerThanMaxLengthShowsWhole()
+    {
+        FinishesWithin(() =>
+        {
+            var entry = new SkUiNumericEntry<int> { Culture = English, Format = "Styled text", Value = 3 };
+            entry.MaxLength = 7;
+            Assert.Equal((3, "Styled text"), (entry.Value, entry.Text));
+            var core = new SkUiCoreNumericEntry<int>().SetCulture(English).SetFormat("Styled text").SetValue(3).SetMaxLength(7);
+            Assert.Equal((3, "Styled text"), (core.Value, core.Text));
+        });
+    }
+
+    [Fact]
+    public void TextTheAppSetsIsCommittedOnceNotAgainAsShown()
+    {
+        FinishesWithin(() =>
+        {
+            // The shown 0.13 is the entry's own text, not the app's: the value keeps its digits.
+            var entry = new SkUiNumericEntry { Culture = English, Format = "N2" };
+            entry.SetValue(SkUiInputView.TextProperty, "0.126");
+            Assert.Equal((0.126, "0.13"), (entry.Value, entry.Text));
+            var core = new SkUiCoreNumericEntry().SetCulture(English).SetFormat("N2");
+            core.SetText("0.126");
+            Assert.Equal((0.126, "0.13"), (core.Value, core.Text));
+            // The field transforms the entry's own text: it is still not committed as the app's.
+            var upper = new SkUiNumericEntry<int> { Culture = English, Format = "0 'kg'", TextTransform = TextTransform.Uppercase };
+            upper.SetValue(SkUiInputView.TextProperty, "5");
+            Assert.Equal((5, "5 KG"), (upper.Value, upper.Text));
+        });
+    }
+
+    [Fact]
+    public void CoreMaxLengthLimitsTypingButNeverCutsTheShownValue()
+    {
+        FinishesWithin(() =>
+        {
+            using var _ = SkUiTestHelpers.UseBundledFont();
+            var core = new SkUiCoreNumericEntry<int>().SetCulture(English).SetFormat("0.00").SetValue(31234)
+                .SetFontFamily(SkUiTestHelpers.BundledFontFamily);
+            var root = new SkUiVerticalStackLayout { Children = { new SkUiCoreHost().SetContent(core) } };
+            SkUiTestHelpers.Arrange(root, 300, 200);
+            core.SetMaxLength(3);
+            Assert.Equal((31234, "31234.00"), (core.Value, core.Text));
+            Assert.True(core.Focus());
+            Assert.Equal("31234", core.Text);
+            Type(root, "4567");
+            Assert.Equal("456", core.Text);
+            core.Unfocus();
+            Assert.Equal((456, "456.00"), (core.Value, core.Text));
+            core.SetText("98765");
+            Assert.Equal((98765, "98765.00"), (core.Value, core.Text));
+        });
     }
 }
 

@@ -13,13 +13,32 @@ namespace MauiSkiaUi;
 /// </summary>
 public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHandler, ISkUiTextInputNode, ISkUiWheelHandler
 {
-    /// <summary>The field engine shared with the Core fields.</summary>
-    internal SkUiTextFieldModel Model { get; }
+    private SkUiTextFieldModel? _model;
 
-    private protected SkUiInputView(bool multiline)
+    /// <summary>
+    /// The field engine shared with the Core fields, created on first use: property callbacks can run before the
+    /// constructor (see <see cref="SkUiView.StyledOr{T}"/>).
+    /// </summary>
+    internal SkUiTextFieldModel Model
     {
-        Model = new SkUiTextFieldModel(this, multiline);
+        get
+        {
+            if (_model is null)
+            {
+                _model = new SkUiTextFieldModel(this, IsMultiline);
+                OnModelCreated(_model);
+            }
+            return _model;
+        }
     }
+
+    private protected SkUiInputView() { }
+
+    /// <summary>Whether the field wraps lines (an editor); read once, when the model is created.</summary>
+    private protected virtual bool IsMultiline => false;
+
+    /// <summary>Sets up a derived field's engine once it exists, before any property is applied to it.</summary>
+    private protected virtual void OnModelCreated(SkUiTextFieldModel model) { }
 
     #region Bindable properties
 
@@ -517,10 +536,9 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
 
     private void OnMaxLengthChanged(int value)
     {
-        Model.Editor.MaxLength = value;
-        // Text longer than the new limit is cut (as MAUI's entries do).
-        if (Text is { } text && text.Length > value)
-            Text = text[..value];
+        // Text longer than the new limit is cut (as MAUI's entries do; a numeric entry's value is not).
+        if (Model.SetMaxLength(value) is { } shown)
+            SetValue(TextProperty, shown);
     }
 
     private protected virtual void OnIsReadOnlyChanged(bool value) => Model.SetReadOnly(value);

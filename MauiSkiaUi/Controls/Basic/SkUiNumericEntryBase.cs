@@ -17,14 +17,29 @@ namespace MauiSkiaUi;
 /// <remarks>Only SkiaUi's numeric entries derive from it; derive from <see cref="SkUiNumericEntry"/> or <see cref="SkUiNumericEntry{T}"/>.</remarks>
 public abstract class SkUiNumericEntryBase : SkUiEntry, ISkUiNumericEntryHost
 {
-    private protected SkUiNumericEntryBase(SkUiNumericEntryModel numeric)
+    private protected SkUiNumericEntryBase() { }
+
+    /// <summary>
+    /// The numeric engine shared with the Core entries, attached to the field: reading it creates the field's model first,
+    /// which attaches it (property callbacks can run before the constructor, see <see cref="SkUiInputView.Model"/>).
+    /// </summary>
+    internal SkUiNumericEntryModel Numeric
     {
-        Numeric = numeric;
-        numeric.Attach(this);
+        get
+        {
+            _ = Model;
+            return NumericEngine;
+        }
     }
 
-    /// <summary>The numeric engine shared with the Core entries.</summary>
-    internal SkUiNumericEntryModel Numeric { get; }
+    /// <summary>The derived entry's engine, created by its field initializer.</summary>
+    private protected abstract SkUiNumericEntryModel NumericEngine { get; }
+
+    private protected override void OnModelCreated(SkUiTextFieldModel model)
+    {
+        base.OnModelCreated(model);
+        NumericEngine.Attach(this);
+    }
 
     private SkUiTextFieldSteps Steps => Model.Steps!;
 

@@ -24,9 +24,12 @@ public class SkUiBorder : SkUiContentView
     private CornerRadius _cornerRadius;
     private IShape? _strokeShape;
     private readonly SkUiBorderGeometry _geometry = new();
-    private readonly SkUiWeakListener<SkUiBorder> _strokeListener;
-    private readonly SkUiWeakListener<SkUiBorder> _dashListener;
-    private readonly SkUiWeakListener<SkUiBorder> _shapeListener;
+    private SkUiWeakListener<SkUiBorder>? _strokeListener;
+    private SkUiWeakListener<SkUiBorder> StrokeListener => _strokeListener ??= new(this, static (border, _) => border.InvalidatePaint());
+    private SkUiWeakListener<SkUiBorder>? _dashListener;
+    private SkUiWeakListener<SkUiBorder> DashListener => _dashListener ??= new(this, static (border, _) => border.InvalidatePaint());
+    private SkUiWeakListener<SkUiBorder>? _shapeListener;
+    private SkUiWeakListener<SkUiBorder> ShapeListener => _shapeListener ??= new(this, static (border, change) => border.OnStrokeShapeEdited(change.PropertyName));
 
     /// <summary>Bindable <see cref="StrokeShape"/>.</summary>
     public static readonly BindableProperty StrokeShapeProperty = BindableProperty.Create(nameof(StrokeShape), typeof(IShape), typeof(SkUiBorder), null,
@@ -66,9 +69,6 @@ public class SkUiBorder : SkUiContentView
     /// <summary>Creates a border that paints fill in <see cref="SkUiView.PaintBackground"/> and stroke in <see cref="SkUiView.PaintOverlay"/> (after content).</summary>
     public SkUiBorder()
     {
-        _strokeListener = new(this, static (border, _) => border.InvalidatePaint());
-        _dashListener = new(this, static (border, _) => border.InvalidatePaint());
-        _shapeListener = new(this, static (border, change) => border.OnStrokeShapeEdited(change.PropertyName));
         _backgroundPainter = PaintBorderBackground;
         _overlayPainter = PaintBorderOverlay;
         SetPaintBackground(_backgroundPainter);
@@ -133,7 +133,7 @@ public class SkUiBorder : SkUiContentView
         if (!ReferenceEquals(_strokeShape, value))
             ReleaseBindingContext(_strokeShape as BindableObject);
         _strokeShape = value;
-        _shapeListener.Listen(value);
+        ShapeListener.Listen(value);
         if (value is BindableObject bindable)
             SetInheritedBindingContext(bindable, BindingContext);
         InvalidateShape();
@@ -153,7 +153,7 @@ public class SkUiBorder : SkUiContentView
         if (!ReferenceEquals(_stroke, value) && !ReferenceEquals(_stroke, Background) && (_stroke is GradientBrush || _stroke?.GetType() == typeof(SolidColorBrush)))
             ReleaseBindingContext(_stroke);
         _stroke = value;
-        _strokeListener.Listen(value);
+        StrokeListener.Listen(value);
         if (value is GradientBrush || value?.GetType() == typeof(SolidColorBrush))
             SetInheritedBindingContext(value, BindingContext);
         InvalidatePaint();
@@ -166,7 +166,7 @@ public class SkUiBorder : SkUiContentView
         InvalidateRender(Rendering.SkUiRenderDirty.Props);
     }
 
-    private void OnStrokeDashArrayChanged(DoubleCollection? value) { _dashListener.Listen(value); InvalidatePaint(); }
+    private void OnStrokeDashArrayChanged(DoubleCollection? value) { DashListener.Listen(value); InvalidatePaint(); }
     private void OnStrokeDashOffsetChanged(double value) { _strokeDashOffset = value; InvalidatePaint(); }
     private void OnStrokeLineCapChanged(PenLineCap value) { _strokeLineCap = value; InvalidatePaint(); }
     private void OnStrokeLineJoinChanged(PenLineJoin value) { _strokeLineJoin = value; InvalidatePaint(); }
@@ -262,7 +262,7 @@ public class SkUiBorder : SkUiContentView
     private SkUiStrokeStyle StrokeStyle()
     {
         var dashArray = StrokeDashArray;
-        _dashListener.Listen(dashArray); // the default collection is created on first read
+        DashListener.Listen(dashArray); // the default collection is created on first read
         float[]? dashes = null;
         if (dashArray is { Count: > 0 })
         {

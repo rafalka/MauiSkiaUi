@@ -35,7 +35,10 @@ public class SkUiAvatarView : SkUiBorder
     // Shared by every avatar with the default border color; never changed.
     private static readonly SolidPaint DefaultBorderPaint = new(Colors.White);
 
-    private readonly SkUiAvatarContent _avatar;
+    private SkUiAvatarContent? _avatar;
+
+    /// <summary>What the avatar draws, created on first use: property callbacks can run before the constructor (see <see cref="SkUiView.StyledOr{T}"/>).</summary>
+    private SkUiAvatarContent Avatar => _avatar ??= new SkUiAvatarContent(this, InvalidatePaint);
     private ImageSource? _imageSource;
     private SkUiWeakListener<SkUiAvatarView>? _imageSourceListener;
     private Color? _textColor;
@@ -105,10 +108,12 @@ public class SkUiAvatarView : SkUiBorder
     /// <summary>Creates an avatar showing <c>"?"</c>, centered, as the toolkit's.</summary>
     public SkUiAvatarView()
     {
-        _avatar = new SkUiAvatarContent(this, InvalidatePaint);
-        // As the toolkit's AvatarView (set by its constructor too): an avatar keeps its size inside stretching layouts.
-        HorizontalOptions = LayoutOptions.Center;
-        VerticalOptions = LayoutOptions.Center;
+        // As the toolkit's AvatarView (set by its constructor too): an avatar keeps its size inside stretching layouts,
+        // unless a style already placed it.
+        if (!IsSet(HorizontalOptionsProperty))
+            HorizontalOptions = LayoutOptions.Center;
+        if (!IsSet(VerticalOptionsProperty))
+            VerticalOptions = LayoutOptions.Center;
     }
 
     /// <summary>
@@ -176,19 +181,19 @@ public class SkUiAvatarView : SkUiBorder
     public Action<SKCanvas, SkUiAvatarBadgePaint>? BadgePainter { get => _badgePainter; set => SetBadgePainter(value); }
 
     /// <summary>Whether a loaded image is drawn instead of the text.</summary>
-    public bool IsShowingImage => _avatar.ShowsImage;
+    public bool IsShowingImage => Avatar.ShowsImage;
 
     /// <summary>The load of the current <see cref="ImageSource"/> (completed when idle; tests).</summary>
-    internal Task ImageLoadingTask => _avatar.LoadingTask;
+    internal Task ImageLoadingTask => Avatar.LoadingTask;
 
     /// <summary>The shown image's cache entry (tests).</summary>
-    internal SkUiCachedImage? CachedImage => _avatar.CachedImage;
+    internal SkUiCachedImage? CachedImage => Avatar.CachedImage;
 
     /// <summary>The image's decode bounds in DIPs (tests).</summary>
-    internal Size ImageDecodeSize => _avatar.DecodeSize;
+    internal Size ImageDecodeSize => Avatar.DecodeSize;
 
     /// <summary>The text drawn without an image: the initials of <see cref="Text"/>, else the text transformed (tests).</summary>
-    internal string DisplayText => _avatar.DisplayText;
+    internal string DisplayText => Avatar.DisplayText;
 
     /// <summary>Sets <see cref="Text"/> (same as the property setter).</summary>
     public SkUiAvatarView SetText(string value) { Text = value; return this; }
@@ -241,22 +246,22 @@ public class SkUiAvatarView : SkUiBorder
 
     private void OnTextChanged(string? value)
     {
-        if (_avatar.SetText(value))
+        if (Avatar.SetText(value))
             InvalidateText();
         else
             InvalidatePaint(); // the same initials of another name: the colors follow the whole text
         InvalidateSemantics();
     }
 
-    private void OnInitialsChanged(SkUiAvatarInitials value) { if (_avatar.SetInitials(value)) InvalidateText(); }
-    private void OnTextTransformChanged(TextTransform value) { if (_avatar.SetTextTransform(value)) InvalidateText(); }
-    private void OnFontChanged() { if (_avatar.SetFont(FontFamily, FontAttributes)) InvalidateText(); }
-    private void OnFontSizeChanged(double value) { if (_avatar.SetFontSize(value)) InvalidateMeasureOverride(); }
-    private void OnFontAutoScalingEnabledChanged(bool value) { if (_avatar.SetFontAutoScalingEnabled(value)) InvalidateText(); }
-    private void OnCharacterSpacingChanged(double value) { if (_avatar.SetCharacterSpacing(value)) InvalidateText(); }
+    private void OnInitialsChanged(SkUiAvatarInitials value) { if (Avatar.SetInitials(value)) InvalidateText(); }
+    private void OnTextTransformChanged(TextTransform value) { if (Avatar.SetTextTransform(value)) InvalidateText(); }
+    private void OnFontChanged() { if (Avatar.SetFont(FontFamily, FontAttributes)) InvalidateText(); }
+    private void OnFontSizeChanged(double value) { if (Avatar.SetFontSize(value)) InvalidateMeasureOverride(); }
+    private void OnFontAutoScalingEnabledChanged(bool value) { if (Avatar.SetFontAutoScalingEnabled(value)) InvalidateText(); }
+    private void OnCharacterSpacingChanged(double value) { if (Avatar.SetCharacterSpacing(value)) InvalidateText(); }
     private void OnTextColorChanged(Color? value) { _textColor = value; InvalidatePaint(); }
-    private void OnAvatarColorModeChanged(SkUiAvatarColorMode value) { _avatar.ColorMode = value; InvalidatePaint(); }
-    private void OnAspectChanged(Aspect value) { _avatar.Aspect = value; InvalidatePaint(); }
+    private void OnAvatarColorModeChanged(SkUiAvatarColorMode value) { Avatar.ColorMode = value; InvalidatePaint(); }
+    private void OnAspectChanged(Aspect value) { Avatar.Aspect = value; InvalidatePaint(); }
     private void OnBadgeColorChanged(Color? value) { _badgeColor = value; InvalidatePaint(); }
     private void OnBadgePositionChanged(SkUiAvatarBadgePosition value) { _badgePosition = value; InvalidatePaint(); }
     private void OnBadgeBorderColorChanged(Color? value) { _badgeBorderColor = value; InvalidatePaint(); }
@@ -264,7 +269,7 @@ public class SkUiAvatarView : SkUiBorder
     /// <summary>The shown text changed: only the intrinsic size of text in a set font size depends on it.</summary>
     private void InvalidateText()
     {
-        if (_avatar.MeasuresText)
+        if (Avatar.MeasuresText)
             InvalidateMeasureOverride();
         else
             InvalidatePaint();
@@ -293,9 +298,9 @@ public class SkUiAvatarView : SkUiBorder
         (_imageSourceListener ??= new(this, static (avatar, change) =>
         {
             if (SkUiMauiImageSources.AffectsImage(change.PropertyName))
-                avatar._avatar.Reload();
+                avatar.Avatar.Reload();
         })).Listen(value);
-        _avatar.SetSource(SkUiMauiImageSources.Convert(value), ExpectedContentSize());
+        Avatar.SetSource(SkUiMauiImageSources.Convert(value), ExpectedContentSize());
         InvalidatePaint();
     }
 
@@ -342,7 +347,7 @@ public class SkUiAvatarView : SkUiBorder
 
     /// <inheritdoc />
     /// <remarks>Without a background, the look's color for <see cref="AvatarColorMode"/>.</remarks>
-    private protected override SkUiFill? BorderFill => ResolveBackgroundFill() ?? SkUiFill.From(_avatar.ResolveColors().Background);
+    private protected override SkUiFill? BorderFill => ResolveBackgroundFill() ?? SkUiFill.From(Avatar.ResolveColors().Background);
 
     /// <summary>The content area of an avatar <paramref name="size"/> DIPs large: inside the padding and the border.</summary>
     private Size ContentSize(Size size)
@@ -364,7 +369,7 @@ public class SkUiAvatarView : SkUiBorder
     /// <remarks>The text in a set <see cref="FontSize"/> plus the padding and border, else the look's avatar size; a <c>Content</c> view can make it larger.</remarks>
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        var own = _avatar.Measure(ContentInset);
+        var own = Avatar.Measure(ContentInset);
         var content = base.MeasureContent(widthConstraint, heightConstraint);
         return new Size(Math.Max(own.Width, content.Width), Math.Max(own.Height, content.Height));
     }
@@ -373,7 +378,7 @@ public class SkUiAvatarView : SkUiBorder
     protected override void ArrangeContent(Size size)
     {
         base.ArrangeContent(size);
-        _avatar.OnContentSizeChanged(ContentSize(size));
+        Avatar.OnContentSizeChanged(ContentSize(size));
     }
 
     /// <inheritdoc />
@@ -381,7 +386,7 @@ public class SkUiAvatarView : SkUiBorder
     {
         var inset = ContentInset;
         var area = new SKRect((float)inset.Left, (float)inset.Top, (float)(Width - inset.Right), (float)(Height - inset.Bottom));
-        _avatar.Paint(canvas, area, ContentClip(), _textColor);
+        Avatar.Paint(canvas, area, ContentClip(), _textColor);
     }
 
     /// <inheritdoc />
@@ -418,7 +423,7 @@ public class SkUiAvatarView : SkUiBorder
     internal override void ReleaseDrawingResources()
     {
         base.ReleaseDrawingResources();
-        _avatar.Release();
+        Avatar.Release();
     }
 
     /// <inheritdoc />
@@ -426,6 +431,6 @@ public class SkUiAvatarView : SkUiBorder
     {
         base.OnPopulateSemantics(info);
         info.Role = SkUiSemanticsRole.Image;
-        info.Text = _avatar.SemanticsText;
+        info.Text = Avatar.SemanticsText;
     }
 }

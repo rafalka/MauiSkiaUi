@@ -255,8 +255,8 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
         _fontFor = FontFor;
     }
 
-    /// <summary>The label this layout belongs to.</summary>
-    internal object? Owner { get; }
+    /// <summary>The label this layout belongs to (set by its constructor: the layout is created before it runs).</summary>
+    internal object? Owner { get; set; }
 
     /// <summary>Line layouts computed by this instance (diagnostics / tests).</summary>
     internal int LayoutCount { get; private set; }

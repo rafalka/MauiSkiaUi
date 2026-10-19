@@ -372,6 +372,78 @@ public sealed class AvatarViewTests : IDisposable
     }
 
     [Fact]
+    public async Task AReloadFinishingWhileTheAvatarPaintsLeavesTheDrawnImageAlive()
+    {
+        // Arranged larger than the size its image was decoded for, an avatar reloads it. Without a dispatcher (as here) the
+        // reload finished on the thread pool, and finishing during a paint disposed the image being drawn: nothing was drawn
+        // (BothLayersDrawTheSamePixels failed at random). The image painter releases the reload and gives it time to finish.
+        var bytes = ImageBytes(SKColors.Red, 60, 30);
+
+        var viewRelease = new TaskCompletionSource();
+        var viewOpen = OpenFirstAtOnce(bytes, viewRelease.Task);
+        var view = new SkUiAvatarView { ImageSource = ImageSource.FromStream(_ => viewOpen()) };
+        await view.ImageLoadingTask;
+        Assert.False(DrawsADisposedImage(viewRelease, () => view.ImageLoadingTask, () => Render(view, 56, 56)));
+        await view.ImageLoadingTask;
+
+        var coreRelease = new TaskCompletionSource();
+        var coreOpen = OpenFirstAtOnce(bytes, coreRelease.Task);
+        var core = new SkUiCoreAvatar().SetImageSource(SkUiImageSource.FromStream(_ => coreOpen()));
+        await core.ImageLoadingTask;
+        Assert.False(DrawsADisposedImage(coreRelease, () => core.ImageLoadingTask, () => Render(core, 56, 56)));
+        await core.ImageLoadingTask;
+    }
+
+    /// <summary>The first open of the source returns at once; later ones (reloads) wait for <paramref name="release"/>.</summary>
+    private static Func<Task<Stream>> OpenFirstAtOnce(byte[] bytes, Task release)
+    {
+        var opens = 0;
+        return async () =>
+        {
+            if (Interlocked.Increment(ref opens) > 1)
+                await release.ConfigureAwait(false);
+            return new MemoryStream(bytes);
+        };
+    }
+
+    /// <summary>
+    /// Renders with <paramref name="render"/>, which starts a reload waiting for <paramref name="release"/>; the image
+    /// painter releases it and waits for <paramref name="loading"/> a while before drawing. Returns whether the image being
+    /// drawn was disposed meanwhile; otherwise checks it was drawn.
+    /// </summary>
+    private static bool DrawsADisposedImage(TaskCompletionSource release, Func<Task> loading, Func<SKBitmap> render)
+    {
+        var look = SkUiLook.Current;
+        var previous = look.ImagePainter;
+        var painted = false;
+        var disposed = false;
+        look.ImagePainter = (canvas, image, width, height, aspect) =>
+        {
+            look.ImagePainter = previous;
+            painted = true;
+            var reload = loading();
+            release.SetResult();
+            // Many times what the reload takes; the fixed image makes it wait for the paint, so this times out.
+            reload.Wait(TimeSpan.FromMilliseconds(300));
+            disposed = image.Handle == IntPtr.Zero;
+            if (!disposed) // drawing a disposed image crashes the process
+                look.DrawImage(canvas, image, width, height, aspect);
+        };
+        try
+        {
+            using var bitmap = render();
+            Assert.True(painted);
+            if (!disposed)
+                Assert.Equal(SKColors.Red, bitmap.GetPixel(28, 28));
+        }
+        finally
+        {
+            look.ImagePainter = previous;
+        }
+        return disposed;
+    }
+
+    [Fact]
     public void ANewTextRerecordsOnlyTheAvatar()
     {
         var layout = new SkUiVerticalStackLayout();

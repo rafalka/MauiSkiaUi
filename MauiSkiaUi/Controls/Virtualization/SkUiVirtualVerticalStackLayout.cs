@@ -28,7 +28,9 @@ public class SkUiVirtualVerticalStackLayout : SkUiVirtualVerticalStackLayoutBase
 {
     private static readonly object DefaultTemplateKey = new();
 
-    private readonly CollectionObserver _observer;
+    private CollectionObserver? _observer;
+    /// <summary>Created on first use: property callbacks can run before the constructor (see <see cref="SkUiView.StyledOr{T}"/>).</summary>
+    private CollectionObserver Observer => _observer ??= new CollectionObserver(this);
     private IList? _source;
     private bool _sourceIsSnapshot;
     private DataTemplate? _template;
@@ -36,7 +38,9 @@ public class SkUiVirtualVerticalStackLayout : SkUiVirtualVerticalStackLayoutBase
     private int? _factoryCount;
 
     /// <summary>Creates an empty virtual stack.</summary>
-    public SkUiVirtualVerticalStackLayout() => _observer = new CollectionObserver(this);
+    public SkUiVirtualVerticalStackLayout()
+    {
+    }
 
     /// <summary>Bindable property for <see cref="ItemsSource"/>.</summary>
     public static readonly BindableProperty ItemsSourceProperty = BindableProperty.Create(nameof(ItemsSource), typeof(IEnumerable),
@@ -118,7 +122,7 @@ public class SkUiVirtualVerticalStackLayout : SkUiVirtualVerticalStackLayoutBase
 
     private void OnItemsSourceChanged(IEnumerable? value)
     {
-        _observer.Observe(value as INotifyCollectionChanged);
+        Observer.Observe(value as INotifyCollectionChanged);
         ReadSource(value);
         OnItemsChanged();
         // Recycled views keep their last item until rebound (as MAUI's CollectionView); items of a replaced source go.

@@ -57,9 +57,10 @@ public partial class SkUiPicker : SkUiPickerBase
     /// <summary>Creates a picker without items.</summary>
     public SkUiPicker()
     {
-        Model.Items = _items;
         _items.CollectionChanged += OnItemsCollectionChanged;
     }
+
+    private protected override void OnModelCreated(SkUiPickerModel model) => model.Items = _items;
 
     #region Properties
 
@@ -587,6 +588,9 @@ public partial class SkUiPicker : SkUiPickerBase
 
     private void SetSelectedIndexInternally(int value)
     {
+        // Unchanged: no local value, which would hide a style's index applied after the items (as on an app-level style).
+        if (SelectedIndex == value)
+            return;
         var setting = _settingSelectedIndexInternally;
         _settingSelectedIndexInternally = true;
         try

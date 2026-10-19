@@ -37,7 +37,7 @@ public partial class SkUiCarouselView
         protected override void ArrangeContent(Size size)
         {
             base.ArrangeContent(size);
-            owner._panel.ApplyPendingOffset();
+            owner.Panel.ApplyPendingOffset();
         }
     }
 
@@ -67,7 +67,7 @@ public partial class SkUiCarouselView
         /// <summary>Its drawing order at the current offset (with an effect).</summary>
         public double Depth;
 
-        internal override void OnGetRenderProps(ref SkUiRenderProps props) => owner._panel.ApplyEffect(this, ref props, ref _link);
+        internal override void OnGetRenderProps(ref SkUiRenderProps props) => owner.Panel.ApplyEffect(this, ref props, ref _link);
 
         internal override void ReleaseDrawingResources()
         {
@@ -688,7 +688,7 @@ public partial class SkUiCarouselView
                 link = null;
                 return;
             }
-            var source = ((ISkUiRenderable)owner._scroller).RenderState.Node;
+            var source = ((ISkUiRenderable)owner.Scroller).RenderState.Node;
             var factor = (float)(-1 / _stride);
             var @base = (float)(Physical(SnapOffset(cell.Slot)) / _stride);
             var metrics = Metrics;
@@ -697,7 +697,7 @@ public partial class SkUiCarouselView
                 || link.Factor != factor || link.Base != @base || link.Metrics != metrics || link.Horizontal != Horizontal)
                 link = new SkUiItemEffectLink(source, Horizontal, factor, @base, effect, metrics);
             props.ItemEffect = link;
-            var offset = owner._scroller.VisualScrollOffset;
+            var offset = owner.Scroller.VisualScrollOffset;
             link.Apply(ref props, (float)offset.X, (float)offset.Y);
         }
 
@@ -717,7 +717,7 @@ public partial class SkUiCarouselView
                     children.Add(cell);
                 return;
             }
-            var offset = owner._scroller.VisualScrollOffset;
+            var offset = owner.Scroller.VisualScrollOffset;
             var physical = Horizontal ? offset.X : offset.Y;
             var metrics = Metrics;
             _drawOrder.Clear();

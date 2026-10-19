@@ -21,10 +21,28 @@ namespace MauiSkiaUi;
 /// </remarks>
 public abstract class SkUiDateTimePickerBase : SkUiPickerBase
 {
-    private protected SkUiDateTimePickerBase(SkUiDateTimeKind kind) => Dates = new SkUiDateTimeModel(Model, kind, value => ChooseValue(value));
+    private SkUiDateTimeModel? _dates;
 
-    /// <summary>The engine of the field's text and the wheels.</summary>
-    private protected SkUiDateTimeModel Dates { get; }
+    private protected SkUiDateTimePickerBase() { }
+
+    /// <summary>
+    /// The engine of the field's text and the wheels, created with the picker's (property callbacks can run before the
+    /// constructor).
+    /// </summary>
+    private protected SkUiDateTimeModel Dates
+    {
+        get
+        {
+            _ = Model;
+            return _dates!;
+        }
+    }
+
+    /// <summary>What the picker chooses; read once, when the engine is created.</summary>
+    private protected abstract SkUiDateTimeKind Kind { get; }
+
+    private protected override void OnModelCreated(SkUiPickerModel model) =>
+        _dates = new SkUiDateTimeModel(model, Kind, value => ChooseValue(value));
 
     /// <summary>The popup chose <paramref name="value"/> (<c>null</c>: cleared): the control's value takes it, by its rules.</summary>
     private protected abstract void ChooseValue(DateTime? value);

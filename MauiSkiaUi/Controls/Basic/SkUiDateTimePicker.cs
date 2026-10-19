@@ -23,7 +23,9 @@ public class SkUiDateTimePicker : SkUiDateTimePickerBase
     private static readonly DateTime DefaultMaximum = SkUiDateTimeModel.DefaultMaximumDate + SkUiDateTimeModel.LastTime;
 
     /// <summary>Creates a picker without a date and time.</summary>
-    public SkUiDateTimePicker() : base(SkUiDateTimeKind.DateAndTime) => Dates.TextChanged();
+    public SkUiDateTimePicker() => Dates.TextChanged();
+
+    private protected override SkUiDateTimeKind Kind => SkUiDateTimeKind.DateAndTime;
 
     /// <summary>Bindable property for <see cref="Date"/> (two-way by default).</summary>
     public static readonly BindableProperty DateProperty = BindableProperty.Create(nameof(Date), typeof(DateTime?), typeof(SkUiDateTimePicker), null, BindingMode.TwoWay,

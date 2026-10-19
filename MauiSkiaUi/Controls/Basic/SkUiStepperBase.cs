@@ -13,10 +13,13 @@ namespace MauiSkiaUi;
 /// <remarks>Only SkiaUi's steppers derive from it; derive from <see cref="SkUiStepper"/> or <see cref="SkUiStepper{T}"/>.</remarks>
 public abstract class SkUiStepperBase : SkUiView, ISkUiStepperOwner, ISkUiKeyHandler
 {
-    /// <summary>The engine shared with the Core steppers.</summary>
-    internal SkUiStepperModel Model { get; }
+    /// <summary>
+    /// The engine shared with the Core steppers, created on first use: property callbacks can run before the constructor
+    /// (see <see cref="SkUiView.StyledOr{T}"/>).
+    /// </summary>
+    internal SkUiStepperModel Model => field ??= new SkUiStepperModel(this);
 
-    private protected SkUiStepperBase() => Model = new SkUiStepperModel(this);
+    private protected SkUiStepperBase() { }
 
     #region Bindable properties
 

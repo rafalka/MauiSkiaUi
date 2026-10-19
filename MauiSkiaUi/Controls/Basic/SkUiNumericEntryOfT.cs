@@ -23,17 +23,27 @@ namespace MauiSkiaUi;
 // The annotation is for the trimmer's view of typeof(T?) in the bindable properties: a value type has its parameterless constructor anyway.
 public class SkUiNumericEntry<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] T> : SkUiNumericEntryBase, ISkUiNumericValueHost<T> where T : struct, INumber<T>, IMinMaxValue<T>
 {
-    private readonly SkUiNumericEntryModel<T> _numeric;
+    private readonly SkUiNumericEntryModel<T> _numeric = new();
     // The value the app asked for before it was clamped: restored when the range widens again (as the steppers').
     private T? _requestedValue;
     private bool _recoercing;
 
     /// <summary>Creates an empty entry over the type's whole range, stepping by 1.</summary>
-    public SkUiNumericEntry() : this(new SkUiNumericEntryModel<T>())
+    public SkUiNumericEntry()
     {
     }
 
-    private SkUiNumericEntry(SkUiNumericEntryModel<T> numeric) : base(numeric) => _numeric = numeric;
+    private protected override SkUiNumericEntryModel NumericEngine => _numeric;
+
+    /// <summary>The engine, attached to the field (see <see cref="SkUiNumericEntryBase.Numeric"/>).</summary>
+    private SkUiNumericEntryModel<T> Engine
+    {
+        get
+        {
+            _ = Model;
+            return _numeric;
+        }
+    }
 
     #region Bindable properties
 
@@ -61,7 +71,7 @@ public class SkUiNumericEntry<[DynamicallyAccessedMembers(DynamicallyAccessedMem
     /// <summary>Bindable property for <see cref="LargeIncrement"/>.</summary>
     public static readonly BindableProperty LargeIncrementProperty = BindableProperty.Create(nameof(LargeIncrement), typeof(T?), typeof(SkUiNumericEntry<T>), null,
         validateValue: (view, value) => value is null || SkUiValidate.PositiveNumber<T>(view, value),
-        propertyChanged: (view, _, value) => ((SkUiNumericEntry<T>)view)._numeric.LargeIncrement = (T?)value);
+        propertyChanged: (view, _, value) => ((SkUiNumericEntry<T>)view).Engine.LargeIncrement = (T?)value);
 
     #endregion
 
@@ -306,7 +316,7 @@ public class SkUiNumericEntry<[DynamicallyAccessedMembers(DynamicallyAccessedMem
     {
         if (!_recoercing)
             _requestedValue = value;
-        return _numeric.Coerce(value);
+        return Engine.Coerce(value);
     }
 
     private protected override void Recoerce()
@@ -320,18 +330,18 @@ public class SkUiNumericEntry<[DynamicallyAccessedMembers(DynamicallyAccessedMem
         {
             _recoercing = false;
         }
-        _numeric.RangeChanged();
+        Engine.RangeChanged();
     }
 
     private void OnRangeChanged(Action<SkUiNumericEntryModel<T>> apply)
     {
-        apply(_numeric);
+        apply(Engine);
         Recoerce();
     }
 
     private void OnValueChanged(T? oldValue, T? newValue)
     {
-        _numeric.ValueChanged();
+        Engine.ValueChanged();
         ValueChanged?.Invoke(this, new SkUiValueChangedEventArgs<T?>(oldValue, newValue));
     }
 

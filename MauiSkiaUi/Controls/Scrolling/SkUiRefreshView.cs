@@ -49,10 +49,12 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     /// <summary>Length of the indicator's return when a pull of the view itself is released before the trigger, in milliseconds.</summary>
     internal const uint PullBackLength = 200;
 
-    private readonly ContentPart _contentPart;
-    private readonly SkUiPullToRefresh _refresh;
-    private readonly SkUiRefreshLayer _layer;
-    private readonly SkUiTween _pullBack;
+    private readonly ContentPart _contentPart = new();
+    private SkUiPullToRefresh? _refresh;
+    /// <summary>Created on first use (with <see cref="PullBack"/>): property callbacks can run before the constructor (see <see cref="SkUiView.StyledOr{T}"/>).</summary>
+    private SkUiPullToRefresh Refresh => _refresh ??= new SkUiPullToRefresh(this);
+    private SkUiTween? _pullBack;
+    private SkUiTween PullBack => _pullBack ??= new SkUiTween(new PullBackHost(this));
     private PullGesture? _gesture;
     private SkUiWeakListener<SkUiRefreshView>? _commandListener;
     private ScrollerLink? _link; // to the content's scroller this view pulls through (set on a press in it)
@@ -92,7 +94,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     /// <summary>Bindable <see cref="RefreshColor"/>.</summary>
     public static readonly BindableProperty RefreshColorProperty = BindableProperty.Create(
         nameof(RefreshColor), typeof(Color), typeof(SkUiRefreshView), null,
-        propertyChanged: (bindable, _, newValue) => ((SkUiRefreshView)bindable)._refresh.Indicator.SetColor((Color?)newValue));
+        propertyChanged: (bindable, _, newValue) => ((SkUiRefreshView)bindable).Refresh.Indicator.SetColor((Color?)newValue));
 
     /// <summary>Bindable <see cref="IsRefreshEnabled"/>.</summary>
     public static readonly BindableProperty IsRefreshEnabledProperty = BindableProperty.Create(
@@ -130,14 +132,12 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     public SkUiRefreshView()
     {
         HwAccelerated = true;
-        ClipToBounds = true; // as MAUI's RefreshView (IsClippedToBounds)
-        _pullBack = new SkUiTween(new PullBackHost(this));
-        _contentPart = new ContentPart();
-        _refresh = new SkUiPullToRefresh(this);
-        _layer = _refresh.Layer;
         AttachChild(_contentPart);
-        AttachChild(_layer);
+        AttachChild(Refresh.Layer);
     }
+
+    // As MAUI's RefreshView (IsClippedToBounds).
+    private protected override bool DefaultClipToBounds => true;
 
     /// <summary>The refreshed content; drags in its vertical drawn scrollers pull at their top.</summary>
     public ISkUiView? Content
@@ -228,7 +228,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     }
 
     /// <summary>The refresh indicator, drawn by the look (style it: <see cref="SkUiCoreRefreshIndicator.Color"/>, a shadow).</summary>
-    public SkUiCoreRefreshIndicator RefreshIndicator => _refresh.Indicator;
+    public SkUiCoreRefreshIndicator RefreshIndicator => Refresh.Indicator;
 
     /// <summary>
     /// Raised when <see cref="IsRefreshing"/> becomes <c>true</c>, before <see cref="Command"/> runs; with automatic
@@ -292,7 +292,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
         {
             DetachScroller();
             _gesture?.Cancel();
-            _pullBack.Jump(0);
+            PullBack.Jump(0);
             _ownPull = 0;
         }
         UpdateIndicator();
@@ -318,13 +318,13 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
             // Done: the content comes back up, the indicator goes (or follows a pull still in progress), and a pull turned off
             // meanwhile lets go now.
             ReleaseHold();
-            _refresh.OnIsRefreshingChanged(false);
+            Refresh.OnIsRefreshingChanged(false);
             OnCanRefreshChanged();
             return;
         }
         Hold();
         UpdateIndicator();
-        _refresh.OnIsRefreshingChanged(true);
+        Refresh.OnIsRefreshingChanged(true);
     }
 
     /// <summary>
@@ -335,7 +335,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     {
         var source = _releasedBy != PullSource.None ? _releasedBy : _link?.Host is not null ? PullSource.Scroller : PullSource.View;
         _releasedBy = PullSource.None;
-        var inline = _refresh.Style == SkUiRefreshStyle.Inline;
+        var inline = Refresh.Style == SkUiRefreshStyle.Inline;
         if (source == PullSource.Scroller && _link?.Host is { } host)
         {
             AnimateOwnPull(0);
@@ -351,7 +351,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
         }
         else
         {
-            _pullBack.Jump(0);
+            PullBack.Jump(0);
             _ownPull = 0;
         }
     }
@@ -372,7 +372,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     private void OnPullSettingsChanged()
     {
         if (_link?.Host is { } host)
-            host.Scroller.PullsForRefreshView = _refresh.PullInput;
+            host.Scroller.PullsForRefreshView = Refresh.PullInput;
         if (IsRefreshing)
         {
             ReleaseHold();
@@ -395,7 +395,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     /// </summary>
     private void UpdateIndicator()
     {
-        var inline = _refresh.Style == SkUiRefreshStyle.Inline;
+        var inline = Refresh.Style == SkUiRefreshStyle.Inline;
         _contentPart.TranslationY = inline ? _ownPull : 0;
         var gap = _ownPull;
         var top = 0d;
@@ -407,7 +407,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
             if (inline)
                 top = TopOf(host);
         }
-        _refresh.ShowPull(IsRefreshing || CanRefresh ? gap : 0, top, device);
+        Refresh.ShowPull(IsRefreshing || CanRefresh ? gap : 0, top, device);
     }
 
     /// <summary>Where <paramref name="host"/> starts below this view's top, in DIPs (0 when not on a surface).</summary>
@@ -430,7 +430,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
         if (_link is { } link && ReferenceEquals(link.Host, host))
             return;
         DetachScroller();
-        _link = new ScrollerLink(this, host, _refresh.PullInput);
+        _link = new ScrollerLink(this, host, Refresh.PullInput);
     }
 
     private void DetachScroller()
@@ -453,7 +453,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
             return;
         }
         _releasedBy = PullSource.Scroller;
-        _refresh.Release(distance, host.Scroller.DragDevice);
+        Refresh.Release(distance, host.Scroller.DragDevice);
         _releasedBy = PullSource.None;
     }
 
@@ -602,7 +602,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
 
     private void PullTo(double distance, SkUiPointerDevice device)
     {
-        _pullBack.Jump(0);
+        PullBack.Jump(0);
         _ownDevice = device;
         _ownPull = SkUiOverscroll.RubberBand(Math.Max(0, distance), Height);
         UpdateIndicator();
@@ -617,7 +617,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
         if (released)
         {
             _releasedBy = PullSource.View;
-            _refresh.Release(_ownPull, _ownDevice);
+            Refresh.Release(_ownPull, _ownDevice);
             _releasedBy = PullSource.None;
         }
         if (!IsRefreshing)
@@ -627,12 +627,12 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     /// <summary>Moves the view's own pull to <paramref name="target"/> on the UI clock (at once with reduced motion or no clock).</summary>
     private void AnimateOwnPull(double target)
     {
-        if (_ownPull == target && !_pullBack.IsRunning)
+        if (_ownPull == target && !PullBack.IsRunning)
             return;
         var length = SkUiMotion.IsMotionReduced ? 0 : PullBackLength;
-        _pullBack.Jump((float)_ownPull);
-        _pullBack.AnimateTo((float)target, length == 0 ? SkUiTransition.None : SkUiTransition.FromMilliseconds(length, Easing.CubicOut));
-        if (length == 0 || !_pullBack.IsRunning)
+        PullBack.Jump((float)_ownPull);
+        PullBack.AnimateTo((float)target, length == 0 ? SkUiTransition.None : SkUiTransition.FromMilliseconds(length, Easing.CubicOut));
+        if (length == 0 || !PullBack.IsRunning)
         {
             _ownPull = target;
             UpdateIndicator();
@@ -652,7 +652,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
             held.SetTopRest(0);
         }
         DetachScroller();
-        _pullBack.Jump(0);
+        PullBack.Jump(0);
         _ownPull = 0;
         UpdateIndicator();
     }
@@ -758,7 +758,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
 
         public void InvalidateTransition()
         {
-            owner._ownPull = Math.Max(0, owner._pullBack.Value);
+            owner._ownPull = Math.Max(0, owner.PullBack.Value);
             owner.UpdateIndicator();
         }
     }
@@ -771,14 +771,14 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
         get
         {
             yield return _contentPart;
-            yield return _layer;
+            yield return Refresh.Layer;
         }
     }
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        ((IView)_layer).Measure(widthConstraint, heightConstraint);
+        ((IView)Refresh.Layer).Measure(widthConstraint, heightConstraint);
         return ((IView)_contentPart).Measure(widthConstraint, heightConstraint);
     }
 
@@ -787,7 +787,7 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     {
         var bounds = new Rect(Point.Zero, size);
         ((IView)_contentPart).Arrange(bounds);
-        ((IView)_layer).Arrange(bounds);
+        ((IView)Refresh.Layer).Arrange(bounds);
     }
 
     /// <summary>Hosts the content.</summary>

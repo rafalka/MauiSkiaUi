@@ -16,26 +16,28 @@ public class SkUiImage : SkUiView
     private Aspect _aspect = Aspect.AspectFit;
     private SkUiImageOptions _options;
     // Image sources and transformation lists are often shared resources: listened to weakly, so they never keep the view alive.
-    private readonly SkUiWeakListener<SkUiImage> _sourceListener;
-    private readonly SkUiWeakListener<SkUiImage> _transformationsListener;
+    private SkUiWeakListener<SkUiImage>? _sourceListener;
+    private SkUiWeakListener<SkUiImage> SourceListener => _sourceListener ??= new(this, static (image, change) =>
+    {
+        if (SkUiMauiImageSources.AffectsImage(change.PropertyName))
+            image.Reload();
+    });
+    private SkUiWeakListener<SkUiImage>? _transformationsListener;
+    private SkUiWeakListener<SkUiImage> TransformationsListener => _transformationsListener ??= new(this, static (image, _) => image.OnTransformationItemsChanged());
     private SkUiWeakListener<SkUiImage>? _loadingPlaceholderListener;
     private SkUiWeakListener<SkUiImage>? _errorPlaceholderListener;
-    private readonly SkUiImageSlot _slot;
+    private SkUiImageSlot? _slot;
+
+    /// <summary>The loading state, created on first use: property callbacks can run before the constructor (see <see cref="SkUiView.StyledOr{T}"/>).</summary>
+    private SkUiImageSlot Slot => _slot ??= new SkUiImageSlot(this, PublishState)
+    {
+        LoadingStarted = args => LoadingStarted?.Invoke(this, args),
+        LoadingFinished = args => LoadingFinished?.Invoke(this, args)
+    };
 
     /// <summary>Creates an image.</summary>
     public SkUiImage()
     {
-        _sourceListener = new(this, static (image, change) =>
-        {
-            if (SkUiMauiImageSources.AffectsImage(change.PropertyName))
-                image.Reload();
-        });
-        _transformationsListener = new(this, static (image, _) => image.OnTransformationItemsChanged());
-        _slot = new SkUiImageSlot(this, PublishState)
-        {
-            LoadingStarted = args => LoadingStarted?.Invoke(this, args),
-            LoadingFinished = args => LoadingFinished?.Invoke(this, args)
-        };
         // The default list comes from defaultValueCreator, which raises no change: observe it here (XAML adds to it).
         OnTransformationsChanged(Transformations);
     }
@@ -48,7 +50,7 @@ public class SkUiImage : SkUiView
         propertyChanged: (view, _, value) => ((SkUiImage)view).OnAspectChanged((Aspect)value));
     /// <summary>Bindable <see cref="IsAnimationPlaying"/>.</summary>
     public static readonly BindableProperty IsAnimationPlayingProperty = BindableProperty.Create(nameof(IsAnimationPlaying), typeof(bool), typeof(SkUiImage), false,
-        propertyChanged: (view, _, value) => ((SkUiImage)view)._slot.IsAnimationPlaying = (bool)value);
+        propertyChanged: (view, _, value) => ((SkUiImage)view).Slot.IsAnimationPlaying = (bool)value);
     /// <summary>Bindable <see cref="Transformations"/>.</summary>
     public static readonly BindableProperty TransformationsProperty = BindableProperty.Create(nameof(Transformations), typeof(IList<ISkUiImageTransformation>), typeof(SkUiImage), null,
         defaultValueCreator: _ => new ObservableCollection<ISkUiImageTransformation>(),
@@ -125,20 +127,20 @@ public class SkUiImage : SkUiView
     /// <summary>Decode at most this high, in DIPs at the display density (0: no bound).</summary>
     public double DownsampleHeight { get => (double)GetValue(DownsampleHeightProperty); set => SetValue(DownsampleHeightProperty, value); }
     /// <summary>Current asynchronous load, including error-state publication.</summary>
-    public Task LoadingTask => _slot.LoadingTask;
+    public Task LoadingTask => Slot.LoadingTask;
     /// <summary>Whether the current source is loading.</summary>
-    public bool IsLoading => _slot.IsLoading;
+    public bool IsLoading => Slot.IsLoading;
     /// <summary>Last current-source error, or null on success.</summary>
-    public Exception? LoadError => _slot.LoadError;
+    public Exception? LoadError => Slot.LoadError;
     /// <summary>
     /// Intrinsic size in DIPs: source pixels divided by the source's density (a MauiImage lays out at its base size,
     /// other bitmaps one pixel per DIP; a font glyph at its font size).
     /// </summary>
     /// <remarks>Large sources are decoded at reduced resolution (<see cref="SkUiImageDecoder.MaxDecodeDimension"/>, downsampling); this still reports the source size.</remarks>
-    public Size ImageSize => _slot.Size;
+    public Size ImageSize => Slot.Size;
 
     /// <summary>The shown cache entry (tests: views of one source share it).</summary>
-    internal SkUiCachedImage? CachedImage => _slot.Entry;
+    internal SkUiCachedImage? CachedImage => Slot.Entry;
 
     /// <summary>Sets source (same as the property setter). Call on the UI thread; streams are owned and disposed by this control.</summary>
     public SkUiImage SetSource(ImageSource? value)
@@ -187,8 +189,7 @@ public class SkUiImage : SkUiView
 
     private void UpdatePlaceholders()
     {
-        if (_slot is null) return; // property defaults apply before the constructor body
-        _slot.SetPlaceholders(SkUiMauiImageSources.Convert(LoadingPlaceholder), SkUiMauiImageSources.Convert(ErrorPlaceholder), TransformPlaceholders);
+        Slot.SetPlaceholders(SkUiMauiImageSources.Convert(LoadingPlaceholder), SkUiMauiImageSources.Convert(ErrorPlaceholder), TransformPlaceholders);
     }
 
     /// <summary>Sets aspect (same as the property setter).</summary>
@@ -221,7 +222,7 @@ public class SkUiImage : SkUiView
         var previous = _source;
         _source = value;
         AdoptImageSource(UsesSource(previous) ? null : previous, value);
-        _sourceListener.Listen(value);
+        SourceListener.Listen(value);
         Reload();
     }
 
@@ -229,7 +230,7 @@ public class SkUiImage : SkUiView
 
     private void OnTransformationsChanged(IList<ISkUiImageTransformation>? value)
     {
-        _transformationsListener.Listen(value as INotifyCollectionChanged);
+        TransformationsListener.Listen(value as INotifyCollectionChanged);
         OnTransformationItemsChanged();
     }
 
@@ -259,16 +260,12 @@ public class SkUiImage : SkUiView
         return true;
     }
 
-    private void Reload()
-    {
-        if (_slot is not null) // property defaults apply before the constructor body
-            _slot.Load(SkUiMauiImageSources.Convert(_source), _options);
-    }
+    private void Reload() => Slot.Load(SkUiMauiImageSources.Convert(_source), _options);
 
     /// <summary>Reloads the current source; errors are exposed through LoadError, cancellation is not an error.</summary>
     public Task ReloadAsync()
     {
-        return _slot.Load(SkUiMauiImageSources.Convert(_source), _options);
+        return Slot.Load(SkUiMauiImageSources.Convert(_source), _options);
     }
 
     private void PublishState()
@@ -281,17 +278,17 @@ public class SkUiImage : SkUiView
     }
 
     /// <summary>Whether a loading or error placeholder is drawn instead of the image.</summary>
-    public bool IsShowingPlaceholder => _slot.IsShowingPlaceholder;
+    public bool IsShowingPlaceholder => Slot.IsShowingPlaceholder;
 
     /// <inheritdoc />
     /// <remarks>The image's size, else the placeholder's while one shows.</remarks>
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => _slot.DisplayedSize;
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => Slot.DisplayedSize;
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) => PaintImage(canvas, new SKRect(0, 0, (float)Width, (float)Height));
 
     /// <summary>Draws the current image (frame) into <paramref name="area"/> (local DIPs) with <see cref="Aspect"/>; nothing while none is loaded.</summary>
-    protected void PaintImage(SKCanvas canvas, SKRect area) => _slot.Paint(canvas, area, _aspect);
+    protected void PaintImage(SKCanvas canvas, SKRect area) => Slot.Paint(canvas, area, _aspect);
 
     /// <inheritdoc />
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
