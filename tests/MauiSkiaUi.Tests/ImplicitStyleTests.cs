@@ -211,8 +211,6 @@ public class ImplicitStyleTests
         var type = Nullable.GetUnderlyingType(property.ReturnType) ?? property.ReturnType;
         if (property.PropertyName.Contains("FontFamily", StringComparison.Ordinal))
             yield return SkUiTestHelpers.BundledFontFamily;
-        else if (property.PropertyName == "MaxLength")
-            yield return 100; // longer than any text here: a numeric entry's formatted value never has to be cut
         else if (type == typeof(string))
             yield return "Styled text";
         else if (type == typeof(bool))
