@@ -26,6 +26,13 @@ scripts/device_tests.sh                      # memory-leak scenarios on a device
 
 Toolchain is pinned: .NET SDK 10.0.400 ([global.json](global.json)); MAUI 10.0.110 and SkiaSharp 4.153.1 via `MauiVersion` / `SkiaSharpVersion` in [Directory.Build.props](Directory.Build.props) (also the product `Version`). Stay on MAUI 10.x. The library is `IsAotCompatible`: trim/AOT analyzer warnings fail its build, and the build is expected to have 0 warnings.
 
+## Token hygiene
+
+- `artifacts/` (gitignored, GBs) holds bench worktrees with full source copies; never search or read it (`.claude/settings.json` denies Read there). Exclude it from `grep`/`find` (`--exclude-dir=artifacts`, `rg` respects `.gitignore`).
+- Never read the big docs whole: [CHANGELOG.md](CHANGELOG.md) (~145 KB; the release tooling parses it, so it stays one file), [ImplementationPlan.md](docs/design/ImplementationPlan.md), [Requirements.md](docs/design/Requirements.md), [Testing.md](docs/design/Testing.md), [ScrollingAndCollectionViews.md](docs/design/ScrollingAndCollectionViews.md), [TextInput.md](docs/design/TextInput.md). `grep -n` for the section, then `sed -n 'a,bp'`; the changelog's `## Unreleased` is at the top (first ~20 lines).
+- Keep build/test output short: `dotnet build -v q -clp:ErrorsOnly`, `dotnet test --logger "console;verbosity=minimal"`; on failure, re-run only the failing test.
+- Broad "where is X" sweeps go to the Explore subagent, not the main context.
+
 ## Architecture
 
 **Two layers, one tree.** `SkUiView` (a MAUI `View`, `SkUi*` controls: bindable properties, XAML, styles, MAUI layout managers) and `SkUiCoreNode` (plain CLR objects, `SkUiCore*`: fluent `Set*` + `INotifyPropertyChanged`, no `BindableObject`). `SkUiCoreHost` hosts a Core tree inside the SkUi tree. Most controls exist on both layers and share one engine (text, shapes, toggles, scrolling, images); keep them at parity when changing one. Only the surface root (`SkUiContentView` / `SkUiLayout` with `SkUiViewHandler`) has a platform view; hosted nodes have logical MAUI parents but no handlers. Native views are hosted as overlays through `SkUiMauiContentView`.
