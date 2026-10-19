@@ -8,13 +8,19 @@ namespace MauiSkiaUi;
 /// <see cref="SkUiImageLoader"/>, holds the lease on the cached image, publishes loading / error state, raises the
 /// load events, shows the loading / error placeholders, and plays animated images on the node's UI clock. A cached
 /// source applies synchronously (no empty frame); otherwise the image clears (the loading placeholder shows) while
-/// loading and the result is applied on the dispatcher that started the load. UI thread only. The shown image's reference
-/// is a <see cref="SkUiImageLease"/>: views that are collected without being disposed still release it.
+/// loading and the result is applied on the dispatcher that started the load. UI thread only; without a dispatcher, a
+/// load completes on the thread pool, serialized with the slot's other members. The shown image's reference is a
+/// <see cref="SkUiImageLease"/>: views that are collected without being disposed still release it.
 /// </summary>
 internal sealed class SkUiImageSlot
 {
     private readonly ISkUiTransitionHost _host;
     private readonly Action _changed;
+    // A load started without a dispatcher to marshal back to (headless tests, a tree built off the UI thread) completes
+    // on the thread pool while the thread that uses the slot may replace or cancel it: every member that changes (or
+    // paints) the slot's state holds this lock, uncontended on the UI thread. Shared with the placeholder slot, which
+    // runs inside the main slot's members (and its completion calls the same node), so the two never lock in opposite orders.
+    private readonly Lock _gate;
     private SkUiCachedImage? _image;
     private SkUiImageLease? _lease; // the reference on _image; released by the finalizer when the view is collected
     private CancellationTokenSource? _loading;
@@ -39,10 +45,15 @@ internal sealed class SkUiImageSlot
 
     /// <param name="host">The node: its clock plays animations, its paint invalidation shows new frames.</param>
     /// <param name="changed">Called after the image, a placeholder, <see cref="IsLoading"/> or <see cref="LoadError"/> changed.</param>
-    public SkUiImageSlot(ISkUiTransitionHost host, Action changed)
+    public SkUiImageSlot(ISkUiTransitionHost host, Action changed) : this(host, changed, new Lock())
+    {
+    }
+
+    private SkUiImageSlot(ISkUiTransitionHost host, Action changed, Lock gate)
     {
         _host = host;
         _changed = changed;
+        _gate = gate;
     }
 
     /// <summary>Raised when a load of a source starts (after the state shows it loading).</summary>
@@ -84,11 +95,14 @@ internal sealed class SkUiImageSlot
         get => _playing;
         set
         {
-            if (_playing == value)
-                return;
-            _playing = value;
-            if (!value)
-                StopAnimation();
+            lock (_gate)
+            {
+                if (_playing == value)
+                    return;
+                _playing = value;
+                if (!value)
+                    StopAnimation();
+            }
             _host.InvalidateTransition(); // painting starts the animation on the node's clock
         }
     }
@@ -99,14 +113,17 @@ internal sealed class SkUiImageSlot
     /// </summary>
     public void SetPlaceholders(SkUiImageSource? loading, SkUiImageSource? error, bool transform)
     {
-        var transformChanged = _transformPlaceholders != transform;
-        _loadingPlaceholder = loading;
-        _errorPlaceholder = error;
-        _transformPlaceholders = transform;
-        if (transformChanged)
-            _shownPlaceholder = null; // reload it with the other options
-        if (_image is null)
-            ShowPlaceholder(IsLoading ? loading : LoadError is not null ? error : null);
+        lock (_gate)
+        {
+            var transformChanged = _transformPlaceholders != transform;
+            _loadingPlaceholder = loading;
+            _errorPlaceholder = error;
+            _transformPlaceholders = transform;
+            if (transformChanged)
+                _shownPlaceholder = null; // reload it with the other options
+            if (_image is null)
+                ShowPlaceholder(IsLoading ? loading : LoadError is not null ? error : null);
+        }
     }
 
     /// <summary>
@@ -116,96 +133,108 @@ internal sealed class SkUiImageSlot
     /// </summary>
     public Task Load(SkUiImageSource? source, in SkUiImageOptions options, bool keepShown = false)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        var placeholderOptionsChanged = _options != options;
-        _options = options;
-        if (placeholderOptionsChanged)
-            _shownPlaceholder = null;
-        var version = CancelLoad();
-        if (source is null)
+        lock (_gate)
         {
-            Replace(null);
-            ShowPlaceholder(null);
-            Publish(error: null);
-            return LoadingTask = Task.CompletedTask;
-        }
-        // Captured synchronously so completion marshals back also for hosted nodes, which have no handler.
-        var dispatcher = Microsoft.Maui.Dispatching.Dispatcher.GetForCurrentThread();
-        var cancellation = _loading = new CancellationTokenSource();
-        _pending = source;
-        _pendingStarted = Stopwatch.GetTimestamp();
-        Task<SkUiImageLoad> load;
-        try
-        {
-            load = SkUiImageLoader.LoadAsync(source, options, cancellation.Token);
-        }
-        catch (Exception error)
-        {
-            load = Task.FromException<SkUiImageLoad>(error);
-        }
-        if (load.IsCompleted)
-        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var placeholderOptionsChanged = _options != options;
+            _options = options;
+            if (placeholderOptionsChanged)
+                _shownPlaceholder = null;
+            var version = CancelLoad();
+            if (source is null)
+            {
+                Replace(null);
+                ShowPlaceholder(null);
+                Publish(error: null);
+                return LoadingTask = Task.CompletedTask;
+            }
+            // Captured synchronously so completion marshals back also for hosted nodes, which have no handler.
+            var dispatcher = Microsoft.Maui.Dispatching.Dispatcher.GetForCurrentThread();
+            var cancellation = _loading = new CancellationTokenSource();
+            _pending = source;
+            _pendingStarted = Stopwatch.GetTimestamp();
+            Task<SkUiImageLoad> load;
+            try
+            {
+                load = SkUiImageLoader.LoadAsync(source, options, cancellation.Token);
+            }
+            catch (Exception error)
+            {
+                load = Task.FromException<SkUiImageLoad>(error);
+            }
+            if (load.IsCompleted)
+            {
+                LoadingStarted?.Invoke(new SkUiImageLoadStartedEventArgs(source));
+                Complete(load, version);
+                return LoadingTask = Task.CompletedTask;
+            }
+            if (!keepShown || _image is null)
+            {
+                Replace(null);
+                ShowPlaceholder(_loadingPlaceholder);
+            }
+            LoadError = null;
+            IsLoading = true;
+            _changed();
             LoadingStarted?.Invoke(new SkUiImageLoadStartedEventArgs(source));
-            Complete(load, version);
-            return LoadingTask = Task.CompletedTask;
+            return LoadingTask = CompleteAsync(load, version, dispatcher);
         }
-        if (!keepShown || _image is null)
-        {
-            Replace(null);
-            ShowPlaceholder(_loadingPlaceholder);
-        }
-        LoadError = null;
-        IsLoading = true;
-        _changed();
-        LoadingStarted?.Invoke(new SkUiImageLoadStartedEventArgs(source));
-        return LoadingTask = CompleteAsync(load, version, dispatcher);
     }
 
     /// <summary>Shows <paramref name="image"/> directly (Core's <c>SetImage</c>); disposed with the slot when <paramref name="ownsImage"/>.</summary>
     public void SetImage(SKImage? image, bool ownsImage)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        CancelLoad();
-        if (image is null)
+        lock (_gate)
         {
-            Replace(null);
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            CancelLoad();
+            if (image is null)
+            {
+                Replace(null);
+            }
+            else
+            {
+                // The same image again (to change ownership): the old entry must not dispose it.
+                if (_image is { Key: null } current && current.Frames.Length == 1 && ReferenceEquals(current.Frames[0], image))
+                    current.Disown();
+                Replace(new SkUiCachedImage(new SkUiDecodedImage([image], [], new Size(image.Width, image.Height)), key: null, ownsImage));
+            }
+            ShowPlaceholder(null);
+            Publish(error: null);
         }
-        else
-        {
-            // The same image again (to change ownership): the old entry must not dispose it.
-            if (_image is { Key: null } current && current.Frames.Length == 1 && ReferenceEquals(current.Frames[0], image))
-                current.Disown();
-            Replace(new SkUiCachedImage(new SkUiDecodedImage([image], [], new Size(image.Width, image.Height)), key: null, ownsImage));
-        }
-        ShowPlaceholder(null);
-        Publish(error: null);
     }
 
     /// <summary>Draws the current frame (or the placeholder) into <paramref name="area"/> with <paramref name="aspect"/>; starts playback when due.</summary>
     public void Paint(SKCanvas canvas, SKRect area, Aspect aspect)
     {
-        if (_image is not { } image)
+        lock (_gate)
         {
-            _placeholder?.Paint(canvas, area, aspect);
-            return;
+            if (_image is not { } image)
+            {
+                _placeholder?.Paint(canvas, area, aspect);
+                return;
+            }
+            if (_playing && image.IsAnimated && _animation is null)
+                StartAnimation(image);
+            SkUiImageDrawing.Draw(canvas, image.Frames[_frame], image.Size, area, aspect);
         }
-        if (_playing && image.IsAnimated && _animation is null)
-            StartAnimation(image);
-        SkUiImageDrawing.Draw(canvas, image.Frames[_frame], image.Size, area, aspect);
     }
 
     /// <summary>Cancels loading and releases the image; the slot cannot be used again.</summary>
     public void Dispose()
     {
-        if (_disposed)
-            return;
-        _disposed = true;
-        CancelLoad();
-        Replace(null);
-        _placeholder?.Dispose();
-        _placeholder = null;
-        IsLoading = false;
-        LoadError = null;
+        lock (_gate)
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            CancelLoad();
+            Replace(null);
+            _placeholder?.Dispose();
+            _placeholder = null;
+            IsLoading = false;
+            LoadError = null;
+        }
     }
 
     /// <summary>Cancels the load in progress (raising its cancelled <see cref="LoadingFinished"/>); returns the new generation.</summary>
@@ -241,30 +270,33 @@ internal sealed class SkUiImageSlot
 
     private void Complete(Task<SkUiImageLoad> load, int version)
     {
-        if (version != _generation || _disposed)
+        lock (_gate)
         {
+            if (version != _generation || _disposed)
+            {
+                if (load.IsCompletedSuccessfully)
+                    load.Result.Image.Release(); // replaced meanwhile (its cancelled event was raised then)
+                return;
+            }
+            _loading?.Dispose();
+            _loading = null;
+            var source = _pending!;
             if (load.IsCompletedSuccessfully)
-                load.Result.Image.Release(); // replaced meanwhile (its cancelled event was raised then)
-            return;
+            {
+                Replace(load.Result.Image);
+                ShowPlaceholder(null);
+                Publish(error: null);
+                Finish(source, SkUiImageLoadStatus.Succeeded, load.Result.Origin, error: null);
+                return;
+            }
+            // Not cancelled by this slot (that changes the generation): a timeout or the source's own cancellation is an error.
+            var error = load.Exception?.InnerException ?? new OperationCanceledException("The image load was cancelled.");
+            Replace(null);
+            LoadError = error;
+            ShowPlaceholder(_errorPlaceholder);
+            Publish(error);
+            Finish(source, SkUiImageLoadStatus.Failed, origin: null, error);
         }
-        _loading?.Dispose();
-        _loading = null;
-        var source = _pending!;
-        if (load.IsCompletedSuccessfully)
-        {
-            Replace(load.Result.Image);
-            ShowPlaceholder(null);
-            Publish(error: null);
-            Finish(source, SkUiImageLoadStatus.Succeeded, load.Result.Origin, error: null);
-            return;
-        }
-        // Not cancelled by this slot (that changes the generation): a timeout or the source's own cancellation is an error.
-        var error = load.Exception?.InnerException ?? new OperationCanceledException("The image load was cancelled.");
-        Replace(null);
-        LoadError = error;
-        ShowPlaceholder(_errorPlaceholder);
-        Publish(error);
-        Finish(source, SkUiImageLoadStatus.Failed, origin: null, error);
     }
 
     private void Finish(SkUiImageSource source, SkUiImageLoadStatus status, SkUiImageOrigin? origin, Exception? error)
@@ -294,7 +326,7 @@ internal sealed class SkUiImageSlot
         if (Equals(_shownPlaceholder, source))
             return;
         // Animated placeholders are loading indicators: they always play.
-        _placeholder ??= new SkUiImageSlot(_host, _changed) { _playing = true };
+        _placeholder ??= new SkUiImageSlot(_host, _changed, _gate) { _playing = true };
         _shownPlaceholder = source;
         _placeholder.Load(source, _transformPlaceholders ? _options : _options with { Transformations = null });
     }
@@ -324,25 +356,31 @@ internal sealed class SkUiImageSlot
         IDisposable? handle = null;
         handle = clock.Start(progress =>
         {
-            if (!ReferenceEquals(_animation, handle) && handle is not null)
-                return;
-            if (!ReferenceEquals(_host.TransitionClock, clock))
+            lock (_gate)
             {
-                // Detached or moved to another surface: stop here; the next paint there resumes from this frame.
-                StopAnimation();
-                return;
+                if (!ReferenceEquals(_animation, handle) && handle is not null)
+                    return;
+                if (!ReferenceEquals(_host.TransitionClock, clock))
+                {
+                    // Detached or moved to another surface: stop here; the next paint there resumes from this frame.
+                    StopAnimation();
+                    return;
+                }
+                var time = offset + (long)(progress * image.TotalDuration);
+                var frame = image.FrameAt(time);
+                if (frame == _frame)
+                    return;
+                _frame = frame;
+                _frameOffset = time;
             }
-            var time = offset + (long)(progress * image.TotalDuration);
-            var frame = image.FrameAt(time);
-            if (frame == _frame)
-                return;
-            _frame = frame;
-            _frameOffset = time;
             _host.InvalidateTransition();
         }, TimeSpan.FromMilliseconds(image.TotalDuration), Easing.Linear, repeat: true, stopped: () =>
         {
-            if (ReferenceEquals(_animation, handle))
-                _animation = null;
+            lock (_gate)
+            {
+                if (ReferenceEquals(_animation, handle))
+                    _animation = null;
+            }
         });
         _animation = handle;
     }
