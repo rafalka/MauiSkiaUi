@@ -19,6 +19,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - Custom `SkUiGestureRecognizer`s that act on a release override the new `IsDiscrete` (as the built-in tap recognizer does).
   - A `TapGestureRecognizer` on a surface root itself follows the same rule.
 
+### Other
+
+- **Styling Core nodes:** a docs section (style methods, factory methods, the look and the color scheme in place of MAUI styles) in [SkUiCore.md](docs/controls/SkUiCore.md) and the "Styles for Core nodes" sample.
+
 ## 1.0.0-Prerelease13
 
 ### New features
