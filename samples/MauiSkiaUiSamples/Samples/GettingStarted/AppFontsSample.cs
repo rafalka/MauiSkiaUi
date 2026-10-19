@@ -31,21 +31,29 @@ public sealed class AppFontsSample : SamplePage, ISample
                 "text only, or overrides one.",
             "System fonts work by their family name, e.g. `FontFamily = \"Menlo\"`.",
             "Drawn text falls back per character to a system font that has the glyph (emoji, other scripts).",
+            "On iOS and Mac Catalyst a font's PostScript name works too (`\"Lobster-Regular\"`), as on MAUI's native " +
+                "controls there; Android and Windows need the alias.",
             "If a drawn row looks different from the native one above it, the alias did not resolve and the default " +
                 "font is used."
         ]);
+
+    private const string LobsterPostScriptName = "Lobster-Regular";
 
     public AppFontsSample() : base(Info) => SampleContent = Build();
 
     private static View Build()
     {
         var rows = new VerticalStackLayout { Spacing = 18 };
-        foreach (var (alias, text) in new[]
-                 {
-                     ("Lobster", "Lobster — a display font"),
-                     (SampleFonts.Mono, "RobotoMono: 0O 1l {}[]"),
-                     (SampleFonts.Semibold, "Open Sans Semibold"),
-                 })
+        List<(string Family, string Text)> fonts =
+        [
+            ("Lobster", "Lobster — a display font"),
+            (SampleFonts.Mono, "RobotoMono: 0O 1l {}[]"),
+            (SampleFonts.Semibold, "Open Sans Semibold"),
+        ];
+        // iOS and Mac Catalyst also take a font's PostScript name, which is not a ConfigureFonts alias.
+        if (OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst())
+            fonts.Add((LobsterPostScriptName, "Lobster by its PostScript name"));
+        foreach (var (alias, text) in fonts)
         {
             rows.Add(new VerticalStackLayout
             {

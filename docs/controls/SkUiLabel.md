@@ -215,7 +215,7 @@ A tab with rounded top corners (`CornerRadii` order: top-left, top-right, bottom
 <sk:SkUiLabel Text="Details" BackgroundColor="#E0F2F1" CornerRadii="12,12,0,0" Padding="16,8" />
 ```
 
-Fonts registered with MAUI's `ConfigureFonts` (`fonts.AddFont("file.ttf", "Alias")`, as `MauiFont` items or embedded resources) work by their alias, on every platform. `SkUiFonts.Register(alias, openStream)` registers a font for drawn text only, or overrides one.
+Fonts registered with MAUI's `ConfigureFonts` (`fonts.AddFont("file.ttf", "Alias")`, as `MauiFont` items or embedded resources) work by their alias, on every platform. On iOS and Mac Catalyst a font's PostScript name works too (`AvertaPE-Medium` for a font added as `AvertaPEMedium`), as on MAUI's native controls there, which look up a family that is no alias with `UIFont.FromName`; Android and Windows need the alias, as MAUI does. `SkUiFonts.Register(alias, openStream)` registers a font for drawn text only, or overrides one.
 
 ## Key properties
 
@@ -239,7 +239,7 @@ Fonts registered with MAUI's `ConfigureFonts` (`fonts.AddFont("file.ttf", "Alias
 | Bidi / complex scripts | Supported (HarfBuzz + UAX #9 implicit levels). Explicit embedding / isolate control characters (LRE…PDI) are treated as neutral; LRM / RLM / ALM work |
 | Fallback fonts | Chosen by Skia's font manager per character; may differ from the native text stack's choice (e.g. a different Hebrew face on iOS) |
 | Selection / copy | Not supported |
-| Fonts | System names, `ConfigureFonts` aliases or `SkUiFonts.Register`, through SkiaUi's text engine (not MAUI's font manager) |
+| Fonts | System names, `ConfigureFonts` aliases (on iOS / Mac Catalyst also PostScript names) or `SkUiFonts.Register`, through SkiaUi's text engine (not MAUI's font manager) |
 | System text size | Followed as MAUI's (`FontAutoScalingEnabled`, default `true`; spans and HTML sizes too): Android's font scale (non-linear on Android 14+), Dynamic Type, Windows text scaling (applied linearly); `SkUiLook.FontScale` prescales all text app-wide, also with auto scaling off |
 | Accessibility | Read as text (its `Text`, the spans' or the HTML's text); a heading with `SemanticProperties.HeadingLevel`; links inside are read as part of the text, not as their own elements |
 | Gestures | Opt-in `Tapped` / `TappedCommand` only |
