@@ -1,5 +1,7 @@
 using MauiSkiaUiSamples;
+using MauiSkiaUi.Core;
 using MauiSkiaUiSamples.Samples.Controls;
+using MauiSkiaUiSamples.Samples.Core;
 using MauiSkiaUiSamples.Samples.Customisation;
 using SkiaSharp;
 using Xunit;
@@ -118,6 +120,27 @@ public class SamplesTests
             foreach (var child in node.SkiaChildren)
                 foreach (var descendant in Descendants(child))
                     yield return descendant;
+    }
+
+    [Fact]
+    public void CoreStyleMethodsBuildOnABaseTakeParametersAndYieldToLocalValues()
+    {
+        // BasedOn: Primary starts from ButtonBase, then sets its own colors.
+        var button = CoreUi.PrimaryButton("Pay", () => { });
+        Assert.Equal(new CornerRadius(10), button.CornerRadii);
+        Assert.Equal(new Thickness(16, 10), button.Padding);
+        Assert.Equal(Colors.White, button.TextColor);
+        Assert.Equal("Pay", button.Text);
+        // A style with a parameter, called again on the live node.
+        button.Density(compact: true);
+        Assert.Equal((new Thickness(10, 4), 13d), (button.Padding, button.FontSize));
+        // A value set after the factory's style wins; the rest of the style stays.
+        var cancel = CoreUi.SecondaryButton("Cancel", () => { });
+        cancel.SetTextColor(Colors.Red);
+        Assert.Equal((Colors.Red, SampleColors.Accent), (cancel.TextColor, cancel.BorderColor));
+        // The chain keeps the node's type.
+        SkUiCoreButton typed = new SkUiCoreButton().Primary().Density(compact: false);
+        Assert.NotNull(typed);
     }
 
     [Fact]

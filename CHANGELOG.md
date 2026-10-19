@@ -25,6 +25,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - A picker's `SelectedIndex` set by a style after its `ItemsSource` is no longer hidden by the picker's own reconciliation.
 - **Image loads finishing without a dispatcher:** a load started where there is no dispatcher to return to (headless tests, a tree built off the UI thread) finished on the thread pool while the image was still in use on its own thread. This affected drawn images, image buttons, slider thumbs and avatars on both layers. A new source set as one finished threw `ObjectDisposedException` (a disposed `CancellationTokenSource`), or raised `LoadingFinished` twice. A reload finishing during a paint disposed the image being drawn: an avatar arranged larger than expected drew no image, or crashed the process. A finishing load now waits for the image's current call (a new source, placeholders, painting) and applies its result after it.
 
+### Other
+
+- **Styling Core nodes:** a docs section (style methods, factory methods, the look and the color scheme in place of MAUI styles) in [SkUiCore.md](docs/controls/SkUiCore.md) and the "Styles for Core nodes" sample.
+
 ## 1.0.0-Prerelease13
 
 ### New features

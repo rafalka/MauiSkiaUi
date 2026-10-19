@@ -141,6 +141,81 @@ avatar.SetClip(new SkUiCoreEllipse());
 - **`SetClip(IShape)`**: a Core shape is placed in the node's bounds (as when it shapes a border: `new SkUiCoreEllipse()` is a circle that follows the size); a MAUI geometry (`EllipseGeometry`, `RectangleGeometry`, …) is in the node's coordinates. Changes of the shape's properties re-clip. Input keeps the rectangular bounds.
 - All three are composited: transforms, `AnimateAsync`, scrolling and shadow / clip edits record nothing.
 
+## Styling Core nodes
+
+Core nodes have no MAUI `Style`, `BasedOn` or implicit styles: they are not bindable objects, and there is no resource lookup. Three code-first tools cover the same ground, from app-wide to per node. Sample: **Styles for Core nodes** in the samples app (`CoreStylesSample`).
+
+| On the SkUi* layer | On Core |
+| --- | --- |
+| Theme colors (`AppThemeBinding`, color resources) | The color scheme (`SkUiColorScheme`) |
+| How a kind of control is drawn, its default sizes and shape | The look (`SkUiLook`) |
+| A named `Style` with setters | A style method: an extension method that calls `Set*` |
+| `BasedOn` | A style method that calls another first |
+| An implicit `Style` (by type) | A factory method the app creates its nodes through |
+
+**The look and the color scheme: app-wide defaults.** They are shared by both layers, so a page built from SkUi* controls and a Core tree inside it look alike. `SkUiColorScheme.Current` holds the palette (`Accent`, `DefaultForeground`, `DefaultBackground`, `Muted`, `Error`, …): assign `new DarkSkUiColorScheme()` or your own pack. `SkUiLook.Current` decides how controls are drawn and their default sizes: derive from `DefaultSkUiLook` and override members such as `DefaultButtonCornerRadius` or `DefaultButtonMinimumHeight`, or set a painter (`ButtonPainter`, …). Live surfaces measure and draw again when either is replaced (they subscribe to `CurrentChanged`). Changing a token on the current scheme does not do that: code that reads the scheme at paint time sees the new value on the next paint, but a surface is not invalidated by it, so replace `Current` to restyle live surfaces. A property whose default is the look's (a button's corner radius until `SetCornerRadius`) follows later changes; a color a node keeps itself (a label's `TextColor`) takes the scheme's token when the node is made, so swap the scheme before building the tree, or set the color again.
+
+```csharp
+public sealed class RoundedLook : DefaultSkUiLook
+{
+    public override double DefaultButtonCornerRadius => 12;
+}
+
+SkUiLook.Current = new RoundedLook();
+SkUiColorScheme.Current = new LightSkUiColorScheme { Accent = Color.FromArgb("#5B4BDB") };
+```
+
+**Style methods: named sets of values.** A style is an extension method that sets properties and returns the node. Make it generic in the node's type, so the chain keeps that type (`SkUiCoreButton` stays a button, a subclass stays the subclass). `BasedOn` is a call to another style method. Values set after the style win, as a local value wins over a MAUI style. A style method is plain code: it costs what its `Set*` calls cost, and it can take parameters (a size, a state), which MAUI styles cannot.
+
+```csharp
+public static class AppStyles
+{
+    // The base every button shares (BasedOn: the others call it first).
+    public static T ButtonBase<T>(this T button) where T : SkUiCoreButton
+    {
+        button.SetCornerRadius(10).SetPadding(new Thickness(16, 10)).SetFontAttributes(FontAttributes.Bold);
+        return button;
+    }
+
+    public static T Primary<T>(this T button) where T : SkUiCoreButton
+    {
+        button.ButtonBase().SetFillColor(Brand.Accent).SetTextColor(Colors.White).SetBorderWidth(0);
+        return button;
+    }
+
+    public static T Title<T>(this T label) where T : SkUiCoreLabel
+    {
+        label.SetFontSize(20).SetFontAttributes(FontAttributes.Bold).SetTextColor(Brand.Ink);
+        return label;
+    }
+}
+
+var pay = new SkUiCoreButton().Primary();
+pay.SetText("Pay");
+```
+
+**Factory methods: the implicit style.** An implicit style gives every control of a type the same values. On Core, create the app's nodes through factory methods that apply the style: every node made there gets it, and what the caller sets afterwards still wins. Nodes made elsewhere (inside SkiaUi's own controls, or a library's) do not get it; they follow the look and the scheme.
+
+```csharp
+public static class Ui
+{
+    public static SkUiCoreButton Button(string text, Action clicked)
+    {
+        var button = new SkUiCoreButton().Primary();
+        button.SetText(text);
+        button.SetClicked(clicked);
+        return button;
+    }
+}
+
+root.Add(Ui.Button("Pay", Pay));
+root.Add(Ui.Button("Cancel", Cancel).SetTextColor(Brand.Danger)); // a local value over the factory's style
+```
+
+**Changing a style at runtime.** A style method sets values once; it does not track them. To restyle live nodes (a density setting, a brand change), keep the nodes (or walk the tree) and call the style methods again; leave colors that should follow light and dark to the color scheme instead of setting them in a style.
+
+**Why Core has no implicit styles by type.** Applying a style when a node attaches to its parent would overwrite what the app set before attaching, unless every property remembered whether it was set locally or by a style: a layered value store like `BindableObject`'s. That store is much of what Core leaves out to build trees an order of magnitude faster ([Stress comparison](#stress-comparison)). Factories give the same result for the nodes an app creates, at no cost per node.
+
 ## Listening to shared sources (own controls)
 
 A custom node often follows something that outlives it: a view model, a shared `Paint` or command, an app-wide service. A plain `+=` on such a source keeps the node, and the screen it is part of, alive until it unsubscribes. The drawn controls never do that; use the same two public helpers (namespace `MauiSkiaUi`, both layers):

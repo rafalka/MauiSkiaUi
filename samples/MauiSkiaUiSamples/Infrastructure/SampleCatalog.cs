@@ -35,6 +35,7 @@ public static class SampleCatalog
         SampleEntry.For<PresenceAvatarsSample>(),
         SampleEntry.For<TranslatedPickerTextsSample>(),
         SampleEntry.For<CorePickersSample>(),
+        SampleEntry.For<CoreStylesSample>(),
     ];
 
     /// <summary>Sections that have examples, in <see cref="SampleSection"/> order.</summary>
