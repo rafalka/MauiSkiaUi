@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.0.0-Prerelease14
+
 ### Fixes
 
 - **Numeric entry and `MaxLength`:** `SkUiNumericEntry` / `SkUiNumericEntry<T>` hung (an endless loop on the UI thread) when the shown value was longer than `MaxLength` (`Format="0.00"`, `Value="31234"`, `MaxLength="3"`), and the Core twins cut the value itself (31234 became 312). `MaxLength` now limits only what the user types: the shown value and text the app sets are never cut.
