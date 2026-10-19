@@ -13,6 +13,12 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### Fixes
+
+- **Taps under a native tap recognizer (iOS, Mac Catalyst):** drawn controls (buttons, picker fields, check boxes, text fields, …) took no taps when a native ancestor had a MAUI `TapGestureRecognizer` (a page's background tap): on touch-up the ancestor's `UITapGestureRecognizer` recognized and UIKit cancelled the surface's touches. Each surface now has a tap gate that ancestor tap and long-press recognizers which cancel touches wait for: they fail when a drawn tap, long press or other drawn gesture takes the touch, and recognize as before over drawn content that takes no taps (a label, an empty area), so a background tap that hides the keyboard keeps working. GPU and software surfaces ([EventMechanism.md](docs/design/EventMechanism.md#native-ancestor-taps-ios--mac-catalyst)).
+  - Custom `SkUiGestureRecognizer`s that act on a release override the new `IsDiscrete` (as the built-in tap recognizer does).
+  - A `TapGestureRecognizer` on a surface root itself follows the same rule.
+
 ## 1.0.0-Prerelease13
 
 ### New features

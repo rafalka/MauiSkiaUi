@@ -46,12 +46,22 @@ internal sealed class SkUiMetalView : UIView
         AddGestureRecognizer(scroll);
         _gate = new SkUiNativeGestureGate();
         AddGestureRecognizer(_gate);
+        _tapGate = new SkUiNativeGestureGate(taps: true);
+        AddGestureRecognizer(_tapGate);
     }
 
     private readonly SkUiNativeGestureGate _gate;
+    private readonly SkUiNativeGestureGate _tapGate;
 
     /// <summary>Whether drawn gestures want the touch; ancestor pan / pinch recognizers wait for this surface's gate.</summary>
     internal Func<SkUiNativeGestureState>? NativeGestureState { get; set; }
+
+    /// <summary>Whether drawn taps take the touch; ancestor tap / long-press recognizers wait for this surface's tap gate.</summary>
+    internal Func<SkUiNativeTapState>? NativeTapState
+    {
+        get => _tapGate.TapState;
+        set => _tapGate.TapState = value;
+    }
 
     /// <summary>Surface registration with the render loop.</summary>
     internal SkUiMetalSurface Surface => _surface;
@@ -96,6 +106,8 @@ internal sealed class SkUiMetalView : UIView
                       && evt.ButtonMask.HasFlag(UIEventButtonMask.Secondary)
             ? SkUiPointerButtons.Secondary
             : SkUiPointerButtons.None;
+        // Before a release: afterwards the pointer's arena is gone.
+        var taps = NativeTapState?.Invoke() ?? SkUiNativeTapState.None;
         foreach (var item in touches)
         {
             if (item is not UITouch touch)
@@ -111,7 +123,9 @@ internal sealed class SkUiMetalView : UIView
                 Buttons = buttons
             });
         }
-        _gate.Sync(NativeGestureState?.Invoke() ?? SkUiNativeGestureState.None, ended: _touchIds.Count == 0);
+        var ended = _touchIds.Count == 0;
+        _gate.Sync(NativeGestureState?.Invoke() ?? SkUiNativeGestureState.None, ended);
+        _tapGate.SyncTaps(ended ? taps : NativeTapState?.Invoke() ?? SkUiNativeTapState.None, ended);
     }
 
     private void OnScrollGesture(UIPanGestureRecognizer recognizer)
@@ -133,25 +147,42 @@ internal sealed class SkUiMetalView : UIView
 }
 
 /// <summary>
-/// Coordinates drawn gestures with native ancestors (e.g. a MAUI ScrollView around the surface): ancestor pan /
-/// pinch / swipe recognizers must wait for this gate, which begins when a drawn continuous gesture claims the touch
-/// and fails as soon as none can (so the native scroll starts without delay when nothing drawn competes).
+/// Coordinates drawn gestures with native ancestors. Each surface has two gates, which ancestor recognizers must wait for:
+/// <list type="bullet">
+/// <item>the <b>continuous</b> gate holds ancestor pan / pinch / swipe / rotation recognizers (e.g. a MAUI ScrollView
+/// around the surface): it begins when a drawn continuous gesture claims the touch and fails as soon as none can (so the
+/// native scroll starts without delay when nothing drawn competes);</item>
+/// <item>the <b>tap</b> gate holds ancestor tap / long-press recognizers that cancel touches (a MAUI
+/// <c>TapGestureRecognizer</c> on a parent: when it recognized on touch-up, UIKit cancelled the surface's touches and the
+/// drawn tap never fired): it recognizes when the drawn tree takes the touch (a drawn tap completes on release, or a drawn
+/// gesture claimed), so they fail, and fails when nothing drawn takes it, so they recognize as usual.</item>
+/// </list>
 /// </summary>
 internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
 {
+    private readonly bool _taps;
     private int _activeTouches;
     private bool _synced;
+    private bool _deferred;
     private CGPoint _start;
 
-    public SkUiNativeGestureGate()
+    /// <param name="taps"><c>true</c>: the tap gate; <c>false</c>: the continuous gate.</param>
+    public SkUiNativeGestureGate(bool taps = false)
     {
+        _taps = taps;
         CancelsTouchesInView = false;
         DelaysTouchesBegan = false;
         DelaysTouchesEnded = false;
-        Delegate = new GateDelegate();
+        Delegate = new GateDelegate(taps);
     }
 
-    /// <summary>Called after the owner delivered a touch batch to the drawn tree.</summary>
+    /// <summary>
+    /// Tap gate: the drawn tap state now, read when the gate's own touches end. Recognizers see a touch before the view
+    /// does, so the drawn tree has not handled the release yet and still shows whether a drawn tap would take it.
+    /// </summary>
+    public Func<SkUiNativeTapState>? TapState { get; set; }
+
+    /// <summary>Continuous gate: called after the owner delivered a touch batch to the drawn tree.</summary>
     public void Sync(SkUiNativeGestureState state, bool ended)
     {
         _synced = true;
@@ -168,6 +199,25 @@ internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
                 State = ended ? UIGestureRecognizerState.Ended : UIGestureRecognizerState.Changed;
                 break;
         }
+    }
+
+    /// <summary>
+    /// Tap gate: called after the owner delivered a touch batch to the drawn tree; <paramref name="state"/> is the drawn
+    /// tap state <i>before</i> the batch when it ended the touches (after the release the arena is gone).
+    /// </summary>
+    public void SyncTaps(SkUiNativeTapState state, bool ended)
+    {
+        // Only while this gate tracks the touch (a software surface's deliverer may see its end first), or after its own
+        // touches ended before the drawn view saw them (deferred). Not after it decided: the view's release follows the
+        // gate's (the gate is reset by then, and must not decide again).
+        if (State != UIGestureRecognizerState.Possible || (_activeTouches == 0 && !_deferred))
+            return;
+        _synced = true;
+        var final = ended || _deferred;
+        if (state == SkUiNativeTapState.Claimed || (final && state == SkUiNativeTapState.Tapping))
+            State = UIGestureRecognizerState.Ended; // recognized: ancestor taps fail
+        else if (state == SkUiNativeTapState.None || final)
+            State = UIGestureRecognizerState.Failed;
     }
 
     // The gate must also resolve on its own: a touch the drawn view never receives would otherwise leave it
@@ -233,6 +283,11 @@ internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
         _activeTouches = Math.Max(0, _activeTouches - (int)touches.Count);
         if (_activeTouches > 0 && !cancelled)
             return;
+        if (_taps && !cancelled && State == UIGestureRecognizerState.Possible)
+        {
+            FinishTaps();
+            return;
+        }
         State = State switch
         {
             UIGestureRecognizerState.Began or UIGestureRecognizerState.Changed =>
@@ -242,20 +297,45 @@ internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
         };
     }
 
+    private void FinishTaps()
+    {
+        if (!_synced)
+        {
+            // The drawn view has not seen the touch yet: an ancestor UIScrollView delays content touches and delivers
+            // the press and release to the view only now, on touch-up. Decide on its press (SyncTaps); give up if it
+            // never comes (the scroll view kept the touch).
+            _deferred = true;
+            BeginInvokeOnMainThread(() =>
+            {
+                if (_deferred && State == UIGestureRecognizerState.Possible)
+                    State = UIGestureRecognizerState.Failed;
+            });
+            return;
+        }
+        State = TapState?.Invoke() is SkUiNativeTapState.Tapping or SkUiNativeTapState.Claimed
+            ? UIGestureRecognizerState.Ended
+            : UIGestureRecognizerState.Failed;
+    }
+
     public override void Reset()
     {
         base.Reset();
         _activeTouches = 0;
         _synced = false;
+        _deferred = false;
     }
 
     // Reads the owner from the recognizer: holding it would form a managed cycle (view → gate → delegate → view) that
     // the view's native retain of the gate keeps rooted, so the view and everything reachable from it would leak.
-    private sealed class GateDelegate : UIGestureRecognizerDelegate
+    private sealed class GateDelegate(bool taps) : UIGestureRecognizerDelegate
     {
         public override bool ShouldBeRequiredToFailBy(UIGestureRecognizer gestureRecognizer, UIGestureRecognizer otherGestureRecognizer) =>
             gestureRecognizer.View is { } owner && otherGestureRecognizer.View is { } view && !ReferenceEquals(view, owner) && owner.IsDescendantOfView(view)
-            && otherGestureRecognizer is UIPanGestureRecognizer or UIPinchGestureRecognizer or UISwipeGestureRecognizer or UIRotationGestureRecognizer;
+            && (taps
+                // Only those that would cancel the surface's touches: one that does not (MAUI's HideSoftInputOnTapped
+                // recognizer) cannot break a drawn tap and keeps recognizing at once.
+                ? otherGestureRecognizer is UITapGestureRecognizer or UILongPressGestureRecognizer && otherGestureRecognizer.CancelsTouchesInView
+                : otherGestureRecognizer is UIPanGestureRecognizer or UIPinchGestureRecognizer or UISwipeGestureRecognizer or UIRotationGestureRecognizer);
 
         public override bool ShouldRecognizeSimultaneously(UIGestureRecognizer gestureRecognizer, UIGestureRecognizer otherGestureRecognizer) => true;
     }
@@ -263,7 +343,7 @@ internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
 
 /// <summary>
 /// Touch delivery for software (SKCanvasView) surfaces: feeds touches (DIPs) to the drawn tree and then updates the
-/// surface's <see cref="SkUiNativeGestureGate"/>, in that order (a second, unrelated recognizer — SkiaSharp's own —
+/// surface's <see cref="SkUiNativeGestureGate"/>s, in that order (a second, unrelated recognizer — SkiaSharp's own —
 /// gives no ordering guarantee relative to the gate). It never changes state and cannot be prevented, so delivery
 /// continues whatever the gate decides; when a native ancestor scroll view starts dragging, the drawn gesture is
 /// cancelled (a content view would get touchesCancelled from the scroll view; a recognizer does not).
@@ -271,13 +351,15 @@ internal sealed class SkUiNativeGestureGate : UIGestureRecognizer
 internal sealed class SkUiTouchDeliverer : UIGestureRecognizer
 {
     private readonly SkUiNativeGestureGate _gate;
+    private readonly SkUiNativeGestureGate _tapGate;
     private readonly Dictionary<IntPtr, long> _touchIds = [];
     private readonly HashSet<IntPtr> _cancelled = [];
     private long _nextTouchId;
 
-    public SkUiTouchDeliverer(SkUiNativeGestureGate gate)
+    public SkUiTouchDeliverer(SkUiNativeGestureGate gate, SkUiNativeGestureGate tapGate)
     {
         _gate = gate;
+        _tapGate = tapGate;
         CancelsTouchesInView = false;
         DelaysTouchesBegan = false;
         DelaysTouchesEnded = false;
@@ -289,6 +371,13 @@ internal sealed class SkUiTouchDeliverer : UIGestureRecognizer
 
     /// <summary>Drawn-gesture state for the gate.</summary>
     internal Func<SkUiNativeGestureState>? NativeGestureState { get; set; }
+
+    /// <summary>Drawn-tap state for the tap gate (which also reads it when its own touches end).</summary>
+    internal Func<SkUiNativeTapState>? NativeTapState
+    {
+        get => _tapGate.TapState;
+        set => _tapGate.TapState = value;
+    }
 
     public override bool CanBePreventedByGestureRecognizer(UIGestureRecognizer preventingGestureRecognizer) => false;
 
@@ -327,6 +416,8 @@ internal sealed class SkUiTouchDeliverer : UIGestureRecognizer
     {
         if (TouchHandler is not { } handler || View is not { } view)
             return;
+        // Before a release: afterwards the pointer's arena is gone.
+        var taps = NativeTapState?.Invoke() ?? SkUiNativeTapState.None;
         foreach (var item in touches)
         {
             if (item is not UITouch touch)
@@ -350,7 +441,9 @@ internal sealed class SkUiTouchDeliverer : UIGestureRecognizer
             var location = touch.LocationInView(view);
             handler(new SkUiTouchEvent(id, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp), Device: SkUiPointerDevices.From(touch)));
         }
-        _gate.Sync(NativeGestureState?.Invoke() ?? SkUiNativeGestureState.None, ended: _touchIds.Count == 0);
+        var ended = _touchIds.Count == 0;
+        _gate.Sync(NativeGestureState?.Invoke() ?? SkUiNativeGestureState.None, ended);
+        _tapGate.SyncTaps(ended ? taps : NativeTapState?.Invoke() ?? SkUiNativeTapState.None, ended);
     }
 
     private void CancelAll()

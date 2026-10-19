@@ -42,6 +42,9 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
     private bool HandlesDoubleTap => DoubleTapped is not null || WantsDoubleTap?.Invoke() == true;
 
     /// <inheritdoc />
+    protected internal override bool IsDiscrete => true;
+
+    /// <inheritdoc />
     protected internal override bool OnPointerPressed(SkUiPointer pointer)
     {
         if (_pointer is not null || CanTap?.Invoke() == false)
@@ -183,6 +186,8 @@ public class SkUiLongPressGestureRecognizer : SkUiGestureRecognizer
     public TimeSpan? Duration { get; set; }
 
     internal Action<SkUiLongPressedEventArgs>? Handler { get; init; }
+
+    internal override bool HoldsNativeTaps => true;
 
     /// <inheritdoc />
     protected internal override bool OnPointerPressed(SkUiPointer pointer)

@@ -151,6 +151,9 @@ internal sealed class SkUiSliderGestureRecognizer : SkUiGestureRecognizer
     protected internal override bool IsExclusive => true;
 
     /// <inheritdoc />
+    protected internal override bool IsDiscrete => true; // a tap moves the value
+
+    /// <inheritdoc />
     protected internal override bool OnPointerPressed(SkUiPointer pointer)
     {
         if (_pointer is not null)

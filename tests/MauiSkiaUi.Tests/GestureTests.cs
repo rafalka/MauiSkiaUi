@@ -288,6 +288,106 @@ public class GestureTests
     }
 
     [Fact]
+    public void NativeTapStateReflectsDrawnTaps()
+    {
+        // What native ancestor tap / long-press recognizers (a MAUI TapGestureRecognizer around the surface) wait for:
+        // they must fail when a drawn tap takes the touch, and recognize over drawn content that takes no taps.
+        using var clock = new ManualGestureClock();
+        var button = new SkUiButton { Text = "Tap", WidthRequest = 100, HeightRequest = 40, HorizontalOptions = LayoutOptions.Start };
+        var passive = Box(300, 100);
+        var hold = Box(300, 100);
+        var longs = 0;
+        hold.LongPressed += (_, _) => longs++;
+        var core = new SkUiCoreHost { WidthRequest = 100, HeightRequest = 40, HorizontalOptions = LayoutOptions.Start }
+            .SetContent(new SkUiCoreButton().SetText("Core"));
+        var disabled = new SkUiButton { Text = "Off", IsEnabled = false, WidthRequest = 100, HeightRequest = 40, HorizontalOptions = LayoutOptions.Start };
+        var column = new SkUiVerticalStackLayout();
+        foreach (var child in new ISkUiView[] { button, passive, hold, core, disabled, Box(300, 1000) })
+            column.Children.Add(child);
+        var scroll = new SkUiScrollView { Content = column };
+        SkUiTestHelpers.Arrange(scroll, 300, 400);
+        var router = scroll.Router;
+
+        // A drawn button inside a drawn scroller: a release now completes its tap.
+        scroll.Touch(new(1, SkUiTouchAction.Pressed, new Point(20, 35), TimeSpan.Zero));
+        Assert.Equal(SkUiNativeTapState.Tapping, router.NativeTapState);
+        // Past the slop the tap resigns and the scroller claims the drag.
+        scroll.Touch(new(1, SkUiTouchAction.Moved, new Point(20, 15), TimeSpan.FromMilliseconds(10)));
+        scroll.Touch(new(1, SkUiTouchAction.Moved, new Point(20, 1), TimeSpan.FromMilliseconds(20)));
+        Assert.Equal(SkUiNativeTapState.Claimed, router.NativeTapState);
+        scroll.Touch(new(1, SkUiTouchAction.Released, new Point(20, 1), TimeSpan.FromMilliseconds(500)));
+        Assert.Equal(SkUiNativeTapState.None, router.NativeTapState);
+        scroll.ScrollTo(0, 0);
+
+        // Drawn content without taps (the scroller only competes for drags): ancestors' taps recognize.
+        scroll.Touch(new(2, SkUiTouchAction.Pressed, new Point(20, 90), TimeSpan.FromSeconds(1)));
+        Assert.Equal(SkUiNativeTapState.None, router.NativeTapState);
+        scroll.Touch(new(2, SkUiTouchAction.Released, new Point(20, 90), TimeSpan.FromSeconds(1.05)));
+
+        // A long press holds them back until it fires (then it owns the touch); a quick release is not taken.
+        scroll.Touch(new(3, SkUiTouchAction.Pressed, new Point(20, 190), TimeSpan.FromSeconds(2)));
+        Assert.Equal(SkUiNativeTapState.Holding, router.NativeTapState);
+        clock.Advance(SkUiGestureSettings.LongPressDuration);
+        Assert.Equal(1, longs);
+        Assert.Equal(SkUiNativeTapState.Claimed, router.NativeTapState);
+        scroll.Touch(new(3, SkUiTouchAction.Released, new Point(20, 190), TimeSpan.FromSeconds(3)));
+        scroll.Touch(new(4, SkUiTouchAction.Pressed, new Point(20, 190), TimeSpan.FromSeconds(4)));
+        Assert.Equal(SkUiNativeTapState.Holding, router.NativeTapState);
+        scroll.Touch(new(4, SkUiTouchAction.Released, new Point(20, 190), TimeSpan.FromSeconds(4.05)));
+        clock.Advance(SkUiGestureSettings.LongPressDuration);
+
+        // Core controls take taps the same way; a disabled button takes none.
+        scroll.Touch(new(5, SkUiTouchAction.Pressed, new Point(20, 260), TimeSpan.FromSeconds(5)));
+        Assert.Equal(SkUiNativeTapState.Tapping, router.NativeTapState);
+        scroll.Touch(new(5, SkUiTouchAction.Released, new Point(20, 260), TimeSpan.FromSeconds(5.05)));
+        scroll.Touch(new(6, SkUiTouchAction.Pressed, new Point(20, 300), TimeSpan.FromSeconds(6)));
+        Assert.Equal(SkUiNativeTapState.None, router.NativeTapState);
+        scroll.Touch(new(6, SkUiTouchAction.Released, new Point(20, 300), TimeSpan.FromSeconds(6.05)));
+
+        // Two fingers: the strongest state wins (a tap under one, nothing under the other).
+        scroll.Touch(new(7, SkUiTouchAction.Pressed, new Point(20, 90), TimeSpan.FromSeconds(7)));
+        scroll.Touch(new(8, SkUiTouchAction.Pressed, new Point(20, 20), TimeSpan.FromSeconds(7.01)));
+        Assert.Equal(SkUiNativeTapState.Tapping, router.NativeTapState);
+        scroll.Touch(new(8, SkUiTouchAction.Released, new Point(20, 20), TimeSpan.FromSeconds(7.05)));
+        Assert.Equal(SkUiNativeTapState.None, router.NativeTapState);
+        scroll.Touch(new(7, SkUiTouchAction.Released, new Point(20, 90), TimeSpan.FromSeconds(7.06)));
+    }
+
+    [Fact]
+    public void NativeTapStateOfPointerRecognizersAndDoubleTaps()
+    {
+        var canvas = Box(100, 100);
+        canvas.Gestures.Add(new SkUiPointerGestureRecognizer());
+        var observer = Box(100, 100);
+        observer.Gestures.Add(new SkUiPointerGestureRecognizer { BlocksNativeGestures = false });
+        var doubleTap = Box(100, 100);
+        doubleTap.DoubleTapped += (_, _) => { };
+        var column = new SkUiVerticalStackLayout();
+        foreach (var child in new ISkUiView[] { canvas, observer, doubleTap })
+            column.Children.Add(child);
+        var root = new SkUiContentView { Content = column };
+        SkUiTestHelpers.Arrange(root, 100, 300);
+        var router = root.Router;
+
+        // A pointer recognizer that claims on press owns the touch, unless it lets native gestures through.
+        root.Touch(new(1, SkUiTouchAction.Pressed, new Point(10, 10), TimeSpan.Zero));
+        Assert.Equal(SkUiNativeTapState.Claimed, router.NativeTapState);
+        root.Touch(new(1, SkUiTouchAction.Released, new Point(10, 10), TimeSpan.FromMilliseconds(30)));
+        root.Touch(new(2, SkUiTouchAction.Pressed, new Point(10, 110), TimeSpan.FromSeconds(1)));
+        Assert.Equal(SkUiNativeTapState.None, router.NativeTapState);
+        root.Touch(new(2, SkUiTouchAction.Released, new Point(10, 110), TimeSpan.FromSeconds(1.03)));
+
+        // Both taps of a drawn double tap are taken, so an ancestor single (or double) tap fails on each.
+        root.Touch(new(3, SkUiTouchAction.Pressed, new Point(10, 210), TimeSpan.FromSeconds(2)));
+        Assert.Equal(SkUiNativeTapState.Tapping, router.NativeTapState);
+        root.Touch(new(3, SkUiTouchAction.Released, new Point(10, 210), TimeSpan.FromSeconds(2.03)));
+        root.Touch(new(4, SkUiTouchAction.Pressed, new Point(10, 210), TimeSpan.FromSeconds(2.1)));
+        Assert.Equal(SkUiNativeTapState.Tapping, router.NativeTapState);
+        root.Touch(new(4, SkUiTouchAction.Released, new Point(10, 210), TimeSpan.FromSeconds(2.13)));
+        Assert.Equal(SkUiNativeTapState.None, router.NativeTapState);
+    }
+
+    [Fact]
     public void WheelScrollsInnermostScrollerThatCanMove()
     {
         var innerContent = new SkUiVerticalStackLayout();

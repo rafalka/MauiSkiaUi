@@ -340,6 +340,9 @@ internal sealed class SkUiStepperGestures(ISkUiStepButtons model) : SkUiGestureR
     protected internal override bool IsExclusive => _mouse || _holding;
 
     /// <inheritdoc />
+    protected internal override bool IsDiscrete => true;
+
+    /// <inheritdoc />
     protected internal override bool OnPointerPressed(SkUiPointer pointer)
     {
         if (_pointer is not null || Owner is not { } owner)

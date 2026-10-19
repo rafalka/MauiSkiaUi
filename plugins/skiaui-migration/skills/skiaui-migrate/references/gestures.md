@@ -18,6 +18,8 @@ Drawn views get input from SkiaUi's gesture arena, not from native gesture recog
 
 Drawn views log ignored recognizers once (debug output line starting with `SkiaUi:`).
 
+Recognizers on native views *around* a surface root (a page's background `TapGestureRecognizer`, a native `ScrollView`) stay native and need no change. On iOS / Mac Catalyst they yield to drawn gestures: an ancestor tap or long press fires only where no drawn control takes the touch, so a background tap that hides the keyboard still works over labels and empty areas.
+
 ### Swipe with a command per direction
 
 ```xml

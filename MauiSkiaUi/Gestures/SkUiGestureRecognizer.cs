@@ -79,6 +79,21 @@ public abstract class SkUiGestureRecognizer
     /// </summary>
     protected internal virtual bool IsExclusive => false;
 
+    /// <summary>
+    /// Gestures that complete on release (taps): while such a recognizer still tracks a pointer, native ancestor tap and
+    /// long-press recognizers (e.g. a MAUI <c>TapGestureRecognizer</c> on a parent of the surface) wait, and they fail
+    /// when the pointer is released while it still does, so the drawn tap is not cancelled. Over drawn content without
+    /// such a recognizer they recognize as usual. Any recognizer that claims blocks them too, except one that is neither
+    /// exclusive nor discrete.
+    /// </summary>
+    protected internal virtual bool IsDiscrete => false;
+
+    /// <summary>
+    /// Whether tracking a pointer holds native ancestor tap / long-press recognizers back: discrete recognizers, and a
+    /// long press that has not fired yet (it does not take the release, but blocks them once it fires and claims).
+    /// </summary>
+    internal virtual bool HoldsNativeTaps => IsDiscrete;
+
     /// <summary>A pointer pressed on the owner (or a descendant). Return <c>false</c> to stay out of this pointer's arena.</summary>
     protected internal virtual bool OnPointerPressed(SkUiPointer pointer) => true;
 

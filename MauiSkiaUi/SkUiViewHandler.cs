@@ -208,7 +208,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #elif IOS || MACCATALYST
         if (VirtualView.HwAccelerated)
         {
-            _gpu = new SkUiMetalView { TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState };
+            _gpu = new SkUiMetalView { TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState, NativeTapState = GetNativeTapState };
             surfaceNative = _gpu;
         }
         else
@@ -269,8 +269,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         else if (_mauiSurface is SKGLView glView)
             glView.EnableTouchEvents = false;
         _mauiGate = new SkUiNativeGestureGate();
-        _mauiDeliverer = new SkUiTouchDeliverer(_mauiGate) { TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState };
+        _mauiTapGate = new SkUiNativeGestureGate(taps: true);
+        _mauiDeliverer = new SkUiTouchDeliverer(_mauiGate, _mauiTapGate)
+        {
+            TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState, NativeTapState = GetNativeTapState
+        };
         platformSurface.AddGestureRecognizer(_mauiGate);
+        platformSurface.AddGestureRecognizer(_mauiTapGate);
         platformSurface.AddGestureRecognizer(_mauiDeliverer);
         // Wheel and trackpad scrolling (the Metal view has its own). Weak: the view retains the recognizer natively.
         var weak = new WeakReference<SkUiViewHandler>(this);
@@ -316,6 +321,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
 #if IOS || MACCATALYST
     private SkUiNativeGestureGate? _mauiGate;
+    private SkUiNativeGestureGate? _mauiTapGate;
     private SkUiTouchDeliverer? _mauiDeliverer;
 
     private void OnAppleScroll(UIKit.UIPanGestureRecognizer recognizer)
@@ -743,6 +749,9 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             // Waits for a frame the render thread is presenting, so nothing presents after the view is removed.
             _gpu.Surface.Renderer = null;
             _gpu.TouchHandler = null;
+            _gpu.NativeGestureState = null;
+            // The view retains its tap gate natively, which would keep this handler rooted through the callback.
+            _gpu.NativeTapState = null;
             _gpu.RemoveFromSuperview();
         }
 #endif
@@ -772,6 +781,8 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         {
             if (_mauiGate is not null)
                 surfaceNative.RemoveGestureRecognizer(_mauiGate);
+            if (_mauiTapGate is not null)
+                surfaceNative.RemoveGestureRecognizer(_mauiTapGate);
             if (_mauiDeliverer is not null)
                 surfaceNative.RemoveGestureRecognizer(_mauiDeliverer);
             surfaceNative.RemoveFromSuperview();
@@ -780,8 +791,10 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         {
             _mauiDeliverer.TouchHandler = null;
             _mauiDeliverer.NativeGestureState = null;
+            _mauiDeliverer.NativeTapState = null;
         }
         _mauiGate = null;
+        _mauiTapGate = null;
         _mauiDeliverer = null;
 #endif
         _mauiSurface?.Handler?.DisconnectHandler();
@@ -1049,6 +1062,11 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
     private SkUiNativeGestureState GetNativeGestureState() =>
         VirtualView is { } view ? view.Router.NativeState : SkUiNativeGestureState.None;
+
+#if IOS || MACCATALYST
+    private SkUiNativeTapState GetNativeTapState() =>
+        VirtualView is { } view ? view.Router.NativeTapState : SkUiNativeTapState.None;
+#endif
 
 #if ANDROID
     private bool _mauiDisallowingIntercept;

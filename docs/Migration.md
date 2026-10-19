@@ -226,6 +226,8 @@ Other gesture input needs converting. A drawn view that has it writes one `Trace
 
 How drawn gestures resolve: every press runs a **gesture arena** over the views under the finger and their ancestors. The innermost tap wins, a scroll or swipe that moves past the touch slop wins over taps, and a long press wins once it fires. A tappable row with a check box inside therefore behaves the same on every platform, without per-platform workarounds. See [EventMechanism.md](design/EventMechanism.md).
 
+Recognizers on **native views around a surface** (a page's content `Grid` with a background `TapGestureRecognizer`, a `ScrollView`) stay native and keep working. Drawn gestures go first: on iOS and Mac Catalyst a native ancestor's tap or long-press recognizer fires only for touches no drawn control takes (a tap on a label or an empty area still reaches it), and a native pan or swipe waits while a drawn scroller or swipe may take the drag.
+
 Platform behaviors (any `PlatformBehavior`, such as `TouchBehavior`) and effects attach to a native view, which drawn views do not have. Plain behaviors that only use the view's events and properties (for example `EventToCommandBehavior`) keep working.
 
 ### 6. Port custom controls

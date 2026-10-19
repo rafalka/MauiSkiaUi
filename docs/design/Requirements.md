@@ -335,7 +335,7 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 - [x] **Hit region:** hit-testing uses **arranged bounds** (FR-11).
 - [x] **One path:** standalone and hosted modes share the API and rules; only the root maps platform input.
 - [x] **Competition:** gestures compete in a per-pointer arena. Nested scrolling works, controls inside scrollers can drag, contested presses show after `PressDelay`, and multi-touch is independent per pointer.
-- [x] **Native coordination:** native ancestors are coordinated at the surface (Android disallow-intercept; iOS gate recognizer).
+- [x] **Native coordination:** native ancestors are coordinated at the surface (Android disallow-intercept; iOS gate recognizer, and a tap gate that makes ancestor tap / long-press recognizers fail for touches a drawn tap takes).
 - [x] Demo / gallery gesture page: passive label made tappable, `InputTransparent` pass-through, long press / double tap / swipe / pinch, nested scrollers. *(Spread over Core "ScrollView + gestures", `ViewDemoPage` and "Native nesting"; there is no dedicated SkUi* gesture page.)*
 - [x] **Overlays:** taps and text input over `SkUiMauiContentView` overlays stay with the native control. Drags that start on an overlay are also offered to the continuous recognizers (scroll, pan, swipe, pinch) of its drawn ancestors, which may claim them ([EventMechanism.md](EventMechanism.md#drags-that-start-on-a-native-overlay)).
 
