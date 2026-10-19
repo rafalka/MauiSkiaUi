@@ -221,17 +221,15 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
         return Update(ref Model.VerticalTextAlignment, value, nameof(VerticalTextAlignment), measure: true);
     }
 
-    /// <summary>Sets <see cref="MaxLength"/>: longer text is cut.</summary>
+    /// <summary>Sets <see cref="MaxLength"/>: longer text is cut (a numeric entry's value is not).</summary>
     public SkUiCoreInputView SetMaxLength(int value)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(value);
         if (Model.Editor.MaxLength == value)
             return this;
-        Model.Editor.MaxLength = value;
+        var shown = Model.SetMaxLength(value);
         OnPropertyChanged(nameof(MaxLength));
-        if (_text is { } text && text.Length > value)
-            SetText(text[..value]);
-        return this;
+        return shown is null ? this : SetText(shown);
     }
 
     /// <summary>Sets <see cref="IsReadOnly"/>.</summary>

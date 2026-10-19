@@ -536,10 +536,9 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
 
     private void OnMaxLengthChanged(int value)
     {
-        Model.Editor.MaxLength = value;
-        // Text longer than the new limit is cut (as MAUI's entries do).
-        if (Text is { } text && text.Length > value)
-            Text = text[..value];
+        // Text longer than the new limit is cut (as MAUI's entries do; a numeric entry's value is not).
+        if (Model.SetMaxLength(value) is { } shown)
+            SetValue(TextProperty, shown);
     }
 
     private protected virtual void OnIsReadOnlyChanged(bool value) => Model.SetReadOnly(value);

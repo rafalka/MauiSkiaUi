@@ -43,6 +43,9 @@ internal abstract class SkUiNumericEntryModel : ISkUiTextFieldStepOwner
     private ISkUiNumericEntryHost? _host;
     // The entry is setting the field's text itself (not the user, not the app).
     private bool _showing;
+    // The text the entry last showed, as the field shows it (transformed, formatted): MAUI applies a Text set inside a change of
+    // Text after that change (it queues nested sets of one property), past _showing, so the entry's own text comes back as the app's.
+    private string? _shownText;
     // A keystroke is setting the value (ValueChangeMode.OnKeystroke): the text stays as typed.
     private bool _editingValue;
     // The user changed the text since it last showed the value.
@@ -81,6 +84,8 @@ internal abstract class SkUiNumericEntryModel : ISkUiTextFieldStepOwner
         field.Steps = new SkUiTextFieldSteps(field, this, host);
         field.Editor.InputRules = new SkUiNumericInputRules(this);
         field.SelectsAllOnFocusTap = true;
+        // The text shows the value: MaxLength limits typing, it never cuts the value.
+        field.CutsAssignedText = false;
         UpdateKeyboard();
     }
 
@@ -133,6 +138,7 @@ internal abstract class SkUiNumericEntryModel : ISkUiTextFieldStepOwner
     {
         _dirty = false;
         var text = ValueText(IsEditing);
+        _shownText = Field.ShownText(text);
         _showing = true;
         try
         {
@@ -213,6 +219,7 @@ internal abstract class SkUiNumericEntryModel : ISkUiTextFieldStepOwner
     {
         if (_showing)
             return;
+        _shownText = null;
         _dirty = true;
         if (ValueChangeMode != SkUiValueChangeMode.OnKeystroke)
             return;
@@ -227,10 +234,10 @@ internal abstract class SkUiNumericEntryModel : ISkUiTextFieldStepOwner
         }
     }
 
-    /// <summary>The app set the control's text: it is committed as typed text would be.</summary>
+    /// <summary>The app set the control's text: it is committed as typed text would be (not cut to <c>MaxLength</c>).</summary>
     public void TextAssigned()
     {
-        if (_showing)
+        if (_showing || Field.Editor.Text == _shownText)
             return;
         _dirty = true;
         Commit();
