@@ -30,8 +30,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
     internal override bool IsSkeletonContainer => true;
 
-    // Assigned in the constructor; base-constructor property callbacks can run before that.
-    private readonly SkUiScrollController _scroller = null!;
+    private SkUiScrollController? _scroller;
     /// <summary>Registered <see cref="SkUiMauiContentView"/> descendants that need offset sync (avoids O(tree) walks).</summary>
     private List<SkUiMauiContentView>? _overlayDescendants;
     /// <summary>Registered descendants that follow what this scroller shows (virtual layouts).</summary>
@@ -42,14 +41,29 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     /// <summary>Creates a scroller whose motion stops when its surface unloads.</summary>
     public SkUiScrollView()
     {
-        _scroller = new SkUiScrollController(this, InvalidateRender, OnOffsetChanged);
-        _scroller.MovingChanged += OnMovingChanged;
-        _scroller.OverscrollChanged += OnOverscrollReported;
-        _scroller.PullReleased += OnPullReleased;
         Unloaded += (_, _) => CancelInteraction();
     }
 
-    SkUiScrollController ISkUiScrollHost.Scroller => _scroller;
+    /// <summary>
+    /// The scrolling engine, created on first use: property callbacks can run before the constructor (MAUI applies
+    /// app-level implicit styles inside its base constructor).
+    /// </summary>
+    private SkUiScrollController Scroller
+    {
+        get
+        {
+            if (_scroller is null)
+            {
+                _scroller = new SkUiScrollController(this, InvalidateRender, OnOffsetChanged);
+                _scroller.MovingChanged += OnMovingChanged;
+                _scroller.OverscrollChanged += OnOverscrollReported;
+                _scroller.PullReleased += OnPullReleased;
+            }
+            return _scroller;
+        }
+    }
+
+    SkUiScrollController ISkUiScrollHost.Scroller => Scroller;
 
     double ISkUiScrollHost.KeyboardInset { get => KeyboardInset; set => KeyboardInset = value; }
 
@@ -60,11 +74,11 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     /// <summary>Enabled axes; Neither disables scrolling.</summary>
     public ScrollOrientation Orientation { get => (ScrollOrientation)GetValue(OrientationProperty); set => SetValue(OrientationProperty, value); }
     /// <summary>Current horizontal offset in DIPs (updated from the render thread during fling).</summary>
-    public double ScrollX => _scroller.X;
+    public double ScrollX => Scroller.X;
     /// <summary>Current vertical offset in DIPs (updated from the render thread during fling).</summary>
-    public double ScrollY => _scroller.Y;
+    public double ScrollY => Scroller.Y;
     /// <summary>Measured scrollable content extent, including padding.</summary>
-    public Size ContentSize => _scroller.Extent;
+    public Size ContentSize => Scroller.Extent;
     /// <summary>Raised after a clamped offset changes.</summary>
     public event EventHandler<ScrolledEventArgs>? Scrolled;
 
@@ -125,7 +139,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     public static readonly BindableProperty PullEdgesProperty = BindableProperty.Create(nameof(PullEdges), typeof(SkUiScrollEdges),
         typeof(SkUiScrollView), SkUiScrollEdges.None,
         validateValue: (_, value) => ((SkUiScrollEdges)value & ~SkUiScrollEdges.All) == 0,
-        propertyChanged: (view, _, value) => ((SkUiScrollView)view)._scroller.PullEdges = (SkUiScrollEdges)value);
+        propertyChanged: (view, _, value) => ((SkUiScrollView)view).Scroller.PullEdges = (SkUiScrollEdges)value);
 
     /// <summary>
     /// Edges a drag can pull the content past also when it does not overflow or <see cref="Overscroll"/> is
@@ -140,10 +154,10 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     }
 
     /// <summary>Distance shown past the left (negative) or right (positive) edge, in DIPs (see <see cref="Overscrolled"/>).</summary>
-    public double OverscrollX => _scroller.OverscrollX;
+    public double OverscrollX => Scroller.OverscrollX;
 
     /// <summary>Distance shown past the top (negative) or bottom (positive) edge, in DIPs (see <see cref="Overscrolled"/>).</summary>
-    public double OverscrollY => _scroller.OverscrollY;
+    public double OverscrollY => Scroller.OverscrollY;
 
     /// <summary>
     /// Raised when the distance shown past the edges changes: while a drag pulls the content past an edge (by the overscroll
@@ -170,7 +184,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     private void OnOverscrollReported()
     {
         SyncRegisteredOverlays();
-        Overscrolled?.Invoke(this, _scroller.OverscrolledArgs());
+        Overscrolled?.Invoke(this, Scroller.OverscrolledArgs());
     }
 
     private void OnPullReleased(SkUiScrollEdges edge, double distance) =>
@@ -181,22 +195,22 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     /// <see cref="Core.SkUiCoreScrollBar.ThumbColor"/> or <see cref="Core.SkUiCoreScrollBar.IsInteractive"/>); shown by
     /// <see cref="VerticalScrollBarVisibility"/>.
     /// </summary>
-    public Core.SkUiCoreScrollBar VerticalScrollBar => _scroller.ScrollBar(ScrollOrientation.Vertical);
+    public Core.SkUiCoreScrollBar VerticalScrollBar => Scroller.ScrollBar(ScrollOrientation.Vertical);
 
     /// <summary>The horizontal scroll bar; see <see cref="VerticalScrollBar"/>.</summary>
-    public Core.SkUiCoreScrollBar HorizontalScrollBar => _scroller.ScrollBar(ScrollOrientation.Horizontal);
+    public Core.SkUiCoreScrollBar HorizontalScrollBar => Scroller.ScrollBar(ScrollOrientation.Horizontal);
 
     /// <summary>Bindable property for <see cref="SnapPointsType"/>.</summary>
     public static readonly BindableProperty SnapPointsTypeProperty = BindableProperty.Create(nameof(SnapPointsType), typeof(SnapPointsType),
         typeof(SkUiScrollView), SnapPointsType.None,
         validateValue: (_, value) => Enum.IsDefined((SnapPointsType)value),
-        propertyChanged: (view, _, value) => ((SkUiScrollView)view)._scroller.SnapPointsType = (SnapPointsType)value);
+        propertyChanged: (view, _, value) => ((SkUiScrollView)view).Scroller.SnapPointsType = (SnapPointsType)value);
 
     /// <summary>Bindable property for <see cref="SnapPointsAlignment"/>.</summary>
     public static readonly BindableProperty SnapPointsAlignmentProperty = BindableProperty.Create(nameof(SnapPointsAlignment), typeof(SnapPointsAlignment),
         typeof(SkUiScrollView), SnapPointsAlignment.Start,
         validateValue: (_, value) => Enum.IsDefined((SnapPointsAlignment)value),
-        propertyChanged: (view, _, value) => ((SkUiScrollView)view)._scroller.SnapPointsAlignment = (SnapPointsAlignment)value);
+        propertyChanged: (view, _, value) => ((SkUiScrollView)view).Scroller.SnapPointsAlignment = (SnapPointsAlignment)value);
 
     /// <summary>
     /// Whether drags, flings and wheel scrolling end with a child of the content lined up with the viewport (MAUI's
@@ -220,40 +234,40 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     private void OnScrollBarVisibilityChanged(bool horizontal, ScrollBarVisibility value)
     {
         if (horizontal)
-            _scroller.HorizontalScrollBarVisibility = value;
+            Scroller.HorizontalScrollBarVisibility = value;
         else
-            _scroller.VerticalScrollBarVisibility = value;
+            Scroller.VerticalScrollBarVisibility = value;
         // Always reserves a gutter: the content is laid out again.
         InvalidateMeasureOverride();
-        _scroller.ArrangeScrollBars(IsRightToLeft);
+        Scroller.ArrangeScrollBars(IsRightToLeft);
     }
 
     private void OnOverscrollChanged(SkUiOverscrollMode value)
     {
-        _scroller.ClearOverscroll();
-        _scroller.Overscroll = value;
+        Scroller.ClearOverscroll();
+        Scroller.Overscroll = value;
         InvalidateRender(SkUiRenderDirty.Props);
     }
 
     /// <summary>Where the content shows, in local coordinates: the arranged rectangle minus reserved scroll bar gutters.</summary>
-    internal Rect Scrollport => _scroller.Scrollport;
+    internal Rect Scrollport => Scroller.Scrollport;
 
     /// <summary>Offset at which the content is drawn: the scroll offset plus a bounce past the edges (native overlays follow it).</summary>
-    internal Point VisualScrollOffset => new(_scroller.ChildrenOffset.X, _scroller.ChildrenOffset.Y);
+    internal Point VisualScrollOffset => new(Scroller.ChildrenOffset.X, Scroller.ChildrenOffset.Y);
 
     /// <summary>True while a render-thread fling or animated scroll is running.</summary>
-    internal bool IsMotionRunning => _scroller.IsMotionRunning;
+    internal bool IsMotionRunning => Scroller.IsMotionRunning;
 
     /// <summary>How far the running render-thread motion moves per frame (see <see cref="SkUiScrollController.MotionTravel"/>).</summary>
-    internal double MotionTravel => _scroller.IsMotionRunning ? _scroller.MotionTravel : 0;
+    internal double MotionTravel => Scroller.IsMotionRunning ? Scroller.MotionTravel : 0;
 
     /// <summary>True while the user drags this scroller or a fling / animated scroll runs.</summary>
-    public bool IsScrolling => _scroller.IsMoving;
+    public bool IsScrolling => Scroller.IsMoving;
 
     private void OnMovingChanged(bool moving)
     {
         if (SkUiDiagnostics.TraceOn)
-            SkUiDiagnostics.Write($"scroll {AutomationId ?? GetHashCode().ToString()} moving={moving} dragging={_scroller.Dragging} motion={_scroller.IsMotionRunning} offset={_scroller.X:F0},{_scroller.Y:F0} overlays={_overlayDescendants?.Count ?? 0}");
+            SkUiDiagnostics.Write($"scroll {AutomationId ?? GetHashCode().ToString()} moving={moving} dragging={Scroller.Dragging} motion={Scroller.IsMotionRunning} offset={Scroller.X:F0},{Scroller.Y:F0} overlays={_overlayDescendants?.Count ?? 0}");
         if (_overlayDescendants is { Count: > 0 } overlays)
             foreach (var overlay in overlays.ToArray())
                 overlay.NotifyAncestorScrollMotion(moving);
@@ -271,8 +285,8 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     private void OnOrientationChanged(ScrollOrientation value)
     {
         CancelInteraction();
-        _scroller.ClearOverscroll();
-        _scroller.Orientation = value;
+        Scroller.ClearOverscroll();
+        Scroller.Orientation = value;
         InvalidateMeasureOverride();
     }
 
@@ -280,7 +294,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         // Scroll bars that always show reserve gutters beside the content.
-        var (left, right, bottom) = _scroller.Gutters(IsRightToLeft);
+        var (left, right, bottom) = Scroller.Gutters(IsRightToLeft);
         var width = Math.Max(0, widthConstraint - left - right);
         var height = Math.Max(0, heightConstraint - bottom);
         // Across the scroll axis an explicitly sized content keeps its size (clipped), as in MAUI.
@@ -291,41 +305,41 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
             height = SkUiScrollController.CrossConstraint(height, content.Height, content.MaximumHeight, content.Margin.VerticalThickness + inset.VerticalThickness);
         }
         _measureViewport = new Size(width, height);
-        var extent = base.MeasureContent(_scroller.Horizontal ? double.PositiveInfinity : width, _scroller.Vertical ? double.PositiveInfinity : height);
-        var insets = _scroller.EffectiveInsets;
-        extent = _scroller.InsetsVertical
+        var extent = base.MeasureContent(Scroller.Horizontal ? double.PositiveInfinity : width, Scroller.Vertical ? double.PositiveInfinity : height);
+        var insets = Scroller.EffectiveInsets;
+        extent = Scroller.InsetsVertical
             ? new Size(extent.Width, extent.Height + insets.Start + insets.End)
             : new Size(extent.Width + insets.Start + insets.End, extent.Height);
-        _scroller.Extent = extent;
+        Scroller.Extent = extent;
         return new Size(Math.Min(widthConstraint, extent.Width + left + right), Math.Min(heightConstraint, extent.Height + bottom));
     }
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
-        _scroller.Layout(size, IsRightToLeft);
-        var viewport = _scroller.Viewport;
-        var extent = _scroller.Extent;
+        Scroller.Layout(size, IsRightToLeft);
+        var viewport = Scroller.Viewport;
+        var extent = Scroller.Extent;
         // Content stays arranged at its layout origin (after the start inset; mirrored in right-to-left layouts); the offset is a
         // composite-time children translation.
-        var (start, end) = _scroller.EffectiveInsets;
-        var (top, bottom, left, right) = _scroller.InsetsVertical ? (start, end, 0d, 0d) : (0d, 0d, start, end);
+        var (start, end) = Scroller.EffectiveInsets;
+        var (top, bottom, left, right) = Scroller.InsetsVertical ? (start, end, 0d, 0d) : (0d, 0d, start, end);
         LayoutChild?.Arrange(new Rect(
             Padding.Left + left, Padding.Top + top,
             Math.Max(0, Math.Max(extent.Width, viewport.Width) - Padding.HorizontalThickness - left - right),
             Math.Max(0, Math.Max(extent.Height, viewport.Height) - Padding.VerticalThickness - top - bottom)));
         InvalidateRender(SkUiRenderDirty.Props);
-        if (!_rtlStartApplied && IsRightToLeft && _scroller.Horizontal && _scroller.MaxX > 0)
+        if (!_rtlStartApplied && IsRightToLeft && Scroller.Horizontal && Scroller.MaxX > 0)
         {
             _rtlStartApplied = true;
-            _scroller.SetOffset(_scroller.MaxX, _scroller.Y);
+            Scroller.SetOffset(Scroller.MaxX, Scroller.Y);
         }
         else
         {
-            _scroller.Clamp();
+            Scroller.Clamp();
         }
-        _scroller.ArrangeScrollBars(IsRightToLeft);
-        _scroller.OnArranged();
+        Scroller.ArrangeScrollBars(IsRightToLeft);
+        Scroller.OnArranged();
         NotifyScrollListeners();
     }
 
@@ -334,11 +348,11 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     /// the first arrange the viewport is the one the measure offered the content.
     /// </summary>
     internal (double Offset, double Length) VerticalWindow =>
-        (_scroller.Y, _scroller.Bounds == Size.Zero ? _measureViewport.Height : _scroller.Viewport.Height);
+        (Scroller.Y, Scroller.Bounds == Size.Zero ? _measureViewport.Height : Scroller.Viewport.Height);
 
     /// <summary>The horizontal scroll offset and viewport width (physical, in this scroller's children space); see <see cref="VerticalWindow"/>.</summary>
     internal (double Offset, double Length) HorizontalWindow =>
-        (_scroller.X, _scroller.Bounds == Size.Zero ? _measureViewport.Width : _scroller.Viewport.Width);
+        (Scroller.X, Scroller.Bounds == Size.Zero ? _measureViewport.Width : Scroller.Viewport.Width);
 
     /// <summary>
     /// The parts of the viewport covered by views drawn over this scroller, at the start and the end of its scroll axis (a
@@ -349,12 +363,12 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     /// </summary>
     internal (double Start, double End) Insets
     {
-        get => _scroller.Insets;
+        get => Scroller.Insets;
         set
         {
-            if (_scroller.Insets == value)
+            if (Scroller.Insets == value)
                 return;
-            _scroller.Insets = value;
+            Scroller.Insets = value;
             InvalidateMeasureOverride();
         }
     }
@@ -362,19 +376,19 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     /// <summary>The soft keyboard's cover of the viewport's bottom (see <see cref="SkUiScrollController.KeyboardInset"/>), set by the focus manager.</summary>
     internal double KeyboardInset
     {
-        get => _scroller.KeyboardInset;
+        get => Scroller.KeyboardInset;
         set
         {
             // Exact: a layout pass only when the cover changed.
-            if (_scroller.KeyboardInset == value)
+            if (Scroller.KeyboardInset == value)
                 return;
-            _scroller.KeyboardInset = value;
+            Scroller.KeyboardInset = value;
             InvalidateMeasureOverride();
         }
     }
 
     /// <summary>Moves the offset by a layout correction (scroll anchoring; see <see cref="SkUiScrollController.CorrectOffset"/>).</summary>
-    internal void CorrectScrollOffset(double dx, double dy) => _scroller.CorrectOffset(dx, dy);
+    internal void CorrectScrollOffset(double dx, double dy) => Scroller.CorrectOffset(dx, dy);
 
     /// <summary>Registers a descendant that follows this scroller's offset and viewport.</summary>
     internal void RegisterScrollListener(ISkUiScrollListener listener)
@@ -403,7 +417,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
 
     /// <inheritdoc />
     /// <remarks>Includes a gutter on the left (right-to-left), so mirrored content lands right of it.</remarks>
-    internal override double ChildrenSpaceWidth => Math.Max(_scroller.Extent.Width, _scroller.Viewport.Width) + _scroller.ScrollportLeft;
+    internal override double ChildrenSpaceWidth => Math.Max(Scroller.Extent.Width, Scroller.Viewport.Width) + Scroller.ScrollportLeft;
 
     /// <summary>RTL horizontal scrollers start at their logical start (the right end) once per content / direction.</summary>
     private bool _rtlStartApplied;
@@ -416,42 +430,42 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     }
 
     /// <inheritdoc />
-    internal override void OnGetRenderProps(ref SkUiRenderProps props) => _scroller.FillRenderProps(ref props);
+    internal override void OnGetRenderProps(ref SkUiRenderProps props) => Scroller.FillRenderProps(ref props);
 
     /// <inheritdoc />
     internal override void AddRenderChildren(List<ISkUiRenderable> children)
     {
         base.AddRenderChildren(children);
-        _scroller?.AddScrollBars(children);
+        Scroller.AddScrollBars(children);
     }
 
     /// <inheritdoc />
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
     {
         base.CollectGestureRecognizers(recognizers);
-        if (_scroller.Orientation != ScrollOrientation.Neither && _scroller.IsUserScrollEnabled)
-            recognizers.Add(_scroller.Gesture);
+        if (Scroller.Orientation != ScrollOrientation.Neither && Scroller.IsUserScrollEnabled)
+            recognizers.Add(Scroller.Gesture);
     }
 
     /// <inheritdoc />
     internal override void CancelGestures()
     {
         base.CancelGestures();
-        _scroller?.Gesture.Cancel();
+        _scroller?.Gesture.Cancel(); // nothing to cancel before the engine exists
     }
 
     /// <summary>Clamps and sets an offset without remeasuring or rearranging content.</summary>
     public SkUiScrollView ScrollTo(double horizontalOffset, double verticalOffset)
     {
-        _scroller.StopMotion();
-        _scroller.ClearOverscroll();
-        _scroller.SetOffset(horizontalOffset, verticalOffset);
+        Scroller.StopMotion();
+        Scroller.ClearOverscroll();
+        Scroller.SetOffset(horizontalOffset, verticalOffset);
         return this;
     }
 
     /// <summary>Starts a render-thread scroll animation; disposing the returned handle cancels it.</summary>
     public IDisposable AnimateScrollTo(double horizontalOffset, double verticalOffset, TimeSpan duration) =>
-        _scroller.AnimateTo(horizontalOffset, verticalOffset, duration);
+        Scroller.AnimateTo(horizontalOffset, verticalOffset, duration);
 
     /// <summary>
     /// Scrolls immediately or animates over 300 ms on the render thread (MAUI's <c>ScrollToAsync</c>; nothing happens when
@@ -467,7 +481,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         if (!double.IsFinite(verticalOffset))
             throw new ArgumentOutOfRangeException(nameof(verticalOffset));
         RaiseScrollToRequested(() => CreatePositionRequest(horizontalOffset, verticalOffset, animated));
-        return _scroller.ScrollToAsync(horizontalOffset, verticalOffset, animated);
+        return Scroller.ScrollToAsync(horizontalOffset, verticalOffset, animated);
     }
 
     /// <summary>
@@ -494,7 +508,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
             throw new ArgumentException("The element does not belong to this scroll view.", nameof(target));
         if (target is Element element)
             RaiseScrollToRequested(() => CreateElementRequest(element, position, animated));
-        return _scroller.ScrollToTargetAsync(() => GetScrollPosition(target, position), animated);
+        return Scroller.ScrollToTargetAsync(() => GetScrollPosition(target, position), animated);
     }
 
     /// <summary>
@@ -506,7 +520,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
 
     private Point GetScrollPosition(object target, ScrollToPosition position) =>
         SkUiScrollController.GetContentBounds(this, target) is { } bounds
-            ? _scroller.GetOffsetFor(bounds, position)
+            ? Scroller.GetOffsetFor(bounds, position)
             : new Point(ScrollX, ScrollY);
 
     /// <summary>
@@ -552,14 +566,14 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         if (_overlayDescendants.Contains(overlay))
             return;
         _overlayDescendants.Add(overlay);
-        if (_scroller.IsMoving)
+        if (Scroller.IsMoving)
             overlay.NotifyAncestorScrollMotion(true);
     }
 
     /// <summary>Removes a previously registered overlay descendant.</summary>
     internal void UnregisterOverlayDescendant(SkUiMauiContentView overlay)
     {
-        if (_overlayDescendants?.Remove(overlay) == true && _scroller.IsMoving)
+        if (_overlayDescendants?.Remove(overlay) == true && Scroller.IsMoving)
             overlay.NotifyAncestorScrollMotion(false);
     }
 
@@ -576,9 +590,9 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     {
         if (_scroller is null)
             return;
-        _scroller.StopMotion();
-        _scroller.Gesture.Cancel();
-        _scroller.ClearOverscroll();
+        Scroller.StopMotion();
+        Scroller.Gesture.Cancel();
+        Scroller.ClearOverscroll();
     }
 
     /// <inheritdoc />
@@ -593,7 +607,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     /// <inheritdoc />
     protected override void OnContentChanged()
     {
-        _scroller.Reset();
+        Scroller.Reset();
         _rtlStartApplied = false;
         base.OnContentChanged();
         InvalidateRender(SkUiRenderDirty.Props);
@@ -611,10 +625,10 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
     {
         base.OnPopulateSemantics(info);
-        SkUiSemantics.PopulateScroller(info, _scroller);
+        SkUiSemantics.PopulateScroller(info, Scroller);
     }
 
     /// <inheritdoc />
     protected override bool OnSemanticsAction(SkUiSemanticsActions action) =>
-        SkUiSemantics.PerformScroll(_scroller, action) || base.OnSemanticsAction(action);
+        SkUiSemantics.PerformScroll(Scroller, action) || base.OnSemanticsAction(action);
 }

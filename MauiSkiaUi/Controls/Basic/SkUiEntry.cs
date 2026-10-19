@@ -12,7 +12,7 @@ namespace MauiSkiaUi;
 public class SkUiEntry : SkUiInputView
 {
     /// <summary>Creates an empty entry.</summary>
-    public SkUiEntry() : base(multiline: false)
+    public SkUiEntry()
     {
     }
 

@@ -16,7 +16,6 @@ public class SkUiVirtualScrollView : SkUiScrollView, ISkUiVirtualList
     /// <summary>Creates a vertical scroll view with an empty virtual stack.</summary>
     public SkUiVirtualScrollView()
     {
-        Items = new SkUiVirtualVerticalStackLayout();
         Items.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName is nameof(FirstVisibleIndex) or nameof(LastVisibleIndex))
@@ -26,7 +25,8 @@ public class SkUiVirtualScrollView : SkUiScrollView, ISkUiVirtualList
     }
 
     /// <summary>The virtual stack this view scrolls.</summary>
-    public SkUiVirtualVerticalStackLayout Items { get; }
+    // An initializer: the forwarded properties' callbacks can run before the constructor (MAUI applies app-level implicit styles inside its base constructor).
+    public SkUiVirtualVerticalStackLayout Items { get; } = new();
 
     private const string ContentIsItems = $"The content of {nameof(SkUiVirtualScrollView)} is its {nameof(Items)} layout and cannot be replaced; " +
         $"put an {nameof(SkUiVirtualVerticalStackLayout)} in an {nameof(SkUiScrollView)} for other content around the list.";
@@ -53,8 +53,7 @@ public class SkUiVirtualScrollView : SkUiScrollView, ISkUiVirtualList
     protected override void OnContentChanged()
     {
         base.OnContentChanged();
-        // Items is null while the base constructor runs.
-        if (Items is null || ReferenceEquals(base.Content, Items))
+        if (ReferenceEquals(base.Content, Items))
             return;
         System.Diagnostics.Trace.WriteLine($"SkiaUi: {ContentIsItems} The {nameof(Items)} layout was put back.");
         SetValue(ContentProperty, Items);

@@ -153,10 +153,10 @@ public partial class SkUiCollectionView
         // Once each: an item may show in several groups.
         var all = new List<object>();
         var seen = new HashSet<object>();
-        for (var index = 0; index < _model.ItemCount; index++)
+        for (var index = 0; index < Model.ItemCount; index++)
         {
-            var (group, item) = _model.Locate(index);
-            if (_model.ItemAt(group, item) is { } value && seen.Add(value))
+            var (group, item) = Model.Locate(index);
+            if (Model.ItemAt(group, item) is { } value && seen.Add(value))
                 all.Add(value);
         }
         ReplaceSelectedItems(all);
@@ -257,7 +257,7 @@ public partial class SkUiCollectionView
     /// <summary>The containers of the realized items (in grid rows too).</summary>
     private IEnumerable<ItemHost> RealizedItemHosts()
     {
-        foreach (var view in _items.RealizedViews)
+        foreach (var view in ItemsHost.RealizedViews)
             if (view is ItemHost host)
                 yield return host;
             else if (view is GridRowPart row)
@@ -277,7 +277,7 @@ public partial class SkUiCollectionView
     {
         foreach (var host in RealizedItemHosts().Concat(_cellPool.Values.SelectMany(static cells => cells)))
             host.ShowsPressEffect = value;
-        foreach (var view in _items.RecycledViews)
+        foreach (var view in ItemsHost.RecycledViews)
             if (view is ItemHost host)
                 host.ShowsPressEffect = value;
             else if (view is GridRowPart row)
@@ -291,8 +291,8 @@ public partial class SkUiCollectionView
         if (LocateHost(host) is not { } location)
             return;
         var (group, index) = location;
-        var item = _model.ItemAt(group, index);
-        var global = _model.GlobalIndex(group, index);
+        var item = Model.ItemAt(group, index);
+        var global = Model.GlobalIndex(group, index);
         _tapSelecting = item;
         _tapSelectingIndex = global; // the appearance tapped (an item may show in several groups)
         try
@@ -303,7 +303,7 @@ public partial class SkUiCollectionView
         {
             _tapSelecting = null;
         }
-        ItemTapped?.Invoke(this, new SkUiItemTappedEventArgs(item, global, group < 0 ? null : _model.Groups[group].Value));
+        ItemTapped?.Invoke(this, new SkUiItemTappedEventArgs(item, global, group < 0 ? null : Model.Groups[group].Value));
         if (ItemTappedCommand is { } command)
         {
             var parameter = IsSet(ItemTappedCommandParameterProperty) ? ItemTappedCommandParameter : item;
@@ -361,15 +361,15 @@ public partial class SkUiCollectionView
         int rowIndex, slot;
         if (((Element)host).Parent is GridRowPart rowPart)
         {
-            rowIndex = _items.IndexOfRealizedView(rowPart);
+            rowIndex = ItemsHost.IndexOfRealizedView(rowPart);
             slot = rowPart.IndexOf(host);
         }
         else
         {
-            rowIndex = _items.IndexOfRealizedView(host);
+            rowIndex = ItemsHost.IndexOfRealizedView(host);
             slot = 0;
         }
-        if (rowIndex < 0 || slot < 0 || _model.RowAt(rowIndex) is not { Kind: RowKind.Items } row || slot >= row.Count)
+        if (rowIndex < 0 || slot < 0 || Model.RowAt(rowIndex) is not { Kind: RowKind.Items } row || slot >= row.Count)
             return null;
         return (row.Group, row.Start + slot);
     }
@@ -377,16 +377,16 @@ public partial class SkUiCollectionView
     /// <summary>The container of the item at <paramref name="index"/> while it is realized, else <c>null</c>.</summary>
     private ItemHost? RealizedHost(int index)
     {
-        if ((uint)index >= (uint)_model.ItemCount)
+        if ((uint)index >= (uint)Model.ItemCount)
             return null;
-        var (group, item) = _model.Locate(index);
-        var row = _model.RowOfItem(group, item);
+        var (group, item) = Model.Locate(index);
+        var row = Model.RowOfItem(group, item);
         if (row < 0)
             return null;
-        return _items.GetRealizedView(row) switch
+        return ItemsHost.GetRealizedView(row) switch
         {
             ItemHost host => host,
-            GridRowPart rowPart => rowPart.CellAt(item - _model.RowAt(row).Start),
+            GridRowPart rowPart => rowPart.CellAt(item - Model.RowAt(row).Start),
             _ => null
         };
     }
@@ -411,11 +411,11 @@ public partial class SkUiCollectionView
     {
         if (_selectedItem is { } selected
             && (reset || removed!.Cast<object?>().Any(item => Equals(item, selected)))
-            && _model.IndexOfItem(selected) < 0)
+            && Model.IndexOfItem(selected) < 0)
             SelectedItem = null;
         if (_selectedSet.Count == 0)
             return;
-        var gone = _selectedSnapshot.Where(item => (reset || removed!.Cast<object?>().Any(removedItem => Equals(removedItem, item))) && _model.IndexOfItem(item) < 0).ToList();
+        var gone = _selectedSnapshot.Where(item => (reset || removed!.Cast<object?>().Any(removedItem => Equals(removedItem, item))) && Model.IndexOfItem(item) < 0).ToList();
         if (gone.Count > 0)
             ReplaceSelectedItems(_selectedSnapshot.Except(gone).ToArray());
     }

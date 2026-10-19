@@ -199,7 +199,7 @@ public partial class SkUiCollectionView
             {
                 _rows.AddRange(BuildRows(-1));
             }
-            _owner._items.Reset(RowCount);
+            _owner.ItemsHost.Reset(RowCount);
             _owner.OnItemsChanged(removed: null, reset: true);
         }
 
@@ -522,17 +522,17 @@ public partial class SkUiCollectionView
             return true;
         }
 
-        private void Insert(int row, int count) => _owner._items.InsertRows(row, count);
+        private void Insert(int row, int count) => _owner.ItemsHost.InsertRows(row, count);
 
-        private void Remove(int row, int count) => _owner._items.RemoveRows(row, count);
+        private void Remove(int row, int count) => _owner.ItemsHost.RemoveRows(row, count);
 
         private void Replace(int row, int count)
         {
             if (count > 0)
-                _owner._items.ReplaceRows(row, count);
+                _owner.ItemsHost.ReplaceRows(row, count);
         }
 
-        private void Move(int row, int count, int newRow) => _owner._items.MoveRows(row, count, newRow);
+        private void Move(int row, int count, int newRow) => _owner.ItemsHost.MoveRows(row, count, newRow);
 
         /// <summary>A group raised <see cref="INotifyPropertyChanged.PropertyChanged"/>: its expanded state may follow.</summary>
         private void OnGroupPropertyChanged(Group group, string? property)

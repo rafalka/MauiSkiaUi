@@ -22,18 +22,19 @@ namespace MauiSkiaUi;
 /// </remarks>
 public class SkUiIndicatorView : SkUiView
 {
-    private readonly SkUiIndicatorModel _model;
-    private readonly ItemsCounter _counter;
+    private SkUiIndicatorModel? _model;
+    /// <summary>Created on first use: property callbacks can run before the constructor (see <see cref="SkUiView.StyledOr{T}"/>).</summary>
+    private SkUiIndicatorModel Model => _model ??= new SkUiIndicatorModel(this)
+    {
+        IndicatorColor = IndicatorColor,
+        SelectedColor = SelectedIndicatorColor
+    };
+    private ItemsCounter? _counter;
+    private ItemsCounter Counter => _counter ??= new ItemsCounter(this);
 
     /// <summary>Creates an indicator view without items.</summary>
     public SkUiIndicatorView()
     {
-        _model = new SkUiIndicatorModel(this)
-        {
-            IndicatorColor = IndicatorColor,
-            SelectedColor = SelectedIndicatorColor
-        };
-        _counter = new ItemsCounter(this);
     }
 
     #region Properties
@@ -51,7 +52,7 @@ public class SkUiIndicatorView : SkUiView
 
     /// <summary>Bindable property for <see cref="ItemsSource"/>.</summary>
     public static readonly BindableProperty ItemsSourceProperty = BindableProperty.Create(nameof(ItemsSource), typeof(IEnumerable), typeof(SkUiIndicatorView), null,
-        propertyChanged: (view, _, value) => ((SkUiIndicatorView)view)._counter.Observe((IEnumerable?)value));
+        propertyChanged: (view, _, value) => ((SkUiIndicatorView)view).Counter.Observe((IEnumerable?)value));
 
     /// <summary>Bindable property for <see cref="IndicatorColor"/>.</summary>
     public static readonly BindableProperty IndicatorColorProperty = BindableProperty.Create(nameof(IndicatorColor), typeof(Color), typeof(SkUiIndicatorView), null,
@@ -177,8 +178,8 @@ public class SkUiIndicatorView : SkUiView
     private void OnPositionChanged(int previous, int value)
     {
         _ = Carousel; // a collected carousel no longer drives the drawn position
-        _model.Position = value;
-        _model.PositionChanged(previous);
+        Model.Position = value;
+        Model.PositionChanged(previous);
         InvalidatePaint();
         InvalidateSemantics();
     }
@@ -188,7 +189,7 @@ public class SkUiIndicatorView : SkUiView
 
     private void OnCountChanged(int value)
     {
-        _model.Count = value;
+        Model.Count = value;
         // Set, not CoerceValue: MAUI's CoerceValue runs the coercion without applying its result.
         if (value > 0 && Position >= value)
             Position = value - 1;
@@ -198,13 +199,13 @@ public class SkUiIndicatorView : SkUiView
 
     private void OnLookChanged(Action<SkUiIndicatorModel> apply)
     {
-        apply(_model);
+        apply(Model);
         InvalidatePaint();
     }
 
     private void OnSizeChanged(Action<SkUiIndicatorModel> apply)
     {
-        apply(_model);
+        apply(Model);
         InvalidateMeasureOverride();
     }
 
@@ -238,50 +239,50 @@ public class SkUiIndicatorView : SkUiView
             return;
         }
         _carousel = new WeakReference<SkUiCarouselView>(carousel);
-        _model.IsDriven = true;
+        Model.IsDriven = true;
     }
 
     /// <summary>No carousel drives the view any more: it draws its own position, does not wrap, and counts its own items.</summary>
     private void Unlinked()
     {
         _carousel = null;
-        _model.IsDriven = false;
-        var changed = _model.Drive(null) | _model.Wraps;
-        _model.Wraps = false;
+        Model.IsDriven = false;
+        var changed = Model.Drive(null) | Model.Wraps;
+        Model.Wraps = false;
         if (changed)
             InvalidatePaint();
-        _counter.Recount(); // the items of its own source again
+        Counter.Recount(); // the items of its own source again
     }
 
     /// <summary>The linked carousel's scroll position (fractional, in items) and whether it loops.</summary>
     internal void Follow(double position, bool wraps)
     {
-        var changed = _model.Wraps != wraps;
-        _model.Wraps = wraps;
-        if (_model.Drive(position) || changed)
+        var changed = Model.Wraps != wraps;
+        Model.Wraps = wraps;
+        if (Model.Drive(position) || changed)
             InvalidatePaint();
     }
 
     /// <summary>The selection drawn now (tests).</summary>
-    internal double DisplayedPosition => _model.Displayed;
+    internal double DisplayedPosition => Model.Displayed;
 
     #endregion
 
     /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => _model.Measure(widthConstraint, heightConstraint);
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => Model.Measure(widthConstraint, heightConstraint);
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas) => _model.Draw(canvas, (float)Width, (float)Height, IsRightToLeft, IsEnabled);
+    protected override void OnPaintContent(SKCanvas canvas) => Model.Draw(canvas, (float)Width, (float)Height, IsRightToLeft, IsEnabled);
 
     /// <inheritdoc />
-    protected override bool HandlesTap => !_model.IsHidden && _model.Count > 1;
+    protected override bool HandlesTap => !Model.IsHidden && Model.Count > 1;
 
     /// <inheritdoc />
     protected override void OnTapped(SkUiTappedEventArgs args)
     {
         RaiseTapped(args);
         ExecuteTappedCommand();
-        var index = _model.HitTest(args.Position, (float)Width, (float)Height, IsRightToLeft);
+        var index = Model.HitTest(args.Position, (float)Width, (float)Height, IsRightToLeft);
         if (index >= 0)
             Position = index;
     }
@@ -297,13 +298,13 @@ public class SkUiIndicatorView : SkUiView
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
     {
         base.OnPopulateSemantics(info);
-        _model.PopulateSemantics(info);
+        Model.PopulateSemantics(info);
     }
 
     /// <inheritdoc />
     protected override bool OnSemanticsAction(SkUiSemanticsActions action)
     {
-        var target = _model.SemanticsTarget(action);
+        var target = Model.SemanticsTarget(action);
         if (target < 0)
             return base.OnSemanticsAction(action);
         Position = target;
@@ -313,8 +314,8 @@ public class SkUiIndicatorView : SkUiView
     /// <inheritdoc />
     protected override bool OnSemanticsSetValue(double value)
     {
-        var target = _model.SemanticsValue(value);
-        if (target < 0 || target == _model.ClampedPosition)
+        var target = Model.SemanticsValue(value);
+        if (target < 0 || target == Model.ClampedPosition)
             return false;
         Position = target;
         return true;

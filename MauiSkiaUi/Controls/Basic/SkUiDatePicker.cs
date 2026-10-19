@@ -24,11 +24,13 @@ public class SkUiDatePicker : SkUiDateTimePickerBase
     private static readonly DatePickerClosedEventArgs DateClosedArgs = new();
 
     /// <summary>Creates a picker of today's date.</summary>
-    public SkUiDatePicker() : base(SkUiDateTimeKind.Date)
+    public SkUiDatePicker()
     {
         Dates.Value = Date;
         Dates.TextChanged();
     }
+
+    private protected override SkUiDateTimeKind Kind => SkUiDateTimeKind.Date;
 
     /// <summary>Bindable property for <see cref="Date"/> (two-way by default).</summary>
     public static readonly BindableProperty DateProperty = BindableProperty.Create(nameof(Date), typeof(DateTime?), typeof(SkUiDatePicker), null, BindingMode.TwoWay,

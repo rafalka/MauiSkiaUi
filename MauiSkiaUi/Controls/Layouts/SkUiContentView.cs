@@ -16,7 +16,9 @@ public class SkUiContentView : SkUiView, ISkUiTemplatedContent
     private ISkUiView? _content;
     private Thickness _padding;
     private bool _loaded = true;
-    private readonly SkUiContentSlot _main;
+    private SkUiContentSlot? _main;
+    /// <summary>Created on first use: property callbacks can run before the constructor (see <see cref="SkUiView.StyledOr{T}"/>).</summary>
+    private SkUiContentSlot MainSlot => _main ??= new SkUiContentSlot(this, ContentProperty, ContentTemplateProperty);
     private SkUiContentLoading _contentLoading;
     private TimeSpan _contentLoadingDelay;
     private SkUiViewAnimation? _contentLoadedAnimation;
@@ -79,7 +81,6 @@ public class SkUiContentView : SkUiView, ISkUiTemplatedContent
     /// <summary>Creates a GPU-backed composition root when used in the MAUI visual tree.</summary>
     public SkUiContentView()
     {
-        _main = new SkUiContentSlot(this, ContentProperty, ContentTemplateProperty);
         HwAccelerated = true;
     }
 
@@ -188,11 +189,11 @@ public class SkUiContentView : SkUiView, ISkUiTemplatedContent
     private protected virtual void EnsureContentToShow()
     {
         if (_loaded && Parent is not null && CanPresentContent)
-            _main.Ensure();
+            MainSlot.Ensure();
     }
 
     /// <summary>Removes content created from templates (deferring again).</summary>
-    private protected virtual void ClearTemplateContent() => _main.Clear();
+    private protected virtual void ClearTemplateContent() => MainSlot.Clear();
 
     /// <summary>Attaches <see cref="ContentToShow"/> (created from its template if needed), once loaded.</summary>
     private protected void RefreshContent()
@@ -205,9 +206,9 @@ public class SkUiContentView : SkUiView, ISkUiTemplatedContent
 
     private void OnContentPropertyChanged(ISkUiView? value)
     {
-        _main.OnContentChanged();
+        MainSlot.OnContentChanged();
         // Cleared by the app: the template (if any) provides the content again.
-        if (value is null && !_main.IsSetting)
+        if (value is null && !MainSlot.IsSetting)
             RefreshContent();
         else if (_loaded)
             AttachContent(ContentToShow);
@@ -336,7 +337,7 @@ public class SkUiContentView : SkUiView, ISkUiTemplatedContent
 
     private void OnContentTemplateChanged()
     {
-        _main.OnTemplateChanged();
+        MainSlot.OnTemplateChanged();
         RefreshContent();
     }
 
@@ -346,7 +347,7 @@ public class SkUiContentView : SkUiView, ISkUiTemplatedContent
         base.OnBindingContextChanged();
         // A selector picks by the binding context: a new context may need another template (as items of MAUI's
         // CollectionView and BindableLayout get). The same template keeps its content, which just rebinds.
-        if (_main.Reselect())
+        if (MainSlot.Reselect())
             RefreshContent();
     }
 

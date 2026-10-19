@@ -47,7 +47,7 @@ public partial class SkUiCollectionView
         if (tapped is not null)
         {
             if (IsSelected(tapped) && RowOfTapped() is >= 0 and var row)
-                _items.ScrollToIndex(row, ScrollToPosition.MakeVisible, animated: true);
+                ItemsHost.ScrollToIndex(row, ScrollToPosition.MakeVisible, animated: true);
             return;
         }
         RevealSelection(animated: true);
@@ -73,28 +73,28 @@ public partial class SkUiCollectionView
     {
         if (_tappedSelection is not { } item)
             return -1;
-        if (_tappedIndex >= 0 && _tappedIndex < _model.ItemCount)
+        if (_tappedIndex >= 0 && _tappedIndex < Model.ItemCount)
         {
-            var (group, index) = _model.Locate(_tappedIndex);
-            if (Equals(_model.ItemAt(group, index), item))
-                return _model.RowOfItem(group, index);
+            var (group, index) = Model.Locate(_tappedIndex);
+            if (Equals(Model.ItemAt(group, index), item))
+                return Model.RowOfItem(group, index);
         }
         return RowOfItem(item);
     }
 
     private int RowOfItem(object item)
     {
-        var index = _model.IndexOfItem(item);
+        var index = Model.IndexOfItem(item);
         if (index < 0)
             return -1;
-        var (group, inGroup) = _model.Locate(index);
-        return _model.RowOfItem(group, inGroup);
+        var (group, inGroup) = Model.Locate(index);
+        return Model.RowOfItem(group, inGroup);
     }
 
     /// <summary>Scrolls the selection into view (see <see cref="KeepSelectionVisible"/>); waits for the first layout.</summary>
     private void RevealSelection(bool animated)
     {
-        if (!_items.HasWindow)
+        if (!ItemsHost.HasWindow)
         {
             _revealPending = true;
             return;
@@ -103,7 +103,7 @@ public partial class SkUiCollectionView
         if (_selectionMode is SkUiSelectionMode.Single or SkUiSelectionMode.SingleDeselect)
         {
             if (_selectedItem is { } selected && (Equals(selected, _tappedSelection) ? RowOfTapped() : RowOfItem(selected)) is >= 0 and var row)
-                _items.ScrollToIndex(row, ScrollToPosition.MakeVisible, animated);
+                ItemsHost.ScrollToIndex(row, ScrollToPosition.MakeVisible, animated);
             return;
         }
         if (_selectionMode != SkUiSelectionMode.Multiple || _selectedSet.Count == 0)
@@ -113,14 +113,14 @@ public partial class SkUiCollectionView
         // the items: a large selection costs no lookups per item. before[i]: the selected items in rows[0..i).
         var rows = new List<int>();
         var before = new List<int> { 0 };
-        for (var row = 0; row < _model.RowCount; row++)
+        for (var row = 0; row < Model.RowCount; row++)
         {
-            var current = _model.RowAt(row);
+            var current = Model.RowAt(row);
             if (current.Kind != RowKind.Items)
                 continue;
             var selected = 0;
             for (var slot = 0; slot < current.Count; slot++)
-                if (_model.ItemAt(current.Group, current.Start + slot) is { } item && _selectedSet.Contains(item))
+                if (Model.ItemAt(current.Group, current.Start + slot) is { } item && _selectedSet.Contains(item))
                     selected++;
             if (selected == 0)
                 continue;
@@ -134,13 +134,13 @@ public partial class SkUiCollectionView
         var focus = focusRow >= 0 ? Math.Max(0, rows.IndexOf(focusRow)) : 0;
 
         // The band the sticky parts leave uncovered, in item coordinates: a sticky group header covers the start too.
-        var (insetStart, insetEnd) = _scroller.Insets;
+        var (insetStart, insetEnd) = Scroller.Insets;
         insetStart += StickyGroupInset(rows[focus]);
         var band = Math.Max(0, (_horizontal ? Controller.Viewport.Width : Controller.Viewport.Height) - insetStart - insetEnd);
-        var visibleStart = _items.VisibleStart + insetStart;
+        var visibleStart = ItemsHost.VisibleStart + insetStart;
         var visibleEnd = visibleStart + band;
-        double Start(int index) => _items.RowOffset(rows[index]);
-        double End(int index) => _items.RowOffset(rows[index]) + _items.RowSize(rows[index]);
+        double Start(int index) => ItemsHost.RowOffset(rows[index]);
+        double End(int index) => ItemsHost.RowOffset(rows[index]) + ItemsHost.RowSize(rows[index]);
 
         // The window of selected rows that fits the band, contains the focus and holds the most selected items.
         // Ties keep the window that starts at the focus (a selection set by the app shows from its start).
@@ -164,8 +164,8 @@ public partial class SkUiCollectionView
         if (focusShown && shown >= Selected(bestFirst, bestLast))
             return;
         if (Start(bestFirst) < visibleStart)
-            _items.ScrollToIndex(rows[bestFirst], ScrollToPosition.Start, animated);
+            ItemsHost.ScrollToIndex(rows[bestFirst], ScrollToPosition.Start, animated);
         else
-            _items.ScrollToIndex(rows[bestLast], ScrollToPosition.End, animated);
+            ItemsHost.ScrollToIndex(rows[bestLast], ScrollToPosition.End, animated);
     }
 }

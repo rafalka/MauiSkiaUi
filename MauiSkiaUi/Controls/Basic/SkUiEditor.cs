@@ -9,9 +9,11 @@ namespace MauiSkiaUi;
 public class SkUiEditor : SkUiInputView
 {
     /// <summary>Creates an empty editor.</summary>
-    public SkUiEditor() : base(multiline: true)
+    public SkUiEditor()
     {
     }
+
+    private protected override bool IsMultiline => true;
 
     /// <summary>Bindable property for <see cref="AutoSize"/>.</summary>
     public static readonly BindableProperty AutoSizeProperty = BindableProperty.Create(nameof(AutoSize), typeof(EditorAutoSizeOption), typeof(SkUiEditor),

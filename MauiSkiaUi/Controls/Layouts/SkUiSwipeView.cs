@@ -114,7 +114,6 @@ public partial class SkUiSwipeView : SkUiView
     public SkUiSwipeView()
     {
         HwAccelerated = true;
-        ClipToBounds = true; // as MAUI's platform views: items and the moved content stay inside
         _ancestorMovingChanged = OnAncestorMovingChanged;
         _motion = new SkUiTween(new MotionHost(this));
         _contentPart = new ContentPart();
@@ -122,6 +121,9 @@ public partial class SkUiSwipeView : SkUiView
         foreach (var side in Sides)
             OnItemsChanged(side, null, GetItems(side)); // the default collections are created, not set
     }
+
+    // As MAUI's platform views: items and the moved content stay inside.
+    private protected override bool DefaultClipToBounds => true;
 
     /// <summary>The view that is swiped.</summary>
     public ISkUiView? Content

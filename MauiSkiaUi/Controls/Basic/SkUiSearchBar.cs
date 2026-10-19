@@ -11,10 +11,14 @@ namespace MauiSkiaUi;
 public class SkUiSearchBar : SkUiInputView
 {
     /// <summary>Creates an empty search bar.</summary>
-    public SkUiSearchBar() : base(multiline: false)
+    public SkUiSearchBar()
     {
-        Model.IsSearch = true;
-        Model.ReturnType = ReturnType.Search;
+    }
+
+    private protected override void OnModelCreated(SkUiTextFieldModel model)
+    {
+        model.IsSearch = true;
+        model.ReturnType = ReturnType.Search; // the default of ReturnTypeProperty; a style applies its own after this
     }
 
     /// <summary>Bindable property for <see cref="SearchCommand"/>.</summary>

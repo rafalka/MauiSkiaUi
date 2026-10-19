@@ -41,18 +41,20 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
     internal override bool IsSkeletonContainer => true;
 
-    private readonly ItemsPart _items;
-    private readonly ItemsModel _model;
-    private readonly SkUiScrollView _scroller;
-    private readonly BodyPart _body;
+    // The parts are created on first use (CreateParts): property callbacks can run before the constructor (MAUI applies
+    // app-level implicit styles inside its base constructor; see SkUiView.StyledOr).
+    private bool _partsCreated;
+    private ItemsPart? _items;
+    private ItemsModel? _model;
+    private SkUiScrollView? _scroller;
+    private BodyPart? _body;
     // Created the first time they show a view: most lists have no header or footer, fewer have sticky ones.
     private StickyHost? _stickyHeaderHost;
     private StickyHost? _stickyFooterHost;
-    private readonly SkUiPullToRefresh _refresh;
-    private readonly SkUiRefreshLayer _refreshLayer;
-    private readonly SkUiContentSlot _headerSlot;
-    private readonly SkUiContentSlot _footerSlot;
-    private readonly SkUiContentSlot _emptySlot;
+    private SkUiPullToRefresh? _refresh;
+    private SkUiContentSlot? _headerSlot;
+    private SkUiContentSlot? _footerSlot;
+    private SkUiContentSlot? _emptySlot;
     private DataTemplate? _itemTemplate;
     private bool _horizontal;
     private double _spanSpacing;
@@ -64,9 +66,25 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     public SkUiCollectionView()
     {
         HwAccelerated = true;
-        _headerSlot = new SkUiContentSlot(this, HeaderProperty, HeaderTemplateProperty);
-        _footerSlot = new SkUiContentSlot(this, FooterProperty, FooterTemplateProperty);
-        _emptySlot = new SkUiContentSlot(this, EmptyViewProperty, EmptyViewTemplateProperty);
+        AttachChild(Scroller);
+        AttachChild(Refresh.Layer);
+        UpdateEmpty();
+    }
+
+    private ItemsPart ItemsHost { get { CreateParts(); return _items!; } }
+    private ItemsModel Model { get { CreateParts(); return _model!; } }
+    private BodyPart Body { get { CreateParts(); return _body!; } }
+    private SkUiScrollView Scroller { get { CreateParts(); return _scroller!; } }
+    private SkUiPullToRefresh Refresh { get { CreateParts(); return _refresh!; } }
+    private SkUiContentSlot HeaderSlot => _headerSlot ??= new SkUiContentSlot(this, HeaderProperty, HeaderTemplateProperty);
+    private SkUiContentSlot FooterSlot => _footerSlot ??= new SkUiContentSlot(this, FooterProperty, FooterTemplateProperty);
+    private SkUiContentSlot EmptySlot => _emptySlot ??= new SkUiContentSlot(this, EmptyViewProperty, EmptyViewTemplateProperty);
+
+    /// <summary>Creates the items, their model, the body and its scroller, and the pull to refresh, once (in this order: each part may read the ones before).</summary>
+    private void CreateParts()
+    {
+        if (_partsCreated) return;
+        _partsCreated = true;
         _items = new ItemsPart(this);
         _items.PropertyChanged += (_, args) =>
         {
@@ -84,14 +102,10 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
                 OnPropertyChanged(nameof(IsScrolling));
         };
         _refresh = new SkUiPullToRefresh(this);
-        _refresh.PullThrough(Controller);
-        _refreshLayer = _refresh.Layer;
-        AttachChild(_scroller);
-        AttachChild(_refreshLayer);
-        UpdateEmpty();
+        _refresh.PullThrough(((ISkUiScrollHost)_scroller).Scroller);
     }
 
-    private SkUiScrollController Controller => ((ISkUiScrollHost)_scroller).Scroller;
+    private SkUiScrollController Controller => ((ISkUiScrollHost)Scroller).Scroller;
 
     #region Items
 
@@ -99,7 +113,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     private static BindableProperty ForwardedToItems(BindableProperty itemsProperty, BindableProperty.ValidateValueDelegate? validate = null) =>
         BindableProperty.Create(itemsProperty.PropertyName, itemsProperty.ReturnType, typeof(SkUiCollectionView), itemsProperty.DefaultValue,
             validateValue: validate,
-            propertyChanged: (view, _, value) => ((SkUiCollectionView)view)._items.SetValue(itemsProperty, value));
+            propertyChanged: (view, _, value) => ((SkUiCollectionView)view).ItemsHost.SetValue(itemsProperty, value));
 
     /// <summary>Bindable property for <see cref="ItemsSource"/>.</summary>
     public static readonly BindableProperty ItemsSourceProperty = BindableProperty.Create(nameof(ItemsSource), typeof(IEnumerable), typeof(SkUiCollectionView), null,
@@ -198,10 +212,10 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     }
 
     /// <inheritdoc cref="SkUiVirtualVerticalStackLayoutBase.RemainingItemsThresholdReached" />
-    public event EventHandler? RemainingItemsThresholdReached { add => _items.RemainingItemsThresholdReached += value; remove => _items.RemainingItemsThresholdReached -= value; }
+    public event EventHandler? RemainingItemsThresholdReached { add => ItemsHost.RemainingItemsThresholdReached += value; remove => ItemsHost.RemainingItemsThresholdReached -= value; }
 
     /// <summary>The number of items (in a grouped list, of all groups, collapsed ones included).</summary>
-    public int ItemCount => _model.ItemCount;
+    public int ItemCount => Model.ItemCount;
 
     /// <summary>The first item that shows (at least partly; in a grid, the first of its row), or -1. Group headers and footers are not items.</summary>
     public int FirstVisibleIndex => _firstVisible;
@@ -222,9 +236,9 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     public void RemeasureItem(int index)
     {
         CheckIndex(index);
-        var (group, item) = _model.Locate(index);
-        if (_model.RowOfItem(group, item) is >= 0 and var row)
-            _items.RemeasureItem(row);
+        var (group, item) = Model.Locate(index);
+        if (Model.RowOfItem(group, item) is >= 0 and var row)
+            ItemsHost.RemeasureItem(row);
     }
 
     /// <summary>
@@ -240,13 +254,13 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         if (!Enum.IsDefined(position))
             throw new ArgumentOutOfRangeException(nameof(position));
         CheckIndex(index);
-        var (group, item) = _model.Locate(index);
-        if (group >= 0 && !_model.Groups[group].Expanded)
+        var (group, item) = Model.Locate(index);
+        if (group >= 0 && !Model.Groups[group].Expanded)
             ChangeGroupExpanded(group, true, fromGroup: false);
-        var row = _model.RowOfItem(group, item);
+        var row = Model.RowOfItem(group, item);
         if (row < 0)
-            row = _model.HeaderRowOf(group);
-        return row < 0 ? Task.CompletedTask : _items.ScrollToIndex(row, position, animated);
+            row = Model.HeaderRowOf(group);
+        return row < 0 ? Task.CompletedTask : ItemsHost.ScrollToIndex(row, position, animated);
     }
 
     /// <summary>
@@ -256,7 +270,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// </summary>
     public Task ScrollToItem(object? item, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true)
     {
-        var index = _model.IndexOfItem(item);
+        var index = Model.IndexOfItem(item);
         return index < 0 ? Task.CompletedTask : ScrollToIndex(index, position, animated);
     }
 
@@ -269,7 +283,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     {
         if (group is null)
             return ScrollToItem(item, position, animated);
-        var index = _model.IndexOfGroup(group) is >= 0 and var inGroup ? _model.IndexOfItem(item, inGroup) : -1;
+        var index = Model.IndexOfGroup(group) is >= 0 and var inGroup ? Model.IndexOfItem(item, inGroup) : -1;
         return index < 0 ? Task.CompletedTask : ScrollToIndex(index, position, animated);
     }
 
@@ -281,16 +295,16 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     private void CheckIndex(int index)
     {
-        if ((uint)index >= (uint)_model.ItemCount)
+        if ((uint)index >= (uint)Model.ItemCount)
             throw new ArgumentOutOfRangeException(nameof(index), index, "The index is not an item of the list.");
     }
 
     private void OnItemsSourceChanged(IEnumerable? value)
     {
         _userScrolled = false;
-        _model.SetSource(value);
+        Model.SetSource(value);
         // Recycled views keep their last item until rebound (as MAUI's CollectionView); items of a replaced source go.
-        foreach (var view in _items.RecycledViews.Concat(_cellPool.Values.SelectMany(static cells => cells)))
+        foreach (var view in ItemsHost.RecycledViews.Concat(_cellPool.Values.SelectMany(static cells => cells)))
         {
             ((BindableObject)view).BindingContext = null;
             if (view is GridRowPart row)
@@ -303,15 +317,15 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     {
         _itemTemplate = value;
         // Views of the old templates go (after the rows released them); every row is measured again with the new ones.
-        _model.Rebuild();
+        Model.Rebuild();
         DropViews();
-        _body.PlaceholderHost?.Clear(); // made again from the new template
+        Body.PlaceholderHost?.Clear(); // made again from the new template
     }
 
     /// <summary>Drops recycled views and grid cells (their templates no longer create the same views).</summary>
     private void DropViews()
     {
-        _items.DropRecycled();
+        ItemsHost.DropRecycled();
         _cellPool.Clear();
         _kindKeys.Clear();
     }
@@ -330,15 +344,15 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     private void OnVisibleRowsChanged()
     {
         int first = -1, last = -1;
-        var (firstRow, lastRow) = (_items.FirstVisibleIndex, _items.LastVisibleIndex);
-        if (firstRow >= 0 && lastRow < _model.RowCount)
+        var (firstRow, lastRow) = (ItemsHost.FirstVisibleIndex, ItemsHost.LastVisibleIndex);
+        if (firstRow >= 0 && lastRow < Model.RowCount)
         {
             for (var row = firstRow; row <= lastRow && first < 0; row++)
-                if (_model.RowAt(row) is { Kind: RowKind.Items } items)
-                    first = _model.GlobalIndex(items.Group, items.Start);
+                if (Model.RowAt(row) is { Kind: RowKind.Items } items)
+                    first = Model.GlobalIndex(items.Group, items.Start);
             for (var row = lastRow; row >= firstRow && last < 0; row--)
-                if (_model.RowAt(row) is { Kind: RowKind.Items } items)
-                    last = _model.GlobalIndex(items.Group, items.Start + items.Count - 1);
+                if (Model.RowAt(row) is { Kind: RowKind.Items } items)
+                    last = Model.GlobalIndex(items.Group, items.Start + items.Count - 1);
         }
         CheckLoadMore();
         if (first == _firstVisible && last == _lastVisible)
@@ -400,23 +414,23 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     private void OnOrientationChanged(ItemsLayoutOrientation value)
     {
         _horizontal = value == ItemsLayoutOrientation.Horizontal;
-        _items.IsHorizontal = _horizontal;
-        _scroller.Orientation = _horizontal ? ScrollOrientation.Horizontal : ScrollOrientation.Vertical;
-        _refresh.PullEnabled = IsPullToRefreshEnabled && !_horizontal;
-        _body.InvalidateBody();
+        ItemsHost.IsHorizontal = _horizontal;
+        Scroller.Orientation = _horizontal ? ScrollOrientation.Horizontal : ScrollOrientation.Vertical;
+        Refresh.PullEnabled = IsPullToRefreshEnabled && !_horizontal;
+        Body.InvalidateBody();
         InvalidateMeasure();
     }
 
     private void OnSpanSpacingChanged(double value)
     {
         _spanSpacing = value;
-        _items.ForgetItemSizes();
+        ItemsHost.ForgetItemSizes();
     }
 
     /// <summary>The structure of the rows changed (grouping, span, group templates): every row is built again.</summary>
     private void ApplyStructure(bool templatesChanged = false)
     {
-        _model.Configure(IsGrouped, Span, IsGrouped && GroupHeaderTemplate is not null, IsGrouped && GroupFooterTemplate is not null, force: templatesChanged);
+        Model.Configure(IsGrouped, Span, IsGrouped && GroupHeaderTemplate is not null, IsGrouped && GroupFooterTemplate is not null, force: templatesChanged);
         DropViews();
     }
 
@@ -428,19 +442,19 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     public static readonly BindableProperty VerticalScrollBarVisibilityProperty = BindableProperty.Create(nameof(VerticalScrollBarVisibility),
         typeof(ScrollBarVisibility), typeof(SkUiCollectionView), ScrollBarVisibility.Default,
         validateValue: (_, value) => Enum.IsDefined((ScrollBarVisibility)value),
-        propertyChanged: (view, _, value) => ((SkUiCollectionView)view)._scroller.VerticalScrollBarVisibility = (ScrollBarVisibility)value);
+        propertyChanged: (view, _, value) => ((SkUiCollectionView)view).Scroller.VerticalScrollBarVisibility = (ScrollBarVisibility)value);
 
     /// <summary>Bindable property for <see cref="HorizontalScrollBarVisibility"/>.</summary>
     public static readonly BindableProperty HorizontalScrollBarVisibilityProperty = BindableProperty.Create(nameof(HorizontalScrollBarVisibility),
         typeof(ScrollBarVisibility), typeof(SkUiCollectionView), ScrollBarVisibility.Default,
         validateValue: (_, value) => Enum.IsDefined((ScrollBarVisibility)value),
-        propertyChanged: (view, _, value) => ((SkUiCollectionView)view)._scroller.HorizontalScrollBarVisibility = (ScrollBarVisibility)value);
+        propertyChanged: (view, _, value) => ((SkUiCollectionView)view).Scroller.HorizontalScrollBarVisibility = (ScrollBarVisibility)value);
 
     /// <summary>Bindable property for <see cref="Overscroll"/>.</summary>
     public static readonly BindableProperty OverscrollProperty = BindableProperty.Create(nameof(Overscroll), typeof(SkUiOverscrollMode),
         typeof(SkUiCollectionView), SkUiOverscrollMode.Default,
         validateValue: (_, value) => Enum.IsDefined((SkUiOverscrollMode)value),
-        propertyChanged: (view, _, value) => ((SkUiCollectionView)view)._scroller.Overscroll = (SkUiOverscrollMode)value);
+        propertyChanged: (view, _, value) => ((SkUiCollectionView)view).Scroller.Overscroll = (SkUiOverscrollMode)value);
 
     /// <summary>The scroll bar of a vertical list (MAUI's visibility values; see <see cref="SkUiScrollView.VerticalScrollBarVisibility"/>).</summary>
     public ScrollBarVisibility VerticalScrollBarVisibility
@@ -460,20 +474,20 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     public SkUiOverscrollMode Overscroll { get => (SkUiOverscrollMode)GetValue(OverscrollProperty); set => SetValue(OverscrollProperty, value); }
 
     /// <summary>The vertical scroll offset in DIPs (the header, when not sticky, scrolls with the items).</summary>
-    public double ScrollY => _scroller.ScrollY;
+    public double ScrollY => Scroller.ScrollY;
 
     /// <summary>The horizontal scroll offset in DIPs (of a horizontal list).</summary>
-    public double ScrollX => _scroller.ScrollX;
+    public double ScrollX => Scroller.ScrollX;
 
     /// <summary>True while the user drags the list or a fling / animated scroll runs.</summary>
-    public bool IsScrolling => _scroller.IsScrolling;
+    public bool IsScrolling => Scroller.IsScrolling;
 
     /// <summary>Raised after the scroll offset changes.</summary>
     public event EventHandler<ScrolledEventArgs>? Scrolled;
 
     /// <summary>Scrolls to an offset along the list's axis in DIPs, animated on the render thread or at once (a drag or another scroll cancels the task).</summary>
     public Task ScrollToAsync(double offset, bool animated = true) =>
-        _horizontal ? _scroller.ScrollToAsync(offset, 0, animated) : _scroller.ScrollToAsync(0, offset, animated);
+        _horizontal ? Scroller.ScrollToAsync(offset, 0, animated) : Scroller.ScrollToAsync(0, offset, animated);
 
     private void OnScrollerScrolled(object? sender, ScrolledEventArgs args)
     {
@@ -511,7 +525,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     /// <summary>Bindable property for <see cref="HeaderTemplate"/>.</summary>
     public static readonly BindableProperty HeaderTemplateProperty = BindableProperty.Create(nameof(HeaderTemplate), typeof(DataTemplate), typeof(SkUiCollectionView), null,
-        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable).OnTemplateChanged(((SkUiCollectionView)bindable)._headerSlot));
+        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable).OnTemplateChanged(((SkUiCollectionView)bindable).HeaderSlot));
 
     /// <summary>Bindable property for <see cref="IsStickyHeader"/>.</summary>
     public static readonly BindableProperty IsStickyHeaderProperty = BindableProperty.Create(nameof(IsStickyHeader), typeof(bool), typeof(SkUiCollectionView), false,
@@ -522,7 +536,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     /// <summary>Bindable property for <see cref="FooterTemplate"/>.</summary>
     public static readonly BindableProperty FooterTemplateProperty = BindableProperty.Create(nameof(FooterTemplate), typeof(DataTemplate), typeof(SkUiCollectionView), null,
-        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable).OnTemplateChanged(((SkUiCollectionView)bindable)._footerSlot));
+        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable).OnTemplateChanged(((SkUiCollectionView)bindable).FooterSlot));
 
     /// <summary>Bindable property for <see cref="IsStickyFooter"/>.</summary>
     public static readonly BindableProperty IsStickyFooterProperty = BindableProperty.Create(nameof(IsStickyFooter), typeof(bool), typeof(SkUiCollectionView), false,
@@ -533,7 +547,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     /// <summary>Bindable property for <see cref="EmptyViewTemplate"/>.</summary>
     public static readonly BindableProperty EmptyViewTemplateProperty = BindableProperty.Create(nameof(EmptyViewTemplate), typeof(DataTemplate), typeof(SkUiCollectionView), null,
-        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable).OnTemplateChanged(((SkUiCollectionView)bindable)._emptySlot));
+        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable).OnTemplateChanged(((SkUiCollectionView)bindable).EmptySlot));
 
     /// <summary>A drawn view before the items: it scrolls with them, or stays at the start with <see cref="IsStickyHeader"/>.</summary>
     public ISkUiView? Header { get => (ISkUiView?)GetValue(HeaderProperty); set => SetValue(HeaderProperty, value); }
@@ -606,21 +620,21 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     private void OnHeaderChanged()
     {
-        _headerSlot.OnContentChanged();
-        if (Header is null && !_headerSlot.IsSetting && Parent is not null)
-            _headerSlot.Ensure(); // cleared by the app: the template provides it again
+        HeaderSlot.OnContentChanged();
+        if (Header is null && !HeaderSlot.IsSetting && Parent is not null)
+            HeaderSlot.Ensure(); // cleared by the app: the template provides it again
         PlaceHeader();
     }
 
-    private void PlaceHeader() => Place(Header, IsStickyHeader, ref _stickyHeaderHost, ref _body.HeaderHost);
+    private void PlaceHeader() => Place(Header, IsStickyHeader, ref _stickyHeaderHost, ref Body.HeaderHost);
 
-    private void PlaceFooter() => Place(Footer, IsStickyFooter, ref _stickyFooterHost, ref _body.FooterHost);
+    private void PlaceFooter() => Place(Footer, IsStickyFooter, ref _stickyFooterHost, ref Body.FooterHost);
 
     private void OnFooterChanged()
     {
-        _footerSlot.OnContentChanged();
-        if (Footer is null && !_footerSlot.IsSetting && Parent is not null)
-            _footerSlot.Ensure();
+        FooterSlot.OnContentChanged();
+        if (Footer is null && !FooterSlot.IsSetting && Parent is not null)
+            FooterSlot.Ensure();
         PlaceFooter();
     }
 
@@ -635,7 +649,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         if (sticky)
             SetContent(view is null ? stickyHost : stickyHost ??= Adopt(new StickyHost(Controller)), view);
         else
-            SetContent(view is null ? scrolledHost : scrolledHost ??= _body.Adopt(new SkUiContentView()), view);
+            SetContent(view is null ? scrolledHost : scrolledHost ??= Body.Adopt(new SkUiContentView()), view);
     }
 
     private static void SetContent(SkUiContentView? host, ISkUiView? view)
@@ -653,14 +667,14 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     /// <summary>Which header and footer hosts exist (tests).</summary>
     internal (bool StickyHeader, bool StickyFooter, bool Header, bool Footer) CreatedHosts =>
-        (_stickyHeaderHost is not null, _stickyFooterHost is not null, _body.HeaderHost is not null, _body.FooterHost is not null);
+        (_stickyHeaderHost is not null, _stickyFooterHost is not null, Body.HeaderHost is not null, Body.FooterHost is not null);
 
     private void OnEmptyViewChanged()
     {
-        _emptySlot.OnContentChanged();
-        if (EmptyView is null && !_emptySlot.IsSetting && _isEmpty && Parent is not null)
-            _emptySlot.Ensure();
-        _body.EmptyHost.Content = EmptyView;
+        EmptySlot.OnContentChanged();
+        if (EmptyView is null && !EmptySlot.IsSetting && _isEmpty && Parent is not null)
+            EmptySlot.Ensure();
+        Body.EmptyHost.Content = EmptyView;
     }
 
     private void OnTemplateChanged(SkUiContentSlot slot)
@@ -674,10 +688,10 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     {
         if (Parent is null)
             return;
-        _headerSlot.Ensure();
-        _footerSlot.Ensure();
+        HeaderSlot.Ensure();
+        FooterSlot.Ensure();
         if (_isEmpty)
-            _emptySlot.Ensure();
+            EmptySlot.Ensure();
     }
 
     /// <inheritdoc />
@@ -691,25 +705,25 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     protected override void OnBindingContextChanged()
     {
         base.OnBindingContextChanged();
-        var reselected = _headerSlot.Reselect() | _footerSlot.Reselect() | _emptySlot.Reselect();
+        var reselected = HeaderSlot.Reselect() | FooterSlot.Reselect() | EmptySlot.Reselect();
         if (reselected)
             EnsureTemplateContent();
     }
 
     private void UpdateEmpty()
     {
-        var empty = _model.RowCount == 0;
+        var empty = Model.RowCount == 0;
         // In a skeleton made from content, an empty list shows placeholder items instead of its empty view.
         var placeholders = empty && WantsPlaceholders();
         var showsEmptyView = empty && !placeholders;
-        if (empty == _isEmpty && placeholders == _showsPlaceholders && _body.EmptyHost.IsVisible == showsEmptyView)
+        if (empty == _isEmpty && placeholders == _showsPlaceholders && Body.EmptyHost.IsVisible == showsEmptyView)
             return;
         _isEmpty = empty;
         SetPlaceholders(placeholders);
-        _body.EmptyHost.IsVisible = showsEmptyView;
+        Body.EmptyHost.IsVisible = showsEmptyView;
         if (showsEmptyView && Parent is not null)
-            _emptySlot.Ensure();
-        _body.InvalidateBody();
+            EmptySlot.Ensure();
+        Body.InvalidateBody();
     }
 
     #endregion
@@ -721,13 +735,13 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         propertyChanged: (bindable, _, value) =>
         {
             var view = (SkUiCollectionView)bindable;
-            view._refresh.PullEnabled = (bool)value && !view._horizontal;
+            view.Refresh.PullEnabled = (bool)value && !view._horizontal;
         });
 
     /// <summary>Bindable property for <see cref="IsRefreshing"/> (two-way by default: a pull sets it).</summary>
     public static readonly BindableProperty IsRefreshingProperty = BindableProperty.Create(nameof(IsRefreshing), typeof(bool), typeof(SkUiCollectionView), false,
         BindingMode.TwoWay,
-        propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable)._refresh.OnIsRefreshingChanged((bool)value));
+        propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable).Refresh.OnIsRefreshingChanged((bool)value));
 
     /// <summary>Bindable property for <see cref="RefreshCommand"/>.</summary>
     public static readonly BindableProperty RefreshCommandProperty = BindableProperty.Create(nameof(RefreshCommand), typeof(ICommand), typeof(SkUiCollectionView));
@@ -737,21 +751,21 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     /// <summary>Bindable property for <see cref="RefreshColor"/>.</summary>
     public static readonly BindableProperty RefreshColorProperty = BindableProperty.Create(nameof(RefreshColor), typeof(Color), typeof(SkUiCollectionView), null,
-        propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable)._refresh.Indicator.SetColor((Color?)value));
+        propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable).Refresh.Indicator.SetColor((Color?)value));
 
     /// <summary>Bindable property for <see cref="RefreshStyle"/>.</summary>
     public static readonly BindableProperty RefreshStyleProperty = BindableProperty.Create(nameof(RefreshStyle), typeof(SkUiRefreshStyle), typeof(SkUiCollectionView),
         SkUiRefreshStyle.Default, validateValue: (_, value) => Enum.IsDefined((SkUiRefreshStyle)value),
-        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable)._refresh.OnSettingsChanged());
+        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable).Refresh.OnSettingsChanged());
 
     /// <summary>Bindable property for <see cref="RefreshTriggerDistance"/>.</summary>
     public static readonly BindableProperty RefreshTriggerDistanceProperty = BindableProperty.Create(nameof(RefreshTriggerDistance), typeof(double), typeof(SkUiCollectionView),
         0d, validateValue: SkUiValidate.NonNegative,
-        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable)._refresh.OnSettingsChanged());
+        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable).Refresh.OnSettingsChanged());
 
     /// <summary>Bindable property for <see cref="IsMousePullEnabled"/>.</summary>
     public static readonly BindableProperty IsMousePullEnabledProperty = BindableProperty.Create(nameof(IsMousePullEnabled), typeof(bool), typeof(SkUiCollectionView), false,
-        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable)._refresh.OnSettingsChanged());
+        propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable).Refresh.OnSettingsChanged());
 
     /// <summary>Bindable property for <see cref="RefreshCompletion"/>.</summary>
     public static readonly BindableProperty RefreshCompletionProperty = BindableProperty.Create(nameof(RefreshCompletion), typeof(SkUiRefreshCompletion), typeof(SkUiCollectionView),
@@ -802,7 +816,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     public SkUiRefreshCompletion RefreshCompletion { get => (SkUiRefreshCompletion)GetValue(RefreshCompletionProperty); set => SetValue(RefreshCompletionProperty, value); }
 
     /// <summary>The refresh indicator, drawn by the look (style it: <see cref="SkUiCoreRefreshIndicator.Color"/>, a shadow).</summary>
-    public SkUiCoreRefreshIndicator RefreshIndicator => _refresh.Indicator;
+    public SkUiCoreRefreshIndicator RefreshIndicator => Refresh.Indicator;
 
     /// <summary>
     /// Raised when <see cref="IsRefreshing"/> becomes <c>true</c>, before <see cref="RefreshCommand"/>; with automatic
@@ -819,10 +833,10 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     #region Layout
 
     /// <summary>The scroller of the header, items, empty view and footer (tests).</summary>
-    internal SkUiScrollView ScrollView => _scroller;
+    internal SkUiScrollView ScrollView => Scroller;
 
     /// <summary>The virtual layout of the rows (tests).</summary>
-    internal SkUiVirtualVerticalStackLayoutBase ItemsLayout => _items;
+    internal SkUiVirtualVerticalStackLayoutBase ItemsLayout => ItemsHost;
 
     /// <inheritdoc />
     internal override IEnumerable<ISkUiView> SkiaChildren
@@ -834,10 +848,10 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
                 yield return _stickyHeaderHost;
             if (_stickyGroupHost is not null)
                 yield return _stickyGroupHost;
-            yield return _scroller;
+            yield return Scroller;
             if (_stickyFooterHost is not null)
                 yield return _stickyFooterHost;
-            yield return _refreshLayer;
+            yield return Refresh.Layer;
         }
     }
 
@@ -845,14 +859,14 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// <remarks>Drawn (and hit-tested) above the list: the sticky group header, the sticky header and footer, then the refresh indicator.</remarks>
     internal override void AddRenderChildren(List<ISkUiRenderable> children)
     {
-        children.Add(_scroller);
+        children.Add(Scroller);
         if (_stickyGroupHost is not null)
             children.Add(_stickyGroupHost);
         if (_stickyHeaderHost is not null)
             children.Add(_stickyHeaderHost);
         if (_stickyFooterHost is not null)
             children.Add(_stickyFooterHost);
-        children.Add(_refreshLayer);
+        children.Add(Refresh.Layer);
     }
 
     /// <inheritdoc />
@@ -869,10 +883,10 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         UpdateEmpty();
         var header = MeasurePart(_stickyHeaderHost, widthConstraint, heightConstraint);
         var footer = MeasurePart(_stickyFooterHost, widthConstraint, heightConstraint);
-        _scroller.Insets = (Along(header), Along(footer));
-        var list = ((IView)_scroller).Measure(widthConstraint, heightConstraint);
+        Scroller.Insets = (Along(header), Along(footer));
+        var list = ((IView)Scroller).Measure(widthConstraint, heightConstraint);
         MeasurePart(_stickyGroupHost, widthConstraint, heightConstraint);
-        ((IView)_refreshLayer).Measure(widthConstraint, double.PositiveInfinity);
+        ((IView)Refresh.Layer).Measure(widthConstraint, double.PositiveInfinity);
         var across = Math.Max(Across(list), Math.Max(Across(header), Across(footer)));
         var along = Math.Max(Along(list), Along(header) + Along(footer));
         return _horizontal ? new Size(along, across) : new Size(across, along);
@@ -884,13 +898,13 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         var length = Along(size);
         var header = AlongOf(_stickyHeaderHost);
         var footer = AlongOf(_stickyFooterHost);
-        ((IView)_scroller).Arrange(new Rect(0, 0, size.Width, size.Height));
+        ((IView)Scroller).Arrange(new Rect(0, 0, size.Width, size.Height));
         ((IView?)_stickyHeaderHost)?.Arrange(Slot(0, header, size));
         ((IView?)_stickyFooterHost)?.Arrange(Slot(Math.Max(header, length - footer), footer, size));
         // The current group's header, below the sticky header (moved by a translation while the next group pushes it).
         ((IView?)_stickyGroupHost)?.Arrange(Slot(header, AlongOf(_stickyGroupHost), size));
         // Between the sticky parts: the indicator comes down from below the header, clipped there.
-        ((IView)_refreshLayer).Arrange(Slot(header, Math.Max(0, length - header - footer), size));
+        ((IView)Refresh.Layer).Arrange(Slot(header, Math.Max(0, length - header - footer), size));
         UpdateStickyGroupHeader();
         RecheckLoadMore();
         KeepSelectionVisibleAfterArrange(size);

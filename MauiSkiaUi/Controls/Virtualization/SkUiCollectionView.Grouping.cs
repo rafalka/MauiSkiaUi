@@ -78,7 +78,7 @@ public partial class SkUiCollectionView
 
     /// <summary>Whether <paramref name="group"/> (a group of <see cref="ItemsSource"/>) is expanded.</summary>
     /// <exception cref="ArgumentException"><paramref name="group"/> is not a group of the list.</exception>
-    public bool IsGroupExpanded(object group) => _model.Groups[GroupIndex(group)].Expanded;
+    public bool IsGroupExpanded(object group) => Model.Groups[GroupIndex(group)].Expanded;
 
     /// <summary>Expands <paramref name="group"/>; returns <c>false</c> when <see cref="GroupExpanding"/> canceled it.</summary>
     /// <exception cref="ArgumentException"><paramref name="group"/> is not a group of the list.</exception>
@@ -91,14 +91,14 @@ public partial class SkUiCollectionView
     /// <summary>Expands every group (each may cancel through <see cref="GroupExpanding"/>).</summary>
     public void ExpandAll()
     {
-        for (var index = 0; index < _model.Groups.Count; index++)
+        for (var index = 0; index < Model.Groups.Count; index++)
             ChangeGroupExpanded(index, true, fromGroup: false);
     }
 
     /// <summary>Collapses every group (each may cancel through <see cref="GroupCollapsing"/>).</summary>
     public void CollapseAll()
     {
-        for (var index = 0; index < _model.Groups.Count; index++)
+        for (var index = 0; index < Model.Groups.Count; index++)
             ChangeGroupExpanded(index, false, fromGroup: false);
     }
 
@@ -107,13 +107,13 @@ public partial class SkUiCollectionView
     public Task ScrollToGroup(object group, ScrollToPosition position = ScrollToPosition.Start, bool animated = true)
     {
         var index = GroupIndex(group);
-        var row = _model.HasGroupHeaders ? _model.HeaderRowOf(index) : _model.RowOfItem(index, 0);
-        return row < 0 || row >= _model.RowCount ? Task.CompletedTask : _items.ScrollToIndex(row, position, animated);
+        var row = Model.HasGroupHeaders ? Model.HeaderRowOf(index) : Model.RowOfItem(index, 0);
+        return row < 0 || row >= Model.RowCount ? Task.CompletedTask : ItemsHost.ScrollToIndex(row, position, animated);
     }
 
     private int GroupIndex(object group)
     {
-        var index = _model.IndexOfGroup(group);
+        var index = Model.IndexOfGroup(group);
         return index >= 0 ? index : throw new ArgumentException("The object is not a group of the list.", nameof(group));
     }
 
@@ -136,7 +136,7 @@ public partial class SkUiCollectionView
     /// </summary>
     private bool ChangeGroupExpanded(int index, bool expanded, bool fromGroup)
     {
-        var group = _model.Groups[index];
+        var group = Model.Groups[index];
         if (group.Expanded == expanded)
             return true;
         if (!fromGroup)
@@ -148,12 +148,12 @@ public partial class SkUiCollectionView
         }
         // Collapsing the group shown by the sticky header: its header comes to the start of the list, where it was.
         var wasSticky = !expanded && _stickyGroup == index && _stickyGroupHost is { IsVisible: true };
-        _model.SetExpanded(index, expanded);
+        Model.SetExpanded(index, expanded);
         if (group.Value is ISkUiExpandableGroup expandable && expandable.IsExpanded != expanded)
             expandable.IsExpanded = expanded;
         RefreshGroupHeader(index);
-        if (wasSticky && _model.HeaderRowOf(index) is >= 0 and var header)
-            _items.ScrollToIndex(header, ScrollToPosition.Start, animated: false);
+        if (wasSticky && Model.HeaderRowOf(index) is >= 0 and var header)
+            ItemsHost.ScrollToIndex(header, ScrollToPosition.Start, animated: false);
         (expanded ? GroupExpanded : GroupCollapsed)?.Invoke(this, new SkUiGroupEventArgs(group.Value, index));
         UpdateStickyGroupHeader();
         return true;
@@ -162,8 +162,8 @@ public partial class SkUiCollectionView
     /// <summary>Shows a group's expanded state on its realized header (and the sticky one).</summary>
     private void RefreshGroupHeader(int index)
     {
-        var expanded = _model.Groups[index].Expanded;
-        if (_model.HeaderRowOf(index) is >= 0 and var row && _items.GetRealizedView(row) is GroupHeaderHost header)
+        var expanded = Model.Groups[index].Expanded;
+        if (Model.HeaderRowOf(index) is >= 0 and var row && ItemsHost.GetRealizedView(row) is GroupHeaderHost header)
             header.SetExpanded(expanded);
         if (_stickyGroup == index)
             _stickyGroupHeader?.SetExpanded(expanded);
@@ -173,21 +173,21 @@ public partial class SkUiCollectionView
     private void OnGroupHeaderTapped(GroupHeaderHost host)
     {
         var index = host.StickyGroup;
-        if (index < 0 && _items.IndexOfRealizedView(host) is >= 0 and var row)
-            index = _model.RowAt(row).Group;
-        if (index >= 0 && index < _model.Groups.Count)
-            ChangeGroupExpanded(index, !_model.Groups[index].Expanded, fromGroup: false);
+        if (index < 0 && ItemsHost.IndexOfRealizedView(host) is >= 0 and var row)
+            index = Model.RowAt(row).Group;
+        if (index >= 0 && index < Model.Groups.Count)
+            ChangeGroupExpanded(index, !Model.Groups[index].Expanded, fromGroup: false);
     }
 
     /// <summary>Room a sticky group header takes before an item scrolled to (none for group headers themselves).</summary>
     private double StickyGroupInset(int row)
     {
-        if (!IsStickyGroupHeader || !_model.HasGroupHeaders || row >= _model.RowCount || _model.RowAt(row) is not { Kind: not RowKind.GroupHeader } target)
+        if (!IsStickyGroupHeader || !Model.HasGroupHeaders || row >= Model.RowCount || Model.RowAt(row) is not { Kind: not RowKind.GroupHeader } target)
             return 0;
         // Measured first: a header not realized yet would otherwise count with its estimate, and the item land under it.
-        var header = _model.HeaderRowOf(target.Group);
-        _items.EnsureItemMeasured(header);
-        return _items.RowSize(header);
+        var header = Model.HeaderRowOf(target.Group);
+        ItemsHost.EnsureItemMeasured(header);
+        return ItemsHost.RowSize(header);
     }
 
     /// <summary>
@@ -204,18 +204,18 @@ public partial class SkUiCollectionView
         {
             var show = -1;
             var shift = 0d;
-            if (IsStickyGroupHeader && _model.HasGroupHeaders && _model.RowCount > 0 && _items.HasWindow)
+            if (IsStickyGroupHeader && Model.HasGroupHeaders && Model.RowCount > 0 && ItemsHost.HasWindow)
             {
-                var start = _items.VisibleStart + _scroller.Insets.Start;
-                if (start > 0 && start < _items.TotalLength)
+                var start = ItemsHost.VisibleStart + Scroller.Insets.Start;
+                if (start > 0 && start < ItemsHost.TotalLength)
                 {
-                    var group = _model.RowAt(_items.RowAtOffset(start)).Group;
-                    if (group >= 0 && start > _items.RowOffset(_model.HeaderRowOf(group)) + 0.5)
+                    var group = Model.RowAt(ItemsHost.RowAtOffset(start)).Group;
+                    if (group >= 0 && start > ItemsHost.RowOffset(Model.HeaderRowOf(group)) + 0.5)
                     {
                         show = group;
                         var length = AlongOf(_stickyGroupHost);
-                        if (group + 1 < _model.Groups.Count)
-                            shift = Math.Min(0, _items.RowOffset(_model.HeaderRowOf(group + 1)) - start - length);
+                        if (group + 1 < Model.Groups.Count)
+                            shift = Math.Min(0, ItemsHost.RowOffset(Model.HeaderRowOf(group + 1)) - start - length);
                     }
                 }
             }
@@ -239,7 +239,7 @@ public partial class SkUiCollectionView
         var header = _stickyGroupHeader ??= new GroupHeaderHost(this);
         if (!ReferenceEquals(host.Content, header))
             host.Content = header;
-        var group = _model.Groups[index];
+        var group = Model.Groups[index];
         if (_stickyGroup != index || header.Content is null)
         {
             _stickyGroup = index;

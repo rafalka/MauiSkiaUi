@@ -13,7 +13,9 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(Content))]
 public class SkUiAlternateContentView : SkUiContentView
 {
-    private readonly SkUiContentSlot _alternate;
+    private SkUiContentSlot? _alternate;
+    /// <summary>Created on first use: property callbacks can run before the constructor (see <see cref="SkUiView.StyledOr{T}"/>).</summary>
+    private SkUiContentSlot AlternateSlot => _alternate ??= new SkUiContentSlot(this, AlternateContentProperty, AlternateContentTemplateProperty);
     private bool? _shown;  // the side on screen
     private bool? _target; // the side automatic changes animate to
     private bool _animating;
@@ -50,7 +52,9 @@ public class SkUiAlternateContentView : SkUiContentView
         propertyChanged: (_, _, newValue) => (newValue as SkUiViewAnimation)?.Freeze());
 
     /// <summary>Creates a view that shows nothing until <see cref="ShowsAlternate"/> is set.</summary>
-    public SkUiAlternateContentView() => _alternate = new SkUiContentSlot(this, AlternateContentProperty, AlternateContentTemplateProperty);
+    public SkUiAlternateContentView()
+    {
+    }
 
     /// <summary>The content shown while <see cref="ShowsAlternate"/> is <c>true</c>.</summary>
     public ISkUiView? AlternateContent
@@ -111,27 +115,27 @@ public class SkUiAlternateContentView : SkUiContentView
         if (_shown == false)
             base.EnsureContentToShow();
         else if (_shown == true && IsContentLoaded && Parent is not null && CanPresentContent)
-            _alternate.Ensure();
+            AlternateSlot.Ensure();
     }
 
     /// <inheritdoc />
     private protected override void ClearTemplateContent()
     {
         base.ClearTemplateContent();
-        _alternate.Clear();
+        AlternateSlot.Clear();
     }
 
     private void OnAlternateContentChanged(ISkUiView? value)
     {
-        _alternate.OnContentChanged();
+        AlternateSlot.OnContentChanged();
         // Shown: attach it (cleared by the app, the template, if any, provides it again).
-        if (_shown == true && !(value is null && _alternate.IsSetting))
+        if (_shown == true && !(value is null && AlternateSlot.IsSetting))
             RefreshContent();
     }
 
     private void OnAlternateContentTemplateChanged()
     {
-        _alternate.OnTemplateChanged();
+        AlternateSlot.OnTemplateChanged();
         if (_shown == true)
             RefreshContent();
     }
@@ -140,7 +144,7 @@ public class SkUiAlternateContentView : SkUiContentView
     protected override void OnBindingContextChanged()
     {
         base.OnBindingContextChanged();
-        if (_alternate.Reselect() && _shown == true)
+        if (AlternateSlot.Reselect() && _shown == true)
             RefreshContent();
     }
 

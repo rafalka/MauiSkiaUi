@@ -46,14 +46,28 @@ public class SkUiMultiColumnPicker : SkUiPickerBase
     /// <summary>The default for <see cref="Separator"/>: a space.</summary>
     public const string DefaultSeparator = SkUiColumnsModel.DefaultSeparator;
 
-    private readonly SkUiColumnsModel _columns;
+    private SkUiColumnsModel? _columns;
 
     /// <summary>Creates a picker without columns.</summary>
     public SkUiMultiColumnPicker()
     {
-        _columns = new SkUiColumnsModel(Model, (column, previous, current) =>
+    }
+
+    /// <summary>The columns' engine, created with the picker's (property callbacks can run before the constructor).</summary>
+    private SkUiColumnsModel ColumnsModel
+    {
+        get
         {
-            Model.RunSelectionChangedCommand();
+            _ = Model;
+            return _columns!;
+        }
+    }
+
+    private protected override void OnModelCreated(SkUiPickerModel model)
+    {
+        _columns = new SkUiColumnsModel(model, (column, previous, current) =>
+        {
+            model.RunSelectionChangedCommand();
             SelectionChanged?.Invoke(this, new SkUiColumnSelectionChangedEventArgs(column, previous, current));
         });
         _columns.ColumnsChanged += (_, _) => InheritBindingContext();
@@ -71,13 +85,13 @@ public class SkUiMultiColumnPicker : SkUiPickerBase
     /// <summary>Bindable property for <see cref="VisibleRows"/>.</summary>
     public static readonly BindableProperty VisibleRowsProperty = BindableProperty.Create(nameof(VisibleRows), typeof(int), typeof(SkUiMultiColumnPicker),
         SkUiColumnsModel.DefaultVisibleRows, validateValue: (_, value) => (int)value is >= 1 and <= SkUiColumnsModel.MaximumVisibleRows,
-        propertyChanged: (picker, _, value) => ((SkUiMultiColumnPicker)picker)._columns.VisibleRows = (int)value);
+        propertyChanged: (picker, _, value) => ((SkUiMultiColumnPicker)picker).ColumnsModel.VisibleRows = (int)value);
 
     /// <summary>
     /// The columns, left to right (right to left in right-to-left layouts). Changing them closes an open popup. In XAML, the
     /// element's content.
     /// </summary>
-    public IList<SkUiPickerColumn> Columns => _columns.Columns;
+    public IList<SkUiPickerColumn> Columns => ColumnsModel.Columns;
 
     /// <summary>
     /// What goes between the chosen texts in the field (default <c>" "</c>); columns with nothing chosen add nothing. Ignored with
@@ -95,7 +109,7 @@ public class SkUiMultiColumnPicker : SkUiPickerBase
     public int VisibleRows { get => (int)GetValue(VisibleRowsProperty); set => SetValue(VisibleRowsProperty, value); }
 
     /// <summary>The chosen index of each column (-1: none), in the order of <see cref="Columns"/>.</summary>
-    public IReadOnlyList<int> SelectedIndices => _columns.SelectedIndices;
+    public IReadOnlyList<int> SelectedIndices => ColumnsModel.SelectedIndices;
 
     /// <summary>The chosen item of each column (<c>null</c>: none), in the order of <see cref="Columns"/>.</summary>
     public IReadOnlyList<object?> SelectedItems => [.. Columns.Select(column => column.SelectedItem)];
@@ -225,11 +239,8 @@ public class SkUiMultiColumnPicker : SkUiPickerBase
 
     private void ApplyText(Action<SkUiColumnsModel> apply)
     {
-        // The model is null while the base constructor sets defaults.
-        if (_columns is null)
-            return;
-        apply(_columns);
-        _columns.RefreshText();
+        apply(ColumnsModel);
+        ColumnsModel.RefreshText();
     }
 
     /// <inheritdoc />

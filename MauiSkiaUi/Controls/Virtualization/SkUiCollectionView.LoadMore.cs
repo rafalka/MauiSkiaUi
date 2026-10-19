@@ -80,7 +80,7 @@ public partial class SkUiCollectionView
     public event EventHandler? LoadingMore;
 
     /// <summary>The load-more row, once created (tests).</summary>
-    internal SkUiView? LoadMoreRow => _body.LoadMoreHost;
+    internal SkUiView? LoadMoreRow => Body.LoadMoreHost;
 
     /// <summary>Whether more can load: the command can execute (without a command, when someone listens to <see cref="LoadingMore"/>).</summary>
     private bool CanLoadMore => LoadMoreCommand is { } command ? command.CanExecute(LoadMoreCommandParameter) : LoadingMore is not null;
@@ -94,7 +94,7 @@ public partial class SkUiCollectionView
         if (_loadMoreMode == SkUiLoadMoreMode.None || IsLoadMoreActive || !CanLoadMore || _runningLoadMore)
             return;
         _runningLoadMore = true;
-        _itemsAtLoadMore = _model.ItemCount;
+        _itemsAtLoadMore = Model.ItemCount;
         try
         {
             IsLoadMoreActive = true;
@@ -115,9 +115,9 @@ public partial class SkUiCollectionView
             return;
         if (_loadMoreMode == SkUiLoadMoreMode.AutoOnUserScroll && !_userScrolled)
             return;
-        var rows = _model.RowCount;
+        var rows = Model.RowCount;
         var atEnd = rows == 0
-            || (LoadMorePosition == SkUiLoadMorePosition.End ? _items.LastVisibleIndex == rows - 1 : _items.FirstVisibleIndex == 0);
+            || (LoadMorePosition == SkUiLoadMorePosition.End ? ItemsHost.LastVisibleIndex == rows - 1 : ItemsHost.FirstVisibleIndex == 0);
         if (atEnd && CanLoadMore)
             RunLoadMore();
     }
@@ -149,7 +149,7 @@ public partial class SkUiCollectionView
 
     private void OnLoadMoreTemplateChanged()
     {
-        if (_body.LoadMoreHost is { } host)
+        if (Body.LoadMoreHost is { } host)
             host.Content = null;
         UpdateLoadMoreRow();
     }
@@ -160,7 +160,7 @@ public partial class SkUiCollectionView
         // Done: once the new items are laid out, the end may still show (a short page): ask again then. Only when items
         // came: an empty answer would otherwise be asked again after every layout (scrolling, or a new command or
         // parameter, still asks).
-        if (!value && _model.ItemCount != _itemsAtLoadMore)
+        if (!value && Model.ItemCount != _itemsAtLoadMore)
             _recheckLoadMore = true;
     }
 
@@ -178,16 +178,16 @@ public partial class SkUiCollectionView
     {
         var active = IsLoadMoreActive;
         var visible = _loadMoreMode != SkUiLoadMoreMode.None && (active || (_loadMoreMode == SkUiLoadMoreMode.Manual && CanLoadMore));
-        _items.AnchorsAtStart = _loadMoreMode != SkUiLoadMoreMode.None && LoadMorePosition == SkUiLoadMorePosition.Start;
-        if (!visible && _body.LoadMoreHost is null)
+        ItemsHost.AnchorsAtStart = _loadMoreMode != SkUiLoadMoreMode.None && LoadMorePosition == SkUiLoadMorePosition.Start;
+        if (!visible && Body.LoadMoreHost is null)
             return;
-        var host = _body.LoadMoreHost ??= _body.Adopt(new LoadMoreHost(this));
+        var host = Body.LoadMoreHost ??= Body.Adopt(new LoadMoreHost(this));
         if (host.Content is null)
             host.Content = LoadMoreTemplate is { } template ? CreateFromTemplate(template, nameof(LoadMoreTemplate)) : new LoadMoreDefaultView(this);
         (host.Content as LoadMoreDefaultView)?.Show(manual: _loadMoreMode == SkUiLoadMoreMode.Manual, active);
-        _body.LoadMoreAtStart = LoadMorePosition == SkUiLoadMorePosition.Start;
+        Body.LoadMoreAtStart = LoadMorePosition == SkUiLoadMorePosition.Start;
         if (host.IsVisible != visible)
             host.IsVisible = visible;
-        _body.InvalidateBody();
+        Body.InvalidateBody();
     }
 }

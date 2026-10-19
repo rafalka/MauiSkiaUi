@@ -40,12 +40,12 @@ public partial class SkUiCollectionView
 
     private object? RecycleKeyOf(int rowIndex)
     {
-        var row = _model.RowAt(rowIndex);
+        var row = Model.RowAt(rowIndex);
         return row.Kind switch
         {
-            RowKind.Items => _model.Span > 1 ? GridRowKey : ItemKey(_model.ItemAt(row.Group, row.Start)),
-            RowKind.GroupHeader => SelectTemplate(GroupHeaderTemplate, _model.Groups[row.Group].Value) is { } header ? KindKeyOf(RowKind.GroupHeader, header) : null,
-            _ => SelectTemplate(GroupFooterTemplate, _model.Groups[row.Group].Value) is { } footer ? KindKeyOf(RowKind.GroupFooter, footer) : null
+            RowKind.Items => Model.Span > 1 ? GridRowKey : ItemKey(Model.ItemAt(row.Group, row.Start)),
+            RowKind.GroupHeader => SelectTemplate(GroupHeaderTemplate, Model.Groups[row.Group].Value) is { } header ? KindKeyOf(RowKind.GroupHeader, header) : null,
+            _ => SelectTemplate(GroupFooterTemplate, Model.Groups[row.Group].Value) is { } footer ? KindKeyOf(RowKind.GroupFooter, footer) : null
         };
     }
 
@@ -60,7 +60,7 @@ public partial class SkUiCollectionView
 
     /// <summary>A header or footer whose selector chose no template: an empty view (not recycled).</summary>
     private ISkUiView CreateGroupRowWithoutTemplate(int rowIndex) =>
-        _model.RowAt(rowIndex).Kind == RowKind.GroupHeader ? new GroupHeaderHost(this) : new SkUiContentView();
+        Model.RowAt(rowIndex).Kind == RowKind.GroupHeader ? new GroupHeaderHost(this) : new SkUiContentView();
 
     /// <summary>An item container with the view of <paramref name="key"/>'s template (or a default label).</summary>
     private ItemHost CreateCell(object key)
@@ -83,22 +83,22 @@ public partial class SkUiCollectionView
 
     private void BindRow(int rowIndex, ISkUiView view, object? key)
     {
-        var row = _model.RowAt(rowIndex);
+        var row = Model.RowAt(rowIndex);
         switch (view)
         {
             case GridRowPart grid:
                 grid.Bind(row);
                 break;
             case ItemHost host:
-                BindItemHost(host, _model.ItemAt(row.Group, row.Start));
+                BindItemHost(host, Model.ItemAt(row.Group, row.Start));
                 break;
             case GroupHeaderHost header:
                 header.StickyGroup = -1;
-                header.BindingContext = _model.Groups[row.Group].Value;
-                header.SetExpanded(_model.Groups[row.Group].Expanded);
+                header.BindingContext = Model.Groups[row.Group].Value;
+                header.SetExpanded(Model.Groups[row.Group].Expanded);
                 break;
             default:
-                ((BindableObject)view).BindingContext = _model.Groups[row.Group].Value;
+                ((BindableObject)view).BindingContext = Model.Groups[row.Group].Value;
                 break;
         }
     }
@@ -114,8 +114,8 @@ public partial class SkUiCollectionView
 
     private object? RowItem(int rowIndex)
     {
-        var row = _model.RowAt(rowIndex);
-        return row.Kind == RowKind.Items ? _model.ItemAt(row.Group, row.Start) : _model.Groups[row.Group].Value;
+        var row = Model.RowAt(rowIndex);
+        return row.Kind == RowKind.Items ? Model.ItemAt(row.Group, row.Start) : Model.Groups[row.Group].Value;
     }
 
     #endregion
@@ -247,7 +247,7 @@ public partial class SkUiCollectionView
         {
             for (var slot = 0; slot < row.Count; slot++)
             {
-                var item = _owner._model.ItemAt(row.Group, row.Start + slot);
+                var item = _owner.Model.ItemAt(row.Group, row.Start + slot);
                 var key = _owner.ItemKey(item);
                 if (slot == _cells.Count)
                 {
@@ -284,7 +284,7 @@ public partial class SkUiCollectionView
         /// <summary>The size of a cell across the row, and the gap between cells.</summary>
         private (double Cell, double Gap) CellSize(double across)
         {
-            var span = _owner._model.Span;
+            var span = _owner.Model.Span;
             var gap = _owner._spanSpacing;
             return (Math.Max(0, (across - (span - 1) * gap) / span), gap);
         }
@@ -408,7 +408,7 @@ public partial class SkUiCollectionView
             _owner = owner;
             ClipToBounds = false; // items may draw past their slots (shadows, press scale)
             EmptyHost.IsVisible = false;
-            AttachChild(owner._items);
+            AttachChild(owner.ItemsHost);
             AttachChild(EmptyHost);
         }
 
@@ -455,7 +455,7 @@ public partial class SkUiCollectionView
                     yield return HeaderHost;
                 if (LoadMoreHost is not null && _loadMoreAtStart)
                     yield return LoadMoreHost;
-                yield return _owner._items;
+                yield return _owner.ItemsHost;
                 yield return EmptyHost;
                 if (PlaceholderHost is not null)
                     yield return PlaceholderHost;

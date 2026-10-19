@@ -24,11 +24,14 @@ public class SkUiTimePicker : SkUiDateTimePickerBase
     private static readonly TimePickerClosedEventArgs TimeClosedArgs = new();
 
     /// <summary>Creates a picker of midnight.</summary>
-    public SkUiTimePicker() : base(SkUiDateTimeKind.Time)
+    public SkUiTimePicker()
     {
-        Dates.Value = SkUiDateTimeWheels.TimeDate + TimeSpan.Zero;
+        if (!IsSet(TimeProperty)) // a style's time is applied already
+            Dates.Value = SkUiDateTimeWheels.TimeDate + TimeSpan.Zero;
         Dates.TextChanged();
     }
+
+    private protected override SkUiDateTimeKind Kind => SkUiDateTimeKind.Time;
 
     /// <summary>Bindable property for <see cref="Time"/> (two-way by default).</summary>
     public static readonly BindableProperty TimeProperty = BindableProperty.Create(nameof(Time), typeof(TimeSpan?), typeof(SkUiTimePicker), TimeSpan.Zero, BindingMode.TwoWay,

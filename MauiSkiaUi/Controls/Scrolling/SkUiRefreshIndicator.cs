@@ -12,9 +12,10 @@ internal sealed class SkUiRefreshLayer : SkUiCoreHost
     public SkUiRefreshLayer()
     {
         InputTransparent = true;
-        ClipToBounds = true;
         SetContent(Indicator);
     }
+
+    private protected override bool DefaultClipToBounds => true;
 
     /// <summary>The indicator (the owners' public <c>RefreshIndicator</c>).</summary>
     public SkUiCoreRefreshIndicator Indicator { get; } = new();

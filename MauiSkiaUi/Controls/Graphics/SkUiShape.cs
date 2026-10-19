@@ -23,9 +23,12 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
     private PenLineJoin _strokeLineJoin;
     private double _strokeMiterLimit = 10;
     private Stretch _aspect;
-    private readonly SkUiWeakListener<SkUiShape> _fillListener;
-    private readonly SkUiWeakListener<SkUiShape> _strokeListener;
-    private readonly SkUiWeakListener<SkUiShape> _dashListener;
+    private SkUiWeakListener<SkUiShape>? _fillListener;
+    private SkUiWeakListener<SkUiShape> FillListener => _fillListener ??= new(this, static (shape, _) => shape.InvalidatePaint());
+    private SkUiWeakListener<SkUiShape>? _strokeListener;
+    private SkUiWeakListener<SkUiShape> StrokeListener => _strokeListener ??= new(this, static (shape, _) => shape.InvalidatePaint());
+    private SkUiWeakListener<SkUiShape>? _dashListener;
+    private SkUiWeakListener<SkUiShape> DashListener => _dashListener ??= new(this, static (shape, _) => shape.InvalidatePaint());
 
     /// <summary>Bindable <see cref="Fill"/>.</summary>
     public static readonly BindableProperty FillProperty = BindableProperty.Create(nameof(Fill), typeof(Brush), typeof(SkUiShape), null,
@@ -63,10 +66,7 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
     /// <summary>Creates a shape with no fill and no stroke, as MAUI's shapes.</summary>
     protected SkUiShape()
     {
-        _aspect = DefaultAspect;
-        _fillListener = new(this, static (shape, _) => shape.InvalidatePaint());
-        _strokeListener = new(this, static (shape, _) => shape.InvalidatePaint());
-        _dashListener = new(this, static (shape, _) => shape.InvalidatePaint());
+        _aspect = StyledOr(AspectProperty, DefaultAspect);
     }
 
     /// <summary>The brush that paints the interior (<c>null</c>: none). XAML accepts colors and gradients (<c>Fill="Red"</c>).</summary>
@@ -115,7 +115,7 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
         if (!ReferenceEquals(_fill, _stroke)) // a brush used for both keeps the context while the stroke uses it
             ReleaseBrush(_fill, value);
         _fill = value;
-        _fillListener.Listen(value);
+        FillListener.Listen(value);
         InheritBindingContext(value);
         InvalidatePaint();
     }
@@ -125,13 +125,13 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
         if (!ReferenceEquals(_stroke, _fill))
             ReleaseBrush(_stroke, value);
         _stroke = value;
-        _strokeListener.Listen(value);
+        StrokeListener.Listen(value);
         InheritBindingContext(value);
         InvalidatePaint();
     }
 
     private void OnStrokeThicknessChanged(double value) { if (_strokeThickness == value) return; _strokeThickness = value; InvalidateMeasureOverride(); }
-    private void OnStrokeDashArrayChanged(DoubleCollection? value) { _dashListener.Listen(value); InvalidatePaint(); }
+    private void OnStrokeDashArrayChanged(DoubleCollection? value) { DashListener.Listen(value); InvalidatePaint(); }
     private void OnStrokeDashOffsetChanged(double value) { _strokeDashOffset = value; InvalidatePaint(); }
     private void OnStrokeLineCapChanged(PenLineCap value) { _strokeLineCap = value; InvalidatePaint(); }
     private void OnStrokeLineJoinChanged(PenLineJoin value) { _strokeLineJoin = value; InvalidatePaint(); }
@@ -223,7 +223,7 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
     private SkUiStrokeStyle StrokeStyle()
     {
         var dashArray = StrokeDashArray;
-        _dashListener.Listen(dashArray); // the default collection is created on first read
+        DashListener.Listen(dashArray); // the default collection is created on first read
         float[]? dashes = null;
         if (dashArray is { Count: > 0 })
         {

@@ -54,12 +54,14 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// <summary>The visual state of the other items' views.</summary>
     public const string DefaultItemVisualState = "DefaultItem";
 
-    private readonly CarouselScroller _scroller;
-    private readonly ItemsPanel _panel;
-    private readonly SkUiContentView _emptyHost;
-    private readonly SkUiContentSlot _emptySlot;
-    private readonly SkUiWeakListener<SkUiCarouselView> _sourceListener;
-    private readonly SkUiWeakListener<SkUiCarouselView> _indicatorListener;
+    // Parts that need the carousel are created on first use: property callbacks can run before the constructor (MAUI
+    // applies app-level implicit styles inside its base constructor; see SkUiView.StyledOr).
+    private CarouselScroller? _scroller;
+    private ItemsPanel? _panel;
+    private readonly SkUiContentView _emptyHost = new();
+    private SkUiContentSlot? _emptySlot;
+    private SkUiWeakListener<SkUiCarouselView>? _sourceListener;
+    private SkUiWeakListener<SkUiCarouselView>? _indicatorListener;
     private IList? _source;
     private DataTemplate? _itemTemplate;
     private bool _horizontal = true;
@@ -83,17 +85,48 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     public SkUiCarouselView()
     {
         HwAccelerated = true;
-        _emptySlot = new SkUiContentSlot(this, EmptyViewProperty, EmptyViewTemplateProperty);
-        _sourceListener = new SkUiWeakListener<SkUiCarouselView>(this, static (carousel, change) =>
+        AttachChild(Scroller);
+        AttachChild(_emptyHost);
+    }
+
+    private SkUiContentSlot EmptySlot => _emptySlot ??= new SkUiContentSlot(this, EmptyViewProperty, EmptyViewTemplateProperty);
+
+    private SkUiWeakListener<SkUiCarouselView> SourceListener => _sourceListener ??= new(this, static (carousel, change) =>
+    {
+        if (change.Kind == SkUiChangeKind.Collection)
+            carousel.OnSourceChanged();
+    });
+
+    private SkUiWeakListener<SkUiCarouselView> IndicatorListener => _indicatorListener ??= new(this, static (carousel, change) =>
+    {
+        if (change.PropertyName == nameof(SkUiIndicatorView.Position) && change.Sender is SkUiIndicatorView indicator)
+            carousel.OnIndicatorPositionChanged(indicator);
+    });
+
+    /// <summary>The scroller of the items (created with <see cref="Panel"/>).</summary>
+    private CarouselScroller Scroller
+    {
+        get
         {
-            if (change.Kind == SkUiChangeKind.Collection)
-                carousel.OnSourceChanged();
-        });
-        _indicatorListener = new SkUiWeakListener<SkUiCarouselView>(this, static (carousel, change) =>
+            if (_scroller is null)
+                CreateScroller();
+            return _scroller!;
+        }
+    }
+
+    /// <summary>The items' panel, the scroller's content.</summary>
+    private ItemsPanel Panel
+    {
+        get
         {
-            if (change.PropertyName == nameof(SkUiIndicatorView.Position) && change.Sender is SkUiIndicatorView indicator)
-                carousel.OnIndicatorPositionChanged(indicator);
-        });
+            if (_panel is null)
+                CreateScroller();
+            return _panel!;
+        }
+    }
+
+    private void CreateScroller()
+    {
         _panel = new ItemsPanel(this);
         _scroller = new CarouselScroller(this)
         {
@@ -103,8 +136,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             SnapPointsType = SnapPointsType.MandatorySingle,
             Content = _panel
         };
-        Controller.Stepper = this;
-        Controller.DraggingChanged += _ => UpdateDragging();
+        var controller = ((ISkUiScrollHost)_scroller).Scroller;
+        controller.Stepper = this;
+        controller.DraggingChanged += _ => UpdateDragging();
         _scroller.RegisterScrollListener(_panel);
         _scroller.Scrolled += (_, _) => OnScrolled();
         _scroller.PropertyChanged += (_, args) =>
@@ -112,12 +146,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             if (args.PropertyName == nameof(IsScrolling))
                 OnMovingChanged();
         };
-        _emptyHost = new SkUiContentView();
-        AttachChild(_scroller);
-        AttachChild(_emptyHost);
     }
 
-    private SkUiScrollController Controller => ((ISkUiScrollHost)_scroller).Scroller;
+    private SkUiScrollController Controller => ((ISkUiScrollHost)Scroller).Scroller;
 
     #region Items
 
@@ -155,9 +186,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
 
     private void OnItemsSourceChanged(IEnumerable? value)
     {
-        _sourceListener.Listen(value as System.Collections.Specialized.INotifyCollectionChanged);
+        SourceListener.Listen(value as System.Collections.Specialized.INotifyCollectionChanged);
         // Recycled views keep their last item until rebound (as MAUI's); items of a replaced source go.
-        _panel.ClearPool();
+        Panel.ClearPool();
         ItemsChanged(value, keepCurrentItem: false);
     }
 
@@ -167,9 +198,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     {
         _itemTemplate = value;
         // Views of the old templates go; the items are realized again with the new ones.
-        _panel.ReleaseAll();
-        _panel.ClearPool();
-        _panel.Refresh();
+        Panel.ReleaseAll();
+        Panel.ClearPool();
+        Panel.Refresh();
     }
 
     /// <summary>
@@ -179,9 +210,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     private void ItemsChanged(IEnumerable? value, bool keepCurrentItem)
     {
         var previousItem = CurrentItem;
-        var previousCount = _panel.Count;
+        var previousCount = Panel.Count;
         // Between two items (a fling, a drag): the strip stays that far past the current item.
-        var within = _panel.HasGeometry && _panel.CurrentIndex(_position) == _position ? _panel.WithinItem : 0;
+        var within = Panel.HasGeometry && Panel.CurrentIndex(_position) == _position ? Panel.WithinItem : 0;
         _source = value switch
         {
             null => null,
@@ -195,7 +226,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             var index = keepCurrentItem && previousItem is not null ? _source!.IndexOf(previousItem) : -1;
             position = index >= 0 ? index : Math.Clamp(Position, 0, count - 1);
         }
-        _panel.SetCount(count, position + within);
+        Panel.SetCount(count, position + within);
         UpdateOverscroll();
         _indicator?.SetValue(SkUiIndicatorView.CountProperty, count);
         if (count > 0)
@@ -213,7 +244,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     private object? ItemAt(int index) => _source is { } source && index >= 0 && index < source.Count ? source[index] : null;
 
     /// <summary>The view the item template created for the item at <paramref name="index"/> while it shows (the one nearest the current place when the items repeat); else <c>null</c>.</summary>
-    public ISkUiView? GetRealizedView(int index) => _panel.RealizedView(index);
+    public ISkUiView? GetRealizedView(int index) => Panel.RealizedView(index);
 
     #endregion
 
@@ -398,7 +429,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             RaisePositionChanged(previous, value);
         if (_indicator is { } indicator && indicator.Position != value)
             indicator.Position = value;
-        _panel.UpdateVisualStates();
+        Panel.UpdateVisualStates();
         if (!fromScroll)
             ScrollToCurrent(_requestedAnimation ?? _scrollAnimated);
         if (!Controller.IsMoving)
@@ -430,7 +461,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         _requestingScroll = true;
         try
         {
-            _lastScroll = _panel.ScrollToIndex(_position, animated && IsShown);
+            _lastScroll = Panel.ScrollToIndex(_position, animated && IsShown);
         }
         finally
         {
@@ -512,7 +543,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     public bool IsDragging => _isDragging;
 
     /// <summary>Whether the carousel is dragged, flung or animated.</summary>
-    public bool IsScrolling => _scroller.IsScrolling;
+    public bool IsScrolling => Scroller.IsScrolling;
 
     /// <summary>Sets <see cref="IsSwipeEnabled"/> (same as the property setter).</summary>
     public SkUiCarouselView SetIsSwipeEnabled(bool value) { IsSwipeEnabled = value; return this; }
@@ -524,11 +555,11 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     {
         Controller.IsUserScrollEnabled = value;
         if (!value)
-            _scroller.CancelGestures();
+            Scroller.CancelGestures();
     }
 
     private void UpdateOverscroll() =>
-        _scroller.Overscroll = _panel.Loops || !IsBounceEnabled ? SkUiOverscrollMode.None : SkUiOverscrollMode.Default;
+        Scroller.Overscroll = Panel.Loops || !IsBounceEnabled ? SkUiOverscrollMode.None : SkUiOverscrollMode.Default;
 
     /// <summary>The scroller's offset changed (scrolling, flings, snaps, corrections).</summary>
     private void OnScrolled()
@@ -536,9 +567,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         UpdateDragging();
         if (Controller.Dragging)
             _targetIndex = -1; // a drag takes over from a scroll to a position
-        if (!_panel.HasGeometry || ItemCount == 0)
+        if (!Panel.HasGeometry || ItemCount == 0)
             return;
-        var position = _panel.ScrollPosition;
+        var position = Panel.ScrollPosition;
         if (Math.Abs(position - _scrollPosition) > 1e-6)
         {
             _scrollPosition = position;
@@ -546,13 +577,13 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         }
         if (_targetIndex < 0)
         {
-            var current = _panel.CurrentIndex(_position);
+            var current = Panel.CurrentIndex(_position);
             if (current != _position)
                 ApplyPosition(_position, current, fromScroll: true);
         }
         FollowWithIndicator();
         if (Scrolled is { } handler)
-            handler(this, _panel.CreateScrolledArgs());
+            handler(this, Panel.CreateScrolledArgs());
         CheckThreshold();
     }
 
@@ -564,9 +595,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             return;
         // Settled: on the snap point of the position reached (or asked for).
         _targetIndex = -1;
-        if (_panel.HasGeometry && ItemCount > 0)
+        if (Panel.HasGeometry && ItemCount > 0)
         {
-            var current = _panel.CurrentIndex(_position);
+            var current = Panel.CurrentIndex(_position);
             if (current != _position)
                 ApplyPosition(_position, current, fromScroll: true);
         }
@@ -616,7 +647,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// <summary>Bindable property for <see cref="SnapPointsType"/>.</summary>
     public static readonly BindableProperty SnapPointsTypeProperty = BindableProperty.Create(nameof(SnapPointsType), typeof(SnapPointsType), typeof(SkUiCarouselView),
         SnapPointsType.MandatorySingle, validateValue: (_, value) => Enum.IsDefined((SnapPointsType)value),
-        propertyChanged: (view, _, value) => ((SkUiCarouselView)view)._scroller.SnapPointsType = (SnapPointsType)value);
+        propertyChanged: (view, _, value) => ((SkUiCarouselView)view).Scroller.SnapPointsType = (SnapPointsType)value);
 
     /// <summary>Bindable property for <see cref="SnapPointsAlignment"/>.</summary>
     public static readonly BindableProperty SnapPointsAlignmentProperty = BindableProperty.Create(nameof(SnapPointsAlignment), typeof(SnapPointsAlignment), typeof(SkUiCarouselView),
@@ -710,12 +741,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// <summary>A setting of the items' layout changed: the current place is kept, and the items are laid out again.</summary>
     private void OnLayoutChanged(Action<SkUiCarouselView>? apply)
     {
-        // The panel is null while the base constructor runs.
-        _panel?.KeepCurrentPlace();
+        Panel.KeepCurrentPlace();
         apply?.Invoke(this);
-        if (_panel is null)
-            return;
-        _panel.Refresh();
+        Panel.Refresh();
         UpdateOverscroll();
         FollowWithIndicator(); // whether its selection wraps (Loop)
     }
@@ -723,7 +751,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     private void OnOrientationChanged(ItemsLayoutOrientation value)
     {
         OnLayoutChanged(carousel => carousel._horizontal = value == ItemsLayoutOrientation.Horizontal);
-        _scroller.Orientation = _horizontal ? ScrollOrientation.Horizontal : ScrollOrientation.Vertical;
+        Scroller.Orientation = _horizontal ? ScrollOrientation.Horizontal : ScrollOrientation.Vertical;
         if (_indicator is { } indicator)
             indicator.Orientation = _horizontal ? StackOrientation.Horizontal : StackOrientation.Vertical;
     }
@@ -754,10 +782,10 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         _effect = value;
         if (value is not null)
             value.Changed += OnEffectSettingsChanged;
-        _panel.OnEffectChanged();
+        Panel.OnEffectChanged();
     }
 
-    private void OnEffectSettingsChanged(object? sender, EventArgs args) => _panel.OnEffectChanged();
+    private void OnEffectSettingsChanged(object? sender, EventArgs args) => Panel.OnEffectChanged();
 
     /// <inheritdoc />
     protected override void OnParentSet()
@@ -789,7 +817,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         if (previous is not null && ReferenceEquals(previous.Carousel, this))
             previous.Link(null);
         _indicator = value;
-        _indicatorListener.Listen(value);
+        IndicatorListener.Listen(value);
         if (value is null)
             return;
         value.Carousel?.UnlinkIndicator(value);
@@ -806,7 +834,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         if (!ReferenceEquals(_indicator, indicator))
             return;
         _indicator = null;
-        _indicatorListener.Listen(null);
+        IndicatorListener.Listen(null);
         IndicatorView = null;
     }
 
@@ -823,8 +851,8 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     {
         if (_indicator is not { } indicator)
             return;
-        var moving = Controller.IsMoving && _panel.HasGeometry;
-        indicator.Follow(moving ? _panel.ScrollPosition : _position, _panel.Loops);
+        var moving = Controller.IsMoving && Panel.HasGeometry;
+        indicator.Follow(moving ? Panel.ScrollPosition : _position, Panel.Loops);
     }
 
     #endregion
@@ -886,9 +914,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     private void CheckThreshold()
     {
         var count = ItemCount;
-        if (_remainingItemsThreshold < 0 || count == 0 || _thresholdCount == count || !_panel.HasGeometry)
+        if (_remainingItemsThreshold < 0 || count == 0 || _thresholdCount == count || !Panel.HasGeometry)
             return;
-        var last = _panel.Loops ? _position : _panel.LastVisibleIndex;
+        var last = Panel.Loops ? _position : Panel.LastVisibleIndex;
         if (last < count - 1 - _remainingItemsThreshold)
             return;
         _thresholdCount = count;
@@ -919,7 +947,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         propertyChanged: (view, _, _) =>
         {
             var carousel = (SkUiCarouselView)view;
-            carousel._emptySlot.OnTemplateChanged();
+            carousel.EmptySlot.OnTemplateChanged();
             carousel.EnsureEmptyView();
         });
 
@@ -939,8 +967,8 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
 
     private void OnEmptyViewChanged()
     {
-        _emptySlot.OnContentChanged();
-        if (EmptyView is null && !_emptySlot.IsSetting)
+        EmptySlot.OnContentChanged();
+        if (EmptyView is null && !EmptySlot.IsSetting)
             EnsureEmptyView();
         _emptyHost.Content = EmptyView;
     }
@@ -948,7 +976,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     private void EnsureEmptyView()
     {
         if (_isEmpty && Parent is not null)
-            _emptySlot.Ensure();
+            EmptySlot.Ensure();
     }
 
     private void UpdateEmpty()
@@ -966,7 +994,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     protected override void OnBindingContextChanged()
     {
         base.OnBindingContextChanged();
-        if (_emptySlot.Reselect())
+        if (EmptySlot.Reselect())
             EnsureEmptyView();
     }
 
@@ -975,26 +1003,26 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     #region Layout
 
     /// <summary>The carousel's scroller (tests).</summary>
-    internal SkUiScrollView ScrollView => _scroller;
+    internal SkUiScrollView ScrollView => Scroller;
 
     /// <summary>The panel of the items (tests).</summary>
-    internal (int First, int Last) RealizedSlots => _panel.RealizedSlots;
+    internal (int First, int Last) RealizedSlots => Panel.RealizedSlots;
 
     /// <summary>The visual states of the realized item views (tests).</summary>
-    internal IEnumerable<(int Index, string? State)> ItemVisualStates => _panel.VisualStates;
+    internal IEnumerable<(int Index, string? State)> ItemVisualStates => Panel.VisualStates;
 
     /// <summary>The visual state of the item view at <paramref name="index"/> (tests).</summary>
-    internal string? ItemVisualState(int index) => _panel.VisualStateOf(index);
+    internal string? ItemVisualState(int index) => Panel.VisualStateOf(index);
 
     /// <summary>The panel's item layout (tests): item length, stride, slots and copies of the items.</summary>
-    internal (double Extent, double Stride, int Slots, int Copies) Geometry => _panel.GeometryInfo;
+    internal (double Extent, double Stride, int Slots, int Copies) Geometry => Panel.GeometryInfo;
 
     /// <inheritdoc />
     internal override IEnumerable<ISkUiView> SkiaChildren
     {
         get
         {
-            yield return _scroller;
+            yield return Scroller;
             yield return _emptyHost;
         }
     }
@@ -1004,10 +1032,10 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     {
         UpdateEmpty();
         var empty = _isEmpty ? ((IView)_emptyHost).Measure(widthConstraint, heightConstraint) : Size.Zero;
-        _panel.SetViewport(_horizontal ? widthConstraint : heightConstraint);
-        var size = ((IView)_scroller).Measure(widthConstraint, heightConstraint);
+        Panel.SetViewport(_horizontal ? widthConstraint : heightConstraint);
+        var size = ((IView)Scroller).Measure(widthConstraint, heightConstraint);
         // Unbounded along the axis, the carousel is as long as its viewport (an item and the peek insets), not its strip.
-        size = _horizontal ? new Size(Math.Min(size.Width, _panel.ViewportLength), size.Height) : new Size(size.Width, Math.Min(size.Height, _panel.ViewportLength));
+        size = _horizontal ? new Size(Math.Min(size.Width, Panel.ViewportLength), size.Height) : new Size(size.Width, Math.Min(size.Height, Panel.ViewportLength));
         return new Size(Math.Max(size.Width, empty.Width), Math.Max(size.Height, empty.Height));
     }
 
@@ -1016,9 +1044,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     {
         var bounds = new Rect(0, 0, size.Width, size.Height);
         // Items that fill the carousel are as long as its arranged viewport, which the measure may not have known.
-        _panel.SetViewport(_horizontal ? size.Width : size.Height);
-        ((IView)_scroller).Measure(size.Width, size.Height);
-        ((IView)_scroller).Arrange(bounds);
+        Panel.SetViewport(_horizontal ? size.Width : size.Height);
+        ((IView)Scroller).Measure(size.Width, size.Height);
+        ((IView)Scroller).Arrange(bounds);
         if (_isEmpty)
         {
             ((IView)_emptyHost).Measure(size.Width, size.Height);
@@ -1038,7 +1066,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         var count = ItemCount;
         if (count <= 1)
             return false;
-        return _panel.Loops || (LogicalForward(forward) ? _position < count - 1 : _position > 0);
+        return Panel.Loops || (LogicalForward(forward) ? _position < count - 1 : _position > 0);
     }
 
     bool ISkUiScrollStepper.Step(bool forward, bool page)
@@ -1047,7 +1075,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             return false;
         var count = ItemCount;
         var next = _position + (LogicalForward(forward) ? 1 : -1);
-        _ = ScrollToIndex(_panel.Loops ? (next + count) % count : Math.Clamp(next, 0, count - 1));
+        _ = ScrollToIndex(Panel.Loops ? (next + count) % count : Math.Clamp(next, 0, count - 1));
         return true;
     }
 

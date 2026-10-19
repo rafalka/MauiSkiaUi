@@ -37,10 +37,29 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
     private static readonly PickerOpenedEventArgs OpenedArgs = new();
     private static readonly PickerClosedEventArgs ClosedArgs = new();
 
-    /// <summary>The field and popup engine the derived pickers fill.</summary>
-    private protected SkUiPickerModel Model { get; }
+    private SkUiPickerModel? _model;
 
-    private protected SkUiPickerBase() => Model = new SkUiPickerModel(this);
+    /// <summary>
+    /// The field and popup engine the derived pickers fill, created on first use: property callbacks can run before the
+    /// constructor (see <see cref="SkUiView.StyledOr{T}"/>).
+    /// </summary>
+    private protected SkUiPickerModel Model
+    {
+        get
+        {
+            if (_model is null)
+            {
+                _model = new SkUiPickerModel(this);
+                OnModelCreated(_model);
+            }
+            return _model;
+        }
+    }
+
+    private protected SkUiPickerBase() { }
+
+    /// <summary>Sets up a derived picker's part of the engine once it exists, before any property is applied to it.</summary>
+    private protected virtual void OnModelCreated(SkUiPickerModel model) { }
 
     #region Properties
 

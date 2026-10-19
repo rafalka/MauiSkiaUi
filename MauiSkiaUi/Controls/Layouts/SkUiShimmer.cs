@@ -29,8 +29,11 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(Content))]
 public class SkUiShimmer : SkUiContentView, ISkUiShimmer
 {
-    private readonly SkUiContentSlot _skeletonSlot;
-    private readonly SkUiShimmerStyles _styles;
+    private SkUiContentSlot? _skeletonSlot;
+    /// <summary>Created on first use (as <see cref="Styles"/>): property callbacks can run before the constructor (see <see cref="SkUiView.StyledOr{T}"/>).</summary>
+    private SkUiContentSlot SkeletonSlot => _skeletonSlot ??= new SkUiContentSlot(this, SkeletonContentProperty, SkeletonContentTemplateProperty);
+    private SkUiShimmerStyles? _styles;
+    private SkUiShimmerStyles Styles => _styles ??= new SkUiShimmerStyles(this);
     private SkUiDrawableSlot<SkUiShimmerStyle> _silhouette;
     private SkUiShimmerSettings _settings = SkUiShimmerSettings.Default;
     private bool _shown = true;  // the skeleton is on screen
@@ -191,8 +194,6 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     /// <summary>Creates a loading shimmer (it shows its skeleton until <see cref="IsLoading"/> is set to <c>false</c>).</summary>
     public SkUiShimmer()
     {
-        _skeletonSlot = new SkUiContentSlot(this, SkeletonContentProperty, SkeletonContentTemplateProperty);
-        _styles = new SkUiShimmerStyles(this);
     }
 
     /// <summary>
@@ -396,7 +397,7 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     /// <summary>Makes the style for the current settings, size and direction; a new one reaches the drawables of the shimmer and its bones.</summary>
     private void UpdateStyle(Size size)
     {
-        if (!_styles.Update(_settings, size, IsRightToLeft))
+        if (!Styles.Update(_settings, size, IsRightToLeft))
             return;
         InvalidateRender(SkUiRenderDirty.Props);
         SkUiShimmerStyles.InvalidateBones(this);
@@ -407,8 +408,8 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     {
         if (_settings.Mode != SkUiShimmerMode.Bones)
             return null;
-        _styles.Update(_settings, new Size(Math.Max(0, Width), Math.Max(0, Height)), IsRightToLeft); // the look's colors may have changed
-        return _styles.Current;
+        Styles.Update(_settings, new Size(Math.Max(0, Width), Math.Max(0, Height)), IsRightToLeft); // the look's colors may have changed
+        return Styles.Current;
     }
 
     /// <inheritdoc />
@@ -436,27 +437,27 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
         if (!_shown || !HasSkeleton)
             base.EnsureContentToShow();
         else if (IsContentLoaded && Parent is not null && CanPresentContent)
-            _skeletonSlot.Ensure();
+            SkeletonSlot.Ensure();
     }
 
     /// <inheritdoc />
     private protected override void ClearTemplateContent()
     {
         base.ClearTemplateContent();
-        _skeletonSlot.Clear();
+        SkeletonSlot.Clear();
     }
 
     private void OnSkeletonContentChanged(ISkUiView? value)
     {
-        _skeletonSlot.OnContentChanged();
-        if (_shown && !(value is null && _skeletonSlot.IsSetting))
+        SkeletonSlot.OnContentChanged();
+        if (_shown && !(value is null && SkeletonSlot.IsSetting))
             RefreshContent();
         UpdateContentSkeleton();
     }
 
     private void OnSkeletonContentTemplateChanged()
     {
-        _skeletonSlot.OnTemplateChanged();
+        SkeletonSlot.OnTemplateChanged();
         if (_shown)
             RefreshContent();
         UpdateContentSkeleton();
@@ -466,7 +467,7 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     protected override void OnBindingContextChanged()
     {
         base.OnBindingContextChanged();
-        if (_skeletonSlot.Reselect() && _shown)
+        if (SkeletonSlot.Reselect() && _shown)
             RefreshContent();
     }
 
@@ -551,9 +552,9 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
             _silhouette.Forget();
             return;
         }
-        _styles.Update(_settings, new Size(props.Width, props.Height), IsRightToLeft); // the look's colors may have changed
+        Styles.Update(_settings, new Size(props.Width, props.Height), IsRightToLeft); // the look's colors may have changed
         props.ChildrenLayer = true;
-        props.Drawable = _silhouette.Get(_styles.Current!, _styles.Current!, static style => new SkUiShimmerSilhouette(style));
+        props.Drawable = _silhouette.Get(Styles.Current!, Styles.Current!, static style => new SkUiShimmerSilhouette(style));
     }
 
     /// <inheritdoc />
