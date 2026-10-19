@@ -190,7 +190,7 @@ Styles target a type, and drawn controls are different types:
 - `VisualStateManager` groups and setters work, with MAUI's state names (`Normal`, `Disabled`, `Pressed`, `PointerOver`, `Focused`, `Checked`, `On` / `Off`).
 - Colors, brushes, `AppThemeBinding`, `OnPlatform`, `OnIdiom`, converters and resource dictionaries are MAUI's and need no change.
 - **Look.** Drawn controls are drawn by a look (`SkUiLook`), not by the native widgets. The default look (`DefaultSkUiLook`) draws the same on every platform, so a migrated page no longer changes between Android and iOS (a picker field is outlined everywhere, its list a centered dialog on phones). For the platform's appearance, set the platform look: `builder.UseSkiaUi(options => options.Look = DefaultSkUiLook.ForCurrentPlatform())` (`AndroidSkUiLook`, `IosSkUiLook`, `MacSkUiLook`, `WindowsSkUiLook`; basic so far, filled in over time). Either way controls look close to, but not exactly like, the native widgets. Set the colors you care about explicitly, or customise the look ([ControlLook.md](design/ControlLook.md), samples app: Customisation).
-- **Fonts** registered with `ConfigureFonts` work by alias. Text follows the OS text size (`FontAutoScalingEnabled`), as MAUI's does.
+- **Fonts** registered with `ConfigureFonts` work by alias, and on iOS / Mac Catalyst by PostScript name, as on MAUI. Text follows the OS text size (`FontAutoScalingEnabled`), as MAUI's does.
 
 ### 5. Convert gestures and touch behaviors
 

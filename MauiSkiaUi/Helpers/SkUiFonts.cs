@@ -70,7 +70,8 @@ public static class SkUiFonts
     /// <summary>
     /// Falls back to fonts registered with MAUI <c>ConfigureFonts</c> (via <see cref="Microsoft.Maui.IFontRegistrar"/>),
     /// so app-embedded fonts work without an explicit <see cref="Register"/> call. What the registrar returns differs
-    /// per platform (see <c>FromMauiFont</c>, compiled only for the platform targets).
+    /// per platform (see <c>FromMauiFont</c>, compiled only for the platform targets). On iOS / Mac Catalyst a name the
+    /// registrar does not know is tried as a PostScript name (<c>AvertaPE-Medium</c> for a font added as <c>AvertaPEMedium</c>).
     /// </summary>
     /// <param name="alias">Family name / alias to look up.</param>
     /// <param name="definitive"><c>false</c> when the registrar could not be asked (app not started yet, lookup failed).</param>
@@ -84,7 +85,14 @@ public static class SkUiFonts
                 return null;
             var font = registrar.GetFont(alias);
             definitive = true;
-            return font is { Length: > 0 } ? FromMauiFont(font) : null;
+            if (font is { Length: > 0 })
+                return FromMauiFont(font);
+#if IOS || MACCATALYST
+            // As MAUI's iOS FontManager (UIFont.FromName): a family that is no alias may be a font's PostScript name.
+            return FromPostScriptName(alias);
+#else
+            return null;
+#endif
         }
         catch (Exception)
         {
