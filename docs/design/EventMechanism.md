@@ -30,7 +30,7 @@ Design and status of **FR-15** in [Requirements.md](Requirements.md): one shared
 | Thresholds | App-wide `SkUiGestureSettings` (touch slop 10 DIPs, press delay 100 ms, long press 500 ms, double tap 300 ms / 40 DIPs, swipe 100 DIPs or 800 DIPs/s, fling 40–3000 DIPs/s); per-recognizer overrides where useful |
 | Multi-touch | One arena **per pointer**; independent presses (two buttons at once); pinch spans two pointers |
 | Raw touch | `ISkUiView.Touch` / `SkUiCoreNode.Touch` is the **entry point** for a surface root. Custom interaction uses `SkUiPointerGestureRecognizer`, not a `Touch` override (**breaking**: `Touch` is no longer virtual) |
-| Native ancestors | Coordinated at the surface: native parents are held back while a drawn continuous gesture may claim or owns the touch |
+| Native ancestors | Coordinated at the surface: native parents are held back while a drawn continuous gesture may claim or owns the touch; on iOS / Mac Catalyst their tap and long-press recognizers fail for touches a drawn tap takes |
 | Hover | Outside the arena: `HoverMoved` / `HoverExited` samples set `SkUiView.IsPointerOver` on the hovered view and its ancestors (MAUI's `PointerOver` visual state); see **Hover** |
 | MAUI `GestureRecognizers` | `TapGestureRecognizer` (1 or 2 taps, primary button) runs on drawn taps of drawn views, so tap XAML ports unchanged; other recognizers and platform behaviors are reported, not run. See **MAUI gesture recognizers** |
 
@@ -90,7 +90,7 @@ MAUI connects `View.GestureRecognizers` only to views with a native view. Drawn 
 
 - **Taps (P11a):** a `TapGestureRecognizer` in a drawn view's `GestureRecognizers` with `NumberOfTapsRequired` 1 or 2 and the primary button runs on that view's drawn taps, as MAUI raises it: its `Command` (when it can execute), then `Tapped` with the view as sender, `CommandParameter` as `Parameter` and `GetPosition(view)`. Single taps run after the view's own `Tapped` and before `TappedCommand`; a double-tap recognizer makes single taps wait, as `DoubleTapped` does. The same path serves span taps (`Span.GestureRecognizers`), screen-reader activation and Space / Enter.
 - **Arena rules apply:** a view with a tap recognizer takes part like one with `Tapped`, whether or not its command can execute (as on MAUI, an empty recognizer keeps taps from the views underneath), and the innermost one wins. Recognizers added or removed at any time apply from the next press.
-- **Not run (reported):** pan, swipe, pinch, pointer, drag and drop recognizers, taps with other counts or buttons, and platform behaviors (`PlatformBehavior<,>`, e.g. the toolkit's `TouchBehavior`), which attach to a native view. The first press on such a view writes one `Trace` line naming it (`AutomationId` when set) and the gesture event to use instead. A **surface root** has a native view: MAUI runs its recognizers natively, outside the arena, so taps that drawn controls handle reach them too; they are reported as well.
+- **Not run (reported):** pan, swipe, pinch, pointer, drag and drop recognizers, taps with other counts or buttons, and platform behaviors (`PlatformBehavior<,>`, e.g. the toolkit's `TouchBehavior`), which attach to a native view. The first press on such a view writes one `Trace` line naming it (`AutomationId` when set) and the gesture event to use instead. A **surface root** has a native view: MAUI runs its recognizers natively, outside the arena; they are reported as well. On iOS and Mac Catalyst its tap recognizers, like those of any native ancestor, fire only for taps no drawn control takes (see **Native ancestor taps**).
 
 Drawn views keep their own API for everything else (`LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, `Gestures`). A bridge for the other recognizer types is possible (MAUI exposes `IPanGestureController`, `ISwipeGestureController`, `IPinchGestureController`) and stays open (P11b).
 
@@ -116,6 +116,26 @@ The drawn arena runs inside one platform view. Native ancestors (a MAUI `ScrollV
 This gives native "nested scrolling" too: a drawn scroller inside a native one scrolls first, and the native one takes over at the drawn edge.
 
 **Windows** (touch / pen; mouse drags never pan a WinUI `ScrollViewer`): SkiaSharp captures every pointer and sets `ManipulationMode = All`, which keeps DirectManipulation off. When the state becomes `None` past the slop, the handler hands the contact to an ancestor `ScrollViewer` that can scroll: it releases the capture, sets `ManipulationMode = System` and calls `TryStartDirectManipulation` (one attempt per contact). If that fails, SkiaSharp's capture and mode are restored. A surface contact that loses capture while still down (DirectManipulation, another capture, a system gesture) is cancelled in the drawn tree, so no drawn gesture keeps tracking a lost pointer.
+
+### Native ancestor taps (iOS / Mac Catalyst)
+
+A MAUI `TapGestureRecognizer` on a native ancestor of the surface (a page's background tap that hides the keyboard, a tappable `Grid` around a drawn region) is a `UITapGestureRecognizer` with UIKit's default `CancelsTouchesInView`. MAUI also lets it receive touches that land on descendants with recognizers of their own, as the surface has.
+- **The problem it solves:** on touch-up the ancestor recognized, UIKit cancelled the surface's touches, and the drawn tree got `Cancelled` instead of `Released`: no drawn button, picker field, check box or text field took a tap. Drags were unaffected (a tap recognizer fails once the finger moves). Native `UIControl`s are immune because UIKit gives them priority over ancestor taps; drawn controls have no such privilege.
+- **The tap gate:** each surface has a second gate recognizer next to the continuous one. Ancestor `UITapGestureRecognizer`s and `UILongPressGestureRecognizer`s that cancel touches must wait for it (`ShouldBeRequiredToFailBy`); those with `CancelsTouchesInView = false` (MAUI's `HideSoftInputOnTapped` recognizer) cannot break a drawn tap and are left alone. It follows `SkUiPointerRouter.NativeTapState`:
+
+| State | Meaning | Tap gate |
+| --- | --- | --- |
+| `None` | Nothing drawn takes a tap or long press of the touch (a label, an empty area, a drawn scroller's background, a disabled control) | *Failed* at once → ancestor taps recognize as usual |
+| `Holding` | A drawn long press may still fire | stays *Possible*; *Failed* if released before it fires |
+| `Tapping` | A release now completes a drawn tap: a recognizer that `IsDiscrete` (taps, text fields, steppers, sliders) still tracks the pointer | stays *Possible*; on release *recognized* → ancestors fail |
+| `Claimed` | A drawn gesture claimed the touch (a long press fired, a scroller caught a fling or a drag began, a pointer recognizer claimed) | *recognized* at once → ancestors fail |
+
+- **Order:** UIKit gives a touch to recognizers before the view, and an ancestor tap (`DelaysTouchesEnded`) holds the view's release until it decides, so the gate decides in its own touch-up from the drawn tree's state at that moment (the arena still knows whether a tap would complete). Software surfaces feed the drawn tree from a recognizer whose order relative to the gate is not fixed; their deliverer passes the state from before the release when it gets there first.
+- **Delayed content touches:** inside a native `ScrollView`, the surface may see the press only on touch-up (`delaysContentTouches`). The gate then waits for that press and decides on it, and fails on the next main-loop turn if it never comes.
+- **Double taps:** both taps of a drawn double tap are taken, so an ancestor single tap does not fire between them. An ancestor `NumberOfTapsRequired="2"` recognizer fails on the first tap over drawn tappable content (the drawn control gets two single taps) and works as usual over content without taps. Native iOS exempts only *single* ancestor taps over a `UIButton`; SkiaUi keeps the innermost-wins rule for every tap count instead.
+- **Long presses:** an ancestor long press waits while a drawn tap or long press could take the touch and fails when one does; over a drawn button it does not fire (the button takes the release). A drawn long press that has not fired holds an ancestor long press back, and a quick release over it lets an ancestor tap recognize.
+- **Custom recognizers** that act on a release override `SkUiGestureRecognizer.IsDiscrete`; continuous ones block ancestor taps once they claim, like ancestor pans.
+- **Verified** on the iPad (A16) simulator, iOS 26.5 (2026-10-19), with a page whose content `Grid` has a `TapGestureRecognizer` and a `SwipeGestureRecognizer` around a GPU surface: button taps count, picker fields open their lists and choose, the check box, radio buttons and stepper toggle, a text field focuses, the drawn scroller scrolls, and a tap on a plain label still reaches the ancestor recognizer.
 
 ### Drags that start on a native overlay
 
@@ -155,7 +175,7 @@ A native control hosted by `SkUiMauiContentView` sits above the drawn surface, s
   - drags and swipes inside scrollers;
   - double tap / long press with a deterministic clock;
   - pinch, multi-touch, pointer recognizers;
-  - native state;
+  - native state, and the native tap state (`NativeTapStateReflectsDrawnTaps`, `NativeTapStateOfPointerRecognizersAndDoubleTaps`);
   - Core scrolling nested in SkUi* scrolling.
 - Devices:
   - **Galaxy S9:** real `adb` swipes and taps. The drawn scroller scrolls with a fling, a drawn button inside it clicks, nested Core carousels and same-axis panels hand over at their edges, and row swipes work inside a vertical scroller.

@@ -36,6 +36,22 @@ internal enum SkUiNativeGestureState
     Claimed
 }
 
+/// <summary>
+/// What a surface's drawn taps mean for native ancestor tap and long-press recognizers (e.g. a MAUI
+/// <c>TapGestureRecognizer</c> on a parent of the surface), which cancel the surface's touches when they recognize.
+/// </summary>
+internal enum SkUiNativeTapState
+{
+    /// <summary>Nothing drawn takes a tap or long press of the touch: native ancestors may recognize.</summary>
+    None,
+    /// <summary>A drawn long press may still fire; released now, the touch is not taken (ancestors may recognize then).</summary>
+    Holding,
+    /// <summary>Released now, the touch completes a drawn tap: ancestors must not recognize.</summary>
+    Tapping,
+    /// <summary>A drawn gesture claimed the touch (a long press fired, a scroller caught a fling, a drag began).</summary>
+    Claimed
+}
+
 /// <summary>One pointer's competition between recognizers.</summary>
 internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router, Point start, SkUiPointerDevice device = SkUiPointerDevice.Touch)
 {
@@ -182,6 +198,40 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         return !arena.SlopExceeded && arena.Members.Exists(member => member.IsExclusive)
             ? SkUiNativeGestureState.Pending
             : SkUiNativeGestureState.None;
+    }
+
+    /// <summary>
+    /// Current meaning of the drawn taps for native ancestor tap / long-press recognizers, over all pointers (the
+    /// strongest wins: <c>Claimed</c>, then <c>Tapping</c>, then <c>Holding</c>).
+    /// </summary>
+    internal SkUiNativeTapState NativeTapState
+    {
+        get
+        {
+            var state = SkUiNativeTapState.None;
+            foreach (var arena in _arenas.Values)
+            {
+                var arenaState = TapStateOf(arena);
+                if (arenaState > state)
+                    state = arenaState;
+            }
+            return state;
+        }
+    }
+
+    private static SkUiNativeTapState TapStateOf(SkUiGestureArena arena)
+    {
+        if (arena.Winner is { } winner && arena.WinnerClaimed && (winner.IsExclusive || winner.HoldsNativeTaps))
+            return SkUiNativeTapState.Claimed;
+        var state = SkUiNativeTapState.None;
+        foreach (var member in arena.Members)
+        {
+            if (member.IsDiscrete)
+                return SkUiNativeTapState.Tapping;
+            if (member.HoldsNativeTaps)
+                state = SkUiNativeTapState.Holding;
+        }
+        return state;
     }
 
     internal void OnArenaChanged() => NativeStateChanged?.Invoke();

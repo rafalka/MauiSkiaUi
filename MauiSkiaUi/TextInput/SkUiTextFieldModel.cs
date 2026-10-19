@@ -2211,6 +2211,9 @@ internal sealed class SkUiTextFieldGestures(SkUiTextFieldModel model) : SkUiGest
     protected internal override bool IsExclusive => _mouse || _longPressed || _scrolling || _handle != 0;
 
     /// <inheritdoc />
+    protected internal override bool IsDiscrete => true;
+
+    /// <inheritdoc />
     protected internal override bool OnPointerPressed(SkUiPointer pointer)
     {
         if (_pointer is not null || Owner is not { } owner || !model.AcceptsPointerAt(pointer.GetPosition(owner)))
