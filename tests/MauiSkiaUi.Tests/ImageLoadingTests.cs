@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Net;
 using System.Net.Http.Headers;
 using MauiSkiaUi.Core;
@@ -660,6 +661,89 @@ public sealed class ImageLoadingTests : IDisposable
         never.SetSourceStream(async token => { await Task.Delay(Timeout.Infinite, token); return Stream.Null; });
         never.Clear(); // cancels the load
         Assert.Equal(["start loading=True", "Cancelled   0x0 loading=True"], events);
+    }
+
+    [Fact]
+    public async Task ALoadFinishingOnAnotherThreadWaitsUntilTheImageIsDone()
+    {
+        // Without a dispatcher (as here) a load finishes on the thread pool: it must not change the image's state while the
+        // UI thread is inside it, here raising the state change of a placeholder that shows at once (a font glyph).
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var bytes = Png(SKColors.Red);
+
+        var coreOpened = new TaskCompletionSource<Stream>();
+        var core = new SkUiCoreImage().SetSourceStream(_ => coreOpened.Task);
+        using var coreLoaded = new ManualResetEventSlim();
+        core.LoadingFinished += (_, args) => { if (args.Status == SkUiImageLoadStatus.Succeeded) coreLoaded.Set(); };
+        Assert.False(FinishesDuringStateChange(core, coreOpened, bytes, coreLoaded,
+            () => core.SetLoadingPlaceholder(SkUiImageSource.FromFont("A", SkUiTestHelpers.BundledFontFamily))));
+        await core.LoadingTask;
+        Assert.Equal(new Size(40, 20), core.ImageSize);
+
+        var viewOpened = new TaskCompletionSource<Stream>();
+        var view = new SkUiImage { Source = ImageSource.FromStream(_ => viewOpened.Task) };
+        using var viewLoaded = new ManualResetEventSlim();
+        view.LoadingFinished += (_, args) => { if (args.Status == SkUiImageLoadStatus.Succeeded) viewLoaded.Set(); };
+        Assert.False(FinishesDuringStateChange(view, viewOpened, bytes, viewLoaded,
+            () => view.LoadingPlaceholder = new FontImageSource { Glyph = "A", FontFamily = SkUiTestHelpers.BundledFontFamily }));
+        await view.LoadingTask;
+        Assert.Equal(new Size(40, 20), view.ImageSize);
+    }
+
+    /// <summary>
+    /// Whether the load waiting for <paramref name="opened"/> finished (<paramref name="loaded"/>) while
+    /// <paramref name="image"/> was still raising the placeholder state change of <paramref name="enter"/>: the stream is
+    /// opened on another thread from inside that change.
+    /// </summary>
+    private static bool FinishesDuringStateChange(INotifyPropertyChanged image, TaskCompletionSource<Stream> opened, byte[] bytes,
+        ManualResetEventSlim loaded, Action enter)
+    {
+        var entered = false;
+        var finishedInside = false;
+        image.PropertyChanged += OnChanged;
+        enter();
+        image.PropertyChanged -= OnChanged;
+        Assert.True(entered);
+        return finishedInside;
+
+        void OnChanged(object? sender, PropertyChangedEventArgs args)
+        {
+            if (args.PropertyName != nameof(SkUiImage.IsShowingPlaceholder) || entered)
+                return;
+            entered = true;
+            _ = Task.Run(() => opened.SetResult(new MemoryStream(bytes)));
+            // Many times what the tiny image takes to decode; the load waits for the image, so this times out.
+            finishedInside = loaded.Wait(TimeSpan.FromMilliseconds(300));
+        }
+    }
+
+    [Fact]
+    public async Task ReplacingLoadsAsTheyFinishOnThePoolStartsAndFinishesEachOnce()
+    {
+        // Without a dispatcher a finishing load disposed its cancellation source while the UI thread's next load cancelled
+        // it (ObjectDisposedException), and could finish a load the next one had already cancelled.
+        var bytes = Png(SKColors.Red, 4, 4);
+        var core = new SkUiCoreImage();
+        var view = new SkUiImage();
+        var started = 0;
+        var finished = 0;
+        core.LoadingStarted += (_, _) => Interlocked.Increment(ref started);
+        core.LoadingFinished += (_, _) => Interlocked.Increment(ref finished);
+        view.LoadingStarted += (_, _) => Interlocked.Increment(ref started);
+        view.LoadingFinished += (_, _) => Interlocked.Increment(ref finished);
+        for (var i = 0; i < 200; i++)
+        {
+            var data = bytes; // a new delegate, so a new (unequal) source each time
+            core.SetSourceStream(_ => Task.FromResult<Stream>(new MemoryStream(data)));
+            view.Source = ImageSource.FromStream(_ => Task.FromResult<Stream>(new MemoryStream(data)));
+            Thread.SpinWait(Random.Shared.Next(20_000)); // lands the next load at varying points of the last one's completion
+        }
+        await core.LoadingTask;
+        await view.LoadingTask;
+        Assert.Equal(400, Volatile.Read(ref started));
+        Assert.Equal(400, Volatile.Read(ref finished));
+        Assert.Equal(new Size(4, 4), core.ImageSize);
+        Assert.Equal(new Size(4, 4), view.ImageSize);
     }
 
     [Fact]
