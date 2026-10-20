@@ -114,4 +114,78 @@ public class CorePressedStateTests
         Assert.False(check.IsPressed);
         Assert.True(check.IsChecked);
     }
+
+    [Fact]
+    public void APressRepaintsTheNode()
+    {
+        var row = new PressableRow();
+        row.Tapped += (_, _) => { };
+        var (root, at) = Host(row);
+        var paints = 0;
+        row.PaintInvalidated += (_, _) => paints++;
+
+        var id = Press(root, at);
+        Assert.Equal(1, paints); // custom pressed drawing re-records, also without an OnPressedChanged that invalidates
+        Release(root, id, at);
+        Assert.Equal(2, paints);
+    }
+
+    /// <summary>A command that stops executing during a press ends the press without a click, on both layers (as MAUI's buttons).</summary>
+    [Fact]
+    public void AButtonWhoseCommandStopsExecutingMidPressDoesNotClick()
+    {
+        foreach (var make in new Func<(SkUiView Root, Point At, Func<bool> IsPressed, Func<int> Clicks, Func<int> Runs, Command Command)>[]
+                 {
+                     () => SkUi(new SkUiButton { Text = "Save" }, (button, handler) => button.Clicked += handler, (button, command) => button.Command = command),
+                     () => SkUi(new SkUiImageButton(), (button, handler) => button.Clicked += handler, (button, command) => button.Command = command),
+                     () => Core(new SkUiCoreButton { Text = "Save" }, (button, handler) => button.Clicked += handler, (button, command) => button.SetCommand(command)),
+                     () => Core(new SkUiCoreImageButton(), (button, handler) => button.Clicked += handler, (button, command) => button.SetCommand(command))
+                 })
+        {
+            var (root, at, isPressed, clicks, runs, command) = make();
+            var id = Press(root, at);
+            Assert.True(isPressed());
+            CanRun = false;
+            command.ChangeCanExecute();
+            Assert.False(isPressed());
+            Release(root, id, at);
+            Assert.Equal((0, 0), (clicks(), runs()));
+
+            CanRun = true;
+            command.ChangeCanExecute();
+            Release(root, Press(root, at), at);
+            Assert.Equal((1, 1), (clicks(), runs()));
+        }
+    }
+
+    private static bool CanRun { get; set; } = true;
+
+    private static (SkUiView, Point, Func<bool>, Func<int>, Func<int>, Command) SkUi<T>(T button, Action<T, EventHandler> onClicked, Action<T, Command> setCommand)
+        where T : SkUiView
+    {
+        var clicks = 0;
+        var runs = 0;
+        var command = new Command(() => runs++, () => CanRun);
+        onClicked(button, (_, _) => clicks++);
+        setCommand(button, command);
+        button.WidthRequest = 100;
+        button.HeightRequest = 40;
+        button.HorizontalOptions = LayoutOptions.Start;
+        var root = new SkUiVerticalStackLayout();
+        root.Children.Add(button);
+        SkUiTestHelpers.Arrange(root, 300, 200);
+        return (root, new Point(50, 20), () => button.IsPressed, () => clicks, () => runs, command);
+    }
+
+    private static (SkUiView, Point, Func<bool>, Func<int>, Func<int>, Command) Core<T>(T button, Action<T, EventHandler> onClicked, Action<T, Command> setCommand)
+        where T : SkUiCoreNode
+    {
+        var clicks = 0;
+        var runs = 0;
+        var command = new Command(() => runs++, () => CanRun);
+        onClicked(button, (_, _) => clicks++);
+        setCommand(button, command);
+        var (root, at) = Host(button);
+        return (root, at, () => button.IsPressed, () => clicks, () => runs, command);
+    }
 }

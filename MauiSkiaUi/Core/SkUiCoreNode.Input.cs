@@ -113,10 +113,13 @@ public partial class SkUiCoreNode
 
     /// <summary>
     /// Whether the node takes taps changed (a command, its parameter or its <c>CanExecute</c>): screen readers and keyboard focus
-    /// follow, and controls repaint their enabled look.
+    /// follow, controls repaint their enabled look, and a press held while the tap stops being available ends without a tap
+    /// (as when <see cref="IsEnabled"/> turns <c>false</c>).
     /// </summary>
     private protected void OnTapStateChanged()
     {
+        if (!CanReceiveTap)
+            CancelGestures();
         InvalidatePaint();
         InvalidateSemantics();
         RevalidateFocus();

@@ -156,7 +156,7 @@ The current look ([ControlLook.md](../design/ControlLook.md)) draws every picker
 
 ## Field chrome
 
-Every picker of both layers (this one, the date, time, date-and-time and multi-column pickers) can set its own field over the look's, as the text fields do ([SkUiEntry.md](SkUiEntry.md#field-chrome)): `FieldStyle` (`SkUiPickerFieldStyle`; `Default`: the look's `PickerFieldStyle`), `FillColor` (drawn as set, also while disabled), `BorderColor`, `BorderWidth` (0: no idle outline) and `CornerRadii` / `CornerRadius` (Core: `SetCornerRadius(double)`), each `null` for the style's. Focus, open and disabled emphasis stay the look's, and the press overlay follows the corners.
+Every picker of both layers (this one, the date, time, date-and-time and multi-column pickers) can set its own field over the look's, as the text fields do ([SkUiEntry.md](SkUiEntry.md#field-chrome)): `FieldStyle` (`SkUiPickerFieldStyle`; `Default`: the look's `PickerFieldStyle`), `FillColor` (drawn as set, also while disabled), `BorderColor`, `BorderWidth` (0: no idle outline) and `CornerRadii` / `CornerRadius` (Core: `SetCornerRadius(double?)`), each `null` for the style's. Focus, open and disabled emphasis stay the look's, and the press overlay follows the corners.
 
 ```xml
 <sk:SkUiPicker Title="Country" FieldStyle="Outline" BorderColor="{StaticResource Accent}" CornerRadius="12" />

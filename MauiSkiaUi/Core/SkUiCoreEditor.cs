@@ -144,5 +144,5 @@ public class SkUiCoreEditor : SkUiCoreInputView
     public new SkUiCoreEditor SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
 
     /// <inheritdoc cref="SkUiCoreInputView.SetCornerRadius" />
-    public new SkUiCoreEditor SetCornerRadius(double value) { base.SetCornerRadius(value); return this; }
+    public new SkUiCoreEditor SetCornerRadius(double? value) { base.SetCornerRadius(value); return this; }
 }

@@ -152,6 +152,8 @@ public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDra
 
     private void UpdateState()
     {
+        // A press held while the command stops executing ends without a click, as when IsEnabled turns false.
+        if (!CanReceiveTap) CancelGestures();
         ChangeVisualState();
         InvalidatePaint();
         RevalidateFocus();
@@ -172,6 +174,8 @@ public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDra
     /// <inheritdoc />
     protected override void OnTapped(SkUiTappedEventArgs args)
     {
+        // As MAUI's buttons, whose IsEnabled includes CanExecute: no click while the command cannot execute.
+        if (!CanReceiveTap) return;
         RaiseTapped(args);
         Clicked?.Invoke(this, EventArgs.Empty);
         if (_command?.CanExecute(_commandParameter) == true) _command.Execute(_commandParameter);

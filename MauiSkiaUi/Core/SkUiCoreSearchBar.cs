@@ -182,7 +182,7 @@ public class SkUiCoreSearchBar : SkUiCoreInputView
     public new SkUiCoreSearchBar SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
 
     /// <inheritdoc cref="SkUiCoreInputView.SetCornerRadius" />
-    public new SkUiCoreSearchBar SetCornerRadius(double value) { base.SetCornerRadius(value); return this; }
+    public new SkUiCoreSearchBar SetCornerRadius(double? value) { base.SetCornerRadius(value); return this; }
 
     /// <inheritdoc />
     private protected override void OnReturnPressed()

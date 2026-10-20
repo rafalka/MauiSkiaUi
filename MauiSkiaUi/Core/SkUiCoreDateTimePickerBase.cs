@@ -5,7 +5,10 @@ namespace MauiSkiaUi.Core;
 /// popup (<see cref="SkUiCorePickerBase"/>), and wheels for the parts of a date or a time, ordered, named and formatted by the
 /// culture or by <see cref="WheelFormat"/>. The same engine as the SkiaUi pickers.
 /// </summary>
-/// <remarks>Core nodes have no enabled state: the picker always reacts (hide it, or remove it, to stop it).</remarks>
+/// <remarks>
+/// While disabled (<see cref="SkUiCoreNode.IsEnabled"/> <c>false</c>, also through a Core ancestor or the host) the picker draws
+/// its disabled look and does not open; an open popup closes.
+/// </remarks>
 public abstract class SkUiCoreDateTimePickerBase : SkUiCorePickerBase
 {
     private protected SkUiCoreDateTimePickerBase(SkUiDateTimeKind kind) => Dates = new SkUiDateTimeModel(Model, kind, value => ChooseValue(value));

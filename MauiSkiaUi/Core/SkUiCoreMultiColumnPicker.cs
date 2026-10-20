@@ -7,7 +7,10 @@ namespace MauiSkiaUi.Core;
 /// app's popup system, the same <see cref="SkUiPickerColumn"/>s. Columns are bindable objects (they can bind to a view model
 /// through their own bindings, and one column can serve a <see cref="SkUiMultiColumnPicker"/> as well); the picker listens to them weakly.
 /// </summary>
-/// <remarks>Core nodes have no enabled state: the picker always reacts (hide it, or remove it, to stop it).</remarks>
+/// <remarks>
+/// While disabled (<see cref="SkUiCoreNode.IsEnabled"/> <c>false</c>, also through a Core ancestor or the host) the picker draws
+/// its disabled look and does not open; an open popup closes.
+/// </remarks>
 public class SkUiCoreMultiColumnPicker : SkUiCorePickerBase
 {
     private readonly SkUiColumnsModel _columns;
@@ -164,7 +167,7 @@ public class SkUiCoreMultiColumnPicker : SkUiCorePickerBase
     public new SkUiCoreMultiColumnPicker SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
 
     /// <inheritdoc cref="SkUiCorePickerBase.SetCornerRadius" />
-    public new SkUiCoreMultiColumnPicker SetCornerRadius(double value) { base.SetCornerRadius(value); return this; }
+    public new SkUiCoreMultiColumnPicker SetCornerRadius(double? value) { base.SetCornerRadius(value); return this; }
 
     /// <summary>Sets <see cref="SkUiCorePickerBase.PopupWidth"/> (same as the property setter).</summary>
     public new SkUiCoreMultiColumnPicker SetPopupWidth(double value) { base.SetPopupWidth(value); return this; }

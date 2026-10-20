@@ -6,7 +6,10 @@ namespace MauiSkiaUi.Core;
 /// Drawn date picker (Core analogue of <see cref="SkUiDatePicker"/>): the same field, wheels and rules (MAUI's date, kept in the
 /// range; blackout dates, a rule of the app's, the highlighted date, the wheel format), set with fluent <c>Set*</c> calls.
 /// </summary>
-/// <remarks>Core nodes have no enabled state: the picker always reacts (hide it, or remove it, to stop it).</remarks>
+/// <remarks>
+/// While disabled (<see cref="SkUiCoreNode.IsEnabled"/> <c>false</c>, also through a Core ancestor or the host) the picker draws
+/// its disabled look and does not open; an open popup closes.
+/// </remarks>
 public class SkUiCoreDatePicker : SkUiCoreDateTimePickerBase
 {
     private DateTime? _date = DateTime.Today;
@@ -238,7 +241,7 @@ public class SkUiCoreDatePicker : SkUiCoreDateTimePickerBase
     public new SkUiCoreDatePicker SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
 
     /// <inheritdoc cref="SkUiCorePickerBase.SetCornerRadius" />
-    public new SkUiCoreDatePicker SetCornerRadius(double value) { base.SetCornerRadius(value); return this; }
+    public new SkUiCoreDatePicker SetCornerRadius(double? value) { base.SetCornerRadius(value); return this; }
 
     /// <summary>Sets <see cref="SkUiCorePickerBase.PopupWidth"/> (same as the property setter).</summary>
     public new SkUiCoreDatePicker SetPopupWidth(double value) { base.SetPopupWidth(value); return this; }

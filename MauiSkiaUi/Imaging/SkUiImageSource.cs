@@ -76,6 +76,7 @@ public abstract record SkUiImageSource
                 FileImageSource file => FromFile(file.File),
                 UriImageSource uri => FromUri(uri.Uri, uri.CachingEnabled, uri.CacheValidity),
                 StreamImageSource stream => FromStream(stream.Stream),
+                // MAUI 10's FontImageSource has no FontAttributes: a bold or italic glyph comes from its FontFamily's face.
                 FontImageSource font => FromFont(font.Glyph, font.FontFamily, font.Size, font.Color,
                     fontAutoScalingEnabled: font.FontAutoScalingEnabled),
                 _ => new SkUiFailedImageSource(new NotSupportedException(

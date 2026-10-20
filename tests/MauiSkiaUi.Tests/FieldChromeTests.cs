@@ -279,6 +279,17 @@ public class FieldChromeTests
         Assert.Equal(["FieldStyle", "TextPadding", "FillColor", "BorderColor", "BorderWidth", "CornerRadii"], changed);
         Assert.Equal((SkUiTextFieldStyle.Filled, new Thickness(2), 2d, new CornerRadius(4)), (entry.FieldStyle, entry.TextPadding, entry.BorderWidth, entry.CornerRadii));
     }
+
+    [Fact]
+    public void SetCornerRadiusNullGoesBackToTheStylesOnBothLayers()
+    {
+        var entry = new SkUiEntry().SetCornerRadius(4).SetCornerRadius(null);
+        var coreEntry = new SkUiCoreEntry().SetCornerRadius(4).SetCornerRadius(null);
+        var picker = new SkUiPicker().SetCornerRadius(4).SetCornerRadius(null);
+        var corePicker = new SkUiCorePicker().SetCornerRadius(4.5).SetCornerRadius(null);
+        Assert.Equal(((CornerRadius?)null, (CornerRadius?)null, (CornerRadius?)null, (CornerRadius?)null),
+            (entry.CornerRadii, coreEntry.CornerRadii, picker.CornerRadii, corePicker.CornerRadii));
+    }
 }
 
 /// <summary>The per-field chrome from XAML: attributes and a style's setters (nullable thickness and radii use MAUI's converters).</summary>

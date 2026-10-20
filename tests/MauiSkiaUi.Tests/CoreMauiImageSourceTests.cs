@@ -26,7 +26,19 @@ public class CoreMauiImageSourceTests
         {
             Glyph = "A", FontFamily = "Icons", Size = 20, Color = Colors.Red, FontAutoScalingEnabled = false
         }));
-        Assert.Equal(("A", "Icons", 20d, Colors.Red, false), (font.Glyph, font.FontFamily, font.Size, font.Color, font.FontAutoScalingEnabled));
+        Assert.Equal(("A", "Icons", 20d, Colors.Red, FontAttributes.None, false),
+            (font.Glyph, font.FontFamily, font.Size, font.Color, font.FontAttributes, font.FontAutoScalingEnabled));
+    }
+
+    [Fact]
+    public void EveryMappedFontPropertyReloadsALiveMauiSource()
+    {
+        foreach (var name in new[]
+                 {
+                     nameof(FontImageSource.Glyph), nameof(FontImageSource.FontFamily), nameof(FontImageSource.Size), nameof(FontImageSource.Color),
+                     nameof(FontImageSource.FontAutoScalingEnabled)
+                 })
+            Assert.True(SkUiMauiImageSources.AffectsImage(name), name);
     }
 
     [Fact]

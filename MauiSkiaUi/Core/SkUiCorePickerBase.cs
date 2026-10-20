@@ -10,7 +10,10 @@ namespace MauiSkiaUi.Core;
 /// settings, <see cref="IsOpen"/> with <see cref="Opened"/> and <see cref="Closed"/>, the popup's placement and presenter, keyboard
 /// and screen readers. A derived picker says what the field shows and what the popup holds.
 /// </summary>
-/// <remarks>Core nodes have no enabled state: the picker always reacts (hide it, or remove it, to stop it).</remarks>
+/// <remarks>
+/// While disabled (<see cref="SkUiCoreNode.IsEnabled"/> <c>false</c>, also through a Core ancestor or the host) the picker draws
+/// its disabled look and does not open; an open popup closes.
+/// </remarks>
 public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUiFieldChromeElement, ISkUiPickerOwner, ISkUiKeyHandler
 {
     /// <summary>The field and popup engine the derived pickers fill.</summary>
@@ -306,11 +309,12 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
         return Update(ref Model.Chrome.CornerRadii, value, nameof(CornerRadii));
     }
 
-    /// <summary>Sets all four <see cref="CornerRadii"/> to <paramref name="value"/> DIPs.</summary>
-    public SkUiCorePickerBase SetCornerRadius(double value)
+    /// <summary>Sets all four <see cref="CornerRadii"/> to <paramref name="value"/> DIPs (<c>null</c>: the style's).</summary>
+    public SkUiCorePickerBase SetCornerRadius(double? value)
     {
-        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
-        return SetCornerRadii(new CornerRadius(value));
+        if (value is { } radius)
+            SkUiValidate.ThrowIfNegativeOrNotFinite(radius, nameof(value));
+        return SetCornerRadii(value is { } uniform ? new CornerRadius(uniform) : null);
     }
 
     /// <summary>Sets <see cref="PopupWidth"/>.</summary>

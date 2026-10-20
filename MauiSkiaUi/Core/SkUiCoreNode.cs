@@ -1258,6 +1258,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         UpdatePressEffect(value);
         OnPropertyChanged(nameof(IsPressed));
         OnPressedChanged();
+        InvalidatePaint();
     }
 
     /// <summary>Where the last press started, in this node's coordinates (ripple origin).</summary>

@@ -9,7 +9,10 @@ namespace MauiSkiaUi.Core;
 /// <see cref="SkUiCoreEditor"/>): drawn text, caret, selection and placeholder, the look's chrome, and the platform's keyboard and
 /// input methods through the surface's text input proxy. Fluent <c>Set*</c> setters and <see cref="System.ComponentModel.INotifyPropertyChanged"/>.
 /// </summary>
-/// <remarks>Core nodes have no enabled state: use <see cref="IsReadOnly"/> to stop editing (or hide the node).</remarks>
+/// <remarks>
+/// While disabled (<see cref="SkUiCoreNode.IsEnabled"/> <c>false</c>, also through a Core ancestor or the host) the field draws
+/// its disabled look and takes no focus or input (<see cref="IsReadOnly"/> stops only editing).
+/// </remarks>
 public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiFontElement, ISkUiFieldChromeElement, ISkUiTextFieldOwner, ISkUiKeyHandler, ISkUiTextInputNode, ISkUiWheelHandler
 {
     private string? _text;
@@ -386,11 +389,12 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiFontElement, ISkUiF
         return Update(ref Model.Chrome.CornerRadii, value, nameof(CornerRadii));
     }
 
-    /// <summary>Sets all four <see cref="CornerRadii"/> to <paramref name="value"/> DIPs.</summary>
-    public SkUiCoreInputView SetCornerRadius(double value)
+    /// <summary>Sets all four <see cref="CornerRadii"/> to <paramref name="value"/> DIPs (<c>null</c>: the style's).</summary>
+    public SkUiCoreInputView SetCornerRadius(double? value)
     {
-        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
-        return SetCornerRadii(new CornerRadius(value));
+        if (value is { } radius)
+            SkUiValidate.ThrowIfNegativeOrNotFinite(radius, nameof(value));
+        return SetCornerRadii(value is { } uniform ? new CornerRadius(uniform) : null);
     }
 
     private SkUiCoreInputView UpdateMessage<T>(ref T field, T value, string name)

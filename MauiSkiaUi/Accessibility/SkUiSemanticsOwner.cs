@@ -145,7 +145,7 @@ internal sealed class SkUiSemanticsOwner
 
     /// <summary>Replaces the text of the editable field <paramref name="id"/> (TalkBack's set text, Narrator's value); returns whether it was done.</summary>
     public bool SetText(int id, string text) =>
-        Tree.Find(id) is { Source: ISkUiTextInputNode { WantsTextInput: true } field, IsEnabled: true, TextField.IsReadOnly: false }
+        Tree.Find(id) is { Source: ISkUiTextInputNode { WantsTextInput: true } field, IsEnabled: true, PartIndex: < 0, TextField.IsReadOnly: false }
         && IsInputLive(field) && field.TextInputClient.SetTextFromAssistant(text);
 
     /// <summary>Selects <c>[start, end)</c> in the editable field <paramref name="id"/>; returns whether it was done.</summary>

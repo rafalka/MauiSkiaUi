@@ -2,7 +2,7 @@
 
 A single-line text field drawn by SkiaUi: the text, caret, selection, placeholder and chrome are drawn on the surface, and the platform's keyboard and input methods (composition, autocorrect, dictation, the edit menu) reach it through the surface's text input proxy. No native view is created for it, so it clips, scrolls, transforms and fades with the drawn tree, sits under drawn popups, and works in Core trees and in recycled list rows.
 
-**MAUI counterpart:** [`Entry`](https://learn.microsoft.com/dotnet/maui/user-interface/controls/entry), by member name: a page ports by changing the prefix. Beyond MAUI: `CaretColor`, `SelectionColor`, `AutofillHint`, `InputFormatters` / `FormatsAssignedText`, `LeadingView` / `TrailingView`, `HasError` / `ErrorText` / `HelperText` / `ErrorColor`. Core twin: `SkUiCoreEntry` (fluent `Set*`, `INotifyPropertyChanged`; no enabled state: use `IsReadOnly`). The fields share their base with [`SkUiEditor`](SkUiEditor.md) and [`SkUiSearchBar`](SkUiSearchBar.md) (`SkUiInputView` / `SkUiCoreInputView`, MAUI's `InputView`); [`SkUiStepper`](SkUiStepper.md) edits its value with the same engine.
+**MAUI counterpart:** [`Entry`](https://learn.microsoft.com/dotnet/maui/user-interface/controls/entry), by member name: a page ports by changing the prefix. Beyond MAUI: `CaretColor`, `SelectionColor`, `AutofillHint`, `InputFormatters` / `FormatsAssignedText`, `LeadingView` / `TrailingView`, `HasError` / `ErrorText` / `HelperText` / `ErrorColor`. Core twin: `SkUiCoreEntry` (fluent `Set*`, `INotifyPropertyChanged`; the cascading `IsEnabled` of Core nodes). The fields share their base with [`SkUiEditor`](SkUiEditor.md) and [`SkUiSearchBar`](SkUiSearchBar.md) (`SkUiInputView` / `SkUiCoreInputView`, MAUI's `InputView`); [`SkUiStepper`](SkUiStepper.md) edits its value with the same engine.
 
 ## How it works
 
@@ -35,7 +35,7 @@ A field can set its own chrome over the look's, so one form mixes bordered, bord
 | `FillColor` | `null` | The field's fill inside its corners, drawn as set (also while disabled: use a `Disabled` visual state for another); `null`: the style's (none for an outline or an underline) |
 | `BorderColor` | `null` | The idle outline's or underline's color; `null`: the color scheme's muted color |
 | `BorderWidth` | `null` | The idle outline's or underline's width (0: none while idle); `null`: 1. With `None`, an outline of this width in the state's color |
-| `CornerRadii`, `CornerRadius` | `null` | The chrome's corners (a large radius gives a pill); `CornerRadius` is the uniform `int` view, as the labels' and buttons'; Core: `SetCornerRadii`, `SetCornerRadius(double)`. `null`: the style's (`FieldCornerRadius`; a filled field's top corners) |
+| `CornerRadii`, `CornerRadius` | `null` | The chrome's corners (a large radius gives a pill); `CornerRadius` is the uniform `int` view, as the labels' and buttons'; Core: `SetCornerRadii`, `SetCornerRadius(double?)`. `null`: the style's (`FieldCornerRadius`; a filled field's top corners) |
 
 Focus, error and disabled emphasis stay the look's: a focused outline still thickens and turns to the accent color, an invalid field draws its error color (at least 1 DIP, also with `BorderWidth="0"`), a disabled field's lines are dimmed. A search bar's `Default` style is the look's search field, which takes the fill, the corner radii and an idle outline of `BorderWidth`; any other style draws that text field with the search icon in it.
 

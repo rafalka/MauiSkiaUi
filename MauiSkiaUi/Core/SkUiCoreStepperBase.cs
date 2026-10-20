@@ -10,8 +10,8 @@ namespace MauiSkiaUi.Core;
 /// <see cref="SkUiCoreStepper"/> on <see cref="double"/>, <see cref="SkUiCoreStepper{T}"/> on any number type.
 /// </summary>
 /// <remarks>
-/// Only SkiaUi's steppers derive from it. Core nodes have no enabled state: a stepper always reacts (hide it, or remove it, to stop
-/// it).
+/// Only SkiaUi's steppers derive from it. While disabled (<see cref="SkUiCoreNode.IsEnabled"/> <c>false</c>, also through a Core
+/// ancestor or the host) the stepper draws its buttons dimmed and its buttons, keys and screen-reader actions do nothing.
 /// </remarks>
 public abstract class SkUiCoreStepperBase : SkUiCoreNode, ISkUiFontElement, ISkUiStepperOwner, ISkUiKeyHandler
 {

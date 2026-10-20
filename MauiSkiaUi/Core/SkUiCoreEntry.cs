@@ -185,7 +185,7 @@ public class SkUiCoreEntry : SkUiCoreInputView
     public new SkUiCoreEntry SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
 
     /// <inheritdoc cref="SkUiCoreInputView.SetCornerRadius" />
-    public new SkUiCoreEntry SetCornerRadius(double value) { base.SetCornerRadius(value); return this; }
+    public new SkUiCoreEntry SetCornerRadius(double? value) { base.SetCornerRadius(value); return this; }
 
     /// <inheritdoc />
     private protected override void OnReturnPressed()

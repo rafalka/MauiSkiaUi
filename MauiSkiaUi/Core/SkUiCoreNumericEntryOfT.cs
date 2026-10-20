@@ -259,7 +259,7 @@ public class SkUiCoreNumericEntry<T> : SkUiCoreNumericEntryBase, ISkUiNumericVal
     public new SkUiCoreNumericEntry<T> SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
 
     /// <inheritdoc cref="SkUiCoreInputView.SetCornerRadius" />
-    public new SkUiCoreNumericEntry<T> SetCornerRadius(double value) { base.SetCornerRadius(value); return this; }
+    public new SkUiCoreNumericEntry<T> SetCornerRadius(double? value) { base.SetCornerRadius(value); return this; }
 
     /// <inheritdoc cref="SkUiCoreEntry.SetIsPassword" />
     public new SkUiCoreNumericEntry<T> SetIsPassword(bool value) { base.SetIsPassword(value); return this; }

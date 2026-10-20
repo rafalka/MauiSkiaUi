@@ -242,6 +242,8 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     }
     private void UpdateState()
     {
+        // A press held while the command stops executing ends without a click, as when IsEnabled turns false.
+        if (!CanReceiveTap) CancelGestures();
         ChangeVisualState();
         InvalidatePaint();
         RevalidateFocus();
@@ -265,11 +267,13 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
         if (propertyName == nameof(IsEnabled)) UpdateState();
     }
     /// <summary>
-    /// Raises the shared Tapped event and Clicked, then executes Command. TappedCommand (inherited from SkUiView)
+    /// While the command can execute: raises the shared Tapped event and Clicked, then executes Command. TappedCommand (inherited from SkUiView)
     /// is intentionally not executed here to avoid running two commands from a single tap; use Command instead.
     /// </summary>
     protected override void OnTapped(SkUiTappedEventArgs args)
     {
+        // As MAUI's buttons, whose IsEnabled includes CanExecute: no click while the command cannot execute.
+        if (!CanReceiveTap) return;
         RaiseTapped(args);
         Clicked?.Invoke(this, EventArgs.Empty);
         if (_command?.CanExecute(_commandParameter) == true) _command.Execute(_commandParameter);
