@@ -207,7 +207,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <summary>MAUI's (internal) name of the focus group's unfocused state.</summary>
     private const string UnfocusedState = "Unfocused";
 
-    /// <summary>Enabled for visual states: <see cref="VisualElement.IsEnabled"/> and <see cref="CanReceiveTap"/>.</summary>
+    /// <summary>Enabled for visual states, input and the enabled look: <see cref="VisualElement.IsEnabled"/> and <see cref="CanReceiveTap"/>.</summary>
     private protected bool IsVisualStateEnabled => IsEnabled && CanReceiveTap;
 
     /// <summary>Updates intrinsic control feedback when the shared pointer state changes.</summary>
@@ -1322,7 +1322,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     bool ISkUiInputNode.IsHitTestVisible => IsVisible && !InputTransparent;
 
-    bool ISkUiInputNode.IsInputEnabled => IsEnabled && CanReceiveTap;
+    bool ISkUiInputNode.IsInputEnabled => IsVisualStateEnabled;
 
     bool ISkUiInputNode.HitTestsChildren => HitTestsChildren;
 

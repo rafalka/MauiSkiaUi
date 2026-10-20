@@ -355,7 +355,8 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         if (!leaf.IsInputEnabled)
         {
             // Disabled: takes the pointer until release without reacting, so what is underneath gets no tap; the continuous
-            // gestures of its (enabled) ancestors still compete, so a scroller around it scrolls.
+            // gestures of its ancestors still compete, so a scroller around it scrolls. FindTarget stops at the outermost node
+            // whose input is disabled, so every ancestor here is enabled: a disabled scroller is the leaf, never in this arena.
             if (!ReferenceEquals(leaf, root) && leaf.RenderParent is ISkUiInputNode parent)
             {
                 AddMembers(arena, parent, continuousOnly: true);

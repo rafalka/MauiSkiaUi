@@ -284,7 +284,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     /// </summary>
     protected void PaintButtonBackground(SKCanvas canvas)
     {
-        var enabled = IsEnabled && CanReceiveTap;
+        var enabled = IsVisualStateEnabled;
         var fill = ButtonFill(enabled);
         SkUiLook.Current.DrawButton(canvas, new SkUiButtonPaint(new SKRect(0, 0, (float)Width, (float)Height), CornerRadii,
             fill.Color, ToSkColor(BorderColor), (float)BorderWidth, _press?.Visual ?? SkUiPressVisual.None, enabled)
@@ -299,11 +299,11 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
 
     /// <inheritdoc />
     private protected override double ContentOpacity =>
-        !(IsEnabled && CanReceiveTap) && SkUiButtonFill.DimsContent(ButtonFill(false), _disabledFillColor) ? SkUiLook.Current.DisabledButtonContentOpacity : 1;
+        !IsVisualStateEnabled && SkUiButtonFill.DimsContent(ButtonFill(false), _disabledFillColor) ? SkUiLook.Current.DisabledButtonContentOpacity : 1;
 
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height) =>
-        ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(IsEnabled && CanReceiveTap).ToPaint()) : null;
+        ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(IsVisualStateEnabled).ToPaint()) : null;
 
     /// <inheritdoc />
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)

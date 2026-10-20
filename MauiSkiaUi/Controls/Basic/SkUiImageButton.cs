@@ -202,11 +202,11 @@ public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDra
     }
 
     /// <summary>Whether <see cref="DisabledFillColor"/> replaces the background now.</summary>
-    private bool UsesDisabledFill => _disabledFillColor is not null && !(IsEnabled && CanReceiveTap);
+    private bool UsesDisabledFill => _disabledFillColor is not null && !IsVisualStateEnabled;
 
     /// <summary>The fill behind the image (<see cref="SkUiButtonFill"/>, the rule of every button).</summary>
     private SkUiFill ButtonFill =>
-        SkUiButtonFill.Resolve(IsEnabled && CanReceiveTap, ResolveBackgroundFill(), Colors.Transparent, false, _disabledFillColor);
+        SkUiButtonFill.Resolve(IsVisualStateEnabled, ResolveBackgroundFill(), Colors.Transparent, false, _disabledFillColor);
 
     /// <inheritdoc />
     internal override void ReleaseDrawingResources()
@@ -224,7 +224,7 @@ public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDra
     /// <see cref="SkUiView.PaintOverlay"/>. Subclasses may call or re-register this painter.
     /// </summary>
     protected void PaintButtonOverlay(SKCanvas canvas) =>
-        SkUiImageButtonDrawing.PaintOverlay(canvas, (float)Width, (float)Height, _chrome, _press?.Visual ?? SkUiPressVisual.None, IsEnabled && CanReceiveTap);
+        SkUiImageButtonDrawing.PaintOverlay(canvas, (float)Width, (float)Height, _chrome, _press?.Visual ?? SkUiPressVisual.None, IsVisualStateEnabled);
 
     void SkUiImageButtonDrawing.IImage.Paint(SKCanvas canvas, SKRect area) => PaintImage(canvas, area);
 

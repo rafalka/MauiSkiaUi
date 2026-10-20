@@ -245,6 +245,43 @@ public class CoreEnabledStateTests
     }
 
     [Fact]
+    public void ATouchOnADisabledScrollersContentLeavesItsAnimatedScrollAlone()
+    {
+        // A disabled scroller's gestures stay out of a press on its (disabled) content: the hit test stops at the outermost
+        // disabled node, whose ancestors are enabled, so the press only blocks and a scroll the app animates meanwhile (as
+        // during a refresh) keeps going, on both layers.
+        var column = new SkUiVerticalStackLayout();
+        var coreColumn = new SkUiCoreVerticalStackLayout();
+        for (var index = 0; index < 40; index++)
+        {
+            column.Children.Add(new SkUiButton { Text = $"Row {index}", HeightRequest = 50 });
+            coreColumn.Add(new SkUiCoreButton { Text = $"Row {index}" }.SetHeight(50));
+        }
+        var scroll = new SkUiScrollView { Content = column, IsEnabled = false };
+        var coreScroll = new SkUiCoreScrollView();
+        coreScroll.SetContent(coreColumn).SetIsEnabled(false);
+        var host = new SkUiCoreHost().SetContent(new SkUiCoreContentView().SetContent(coreScroll));
+        var root = new SkUiContentView { Content = scroll };
+        using var surface = new SkUiTestSurface(root, 300, 400);
+        using var coreSurface = new SkUiTestSurface(host, 300, 400);
+        surface.Frame(0);
+        coreSurface.Frame(0);
+
+        _ = scroll.ScrollToAsync(0, 1000, animated: true);
+        _ = coreScroll.ScrollToAsync(0, 1000, animated: true);
+        surface.Frame(16);
+        coreSurface.Frame(16);
+        Assert.True(scroll.IsMotionRunning);
+        Assert.True(coreScroll.IsScrollAnimating);
+        root.Touch(new(1, SkUiTouchAction.Pressed, new Point(150, 100), TimeSpan.FromMilliseconds(20)));
+        host.Touch(new(1, SkUiTouchAction.Pressed, new Point(150, 100), TimeSpan.FromMilliseconds(20)));
+        Assert.True(scroll.IsMotionRunning);
+        Assert.True(coreScroll.IsScrollAnimating);
+        root.Touch(new(1, SkUiTouchAction.Released, new Point(150, 100), TimeSpan.FromMilliseconds(30)));
+        host.Touch(new(1, SkUiTouchAction.Released, new Point(150, 100), TimeSpan.FromMilliseconds(30)));
+    }
+
+    [Fact]
     public void TappedCommandRunsWhileItCanExecuteAndIsReadOnChange()
     {
         var command = new CountingCommand();
@@ -298,6 +335,32 @@ public class CoreEnabledStateTests
         Assert.Equal(SkUiSemanticsActions.Activate, tree.Find(bare)!.Actions);
         command.Change(allowed: false);
         Assert.Null(SkUiSemanticsTree.Build(bareHost).Find(bare));
+    }
+
+    [Fact]
+    public void ANewCommandParameterRepaintsOnlyWhenCanExecuteChanges()
+    {
+        // Recycled rows re-set the parameter on every bind: nothing about tapping changes unless CanExecute does.
+        var command = new Command<string>(_ => { }, parameter => parameter != "locked");
+        var row = new SkUiCoreBox().SetTappedCommand(command);
+        var button = new SkUiCoreButton().SetCommand(command);
+        var host = new SkUiCoreHost().SetContent(new SkUiCoreVerticalStackLayout().Add(row).Add(button));
+        SkUiTestHelpers.Arrange(host, 300, 400);
+        var paints = 0;
+        row.PaintInvalidated += (_, _) => paints++;
+        button.PaintInvalidated += (_, _) => paints++;
+
+        foreach (var item in new[] { "a", "b", "c" })
+        {
+            row.SetTappedCommandParameter(item);
+            button.SetCommandParameter(item);
+        }
+        Assert.Equal(0, paints);
+
+        row.SetTappedCommandParameter("locked");
+        button.SetCommandParameter("locked");
+        Assert.Equal(2, paints);
+        Assert.False(button.IsInteractionEnabled);
     }
 
     [Fact]

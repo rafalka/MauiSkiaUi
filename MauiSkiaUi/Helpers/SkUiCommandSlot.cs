@@ -9,7 +9,7 @@ namespace MauiSkiaUi;
 /// </summary>
 /// <param name="owner">The node the slot belongs to, passed to <paramref name="changed"/>.</param>
 /// <param name="changed">
-/// Called when the command, the parameter or <see cref="CanExecute"/> changed (so the callback can be <c>static</c>).
+/// Called when the command or <see cref="CanExecute"/> changed, also through a new parameter (so the callback can be <c>static</c>).
 /// </param>
 internal sealed class SkUiCommandSlot<TOwner>(TOwner owner, Action<TOwner> changed)
     where TOwner : class
@@ -47,8 +47,9 @@ internal sealed class SkUiCommandSlot<TOwner>(TOwner owner, Action<TOwner> chang
         if (Equals(Parameter, value))
             return false;
         Parameter = value;
-        Refresh();
-        Changed();
+        // Only CanExecute depends on the parameter: rows that re-set it on every bind repaint nothing while it stays the same.
+        if (Refresh())
+            Changed();
         return true;
     }
 
