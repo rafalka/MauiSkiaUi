@@ -8,7 +8,7 @@ namespace MauiSkiaUi.Tests;
 /// <summary>
 /// <see cref="SkUiShimmer"/> / <see cref="SkUiCoreShimmer"/> (FR-31): the skeleton while loading, the content after; bones in
 /// the fill; the effect on the render thread from the shared clock (nothing recorded per frame, every shimmer in phase); the
-/// ThinkTime pulse and color animations; repeats; one "Loading" element; the switch animations.
+/// pulse and color animations; repeats; one "Loading" element; the switch animations.
 /// </summary>
 [Collection(RuntimeXamlCollection.Name)]
 public class ShimmerTests
