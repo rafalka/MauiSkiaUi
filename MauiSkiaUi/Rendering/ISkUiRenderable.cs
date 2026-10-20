@@ -14,6 +14,12 @@ internal interface ISkUiRenderable
     /// <summary>The look this node sets for itself and its descendants, or <c>null</c> (they use the ancestors' or the app's).</summary>
     SkUiLook? LookOverride => null;
 
+    /// <summary>
+    /// The look this node draws with when it or an ancestor sets one, else <c>null</c> (the app's). Drawn nodes cache it
+    /// (<see cref="SkUiTreeLookCache"/>), so resolving a whole tree costs O(nodes), not O(nodes × depth).
+    /// </summary>
+    SkUiLook? TreeLook => LookOverride ?? RenderParent?.TreeLook;
+
     /// <summary>Drawn parent in the unified render tree, or <c>null</c> for a surface root / detached node.</summary>
     ISkUiRenderable? RenderParent { get; }
 

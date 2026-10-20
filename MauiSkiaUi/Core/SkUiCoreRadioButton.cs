@@ -32,8 +32,16 @@ public class SkUiCoreRadioButton : SkUiCoreToggleControl
     protected override void OnToggled() => SetCheckState(SkUiCheckState.Checked);
 
     /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
-        SkUiLook.Current.MeasureRadioButton(widthConstraint, heightConstraint);
+    /// <remarks>
+    /// At least the look's <see cref="SkUiLook.DefaultRadioButtonMinimumWidth"/> wide unless the radio button sets a
+    /// <see cref="SkUiCoreNode.MinimumWidth"/> (0 too), as <see cref="SkUiRadioButton"/>.
+    /// </remarks>
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint)
+    {
+        var look = SkUiLook.Current;
+        var size = look.MeasureRadioButton(widthConstraint, heightConstraint);
+        return HasMinimumWidth ? size : new Size(Math.Max(size.Width, look.DefaultRadioButtonMinimumWidth), size.Height);
+    }
 
     /// <inheritdoc />
     protected override SkUiTransitionKind TransitionKind => SkUiTransitionKind.RadioButton;

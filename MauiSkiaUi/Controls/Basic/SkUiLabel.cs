@@ -23,6 +23,7 @@ public class SkUiLabel : SkUiView
     private double _fontSize = double.NaN; // NaN: the look's (EffectiveFontSize)
     private bool _fontAutoScalingEnabled = true;
     private int _fontScaleVersion; // SkUiFontScaling.Version the rich text was built at
+    private SkUiLook? _richTextLook; // the look the rich text was built with
     private string? _fontFamily;
     private FontAttributes _fontAttributes;
     private LineBreakMode _lineBreakMode = LineBreakMode.WordWrap;
@@ -171,7 +172,11 @@ public class SkUiLabel : SkUiView
     }
 
     /// <inheritdoc />
-    private protected override void ForgetLookDefaults() => _lookDefaultsFrom = null;
+    private protected override void ForgetLookDefaults()
+    {
+        _lookDefaultsFrom = null;
+        _richText = null; // a look changed in place may have another default font size or family
+    }
 
     /// <summary>Default (uniform) corner radius used by derived controls and bindable value clearing.</summary>
     protected virtual double DefaultCornerRadius => 0;
@@ -591,9 +596,11 @@ public class SkUiLabel : SkUiView
         get
         {
             var version = SkUiFontScaling.Version;
-            if (_richText is null || _fontScaleVersion != version)
+            var look = SkUiLook.Current; // the spans take its font size and family: the subtree's while it measures and draws
+            if (_richText is null || _fontScaleVersion != version || !ReferenceEquals(_richTextLook, look))
             {
                 _fontScaleVersion = version;
+                _richTextLook = look;
                 _richText = BuildRichText();
             }
             return _richText;
@@ -635,8 +642,12 @@ public class SkUiLabel : SkUiView
     public string? LinkAt(Point point) =>
         IsHtml && SpanIndexAt(point) is var index and >= 0 && index < HtmlRuns.Count ? HtmlRuns[index].Style.Href : null;
 
-    private int SpanIndexAt(Point point) =>
-        RichLayout.HitTest(RichText, TextStyle, TextInset, Width, Height, _horizontalTextAlignment, _verticalTextAlignment, point);
+    private int SpanIndexAt(Point point)
+    {
+        // Taps arrive outside measuring and drawing: hit-test the text as laid out, under the subtree's look.
+        using var lookScope = SkUiLookScope.Enter(this);
+        return RichLayout.HitTest(RichText, TextStyle, TextInset, Width, Height, _horizontalTextAlignment, _verticalTextAlignment, point);
+    }
 
     /// <inheritdoc />
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)

@@ -224,8 +224,11 @@ internal readonly record struct SkUiTextStyle(
     internal bool IsFitted => MinimumScale < 1 || MaximumScale > 1 || AllowsTightening;
 
     /// <summary>The space laid out after each character of text <paramref name="fontSize"/> DIPs with <paramref name="spacing"/>: less <see cref="Tightening"/>.</summary>
-    internal float TightenedSpacing(double spacing, double fontSize) =>
-        (float)(spacing + (FontTrackingScale > 0 ? SkUiFontTracking.At(Typeface, fontSize * FontTrackingScale) / FontTrackingScale : 0)
+    internal float TightenedSpacing(double spacing, double fontSize) => TightenedSpacing(Typeface, spacing, fontSize);
+
+    /// <summary>The same for text in <paramref name="typeface"/> (a span's own), whose tracking table applies.</summary>
+    internal float TightenedSpacing(SKTypeface typeface, double spacing, double fontSize) =>
+        (float)(spacing + (FontTrackingScale > 0 ? SkUiFontTracking.At(typeface, fontSize * FontTrackingScale) / FontTrackingScale : 0)
             - Tightening * fontSize);
 
     /// <summary>Whether lines wrap (rather than one line per paragraph, cut or not).</summary>
@@ -467,7 +470,7 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
         }
         ApplyLineHeight(lines, style.LineHeight);
         if (style.IncludeFontPadding)
-            ApplyFontPadding(lines, primary);
+            ApplyFontPadding(lines);
         // Pictures that drew the old lines hold their own references to the blobs.
         ReleaseBlobs(_lines);
         _lines = lines;
@@ -563,17 +566,17 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
 
     /// <summary>
     /// Android's font padding (a TextView's <c>includeFontPadding</c>): the first line starts at the font's top and the
-    /// last ends at its bottom (the extents of its tallest glyphs) instead of its ascent and descent.
+    /// last ends at its bottom (the extents of its tallest glyphs) instead of its ascent and descent. As a TextView, fallback
+    /// fonts on those lines (emoji, CJK, Devanagari) count too.
     /// </summary>
-    private static void ApplyFontPadding(List<SkUiShaping.Line> lines, SKFont primary)
+    private static void ApplyFontPadding(List<SkUiShaping.Line> lines)
     {
         if (lines.Count == 0)
             return;
-        var metrics = primary.Metrics;
-        var top = Math.Max(0, metrics.Ascent - metrics.Top);
-        lines[0].Ascent += top;
-        lines[0].Height += top;
-        lines[^1].Height += Math.Max(0, metrics.Bottom - metrics.Descent);
+        var first = lines[0];
+        first.Ascent += first.FontPaddingTop;
+        first.Height += first.FontPaddingTop;
+        lines[^1].Height += lines[^1].FontPaddingBottom;
     }
 
     private static string[] SplitParagraphs(string text) =>

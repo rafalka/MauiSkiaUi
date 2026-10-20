@@ -11,7 +11,7 @@ internal readonly struct SkUiLookScope : IDisposable
     private readonly SkUiLook? _previous;
     private readonly bool _entered;
 
-    private SkUiLookScope(SkUiLook look)
+    private SkUiLookScope(SkUiLook? look)
     {
         _previous = SkUiLook.Scoped;
         SkUiLook.Scoped = look;
@@ -19,25 +19,21 @@ internal readonly struct SkUiLookScope : IDisposable
     }
 
     /// <summary>Enters the scope of the look <paramref name="node"/> draws with, when it or an ancestor sets one.</summary>
+    /// <remarks>
+    /// A node without a tree look under another scope (a surface hosted in native content of a subtree with a look,
+    /// measured inside that subtree's measure) leaves it: it uses the app's look.
+    /// </remarks>
     internal static SkUiLookScope Enter(ISkUiRenderable node)
     {
-        if (!SkUiLook.AnyTreeLook)
+        var look = SkUiLook.AnyTreeLook ? node.TreeLook : null;
+        if (look is null && SkUiLook.Scoped is null)
             return default;
-        for (var current = node; current is not null; current = current.RenderParent)
-            if (current.LookOverride is { } look)
-                return new SkUiLookScope(look);
-        return default;
+        return ReferenceEquals(look, SkUiLook.Scoped) ? default : new SkUiLookScope(look);
     }
 
-    /// <summary>The look <paramref name="node"/> draws with: its own or the nearest ancestor's, else <see cref="SkUiLook.Current"/>.</summary>
-    internal static SkUiLook Resolve(ISkUiRenderable node)
-    {
-        if (SkUiLook.AnyTreeLook)
-            for (var current = node; current is not null; current = current.RenderParent)
-                if (current.LookOverride is { } look)
-                    return look;
-        return SkUiLook.Current;
-    }
+    /// <summary>The look <paramref name="node"/> draws with: its own or the nearest ancestor's, else the app's.</summary>
+    internal static SkUiLook Resolve(ISkUiRenderable node) =>
+        (SkUiLook.AnyTreeLook ? node.TreeLook : null) ?? SkUiLook.App;
 
     /// <summary>Makes <paramref name="look"/> current on this thread (controls created in the scope read their defaults from it).</summary>
     internal static SkUiLookScope Enter(SkUiLook look) => new(look);

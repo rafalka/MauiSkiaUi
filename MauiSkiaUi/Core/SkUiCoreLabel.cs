@@ -24,6 +24,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     private double _fontSize = double.NaN; // NaN: the look's (EffectiveFontSize)
     private bool _fontAutoScalingEnabled = true;
     private int _fontScaleVersion; // SkUiFontScaling.Version the rich text was built at
+    private SkUiLook? _richTextLook; // the look the rich text was built with
     private string? _fontFamily;
     private FontAttributes _fontAttributes;
     private Thickness _padding;
@@ -88,7 +89,11 @@ public class SkUiCoreLabel : SkUiCoreNode
     }
 
     /// <inheritdoc />
-    private protected override void ForgetLookDefaults() => _lookDefaultsFrom = null;
+    private protected override void ForgetLookDefaults()
+    {
+        _lookDefaultsFrom = null;
+        _richText = null; // a look changed in place may have another default font size or family
+    }
 
     /// <summary>Displayed text.</summary>
     public string Text
@@ -442,19 +447,21 @@ public class SkUiCoreLabel : SkUiCoreNode
         get
         {
             var version = SkUiFontScaling.Version;
-            if (_richText is null || _fontScaleVersion != version)
+            var look = SkUiLook.Current; // the spans take its font size and family: the subtree's while it measures and draws
+            if (_richText is null || _fontScaleVersion != version || !ReferenceEquals(_richTextLook, look))
             {
                 _fontScaleVersion = version;
+                _richTextLook = look;
                 _richText = BuildRichText();
             }
             return _richText;
         }
     }
 
-    /// <summary>A font size as drawn: scaled by the system text size when <see cref="FontAutoScalingEnabled"/>.</summary>
     /// <summary>The font size text is laid out with: the one set, or the look's (the subtree's own look included).</summary>
     private double EffectiveFontSize => SkUiLook.FontSizeOrDefault(_fontSize);
 
+    /// <summary>A font size as drawn: scaled by the system text size when <see cref="FontAutoScalingEnabled"/>.</summary>
     private double ScaledFontSize(double size) => SkUiFontScaling.ScaleFontSize(size, _fontAutoScalingEnabled);
 
     private SkUiRichTextLayout RichLayout => _richLayout ??= new SkUiRichTextLayout();
@@ -483,8 +490,12 @@ public class SkUiCoreLabel : SkUiCoreNode
     public SkUiCoreSpan? SpanAt(Point point) =>
         _spans.Length > 0 && SpanIndexAt(point) is var index and >= 0 && index < _spans.Length ? _spans[index] : null;
 
-    private int SpanIndexAt(Point point) =>
-        RichLayout.HitTest(RichText, TextStyle, TextInset, Frame.Width, Frame.Height, _horizontal, _vertical, point);
+    private int SpanIndexAt(Point point)
+    {
+        // Taps arrive outside measuring and drawing: hit-test the text as laid out, under the subtree's look.
+        using var lookScope = SkUiLookScope.Enter(this);
+        return RichLayout.HitTest(RichText, TextStyle, TextInset, Frame.Width, Frame.Height, _horizontal, _vertical, point);
+    }
 
     /// <inheritdoc />
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)

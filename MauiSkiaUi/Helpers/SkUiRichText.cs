@@ -162,9 +162,14 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
         if (lines.Count == 0)
             return;
         var first = lines[0];
-        var top = 0f;
+        // How far the tallest font top rises above the tallest ascent (as plain text with fallback fonts).
+        float fontTop = 0, fontAscent = 0;
         foreach (var piece in first.Pieces)
-            top = Math.Max(top, piece.Metrics.Ascent - piece.Metrics.Top);
+        {
+            fontTop = Math.Max(fontTop, -piece.Metrics.Top);
+            fontAscent = Math.Max(fontAscent, -piece.Metrics.Ascent);
+        }
+        var top = Math.Max(0, fontTop - fontAscent);
         first.Ascent += top;
         first.Height += top;
         var last = lines[^1];
@@ -190,7 +195,11 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
         return SkUiTextResources.Font(face, (float)style.FontSize, style.FontAttributes);
     }
 
-    float ISkUiTextSpanFonts.Spacing(int span) => _style.TightenedSpacing(_text.Styles[span].CharacterSpacing, _text.Styles[span].FontSize);
+    float ISkUiTextSpanFonts.Spacing(int span)
+    {
+        var style = _text.Styles[span];
+        return _style.TightenedSpacing(style.Typeface, style.CharacterSpacing, style.FontSize);
+    }
 
     float ISkUiTextSpanFonts.LineHeight(int span) => (float)_text.Styles[span].LineHeight;
 

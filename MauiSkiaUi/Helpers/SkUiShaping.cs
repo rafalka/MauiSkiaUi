@@ -67,6 +67,10 @@ internal static partial class SkUiShaping
         public float Width;
         public float Ascent;   // positive distance above the baseline
         public float Height;   // line spacing
+        /// <summary>Android's font padding over the line's fonts (the primary and its fallbacks): how far the tallest font top rises above the line's ascent.</summary>
+        public float FontPaddingTop;
+        /// <summary>The most any of the line's fonts' bottom falls below its own descent.</summary>
+        public float FontPaddingBottom;
         public byte BaseLevel;
         /// <summary>Simple-path line: drawn with <c>DrawText(string)</c> in the primary font (no blob).</summary>
         public string? Text;
@@ -423,6 +427,9 @@ internal static partial class SkUiShaping
         var metrics = primary.Metrics;
         line.Ascent = -metrics.Ascent;
         line.Height = primary.Spacing;
+        var fontTop = -metrics.Top; // the tallest font's top above the baseline
+        line.FontPaddingTop = Math.Max(0, fontTop - line.Ascent);
+        line.FontPaddingBottom = Math.Max(0, metrics.Bottom - metrics.Descent);
         edges?.Reset(start, Math.Max(0, end - start));
         if (end <= start)
             return line;
@@ -475,10 +482,13 @@ internal static partial class SkUiShaping
             if (!ReferenceEquals(piece.Typeface, primary.Typeface))
             {
                 // A fallback font's glyphs extend the line above and below the baseline, without its leading.
-                var ascent = -font.Metrics.Ascent;
+                var fallback = font.Metrics;
+                var ascent = -fallback.Ascent;
                 var below = Math.Max(line.Height - line.Ascent, FallbackSpacing(font) - ascent);
                 line.Ascent = Math.Max(line.Ascent, ascent);
                 line.Height = line.Ascent + below;
+                fontTop = Math.Max(fontTop, -fallback.Top);
+                line.FontPaddingBottom = Math.Max(line.FontPaddingBottom, fallback.Bottom - fallback.Descent);
             }
             if (piece.Glyphs.Length > 0)
             {
@@ -508,6 +518,7 @@ internal static partial class SkUiShaping
                 edges.Levels[unit] = paragraph.Levels[start + unit];
             edges.FillClusters(text);
         }
+        line.FontPaddingTop = Math.Max(0, fontTop - line.Ascent); // from the ascent the tallest font set
         return line;
     }
 

@@ -30,7 +30,24 @@ public class SkUiLook
     internal static bool AnyTreeLook => _anyTreeLook;
 
     /// <summary>Records that a node set its own look, so measuring and recording look for it.</summary>
-    internal static void NoteTreeLook() => _anyTreeLook = true;
+    internal static void NoteTreeLook()
+    {
+        _anyTreeLook = true;
+        TreeChanged();
+    }
+
+    /// <summary>Bumped when a node's look or a drawn parent changes once a tree look exists: nodes resolve their look again.</summary>
+    internal static int TreeLookVersion { get; private set; }
+
+    /// <summary>A look or the tree changed: forget the looks nodes resolved (UI thread; nothing to do without tree looks).</summary>
+    internal static void TreeChanged()
+    {
+        if (_anyTreeLook)
+            TreeLookVersion++;
+    }
+
+    /// <summary>The app-wide look, ignoring the scope of the subtree being measured or recorded.</summary>
+    internal static SkUiLook App => _current ??= DefaultSkUiLook.Instance;
 
     /// <summary>
     /// Raised after <see cref="Current"/> is replaced, or by <see cref="NotifyChanged"/>. Live surfaces then re-measure and

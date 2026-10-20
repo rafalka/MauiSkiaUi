@@ -274,6 +274,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     protected override void OnParentSet()
     {
         base.OnParentSet();
+        _treeLook.ParentChanged(this); // its subtree may draw with another look now
         // A local clock is only valid while this node is the top of its SkiaUi subtree. Once a
         // Skia parent appears, abandon it so descendants re-register on the shared ancestor clock:
         // clients rebind first (OnAnimationRootChanged), then whatever is left on the local clock stops.
@@ -740,6 +741,10 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     ISkUiRenderable? ISkUiRenderable.RenderParent => SkiaParent;
 
+    private SkUiTreeLookCache _treeLook;
+
+    SkUiLook? ISkUiRenderable.TreeLook => _treeLook.Get(this);
+
     /// <summary>Bindable <see cref="Look"/>.</summary>
     public static readonly BindableProperty LookProperty = BindableProperty.Create(nameof(Look), typeof(SkUiLook), typeof(SkUiView), null,
         propertyChanged: (view, _, value) => ((SkUiView)view).OnLookChanged((SkUiLook?)value));
@@ -754,10 +759,19 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     SkUiLook? ISkUiRenderable.LookOverride => Look;
 
+    /// <summary>Sets <see cref="Look"/> (same as the property setter).</summary>
+    public SkUiView SetLook(SkUiLook? value)
+    {
+        Look = value;
+        return this;
+    }
+
     private void OnLookChanged(SkUiLook? value)
     {
         if (value is not null)
             SkUiLook.NoteTreeLook();
+        else
+            SkUiLook.TreeChanged();
         SkUiRenderInvalidation.MarkLookChanged(this);
         ((IView)this).InvalidateMeasure();
     }

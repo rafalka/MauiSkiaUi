@@ -1,5 +1,5 @@
 using System.Buffers.Binary;
-using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -13,11 +13,14 @@ internal static class SkUiFontTracking
 {
     private const uint TrakTag = 0x7472616B; // 'trak'
 
-    private static readonly ConcurrentDictionary<SKTypeface, Table?> Tables = new();
+    // Weak keys: a typeface the app disposes (loaded from a stream or file) is not kept alive by its table.
+    private static readonly ConditionalWeakTable<SKTypeface, Table> Tables = new();
+
+    private static readonly ConditionalWeakTable<SKTypeface, Table>.CreateValueCallback ReadTable = face => Read(face) ?? Table.None;
 
     /// <summary>The tracking of <paramref name="typeface"/> at <paramref name="fontSize"/>, DIPs added after each character.</summary>
     internal static float At(SKTypeface typeface, double fontSize) =>
-        Tables.GetOrAdd(typeface, static face => Read(face)) is { } table ? table.At((float)fontSize) : 0;
+        Tables.GetValue(typeface, ReadTable) is { IsEmpty: false } table ? table.At((float)fontSize) : 0;
 
     /// <summary>The normal (track 0) per-size values of the table's horizontal data, in ems; <c>null</c> without a usable table.</summary>
     private static Table? Read(SKTypeface typeface)
@@ -67,6 +70,11 @@ internal static class SkUiFontTracking
     /// <summary>Per-size tracking in ems, interpolated linearly between sizes and held beyond the ends (as CoreText).</summary>
     private sealed class Table(float[] points, float[] ems)
     {
+        /// <summary>A font without a usable table (tracks by 0).</summary>
+        public static readonly Table None = new([], []);
+
+        public bool IsEmpty => points.Length == 0;
+
         public float At(float fontSize)
         {
             if (fontSize <= points[0])

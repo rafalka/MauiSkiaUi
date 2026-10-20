@@ -155,4 +155,87 @@ public class TreeLookTests
         if (!bundledFont && font.Metrics.Top < font.Metrics.Ascent)
             Assert.True(((IView)rich).DesiredSize.Height > ((IView)unpadded).DesiredSize.Height);
     }
+    [Fact]
+    public void ZeroMinimumWidthsReplaceTheLooksOnBothLayers()
+    {
+        var box = new SkUiCheckBox { MinimumWidthRequest = 0 };
+        var coreBox = new SkUiCoreCheckBox();
+        coreBox.SetMinimumWidth(0);
+        var coreRadio = new SkUiCoreRadioButton();
+        var coreRadioOwn = new SkUiCoreRadioButton();
+        coreRadioOwn.SetMinimumWidth(0);
+        var root = new SkUiVerticalStackLayout { Look = WindowsSkUiLook.Instance, Children = { box } };
+        foreach (var node in new SkUiCoreNode[] { coreBox, coreRadio, coreRadioOwn })
+            node.SetLook(WindowsSkUiLook.Instance);
+
+        ((IView)root).Measure(500, 500);
+        coreBox.Measure(500, 500);
+        coreRadio.Measure(500, 500);
+        coreRadioOwn.Measure(500, 500);
+
+        Assert.True(((IView)box).DesiredSize.Width < 120);
+        Assert.Equal(((IView)box).DesiredSize.Width, coreBox.DesiredSize.Width);
+        Assert.Equal(120, coreRadio.DesiredSize.Width); // as SkUiRadioButton's: WinUI's minimum
+        Assert.True(coreRadioOwn.DesiredSize.Width < 120);
+    }
+
+    [Fact]
+    public void ARichLabelFollowsItsSubtreesLookFontSize()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        SkUiLabel Rich(double? size = null)
+        {
+            var span = new Span { Text = "Sample" };
+            if (size is { } fontSize)
+                span.FontSize = fontSize;
+            return new SkUiLabel { FontFamily = SkUiTestHelpers.BundledFontFamily, FormattedText = new FormattedString { Spans = { span } } };
+        }
+        var rich = Rich();
+        var scoped = new SkUiBorder { Content = rich };
+        var sized = Rich(IosSkUiLook.Instance.DefaultFontSize);
+        ((IView)scoped).Measure(500, 500);
+        ((IView)sized).Measure(500, 500);
+        Assert.NotEqual(((IView)sized).DesiredSize, ((IView)rich).DesiredSize);
+
+        scoped.SetLook(IosSkUiLook.Instance); // built under the app's look: rebuilt with the subtree's
+        ((IView)scoped).Measure(500, 500);
+        Assert.Equal(((IView)sized).DesiredSize, ((IView)rich).DesiredSize);
+    }
+
+    [Fact]
+    public void ANodeTakesItsNewParentsLookAndASeparateSurfaceLeavesTheScope()
+    {
+        var toggle = new SkUiSwitch();
+        var windows = new SkUiBorder { Look = WindowsSkUiLook.Instance, Content = toggle };
+        ((IView)windows).Measure(500, 500);
+        Assert.Equal(new Size(40, 40), ((IView)toggle).DesiredSize);
+
+        windows.Content = null;
+        var android = new SkUiBorder { Look = AndroidSkUiLook.Instance, Content = toggle };
+        ((IView)android).Measure(500, 500);
+        Assert.Equal(new Size(48, 48), ((IView)toggle).DesiredSize);
+
+        // A surface root measured inside another subtree's measure (native content hosting another surface) uses the app's look.
+        android.Content = null;
+        using (SkUiLookScope.Enter(WindowsSkUiLook.Instance))
+        {
+            ((IView)toggle).InvalidateMeasure();
+            ((IView)toggle).Measure(500, 500);
+            Assert.Same(WindowsSkUiLook.Instance, SkUiLook.Current);
+        }
+        Assert.Equal(new Size(51, 31), ((IView)toggle).DesiredSize);
+    }
+    [Fact]
+    public void PlainTextFontPaddingCountsFallbackFontsAsRichTextDoes()
+    {
+        // With the system's fonts the emoji falls back to a taller font; without any (Linux CI) both measure the same way.
+        const string text = "Sample \U0001F600 text";
+        var plain = new SkUiLabel { Text = text, FontSize = 14 };
+        var rich = new SkUiLabel { FontSize = 14, FormattedText = new FormattedString { Spans = { new Span { Text = text } } } };
+        var android = new SkUiVerticalStackLayout { Look = AndroidSkUiLook.Instance, Children = { plain, rich } };
+
+        ((IView)android).Measure(500, 500);
+
+        Assert.Equal(((IView)rich).DesiredSize.Height, ((IView)plain).DesiredSize.Height, 3);
+    }
 }

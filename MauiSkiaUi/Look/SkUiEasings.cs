@@ -20,8 +20,26 @@ public static class SkUiEasings
     /// <summary>Fluent's decelerate (fast out, slow in) curve, <c>cubic-bezier(0, 0, 0, 1)</c>.</summary>
     public static readonly Easing FluentDecelerate = CubicBezier(0, 0, 0, 1);
 
-    /// <summary>A CSS-style cubic Bézier easing through (0, 0) and (1, 1) with the control points (<paramref name="x1"/>, <paramref name="y1"/>) and (<paramref name="x2"/>, <paramref name="y2"/>).</summary>
-    public static Easing CubicBezier(double x1, double y1, double x2, double y2) => new(t => Solve(t, x1, y1, x2, y2));
+    /// <summary>
+    /// A CSS-style cubic Bézier easing through (0, 0) and (1, 1) with the control points (<paramref name="x1"/>, <paramref name="y1"/>)
+    /// and (<paramref name="x2"/>, <paramref name="y2"/>). As in CSS, the x values must be in [0, 1] (so time only moves forward);
+    /// the y values may overshoot.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">An x value outside [0, 1], or a y value that is not finite.</exception>
+    public static Easing CubicBezier(double x1, double y1, double x2, double y2)
+    {
+        ThrowIfNotUnit(x1, nameof(x1));
+        ThrowIfNotUnit(x2, nameof(x2));
+        SkUiValidate.ThrowIfNotFinite(y1, nameof(y1));
+        SkUiValidate.ThrowIfNotFinite(y2, nameof(y2));
+        return new Easing(t => Solve(t, x1, y1, x2, y2));
+    }
+
+    private static void ThrowIfNotUnit(double value, string name)
+    {
+        if (value is not (>= 0 and <= 1)) // NaN too
+            throw new ArgumentOutOfRangeException(name, value, "The control point's x must be between 0 and 1.");
+    }
 
     private static double Solve(double x, double x1, double y1, double x2, double y2)
     {

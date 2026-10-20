@@ -383,6 +383,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         {
             if (ReferenceEquals(field, value)) return;
             field = value;
+            _treeLook.ParentChanged(this);
             if (_skeletonState is not null || value is { MayPassSkeleton: true })
                 SkUiSkeletonScope.OnParentChanged(this); // the host is its drawn parent
         }
@@ -448,6 +449,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         if (_parent is not null && parent is not null && !ReferenceEquals(_parent, parent))
             throw new InvalidOperationException("A Core node already has a parent.");
         SetProperty(ref _parent, parent, nameof(Parent));
+        _treeLook.ParentChanged(this);
         if (parent is null && _renderState is not null)
             SkUiRenderInvalidation.ResetSubtree(this);
         if (parent is null)
@@ -518,10 +520,17 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         return this;
     }
 
+    /// <summary>
+    /// Whether <see cref="SetMinimumWidth"/> was called, also with 0 (as MAUI's <c>MinimumWidthRequest</c> set to 0): it then
+    /// replaces a look's minimum width (Windows' check boxes and radio buttons).
+    /// </summary>
+    private protected bool HasMinimumWidth { get; private set; }
+
     /// <summary>Sets minimum width in DIPs.</summary>
     public SkUiCoreNode SetMinimumWidth(double value)
     {
         SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        HasMinimumWidth = true;
         if (!SetProperty(ref _minimumWidth, value, nameof(MinimumWidth))) return this;
         InvalidateMeasure();
         return this;
@@ -766,6 +775,10 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
 
     ISkUiRenderable? ISkUiRenderable.RenderParent => (ISkUiRenderable?)(_parent as SkUiCoreNode) ?? HostOwner;
 
+    private SkUiTreeLookCache _treeLook;
+
+    SkUiLook? ISkUiRenderable.TreeLook => _treeLook.Get(this);
+
     private SkUiLook? _look;
 
     /// <summary>
@@ -786,6 +799,8 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         if (!SetProperty(ref _look, value, nameof(Look))) return this;
         if (value is not null)
             SkUiLook.NoteTreeLook();
+        else
+            SkUiLook.TreeChanged();
         SkUiRenderInvalidation.MarkLookChanged(this);
         InvalidateMeasure();
         return this;

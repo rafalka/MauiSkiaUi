@@ -33,4 +33,11 @@ public class PlatformLookMotionTests
         Assert.NotEqual(TimeSpan.Zero, AndroidSkUiLook.Instance.GetTransition(SkUiTransitionKind.Ripple).Duration);
         Assert.Equal(TimeSpan.Zero, IosSkUiLook.Instance.GetTransition(SkUiTransitionKind.Ripple).Duration);
     }
+    [Theory]
+    [InlineData(1.5, 0, 0.5, 1)]
+    [InlineData(0, 0, -0.5, 1)]
+    [InlineData(double.NaN, 0, 0, 1)]
+    [InlineData(0.2, double.PositiveInfinity, 0, 1)]
+    public void CubicBezierRejectsControlPointsCssRejects(double x1, double y1, double x2, double y2) =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => SkUiEasings.CubicBezier(x1, y1, x2, y2));
 }
