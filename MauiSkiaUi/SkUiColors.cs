@@ -24,6 +24,9 @@ public static class SkUiColors
     /// <summary>Disabled fill from the current color scheme.</summary>
     public static Color Disabled => SkUiColorScheme.Current.Disabled;
 
+    /// <summary>A control's color as drawn: <paramref name="color"/>, at half its alpha while disabled (as the toggles dim).</summary>
+    internal static Color EnabledTint(Color color, bool enabled) => enabled ? color : color.MultiplyAlpha(0.5f);
+
     /// <summary>Invalid input color (text field errors) from the current color scheme.</summary>
     public static Color Error => SkUiColorScheme.Current.Error;
 

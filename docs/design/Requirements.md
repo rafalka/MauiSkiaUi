@@ -331,7 +331,7 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 - [x] **Implemented once:** the arena, hit-testing and recognizers exist once for both layers. `SkUiView` and Core nodes expose events and commands, and recognizers are created only while used. There are no per-control gesture state machines.
 - [x] **Passive by default:** passive controls (e.g. `SkUiLabel`) do not take pointers unless the app opts in. Untouched labels let hits through to views underneath.
 - [x] **Intrinsic handling:** active controls (`SkUiButton`, toggles, Core buttons) handle taps and press feedback without app handlers.
-- [x] **`InputTransparent` and `IsEnabled`:** input-transparent views are skipped; disabled views block (they are hit, nothing reacts).
+- [x] **`InputTransparent` and `IsEnabled`:** on both layers (Core nodes since M1, cascading as MAUI's and from the host): input-transparent views are skipped; disabled views block (they are hit, nothing reacts), while their ancestors' scrolling, pans and swipes still compete.
 - [x] **Hit region:** hit-testing uses **arranged bounds** (FR-11).
 - [x] **One path:** standalone and hosted modes share the API and rules; only the root maps platform input.
 - [x] **Competition:** gestures compete in a per-pointer arena. Nested scrolling works, controls inside scrollers can drag, contested presses show after `PressDelay`, and multi-touch is independent per pointer.

@@ -475,9 +475,22 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
     {
         base.CollectGestureRecognizers(recognizers);
+        if (!IsEnabled)
+            return;
         recognizers.Add(Model.Gestures);
         if (Model.Steps is { HasButtons: true } steps)
             recognizers.Add(steps.Gestures);
+    }
+
+    /// <inheritdoc />
+    protected override void OnIsEnabledChanged()
+    {
+        base.OnIsEnabledChanged();
+        Model.IsEnabled = IsEnabled;
+        if (!IsEnabled)
+            Model.Steps?.Release();
+        Model.PaintChanged();
+        Model.SemanticsChanged();
     }
 
     /// <inheritdoc />
@@ -525,7 +538,7 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
 
     Point ISkUiWheelHandler.OnWheel(double deltaX, double deltaY) => Model.Wheel(deltaX, deltaY);
 
-    bool ISkUiTextInputNode.CanTakeTextFocus => IsVisible;
+    bool ISkUiTextInputNode.CanTakeTextFocus => IsVisible && IsEnabled;
 
     bool ISkUiTextInputNode.HitsTextHandle(Point local) => Model.HandleAt(local) != 0;
 

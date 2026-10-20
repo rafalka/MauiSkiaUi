@@ -141,13 +141,8 @@ public partial class SkUiCoreNode : ISkUiAccessibleNode
         switch (action)
         {
             case SkUiSemanticsActions.Activate when HasTapAction:
-            {
-                var args = new SkUiTappedEventArgs(center);
-                _gestures?.Tapped?.Invoke(this, args);
-                if (HasIntrinsicTap)
-                    OnIntrinsicTap(args);
+                RunTap(new SkUiTappedEventArgs(center));
                 return true;
-            }
             case SkUiSemanticsActions.LongPress when _gestures?.WantsLongPress == true:
                 _gestures.RaiseLongPressed(new SkUiLongPressedEventArgs(center));
                 return true;
@@ -161,14 +156,8 @@ public partial class SkUiCoreNode : ISkUiAccessibleNode
     /// <summary>Rebuilds the surface's semantics tree, for changes of what <see cref="OnPopulateSemantics"/> reads that do not redraw.</summary>
     protected void InvalidateSemantics() => SkUiSemantics.Invalidate(this);
 
-    /// <summary>Whether the node reacts to a tap (an intrinsic action or a <see cref="Tapped"/> handler).</summary>
-    private bool HasTapAction => HasIntrinsicTap || _gestures?.Tapped is not null;
-
     /// <summary>Whether the node takes keyboard focus when visible and a tab stop (interactive nodes do).</summary>
     internal virtual bool TakesKeyboardFocus => HasTapAction;
-
-    /// <summary>Whether the node's actions are enabled (Core buttons: their command can execute).</summary>
-    internal virtual bool IsSemanticsEnabled => true;
 
     /// <summary>Corner radii of the focus ring (default: the press effect's).</summary>
     internal virtual CornerRadius FocusRingCornerRadii => PressEffectCornerRadii;
@@ -178,7 +167,7 @@ public partial class SkUiCoreNode : ISkUiAccessibleNode
 
     void ISkUiAccessibleNode.GetSemantics(SkUiSemanticsInfo info)
     {
-        info.IsEnabled = IsSemanticsEnabled;
+        info.IsEnabled = IsInteractionEnabled;
         if (HasTapAction)
             info.Actions |= SkUiSemanticsActions.Activate;
         if (_gestures?.WantsLongPress == true)
@@ -195,11 +184,11 @@ public partial class SkUiCoreNode : ISkUiAccessibleNode
         info.AutomationId = AutomationId;
     }
 
-    bool ISkUiAccessibleNode.PerformSemanticsAction(SkUiSemanticsActions action) => IsSemanticsEnabled && OnSemanticsAction(action);
+    bool ISkUiAccessibleNode.PerformSemanticsAction(SkUiSemanticsActions action) => IsInteractionEnabled && OnSemanticsAction(action);
 
-    bool ISkUiAccessibleNode.SetSemanticsValue(double value) => IsSemanticsEnabled && OnSemanticsSetValue(value);
+    bool ISkUiAccessibleNode.SetSemanticsValue(double value) => IsInteractionEnabled && OnSemanticsSetValue(value);
 
-    bool ISkUiAccessibleNode.IsKeyboardFocusable => _isVisible && _isTabStop && IsSemanticsEnabled && TakesKeyboardFocus;
+    bool ISkUiAccessibleNode.IsKeyboardFocusable => _isVisible && _isTabStop && IsInteractionEnabled && TakesKeyboardFocus;
 
     /// <summary>
     /// Something the node's focusability depends on changed (a command's <c>CanExecute</c> or parameter): a focused node that

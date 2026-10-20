@@ -9,7 +9,11 @@ public class SkUiCoreEditor : SkUiCoreInputView
     /// <summary>Creates an empty editor.</summary>
     public SkUiCoreEditor() : base(multiline: true)
     {
-        Unfocused += (_, _) => Completed?.Invoke(this, EventArgs.Empty);
+        Unfocused += (_, _) =>
+        {
+            if (IsEnabled)
+                Completed?.Invoke(this, EventArgs.Empty);
+        };
     }
 
     /// <summary>Whether the measured height follows the text (see <see cref="SkUiEditor.AutoSize"/>).</summary>

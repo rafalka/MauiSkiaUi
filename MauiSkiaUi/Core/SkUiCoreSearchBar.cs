@@ -166,6 +166,8 @@ public class SkUiCoreSearchBar : SkUiCoreInputView
     /// <inheritdoc />
     private protected override void OnReturnPressed()
     {
+        if (!IsEnabled)
+            return;
         SearchButtonPressed?.Invoke(this, EventArgs.Empty);
         if (_searchCommand is { } command && command.CanExecute(_searchCommandParameter))
             command.Execute(_searchCommandParameter);

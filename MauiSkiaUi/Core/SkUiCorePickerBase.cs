@@ -319,7 +319,7 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
 
     #region Field
 
-    private bool CanOpen => IsVisible && SkUiDiagnostics.GetSurfaceRoot(this) is not null;
+    private bool CanOpen => IsEnabled && IsVisible && SkUiDiagnostics.GetSurfaceRoot(this) is not null;
 
     /// <summary>The field's tokens as laid out: texts, rectangles and ×'s (tests).</summary>
     internal IReadOnlyList<(string Text, Rect Bounds, Rect Remove)> TokenBoxes => Model.TokenBoxes(Frame.Width, Frame.Height);
@@ -367,6 +367,16 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     {
         base.OnIsVisibleChanged();
         if (!IsVisible)
+            SetIsOpen(false);
+    }
+
+    /// <inheritdoc />
+    protected override void OnIsEnabledChanged()
+    {
+        base.OnIsEnabledChanged();
+        Model.IsEnabled = IsEnabled;
+        Model.PaintChanged();
+        if (!IsEnabled)
             SetIsOpen(false);
     }
 
@@ -432,7 +442,7 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
 
     void ISkUiPickerOwner.FocusField()
     {
-        if (IsVisible)
+        if (IsEnabled && IsVisible)
             Focus();
     }
 

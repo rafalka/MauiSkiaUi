@@ -173,7 +173,15 @@ public abstract class SkUiCoreStepperBase : SkUiCoreNode, ISkUiStepperOwner, ISk
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
     {
         base.CollectGestureRecognizers(recognizers);
-        Model.CollectGestureRecognizers(recognizers);
+        if (IsEnabled)
+            Model.CollectGestureRecognizers(recognizers);
+    }
+
+    /// <inheritdoc />
+    protected override void OnIsEnabledChanged()
+    {
+        base.OnIsEnabledChanged();
+        Model.IsEnabled = IsEnabled;
     }
 
     /// <inheritdoc />

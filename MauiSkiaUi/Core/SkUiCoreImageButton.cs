@@ -10,13 +10,11 @@ namespace MauiSkiaUi.Core;
 /// </summary>
 public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
 {
-    private ICommand? _command;
-    private object? _commandParameter;
+    private SkUiCommandSlot<SkUiCoreImageButton>? _command;
     private SkUiChromeState _chrome;
     private Thickness _padding;
     private bool _isPressed;
     private SkUiPressAnimator? _press;
-    private SkUiWeakListener<SkUiCoreImageButton>? _commandListener;
 
     /// <summary>Creates an image button with a press/disabled tint overlay painter.</summary>
     public SkUiCoreImageButton() => SetPaintOverlay(PaintButtonOverlay);
@@ -33,14 +31,14 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
     /// <summary>Optional command executed on a completed tap.</summary>
     public ICommand? Command
     {
-        get => _command;
+        get => _command?.Command;
         set => SetCommand(value);
     }
 
     /// <summary>Parameter passed to <see cref="Command"/>.</summary>
     public object? CommandParameter
     {
-        get => _commandParameter;
+        get => _command?.Parameter;
         set => SetCommandParameter(value);
     }
 
@@ -89,34 +87,29 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
         return this;
     }
 
-    /// <summary>Sets the tap command. CanExecuteChanged is listened to weakly, so long-lived commands do not retain this node.</summary>
+    /// <summary>
+    /// Sets the tap command. While it cannot execute, the button is disabled as with <see cref="SkUiCoreNode.IsEnabled"/>
+    /// <c>false</c> (it takes taps without acting, draws disabled, is not focusable). CanExecuteChanged is listened to weakly,
+    /// so long-lived commands do not retain this node.
+    /// </summary>
     public SkUiCoreImageButton SetCommand(ICommand? value)
     {
-        if (ReferenceEquals(_command, value)) return this;
-        if (!SetProperty(ref _command, value, nameof(Command))) return this;
-        // A long-lived command must not keep the node alive.
-        (_commandListener ??= new(this, static (button, change) =>
-        {
-            if (change.Kind == SkUiChangeKind.CanExecute) button.OnCommandStateChanged();
-        })).Listen(value);
-        OnCommandStateChanged();
+        if (ReferenceEquals(Command, value)) return this;
+        CommandSlot.SetCommand(value);
+        OnPropertyChanged(nameof(Command));
         return this;
     }
 
     /// <summary>Sets the command parameter.</summary>
     public SkUiCoreImageButton SetCommandParameter(object? value)
     {
-        if (!SetProperty(ref _commandParameter, value, nameof(CommandParameter))) return this;
-        OnCommandStateChanged();
+        if (Equals(CommandParameter, value)) return this;
+        CommandSlot.SetParameter(value);
+        OnPropertyChanged(nameof(CommandParameter));
         return this;
     }
 
-    /// <summary>Whether the command can execute may have changed: repaint (enabled look) and re-check keyboard focus.</summary>
-    private void OnCommandStateChanged()
-    {
-        InvalidatePaint();
-        RevalidateFocus();
-    }
+    private SkUiCommandSlot<SkUiCoreImageButton> CommandSlot => _command ??= new(this, static button => button.OnTapStateChanged());
 
     /// <summary>Sets the per-corner radii in DIPs.</summary>
     public SkUiCoreImageButton SetCornerRadii(CornerRadius value)
@@ -170,7 +163,8 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
         return this;
     }
 
-    private bool CanExecuteCommand => _command?.CanExecute(_commandParameter) ?? true;
+    /// <summary>Whether there is no command or it can execute (as of its last change).</summary>
+    private bool CanExecuteCommand => _command is not { Command: not null, CanExecute: false };
 
     /// <inheritdoc />
     internal override CornerRadius PressEffectCornerRadii => _chrome.Radii;
@@ -203,12 +197,18 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
     /// <see cref="SkUiCoreNode.PaintOverlay"/>. Subclasses may call or re-register this painter.
     /// </summary>
     protected void PaintButtonOverlay(SKCanvas canvas) =>
-        SkUiImageButtonDrawing.PaintOverlay(canvas, (float)Frame.Width, (float)Frame.Height, _chrome, _press?.Visual ?? SkUiPressVisual.None, CanExecuteCommand);
+        SkUiImageButtonDrawing.PaintOverlay(canvas, (float)Frame.Width, (float)Frame.Height, _chrome, _press?.Visual ?? SkUiPressVisual.None, IsInteractionEnabled);
 
     void SkUiImageButtonDrawing.IImage.Paint(SKCanvas canvas, SKRect area) => PaintImage(canvas, area);
 
     /// <inheritdoc />
-    internal override bool HasIntrinsicTap => CanExecuteCommand;
+    internal override bool HasIntrinsicTap => true;
+
+    /// <inheritdoc />
+    internal override bool CanReceiveTap => CanExecuteCommand;
+
+    /// <inheritdoc />
+    internal override bool RunsTappedCommand => false;
 
     /// <inheritdoc />
     internal override void OnIntrinsicTap(SkUiTappedEventArgs args)
@@ -216,8 +216,7 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
         if (!CanExecuteCommand)
             return;
         Clicked?.Invoke(this, EventArgs.Empty);
-        if (_command?.CanExecute(_commandParameter) == true)
-            _command.Execute(_commandParameter);
+        _command?.Execute();
     }
 
     /// <inheritdoc />
@@ -237,7 +236,4 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
         base.OnPopulateSemantics(info);
         info.Role = SkUiSemanticsRole.Button;
     }
-
-    /// <inheritdoc />
-    internal override bool IsSemanticsEnabled => CanExecuteCommand;
 }

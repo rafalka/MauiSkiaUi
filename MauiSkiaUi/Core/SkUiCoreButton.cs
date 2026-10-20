@@ -16,9 +16,7 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     private bool _minimumHeightExplicit;
     private bool _isPressed;
     private SkUiPressAnimator? _press;
-    private ICommand? _command;
-    private object? _commandParameter;
-    private SkUiWeakListener<SkUiCoreButton>? _commandListener;
+    private SkUiCommandSlot<SkUiCoreButton>? _command;
 
     /// <summary>Creates a centered button in the color scheme's button colors (white on the accent by default) whose text does not wrap (as MAUI's Button).</summary>
     public SkUiCoreButton()
@@ -47,14 +45,14 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     /// <summary>Optional command executed on a completed tap.</summary>
     public ICommand? Command
     {
-        get => _command;
+        get => _command?.Command;
         set => SetCommand(value);
     }
 
     /// <summary>Parameter passed to <see cref="Command"/>.</summary>
     public object? CommandParameter
     {
-        get => _commandParameter;
+        get => _command?.Parameter;
         set => SetCommandParameter(value);
     }
 
@@ -169,34 +167,29 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
         return base.SetMinimumHeight(value);
     }
 
-    /// <summary>Sets the tap command. CanExecuteChanged is listened to weakly, so long-lived commands do not retain this node.</summary>
+    /// <summary>
+    /// Sets the tap command. While it cannot execute, the button is disabled as with <see cref="SkUiCoreNode.IsEnabled"/>
+    /// <c>false</c> (it takes taps without acting, draws disabled, is not focusable). CanExecuteChanged is listened to weakly,
+    /// so long-lived commands do not retain this node.
+    /// </summary>
     public SkUiCoreButton SetCommand(ICommand? value)
     {
-        if (ReferenceEquals(_command, value)) return this;
-        if (!SetProperty(ref _command, value, nameof(Command))) return this;
-        // A long-lived command must not keep the node alive.
-        (_commandListener ??= new(this, static (button, change) =>
-        {
-            if (change.Kind == SkUiChangeKind.CanExecute) button.OnCommandStateChanged();
-        })).Listen(value);
-        OnCommandStateChanged();
+        if (ReferenceEquals(Command, value)) return this;
+        CommandSlot.SetCommand(value);
+        OnPropertyChanged(nameof(Command));
         return this;
     }
 
     /// <summary>Sets the command parameter.</summary>
     public SkUiCoreButton SetCommandParameter(object? value)
     {
-        if (!SetProperty(ref _commandParameter, value, nameof(CommandParameter))) return this;
-        OnCommandStateChanged();
+        if (Equals(CommandParameter, value)) return this;
+        CommandSlot.SetParameter(value);
+        OnPropertyChanged(nameof(CommandParameter));
         return this;
     }
 
-    /// <summary>Whether the command can execute may have changed: repaint (enabled look) and re-check keyboard focus.</summary>
-    private void OnCommandStateChanged()
-    {
-        InvalidatePaint();
-        RevalidateFocus();
-    }
+    private SkUiCommandSlot<SkUiCoreButton> CommandSlot => _command ??= new(this, static button => button.OnTapStateChanged());
 
     /// <summary>
     /// Convenience: assigns a <see cref="SkUiCoreCommand"/> that invokes <paramref name="execute"/>.
@@ -208,7 +201,8 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
         return this;
     }
 
-    private bool CanExecuteCommand => _command?.CanExecute(_commandParameter) ?? true;
+    /// <summary>Whether there is no command or it can execute (as of its last change).</summary>
+    private bool CanExecuteCommand => _command is not { Command: not null, CanExecute: false };
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
@@ -230,7 +224,7 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     /// </summary>
     protected void PaintButtonBackground(SKCanvas canvas)
     {
-        var enabled = CanExecuteCommand;
+        var enabled = IsInteractionEnabled;
         var fill = ButtonFill(enabled);
         SkUiLook.Current.DrawButton(canvas, new SkUiButtonPaint(new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height), CornerRadii,
             fill.Color, ToSkColor(BorderColor), (float)BorderWidth,
@@ -246,10 +240,16 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
 
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height) =>
-        ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(CanExecuteCommand).ToPaint()) : null;
+        ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(IsInteractionEnabled).ToPaint()) : null;
 
     /// <inheritdoc />
-    internal override bool HasIntrinsicTap => CanExecuteCommand;
+    internal override bool HasIntrinsicTap => true;
+
+    /// <inheritdoc />
+    internal override bool CanReceiveTap => CanExecuteCommand;
+
+    /// <inheritdoc />
+    internal override bool RunsTappedCommand => false;
 
     /// <inheritdoc />
     internal override void OnIntrinsicTap(SkUiTappedEventArgs args)
@@ -257,8 +257,7 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
         if (!CanExecuteCommand)
             return;
         Clicked?.Invoke(this, EventArgs.Empty);
-        if (_command?.CanExecute(_commandParameter) == true)
-            _command.Execute(_commandParameter);
+        _command?.Execute();
     }
 
     /// <inheritdoc />
@@ -278,7 +277,4 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
         base.OnPopulateSemantics(info);
         info.Role = SkUiSemanticsRole.Button;
     }
-
-    /// <inheritdoc />
-    internal override bool IsSemanticsEnabled => CanExecuteCommand;
 }

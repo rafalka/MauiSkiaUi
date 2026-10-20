@@ -6,13 +6,15 @@ namespace MauiSkiaUiDemo;
 /// <summary>
 /// Composite buttons built from several Core nodes (a border holding a grid of an icon and labels, chips, tiles) that
 /// show the look's press feedback as one control: <see cref="SkUiCoreNode.ShowsPressEffect"/> plus a
-/// <see cref="SkUiCoreNode.Tapped"/> handler. A Core button inside a card takes its own presses. The press effect (dim
-/// or ripple) and the transition speed are set on the Look &amp; colors page.
+/// <see cref="SkUiCoreNode.Tapped"/> handler. A Core button inside a card takes its own presses, also while its command
+/// cannot execute (then it is disabled and the card is not pressed either). <see cref="SkUiCoreNode.IsEnabled"/> on the
+/// content disables every card, chip and tile under it; the list still scrolls from them. The press effect (dim or ripple)
+/// and the transition speed are set on the Look &amp; colors page.
 /// </summary>
 public sealed class CorePressEffectDemoPage : ComponentDemoPage
 {
     public CorePressEffectDemoPage()
-        : base("Composite buttons", CreateHost(out var pressables, out var inner), native: null,
+        : base("Composite buttons", CreateHost(out var pressables, out var inner, out var content), native: null,
             widthRange: (220, 420, 340), heightRange: (260, 520, 420))
     {
         SinglePanelHeight = 440;
@@ -23,11 +25,19 @@ public sealed class CorePressEffectDemoPage : ComponentDemoPage
                 taps[name] = taps.GetValueOrDefault(name) + 1;
                 Feedback($"{name}: {taps[name]}");
             };
-        inner.Clicked += (_, _) =>
+        var detailsAvailable = true;
+        var details = new Command(() =>
         {
             taps["Details button"] = taps.GetValueOrDefault("Details button") + 1;
             Feedback($"Details button: {taps["Details button"]} (the card around it is not pressed)");
-        };
+        }, () => detailsAvailable);
+        inner.SetCommand(details);
+        Toggle(nameof(SkUiCoreNode.IsEnabled), true, value => content.SetIsEnabled(value), () => content.IsEnabled);
+        Toggle("Details can execute", true, value =>
+        {
+            detailsAvailable = value;
+            details.ChangeCanExecute();
+        }, () => detailsAvailable);
         Toggle(nameof(SkUiCoreNode.ShowsPressEffect), true, value =>
         {
             foreach (var (_, node) in pressables)
@@ -36,22 +46,24 @@ public sealed class CorePressEffectDemoPage : ComponentDemoPage
         OnReset(taps.Clear);
     }
 
-    private static SkUiCoreHost CreateHost(out List<(string Name, SkUiCoreNode Node)> pressables, out SkUiCoreButton inner)
+    private static SkUiCoreHost CreateHost(out List<(string Name, SkUiCoreNode Node)> pressables, out SkUiCoreButton inner,
+        out SkUiCoreNode content)
     {
         pressables = [];
-        var content = new SkUiCoreVerticalStackLayout().SetSpacing(12).SetPadding(new Thickness(12));
+        var stack = new SkUiCoreVerticalStackLayout().SetSpacing(12).SetPadding(new Thickness(12));
+        content = stack;
 
         // A settings row: icon, title and subtitle, chevron.
         var settings = Card(Row(Icon(DemoColors.Accent), "Notifications", "Sounds, badges, banners", Chevron()));
         pressables.Add(("Settings card", settings));
-        content.Add(settings);
+        stack.Add(settings);
 
         // A card with its own button: pressing the button does not press the card.
         inner = new SkUiCoreButton();
         inner.SetText("Details").SetFontSize(13).SetWidth(76).SetHeight(34);
         var order = Card(Row(Icon(Color.FromArgb("#D97706")), "Order #1024", "Arrives tomorrow", inner));
         pressables.Add(("Order card", order));
-        content.Add(order);
+        stack.Add(order);
 
         // Chips: single labels with rounded chrome.
         var chips = new SkUiCoreHorizontalStackLayout().SetSpacing(8);
@@ -64,7 +76,7 @@ public sealed class CorePressEffectDemoPage : ComponentDemoPage
             pressables.Add(($"Chip {text}", chip));
             chips.Add(chip);
         }
-        content.Add(chips);
+        stack.Add(chips);
 
         // Tiles: a border holding an icon over a caption.
         var tiles = new SkUiCoreGrid().SetColumnSpacing(12)
@@ -85,9 +97,9 @@ public sealed class CorePressEffectDemoPage : ComponentDemoPage
             pressables.Add(($"Tile {text}", card));
             tiles.Add(card, 0, column++);
         }
-        content.Add(tiles);
+        stack.Add(tiles);
 
-        return new SkUiCoreHost().SetContent(new SkUiCoreScrollView().SetContent(content));
+        return new SkUiCoreHost().SetContent(new SkUiCoreScrollView().SetContent(stack));
     }
 
     private static SkUiCoreBorder Card(SkUiCoreNode content, double padding = 12)

@@ -193,18 +193,11 @@ public class SkUiSlider : SkUiView
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        var minimumTrack = _minimumTrackColor;
-        var maximumTrack = _maximumTrackColor;
-        var thumb = _thumbColor;
-        if (!IsEnabled)
-        {
-            minimumTrack = minimumTrack.MultiplyAlpha(0.5f);
-            maximumTrack = maximumTrack.MultiplyAlpha(0.5f);
-            thumb = thumb.MultiplyAlpha(0.5f);
-        }
+        var enabled = IsEnabled;
         var fraction = SkUiSliderMath.Fraction(_value, _minimum, _maximum);
         SkUiSliderMath.Draw(canvas, (float)Width, (float)Height, _orientation, IsRightToLeft, _visual?.Fraction(fraction) ?? fraction,
-            ToSkColor(minimumTrack), ToSkColor(maximumTrack), ToSkColor(thumb), _visual?.Pressed ?? 0, IsEnabled, _thumbImage);
+            ToSkColor(SkUiColors.EnabledTint(_minimumTrackColor, enabled)), ToSkColor(SkUiColors.EnabledTint(_maximumTrackColor, enabled)),
+            ToSkColor(SkUiColors.EnabledTint(_thumbColor, enabled)), _visual?.Pressed ?? 0, enabled, _thumbImage);
     }
 
     /// <inheritdoc />

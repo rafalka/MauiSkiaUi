@@ -354,7 +354,15 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         var arena = new SkUiGestureArena(touch.Id, this, touch.Position, touch.Device) { Buttons = touch.Buttons };
         if (!leaf.IsInputEnabled)
         {
-            // Disabled: blocks the pointer until release without reacting.
+            // Disabled: takes the pointer until release without reacting, so what is underneath gets no tap; the continuous
+            // gestures of its (enabled) ancestors still compete, so a scroller around it scrolls.
+            if (!ReferenceEquals(leaf, root) && leaf.RenderParent is ISkUiInputNode parent)
+            {
+                AddMembers(arena, parent, continuousOnly: true);
+                if (arena.Members.Count > 0 && Open(arena, touch, time))
+                    return true;
+                arena = new SkUiGestureArena(touch.Id, this, touch.Position, touch.Device) { Buttons = touch.Buttons };
+            }
             _arenas[touch.Id] = arena;
             ActiveArenas++;
             arena.Close();

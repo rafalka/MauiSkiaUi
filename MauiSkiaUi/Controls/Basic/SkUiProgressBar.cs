@@ -122,15 +122,9 @@ public class SkUiProgressBar : SkUiView
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
-        var track = _trackColor;
-        var fill = _progressColor;
-        if (!IsEnabled)
-        {
-            track = track.MultiplyAlpha(0.5f);
-            fill = fill.MultiplyAlpha(0.5f);
-        }
+        var enabled = IsEnabled;
         SkUiProgressBarDrawing.Draw(canvas, (float)Width, (float)Height, IsRightToLeft, SkUiProgressBarDrawing.Drawn(_fill, _progress), _isIndeterminate,
-            ToSkColor(track), ToSkColor(fill), IsEnabled);
+            ToSkColor(SkUiColors.EnabledTint(_trackColor, enabled)), ToSkColor(SkUiColors.EnabledTint(_progressColor, enabled)), enabled);
     }
 
     /// <inheritdoc />

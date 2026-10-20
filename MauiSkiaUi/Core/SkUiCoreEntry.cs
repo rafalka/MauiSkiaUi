@@ -169,6 +169,8 @@ public class SkUiCoreEntry : SkUiCoreInputView
     /// <inheritdoc />
     private protected override void OnReturnPressed()
     {
+        if (!IsEnabled)
+            return;
         Completed?.Invoke(this, EventArgs.Empty);
         if (_returnCommand is { } command && command.CanExecute(_returnCommandParameter))
             command.Execute(_returnCommandParameter);

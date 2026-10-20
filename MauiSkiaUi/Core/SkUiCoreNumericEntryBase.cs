@@ -190,6 +190,13 @@ public abstract class SkUiCoreNumericEntryBase : SkUiCoreEntry, ISkUiNumericEntr
     }
 
     /// <inheritdoc />
+    protected override void OnIsEnabledChanged()
+    {
+        base.OnIsEnabledChanged();
+        Numeric.EditabilityChanged();
+    }
+
+    /// <inheritdoc />
     private protected override void OnTextAssigned() => Numeric.TextAssigned();
 
     /// <inheritdoc />
@@ -210,7 +217,7 @@ public abstract class SkUiCoreNumericEntryBase : SkUiCoreEntry, ISkUiNumericEntr
 
     bool ISkUiNumericEntryHost.IsFocused => IsFocused;
 
-    bool ISkUiNumericEntryHost.CanChange => !IsReadOnly;
+    bool ISkUiNumericEntryHost.CanChange => IsEnabled && !IsReadOnly;
 
     void ISkUiNumericEntryHost.ShowText(string text) => SetText(text);
 

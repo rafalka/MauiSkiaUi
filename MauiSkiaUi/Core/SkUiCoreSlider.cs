@@ -141,9 +141,11 @@ public class SkUiCoreSlider : SkUiCoreNode
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
+        var enabled = IsEnabled;
         var fraction = SkUiSliderMath.Fraction(_value, _minimum, _maximum);
         SkUiSliderMath.Draw(canvas, (float)Frame.Width, (float)Frame.Height, _orientation, IsRightToLeft, _visual?.Fraction(fraction) ?? fraction,
-            ToSkColor(_minimumTrackColor), ToSkColor(_maximumTrackColor), ToSkColor(_thumbColor), _visual?.Pressed ?? 0, enabled: true, _thumbImage);
+            ToSkColor(SkUiColors.EnabledTint(_minimumTrackColor, enabled)), ToSkColor(SkUiColors.EnabledTint(_maximumTrackColor, enabled)),
+            ToSkColor(SkUiColors.EnabledTint(_thumbColor, enabled)), _visual?.Pressed ?? 0, enabled, _thumbImage);
     }
 
     private SkUiSliderVisual SliderVisual => _visual ??= new SkUiSliderVisual(this);
