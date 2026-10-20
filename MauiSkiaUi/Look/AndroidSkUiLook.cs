@@ -108,4 +108,8 @@ public class AndroidSkUiLook : DefaultSkUiLook
 
     /// <inheritdoc />
     public override Thickness PopupItemPadding => new(16, 12);
+
+    /// <inheritdoc />
+    /// <remarks>Material's body medium, 14 sp (the system font is Roboto).</remarks>
+    public override double DefaultFontSize => 14;
 }

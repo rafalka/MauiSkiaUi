@@ -83,6 +83,19 @@ public class SkUiLook
         }
     }
 
+    /// <summary>
+    /// The font size of labels, buttons, radio buttons, text fields, pickers and steppers that set none, in DIPs (default 16;
+    /// the platform looks use their platform's body size). Read when a control is created, so set the look before building
+    /// pages; controls with their own size are unaffected.
+    /// </summary>
+    public virtual double DefaultFontSize => 16;
+
+    /// <summary>
+    /// The font family of text that sets none (default <c>null</c>: the platform's system font, which is SF on Apple and Roboto
+    /// on Android). Read when text is laid out; a family the device lacks falls back to the system font.
+    /// </summary>
+    public virtual string? DefaultFontFamily => null;
+
     #endregion
 
     #region Shared geometry

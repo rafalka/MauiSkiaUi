@@ -21,7 +21,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     private string _text = string.Empty;
     private string _displayText = string.Empty; // _text after _textTransform
     private Color _textColor = SkUiColors.DefaultForeground;
-    private double _fontSize = 16;
+    private double _fontSize = SkUiLook.Current.DefaultFontSize;
     private bool _fontAutoScalingEnabled = true;
     private int _fontScaleVersion; // SkUiFontScaling.Version the rich text was built at
     private string? _fontFamily;

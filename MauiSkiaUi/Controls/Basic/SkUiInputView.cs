@@ -73,7 +73,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
         propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.FontFamily = (string?)value, measure: true));
 
     /// <summary>Bindable property for <see cref="FontSize"/>.</summary>
-    public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiInputView), SkUiTextFieldModel.DefaultFontSize,
+    public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiInputView), 0d, defaultValueCreator: _ => SkUiTextFieldModel.DefaultFontSize,
         validateValue: SkUiValidate.FinitePositive,
         propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.FontSize = (double)value, measure: true));
 

@@ -126,8 +126,8 @@ internal interface ISkUiPickerOwner : ISkUiTransitionHost
 /// </summary>
 internal sealed class SkUiPickerModel
 {
-    /// <summary>MAUI's picker font size when none is set.</summary>
-    internal const double DefaultFontSize = 16;
+    /// <summary>The picker font size when none is set: the look's.</summary>
+    internal static double DefaultFontSize => SkUiLook.Current.DefaultFontSize;
 
     private readonly ISkUiPickerOwner _owner;
     private readonly SkUiTextLayout _layout;

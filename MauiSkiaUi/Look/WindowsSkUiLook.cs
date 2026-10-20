@@ -90,4 +90,12 @@ public class WindowsSkUiLook : DefaultSkUiLook
 
     /// <inheritdoc />
     public override double PopupAnchorGap => 0;
+
+    /// <inheritdoc />
+    /// <remarks>Fluent's body text, 14 epx.</remarks>
+    public override double DefaultFontSize => 14;
+
+    /// <inheritdoc />
+    /// <remarks>Segoe UI Variable; Windows 10 and headless runs, without it, use the system font.</remarks>
+    public override string? DefaultFontFamily => "Segoe UI Variable";
 }

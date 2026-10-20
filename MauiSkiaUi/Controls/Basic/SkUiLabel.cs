@@ -20,7 +20,7 @@ public class SkUiLabel : SkUiView
     private string _text = string.Empty;
     private string _displayText = string.Empty; // _text after _textTransform
     private Color _textColor = SkUiColors.DefaultForeground;
-    private double _fontSize = 16;
+    private double _fontSize = SkUiLook.Current.DefaultFontSize;
     private bool _fontAutoScalingEnabled = true;
     private int _fontScaleVersion; // SkUiFontScaling.Version the rich text was built at
     private string? _fontFamily;
@@ -57,7 +57,7 @@ public class SkUiLabel : SkUiView
     /// <summary>Bindable foreground color.</summary>
     public static readonly BindableProperty TextColorProperty = BindableProperty.Create(nameof(TextColor), typeof(Color), typeof(SkUiLabel), Colors.Black, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextColor, validateValue: SkUiValidate.NotNull, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextColorChanged((Color)value));
     /// <summary>Bindable font size in DIPs.</summary>
-    public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiLabel), 16d, validateValue: SkUiValidate.FinitePositive, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontSizeChanged((double)value));
+    public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiLabel), 0d, defaultValueCreator: _ => SkUiLook.Current.DefaultFontSize, validateValue: SkUiValidate.FinitePositive, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontSizeChanged((double)value));
     /// <summary>Bindable <see cref="FontAutoScalingEnabled"/>.</summary>
     public static readonly BindableProperty FontAutoScalingEnabledProperty = BindableProperty.Create(nameof(FontAutoScalingEnabled), typeof(bool), typeof(SkUiLabel), true, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontAutoScalingEnabledChanged((bool)value));
     /// <summary>Bindable system font family name.</summary>

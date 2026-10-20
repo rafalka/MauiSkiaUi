@@ -25,7 +25,7 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
     private ISkUiView? _hostedContent; // a view Content drawn beside the circle (not while templated)
     private string _text = string.Empty; // string Content after the text transform
     private Color _textColor = SkUiColors.DefaultForeground;
-    private double _fontSize = 16;
+    private double _fontSize = SkUiLook.Current.DefaultFontSize;
     private bool _fontAutoScalingEnabled = true;
     private string? _fontFamily;
     private FontAttributes _fontAttributes;
@@ -65,7 +65,7 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
         validateValue: SkUiValidate.NotNull,
         propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnTextColorChanged((Color)value));
     /// <summary>Bindable <see cref="FontSize"/>.</summary>
-    public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiRadioButton), 16d,
+    public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiRadioButton), 0d, defaultValueCreator: _ => SkUiLook.Current.DefaultFontSize,
         validateValue: SkUiValidate.FinitePositive,
         propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnTextStyleChanged(radio => radio._fontSize = (double)value));
     /// <summary>Bindable <see cref="FontAutoScalingEnabled"/>.</summary>

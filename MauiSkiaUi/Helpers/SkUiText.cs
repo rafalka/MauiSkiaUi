@@ -24,6 +24,8 @@ internal static class SkUiTypefaces
 
     internal static SKTypeface Resolve(string? family, FontAttributes attributes = FontAttributes.None)
     {
+        if (string.IsNullOrEmpty(family))
+            family = SkUiLook.Current.DefaultFontFamily;
         if (!string.IsNullOrEmpty(family) && SkUiFonts.TryResolve(family) is { } registered)
             return attributes == FontAttributes.None
                 ? registered

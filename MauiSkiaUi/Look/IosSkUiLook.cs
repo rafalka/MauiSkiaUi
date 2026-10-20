@@ -82,4 +82,8 @@ public class IosSkUiLook : DefaultSkUiLook
 
     /// <inheritdoc />
     public override double ScrollBarExpandedThickness => 3;
+
+    /// <inheritdoc />
+    /// <remarks>iOS's body text style, 17 pt, in the system font (SF).</remarks>
+    public override double DefaultFontSize => 17;
 }

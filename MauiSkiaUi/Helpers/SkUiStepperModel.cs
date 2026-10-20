@@ -80,7 +80,7 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
     public FontAttributes FontAttributes;
     public bool FontAutoScalingEnabled = true;
 
-    internal const double DefaultFontSize = 16;
+    internal static double DefaultFontSize => SkUiLook.Current.DefaultFontSize;
 
     /// <summary>The corner radius in DIPs; <c>null</c>: the look's (<see cref="SkUiLook.DefaultStepperCornerRadius"/>).</summary>
     public double? CornerRadius;

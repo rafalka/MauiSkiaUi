@@ -97,4 +97,8 @@ public class MacSkUiLook : DefaultSkUiLook
 
     /// <inheritdoc />
     public override double PopupAnchorGap => 2;
+
+    /// <inheritdoc />
+    /// <remarks>The Mac's control text, 13 pt, in the system font (SF).</remarks>
+    public override double DefaultFontSize => 13;
 }

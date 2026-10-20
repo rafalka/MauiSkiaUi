@@ -60,8 +60,8 @@ internal interface ISkUiTextFieldOwner : ISkUiTransitionHost
 /// </summary>
 internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditorOwner, ISkUiTextEditGeometry
 {
-    /// <summary>The font size of fields that set none (as SkiaUi's labels and pickers).</summary>
-    internal const double DefaultFontSize = 16;
+    /// <summary>The font size of fields that set none: the look's, as SkiaUi's labels and pickers.</summary>
+    internal static double DefaultFontSize => SkUiLook.Current.DefaultFontSize;
 
     // A caret this close to the text box's edge counts as inside it (scrolling keeps it in view).
     private const float ScrollMargin = 1;
