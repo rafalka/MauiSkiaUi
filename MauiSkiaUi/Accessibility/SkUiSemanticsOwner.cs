@@ -40,15 +40,19 @@ internal sealed class SkUiSemanticsOwner
     {
         get
         {
-            if (_dirty || _tree is null)
+            // ExposeAutomationIds switched (a UI-test build turning it on at runtime): the next read rebuilds.
+            if (_dirty || _tree is null || _builtExposingIds != SkUiAccessibility.ExposeAutomationIds)
             {
-                _tree = SkUiSemanticsTree.Build(_root, _root.FocusManagerIfCreated);
+                _builtExposingIds = SkUiAccessibility.ExposeAutomationIds;
+                _tree = SkUiSemanticsTree.Build(_root, _root.FocusManagerIfCreated, _builtExposingIds);
                 _dirty = false;
                 Version++;
             }
             return _tree;
         }
     }
+
+    private bool _builtExposingIds;
 
     /// <summary>Increments with every rebuild: bridges compare it instead of keeping a tree (which holds its nodes).</summary>
     public int Version { get; private set; }

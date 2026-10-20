@@ -20,4 +20,10 @@ public sealed class SkUiOptions
 
     /// <summary>The app-wide texts, to translate SkiaUi's own (<see cref="SkUiStrings.Current"/>); <c>null</c>: unchanged (English).</summary>
     public SkUiStrings? Strings { get; set; }
+
+    /// <summary>
+    /// Exposes every drawn <c>AutomationId</c> to UI-test drivers (<see cref="SkUiAccessibility.ExposeAutomationIds"/>); <c>null</c>:
+    /// unchanged (by default off). Turn it on in UI-test builds only.
+    /// </summary>
+    public bool? ExposeAutomationIds { get; set; }
 }

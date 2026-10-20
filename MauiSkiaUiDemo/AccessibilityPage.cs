@@ -7,6 +7,8 @@ namespace MauiSkiaUiDemo;
 /// Accessibility playground (P10): a drawn form read by TalkBack / VoiceOver / Narrator (MAUI <c>SemanticProperties</c>,
 /// tappable groups, a scroller, a hosted Entry, Core nodes), keyboard focus (Tab, Space / Enter, arrows, <c>Focus()</c>),
 /// the app-wide text prescale (<see cref="SkUiLook.FontScale"/>, on top of the system text size) and the semantics tree the screen readers get, live.
+/// The card's labels and the decoration labels carry <c>AutomationId</c>s that screen readers do not read on their own: with
+/// <see cref="SkUiAccessibility.ExposeAutomationIds"/> on they become id-only elements a UI-test driver finds.
 /// The buttons share one click handler that reads their <see cref="SkUiView.Tag"/>.
 /// </summary>
 public sealed class AccessibilityPage : ContentPage
@@ -83,6 +85,14 @@ public sealed class AccessibilityPage : ContentPage
             Spacing = 8,
             Children = { enabled, new Label { Text = "Drawn accessibility (app-wide)", TextColor = DemoColors.Ink, VerticalOptions = LayoutOptions.Center } }
         };
+        // UI-test builds turn this on at startup (UseSkiaUi options): absorbed and decorative nodes keep their AutomationIds.
+        var exposeIds = new Switch { IsToggled = SkUiAccessibility.ExposeAutomationIds, AutomationId = "ExposeAutomationIdsSwitch" };
+        exposeIds.Toggled += (_, args) => SkUiAccessibility.ExposeAutomationIds = args.Value;
+        var exposeIdsRow = new HorizontalStackLayout
+        {
+            Spacing = 8,
+            Children = { exposeIds, new Label { Text = "Expose automation ids (UI tests)", TextColor = DemoColors.Ink, VerticalOptions = LayoutOptions.Center } }
+        };
         var tools = new HorizontalStackLayout { Spacing = 8, Children = { focusFirst, unfocus, announce } };
         var form = new Border
         {
@@ -116,7 +126,7 @@ public sealed class AccessibilityPage : ContentPage
                 Padding = new Thickness(16),
                 Spacing = 12,
                 // The picker last: on Mac Catalyst it opens its selection sheet when Tab reaches it, which keeps Tab inside.
-                Children = { description, enabledRow, tools, _status, _action, columns, scale }
+                Children = { description, enabledRow, exposeIdsRow, tools, _status, _action, columns, scale }
             }
         };
     }
@@ -136,12 +146,12 @@ public sealed class AccessibilityPage : ContentPage
         // Toggles labelled by a description; the labels beside them are decoration (read once, as the toggle's name).
         var gift = new SkUiCheckBox();
         SemanticProperties.SetDescription(gift, "Gift wrap");
-        Add(Row(gift, Decoration("Gift wrap")));
+        Add(Row(gift, Decoration("Gift wrap", "GiftWrapLabel")));
 
         var express = new SkUiSwitch();
         SemanticProperties.SetDescription(express, "Express delivery");
         SemanticProperties.SetHint(express, "Delivers the next working day");
-        Add(Row(express, Decoration("Express delivery")));
+        Add(Row(express, Decoration("Express delivery", "ExpressLabel")));
 
         var method = new SkUiLabel { Text = "Delivery method", FontFamily = DemoFonts.OpenSansSemibold, TextColor = DemoColors.Ink };
         SemanticProperties.SetHeadingLevel(method, SemanticHeadingLevel.Level2);
@@ -156,9 +166,10 @@ public sealed class AccessibilityPage : ContentPage
         SemanticProperties.SetDescription(progress, "Checkout progress");
         Add(progress);
 
-        // A tappable card: read as one button with its text.
+        // A tappable card: read as one button with its text. Its labels' ids are found by UI tests with ExposeAutomationIds.
         var card = new SkUiBorder
         {
+            AutomationId = "OrderCard",
             Padding = 12,
             Stroke = DemoColors.Border,
             StrokeThickness = 1,
@@ -167,8 +178,12 @@ public sealed class AccessibilityPage : ContentPage
             {
                 Children =
                 {
-                    new SkUiLabel { Text = "Order 42", FontFamily = DemoFonts.OpenSansSemibold, TextColor = DemoColors.Ink },
-                    new SkUiLabel { Text = "Shipped yesterday · tap for details", FontFamily = DemoFonts.OpenSansRegular, TextColor = DemoColors.Caption }
+                    new SkUiLabel { Text = "Order 42", FontFamily = DemoFonts.OpenSansSemibold, TextColor = DemoColors.Ink, AutomationId = "OrderTitle" },
+                    new SkUiLabel
+                    {
+                        Text = "Shipped yesterday · tap for details", FontFamily = DemoFonts.OpenSansRegular, TextColor = DemoColors.Caption,
+                        AutomationId = "OrderStatus"
+                    }
                 }
             }
         };
@@ -210,9 +225,13 @@ public sealed class AccessibilityPage : ContentPage
     private void Add(ISkUiView view) => _surface.Children.Add(view);
 
     /// <summary>A label screen readers skip (<c>AutomationProperties.IsInAccessibleTree</c> = false).</summary>
-    private static SkUiLabel Decoration(string text)
+    private static SkUiLabel Decoration(string text, string automationId)
     {
-        var label = new SkUiLabel { Text = text, FontFamily = DemoFonts.OpenSansRegular, TextColor = DemoColors.Ink, VerticalOptions = LayoutOptions.Center };
+        var label = new SkUiLabel
+        {
+            Text = text, FontFamily = DemoFonts.OpenSansRegular, TextColor = DemoColors.Ink, VerticalOptions = LayoutOptions.Center,
+            AutomationId = automationId
+        };
         AutomationProperties.SetIsInAccessibleTree(label, false);
         return label;
     }
@@ -272,7 +291,7 @@ public sealed class AccessibilityPage : ContentPage
         var builder = new System.Text.StringBuilder();
         void Write(SkUiSemanticsNode node, int depth)
         {
-            builder.Append(' ', depth * 2).Append(node.IsNative ? "Native" : node.Role.ToString());
+            builder.Append(' ', depth * 2).Append(node.IsNative ? "Native" : node.IsIdOnly ? "IdOnly" : node.Role.ToString());
             if (node.Label is { } label) builder.Append(" \"").Append(label).Append('"');
             if (node.HeadingLevel != SemanticHeadingLevel.None) builder.Append(" heading ").Append((int)node.HeadingLevel);
             if (node.CheckState is { } state) builder.Append(' ').Append(state);
@@ -281,6 +300,7 @@ public sealed class AccessibilityPage : ContentPage
             if (node.Actions != SkUiSemanticsActions.None) builder.Append(" [").Append(node.Actions).Append(']');
             if (!node.IsEnabled) builder.Append(" disabled");
             if (node.IsFocused) builder.Append(" *focused*");
+            if (node.AutomationId is { } automationId) builder.Append(" #").Append(automationId);
             builder.Append(FormattableString.Invariant($" @{node.Bounds.X:0},{node.Bounds.Y:0} {node.Bounds.Width:0}x{node.Bounds.Height:0}")).AppendLine();
             foreach (var child in node.Children)
                 Write(child, depth + 1);

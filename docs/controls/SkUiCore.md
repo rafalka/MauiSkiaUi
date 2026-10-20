@@ -330,7 +330,7 @@ Core labels and buttons follow the system text size like SkUi* ones (`FontAutoSc
 
 - **Visual tree:** Core nodes implement `IVisualTreeElement`, so MAUI's visual tree continues from `SkUiCoreHost` into the Core tree (Live Visual Tree, `GetVisualTreeDescendants()`, automation agents).
 - **Notifications:** adds and removes are reported to `VisualDiagnostics` only when MAUI diagnostics are enabled (Debug). Release builds pay nothing.
-- **`AutomationId` / `SetAutomationId`:** identify a node for automation, like MAUI's `AutomationId`.
+- **`AutomationId` / `SetAutomationId`:** identify a node for automation, like MAUI's `AutomationId`: UI-test drivers find it through the accessibility tree; a node that is not read on its own (inside a tappable row, a plain panel, a box) only with `SkUiAccessibility.ExposeAutomationIds` ([Accessibility.md](../design/Accessibility.md#automation-ids-ui-tests-m3)).
 - **`SkUiDiagnostics`:** locates drawn elements, which have no platform view:
   - `GetRootBounds` / `GetWindowBounds`: bounds after transforms and scroll offsets;
   - `HitTest` / `HitTestWindow`: the deepest element at a point;

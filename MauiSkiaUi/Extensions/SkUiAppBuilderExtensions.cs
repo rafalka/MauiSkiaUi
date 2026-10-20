@@ -19,7 +19,8 @@ public static class SkUiAppBuilderExtensions
     /// Enables XAML and standalone hosting for every SkUiView subclass, with app-wide options: the popup presenter drawn controls
     /// (pickers) show their popups with (<see cref="SkUiOptions.PopupPresenter"/>, the same as <see cref="SkUiPopups.Presenter"/>)
     /// the look (<see cref="SkUiOptions.Look"/>, the same as <see cref="SkUiLook.Current"/>) and SkiaUi's own texts
-    /// (<see cref="SkUiOptions.Strings"/>, the same as <see cref="SkUiStrings.Current"/>).
+    /// (<see cref="SkUiOptions.Strings"/>, the same as <see cref="SkUiStrings.Current"/>), and whether UI tests find every drawn
+    /// <c>AutomationId</c> (<see cref="SkUiOptions.ExposeAutomationIds"/>).
     /// </summary>
     public static MauiAppBuilder UseSkiaUi(this MauiAppBuilder builder, Action<SkUiOptions> configure)
     {
@@ -32,6 +33,8 @@ public static class SkUiAppBuilderExtensions
             SkUiLook.Current = look;
         if (options.Strings is { } strings)
             SkUiStrings.Current = strings;
+        if (options.ExposeAutomationIds is { } exposeAutomationIds)
+            SkUiAccessibility.ExposeAutomationIds = exposeAutomationIds;
         return builder.UseSkiaUi();
     }
 }

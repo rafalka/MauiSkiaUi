@@ -1,3 +1,5 @@
+using MauiSkiaUi.Rendering;
+
 namespace MauiSkiaUi;
 
 /// <summary>What a drawn element is to assistive technologies (TalkBack, VoiceOver, Narrator).</summary>
@@ -130,6 +132,11 @@ public sealed class SkUiSemanticsInfo
     /// <summary>The element stands for its subtree: its descendants are not read (a loading shimmer's skeleton).</summary>
     internal bool ChildrenHidden;
     internal string? AutomationId;
+    /// <summary>
+    /// A descendant whose <c>AutomationId</c> the element takes when it absorbs that descendant and has none of its own (a
+    /// collection item container: its item's root), so UI tests find the item by the id the app gave it.
+    /// </summary>
+    internal ISkUiRenderable? AutomationIdRoot;
     /// <summary>A hosted native view (<see cref="SkUiMauiContentView"/>): the platform reads it itself.</summary>
     internal bool IsNative;
 
@@ -137,6 +144,7 @@ public sealed class SkUiSemanticsInfo
     {
         Role = SkUiSemanticsRole.None;
         Text = Value = Description = Hint = AutomationId = null;
+        AutomationIdRoot = null;
         CheckState = null;
         Range = null;
         IsEnabled = true;

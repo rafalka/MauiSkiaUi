@@ -316,7 +316,7 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
     }
 
     /// <inheritdoc />
-    protected override bool IsContentElementCore() => true;
+    protected override bool IsContentElementCore() => Node?.IsIdOnly != true; // id-only elements are for UI tests, not content
 
     /// <inheritdoc />
     protected override bool IsControlElementCore() => true;
