@@ -11,6 +11,9 @@ internal interface ISkUiRenderable
     /// <summary>Per-node recording bookkeeping and the render-thread node it feeds.</summary>
     SkUiRenderState RenderState { get; }
 
+    /// <summary>The look this node sets for itself and its descendants, or <c>null</c> (they use the ancestors' or the app's).</summary>
+    SkUiLook? LookOverride => null;
+
     /// <summary>Drawn parent in the unified render tree, or <c>null</c> for a surface root / detached node.</summary>
     ISkUiRenderable? RenderParent { get; }
 

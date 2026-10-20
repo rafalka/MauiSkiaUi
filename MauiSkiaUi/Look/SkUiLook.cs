@@ -20,6 +20,17 @@ public class SkUiLook
     #region Current
 
     private static SkUiLook? _current;
+    [ThreadStatic] private static SkUiLook? _scoped;
+    private static volatile bool _anyTreeLook;
+
+    /// <summary>The look of the subtree being measured or recorded on this thread (see <see cref="SkUiLookScope"/>).</summary>
+    internal static SkUiLook? Scoped { get => _scoped; set => _scoped = value; }
+
+    /// <summary>Whether any node set its own look so far.</summary>
+    internal static bool AnyTreeLook => _anyTreeLook;
+
+    /// <summary>Records that a node set its own look, so measuring and recording look for it.</summary>
+    internal static void NoteTreeLook() => _anyTreeLook = true;
 
     /// <summary>
     /// Raised after <see cref="Current"/> is replaced, or by <see cref="NotifyChanged"/>. Live surfaces then re-measure and
@@ -46,7 +57,7 @@ public class SkUiLook
     /// </summary>
     public static SkUiLook Current
     {
-        get => _current ??= DefaultSkUiLook.Instance;
+        get => _scoped ?? (_current ??= DefaultSkUiLook.Instance);
         set
         {
             ArgumentNullException.ThrowIfNull(value);

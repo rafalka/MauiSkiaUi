@@ -467,6 +467,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         var height = Math.Max(0, heightConstraint - Margin.VerticalThickness);
         var maximumWidth = double.IsNaN(view.MaximumWidth) ? double.PositiveInfinity : view.MaximumWidth;
         var maximumHeight = double.IsNaN(view.MaximumHeight) ? double.PositiveInfinity : view.MaximumHeight;
+        using var lookScope = SkUiLookScope.Enter(this);
         var content = MeasureContent(
             Math.Min(width, double.IsNaN(view.Width) ? maximumWidth : view.Width),
             Math.Min(height, double.IsNaN(view.Height) ? maximumHeight : view.Height));
@@ -725,6 +726,27 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     internal SkUiRenderState RenderState => _renderState ??= new SkUiRenderState();
 
     ISkUiRenderable? ISkUiRenderable.RenderParent => SkiaParent;
+
+    /// <summary>Bindable <see cref="Look"/>.</summary>
+    public static readonly BindableProperty LookProperty = BindableProperty.Create(nameof(Look), typeof(SkUiLook), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).OnLookChanged((SkUiLook?)value));
+
+    /// <summary>
+    /// A look for this view and its drawn descendants, instead of <see cref="SkUiLook.Current"/> (the nearest view that sets
+    /// one wins). It shapes how the subtree measures and draws; the color scheme stays the app's. State changes already
+    /// running, input handling and the platform views of hosted native content use the app's look.
+    /// </summary>
+    public SkUiLook? Look { get => (SkUiLook?)GetValue(LookProperty); set => SetValue(LookProperty, value); }
+
+    SkUiLook? ISkUiRenderable.LookOverride => Look;
+
+    private void OnLookChanged(SkUiLook? value)
+    {
+        if (value is not null)
+            SkUiLook.NoteTreeLook();
+        SkUiRenderInvalidation.MarkLookChanged(this);
+        ((IView)this).InvalidateMeasure();
+    }
 
     void ISkUiRenderable.GetRenderProps(ref SkUiRenderProps props)
     {

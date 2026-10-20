@@ -665,6 +665,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             width = Math.Min(width, _maximumWidth);
             height = Math.Min(height, _maximumHeight);
 
+            using var lookScope = SkUiLookScope.Enter(this);
             var content = MeasureContent(width, height);
             var desiredWidth = ResolveDimension(widthConstraint, _width, content.Width, _minimumWidth, _maximumWidth) + _margin.HorizontalThickness;
             var desiredHeight = ResolveDimension(heightConstraint, _height, content.Height, _minimumHeight, _maximumHeight) + _margin.VerticalThickness;
@@ -754,6 +755,31 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     SkUiRenderState ISkUiRenderable.RenderState => RenderState;
 
     ISkUiRenderable? ISkUiRenderable.RenderParent => (ISkUiRenderable?)(_parent as SkUiCoreNode) ?? HostOwner;
+
+    private SkUiLook? _look;
+
+    /// <summary>
+    /// A look for this node and its descendants, instead of <see cref="SkUiLook.Current"/> (the nearest node that sets one wins;
+    /// see <see cref="SkUiView.Look"/>).
+    /// </summary>
+    public SkUiLook? Look
+    {
+        get => _look;
+        set => SetLook(value);
+    }
+
+    SkUiLook? ISkUiRenderable.LookOverride => _look;
+
+    /// <summary>Sets <see cref="Look"/>.</summary>
+    public SkUiCoreNode SetLook(SkUiLook? value)
+    {
+        if (!SetProperty(ref _look, value, nameof(Look))) return this;
+        if (value is not null)
+            SkUiLook.NoteTreeLook();
+        SkUiRenderInvalidation.MarkLookChanged(this);
+        InvalidateMeasure();
+        return this;
+    }
 
     void ISkUiRenderable.GetRenderProps(ref SkUiRenderProps props)
     {

@@ -265,5 +265,5 @@ Core and MAUI-compatible controls **must** use the same look resolution so Stres
 - [x] Document naming vs FR-12 / FR-19; tests cover swap look + override painter and measure.
 - [x] Look change raises `CurrentChanged`; live surfaces re-measure and redraw their drawn trees (`SkUiLook.NotifyChanged()` for in-place changes).
 - [x] State-change transitions: paint structs carry the transition, `GetTransition` / `TransitionProvider`, reduce motion (FR-26).
-- [ ] Optional per-control / per-tree look attachment.
+- [x] Per-tree look attachment: `SkUiView.Look` / `SkUiCoreNode.Look` (the nearest ancestor that sets one wins, then `SkUiLook.Current`). Measuring and recording a node run with that look as `SkUiLook.Current` on the thread (`SkUiLookScope`, one flag check while no node sets a look). Not scoped: transitions already running, input handling, the scheme (still the app's).
 - [x] Gallery sample page for look packs (`LookAndColorSchemePage`, route `look`).

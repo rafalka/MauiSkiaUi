@@ -13,6 +13,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Per-tree looks:** `SkUiView.Look` and `SkUiCoreNode.Look` (`SetLook`) give a view and its drawn descendants their own look instead of `SkUiLook.Current`; the nearest ancestor that sets one wins. Compare platform looks side by side in the demo's "Looks side by side" page. The color scheme stays the app's; transitions already running and input handling use the app's look.
+
 ### Other
 
 - **Platform color schemes:** `IosSkUiColorScheme`, `MacSkUiColorScheme`, `AndroidSkUiColorScheme` (Material 3 baseline) and `WindowsSkUiColorScheme` (Fluent), each with `Light` / `Dark` instances and `WithAccent(color, isDark)`. `DefaultSkUiLook.GetColorScheme(isDark)` returns the scheme that goes with a look (`SkUiColorScheme.Current = look.GetColorScheme(false)`).
