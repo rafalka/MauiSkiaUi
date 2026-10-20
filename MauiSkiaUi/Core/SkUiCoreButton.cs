@@ -25,12 +25,10 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     {
         SetLineBreakMode(Microsoft.Maui.LineBreakMode.NoWrap);
         SetTextColor(SkUiColors.ButtonForeground);
-        SetPadding(new Thickness(6));
         SetHorizontalTextAlignment(TextAlignment.Center);
         SetVerticalTextAlignment(TextAlignment.Center);
         SetFillColor(SkUiColors.ButtonBackground);
         SetBorderColor(SkUiColors.ButtonBorder);
-        SetBorderWidth(SkUiLook.Current.DefaultButtonBorderWidth);
         _buttonPainter = PaintButtonBackground;
         SetPaintBackground(_buttonPainter);
     }
@@ -135,6 +133,10 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
 
     /// <inheritdoc />
     protected override double DefaultCornerRadius => SkUiLook.Current.DefaultButtonCornerRadius;
+    /// <inheritdoc />
+    protected override Thickness DefaultPadding => SkUiLook.Current.DefaultButtonPadding;
+    /// <inheritdoc />
+    protected override double DefaultBorderWidth => SkUiLook.Current.DefaultButtonBorderWidth;
 
     /// <inheritdoc />
     private protected override bool ClipsTextToInset => true;

@@ -55,7 +55,40 @@ public class SkUiCoreLabel : SkUiCoreNode
     private EventHandler<SkUiLinkTappedEventArgs>? _linkTapped;
 
     /// <summary>Creates an empty word-wrapping label.</summary>
-    public SkUiCoreLabel() => _layout = new SkUiTextLayout(this);
+    public SkUiCoreLabel()
+    {
+        _layout = new SkUiTextLayout(this);
+        _padding = DefaultPadding;
+        _chrome.SetBorderWidth(DefaultBorderWidth);
+        _lookDefaultsFrom = SkUiLook.Current;
+    }
+
+    /// <summary>Text inset used until <see cref="SetPadding"/> (none; buttons use the look's).</summary>
+    protected virtual Thickness DefaultPadding => default;
+
+    /// <summary>Border width used until <see cref="SetBorderWidth"/> (0; buttons use the look's).</summary>
+    protected virtual double DefaultBorderWidth => 0;
+
+    private bool _paddingExplicit;
+    private bool _borderWidthExplicit;
+
+    /// <summary>The look the unset padding and border width were taken from.</summary>
+    private SkUiLook? _lookDefaultsFrom;
+
+    /// <inheritdoc />
+    private protected override void ApplyLookDefaults()
+    {
+        var look = SkUiLook.Current;
+        if (ReferenceEquals(look, _lookDefaultsFrom)) return;
+        _lookDefaultsFrom = look;
+        if (!_paddingExplicit)
+            _padding = DefaultPadding;
+        if (!_borderWidthExplicit)
+            _chrome.SetBorderWidth(DefaultBorderWidth);
+    }
+
+    /// <inheritdoc />
+    private protected override void ForgetLookDefaults() => _lookDefaultsFrom = null;
 
     /// <summary>Displayed text.</summary>
     public string Text
@@ -632,6 +665,8 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Sets border width in DIPs.</summary>
     public SkUiCoreLabel SetBorderWidth(double value)
     {
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        _borderWidthExplicit = true;
         if (!_chrome.SetBorderWidth(value)) return this;
         OnPropertyChanged(nameof(BorderWidth));
         InvalidatePaint();
@@ -689,6 +724,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Sets text inset in DIPs.</summary>
     public SkUiCoreLabel SetPadding(Thickness value)
     {
+        _paddingExplicit = true;
         if (!SetProperty(ref _padding, value, nameof(Padding))) return this;
         InvalidateText();
         return this;

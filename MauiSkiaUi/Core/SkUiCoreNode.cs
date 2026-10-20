@@ -666,6 +666,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             height = Math.Min(height, _maximumHeight);
 
             using var lookScope = SkUiLookScope.Enter(this);
+            ApplyLookDefaults();
             var content = MeasureContent(width, height);
             var desiredWidth = ResolveDimension(widthConstraint, _width, content.Width, _minimumWidth, _maximumWidth) + _margin.HorizontalThickness;
             var desiredHeight = ResolveDimension(heightConstraint, _height, content.Height, _minimumHeight, _maximumHeight) + _margin.VerticalThickness;
@@ -686,6 +687,15 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
 
     /// <summary>Measures intrinsic content without margin, in DIPs.</summary>
     protected virtual Size MeasureContent(double widthConstraint, double heightConstraint) => Size.Zero;
+
+    /// <summary>
+    /// Re-applies the defaults this node takes from the look (buttons: padding and border width) to the properties the app
+    /// did not set, under the look it measures with (its subtree's or the app's). Runs before each measure that is not cached.
+    /// </summary>
+    private protected virtual void ApplyLookDefaults() { }
+
+    /// <summary>The look changed (also in place): the next <see cref="ApplyLookDefaults"/> re-applies them.</summary>
+    private protected virtual void ForgetLookDefaults() { }
 
     /// <inheritdoc />
     public void Arrange(Rect bounds)
@@ -1230,6 +1240,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// <summary>The look or color scheme changed: forget the cached measure and re-record (no per-node propagation).</summary>
     internal void MarkLookChanged()
     {
+        ForgetLookDefaults();
         _measureDirty = true;
         _arrangeDirty = true;
         if (_effects is { } effects)

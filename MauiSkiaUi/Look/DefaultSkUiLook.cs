@@ -21,6 +21,9 @@ public class DefaultSkUiLook : SkUiLook
     /// <see cref="MacSkUiLook"/> (Mac Catalyst) or <see cref="WindowsSkUiLook"/>; <see cref="Instance"/> elsewhere (headless).
     /// The default look is the same on every platform; set this as <see cref="SkUiLook.Current"/> (or
     /// <c>UseSkiaUi(options => options.Look = DefaultSkUiLook.ForCurrentPlatform())</c>) for the platform's.
+    /// The look owns shapes, sizes and motion only: for the platform's colors too (an iOS system button, Fluent's standard
+    /// button, Android's accent spinner), also make its scheme current before the first page's controls are created,
+    /// <c>SkUiColorScheme.Current = look.GetColorScheme(isDark)</c> (<see cref="GetColorScheme"/>).
     /// </summary>
     public static DefaultSkUiLook ForCurrentPlatform() =>
         OperatingSystem.IsAndroid() ? AndroidSkUiLook.IsMaterial3Enabled ? AndroidMaterial3SkUiLook.Instance : AndroidSkUiLook.Instance

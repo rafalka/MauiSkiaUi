@@ -153,6 +153,27 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
         }
     }
 
+    /// <summary>
+    /// Android's font padding, as plain text applies it (<see cref="SkUiLook.TextIncludesFontPadding"/>): the first line
+    /// starts at its tallest span's font top and the last ends at its font bottom, instead of their ascent and descent.
+    /// </summary>
+    private static void ApplyFontPadding(List<SkUiShaping.StyledLine> lines)
+    {
+        if (lines.Count == 0)
+            return;
+        var first = lines[0];
+        var top = 0f;
+        foreach (var piece in first.Pieces)
+            top = Math.Max(top, piece.Metrics.Ascent - piece.Metrics.Top);
+        first.Ascent += top;
+        first.Height += top;
+        var last = lines[^1];
+        var bottom = 0f;
+        foreach (var piece in last.Pieces)
+            bottom = Math.Max(bottom, piece.Metrics.Bottom - piece.Metrics.Descent);
+        last.Height += bottom;
+    }
+
     /// <summary>Forgets broken lines (padding or a default changed).</summary>
     internal void Invalidate()
     {
@@ -195,6 +216,8 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
         var lines = new List<SkUiShaping.StyledLine>();
         var fits = true;
         var natural = text.Text.Length == 0 || BreakStock(width, lines, out fits);
+        if (style.IncludeFontPadding)
+            ApplyFontPadding(lines);
         // Pictures that drew the old lines hold their own references to the blobs.
         ReleaseBlobs(_lines);
         _lines = lines;

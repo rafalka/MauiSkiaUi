@@ -123,6 +123,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <summary>The look or color scheme changed: forget the cached measure and re-record (no per-node propagation).</summary>
     internal void MarkLookChanged()
     {
+        ForgetLookDefaults();
         _measureDirty = true;
         _arrangeDirty = true;
         if (_effects is { } effects)
@@ -468,6 +469,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         var maximumWidth = double.IsNaN(view.MaximumWidth) ? double.PositiveInfinity : view.MaximumWidth;
         var maximumHeight = double.IsNaN(view.MaximumHeight) ? double.PositiveInfinity : view.MaximumHeight;
         using var lookScope = SkUiLookScope.Enter(this);
+        ApplyLookDefaults();
         var content = MeasureContent(
             Math.Min(width, double.IsNaN(view.Width) ? maximumWidth : view.Width),
             Math.Min(height, double.IsNaN(view.Height) ? maximumHeight : view.Height));
@@ -481,6 +483,15 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         _arrangeDirty = true;
         return _measuredSize;
     }
+
+    /// <summary>
+    /// Re-applies the defaults this view takes from the look (buttons: padding, corners, border width) to the properties
+    /// nothing set, under the look it measures with (its subtree's or the app's). Runs before each measure that is not cached.
+    /// </summary>
+    private protected virtual void ApplyLookDefaults() { }
+
+    /// <summary>The look changed (also in place): the next <see cref="ApplyLookDefaults"/> re-applies them.</summary>
+    private protected virtual void ForgetLookDefaults() { }
 
     /// <summary>Measures intrinsic content without margins, in DIPs.</summary>
     protected virtual Size MeasureContent(double widthConstraint, double heightConstraint) => Size.Zero;

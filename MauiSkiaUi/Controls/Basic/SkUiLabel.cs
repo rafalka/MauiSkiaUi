@@ -149,7 +149,29 @@ public class SkUiLabel : SkUiView
             _chrome.SetRadii(new Microsoft.Maui.CornerRadius(DefaultCornerRadius));
         _chrome.SetBorderColor(StyledOr(BorderColorProperty, DefaultBorderColor));
         _chrome.SetBorderWidth(StyledOr(BorderWidthProperty, DefaultBorderWidth));
+        _lookDefaultsFrom = SkUiLook.Current;
     }
+
+    /// <summary>The look the unset padding, corners and border width were taken from.</summary>
+    private SkUiLook? _lookDefaultsFrom;
+
+    /// <inheritdoc />
+    private protected override void ApplyLookDefaults()
+    {
+        var look = SkUiLook.Current;
+        if (ReferenceEquals(look, _lookDefaultsFrom)) return;
+        _lookDefaultsFrom = look;
+        // Only the applied state: the bindable store keeps reporting the defaults it created (the app look's).
+        if (!IsSet(PaddingProperty))
+            _padding = DefaultPadding;
+        if (!IsSet(CornerRadiiProperty) && !IsSet(CornerRadiusProperty))
+            _chrome.SetRadii(new Microsoft.Maui.CornerRadius(DefaultCornerRadius));
+        if (!IsSet(BorderWidthProperty))
+            _chrome.SetBorderWidth(DefaultBorderWidth);
+    }
+
+    /// <inheritdoc />
+    private protected override void ForgetLookDefaults() => _lookDefaultsFrom = null;
 
     /// <summary>Default (uniform) corner radius used by derived controls and bindable value clearing.</summary>
     protected virtual double DefaultCornerRadius => 0;
@@ -724,6 +746,9 @@ public class SkUiLabel : SkUiView
 
     /// <summary>The text's slot in the arranged label, as an inset from its edges: <see cref="Padding"/> (buttons: beside their image).</summary>
     private protected virtual Thickness TextInset => _padding;
+
+    /// <summary>The padding drawn: <see cref="Padding"/>, or the look's default under a subtree's own look when unset.</summary>
+    private protected Thickness AppliedPadding => _padding;
 
     /// <summary>Whether glyphs are clipped to the text's slot (<see cref="TextInset"/>), not only to the bounds: buttons keep text that does not fit out of their padding and image.</summary>
     private protected virtual bool ClipsTextToInset => false;

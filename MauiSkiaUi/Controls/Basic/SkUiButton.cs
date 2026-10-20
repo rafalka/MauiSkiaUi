@@ -52,7 +52,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         var size = ImageSize is { Width: > 0 } image
-            ? SkUiButtonImageLayout.Measure(this, image, _contentLayout, Padding, widthConstraint, heightConstraint)
+            ? SkUiButtonImageLayout.Measure(this, image, _contentLayout, AppliedPadding, widthConstraint, heightConstraint)
             : base.MeasureContent(widthConstraint, heightConstraint);
         // MinimumHeightRequest default is -1; only then resolve the active look's button minimum.
         if (MinimumHeightRequest < 0)
@@ -188,7 +188,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     internal Task ImageLoadingTask => _image?.LoadingTask ?? Task.CompletedTask;
 
     /// <summary>Where the image and the text sit in the arranged button.</summary>
-    private SkUiButtonImageLayout.Placement ImagePlacement => SkUiButtonImageLayout.Arrange(this, ImageSize, _contentLayout, Padding, Width, Height,
+    private SkUiButtonImageLayout.Placement ImagePlacement => SkUiButtonImageLayout.Arrange(this, ImageSize, _contentLayout, AppliedPadding, Width, Height,
         HorizontalTextAlignment, VerticalTextAlignment, IsRightToLeft);
 
     /// <inheritdoc />
