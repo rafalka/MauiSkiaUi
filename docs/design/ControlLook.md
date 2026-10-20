@@ -265,5 +265,7 @@ Core and MAUI-compatible controls **must** use the same look resolution so Stres
 - [x] Document naming vs FR-12 / FR-19; tests cover swap look + override painter and measure.
 - [x] Look change raises `CurrentChanged`; live surfaces re-measure and redraw their drawn trees (`SkUiLook.NotifyChanged()` for in-place changes).
 - [x] State-change transitions: paint structs carry the transition, `GetTransition` / `TransitionProvider`, reduce motion (FR-26).
-- [x] Per-tree look attachment: `SkUiView.Look` / `SkUiCoreNode.Look` (the nearest ancestor that sets one wins, then `SkUiLook.Current`). Measuring and recording a node run with that look as `SkUiLook.Current` on the thread (`SkUiLookScope`, one flag check while no node sets a look). Not scoped: transitions already running, input handling, the scheme (still the app's).
+![The default look and the four platform looks, one `SkUiBorder.Look` each (headless render, bundled font)](../images/platform-looks.png)
+
+- [x] Per-tree look attachment: `SkUiView.Look` / `SkUiCoreNode.Look` (the nearest ancestor that sets one wins, then `SkUiLook.Current`). Measuring and recording a node run with that look as `SkUiLook.Current` on the thread (`SkUiLookScope`, one flag check while no node sets a look). Not scoped: transitions already running, input handling, the scheme (still the app's) and the look's default font size and family (read when a control is created, so a subtree's look does not resize its text).
 - [x] Gallery sample page for look packs (`LookAndColorSchemePage`, route `look`).
