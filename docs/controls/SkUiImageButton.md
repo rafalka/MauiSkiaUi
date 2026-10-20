@@ -38,6 +38,7 @@ All [Image APIs](SkUiImage.md#key-properties) (every source kind, the shared cac
 | Sources, caching, aspect | Same as [`SkUiImage`](SkUiImage.md): `MauiImage`, `FontImageSource`, HTTP(S), streams; shared memory / disk cache |
 | Gestures | SkiaUi tap model only |
 | Visual states | MAUI's: `Normal`, `PointerOver` (hover), `Pressed`, `Disabled` (also when the command cannot execute) |
+| Disabled | The `Background` stays as set (also a `Disabled` visual state's), under the look's disabled tint; `DisabledFillColor` (`Color?`, Core `SetDisabledFillColor`) replaces it while disabled, as on [`SkUiButton`](SkUiButton.md#disabled-buttons) |
 
 ## Related
 

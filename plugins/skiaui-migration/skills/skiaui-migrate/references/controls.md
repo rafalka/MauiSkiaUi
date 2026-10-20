@@ -40,9 +40,9 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 | MAUI | SkiaUi | Notes |
 | --- | --- | --- |
 | `Label` | `sk:SkUiLabel` | Text properties, `MaxLines`, `LineBreakMode`, `FormattedText` / `Span` (span `TapGestureRecognizer`s work), `TextType="Html"`. Code that shrank (or grew) the font size until the text fit becomes `ShrinkToFit="True"` with `MinimumFontScale` (or `GrowToFill="True"` with `MaximumFontScale`); native tightening (iOS `AllowsDefaultTighteningForTruncation`) becomes `AllowsTightening="True"` |
-| `Button` | `sk:SkUiButton` | `Clicked`, `Command`, `Pressed` / `Released`, `ImageSource`, `ContentLayout`, `CornerRadius`, `BorderColor` / `BorderWidth`, `Padding`. Text does not wrap by default (as MAUI) |
+| `Button` | `sk:SkUiButton` | `Clicked`, `Command`, `Pressed` / `Released`, `ImageSource`, `ContentLayout`, `CornerRadius`, `BorderColor` / `BorderWidth`, `Padding`. Text does not wrap by default (as MAUI). Disabled: draws the fill the app set (a `Disabled` state's `Background` / `FillColor` setter ports as it is); a state that only sets the background → `DisabledFillColor`; a text button whose `Disabled` state sets `TextColor` → add `DisabledFillColor="Transparent"` (else its text is dimmed) |
 | `Image` | `sk:SkUiImage` | `Source` (files, `MauiImage`, `FontImageSource`, URIs, streams), `Aspect`, `IsAnimationPlaying`; plus `Transformations`, `DownsampleWidth` / `DownsampleHeight`, `LoadingPlaceholder`, `ErrorPlaceholder` (FFImageLoading-style) |
-| `ImageButton` | `sk:SkUiImageButton` | |
+| `ImageButton` | `sk:SkUiImageButton` | Disabled: the `Background` stays, under the look's tint; `DisabledFillColor` replaces it |
 | `BoxView` | `sk:SkUiBox` | `Color`, `CornerRadius` |
 | `Ellipse`, `Line`, `Rectangle`, `RoundRectangle`, `Path`, `Polygon`, `Polyline` | `sk:SkUiEllipse`, `sk:SkUiLine`, `sk:SkUiRectangle`, `sk:SkUiRoundRectangle`, `sk:SkUiPath`, `sk:SkUiPolygon`, `sk:SkUiPolyline` | Brushes, stroke model, `Aspect`, path markup |
 | `CheckBox` | `sk:SkUiCheckBox` | `IsChecked`, `CheckedChanged`, `Color` |

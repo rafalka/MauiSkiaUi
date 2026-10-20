@@ -15,6 +15,7 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
     private Thickness _padding;
     private bool _isPressed;
     private SkUiPressAnimator? _press;
+    private Color? _disabledFillColor;
 
     /// <summary>Creates an image button with a press/disabled tint overlay painter.</summary>
     public SkUiCoreImageButton() => SetPaintOverlay(PaintButtonOverlay);
@@ -148,6 +149,21 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
         return this;
     }
 
+    /// <summary>The fill behind the image while the button is disabled (or its command cannot execute); see <see cref="SkUiImageButton.DisabledFillColor"/>.</summary>
+    public Color? DisabledFillColor
+    {
+        get => _disabledFillColor;
+        set => SetDisabledFillColor(value);
+    }
+
+    /// <summary>Sets <see cref="DisabledFillColor"/> (<c>null</c>: the background).</summary>
+    public SkUiCoreImageButton SetDisabledFillColor(Color? value)
+    {
+        if (!SetProperty(ref _disabledFillColor, value, nameof(DisabledFillColor))) return this;
+        InvalidatePaint();
+        return this;
+    }
+
     /// <summary>Sets the padding around the image.</summary>
     public SkUiCoreImageButton SetPadding(Thickness value)
     {
@@ -177,9 +193,13 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
     protected override void OnPaintContent(SKCanvas canvas) =>
         SkUiImageButtonDrawing.PaintContent(canvas, this, (float)Frame.Width, (float)Frame.Height, _padding, ref _chrome);
 
-    /// <summary>The <see cref="SkUiCoreNode.Background"/> (solid or gradient) fills the rounded bounds.</summary>
+    /// <summary>The <see cref="SkUiCoreNode.Background"/> (solid or gradient) fills the rounded bounds; disabled, <see cref="DisabledFillColor"/> when set.</summary>
     protected override void OnPaintBackground(SKCanvas canvas) =>
-        _chrome.DrawFill(canvas, (float)Frame.Width, (float)Frame.Height, _chrome.Radii, SkUiFill.From(Background));
+        _chrome.DrawFill(canvas, (float)Frame.Width, (float)Frame.Height, _chrome.Radii, ButtonFill);
+
+    /// <summary>The fill behind the image (<see cref="SkUiButtonFill"/>, the rule of every button).</summary>
+    private SkUiFill ButtonFill =>
+        SkUiButtonFill.Resolve(IsInteractionEnabled, Background is { } background ? SkUiFill.From(background) : null, Colors.Transparent, false, _disabledFillColor);
 
     /// <inheritdoc />
     internal override void ReleaseDrawingResources()
@@ -190,7 +210,7 @@ public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
 
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height) =>
-        PaintBackground is null ? _chrome.ShadowOutline(width, height, _chrome.Radii, Background) : null;
+        PaintBackground is null ? _chrome.ShadowOutline(width, height, _chrome.Radii, _disabledFillColor is not null && !IsInteractionEnabled ? ButtonFill.ToPaint() : Background) : null;
 
     /// <summary>
     /// Draws press / disabled feedback (<see cref="SkUiLook.DrawPressOverlay"/>) and the border, registered as

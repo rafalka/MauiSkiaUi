@@ -15,6 +15,7 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     private SkUiChromeState _chrome;
     private bool _syncingCornerRadius;
     private Thickness _padding;
+    private Color? _disabledFillColor;
 
     /// <summary>Bindable command executed on a valid release.</summary>
     public static readonly BindableProperty CommandProperty = BindableProperty.Create(nameof(Command), typeof(ICommand), typeof(SkUiImageButton), null,
@@ -42,6 +43,10 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiImageButton), default(Thickness),
         propertyChanged: (view, _, value) => ((SkUiImageButton)view).OnPaddingChanged((Thickness)value));
 
+    /// <summary>Bindable <see cref="DisabledFillColor"/>.</summary>
+    public static readonly BindableProperty DisabledFillColorProperty = BindableProperty.Create(nameof(DisabledFillColor), typeof(Color), typeof(SkUiImageButton), null,
+        propertyChanged: (view, _, value) => ((SkUiImageButton)view).OnDisabledFillColorChanged((Color?)value));
+
     /// <summary>Raised for a valid enabled tap, even without a command.</summary>
     public event EventHandler? Clicked;
     /// <summary>Raised when a press starts (MAUI order: <c>Pressed</c>, <c>Released</c>, then <c>Clicked</c> for a tap).</summary>
@@ -66,6 +71,11 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     public double BorderWidth { get => (double)GetValue(BorderWidthProperty); set => SetValue(BorderWidthProperty, value); }
     /// <summary>Space between the bounds and the image; adds to the intrinsic size.</summary>
     public Thickness Padding { get => (Thickness)GetValue(PaddingProperty); set => SetValue(PaddingProperty, value); }
+    /// <summary>
+    /// The fill behind the image while the button is disabled (or its command cannot execute); <c>null</c> (the default): the
+    /// <c>Background</c> as set (also from a <c>Disabled</c> visual state). The look's disabled tint covers either.
+    /// </summary>
+    public Color? DisabledFillColor { get => (Color?)GetValue(DisabledFillColorProperty); set => SetValue(DisabledFillColorProperty, value); }
 
     /// <summary>Sets command; command notifications use a weak target.</summary>
     public SkUiImageButton SetCommand(ICommand? value)
@@ -119,6 +129,9 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     /// <summary>Sets the padding (same as the property setter).</summary>
     public SkUiImageButton SetPadding(Thickness value) { Padding = value; return this; }
     private void OnPaddingChanged(Thickness value) { if (_padding == value) return; _padding = value; InvalidateMeasureOverride(); }
+    /// <summary>Sets <see cref="DisabledFillColor"/> (same as the property setter; <c>null</c>: the background).</summary>
+    public SkUiImageButton SetDisabledFillColor(Color? value) { DisabledFillColor = value; return this; }
+    private void OnDisabledFillColorChanged(Color? value) { _disabledFillColor = value; InvalidatePaint(); }
 
     /// <summary>Creates an image button with a press/disabled tint overlay painter.</summary>
     public SkUiImageButton() => SetPaintOverlay(PaintButtonOverlay);
@@ -175,14 +188,21 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
     protected override void OnPaintContent(SKCanvas canvas) =>
         SkUiImageButtonDrawing.PaintContent(canvas, this, (float)Width, (float)Height, _padding, ref _chrome);
 
-    /// <summary>The background (solid or gradient) fills the rounded bounds.</summary>
+    /// <summary>The background (solid or gradient) fills the rounded bounds; disabled, <see cref="DisabledFillColor"/> when set.</summary>
     protected override void OnPaintBackground(SKCanvas canvas)
     {
-        if (SkUiCornerRadii.HasAny(_chrome.Radii))
-            _chrome.DrawFill(canvas, (float)Width, (float)Height, _chrome.Radii, ResolveBackgroundFill() ?? default);
+        if (UsesDisabledFill || SkUiCornerRadii.HasAny(_chrome.Radii))
+            _chrome.DrawFill(canvas, (float)Width, (float)Height, _chrome.Radii, ButtonFill);
         else
             base.OnPaintBackground(canvas);
     }
+
+    /// <summary>Whether <see cref="DisabledFillColor"/> replaces the background now.</summary>
+    private bool UsesDisabledFill => _disabledFillColor is not null && !(IsEnabled && CanReceiveTap);
+
+    /// <summary>The fill behind the image (<see cref="SkUiButtonFill"/>, the rule of every button).</summary>
+    private SkUiFill ButtonFill =>
+        SkUiButtonFill.Resolve(IsEnabled && CanReceiveTap, ResolveBackgroundFill(), Colors.Transparent, false, _disabledFillColor);
 
     /// <inheritdoc />
     internal override void ReleaseDrawingResources()
@@ -193,7 +213,7 @@ public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
 
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height) =>
-        PaintBackground is null ? _chrome.ShadowOutline(width, height, _chrome.Radii, ResolveBackgroundPaint()) : null;
+        PaintBackground is null ? _chrome.ShadowOutline(width, height, _chrome.Radii, UsesDisabledFill ? ButtonFill.ToPaint() : ResolveBackgroundPaint()) : null;
 
     /// <summary>
     /// Draws press / disabled feedback (<see cref="SkUiLook.DrawPressOverlay"/>) and the border, registered as

@@ -131,6 +131,7 @@ public class SkUiLook
     public virtual double DefaultProgressBarHeight => 4;  // and DefaultProgressBarLength
     public virtual double DefaultButtonMinimumHeight => 44;
     public virtual double DefaultButtonCornerRadius => 6;
+    public virtual double DisabledButtonContentOpacity => 0.38;   // a disabled button without a fill: its text and image
 
     public Size MeasureSwitch(double widthConstraint, double heightConstraint) =>
         SwitchMeasure?.Invoke(widthConstraint, heightConstraint) ?? MeasureSwitchCore(widthConstraint, heightConstraint);

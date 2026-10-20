@@ -163,10 +163,13 @@ public class BrushShadowClipTests
         var button = new SkUiButton { Text = "", Background = RedToBlue() };
         using var bitmap = Render(button, 100, 40);
         AssertRedToBlue(bitmap, "button");
-        // A disabled button keeps the disabled color.
+        // A disabled button keeps the background the app set, as MAUI draws it (M4); DisabledFillColor replaces it.
         button.IsEnabled = false;
         using var disabled = Render(button, 100, 40);
-        Assert.Equal(disabled.GetPixel(8, 20), disabled.GetPixel(92, 20));
+        AssertRedToBlue(disabled, "disabled button");
+        button.DisabledFillColor = Colors.Gray;
+        using var gray = Render(button, 100, 40);
+        Assert.Equal(gray.GetPixel(8, 20), gray.GetPixel(92, 20));
     }
 
     [Fact]

@@ -17,6 +17,7 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     private bool _isPressed;
     private SkUiPressAnimator? _press;
     private SkUiCommandSlot<SkUiCoreButton>? _command;
+    private Color? _disabledFillColor;
 
     /// <summary>Creates a centered button in the color scheme's button colors (white on the accent by default) whose text does not wrap (as MAUI's Button).</summary>
     public SkUiCoreButton()
@@ -25,7 +26,7 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
         SetTextColor(SkUiColors.ButtonForeground);
         SetHorizontalTextAlignment(TextAlignment.Center);
         SetVerticalTextAlignment(TextAlignment.Center);
-        SetFillColor(SkUiColors.ButtonBackground);
+        InitFillColor(SkUiColors.ButtonBackground);
         SetBorderColor(SkUiColors.ButtonBorder);
         _buttonPainter = PaintButtonBackground;
         SetPaintBackground(_buttonPainter);
@@ -54,6 +55,13 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     {
         get => _command?.Parameter;
         set => SetCommandParameter(value);
+    }
+
+    /// <summary>The fill while the button is disabled (or its command cannot execute); see <see cref="SkUiButton.DisabledFillColor"/>.</summary>
+    public Color? DisabledFillColor
+    {
+        get => _disabledFillColor;
+        set => SetDisabledFillColor(value);
     }
 
     /// <summary>Whether an eligible pointer is currently pressed inside this button.</summary>
@@ -148,6 +156,14 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     /// <summary>Sets fill color.</summary>
     public new SkUiCoreButton SetFillColor(Color value) { base.SetFillColor(value); return this; }
 
+    /// <summary>Sets <see cref="DisabledFillColor"/> (<c>null</c>: the default rule).</summary>
+    public SkUiCoreButton SetDisabledFillColor(Color? value)
+    {
+        if (!SetProperty(ref _disabledFillColor, value, nameof(DisabledFillColor))) return this;
+        InvalidatePaint();
+        return this;
+    }
+
     /// <summary>Sets border color.</summary>
     public new SkUiCoreButton SetBorderColor(Color value) { base.SetBorderColor(value); return this; }
 
@@ -234,9 +250,13 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
         });
     }
 
-    /// <summary>The fill: a set <see cref="SkUiCoreNode.Background"/> (solid or gradient), else <see cref="SkUiCoreLabel.FillColor"/>; disabled, the disabled color.</summary>
+    /// <summary>The fill: a set <see cref="SkUiCoreNode.Background"/> (solid or gradient), else <see cref="SkUiCoreLabel.FillColor"/>; disabled, see <see cref="DisabledFillColor"/>.</summary>
     private SkUiFill ButtonFill(bool enabled) =>
-        !enabled ? SkUiFill.From(SkUiColors.Disabled) : Background is { } background ? SkUiFill.From(background) : SkUiFill.From(FillColor);
+        SkUiButtonFill.Resolve(enabled, Background is { } background ? SkUiFill.From(background) : null, FillColor, !IsFillColorSet, _disabledFillColor);
+
+    /// <inheritdoc />
+    private protected override double ContentOpacity =>
+        !(IsInteractionEnabled) && SkUiButtonFill.DimsContent(ButtonFill(false), _disabledFillColor) ? SkUiLook.Current.DisabledButtonContentOpacity : 1;
 
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height) =>

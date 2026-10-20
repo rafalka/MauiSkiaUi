@@ -312,6 +312,13 @@ public class SkUiLook
     /// </summary>
     public virtual double DefaultButtonBorderWidth => 0;
 
+    /// <summary>
+    /// The opacity of a disabled button's text and image when the button draws no fill (a text button: a transparent fill or
+    /// background, and no <c>DisabledFillColor</c>), 0–1 (default 0.38, Material's disabled content). Buttons with a fill show
+    /// they are disabled by it: the scheme's default fill turns into <see cref="SkUiColorScheme.Disabled"/>.
+    /// </summary>
+    public virtual double DisabledButtonContentOpacity => 0.38;
+
     /// <summary>Optional Button painter (fill, border and press feedback behind the text); replaces <see cref="DrawButtonCore"/>.</summary>
     public Action<SKCanvas, SkUiButtonPaint>? ButtonPainter { get; set; }
 

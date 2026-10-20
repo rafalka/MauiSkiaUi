@@ -10,6 +10,10 @@ public sealed class ButtonDemoPage : ComponentDemoPage
     private const string BadgeImage = "Badge (MauiImage)";
     private const string BotImage = "dotnet bot (scaled down)";
     private static readonly string[] ImageNames = [NoImage, GlyphImage, BadgeImage, BotImage];
+    private const string DefaultDisabledFill = "None (the default rule)";
+    private const string GrayDisabledFill = "Light gray";
+    private const string TransparentDisabledFill = "Transparent";
+    private static readonly string[] DisabledFills = [DefaultDisabledFill, GrayDisabledFill, TransparentDisabledFill];
     private static readonly Button.ButtonContentLayout.ImagePosition[] Positions =
         [Button.ButtonContentLayout.ImagePosition.Left, Button.ButtonContentLayout.ImagePosition.Top,
          Button.ButtonContentLayout.ImagePosition.Right, Button.ButtonContentLayout.ImagePosition.Bottom];
@@ -21,6 +25,16 @@ public sealed class ButtonDemoPage : ComponentDemoPage
         BotImage => ImageSource.FromFile(DemoAssets.DotnetBotImage),
         _ => null
     };
+
+    private static Color? DisabledFill(string name) => name switch
+    {
+        GrayDisabledFill => Colors.LightGray,
+        TransparentDisabledFill => Colors.Transparent,
+        _ => null
+    };
+
+    private static string DisabledFillName(Color? color) =>
+        color is null ? DefaultDisabledFill : color == Colors.Transparent ? TransparentDisabledFill : GrayDisabledFill;
 
     private static string ImageName(ImageSource? source) => source switch
     {
@@ -70,6 +84,9 @@ public sealed class ButtonDemoPage : ComponentDemoPage
         Choice(nameof(SkUiButton.ContentLayout), Positions, position, value => { position = value; Layout(); },
             () => skia.ContentLayout.Position, () => native.ContentLayout.Position);
         Number("ContentLayout spacing", 0, 30, 10, value => { spacing = value; Layout(); }, () => skia.ContentLayout.Spacing, () => native.ContentLayout.Spacing);
+        // A disabled button draws the fill the app set; DisabledFillColor replaces it (MAUI: a Disabled visual state's Background).
+        Choice(nameof(SkUiButton.DisabledFillColor), DisabledFills, DefaultDisabledFill,
+            name => skia.DisabledFillColor = DisabledFill(name), () => DisabledFillName(skia.DisabledFillColor));
         Toggle(nameof(Command.CanExecute), true, value => { canExecute = value; skiaCommand.ChangeCanExecute(); nativeCommand.ChangeCanExecute(); }, () => skia.Command.CanExecute(null), () => native.Command.CanExecute(null));
         OnReset(() => { skiaClicks = nativeClicks = 0; skiaPress = nativePress = ""; Counts(); });
     }
