@@ -119,6 +119,15 @@ public readonly record struct SkUiPressVisual(float Pressed, SKPoint Origin, flo
     public bool HasRipple => Ripple > 0 && RippleFade < 1;
 }
 
+/// <summary>How a look draws switches (<see cref="DefaultSkUiLook.SwitchStyle"/>).</summary>
+public enum SkUiSwitchStyle
+{
+    /// <summary>A filled pill with a round thumb that stretches when pressed (iOS-like).</summary>
+    Pill,
+    /// <summary>An outlined track while off, filled while on; the thumb is small and grows when on (Material and Fluent).</summary>
+    Outlined
+}
+
 /// <summary>How <see cref="DefaultSkUiLook"/> draws indicator views (<see cref="DefaultSkUiLook.IndicatorStyle"/>).</summary>
 public enum SkUiIndicatorStyle
 {

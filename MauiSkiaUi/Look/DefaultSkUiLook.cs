@@ -247,9 +247,26 @@ public class DefaultSkUiLook : SkUiLook
             DrawRipple(canvas, button.Bounds, button.CornerRadii, button.Press, RippleColor(button.Fill));
     }
 
+    /// <summary>How switches draw: a filled pill with a round thumb (iOS), or an outlined track whose thumb grows when on (Material, Fluent).</summary>
+    public virtual SkUiSwitchStyle SwitchStyle => SkUiSwitchStyle.Pill;
+
+    /// <summary>The <see cref="SkUiSwitchStyle.Outlined"/> thumb's radius when off, as a fraction of the track's height.</summary>
+    public virtual float SwitchOffThumbRadiusFraction => 0.3f;
+
+    /// <summary>The <see cref="SkUiSwitchStyle.Outlined"/> thumb's radius when on, as a fraction of the track's height.</summary>
+    public virtual float SwitchOnThumbRadiusFraction => 0.3f;
+
+    /// <summary>The width of the <see cref="SkUiSwitchStyle.Outlined"/> track's outline when off.</summary>
+    public virtual float SwitchOutlineWidth => 1;
+
     /// <inheritdoc />
     protected override void DrawSwitchCore(SKCanvas canvas, SkUiSwitchPaint toggle)
     {
+        if (SwitchStyle == SkUiSwitchStyle.Outlined)
+        {
+            DrawOutlinedSwitch(canvas, toggle);
+            return;
+        }
         var bounds = toggle.Bounds;
         var visual = toggle.Visual;
         var radius = bounds.Height / 2;
@@ -268,6 +285,43 @@ public class DefaultSkUiLook : SkUiLook
         canvas.DrawRoundRect(thumb, thumbRadius, thumbRadius, Paint(toggle.Thumb));
     }
 
+    /// <summary>The track of an <see cref="SkUiSwitchStyle.Outlined"/> switch is an outline while off and fills when on; the thumb takes the track's color while off.</summary>
+    private void DrawOutlinedSwitch(SKCanvas canvas, SkUiSwitchPaint toggle)
+    {
+        var bounds = toggle.Bounds;
+        var visual = toggle.Visual;
+        var radius = bounds.Height / 2;
+        var on = visual.Blend(0, 1, 0.5f);
+        var outline = SwitchOutlineWidth * (1 - on);
+        var fill = toggle.OnTrack.WithAlpha((byte)(toggle.OnTrack.Alpha * on));
+        var border = toggle.OffTrack.WithAlpha((byte)(toggle.OffTrack.Alpha * (1 - on)));
+        DrawRoundedBox(canvas, bounds, radius, fill, border, outline);
+        var thumbRadius = bounds.Height * (SwitchOffThumbRadiusFraction + (SwitchOnThumbRadiusFraction - SwitchOffThumbRadiusFraction) * on);
+        // Pressed: the thumb grows (Material's pressed handle).
+        thumbRadius += bounds.Height * 0.06f * visual.Pressed;
+        var inset = radius;
+        var thumbX = visual.Blend(bounds.Left + inset, bounds.Right - inset, bounds.MidX);
+        canvas.DrawCircle(thumbX, bounds.MidY, thumbRadius, Paint(Mix(toggle.OffTrack, toggle.Thumb, on)));
+    }
+
+    /// <summary>The corner radius of a check box of <paramref name="size"/>: a rounded square, or a circle (iOS) at half the size.</summary>
+    public virtual float GetCheckBoxCornerRadius(float size) => size * 0.2f;
+
+    /// <summary>The width of a check box's border.</summary>
+    public virtual float CheckBoxBorderWidth => 1.5f;
+
+    /// <summary>The radius of a radio button's dot as a fraction of its size.</summary>
+    public virtual float RadioDotRadiusFraction => 0.28f;
+
+    /// <summary>The width of a radio button's ring as a fraction of its size.</summary>
+    public virtual float RadioRingFraction => 0.08f;
+
+    /// <summary>The thickness of a slider's track.</summary>
+    public virtual float SliderTrackHeight => 4;
+
+    /// <summary>Whether a slider's thumb casts a soft shadow (iOS, the Mac).</summary>
+    public virtual bool SliderThumbHasShadow => false;
+
     /// <inheritdoc />
     protected override void DrawCheckBoxCore(SKCanvas canvas, SkUiCheckBoxPaint box)
     {
@@ -275,7 +329,7 @@ public class DefaultSkUiLook : SkUiLook
         var visual = box.Visual;
         var on = 1 - visual.Weight(SkUiCheckState.Unchecked);
         var bounds = new SKRect(0, 0, size, size);
-        DrawRoundedBox(canvas, bounds, size * 0.2f, Mix(box.Background, box.Color, on), Mix(box.Border, box.Color, on), 1.5f);
+        DrawRoundedBox(canvas, bounds, GetCheckBoxCornerRadius(size), Mix(box.Background, box.Color, on), Mix(box.Border, box.Color, on), CheckBoxBorderWidth);
         var check = visual.Weight(SkUiCheckState.Checked);
         var dash = visual.Weight(SkUiCheckState.Indeterminate);
         if (check <= 0 && dash <= 0) return;
@@ -321,12 +375,12 @@ public class DefaultSkUiLook : SkUiLook
         var visual = radio.Visual;
         var center = size / 2;
         var paint = Paint(SKColors.Transparent);
-        Stroke(paint, Mix(radio.Ring, radio.Color, 1 - visual.Weight(SkUiCheckState.Unchecked)), size * 0.08f);
+        Stroke(paint, Mix(radio.Ring, radio.Color, 1 - visual.Weight(SkUiCheckState.Unchecked)), size * RadioRingFraction);
         canvas.DrawCircle(center, center, center - paint.StrokeWidth / 2, paint);
         // The dot (or the indeterminate bar) grows from the center.
         var dot = visual.Weight(SkUiCheckState.Checked);
         if (dot > 0)
-            canvas.DrawCircle(center, center, size * 0.28f * dot, Paint(radio.Color));
+            canvas.DrawCircle(center, center, size * RadioDotRadiusFraction * dot, Paint(radio.Color));
         var bar = visual.Weight(SkUiCheckState.Indeterminate);
         if (bar > 0)
         {
@@ -344,7 +398,7 @@ public class DefaultSkUiLook : SkUiLook
         var start = bounds.Left + radius;
         var end = Math.Max(start, bounds.Right - radius);
         var thumbX = start + (end - start) * Math.Clamp(slider.Fraction, 0, 1);
-        const float track = 4;
+        var track = SliderTrackHeight;
         var top = bounds.MidY - track / 2;
         DrawRoundedBox(canvas, new SKRect(start, top, end, top + track), track / 2, slider.MaximumTrack, SKColors.Transparent, 0);
         if (thumbX > start)
@@ -354,6 +408,8 @@ public class DefaultSkUiLook : SkUiLook
         if (slider.Pressed > 0)
             canvas.DrawCircle(thumbX, bounds.MidY, radius * (1 + 0.8f * slider.Pressed),
                 Paint(slider.Thumb.WithAlpha((byte)(slider.Thumb.Alpha / 5 * slider.Pressed))));
+        if (SliderThumbHasShadow)
+            canvas.DrawCircle(thumbX, bounds.MidY + 1, radius + 0.5f, Paint(new SKColor(0, 0, 0, 56)));
         canvas.DrawCircle(thumbX, bounds.MidY, radius, Paint(slider.Thumb));
     }
 

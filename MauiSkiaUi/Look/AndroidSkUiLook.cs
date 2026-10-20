@@ -45,4 +45,47 @@ public class AndroidSkUiLook : DefaultSkUiLook
         SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(250, SkUiEasings.EmphasizedDecelerate),
         _ => base.GetTransitionCore(kind)
     };
+
+    /// <inheritdoc />
+    /// <remarks>Material 3: 52 × 32, an outlined track and a thumb that grows when on.</remarks>
+    public override Size DefaultSwitchSize => new(52, 32);
+
+    /// <inheritdoc />
+    public override SkUiSwitchStyle SwitchStyle => SkUiSwitchStyle.Outlined;
+
+    /// <inheritdoc />
+    public override float SwitchOffThumbRadiusFraction => 0.25f;
+
+    /// <inheritdoc />
+    public override float SwitchOnThumbRadiusFraction => 0.375f;
+
+    /// <inheritdoc />
+    public override float SwitchOutlineWidth => 2;
+
+    /// <inheritdoc />
+    /// <remarks>Material's 18 dp box.</remarks>
+    public override Size DefaultCheckBoxSize => new(18, 18);
+
+    /// <inheritdoc />
+    public override float GetCheckBoxCornerRadius(float size) => 2;
+
+    /// <inheritdoc />
+    public override float CheckBoxBorderWidth => 2;
+
+    /// <inheritdoc />
+    public override Size DefaultRadioButtonSize => new(20, 20);
+
+    /// <inheritdoc />
+    public override float RadioRingFraction => 0.1f;
+
+    /// <inheritdoc />
+    public override float RadioDotRadiusFraction => 0.25f;
+
+    /// <inheritdoc />
+    /// <remarks>Material's 40 dp button.</remarks>
+    public override double DefaultButtonMinimumHeight => 40;
+
+    /// <inheritdoc />
+    /// <remarks>Material's fully rounded button.</remarks>
+    public override double DefaultButtonCornerRadius => 20;
 }

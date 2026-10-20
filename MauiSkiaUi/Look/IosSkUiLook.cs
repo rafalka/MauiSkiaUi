@@ -40,4 +40,30 @@ public class IosSkUiLook : DefaultSkUiLook
         SkUiTransitionKind.Release => SkUiTransition.FromMilliseconds(250, Easing.CubicOut),
         _ => base.GetTransitionCore(kind)
     };
+
+    /// <inheritdoc />
+    /// <remarks>iOS has no check box: a circle with a check mark.</remarks>
+    public override Size DefaultCheckBoxSize => new(22, 22);
+
+    /// <inheritdoc />
+    public override float GetCheckBoxCornerRadius(float size) => size / 2;
+
+    /// <inheritdoc />
+    public override float CheckBoxBorderWidth => 1;
+
+    /// <inheritdoc />
+    public override Size DefaultRadioButtonSize => new(22, 22);
+
+    /// <inheritdoc />
+    public override double DefaultButtonCornerRadius => 10;
+
+    /// <inheritdoc />
+    /// <remarks>A large white thumb with a soft shadow on a thin track.</remarks>
+    public override float SliderThumbRadius => 14;
+
+    /// <inheritdoc />
+    public override double DefaultSliderThickness => 36;
+
+    /// <inheritdoc />
+    public override bool SliderThumbHasShadow => true;
 }

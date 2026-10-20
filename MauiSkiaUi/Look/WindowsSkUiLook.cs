@@ -29,4 +29,35 @@ public class WindowsSkUiLook : DefaultSkUiLook
         SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(167, SkUiEasings.FluentDecelerate),
         _ => base.GetTransitionCore(kind)
     };
+
+    /// <inheritdoc />
+    /// <remarks>Fluent's 40 × 20 outlined toggle.</remarks>
+    public override Size DefaultSwitchSize => new(40, 20);
+
+    /// <inheritdoc />
+    public override SkUiSwitchStyle SwitchStyle => SkUiSwitchStyle.Outlined;
+
+    /// <inheritdoc />
+    public override Size DefaultCheckBoxSize => new(20, 20);
+
+    /// <inheritdoc />
+    public override float GetCheckBoxCornerRadius(float size) => 4;
+
+    /// <inheritdoc />
+    public override float CheckBoxBorderWidth => 1;
+
+    /// <inheritdoc />
+    public override Size DefaultRadioButtonSize => new(20, 20);
+
+    /// <inheritdoc />
+    public override float RadioRingFraction => 0.05f;
+
+    /// <inheritdoc />
+    public override float RadioDotRadiusFraction => 0.25f;
+
+    /// <inheritdoc />
+    public override double DefaultButtonMinimumHeight => 32;
+
+    /// <inheritdoc />
+    public override double DefaultButtonCornerRadius => 4;
 }

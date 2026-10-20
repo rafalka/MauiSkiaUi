@@ -32,4 +32,36 @@ public class MacSkUiLook : DefaultSkUiLook
         SkUiTransitionKind.Release => SkUiTransition.FromMilliseconds(250, Easing.CubicOut),
         _ => base.GetTransitionCore(kind)
     };
+
+    /// <inheritdoc />
+    /// <remarks>The Mac's smaller switch.</remarks>
+    public override Size DefaultSwitchSize => new(38, 22);
+
+    /// <inheritdoc />
+    public override Size DefaultCheckBoxSize => new(14, 14);
+
+    /// <inheritdoc />
+    public override float GetCheckBoxCornerRadius(float size) => 3;
+
+    /// <inheritdoc />
+    public override float CheckBoxBorderWidth => 1;
+
+    /// <inheritdoc />
+    public override Size DefaultRadioButtonSize => new(14, 14);
+
+    /// <inheritdoc />
+    public override double DefaultButtonMinimumHeight => 28;
+
+    /// <inheritdoc />
+    public override double DefaultSliderThickness => 24;
+
+    /// <inheritdoc />
+    public override float SliderThumbRadius => 8;
+
+    /// <inheritdoc />
+    public override bool SliderThumbHasShadow => true;
+
+    /// <inheritdoc />
+    /// <remarks>The Mac's focus halo is thicker.</remarks>
+    public override float FocusRingThickness => 3;
 }
