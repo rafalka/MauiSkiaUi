@@ -153,6 +153,9 @@ public partial class SkUiCoreNode : ISkUiAccessibleNode
     /// <summary>Sets the value of a range element (TalkBack's and Narrator's set-value); returns whether it was done.</summary>
     protected virtual bool OnSemanticsSetValue(double value) => false;
 
+    /// <summary>Performs an action on a part the control reported (<see cref="SkUiSemanticsInfo.AddPart"/>): a clear button.</summary>
+    internal virtual bool OnSemanticsPartAction(int part, SkUiSemanticsActions action) => false;
+
     /// <summary>Rebuilds the surface's semantics tree, for changes of what <see cref="OnPopulateSemantics"/> reads that do not redraw.</summary>
     protected void InvalidateSemantics() => SkUiSemantics.Invalidate(this);
 
@@ -187,6 +190,8 @@ public partial class SkUiCoreNode : ISkUiAccessibleNode
     bool ISkUiAccessibleNode.PerformSemanticsAction(SkUiSemanticsActions action) => IsInteractionEnabled && OnSemanticsAction(action);
 
     bool ISkUiAccessibleNode.SetSemanticsValue(double value) => IsInteractionEnabled && OnSemanticsSetValue(value);
+
+    bool ISkUiAccessibleNode.PerformSemanticsPartAction(int part, SkUiSemanticsActions action) => IsInteractionEnabled && OnSemanticsPartAction(part, action);
 
     bool ISkUiAccessibleNode.IsKeyboardFocusable => _isVisible && _isTabStop && IsInteractionEnabled && TakesKeyboardFocus;
 

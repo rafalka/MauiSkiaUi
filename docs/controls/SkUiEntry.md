@@ -157,7 +157,7 @@ var tag = new SkUiEntry().SetInputFormatters(
 | `IsPassword` | `false` | Bullets; no copying or suggestions |
 | `TextTransform` | Default | Upper / lower case: applied to input, to text set by the app and, when it changes, to the text already there; `Text` follows the transformed text |
 | `CursorPosition`, `SelectionLength` | 0 | Follow the user; setting them selects |
-| `ClearButtonVisibility` | Never | `WhileEditing`: a clear button while focused with text |
+| `ClearButtonVisibility` | Never | `WhileEditing`: a clear button while focused with text. Screen readers and UI tests get it as a button of its own, "Clear text" (`SkUiStrings.ClearTextButtonText`), with the id `{AutomationId}_Clear` ([Accessibility.md](../design/Accessibility.md#drawn-parts-clear-buttons-m7)) |
 | `ReturnCommand`, `ReturnCommandParameter` | | Run after `Completed` |
 | `CaretColor` (SkiaUi) | `null` | The look's `DefaultCaretColor` |
 | `SelectionColor` (SkiaUi) | `null` | The look's `DefaultSelectionColor` |

@@ -5,7 +5,7 @@ namespace MauiSkiaUiDemo;
 
 /// <summary>
 /// Accessibility playground (P10): a drawn form read by TalkBack / VoiceOver / Narrator (MAUI <c>SemanticProperties</c>,
-/// tappable groups, a scroller, a hosted Entry, Core nodes), keyboard focus (Tab, Space / Enter, arrows, <c>Focus()</c>),
+/// tappable groups, a scroller, a hosted Entry, a drawn search bar whose clear button is an element, Core nodes), keyboard focus (Tab, Space / Enter, arrows, <c>Focus()</c>),
 /// the app-wide text prescale (<see cref="SkUiLook.FontScale"/>, on top of the system text size) and the semantics tree the screen readers get, live.
 /// The card's labels and the decoration labels carry <c>AutomationId</c>s that screen readers do not read on their own: with
 /// <see cref="SkUiAccessibility.ExposeAutomationIds"/> on they become id-only elements a UI-test driver finds.
@@ -198,6 +198,8 @@ public sealed class AccessibilityPage : ContentPage
 
         // A hosted native Entry keeps its own accessibility.
         Add(new SkUiMauiContentView { Content = new Entry { Placeholder = "Note to the courier", AutomationId = "CourierNote" }, HeightRequest = 48 });
+        // A drawn search bar: its clear button is an element of its own, PostcodeSearch_Clear.
+        Add(new SkUiSearchBar { Placeholder = "Postcode", Text = "SW1A 1AA", AutomationId = "PostcodeSearch", FontFamily = DemoFonts.OpenSansRegular });
 
         // Core nodes: the semantic properties and focus API of the Core layer.
         var core = new SkUiCoreVerticalStackLayout { Spacing = 8 };

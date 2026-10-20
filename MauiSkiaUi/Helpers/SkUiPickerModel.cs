@@ -757,13 +757,34 @@ internal sealed class SkUiPickerModel
     private SkUiTypeAhead _typeAhead;
 
     /// <summary>A combo box: its title as the name, the selection as the value, whether the list is open, opened by activation.</summary>
-    public void PopulateSemantics(SkUiSemanticsInfo info)
+    public void PopulateSemantics(SkUiSemanticsInfo info, double width, double height)
     {
         info.Role = SkUiSemanticsRole.ComboBox;
         info.Text = Title ?? Placeholder;
         info.Value = SelectedText;
         info.IsExpanded = IsOpen;
         info.IsEnabled &= IsEnabled;
+        if (ClearButtonShown)
+        {
+            var bounds = ClearButtonBounds((float)width, (float)height);
+            info.AddPart(new SkUiSemanticsPart(ClearButtonSemanticsId, ClearButtonPart, new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height),
+                ClearText ?? SkUiStrings.Current.ClearText, SkUiAccessibility.ClearButtonAutomationIdSuffix));
+        }
+    }
+
+    /// <summary>The clear button's <see cref="SkUiSemanticsPart.Index"/>.</summary>
+    private const int ClearButtonPart = 0;
+
+    /// <summary>The clear button's element id, kept while the picker lives.</summary>
+    private int ClearButtonSemanticsId => field == 0 ? field = SkUiSemanticsTree.NewId() : field;
+
+    /// <summary>A screen reader activated a part (<see cref="PopulateSemantics"/>): the clear button clears the selection, as a tap on it.</summary>
+    public bool PerformSemanticsPartAction(int part, SkUiSemanticsActions action)
+    {
+        if (part != ClearButtonPart || action != SkUiSemanticsActions.Activate || !ClearButtonShown)
+            return false;
+        _owner.ClearChoice();
+        return true;
     }
 
     #endregion

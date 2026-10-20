@@ -137,7 +137,7 @@ internal sealed class SkUiSemanticsOwner
     /// <summary>Performs <paramref name="action"/> on element <paramref name="id"/>; returns whether it was done.</summary>
     public bool Perform(int id, SkUiSemanticsActions action) =>
         Tree.Find(id) is { Source: { } source } node && (node.EnabledActions & action) != 0 && IsInputLive(source)
-        && source.PerformSemanticsAction(action);
+        && (node.PartIndex < 0 ? source.PerformSemanticsAction(action) : source.PerformSemanticsPartAction(node.PartIndex, action));
 
     /// <summary>Sets the range value of element <paramref name="id"/>; returns whether it was done.</summary>
     public bool SetValue(int id, double value) =>
@@ -150,7 +150,7 @@ internal sealed class SkUiSemanticsOwner
 
     /// <summary>Selects <c>[start, end)</c> in the editable field <paramref name="id"/>; returns whether it was done.</summary>
     public bool SetSelection(int id, int start, int end) =>
-        Tree.Find(id) is { Source: ISkUiTextInputNode { WantsTextInput: true } field, IsEnabled: true } && IsInputLive(field)
+        Tree.Find(id) is { Source: ISkUiTextInputNode { WantsTextInput: true } field, IsEnabled: true, PartIndex: < 0 } && IsInputLive(field)
         && field.TextInputClient.SelectFromAssistant(start, end);
 
     /// <summary>Whether no ancestor blocks input now (disabled), as for pointers and keys.</summary>

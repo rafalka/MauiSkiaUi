@@ -10,7 +10,6 @@ public abstract class SkUiCoreToggleControl : SkUiCoreNode
 {
     private SkUiCheckState _state;
     private bool _isThreeState;
-    private bool _isPressed;
     private SkUiToggleAnimator? _transition;
     private SkUiPressAnimator? _press;
 
@@ -40,9 +39,6 @@ public abstract class SkUiCoreToggleControl : SkUiCoreNode
         get => _isThreeState;
         set => SetIsThreeState(value);
     }
-
-    /// <summary>Whether an eligible pointer is currently pressed inside this control.</summary>
-    public bool IsPressed => _isPressed;
 
     /// <summary>Raised when <see cref="IsChecked"/> changes, including from a tap (MAUI's event arguments).</summary>
     public event EventHandler<CheckedChangedEventArgs>? CheckedChanged;
@@ -108,12 +104,9 @@ public abstract class SkUiCoreToggleControl : SkUiCoreNode
     }
 
     /// <inheritdoc />
-    internal override void OnGesturePressedChanged(bool pressed) => SetPressed(pressed);
-
-    private void SetPressed(bool value)
+    protected override void OnPressedChanged()
     {
-        if (!SetProperty(ref _isPressed, value, nameof(IsPressed))) return;
-        (_press ??= new SkUiPressAnimator(this, ripple: false)).SetPressed(value, PressPosition);
+        (_press ??= new SkUiPressAnimator(this, ripple: false)).SetPressed(IsPressed, PressPosition);
         InvalidatePaint();
     }
 

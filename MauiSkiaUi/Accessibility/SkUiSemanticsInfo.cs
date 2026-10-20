@@ -71,6 +71,17 @@ public enum SkUiSemanticsActions
 internal readonly record struct SkUiSemanticsTextField(int SelectionStart, int SelectionEnd, bool IsPassword, bool IsReadOnly, bool IsMultiline,
     bool HasError = false, string? Message = null);
 
+/// <summary>
+/// A part drawn inside a control that is an element of its own: a button child of the control's element (a text field's or a
+/// picker's clear button), activated through the control (<see cref="ISkUiAccessibleNode.PerformSemanticsPartAction"/>).
+/// </summary>
+/// <param name="Id">Stable element id (<see cref="SkUiSemanticsTree.NewId"/>), kept by the control while it lives.</param>
+/// <param name="Index">Which part, for the control's <c>PerformSemanticsPartAction</c>.</param>
+/// <param name="Bounds">Where it is drawn, in the control's coordinates.</param>
+/// <param name="Label">What it is read as.</param>
+/// <param name="AutomationIdSuffix">Appended to the control's <c>AutomationId</c> for the part's; no id without one on the control.</param>
+internal readonly record struct SkUiSemanticsPart(int Id, int Index, Rect Bounds, string Label, string AutomationIdSuffix);
+
 /// <summary>A range value: a slider's or a determinate progress bar's.</summary>
 /// <param name="Minimum">Lowest value.</param>
 /// <param name="Maximum">Highest value.</param>
@@ -139,6 +150,11 @@ public sealed class SkUiSemanticsInfo
     internal ISkUiRenderable? AutomationIdRoot;
     /// <summary>A hosted native view (<see cref="SkUiMauiContentView"/>): the platform reads it itself.</summary>
     internal bool IsNative;
+    /// <summary>Parts drawn inside the control that are elements of their own (<see cref="AddPart"/>).</summary>
+    internal List<SkUiSemanticsPart>? Parts;
+
+    /// <summary>Reports a drawn part as an element of its own, a child of the control's.</summary>
+    internal void AddPart(in SkUiSemanticsPart part) => (Parts ??= []).Add(part);
 
     internal void Reset()
     {
@@ -157,5 +173,6 @@ public sealed class SkUiSemanticsInfo
         ExcludedWithChildren = false;
         ChildrenHidden = false;
         IsNative = false;
+        Parts?.Clear();
     }
 }

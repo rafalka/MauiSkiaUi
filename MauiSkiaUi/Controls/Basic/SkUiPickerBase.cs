@@ -701,8 +701,11 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
     {
         base.OnPopulateSemantics(info);
-        Model.PopulateSemantics(info);
+        Model.PopulateSemantics(info, Width, Height);
     }
+
+    /// <inheritdoc />
+    internal override bool OnSemanticsPartAction(int part, SkUiSemanticsActions action) => Model.PerformSemanticsPartAction(part, action);
 
     /// <inheritdoc />
     internal override bool TakesKeyboardFocus => true;

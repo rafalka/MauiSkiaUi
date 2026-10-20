@@ -404,7 +404,7 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     }
 
     /// <inheritdoc />
-    internal override void OnGesturePressedChanged(bool pressed) => Model.SetPressed(pressed, PressPosition);
+    protected override void OnPressedChanged() => Model.SetPressed(IsPressed, PressPosition);
 
     /// <inheritdoc />
     internal override void OnPointerOverChanged(bool isOver)
@@ -459,8 +459,11 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
     {
         base.OnPopulateSemantics(info);
-        Model.PopulateSemantics(info);
+        Model.PopulateSemantics(info, Frame.Width, Frame.Height);
     }
+
+    /// <inheritdoc />
+    internal override bool OnSemanticsPartAction(int part, SkUiSemanticsActions action) => Model.PerformSemanticsPartAction(part, action);
 
     /// <inheritdoc />
     internal override bool TakesKeyboardFocus => true;

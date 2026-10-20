@@ -14,7 +14,6 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     private SkUiImageSlot? _image;
     private Button.ButtonContentLayout _contentLayout = SkUiButton.DefaultContentLayout;
     private bool _minimumHeightExplicit;
-    private bool _isPressed;
     private SkUiPressAnimator? _press;
     private SkUiCommandSlot<SkUiCoreButton>? _command;
     private Color? _disabledFillColor;
@@ -63,9 +62,6 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
         get => _disabledFillColor;
         set => SetDisabledFillColor(value);
     }
-
-    /// <summary>Whether an eligible pointer is currently pressed inside this button.</summary>
-    public bool IsPressed => _isPressed;
 
     /// <summary>
     /// Image drawn beside the text (see <see cref="SkUiButton.ImageSource"/>): intrinsic size, scaled down (never up) to
@@ -281,14 +277,11 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     }
 
     /// <inheritdoc />
-    internal override void OnGesturePressedChanged(bool pressed) => SetPressed(pressed);
-
-    private void SetPressed(bool value)
+    protected override void OnPressedChanged()
     {
-        if (!SetProperty(ref _isPressed, value, nameof(IsPressed))) return;
-        (_press ??= new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
+        (_press ??= new SkUiPressAnimator(this)).SetPressed(IsPressed, PressPosition);
         InvalidatePaint();
-        (value ? Pressed : Released)?.Invoke(this, EventArgs.Empty);
+        (IsPressed ? Pressed : Released)?.Invoke(this, EventArgs.Empty);
     }
 
     /// <inheritdoc />

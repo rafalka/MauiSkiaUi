@@ -1831,11 +1831,33 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         var (start, end) = IsPassword ? (ToDisplayIndex(Editor.SelectionStart), ToDisplayIndex(Editor.SelectionEnd)) : (Editor.SelectionStart, Editor.SelectionEnd);
         info.TextField = new SkUiSemanticsTextField(start, end, IsPassword, Editor.IsReadOnly, IsMultiline, HasError, Message);
         Steps?.PopulateSemantics(info);
+        if (ClearButtonShown)
+        {
+            var (width, height) = Size;
+            var bounds = ClearButtonBounds(width, height);
+            info.AddPart(new SkUiSemanticsPart(ClearButtonSemanticsId, ClearButtonPart, new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height),
+                SkUiStrings.Current.ClearTextButtonText, SkUiAccessibility.ClearButtonAutomationIdSuffix));
+        }
     }
 
     /// <summary>A screen reader's action: activation focuses the field, increment / decrement step a numeric entry.</summary>
     public bool PerformSemanticsAction(SkUiSemanticsActions action) =>
         action == SkUiSemanticsActions.Activate ? Activate() : Steps?.PerformSemanticsAction(action) ?? false;
+
+    /// <summary>The clear button's <see cref="SkUiSemanticsPart.Index"/>.</summary>
+    private const int ClearButtonPart = 0;
+
+    /// <summary>The clear button's element id, kept while the field lives.</summary>
+    private int ClearButtonSemanticsId => field == 0 ? field = SkUiSemanticsTree.NewId() : field;
+
+    /// <summary>A screen reader activated a part (<see cref="PopulateSemantics"/>): the clear button clears, as a tap on it.</summary>
+    public bool PerformSemanticsPartAction(int part, SkUiSemanticsActions action)
+    {
+        if (part != ClearButtonPart || action != SkUiSemanticsActions.Activate || !ClearButtonShown)
+            return false;
+        Clear();
+        return true;
+    }
 
     /// <summary>
     /// A text index as the bullets of a password count it (screen readers read the bullets). The bullets are counted again when the

@@ -1,4 +1,4 @@
-# Automation ids on the demo's Accessibility page (M3, docs/design/Accessibility.md#automation-ids-ui-tests-m3), found the
+# Automation ids on the demo's Accessibility page (M3 and M7, docs/design/Accessibility.md#automation-ids-ui-tests-m3), found the
 # way UI tests find them: Maestro reads UiAutomator's tree on Android and XCTest's on iOS, as Appium does.
 #   maestro --device <emulator serial or simulator UDID> test tests/Maestro/accessibility-automation-ids.yaml
 # A bare id matches Android's package:id/… form too. The app must be installed (scripts/device_verify.sh).
@@ -93,3 +93,15 @@ name: Accessibility page automation ids
     centerElement: true
 - assertNotVisible:
     id: OrderTitle
+
+# A drawn search bar's clear button is an element of its own (M7), at the bar's id + "_Clear"; a tap on it by id clears.
+- scrollUntilVisible:
+    element:
+      id: PostcodeSearch_Clear
+    centerElement: true
+- assertVisible:
+    id: PostcodeSearch
+- tapOn:
+    id: PostcodeSearch_Clear
+- assertNotVisible:
+    id: PostcodeSearch_Clear

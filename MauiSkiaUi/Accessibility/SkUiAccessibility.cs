@@ -39,6 +39,12 @@ public static class SkUiAccessibility
     /// </summary>
     public static bool ExposeAutomationIds { get; set; }
 
+    /// <summary>
+    /// Appended to a text field's or picker's <c>AutomationId</c> for its clear button's element, while the button shows: an entry
+    /// with <c>AutomationId="Search"</c> has its clear button at <c>Search_Clear</c>. Without an id on the control the button has none.
+    /// </summary>
+    public const string ClearButtonAutomationIdSuffix = "_Clear";
+
     /// <summary>Raised after <see cref="IsEnabled"/> changes (live surfaces attach or remove their platform bridges). Subscribers are not kept alive.</summary>
     public static event EventHandler? Changed
     {

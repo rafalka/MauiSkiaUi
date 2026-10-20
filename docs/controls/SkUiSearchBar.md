@@ -7,7 +7,7 @@ A search field drawn by SkiaUi: an entry with the look's search field (a search 
 ## How it works
 
 - **Searching.** Return (the soft keyboard's search key; `ReturnType` is `Search` by default) raises `SearchButtonPressed`, then runs `SearchCommand` with `SearchCommandParameter`. On phones the search bar then gives focus up (the keyboard goes), as MAUI's search bars on iOS and Android.
-- **Clearing.** The clear button shows whenever there is text (also unfocused, as MAUI's), in `CancelButtonColor`.
+- **Clearing.** The clear button shows whenever there is text (also unfocused, as MAUI's), in `CancelButtonColor`. It is an accessibility element of its own, "Clear text", with the id `{AutomationId}_Clear` when the search bar has an id ([Accessibility.md](../design/Accessibility.md#drawn-parts-clear-buttons-m7)), so UI tests tap it by id.
 - **Leading and trailing views.** As the entry's ([`LeadingView` / `TrailingView`](SkUiEntry.md#how-it-works)): the leading view comes after the search icon, the trailing view after the clear button (a voice-search or filter button).
 - **Validation chrome.** As the entry's ([`HasError` / `ErrorText` / `HelperText`](SkUiEntry.md#how-it-works)): the pill outlined in the error color, the message under it (a query too short, no results).
 - **Look.** `SkUiLook.DrawSearchField(canvas, SkUiSearchFieldPaint)` (or `SearchFieldPainter`): a lightly filled rounded field with a magnifying glass in `SearchIconColor` in `SearchIconWidth` (28) at the start side; an accent outline while focused, an outline in the error color (`ErrorColor`, else the color scheme's `Error`) with `HasError`.

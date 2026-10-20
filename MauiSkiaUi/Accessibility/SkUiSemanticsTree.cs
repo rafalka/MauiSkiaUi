@@ -15,6 +15,9 @@ internal interface ISkUiAccessibleNode : ISkUiRenderable
     /// <summary>Performs one action (<see cref="SkUiSemanticsActions"/> flag); returns whether it was done.</summary>
     bool PerformSemanticsAction(SkUiSemanticsActions action);
 
+    /// <summary>Performs one action on a drawn part (<see cref="SkUiSemanticsPart.Index"/>); returns whether it was done.</summary>
+    bool PerformSemanticsPartAction(int part, SkUiSemanticsActions action);
+
     /// <summary>Sets a range value (a slider moved by TalkBack or Narrator); returns whether it was done.</summary>
     bool SetSemanticsValue(double value);
 
@@ -56,6 +59,8 @@ internal sealed class SkUiSemanticsNode
     public bool IsHorizontal;
     /// <summary>Whether a combo box's list is open; <c>null</c> when the element does not expand.</summary>
     public bool? IsExpanded;
+    /// <summary>A part drawn inside <see cref="Source"/> (<see cref="SkUiSemanticsPart.Index"/>, a clear button); -1 for the source itself.</summary>
+    public int PartIndex = -1;
     /// <summary>An editable text field's selection and flags; <c>null</c> for other elements.</summary>
     public SkUiSemanticsTextField? TextField;
     public SemanticHeadingLevel HeadingLevel;
@@ -83,7 +88,7 @@ internal sealed class SkUiSemanticsNode
         && Actions == other.Actions && IsHorizontal == other.IsHorizontal && IsExpanded == other.IsExpanded && TextField == other.TextField
         && HeadingLevel == other.HeadingLevel
         && AutomationId == other.AutomationId && IsFocusable == other.IsFocusable && IsFocused == other.IsFocused && IsNative == other.IsNative
-        && IsIdOnly == other.IsIdOnly;
+        && IsIdOnly == other.IsIdOnly && PartIndex == other.PartIndex;
 
     /// <summary>The value read for a range element without an explicit one: a percentage (as native sliders).</summary>
     public string? DisplayValue => Value ?? (Range is { } range ? range.Fraction.ToString("P0", System.Globalization.CultureInfo.CurrentCulture) : null);
@@ -266,9 +271,12 @@ internal sealed class SkUiSemanticsTree
     {
         var state = node.RenderState;
         if (state.SemanticsId == 0)
-            state.SemanticsId = Interlocked.Increment(ref _nextId);
+            state.SemanticsId = NewId();
         return state.SemanticsId;
     }
+
+    /// <summary>A new element id, for a drawn part (<see cref="SkUiSemanticsPart"/>) that keeps it while its control lives.</summary>
+    internal static int NewId() => Interlocked.Increment(ref _nextId);
 
     private sealed class Builder(SkUiSemanticsTree tree, SkUiFocusManager? focus, SkUiView root, bool exposeAutomationIds)
     {
@@ -304,6 +312,7 @@ internal sealed class SkUiSemanticsTree
             var element = parent;
             var childAbsorber = absorber;
             var childrenHidden = false;
+            List<SkUiSemanticsNode>? parts = null;
             if (node is ISkUiAccessibleNode accessible)
             {
                 _info.Reset();
@@ -334,6 +343,7 @@ internal sealed class SkUiSemanticsTree
                     {
                         element = NewNode(accessible, visible, text, native: false);
                         Add(parent, element);
+                        parts = NewPartNodes(accessible, toRoot, visible);
                         var described = Clean(_info.Description) is not null;
                         childAbsorber = actionable || described ? new Absorber(element, collects: !described) { AutomationIdRoot = _info.AutomationIdRoot } : null;
                     }
@@ -386,6 +396,38 @@ internal sealed class SkUiSemanticsTree
 
             if (!ReferenceEquals(element, parent) && childAbsorber is { Merged: { Count: > 0 } merged } && ReferenceEquals(childAbsorber.Element, element))
                 element.Label = element.Label is { } own ? own + ", " + string.Join(", ", merged) : string.Join(", ", merged);
+            // Drawn parts (a clear button) after the control's children: they sit at its end side.
+            if (parts is not null)
+                foreach (var part in parts)
+                    Add(element, part);
+        }
+
+        /// <summary>The control's drawn parts that show (<see cref="SkUiSemanticsInfo.Parts"/>) as button elements, in surface DIPs.</summary>
+        private List<SkUiSemanticsNode>? NewPartNodes(ISkUiAccessibleNode source, SKMatrix toRoot, SKRect visible)
+        {
+            if (_info.Parts is not { Count: > 0 } infoParts)
+                return null;
+            List<SkUiSemanticsNode>? nodes = null;
+            foreach (var part in infoParts)
+            {
+                var bounds = Intersect(toRoot.MapRect(new SKRect((float)part.Bounds.Left, (float)part.Bounds.Top, (float)part.Bounds.Right,
+                    (float)part.Bounds.Bottom)), visible);
+                if (bounds.IsEmpty)
+                    continue;
+                (nodes ??= []).Add(new SkUiSemanticsNode
+                {
+                    Id = part.Id,
+                    Source = source,
+                    PartIndex = part.Index,
+                    Bounds = new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height),
+                    Role = SkUiSemanticsRole.Button,
+                    Label = part.Label,
+                    IsEnabled = _info.IsEnabled,
+                    Actions = SkUiSemanticsActions.Activate,
+                    AutomationId = string.IsNullOrWhiteSpace(_info.AutomationId) ? null : _info.AutomationId + part.AutomationIdSuffix
+                });
+            }
+            return nodes;
         }
 
         private static bool IsElement(SkUiSemanticsInfo info, string? text)

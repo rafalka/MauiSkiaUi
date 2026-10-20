@@ -840,6 +840,9 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
     protected override bool OnSemanticsAction(SkUiSemanticsActions action) => Model.PerformSemanticsAction(action) || base.OnSemanticsAction(action);
 
     /// <inheritdoc />
+    internal override bool OnSemanticsPartAction(int part, SkUiSemanticsActions action) => Model.PerformSemanticsPartAction(part, action);
+
+    /// <inheritdoc />
     internal override bool TakesKeyboardFocus => true;
 
     /// <inheritdoc />

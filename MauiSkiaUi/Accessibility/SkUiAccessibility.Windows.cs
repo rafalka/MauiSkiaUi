@@ -286,7 +286,7 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
     protected override string GetAutomationIdCore() => Node?.AutomationId ?? string.Empty;
 
     /// <inheritdoc />
-    protected override string GetClassNameCore() => Node?.Source?.GetType().Name ?? string.Empty;
+    protected override string GetClassNameCore() => Node is { PartIndex: >= 0 } ? "Button" : Node?.Source?.GetType().Name ?? string.Empty;
 
     /// <inheritdoc />
     protected override AutomationControlType GetAutomationControlTypeCore() => Node?.Role switch

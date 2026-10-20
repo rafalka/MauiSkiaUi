@@ -13,7 +13,6 @@ public class SkUiCoreImageButton : SkUiCoreImage, ISkUiBorderElement, SkUiImageB
     private SkUiCommandSlot<SkUiCoreImageButton>? _command;
     private SkUiChromeState _chrome;
     private Thickness _padding;
-    private bool _isPressed;
     private SkUiPressAnimator? _press;
     private Color? _disabledFillColor;
 
@@ -70,9 +69,6 @@ public class SkUiCoreImageButton : SkUiCoreImage, ISkUiBorderElement, SkUiImageB
         get => _padding;
         set => SetPadding(value);
     }
-
-    /// <summary>Whether an eligible pointer is currently pressed inside this button.</summary>
-    public bool IsPressed => _isPressed;
 
     /// <inheritdoc cref="SkUiCoreImage.SetImage" />
     public new SkUiCoreImageButton SetImage(SKImage? image, bool ownsImage = true)
@@ -240,14 +236,11 @@ public class SkUiCoreImageButton : SkUiCoreImage, ISkUiBorderElement, SkUiImageB
     }
 
     /// <inheritdoc />
-    internal override void OnGesturePressedChanged(bool pressed) => SetPressed(pressed);
-
-    private void SetPressed(bool value)
+    protected override void OnPressedChanged()
     {
-        if (!SetProperty(ref _isPressed, value, nameof(IsPressed))) return;
-        (_press ??= new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
+        (_press ??= new SkUiPressAnimator(this)).SetPressed(IsPressed, PressPosition);
         InvalidatePaint();
-        (value ? Pressed : Released)?.Invoke(this, EventArgs.Empty);
+        (IsPressed ? Pressed : Released)?.Invoke(this, EventArgs.Empty);
     }
 
     /// <inheritdoc />

@@ -1209,8 +1209,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
                 PressedHandler = (pressed, position) =>
                 {
                     PressPosition = position;
-                    UpdatePressEffect(pressed);
-                    OnGesturePressedChanged(pressed);
+                    SetPressed(pressed);
                 }
             });
         }
@@ -1239,8 +1238,27 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// <summary>Intrinsic tap action (click, toggle).</summary>
     internal virtual void OnIntrinsicTap(SkUiTappedEventArgs args) { }
 
-    /// <summary>Press feedback from the tap recognizer.</summary>
-    internal virtual void OnGesturePressedChanged(bool pressed) { }
+    /// <summary>
+    /// Whether an eligible captured pointer is currently pressed inside this node, as <see cref="SkUiView.IsPressed"/>: a node
+    /// with a tap action (<see cref="Tapped"/>, <see cref="TappedCommand"/>, a button or toggle) while it is enabled. Raises
+    /// <see cref="INotifyPropertyChanged.PropertyChanged"/>; own controls draw their pressed look in <see cref="OnPressedChanged"/>.
+    /// </summary>
+    public bool IsPressed { get; private set; }
+
+    /// <summary>
+    /// Runs when <see cref="IsPressed"/> changes (after <c>PropertyChanged</c>), as <see cref="SkUiView"/>'s: own controls update
+    /// their pressed look here (invalidate paint, start a transition).
+    /// </summary>
+    protected virtual void OnPressedChanged() { }
+
+    private void SetPressed(bool value)
+    {
+        if (IsPressed == value) return;
+        IsPressed = value;
+        UpdatePressEffect(value);
+        OnPropertyChanged(nameof(IsPressed));
+        OnPressedChanged();
+    }
 
     /// <summary>Where the last press started, in this node's coordinates (ripple origin).</summary>
     internal Point PressPosition { get; private set; }
@@ -1302,8 +1320,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         _gestures?.CancelAll();
         if (Routers.TryGetValue(this, out var router))
             router.CancelAll();
-        UpdatePressEffect(false);
-        OnGesturePressedChanged(false);
+        SetPressed(false);
     }
 
     private SkUiGestureSet GestureSet => _gestures ??= new SkUiGestureSet(this);
