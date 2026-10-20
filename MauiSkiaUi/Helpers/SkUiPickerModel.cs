@@ -682,10 +682,10 @@ internal sealed class SkUiPickerModel
             _keyboardFocused = value;
         var target = _keyboardFocused || IsOpen ? 1f : 0f;
         if (Math.Abs(_focus.Target - target) > 0)
-            _focus.AnimateTo(target, SkUiLook.Current.GetTransition(SkUiTransitionKind.FieldFocus));
+            _focus.AnimateTo(target, SkUiTransitionKind.FieldFocus);
         var open = IsOpen ? 1f : 0f;
         if (Math.Abs(_open.Target - open) > 0)
-            _open.AnimateTo(open, SkUiLook.Current.GetTransition(SkUiTransitionKind.PickerOpen));
+            _open.AnimateTo(open, SkUiTransitionKind.PickerOpen);
     }
 
     #endregion

@@ -443,6 +443,8 @@ public class SkUiExpander : SkUiView
     {
         public SkUiAnimationClock? TransitionClock => ((ISkUiTransitionHost)owner).TransitionClock;
 
+        public SkUiLook TransitionLook => ((ISkUiTransitionHost)owner).TransitionLook;
+
         public void InvalidateTransition() => owner.OnRevealChanged();
     }
 

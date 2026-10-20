@@ -830,6 +830,8 @@ public partial class SkUiSwipeView : SkUiView
     {
         public SkUiAnimationClock? TransitionClock => ((ISkUiTransitionHost)owner).TransitionClock;
 
+        public SkUiLook TransitionLook => ((ISkUiTransitionHost)owner).TransitionLook;
+
         public void InvalidateTransition()
         {
             owner._shown = Math.Max(0, owner._motion.Value);

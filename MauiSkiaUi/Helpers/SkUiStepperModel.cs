@@ -253,7 +253,7 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
     /// <summary>The stepper gained or lost keyboard focus; losing it stops a held button.</summary>
     public void SetFocused(bool focused)
     {
-        _focus.AnimateTo(focused ? 1f : 0f, SkUiLook.Current.GetTransition(SkUiTransitionKind.FieldFocus));
+        _focus.AnimateTo(focused ? 1f : 0f, SkUiTransitionKind.FieldFocus);
         if (!focused)
             Release();
         _owner.InvalidatePaint();
@@ -264,7 +264,7 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
     {
         if (!IsEnabled)
             return;
-        (button < 0 ? _decrementPress : _incrementPress).AnimateTo(1, SkUiLook.Current.GetTransition(SkUiTransitionKind.Press));
+        (button < 0 ? _decrementPress : _incrementPress).AnimateTo(1, SkUiTransitionKind.Press);
         _repeat.Start(button, Step);
     }
 
@@ -274,7 +274,7 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
         var held = _repeat.Held;
         if (!_repeat.Stop())
             return;
-        (held < 0 ? _decrementPress : _incrementPress).AnimateTo(0, SkUiLook.Current.GetTransition(SkUiTransitionKind.Release));
+        (held < 0 ? _decrementPress : _incrementPress).AnimateTo(0, SkUiTransitionKind.Release);
     }
 
     /// <summary>Which button <paramref name="local"/> is on: -1 (−), +1 (+), 0 (outside).</summary>

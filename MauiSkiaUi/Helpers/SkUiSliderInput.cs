@@ -115,7 +115,7 @@ internal sealed class SkUiSliderVisual(ISkUiTransitionHost host)
         }
         if (!_thumb.IsRunning)
             _thumb.Jump(from);
-        _thumb.AnimateTo(to, SkUiLook.Current.GetTransition(SkUiTransitionKind.SliderThumb));
+        _thumb.AnimateTo(to, SkUiTransitionKind.SliderThumb);
     }
 
     /// <summary>A drag started or ended; a drag takes over from a glide at once (the thumb follows the finger).</summary>
@@ -123,7 +123,7 @@ internal sealed class SkUiSliderVisual(ISkUiTransitionHost host)
     {
         if (dragging && _thumb.IsRunning)
             _thumb.Jump(_thumb.Target);
-        _pressed.AnimateTo(dragging ? 1 : 0, SkUiLook.Current.GetTransition(dragging ? SkUiTransitionKind.Press : SkUiTransitionKind.Release));
+        _pressed.AnimateTo(dragging ? 1 : 0, dragging ? SkUiTransitionKind.Press : SkUiTransitionKind.Release);
     }
 }
 

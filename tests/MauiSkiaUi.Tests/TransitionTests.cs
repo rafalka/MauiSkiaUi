@@ -456,4 +456,36 @@ public class TransitionTests
         Assert.Equal(new SKColor(64, 0, 191, 255), visual.Blend(SKColors.Blue, SKColors.Red, SKColors.Green));
         Assert.Equal(1, SkUiToggleVisual.Settled(SkUiCheckState.Indeterminate).Weight(SkUiCheckState.Indeterminate));
     }
+    [Fact]
+    public void TransitionsTakeTheSubtreesLook()
+    {
+        // The app's look slides a switch in 200 ms, Material 3's in 300 ms: switches under a subtree's look take its time.
+        SkUiToggleVisual seen = default;
+        SkUiToggleVisual coreSeen = default;
+        var skuiLook = new AndroidMaterial3SkUiLook { SwitchPainter = (_, paint) => seen = paint.Visual };
+        var coreLook = new AndroidMaterial3SkUiLook { SwitchPainter = (_, paint) => coreSeen = paint.Visual };
+        WithLook(DefaultSkUiLook.Instance, () =>
+        {
+            var toggle = new SkUiSwitch();
+            var coreToggle = new SkUiCoreSwitch();
+            coreToggle.SetLook(coreLook);
+            var root = new SkUiVerticalStackLayout
+            {
+                Children = { new SkUiBorder { Look = skuiLook, Content = toggle }, new SkUiCoreHost().SetContent(coreToggle) }
+            };
+            using var surface = new SkUiTestSurface(root, 120, 120);
+            surface.Frame();
+            Assert.Same(skuiLook, ((ISkUiTransitionHost)toggle).TransitionLook);
+            Assert.Same(coreLook, ((ISkUiTransitionHost)coreToggle).TransitionLook);
+
+            toggle.IsToggled = true;
+            coreToggle.SetCheckState(SkUiCheckState.Checked);
+            At(surface, 250); // past the app look's 200 ms
+            Assert.False(seen.IsSettled);
+            Assert.False(coreSeen.IsSettled);
+            At(surface, 320);
+            Assert.True(seen.IsSettled);
+            Assert.True(coreSeen.IsSettled);
+        });
+    }
 }

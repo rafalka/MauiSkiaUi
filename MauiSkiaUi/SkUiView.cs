@@ -135,6 +135,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     void ISkUiTransitionHost.InvalidateTransition() => InvalidatePaint();
 
+    SkUiLook ISkUiTransitionHost.TransitionLook => SkUiLookScope.Resolve(this);
+
     private void SetPressed(bool value)
     {
         if (IsPressed == value) return;
@@ -744,8 +746,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     /// <summary>
     /// A look for this view and its drawn descendants, instead of <see cref="SkUiLook.Current"/> (the nearest view that sets
-    /// one wins). It shapes how the subtree measures and draws; the color scheme stays the app's. State changes already
-    /// running, input handling and the platform views of hosted native content use the app's look.
+    /// one wins). It shapes how the subtree measures, draws and animates its state changes (a transition already running
+    /// when the look changes keeps its curve); the color scheme stays the app's. Input handling and the platform views of
+    /// hosted native content use the app's look.
     /// </summary>
     public SkUiLook? Look { get => (SkUiLook?)GetValue(LookProperty); set => SetValue(LookProperty, value); }
 

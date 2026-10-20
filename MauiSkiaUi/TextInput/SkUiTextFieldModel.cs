@@ -1296,7 +1296,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     public void SetFocused(bool focused)
     {
         if (Math.Abs(_focus.Target - (focused ? 1f : 0f)) > 0)
-            _focus.AnimateTo(focused ? 1f : 0f, SkUiLook.Current.GetTransition(SkUiTransitionKind.FieldFocus));
+            _focus.AnimateTo(focused ? 1f : 0f, SkUiTransitionKind.FieldFocus);
         if (focused)
         {
             RestartBlink();

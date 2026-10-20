@@ -16,8 +16,6 @@ public sealed class LooksSideBySidePage : ContentPage
     {
         Title = "Looks side by side";
         var stack = new VerticalStackLayout { Padding = 16, Spacing = 16 };
-        // A subtree's look shapes how it measures and draws; transitions (presses, toggles) run with the app's look.
-        stack.Add(new Label { Text = "Each look's shapes and sizes. Press and toggle animations use the app's look, so motion is the same in every section." });
         stack.Add(UnstyledNativeSection());
         stack.Add(NativeSection(NativeTitle));
         foreach (var (name, look) in new (string, DefaultSkUiLook)[]

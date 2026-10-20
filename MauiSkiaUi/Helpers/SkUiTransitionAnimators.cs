@@ -13,6 +13,12 @@ internal interface ISkUiTransitionHost
 
     /// <summary>Re-records the node's content for the next frame of a transition.</summary>
     void InvalidateTransition();
+
+    /// <summary>
+    /// The look whose transitions the node's state changes use: its subtree's (<see cref="SkUiView.Look"/>,
+    /// <see cref="Core.SkUiCoreNode.SetLook"/>) or the app's.
+    /// </summary>
+    SkUiLook TransitionLook { get; }
 }
 
 /// <summary>
@@ -36,6 +42,13 @@ internal sealed class SkUiTween(ISkUiTransitionHost host)
 
     /// <summary>Whether a transition is in progress.</summary>
     public bool IsRunning => _handle is not null;
+
+    /// <summary>The look the host's transitions come from (<see cref="ISkUiTransitionHost.TransitionLook"/>).</summary>
+    public SkUiLook Look => host.TransitionLook;
+
+    /// <summary>Animates to <paramref name="target"/> with the host look's <paramref name="kind"/> transition (see the other overload).</summary>
+    public void AnimateTo(float target, SkUiTransitionKind kind, Action<bool>? completed = null, float durationScale = 1) =>
+        AnimateTo(target, host.TransitionLook.GetTransition(kind), completed, durationScale);
 
     /// <summary>Stops any transition and shows <paramref name="value"/> (the caller repaints).</summary>
     public void Jump(float value)
@@ -130,7 +143,7 @@ internal sealed class SkUiToggleAnimator(ISkUiTransitionHost host, SkUiTransitio
     /// <summary>The control's state changed from <paramref name="from"/> to <paramref name="to"/>.</summary>
     public void Changed(SkUiCheckState from, SkUiCheckState to)
     {
-        var transition = SkUiLook.Current.GetTransition(kind);
+        var transition = host.TransitionLook.GetTransition(kind);
         if (_progress.IsRunning && to == _from)
         {
             // Back to where it came from: continue from the current point, over the part already travelled.
@@ -188,7 +201,7 @@ internal sealed class SkUiPressAnimator
         if (pressed == _isPressed)
             return;
         _isPressed = pressed;
-        var look = SkUiLook.Current;
+        var look = _pressed.Look;
         if (pressed)
         {
             _releasePending = false;
@@ -221,7 +234,7 @@ internal sealed class SkUiPressAnimator
     {
         if (_isPressed)
             return;
-        var transition = animate ? SkUiLook.Current.GetTransition(SkUiTransitionKind.Release) : SkUiTransition.None;
+        var transition = animate ? _pressed.Look.GetTransition(SkUiTransitionKind.Release) : SkUiTransition.None;
         _pressed.AnimateTo(0, transition);
         _fade?.AnimateTo(1, transition);
     }

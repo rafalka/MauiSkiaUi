@@ -237,7 +237,7 @@ internal sealed class SkUiTextFieldSteps : ISkUiStepButtons
     {
         if (!_field.IsEnabled)
             return;
-        (button < 0 ? _decrementPress : _incrementPress).AnimateTo(1, SkUiLook.Current.GetTransition(SkUiTransitionKind.Press));
+        (button < 0 ? _decrementPress : _incrementPress).AnimateTo(1, SkUiTransitionKind.Press);
         _repeat.Start(button, direction => _owner.Step(direction, large: false));
     }
 
@@ -247,7 +247,7 @@ internal sealed class SkUiTextFieldSteps : ISkUiStepButtons
         var held = _repeat.Held;
         if (!_repeat.Stop())
             return;
-        (held < 0 ? _decrementPress : _incrementPress).AnimateTo(0, SkUiLook.Current.GetTransition(SkUiTransitionKind.Release));
+        (held < 0 ? _decrementPress : _incrementPress).AnimateTo(0, SkUiTransitionKind.Release);
     }
 
     /// <summary>Keys while the field has focus: Up / Down step, Page Up / Page Down step by the large step, Escape reverts.</summary>

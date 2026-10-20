@@ -1258,6 +1258,8 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
 
     void ISkUiTransitionHost.InvalidateTransition() => InvalidatePaint();
 
+    SkUiLook ISkUiTransitionHost.TransitionLook => SkUiLookScope.Resolve(this);
+
     void ISkUiGestureElement.CancelGestures() => CancelGestures();
 
     /// <summary>Stops this node's gestures.</summary>
