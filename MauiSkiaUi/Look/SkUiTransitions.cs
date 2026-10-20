@@ -119,6 +119,26 @@ public readonly record struct SkUiPressVisual(float Pressed, SKPoint Origin, flo
     public bool HasRipple => Ripple > 0 && RippleFade < 1;
 }
 
+/// <summary>How a look draws activity indicators (<see cref="DefaultSkUiLook.ActivityIndicatorStyle"/>).</summary>
+public enum SkUiActivityIndicatorStyle
+{
+    /// <summary>A rotating arc (Material).</summary>
+    Arc,
+    /// <summary>Spokes that fade around a circle (iOS).</summary>
+    Spokes,
+    /// <summary>A faint ring with a short rotating arc (Fluent's progress ring).</summary>
+    Ring
+}
+
+/// <summary>How a look draws focus rings (<see cref="DefaultSkUiLook.FocusRingStyle"/>).</summary>
+public enum SkUiFocusRingStyle
+{
+    /// <summary>An outer line and a thin inner line of the background color (Fluent).</summary>
+    Double,
+    /// <summary>One soft, thick line (the Mac's focus halo).</summary>
+    Halo
+}
+
 /// <summary>How a look draws switches (<see cref="DefaultSkUiLook.SwitchStyle"/>).</summary>
 public enum SkUiSwitchStyle
 {
@@ -150,6 +170,10 @@ public enum SkUiPickerFieldStyle
     Outline,
     /// <summary>A tinted fill with rounded top corners over an underline (Material's filled field).</summary>
     Filled,
+    /// <summary>A rounded, control-filled field with up and down chevrons (the Mac's pop-up button).</summary>
+    PopUpButton,
+    /// <summary>A rounded, control-filled field with an accent line along the bottom while focused (Fluent's combo box).</summary>
+    ComboBox,
     /// <summary>No chrome: the chevron only (the app draws its own, e.g. with a border around the picker).</summary>
     None
 }

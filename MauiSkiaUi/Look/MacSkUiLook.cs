@@ -64,4 +64,37 @@ public class MacSkUiLook : DefaultSkUiLook
     /// <inheritdoc />
     /// <remarks>The Mac's focus halo is thicker.</remarks>
     public override float FocusRingThickness => 3;
+
+    /// <inheritdoc />
+    /// <remarks>The Mac's pop-up button.</remarks>
+    public override SkUiPickerFieldStyle DefaultPickerFieldStyle => SkUiPickerFieldStyle.PopUpButton;
+
+    /// <inheritdoc />
+    public override float FieldCornerRadius => 5;
+
+    /// <inheritdoc />
+    public override SkUiActivityIndicatorStyle ActivityIndicatorStyle => SkUiActivityIndicatorStyle.Spokes;
+
+    /// <inheritdoc />
+    public override Size DefaultActivityIndicatorSize => new(32, 32);
+
+    /// <inheritdoc />
+    public override SkUiFocusRingStyle FocusRingStyle => SkUiFocusRingStyle.Halo;
+
+    /// <inheritdoc />
+    /// <remarks>Overlay scrollers: 7 DIPs, 11 when hovered or dragged.</remarks>
+    public override double ScrollBarThickness => 7;
+
+    /// <inheritdoc />
+    public override double ScrollBarExpandedThickness => 11;
+
+    /// <inheritdoc />
+    /// <remarks>Menu rows are 22 high.</remarks>
+    public override double PopupItemHeight => 28;
+
+    /// <inheritdoc />
+    public override Thickness PopupItemPadding => new(10, 4);
+
+    /// <inheritdoc />
+    public override double PopupAnchorGap => 2;
 }

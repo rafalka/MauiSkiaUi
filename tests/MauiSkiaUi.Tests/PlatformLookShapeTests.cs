@@ -71,6 +71,41 @@ public class PlatformLookShapeTests
         Assert.Equal(SKColors.Blue, bitmap.GetPixel(10, 12));
     }
 
+    [Theory]
+    [MemberData(nameof(Looks))]
+    public void EveryLookDrawsIndicatorsFieldsAndFocusRings(DefaultSkUiLook look)
+    {
+        using var bitmap = new SKBitmap(80, 60);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.White);
+        using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeCap = SKStrokeCap.Round, IsAntialias = true, Color = SKColors.Blue };
+        look.DrawActivityIndicator(canvas, 40, 40, 0, paint);
+        Assert.True(HasInk(bitmap), $"{look.GetType().Name} activity indicator");
+
+        bitmap.Erase(SKColors.White);
+        look.DrawPickerField(canvas, new SkUiPickerFieldPaint(new SKRect(2, 2, 78, 40), new SKRect(50, 2, 78, 40), SKColors.Blue, SKColors.Gray,
+            SKColors.Black, 1, 0, SkUiPressVisual.None, false, true, false));
+        Assert.True(HasInk(bitmap), $"{look.GetType().Name} picker field");
+
+        bitmap.Erase(SKColors.White);
+        look.DrawFocusRing(canvas, new SkUiFocusRingPaint(new SKRect(4, 4, 70, 40), new CornerRadius(6), SKColors.Blue, SKColors.White));
+        Assert.True(HasInk(bitmap), $"{look.GetType().Name} focus ring");
+    }
+
+    [Fact]
+    public void PlatformLooksChooseTheirChrome()
+    {
+        Assert.Equal(SkUiActivityIndicatorStyle.Arc, DefaultSkUiLook.Instance.ActivityIndicatorStyle);
+        Assert.Equal(SkUiActivityIndicatorStyle.Spokes, IosSkUiLook.Instance.ActivityIndicatorStyle);
+        Assert.Equal(SkUiActivityIndicatorStyle.Ring, WindowsSkUiLook.Instance.ActivityIndicatorStyle);
+        Assert.Equal(SkUiFocusRingStyle.Halo, MacSkUiLook.Instance.FocusRingStyle);
+        Assert.Equal(SkUiFocusRingStyle.Double, WindowsSkUiLook.Instance.FocusRingStyle);
+        Assert.Equal(48, AndroidSkUiLook.Instance.PopupItemHeight);
+        Assert.Equal(32, WindowsSkUiLook.Instance.PopupItemHeight);
+        Assert.Equal(11, MacSkUiLook.Instance.ScrollBarExpandedThickness);
+        Assert.Equal(2, WindowsSkUiLook.Instance.ScrollBarThickness);
+    }
+
     private static bool HasInk(SKBitmap bitmap)
     {
         for (var y = 0; y < bitmap.Height; y++)

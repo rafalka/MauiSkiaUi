@@ -252,8 +252,8 @@ public class LookAndColorSchemeTests
         // Headless runs are no phone: the iOS look's sheet is for phones only.
         Assert.Equal(LayoutOptions.Center, IosSkUiLook.Instance.PopupVerticalOptions);
         Assert.Equal(SkUiPickerFieldStyle.Outline, IosSkUiLook.Instance.DefaultPickerFieldStyle);
-        Assert.Equal(SkUiPickerFieldStyle.Outline, MacSkUiLook.Instance.DefaultPickerFieldStyle);
-        Assert.Equal(SkUiPickerFieldStyle.Outline, WindowsSkUiLook.Instance.DefaultPickerFieldStyle);
+        Assert.Equal(SkUiPickerFieldStyle.PopUpButton, MacSkUiLook.Instance.DefaultPickerFieldStyle);
+        Assert.Equal(SkUiPickerFieldStyle.ComboBox, WindowsSkUiLook.Instance.DefaultPickerFieldStyle);
     }
 
     [Fact]

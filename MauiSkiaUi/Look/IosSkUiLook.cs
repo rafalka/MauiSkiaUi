@@ -66,4 +66,20 @@ public class IosSkUiLook : DefaultSkUiLook
 
     /// <inheritdoc />
     public override bool SliderThumbHasShadow => true;
+
+    /// <inheritdoc />
+    public override float FieldCornerRadius => 8;
+
+    /// <inheritdoc />
+    public override SkUiActivityIndicatorStyle ActivityIndicatorStyle => SkUiActivityIndicatorStyle.Spokes;
+
+    /// <inheritdoc />
+    public override Size DefaultActivityIndicatorSize => new(37, 37);
+
+    /// <inheritdoc />
+    /// <remarks>Thin indicators that do not grow.</remarks>
+    public override double ScrollBarThickness => 3;
+
+    /// <inheritdoc />
+    public override double ScrollBarExpandedThickness => 3;
 }

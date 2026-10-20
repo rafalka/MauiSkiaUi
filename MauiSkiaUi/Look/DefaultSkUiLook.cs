@@ -439,6 +439,11 @@ public class DefaultSkUiLook : SkUiLook
     protected override void DrawActivityIndicatorCore(SKCanvas canvas, float width, float height, float sweepStart, SKPaint paint)
     {
         if (width <= 0 || height <= 0) return;
+        if (ActivityIndicatorStyle == SkUiActivityIndicatorStyle.Spokes)
+        {
+            DrawSpokes(canvas, width, height, paint);
+            return;
+        }
         // A circle centered in the slot (MAUI-like), so rotating the recorded arc about the center on the
         // render thread is equivalent to advancing sweepStart.
         var diameter = Math.Min(width, height);
@@ -451,7 +456,42 @@ public class DefaultSkUiLook : SkUiLook
             top + strokeWidth / 2,
             left + diameter - strokeWidth / 2,
             top + diameter - strokeWidth / 2);
+        if (ActivityIndicatorStyle == SkUiActivityIndicatorStyle.Ring)
+        {
+            // Fluent's progress ring: a faint full ring under a short arc.
+            var color = paint.Color;
+            paint.Color = color.WithAlpha((byte)(color.Alpha / 4));
+            canvas.DrawOval(bounds, paint);
+            paint.Color = color;
+            canvas.DrawArc(bounds, sweepStart, 100, false, paint);
+            return;
+        }
         canvas.DrawArc(bounds, sweepStart, 270, false, paint);
+    }
+
+    /// <summary>How activity indicators draw: an arc (Material), spokes that fade (iOS) or a ring with a short arc (Fluent).</summary>
+    public virtual SkUiActivityIndicatorStyle ActivityIndicatorStyle => SkUiActivityIndicatorStyle.Arc;
+
+    /// <summary>The number of spokes of an <see cref="SkUiActivityIndicatorStyle.Spokes"/> indicator.</summary>
+    private const int SpokeCount = 12;
+
+    private static void DrawSpokes(SKCanvas canvas, float width, float height, SKPaint paint)
+    {
+        var diameter = Math.Min(width, height);
+        var outer = diameter / 2;
+        var inner = outer * 0.55f;
+        paint.StrokeWidth = Math.Max(1.5f, diameter * 0.09f);
+        var color = paint.Color;
+        for (var spoke = 0; spoke < SpokeCount; spoke++)
+        {
+            // The first spoke is the brightest; the following ones fade (the render thread rotates the picture).
+            paint.Color = color.WithAlpha((byte)(color.Alpha * (1 - 0.8f * spoke / SpokeCount)));
+            var angle = -Math.PI / 2 + spoke * 2 * Math.PI / SpokeCount;
+            var cos = (float)Math.Cos(angle);
+            var sin = (float)Math.Sin(angle);
+            canvas.DrawLine(width / 2 + cos * inner, height / 2 + sin * inner, width / 2 + cos * outer, height / 2 + sin * outer, paint);
+        }
+        paint.Color = color;
     }
 
     /// <inheritdoc />
@@ -500,6 +540,9 @@ public class DefaultSkUiLook : SkUiLook
             DrawRipple(canvas, overlay.Bounds, overlay.CornerRadii, overlay.Press, new SKColor(0, 0, 0, 56));
     }
 
+    /// <summary>How focus rings draw: two lines that show on any fill (Fluent) or one soft thick line, a halo (the Mac).</summary>
+    public virtual SkUiFocusRingStyle FocusRingStyle => SkUiFocusRingStyle.Double;
+
     /// <summary>Thickness of the default focus ring's outer line, DIPs.</summary>
     public virtual float FocusRingThickness => 2;
 
@@ -515,6 +558,12 @@ public class DefaultSkUiLook : SkUiLook
         if (bounds.Width <= 2 * width || bounds.Height <= 2 * width)
             return;
         var paint = Paint(ring.Color);
+        if (FocusRingStyle == SkUiFocusRingStyle.Halo)
+        {
+            // The Mac's halo: one soft, thick line.
+            DrawRingLine(canvas, paint, bounds, ring.CornerRadii, width, 0, ring.Color.WithAlpha((byte)(ring.Color.Alpha * 0.65f)));
+            return;
+        }
         DrawRingLine(canvas, paint, bounds, ring.CornerRadii, width, 0, ring.Color);
         DrawRingLine(canvas, paint, bounds, ring.CornerRadii, 1, width, ring.Contrast);
     }
@@ -548,30 +597,30 @@ public class DefaultSkUiLook : SkUiLook
             return;
         var style = PickerFieldStyle == SkUiPickerFieldStyle.Default ? DefaultPickerFieldStyle : PickerFieldStyle;
         DrawFieldFrame(canvas, bounds, style, field.Accent, field.Border, field.Foreground, field.Focused, field.IsPointerOver, field.IsEnabled);
-        const float radius = FieldRadius;
+        var radius = FieldCornerRadius;
         if (field.IsEnabled && field.Press.Pressed > 0)
         {
             var press = Paint(field.Foreground.WithAlpha((byte)(18 * field.Press.Pressed)));
-            if (style == SkUiPickerFieldStyle.Outline)
+            if (style is SkUiPickerFieldStyle.Outline or SkUiPickerFieldStyle.PopUpButton or SkUiPickerFieldStyle.ComboBox)
                 canvas.DrawRoundRect(bounds, radius, radius, press);
             else
                 canvas.DrawRect(bounds, press);
         }
-        DrawChevron(canvas, field);
+        DrawChevron(canvas, field, style);
     }
 
     /// <summary>The opacity of disabled field chrome.</summary>
     private const float DisabledAlpha = 0.38f;
 
-    /// <summary>The corner radius of outlined and filled fields.</summary>
-    private const float FieldRadius = 6;
+    /// <summary>The corner radius of outlined, pop-up button, combo box and filled fields and the pressed overlay, DIPs (default 6).</summary>
+    public virtual float FieldCornerRadius => 6;
 
     /// <summary>
     /// A field's frame (pickers and text fields): idle in the border color (darker while a pointer is over it), in the accent
     /// color and thicker while focused; in <paramref name="error"/> when set (a text field's error), thicker while focused; dimmed
     /// when disabled.
     /// </summary>
-    private static void DrawFieldFrame(SKCanvas canvas, SKRect bounds, SkUiPickerFieldStyle style, SKColor accent, SKColor border, SKColor foreground,
+    private void DrawFieldFrame(SKCanvas canvas, SKRect bounds, SkUiPickerFieldStyle style, SKColor accent, SKColor border, SKColor foreground,
         float focused, bool pointerOver, bool enabled, SKColor? error = null)
     {
         var focus = enabled ? Math.Clamp(focused, 0, 1) : 0;
@@ -580,16 +629,29 @@ public class DefaultSkUiLook : SkUiLook
         if (!enabled)
             line = line.WithAlpha((byte)(line.Alpha * DisabledAlpha));
         var paint = Paint(line);
-        const float radius = FieldRadius;
+        var radius = FieldCornerRadius;
         switch (style)
         {
-            case SkUiPickerFieldStyle.Outline:
+            case SkUiPickerFieldStyle.Outline or SkUiPickerFieldStyle.PopUpButton or SkUiPickerFieldStyle.ComboBox:
             {
-                var width = 1 + focus;
+                if (style != SkUiPickerFieldStyle.Outline)
+                {
+                    // A control-colored fill: the pop-up button's and the combo box's.
+                    var tint = Mix(border, foreground, pointerOver && enabled ? 0.2f : 0);
+                    canvas.DrawRoundRect(bounds, radius, radius, Paint(tint.WithAlpha((byte)(enabled ? 28 : 14))));
+                }
+                var width = style == SkUiPickerFieldStyle.ComboBox ? 1 : 1 + focus;
                 var ring = bounds;
                 ring.Inflate(-width / 2, -width / 2);
                 Stroke(paint, line, width);
                 canvas.DrawRoundRect(ring, radius - width / 2, radius - width / 2, paint);
+                if (style == SkUiPickerFieldStyle.ComboBox && focus > 0)
+                {
+                    // Fluent's focus: an accent line along the bottom edge, between the corners.
+                    paint.Color = Mix(border, accent, focus);
+                    paint.Style = SKPaintStyle.Fill;
+                    canvas.DrawRect(new SKRect(bounds.Left + radius, bounds.Bottom - 2, bounds.Right - radius, bounds.Bottom), paint);
+                }
                 break;
             }
             case SkUiPickerFieldStyle.Underline or SkUiPickerFieldStyle.Filled:
@@ -644,7 +706,7 @@ public class DefaultSkUiLook : SkUiLook
     }
 
     /// <summary>A down-pointing chevron centered in the field's chevron bounds, turned upwards as the popup opens.</summary>
-    private static void DrawChevron(SKCanvas canvas, SkUiPickerFieldPaint field)
+    private static void DrawChevron(SKCanvas canvas, SkUiPickerFieldPaint field, SkUiPickerFieldStyle style)
     {
         var area = field.ChevronBounds;
         if (area.Width <= 0 || area.Height <= 0)
@@ -655,6 +717,16 @@ public class DefaultSkUiLook : SkUiLook
         paint.StrokeCap = SKStrokeCap.Round;
         paint.StrokeJoin = SKStrokeJoin.Round;
         var half = Math.Min(5f, Math.Min(area.Width, area.Height) / 3);
+        if (style == SkUiPickerFieldStyle.PopUpButton)
+        {
+            // The Mac's pop-up button: a chevron up and a chevron down.
+            half *= 0.6f;
+            canvas.DrawLine(area.MidX - half, area.MidY - half * 0.5f - 2, area.MidX, area.MidY - half * 1.5f - 2, paint);
+            canvas.DrawLine(area.MidX, area.MidY - half * 1.5f - 2, area.MidX + half, area.MidY - half * 0.5f - 2, paint);
+            canvas.DrawLine(area.MidX - half, area.MidY + half * 0.5f + 2, area.MidX, area.MidY + half * 1.5f + 2, paint);
+            canvas.DrawLine(area.MidX, area.MidY + half * 1.5f + 2, area.MidX + half, area.MidY + half * 0.5f + 2, paint);
+            return;
+        }
         canvas.Save();
         canvas.Translate(area.MidX, area.MidY);
         canvas.RotateDegrees(180 * Math.Clamp(field.Open, 0, 1));

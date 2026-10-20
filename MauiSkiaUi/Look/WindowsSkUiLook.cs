@@ -60,4 +60,34 @@ public class WindowsSkUiLook : DefaultSkUiLook
 
     /// <inheritdoc />
     public override double DefaultButtonCornerRadius => 4;
+
+    /// <inheritdoc />
+    /// <remarks>Fluent's combo box.</remarks>
+    public override SkUiPickerFieldStyle DefaultPickerFieldStyle => SkUiPickerFieldStyle.ComboBox;
+
+    /// <inheritdoc />
+    public override float FieldCornerRadius => 4;
+
+    /// <inheritdoc />
+    public override SkUiActivityIndicatorStyle ActivityIndicatorStyle => SkUiActivityIndicatorStyle.Ring;
+
+    /// <inheritdoc />
+    public override Size DefaultActivityIndicatorSize => new(32, 32);
+
+    /// <inheritdoc />
+    /// <remarks>Fluent's thin scroll bars grow to 6 when the pointer is over them.</remarks>
+    public override double ScrollBarThickness => 2;
+
+    /// <inheritdoc />
+    public override double ScrollBarExpandedThickness => 6;
+
+    /// <inheritdoc />
+    /// <remarks>Fluent's combo box items are 32 high and the list sits on its field.</remarks>
+    public override double PopupItemHeight => 32;
+
+    /// <inheritdoc />
+    public override Thickness PopupItemPadding => new(12, 5);
+
+    /// <inheritdoc />
+    public override double PopupAnchorGap => 0;
 }

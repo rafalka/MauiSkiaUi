@@ -88,4 +88,24 @@ public class AndroidSkUiLook : DefaultSkUiLook
     /// <inheritdoc />
     /// <remarks>Material's fully rounded button.</remarks>
     public override double DefaultButtonCornerRadius => 20;
+
+    /// <inheritdoc />
+    public override float FieldCornerRadius => 4;
+
+    /// <inheritdoc />
+    public override Size DefaultActivityIndicatorSize => new(40, 40);
+
+    /// <inheritdoc />
+    /// <remarks>Thin bars that do not grow.</remarks>
+    public override double ScrollBarThickness => 3;
+
+    /// <inheritdoc />
+    public override double ScrollBarExpandedThickness => 3;
+
+    /// <inheritdoc />
+    /// <remarks>Material's menu rows are 48 dp.</remarks>
+    public override double PopupItemHeight => 48;
+
+    /// <inheritdoc />
+    public override Thickness PopupItemPadding => new(16, 12);
 }
