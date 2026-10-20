@@ -101,4 +101,7 @@ public class MacSkUiLook : DefaultSkUiLook
     /// <inheritdoc />
     /// <remarks>The Mac's control text, 13 pt, in the system font (SF).</remarks>
     public override double DefaultFontSize => 13;
+
+    /// <inheritdoc />
+    public override SkUiColorScheme GetColorScheme(bool isDark) => isDark ? MacSkUiColorScheme.Dark : MacSkUiColorScheme.Light;
 }

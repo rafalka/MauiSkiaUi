@@ -112,4 +112,7 @@ public class AndroidSkUiLook : DefaultSkUiLook
     /// <inheritdoc />
     /// <remarks>Material's body medium, 14 sp (the system font is Roboto).</remarks>
     public override double DefaultFontSize => 14;
+
+    /// <inheritdoc />
+    public override SkUiColorScheme GetColorScheme(bool isDark) => isDark ? AndroidSkUiColorScheme.Dark : AndroidSkUiColorScheme.Light;
 }

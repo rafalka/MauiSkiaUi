@@ -98,4 +98,7 @@ public class WindowsSkUiLook : DefaultSkUiLook
     /// <inheritdoc />
     /// <remarks>Segoe UI Variable; Windows 10 and headless runs, without it, use the system font.</remarks>
     public override string? DefaultFontFamily => "Segoe UI Variable";
+
+    /// <inheritdoc />
+    public override SkUiColorScheme GetColorScheme(bool isDark) => isDark ? WindowsSkUiColorScheme.Dark : WindowsSkUiColorScheme.Light;
 }

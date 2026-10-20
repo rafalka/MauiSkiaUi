@@ -86,4 +86,7 @@ public class IosSkUiLook : DefaultSkUiLook
     /// <inheritdoc />
     /// <remarks>iOS's body text style, 17 pt, in the system font (SF).</remarks>
     public override double DefaultFontSize => 17;
+
+    /// <inheritdoc />
+    public override SkUiColorScheme GetColorScheme(bool isDark) => isDark ? IosSkUiColorScheme.Dark : IosSkUiColorScheme.Light;
 }

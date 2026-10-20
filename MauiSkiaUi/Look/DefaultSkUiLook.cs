@@ -29,6 +29,12 @@ public class DefaultSkUiLook : SkUiLook
         : Instance;
 
     /// <summary>
+    /// The color scheme that goes with this look, light or dark: the default palettes here, the platform's in the platform looks
+    /// (assign it to <see cref="SkUiColorScheme.Current"/>; the look itself owns shapes, sizes and motion only).
+    /// </summary>
+    public virtual SkUiColorScheme GetColorScheme(bool isDark) => isDark ? DarkSkUiColorScheme.Instance : LightSkUiColorScheme.Instance;
+
+    /// <summary>
     /// Button and ImageButton press feedback (default <see cref="SkUiPressEffect.Default"/>: the look's, <see cref="BasePressEffect"/>).
     /// Repaint after changing it.
     /// </summary>
