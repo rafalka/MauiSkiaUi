@@ -572,7 +572,8 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--s
 - [x] OS font scaling: `FontAutoScalingEnabled` (labels, buttons, radio buttons, spans, HTML, font images; both layers), system text size per platform, `SkUiFontScaling.Factor` override, live surfaces re-measure on change.
 - [x] Extensible: `OnPopulateSemantics` / `OnSemanticsAction` / `OnSemanticsSetValue` on both layers for own controls.
 - [x] UI tests find every `AutomationId` (M3): Android ids in MAUI's `package:id/…` form, the surface root's id kept off TalkBack; item containers take their item root's id; `SkUiAccessibility.ExposeAutomationIds` (`SkUiOptions`) for absorbed, decorative and hidden nodes (id-only elements). Checked with `uiautomator dump` and the Mac accessibility API.
-- [ ] An Appium / XCUITest run on devices; TalkBack and VoiceOver with `ExposeAutomationIds` on.
+- [x] A UI-test driver run on an Android emulator and the iOS simulator (M3): Maestro (UiAutomator on Android, XCTest on iOS) finds the ids with the option off and on, and taps the drawn card by its id (`tests/Maestro/accessibility-automation-ids.yaml`).
+- [ ] An Appium run (its C# client), real iOS devices and Windows; TalkBack and VoiceOver with `ExposeAutomationIds` on.
 - [x] Headless tests (`AccessibilityTests`, `AutomationIdTests`, `KeyboardFocusTests`, `FontScalingTests`), leak scenario (`AccessibleFocused`), demo page (**Accessibility**), Mac Catalyst checked through the accessibility API and a hardware keyboard.
 - [ ] Device runs with TalkBack, VoiceOver (iOS) and Narrator; keyboards on Android and Windows.
 - [ ] Links inside text as elements, custom actions, live regions, arrow keys within radio groups.

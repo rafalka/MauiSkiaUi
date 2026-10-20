@@ -1224,10 +1224,10 @@ deploy_ios() {
     fi
 
     # Build .app first, then Run (Run does not depend on Build).
-    echo "Building $target_label…"
+    echo "Building ${target_label}…"
     command "${cmd[@]}"
 
-    echo "Launching on $target_label…"
+    echo "Launching on ${target_label}…"
     command "${cmd[@]}" -t:Run
 }
 

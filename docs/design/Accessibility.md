@@ -54,7 +54,8 @@ Tests: `AutomationIdTests` (semantics trees for (a)–(d), hit-testing, the item
 Checked 2026-10-20 on the demo's **Accessibility** page (its "Expose automation ids" switch):
 - Android emulator (API 36) with `uiautomator dump`, UiAutomator's view of the tree, which Appium's UiAutomator2 driver queries: MAUI's own views are `package:id/…`; the surface container reports `AccessibilitySurface` that way with no content description; the card `OrderCard` with its merged name; with the switch on, `OrderTitle` / `OrderStatus` as children of the card and the decorative `GiftWrapLabel` / `ExpressLabel`, without text, not clickable or focusable.
 - Mac Catalyst through the macOS accessibility API (`AXIdentifier`): `OrderCard` before; with the switch on, the four id-only elements (`AXGenericElement`).
-- Not yet run: an Appium / XCUITest session on a device or simulator, TalkBack and VoiceOver with the option on.
+- A UI-test driver: the Maestro flow `tests/Maestro/accessibility-automation-ids.yaml` (Maestro 2.5.0) on an Android emulator (API 36) and the iPhone 17 simulator (iOS 26.5). Maestro queries the same trees as Appium (UiAutomator on Android, XCTest on iOS), and a bare id matches Android's `package:id/…` form. Passed on both: the surface and `OrderCard` with its merged name with the switch off, the absorbed and decorative ids absent; a tap on `OrderCard` by id activates it; with the switch on, the four id-only elements, without text; with it off again, gone.
+- Not yet run: Appium itself (its C# client), real iOS devices and Windows, TalkBack and VoiceOver with the option on.
 
 ## Keeping it current
 
