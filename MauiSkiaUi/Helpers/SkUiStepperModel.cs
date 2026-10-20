@@ -87,7 +87,7 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
     internal static double DefaultFontSize => SkUiLook.Current.DefaultFontSize;
 
     /// <summary>The corner radius in DIPs; <c>null</c>: the look's (<see cref="SkUiLook.DefaultStepperCornerRadius"/>).</summary>
-    public double? CornerRadius;
+    public int? CornerRadius;
 
     /// <summary>The outline's width in DIPs; 0: no outline.</summary>
     public double BorderWidth;

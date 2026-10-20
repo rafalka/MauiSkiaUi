@@ -16,7 +16,7 @@ namespace MauiSkiaUi.Core;
 /// painter replaces it. Text fits the label on request: <see cref="ShrinkToFit"/> (down to <see cref="MinimumFontScale"/>),
 /// <see cref="AllowsTightening"/> and <see cref="GrowToFill"/> (up to <see cref="MaximumFontScale"/>).
 /// </summary>
-public class SkUiCoreLabel : SkUiCoreNode
+public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
 {
     private string _text = string.Empty;
     private string _displayText = string.Empty; // _text after _textTransform

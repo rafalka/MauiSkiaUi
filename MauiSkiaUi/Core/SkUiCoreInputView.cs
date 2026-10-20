@@ -10,7 +10,7 @@ namespace MauiSkiaUi.Core;
 /// input methods through the surface's text input proxy. Fluent <c>Set*</c> setters and <see cref="System.ComponentModel.INotifyPropertyChanged"/>.
 /// </summary>
 /// <remarks>Core nodes have no enabled state: use <see cref="IsReadOnly"/> to stop editing (or hide the node).</remarks>
-public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISkUiKeyHandler, ISkUiTextInputNode, ISkUiWheelHandler
+public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiFontElement, ISkUiFieldChromeElement, ISkUiTextFieldOwner, ISkUiKeyHandler, ISkUiTextInputNode, ISkUiWheelHandler
 {
     private string? _text;
     private int _cursorPosition;

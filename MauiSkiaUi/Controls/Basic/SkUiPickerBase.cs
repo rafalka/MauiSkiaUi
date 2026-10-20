@@ -32,7 +32,7 @@ public enum SkUiSelectedItemsDisplay
 /// <see cref="PopupPresenter"/>, keyboard and screen readers. A derived picker says what the field shows and what the popup
 /// holds (<see cref="SkUiPicker"/>: a list to choose from; <see cref="SkUiMultiColumnPicker"/>: wheels).
 /// </summary>
-public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
+public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChromeElement, ISkUiPickerOwner, ISkUiKeyHandler
 {
     private static readonly PickerOpenedEventArgs OpenedArgs = new();
     private static readonly PickerClosedEventArgs ClosedArgs = new();

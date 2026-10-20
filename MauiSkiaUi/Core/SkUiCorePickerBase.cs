@@ -11,7 +11,7 @@ namespace MauiSkiaUi.Core;
 /// and screen readers. A derived picker says what the field shows and what the popup holds.
 /// </summary>
 /// <remarks>Core nodes have no enabled state: the picker always reacts (hide it, or remove it, to stop it).</remarks>
-public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUiKeyHandler
+public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUiFieldChromeElement, ISkUiPickerOwner, ISkUiKeyHandler
 {
     /// <summary>The field and popup engine the derived pickers fill.</summary>
     private protected SkUiPickerModel Model { get; }

@@ -8,7 +8,7 @@ namespace MauiSkiaUi;
 /// inside <see cref="Padding"/>, is clipped to <see cref="CornerRadii"/> (or the uniform, MAUI-compatible <see cref="CornerRadius"/>), and the border is drawn
 /// inside the bounds.
 /// </summary>
-public class SkUiImageButton : SkUiImage, SkUiImageButtonDrawing.IImage
+public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDrawing.IImage
 {
     private ICommand? _command;
     private object? _commandParameter;

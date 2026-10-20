@@ -15,7 +15,7 @@ namespace MauiSkiaUi;
 /// <see cref="GrowToFill"/> makes it larger (up to <see cref="MaximumFontScale"/>) to fill the label.
 /// </summary>
 [ContentProperty(nameof(Text))]
-public class SkUiLabel : SkUiView
+public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
 {
     private string _text = string.Empty;
     private string _displayText = string.Empty; // _text after _textTransform

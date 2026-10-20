@@ -8,7 +8,7 @@ namespace MauiSkiaUi.Core;
 /// <c>SkUiImageButton</c>): the image sits inside <see cref="Padding"/>, is clipped to <see cref="CornerRadii"/>, and the
 /// border is drawn inside the bounds.
 /// </summary>
-public class SkUiCoreImageButton : SkUiCoreImage, SkUiImageButtonDrawing.IImage
+public class SkUiCoreImageButton : SkUiCoreImage, ISkUiBorderElement, SkUiImageButtonDrawing.IImage
 {
     private SkUiCommandSlot<SkUiCoreImageButton>? _command;
     private SkUiChromeState _chrome;

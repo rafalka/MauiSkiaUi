@@ -14,7 +14,7 @@ namespace MauiSkiaUi.Core;
 /// centered, a white 1-wide stroke fully rounded (a circle at any size until <see cref="SkUiCoreBorder.CornerRadius"/> is
 /// set), padding 1, and the look's background for <see cref="AvatarColorMode"/> until a background is set.
 /// </remarks>
-public class SkUiCoreAvatar : SkUiCoreBorder
+public class SkUiCoreAvatar : SkUiCoreBorder, ISkUiFontElement
 {
     private readonly SkUiAvatarContent _avatar;
     private SkUiImageSource? _imageSource;

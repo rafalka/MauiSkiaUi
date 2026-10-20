@@ -11,7 +11,7 @@ namespace MauiSkiaUi;
 /// number type. The Core twin is <see cref="Core.SkUiCoreStepperBase"/>.
 /// </summary>
 /// <remarks>Only SkiaUi's steppers derive from it; derive from <see cref="SkUiStepper"/> or <see cref="SkUiStepper{T}"/>.</remarks>
-public abstract class SkUiStepperBase : SkUiView, ISkUiStepperOwner, ISkUiKeyHandler
+public abstract class SkUiStepperBase : SkUiView, ISkUiFontElement, ISkUiStepperOwner, ISkUiKeyHandler
 {
     /// <summary>
     /// The engine shared with the Core steppers, created on first use: property callbacks can run before the constructor

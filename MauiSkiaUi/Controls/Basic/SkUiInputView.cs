@@ -11,7 +11,7 @@ namespace MauiSkiaUi;
 /// <see cref="CaretColor"/>, <see cref="SelectionColor"/>, <see cref="AutofillHint"/>, input formatters, leading and trailing
 /// views, and validation chrome (<see cref="HasError"/>, <see cref="ErrorText"/>, <see cref="HelperText"/>).
 /// </summary>
-public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHandler, ISkUiTextInputNode, ISkUiWheelHandler
+public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChromeElement, ISkUiTextFieldOwner, ISkUiKeyHandler, ISkUiTextInputNode, ISkUiWheelHandler
 {
     private SkUiTextFieldModel? _model;
 
