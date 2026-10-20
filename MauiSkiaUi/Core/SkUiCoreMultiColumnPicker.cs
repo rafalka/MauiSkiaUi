@@ -148,6 +148,24 @@ public class SkUiCoreMultiColumnPicker : SkUiCorePickerBase
     /// <summary>Sets <see cref="SkUiCorePickerBase.PlaceholderColor"/> (same as the property setter).</summary>
     public new SkUiCoreMultiColumnPicker SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
 
+    /// <inheritdoc cref="SkUiCorePickerBase.SetFieldStyle" />
+    public new SkUiCoreMultiColumnPicker SetFieldStyle(SkUiPickerFieldStyle value) { base.SetFieldStyle(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetFillColor" />
+    public new SkUiCoreMultiColumnPicker SetFillColor(Color? value) { base.SetFillColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetBorderColor" />
+    public new SkUiCoreMultiColumnPicker SetBorderColor(Color? value) { base.SetBorderColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetBorderWidth" />
+    public new SkUiCoreMultiColumnPicker SetBorderWidth(double? value) { base.SetBorderWidth(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetCornerRadii" />
+    public new SkUiCoreMultiColumnPicker SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetCornerRadius" />
+    public new SkUiCoreMultiColumnPicker SetCornerRadius(double value) { base.SetCornerRadius(value); return this; }
+
     /// <summary>Sets <see cref="SkUiCorePickerBase.PopupWidth"/> (same as the property setter).</summary>
     public new SkUiCoreMultiColumnPicker SetPopupWidth(double value) { base.SetPopupWidth(value); return this; }
 

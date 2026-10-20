@@ -57,6 +57,13 @@ public sealed class PickerDemoPage : ComponentDemoPage
             () => _skia.TextColor ?? DemoColors.Ink, () => _native.TextColor ?? DemoColors.Ink);
         ColorEditor(nameof(Picker.TitleColor), DemoColors.Caption, value => { _skia.TitleColor = value; _native.TitleColor = value; },
             () => _skia.TitleColor ?? DemoColors.Caption, () => _native.TitleColor ?? DemoColors.Caption);
+        // SkiaUi only: the field's own chrome over the look's (MAUI's Picker takes a background, beside it here).
+        Choice(nameof(SkUiPicker.FieldStyle), Enum.GetValues<SkUiPickerFieldStyle>(), SkUiPickerFieldStyle.Default, value => _skia.FieldStyle = value, () => _skia.FieldStyle);
+        ColorEditor(nameof(SkUiPicker.FillColor), Colors.Transparent, value => { _skia.FillColor = value; _native.BackgroundColor = value; },
+            () => _skia.FillColor ?? Colors.Transparent, () => _native.BackgroundColor ?? Colors.Transparent);
+        ColorEditor(nameof(SkUiPicker.BorderColor), SkUiColors.Muted, value => _skia.BorderColor = value, () => _skia.BorderColor ?? SkUiColors.Muted);
+        Number(nameof(SkUiPicker.BorderWidth), 0, 6, 1, value => _skia.BorderWidth = value, () => _skia.BorderWidth ?? 1);
+        Number(nameof(SkUiPicker.CornerRadius), 0, 30, 6, value => _skia.CornerRadius = (int)value, () => _skia.CornerRadius ?? 6, whole: true);
         Number(nameof(Picker.FontSize), 10, 30, 16, value => { _skia.FontSize = value; _native.FontSize = value; }, () => _skia.FontSize, () => _native.FontSize);
         Choice(nameof(Picker.FontAttributes), [FontAttributes.None, FontAttributes.Bold, FontAttributes.Italic], FontAttributes.None,
             value => { _skia.FontAttributes = value; _native.FontAttributes = value; }, () => _skia.FontAttributes, () => _native.FontAttributes);

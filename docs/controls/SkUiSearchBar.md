@@ -21,7 +21,7 @@ A search field drawn by SkiaUi: an entry with the look's search field (a search 
 
 ## Key properties
 
-The entry's text properties (`Text`, `Placeholder`, `PlaceholderColor`, `TextColor`, fonts, alignment, `MaxLength`, `IsReadOnly`, `Keyboard`, `CursorPosition`, `SelectionLength`, `InputFormatters`, `FormatsAssignedText`, `LeadingView`, `TrailingView`, `HasError`, `ErrorText`, `HelperText`, `ErrorColor`, …), plus `SearchCommand`, `SearchCommandParameter`, `CancelButtonColor`, `SearchIconColor`, `ReturnType` (Search). Events: `SearchButtonPressed`, `TextChanged`.
+The entry's text properties (`Text`, `Placeholder`, `PlaceholderColor`, `TextColor`, fonts, alignment, `MaxLength`, `IsReadOnly`, `Keyboard`, `CursorPosition`, `SelectionLength`, `InputFormatters`, `FormatsAssignedText`, `LeadingView`, `TrailingView`, `HasError`, `ErrorText`, `HelperText`, `ErrorColor`, the [field chrome](SkUiEntry.md#field-chrome): `FieldStyle`, `TextPadding`, `FillColor`, `BorderColor`, `BorderWidth`, `CornerRadii` / `CornerRadius`, …), plus `SearchCommand`, `SearchCommandParameter`, `CancelButtonColor`, `SearchIconColor`, `ReturnType` (Search). Events: `SearchButtonPressed`, `TextChanged`. With `FieldStyle` `Default` the look's search field (a pill) takes the fill, the corner radii and an idle outline of `BorderWidth`; with another style the search bar draws that text field with its icon in it.
 
 ## Related
 

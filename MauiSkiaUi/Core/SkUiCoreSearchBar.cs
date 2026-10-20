@@ -163,6 +163,27 @@ public class SkUiCoreSearchBar : SkUiCoreInputView
     /// <inheritdoc cref="SkUiCoreInputView.SetErrorColor" />
     public new SkUiCoreSearchBar SetErrorColor(Color? value) { base.SetErrorColor(value); return this; }
 
+    /// <inheritdoc cref="SkUiCoreInputView.SetFieldStyle" />
+    public new SkUiCoreSearchBar SetFieldStyle(SkUiTextFieldStyle value) { base.SetFieldStyle(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetTextPadding" />
+    public new SkUiCoreSearchBar SetTextPadding(Thickness? value) { base.SetTextPadding(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetFillColor" />
+    public new SkUiCoreSearchBar SetFillColor(Color? value) { base.SetFillColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetBorderColor" />
+    public new SkUiCoreSearchBar SetBorderColor(Color? value) { base.SetBorderColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetBorderWidth" />
+    public new SkUiCoreSearchBar SetBorderWidth(double? value) { base.SetBorderWidth(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetCornerRadii" />
+    public new SkUiCoreSearchBar SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetCornerRadius" />
+    public new SkUiCoreSearchBar SetCornerRadius(double value) { base.SetCornerRadius(value); return this; }
+
     /// <inheritdoc />
     private protected override void OnReturnPressed()
     {

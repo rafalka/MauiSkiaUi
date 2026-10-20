@@ -87,6 +87,21 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     /// <summary>The placeholder's color; <c>null</c> (default): <see cref="TitleColor"/>, else the color scheme's muted color.</summary>
     public Color? PlaceholderColor { get => Model.PlaceholderColor; set => SetPlaceholderColor(value); }
 
+    /// <summary>How the look draws this field's chrome; <see cref="SkUiPickerFieldStyle.Default"/> (default): the look's (see <see cref="SkUiPickerBase.FieldStyle"/>).</summary>
+    public SkUiPickerFieldStyle FieldStyle { get => Model.FieldStyle; set => SetFieldStyle(value); }
+
+    /// <summary>The field's fill; <c>null</c> (default): its style's (see <see cref="SkUiPickerBase.FillColor"/>).</summary>
+    public Color? FillColor { get => Model.Chrome.FillColor; set => SetFillColor(value); }
+
+    /// <summary>The idle outline's or underline's color; <c>null</c> (default): the color scheme's muted color (see <see cref="SkUiPickerBase.BorderColor"/>).</summary>
+    public Color? BorderColor { get => Model.Chrome.BorderColor; set => SetBorderColor(value); }
+
+    /// <summary>The idle outline's or underline's width in DIPs; <c>null</c> (default): the style's (see <see cref="SkUiPickerBase.BorderWidth"/>).</summary>
+    public double? BorderWidth { get => Model.Chrome.BorderWidth; set => SetBorderWidth(value); }
+
+    /// <summary>The chrome's corner radii in DIPs; <c>null</c> (default): the style's (see <see cref="SkUiPickerBase.CornerRadii"/>).</summary>
+    public CornerRadius? CornerRadii { get => Model.Chrome.CornerRadii; set => SetCornerRadii(value); }
+
     /// <summary>The popup's width in DIPs; -1 (default): as wide as its content wants.</summary>
     public double PopupWidth { get => Model.PopupWidth; set => SetPopupWidth(value); }
 
@@ -261,6 +276,42 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
 
     /// <summary>Sets <see cref="PlaceholderColor"/>.</summary>
     public SkUiCorePickerBase SetPlaceholderColor(Color? value) => Update(ref Model.PlaceholderColor, value, nameof(PlaceholderColor));
+
+    /// <summary>Sets <see cref="FieldStyle"/>.</summary>
+    public SkUiCorePickerBase SetFieldStyle(SkUiPickerFieldStyle value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value), value, null);
+        return Update(ref Model.FieldStyle, value, nameof(FieldStyle));
+    }
+
+    /// <summary>Sets <see cref="FillColor"/> (<c>null</c>: the style's).</summary>
+    public SkUiCorePickerBase SetFillColor(Color? value) => Update(ref Model.Chrome.FillColor, value, nameof(FillColor));
+
+    /// <summary>Sets <see cref="BorderColor"/> (<c>null</c>: the color scheme's).</summary>
+    public SkUiCorePickerBase SetBorderColor(Color? value) => Update(ref Model.Chrome.BorderColor, value, nameof(BorderColor));
+
+    /// <summary>Sets <see cref="BorderWidth"/> (<c>null</c>: the style's).</summary>
+    public SkUiCorePickerBase SetBorderWidth(double? value)
+    {
+        if (value is { } width)
+            SkUiValidate.ThrowIfNegativeOrNotFinite(width, nameof(value));
+        return Update(ref Model.Chrome.BorderWidth, value, nameof(BorderWidth));
+    }
+
+    /// <summary>Sets <see cref="CornerRadii"/> (<c>null</c>: the style's).</summary>
+    public SkUiCorePickerBase SetCornerRadii(CornerRadius? value)
+    {
+        if (value is { } radii)
+            SkUiCornerRadii.Validate(radii, nameof(value));
+        return Update(ref Model.Chrome.CornerRadii, value, nameof(CornerRadii));
+    }
+
+    /// <summary>Sets all four <see cref="CornerRadii"/> to <paramref name="value"/> DIPs.</summary>
+    public SkUiCorePickerBase SetCornerRadius(double value)
+    {
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        return SetCornerRadii(new CornerRadius(value));
+    }
 
     /// <summary>Sets <see cref="PopupWidth"/>.</summary>
     public SkUiCorePickerBase SetPopupWidth(double value)

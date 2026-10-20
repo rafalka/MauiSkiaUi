@@ -85,6 +85,16 @@ public sealed class EntryDemoPage : ComponentDemoPage
         ColorEditor(nameof(SkUiEntry.TextColor), Ink, value => { skia.TextColor = value; native.TextColor = value; }, () => skia.TextColor ?? Ink, () => native.TextColor ?? Ink);
         ColorEditor(nameof(SkUiEntry.CaretColor), Accent, value => skia.CaretColor = value, () => skia.CaretColor ?? Accent);
         ColorEditor(nameof(SkUiEntry.ErrorColor), SkUiColors.Error, value => skia.ErrorColor = value, () => skia.ErrorColor ?? SkUiColors.Error);
+        // SkiaUi only: the field's own chrome over the look's (MAUI's Entry takes a background, beside it here).
+        Choice(nameof(SkUiEntry.FieldStyle), Enum.GetValues<SkUiTextFieldStyle>(), SkUiTextFieldStyle.Default, value => skia.FieldStyle = value, () => skia.FieldStyle);
+        ColorEditor(nameof(SkUiEntry.FillColor), Colors.Transparent, value => { skia.FillColor = value; native.BackgroundColor = value; },
+            () => skia.FillColor ?? Colors.Transparent, () => native.BackgroundColor ?? Colors.Transparent);
+        ColorEditor(nameof(SkUiEntry.BorderColor), SkUiColors.Muted, value => skia.BorderColor = value, () => skia.BorderColor ?? SkUiColors.Muted);
+        Number(nameof(SkUiEntry.BorderWidth), 0, 6, 1, value => skia.BorderWidth = value, () => skia.BorderWidth ?? 1);
+        Number(nameof(SkUiEntry.CornerRadius), 0, 30, 6, value => skia.CornerRadius = (int)value, () => skia.CornerRadius ?? 6, whole: true);
+        var padding = SkUiLook.Current.TextFieldPadding;
+        Number(nameof(SkUiEntry.TextPadding), 0, 32, padding.Left, value => skia.TextPadding = new Thickness(value, padding.Top, value, padding.Bottom),
+            () => skia.TextPadding?.Left ?? padding.Left, whole: true);
         ActionButton("Select all", () =>
         {
             skia.CursorPosition = 0;

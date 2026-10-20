@@ -85,3 +85,5 @@ host.SetContent(core);
 | `Width` | -1 | The wheel's width (relative to the other columns'); -1: the widest text |
 
 Shared conventions (DIPs, bindable properties with fluent `Set*` setters, the gesture arena) as for every control: [SkUiView.md](SkUiView.md).
+
+The picker's [field chrome](SkUiPicker.md#field-chrome) applies too: `FieldStyle`, `FillColor`, `BorderColor`, `BorderWidth`, `CornerRadii` / `CornerRadius`.

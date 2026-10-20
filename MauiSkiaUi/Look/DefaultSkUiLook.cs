@@ -897,25 +897,24 @@ public class DefaultSkUiLook : SkUiLook
 
     /// <inheritdoc />
     /// <remarks>
-    /// <see cref="PickerFieldStyle"/>'s chrome: idle in the border color (darker while a pointer is over it), in the accent
-    /// color and thicker while focused or open; a light press overlay; a chevron that turns while the popup opens; dimmed
-    /// when disabled.
+    /// The picker's own <see cref="SkUiPickerFieldPaint.Style"/>, else <see cref="PickerFieldStyle"/>'s chrome: idle in the border
+    /// color (darker while a pointer is over it), in the accent color and thicker while focused or open; a light press overlay; a
+    /// chevron that turns while the popup opens; dimmed when disabled. The picker's <see cref="SkUiPickerFieldPaint.Chrome"/>
+    /// replaces the style's idle fill, border color and width, and corner radii.
     /// </remarks>
     protected override void DrawPickerFieldCore(SKCanvas canvas, SkUiPickerFieldPaint field)
     {
         var bounds = field.Bounds;
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return;
-        var style = PickerFieldStyle == SkUiPickerFieldStyle.Default ? DefaultPickerFieldStyle : PickerFieldStyle;
-        DrawFieldFrame(canvas, bounds, style, field.Accent, field.Border, field.Foreground, field.Focused, field.IsPointerOver, field.IsEnabled);
-        var radius = FieldCornerRadius;
+        var style = field.Style != SkUiPickerFieldStyle.Default ? field.Style
+            : PickerFieldStyle == SkUiPickerFieldStyle.Default ? DefaultPickerFieldStyle : PickerFieldStyle;
+        DrawFieldFrame(canvas, bounds, style, field.Chrome, field.Accent, field.Border, field.Foreground, field.Focused, field.IsPointerOver, field.IsEnabled);
         if (field.IsEnabled && field.Press.Pressed > 0)
         {
             var press = Paint(field.Foreground.WithAlpha((byte)(18 * field.Press.Pressed)));
-            if (style is SkUiPickerFieldStyle.Outline or SkUiPickerFieldStyle.PopUpButton or SkUiPickerFieldStyle.ComboBox)
-                canvas.DrawRoundRect(bounds, radius, radius, press);
-            else
-                canvas.DrawRect(bounds, press);
+            var rounded = style is SkUiPickerFieldStyle.Outline or SkUiPickerFieldStyle.PopUpButton or SkUiPickerFieldStyle.ComboBox;
+            DrawRoundRect(canvas, bounds, field.Chrome.CornerRadii ?? new CornerRadius(rounded ? FieldCornerRadius : 0), press);
         }
         DrawChevron(canvas, field, style);
     }
@@ -929,96 +928,124 @@ public class DefaultSkUiLook : SkUiLook
     /// <summary>
     /// A field's frame (pickers and text fields): idle in the border color (darker while a pointer is over it), in the accent
     /// color and thicker while focused; in <paramref name="error"/> when set (a text field's error), thicker while focused; dimmed
-    /// when disabled.
+    /// when disabled. <paramref name="chrome"/>, the field's own, replaces the idle fill (drawn as set, also while disabled, as
+    /// a button's), the border color and width, and the corner radii.
     /// </summary>
-    private void DrawFieldFrame(SKCanvas canvas, SKRect bounds, SkUiPickerFieldStyle style, SKColor accent, SKColor border, SKColor foreground,
-        float focused, bool pointerOver, bool enabled, SKColor? error = null, bool textBox = false)
+    private void DrawFieldFrame(SKCanvas canvas, SKRect bounds, SkUiPickerFieldStyle style, in SkUiFieldChrome chrome, SKColor accent, SKColor border,
+        SKColor foreground, float focused, bool pointerOver, bool enabled, SKColor? error = null, bool textBox = false)
     {
         var focus = enabled ? Math.Clamp(focused, 0, 1) : 0;
         if (style == SkUiPickerFieldStyle.ComboBox)
         {
-            DrawFluentField(canvas, bounds, accent, foreground, focus, pointerOver, enabled, error, textBox);
+            DrawFluentField(canvas, bounds, chrome, accent, foreground, focus, pointerOver, enabled, error, textBox);
             return;
         }
+        border = chrome.Border ?? border;
         var idle = pointerOver && enabled ? Mix(border, foreground, 0.35f) : border;
         var line = error ?? Mix(idle, accent, focus);
         if (!enabled)
             line = line.WithAlpha((byte)(line.Alpha * DisabledAlpha));
-        var paint = Paint(line);
         var radius = FieldCornerRadius;
+        // An error shows while idle too, whatever the field's own border width.
+        var idleWidth = chrome.BorderWidth is { } own ? error is null ? own : Math.Max(own, 1) : 1;
         switch (style)
         {
             case SkUiPickerFieldStyle.Outline or SkUiPickerFieldStyle.PopUpButton:
             {
-                if (style == SkUiPickerFieldStyle.PopUpButton)
+                var radii = chrome.CornerRadii ?? new CornerRadius(radius);
+                if (chrome.Fill is { } fill)
+                    DrawRoundRect(canvas, bounds, radii, Paint(fill));
+                else if (style == SkUiPickerFieldStyle.PopUpButton)
                 {
                     // A control-colored fill: the pop-up button's.
                     var tint = Mix(border, foreground, pointerOver && enabled ? 0.2f : 0);
-                    canvas.DrawRoundRect(bounds, radius, radius, Paint(tint.WithAlpha((byte)(enabled ? 28 : 14))));
+                    DrawRoundRect(canvas, bounds, radii, Paint(tint.WithAlpha((byte)(enabled ? 28 : 14))));
                 }
-                var width = 1 + focus;
-                var ring = bounds;
-                ring.Inflate(-width / 2, -width / 2);
-                Stroke(paint, line, width);
-                canvas.DrawRoundRect(ring, radius - width / 2, radius - width / 2, paint);
+                DrawInnerRing(canvas, bounds, radii, idleWidth + focus, Paint(line));
                 break;
             }
             case SkUiPickerFieldStyle.Underline or SkUiPickerFieldStyle.Filled:
             {
-                if (style == SkUiPickerFieldStyle.Filled)
+                if (chrome.Fill is { } fill)
+                    DrawRoundRect(canvas, bounds, chrome.CornerRadii ?? FilledRadii(style, radius), Paint(fill));
+                else if (style == SkUiPickerFieldStyle.Filled)
                 {
                     var tint = Mix(border, foreground, pointerOver && enabled ? 0.2f : 0);
-                    paint.Color = tint.WithAlpha((byte)(enabled ? 40 : 20));
-                    using var fill = new SKRoundRect(bounds, radius);
-                    fill.SetRectRadii(bounds, [new SKPoint(radius, radius), new SKPoint(radius, radius), default, default]);
-                    canvas.DrawRoundRect(fill, paint);
-                    paint.Color = line;
+                    DrawRoundRect(canvas, bounds, chrome.CornerRadii ?? FilledRadii(style, radius), Paint(tint.WithAlpha((byte)(enabled ? 40 : 20))));
                 }
-                var height = 1 + focus;
-                canvas.DrawRect(new SKRect(bounds.Left, bounds.Bottom - height, bounds.Right, bounds.Bottom), paint);
+                var height = idleWidth + focus;
+                if (height > 0)
+                    canvas.DrawRect(new SKRect(bounds.Left, bounds.Bottom - height, bounds.Right, bounds.Bottom), Paint(line));
+                break;
+            }
+            case SkUiPickerFieldStyle.None:
+            {
+                // No chrome of the style's: only the field's own fill and outline (in the state's color, not thicker).
+                var radii = chrome.CornerRadii ?? default;
+                if (chrome.Fill is { } fill)
+                    DrawRoundRect(canvas, bounds, radii, Paint(fill));
+                if (chrome.BorderWidth is { } width && width > 0)
+                    DrawInnerRing(canvas, bounds, radii, width, Paint(line));
                 break;
             }
         }
     }
 
+    /// <summary>A filled field's corners: rounded at the top (over its underline); an underlined field's: square.</summary>
+    private static CornerRadius FilledRadii(SkUiPickerFieldStyle style, float radius) =>
+        style == SkUiPickerFieldStyle.Filled ? new CornerRadius(radius, radius, 0, 0) : default;
+
     /// <summary>
     /// Fluent's combo box and text box: a light, rounded fill (lighter under a pointer, opaque in a focused text box), a faint
     /// outline whose bottom edge is darker (a combo box's elevation border, a text box's strong line), and a 2-DIP accent line
     /// along the bottom while focused. Fluent's control fill and stroke colors: black or white (on dark text) at fixed opacities.
+    /// The field's own border color or width replaces the outline, darker edge included.
     /// </summary>
-    private void DrawFluentField(SKCanvas canvas, SKRect bounds, SKColor accent, SKColor foreground, float focus, bool pointerOver,
-        bool enabled, SKColor? error, bool textBox)
+    private void DrawFluentField(SKCanvas canvas, SKRect bounds, in SkUiFieldChrome chrome, SKColor accent, SKColor foreground, float focus,
+        bool pointerOver, bool enabled, SKColor? error, bool textBox)
     {
         var dark = IsLight(foreground);
         var dim = enabled ? 1 : DisabledAlpha;
         var ink = dark ? SKColors.White : SKColors.Black;
         SKColor Shade(SKColor color, int alpha) => color.WithAlpha((byte)(alpha * dim));
-        var radius = FieldCornerRadius;
-        // ControlFillColorDefault, Secondary under a pointer, InputActive while a text box is focused.
-        var idle = dark ? Shade(SKColors.White, pointerOver ? 0x15 : 0x0F) : Shade(pointerOver ? new SKColor(0xF9, 0xF9, 0xF9) : SKColors.White, pointerOver ? 0x80 : 0xB3);
-        var fill = textBox ? Mix(idle, dark ? Shade(new SKColor(0x1E, 0x1E, 0x1E), 0xB3) : Shade(SKColors.White, 0xFF), focus) : idle;
-        canvas.DrawRoundRect(bounds, radius, radius, Paint(fill));
-        var ring = bounds;
-        ring.Inflate(-0.5f, -0.5f);
-        var paint = Paint(SKColors.Transparent);
-        Stroke(paint, error is { } outline ? Shade(outline, outline.Alpha) : Shade(ink, dark ? 0x12 : 0x0F), 1);
-        canvas.DrawRoundRect(ring, radius - 0.5f, radius - 0.5f, paint);
-        if (error is null)
+        var radii = chrome.CornerRadii ?? new CornerRadius(FieldCornerRadius);
+        SKColor fill;
+        if (chrome.Fill is { } own)
+            fill = own;
+        else
+        {
+            // ControlFillColorDefault, Secondary under a pointer, InputActive while a text box is focused.
+            var idle = dark ? Shade(SKColors.White, pointerOver ? 0x15 : 0x0F) : Shade(pointerOver ? new SKColor(0xF9, 0xF9, 0xF9) : SKColors.White, pointerOver ? 0x80 : 0xB3);
+            fill = textBox ? Mix(idle, dark ? Shade(new SKColor(0x1E, 0x1E, 0x1E), 0xB3) : Shade(SKColors.White, 0xFF), focus) : idle;
+        }
+        DrawRoundRect(canvas, bounds, radii, Paint(fill));
+        var ownOutline = chrome.Border is not null || chrome.BorderWidth is not null;
+        var width = chrome.BorderWidth is { } ownWidth ? error is null ? ownWidth : Math.Max(ownWidth, 1) : 1;
+        var outline = error ?? chrome.Border ?? Shade(ink, dark ? 0x12 : 0x0F);
+        DrawInnerRing(canvas, bounds, radii, width, Paint(error is null && chrome.Border is null ? outline : Shade(outline, outline.Alpha)));
+        if (error is null && !ownOutline)
         {
             // The bottom edge, corners included: ControlStrongStrokeColorDefault (text box) or the elevation border's darker end.
             var bottom = textBox ? Shade(ink, dark ? 0x8B : 0x72) : Shade(ink, dark ? 0x18 : 0x29);
             canvas.Save();
             canvas.ClipRect(new SKRect(bounds.Left, bounds.Bottom - 1, bounds.Right, bounds.Bottom));
-            Stroke(paint, bottom, 1);
-            canvas.DrawRoundRect(ring, radius - 0.5f, radius - 0.5f, paint);
+            DrawInnerRing(canvas, bounds, radii, 1, Paint(bottom));
             canvas.Restore();
         }
         if (focus <= 0)
             return;
         // Focused: an accent line along the bottom, inside the rounded corners.
         canvas.Save();
-        using (var shape = new SKRoundRect(bounds, radius))
+        if (IsUniformCornerRadius(radii))
+        {
+            using var shape = new SKRoundRect(bounds, (float)radii.TopLeft);
             canvas.ClipRoundRect(shape, antialias: true);
+        }
+        else
+        {
+            using var shape = CreateRoundRectPath(bounds, radii);
+            canvas.ClipPath(shape, antialias: true);
+        }
         var line = error ?? accent;
         canvas.DrawRect(new SKRect(bounds.Left, bounds.Bottom - 2, bounds.Right, bounds.Bottom), Paint(line.WithAlpha((byte)(line.Alpha * focus))));
         canvas.Restore();
@@ -1029,7 +1056,7 @@ public class DefaultSkUiLook : SkUiLook
 
     /// <summary>
     /// How text fields draw (default <see cref="SkUiTextFieldStyle.Default"/>: the look's, <see cref="DefaultTextFieldStyle"/>). Call
-    /// <see cref="SkUiLook.NotifyChanged"/> after changing it.
+    /// <see cref="SkUiLook.NotifyChanged"/> after changing it. A field's own <c>FieldStyle</c> wins over it.
     /// </summary>
     public SkUiTextFieldStyle TextFieldStyle { get; set; }
 
@@ -1041,15 +1068,18 @@ public class DefaultSkUiLook : SkUiLook
 
     /// <inheritdoc />
     /// <remarks>
-    /// <see cref="TextFieldStyle"/>'s chrome, as picker fields': idle in the border color (darker while a pointer is over it), in the
-    /// accent color and thicker while focused; in the error color with an error (thicker while focused); dimmed when disabled.
+    /// The field's own <see cref="SkUiTextFieldPaint.Style"/>, else <see cref="TextFieldStyle"/>'s chrome, as picker fields': idle in
+    /// the border color (darker while a pointer is over it), in the accent color and thicker while focused; in the error color with
+    /// an error (thicker while focused); dimmed when disabled. The field's <see cref="SkUiTextFieldPaint.Chrome"/> replaces the
+    /// style's idle fill, border color and width, and corner radii.
     /// </remarks>
     protected override void DrawTextFieldCore(SKCanvas canvas, SkUiTextFieldPaint field)
     {
         var bounds = field.Bounds;
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return;
-        var textFieldStyle = TextFieldStyle == SkUiTextFieldStyle.Default ? DefaultTextFieldStyle : TextFieldStyle;
+        var textFieldStyle = field.Style != SkUiTextFieldStyle.Default ? field.Style
+            : TextFieldStyle == SkUiTextFieldStyle.Default ? DefaultTextFieldStyle : TextFieldStyle;
         var style = textFieldStyle switch
         {
             SkUiTextFieldStyle.Underline => SkUiPickerFieldStyle.Underline,
@@ -1059,7 +1089,7 @@ public class DefaultSkUiLook : SkUiLook
             SkUiTextFieldStyle.TextBox => SkUiPickerFieldStyle.ComboBox,
             _ => SkUiPickerFieldStyle.Outline
         };
-        DrawFieldFrame(canvas, bounds, style, field.Accent, field.Border, field.Foreground, field.Focused, field.IsPointerOver, field.IsEnabled,
+        DrawFieldFrame(canvas, bounds, style, field.Chrome, field.Accent, field.Border, field.Foreground, field.Focused, field.IsPointerOver, field.IsEnabled,
             field.HasError ? field.Error : null, textFieldStyle == SkUiTextFieldStyle.TextBox);
     }
 
@@ -1131,15 +1161,4 @@ public class DefaultSkUiLook : SkUiLook
 
     private static SKPoint Lerp(SKPoint from, SKPoint to, float amount) =>
         new(from.X + (to.X - from.X) * amount, from.Y + (to.Y - from.Y) * amount);
-
-    /// <summary>Blends two colors (straight alpha): 0 gives <paramref name="from"/>, 1 <paramref name="to"/>.</summary>
-    protected static SKColor Mix(SKColor from, SKColor to, float amount)
-    {
-        amount = Math.Clamp(amount, 0, 1);
-        if (amount <= 0) return from;
-        if (amount >= 1) return to;
-        static byte Channel(byte a, byte b, float t) => (byte)Math.Round(a + (b - a) * t);
-        return new SKColor(Channel(from.Red, to.Red, amount), Channel(from.Green, to.Green, amount),
-            Channel(from.Blue, to.Blue, amount), Channel(from.Alpha, to.Alpha, amount));
-    }
 }

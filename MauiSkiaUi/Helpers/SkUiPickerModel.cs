@@ -269,6 +269,12 @@ internal sealed class SkUiPickerModel
     public bool IsPointerOver;
     public bool HasExplicitMinimumHeight;
 
+    /// <summary>The control's <c>FieldStyle</c>: how the look draws its field; <see cref="SkUiPickerFieldStyle.Default"/>: the look's.</summary>
+    public SkUiPickerFieldStyle FieldStyle;
+
+    /// <summary>The control's own idle chrome over its style's (<c>FillColor</c>, <c>BorderColor</c>, <c>BorderWidth</c>, <c>CornerRadii</c>).</summary>
+    public SkUiFieldChromeState Chrome;
+
     /// <summary>
     /// Whether the field shows <see cref="ValueText"/> instead of the item at <see cref="SelectedIndex"/> (multiple selection,
     /// columns); the control sets the text and calls <see cref="TextChanged"/>.
@@ -432,7 +438,7 @@ internal sealed class SkUiPickerModel
         var foreground = ToSkColor(TextColor ?? SkUiColors.DefaultForeground);
         SkUiLook.Current.DrawPickerField(canvas, new SkUiPickerFieldPaint(new SKRect(0, 0, width, height), ChevronBounds(width, height),
             ToSkColor(SkUiColors.Accent), ToSkColor(SkUiColors.Muted), foreground, _focus.Value, _open.Value, _press?.Visual ?? SkUiPressVisual.None,
-            IsPointerOver, IsEnabled, _owner.IsRightToLeft));
+            IsPointerOver, IsEnabled, _owner.IsRightToLeft) { Style = FieldStyle, Chrome = Chrome.ToPaint() });
         if (ClearButtonShown)
         {
             var bounds = ClearButtonBounds(width, height);

@@ -42,3 +42,5 @@ var core = new SkUiCoreDateTimePicker().SetMinuteInterval(15).SetWheelFormat("dd
 | `DateSelected` | | MAUI's `DateChangedEventArgs` |
 
 Shared conventions: [SkUiView.md](SkUiView.md).
+
+The picker's [field chrome](SkUiPicker.md#field-chrome) applies too: `FieldStyle`, `FillColor`, `BorderColor`, `BorderWidth`, `CornerRadii` / `CornerRadius`.

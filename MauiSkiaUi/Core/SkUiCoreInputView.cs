@@ -128,6 +128,24 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
     /// <summary>The error chrome's and message's color; <c>null</c> (default): the color scheme's (see <see cref="SkUiInputView.ErrorColor"/>).</summary>
     public Color? ErrorColor { get => Model.ErrorColor; set => SetErrorColor(value); }
 
+    /// <summary>How the look draws this field's chrome; <see cref="SkUiTextFieldStyle.Default"/> (default): the look's (see <see cref="SkUiInputView.FieldStyle"/>).</summary>
+    public SkUiTextFieldStyle FieldStyle { get => Model.FieldStyle; set => SetFieldStyle(value); }
+
+    /// <summary>The space between the field's edges and its text in DIPs; <c>null</c> (default): the look's (see <see cref="SkUiInputView.TextPadding"/>).</summary>
+    public Thickness? TextPadding { get => Model.Padding; set => SetTextPadding(value); }
+
+    /// <summary>The field's fill; <c>null</c> (default): its style's (see <see cref="SkUiInputView.FillColor"/>).</summary>
+    public Color? FillColor { get => Model.Chrome.FillColor; set => SetFillColor(value); }
+
+    /// <summary>The idle outline's or underline's color; <c>null</c> (default): the color scheme's muted color (see <see cref="SkUiInputView.BorderColor"/>).</summary>
+    public Color? BorderColor { get => Model.Chrome.BorderColor; set => SetBorderColor(value); }
+
+    /// <summary>The idle outline's or underline's width in DIPs; <c>null</c> (default): the style's (see <see cref="SkUiInputView.BorderWidth"/>).</summary>
+    public double? BorderWidth { get => Model.Chrome.BorderWidth; set => SetBorderWidth(value); }
+
+    /// <summary>The chrome's corner radii in DIPs; <c>null</c> (default): the style's (see <see cref="SkUiInputView.CornerRadii"/>).</summary>
+    public CornerRadius? CornerRadii { get => Model.Chrome.CornerRadii; set => SetCornerRadii(value); }
+
     /// <summary>Raised when the text changes (by the user or the app), with the old and new text.</summary>
     public event EventHandler<TextChangedEventArgs>? TextChanged;
 
@@ -331,6 +349,49 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiTextFieldOwner, ISk
 
     /// <summary>Sets <see cref="ErrorColor"/>.</summary>
     public SkUiCoreInputView SetErrorColor(Color? value) => Update(ref Model.ErrorColor, value, nameof(ErrorColor));
+
+    /// <summary>Sets <see cref="FieldStyle"/>.</summary>
+    public SkUiCoreInputView SetFieldStyle(SkUiTextFieldStyle value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value), value, null);
+        return Update(ref Model.FieldStyle, value, nameof(FieldStyle));
+    }
+
+    /// <summary>Sets <see cref="TextPadding"/> (<c>null</c>: the look's).</summary>
+    public SkUiCoreInputView SetTextPadding(Thickness? value)
+    {
+        SkUiValidate.ThrowIfNotThickness(value, nameof(value));
+        return Update(ref Model.Padding, value, nameof(TextPadding), measure: true);
+    }
+
+    /// <summary>Sets <see cref="FillColor"/> (<c>null</c>: the style's).</summary>
+    public SkUiCoreInputView SetFillColor(Color? value) => Update(ref Model.Chrome.FillColor, value, nameof(FillColor));
+
+    /// <summary>Sets <see cref="BorderColor"/> (<c>null</c>: the color scheme's).</summary>
+    public SkUiCoreInputView SetBorderColor(Color? value) => Update(ref Model.Chrome.BorderColor, value, nameof(BorderColor));
+
+    /// <summary>Sets <see cref="BorderWidth"/> (<c>null</c>: the style's).</summary>
+    public SkUiCoreInputView SetBorderWidth(double? value)
+    {
+        if (value is { } width)
+            SkUiValidate.ThrowIfNegativeOrNotFinite(width, nameof(value));
+        return Update(ref Model.Chrome.BorderWidth, value, nameof(BorderWidth));
+    }
+
+    /// <summary>Sets <see cref="CornerRadii"/> (<c>null</c>: the style's).</summary>
+    public SkUiCoreInputView SetCornerRadii(CornerRadius? value)
+    {
+        if (value is { } radii)
+            SkUiCornerRadii.Validate(radii, nameof(value));
+        return Update(ref Model.Chrome.CornerRadii, value, nameof(CornerRadii));
+    }
+
+    /// <summary>Sets all four <see cref="CornerRadii"/> to <paramref name="value"/> DIPs.</summary>
+    public SkUiCoreInputView SetCornerRadius(double value)
+    {
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        return SetCornerRadii(new CornerRadius(value));
+    }
 
     private SkUiCoreInputView UpdateMessage<T>(ref T field, T value, string name)
     {

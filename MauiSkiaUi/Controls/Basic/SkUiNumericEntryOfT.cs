@@ -293,6 +293,27 @@ public class SkUiNumericEntry<[DynamicallyAccessedMembers(DynamicallyAccessedMem
     /// <inheritdoc cref="SkUiInputView.SetErrorColor" />
     public new SkUiNumericEntry<T> SetErrorColor(Color? value) { base.SetErrorColor(value); return this; }
 
+    /// <inheritdoc cref="SkUiInputView.SetFieldStyle" />
+    public new SkUiNumericEntry<T> SetFieldStyle(SkUiTextFieldStyle value) { base.SetFieldStyle(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetTextPadding" />
+    public new SkUiNumericEntry<T> SetTextPadding(Thickness? value) { base.SetTextPadding(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetFillColor" />
+    public new SkUiNumericEntry<T> SetFillColor(Color? value) { base.SetFillColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetBorderColor" />
+    public new SkUiNumericEntry<T> SetBorderColor(Color? value) { base.SetBorderColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetBorderWidth" />
+    public new SkUiNumericEntry<T> SetBorderWidth(double? value) { base.SetBorderWidth(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetCornerRadii" />
+    public new SkUiNumericEntry<T> SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetCornerRadius" />
+    public new SkUiNumericEntry<T> SetCornerRadius(int? value) { base.SetCornerRadius(value); return this; }
+
     /// <inheritdoc cref="SkUiEntry.SetIsPassword" />
     public new SkUiNumericEntry<T> SetIsPassword(bool value) { base.SetIsPassword(value); return this; }
 

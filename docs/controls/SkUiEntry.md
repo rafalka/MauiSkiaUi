@@ -22,7 +22,41 @@ A single-line text field drawn by SkiaUi: the text, caret, selection, placeholde
 
 ## Look
 
-The look draws the chrome behind the text: `SkUiLook.DrawTextField(canvas, SkUiTextFieldPaint)` (or `TextFieldPainter`), with the field's bounds (above its message), accent, border and text colors, how focused it is (0–1, the `FieldFocus` transition), pointer over, enabled, read-only, multiline, right to left, and an error (`HasError`, and `Error`: the field's `ErrorColor`, else the scheme's). `DefaultSkUiLook.TextFieldStyle` picks `Underline`, `Outline` or `Filled` (`Default`: the look's `DefaultTextFieldStyle`, an outline; `AndroidSkUiLook`: Material's underline). The clear button: `DrawTextFieldClearButton` (or `TextFieldClearButtonPainter`); selection handles: `DrawTextSelectionHandle` (or `TextSelectionHandlePainter`). The caret's handle (where `ShowsTextInsertionHandle`, default on Android): `DrawTextInsertionHandle` (or `TextInsertionHandlePainter`), `GetTextInsertionHandleBounds`, `TextInsertionHandleTimeout` (4 s). Sizes and timing: `DefaultTextFieldMinimumHeight` (44), `TextFieldPadding` (12, 8), `TextFieldClearButtonWidth` (32), `TextFieldAdornmentSpacing` (8, between a leading or trailing view and the text), `TextFieldMessageSpacing` (4, between the field and its message) and `TextFieldMessageFontSize` (12), `CaretWidth` (2), `CaretBlinkInterval` (500 ms; zero: no blinking), `DefaultCaretColor` and `DefaultSelectionColor` (the accent, and the accent at 30 %), `TextSelectionHandleTouchRadius` (22).
+The look draws the chrome behind the text: `SkUiLook.DrawTextField(canvas, SkUiTextFieldPaint)` (or `TextFieldPainter`), with the field's bounds (above its message), accent, border and text colors, how focused it is (0–1, the `FieldFocus` transition), pointer over, enabled, read-only, multiline, right to left, and an error (`HasError`, and `Error`: the field's `ErrorColor`, else the scheme's). `DefaultSkUiLook.TextFieldStyle` picks `Underline`, `Outline`, `Filled`, `TextBox` or `None` for every field (`Default`: the look's `DefaultTextFieldStyle`, an outline; `AndroidSkUiLook`: Material's underline); a field's own `FieldStyle` wins over it, and its own chrome comes in `SkUiTextFieldPaint.Style` and `Chrome` (see [Field chrome](#field-chrome)). The clear button: `DrawTextFieldClearButton` (or `TextFieldClearButtonPainter`); selection handles: `DrawTextSelectionHandle` (or `TextSelectionHandlePainter`). The caret's handle (where `ShowsTextInsertionHandle`, default on Android): `DrawTextInsertionHandle` (or `TextInsertionHandlePainter`), `GetTextInsertionHandleBounds`, `TextInsertionHandleTimeout` (4 s). Sizes and timing: `DefaultTextFieldMinimumHeight` (44), `TextFieldPadding` (12, 8), `TextFieldClearButtonWidth` (32), `TextFieldAdornmentSpacing` (8, between a leading or trailing view and the text), `TextFieldMessageSpacing` (4, between the field and its message) and `TextFieldMessageFontSize` (12), `CaretWidth` (2), `CaretBlinkInterval` (500 ms; zero: no blinking), `DefaultCaretColor` and `DefaultSelectionColor` (the accent, and the accent at 30 %), `TextSelectionHandleTouchRadius` (22).
+
+## Field chrome
+
+A field can set its own chrome over the look's, so one form mixes bordered, borderless, underlined and pill fields (a subtree's own look gives a whole screen one style). The same properties are on `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar`, the numeric entries and their Core twins (`Set*`), and, without `TextPadding`, on every picker ([SkUiPicker.md](SkUiPicker.md#field-chrome)):
+
+| Property | Default | Notes |
+| --- | --- | --- |
+| `FieldStyle` | `Default` | `SkUiTextFieldStyle`: `Outline`, `Underline`, `Filled`, `TextBox` (Fluent), `None`; `Default`: the look's `TextFieldStyle` |
+| `TextPadding` | `null` | The space between the field's edges and its text (`Thickness?`); `null`: the look's `TextFieldPadding`. The leading and trailing views, the clear button and a numeric entry's buttons keep their room inside it; the message under the field follows its start and end |
+| `FillColor` | `null` | The field's fill inside its corners, drawn as set (also while disabled: use a `Disabled` visual state for another); `null`: the style's (none for an outline or an underline) |
+| `BorderColor` | `null` | The idle outline's or underline's color; `null`: the color scheme's muted color |
+| `BorderWidth` | `null` | The idle outline's or underline's width (0: none while idle); `null`: 1. With `None`, an outline of this width in the state's color |
+| `CornerRadii`, `CornerRadius` | `null` | The chrome's corners (a large radius gives a pill); `CornerRadius` is the uniform `int` view, as the labels' and buttons'; Core: `SetCornerRadii`, `SetCornerRadius(double)`. `null`: the style's (`FieldCornerRadius`; a filled field's top corners) |
+
+Focus, error and disabled emphasis stay the look's: a focused outline still thickens and turns to the accent color, an invalid field draws its error color (at least 1 DIP, also with `BorderWidth="0"`), a disabled field's lines are dimmed. A search bar's `Default` style is the look's search field, which takes the fill, the corner radii and an idle outline of `BorderWidth`; any other style draws that text field with the search icon in it.
+
+```xml
+<Style x:Key="PillEntry" TargetType="sk:SkUiEntry">
+    <Setter Property="BorderWidth" Value="0" />
+    <Setter Property="FillColor" Value="#EEF1F3" />
+    <Setter Property="CornerRadius" Value="22" />
+    <Setter Property="TextPadding" Value="18,10" />
+</Style>
+<sk:SkUiEntry Placeholder="Email" FieldStyle="Underline" TextPadding="0,10" />
+<sk:SkUiBorder Stroke="#D9E0E4" CornerRadius="12" Padding="4">
+    <sk:SkUiEditor FieldStyle="None" HeightRequest="96" />
+</sk:SkUiBorder>
+```
+
+```csharp
+var amount = new SkUiCoreEntry().SetFieldStyle(SkUiTextFieldStyle.Filled).SetCornerRadius(12).SetTextPadding(new Thickness(16, 12));
+```
+
+The samples app's "Field styles in one form" has them on one page.
 
 ## Shared conventions
 
@@ -134,6 +168,7 @@ var tag = new SkUiEntry().SetInputFormatters(
 | `ErrorText` (SkiaUi) | `null` | The message under the field while `HasError`, in place of `HelperText` |
 | `HelperText` (SkiaUi) | `null` | A message under the field (muted); wraps and makes the field taller |
 | `ErrorColor` (SkiaUi) | `null` | The error chrome's and message's color; the color scheme's `Error` by default |
+| `FieldStyle`, `TextPadding`, `FillColor`, `BorderColor`, `BorderWidth`, `CornerRadii` / `CornerRadius` (SkiaUi) | `null` / `Default` | The field's own chrome over the look's; see [Field chrome](#field-chrome) |
 | `AutofillHint` (SkiaUi) | `null` | `SkUiAutofillHints` (`Username`, `Password`, `NewPassword`, `OneTimeCode`, …) or a platform's own hint; a password field is a password. One hint: a value with white space is ignored with a warning (`SetAutofillHint` throws), white space being reserved for a list of hints |
 
 ## Differences from MAUI Entry

@@ -291,6 +291,24 @@ public class SkUiDatePicker : SkUiDateTimePickerBase
     /// <summary>Sets <see cref="SkUiPickerBase.PlaceholderColor"/> (same as the property setter).</summary>
     public new SkUiDatePicker SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
 
+    /// <inheritdoc cref="SkUiPickerBase.SetFieldStyle" />
+    public new SkUiDatePicker SetFieldStyle(SkUiPickerFieldStyle value) { base.SetFieldStyle(value); return this; }
+
+    /// <inheritdoc cref="SkUiPickerBase.SetFillColor" />
+    public new SkUiDatePicker SetFillColor(Color? value) { base.SetFillColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiPickerBase.SetBorderColor" />
+    public new SkUiDatePicker SetBorderColor(Color? value) { base.SetBorderColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiPickerBase.SetBorderWidth" />
+    public new SkUiDatePicker SetBorderWidth(double? value) { base.SetBorderWidth(value); return this; }
+
+    /// <inheritdoc cref="SkUiPickerBase.SetCornerRadii" />
+    public new SkUiDatePicker SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
+
+    /// <inheritdoc cref="SkUiPickerBase.SetCornerRadius" />
+    public new SkUiDatePicker SetCornerRadius(int? value) { base.SetCornerRadius(value); return this; }
+
     /// <summary>Sets <see cref="SkUiPickerBase.PopupWidth"/> (same as the property setter).</summary>
     public new SkUiDatePicker SetPopupWidth(double value) { base.SetPopupWidth(value); return this; }
 

@@ -243,7 +243,25 @@ public readonly record struct SkUiIndicatorPaint(
 /// <param name="IsRightToLeft">The field lays out right to left.</param>
 public readonly record struct SkUiPickerFieldPaint(
     SKRect Bounds, SKRect ChevronBounds, SKColor Accent, SKColor Border, SKColor Foreground, float Focused, float Open, SkUiPressVisual Press,
-    bool IsPointerOver, bool IsEnabled, bool IsRightToLeft);
+    bool IsPointerOver, bool IsEnabled, bool IsRightToLeft)
+{
+    /// <summary>The picker's own field style (its <c>FieldStyle</c>); <see cref="SkUiPickerFieldStyle.Default"/>: the look's.</summary>
+    public SkUiPickerFieldStyle Style { get; init; }
+
+    /// <summary>The picker's own idle chrome over its style's (its <c>FillColor</c>, <c>BorderColor</c>, <c>BorderWidth</c>, <c>CornerRadii</c>).</summary>
+    public SkUiFieldChrome Chrome { get; init; }
+}
+
+/// <summary>
+/// The idle chrome a field (a text field, a search bar, a picker) sets over its style's: its <c>FillColor</c>, <c>BorderColor</c>,
+/// <c>BorderWidth</c> and <c>CornerRadii</c>, each <c>null</c> for the style's. Focus, error and disabled emphasis stay the look's:
+/// a focused outline is still thicker and in the accent color, an error still draws in the error color, a disabled field is dimmed.
+/// </summary>
+/// <param name="Fill">The field's fill in place of its style's (none for an outline or an underline).</param>
+/// <param name="Border">The idle outline or underline color in place of the color scheme's muted color.</param>
+/// <param name="BorderWidth">The idle outline or underline width in DIPs (0: none while idle); the look thickens it while focused.</param>
+/// <param name="CornerRadii">The corner radii in DIPs in place of the look's (<see cref="DefaultSkUiLook.FieldCornerRadius"/>).</param>
+public readonly record struct SkUiFieldChrome(SKColor? Fill, SKColor? Border, float? BorderWidth, CornerRadius? CornerRadii);
 
 /// <summary>What a look draws a text field's chrome with (<see cref="SkUiLook.DrawTextField"/>).</summary>
 public readonly record struct SkUiTextFieldPaint
@@ -285,6 +303,12 @@ public readonly record struct SkUiTextFieldPaint
 
     /// <summary>The error color (the field's <c>ErrorColor</c>, else the color scheme's <see cref="SkUiColorScheme.Error"/>).</summary>
     public SKColor Error { get; init; }
+
+    /// <summary>The field's own style (its <c>FieldStyle</c>); <see cref="SkUiTextFieldStyle.Default"/>: the look's.</summary>
+    public SkUiTextFieldStyle Style { get; init; }
+
+    /// <summary>The field's own idle chrome over its style's (its <c>FillColor</c>, <c>BorderColor</c>, <c>BorderWidth</c>, <c>CornerRadii</c>).</summary>
+    public SkUiFieldChrome Chrome { get; init; }
 }
 
 /// <summary>What a look draws a handle of a touch selection with (<see cref="SkUiLook.DrawTextSelectionHandle"/>).</summary>
@@ -345,6 +369,16 @@ public readonly record struct SkUiSearchFieldPaint
 
     /// <summary>The error color (the field's <c>ErrorColor</c>, else the color scheme's <see cref="SkUiColorScheme.Error"/>).</summary>
     public SKColor Error { get; init; }
+
+    /// <summary>
+    /// The search bar's own field style (its <c>FieldStyle</c>). <see cref="SkUiTextFieldStyle.Default"/>: the look's search field.
+    /// Any other: the control has drawn a text field of that style (<see cref="SkUiLook.DrawTextField"/>) and the search field
+    /// draws its icon only.
+    /// </summary>
+    public SkUiTextFieldStyle Style { get; init; }
+
+    /// <summary>The search bar's own idle chrome over the search field's (its <c>FillColor</c>, <c>BorderColor</c>, <c>BorderWidth</c>, <c>CornerRadii</c>).</summary>
+    public SkUiFieldChrome Chrome { get; init; }
 }
 
 /// <summary>What a look draws a stepper with (<see cref="SkUiLook.DrawStepper"/>).</summary>

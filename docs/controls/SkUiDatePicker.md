@@ -85,3 +85,5 @@ host.SetContent(core);
 Not yet: a drawn month calendar as the popup (with `SkUiCalendar`, [Phase F](../design/ImplementationPlan.md#phase-f--calendar-skuicalendar)); screen-reader elements for the wheels.
 
 Shared conventions (DIPs, bindable properties with fluent `Set*` setters, the gesture arena) as for every control: [SkUiView.md](SkUiView.md).
+
+The picker's [field chrome](SkUiPicker.md#field-chrome) applies too: `FieldStyle`, `FillColor`, `BorderColor`, `BorderWidth`, `CornerRadii` / `CornerRadius`.
