@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.0.0-Prerelease15
+
 ### New features
 
 - **Per-tree looks:** `SkUiView.Look` and `SkUiCoreNode.Look` (`SetLook` on both) give a view and its drawn descendants their own look instead of `SkUiLook.Current`; the nearest ancestor that sets one wins. Compare platform looks side by side in the demo's "Looks side by side" page. Text sizes follow the subtree's look when text is laid out, and buttons of both layers take its padding, corner radius and border width when they do not set them (also when they were created before joining the subtree, as XAML builds them). State changes (presses, toggles, sliders, field focus, pickers, progress, indicators) animate with the subtree's look's curves and durations. A node moved under another look re-measures with it; a separate surface measured inside a subtree (native content hosting another drawn view) keeps the app's look. Each node caches the look it resolved, so trees with looks resolve them once per change, not per measure. The color scheme stays the app's, and input handling uses the app's look.
