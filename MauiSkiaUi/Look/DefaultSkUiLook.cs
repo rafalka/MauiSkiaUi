@@ -28,36 +28,47 @@ public class DefaultSkUiLook : SkUiLook
         : OperatingSystem.IsWindows() ? WindowsSkUiLook.Instance
         : Instance;
 
-    /// <summary>Button and ImageButton press feedback (default <see cref="SkUiPressEffect.Dim"/>). Repaint after changing it.</summary>
-    public SkUiPressEffect PressEffect { get; set; } = SkUiPressEffect.Dim;
+    /// <summary>
+    /// Button and ImageButton press feedback (default <see cref="SkUiPressEffect.Default"/>: the look's, <see cref="BasePressEffect"/>).
+    /// Repaint after changing it.
+    /// </summary>
+    public SkUiPressEffect PressEffect { get; set; }
+
+    /// <summary>The press feedback a <see cref="SkUiPressEffect.Default"/> <see cref="PressEffect"/> resolves to: a dim. Android's look ripples.</summary>
+    public virtual SkUiPressEffect BasePressEffect => SkUiPressEffect.Dim;
+
+    /// <summary>The press feedback in effect: <see cref="PressEffect"/>, or the look's when that is <see cref="SkUiPressEffect.Default"/>.</summary>
+    public SkUiPressEffect EffectivePressEffect => PressEffect == SkUiPressEffect.Default ? BasePressEffect : PressEffect;
 
     /// <summary>
-    /// Overscroll of scrollers that do not set their own: the platform's by default (<see cref="SkUiOverscrollMode.Bounce"/> on
-    /// iOS and Mac Catalyst, <see cref="SkUiOverscrollMode.Stretch"/> on Android, none elsewhere).
+    /// Overscroll of scrollers that do not set their own (default <see cref="SkUiOverscrollMode.Default"/>: the look's,
+    /// <see cref="BaseOverscroll"/>). Repaint after changing it.
     /// </summary>
-    public SkUiOverscrollMode Overscroll { get; set; } = PlatformOverscroll;
-
-    /// <summary>The platform's overscroll: iOS and Mac Catalyst bounce, Android 12+ stretches, Windows stops at the edge.</summary>
-    public static SkUiOverscrollMode PlatformOverscroll =>
-        OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst() ? SkUiOverscrollMode.Bounce
-        : OperatingSystem.IsAndroid() ? SkUiOverscrollMode.Stretch
-        : SkUiOverscrollMode.None;
-
-    /// <inheritdoc />
-    public override SkUiOverscrollMode DefaultOverscroll => Overscroll == SkUiOverscrollMode.Default ? SkUiOverscrollMode.None : Overscroll;
+    public SkUiOverscrollMode Overscroll { get; set; } = SkUiOverscrollMode.Default;
 
     /// <summary>
-    /// Pull-to-refresh style of controls that do not set their own: the platform's by default
-    /// (<see cref="SkUiRefreshStyle.Inline"/> on iOS and Mac Catalyst, <see cref="SkUiRefreshStyle.Overlay"/> elsewhere).
+    /// The overscroll an <see cref="SkUiOverscrollMode.Default"/> <see cref="Overscroll"/> resolves to: none (stop at the edge),
+    /// the same on every platform. Platform looks use their platform's (<see cref="IosSkUiLook"/>: bounce).
     /// </summary>
-    public SkUiRefreshStyle RefreshStyle { get; set; } = PlatformRefreshStyle;
-
-    /// <summary>The platform's pull-to-refresh style: iOS and Mac Catalyst inline (UIRefreshControl), others an overlay badge (Android's).</summary>
-    public static SkUiRefreshStyle PlatformRefreshStyle =>
-        OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst() ? SkUiRefreshStyle.Inline : SkUiRefreshStyle.Overlay;
+    public virtual SkUiOverscrollMode BaseOverscroll => SkUiOverscrollMode.None;
 
     /// <inheritdoc />
-    public override SkUiRefreshStyle DefaultRefreshStyle => RefreshStyle == SkUiRefreshStyle.Default ? SkUiRefreshStyle.Overlay : RefreshStyle;
+    public override SkUiOverscrollMode DefaultOverscroll => Overscroll == SkUiOverscrollMode.Default ? BaseOverscroll : Overscroll;
+
+    /// <summary>
+    /// Pull-to-refresh style of controls that do not set their own (default <see cref="SkUiRefreshStyle.Default"/>: the look's,
+    /// <see cref="BaseRefreshStyle"/>).
+    /// </summary>
+    public SkUiRefreshStyle RefreshStyle { get; set; } = SkUiRefreshStyle.Default;
+
+    /// <summary>
+    /// The style a <see cref="SkUiRefreshStyle.Default"/> <see cref="RefreshStyle"/> resolves to: an overlay badge, the same on
+    /// every platform. Apple's platform looks use an inline indicator (UIRefreshControl).
+    /// </summary>
+    public virtual SkUiRefreshStyle BaseRefreshStyle => SkUiRefreshStyle.Overlay;
+
+    /// <inheritdoc />
+    public override SkUiRefreshStyle DefaultRefreshStyle => RefreshStyle == SkUiRefreshStyle.Default ? BaseRefreshStyle : RefreshStyle;
 
     /// <summary>
     /// How picker fields draw (default <see cref="SkUiPickerFieldStyle.Default"/>: the look's,
@@ -90,13 +101,22 @@ public class DefaultSkUiLook : SkUiLook
     protected static bool IsPhone =>
         (OperatingSystem.IsAndroid() || (OperatingSystem.IsIOS() && !OperatingSystem.IsMacCatalyst())) && DeviceInfo.Current.Idiom == DeviceIdiom.Phone;
 
-    /// <summary>How indicator views draw (default <see cref="SkUiIndicatorStyle.Dots"/>). Call <see cref="SkUiLook.NotifyChanged"/> after changing it.</summary>
-    public SkUiIndicatorStyle IndicatorStyle { get; set; } = SkUiIndicatorStyle.Dots;
+    /// <summary>
+    /// How indicator views draw (default <see cref="SkUiIndicatorStyle.Default"/>: the look's, <see cref="BaseIndicatorStyle"/>).
+    /// Call <see cref="SkUiLook.NotifyChanged"/> after changing it.
+    /// </summary>
+    public SkUiIndicatorStyle IndicatorStyle { get; set; }
+
+    /// <summary>The style a <see cref="SkUiIndicatorStyle.Default"/> <see cref="IndicatorStyle"/> resolves to: dots. Android's look draws a pill.</summary>
+    public virtual SkUiIndicatorStyle BaseIndicatorStyle => SkUiIndicatorStyle.Dots;
+
+    /// <summary>The indicator style in effect: <see cref="IndicatorStyle"/>, or the look's when that is <see cref="SkUiIndicatorStyle.Default"/>.</summary>
+    public SkUiIndicatorStyle EffectiveIndicatorStyle => IndicatorStyle == SkUiIndicatorStyle.Default ? BaseIndicatorStyle : IndicatorStyle;
 
     /// <inheritdoc />
     /// <remarks>A <see cref="SkUiIndicatorStyle.Pill"/> is twice the indicator size longer.</remarks>
     public override double GetSelectedIndicatorExtraLength(double indicatorSize, IndicatorShape shape) =>
-        IndicatorStyle == SkUiIndicatorStyle.Pill ? 2 * indicatorSize : 0;
+        EffectiveIndicatorStyle == SkUiIndicatorStyle.Pill ? 2 * indicatorSize : 0;
 
     /// <inheritdoc />
     /// <remarks>
@@ -131,7 +151,7 @@ public class DefaultSkUiLook : SkUiLook
         SkUiTransitionKind.Press => SkUiTransition.FromMilliseconds(80, Easing.CubicOut),
         SkUiTransitionKind.Release => SkUiTransition.FromMilliseconds(220, Easing.CubicOut),
         // Only rippling looks spend frames on the ripple.
-        SkUiTransitionKind.Ripple => PressEffect == SkUiPressEffect.Ripple ? SkUiTransition.FromMilliseconds(450, Easing.CubicOut) : SkUiTransition.None,
+        SkUiTransitionKind.Ripple => EffectivePressEffect == SkUiPressEffect.Ripple ? SkUiTransition.FromMilliseconds(450, Easing.CubicOut) : SkUiTransition.None,
         SkUiTransitionKind.SliderThumb => SkUiTransition.FromMilliseconds(150, Easing.CubicOut),
         SkUiTransitionKind.IndicatorPosition => SkUiTransition.FromMilliseconds(250, Easing.CubicOut),
         SkUiTransitionKind.FieldFocus => SkUiTransition.FromMilliseconds(150, Easing.CubicOut),
@@ -211,7 +231,7 @@ public class DefaultSkUiLook : SkUiLook
     /// <inheritdoc />
     protected override void DrawButtonCore(SKCanvas canvas, SkUiButtonPaint button)
     {
-        var dim = PressEffect == SkUiPressEffect.Dim ? 1 - 0.25f * button.Press.Pressed : 1;
+        var dim = EffectivePressEffect == SkUiPressEffect.Dim ? 1 - 0.25f * button.Press.Pressed : 1;
         if (button.FillPaint is { } gradient)
         {
             DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, SkUiShapePainter.WithOpacity(gradient, dim), button.Border, button.BorderWidth);
@@ -223,7 +243,7 @@ public class DefaultSkUiLook : SkUiLook
                 fill = fill.WithAlpha((byte)(fill.Alpha * dim));
             DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, fill, button.Border, button.BorderWidth);
         }
-        if (PressEffect == SkUiPressEffect.Ripple && button.IsEnabled)
+        if (EffectivePressEffect == SkUiPressEffect.Ripple && button.IsEnabled)
             DrawRipple(canvas, button.Bounds, button.CornerRadii, button.Press, RippleColor(button.Fill));
     }
 
@@ -406,7 +426,7 @@ public class DefaultSkUiLook : SkUiLook
     protected override void DrawPressOverlayCore(SKCanvas canvas, SkUiPressOverlayPaint overlay)
     {
         // Over arbitrary content (images, cards): a dark tint or a dark ripple shows on light and mid-tone content alike.
-        var alpha = !overlay.IsEnabled ? 96 : PressEffect == SkUiPressEffect.Dim ? 48 * overlay.Press.Pressed : 0;
+        var alpha = !overlay.IsEnabled ? 96 : EffectivePressEffect == SkUiPressEffect.Dim ? 48 * overlay.Press.Pressed : 0;
         if (alpha > 0)
         {
             var paint = Paint(new SKColor(0, 0, 0, (byte)alpha));
@@ -420,7 +440,7 @@ public class DefaultSkUiLook : SkUiLook
                 canvas.DrawPath(path, paint);
             }
         }
-        if (PressEffect == SkUiPressEffect.Ripple && overlay.IsEnabled)
+        if (EffectivePressEffect == SkUiPressEffect.Ripple && overlay.IsEnabled)
             DrawRipple(canvas, overlay.Bounds, overlay.CornerRadii, overlay.Press, new SKColor(0, 0, 0, 56));
     }
 

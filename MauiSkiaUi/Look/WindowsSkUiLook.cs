@@ -17,4 +17,16 @@ public class WindowsSkUiLook : DefaultSkUiLook
     /// <inheritdoc />
     /// <remarks>Windows' dialogs put the primary button first.</remarks>
     public override bool PopupAcceptButtonFirst => true;
+
+    /// <inheritdoc />
+    /// <remarks>Fluent's quick, decelerating motion.</remarks>
+    protected override SkUiTransition GetTransitionCore(SkUiTransitionKind kind) => kind switch
+    {
+        SkUiTransitionKind.Switch => SkUiTransition.FromMilliseconds(167, SkUiEasings.FluentDecelerate),
+        SkUiTransitionKind.CheckBox or SkUiTransitionKind.RadioButton => SkUiTransition.FromMilliseconds(83, SkUiEasings.FluentDecelerate),
+        SkUiTransitionKind.Press => SkUiTransition.FromMilliseconds(83, Easing.Linear),
+        SkUiTransitionKind.Release => SkUiTransition.FromMilliseconds(167, SkUiEasings.FluentDecelerate),
+        SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(167, SkUiEasings.FluentDecelerate),
+        _ => base.GetTransitionCore(kind)
+    };
 }

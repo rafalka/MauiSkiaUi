@@ -122,6 +122,8 @@ public readonly record struct SkUiPressVisual(float Pressed, SKPoint Origin, flo
 /// <summary>How <see cref="DefaultSkUiLook"/> draws indicator views (<see cref="DefaultSkUiLook.IndicatorStyle"/>).</summary>
 public enum SkUiIndicatorStyle
 {
+    /// <summary>The look's (<see cref="DefaultSkUiLook.BaseIndicatorStyle"/>): dots; a pill in <see cref="AndroidSkUiLook"/>.</summary>
+    Default,
     /// <summary>Dots (or squares) of the same size; the selected one takes the selected color (iOS-like).</summary>
     Dots,
     /// <summary>The selected indicator stretches into a pill twice the size longer, and slides between positions (Material-like).</summary>
@@ -161,6 +163,8 @@ public enum SkUiTextFieldStyle
 /// <summary>Press feedback style of <see cref="DefaultSkUiLook"/> buttons.</summary>
 public enum SkUiPressEffect
 {
+    /// <summary>The look's (<see cref="DefaultSkUiLook.BasePressEffect"/>): a dim; a ripple in <see cref="AndroidSkUiLook"/>.</summary>
+    Default,
     /// <summary>The fill fades while pressed (iOS-like).</summary>
     Dim,
     /// <summary>A ripple spreads from the press point and fades after the release (Material-like).</summary>

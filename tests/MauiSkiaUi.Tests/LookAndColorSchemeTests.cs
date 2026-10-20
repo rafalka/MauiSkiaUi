@@ -236,15 +236,18 @@ public class LookAndColorSchemeTests
     {
         var common = new DefaultSkUiLook();
         Assert.Equal(SkUiPickerFieldStyle.Outline, common.DefaultPickerFieldStyle);
-        Assert.Equal(SkUiPressEffect.Dim, common.PressEffect);
+        Assert.Equal(SkUiPressEffect.Dim, common.EffectivePressEffect);
         Assert.Equal(LayoutOptions.Center, common.PopupVerticalOptions);
 
         var android = new AndroidSkUiLook();
         Assert.Equal(SkUiPickerFieldStyle.Underline, android.DefaultPickerFieldStyle);
-        Assert.Equal(SkUiPressEffect.Ripple, android.PressEffect);
+        Assert.Equal(SkUiPressEffect.Ripple, android.EffectivePressEffect);
+        Assert.Equal(SkUiIndicatorStyle.Pill, android.EffectiveIndicatorStyle);
+        Assert.Equal(SkUiIndicatorStyle.Dots, common.EffectiveIndicatorStyle);
+        Assert.Equal(SkUiPressEffect.Dim, IosSkUiLook.Instance.EffectivePressEffect);
         // The default look's options still override a platform look's choices.
         android.PressEffect = SkUiPressEffect.Dim;
-        Assert.Equal(SkUiPressEffect.Dim, android.PressEffect);
+        Assert.Equal(SkUiPressEffect.Dim, android.EffectivePressEffect);
 
         // Headless runs are no phone: the iOS look's sheet is for phones only.
         Assert.Equal(LayoutOptions.Center, IosSkUiLook.Instance.PopupVerticalOptions);

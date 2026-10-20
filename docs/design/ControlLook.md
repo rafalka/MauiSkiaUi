@@ -56,7 +56,7 @@ public class SkUiLook
     public void DrawRefreshIndicator(SKCanvas canvas, SkUiRefreshIndicatorPaint paint) { … } // → RefreshIndicatorPainter ?? DrawRefreshIndicatorCore
     public virtual double RefreshIndicatorSize => 40;      // and RefreshTriggerDistance (64), RefreshRestDistance (64),
                                                            // RefreshIndicatorSpinPeriod (1 s), GetRefreshIndicatorShadow(style)
-    public virtual SkUiRefreshStyle DefaultRefreshStyle => SkUiRefreshStyle.Overlay; // DefaultSkUiLook: the platform's (Inline on Apple)
+    public virtual SkUiRefreshStyle DefaultRefreshStyle => SkUiRefreshStyle.Overlay; // DefaultSkUiLook: BaseRefreshStyle (Overlay; Inline in the Apple looks)
     // Indicator views (C4): the whole row, laid out by the control (SkUiIndicatorPaint.GetIndicatorBounds / GetSelection /
     // GetColor, as hit-tested); drawn again while the selection moves. DefaultSkUiLook: dots or a pill (IndicatorStyle).
     public void DrawIndicators(SKCanvas canvas, SkUiIndicatorPaint paint) { … } // → IndicatorPainter ?? DrawIndicatorsCore
@@ -107,7 +107,7 @@ public class SkUiLook
                                                            // ScrollBarExpandedThickness (8), ScrollBarHitThickness (16),
                                                            // ScrollBarReservedThickness (12: the gutter of a bar that always shows)
     public virtual TimeSpan ScrollBarFadeDelay => TimeSpan.FromMilliseconds(500);     // and ScrollBarFadeDuration (250 ms)
-    public virtual SkUiOverscrollMode DefaultOverscroll => SkUiOverscrollMode.None; // DefaultSkUiLook: the platform's (Bounce on Apple, Stretch on Android)
+    public virtual SkUiOverscrollMode DefaultOverscroll => SkUiOverscrollMode.None; // DefaultSkUiLook: BaseOverscroll (None; Bounce in the Apple looks, Stretch in Android's)
     public virtual float SliderThumbRadius => 10;         // input maps touches to the thumb's center
     public virtual float IndeterminateProgressSegment => 0.35f;
     public virtual float IndeterminateProgressPeriod => 1.5f; // seconds; the compositor slides the bar on the render thread
@@ -188,7 +188,7 @@ Drawing the blend makes interruptions free: a switch toggled back mid-way revers
 
 **Press feedback on any control.** `ShowsPressEffect` (every `SkUiView` and Core node) draws the look's press overlay (`DrawPressOverlay`) over the node and its children while it is pressed, clipped to its rounded shape (a label's `CornerRadii`, a border's `CornerRadius` or rounded-rectangle `StrokeShape`). This is for containers that act as one button: a card, or a composite button built from several Core nodes. The node needs a tap handler (`Tapped`, or `TappedCommand` on SkUi*) to be pressed. A button inside it still takes its own presses. `DefaultSkUiLook` dims the content or spreads a dark ripple.
 
-Override `GetTransitionCore` in a subclass, or set `TransitionProvider` on a look instance. `DefaultSkUiLook.PressEffect` picks `Dim` (default: the fill fades by a quarter) or `Ripple` (a circle spreads from the press point, clipped to the button's rounded shape, and fades after the release).
+Override `GetTransitionCore` in a subclass, or set `TransitionProvider` on a look instance. `DefaultSkUiLook.PressEffect` picks `Dim` (the fill fades by a quarter) or `Ripple` (a circle spreads from the press point, clipped to the button's rounded shape, and fades after the release); its default, `Default`, is the look's `BasePressEffect` (`Dim`; Android's look ripples). The platform looks also time their transitions: Android uses Material's emphasized curves (`SkUiEasings.Emphasized`), the Apple looks iOS's spring-like curve, Windows Fluent's short decelerating one; the numbers above are the default look's.
 
 **Reduce motion.** `SkUiMotion.IsMotionReduced` follows the OS setting (iOS / Mac Catalyst Reduce Motion, Android "Remove animations", Windows animation effects off); `SkUiMotion.ReduceMotion` overrides it. While reduced, `GetTransition` returns `None` for every kind. Activity animations (spinners, the indeterminate progress bar) keep running, since they show that work is in progress.
 
@@ -242,7 +242,7 @@ Looks do **not** replace `PaintBackground` / `OnPaintContent` hooks; they are wh
 | Platform looks: `AndroidSkUiLook`, `IosSkUiLook`, `MacSkUiLook`, `WindowsSkUiLook` | Subclasses of `DefaultSkUiLook` that mimic one platform each; they draw the same wherever they run. `DefaultSkUiLook.ForCurrentPlatform()` returns the one for the platform the app runs on (shared instances; `UseSkiaUi(options => options.Look = …)` or `SkUiLook.Current` makes it current). Basic so far: Android underlines picker fields and ripples presses, iOS opens window popups as a bottom sheet on phones; Mac and Windows match the default look. Filling them in is phase L of the [plan](ImplementationPlan.md#phase-l--platform-looks) |
 | App / library packs | Brand-specific subclasses (of the default look or a platform look) or delegate replacements |
 
-Platform-specific choices belong in the platform looks, not in `DefaultSkUiLook`: an option of the default look (such as `PickerFieldStyle`) resolves its `Default` value through a virtual (`DefaultPickerFieldStyle`) the platform looks override. Choices that depend on the device rather than the platform (a phone, a tablet, a desktop) can stay in the default look (`DevicePopupPlacement`). Exceptions, still in the default look: the overscroll and pull-to-refresh defaults follow the platform (to move in phase L).
+Platform-specific choices belong in the platform looks, not in `DefaultSkUiLook`: an option of the default look (such as `PickerFieldStyle`) resolves its `Default` value through a virtual (`DefaultPickerFieldStyle`) the platform looks override. Choices that depend on the device rather than the platform (a phone, a tablet, a desktop) can stay in the default look (`DevicePopupPlacement`). The overscroll (`BaseOverscroll`) and pull-to-refresh style (`BaseRefreshStyle`) follow the same pattern: the default look stops at the edge and shows an overlay badge everywhere; the Apple looks bounce with an inline indicator, Android's stretches.
 
 ## Core
 

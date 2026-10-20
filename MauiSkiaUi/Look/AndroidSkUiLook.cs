@@ -5,7 +5,7 @@ namespace MauiSkiaUi;
 /// same on every platform; <see cref="DefaultSkUiLook.ForCurrentPlatform"/> picks it on Android.
 /// </summary>
 /// <remarks>
-/// So far: picker and text fields underlined (<see cref="SkUiPickerFieldStyle.Underline"/>, <see cref="SkUiTextFieldStyle.Underline"/>:
+/// So far: overscroll that stretches, picker and text fields underlined (<see cref="SkUiPickerFieldStyle.Underline"/>, <see cref="SkUiTextFieldStyle.Underline"/>:
 /// Material's text field) and buttons that ripple when pressed (<see cref="SkUiPressEffect.Ripple"/>). Settable options
 /// (<see cref="DefaultSkUiLook.PressEffect"/>, <see cref="DefaultSkUiLook.PickerFieldStyle"/>, <see cref="DefaultSkUiLook.TextFieldStyle"/>)
 /// still override it.
@@ -15,9 +15,6 @@ public class AndroidSkUiLook : DefaultSkUiLook
     /// <summary>A shared instance (set it as <see cref="SkUiLook.Current"/>).</summary>
     public new static AndroidSkUiLook Instance { get; } = new();
 
-    /// <summary>Creates the look: buttons ripple when pressed.</summary>
-    public AndroidSkUiLook() => PressEffect = SkUiPressEffect.Ripple;
-
     /// <inheritdoc />
     /// <remarks>Material's underlined field.</remarks>
     public override SkUiPickerFieldStyle DefaultPickerFieldStyle => SkUiPickerFieldStyle.Underline;
@@ -25,4 +22,27 @@ public class AndroidSkUiLook : DefaultSkUiLook
     /// <inheritdoc />
     /// <remarks>Material's underlined field.</remarks>
     public override SkUiTextFieldStyle DefaultTextFieldStyle => SkUiTextFieldStyle.Underline;
+
+    /// <inheritdoc />
+    /// <remarks>Android 12's stretch.</remarks>
+    public override SkUiOverscrollMode BaseOverscroll => SkUiOverscrollMode.Stretch;
+
+    /// <inheritdoc />
+    /// <remarks>Material's ripple.</remarks>
+    public override SkUiPressEffect BasePressEffect => SkUiPressEffect.Ripple;
+
+    /// <inheritdoc />
+    /// <remarks>Material's page indicator: the selected dot stretches into a pill.</remarks>
+    public override SkUiIndicatorStyle BaseIndicatorStyle => SkUiIndicatorStyle.Pill;
+
+    /// <inheritdoc />
+    /// <remarks>Material 3's motion: the emphasized curves.</remarks>
+    protected override SkUiTransition GetTransitionCore(SkUiTransitionKind kind) => kind switch
+    {
+        SkUiTransitionKind.Switch => SkUiTransition.FromMilliseconds(300, SkUiEasings.Emphasized),
+        SkUiTransitionKind.CheckBox or SkUiTransitionKind.RadioButton => SkUiTransition.FromMilliseconds(100, SkUiEasings.Emphasized),
+        SkUiTransitionKind.IndicatorPosition => SkUiTransition.FromMilliseconds(300, SkUiEasings.Emphasized),
+        SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(250, SkUiEasings.EmphasizedDecelerate),
+        _ => base.GetTransitionCore(kind)
+    };
 }

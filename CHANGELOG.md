@@ -13,6 +13,11 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### Other
+
+- **Overscroll and pull-to-refresh defaults moved to the platform looks:** `DefaultSkUiLook` now stops scrollers at their edge and shows an overlay refresh badge on every platform. The platform's behavior (bounce and an inline indicator on iOS and Mac Catalyst, stretch on Android) comes from `DefaultSkUiLook.ForCurrentPlatform()` (`UseSkiaUi(options => options.Look = ...)`); `DefaultSkUiLook.Overscroll` / `RefreshStyle` default to `Default` (the look's `BaseOverscroll` / `BaseRefreshStyle`) and still override a look. `PlatformOverscroll` and `PlatformRefreshStyle` are gone.
+- **Press feedback, indicator style and motion per platform look:** `SkUiPressEffect` and `SkUiIndicatorStyle` gain `Default` (the new default of `DefaultSkUiLook.PressEffect` / `IndicatorStyle`: the look's `BasePressEffect` / `BaseIndicatorStyle`; read the result through `EffectivePressEffect` / `EffectiveIndicatorStyle`). `AndroidSkUiLook` ripples and draws pill indicators; platform looks time their transitions with their own curves (`SkUiEasings`: Material's emphasized, iOS's spring-like, Fluent's decelerate).
+
 ## 1.0.0-Prerelease14
 
 ### Fixes

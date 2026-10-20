@@ -5,7 +5,7 @@ namespace MauiSkiaUi;
 /// platform; <see cref="DefaultSkUiLook.ForCurrentPlatform"/> picks it on Mac Catalyst.
 /// </summary>
 /// <remarks>
-/// So far the default look's choices match the Mac's: outlined picker fields whose lists open anchored to the field, as a
+/// So far: bounce overscroll, an inline pull-to-refresh indicator and (as the default look) outlined picker fields whose lists open anchored to the field, as a
 /// pop-up button's menu. The Mac's own control shapes and sizes come with the platform looks phase
 /// (docs/design/ImplementationPlan.md).
 /// </remarks>
@@ -13,4 +13,23 @@ public class MacSkUiLook : DefaultSkUiLook
 {
     /// <summary>A shared instance (set it as <see cref="SkUiLook.Current"/>).</summary>
     public new static MacSkUiLook Instance { get; } = new();
+
+    /// <inheritdoc />
+    /// <remarks>Apple's rubber-band bounce.</remarks>
+    public override SkUiOverscrollMode BaseOverscroll => SkUiOverscrollMode.Bounce;
+
+    /// <inheritdoc />
+    /// <remarks>An inline indicator above the content (UIRefreshControl).</remarks>
+    public override SkUiRefreshStyle BaseRefreshStyle => SkUiRefreshStyle.Inline;
+
+    /// <inheritdoc />
+    /// <remarks>The Mac's spring-like curve.</remarks>
+    protected override SkUiTransition GetTransitionCore(SkUiTransitionKind kind) => kind switch
+    {
+        SkUiTransitionKind.Switch => SkUiTransition.FromMilliseconds(300, SkUiEasings.IosStandard),
+        SkUiTransitionKind.IndicatorPosition => SkUiTransition.FromMilliseconds(300, SkUiEasings.IosStandard),
+        SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(350, SkUiEasings.IosStandard),
+        SkUiTransitionKind.Release => SkUiTransition.FromMilliseconds(250, Easing.CubicOut),
+        _ => base.GetTransitionCore(kind)
+    };
 }

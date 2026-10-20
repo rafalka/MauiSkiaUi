@@ -19,7 +19,7 @@ Not available: MAUI's `IndicatorTemplate` and `IndicatorLayout` (one template vi
 
 The current look ([ControlLook.md](../design/ControlLook.md)) draws every indicator view:
 
-- `DefaultSkUiLook.IndicatorStyle`: `Dots` (default; the selected dot takes the selected color, blended while the selection moves) or `Pill` (the selected indicator stretches into a pill two sizes longer that slides between the dots, as Material's). Call `SkUiLook.NotifyChanged()` after changing it.
+- `DefaultSkUiLook.IndicatorStyle`: `Dots` (the default look's; the selected dot takes the selected color, blended while the selection moves) or `Pill` (the selected indicator stretches into a pill two sizes longer that slides between the dots, as Material's). The option's own default, `Default`, is the look's `BaseIndicatorStyle` (`Pill` in `AndroidSkUiLook`). Call `SkUiLook.NotifyChanged()` after changing it.
 - `SkUiLook.DrawIndicators(canvas, SkUiIndicatorPaint)`, or the `IndicatorPainter` delegate, draws the row. The paint struct has the row's `Bounds`, the visible `Count` and the `First` item shown, the fractional `Position`, the sizes, shape, colors and orientation, and helpers that lay the row out exactly as the control hit-tests it: `GetIndicatorBounds(slot)`, `GetSelection(slot)` (0–1, shared by two neighbors while the selection moves) and `GetColor(slot)`. It is drawn again while the selection moves, so keep it cheap.
 - `GetSelectedIndicatorExtraLength(size, shape)`: how much longer the selected indicator is (the control lays the row out with it); `DefaultIndicatorSpacing`; `GetTransition(SkUiTransitionKind.IndicatorPosition)`.
 
