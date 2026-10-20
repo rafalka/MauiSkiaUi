@@ -6,7 +6,7 @@
     {
       "name": "skiaui-migration",
       "source": "./plugins/skiaui-migration",
-      "description": "Audit a .NET MAUI app for a SkiaUi migration and convert pages, custom controls and gestures to drawn controls."
+      "description": "Audit a .NET MAUI app for a SkiaUi migration, convert pages, custom controls and gestures to drawn controls, and match the drawn controls to the app's MAUI controls."
     }
   ]
 }

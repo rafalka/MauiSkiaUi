@@ -76,7 +76,11 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
     public string? IncrementText;
 
     public string? FontFamily;
-    public double FontSize = DefaultFontSize;
+    /// <summary>The font size set on the control, or NaN for the look's (<see cref="EffectiveFontSize"/>).</summary>
+    public double FontSize = double.NaN;
+
+    /// <summary>The font size to lay text out with: <see cref="FontSize"/>, or the look's.</summary>
+    public double EffectiveFontSize => SkUiLook.FontSizeOrDefault(FontSize);
     public FontAttributes FontAttributes;
     public bool FontAutoScalingEnabled = true;
 
@@ -122,7 +126,7 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
     // Around a button's text: it never touches the button's edges.
     private static readonly Thickness TextPadding = new(8, 4);
 
-    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(FontSize, FontAutoScalingEnabled),
+    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(EffectiveFontSize, FontAutoScalingEnabled),
         LineBreakMode.TailTruncation, null, 1, -1, 0, _owner.IsRightToLeft ? SkUiTextDirection.RightToLeft : SkUiTextDirection.Auto,
         SkUiTextRendering.Default, FontAttributes);
 

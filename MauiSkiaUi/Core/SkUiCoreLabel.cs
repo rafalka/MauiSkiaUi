@@ -21,7 +21,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     private string _text = string.Empty;
     private string _displayText = string.Empty; // _text after _textTransform
     private Color _textColor = SkUiColors.DefaultForeground;
-    private double _fontSize = SkUiLook.Current.DefaultFontSize;
+    private double _fontSize = double.NaN; // NaN: the look's (EffectiveFontSize)
     private bool _fontAutoScalingEnabled = true;
     private int _fontScaleVersion; // SkUiFontScaling.Version the rich text was built at
     private string? _fontFamily;
@@ -71,10 +71,10 @@ public class SkUiCoreLabel : SkUiCoreNode
         set => SetTextColor(value);
     }
 
-    /// <summary>Font size in DIPs.</summary>
+    /// <summary>Font size in DIPs (default: the look's <see cref="SkUiLook.DefaultFontSize"/>).</summary>
     public double FontSize
     {
-        get => _fontSize;
+        get => EffectiveFontSize;
         set => SetFontSize(value);
     }
 
@@ -419,6 +419,9 @@ public class SkUiCoreLabel : SkUiCoreNode
     }
 
     /// <summary>A font size as drawn: scaled by the system text size when <see cref="FontAutoScalingEnabled"/>.</summary>
+    /// <summary>The font size text is laid out with: the one set, or the look's (the subtree's own look included).</summary>
+    private double EffectiveFontSize => SkUiLook.FontSizeOrDefault(_fontSize);
+
     private double ScaledFontSize(double size) => SkUiFontScaling.ScaleFontSize(size, _fontAutoScalingEnabled);
 
     private SkUiRichTextLayout RichLayout => _richLayout ??= new SkUiRichTextLayout();
@@ -426,7 +429,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     private SkUiRichText BuildRichText()
     {
         if (IsHtml)
-            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, _fontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations,
+            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, EffectiveFontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations,
                 _fontAutoScalingEnabled);
         if (_spans.Length == 0) return SkUiRichText.Empty;
         var builder = new SkUiRichText.Builder();
@@ -435,7 +438,7 @@ public class SkUiCoreLabel : SkUiCoreNode
             var attributes = span.FontAttributes ?? _fontAttributes;
             var transform = span.TextTransform != TextTransform.Default ? span.TextTransform : _textTransform;
             builder.Add(SkUiTextTransform.Apply(span.Text, transform),
-                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(span.FontFamily ?? _fontFamily, attributes), SkUiFontScaling.ScaleFontSize(span.FontSize ?? _fontSize, span.FontAutoScalingEnabled ?? _fontAutoScalingEnabled), attributes,
+                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(span.FontFamily ?? _fontFamily, attributes), SkUiFontScaling.ScaleFontSize(span.FontSize ?? EffectiveFontSize, span.FontAutoScalingEnabled ?? _fontAutoScalingEnabled), attributes,
                     span.CharacterSpacing ?? _characterSpacing, span.LineHeight ?? _lineHeight),
                 new SkUiTextSpanPaint(ToSkColor(span.TextColor ?? _textColor), span.BackgroundColor is { } background ? ToSkColor(background) : default,
                     span.TextDecorations ?? _textDecorations));
@@ -728,7 +731,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Breaks the text again at the next measure, e.g. when what a custom <see cref="LineBreaker"/> reads has changed.</summary>
     public void InvalidateTextLayout() => InvalidateText();
 
-    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), ScaledFontSize(_fontSize), _lineBreakMode, _lineBreaker,
+    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), ScaledFontSize(EffectiveFontSize), _lineBreakMode, _lineBreaker,
         _maxLines, _lineHeight, _characterSpacing, EffectiveTextDirection, _textRendering, _fontAttributes, _horizontal == TextAlignment.Justify,
         _shrinkToFit ? (float)_minimumFontScale : 1, _growToFill ? (float)_maximumFontScale : 1, _allowsTightening);
 
@@ -736,7 +739,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         if (!HasText && SkeletonPlaceholderLines is > 0 and var lines)
-            return SkUiSkeletonScope.PlaceholderSize(lines, _layout.LineSpacing(TextStyle), _fontSize, _padding, widthConstraint);
+            return SkUiSkeletonScope.PlaceholderSize(lines, _layout.LineSpacing(TextStyle), EffectiveFontSize, _padding, widthConstraint);
         return UsesRichText
             ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint, heightConstraint)
             : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint, heightConstraint);

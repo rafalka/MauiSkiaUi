@@ -68,7 +68,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     /// <inheritdoc />
     protected override TextAlignment DefaultTextAlignment => TextAlignment.Center;
     /// <inheritdoc />
-    protected override Thickness DefaultPadding => new(18, 12);
+    protected override Thickness DefaultPadding => SkUiLook.Current.DefaultButtonPadding;
     /// <inheritdoc />
     protected override double DefaultCornerRadius => SkUiLook.Current.DefaultButtonCornerRadius;
     /// <inheritdoc />

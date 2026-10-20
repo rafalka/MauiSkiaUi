@@ -29,6 +29,9 @@ internal readonly struct SkUiLookScope : IDisposable
         return default;
     }
 
+    /// <summary>Makes <paramref name="look"/> current on this thread (controls created in the scope read their defaults from it).</summary>
+    internal static SkUiLookScope Enter(SkUiLook look) => new(look);
+
     /// <summary>Restores the look the thread used before.</summary>
     public void Dispose()
     {

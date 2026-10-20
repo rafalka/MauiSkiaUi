@@ -82,7 +82,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
     /// <summary>Bindable property for <see cref="FontSize"/>.</summary>
     public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiPickerBase), 0d, defaultValueCreator: _ => SkUiPickerModel.DefaultFontSize,
         validateValue: SkUiValidate.FinitePositive,
-        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.FontSize = (double)value, measure: true));
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.FontSize = view.IsSet(FontSizeProperty) ? (double)value : double.NaN, measure: true));
 
     /// <summary>Bindable property for <see cref="FontAttributes"/>.</summary>
     public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiPickerBase), FontAttributes.None,

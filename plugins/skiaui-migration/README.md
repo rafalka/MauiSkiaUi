@@ -6,8 +6,9 @@ Agent skills that help an AI coding agent move .NET MAUI screens to SkiaUi's dra
 | --- | --- |
 | `skiaui-audit` | Read-only survey of a MAUI app: controls by migration path, blockers, gesture and `TouchBehavior` work, custom handlers, third-party and custom controls, pages ranked by size. Ends with a migration plan |
 | `skiaui-migrate` | Converts a page, view or custom control: places the drawn surface, renames controls, wraps native-only controls, moves styles, converts gestures; checks the result with a XAML checker and a build |
+| `skiaui-look` | Checks that the drawn controls look like the app's MAUI controls on each platform with `SkUiLookComparisonPage`, reads its size report and screenshots, and writes or tunes the app's look until they match |
 
-Both include a Python 3 script (standard library only): `audit_maui_app.py` writes the inventory, `check_xaml.py` reports MAUI content that drawn trees do not run (native views, unsupported gesture recognizers, platform behaviors, effects, `BindableLayout` content that is not drawn, styles targeting MAUI types (keyed, and implicit ones the drawn replacements no longer get), lone drawn controls).
+Each includes a Python 3 script (standard library only): `audit_maui_app.py` writes the inventory, `look_report.py` summarizes comparison reports, `check_xaml.py` reports MAUI content that drawn trees do not run (native views, unsupported gesture recognizers, platform behaviors, effects, `BindableLayout` content that is not drawn, styles targeting MAUI types (keyed, and implicit ones the drawn replacements no longer get), lone drawn controls).
 
 ## Install in Claude Code
 
@@ -18,9 +19,9 @@ As a plugin, from this repository's marketplace:
 /plugin install skiaui-migration@skiaui
 ```
 
-Then ask, for example, "audit this app for a SkiaUi migration" or "migrate Views/OrderDetailPage.xaml to SkiaUi", or run `/skiaui-migration:skiaui-audit` / `/skiaui-migration:skiaui-migrate Views/OrderDetailPage.xaml`.
+Then ask, for example, "audit this app for a SkiaUi migration", "migrate Views/OrderDetailPage.xaml to SkiaUi" or "do the drawn controls match our MAUI controls on Android?", or run `/skiaui-migration:skiaui-audit` / `/skiaui-migration:skiaui-migrate Views/OrderDetailPage.xaml`.
 
-Or copy the skill folders (`skills/skiaui-audit`, `skills/skiaui-migrate`) into your app repository's `.claude/skills/` (for everyone working on the app) or into `~/.claude/skills/` (for you, in every project).
+Or copy the skill folders (`skills/skiaui-audit`, `skills/skiaui-migrate`, `skills/skiaui-look`) into your app repository's `.claude/skills/` (for everyone working on the app) or into `~/.claude/skills/` (for you, in every project).
 
 ## Other agents
 
@@ -31,6 +32,7 @@ The skills use the `SKILL.md` format (YAML front matter with `name` and `descrip
 ```bash
 python3 skills/skiaui-audit/scripts/audit_maui_app.py --top 30 path/to/app > inventory.md
 python3 skills/skiaui-migrate/scripts/check_xaml.py --root path/to/app path/to/app/Views
+python3 skills/skiaui-look/scripts/look_report.py ios.log android.log
 ```
 
 `check_xaml.py` exits with 1 when it finds errors, so it can also run in CI over converted folders.

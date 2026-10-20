@@ -96,10 +96,31 @@ public class SkUiLook
 
     /// <summary>
     /// The font size of labels, buttons, radio buttons, text fields, pickers and steppers that set none, in DIPs (default 16;
-    /// the platform looks use their platform's body size). Read when a control is created, so set the look before building
-    /// pages; controls with their own size are unaffected.
+    /// the platform looks use their platform's body size). Read when text is laid out, so a subtree's own look
+    /// (<see cref="SkUiView.Look"/>) applies; the controls' <c>FontSize</c> getters return the app look's.
     /// </summary>
     public virtual double DefaultFontSize => 16;
+
+    /// <summary>
+    /// Whether text adds the font's padding above its first line and below its last (the extents of its tallest glyphs
+    /// instead of its ascent and descent), as Android's TextView does (default <c>false</c>; the Android looks: <c>true</c>).
+    /// </summary>
+    public virtual bool TextIncludesFontPadding => false;
+
+    /// <summary>
+    /// Whether text applies its font's own tracking (the <c>trak</c> table), as CoreText does on Apple platforms (default
+    /// <c>false</c>; the iOS and Mac looks: <c>true</c>). SF at 17 pt is 0.43 pt tighter per character than its advances.
+    /// </summary>
+    public virtual bool AppliesFontTracking => false;
+
+    /// <summary>
+    /// The size the font's tracking is looked up at, relative to the font size (default 1). Mac Catalyst in the iPad idiom
+    /// draws at 77% and CoreText tracks at the drawn size: 17 pt text tracks as 13 pt.
+    /// </summary>
+    public virtual double FontTrackingSizeScale => 1;
+
+    /// <summary>A control's font size field: <paramref name="size"/>, or the look's <see cref="DefaultFontSize"/> when it is NaN (not set).</summary>
+    internal static double FontSizeOrDefault(double size) => double.IsNaN(size) ? Current.DefaultFontSize : size;
 
     /// <summary>
     /// The font family of text that sets none (default <c>null</c>: the platform's system font, which is SF on Apple and Roboto
@@ -265,6 +286,9 @@ public class SkUiLook
     /// <summary>Default button corner radius in DIPs.</summary>
     public virtual double DefaultButtonCornerRadius => 6;
 
+    /// <summary>The padding of buttons that set none, DIPs (default 18 × 12).</summary>
+    public virtual Thickness DefaultButtonPadding => new(18, 12);
+
     /// <summary>Optional Button painter (fill, border and press feedback behind the text); replaces <see cref="DrawButtonCore"/>.</summary>
     public Action<SKCanvas, SkUiButtonPaint>? ButtonPainter { get; set; }
 
@@ -398,6 +422,12 @@ public class SkUiLook
     /// </summary>
     public virtual double DefaultRadioButtonContentSpacing => 8;
 
+    /// <summary>
+    /// Space a radio button keeps around its circle and content, added to its own <c>Padding</c>, DIPs (default 0; MAUI's
+    /// radio button template on Apple: 8 × 7).
+    /// </summary>
+    public virtual Thickness RadioButtonPadding => default;
+
     /// <summary>Optional RadioButton intrinsic measure override.</summary>
     public Func<double, double, Size>? RadioButtonMeasure { get; set; }
 
@@ -481,6 +511,13 @@ public class SkUiLook
     /// touch to the value the thumb shows there.
     /// </summary>
     public virtual float SliderThumbRadius => 10;
+
+    /// <summary>
+    /// Where the thumb's center travels: from this inset to the length minus it, in DIPs (default
+    /// <see cref="SliderThumbRadius"/>; a capsule thumb's half width, Android's track padding). Input maps a touch to the value
+    /// the thumb shows there.
+    /// </summary>
+    public virtual float SliderThumbTravelInset => SliderThumbRadius;
 
     /// <summary>Optional Slider intrinsic measure override (width constraint, height constraint, orientation).</summary>
     public Func<double, double, StackOrientation, Size>? SliderMeasure { get; set; }

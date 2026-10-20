@@ -246,7 +246,11 @@ internal sealed class SkUiPickerModel
     public object? SelectionChangedCommandParameter;
     public Color? TextColor;
     public string? FontFamily;
-    public double FontSize = DefaultFontSize;
+    /// <summary>The font size set on the control, or NaN for the look's (<see cref="EffectiveFontSize"/>).</summary>
+    public double FontSize = double.NaN;
+
+    /// <summary>The font size to lay text out with: <see cref="FontSize"/>, or the look's.</summary>
+    public double EffectiveFontSize => SkUiLook.FontSizeOrDefault(FontSize);
     public FontAttributes FontAttributes;
     public bool FontAutoScalingEnabled = true;
     public double CharacterSpacing;
@@ -339,7 +343,7 @@ internal sealed class SkUiPickerModel
     #region Field
 
     /// <summary>The text style of the field (and of the popup's rows without a template).</summary>
-    internal SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(FontSize, FontAutoScalingEnabled),
+    internal SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(EffectiveFontSize, FontAutoScalingEnabled),
         LineBreakMode.TailTruncation, null, 1, -1, CharacterSpacing, _owner.TextDirection, SkUiTextRendering.Default, FontAttributes);
 
     /// <summary>Where the text sits in the field: the look's padding, with the chevron's room at the end side.</summary>
@@ -415,7 +419,7 @@ internal sealed class SkUiPickerModel
         }
         var text = DisplayText;
         var size = text.Length == 0
-            ? new Size(inset.HorizontalThickness, inset.VerticalThickness + SkUiFontScaling.ScaleFontSize(FontSize, FontAutoScalingEnabled) * 1.2)
+            ? new Size(inset.HorizontalThickness, inset.VerticalThickness + SkUiFontScaling.ScaleFontSize(EffectiveFontSize, FontAutoScalingEnabled) * 1.2)
             : _layout.Measure(text, TextStyle, inset, widthConstraint, heightConstraint);
         if (!HasExplicitMinimumHeight)
             size = new Size(size.Width, Math.Max(size.Height, SkUiLook.Current.DefaultPickerMinimumHeight));
@@ -904,7 +908,7 @@ internal sealed class SkUiPickerModel
             var origin = SkUiWindowMetrics.SurfaceOrigin(surfaceRoot);
             var anchorBounds = rootBounds.Offset(origin.X, origin.Y);
             var windowSize = SkUiWindowMetrics.WindowSize(anchor.Window);
-            var rowStyle = new SkUiPickerRowStyle(model.FontFamily, model.FontSize, model.FontAttributes, model.FontAutoScalingEnabled, model.CharacterSpacing,
+            var rowStyle = new SkUiPickerRowStyle(model.FontFamily, model.EffectiveFontSize, model.FontAttributes, model.FontAutoScalingEnabled, model.CharacterSpacing,
                 model.TextColor, model.SelectionBackground);
             var presenter = SkUiPopups.Resolve(model.PopupPresenter);
             var requiresAccept = model.UpdateMode == SkUiPickerUpdateMode.WhenFinished;

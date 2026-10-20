@@ -5,6 +5,9 @@ public static class SkUiEasings
 {
     private const double Tolerance = 1e-5;
 
+    /// <summary>Material 2's standard curve (Android's fast out, slow in), <c>cubic-bezier(0.4, 0, 0.2, 1)</c>.</summary>
+    public static readonly Easing Standard = CubicBezier(0.4, 0, 0.2, 1);
+
     /// <summary>Material 3's emphasized curve, <c>cubic-bezier(0.2, 0, 0, 1)</c>.</summary>
     public static readonly Easing Emphasized = CubicBezier(0.2, 0, 0, 1);
 

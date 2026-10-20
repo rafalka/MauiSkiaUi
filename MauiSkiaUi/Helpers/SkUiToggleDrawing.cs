@@ -30,6 +30,9 @@ internal static class SkUiToggleDrawing
         Color color, bool enabled)
     {
         var size = Math.Min(width, height);
+        // A look whose check box is wider than tall centers the box in that width (Material 3's 18 dp box in 48 × 32).
+        var slotSize = SkUiLook.Current.DefaultCheckBoxSize;
+        var offset = slotSize.Width > slotSize.Height ? Math.Max(0, Math.Min(width, (float)slotSize.Width) - size) / 2 : 0;
         var background = Colors.White;
         var border = SkUiColors.Muted;
         if (!enabled)
@@ -40,7 +43,7 @@ internal static class SkUiToggleDrawing
         }
         // RTL: the glyph sits at the start (right) edge; the glyph itself is not mirrored.
         var save = canvas.Save();
-        if (rightToLeft) canvas.Translate(width - size, 0);
+        canvas.Translate(rightToLeft ? width - size - offset : offset, 0);
         SkUiLook.Current.DrawCheckBox(canvas, new SkUiCheckBoxPaint(size, visual, ToSkColor(color), ToSkColor(background), ToSkColor(border), enabled));
         canvas.RestoreToCount(save);
     }

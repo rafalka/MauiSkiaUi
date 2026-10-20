@@ -144,8 +144,19 @@ public enum SkUiSwitchStyle
 {
     /// <summary>A filled pill with a round thumb that stretches when pressed (iOS-like).</summary>
     Pill,
-    /// <summary>An outlined track while off, filled while on; the thumb is small and grows when on (Material and Fluent).</summary>
-    Outlined
+    /// <summary>An outlined track while off, filled while on; the thumb is small and grows when on (Material 3 and Fluent).</summary>
+    Outlined,
+    /// <summary>A thin track under a larger round thumb with a shadow, centered in the control (Material 2's in its 48 dp touch target).</summary>
+    ThumbOverTrack
+}
+
+/// <summary>How a look draws sliders (<see cref="DefaultSkUiLook.SliderStyle"/>).</summary>
+public enum SkUiSliderStyle
+{
+    /// <summary>A round or capsule thumb on a track (iOS, Material 2, Fluent).</summary>
+    Thumb,
+    /// <summary>A bar handle between the active and the inactive track, with gaps and a stop dot (Material 3).</summary>
+    Handle
 }
 
 /// <summary>How <see cref="DefaultSkUiLook"/> draws indicator views (<see cref="DefaultSkUiLook.IndicatorStyle"/>).</summary>

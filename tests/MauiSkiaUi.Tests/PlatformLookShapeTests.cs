@@ -7,26 +7,40 @@ public class PlatformLookShapeTests
 {
     public static TheoryData<DefaultSkUiLook> Looks => new()
     {
-        DefaultSkUiLook.Instance, AndroidSkUiLook.Instance, IosSkUiLook.Instance, MacSkUiLook.Instance, WindowsSkUiLook.Instance
+        DefaultSkUiLook.Instance, AndroidSkUiLook.Instance, AndroidMaterial3SkUiLook.Instance, IosSkUiLook.Instance, MacSkUiLook.Instance,
+        WindowsSkUiLook.Instance
     };
 
     [Fact]
     public void LooksHaveTheirPlatformsSizes()
     {
+        // The sizes MAUI's native controls measure at on each platform (iOS 26; Mac Catalyst in the iPad idiom draws iOS's).
         Assert.Equal(new Size(51, 31), DefaultSkUiLook.Instance.DefaultSwitchSize);
-        Assert.Equal(new Size(51, 31), IosSkUiLook.Instance.DefaultSwitchSize);
-        Assert.Equal(new Size(52, 32), AndroidSkUiLook.Instance.DefaultSwitchSize);
+        Assert.Equal(new Size(63, 28), IosSkUiLook.Instance.DefaultSwitchSize);
+        Assert.Equal(new Size(63, 28), MacSkUiLook.Instance.DefaultSwitchSize);
+        Assert.Equal(new Size(48, 48), AndroidSkUiLook.Instance.DefaultSwitchSize);
+        Assert.Equal(new Size(52, 48), AndroidMaterial3SkUiLook.Instance.DefaultSwitchSize);
         Assert.Equal(new Size(40, 20), WindowsSkUiLook.Instance.DefaultSwitchSize);
-        Assert.Equal(new Size(38, 22), MacSkUiLook.Instance.DefaultSwitchSize);
-        Assert.Equal(new Size(18, 18), AndroidSkUiLook.Instance.DefaultCheckBoxSize);
+        Assert.Equal(new Size(32, 32), AndroidSkUiLook.Instance.DefaultCheckBoxSize);
+        Assert.Equal(new Size(48, 32), AndroidMaterial3SkUiLook.Instance.DefaultCheckBoxSize);
+        Assert.Equal(new Size(18, 18), IosSkUiLook.Instance.DefaultCheckBoxSize);
         Assert.Equal(2, AndroidSkUiLook.Instance.GetCheckBoxCornerRadius(18));
         Assert.Equal(4, WindowsSkUiLook.Instance.GetCheckBoxCornerRadius(20));
-        Assert.Equal(11, IosSkUiLook.Instance.GetCheckBoxCornerRadius(22));
-        Assert.Equal(40, AndroidSkUiLook.Instance.DefaultButtonMinimumHeight);
-        Assert.Equal(44, IosSkUiLook.Instance.DefaultButtonMinimumHeight);
+        Assert.Equal(9, IosSkUiLook.Instance.GetCheckBoxCornerRadius(18));
+        Assert.Equal(36, AndroidSkUiLook.Instance.DefaultButtonMinimumHeight);
+        Assert.Equal(36, IosSkUiLook.Instance.DefaultButtonMinimumHeight);
+        Assert.Equal(35, MacSkUiLook.Instance.DefaultButtonMinimumHeight);
         Assert.Equal(32, WindowsSkUiLook.Instance.DefaultButtonMinimumHeight);
+        Assert.Equal(new Size(20, 20), IosSkUiLook.Instance.DefaultActivityIndicatorSize);
+        Assert.Equal(new Size(48, 48), AndroidSkUiLook.Instance.DefaultActivityIndicatorSize);
+        Assert.Equal(new Size(40, 40), AndroidMaterial3SkUiLook.Instance.DefaultActivityIndicatorSize);
         Assert.Equal(SkUiSwitchStyle.Outlined, WindowsSkUiLook.Instance.SwitchStyle);
+        Assert.Equal(SkUiSwitchStyle.Outlined, AndroidMaterial3SkUiLook.Instance.SwitchStyle);
+        Assert.Equal(SkUiSwitchStyle.ThumbOverTrack, AndroidSkUiLook.Instance.SwitchStyle);
         Assert.Equal(SkUiSwitchStyle.Pill, IosSkUiLook.Instance.SwitchStyle);
+        Assert.Equal(37, IosSkUiLook.Instance.SwitchThumbWidth);
+        Assert.Equal(SkUiSliderStyle.Handle, AndroidMaterial3SkUiLook.Instance.SliderStyle);
+        Assert.Equal(SkUiSliderStyle.Thumb, AndroidSkUiLook.Instance.SliderStyle);
     }
 
     [Theory]

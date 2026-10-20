@@ -49,6 +49,13 @@
             Route="looks" />
     </FlyoutItem>
 
+    <FlyoutItem Title="Look comparison">
+        <ShellContent
+            Title="Look comparison"
+            ContentTemplate="{DataTemplate local:LookComparisonPage}"
+            Route="look-comparison" />
+    </FlyoutItem>
+
     <FlyoutItem Title="Accessibility">
         <ShellContent
             Title="Accessibility"

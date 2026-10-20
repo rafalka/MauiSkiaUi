@@ -9,12 +9,15 @@ namespace MauiSkiaUiDemo;
 /// </summary>
 public sealed class LooksSideBySidePage : ContentPage
 {
-    private const string NativeTitle = "Native MAUI controls";
+    private const string NativeTitle = "Native MAUI controls (app styles)";
+    private const string UnstyledNativeTitle = "Native MAUI controls (platform defaults)";
 
     public LooksSideBySidePage()
     {
         Title = "Looks side by side";
         var stack = new VerticalStackLayout { Padding = 16, Spacing = 16 };
+        stack.Add(UnstyledNativeSection());
+        stack.Add(NativeSection(NativeTitle));
         foreach (var (name, look) in new (string, DefaultSkUiLook)[]
                  {
                      ("Default look", DefaultSkUiLook.Instance), ("Android (Material 3)", AndroidSkUiLook.Instance),
@@ -31,7 +34,6 @@ public sealed class LooksSideBySidePage : ContentPage
                 Content = Section(name, look)
             });
         }
-        stack.Add(NativeSection());
         Content = new ScrollView { Content = stack };
     }
 
@@ -55,7 +57,19 @@ public sealed class LooksSideBySidePage : ContentPage
         };
     }
 
-    private static Border NativeSection() => new()
+    /// <summary>
+    /// Native controls without the app's implicit styles (empty implicit styles here win over the app's), so they show the
+    /// platform's own defaults, which is what the platform looks mimic.
+    /// </summary>
+    private static Border UnstyledNativeSection()
+    {
+        var section = NativeSection(UnstyledNativeTitle);
+        foreach (var type in new[] { typeof(Label), typeof(Button), typeof(Switch), typeof(CheckBox), typeof(RadioButton), typeof(Slider), typeof(ProgressBar), typeof(ActivityIndicator), typeof(Border) })
+            section.Resources.Add(new Style(type));
+        return section;
+    }
+
+    private static Border NativeSection(string title) => new()
     {
         Padding = 12,
         StrokeThickness = 1,
@@ -64,7 +78,7 @@ public sealed class LooksSideBySidePage : ContentPage
             Spacing = 8,
             Children =
             {
-                new Label { Text = NativeTitle, FontAttributes = FontAttributes.Bold },
+                new Label { Text = title, FontAttributes = FontAttributes.Bold },
                 new Button { Text = "Button", HorizontalOptions = LayoutOptions.Start },
                 new Switch { IsToggled = true, HorizontalOptions = LayoutOptions.Start },
                 new CheckBox { IsChecked = true, HorizontalOptions = LayoutOptions.Start },

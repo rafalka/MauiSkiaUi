@@ -16,13 +16,14 @@ public class DefaultSkUiLook : SkUiLook
     public static DefaultSkUiLook Instance { get; } = new();
 
     /// <summary>
-    /// The shared look that mimics the platform the app runs on: <see cref="AndroidSkUiLook"/>, <see cref="IosSkUiLook"/>,
+    /// The shared look that mimics the platform the app runs on: <see cref="AndroidSkUiLook"/> (<see cref="AndroidMaterial3SkUiLook"/>
+    /// when the app turns on MAUI's Material 3), <see cref="IosSkUiLook"/>,
     /// <see cref="MacSkUiLook"/> (Mac Catalyst) or <see cref="WindowsSkUiLook"/>; <see cref="Instance"/> elsewhere (headless).
     /// The default look is the same on every platform; set this as <see cref="SkUiLook.Current"/> (or
     /// <c>UseSkiaUi(options => options.Look = DefaultSkUiLook.ForCurrentPlatform())</c>) for the platform's.
     /// </summary>
     public static DefaultSkUiLook ForCurrentPlatform() =>
-        OperatingSystem.IsAndroid() ? AndroidSkUiLook.Instance
+        OperatingSystem.IsAndroid() ? AndroidSkUiLook.IsMaterial3Enabled ? AndroidMaterial3SkUiLook.Instance : AndroidSkUiLook.Instance
         : OperatingSystem.IsMacCatalyst() ? MacSkUiLook.Instance
         : OperatingSystem.IsIOS() ? IosSkUiLook.Instance
         : OperatingSystem.IsWindows() ? WindowsSkUiLook.Instance
@@ -256,6 +257,27 @@ public class DefaultSkUiLook : SkUiLook
     /// <summary>How switches draw: a filled pill with a round thumb (iOS), or an outlined track whose thumb grows when on (Material, Fluent).</summary>
     public virtual SkUiSwitchStyle SwitchStyle => SkUiSwitchStyle.Pill;
 
+    /// <summary>The width of a <see cref="SkUiSwitchStyle.Pill"/> switch's thumb, DIPs, or 0 for a circle (iOS 26's thumb is a capsule).</summary>
+    public virtual float SwitchThumbWidth => 0;
+
+    /// <summary>The gap between a <see cref="SkUiSwitchStyle.Pill"/> switch's thumb and the track's edge, DIPs.</summary>
+    public virtual float SwitchThumbInset => 2;
+
+    /// <summary>
+    /// The height of a switch's track, centered in the control, DIPs (default 0: the control's height; Material 2: 14, Material 3:
+    /// 32 in a 48 dp control). Used by the <see cref="SkUiSwitchStyle.Outlined"/> and <see cref="SkUiSwitchStyle.ThumbOverTrack"/> styles.
+    /// </summary>
+    public virtual float SwitchTrackHeight => 0;
+
+    /// <summary>The diameter of a <see cref="SkUiSwitchStyle.ThumbOverTrack"/> switch's thumb, DIPs.</summary>
+    public virtual float SwitchThumbDiameter => 20;
+
+    /// <summary>The width of a <see cref="SkUiSwitchStyle.ThumbOverTrack"/> switch's track, centered in the control, DIPs.</summary>
+    public virtual float SwitchTrackWidth => 23;
+
+    /// <summary>How far a <see cref="SkUiSwitchStyle.ThumbOverTrack"/> switch's thumb center moves from off to on, DIPs (centered in the control).</summary>
+    public virtual float SwitchThumbTravel => 19.5f;
+
     /// <summary>The <see cref="SkUiSwitchStyle.Outlined"/> thumb's radius when off, as a fraction of the track's height.</summary>
     public virtual float SwitchOffThumbRadiusFraction => 0.3f;
 
@@ -273,21 +295,28 @@ public class DefaultSkUiLook : SkUiLook
             DrawOutlinedSwitch(canvas, toggle);
             return;
         }
+        if (SwitchStyle == SkUiSwitchStyle.ThumbOverTrack)
+        {
+            DrawThumbOverTrackSwitch(canvas, toggle);
+            return;
+        }
         var bounds = toggle.Bounds;
         var visual = toggle.Visual;
         var radius = bounds.Height / 2;
         // Indeterminate: halfway between off and on, thumb in the middle.
         var track = visual.Blend(toggle.OffTrack, toggle.OnTrack, Mix(toggle.OffTrack, toggle.OnTrack, 0.5f));
         DrawRoundedBox(canvas, bounds, radius, track, SKColors.Transparent, 0);
-        var thumbRadius = radius - 2;
-        var start = bounds.Left + radius;
-        var end = bounds.Right - radius;
+        var thumbRadius = radius - SwitchThumbInset;
+        // A round thumb, or a capsule (iOS 26) as wide as SwitchThumbWidth.
+        var halfWidth = SwitchThumbWidth > 0 ? SwitchThumbWidth / 2 : thumbRadius;
+        var start = bounds.Left + SwitchThumbInset + halfWidth;
+        var end = bounds.Right - SwitchThumbInset - halfWidth;
         var thumbX = visual.Blend(start, end, bounds.MidX);
         // Pressed: the thumb stretches towards the middle (iOS-like).
         var stretch = thumbRadius * 0.35f * visual.Pressed;
         var position = end > start ? (thumbX - start) / (end - start) : 0;
-        var thumb = new SKRect(thumbX - thumbRadius - stretch * position, bounds.Top + radius - thumbRadius,
-            thumbX + thumbRadius + stretch * (1 - position), bounds.Top + radius + thumbRadius);
+        var thumb = new SKRect(thumbX - halfWidth - stretch * position, bounds.MidY - thumbRadius,
+            thumbX + halfWidth + stretch * (1 - position), bounds.MidY + thumbRadius);
         canvas.DrawRoundRect(thumb, thumbRadius, thumbRadius, Paint(toggle.Thumb));
     }
 
@@ -295,6 +324,8 @@ public class DefaultSkUiLook : SkUiLook
     private void DrawOutlinedSwitch(SKCanvas canvas, SkUiSwitchPaint toggle)
     {
         var bounds = toggle.Bounds;
+        if (SwitchTrackHeight > 0 && SwitchTrackHeight < bounds.Height)
+            bounds = new SKRect(bounds.Left, bounds.MidY - SwitchTrackHeight / 2, bounds.Right, bounds.MidY + SwitchTrackHeight / 2);
         var visual = toggle.Visual;
         var radius = bounds.Height / 2;
         var on = visual.Blend(0, 1, 0.5f);
@@ -310,6 +341,37 @@ public class DefaultSkUiLook : SkUiLook
         canvas.DrawCircle(thumbX, bounds.MidY, thumbRadius, Paint(Mix(toggle.OffTrack, toggle.Thumb, on)));
     }
 
+    /// <summary>
+    /// Material 2's switch: a thin track of half the on color (the off track color while off) under a larger round thumb that
+    /// takes the on color, with a soft shadow; the thumb's center travels between the track's rounded ends.
+    /// </summary>
+    private void DrawThumbOverTrackSwitch(SKCanvas canvas, SkUiSwitchPaint toggle)
+    {
+        var bounds = toggle.Bounds;
+        var visual = toggle.Visual;
+        var on = visual.Blend(0, 1, 0.5f);
+        var thumbRadius = Math.Min(SwitchThumbDiameter, bounds.Height) / 2;
+        var trackHeight = SwitchTrackHeight > 0 ? Math.Min(SwitchTrackHeight, bounds.Height) : bounds.Height;
+        var trackHalf = Math.Min(SwitchTrackWidth, bounds.Width) / 2;
+        var travelHalf = Math.Min(SwitchThumbTravel / 2, bounds.Width / 2 - thumbRadius);
+        var start = bounds.MidX - travelHalf;
+        var end = bounds.MidX + travelHalf;
+        var track = new SKRect(bounds.MidX - trackHalf, bounds.MidY - trackHeight / 2, bounds.MidX + trackHalf, bounds.MidY + trackHeight / 2);
+        var onTrack = toggle.OnTrack.WithAlpha((byte)(toggle.OnTrack.Alpha / 2));
+        DrawRoundedBox(canvas, track, trackHeight / 2, Mix(toggle.OffTrack, onTrack, on), SKColors.Transparent, 0);
+        var thumbX = visual.Blend(start, end, (start + end) / 2);
+        var color = Mix(toggle.Thumb, toggle.OnTrack, on);
+        if (visual.Pressed > 0)
+            canvas.DrawCircle(thumbX, bounds.MidY, thumbRadius * 2, Paint(color.WithAlpha((byte)(31 * visual.Pressed))));
+        if (toggle.IsEnabled)
+        {
+            // A soft drop shadow: two faint circles below the thumb.
+            canvas.DrawCircle(thumbX, bounds.MidY + 1, thumbRadius + 1, Paint(new SKColor(0, 0, 0, 20)));
+            canvas.DrawCircle(thumbX, bounds.MidY + 0.5f, thumbRadius + 0.5f, Paint(new SKColor(0, 0, 0, 36)));
+        }
+        canvas.DrawCircle(thumbX, bounds.MidY, thumbRadius, Paint(color));
+    }
+
     /// <summary>The corner radius of a check box of <paramref name="size"/>: a rounded square, or a circle (iOS) at half the size.</summary>
     public virtual float GetCheckBoxCornerRadius(float size) => size * 0.2f;
 
@@ -322,14 +384,49 @@ public class DefaultSkUiLook : SkUiLook
     /// <summary>The width of a radio button's ring as a fraction of its size.</summary>
     public virtual float RadioRingFraction => 0.08f;
 
-    /// <summary>The thickness of a slider's track.</summary>
+    /// <summary>The thickness of a slider's track (Material 3's handle style: 16).</summary>
     public virtual float SliderTrackHeight => 4;
+
+    /// <summary>How sliders draw: a round or capsule thumb on a track, or Material 3's bar handle between two track parts.</summary>
+    public virtual SkUiSliderStyle SliderStyle => SkUiSliderStyle.Thumb;
+
+    /// <summary>The width of a <see cref="SkUiSliderStyle.Thumb"/> slider's thumb (default its height, a circle; iOS 26's is a capsule).</summary>
+    public virtual float SliderThumbWidth => 2 * SliderThumbRadius;
+
+    /// <summary>Where a slider's track starts and ends inside its bounds, DIPs (default where the thumb's center travels; iOS: 0, the full length).</summary>
+    public virtual float SliderTrackInset => SliderThumbTravelInset;
+
+    /// <summary>The size of a <see cref="SkUiSliderStyle.Handle"/> slider's bar handle, DIPs.</summary>
+    public virtual Size SliderHandleSize => new(4, 44);
+
+    /// <summary>The gap on each side of a <see cref="SkUiSliderStyle.Handle"/> slider's handle, DIPs.</summary>
+    public virtual float SliderHandleGap => 6;
 
     /// <summary>Whether a slider's thumb casts a soft shadow (iOS, the Mac).</summary>
     public virtual bool SliderThumbHasShadow => false;
 
     /// <inheritdoc />
     protected override void DrawCheckBoxCore(SKCanvas canvas, SkUiCheckBoxPaint box)
+    {
+        var inset = CheckBoxInset;
+        if (inset > 0 && box.Size > 2 * inset)
+        {
+            canvas.Save();
+            canvas.Translate(inset, inset);
+            DrawCheckBoxBox(canvas, box with { Size = box.Size - 2 * inset });
+            canvas.Restore();
+            return;
+        }
+        DrawCheckBoxBox(canvas, box);
+    }
+
+    /// <summary>The space around a check box's box inside its size, DIPs (default 0; Android: an 18 dp box in 32 dp).</summary>
+    public virtual float CheckBoxInset => 0;
+
+    /// <summary>The space around a radio button's ring inside its size, DIPs (default 0; Android: a 20 dp ring in 32 dp).</summary>
+    public virtual float RadioButtonInset => 0;
+
+    private void DrawCheckBoxBox(SKCanvas canvas, SkUiCheckBoxPaint box)
     {
         var size = box.Size;
         var visual = box.Visual;
@@ -377,6 +474,20 @@ public class DefaultSkUiLook : SkUiLook
     /// <inheritdoc />
     protected override void DrawRadioButtonCore(SKCanvas canvas, SkUiRadioButtonPaint radio)
     {
+        var inset = RadioButtonInset;
+        if (inset > 0 && radio.Size > 2 * inset)
+        {
+            canvas.Save();
+            canvas.Translate(inset, inset);
+            DrawRadioRing(canvas, radio with { Size = radio.Size - 2 * inset });
+            canvas.Restore();
+            return;
+        }
+        DrawRadioRing(canvas, radio);
+    }
+
+    private void DrawRadioRing(SKCanvas canvas, SkUiRadioButtonPaint radio)
+    {
         var size = radio.Size;
         var visual = radio.Visual;
         var center = size / 2;
@@ -401,30 +512,91 @@ public class DefaultSkUiLook : SkUiLook
     {
         var bounds = slider.Bounds;
         var radius = SliderThumbRadius;
-        var start = bounds.Left + radius;
-        var end = Math.Max(start, bounds.Right - radius);
+        var travel = SliderThumbTravelInset;
+        var start = bounds.Left + travel;
+        var end = Math.Max(start, bounds.Right - travel);
         var thumbX = start + (end - start) * Math.Clamp(slider.Fraction, 0, 1);
+        var trackStart = bounds.Left + SliderTrackInset;
+        var trackEnd = Math.Max(trackStart, bounds.Right - SliderTrackInset);
         var track = SliderTrackHeight;
         var top = bounds.MidY - track / 2;
-        DrawRoundedBox(canvas, new SKRect(start, top, end, top + track), track / 2, slider.MaximumTrack, SKColors.Transparent, 0);
-        if (thumbX > start)
-            DrawRoundedBox(canvas, new SKRect(start, top, thumbX, top + track), track / 2, slider.MinimumTrack, SKColors.Transparent, 0);
+        if (SliderStyle == SkUiSliderStyle.Handle)
+        {
+            DrawHandleSlider(canvas, slider, thumbX, new SKRect(trackStart, top, trackEnd, top + track));
+            return;
+        }
+        DrawRoundedBox(canvas, new SKRect(trackStart, top, trackEnd, top + track), track / 2, slider.MaximumTrack, SKColors.Transparent, 0);
+        if (thumbX > trackStart)
+            DrawRoundedBox(canvas, new SKRect(trackStart, top, thumbX, top + track), track / 2, slider.MinimumTrack, SKColors.Transparent, 0);
         if (slider.HasThumbImage)
             return; // the control draws the image
         if (slider.Pressed > 0)
             canvas.DrawCircle(thumbX, bounds.MidY, radius * (1 + 0.8f * slider.Pressed),
                 Paint(slider.Thumb.WithAlpha((byte)(slider.Thumb.Alpha / 5 * slider.Pressed))));
+        // A circle, or a capsule as wide as SliderThumbWidth.
+        var halfWidth = Math.Max(radius, SliderThumbWidth / 2);
+        var thumb = new SKRect(thumbX - halfWidth, bounds.MidY - radius, thumbX + halfWidth, bounds.MidY + radius);
         if (SliderThumbHasShadow)
-            canvas.DrawCircle(thumbX, bounds.MidY + 1, radius + 0.5f, Paint(new SKColor(0, 0, 0, 56)));
-        canvas.DrawCircle(thumbX, bounds.MidY, radius, Paint(slider.Thumb));
+        {
+            var shadow = thumb;
+            shadow.Inflate(0.5f, 0.5f);
+            shadow.Offset(0, 1);
+            canvas.DrawRoundRect(shadow, radius + 0.5f, radius + 0.5f, Paint(new SKColor(0, 0, 0, 40)));
+        }
+        canvas.DrawRoundRect(thumb, radius, radius, Paint(slider.Thumb));
+    }
+
+    /// <summary>The inner corner radius of a <see cref="SkUiSliderStyle.Handle"/> slider's track parts at the handle, DIPs.</summary>
+    private const float HandleTrackInnerRadius = 2;
+
+    /// <summary>
+    /// Material 3's slider: the active track up to a gap before a bar handle, the inactive track after a gap beyond it, and a
+    /// stop dot at the end of the inactive track. The handle narrows while pressed.
+    /// </summary>
+    private void DrawHandleSlider(SKCanvas canvas, SkUiSliderPaint slider, float thumbX, SKRect track)
+    {
+        var outer = track.Height / 2;
+        var handle = SliderHandleSize;
+        var half = (float)handle.Width / 2;
+        var gap = SliderHandleGap;
+        var activeEnd = thumbX - half - gap;
+        if (activeEnd > track.Left)
+            DrawRoundedBox(canvas, new SKRect(track.Left, track.Top, activeEnd, track.Bottom),
+                new CornerRadius(outer, HandleTrackInnerRadius, outer, HandleTrackInnerRadius), slider.MinimumTrack, SKColors.Transparent, 0);
+        var inactiveStart = thumbX + half + gap;
+        if (inactiveStart < track.Right)
+        {
+            DrawRoundedBox(canvas, new SKRect(inactiveStart, track.Top, track.Right, track.Bottom),
+                new CornerRadius(HandleTrackInnerRadius, outer, HandleTrackInnerRadius, outer), slider.MaximumTrack, SKColors.Transparent, 0);
+            var dot = track.Right - outer;
+            if (dot - inactiveStart > outer)
+                canvas.DrawCircle(dot, track.MidY, 2, Paint(slider.MinimumTrack));
+        }
+        if (slider.HasThumbImage)
+            return; // the control draws the image
+        var width = half * (1 - 0.5f * slider.Pressed);
+        var height = (float)handle.Height / 2;
+        canvas.DrawRoundRect(new SKRect(thumbX - width, track.MidY - height, thumbX + width, track.MidY + height), width, width, Paint(slider.Thumb));
     }
 
     /// <inheritdoc />
     protected override void DrawProgressBarCore(SKCanvas canvas, SkUiProgressBarPaint bar)
     {
         var bounds = bar.Bounds;
+        if (ProgressBarTrackHeight > 0 && ProgressBarTrackHeight < bounds.Height)
+        {
+            // A thinner bar centered in a taller control (Android's 4 dp bar in 16 dp).
+            var top = bounds.MidY - ProgressBarTrackHeight / 2;
+            bounds = new SKRect(bounds.Left, top, bounds.Right, top + ProgressBarTrackHeight);
+            bar = bar with { Bounds = bounds };
+        }
         if (bounds.Width <= 0 || bounds.Height <= 0) return;
         var radius = GetProgressBarCornerRadius(bounds.Height);
+        if (!bar.IsIndeterminate && ProgressBarGap > 0)
+        {
+            DrawGappedProgress(canvas, bar, Math.Clamp(bar.Progress, 0, 1), radius);
+            return;
+        }
         if (bar.IsIndeterminate)
         {
             // Square, unantialiased track: copies tiled one bar width apart meet without a seam (the compositor
@@ -441,6 +613,29 @@ public class DefaultSkUiLook : SkUiLook
         DrawRoundedBox(canvas, new SKRect(bounds.Left, bounds.Top, bounds.Left + bounds.Width * fraction, bounds.Bottom), radius, bar.Fill, SKColors.Transparent, 0);
     }
 
+    /// <summary>The height of a progress bar's track, centered in the control, DIPs (default 0: the control's height; Android: 4 in 16).</summary>
+    public virtual float ProgressBarTrackHeight => 0;
+
+    /// <summary>The gap between a determinate progress bar's fill and its track, DIPs (default 0: the fill covers the track; Material 3: 4).</summary>
+    public virtual float ProgressBarGap => 0;
+
+    /// <summary>Whether a determinate progress bar with a <see cref="ProgressBarGap"/> ends in a dot of the fill color (Material 3's stop indicator).</summary>
+    public virtual bool ProgressBarHasStopIndicator => false;
+
+    /// <summary>Material 3's progress bar: the fill, a gap, the rest of the track and a stop dot at its end.</summary>
+    private void DrawGappedProgress(SKCanvas canvas, SkUiProgressBarPaint bar, float fraction, float radius)
+    {
+        var bounds = bar.Bounds;
+        var fillEnd = bounds.Left + bounds.Width * fraction;
+        if (fraction > 0)
+            DrawRoundedBox(canvas, new SKRect(bounds.Left, bounds.Top, fillEnd, bounds.Bottom), radius, bar.Fill, SKColors.Transparent, 0);
+        var trackStart = fraction > 0 ? fillEnd + ProgressBarGap : bounds.Left;
+        if (trackStart >= bounds.Right) return;
+        DrawRoundedBox(canvas, new SKRect(trackStart, bounds.Top, bounds.Right, bounds.Bottom), radius, bar.Track, SKColors.Transparent, 0);
+        if (ProgressBarHasStopIndicator && bounds.Right - trackStart > bounds.Height)
+            canvas.DrawCircle(bounds.Right - bounds.Height / 2, bounds.MidY, bounds.Height / 2, Paint(bar.Fill));
+    }
+
     /// <inheritdoc />
     protected override void DrawActivityIndicatorCore(SKCanvas canvas, float width, float height, float sweepStart, SKPaint paint)
     {
@@ -452,8 +647,8 @@ public class DefaultSkUiLook : SkUiLook
         }
         // A circle centered in the slot (MAUI-like), so rotating the recorded arc about the center on the
         // render thread is equivalent to advancing sweepStart.
-        var diameter = Math.Min(width, height);
-        var strokeWidth = (float)Math.Max(2, diameter * 0.1);
+        var diameter = Math.Max(0, Math.Min(width, height) - 2 * ActivityIndicatorInset);
+        var strokeWidth = GetActivityIndicatorStrokeWidth(diameter);
         paint.StrokeWidth = strokeWidth;
         var left = (width - diameter) / 2;
         var top = (height - diameter) / 2;
@@ -478,21 +673,28 @@ public class DefaultSkUiLook : SkUiLook
     /// <summary>How activity indicators draw: an arc (Material), spokes that fade (iOS) or a ring with a short arc (Fluent).</summary>
     public virtual SkUiActivityIndicatorStyle ActivityIndicatorStyle => SkUiActivityIndicatorStyle.Arc;
 
-    /// <summary>The number of spokes of an <see cref="SkUiActivityIndicatorStyle.Spokes"/> indicator.</summary>
-    private const int SpokeCount = 12;
+    /// <summary>The number of spokes of an <see cref="SkUiActivityIndicatorStyle.Spokes"/> indicator (iOS: 8).</summary>
+    public virtual int ActivityIndicatorSpokeCount => 12;
 
-    private static void DrawSpokes(SKCanvas canvas, float width, float height, SKPaint paint)
+    /// <summary>The stroke width of an arc or ring activity indicator whose circle is <paramref name="diameter"/> across.</summary>
+    public virtual float GetActivityIndicatorStrokeWidth(float diameter) => Math.Max(2, diameter * 0.1f);
+
+    /// <summary>The gap between an arc or ring activity indicator's circle and its bounds, DIPs (Material: 4).</summary>
+    public virtual float ActivityIndicatorInset => 0;
+
+    private void DrawSpokes(SKCanvas canvas, float width, float height, SKPaint paint)
     {
+        var spokeCount = Math.Max(1, ActivityIndicatorSpokeCount);
         var diameter = Math.Min(width, height);
         var outer = diameter / 2;
         var inner = outer * 0.55f;
         paint.StrokeWidth = Math.Max(1.5f, diameter * 0.09f);
         var color = paint.Color;
-        for (var spoke = 0; spoke < SpokeCount; spoke++)
+        for (var spoke = 0; spoke < spokeCount; spoke++)
         {
             // The first spoke is the brightest; the following ones fade (the render thread rotates the picture).
-            paint.Color = color.WithAlpha((byte)(color.Alpha * (1 - 0.8f * spoke / SpokeCount)));
-            var angle = -Math.PI / 2 + spoke * 2 * Math.PI / SpokeCount;
+            paint.Color = color.WithAlpha((byte)(color.Alpha * (1 - 0.8f * spoke / spokeCount)));
+            var angle = -Math.PI / 2 + spoke * 2 * Math.PI / spokeCount;
             var cos = (float)Math.Cos(angle);
             var sin = (float)Math.Sin(angle);
             canvas.DrawLine(width / 2 + cos * inner, height / 2 + sin * inner, width / 2 + cos * outer, height / 2 + sin * outer, paint);

@@ -25,7 +25,8 @@ public class PlatformLookMotionTests
         var ios = IosSkUiLook.Instance.GetTransition(SkUiTransitionKind.Switch);
         var windows = WindowsSkUiLook.Instance.GetTransition(SkUiTransitionKind.Switch);
         Assert.Equal(TimeSpan.FromMilliseconds(200), def.Duration);
-        Assert.Equal(TimeSpan.FromMilliseconds(300), android.Duration);
+        Assert.Equal(TimeSpan.FromMilliseconds(250), android.Duration);
+        Assert.Equal(TimeSpan.FromMilliseconds(300), AndroidMaterial3SkUiLook.Instance.GetTransition(SkUiTransitionKind.Switch).Duration);
         Assert.Equal(TimeSpan.FromMilliseconds(300), ios.Duration);
         Assert.Equal(TimeSpan.FromMilliseconds(167), windows.Duration);
         // Only rippling looks spend frames on the ripple.

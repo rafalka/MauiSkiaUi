@@ -1,106 +1,41 @@
 namespace MauiSkiaUi;
 
 /// <summary>
-/// A look that mimics macOS: <see cref="DefaultSkUiLook"/> with the Mac's choices where it has them. It draws the same on every
-/// platform; <see cref="DefaultSkUiLook.ForCurrentPlatform"/> picks it on Mac Catalyst.
+/// A look that mimics MAUI's controls on Mac Catalyst in the iPad idiom (MAUI's default, <c>UIDeviceFamily</c> 2): there
+/// Catalyst draws the iOS controls and scales the whole window to 77%, so this is <see cref="IosSkUiLook"/>, which the same
+/// scaling shrinks alike, with the Mac's focus halo and overlay scroll bars. It draws the same on every platform;
+/// <see cref="DefaultSkUiLook.ForCurrentPlatform"/> picks it on Mac Catalyst.
 /// </summary>
 /// <remarks>
-/// So far: bounce overscroll, an inline pull-to-refresh indicator and (as the default look) outlined picker fields whose lists open anchored to the field, as a
-/// pop-up button's menu. The Mac's own control shapes and sizes come with the platform looks phase
-/// (docs/design/ImplementationPlan.md).
+/// Popups open centered as on an iPad (no bottom sheet: Mac Catalyst is not a phone). Apps that switch to the Mac idiom
+/// (<c>UIDeviceFamily</c> 6, no scaling, AppKit-like controls) need their own look with AppKit's sizes.
 /// </remarks>
-public class MacSkUiLook : DefaultSkUiLook
+public class MacSkUiLook : IosSkUiLook
 {
     /// <summary>A shared instance (set it as <see cref="SkUiLook.Current"/>).</summary>
     public new static MacSkUiLook Instance { get; } = new();
 
     /// <inheritdoc />
-    /// <remarks>Apple's rubber-band bounce.</remarks>
-    public override SkUiOverscrollMode BaseOverscroll => SkUiOverscrollMode.Bounce;
+    /// <remarks>The window is drawn at 77%, and CoreText tracks text at the size it draws.</remarks>
+    public override double FontTrackingSizeScale => 0.77;
 
     /// <inheritdoc />
-    /// <remarks>An inline indicator above the content (UIRefreshControl).</remarks>
-    public override SkUiRefreshStyle BaseRefreshStyle => SkUiRefreshStyle.Inline;
-
-    /// <inheritdoc />
-    /// <remarks>The Mac's spring-like curve.</remarks>
-    protected override SkUiTransition GetTransitionCore(SkUiTransitionKind kind) => kind switch
-    {
-        SkUiTransitionKind.Switch => SkUiTransition.FromMilliseconds(300, SkUiEasings.IosStandard),
-        SkUiTransitionKind.IndicatorPosition => SkUiTransition.FromMilliseconds(300, SkUiEasings.IosStandard),
-        SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(350, SkUiEasings.IosStandard),
-        SkUiTransitionKind.Release => SkUiTransition.FromMilliseconds(250, Easing.CubicOut),
-        _ => base.GetTransitionCore(kind)
-    };
-
-    /// <inheritdoc />
-    /// <remarks>The Mac's smaller switch.</remarks>
-    public override Size DefaultSwitchSize => new(38, 22);
-
-    /// <inheritdoc />
-    public override Size DefaultCheckBoxSize => new(14, 14);
-
-    /// <inheritdoc />
-    public override float GetCheckBoxCornerRadius(float size) => 3;
-
-    /// <inheritdoc />
-    public override float CheckBoxBorderWidth => 1;
-
-    /// <inheritdoc />
-    public override Size DefaultRadioButtonSize => new(14, 14);
-
-    /// <inheritdoc />
-    public override double DefaultButtonMinimumHeight => 28;
-
-    /// <inheritdoc />
-    public override double DefaultSliderThickness => 24;
-
-    /// <inheritdoc />
-    public override float SliderThumbRadius => 8;
-
-    /// <inheritdoc />
-    public override bool SliderThumbHasShadow => true;
+    /// <remarks>Catalyst rounds a system button to 35.</remarks>
+    public override double DefaultButtonMinimumHeight => 35;
 
     /// <inheritdoc />
     /// <remarks>The Mac's focus halo is thicker.</remarks>
     public override float FocusRingThickness => 3;
 
     /// <inheritdoc />
-    /// <remarks>The Mac's pop-up button.</remarks>
-    public override SkUiPickerFieldStyle DefaultPickerFieldStyle => SkUiPickerFieldStyle.PopUpButton;
-
-    /// <inheritdoc />
-    public override float FieldCornerRadius => 5;
-
-    /// <inheritdoc />
-    public override SkUiActivityIndicatorStyle ActivityIndicatorStyle => SkUiActivityIndicatorStyle.Spokes;
-
-    /// <inheritdoc />
-    public override Size DefaultActivityIndicatorSize => new(32, 32);
-
-    /// <inheritdoc />
     public override SkUiFocusRingStyle FocusRingStyle => SkUiFocusRingStyle.Halo;
 
     /// <inheritdoc />
-    /// <remarks>Overlay scrollers: 7 DIPs, 11 when hovered or dragged.</remarks>
+    /// <remarks>Overlay scrollers that grow when hovered or dragged.</remarks>
     public override double ScrollBarThickness => 7;
 
     /// <inheritdoc />
     public override double ScrollBarExpandedThickness => 11;
-
-    /// <inheritdoc />
-    /// <remarks>Menu rows are 22 high.</remarks>
-    public override double PopupItemHeight => 28;
-
-    /// <inheritdoc />
-    public override Thickness PopupItemPadding => new(10, 4);
-
-    /// <inheritdoc />
-    public override double PopupAnchorGap => 2;
-
-    /// <inheritdoc />
-    /// <remarks>The Mac's control text, 13 pt, in the system font (SF).</remarks>
-    public override double DefaultFontSize => 13;
 
     /// <inheritdoc />
     public override SkUiColorScheme GetColorScheme(bool isDark) => isDark ? MacSkUiColorScheme.Dark : MacSkUiColorScheme.Light;

@@ -17,10 +17,18 @@ internal static class SkUiTypefaces
     private static readonly ConcurrentDictionary<(SKTypeface Registered, FontAttributes Attributes), SKTypeface> RegisteredCache = new();
 
     /// <summary>
-    /// The platform's default family by name: an empty family name matches the default face but ignores the
-    /// requested style (CoreText, Android), while the same family by name gives its bold and italic faces.
+    /// The family CoreText knows the system font (SF) by. Skia's default face on Apple platforms is Helvetica, whose lines
+    /// are shorter than a UILabel's (17 instead of 20.3 at 17 pt); this name gives UIKit's font with UIKit's metrics.
     /// </summary>
-    private static readonly Lazy<string> DefaultFamily = new(() => SKTypeface.Default.FamilyName ?? string.Empty);
+    private const string AppleSystemFontFamily = ".AppleSystemUIFont";
+
+    /// <summary>
+    /// The platform's default family by name: the system font (SF on Apple, Roboto on Android). An empty family name matches
+    /// the default face but ignores the requested style (CoreText, Android), while the same family by name gives its bold
+    /// and italic faces.
+    /// </summary>
+    private static readonly Lazy<string> DefaultFamily = new(() =>
+        OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst() ? AppleSystemFontFamily : SKTypeface.Default.FamilyName ?? string.Empty);
 
     internal static SKTypeface Resolve(string? family, FontAttributes attributes = FontAttributes.None)
     {
@@ -203,11 +211,22 @@ internal readonly record struct SkUiTextStyle(
 {
     // The fit's values are floats: every layout and remembered fit carries a style, and float precision is plenty for scales.
 
+    /// <summary>Whether the first and last lines include the font's padding (<see cref="SkUiLook.TextIncludesFontPadding"/>, read when the style is made).</summary>
+    internal bool IncludeFontPadding { get; init; } = SkUiLook.Current.TextIncludesFontPadding;
+
+    /// <summary>
+    /// The font's own tracking applies at the font size times this (<see cref="SkUiLook.FontTrackingSizeScale"/>), or 0 when
+    /// it does not (<see cref="SkUiLook.AppliesFontTracking"/>); read when the style is made.
+    /// </summary>
+    internal float FontTrackingScale { get; init; } = SkUiLook.Current.AppliesFontTracking ? (float)SkUiLook.Current.FontTrackingSizeScale : 0;
+
     /// <summary>Whether the layout fits the text to its slot: it shrinks, grows or tightens it (<see cref="SkUiTextFit"/>).</summary>
     internal bool IsFitted => MinimumScale < 1 || MaximumScale > 1 || AllowsTightening;
 
     /// <summary>The space laid out after each character of text <paramref name="fontSize"/> DIPs with <paramref name="spacing"/>: less <see cref="Tightening"/>.</summary>
-    internal float TightenedSpacing(double spacing, double fontSize) => (float)(spacing - Tightening * fontSize);
+    internal float TightenedSpacing(double spacing, double fontSize) =>
+        (float)(spacing + (FontTrackingScale > 0 ? SkUiFontTracking.At(Typeface, fontSize * FontTrackingScale) / FontTrackingScale : 0)
+            - Tightening * fontSize);
 
     /// <summary>Whether lines wrap (rather than one line per paragraph, cut or not).</summary>
     internal bool Wraps => LineBreakMode is LineBreakMode.WordWrap or LineBreakMode.CharacterWrap
@@ -447,6 +466,8 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
             }
         }
         ApplyLineHeight(lines, style.LineHeight);
+        if (style.IncludeFontPadding)
+            ApplyFontPadding(lines, primary);
         // Pictures that drew the old lines hold their own references to the blobs.
         ReleaseBlobs(_lines);
         _lines = lines;
@@ -538,6 +559,21 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
             line.Ascent += (height - line.Height) / 2;
             line.Height = height;
         }
+    }
+
+    /// <summary>
+    /// Android's font padding (a TextView's <c>includeFontPadding</c>): the first line starts at the font's top and the
+    /// last ends at its bottom (the extents of its tallest glyphs) instead of its ascent and descent.
+    /// </summary>
+    private static void ApplyFontPadding(List<SkUiShaping.Line> lines, SKFont primary)
+    {
+        if (lines.Count == 0)
+            return;
+        var metrics = primary.Metrics;
+        var top = Math.Max(0, metrics.Ascent - metrics.Top);
+        lines[0].Ascent += top;
+        lines[0].Height += top;
+        lines[^1].Height += Math.Max(0, metrics.Bottom - metrics.Descent);
     }
 
     private static string[] SplitParagraphs(string text) =>

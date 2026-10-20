@@ -78,8 +78,8 @@ public sealed class MacSkUiColorScheme : SkUiColorScheme
     public static MacSkUiColorScheme WithAccent(Color accent, bool isDark) => new(isDark) { Accent = accent };
 }
 
-/// <summary>Material 3's baseline color roles (primary, surface, on-surface, outline), light and dark.</summary>
-/// <remarks>Mutable tokens as any scheme; the shared <see cref="Light"/> and <see cref="Dark"/> instances are for assigning to <see cref="SkUiColorScheme.Current"/>, new instances (or <see cref="WithAccent"/>) for customizing. Android 12+ dynamic color is not read; pass the system's primary to WithAccent.</remarks>
+/// <summary>Material 2's baseline colors (the primary purple, white surfaces, black text at Material's opacities), light and dark.</summary>
+/// <remarks>Mutable tokens as any scheme; the shared <see cref="Light"/> and <see cref="Dark"/> instances are for assigning to <see cref="SkUiColorScheme.Current"/>, new instances (or <see cref="WithAccent"/>) for customizing. MAUI's Android controls take the app theme's <c>colorPrimary</c>: pass it to WithAccent.</remarks>
 public sealed class AndroidSkUiColorScheme : SkUiColorScheme
 {
     /// <summary>Shared light instance.</summary>
@@ -88,8 +88,47 @@ public sealed class AndroidSkUiColorScheme : SkUiColorScheme
     /// <summary>Shared dark instance.</summary>
     public static AndroidSkUiColorScheme Dark { get; } = new(true);
 
-    /// <summary>Creates a mutable Material 3 scheme: dark when <paramref name="isDark"/>.</summary>
+    /// <summary>Creates a mutable Material 2 scheme: dark when <paramref name="isDark"/>.</summary>
     public AndroidSkUiColorScheme(bool isDark)
+    {
+        if (isDark)
+        {
+            Accent = Color.FromArgb("#BB86FC");
+            DefaultBackground = Color.FromArgb("#121212");
+            DefaultForeground = Color.FromArgb("#FFFFFF");
+            Muted = Color.FromArgb("#B3B3B3");
+            TrackOff = Color.FromArgb("#5C5C5C");
+            Disabled = Color.FromArgb("#616161");
+            Error = Color.FromArgb("#CF6679");
+        }
+        else
+        {
+            Accent = Color.FromArgb("#6200EE");
+            DefaultBackground = Color.FromArgb("#FFFFFF");
+            DefaultForeground = Color.FromArgb("#000000");
+            Muted = Color.FromArgb("#757575");
+            TrackOff = Color.FromArgb("#9E9E9E");
+            Disabled = Color.FromArgb("#BDBDBD");
+            Error = Color.FromArgb("#B00020");
+        }
+    }
+
+    /// <summary>A new scheme like <see cref="Light"/> or <see cref="Dark"/> with another accent (the app theme's colorPrimary, a brand color).</summary>
+    public static AndroidSkUiColorScheme WithAccent(Color accent, bool isDark) => new(isDark) { Accent = accent };
+}
+
+/// <summary>Material 3's baseline color roles (primary, surface, on-surface, outline), light and dark.</summary>
+/// <remarks>Mutable tokens as any scheme; the shared <see cref="Light"/> and <see cref="Dark"/> instances are for assigning to <see cref="SkUiColorScheme.Current"/>, new instances (or <see cref="WithAccent"/>) for customizing. Android 12+ dynamic color is not read; pass the system's primary to WithAccent.</remarks>
+public sealed class AndroidMaterial3SkUiColorScheme : SkUiColorScheme
+{
+    /// <summary>Shared light instance.</summary>
+    public static AndroidMaterial3SkUiColorScheme Light { get; } = new(false);
+
+    /// <summary>Shared dark instance.</summary>
+    public static AndroidMaterial3SkUiColorScheme Dark { get; } = new(true);
+
+    /// <summary>Creates a mutable Material 3 scheme: dark when <paramref name="isDark"/>.</summary>
+    public AndroidMaterial3SkUiColorScheme(bool isDark)
     {
         if (isDark)
         {
@@ -114,7 +153,7 @@ public sealed class AndroidSkUiColorScheme : SkUiColorScheme
     }
 
     /// <summary>A new scheme like <see cref="Light"/> or <see cref="Dark"/> with another accent (the user's system accent, a brand color).</summary>
-    public static AndroidSkUiColorScheme WithAccent(Color accent, bool isDark) => new(isDark) { Accent = accent };
+    public static AndroidMaterial3SkUiColorScheme WithAccent(Color accent, bool isDark) => new(isDark) { Accent = accent };
 }
 
 /// <summary>Fluent's colors (the default blue accent, the solid background and text fill colors), light and dark.</summary>

@@ -52,7 +52,7 @@ public abstract class SkUiStepperBase : SkUiView, ISkUiStepperOwner, ISkUiKeyHan
     /// <summary>Bindable property for <see cref="FontSize"/>.</summary>
     public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiStepperBase), 0d, defaultValueCreator: _ => SkUiStepperModel.DefaultFontSize,
         validateValue: SkUiValidate.FinitePositive,
-        propertyChanged: (view, _, value) => ((SkUiStepperBase)view).OnTextStyleChanged(model => model.FontSize = (double)value));
+        propertyChanged: (view, _, value) => ((SkUiStepperBase)view).OnTextStyleChanged(model => model.FontSize = view.IsSet(FontSizeProperty) ? (double)value : double.NaN));
 
     /// <summary>Bindable property for <see cref="FontAttributes"/>.</summary>
     public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiStepperBase), FontAttributes.None,

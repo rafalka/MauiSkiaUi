@@ -242,7 +242,8 @@ public class LookAndColorSchemeTests
         var android = new AndroidSkUiLook();
         Assert.Equal(SkUiPickerFieldStyle.Underline, android.DefaultPickerFieldStyle);
         Assert.Equal(SkUiPressEffect.Ripple, android.EffectivePressEffect);
-        Assert.Equal(SkUiIndicatorStyle.Pill, android.EffectiveIndicatorStyle);
+        Assert.Equal(SkUiIndicatorStyle.Dots, android.EffectiveIndicatorStyle);
+        Assert.Equal(SkUiIndicatorStyle.Pill, AndroidMaterial3SkUiLook.Instance.EffectiveIndicatorStyle);
         Assert.Equal(SkUiIndicatorStyle.Dots, common.EffectiveIndicatorStyle);
         Assert.Equal(SkUiPressEffect.Dim, IosSkUiLook.Instance.EffectivePressEffect);
         // The default look's options still override a platform look's choices.
@@ -252,7 +253,7 @@ public class LookAndColorSchemeTests
         // Headless runs are no phone: the iOS look's sheet is for phones only.
         Assert.Equal(LayoutOptions.Center, IosSkUiLook.Instance.PopupVerticalOptions);
         Assert.Equal(SkUiPickerFieldStyle.Outline, IosSkUiLook.Instance.DefaultPickerFieldStyle);
-        Assert.Equal(SkUiPickerFieldStyle.PopUpButton, MacSkUiLook.Instance.DefaultPickerFieldStyle);
+        Assert.Equal(SkUiPickerFieldStyle.Outline, MacSkUiLook.Instance.DefaultPickerFieldStyle); // Catalyst's rounded text field
         Assert.Equal(SkUiPickerFieldStyle.ComboBox, WindowsSkUiLook.Instance.DefaultPickerFieldStyle);
     }
 

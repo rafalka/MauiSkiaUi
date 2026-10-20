@@ -6,7 +6,8 @@ public class PlatformColorSchemeTests
 {
     public static TheoryData<DefaultSkUiLook> Looks => new()
     {
-        DefaultSkUiLook.Instance, AndroidSkUiLook.Instance, IosSkUiLook.Instance, MacSkUiLook.Instance, WindowsSkUiLook.Instance
+        DefaultSkUiLook.Instance, AndroidSkUiLook.Instance, AndroidMaterial3SkUiLook.Instance, IosSkUiLook.Instance, MacSkUiLook.Instance,
+        WindowsSkUiLook.Instance
     };
 
     [Fact]
@@ -19,7 +20,9 @@ public class PlatformColorSchemeTests
         Assert.Same(AndroidSkUiColorScheme.Light, AndroidSkUiLook.Instance.GetColorScheme(false));
         Assert.Same(WindowsSkUiColorScheme.Dark, WindowsSkUiLook.Instance.GetColorScheme(true));
         Assert.Equal(Color.FromArgb("#007AFF"), IosSkUiColorScheme.Light.Accent);
-        Assert.Equal(Color.FromArgb("#6750A4"), AndroidSkUiColorScheme.Light.Accent);
+        Assert.Same(AndroidMaterial3SkUiColorScheme.Light, AndroidMaterial3SkUiLook.Instance.GetColorScheme(false));
+        Assert.Equal(Color.FromArgb("#6200EE"), AndroidSkUiColorScheme.Light.Accent);
+        Assert.Equal(Color.FromArgb("#6750A4"), AndroidMaterial3SkUiColorScheme.Light.Accent);
     }
 
     [Theory]

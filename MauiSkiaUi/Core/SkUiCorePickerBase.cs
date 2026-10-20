@@ -40,7 +40,7 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     public string? FontFamily { get => Model.FontFamily; set => SetFontFamily(value); }
 
     /// <summary>Font size in DIPs (default 16).</summary>
-    public double FontSize { get => Model.FontSize; set => SetFontSize(value); }
+    public double FontSize { get => Model.EffectiveFontSize; set => SetFontSize(value); }
 
     /// <summary>Bold and italic.</summary>
     public FontAttributes FontAttributes { get => Model.FontAttributes; set => SetFontAttributes(value); }

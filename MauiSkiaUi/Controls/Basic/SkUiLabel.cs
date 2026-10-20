@@ -20,7 +20,7 @@ public class SkUiLabel : SkUiView
     private string _text = string.Empty;
     private string _displayText = string.Empty; // _text after _textTransform
     private Color _textColor = SkUiColors.DefaultForeground;
-    private double _fontSize = SkUiLook.Current.DefaultFontSize;
+    private double _fontSize = double.NaN; // NaN: the look's (EffectiveFontSize)
     private bool _fontAutoScalingEnabled = true;
     private int _fontScaleVersion; // SkUiFontScaling.Version the rich text was built at
     private string? _fontFamily;
@@ -352,7 +352,16 @@ public class SkUiLabel : SkUiView
     private void OnTextColorChanged(Color value) { if (_textColor == value) return; _textColor = value; _richText = null; InvalidatePaint(); }
     /// <summary>Sets font size (same as the property setter).</summary>
     public SkUiLabel SetFontSize(double value) { if (!double.IsFinite(value) || value <= 0) throw new ArgumentOutOfRangeException(nameof(value)); FontSize = value; return this; }
-    private void OnFontSizeChanged(double value) { if (_fontSize == value) return; _fontSize = value; InvalidateText(); }
+    private void OnFontSizeChanged(double value)
+    {
+        var size = IsSet(FontSizeProperty) ? value : double.NaN;
+        if (_fontSize.Equals(size)) return;
+        _fontSize = size;
+        InvalidateText();
+    }
+
+    /// <summary>The font size text is laid out with: the one set, or the look's (the subtree's own look included).</summary>
+    private double EffectiveFontSize => SkUiLook.FontSizeOrDefault(_fontSize);
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/> (same as the property setter).</summary>
     public SkUiLabel SetFontAutoScalingEnabled(bool value) { FontAutoScalingEnabled = value; return this; }
     private void OnFontAutoScalingEnabledChanged(bool value) { if (_fontAutoScalingEnabled == value) return; _fontAutoScalingEnabled = value; InvalidateText(); }
@@ -520,7 +529,7 @@ public class SkUiLabel : SkUiView
         InvalidateText();
     }
 
-    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), ScaledFontSize(_fontSize), _lineBreakMode, _lineBreaker,
+    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), ScaledFontSize(EffectiveFontSize), _lineBreakMode, _lineBreaker,
         _maxLines, _lineHeight, _characterSpacing, TextDirection, _textRendering, _fontAttributes, _horizontalTextAlignment == TextAlignment.Justify,
         _shrinkToFit ? (float)_minimumFontScale : 1, _growToFill ? (float)_maximumFontScale : 1, _allowsTightening);
 
@@ -568,14 +577,14 @@ public class SkUiLabel : SkUiView
     private SkUiRichText BuildRichText()
     {
         if (IsHtml)
-            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, _fontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations,
+            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, EffectiveFontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations,
                 _fontAutoScalingEnabled);
         if (_formattedText is not { Spans.Count: > 0 } formatted) return SkUiRichText.Empty;
         var builder = new SkUiRichText.Builder();
         foreach (var span in formatted.Spans)
         {
             var family = span.IsSet(Span.FontFamilyProperty) ? span.FontFamily : _fontFamily;
-            var size = span.IsSet(Span.FontSizeProperty) && double.IsFinite(span.FontSize) && span.FontSize > 0 ? span.FontSize : _fontSize;
+            var size = span.IsSet(Span.FontSizeProperty) && double.IsFinite(span.FontSize) && span.FontSize > 0 ? span.FontSize : EffectiveFontSize;
             var attributes = span.IsSet(Span.FontAttributesProperty) ? span.FontAttributes : _fontAttributes;
             var spacing = span.IsSet(Span.CharacterSpacingProperty) && double.IsFinite(span.CharacterSpacing) ? span.CharacterSpacing : _characterSpacing;
             var lineHeight = span.LineHeight >= 0 ? span.LineHeight : _lineHeight;
@@ -654,7 +663,7 @@ public class SkUiLabel : SkUiView
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         if (!HasText && SkeletonPlaceholderLines is > 0 and var lines)
-            return SkUiSkeletonScope.PlaceholderSize(lines, _layout.LineSpacing(TextStyle), _fontSize, _padding, widthConstraint);
+            return SkUiSkeletonScope.PlaceholderSize(lines, _layout.LineSpacing(TextStyle), EffectiveFontSize, _padding, widthConstraint);
         return UsesRichText
             ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint, heightConstraint)
             : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint, heightConstraint);
