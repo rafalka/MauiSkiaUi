@@ -167,7 +167,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     private void LoadImage()
     {
         if (_imageSource is null && _image is null) return;
-        (_image ??= new SkUiImageSlot(this, InvalidateMeasureOverride)).Load(SkUiMauiImageSources.Convert(_imageSource), default);
+        (_image ??= new SkUiImageSlot(this, InvalidateMeasureOverride)).Load(SkUiImageSource.FromMaui(_imageSource), default);
     }
 
     /// <summary>Sets the content layout (same as the property setter).</summary>

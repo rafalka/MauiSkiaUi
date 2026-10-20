@@ -181,7 +181,7 @@ public class SkUiSlider : SkUiView
     }
 
     private void LoadThumbImage() =>
-        (_thumbImage ??= new SkUiImageSlot(this, () => InvalidatePaint())).Load(SkUiMauiImageSources.Convert(_thumbImageSource), default);
+        (_thumbImage ??= new SkUiImageSlot(this, () => InvalidatePaint())).Load(SkUiImageSource.FromMaui(_thumbImageSource), default);
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>

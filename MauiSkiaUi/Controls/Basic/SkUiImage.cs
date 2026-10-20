@@ -189,7 +189,7 @@ public class SkUiImage : SkUiView
 
     private void UpdatePlaceholders()
     {
-        Slot.SetPlaceholders(SkUiMauiImageSources.Convert(LoadingPlaceholder), SkUiMauiImageSources.Convert(ErrorPlaceholder), TransformPlaceholders);
+        Slot.SetPlaceholders(SkUiImageSource.FromMaui(LoadingPlaceholder), SkUiImageSource.FromMaui(ErrorPlaceholder), TransformPlaceholders);
     }
 
     /// <summary>Sets aspect (same as the property setter).</summary>
@@ -260,12 +260,12 @@ public class SkUiImage : SkUiView
         return true;
     }
 
-    private void Reload() => Slot.Load(SkUiMauiImageSources.Convert(_source), _options);
+    private void Reload() => Slot.Load(SkUiImageSource.FromMaui(_source), _options);
 
     /// <summary>Reloads the current source; errors are exposed through LoadError, cancellation is not an error.</summary>
     public Task ReloadAsync()
     {
-        return Slot.Load(SkUiMauiImageSources.Convert(_source), _options);
+        return Slot.Load(SkUiImageSource.FromMaui(_source), _options);
     }
 
     private void PublishState()

@@ -40,7 +40,7 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreProgressBar` | Determinate or indeterminate (render-thread) progress bar, `ProgressTo` |
 | `SkUiCoreShape` / `Ellipse` / `Line` / `Rectangle` / `RoundRectangle` / `Path` / `Polygon` / `Polyline` | MAUI's shape model with MAUI Graphics types: `Fill` / `Stroke` paints (`SetFill(Color)`, gradients), `StrokeThickness`, dashes, `LineCap` / `LineJoin`, `SkUiCoreStretch` aspect; paths from `PathF` or markup ([SkUiShape.md](SkUiShape.md)) |
 | `SkUiCoreBox` | BoxView twin: `Color` (else `Background`), per-corner `CornerRadius`, 40 × 40 unless sized |
-| `SkUiCoreImage` / `SkUiCoreImageButton` | Image from an `SkUiImageSource` (`SetSource`, or `SetSourceFile` (`MauiImage` / raw asset / path), `SetSourceUri`, `SetSourceStream(open, cacheKey)`, `SetSourceFont`) or a decoded `SKImage` (`SetImage`), through the cache shared with SkUi* images; `SetTransformations`, `SetDownsample`, `SetCacheType`, `SetIsAnimationPlaying`, `SetLoadingPlaceholder` / `SetErrorPlaceholder`, `LoadingStarted` / `LoadingFinished` ([SkUiImage.md](SkUiImage.md)). The button adds tap/tint, `Pressed` / `Released`, `Padding`, `CornerRadii` clip (`SetCornerRadius(double)`), border. No MAUI `ImageSource` |
+| `SkUiCoreImage` / `SkUiCoreImageButton` | Image from an `SkUiImageSource` (`SetSource`, or `SetSourceFile` (`MauiImage` / raw asset / path), `SetSourceUri`, `SetSourceStream(open, cacheKey)`, `SetSourceFont`) or a decoded `SKImage` (`SetImage`), through the cache shared with SkUi* images; `SetTransformations`, `SetDownsample`, `SetCacheType`, `SetIsAnimationPlaying`, `SetLoadingPlaceholder` / `SetErrorPlaceholder`, `LoadingStarted` / `LoadingFinished` ([SkUiImage.md](SkUiImage.md)). The button adds tap/tint, `Pressed` / `Released`, `Padding`, `CornerRadii` clip (`SetCornerRadius(double)`), border. MAUI `ImageSource`s and strings convert implicitly ([below](#images-from-maui-sources)) |
 | `SkUiCoreActivityIndicator` | Indeterminate spinner, rotated by the compositor on the render thread |
 | `SkUiCoreScrollView` | Scroller on the shared scroll engine: offsets, render-thread fling / animated scroll, wheel (both axes), nesting with Core and SkUi* scrollers; scroll bars (`SetHorizontalScrollBarVisibility`, `SetVerticalScrollBarVisibility`), overscroll (`SetOverscroll`) and its events (`Overscrolled`, `PullReleased`, `SetPullEdges`), snap points (`SetSnapPointsType`, `SetSnapPointsAlignment`), `ScrollToAsync(SkUiCoreNode, ScrollToPosition, bool)` / `GetScrollPositionForNode` ([SkUiScrollView.md](SkUiScrollView.md)) |
 | `SkUiCoreRefreshIndicator` | The pull-to-refresh indicator drawn by the look (`PullProgress`, `IsRefreshing`, `Style`, `Color`): the one `SkUiRefreshView` and `SkUiCollectionView` show, or one of your own on a scroller's overscroll events ([below](#refresh-indicator)) |
@@ -122,6 +122,44 @@ link.Tapped += (_, _) => OpenTerms();
 var consent = new SkUiCoreLabel()
     .SetSpans(new SkUiCoreSpan("I accept the "), link, new SkUiCoreSpan(".").SetFontAttributes(FontAttributes.Bold))
     .SetFontSize(15);
+```
+
+## Images from MAUI sources
+
+Every Core image property (`SkUiCoreImage.SetSource` and its placeholders, `SkUiCoreImageButton`, `SkUiCoreButton.SetImageSource`, `SkUiCoreSlider.SetThumbImageSource`, `SkUiCoreAvatar.SetImageSource`) takes an `SkUiImageSource`, and MAUI's `ImageSource` and strings convert to it implicitly, as the SkUi\* controls convert them:
+
+- **`SkUiImageSource.FromMaui(ImageSource?)`**: files and `MauiImage`s, URIs with `CachingEnabled` / `CacheValidity`, streams and `FontImageSource` glyphs. `null` or an empty source gives `null`; an unsupported kind fails when it loads (`LoadError`), as on `SkUiImage`.
+- **`SkUiImageSource.FromString(string?)`**: MAUI's XAML rule (`ImageSourceConverter`): an absolute HTTP(S) URI is downloaded, anything else is a file (a package name such as `icon.png`, an absolute path, a `file:` URI).
+
+```csharp
+image.SetSource(viewModel.Photo);                        // a MAUI ImageSource
+button.SetImageSource("save.png");                       // a MauiImage by name
+avatar.SetImageSource("https://example.com/me.png");     // a download
+image.SetSource(null);                                   // no image
+```
+
+The conversion is a snapshot: a later change of the MAUI source (its `File`, `Uri`, a font image's `Glyph` or `Color`) is not followed. A control that exposes a bindable MAUI `ImageSource` and draws it with Core nodes sets it again when it changes, listening to the source weakly (MAUI's image sources are `INotifyPropertyChanged`):
+
+```csharp
+public sealed class IconTile : SkUiCoreHost
+{
+    public static readonly BindableProperty IconProperty = BindableProperty.Create(nameof(Icon), typeof(ImageSource), typeof(IconTile),
+        propertyChanged: static (view, _, value) => ((IconTile)view).OnIconChanged((ImageSource?)value));
+
+    private readonly SkUiCoreImage _image = new();
+    private SkUiWeakListener<IconTile>? _iconListener;
+
+    public IconTile() => SetContent(_image);
+
+    public ImageSource? Icon { get => (ImageSource?)GetValue(IconProperty); set => SetValue(IconProperty, value); }
+
+    private void OnIconChanged(ImageSource? icon)
+    {
+        // Created on first use: a style can set Icon before the constructor body runs.
+        (_iconListener ??= new(this, static (tile, _) => tile._image.SetSource(tile.Icon))).Listen(icon);
+        _image.SetSource(icon);
+    }
+}
 ```
 
 ## Backgrounds, shadows and clips

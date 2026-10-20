@@ -300,7 +300,7 @@ public class SkUiAvatarView : SkUiBorder
             if (SkUiMauiImageSources.AffectsImage(change.PropertyName))
                 avatar.Avatar.Reload();
         })).Listen(value);
-        Avatar.SetSource(SkUiMauiImageSources.Convert(value), ExpectedContentSize());
+        Avatar.SetSource(SkUiImageSource.FromMaui(value), ExpectedContentSize());
         InvalidatePaint();
     }
 
