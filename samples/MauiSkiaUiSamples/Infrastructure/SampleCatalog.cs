@@ -32,6 +32,7 @@ public static class SampleCatalog
         SampleEntry.For<DateOfBirthSample>(),
         SampleEntry.For<BookingSample>(),
         SampleEntry.For<CrossCheckBoxSample>(),
+        SampleEntry.For<BrandLookSample>(),
         SampleEntry.For<PresenceAvatarsSample>(),
         SampleEntry.For<TranslatedPickerTextsSample>(),
         SampleEntry.For<CorePickersSample>(),

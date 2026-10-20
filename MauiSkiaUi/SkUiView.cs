@@ -123,6 +123,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <summary>The look or color scheme changed: forget the cached measure and re-record (no per-node propagation).</summary>
     internal void MarkLookChanged()
     {
+        ForgetLookDefaults();
         _measureDirty = true;
         _arrangeDirty = true;
         if (_effects is { } effects)
@@ -133,6 +134,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     SkUiAnimationClock? ISkUiTransitionHost.TransitionClock => _renderState is { HasCommitted: true } ? AnimationClock : null;
 
     void ISkUiTransitionHost.InvalidateTransition() => InvalidatePaint();
+
+    SkUiLook ISkUiTransitionHost.TransitionLook => SkUiLookScope.Resolve(this);
 
     private void SetPressed(bool value)
     {
@@ -271,6 +274,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     protected override void OnParentSet()
     {
         base.OnParentSet();
+        _treeLook.ParentChanged(this); // its subtree may draw with another look now
         // A local clock is only valid while this node is the top of its SkiaUi subtree. Once a
         // Skia parent appears, abandon it so descendants re-register on the shared ancestor clock:
         // clients rebind first (OnAnimationRootChanged), then whatever is left on the local clock stops.
@@ -467,6 +471,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         var height = Math.Max(0, heightConstraint - Margin.VerticalThickness);
         var maximumWidth = double.IsNaN(view.MaximumWidth) ? double.PositiveInfinity : view.MaximumWidth;
         var maximumHeight = double.IsNaN(view.MaximumHeight) ? double.PositiveInfinity : view.MaximumHeight;
+        using var lookScope = SkUiLookScope.Enter(this);
+        ApplyLookDefaults();
         var content = MeasureContent(
             Math.Min(width, double.IsNaN(view.Width) ? maximumWidth : view.Width),
             Math.Min(height, double.IsNaN(view.Height) ? maximumHeight : view.Height));
@@ -480,6 +486,15 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         _arrangeDirty = true;
         return _measuredSize;
     }
+
+    /// <summary>
+    /// Re-applies the defaults this view takes from the look (buttons: padding, corners, border width) to the properties
+    /// nothing set, under the look it measures with (its subtree's or the app's). Runs before each measure that is not cached.
+    /// </summary>
+    private protected virtual void ApplyLookDefaults() { }
+
+    /// <summary>The look changed (also in place): the next <see cref="ApplyLookDefaults"/> re-applies them.</summary>
+    private protected virtual void ForgetLookDefaults() { }
 
     /// <summary>Measures intrinsic content without margins, in DIPs.</summary>
     protected virtual Size MeasureContent(double widthConstraint, double heightConstraint) => Size.Zero;
@@ -725,6 +740,41 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     internal SkUiRenderState RenderState => _renderState ??= new SkUiRenderState();
 
     ISkUiRenderable? ISkUiRenderable.RenderParent => SkiaParent;
+
+    private SkUiTreeLookCache _treeLook;
+
+    SkUiLook? ISkUiRenderable.TreeLook => _treeLook.Get(this);
+
+    /// <summary>Bindable <see cref="Look"/>.</summary>
+    public static readonly BindableProperty LookProperty = BindableProperty.Create(nameof(Look), typeof(SkUiLook), typeof(SkUiView), null,
+        propertyChanged: (view, _, value) => ((SkUiView)view).OnLookChanged((SkUiLook?)value));
+
+    /// <summary>
+    /// A look for this view and its drawn descendants, instead of <see cref="SkUiLook.Current"/> (the nearest view that sets
+    /// one wins). It shapes how the subtree measures, draws and animates its state changes (a transition already running
+    /// when the look changes keeps its curve); the color scheme stays the app's. Input handling and the platform views of
+    /// hosted native content use the app's look.
+    /// </summary>
+    public SkUiLook? Look { get => (SkUiLook?)GetValue(LookProperty); set => SetValue(LookProperty, value); }
+
+    SkUiLook? ISkUiRenderable.LookOverride => Look;
+
+    /// <summary>Sets <see cref="Look"/> (same as the property setter).</summary>
+    public SkUiView SetLook(SkUiLook? value)
+    {
+        Look = value;
+        return this;
+    }
+
+    private void OnLookChanged(SkUiLook? value)
+    {
+        if (value is not null)
+            SkUiLook.NoteTreeLook();
+        else
+            SkUiLook.TreeChanged();
+        SkUiRenderInvalidation.MarkLookChanged(this);
+        ((IView)this).InvalidateMeasure();
+    }
 
     void ISkUiRenderable.GetRenderProps(ref SkUiRenderProps props)
     {

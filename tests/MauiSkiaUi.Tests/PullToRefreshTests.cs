@@ -603,10 +603,19 @@ public class PullToRefreshLookTests
     }
 
     [Fact]
-    public void TheDefaultLookFollowsThePlatformAndCanBeSet()
+    public void TheLooksChooseTheStyleAndTheOptionOverridesIt()
     {
-        Assert.Equal(OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst() ? SkUiRefreshStyle.Inline : SkUiRefreshStyle.Overlay,
-            DefaultSkUiLook.PlatformRefreshStyle);
+        Assert.Equal(SkUiRefreshStyle.Overlay, DefaultSkUiLook.Instance.DefaultRefreshStyle);
+        Assert.Equal(SkUiRefreshStyle.Overlay, AndroidSkUiLook.Instance.DefaultRefreshStyle);
+        Assert.Equal(SkUiRefreshStyle.Overlay, WindowsSkUiLook.Instance.DefaultRefreshStyle);
+        Assert.Equal(SkUiRefreshStyle.Inline, IosSkUiLook.Instance.DefaultRefreshStyle);
+        Assert.Equal(SkUiRefreshStyle.Inline, MacSkUiLook.Instance.DefaultRefreshStyle);
+        Assert.Equal(SkUiOverscrollMode.None, DefaultSkUiLook.Instance.DefaultOverscroll);
+        Assert.Equal(SkUiOverscrollMode.None, WindowsSkUiLook.Instance.DefaultOverscroll);
+        Assert.Equal(SkUiOverscrollMode.Stretch, AndroidSkUiLook.Instance.DefaultOverscroll);
+        Assert.Equal(SkUiOverscrollMode.Bounce, IosSkUiLook.Instance.DefaultOverscroll);
+        Assert.Equal(SkUiOverscrollMode.Bounce, new MacSkUiLook { Overscroll = SkUiOverscrollMode.Default }.DefaultOverscroll);
+        Assert.Equal(SkUiOverscrollMode.None, new IosSkUiLook { Overscroll = SkUiOverscrollMode.None }.DefaultOverscroll);
         var look = new DefaultSkUiLook { RefreshStyle = SkUiRefreshStyle.Inline };
         Assert.Equal(SkUiRefreshStyle.Inline, look.DefaultRefreshStyle);
         Assert.NotNull(look.GetRefreshIndicatorShadow(SkUiRefreshStyle.Overlay));

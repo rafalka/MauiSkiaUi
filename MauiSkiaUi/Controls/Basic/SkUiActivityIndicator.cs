@@ -11,15 +11,15 @@ namespace MauiSkiaUi;
 public class SkUiActivityIndicator : SkUiView
 {
     private bool _isRunning;
-    private Color _color = SkUiColors.Muted;
+    private Color _color = SkUiColors.ActivityIndicator;
     private SKPaint? _strokePaint;
 
     /// <summary>Bindable running state; animates only while true.</summary>
     public static readonly BindableProperty IsRunningProperty = BindableProperty.Create(nameof(IsRunning), typeof(bool), typeof(SkUiActivityIndicator), false,
         propertyChanged: (view, _, value) => ((SkUiActivityIndicator)view).OnIsRunningChanged((bool)value));
-    /// <summary>Bindable spinner color.</summary>
+    /// <summary>Bindable spinner color (default: the color scheme's <see cref="SkUiColorScheme.ActivityIndicator"/>).</summary>
     public static readonly BindableProperty ColorProperty = BindableProperty.Create(nameof(Color), typeof(Color), typeof(SkUiActivityIndicator), null,
-        defaultValueCreator: _ => SkUiColors.Muted,
+        defaultValueCreator: _ => SkUiColors.ActivityIndicator,
         validateValue: SkUiValidate.NotNull,
         propertyChanged: (view, _, value) => ((SkUiActivityIndicator)view).OnColorChanged((Color)value));
 

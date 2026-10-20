@@ -151,6 +151,7 @@ internal sealed class SkUiRenderRecorder : IDisposable
     private SKPicture? Record(ISkUiRenderable node, SKRect cull, bool overlay)
     {
         var canvas = _recorder.BeginRecording(cull);
+        using var scope = SkUiLookScope.Enter(node);
         if (overlay)
             node.RecordOverlay(canvas);
         else
@@ -255,7 +256,8 @@ internal static class SkUiImmediatePainter
                 canvas.ClipRect(props.Bounds);
             if (props.ClipPath is { } clipPath)
                 canvas.ClipPath(clipPath, antialias: true);
-            node.RecordContent(canvas);
+            using (SkUiLookScope.Enter(node))
+                node.RecordContent(canvas);
             var layer = props.ChildrenLayer ? canvas.SaveLayer(props.Bounds, null) : -1;
             PaintChildren(node, canvas, props);
             if (props.Drawable is { } drawable)

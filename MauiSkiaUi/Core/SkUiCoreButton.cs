@@ -20,15 +20,15 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     private object? _commandParameter;
     private SkUiWeakListener<SkUiCoreButton>? _commandListener;
 
-    /// <summary>Creates a centered white-on-accent button whose text does not wrap (as MAUI's Button).</summary>
+    /// <summary>Creates a centered button in the color scheme's button colors (white on the accent by default) whose text does not wrap (as MAUI's Button).</summary>
     public SkUiCoreButton()
     {
         SetLineBreakMode(Microsoft.Maui.LineBreakMode.NoWrap);
-        SetTextColor(Colors.White);
-        SetPadding(new Thickness(6));
+        SetTextColor(SkUiColors.ButtonForeground);
         SetHorizontalTextAlignment(TextAlignment.Center);
         SetVerticalTextAlignment(TextAlignment.Center);
-        SetFillColor(SkUiColors.Accent);
+        SetFillColor(SkUiColors.ButtonBackground);
+        SetBorderColor(SkUiColors.ButtonBorder);
         _buttonPainter = PaintButtonBackground;
         SetPaintBackground(_buttonPainter);
     }
@@ -133,6 +133,10 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
 
     /// <inheritdoc />
     protected override double DefaultCornerRadius => SkUiLook.Current.DefaultButtonCornerRadius;
+    /// <inheritdoc />
+    protected override Thickness DefaultPadding => SkUiLook.Current.DefaultButtonPadding;
+    /// <inheritdoc />
+    protected override double DefaultBorderWidth => SkUiLook.Current.DefaultButtonBorderWidth;
 
     /// <inheritdoc />
     private protected override bool ClipsTextToInset => true;

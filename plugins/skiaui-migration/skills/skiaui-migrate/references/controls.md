@@ -82,7 +82,7 @@ The wrapper is measured and arranged like a drawn view; the native control sits 
 - `SemanticProperties` / `AutomationProperties` / `AutomationId` (screen readers, UI tests), `Focus()` / `Unfocus()`, `IsTabStop` / `TabIndex`.
 - Fonts registered with `ConfigureFonts` by alias (on iOS / Mac Catalyst also by PostScript name, as MAUI); `FontAutoScalingEnabled` follows the OS text size.
 - Not drawn: `ImageBrush`.
-- Drawn controls are drawn by the look (`SkUiLook`): close to, not identical with, native widgets. The default look is the same on every platform (an outlined picker field on Android too); if the app should keep each platform's appearance, set `builder.UseSkiaUi(options => options.Look = DefaultSkUiLook.ForCurrentPlatform())` and tell the user. Set colors explicitly where the design depends on them.
+- Drawn controls are drawn by the look (`SkUiLook`): close to, not identical with, native widgets. The default look is the same on every platform (an outlined picker field on Android too); if the app should keep each platform's appearance, set `builder.UseSkiaUi(options => options.Look = DefaultSkUiLook.ForCurrentPlatform())`, and for the platform's colors also `SkUiColorScheme.Current = look.GetColorScheme(isDark)` in the App constructor before the first page is created, and tell the user. Set colors explicitly where the design depends on them.
 
 ## Animations (code-behind)
 

@@ -18,11 +18,14 @@ internal sealed class SkUiRadioButtonContent(object owner)
     /// <param name="Content">The content's slot (empty without content).</param>
     internal readonly record struct Placement(Rect Circle, Rect Content);
 
-    /// <summary>The space around circle and content: the padding plus the border width.</summary>
-    public static Thickness Inset(Thickness padding, double borderWidth) =>
-        borderWidth > 0
-            ? new Thickness(padding.Left + borderWidth, padding.Top + borderWidth, padding.Right + borderWidth, padding.Bottom + borderWidth)
-            : padding;
+    /// <summary>The space around circle and content: the padding, the look's <see cref="SkUiLook.RadioButtonPadding"/> and the border width.</summary>
+    public static Thickness Inset(Thickness padding, double borderWidth)
+    {
+        var look = SkUiLook.Current.RadioButtonPadding;
+        var extra = Math.Max(0, borderWidth);
+        return new Thickness(padding.Left + look.Left + extra, padding.Top + look.Top + extra, padding.Right + look.Right + extra,
+            padding.Bottom + look.Bottom + extra);
+    }
 
     /// <summary>The circle's size from the look.</summary>
     public static Size CircleSize(double widthConstraint, double heightConstraint) =>
@@ -36,11 +39,20 @@ internal sealed class SkUiRadioButtonContent(object owner)
     public static double ContentHeightConstraint(double heightConstraint, Thickness inset) =>
         Math.Max(0, heightConstraint - inset.VerticalThickness);
 
-    /// <summary>The control's size: the circle alone, or circle, spacing and <paramref name="content"/> side by side.</summary>
-    public static Size Measure(Size circle, Thickness inset, Size? content) => content is { } size
-        ? new Size(inset.HorizontalThickness + circle.Width + SkUiLook.Current.DefaultRadioButtonContentSpacing + size.Width,
-            inset.VerticalThickness + Math.Max(circle.Height, size.Height))
-        : new Size(inset.HorizontalThickness + circle.Width, inset.VerticalThickness + circle.Height);
+    /// <summary>
+    /// The control's size: the circle alone, or circle, spacing and <paramref name="content"/> side by side; unless the control
+    /// sets a minimum width of its own (<paramref name="hasMinimumWidth"/>), at least the look's
+    /// <see cref="SkUiLook.DefaultRadioButtonMinimumWidth"/>.
+    /// </summary>
+    public static Size Measure(Size circle, Thickness inset, Size? content, bool hasMinimumWidth)
+    {
+        var look = SkUiLook.Current;
+        var size = content is { } text
+            ? new Size(inset.HorizontalThickness + circle.Width + look.DefaultRadioButtonContentSpacing + text.Width,
+                inset.VerticalThickness + Math.Max(circle.Height, text.Height))
+            : new Size(inset.HorizontalThickness + circle.Width, inset.VerticalThickness + circle.Height);
+        return hasMinimumWidth ? size : new Size(Math.Max(size.Width, look.DefaultRadioButtonMinimumWidth), size.Height);
+    }
 
     /// <summary>Places the circle and the content in a <paramref name="width"/> × <paramref name="height"/> control.</summary>
     public static Placement Arrange(double width, double height, Thickness inset, bool hasContent)

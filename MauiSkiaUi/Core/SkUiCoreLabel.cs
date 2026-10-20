@@ -21,9 +21,10 @@ public class SkUiCoreLabel : SkUiCoreNode
     private string _text = string.Empty;
     private string _displayText = string.Empty; // _text after _textTransform
     private Color _textColor = SkUiColors.DefaultForeground;
-    private double _fontSize = 16;
+    private double _fontSize = double.NaN; // NaN: the look's (EffectiveFontSize)
     private bool _fontAutoScalingEnabled = true;
     private int _fontScaleVersion; // SkUiFontScaling.Version the rich text was built at
+    private SkUiLook? _richTextLook; // the look the rich text was built with
     private string? _fontFamily;
     private FontAttributes _fontAttributes;
     private Thickness _padding;
@@ -55,7 +56,44 @@ public class SkUiCoreLabel : SkUiCoreNode
     private EventHandler<SkUiLinkTappedEventArgs>? _linkTapped;
 
     /// <summary>Creates an empty word-wrapping label.</summary>
-    public SkUiCoreLabel() => _layout = new SkUiTextLayout(this);
+    public SkUiCoreLabel()
+    {
+        _layout = new SkUiTextLayout(this);
+        _padding = DefaultPadding;
+        _chrome.SetBorderWidth(DefaultBorderWidth);
+        _lookDefaultsFrom = SkUiLook.Current;
+    }
+
+    /// <summary>Text inset used until <see cref="SetPadding"/> (none; buttons use the look's).</summary>
+    protected virtual Thickness DefaultPadding => default;
+
+    /// <summary>Border width used until <see cref="SetBorderWidth"/> (0; buttons use the look's).</summary>
+    protected virtual double DefaultBorderWidth => 0;
+
+    private bool _paddingExplicit;
+    private bool _borderWidthExplicit;
+
+    /// <summary>The look the unset padding and border width were taken from.</summary>
+    private SkUiLook? _lookDefaultsFrom;
+
+    /// <inheritdoc />
+    private protected override void ApplyLookDefaults()
+    {
+        var look = SkUiLook.Current;
+        if (ReferenceEquals(look, _lookDefaultsFrom)) return;
+        _lookDefaultsFrom = look;
+        if (!_paddingExplicit)
+            _padding = DefaultPadding;
+        if (!_borderWidthExplicit)
+            _chrome.SetBorderWidth(DefaultBorderWidth);
+    }
+
+    /// <inheritdoc />
+    private protected override void ForgetLookDefaults()
+    {
+        _lookDefaultsFrom = null;
+        _richText = null; // a look changed in place may have another default font size or family
+    }
 
     /// <summary>Displayed text.</summary>
     public string Text
@@ -71,10 +109,10 @@ public class SkUiCoreLabel : SkUiCoreNode
         set => SetTextColor(value);
     }
 
-    /// <summary>Font size in DIPs.</summary>
+    /// <summary>Font size in DIPs (default: the look's <see cref="SkUiLook.DefaultFontSize"/>).</summary>
     public double FontSize
     {
-        get => _fontSize;
+        get => EffectiveFontSize;
         set => SetFontSize(value);
     }
 
@@ -409,14 +447,19 @@ public class SkUiCoreLabel : SkUiCoreNode
         get
         {
             var version = SkUiFontScaling.Version;
-            if (_richText is null || _fontScaleVersion != version)
+            var look = SkUiLook.Current; // the spans take its font size and family: the subtree's while it measures and draws
+            if (_richText is null || _fontScaleVersion != version || !ReferenceEquals(_richTextLook, look))
             {
                 _fontScaleVersion = version;
+                _richTextLook = look;
                 _richText = BuildRichText();
             }
             return _richText;
         }
     }
+
+    /// <summary>The font size text is laid out with: the one set, or the look's (the subtree's own look included).</summary>
+    private double EffectiveFontSize => SkUiLook.FontSizeOrDefault(_fontSize);
 
     /// <summary>A font size as drawn: scaled by the system text size when <see cref="FontAutoScalingEnabled"/>.</summary>
     private double ScaledFontSize(double size) => SkUiFontScaling.ScaleFontSize(size, _fontAutoScalingEnabled);
@@ -426,7 +469,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     private SkUiRichText BuildRichText()
     {
         if (IsHtml)
-            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, _fontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations,
+            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, EffectiveFontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations,
                 _fontAutoScalingEnabled);
         if (_spans.Length == 0) return SkUiRichText.Empty;
         var builder = new SkUiRichText.Builder();
@@ -435,7 +478,7 @@ public class SkUiCoreLabel : SkUiCoreNode
             var attributes = span.FontAttributes ?? _fontAttributes;
             var transform = span.TextTransform != TextTransform.Default ? span.TextTransform : _textTransform;
             builder.Add(SkUiTextTransform.Apply(span.Text, transform),
-                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(span.FontFamily ?? _fontFamily, attributes), SkUiFontScaling.ScaleFontSize(span.FontSize ?? _fontSize, span.FontAutoScalingEnabled ?? _fontAutoScalingEnabled), attributes,
+                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(span.FontFamily ?? _fontFamily, attributes), SkUiFontScaling.ScaleFontSize(span.FontSize ?? EffectiveFontSize, span.FontAutoScalingEnabled ?? _fontAutoScalingEnabled), attributes,
                     span.CharacterSpacing ?? _characterSpacing, span.LineHeight ?? _lineHeight),
                 new SkUiTextSpanPaint(ToSkColor(span.TextColor ?? _textColor), span.BackgroundColor is { } background ? ToSkColor(background) : default,
                     span.TextDecorations ?? _textDecorations));
@@ -447,8 +490,12 @@ public class SkUiCoreLabel : SkUiCoreNode
     public SkUiCoreSpan? SpanAt(Point point) =>
         _spans.Length > 0 && SpanIndexAt(point) is var index and >= 0 && index < _spans.Length ? _spans[index] : null;
 
-    private int SpanIndexAt(Point point) =>
-        RichLayout.HitTest(RichText, TextStyle, TextInset, Frame.Width, Frame.Height, _horizontal, _vertical, point);
+    private int SpanIndexAt(Point point)
+    {
+        // Taps arrive outside measuring and drawing: hit-test the text as laid out, under the subtree's look.
+        using var lookScope = SkUiLookScope.Enter(this);
+        return RichLayout.HitTest(RichText, TextStyle, TextInset, Frame.Width, Frame.Height, _horizontal, _vertical, point);
+    }
 
     /// <inheritdoc />
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
@@ -629,6 +676,8 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Sets border width in DIPs.</summary>
     public SkUiCoreLabel SetBorderWidth(double value)
     {
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        _borderWidthExplicit = true;
         if (!_chrome.SetBorderWidth(value)) return this;
         OnPropertyChanged(nameof(BorderWidth));
         InvalidatePaint();
@@ -686,6 +735,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Sets text inset in DIPs.</summary>
     public SkUiCoreLabel SetPadding(Thickness value)
     {
+        _paddingExplicit = true;
         if (!SetProperty(ref _padding, value, nameof(Padding))) return this;
         InvalidateText();
         return this;
@@ -728,7 +778,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Breaks the text again at the next measure, e.g. when what a custom <see cref="LineBreaker"/> reads has changed.</summary>
     public void InvalidateTextLayout() => InvalidateText();
 
-    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), ScaledFontSize(_fontSize), _lineBreakMode, _lineBreaker,
+    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), ScaledFontSize(EffectiveFontSize), _lineBreakMode, _lineBreaker,
         _maxLines, _lineHeight, _characterSpacing, EffectiveTextDirection, _textRendering, _fontAttributes, _horizontal == TextAlignment.Justify,
         _shrinkToFit ? (float)_minimumFontScale : 1, _growToFill ? (float)_maximumFontScale : 1, _allowsTightening);
 
@@ -736,7 +786,7 @@ public class SkUiCoreLabel : SkUiCoreNode
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         if (!HasText && SkeletonPlaceholderLines is > 0 and var lines)
-            return SkUiSkeletonScope.PlaceholderSize(lines, _layout.LineSpacing(TextStyle), _fontSize, _padding, widthConstraint);
+            return SkUiSkeletonScope.PlaceholderSize(lines, _layout.LineSpacing(TextStyle), EffectiveFontSize, _padding, widthConstraint);
         return UsesRichText
             ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint, heightConstraint)
             : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint, heightConstraint);

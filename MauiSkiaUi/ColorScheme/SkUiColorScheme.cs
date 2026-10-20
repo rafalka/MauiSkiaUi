@@ -22,6 +22,11 @@ public class SkUiColorScheme
     private Color _trackOff = Color.FromArgb("#C5D4D6");
     private Color _disabled = Color.FromArgb("#596467");
     private Color _error = Color.FromArgb("#B3261E");
+    // Control tokens: null follows the scheme's fallback (another token or a fixed color).
+    private Color? _buttonBackground;
+    private Color? _buttonForeground;
+    private Color? _buttonBorder;
+    private Color? _activityIndicator;
 
     private static readonly SkUiWeakEvent _currentChanged = new();
     private readonly SkUiWeakEvent _changed = new();
@@ -107,7 +112,62 @@ public class SkUiColorScheme
         set => SetToken(ref _error, value);
     }
 
-    /// <summary>Copies token values from <paramref name="source"/> into this instance.</summary>
+    /// <summary>
+    /// A button's fill when it sets none (read when the button is created). Until set, the scheme's
+    /// (<see cref="Accent"/> by default; iOS and the Mac: transparent, as a system button; Windows: Fluent's light control fill).
+    /// </summary>
+    public virtual Color ButtonBackground
+    {
+        get => _buttonBackground ?? ButtonBackgroundFallback;
+        set => SetControlToken(ref _buttonBackground, value);
+    }
+
+    /// <summary>
+    /// A button's text color when it sets none (read when the button is created). Until set, the scheme's (white by default;
+    /// iOS and the Mac: <see cref="Accent"/>; Windows: <see cref="DefaultForeground"/>).
+    /// </summary>
+    public virtual Color ButtonForeground
+    {
+        get => _buttonForeground ?? ButtonForegroundFallback;
+        set => SetControlToken(ref _buttonForeground, value);
+    }
+
+    /// <summary>
+    /// A button's border color when it sets none, drawn <see cref="SkUiLook.DefaultButtonBorderWidth"/> wide (read when the
+    /// button is created). Until set, the scheme's (transparent by default; Windows: Fluent's faint control stroke).
+    /// </summary>
+    public virtual Color ButtonBorder
+    {
+        get => _buttonBorder ?? ButtonBorderFallback;
+        set => SetControlToken(ref _buttonBorder, value);
+    }
+
+    /// <summary>
+    /// An activity indicator's color when it sets none (read when it is created). Until set, the scheme's (<see cref="Muted"/>
+    /// by default, as iOS's gray spinner; Android and Windows: <see cref="Accent"/>).
+    /// </summary>
+    public virtual Color ActivityIndicator
+    {
+        get => _activityIndicator ?? ActivityIndicatorFallback;
+        set => SetControlToken(ref _activityIndicator, value);
+    }
+
+    /// <summary><see cref="ButtonBackground"/> until it is set: a token it follows, or a fixed color.</summary>
+    private protected virtual Color ButtonBackgroundFallback => Accent;
+
+    /// <summary><see cref="ButtonForeground"/> until it is set.</summary>
+    private protected virtual Color ButtonForegroundFallback => Colors.White;
+
+    /// <summary><see cref="ButtonBorder"/> until it is set.</summary>
+    private protected virtual Color ButtonBorderFallback => Colors.Transparent;
+
+    /// <summary><see cref="ActivityIndicator"/> until it is set.</summary>
+    private protected virtual Color ActivityIndicatorFallback => Muted;
+
+    /// <summary>
+    /// Copies token values from <paramref name="source"/> into this instance. Control tokens that follow another one in the
+    /// source (<see cref="ButtonBackground"/> following <see cref="Accent"/>) are copied as the color they have now.
+    /// </summary>
     public virtual void CopyFrom(SkUiColorScheme source)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -118,9 +178,21 @@ public class SkUiColorScheme
         TrackOff = source.TrackOff;
         Disabled = source.Disabled;
         Error = source.Error;
+        ButtonBackground = source.ButtonBackground;
+        ButtonForeground = source.ButtonForeground;
+        ButtonBorder = source.ButtonBorder;
+        ActivityIndicator = source.ActivityIndicator;
     }
 
     private void SetToken(ref Color field, Color value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (Equals(field, value)) return;
+        field = value;
+        _changed.Raise(this, EventArgs.Empty);
+    }
+
+    private void SetControlToken(ref Color? field, Color value)
     {
         ArgumentNullException.ThrowIfNull(value);
         if (Equals(field, value)) return;

@@ -399,10 +399,10 @@ Design details: [ControlLook.md](ControlLook.md).
 - [x] App can **replace the entire look** (e.g. set current look to an Android-like or iOS-like pack, or a custom subclass) — shapes and default sizes together when the pack defines both.
 - [x] App can **change drawing and/or default size for one control kind** without replacing the whole pack — by **overriding a virtual** on a look subclass **and/or** replacing a **per-painter or per-size delegate** on the look instance.
 - [x] Promote today’s `SkUiChrome` painters into the default look implementation; both `SkUi*` and `SkUiCore*` call the **active** look for paint **and** default measure so Core and MAUI-compatible stay aligned.
-- [ ] Optional resolution: control-local look → tree/host look → app current look → `DefaultSkUiLook` (global `Current` shipped; per-tree deferred).
+- [x] Optional resolution: node look (`Look`) → ancestor's → app current look → `DefaultSkUiLook` (per-tree look shipped with phase L6; the color scheme stays global).
 - [x] Changing the active look raises `CurrentChanged`; apps invalidate measure/paint (automatic tree walk deferred).
 - [x] Document naming clearly vs FR-12 / FR-19; tests cover swap full look + override a single painter and a single default size.
-- [ ] Built-in platform-inspired packs may ship later; FR-18 v1 requires the **extensibility model** + default look (including overridable default sizes), not full OS parity. *(Partial: `AndroidSkUiLook`, `IosSkUiLook`, `MacSkUiLook`, `WindowsSkUiLook` and `DefaultSkUiLook.ForCurrentPlatform()` ship with the picker's platform choices; the default look is the same on every platform. The rest is phase L of the [plan](ImplementationPlan.md#phase-l--platform-looks).)*
+- [ ] Built-in platform-inspired packs may ship later; FR-18 v1 requires the **extensibility model** + default look (including overridable default sizes), not full OS parity. *(Partial: `AndroidSkUiLook`, `AndroidMaterial3SkUiLook`, `IosSkUiLook`, `MacSkUiLook`, `WindowsSkUiLook` and `DefaultSkUiLook.ForCurrentPlatform()` ship; the default look is the same on every platform. The iOS (26), Mac Catalyst (iPad idiom) and Android (Material 2, and `AndroidMaterial3SkUiLook` for MAUI's Material 3) looks and `WindowsSkUiLook` (Windows 11, WinUI 3) are measured against MAUI's native controls with `SkUiLookComparisonPage`. See phase L of the [plan](ImplementationPlan.md#phase-l--platform-looks).)*
 - [x] Gallery sample page for look packs (`LookAndColorSchemePage`).
 
 ### FR-19 — Color scheme (shared default palette; not MAUI styles / not look)
@@ -751,7 +751,7 @@ When borrowing an idea, note the source briefly in design discussion or code com
 
 - Exact public names for animation helpers / `ISkUiAnimator` (tier APIs sketched in [AnimationMechanism.md](AnimationMechanism.md)).
 - Scroll details still open in [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#open-items): how FR-21 / FR-22 provide their extent inside an outer scroller.
-- **Control look (FR-18)** remaining: per-tree look attachment (vs process-wide `Current`), and optional OS theme sync helpers. Type names, `Current`, virtual/delegate painters, and default size tokens are decided — see Decided and [ControlLook.md](ControlLook.md).
+- **Control look (FR-18)** remaining: optional OS theme sync helpers and a per-tree color scheme. Type names, `Current`, virtual/delegate painters, and default size tokens are decided — see Decided and [ControlLook.md](ControlLook.md).
 - **Calendar (FR-33):** the per-day style callback's shape (a struct returned per day, or a painter), and how far `DayTemplate` goes (views per day for the visible month only).
 - **Color scheme (FR-19)** remaining: optional OS light/dark synchronization helpers. Type names, light/dark packs, `Current`, and construction-snapshot vs paint-time token reads are decided — see Decided and [ColorScheme.md](ColorScheme.md).
 

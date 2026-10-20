@@ -119,9 +119,60 @@ public readonly record struct SkUiPressVisual(float Pressed, SKPoint Origin, flo
     public bool HasRipple => Ripple > 0 && RippleFade < 1;
 }
 
+/// <summary>How a look draws activity indicators (<see cref="DefaultSkUiLook.ActivityIndicatorStyle"/>).</summary>
+public enum SkUiActivityIndicatorStyle
+{
+    /// <summary>A rotating arc (Material).</summary>
+    Arc,
+    /// <summary>Spokes that fade around a circle (iOS).</summary>
+    Spokes,
+    /// <summary>A short rotating arc without a track (Fluent's indeterminate progress ring).</summary>
+    Ring
+}
+
+/// <summary>How a look draws focus rings (<see cref="DefaultSkUiLook.FocusRingStyle"/>).</summary>
+public enum SkUiFocusRingStyle
+{
+    /// <summary>An outer line and a thin inner line of the background color (Fluent).</summary>
+    Double,
+    /// <summary>One soft, thick line (the Mac's focus halo).</summary>
+    Halo
+}
+
+/// <summary>How a look draws switches (<see cref="DefaultSkUiLook.SwitchStyle"/>).</summary>
+public enum SkUiSwitchStyle
+{
+    /// <summary>A filled pill with a round thumb that stretches when pressed (iOS-like).</summary>
+    Pill,
+    /// <summary>An outlined track while off, filled while on; the thumb is small and grows when on (Material 3 and Fluent).</summary>
+    Outlined,
+    /// <summary>A thin track under a larger round thumb with a shadow, centered in the control (Material 2's in its 48 dp touch target).</summary>
+    ThumbOverTrack
+}
+
+/// <summary>How a look draws sliders (<see cref="DefaultSkUiLook.SliderStyle"/>).</summary>
+public enum SkUiSliderStyle
+{
+    /// <summary>A round or capsule thumb on a track (iOS, Material 2, Fluent).</summary>
+    Thumb,
+    /// <summary>A bar handle between the active and the inactive track, with gaps and a stop dot (Material 3).</summary>
+    Handle
+}
+
+/// <summary>How a look draws radio buttons (<see cref="DefaultSkUiLook.RadioButtonStyle"/>).</summary>
+public enum SkUiRadioButtonStyle
+{
+    /// <summary>A ring with a dot of the ring's color while checked (iOS, Material).</summary>
+    Dot,
+    /// <summary>A thin ring that fills with the accent color around a light dot while checked (Fluent).</summary>
+    Filled
+}
+
 /// <summary>How <see cref="DefaultSkUiLook"/> draws indicator views (<see cref="DefaultSkUiLook.IndicatorStyle"/>).</summary>
 public enum SkUiIndicatorStyle
 {
+    /// <summary>The look's (<see cref="DefaultSkUiLook.BaseIndicatorStyle"/>): dots; a pill in <see cref="AndroidSkUiLook"/>.</summary>
+    Default,
     /// <summary>Dots (or squares) of the same size; the selected one takes the selected color (iOS-like).</summary>
     Dots,
     /// <summary>The selected indicator stretches into a pill twice the size longer, and slides between positions (Material-like).</summary>
@@ -139,6 +190,10 @@ public enum SkUiPickerFieldStyle
     Outline,
     /// <summary>A tinted fill with rounded top corners over an underline (Material's filled field).</summary>
     Filled,
+    /// <summary>A rounded, control-filled field with up and down chevrons (the Mac's pop-up button).</summary>
+    PopUpButton,
+    /// <summary>A light, rounded field with a faint outline, a slightly darker bottom edge and a small chevron, an accent line along the bottom while focused (Fluent's combo box).</summary>
+    ComboBox,
     /// <summary>No chrome: the chevron only (the app draws its own, e.g. with a border around the picker).</summary>
     None
 }
@@ -155,12 +210,16 @@ public enum SkUiTextFieldStyle
     /// <summary>A tinted fill with rounded top corners over an underline (Material's filled field).</summary>
     Filled,
     /// <summary>No chrome (the app draws its own, e.g. with a border around the field).</summary>
-    None
+    None,
+    /// <summary>A light, rounded field with a faint outline and a darker bottom line, a thicker accent line while focused (Fluent's text box).</summary>
+    TextBox
 }
 
 /// <summary>Press feedback style of <see cref="DefaultSkUiLook"/> buttons.</summary>
 public enum SkUiPressEffect
 {
+    /// <summary>The look's (<see cref="DefaultSkUiLook.BasePressEffect"/>): a dim; a ripple in <see cref="AndroidSkUiLook"/>.</summary>
+    Default,
     /// <summary>The fill fades while pressed (iOS-like).</summary>
     Dim,
     /// <summary>A ripple spreads from the press point and fades after the release (Material-like).</summary>

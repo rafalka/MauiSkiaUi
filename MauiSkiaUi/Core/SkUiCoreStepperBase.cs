@@ -41,7 +41,7 @@ public abstract class SkUiCoreStepperBase : SkUiCoreNode, ISkUiStepperOwner, ISk
     public string? FontFamily { get => Model.FontFamily; set => SetFontFamily(value); }
 
     /// <summary>The texts' font size in DIPs (default 16).</summary>
-    public double FontSize { get => Model.FontSize; set => SetFontSize(value); }
+    public double FontSize { get => Model.EffectiveFontSize; set => SetFontSize(value); }
 
     /// <summary>Bold and / or italic texts.</summary>
     public FontAttributes FontAttributes { get => Model.FontAttributes; set => SetFontAttributes(value); }

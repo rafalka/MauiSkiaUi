@@ -13,7 +13,7 @@ internal static class SkUiSliderMath
 
     /// <summary>
     /// The value under a point in the slider's own coordinates: the thumb's center travels from
-    /// <see cref="SkUiLook.SliderThumbRadius"/> to the length minus it, bottom to top for vertical sliders and right to
+    /// <see cref="SkUiLook.SliderThumbTravelInset"/> to the length minus it, bottom to top for vertical sliders and right to
     /// left in right-to-left layouts.
     /// </summary>
     public static double ValueAt(Point local, Size size, StackOrientation orientation, bool rightToLeft, double minimum, double maximum)
@@ -21,7 +21,7 @@ internal static class SkUiSliderMath
         var vertical = orientation == StackOrientation.Vertical;
         var length = vertical ? size.Height : size.Width;
         var along = vertical ? size.Height - local.Y : rightToLeft ? size.Width - local.X : local.X;
-        var inset = SkUiLook.Current.SliderThumbRadius;
+        var inset = SkUiLook.Current.SliderThumbTravelInset;
         var usable = length - 2 * inset;
         var fraction = usable <= 0 ? 0 : Math.Clamp((along - inset) / usable, 0, 1);
         return minimum + (Math.Max(minimum, maximum) - minimum) * fraction;
@@ -67,16 +67,16 @@ internal static class SkUiSliderMath
 
     /// <summary>
     /// The thumb image at its intrinsic size, centered where the look's thumb travels (inset by
-    /// <see cref="SkUiLook.SliderThumbRadius"/>, as input maps touches), upright in every orientation and direction.
+    /// <see cref="SkUiLook.SliderThumbTravelInset"/>, as input maps touches), upright in every orientation and direction.
     /// </summary>
     private static void DrawThumbImage(SKCanvas canvas, float width, float height, StackOrientation orientation, bool rightToLeft,
         float fraction, bool enabled, SkUiImageSlot image)
     {
         var vertical = orientation == StackOrientation.Vertical;
         var length = vertical ? height : width;
-        var radius = SkUiLook.Current.SliderThumbRadius;
-        var start = radius;
-        var end = Math.Max(start, length - radius);
+        var inset = SkUiLook.Current.SliderThumbTravelInset;
+        var start = inset;
+        var end = Math.Max(start, length - inset);
         var along = start + (end - start) * Math.Clamp(fraction, 0, 1);
         var center = vertical ? new SKPoint(width / 2, height - along)
             : new SKPoint(rightToLeft ? width - along : along, height / 2);
@@ -115,7 +115,7 @@ internal sealed class SkUiSliderVisual(ISkUiTransitionHost host)
         }
         if (!_thumb.IsRunning)
             _thumb.Jump(from);
-        _thumb.AnimateTo(to, SkUiLook.Current.GetTransition(SkUiTransitionKind.SliderThumb));
+        _thumb.AnimateTo(to, SkUiTransitionKind.SliderThumb);
     }
 
     /// <summary>A drag started or ended; a drag takes over from a glide at once (the thumb follows the finger).</summary>
@@ -123,7 +123,7 @@ internal sealed class SkUiSliderVisual(ISkUiTransitionHost host)
     {
         if (dragging && _thumb.IsRunning)
             _thumb.Jump(_thumb.Target);
-        _pressed.AnimateTo(dragging ? 1 : 0, SkUiLook.Current.GetTransition(dragging ? SkUiTransitionKind.Press : SkUiTransitionKind.Release));
+        _pressed.AnimateTo(dragging ? 1 : 0, dragging ? SkUiTransitionKind.Press : SkUiTransitionKind.Release);
     }
 }
 

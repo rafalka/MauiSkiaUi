@@ -108,7 +108,7 @@ internal sealed class SkUiIndicatorModel(ISkUiTransitionHost host)
     {
         if (IsDriven)
             return;
-        var transition = SkUiLook.Current.GetTransition(SkUiTransitionKind.IndicatorPosition);
+        var transition = host.TransitionLook.GetTransition(SkUiTransitionKind.IndicatorPosition);
         var target = ClampedPosition;
         if (transition.IsNone || Count <= 1)
         {

@@ -20,6 +20,34 @@ public class SkUiLook
     #region Current
 
     private static SkUiLook? _current;
+    [ThreadStatic] private static SkUiLook? _scoped;
+    private static volatile bool _anyTreeLook;
+
+    /// <summary>The look of the subtree being measured or recorded on this thread (see <see cref="SkUiLookScope"/>).</summary>
+    internal static SkUiLook? Scoped { get => _scoped; set => _scoped = value; }
+
+    /// <summary>Whether any node set its own look so far.</summary>
+    internal static bool AnyTreeLook => _anyTreeLook;
+
+    /// <summary>Records that a node set its own look, so measuring and recording look for it.</summary>
+    internal static void NoteTreeLook()
+    {
+        _anyTreeLook = true;
+        TreeChanged();
+    }
+
+    /// <summary>Bumped when a node's look or a drawn parent changes once a tree look exists: nodes resolve their look again.</summary>
+    internal static int TreeLookVersion { get; private set; }
+
+    /// <summary>A look or the tree changed: forget the looks nodes resolved (UI thread; nothing to do without tree looks).</summary>
+    internal static void TreeChanged()
+    {
+        if (_anyTreeLook)
+            TreeLookVersion++;
+    }
+
+    /// <summary>The app-wide look, ignoring the scope of the subtree being measured or recorded.</summary>
+    internal static SkUiLook App => _current ??= DefaultSkUiLook.Instance;
 
     /// <summary>
     /// Raised after <see cref="Current"/> is replaced, or by <see cref="NotifyChanged"/>. Live surfaces then re-measure and
@@ -46,7 +74,7 @@ public class SkUiLook
     /// </summary>
     public static SkUiLook Current
     {
-        get => _current ??= DefaultSkUiLook.Instance;
+        get => _scoped ?? (_current ??= DefaultSkUiLook.Instance);
         set
         {
             ArgumentNullException.ThrowIfNull(value);
@@ -82,6 +110,40 @@ public class SkUiLook
                 NotifyChanged();
         }
     }
+
+    /// <summary>
+    /// The font size of labels, buttons, radio buttons, text fields, pickers and steppers that set none, in DIPs (default 16;
+    /// the platform looks use their platform's body size). Read when text is laid out, so a subtree's own look
+    /// (<see cref="SkUiView.Look"/>) applies; the controls' <c>FontSize</c> getters return the app look's.
+    /// </summary>
+    public virtual double DefaultFontSize => 16;
+
+    /// <summary>
+    /// Whether text adds the font's padding above its first line and below its last (the extents of its tallest glyphs
+    /// instead of its ascent and descent), as Android's TextView does (default <c>false</c>; the Android looks: <c>true</c>).
+    /// </summary>
+    public virtual bool TextIncludesFontPadding => false;
+
+    /// <summary>
+    /// Whether text applies its font's own tracking (the <c>trak</c> table), as CoreText does on Apple platforms (default
+    /// <c>false</c>; the iOS and Mac looks: <c>true</c>). SF at 17 pt is 0.43 pt tighter per character than its advances.
+    /// </summary>
+    public virtual bool AppliesFontTracking => false;
+
+    /// <summary>
+    /// The size the font's tracking is looked up at, relative to the font size (default 1). Mac Catalyst in the iPad idiom
+    /// draws at 77% and CoreText tracks at the drawn size: 17 pt text tracks as 13 pt.
+    /// </summary>
+    public virtual double FontTrackingSizeScale => 1;
+
+    /// <summary>A control's font size field: <paramref name="size"/>, or the look's <see cref="DefaultFontSize"/> when it is NaN (not set).</summary>
+    internal static double FontSizeOrDefault(double size) => double.IsNaN(size) ? Current.DefaultFontSize : size;
+
+    /// <summary>
+    /// The font family of text that sets none (default <c>null</c>: the platform's system font, which is SF on Apple and Roboto
+    /// on Android). Read when text is laid out; a family the device lacks falls back to the system font.
+    /// </summary>
+    public virtual string? DefaultFontFamily => null;
 
     #endregion
 
@@ -241,6 +303,15 @@ public class SkUiLook
     /// <summary>Default button corner radius in DIPs.</summary>
     public virtual double DefaultButtonCornerRadius => 6;
 
+    /// <summary>The padding of buttons that set none, DIPs (default 18 × 12).</summary>
+    public virtual Thickness DefaultButtonPadding => new(18, 12);
+
+    /// <summary>
+    /// The border width of buttons that set none, drawn in the color scheme's <see cref="SkUiColorScheme.ButtonBorder"/>, DIPs
+    /// (default 0; Windows: Fluent's 1 epx). Read when the button is created; it does not change the button's size.
+    /// </summary>
+    public virtual double DefaultButtonBorderWidth => 0;
+
     /// <summary>Optional Button painter (fill, border and press feedback behind the text); replaces <see cref="DrawButtonCore"/>.</summary>
     public Action<SKCanvas, SkUiButtonPaint>? ButtonPainter { get; set; }
 
@@ -333,6 +404,12 @@ public class SkUiLook
     /// <summary>Default CheckBox intrinsic size in DIPs (square side length on both axes).</summary>
     public virtual Size DefaultCheckBoxSize => new(24, 24);
 
+    /// <summary>
+    /// The smallest width of a check box that sets no minimum width, DIPs; the box stays at the start (default 0; Windows: 120,
+    /// WinUI's MinWidth). As natively, a <c>MinimumWidthRequest</c> (Core: <c>MinimumWidth</c>) replaces it.
+    /// </summary>
+    public virtual double DefaultCheckBoxMinimumWidth => 0;
+
     /// <summary>Optional CheckBox intrinsic measure override.</summary>
     public Func<double, double, Size>? CheckBoxMeasure { get; set; }
 
@@ -343,6 +420,13 @@ public class SkUiLook
     public Size MeasureCheckBox(double widthConstraint, double heightConstraint) =>
         CheckBoxMeasure?.Invoke(widthConstraint, heightConstraint)
         ?? MeasureCheckBoxCore(widthConstraint, heightConstraint);
+
+    /// <summary>A check box's size, widened to <see cref="DefaultCheckBoxMinimumWidth"/> unless it sets a minimum width of its own.</summary>
+    internal Size MeasureCheckBox(double widthConstraint, double heightConstraint, bool hasMinimumWidth)
+    {
+        var size = MeasureCheckBox(widthConstraint, heightConstraint);
+        return hasMinimumWidth ? size : new Size(Math.Max(size.Width, DefaultCheckBoxMinimumWidth), size.Height);
+    }
 
     /// <summary>Default CheckBox size from <see cref="DefaultCheckBoxSize"/>.</summary>
     protected virtual Size MeasureCheckBoxCore(double widthConstraint, double heightConstraint) => DefaultCheckBoxSize;
@@ -373,6 +457,18 @@ public class SkUiLook
     /// default template: 6 between a 21-DIP circle and the content).
     /// </summary>
     public virtual double DefaultRadioButtonContentSpacing => 8;
+
+    /// <summary>
+    /// Space a radio button keeps around its circle and content, added to its own <c>Padding</c>, DIPs (default 0; MAUI's
+    /// radio button template on Apple: 8 × 7).
+    /// </summary>
+    public virtual Thickness RadioButtonPadding => default;
+
+    /// <summary>
+    /// The smallest width of a radio button (circle, content and padding) that sets no minimum width, DIPs (default 0; Windows:
+    /// 120, WinUI's MinWidth). As natively, a <c>MinimumWidthRequest</c> replaces it.
+    /// </summary>
+    public virtual double DefaultRadioButtonMinimumWidth => 0;
 
     /// <summary>Optional RadioButton intrinsic measure override.</summary>
     public Func<double, double, Size>? RadioButtonMeasure { get; set; }
@@ -457,6 +553,13 @@ public class SkUiLook
     /// touch to the value the thumb shows there.
     /// </summary>
     public virtual float SliderThumbRadius => 10;
+
+    /// <summary>
+    /// Where the thumb's center travels: from this inset to the length minus it, in DIPs (default
+    /// <see cref="SliderThumbRadius"/>; a capsule thumb's half width, Android's track padding). Input maps a touch to the value
+    /// the thumb shows there.
+    /// </summary>
+    public virtual float SliderThumbTravelInset => SliderThumbRadius;
 
     /// <summary>Optional Slider intrinsic measure override (width constraint, height constraint, orientation).</summary>
     public Func<double, double, StackOrientation, Size>? SliderMeasure { get; set; }

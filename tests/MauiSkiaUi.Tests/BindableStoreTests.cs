@@ -203,7 +203,9 @@ public class BindableStoreTests
                     if (field is null)
                         continue;
                     var (store, applied) = (view.GetValue(property), field.GetValue(view));
-                    if (!Equals(store, applied) && !(store is null && applied is ""))
+                    // An unset font size field is NaN: the look's DefaultFontSize, resolved when text is laid out (a subtree's look).
+                    var lookFontSize = applied is double.NaN && Equals(store, SkUiLook.Current.DefaultFontSize);
+                    if (!Equals(store, applied) && !(store is null && applied is "") && !lookFontSize)
                         mismatches.Add($"{type.Name}.{property.PropertyName}: store {store ?? "null"}, field {applied ?? "null"}");
                 }
             }

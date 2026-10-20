@@ -590,7 +590,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         RebuildAllPreviews();
         _status.Text =
             $"Scheme: {SkUiColorScheme.Current.GetType().Name} · Accent {ToHex(SkUiColorScheme.Current.Accent)} · " +
-            $"Look: {_look.Style} · Press: {_look.PressEffect} · Indicators: {_look.IndicatorStyle} · Platform: {PlatformLooks[Settings.PlatformLook].Name} · Picker fields: {_look.PickerFieldStyle} · Transitions: {(SkUiMotion.IsMotionReduced ? "off" : _look.TransitionScale == 1 ? "normal" : "slow")}";
+            $"Look: {_look.Style} · Press: {_look.EffectivePressEffect} · Indicators: {_look.EffectiveIndicatorStyle} · Platform: {PlatformLooks[Settings.PlatformLook].Name} · Picker fields: {_look.PickerFieldStyle} · Transitions: {(SkUiMotion.IsMotionReduced ? "off" : _look.TransitionScale == 1 ? "normal" : "slow")}";
     }
 
     private void SyncSizeEntriesFromLook()

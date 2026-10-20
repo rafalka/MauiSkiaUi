@@ -60,8 +60,8 @@ internal interface ISkUiTextFieldOwner : ISkUiTransitionHost
 /// </summary>
 internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditorOwner, ISkUiTextEditGeometry
 {
-    /// <summary>The font size of fields that set none (as SkiaUi's labels and pickers).</summary>
-    internal const double DefaultFontSize = 16;
+    /// <summary>The font size of fields that set none: the look's, as SkiaUi's labels and pickers.</summary>
+    internal static double DefaultFontSize => SkUiLook.Current.DefaultFontSize;
 
     // A caret this close to the text box's edge counts as inside it (scrolling keeps it in view).
     private const float ScrollMargin = 1;
@@ -127,7 +127,11 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     public Color? CaretColor;
     public Color? SelectionColor;
     public string? FontFamily;
-    public double FontSize = DefaultFontSize;
+    /// <summary>The font size set on the control, or NaN for the look's (<see cref="EffectiveFontSize"/>).</summary>
+    public double FontSize = double.NaN;
+
+    /// <summary>The font size to lay text out with: <see cref="FontSize"/>, or the look's.</summary>
+    public double EffectiveFontSize => SkUiLook.FontSizeOrDefault(FontSize);
     public FontAttributes FontAttributes;
     public bool FontAutoScalingEnabled = true;
     public double CharacterSpacing;
@@ -356,7 +360,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
 
     #region Text and geometry
 
-    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(FontSize, FontAutoScalingEnabled),
+    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(EffectiveFontSize, FontAutoScalingEnabled),
         LineBreakMode.WordWrap, null, -1, -1, CharacterSpacing, _owner.TextDirection, SkUiTextRendering.Default, FontAttributes);
 
     /// <summary>A step button's text: one line in <paramref name="fontFamily"/> (else the field's) at the field's size.</summary>
@@ -653,6 +657,22 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         _layout.Arrange(HorizontalTextAlignment, Math.Max(0, boxWidth));
     }
 
+    /// <summary>
+    /// Android's font padding (<see cref="SkUiLook.TextIncludesFontPadding"/>) above the first line and below the last, which
+    /// an EditText's height includes as a TextView's; 0 elsewhere.
+    /// </summary>
+    private float FontPadding
+    {
+        get
+        {
+            var style = TextStyle;
+            if (!style.IncludeFontPadding)
+                return 0;
+            var metrics = SkUiTextResources.Font(style.Typeface, (float)style.FontSize, FontAttributes).Metrics;
+            return Math.Max(0, metrics.Ascent - metrics.Top) + Math.Max(0, metrics.Bottom - metrics.Descent);
+        }
+    }
+
     private float LineHeight
     {
         get
@@ -672,7 +692,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         var available = Math.Max(0, widthConstraint - inset.HorizontalThickness);
         EnsureLayout(double.IsFinite(available) ? (float)available : float.PositiveInfinity);
         var width = (double)_layout.Width;
-        var height = (double)Math.Max(_layout.Height, LineHeight);
+        var height = (double)Math.Max(_layout.Height, LineHeight) + FontPadding;
         if (Editor.Text.Length == 0 && !string.IsNullOrEmpty(Placeholder))
         {
             var placeholder = PlaceholderLayout.Measure(Placeholder, PlaceholderStyle, default, available);
@@ -1276,7 +1296,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     public void SetFocused(bool focused)
     {
         if (Math.Abs(_focus.Target - (focused ? 1f : 0f)) > 0)
-            _focus.AnimateTo(focused ? 1f : 0f, SkUiLook.Current.GetTransition(SkUiTransitionKind.FieldFocus));
+            _focus.AnimateTo(focused ? 1f : 0f, SkUiTransitionKind.FieldFocus);
         if (focused)
         {
             RestartBlink();

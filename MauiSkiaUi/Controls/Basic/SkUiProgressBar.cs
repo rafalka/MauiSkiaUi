@@ -171,7 +171,7 @@ internal static class SkUiProgressBarDrawing
     /// </summary>
     public static void ProgressChanged(ISkUiTransitionHost host, ref SkUiTween? fill, double from, double to, SkUiProgressTween? progressTo)
     {
-        var transition = progressTo?.IsRunning == true ? SkUiTransition.None : SkUiLook.Current.GetTransition(SkUiTransitionKind.Progress);
+        var transition = progressTo?.IsRunning == true ? SkUiTransition.None : host.TransitionLook.GetTransition(SkUiTransitionKind.Progress);
         if (transition.IsNone)
         {
             fill?.Jump((float)to);

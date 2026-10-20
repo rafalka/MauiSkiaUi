@@ -6,7 +6,7 @@ Square checkbox with check mark when selected.
 
 ## How it works
 
-Extends [`SkUiToggleControl`](SkUiToggleControl.md). Tap toggles; with `IsThreeState` it also reaches Indeterminate (drawn as a dash), which apps also set to show a partly checked group. Intrinsic measure comes from `SkUiLook.Current.DefaultCheckBoxSize` (default 24×24 DIPs). Box/checkmark drawn via `SkUiLook.Current.DrawCheckBox` (same path as `SkUiCoreCheckBox`); the default look fades the fill in and draws the check mark (or grows the dash) over 160 ms ([transitions](../design/ControlLook.md#state-change-transitions-fr-26)).
+Extends [`SkUiToggleControl`](SkUiToggleControl.md). Tap toggles; with `IsThreeState` it also reaches Indeterminate (drawn as a dash), which apps also set to show a partly checked group. Intrinsic measure comes from `SkUiLook.Current.DefaultCheckBoxSize` (default 24×24 DIPs), at least `DefaultCheckBoxMinimumWidth` wide (`WindowsSkUiLook`: 120, WinUI's `MinWidth`, with the box at the start) unless the check box sets a `MinimumWidthRequest` (Core: `MinimumWidth`), which replaces it as it replaces WinUI's natively. Box/checkmark drawn via `SkUiLook.Current.DrawCheckBox` (same path as `SkUiCoreCheckBox`); the default look fades the fill in and draws the check mark (or grows the dash) over 160 ms ([transitions](../design/ControlLook.md#state-change-transitions-fr-26)).
 
 
 ## Shared conventions

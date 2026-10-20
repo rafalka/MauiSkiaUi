@@ -383,6 +383,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         {
             if (ReferenceEquals(field, value)) return;
             field = value;
+            _treeLook.ParentChanged(this);
             if (_skeletonState is not null || value is { MayPassSkeleton: true })
                 SkUiSkeletonScope.OnParentChanged(this); // the host is its drawn parent
         }
@@ -448,6 +449,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         if (_parent is not null && parent is not null && !ReferenceEquals(_parent, parent))
             throw new InvalidOperationException("A Core node already has a parent.");
         SetProperty(ref _parent, parent, nameof(Parent));
+        _treeLook.ParentChanged(this);
         if (parent is null && _renderState is not null)
             SkUiRenderInvalidation.ResetSubtree(this);
         if (parent is null)
@@ -518,10 +520,17 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         return this;
     }
 
+    /// <summary>
+    /// Whether <see cref="SetMinimumWidth"/> was called, also with 0 (as MAUI's <c>MinimumWidthRequest</c> set to 0): it then
+    /// replaces a look's minimum width (Windows' check boxes and radio buttons).
+    /// </summary>
+    private protected bool HasMinimumWidth { get; private set; }
+
     /// <summary>Sets minimum width in DIPs.</summary>
     public SkUiCoreNode SetMinimumWidth(double value)
     {
         SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        HasMinimumWidth = true;
         if (!SetProperty(ref _minimumWidth, value, nameof(MinimumWidth))) return this;
         InvalidateMeasure();
         return this;
@@ -665,6 +674,8 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             width = Math.Min(width, _maximumWidth);
             height = Math.Min(height, _maximumHeight);
 
+            using var lookScope = SkUiLookScope.Enter(this);
+            ApplyLookDefaults();
             var content = MeasureContent(width, height);
             var desiredWidth = ResolveDimension(widthConstraint, _width, content.Width, _minimumWidth, _maximumWidth) + _margin.HorizontalThickness;
             var desiredHeight = ResolveDimension(heightConstraint, _height, content.Height, _minimumHeight, _maximumHeight) + _margin.VerticalThickness;
@@ -685,6 +696,15 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
 
     /// <summary>Measures intrinsic content without margin, in DIPs.</summary>
     protected virtual Size MeasureContent(double widthConstraint, double heightConstraint) => Size.Zero;
+
+    /// <summary>
+    /// Re-applies the defaults this node takes from the look (buttons: padding and border width) to the properties the app
+    /// did not set, under the look it measures with (its subtree's or the app's). Runs before each measure that is not cached.
+    /// </summary>
+    private protected virtual void ApplyLookDefaults() { }
+
+    /// <summary>The look changed (also in place): the next <see cref="ApplyLookDefaults"/> re-applies them.</summary>
+    private protected virtual void ForgetLookDefaults() { }
 
     /// <inheritdoc />
     public void Arrange(Rect bounds)
@@ -754,6 +774,37 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     SkUiRenderState ISkUiRenderable.RenderState => RenderState;
 
     ISkUiRenderable? ISkUiRenderable.RenderParent => (ISkUiRenderable?)(_parent as SkUiCoreNode) ?? HostOwner;
+
+    private SkUiTreeLookCache _treeLook;
+
+    SkUiLook? ISkUiRenderable.TreeLook => _treeLook.Get(this);
+
+    private SkUiLook? _look;
+
+    /// <summary>
+    /// A look for this node and its descendants, instead of <see cref="SkUiLook.Current"/> (the nearest node that sets one wins;
+    /// see <see cref="SkUiView.Look"/>).
+    /// </summary>
+    public SkUiLook? Look
+    {
+        get => _look;
+        set => SetLook(value);
+    }
+
+    SkUiLook? ISkUiRenderable.LookOverride => _look;
+
+    /// <summary>Sets <see cref="Look"/>.</summary>
+    public SkUiCoreNode SetLook(SkUiLook? value)
+    {
+        if (!SetProperty(ref _look, value, nameof(Look))) return this;
+        if (value is not null)
+            SkUiLook.NoteTreeLook();
+        else
+            SkUiLook.TreeChanged();
+        SkUiRenderInvalidation.MarkLookChanged(this);
+        InvalidateMeasure();
+        return this;
+    }
 
     void ISkUiRenderable.GetRenderProps(ref SkUiRenderProps props)
     {
@@ -1204,6 +1255,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// <summary>The look or color scheme changed: forget the cached measure and re-record (no per-node propagation).</summary>
     internal void MarkLookChanged()
     {
+        ForgetLookDefaults();
         _measureDirty = true;
         _arrangeDirty = true;
         if (_effects is { } effects)
@@ -1220,6 +1272,8 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     SkUiAnimationClock? ISkUiTransitionHost.TransitionClock => _renderState is { HasCommitted: true } ? AnimationClock : null;
 
     void ISkUiTransitionHost.InvalidateTransition() => InvalidatePaint();
+
+    SkUiLook ISkUiTransitionHost.TransitionLook => SkUiLookScope.Resolve(this);
 
     void ISkUiGestureElement.CancelGestures() => CancelGestures();
 

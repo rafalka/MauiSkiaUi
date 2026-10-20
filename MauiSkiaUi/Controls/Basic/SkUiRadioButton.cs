@@ -25,7 +25,7 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
     private ISkUiView? _hostedContent; // a view Content drawn beside the circle (not while templated)
     private string _text = string.Empty; // string Content after the text transform
     private Color _textColor = SkUiColors.DefaultForeground;
-    private double _fontSize = 16;
+    private double _fontSize = double.NaN; // NaN: the look's
     private bool _fontAutoScalingEnabled = true;
     private string? _fontFamily;
     private FontAttributes _fontAttributes;
@@ -65,9 +65,9 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
         validateValue: SkUiValidate.NotNull,
         propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnTextColorChanged((Color)value));
     /// <summary>Bindable <see cref="FontSize"/>.</summary>
-    public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiRadioButton), 16d,
+    public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiRadioButton), 0d, defaultValueCreator: _ => SkUiLook.Current.DefaultFontSize,
         validateValue: SkUiValidate.FinitePositive,
-        propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnTextStyleChanged(radio => radio._fontSize = (double)value));
+        propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnTextStyleChanged(radio => radio._fontSize = view.IsSet(FontSizeProperty) ? (double)value : double.NaN));
     /// <summary>Bindable <see cref="FontAutoScalingEnabled"/>.</summary>
     public static readonly BindableProperty FontAutoScalingEnabledProperty = BindableProperty.Create(nameof(FontAutoScalingEnabled), typeof(bool), typeof(SkUiRadioButton), true,
         propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnTextStyleChanged(radio => radio._fontAutoScalingEnabled = (bool)value));
@@ -369,7 +369,10 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
         try
         {
             label.TextColor = _textColor;
-            label.FontSize = _fontSize;
+            if (double.IsNaN(_fontSize))
+                label.ClearValue(SkUiLabel.FontSizeProperty);
+            else
+                label.FontSize = _fontSize;
             label.FontAutoScalingEnabled = _fontAutoScalingEnabled;
             label.FontFamily = _fontFamily;
             label.FontAttributes = _fontAttributes;
@@ -436,7 +439,7 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
     }
 
     private SkUiTextStyle TextStyle => SkUiRadioButtonContent.TextStyle(_fontFamily,
-        SkUiFontScaling.ScaleFontSize(_fontSize, _fontAutoScalingEnabled), _fontAttributes, _characterSpacing, TextDirection);
+        SkUiFontScaling.ScaleFontSize(SkUiLook.FontSizeOrDefault(_fontSize), _fontAutoScalingEnabled), _fontAttributes, _characterSpacing, TextDirection);
 
     /// <summary>Paragraph direction from MAUI's flow direction, as <see cref="SkUiLabel"/>'s.</summary>
     private SkUiTextDirection TextDirection
@@ -468,12 +471,14 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
         }
         var inset = ContentInset;
         var circle = SkUiRadioButtonContent.CircleSize(widthConstraint, heightConstraint);
+        // As WinUI's MinWidth, the look's minimum width gives way to the radio button's own.
+        var hasMinimumWidth = MinimumWidthRequest >= 0;
         if (!HasContent)
-            return SkUiRadioButtonContent.Measure(circle, inset, null);
+            return SkUiRadioButtonContent.Measure(circle, inset, null, hasMinimumWidth);
         var width = SkUiRadioButtonContent.ContentWidthConstraint(widthConstraint, circle, inset);
         var height = SkUiRadioButtonContent.ContentHeightConstraint(heightConstraint, inset);
         var content = _hostedContent is { } view ? view.Measure(width, height) : TextContent.MeasureText(_text, TextStyle, width);
-        return SkUiRadioButtonContent.Measure(circle, inset, content);
+        return SkUiRadioButtonContent.Measure(circle, inset, content, hasMinimumWidth);
     }
 
     /// <inheritdoc />

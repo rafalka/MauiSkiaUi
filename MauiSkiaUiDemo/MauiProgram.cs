@@ -17,7 +17,7 @@ public static class MauiProgram
 		builder
 			.UseMauiApp<App>()
 			.UseMauiCommunityToolkit()
-			.UseSkiaUi()
+			.UseSkiaUi(options => options.Look = DefaultSkUiLook.ForCurrentPlatform())
 			// Drawn pickers show their lists in the toolkit's popups.
 			.UseSkiaUiCommunityToolkit()
 			.ConfigureFonts(fonts =>

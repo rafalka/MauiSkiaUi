@@ -20,9 +20,10 @@ public class SkUiLabel : SkUiView
     private string _text = string.Empty;
     private string _displayText = string.Empty; // _text after _textTransform
     private Color _textColor = SkUiColors.DefaultForeground;
-    private double _fontSize = 16;
+    private double _fontSize = double.NaN; // NaN: the look's (EffectiveFontSize)
     private bool _fontAutoScalingEnabled = true;
     private int _fontScaleVersion; // SkUiFontScaling.Version the rich text was built at
+    private SkUiLook? _richTextLook; // the look the rich text was built with
     private string? _fontFamily;
     private FontAttributes _fontAttributes;
     private LineBreakMode _lineBreakMode = LineBreakMode.WordWrap;
@@ -57,7 +58,7 @@ public class SkUiLabel : SkUiView
     /// <summary>Bindable foreground color.</summary>
     public static readonly BindableProperty TextColorProperty = BindableProperty.Create(nameof(TextColor), typeof(Color), typeof(SkUiLabel), Colors.Black, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextColor, validateValue: SkUiValidate.NotNull, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextColorChanged((Color)value));
     /// <summary>Bindable font size in DIPs.</summary>
-    public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiLabel), 16d, validateValue: SkUiValidate.FinitePositive, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontSizeChanged((double)value));
+    public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiLabel), 0d, defaultValueCreator: _ => SkUiLook.Current.DefaultFontSize, validateValue: SkUiValidate.FinitePositive, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontSizeChanged((double)value));
     /// <summary>Bindable <see cref="FontAutoScalingEnabled"/>.</summary>
     public static readonly BindableProperty FontAutoScalingEnabledProperty = BindableProperty.Create(nameof(FontAutoScalingEnabled), typeof(bool), typeof(SkUiLabel), true, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontAutoScalingEnabledChanged((bool)value));
     /// <summary>Bindable system font family name.</summary>
@@ -128,9 +129,9 @@ public class SkUiLabel : SkUiView
         validateValue: SkUiValidate.NonNegative,
         propertyChanged: (view, _, value) => ((SkUiLabel)view).OnCornerRadiusChanged((int)value));
     /// <summary>Bindable border color.</summary>
-    public static readonly BindableProperty BorderColorProperty = BindableProperty.Create(nameof(BorderColor), typeof(Color), typeof(SkUiLabel), Colors.Transparent, validateValue: SkUiValidate.NotNull, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnBorderColorChanged((Color)value));
+    public static readonly BindableProperty BorderColorProperty = BindableProperty.Create(nameof(BorderColor), typeof(Color), typeof(SkUiLabel), Colors.Transparent, defaultValueCreator: view => ((SkUiLabel)view).DefaultBorderColor, validateValue: SkUiValidate.NotNull, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnBorderColorChanged((Color)value));
     /// <summary>Bindable border width.</summary>
-    public static readonly BindableProperty BorderWidthProperty = BindableProperty.Create(nameof(BorderWidth), typeof(double), typeof(SkUiLabel), 0d, validateValue: SkUiValidate.NonNegative, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnBorderWidthChanged((double)value));
+    public static readonly BindableProperty BorderWidthProperty = BindableProperty.Create(nameof(BorderWidth), typeof(double), typeof(SkUiLabel), 0d, defaultValueCreator: view => ((SkUiLabel)view).DefaultBorderWidth, validateValue: SkUiValidate.NonNegative, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnBorderWidthChanged((double)value));
 
     /// <summary>
     /// Starts the applied state from the same defaults the bindable store reports (the <c>Default*</c> members, which
@@ -147,10 +148,42 @@ public class SkUiLabel : SkUiView
         _lineBreakMode = StyledOr(LineBreakModeProperty, DefaultLineBreakMode);
         if (!IsSet(CornerRadiiProperty) && !IsSet(CornerRadiusProperty))
             _chrome.SetRadii(new Microsoft.Maui.CornerRadius(DefaultCornerRadius));
+        _chrome.SetBorderColor(StyledOr(BorderColorProperty, DefaultBorderColor));
+        _chrome.SetBorderWidth(StyledOr(BorderWidthProperty, DefaultBorderWidth));
+        _lookDefaultsFrom = SkUiLook.Current;
+    }
+
+    /// <summary>The look the unset padding, corners and border width were taken from.</summary>
+    private SkUiLook? _lookDefaultsFrom;
+
+    /// <inheritdoc />
+    private protected override void ApplyLookDefaults()
+    {
+        var look = SkUiLook.Current;
+        if (ReferenceEquals(look, _lookDefaultsFrom)) return;
+        _lookDefaultsFrom = look;
+        // Only the applied state: the bindable store keeps reporting the defaults it created (the app look's).
+        if (!IsSet(PaddingProperty))
+            _padding = DefaultPadding;
+        if (!IsSet(CornerRadiiProperty) && !IsSet(CornerRadiusProperty))
+            _chrome.SetRadii(new Microsoft.Maui.CornerRadius(DefaultCornerRadius));
+        if (!IsSet(BorderWidthProperty))
+            _chrome.SetBorderWidth(DefaultBorderWidth);
+    }
+
+    /// <inheritdoc />
+    private protected override void ForgetLookDefaults()
+    {
+        _lookDefaultsFrom = null;
+        _richText = null; // a look changed in place may have another default font size or family
     }
 
     /// <summary>Default (uniform) corner radius used by derived controls and bindable value clearing.</summary>
     protected virtual double DefaultCornerRadius => 0;
+    /// <summary>Default border color used by derived controls and bindable value clearing (labels: none).</summary>
+    protected virtual Color DefaultBorderColor => Colors.Transparent;
+    /// <summary>Default border width used by derived controls and bindable value clearing (labels: 0).</summary>
+    protected virtual double DefaultBorderWidth => 0;
     /// <summary>Default foreground used by derived controls and bindable value clearing.</summary>
     protected virtual Color DefaultTextColor => SkUiColors.DefaultForeground;
     /// <summary>Default alignment used by derived controls and bindable value clearing.</summary>
@@ -352,7 +385,16 @@ public class SkUiLabel : SkUiView
     private void OnTextColorChanged(Color value) { if (_textColor == value) return; _textColor = value; _richText = null; InvalidatePaint(); }
     /// <summary>Sets font size (same as the property setter).</summary>
     public SkUiLabel SetFontSize(double value) { if (!double.IsFinite(value) || value <= 0) throw new ArgumentOutOfRangeException(nameof(value)); FontSize = value; return this; }
-    private void OnFontSizeChanged(double value) { if (_fontSize == value) return; _fontSize = value; InvalidateText(); }
+    private void OnFontSizeChanged(double value)
+    {
+        var size = IsSet(FontSizeProperty) ? value : double.NaN;
+        if (_fontSize.Equals(size)) return;
+        _fontSize = size;
+        InvalidateText();
+    }
+
+    /// <summary>The font size text is laid out with: the one set, or the look's (the subtree's own look included).</summary>
+    private double EffectiveFontSize => SkUiLook.FontSizeOrDefault(_fontSize);
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/> (same as the property setter).</summary>
     public SkUiLabel SetFontAutoScalingEnabled(bool value) { FontAutoScalingEnabled = value; return this; }
     private void OnFontAutoScalingEnabledChanged(bool value) { if (_fontAutoScalingEnabled == value) return; _fontAutoScalingEnabled = value; InvalidateText(); }
@@ -520,7 +562,7 @@ public class SkUiLabel : SkUiView
         InvalidateText();
     }
 
-    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), ScaledFontSize(_fontSize), _lineBreakMode, _lineBreaker,
+    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), ScaledFontSize(EffectiveFontSize), _lineBreakMode, _lineBreaker,
         _maxLines, _lineHeight, _characterSpacing, TextDirection, _textRendering, _fontAttributes, _horizontalTextAlignment == TextAlignment.Justify,
         _shrinkToFit ? (float)_minimumFontScale : 1, _growToFill ? (float)_maximumFontScale : 1, _allowsTightening);
 
@@ -554,9 +596,11 @@ public class SkUiLabel : SkUiView
         get
         {
             var version = SkUiFontScaling.Version;
-            if (_richText is null || _fontScaleVersion != version)
+            var look = SkUiLook.Current; // the spans take its font size and family: the subtree's while it measures and draws
+            if (_richText is null || _fontScaleVersion != version || !ReferenceEquals(_richTextLook, look))
             {
                 _fontScaleVersion = version;
+                _richTextLook = look;
                 _richText = BuildRichText();
             }
             return _richText;
@@ -568,14 +612,14 @@ public class SkUiLabel : SkUiView
     private SkUiRichText BuildRichText()
     {
         if (IsHtml)
-            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, _fontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations,
+            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, EffectiveFontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations,
                 _fontAutoScalingEnabled);
         if (_formattedText is not { Spans.Count: > 0 } formatted) return SkUiRichText.Empty;
         var builder = new SkUiRichText.Builder();
         foreach (var span in formatted.Spans)
         {
             var family = span.IsSet(Span.FontFamilyProperty) ? span.FontFamily : _fontFamily;
-            var size = span.IsSet(Span.FontSizeProperty) && double.IsFinite(span.FontSize) && span.FontSize > 0 ? span.FontSize : _fontSize;
+            var size = span.IsSet(Span.FontSizeProperty) && double.IsFinite(span.FontSize) && span.FontSize > 0 ? span.FontSize : EffectiveFontSize;
             var attributes = span.IsSet(Span.FontAttributesProperty) ? span.FontAttributes : _fontAttributes;
             var spacing = span.IsSet(Span.CharacterSpacingProperty) && double.IsFinite(span.CharacterSpacing) ? span.CharacterSpacing : _characterSpacing;
             var lineHeight = span.LineHeight >= 0 ? span.LineHeight : _lineHeight;
@@ -598,8 +642,12 @@ public class SkUiLabel : SkUiView
     public string? LinkAt(Point point) =>
         IsHtml && SpanIndexAt(point) is var index and >= 0 && index < HtmlRuns.Count ? HtmlRuns[index].Style.Href : null;
 
-    private int SpanIndexAt(Point point) =>
-        RichLayout.HitTest(RichText, TextStyle, TextInset, Width, Height, _horizontalTextAlignment, _verticalTextAlignment, point);
+    private int SpanIndexAt(Point point)
+    {
+        // Taps arrive outside measuring and drawing: hit-test the text as laid out, under the subtree's look.
+        using var lookScope = SkUiLookScope.Enter(this);
+        return RichLayout.HitTest(RichText, TextStyle, TextInset, Width, Height, _horizontalTextAlignment, _verticalTextAlignment, point);
+    }
 
     /// <inheritdoc />
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
@@ -654,7 +702,7 @@ public class SkUiLabel : SkUiView
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         if (!HasText && SkeletonPlaceholderLines is > 0 and var lines)
-            return SkUiSkeletonScope.PlaceholderSize(lines, _layout.LineSpacing(TextStyle), _fontSize, _padding, widthConstraint);
+            return SkUiSkeletonScope.PlaceholderSize(lines, _layout.LineSpacing(TextStyle), EffectiveFontSize, _padding, widthConstraint);
         return UsesRichText
             ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint, heightConstraint)
             : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint, heightConstraint);
@@ -709,6 +757,9 @@ public class SkUiLabel : SkUiView
 
     /// <summary>The text's slot in the arranged label, as an inset from its edges: <see cref="Padding"/> (buttons: beside their image).</summary>
     private protected virtual Thickness TextInset => _padding;
+
+    /// <summary>The padding drawn: <see cref="Padding"/>, or the look's default under a subtree's own look when unset.</summary>
+    private protected Thickness AppliedPadding => _padding;
 
     /// <summary>Whether glyphs are clipped to the text's slot (<see cref="TextInset"/>), not only to the bounds: buttons keep text that does not fit out of their padding and image.</summary>
     private protected virtual bool ClipsTextToInset => false;

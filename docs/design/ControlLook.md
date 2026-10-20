@@ -56,7 +56,7 @@ public class SkUiLook
     public void DrawRefreshIndicator(SKCanvas canvas, SkUiRefreshIndicatorPaint paint) { … } // → RefreshIndicatorPainter ?? DrawRefreshIndicatorCore
     public virtual double RefreshIndicatorSize => 40;      // and RefreshTriggerDistance (64), RefreshRestDistance (64),
                                                            // RefreshIndicatorSpinPeriod (1 s), GetRefreshIndicatorShadow(style)
-    public virtual SkUiRefreshStyle DefaultRefreshStyle => SkUiRefreshStyle.Overlay; // DefaultSkUiLook: the platform's (Inline on Apple)
+    public virtual SkUiRefreshStyle DefaultRefreshStyle => SkUiRefreshStyle.Overlay; // DefaultSkUiLook: BaseRefreshStyle (Overlay; Inline in the Apple looks)
     // Indicator views (C4): the whole row, laid out by the control (SkUiIndicatorPaint.GetIndicatorBounds / GetSelection /
     // GetColor, as hit-tested); drawn again while the selection moves. DefaultSkUiLook: dots or a pill (IndicatorStyle).
     public void DrawIndicators(SKCanvas canvas, SkUiIndicatorPaint paint) { … } // → IndicatorPainter ?? DrawIndicatorsCore
@@ -107,7 +107,7 @@ public class SkUiLook
                                                            // ScrollBarExpandedThickness (8), ScrollBarHitThickness (16),
                                                            // ScrollBarReservedThickness (12: the gutter of a bar that always shows)
     public virtual TimeSpan ScrollBarFadeDelay => TimeSpan.FromMilliseconds(500);     // and ScrollBarFadeDuration (250 ms)
-    public virtual SkUiOverscrollMode DefaultOverscroll => SkUiOverscrollMode.None; // DefaultSkUiLook: the platform's (Bounce on Apple, Stretch on Android)
+    public virtual SkUiOverscrollMode DefaultOverscroll => SkUiOverscrollMode.None; // DefaultSkUiLook: BaseOverscroll (None; Bounce in the Apple looks, Stretch in Android's)
     public virtual float SliderThumbRadius => 10;         // input maps touches to the thumb's center
     public virtual float IndeterminateProgressSegment => 0.35f;
     public virtual float IndeterminateProgressPeriod => 1.5f; // seconds; the compositor slides the bar on the render thread
@@ -188,7 +188,7 @@ Drawing the blend makes interruptions free: a switch toggled back mid-way revers
 
 **Press feedback on any control.** `ShowsPressEffect` (every `SkUiView` and Core node) draws the look's press overlay (`DrawPressOverlay`) over the node and its children while it is pressed, clipped to its rounded shape (a label's `CornerRadii`, a border's `CornerRadius` or rounded-rectangle `StrokeShape`). This is for containers that act as one button: a card, or a composite button built from several Core nodes. The node needs a tap handler (`Tapped`, or `TappedCommand` on SkUi*) to be pressed. A button inside it still takes its own presses. `DefaultSkUiLook` dims the content or spreads a dark ripple.
 
-Override `GetTransitionCore` in a subclass, or set `TransitionProvider` on a look instance. `DefaultSkUiLook.PressEffect` picks `Dim` (default: the fill fades by a quarter) or `Ripple` (a circle spreads from the press point, clipped to the button's rounded shape, and fades after the release).
+Override `GetTransitionCore` in a subclass, or set `TransitionProvider` on a look instance. `DefaultSkUiLook.PressEffect` picks `Dim` (the fill fades by a quarter) or `Ripple` (a circle spreads from the press point, clipped to the button's rounded shape, and fades after the release); its default, `Default`, is the look's `BasePressEffect` (`Dim`; Android's look ripples). The platform looks also time their transitions: Android uses Material's emphasized curves (`SkUiEasings.Emphasized`), the Apple looks iOS's spring-like curve, Windows Fluent's short decelerating one; the numbers above are the default look's.
 
 **Reduce motion.** `SkUiMotion.IsMotionReduced` follows the OS setting (iOS / Mac Catalyst Reduce Motion, Android "Remove animations", Windows animation effects off); `SkUiMotion.ReduceMotion` overrides it. While reduced, `GetTransition` returns `None` for every kind. Activity animations (spinners, the indeterminate progress bar) keep running, since they show that work is in progress.
 
@@ -239,10 +239,33 @@ Looks do **not** replace `PaintBackground` / `OnPaintContent` hooks; they are wh
 | Pack | Intent |
 | --- | --- |
 | `DefaultSkUiLook` | Cross-platform geometry and sizes (the former `SkUiChrome` painters + hardcoded measures), **the same on every platform** by default |
-| Platform looks: `AndroidSkUiLook`, `IosSkUiLook`, `MacSkUiLook`, `WindowsSkUiLook` | Subclasses of `DefaultSkUiLook` that mimic one platform each; they draw the same wherever they run. `DefaultSkUiLook.ForCurrentPlatform()` returns the one for the platform the app runs on (shared instances; `UseSkiaUi(options => options.Look = …)` or `SkUiLook.Current` makes it current). Basic so far: Android underlines picker fields and ripples presses, iOS opens window popups as a bottom sheet on phones; Mac and Windows match the default look. Filling them in is phase L of the [plan](ImplementationPlan.md#phase-l--platform-looks) |
+| Platform looks: `AndroidSkUiLook`, `AndroidMaterial3SkUiLook`, `IosSkUiLook`, `MacSkUiLook`, `WindowsSkUiLook` | Subclasses of `DefaultSkUiLook` that mimic MAUI's native controls on one platform each, measured on devices with `SkUiLookComparisonPage` (below); they draw the same wherever they run. `DefaultSkUiLook.ForCurrentPlatform()` returns the one for the platform the app runs on (shared instances; `UseSkiaUi(options => options.Look = …)` or `SkUiLook.Current` makes it current). iOS: iOS 26. Mac: Mac Catalyst in the iPad idiom (MAUI's default), where Catalyst draws the iOS controls at 77%, so `MacSkUiLook` derives from `IosSkUiLook`. Android: Material 2 as MAUI ships it; `AndroidMaterial3SkUiLook` (derived from it) for `<UseMaterial3>true</UseMaterial3>`, which `ForCurrentPlatform` detects. Windows: MAUI on Windows 11 (WinUI 3, Fluent) |
 | App / library packs | Brand-specific subclasses (of the default look or a platform look) or delegate replacements |
 
-Platform-specific choices belong in the platform looks, not in `DefaultSkUiLook`: an option of the default look (such as `PickerFieldStyle`) resolves its `Default` value through a virtual (`DefaultPickerFieldStyle`) the platform looks override. Choices that depend on the device rather than the platform (a phone, a tablet, a desktop) can stay in the default look (`DevicePopupPlacement`). Exceptions, still in the default look: the overscroll and pull-to-refresh defaults follow the platform (to move in phase L).
+A look owns shapes, sizes and motion; the colors are the color scheme's. For the platform's appearance, set both: the platform look, and its scheme before the first page's controls are created (the platform schemes also carry the native button and activity indicator colors):
+
+```csharp
+var look = DefaultSkUiLook.ForCurrentPlatform();
+builder.UseSkiaUi(options => options.Look = look);
+// In the App constructor, before MainPage / the shell is created:
+SkUiColorScheme.Current = look.GetColorScheme(RequestedTheme == AppTheme.Dark);
+```
+
+Platform-specific choices belong in the platform looks, not in `DefaultSkUiLook`: an option of the default look (such as `PickerFieldStyle`) resolves its `Default` value through a virtual (`DefaultPickerFieldStyle`) the platform looks override. Choices that depend on the device rather than the platform (a phone, a tablet, a desktop) can stay in the default look (`DevicePopupPlacement`). The overscroll (`BaseOverscroll`) and pull-to-refresh style (`BaseRefreshStyle`) follow the same pattern: the default look stops at the edge and shows an overlay badge everywhere; the Apple looks bounce with an inline indicator, Android's stretches.
+
+## Matching MAUI's native controls
+
+The platform looks take their sizes from MAUI's native controls as they measure and draw on each platform, not from the design guidelines alone (MAUI's iOS buttons have square corners, its Android check box sits in 32 dp, its pickers have no arrow). `SkUiLookComparisonPage` is the tool: one row per control with the native control (the platform the app runs on) next to the drawn one under a chosen look, both measured sizes (green when they match within 0.5 DIP), side by side or overlaid at half opacity, with the app's implicit styles or the platform's defaults (empty implicit styles on both sides), and optionally the look's color scheme. Apps add their own look (`AddLook`) and their own pairs of styled controls (`AddRow`). After each layout it writes a report to the console (`[SkUiLookComparison]` lines) and keeps it for "Copy report"; the `skiaui-look` agent skill (plugins/skiaui-migration) runs it on simulators and emulators, summarizes the reports and tunes a look until every row matches. The demo shows it as "Look comparison" (route `look-comparison`, `SKUI_LOOK` / `SKUI_APP_STYLES` / `SKUI_OVERLAY` for scripted runs).
+
+Text needed two engine options to measure as native labels do, both look members: `TextIncludesFontPadding` (Android's TextView adds the font's top and bottom extents to the first and last lines: Roboto's 14 sp line is 18.7, not 16.4; spans and HTML too, from the tallest span's font on those lines) and `AppliesFontTracking` (CoreText applies the font's `trak` table, which HarfBuzz does not: SF is 0.43 pt tighter per character at 17 pt; `FontTrackingSizeScale` looks the tracking up at Mac Catalyst's drawn size, 77%). On Apple platforms text that sets no family uses `.AppleSystemUIFont` (SF with UIKit's metrics); Skia's default face there is Helvetica.
+
+<img src="../images/look-comparison-ios.png" width="270" alt="SkUiLookComparisonPage on iOS 26: MAUI's native controls and the iOS look's drawn ones with matching sizes"> <img src="../images/look-comparison-android.png" width="270" alt="SkUiLookComparisonPage on Android: MAUI's Material 2 controls and AndroidSkUiLook's drawn ones">
+
+On Windows the native controls keep WinUI's own minimums: a check box and a radio button are at least 120 wide (WinUI's `MinWidth`), which a `MinimumWidthRequest` replaces rather than raises, as MAUI maps it to `MinWidth`. `SkUiLook.DefaultCheckBoxMinimumWidth` and `DefaultRadioButtonMinimumWidth` give way the same way. Fluent's shapes needed their own options: `SkUiRadioButtonStyle.Filled` (the ring fills with the accent around a white dot), `SliderThumbInnerRadius` (a white thumb around an accent dot), `ProgressBarTrackLineHeight` (a 1 epx track under the 3 epx fill), `SkUiTextFieldStyle.TextBox` and the `ComboBox` picker field (Fluent's control fill, a faint outline with a darker bottom edge, an accent line while focused), `CheckMarkStrokeFraction` and `CheckMarkScale` (the thin check glyph), and the `Ring` activity indicator without a track.
+
+<img src="../images/look-comparison-windows.png" width="360" alt="SkUiLookComparisonPage on Windows 11: MAUI's WinUI controls and WindowsSkUiLook's drawn ones with matching sizes">
+
+Known differences: Android text measures up to 1–2% wider than a TextView's; the radio button label is about 2 DIPs wider than MAUI's template on Apple; on Android and Windows the Stepper keeps SkiaUi's segmented look instead of MAUI's two separate buttons (a choice, not a gap). Colors are the color scheme's: the platform schemes' control tokens (`ButtonBackground`, `ButtonForeground`, `ButtonBorder`, `ActivityIndicator`; [ColorScheme.md](ColorScheme.md#built-in-packs-roadmap)) give buttons and activity indicators the native colors, and the look draws the button's border (`DefaultButtonBorderWidth`, `ButtonHasElevationBorder`: Windows' 1 epx border, darker along the bottom). Compare them with the page's "Look's colors" on. The schemes do not read the user's system accent (Windows, Android 12+): pass it to `WithAccent`.
 
 ## Core
 
@@ -265,5 +288,6 @@ Core and MAUI-compatible controls **must** use the same look resolution so Stres
 - [x] Document naming vs FR-12 / FR-19; tests cover swap look + override painter and measure.
 - [x] Look change raises `CurrentChanged`; live surfaces re-measure and redraw their drawn trees (`SkUiLook.NotifyChanged()` for in-place changes).
 - [x] State-change transitions: paint structs carry the transition, `GetTransition` / `TransitionProvider`, reduce motion (FR-26).
-- [ ] Optional per-control / per-tree look attachment.
+
+- [x] Per-tree look attachment: `SkUiView.Look` / `SkUiCoreNode.Look` (the nearest ancestor that sets one wins, then `SkUiLook.Current`). Measuring and recording a node run with that look as `SkUiLook.Current` on the thread (`SkUiLookScope`, one flag check while no node sets a look); state-change transitions start with it (`ISkUiTransitionHost.TransitionLook`). Not scoped: transitions already running when the look changes, input handling and the scheme (still the app's). Text sizes, and the padding, corners and border width of buttons that do not set them, follow the subtree's look when they are measured; the `FontSize` / `Padding` getters report the app look's.
 - [x] Gallery sample page for look packs (`LookAndColorSchemePage`, route `look`).

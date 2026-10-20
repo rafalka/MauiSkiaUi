@@ -1,7 +1,7 @@
 {
   "name": "skiaui-migration",
   "displayName": "SkiaUi migration",
-  "description": "Skills for moving .NET MAUI screens to SkiaUi's drawn controls: audit an app for a migration plan, and convert pages, custom controls and gestures.",
+  "description": "Skills for moving .NET MAUI screens to SkiaUi's drawn controls: audit an app for a migration plan, convert pages, custom controls and gestures, and check that the drawn controls look like the app's MAUI controls.",
   "author": { "name": "Rafal Kukla", "url": "https://github.com/rafalka" },
   "homepage": "https://github.com/rafalka/MauiSkiaUi/blob/master/docs/Migration.md",
   "repository": "https://github.com/rafalka/MauiSkiaUi",

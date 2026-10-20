@@ -76,11 +76,15 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
     public string? IncrementText;
 
     public string? FontFamily;
-    public double FontSize = DefaultFontSize;
+    /// <summary>The font size set on the control, or NaN for the look's (<see cref="EffectiveFontSize"/>).</summary>
+    public double FontSize = double.NaN;
+
+    /// <summary>The font size to lay text out with: <see cref="FontSize"/>, or the look's.</summary>
+    public double EffectiveFontSize => SkUiLook.FontSizeOrDefault(FontSize);
     public FontAttributes FontAttributes;
     public bool FontAutoScalingEnabled = true;
 
-    internal const double DefaultFontSize = 16;
+    internal static double DefaultFontSize => SkUiLook.Current.DefaultFontSize;
 
     /// <summary>The corner radius in DIPs; <c>null</c>: the look's (<see cref="SkUiLook.DefaultStepperCornerRadius"/>).</summary>
     public double? CornerRadius;
@@ -122,7 +126,7 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
     // Around a button's text: it never touches the button's edges.
     private static readonly Thickness TextPadding = new(8, 4);
 
-    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(FontSize, FontAutoScalingEnabled),
+    private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(EffectiveFontSize, FontAutoScalingEnabled),
         LineBreakMode.TailTruncation, null, 1, -1, 0, _owner.IsRightToLeft ? SkUiTextDirection.RightToLeft : SkUiTextDirection.Auto,
         SkUiTextRendering.Default, FontAttributes);
 
@@ -249,7 +253,7 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
     /// <summary>The stepper gained or lost keyboard focus; losing it stops a held button.</summary>
     public void SetFocused(bool focused)
     {
-        _focus.AnimateTo(focused ? 1f : 0f, SkUiLook.Current.GetTransition(SkUiTransitionKind.FieldFocus));
+        _focus.AnimateTo(focused ? 1f : 0f, SkUiTransitionKind.FieldFocus);
         if (!focused)
             Release();
         _owner.InvalidatePaint();
@@ -260,7 +264,7 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
     {
         if (!IsEnabled)
             return;
-        (button < 0 ? _decrementPress : _incrementPress).AnimateTo(1, SkUiLook.Current.GetTransition(SkUiTransitionKind.Press));
+        (button < 0 ? _decrementPress : _incrementPress).AnimateTo(1, SkUiTransitionKind.Press);
         _repeat.Start(button, Step);
     }
 
@@ -270,7 +274,7 @@ internal sealed class SkUiStepperModel : ISkUiStepButtons
         var held = _repeat.Held;
         if (!_repeat.Stop())
             return;
-        (held < 0 ? _decrementPress : _incrementPress).AnimateTo(0, SkUiLook.Current.GetTransition(SkUiTransitionKind.Release));
+        (held < 0 ? _decrementPress : _incrementPress).AnimateTo(0, SkUiTransitionKind.Release);
     }
 
     /// <summary>Which button <paramref name="local"/> is on: -1 (−), +1 (+), 0 (outside).</summary>
