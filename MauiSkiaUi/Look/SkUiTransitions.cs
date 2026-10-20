@@ -126,7 +126,7 @@ public enum SkUiActivityIndicatorStyle
     Arc,
     /// <summary>Spokes that fade around a circle (iOS).</summary>
     Spokes,
-    /// <summary>A faint ring with a short rotating arc (Fluent's progress ring).</summary>
+    /// <summary>A short rotating arc without a track (Fluent's indeterminate progress ring).</summary>
     Ring
 }
 
@@ -159,6 +159,15 @@ public enum SkUiSliderStyle
     Handle
 }
 
+/// <summary>How a look draws radio buttons (<see cref="DefaultSkUiLook.RadioButtonStyle"/>).</summary>
+public enum SkUiRadioButtonStyle
+{
+    /// <summary>A ring with a dot of the ring's color while checked (iOS, Material).</summary>
+    Dot,
+    /// <summary>A thin ring that fills with the accent color around a light dot while checked (Fluent).</summary>
+    Filled
+}
+
 /// <summary>How <see cref="DefaultSkUiLook"/> draws indicator views (<see cref="DefaultSkUiLook.IndicatorStyle"/>).</summary>
 public enum SkUiIndicatorStyle
 {
@@ -183,7 +192,7 @@ public enum SkUiPickerFieldStyle
     Filled,
     /// <summary>A rounded, control-filled field with up and down chevrons (the Mac's pop-up button).</summary>
     PopUpButton,
-    /// <summary>A rounded, control-filled field with an accent line along the bottom while focused (Fluent's combo box).</summary>
+    /// <summary>A light, rounded field with a faint outline, a slightly darker bottom edge and a small chevron, an accent line along the bottom while focused (Fluent's combo box).</summary>
     ComboBox,
     /// <summary>No chrome: the chevron only (the app draws its own, e.g. with a border around the picker).</summary>
     None
@@ -201,7 +210,9 @@ public enum SkUiTextFieldStyle
     /// <summary>A tinted fill with rounded top corners over an underline (Material's filled field).</summary>
     Filled,
     /// <summary>No chrome (the app draws its own, e.g. with a border around the field).</summary>
-    None
+    None,
+    /// <summary>A light, rounded field with a faint outline and a darker bottom line, a thicker accent line while focused (Fluent's text box).</summary>
+    TextBox
 }
 
 /// <summary>Press feedback style of <see cref="DefaultSkUiLook"/> buttons.</summary>

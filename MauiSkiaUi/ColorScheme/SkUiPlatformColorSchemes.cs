@@ -35,6 +35,13 @@ public sealed class IosSkUiColorScheme : SkUiColorScheme
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>A system button: no fill.</remarks>
+    private protected override Color ButtonBackgroundFallback => Colors.Transparent;
+
+    /// <inheritdoc />
+    /// <remarks>A system button's text takes the tint.</remarks>
+    private protected override Color ButtonForegroundFallback => Accent;
     /// <summary>A new scheme like <see cref="Light"/> or <see cref="Dark"/> with another accent (the user's system accent, a brand color).</summary>
     public static IosSkUiColorScheme WithAccent(Color accent, bool isDark) => new(isDark) { Accent = accent };
 }
@@ -74,6 +81,13 @@ public sealed class MacSkUiColorScheme : SkUiColorScheme
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>Mac Catalyst's iPad idiom draws iOS's system button: no fill.</remarks>
+    private protected override Color ButtonBackgroundFallback => Colors.Transparent;
+
+    /// <inheritdoc />
+    /// <remarks>A system button's text takes the tint.</remarks>
+    private protected override Color ButtonForegroundFallback => Accent;
     /// <summary>A new scheme like <see cref="Light"/> or <see cref="Dark"/> with another accent (the user's system accent, a brand color).</summary>
     public static MacSkUiColorScheme WithAccent(Color accent, bool isDark) => new(isDark) { Accent = accent };
 }
@@ -113,6 +127,9 @@ public sealed class AndroidSkUiColorScheme : SkUiColorScheme
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>Android's progress bar takes the theme's accent.</remarks>
+    private protected override Color ActivityIndicatorFallback => Accent;
     /// <summary>A new scheme like <see cref="Light"/> or <see cref="Dark"/> with another accent (the app theme's colorPrimary, a brand color).</summary>
     public static AndroidSkUiColorScheme WithAccent(Color accent, bool isDark) => new(isDark) { Accent = accent };
 }
@@ -152,6 +169,9 @@ public sealed class AndroidMaterial3SkUiColorScheme : SkUiColorScheme
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>Android's progress bar takes the theme's accent.</remarks>
+    private protected override Color ActivityIndicatorFallback => Accent;
     /// <summary>A new scheme like <see cref="Light"/> or <see cref="Dark"/> with another accent (the user's system accent, a brand color).</summary>
     public static AndroidMaterial3SkUiColorScheme WithAccent(Color accent, bool isDark) => new(isDark) { Accent = accent };
 }
@@ -166,9 +186,12 @@ public sealed class WindowsSkUiColorScheme : SkUiColorScheme
     /// <summary>Shared dark instance.</summary>
     public static WindowsSkUiColorScheme Dark { get; } = new(true);
 
+    private readonly bool _isDark;
+
     /// <summary>Creates a mutable Fluent scheme: dark when <paramref name="isDark"/>.</summary>
     public WindowsSkUiColorScheme(bool isDark)
     {
+        _isDark = isDark;
         if (isDark)
         {
             Accent = Color.FromArgb("#60CDFF");
@@ -191,6 +214,21 @@ public sealed class WindowsSkUiColorScheme : SkUiColorScheme
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>Fluent's standard button: the control fill (ControlFillColorDefault).</remarks>
+    private protected override Color ButtonBackgroundFallback => _isDark ? Color.FromArgb("#0FFFFFFF") : Color.FromArgb("#B3FFFFFF");
+
+    /// <inheritdoc />
+    /// <remarks>A standard button's text is the primary text color.</remarks>
+    private protected override Color ButtonForegroundFallback => DefaultForeground;
+
+    /// <inheritdoc />
+    /// <remarks>Fluent's control stroke (the elevation border's lighter part; the look darkens its bottom edge).</remarks>
+    private protected override Color ButtonBorderFallback => _isDark ? Color.FromArgb("#18FFFFFF") : Color.FromArgb("#0F000000");
+
+    /// <inheritdoc />
+    /// <remarks>The progress ring takes the accent.</remarks>
+    private protected override Color ActivityIndicatorFallback => Accent;
     /// <summary>A new scheme like <see cref="Light"/> or <see cref="Dark"/> with another accent (the user's system accent, a brand color).</summary>
     public static WindowsSkUiColorScheme WithAccent(Color accent, bool isDark) => new(isDark) { Accent = accent };
 }

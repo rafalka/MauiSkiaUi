@@ -54,7 +54,16 @@ APP_LOOK_COMPARISON="Mac Catalyst" APP_LOOK_APP_STYLES=0 \
 
 Capture the window with `screencapture -l <window id>` (find the id with `CGWindowListCopyWindowInfo` for the app's process) or ask the user for a screenshot.
 
-**Windows**: the console is not shown for a packaged WinUI app; press "Copy report" and paste the report, or write `page.Report` to a file from the app.
+**Windows**: an unpackaged app (`<WindowsPackageType>None</WindowsPackageType>`) writes the report to its standard output when that is redirected; start the executable with the environment set and redirect it (PowerShell):
+
+```powershell
+dotnet build -f net10.0-windows10.0.19041.0
+$env:APP_LOOK_COMPARISON = "Windows"; $env:APP_LOOK_APP_STYLES = "0"
+$app = Start-Process bin\Debug\net10.0-windows10.0.19041.0\win-x64\MyApp.exe -RedirectStandardOutput windows.log -PassThru
+Start-Sleep 12; Stop-Process $app
+```
+
+Capture the window with `PrintWindow` on the process's `MainWindowHandle` (System.Drawing) or ask the user for a screenshot; at 100% display scale a pixel is a DIP. A packaged app shows no console: press "Copy report" and paste the report, or write `page.Report` to a file from the app.
 
 ## Reading the logs
 

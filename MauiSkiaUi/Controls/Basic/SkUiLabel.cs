@@ -128,9 +128,9 @@ public class SkUiLabel : SkUiView
         validateValue: SkUiValidate.NonNegative,
         propertyChanged: (view, _, value) => ((SkUiLabel)view).OnCornerRadiusChanged((int)value));
     /// <summary>Bindable border color.</summary>
-    public static readonly BindableProperty BorderColorProperty = BindableProperty.Create(nameof(BorderColor), typeof(Color), typeof(SkUiLabel), Colors.Transparent, validateValue: SkUiValidate.NotNull, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnBorderColorChanged((Color)value));
+    public static readonly BindableProperty BorderColorProperty = BindableProperty.Create(nameof(BorderColor), typeof(Color), typeof(SkUiLabel), Colors.Transparent, defaultValueCreator: view => ((SkUiLabel)view).DefaultBorderColor, validateValue: SkUiValidate.NotNull, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnBorderColorChanged((Color)value));
     /// <summary>Bindable border width.</summary>
-    public static readonly BindableProperty BorderWidthProperty = BindableProperty.Create(nameof(BorderWidth), typeof(double), typeof(SkUiLabel), 0d, validateValue: SkUiValidate.NonNegative, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnBorderWidthChanged((double)value));
+    public static readonly BindableProperty BorderWidthProperty = BindableProperty.Create(nameof(BorderWidth), typeof(double), typeof(SkUiLabel), 0d, defaultValueCreator: view => ((SkUiLabel)view).DefaultBorderWidth, validateValue: SkUiValidate.NonNegative, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnBorderWidthChanged((double)value));
 
     /// <summary>
     /// Starts the applied state from the same defaults the bindable store reports (the <c>Default*</c> members, which
@@ -147,10 +147,16 @@ public class SkUiLabel : SkUiView
         _lineBreakMode = StyledOr(LineBreakModeProperty, DefaultLineBreakMode);
         if (!IsSet(CornerRadiiProperty) && !IsSet(CornerRadiusProperty))
             _chrome.SetRadii(new Microsoft.Maui.CornerRadius(DefaultCornerRadius));
+        _chrome.SetBorderColor(StyledOr(BorderColorProperty, DefaultBorderColor));
+        _chrome.SetBorderWidth(StyledOr(BorderWidthProperty, DefaultBorderWidth));
     }
 
     /// <summary>Default (uniform) corner radius used by derived controls and bindable value clearing.</summary>
     protected virtual double DefaultCornerRadius => 0;
+    /// <summary>Default border color used by derived controls and bindable value clearing (labels: none).</summary>
+    protected virtual Color DefaultBorderColor => Colors.Transparent;
+    /// <summary>Default border width used by derived controls and bindable value clearing (labels: 0).</summary>
+    protected virtual double DefaultBorderWidth => 0;
     /// <summary>Default foreground used by derived controls and bindable value clearing.</summary>
     protected virtual Color DefaultTextColor => SkUiColors.DefaultForeground;
     /// <summary>Default alignment used by derived controls and bindable value clearing.</summary>

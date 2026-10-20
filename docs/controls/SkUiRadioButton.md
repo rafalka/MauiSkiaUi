@@ -42,7 +42,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Content
 
-`Content` is shown beside the circle (the look's `DefaultRadioButtonSize`, then `DefaultRadioButtonContentSpacing`, 8 DIPs):
+`Content` is shown beside the circle (the look's `DefaultRadioButtonSize`, then `DefaultRadioButtonContentSpacing`, 8 DIPs). The control is at least the look's `DefaultRadioButtonMinimumWidth` wide (`WindowsSkUiLook`: 120, WinUI's `MinWidth`) unless it sets a `MinimumWidthRequest`, which replaces it as it replaces WinUI's natively:
 - **Text:** a string, or any other object as its `ToString()` (as MAUI on Android), drawn by the shared text engine with `TextColor`, `FontSize` (16), `FontFamily`, `FontAttributes`, `CharacterSpacing` and `TextTransform`, wrapped to the width left and centered vertically against the circle; dimmed while disabled.
 - **A drawn view** (`ISkUiView`): hosted as the radio button's child (it inherits the binding context) and arranged in the space after the circle, with its own alignment and size. A MAUI view that is not drawn shows as its type name, as on Android: wrap it in an [`SkUiMauiContentView`](SkUiMauiContentView.md).
 

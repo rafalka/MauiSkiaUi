@@ -39,6 +39,11 @@ public class SkUiColorScheme
     public virtual Color TrackOff { get; set; }
     public virtual Color Disabled { get; set; }
     public virtual Color Error { get; set; }  // invalid input: text fields' HasError chrome and message (D10)
+    // Control tokens: until set, each follows the scheme's fallback (another token or a fixed color)
+    public virtual Color ButtonBackground { get; set; }   // Accent; iOS / Mac: transparent; Windows: Fluent's control fill
+    public virtual Color ButtonForeground { get; set; }   // white; iOS / Mac: Accent; Windows: DefaultForeground
+    public virtual Color ButtonBorder { get; set; }       // transparent; Windows: Fluent's control stroke
+    public virtual Color ActivityIndicator { get; set; }  // Muted (iOS's gray spinner); Android, Windows: Accent
     // … additional tokens as controls need them
 }
 
@@ -96,7 +101,10 @@ MAUI Style/VSM   →  optional per-control property overrides (SkUi* only)
 | --- | --- |
 | Light / default | Current `SkUiColors` values |
 | Dark | Dark surfaces + adjusted accent/muted/disabled |
+| Platform packs | `IosSkUiColorScheme`, `MacSkUiColorScheme`, `AndroidSkUiColorScheme`, `AndroidMaterial3SkUiColorScheme`, `WindowsSkUiColorScheme` (`DefaultSkUiLook.GetColorScheme(isDark)`) |
 | App / library packs | Brand palettes |
+
+**Control tokens.** `ButtonBackground`, `ButtonForeground`, `ButtonBorder` and `ActivityIndicator` give buttons (both layers) and activity indicators the colors MAUI's native controls have on each platform, measured with `SkUiLookComparisonPage`: iOS's (and Mac Catalyst's) system button has no fill and tinted text; Android's buttons fill with the accent and its spinner takes it; Windows' standard button is light (`#B3FFFFFF`, dark `#0FFFFFFF`) with the primary text color and a faint 1 epx border (`#0F000000`, dark `#18FFFFFF`; the look's `DefaultButtonBorderWidth` and `ButtonHasElevationBorder` draw it, darker along the bottom), and its progress ring takes the accent. Until set, a token follows its fallback, so `WithAccent` and later `Accent` changes carry into it; once set, it keeps its value. `CopyFrom` copies the colors they have. Like the other defaults, controls read them when they are created; explicit values win.
 
 ## Core
 

@@ -289,6 +289,12 @@ public class SkUiLook
     /// <summary>The padding of buttons that set none, DIPs (default 18 × 12).</summary>
     public virtual Thickness DefaultButtonPadding => new(18, 12);
 
+    /// <summary>
+    /// The border width of buttons that set none, drawn in the color scheme's <see cref="SkUiColorScheme.ButtonBorder"/>, DIPs
+    /// (default 0; Windows: Fluent's 1 epx). Read when the button is created; it does not change the button's size.
+    /// </summary>
+    public virtual double DefaultButtonBorderWidth => 0;
+
     /// <summary>Optional Button painter (fill, border and press feedback behind the text); replaces <see cref="DrawButtonCore"/>.</summary>
     public Action<SKCanvas, SkUiButtonPaint>? ButtonPainter { get; set; }
 
@@ -381,6 +387,12 @@ public class SkUiLook
     /// <summary>Default CheckBox intrinsic size in DIPs (square side length on both axes).</summary>
     public virtual Size DefaultCheckBoxSize => new(24, 24);
 
+    /// <summary>
+    /// The smallest width of a check box that sets no minimum width, DIPs; the box stays at the start (default 0; Windows: 120,
+    /// WinUI's MinWidth). As natively, a <c>MinimumWidthRequest</c> (Core: <c>MinimumWidth</c>) replaces it.
+    /// </summary>
+    public virtual double DefaultCheckBoxMinimumWidth => 0;
+
     /// <summary>Optional CheckBox intrinsic measure override.</summary>
     public Func<double, double, Size>? CheckBoxMeasure { get; set; }
 
@@ -391,6 +403,13 @@ public class SkUiLook
     public Size MeasureCheckBox(double widthConstraint, double heightConstraint) =>
         CheckBoxMeasure?.Invoke(widthConstraint, heightConstraint)
         ?? MeasureCheckBoxCore(widthConstraint, heightConstraint);
+
+    /// <summary>A check box's size, widened to <see cref="DefaultCheckBoxMinimumWidth"/> unless it sets a minimum width of its own.</summary>
+    internal Size MeasureCheckBox(double widthConstraint, double heightConstraint, bool hasMinimumWidth)
+    {
+        var size = MeasureCheckBox(widthConstraint, heightConstraint);
+        return hasMinimumWidth ? size : new Size(Math.Max(size.Width, DefaultCheckBoxMinimumWidth), size.Height);
+    }
 
     /// <summary>Default CheckBox size from <see cref="DefaultCheckBoxSize"/>.</summary>
     protected virtual Size MeasureCheckBoxCore(double widthConstraint, double heightConstraint) => DefaultCheckBoxSize;
@@ -427,6 +446,12 @@ public class SkUiLook
     /// radio button template on Apple: 8 × 7).
     /// </summary>
     public virtual Thickness RadioButtonPadding => default;
+
+    /// <summary>
+    /// The smallest width of a radio button (circle, content and padding) that sets no minimum width, DIPs (default 0; Windows:
+    /// 120, WinUI's MinWidth). As natively, a <c>MinimumWidthRequest</c> replaces it.
+    /// </summary>
+    public virtual double DefaultRadioButtonMinimumWidth => 0;
 
     /// <summary>Optional RadioButton intrinsic measure override.</summary>
     public Func<double, double, Size>? RadioButtonMeasure { get; set; }

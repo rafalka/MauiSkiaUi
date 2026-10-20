@@ -27,6 +27,18 @@ public static class SkUiColors
     /// <summary>Invalid input color (text field errors) from the current color scheme.</summary>
     public static Color Error => SkUiColorScheme.Current.Error;
 
+    /// <summary>Default button fill from the current color scheme.</summary>
+    public static Color ButtonBackground => SkUiColorScheme.Current.ButtonBackground;
+
+    /// <summary>Default button text color from the current color scheme.</summary>
+    public static Color ButtonForeground => SkUiColorScheme.Current.ButtonForeground;
+
+    /// <summary>Default button border color from the current color scheme.</summary>
+    public static Color ButtonBorder => SkUiColorScheme.Current.ButtonBorder;
+
+    /// <summary>Default activity indicator color from the current color scheme.</summary>
+    public static Color ActivityIndicator => SkUiColorScheme.Current.ActivityIndicator;
+
     /// <summary>Linear mix of two colors (<paramref name="amount"/> 0 = <paramref name="from"/>, 1 = <paramref name="to"/>).</summary>
     internal static Color Mix(Color from, Color to, float amount = 0.5f) => new(
         from.Red + (to.Red - from.Red) * amount,

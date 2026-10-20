@@ -250,9 +250,30 @@ public class DefaultSkUiLook : SkUiLook
                 fill = fill.WithAlpha((byte)(fill.Alpha * dim));
             DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, fill, button.Border, button.BorderWidth);
         }
+        if (ButtonHasElevationBorder && button.BorderWidth > 0 && button.Border.Alpha > 0)
+        {
+            // Fluent's elevation border: the bottom edge, corners included, darker than the rest. Drawn over the border, so
+            // its opacity is what makes the two together ElevationBorderDarkening times the border's.
+            var alpha = button.Border.Alpha / 255f;
+            var target = Math.Min(1, alpha * ElevationBorderDarkening);
+            var extra = alpha < 1 ? (target - alpha) / (1 - alpha) : 0;
+            canvas.Save();
+            canvas.ClipRect(new SKRect(button.Bounds.Left, button.Bounds.Bottom - button.BorderWidth, button.Bounds.Right, button.Bounds.Bottom));
+            DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, SKColors.Transparent,
+                button.Border.WithAlpha((byte)Math.Round(255 * extra)), button.BorderWidth);
+            canvas.Restore();
+        }
         if (EffectivePressEffect == SkUiPressEffect.Ripple && button.IsEnabled)
             DrawRipple(canvas, button.Bounds, button.CornerRadii, button.Press, RippleColor(button.Fill));
     }
+
+    /// <summary>How much more opaque the bottom edge of an elevation border is (Fluent: #29 against #0F).</summary>
+    private const float ElevationBorderDarkening = 2.75f;
+
+    /// <summary>
+    /// Whether a button's border is darker along its bottom edge (Fluent's elevation border; default <c>false</c>: one color).
+    /// </summary>
+    public virtual bool ButtonHasElevationBorder => false;
 
     /// <summary>How switches draw: a filled pill with a round thumb (iOS), or an outlined track whose thumb grows when on (Material, Fluent).</summary>
     public virtual SkUiSwitchStyle SwitchStyle => SkUiSwitchStyle.Pill;
@@ -405,6 +426,12 @@ public class DefaultSkUiLook : SkUiLook
     /// <summary>Whether a slider's thumb casts a soft shadow (iOS, the Mac).</summary>
     public virtual bool SliderThumbHasShadow => false;
 
+    /// <summary>
+    /// The radius of the dot of the thumb's color inside a light, outlined thumb, DIPs (default 0: a thumb filled with its
+    /// color; Fluent: a 20 epx white thumb around a 5 epx dot, which shrinks while pressed).
+    /// </summary>
+    public virtual float SliderThumbInnerRadius => 0;
+
     /// <inheritdoc />
     protected override void DrawCheckBoxCore(SKCanvas canvas, SkUiCheckBoxPaint box)
     {
@@ -437,9 +464,17 @@ public class DefaultSkUiLook : SkUiLook
         var dash = visual.Weight(SkUiCheckState.Indeterminate);
         if (check <= 0 && dash <= 0) return;
         var paint = Paint(SKColors.White);
-        Stroke(paint, SKColors.White, size * 0.12f);
+        Stroke(paint, SKColors.White, size * CheckMarkStrokeFraction);
         paint.StrokeCap = SKStrokeCap.Round;
         paint.StrokeJoin = SKStrokeJoin.Round;
+        var scale = CheckMarkScale;
+        var save = canvas.Save();
+        if (Math.Abs(scale - 1) > float.Epsilon)
+        {
+            // A smaller mark about the box's center, with the same stroke width.
+            canvas.Scale(scale, scale, size / 2, size / 2);
+            paint.StrokeWidth /= scale;
+        }
         if (dash > 0)
         {
             // The dash grows from the middle.
@@ -448,7 +483,14 @@ public class DefaultSkUiLook : SkUiLook
         }
         if (check > 0)
             DrawCheckMark(canvas, size, check, paint);
+        canvas.RestoreToCount(save);
     }
+
+    /// <summary>The width of a check box's check mark and dash as a fraction of the box's size (default 0.12; Fluent's thin glyph: 0.065).</summary>
+    public virtual float CheckMarkStrokeFraction => 0.12f;
+
+    /// <summary>The size of a check box's check mark and dash relative to the default's, scaled about the box's center (default 1).</summary>
+    public virtual float CheckMarkScale => 1;
 
     /// <summary>The check mark's two strokes, drawn in up to <paramref name="amount"/> of their length (0–1).</summary>
     private static void DrawCheckMark(SKCanvas canvas, float size, float amount, SKPaint paint)
@@ -486,11 +528,19 @@ public class DefaultSkUiLook : SkUiLook
         DrawRadioRing(canvas, radio);
     }
 
+    /// <summary>How radio buttons draw: a ring with a dot of its color (default), or Fluent's ring that fills around a light dot.</summary>
+    public virtual SkUiRadioButtonStyle RadioButtonStyle => SkUiRadioButtonStyle.Dot;
+
     private void DrawRadioRing(SKCanvas canvas, SkUiRadioButtonPaint radio)
     {
         var size = radio.Size;
         var visual = radio.Visual;
         var center = size / 2;
+        if (RadioButtonStyle == SkUiRadioButtonStyle.Filled)
+        {
+            DrawFilledRadio(canvas, radio);
+            return;
+        }
         var paint = Paint(SKColors.Transparent);
         Stroke(paint, Mix(radio.Ring, radio.Color, 1 - visual.Weight(SkUiCheckState.Unchecked)), size * RadioRingFraction);
         canvas.DrawCircle(center, center, center - paint.StrokeWidth / 2, paint);
@@ -504,6 +554,37 @@ public class DefaultSkUiLook : SkUiLook
             var half = size * 0.14f;
             var length = size * 0.26f * bar;
             canvas.DrawRoundRect(new SKRect(center - length, center - half / 2, center + length, center + half / 2), half / 2, half / 2, Paint(radio.Color));
+        }
+    }
+
+    /// <summary>
+    /// Fluent's radio button: a thin ring (<see cref="RadioRingFraction"/>) that thickens into the checked color around a white dot
+    /// of <see cref="RadioDotRadiusFraction"/>, which shrinks while pressed. Indeterminate draws the white bar instead of the dot.
+    /// </summary>
+    private void DrawFilledRadio(SKCanvas canvas, SkUiRadioButtonPaint radio)
+    {
+        var size = radio.Size;
+        var visual = radio.Visual;
+        var center = size / 2;
+        var on = 1 - visual.Weight(SkUiCheckState.Unchecked);
+        var dot = size * RadioDotRadiusFraction * (1 - 0.15f * visual.Pressed);
+        var thin = size * RadioRingFraction;
+        var width = thin + (center - dot - thin) * on;
+        var paint = Paint(SKColors.Transparent);
+        Stroke(paint, Mix(radio.Ring, radio.Color, on), width);
+        canvas.DrawCircle(center, center, center - width / 2, paint);
+        var light = SKColors.White.WithAlpha((byte)(radio.IsEnabled ? 255 : 160));
+        var check = visual.Weight(SkUiCheckState.Checked);
+        if (check > 0)
+            canvas.DrawCircle(center, center, dot, Paint(light.WithAlpha((byte)(light.Alpha * check))));
+        var bar = visual.Weight(SkUiCheckState.Indeterminate);
+        if (bar > 0)
+        {
+            // The center fills with the checked color; a white bar across it.
+            canvas.DrawCircle(center, center, center - width + 0.5f, Paint(radio.Color.WithAlpha((byte)(radio.Color.Alpha * bar))));
+            var half = size * 0.07f;
+            var length = size * 0.26f * bar;
+            canvas.DrawRoundRect(new SKRect(center - length, center - half, center + length, center + half), half, half, Paint(light));
         }
     }
 
@@ -530,6 +611,16 @@ public class DefaultSkUiLook : SkUiLook
             DrawRoundedBox(canvas, new SKRect(trackStart, top, thumbX, top + track), track / 2, slider.MinimumTrack, SKColors.Transparent, 0);
         if (slider.HasThumbImage)
             return; // the control draws the image
+        if (SliderThumbInnerRadius > 0)
+        {
+            // Fluent's thumb: a white disc with a faint outline around a dot of the thumb's color.
+            canvas.DrawCircle(thumbX, bounds.MidY, radius, Paint(SKColors.White));
+            var outline = Paint(SKColors.Transparent);
+            Stroke(outline, new SKColor(0, 0, 0, 0x1A), 1);
+            canvas.DrawCircle(thumbX, bounds.MidY, radius - 0.5f, outline);
+            canvas.DrawCircle(thumbX, bounds.MidY, SliderThumbInnerRadius * (1 - 0.17f * slider.Pressed), Paint(slider.Thumb));
+            return;
+        }
         if (slider.Pressed > 0)
             canvas.DrawCircle(thumbX, bounds.MidY, radius * (1 + 0.8f * slider.Pressed),
                 Paint(slider.Thumb.WithAlpha((byte)(slider.Thumb.Alpha / 5 * slider.Pressed))));
@@ -597,16 +688,23 @@ public class DefaultSkUiLook : SkUiLook
             DrawGappedProgress(canvas, bar, Math.Clamp(bar.Progress, 0, 1), radius);
             return;
         }
+        // The track: as thick as the bar, or a thinner line centered under the fill (Fluent).
+        var trackBounds = bounds;
+        if (ProgressBarTrackLineHeight > 0 && ProgressBarTrackLineHeight < bounds.Height)
+        {
+            var top = bounds.MidY - ProgressBarTrackLineHeight / 2;
+            trackBounds = new SKRect(bounds.Left, top, bounds.Right, top + ProgressBarTrackLineHeight);
+        }
         if (bar.IsIndeterminate)
         {
             // Square, unantialiased track: copies tiled one bar width apart meet without a seam (the compositor
             // clips the rounded ends).
             using var track = new SKPaint { Color = bar.Track };
-            canvas.DrawRect(bounds, track);
+            canvas.DrawRect(trackBounds, track);
         }
         else
         {
-            DrawRoundedBox(canvas, bounds, radius, bar.Track, SKColors.Transparent, 0);
+            DrawRoundedBox(canvas, trackBounds, GetProgressBarCornerRadius(trackBounds.Height), bar.Track, SKColors.Transparent, 0);
         }
         var fraction = bar.IsIndeterminate ? bar.SegmentFraction : Math.Clamp(bar.Progress, 0, 1);
         if (fraction <= 0) return;
@@ -615,6 +713,12 @@ public class DefaultSkUiLook : SkUiLook
 
     /// <summary>The height of a progress bar's track, centered in the control, DIPs (default 0: the control's height; Android: 4 in 16).</summary>
     public virtual float ProgressBarTrackHeight => 0;
+
+    /// <summary>
+    /// The height of the track behind the fill, a line centered in the bar, DIPs (default 0: as thick as the bar; Fluent: a
+    /// 1 epx line under the 3 epx fill).
+    /// </summary>
+    public virtual float ProgressBarTrackLineHeight => 0;
 
     /// <summary>The gap between a determinate progress bar's fill and its track, DIPs (default 0: the fill covers the track; Material 3: 4).</summary>
     public virtual float ProgressBarGap => 0;
@@ -659,18 +763,14 @@ public class DefaultSkUiLook : SkUiLook
             top + diameter - strokeWidth / 2);
         if (ActivityIndicatorStyle == SkUiActivityIndicatorStyle.Ring)
         {
-            // Fluent's progress ring: a faint full ring under a short arc.
-            var color = paint.Color;
-            paint.Color = color.WithAlpha((byte)(color.Alpha / 4));
-            canvas.DrawOval(bounds, paint);
-            paint.Color = color;
-            canvas.DrawArc(bounds, sweepStart, 100, false, paint);
+            // Fluent's indeterminate progress ring: a short arc, no track.
+            canvas.DrawArc(bounds, sweepStart, 120, false, paint);
             return;
         }
         canvas.DrawArc(bounds, sweepStart, 270, false, paint);
     }
 
-    /// <summary>How activity indicators draw: an arc (Material), spokes that fade (iOS) or a ring with a short arc (Fluent).</summary>
+    /// <summary>How activity indicators draw: an arc (Material), spokes that fade (iOS) or a short arc without a track (Fluent).</summary>
     public virtual SkUiActivityIndicatorStyle ActivityIndicatorStyle => SkUiActivityIndicatorStyle.Arc;
 
     /// <summary>The number of spokes of an <see cref="SkUiActivityIndicatorStyle.Spokes"/> indicator (iOS: 8).</summary>
@@ -829,9 +929,14 @@ public class DefaultSkUiLook : SkUiLook
     /// when disabled.
     /// </summary>
     private void DrawFieldFrame(SKCanvas canvas, SKRect bounds, SkUiPickerFieldStyle style, SKColor accent, SKColor border, SKColor foreground,
-        float focused, bool pointerOver, bool enabled, SKColor? error = null)
+        float focused, bool pointerOver, bool enabled, SKColor? error = null, bool textBox = false)
     {
         var focus = enabled ? Math.Clamp(focused, 0, 1) : 0;
+        if (style == SkUiPickerFieldStyle.ComboBox)
+        {
+            DrawFluentField(canvas, bounds, accent, foreground, focus, pointerOver, enabled, error, textBox);
+            return;
+        }
         var idle = pointerOver && enabled ? Mix(border, foreground, 0.35f) : border;
         var line = error ?? Mix(idle, accent, focus);
         if (!enabled)
@@ -840,26 +945,19 @@ public class DefaultSkUiLook : SkUiLook
         var radius = FieldCornerRadius;
         switch (style)
         {
-            case SkUiPickerFieldStyle.Outline or SkUiPickerFieldStyle.PopUpButton or SkUiPickerFieldStyle.ComboBox:
+            case SkUiPickerFieldStyle.Outline or SkUiPickerFieldStyle.PopUpButton:
             {
-                if (style != SkUiPickerFieldStyle.Outline)
+                if (style == SkUiPickerFieldStyle.PopUpButton)
                 {
-                    // A control-colored fill: the pop-up button's and the combo box's.
+                    // A control-colored fill: the pop-up button's.
                     var tint = Mix(border, foreground, pointerOver && enabled ? 0.2f : 0);
                     canvas.DrawRoundRect(bounds, radius, radius, Paint(tint.WithAlpha((byte)(enabled ? 28 : 14))));
                 }
-                var width = style == SkUiPickerFieldStyle.ComboBox ? 1 : 1 + focus;
+                var width = 1 + focus;
                 var ring = bounds;
                 ring.Inflate(-width / 2, -width / 2);
                 Stroke(paint, line, width);
                 canvas.DrawRoundRect(ring, radius - width / 2, radius - width / 2, paint);
-                if (style == SkUiPickerFieldStyle.ComboBox && focus > 0)
-                {
-                    // Fluent's focus: an accent line along the bottom edge, between the corners.
-                    paint.Color = Mix(border, accent, focus);
-                    paint.Style = SKPaintStyle.Fill;
-                    canvas.DrawRect(new SKRect(bounds.Left + radius, bounds.Bottom - 2, bounds.Right - radius, bounds.Bottom), paint);
-                }
                 break;
             }
             case SkUiPickerFieldStyle.Underline or SkUiPickerFieldStyle.Filled:
@@ -879,6 +977,52 @@ public class DefaultSkUiLook : SkUiLook
             }
         }
     }
+
+    /// <summary>
+    /// Fluent's combo box and text box: a light, rounded fill (lighter under a pointer, opaque in a focused text box), a faint
+    /// outline whose bottom edge is darker (a combo box's elevation border, a text box's strong line), and a 2-DIP accent line
+    /// along the bottom while focused. Fluent's control fill and stroke colors: black or white (on dark text) at fixed opacities.
+    /// </summary>
+    private void DrawFluentField(SKCanvas canvas, SKRect bounds, SKColor accent, SKColor foreground, float focus, bool pointerOver,
+        bool enabled, SKColor? error, bool textBox)
+    {
+        var dark = IsLight(foreground);
+        var dim = enabled ? 1 : DisabledAlpha;
+        var ink = dark ? SKColors.White : SKColors.Black;
+        SKColor Shade(SKColor color, int alpha) => color.WithAlpha((byte)(alpha * dim));
+        var radius = FieldCornerRadius;
+        // ControlFillColorDefault, Secondary under a pointer, InputActive while a text box is focused.
+        var idle = dark ? Shade(SKColors.White, pointerOver ? 0x15 : 0x0F) : Shade(pointerOver ? new SKColor(0xF9, 0xF9, 0xF9) : SKColors.White, pointerOver ? 0x80 : 0xB3);
+        var fill = textBox ? Mix(idle, dark ? Shade(new SKColor(0x1E, 0x1E, 0x1E), 0xB3) : Shade(SKColors.White, 0xFF), focus) : idle;
+        canvas.DrawRoundRect(bounds, radius, radius, Paint(fill));
+        var ring = bounds;
+        ring.Inflate(-0.5f, -0.5f);
+        var paint = Paint(SKColors.Transparent);
+        Stroke(paint, error is { } outline ? Shade(outline, outline.Alpha) : Shade(ink, dark ? 0x12 : 0x0F), 1);
+        canvas.DrawRoundRect(ring, radius - 0.5f, radius - 0.5f, paint);
+        if (error is null)
+        {
+            // The bottom edge, corners included: ControlStrongStrokeColorDefault (text box) or the elevation border's darker end.
+            var bottom = textBox ? Shade(ink, dark ? 0x8B : 0x72) : Shade(ink, dark ? 0x18 : 0x29);
+            canvas.Save();
+            canvas.ClipRect(new SKRect(bounds.Left, bounds.Bottom - 1, bounds.Right, bounds.Bottom));
+            Stroke(paint, bottom, 1);
+            canvas.DrawRoundRect(ring, radius - 0.5f, radius - 0.5f, paint);
+            canvas.Restore();
+        }
+        if (focus <= 0)
+            return;
+        // Focused: an accent line along the bottom, inside the rounded corners.
+        canvas.Save();
+        using (var shape = new SKRoundRect(bounds, radius))
+            canvas.ClipRoundRect(shape, antialias: true);
+        var line = error ?? accent;
+        canvas.DrawRect(new SKRect(bounds.Left, bounds.Bottom - 2, bounds.Right, bounds.Bottom), Paint(line.WithAlpha((byte)(line.Alpha * focus))));
+        canvas.Restore();
+    }
+
+    /// <summary>Whether <paramref name="color"/> is light (light text: a dark theme).</summary>
+    private static bool IsLight(SKColor color) => 0.299f * color.Red + 0.587f * color.Green + 0.114f * color.Blue > 128;
 
     /// <summary>
     /// How text fields draw (default <see cref="SkUiTextFieldStyle.Default"/>: the look's, <see cref="DefaultTextFieldStyle"/>). Call
@@ -902,15 +1046,18 @@ public class DefaultSkUiLook : SkUiLook
         var bounds = field.Bounds;
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return;
-        var style = (TextFieldStyle == SkUiTextFieldStyle.Default ? DefaultTextFieldStyle : TextFieldStyle) switch
+        var textFieldStyle = TextFieldStyle == SkUiTextFieldStyle.Default ? DefaultTextFieldStyle : TextFieldStyle;
+        var style = textFieldStyle switch
         {
             SkUiTextFieldStyle.Underline => SkUiPickerFieldStyle.Underline,
             SkUiTextFieldStyle.Filled => SkUiPickerFieldStyle.Filled,
             SkUiTextFieldStyle.None => SkUiPickerFieldStyle.None,
+            // Fluent's text box is drawn as its combo box, with a stronger bottom line.
+            SkUiTextFieldStyle.TextBox => SkUiPickerFieldStyle.ComboBox,
             _ => SkUiPickerFieldStyle.Outline
         };
         DrawFieldFrame(canvas, bounds, style, field.Accent, field.Border, field.Foreground, field.Focused, field.IsPointerOver, field.IsEnabled,
-            field.HasError ? field.Error : null);
+            field.HasError ? field.Error : null, textFieldStyle == SkUiTextFieldStyle.TextBox);
     }
 
     /// <summary>A down-pointing chevron centered in the field's chevron bounds, turned upwards as the popup opens.</summary>
@@ -925,6 +1072,12 @@ public class DefaultSkUiLook : SkUiLook
         paint.StrokeCap = SKStrokeCap.Round;
         paint.StrokeJoin = SKStrokeJoin.Round;
         var half = Math.Min(5f, Math.Min(area.Width, area.Height) / 3);
+        if (style == SkUiPickerFieldStyle.ComboBox)
+        {
+            // Fluent's chevron glyph: 8 DIPs wide, a thin stroke.
+            half = Math.Min(4f, half);
+            paint.StrokeWidth = 1;
+        }
         if (style == SkUiPickerFieldStyle.PopUpButton)
         {
             // The Mac's pop-up button: a chevron up and a chevron down.

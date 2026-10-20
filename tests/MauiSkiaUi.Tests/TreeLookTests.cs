@@ -16,9 +16,27 @@ public class TreeLookTests
 
         ((IView)root).Measure(500, 500);
 
-        Assert.Equal(new Size(40, 20), ((IView)inside).DesiredSize);
+        Assert.Equal(new Size(40, 40), ((IView)inside).DesiredSize);
         Assert.Equal(new Size(51, 31), ((IView)outside).DesiredSize);
         Assert.Same(DefaultSkUiLook.Instance, SkUiLook.Current);
+    }
+
+    [Fact]
+    public void WindowsMinimumWidthsGiveWayToTheControlsOwn()
+    {
+        // WinUI's check box and radio button are at least 120 wide; MAUI's MinimumWidthRequest replaces that MinWidth.
+        var box = new SkUiCheckBox();
+        var styledBox = new SkUiCheckBox { MinimumWidthRequest = 44, MinimumHeightRequest = 44 };
+        var radio = new SkUiRadioButton();
+        var styledRadio = new SkUiRadioButton { MinimumWidthRequest = 44 };
+        var root = new SkUiVerticalStackLayout { Look = WindowsSkUiLook.Instance, Children = { box, styledBox, radio, styledRadio } };
+
+        ((IView)root).Measure(500, 500);
+
+        Assert.Equal(new Size(120, 32), ((IView)box).DesiredSize);
+        Assert.Equal(new Size(44, 44), ((IView)styledBox).DesiredSize);
+        Assert.Equal(new Size(120, 32), ((IView)radio).DesiredSize);
+        Assert.Equal(new Size(44, 32), ((IView)styledRadio).DesiredSize);
     }
 
     [Fact]

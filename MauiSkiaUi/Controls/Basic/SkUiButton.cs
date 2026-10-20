@@ -11,7 +11,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
 {
     private ICommand? _command;
     private object? _commandParameter;
-    private Color _fillColor = SkUiColors.Accent;
+    private Color _fillColor = SkUiColors.ButtonBackground;
     private SkUiPressAnimator? _press;
     private ImageSource? _imageSource;
     private SkUiWeakListener<SkUiButton>? _imageSourceListener; // a shared image source must not keep the button alive
@@ -27,7 +27,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     public static readonly BindableProperty CommandParameterProperty = BindableProperty.Create(nameof(CommandParameter), typeof(object), typeof(SkUiButton), null, propertyChanged: (view, _, value) => ((SkUiButton)view).OnCommandParameterChanged(value));
     /// <summary>Bindable button fill.</summary>
     public static readonly BindableProperty FillColorProperty = BindableProperty.Create(nameof(FillColor), typeof(Color), typeof(SkUiButton), null,
-        defaultValueCreator: _ => SkUiColors.Accent,
+        defaultValueCreator: _ => SkUiColors.ButtonBackground,
         validateValue: SkUiValidate.NotNull,
         propertyChanged: (view, _, value) => ((SkUiButton)view).OnFillColorChanged((Color)value));
     /// <summary>Bindable <see cref="ImageSource"/>.</summary>
@@ -64,7 +64,11 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     }
 
     /// <inheritdoc />
-    protected override Color DefaultTextColor => Colors.White;
+    protected override Color DefaultTextColor => SkUiColors.ButtonForeground;
+    /// <inheritdoc />
+    protected override Color DefaultBorderColor => SkUiColors.ButtonBorder;
+    /// <inheritdoc />
+    protected override double DefaultBorderWidth => SkUiLook.Current.DefaultButtonBorderWidth;
     /// <inheritdoc />
     protected override TextAlignment DefaultTextAlignment => TextAlignment.Center;
     /// <inheritdoc />

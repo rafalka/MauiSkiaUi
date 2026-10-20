@@ -20,7 +20,14 @@ public class PlatformLookShapeTests
         Assert.Equal(new Size(63, 28), MacSkUiLook.Instance.DefaultSwitchSize);
         Assert.Equal(new Size(48, 48), AndroidSkUiLook.Instance.DefaultSwitchSize);
         Assert.Equal(new Size(52, 48), AndroidMaterial3SkUiLook.Instance.DefaultSwitchSize);
-        Assert.Equal(new Size(40, 20), WindowsSkUiLook.Instance.DefaultSwitchSize);
+        Assert.Equal(new Size(40, 40), WindowsSkUiLook.Instance.DefaultSwitchSize);
+        Assert.Equal(20, WindowsSkUiLook.Instance.SwitchTrackHeight);
+        Assert.Equal(new Size(32, 32), WindowsSkUiLook.Instance.DefaultCheckBoxSize);
+        Assert.Equal(120, WindowsSkUiLook.Instance.DefaultCheckBoxMinimumWidth);
+        Assert.Equal(120, WindowsSkUiLook.Instance.DefaultRadioButtonMinimumWidth);
+        Assert.Equal(0, DefaultSkUiLook.Instance.DefaultCheckBoxMinimumWidth);
+        Assert.Equal(3, WindowsSkUiLook.Instance.DefaultProgressBarHeight);
+        Assert.Equal(new Size(32, 32), WindowsSkUiLook.Instance.StepperButtonSize);
         Assert.Equal(new Size(32, 32), AndroidSkUiLook.Instance.DefaultCheckBoxSize);
         Assert.Equal(new Size(48, 32), AndroidMaterial3SkUiLook.Instance.DefaultCheckBoxSize);
         Assert.Equal(new Size(18, 18), IosSkUiLook.Instance.DefaultCheckBoxSize);
@@ -74,7 +81,8 @@ public class PlatformLookShapeTests
     public void AnOutlinedSwitchIsHollowWhenOffAndFilledWhenOn()
     {
         var look = WindowsSkUiLook.Instance;
-        var bounds = new SKRect(2, 2, 42, 22);
+        // The 40 × 20 track centered in the 40 × 40 control.
+        var bounds = new SKRect(2, -8, 42, 32);
         using var bitmap = new SKBitmap(50, 30);
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.White);
@@ -83,6 +91,49 @@ public class PlatformLookShapeTests
         canvas.Clear(SKColors.White);
         look.DrawSwitch(canvas, new SkUiSwitchPaint(bounds, SkUiToggleVisual.Settled(SkUiCheckState.Checked), SKColors.Blue, SKColors.Black, SKColors.White, true));
         Assert.Equal(SKColors.Blue, bitmap.GetPixel(10, 12));
+    }
+
+    [Fact]
+    public void FluentRadioButtonsFillAroundAWhiteDot()
+    {
+        var look = WindowsSkUiLook.Instance;
+        using var bitmap = new SKBitmap(20, 20);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Black);
+        look.DrawRadioButton(canvas, new SkUiRadioButtonPaint(20, SkUiToggleVisual.Settled(SkUiCheckState.Checked), SKColors.Blue, SKColors.Gray, true));
+        Assert.Equal(SKColors.White, bitmap.GetPixel(10, 10)); // the dot
+        Assert.Equal(SKColors.Blue, bitmap.GetPixel(10, 2)); // the filled ring
+        canvas.Clear(SKColors.Black);
+        look.DrawRadioButton(canvas, new SkUiRadioButtonPaint(20, SkUiToggleVisual.Settled(SkUiCheckState.Unchecked), SKColors.Blue, SKColors.Gray, true));
+        Assert.Equal(SKColors.Black, bitmap.GetPixel(10, 10));
+        Assert.Equal(SKColors.Black, bitmap.GetPixel(10, 3)); // a thin ring only
+    }
+
+    [Fact]
+    public void FluentSliderThumbsAreWhiteAroundAnAccentDot()
+    {
+        using var bitmap = new SKBitmap(100, 32);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Black);
+        WindowsSkUiLook.Instance.DrawSlider(canvas, new SkUiSliderPaint(new SKRect(0, 0, 100, 32), 0.5f, StackOrientation.Horizontal,
+            SKColors.Blue, SKColors.Gray, SKColors.Red, 0, true));
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(50, 16));
+        Assert.Equal(SKColors.White, bitmap.GetPixel(50, 8)); // 8 from the center: the white disc, outside the dot
+        // The track runs to the slider's ends.
+        Assert.Equal(SKColors.Blue, bitmap.GetPixel(3, 16));
+        Assert.Equal(SKColors.Gray, bitmap.GetPixel(96, 16));
+    }
+
+    [Fact]
+    public void FluentProgressBarsFillOverAThinTrackLine()
+    {
+        using var bitmap = new SKBitmap(100, 3);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Black);
+        WindowsSkUiLook.Instance.DrawProgressBar(canvas, new SkUiProgressBarPaint(new SKRect(0, 0, 100, 3), 0.5f, false, SKColors.Gray, SKColors.Blue, 0, true));
+        Assert.Equal(SKColors.Blue, bitmap.GetPixel(25, 0));
+        Assert.Equal(SKColors.Gray, bitmap.GetPixel(75, 1));
+        Assert.Equal(SKColors.Black, bitmap.GetPixel(75, 0)); // above the 1 DIP line
     }
 
     [Theory]

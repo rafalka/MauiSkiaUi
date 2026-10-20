@@ -471,12 +471,14 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
         }
         var inset = ContentInset;
         var circle = SkUiRadioButtonContent.CircleSize(widthConstraint, heightConstraint);
+        // As WinUI's MinWidth, the look's minimum width gives way to the radio button's own.
+        var hasMinimumWidth = MinimumWidthRequest >= 0;
         if (!HasContent)
-            return SkUiRadioButtonContent.Measure(circle, inset, null);
+            return SkUiRadioButtonContent.Measure(circle, inset, null, hasMinimumWidth);
         var width = SkUiRadioButtonContent.ContentWidthConstraint(widthConstraint, circle, inset);
         var height = SkUiRadioButtonContent.ContentHeightConstraint(heightConstraint, inset);
         var content = _hostedContent is { } view ? view.Measure(width, height) : TextContent.MeasureText(_text, TextStyle, width);
-        return SkUiRadioButtonContent.Measure(circle, inset, content);
+        return SkUiRadioButtonContent.Measure(circle, inset, content, hasMinimumWidth);
     }
 
     /// <inheritdoc />

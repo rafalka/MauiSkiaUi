@@ -28,7 +28,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`IsRunning`, `Color` (+ `Set*`). Intrinsic measure defaults to 36×36 DIPs.
+`IsRunning`, `Color` (+ `Set*`; default, read when the indicator is created: the color scheme's `ActivityIndicator`, the muted color unless the scheme sets it, the accent in the Android and Windows schemes). Intrinsic measure defaults to 36×36 DIPs.
 
 ## Differences from MAUI ActivityIndicator
 

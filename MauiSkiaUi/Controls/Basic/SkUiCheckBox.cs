@@ -52,8 +52,9 @@ public class SkUiCheckBox : SkUiToggleControl
     }
 
     /// <inheritdoc />
+    /// <remarks>At least the look's <see cref="SkUiLook.DefaultCheckBoxMinimumWidth"/> wide unless the check box sets a <c>MinimumWidthRequest</c>.</remarks>
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
-        SkUiLook.Current.MeasureCheckBox(widthConstraint, heightConstraint);
+        SkUiLook.Current.MeasureCheckBox(widthConstraint, heightConstraint, MinimumWidthRequest >= 0);
 
     /// <inheritdoc />
     protected override SkUiTransitionKind TransitionKind => SkUiTransitionKind.CheckBox;

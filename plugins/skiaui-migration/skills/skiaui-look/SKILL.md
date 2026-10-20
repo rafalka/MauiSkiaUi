@@ -14,7 +14,7 @@ A look (`SkUiLook`, usually a `DefaultSkUiLook` subclass) owns the shapes, sizes
 | `MacSkUiLook` | MAUI on Mac Catalyst in the iPad idiom (MAUI's default, `UIDeviceFamily` 2: the iOS controls, scaled to 77% by the system) |
 | `AndroidSkUiLook` | MAUI on Android as it ships (Material 2, Material Components) |
 | `AndroidMaterial3SkUiLook` | MAUI on Android with `<UseMaterial3>true</UseMaterial3>` |
-| `WindowsSkUiLook` | Fluent (WinUI) |
+| `WindowsSkUiLook` | MAUI on Windows 11 (WinUI 3, Fluent) |
 | `DefaultSkUiLook` | the same on every platform (no platform's) |
 
 `DefaultSkUiLook.ForCurrentPlatform()` picks the platform's look (on Android, the Material 3 one when the app turns MAUI's Material 3 on). Set the look once at startup: `UseSkiaUi(options => options.Look = …)`.
@@ -51,15 +51,16 @@ A look (`SkUiLook`, usually a `DefaultSkUiLook` subclass) owns the shapes, sizes
    [SkUiLookComparison] Button: native=78x36 skiaui=74.8x36 DIFFERS
    ```
 
-   Summarize one or more logs with `python3 "${CLAUDE_SKILL_DIR}/scripts/look_report.py" ios.log android.log` (a table per platform, differences first). Where there is no console (Windows), use the page's "Copy report" button.
+   Summarize one or more logs with `python3 "${CLAUDE_SKILL_DIR}/scripts/look_report.py" ios.log android.log` (a table per platform, differences first). On Windows, redirect an unpackaged app's standard output to a file, or use the page's "Copy report" button.
 4. **Look at the screenshots**, side by side and with "Overlay" on: sizes can match while shapes differ (a capsule thumb against a round one, a box inset in its touch area). Zoom into a control and measure in device pixels (divide by the screen scale) when a shape's part matters.
 5. **Decide per row** with [diagnosing.md](references/diagnosing.md): the stock look is wrong (fix the look; in SkiaUi itself, also its tests and docs), the app's styles change the native control (add the same setters to a `SkUi*` style, or a look member when every control of that type changes), or the difference is a shape SkiaUi does not draw yet (report it).
 6. **Write or adjust the look:** derive from the closest stock look and override the members from [look-knobs.md](references/look-knobs.md). Text sizes come from `DefaultFontSize`; Android's taller text lines from `TextIncludesFontPadding`; Apple's tighter text from `AppliesFontTracking`.
-7. **Repeat** steps 2–6 until every row says `same` (sizes within 0.5 DIP) and the overlay shows the same shapes, on every platform. Known differences by design: the Stepper on Android (SkiaUi keeps its segmented stepper rather than MAUI's two separate buttons). Text can stay up to 1–2% wider or narrower on Android (font rendering); say so rather than tuning padding to hide it.
+7. **Repeat** steps 2–6 until every row says `same` (sizes within 0.5 DIP) and the overlay shows the same shapes, on every platform. Known differences by design: the Stepper on Android and Windows (SkiaUi keeps its segmented stepper rather than MAUI's two separate buttons). Text can stay up to 1–2% wider or narrower on Android (font rendering); say so rather than tuning padding to hide it.
 8. **Report** the look you chose or wrote, the rows that still differ and why, and the platforms you did not check.
 
 ## Things to know
 
 - Each row's SkiaUi control is its own surface (the page compares one control at a time); real screens put one surface around a region.
 - Values a control reads when it is created (button padding, default colors) come from the look current at creation; the page creates the drawn controls under the selected look. Text sizes and shapes follow a subtree's own look (`SkUiView.Look`) when they are laid out.
-- Mac Catalyst rounds native sizes to whole points, so a row can differ by under 0.5 there and still be right.
+- Mac Catalyst and Windows round native sizes to whole points, so a row can differ by under 0.5 there and still be right.
+- On Windows, WinUI's check box and radio button are at least 120 wide; MAUI maps `MinimumWidthRequest` to that `MinWidth`, so a style's `MinimumWidthRequest="44"` makes the native check box 44 wide. `WindowsSkUiLook` gives way the same way, so copy the setter to the `SkUi*` style.

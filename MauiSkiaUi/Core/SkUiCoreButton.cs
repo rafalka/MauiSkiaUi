@@ -20,15 +20,17 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     private object? _commandParameter;
     private SkUiWeakListener<SkUiCoreButton>? _commandListener;
 
-    /// <summary>Creates a centered white-on-accent button whose text does not wrap (as MAUI's Button).</summary>
+    /// <summary>Creates a centered button in the color scheme's button colors (white on the accent by default) whose text does not wrap (as MAUI's Button).</summary>
     public SkUiCoreButton()
     {
         SetLineBreakMode(Microsoft.Maui.LineBreakMode.NoWrap);
-        SetTextColor(Colors.White);
+        SetTextColor(SkUiColors.ButtonForeground);
         SetPadding(new Thickness(6));
         SetHorizontalTextAlignment(TextAlignment.Center);
         SetVerticalTextAlignment(TextAlignment.Center);
-        SetFillColor(SkUiColors.Accent);
+        SetFillColor(SkUiColors.ButtonBackground);
+        SetBorderColor(SkUiColors.ButtonBorder);
+        SetBorderWidth(SkUiLook.Current.DefaultButtonBorderWidth);
         _buttonPainter = PaintButtonBackground;
         SetPaintBackground(_buttonPainter);
     }

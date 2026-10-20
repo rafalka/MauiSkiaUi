@@ -7,7 +7,7 @@ namespace MauiSkiaUi.Core;
 public class SkUiCoreActivityIndicator : SkUiCoreNode
 {
     private bool _isRunning;
-    private Color _color = SkUiColors.Muted;
+    private Color _color = SkUiColors.ActivityIndicator;
     private SKPaint? _strokePaint;
 
     /// <summary>Whether the spinner is animating.</summary>
