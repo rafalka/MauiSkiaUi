@@ -12,6 +12,7 @@ Internal guide for working **on** SkiaUi (library + demo + tests). Library **use
 | `samples/MauiSkiaUiSamples` | .NET MAUI application (`net10.0-*`) | Usage examples, one page per example in sections, each with its in-app description and source ([samples/README.md](samples/README.md)); built headlessly by `SamplesTests` |
 | `tests/MauiSkiaUi.Tests` | Headless xUnit tests (`net10.0`) | Real MAUI nodes and offscreen Skia painting; no device required |
 | `tests/MauiSkiaUi.DeviceTests` | .NET MAUI application (`net10.0-*`) | On-device memory-leak scenarios with real handlers and platform views (`scripts/device_tests.sh`) |
+| `tests/Maestro` | [Maestro](https://maestro.dev) flows | UI-test driver checks of the installed demo on an emulator or simulator (`maestro --device … test tests/Maestro/…`) |
 | `benchmarks/MauiSkiaUi.Benchmarks` | Console app (`net10.0`) | Headless benchmark runner (layout / text / recording / compositing) |
 | `benchmarks/MauiSkiaUiBench` | .NET MAUI application (`net10.0-*`) | On-device benchmark app (Release); shares `benchmarks/Scenarios` with the headless runner |
 | `plugins/skiaui-migration` | Claude Code plugin (Agent Skills) | Migration skills for app developers (`skiaui-audit`, `skiaui-migrate`) with their Python checkers; listed by the repo marketplace `.claude-plugin/marketplace.json` ([README](plugins/skiaui-migration/README.md)) |

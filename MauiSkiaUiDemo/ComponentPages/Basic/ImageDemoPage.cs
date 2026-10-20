@@ -1,15 +1,18 @@
 using MauiSkiaUi;
+using MauiSkiaUi.Core;
 
 namespace MauiSkiaUiDemo;
 
 /// <summary>
 /// Side-by-side property playground for <see cref="SkUiImage"/>: every source kind (raw asset, MauiImage PNG and SVG,
-/// font glyph, web, animated GIF, stream), animation, SkiaUi's transformations and downsampling, and the shared caches.
+/// font glyph, web, animated GIF, stream), animation, SkiaUi's transformations and downsampling, and the shared caches. A
+/// Core image shows the same MAUI source, passed straight to <see cref="SkUiCoreImage.SetSource"/>.
 /// </summary>
 public sealed class ImageDemoPage : ComponentDemoPage
 {
     private readonly SkUiImage _skia;
     private readonly Image _native;
+    private readonly SkUiCoreImage _core = new SkUiCoreImage().SetAspect(Aspect.AspectFit);
     private string _sample = SampleEarth;
     private string _transformation = TransformNone;
     private string _lastLoad = "";
@@ -78,6 +81,8 @@ public sealed class ImageDemoPage : ComponentDemoPage
         };
         _skia.PropertyChanged += (_, args) => { if (args.PropertyName is nameof(SkUiImage.IsLoading) or nameof(SkUiImage.LoadError)) UpdateImageStatus(); };
         _native.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(Image.IsLoading)) UpdateImageStatus(); };
+        AddEditor("Core image, same MAUI source (SkUiCoreImage.SetSource)",
+            new SkUiCoreHost { HeightRequest = 80, HorizontalOptions = LayoutOptions.Start, WidthRequest = 160 }.SetContent(_core));
         ActionButton("Reload image", () => SetSample(_sample));
         ActionButton("Clear memory cache", () => { SkUiImageCache.ClearMemoryCache(); UpdateImageStatus(); });
         ActionButton("Clear all image caches", async () =>
@@ -112,6 +117,7 @@ public sealed class ImageDemoPage : ComponentDemoPage
         };
         _skia.Source = Source();
         _native.Source = Source();
+        _core.SetSource(Source()); // a MAUI ImageSource converts implicitly (SkUiImageSource.FromMaui)
     }
 
     private async void UpdateImageStatus()
@@ -127,6 +133,7 @@ public sealed class ImageDemoPage : ComponentDemoPage
     {
         _skia.Source = null;
         _native.Source = null;
+        _core.SetSource(null);
         base.OnDisappearing();
     }
 

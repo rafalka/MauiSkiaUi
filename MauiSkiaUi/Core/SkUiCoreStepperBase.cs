@@ -10,10 +10,10 @@ namespace MauiSkiaUi.Core;
 /// <see cref="SkUiCoreStepper"/> on <see cref="double"/>, <see cref="SkUiCoreStepper{T}"/> on any number type.
 /// </summary>
 /// <remarks>
-/// Only SkiaUi's steppers derive from it. Core nodes have no enabled state: a stepper always reacts (hide it, or remove it, to stop
-/// it).
+/// Only SkiaUi's steppers derive from it. While disabled (<see cref="SkUiCoreNode.IsEnabled"/> <c>false</c>, also through a Core
+/// ancestor or the host) the stepper draws its buttons dimmed and its buttons, keys and screen-reader actions do nothing.
 /// </remarks>
-public abstract class SkUiCoreStepperBase : SkUiCoreNode, ISkUiStepperOwner, ISkUiKeyHandler
+public abstract class SkUiCoreStepperBase : SkUiCoreNode, ISkUiFontElement, ISkUiStepperOwner, ISkUiKeyHandler
 {
     /// <summary>The engine shared with the SkUi steppers.</summary>
     internal SkUiStepperModel Model { get; }
@@ -50,10 +50,14 @@ public abstract class SkUiCoreStepperBase : SkUiCoreNode, ISkUiStepperOwner, ISk
     public bool FontAutoScalingEnabled { get => Model.FontAutoScalingEnabled; set => SetFontAutoScalingEnabled(value); }
 
     /// <summary>
-    /// The corner radius in DIPs (default the look's <see cref="SkUiLook.DefaultStepperCornerRadius"/>, 8): 0 gives square corners; half the
-    /// stepper's height or more, a pill.
+    /// The corner radius in DIPs, an <c>int</c> as <see cref="SkUiStepperBase.CornerRadius"/> (default the look's
+    /// <see cref="SkUiLook.DefaultStepperCornerRadius"/>, 8): 0 gives square corners; half the stepper's height or more, a pill.
     /// </summary>
-    public double CornerRadius { get => Model.CornerRadius ?? SkUiLook.Current.DefaultStepperCornerRadius; set => SetCornerRadius(value); }
+    public int CornerRadius
+    {
+        get => Model.CornerRadius ?? (int)Math.Round(SkUiLook.Current.DefaultStepperCornerRadius);
+        set => SetCornerRadius(value);
+    }
 
     /// <summary>
     /// The outline's width in DIPs (default 0: no outline), drawn inside the stepper; the divider between the buttons takes its width and
@@ -108,10 +112,10 @@ public abstract class SkUiCoreStepperBase : SkUiCoreNode, ISkUiStepperOwner, ISk
     public SkUiCoreStepperBase SetFontAutoScalingEnabled(bool value) => SetTextStyle(ref Model.FontAutoScalingEnabled, value, nameof(FontAutoScalingEnabled));
 
     /// <summary>Sets <see cref="CornerRadius"/>.</summary>
-    public SkUiCoreStepperBase SetCornerRadius(double value)
+    public SkUiCoreStepperBase SetCornerRadius(int value)
     {
-        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
-        double? radius = value;
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        int? radius = value;
         if (SetProperty(ref Model.CornerRadius, radius, nameof(CornerRadius)))
             InvalidatePaint();
         return this;
@@ -173,7 +177,15 @@ public abstract class SkUiCoreStepperBase : SkUiCoreNode, ISkUiStepperOwner, ISk
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
     {
         base.CollectGestureRecognizers(recognizers);
-        Model.CollectGestureRecognizers(recognizers);
+        if (IsEnabled)
+            Model.CollectGestureRecognizers(recognizers);
+    }
+
+    /// <inheritdoc />
+    protected override void OnIsEnabledChanged()
+    {
+        base.OnIsEnabledChanged();
+        Model.IsEnabled = IsEnabled;
     }
 
     /// <inheritdoc />

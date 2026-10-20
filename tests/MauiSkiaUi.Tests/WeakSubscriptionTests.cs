@@ -51,7 +51,7 @@ public class WeakSubscriptionTests
     }
 
     [Fact]
-    public void LongLivedCommandsDoNotKeepButtonsAlive()
+    public void LongLivedCommandsDoNotKeepTheirViewsAlive()
     {
         var canExecute = true;
         var command = new Command(() => { }, () => canExecute);
@@ -80,6 +80,7 @@ public class WeakSubscriptionTests
                 references.Add(new WeakReference(new SkUiImageButton { Command = command }));
                 references.Add(new WeakReference(new SkUiCoreButton().SetCommand(command)));
                 references.Add(new WeakReference(new SkUiCoreImageButton().SetCommand(command)));
+                references.Add(new WeakReference(new SkUiCoreBox().SetTappedCommand(command)));
             }
             return [.. references];
         }

@@ -215,6 +215,8 @@ public partial class SkUiCollectionView
         protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
         {
             base.OnPopulateSemantics(info);
+            // Read as one element with its item: it carries the item root's AutomationId (the app cannot set one on the host).
+            info.AutomationIdRoot = Content as ISkUiRenderable;
             if (_selected)
                 info.Value = SkUiStrings.Current.SelectedStateText;
         }
@@ -351,6 +353,7 @@ public partial class SkUiCollectionView
         protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
         {
             base.OnPopulateSemantics(info);
+            info.AutomationIdRoot = Content as ISkUiRenderable;
             if (!owner.AllowGroupExpandCollapse || Content is null)
                 return;
             info.Role = SkUiSemanticsRole.Button;
@@ -362,6 +365,12 @@ public partial class SkUiCollectionView
     private sealed class LoadMoreHost(SkUiCollectionView owner) : SkUiContentView
     {
         protected override bool HandlesTap => owner.LoadMoreTappable && Content is not LoadMoreDefaultView;
+
+        protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+        {
+            base.OnPopulateSemantics(info);
+            info.AutomationIdRoot = Content as ISkUiRenderable;
+        }
 
         protected override void OnTapped(SkUiTappedEventArgs args)
         {

@@ -15,6 +15,9 @@ internal interface ISkUiAccessibleNode : ISkUiRenderable
     /// <summary>Performs one action (<see cref="SkUiSemanticsActions"/> flag); returns whether it was done.</summary>
     bool PerformSemanticsAction(SkUiSemanticsActions action);
 
+    /// <summary>Performs one action on a drawn part (<see cref="SkUiSemanticsPart.Index"/>); returns whether it was done.</summary>
+    bool PerformSemanticsPartAction(int part, SkUiSemanticsActions action);
+
     /// <summary>Sets a range value (a slider moved by TalkBack or Narrator); returns whether it was done.</summary>
     bool SetSemanticsValue(double value);
 
@@ -56,6 +59,8 @@ internal sealed class SkUiSemanticsNode
     public bool IsHorizontal;
     /// <summary>Whether a combo box's list is open; <c>null</c> when the element does not expand.</summary>
     public bool? IsExpanded;
+    /// <summary>A part drawn inside <see cref="Source"/> (<see cref="SkUiSemanticsPart.Index"/>, a clear button); -1 for the source itself.</summary>
+    public int PartIndex = -1;
     /// <summary>An editable text field's selection and flags; <c>null</c> for other elements.</summary>
     public SkUiSemanticsTextField? TextField;
     public SemanticHeadingLevel HeadingLevel;
@@ -64,6 +69,12 @@ internal sealed class SkUiSemanticsNode
     public bool IsFocused;
     /// <summary>A hosted native view: not read through this tree (the platform reads the native view).</summary>
     public bool IsNative;
+    /// <summary>
+    /// Only an <see cref="AutomationId"/> for UI-test drivers (<see cref="SkUiAccessibility.ExposeAutomationIds"/>): a node
+    /// that is absorbed by an ancestor element or hidden from screen readers. No label, no actions, not focusable; hit-testing
+    /// passes through it.
+    /// </summary>
+    public bool IsIdOnly;
     /// <summary><see cref="Bounds"/> and every descendant's (set for hit-testing: subtrees away from the point are skipped).</summary>
     internal Rect Extent;
 
@@ -76,7 +87,8 @@ internal sealed class SkUiSemanticsNode
         && Hint == other.Hint && Value == other.Value && CheckState == other.CheckState && Range == other.Range && IsEnabled == other.IsEnabled
         && Actions == other.Actions && IsHorizontal == other.IsHorizontal && IsExpanded == other.IsExpanded && TextField == other.TextField
         && HeadingLevel == other.HeadingLevel
-        && AutomationId == other.AutomationId && IsFocusable == other.IsFocusable && IsFocused == other.IsFocused && IsNative == other.IsNative;
+        && AutomationId == other.AutomationId && IsFocusable == other.IsFocusable && IsFocused == other.IsFocused && IsNative == other.IsNative
+        && IsIdOnly == other.IsIdOnly && PartIndex == other.PartIndex;
 
     /// <summary>The value read for a range element without an explicit one: a percentage (as native sliders).</summary>
     public string? DisplayValue => Value ?? (Range is { } range ? range.Fraction.ToString("P0", System.Globalization.CultureInfo.CurrentCulture) : null);
@@ -97,6 +109,9 @@ internal sealed class SkUiSemanticsNode
 /// subtree (a loading shimmer: one "Loading" element instead of its skeleton) hides its descendants.</item>
 /// <item>Order is the drawn tree's (children in paint order). Bounds are the visible part: elements scrolled or clipped
 /// out of view are left out (scroll actions bring them in).</item>
+/// <item>Automation ids: an element absorbing a collection item's root takes the root's id
+/// (<see cref="SkUiSemanticsInfo.AutomationIdRoot"/>). With <see cref="SkUiAccessibility.ExposeAutomationIds"/>, other absorbed
+/// or hidden nodes with an id become id-only elements (<see cref="SkUiSemanticsNode.IsIdOnly"/>), so UI tests find them.</item>
 /// </list>
 /// </summary>
 internal sealed class SkUiSemanticsTree
@@ -128,9 +143,12 @@ internal sealed class SkUiSemanticsTree
 
     /// <summary>The element of <paramref name="source"/>, or <c>null</c> when it is not one (merged, hidden, not drawn).</summary>
     public SkUiSemanticsNode? Find(ISkUiAccessibleNode source) =>
-        source.RenderState.SemanticsId is var id and > 0 && Find(id) is { } node && ReferenceEquals(node.Source, source) ? node : null;
+        source.RenderState.SemanticsId is var id and > 0 && Find(id) is { IsIdOnly: false } node && ReferenceEquals(node.Source, source) ? node : null;
 
-    /// <summary>The front-most, innermost element at <paramref name="point"/> (surface DIPs), or <c>null</c> (the surface).</summary>
+    /// <summary>
+    /// The front-most, innermost element at <paramref name="point"/> (surface DIPs), or <c>null</c> (the surface). Id-only
+    /// elements are not hit: what is behind them is.
+    /// </summary>
     public SkUiSemanticsNode? HitTest(Point point)
     {
         // The tree does not change once built: extents are computed on the first hit-test (hover asks many times).
@@ -160,11 +178,11 @@ internal sealed class SkUiSemanticsTree
             var child = node.Children[index];
             if (!child.Extent.Contains(point))
                 continue;
-            if (child.Bounds.Contains(point))
-                return HitTest(child, point) ?? child;
             // A child that does not clip may hold elements outside its own bounds.
             if (HitTest(child, point) is { } inner)
                 return inner;
+            if (child.Bounds.Contains(point) && !child.IsIdOnly)
+                return child;
         }
         return null;
     }
@@ -219,8 +237,11 @@ internal sealed class SkUiSemanticsTree
         return true;
     }
 
-    /// <summary>Builds the tree of the surface rooted at <paramref name="root"/> (UI thread).</summary>
-    public static SkUiSemanticsTree Build(SkUiView root, SkUiFocusManager? focus = null)
+    /// <summary>
+    /// Builds the tree of the surface rooted at <paramref name="root"/> (UI thread). <paramref name="exposeAutomationIds"/>:
+    /// whether absorbed and hidden nodes with an id become id-only elements; <c>null</c>: <see cref="SkUiAccessibility.ExposeAutomationIds"/>.
+    /// </summary>
+    public static SkUiSemanticsTree Build(SkUiView root, SkUiFocusManager? focus = null, bool? exposeAutomationIds = null)
     {
         var props = GetProps(root);
         var rootNode = new SkUiSemanticsNode
@@ -233,7 +254,7 @@ internal sealed class SkUiSemanticsTree
         tree._byId[rootNode.Id] = rootNode;
         // The surface shows the root's local space: its own frame offset is outside the surface.
         props.X = props.Y = 0;
-        var builder = new Builder(tree, focus);
+        var builder = new Builder(tree, focus, root, exposeAutomationIds ?? SkUiAccessibility.ExposeAutomationIds);
         builder.Visit(root, props, SKMatrix.Identity, new SKRect(0, 0, props.Width, props.Height), rootNode, absorber: null, enabled: true);
         return tree;
     }
@@ -250,11 +271,14 @@ internal sealed class SkUiSemanticsTree
     {
         var state = node.RenderState;
         if (state.SemanticsId == 0)
-            state.SemanticsId = Interlocked.Increment(ref _nextId);
+            state.SemanticsId = NewId();
         return state.SemanticsId;
     }
 
-    private sealed class Builder(SkUiSemanticsTree tree, SkUiFocusManager? focus)
+    /// <summary>A new element id, for a drawn part (<see cref="SkUiSemanticsPart"/>) that keeps it while its control lives.</summary>
+    internal static int NewId() => Interlocked.Increment(ref _nextId);
+
+    private sealed class Builder(SkUiSemanticsTree tree, SkUiFocusManager? focus, SkUiView root, bool exposeAutomationIds)
     {
         private readonly SkUiSemanticsInfo _info = new();
         private readonly List<ISkUiRenderable> _children = [];
@@ -268,6 +292,8 @@ internal sealed class SkUiSemanticsTree
             public SkUiSemanticsNode Element { get; } = element;
             public bool Collects { get; } = collects;
             public List<string>? Merged;
+            /// <summary>The descendant whose id the element takes when it absorbs it (<see cref="SkUiSemanticsInfo.AutomationIdRoot"/>).</summary>
+            public ISkUiRenderable? AutomationIdRoot;
         }
 
         public void Visit(ISkUiRenderable node, SkUiRenderProps props, SKMatrix parentToRoot, SKRect clip, SkUiSemanticsNode parent, Absorber? absorber,
@@ -286,6 +312,7 @@ internal sealed class SkUiSemanticsTree
             var element = parent;
             var childAbsorber = absorber;
             var childrenHidden = false;
+            List<SkUiSemanticsNode>? parts = null;
             if (node is ISkUiAccessibleNode accessible)
             {
                 _info.Reset();
@@ -316,8 +343,21 @@ internal sealed class SkUiSemanticsTree
                     {
                         element = NewNode(accessible, visible, text, native: false);
                         Add(parent, element);
+                        parts = NewPartNodes(accessible, toRoot, visible);
                         var described = Clean(_info.Description) is not null;
-                        childAbsorber = actionable || described ? new Absorber(element, collects: !described) : null;
+                        childAbsorber = actionable || described ? new Absorber(element, collects: !described) { AutomationIdRoot = _info.AutomationIdRoot } : null;
+                    }
+                }
+                // Not an element of its own (absorbed, decorative, hidden from screen readers): its id would be lost to UI tests.
+                if (ReferenceEquals(element, parent) && !visible.IsEmpty && !ReferenceEquals(node, root)
+                    && _info.AutomationId is { } automationId && !string.IsNullOrWhiteSpace(automationId))
+                {
+                    if (absorber is { Element.AutomationId: null } && ReferenceEquals(absorber.AutomationIdRoot, node))
+                        absorber.Element.AutomationId = automationId; // an item container takes its item's id
+                    else if (exposeAutomationIds)
+                    {
+                        element = NewIdOnlyNode(accessible, visible, automationId);
+                        Add(parent, element);
                     }
                 }
             }
@@ -356,6 +396,38 @@ internal sealed class SkUiSemanticsTree
 
             if (!ReferenceEquals(element, parent) && childAbsorber is { Merged: { Count: > 0 } merged } && ReferenceEquals(childAbsorber.Element, element))
                 element.Label = element.Label is { } own ? own + ", " + string.Join(", ", merged) : string.Join(", ", merged);
+            // Drawn parts (a clear button) after the control's children: they sit at its end side.
+            if (parts is not null)
+                foreach (var part in parts)
+                    Add(element, part);
+        }
+
+        /// <summary>The control's drawn parts that show (<see cref="SkUiSemanticsInfo.Parts"/>) as button elements, in surface DIPs.</summary>
+        private List<SkUiSemanticsNode>? NewPartNodes(ISkUiAccessibleNode source, SKMatrix toRoot, SKRect visible)
+        {
+            if (_info.Parts is not { Count: > 0 } infoParts)
+                return null;
+            List<SkUiSemanticsNode>? nodes = null;
+            foreach (var part in infoParts)
+            {
+                var bounds = Intersect(toRoot.MapRect(new SKRect((float)part.Bounds.Left, (float)part.Bounds.Top, (float)part.Bounds.Right,
+                    (float)part.Bounds.Bottom)), visible);
+                if (bounds.IsEmpty)
+                    continue;
+                (nodes ??= []).Add(new SkUiSemanticsNode
+                {
+                    Id = part.Id,
+                    Source = source,
+                    PartIndex = part.Index,
+                    Bounds = new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height),
+                    Role = SkUiSemanticsRole.Button,
+                    Label = part.Label,
+                    IsEnabled = _info.IsEnabled,
+                    Actions = SkUiSemanticsActions.Activate,
+                    AutomationId = string.IsNullOrWhiteSpace(_info.AutomationId) ? null : _info.AutomationId + part.AutomationIdSuffix
+                });
+            }
+            return nodes;
         }
 
         private static bool IsElement(SkUiSemanticsInfo info, string? text)
@@ -373,6 +445,16 @@ internal sealed class SkUiSemanticsTree
                 _ => true
             };
         }
+
+        private SkUiSemanticsNode NewIdOnlyNode(ISkUiAccessibleNode source, SKRect visible, string automationId) => new()
+        {
+            Id = IdOf(source),
+            Source = source,
+            Bounds = new Rect(visible.Left, visible.Top, visible.Width, visible.Height),
+            IsEnabled = _info.IsEnabled,
+            AutomationId = automationId,
+            IsIdOnly = true
+        };
 
         private SkUiSemanticsNode NewNode(ISkUiAccessibleNode source, SKRect visible, string? label, bool native)
         {

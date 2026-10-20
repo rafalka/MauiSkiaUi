@@ -289,10 +289,10 @@ public class StepperTests
     public void CoreStepperHasTheCornerRadiusAndOutlineToo()
     {
         var core = new SkUiCoreStepper();
-        Assert.Equal((8d, 0d, (Color?)null), (core.CornerRadius, core.BorderWidth, core.BorderColor));
+        Assert.Equal((8, 0d, (Color?)null), (core.CornerRadius, core.BorderWidth, core.BorderColor));
         var changed = new List<string?>();
         core.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
-        SkUiCoreStepper chained = core.SetCornerRadius(4.5).SetBorderWidth(2).SetBorderColor(Colors.Red);
+        SkUiCoreStepper chained = core.SetCornerRadius(5).SetBorderWidth(2).SetBorderColor(Colors.Red);
         Assert.Same(core, chained);
         Assert.Equal([nameof(core.CornerRadius), nameof(core.BorderWidth), nameof(core.BorderColor)], changed);
         Assert.Throws<ArgumentOutOfRangeException>(() => core.SetCornerRadius(-1));
@@ -304,7 +304,7 @@ public class StepperTests
             look.StepperPainter = (_, paint) => drawn = paint;
             using var surface = new SkUiTestSurface(new SkUiCoreHost().SetContent(core), 300, 60);
             surface.Frame(0);
-            Assert.True(drawn is { CornerRadius: 4.5f, BorderWidth: 2 }, $"{drawn}");
+            Assert.True(drawn is { CornerRadius: 5f, BorderWidth: 2 }, $"{drawn}");
             Assert.Equal(new SKColor(255, 0, 0), drawn!.Value.BorderColor);
         }
         finally

@@ -166,9 +166,32 @@ public class SkUiCoreEntry : SkUiCoreInputView
     /// <inheritdoc cref="SkUiCoreInputView.SetErrorColor" />
     public new SkUiCoreEntry SetErrorColor(Color? value) { base.SetErrorColor(value); return this; }
 
+    /// <inheritdoc cref="SkUiCoreInputView.SetFieldStyle" />
+    public new SkUiCoreEntry SetFieldStyle(SkUiTextFieldStyle value) { base.SetFieldStyle(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetTextPadding" />
+    public new SkUiCoreEntry SetTextPadding(Thickness? value) { base.SetTextPadding(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetFillColor" />
+    public new SkUiCoreEntry SetFillColor(Color? value) { base.SetFillColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetBorderColor" />
+    public new SkUiCoreEntry SetBorderColor(Color? value) { base.SetBorderColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetBorderWidth" />
+    public new SkUiCoreEntry SetBorderWidth(double? value) { base.SetBorderWidth(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetCornerRadii" />
+    public new SkUiCoreEntry SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetCornerRadius" />
+    public new SkUiCoreEntry SetCornerRadius(double? value) { base.SetCornerRadius(value); return this; }
+
     /// <inheritdoc />
     private protected override void OnReturnPressed()
     {
+        if (!IsEnabled)
+            return;
         Completed?.Invoke(this, EventArgs.Empty);
         if (_returnCommand is { } command && command.CanExecute(_returnCommandParameter))
             command.Execute(_returnCommandParameter);

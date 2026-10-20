@@ -1,0 +1,107 @@
+# Automation ids on the demo's Accessibility page (M3 and M7, docs/design/Accessibility.md#automation-ids-ui-tests-m3), found the
+# way UI tests find them: Maestro reads UiAutomator's tree on Android and XCTest's on iOS, as Appium does.
+#   maestro --device <emulator serial or simulator UDID> test tests/Maestro/accessibility-automation-ids.yaml
+# A bare id matches Android's package:id/… form too. The app must be installed (scripts/device_verify.sh).
+appId: com.rkdevel.mauiskiauidemo
+name: Accessibility page automation ids
+---
+- launchApp:
+    stopApp: true
+
+# The flyout's button: "Open navigation drawer" on Android, "Menu" on iOS.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn: Open navigation drawer
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: Menu
+- tapOn: Accessibility
+- extendedWaitUntil:
+    visible:
+      id: ExposeAutomationIdsSwitch
+    timeout: 10000
+
+# The drawn surface is found by its id (on Android as the container's view id, without a content description TalkBack reads).
+- assertVisible:
+    id: AccessibilitySurface
+
+# Off (the default): the card is one element with its labels' text; ids inside it and on decoration are not elements.
+- scrollUntilVisible:
+    element:
+      id: OrderCard
+    centerElement: true
+- assertVisible:
+    id: OrderCard
+    text: "Order 42.*Shipped yesterday.*"
+- assertNotVisible:
+    id: OrderTitle
+- assertNotVisible:
+    id: OrderStatus
+- assertNotVisible:
+    id: GiftWrapLabel
+- assertNotVisible:
+    id: ExpressLabel
+
+# A tap by id reaches the drawn card.
+- tapOn:
+    id: OrderCard
+- scrollUntilVisible:
+    element:
+      id: AccessibilityAction
+    direction: UP
+- assertVisible:
+    id: AccessibilityAction
+    text: "Last action: card activated"
+
+# On: the absorbed labels and the decorative ones become id-only elements.
+- tapOn:
+    id: ExposeAutomationIdsSwitch
+- scrollUntilVisible:
+    element:
+      id: OrderCard
+    centerElement: true
+- assertVisible:
+    id: OrderTitle
+- assertVisible:
+    id: OrderStatus
+- assertVisible:
+    id: GiftWrapLabel
+- assertVisible:
+    id: ExpressLabel
+# The card keeps its merged name; an id-only element has no text of its own.
+- assertVisible:
+    id: OrderCard
+    text: "Order 42.*Shipped yesterday.*"
+- assertNotVisible:
+    id: OrderTitle
+    text: "Order 42"
+
+# Back off: the id-only elements go.
+- scrollUntilVisible:
+    element:
+      id: ExposeAutomationIdsSwitch
+    direction: UP
+- tapOn:
+    id: ExposeAutomationIdsSwitch
+- scrollUntilVisible:
+    element:
+      id: OrderCard
+    centerElement: true
+- assertNotVisible:
+    id: OrderTitle
+
+# A drawn search bar's clear button is an element of its own (M7), at the bar's id + "_Clear"; a tap on it by id clears.
+- scrollUntilVisible:
+    element:
+      id: PostcodeSearch_Clear
+    centerElement: true
+- assertVisible:
+    id: PostcodeSearch
+- tapOn:
+    id: PostcodeSearch_Clear
+- assertNotVisible:
+    id: PostcodeSearch_Clear

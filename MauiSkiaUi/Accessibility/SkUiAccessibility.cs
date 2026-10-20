@@ -25,6 +25,26 @@ public static class SkUiAccessibility
         }
     }
 
+    /// <summary>
+    /// Whether drawn nodes with an <c>AutomationId</c> that screen readers do not read as elements of their own are still
+    /// exposed with their id, so UI-test drivers (Appium, XCUITest, WinAppDriver) find every id the app set: nodes absorbed
+    /// into an actionable or described ancestor (a status label inside a tappable row), decorative ones (a plain layout, an
+    /// image without a description) and ones with <c>AutomationProperties.IsInAccessibleTree="False"</c>. Each becomes an
+    /// id-only element: no name, no actions, not focusable; its text is still read as part of the element that absorbs it.
+    /// Default <c>false</c>: TalkBack skips id-only elements and VoiceOver does not get them while it runs, but they cost an
+    /// element each and other assistive clients may list them. The package is a Release build and cannot tell the app's
+    /// configuration, so turn it on in the app's UI-test builds (<c>UseSkiaUi(o =&gt; o.ExposeAutomationIds = true)</c>
+    /// under the app's own symbol); surfaces read after a change follow it. Ids that need no option: a collection item's root id is taken by
+    /// its item container when that absorbs it (a tappable or selectable item), and a surface root's id is on its native view.
+    /// </summary>
+    public static bool ExposeAutomationIds { get; set; }
+
+    /// <summary>
+    /// Appended to a text field's or picker's <c>AutomationId</c> for its clear button's element, while the button shows: an entry
+    /// with <c>AutomationId="Search"</c> has its clear button at <c>Search_Clear</c>. Without an id on the control the button has none.
+    /// </summary>
+    public const string ClearButtonAutomationIdSuffix = "_Clear";
+
     /// <summary>Raised after <see cref="IsEnabled"/> changes (live surfaces attach or remove their platform bridges). Subscribers are not kept alive.</summary>
     public static event EventHandler? Changed
     {

@@ -33,7 +33,7 @@ public class SkUiCoreCheckBox : SkUiCoreToggleControl
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>
-        SkUiToggleDrawing.DrawCheckBox(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, ToggleVisual, _color, enabled: true);
+        SkUiToggleDrawing.DrawCheckBox(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, ToggleVisual, _color, IsEnabled);
 
     /// <summary>The box: as large as the control's smaller side, at its start, from the top.</summary>
     protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)

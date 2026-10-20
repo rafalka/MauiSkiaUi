@@ -116,7 +116,7 @@ public sealed class FontScalingTests : IDisposable
         Assert.Equal(40, scaled.DrawnSize);
         Assert.Equal(20, fixedSize.DrawnSize);
         Assert.NotEqual(scaled.CacheKey, fixedSize.CacheKey);
-        var maui = (SkUiFontImageSource)SkUiMauiImageSources.Convert(new FontImageSource { Glyph = "A", Size = 20, FontAutoScalingEnabled = false })!;
+        var maui = (SkUiFontImageSource)SkUiImageSource.FromMaui(new FontImageSource { Glyph = "A", Size = 20, FontAutoScalingEnabled = false })!;
         Assert.Equal(20, maui.DrawnSize);
     }
 

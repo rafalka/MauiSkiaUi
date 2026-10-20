@@ -27,10 +27,46 @@ Built by `SkUiSemanticsTree.Build(root)` from the unified render tree (`ISkUiRen
 - An **actionable** element (an Activate / LongPress action, or a button, toggle or slider role) reads the text of its non-actionable descendant elements as its name, joined with ", ", and they are not elements themselves (Android merges clickable groups the same way); actionable descendants stay separate elements, children of it. A **description** replaces the text; then descendant text is dropped (iOS: a labelled container is one element).
 - A hosted `SkUiMauiContentView` is a `IsNative` placeholder: platforms read the native view itself.
 - Scroll views are container elements (`ScrollView` role, page actions); their children are their elements.
+- **Drawn parts** a control reports (`SkUiSemanticsInfo.AddPart`, below) are button elements, children of the control's.
 
 **Order and bounds.** Reading order is the drawn tree's (children in paint order). Bounds are surface DIPs of the **visible part**: the node's rectangle through every transform (`SkUiRenderProps.Matrix`), scroll offsets and overscroll scale (`ChildrenMatrix`), intersected with ancestors' `ClipToBounds`, children clips and `Clip` geometry bounds; pinned children (scroll bars) skip the children space. Elements scrolled or clipped out of view are left out: screen readers scroll to reach them (TalkBack past the last visible element, VoiceOver three-finger swipes), as with recycled native lists. Hit-testing (explore by touch, UI Automation point queries) returns the front-most, innermost element; each node keeps the extent of its subtree (computed on the first hit-test of a tree), so subtrees away from the point are skipped while children overflowing an unclipped parent are still found.
 
 **Ids** are stable per node (`SkUiRenderState.SemanticsId`, assigned on first use and kept across rebuilds and surfaces), so platform objects and screen-reader focus survive rebuilds.
+
+## Automation ids (UI tests, M3)
+
+UI-test drivers find views through the accessibility tree: Appium's UiAutomator2 by the view id resource name (a bare id is looked up as `package:id/id`, the form MAUI gives its views), XCUITest by `accessibilityIdentifier`, WinAppDriver / FlaUI by the UI Automation id. Elements carry their node's `AutomationId` there (Android: `package:id/automationId`, as MAUI's `SemanticExtensions`). A node that is not an element of its own would lose its id:
+
+| Case | Without the option | `SkUiAccessibility.ExposeAutomationIds` |
+| --- | --- | --- |
+| (a) Absorbed: a status label inside a tappable row or a described container | Lost (its text is part of the row's name) | An id-only element, child of the row |
+| (b) A collection item's root, absorbed by its item container (taps or selection); also an expander's header, a group header, a load-more view | The container takes the root's id (`SkUiSemanticsInfo.AutomationIdRoot`, set by the internal hosts) when it has none: no new element | The same; ids inside the item as in (a) |
+| (c) Decorative (a plain layout, an image without a description, a box) or `IsInAccessibleTree="False"` | Lost | An id-only element in its place; an id-only container keeps its subtree's elements under it |
+| (d) The surface root | On the container (MAUI maps it to the platform view) | The same: not repeated in the drawn tree |
+
+**Id-only elements** (`SkUiSemanticsNode.IsIdOnly`): no role, name or actions, not focusable, the node's visible bounds. Hit-testing passes through them (explore by touch finds what is behind), `Find(source)` ignores them (semantic focus, keyboard focus sync), and an absorbing element still reads their text. TalkBack skips them (no text, not focusable); the Apple bridge leaves them out while VoiceOver runs (the element array is rebuilt when it starts or stops); Windows reports them as control elements but not content. A drawn scroller without a name, only a container on iOS, stays an element when it has an id and the option is on (VoiceOver off).
+
+The option is off by default: the package is a Release build and cannot tell the app's configuration, and each id-only element costs one element per tree build. Apps turn it on in their UI-test builds (`UseSkiaUi(o => o.ExposeAutomationIds = true)` under their own symbol); trees read after a change follow it (`SkUiSemanticsOwner` compares the value it built with). Elements' text for assertions comes from the absorbing element's name (id-only elements have none, so screen readers read nothing twice).
+
+**Android roots (d):** MAUI writes a view's `AutomationId` into its content description (`PlatformInterop.setContentDescriptionForAutomationId`) and its accessibility delegate reports it as the view id instead (clearing the description when it is the id). The drawn surface's container has SkiaUi's delegate, so `SkUiAccessibilityHelper` does the same for the container's node: TalkBack does not read the id, and UiAutomator2 finds the container by it.
+
+Tests: `AutomationIdTests` (semantics trees for (a)–(d), hit-testing, the item containers).
+
+Checked 2026-10-20 on the demo's **Accessibility** page (its "Expose automation ids" switch):
+- Android emulator (API 36) with `uiautomator dump`, UiAutomator's view of the tree, which Appium's UiAutomator2 driver queries: MAUI's own views are `package:id/…`; the surface container reports `AccessibilitySurface` that way with no content description; the card `OrderCard` with its merged name; with the switch on, `OrderTitle` / `OrderStatus` as children of the card and the decorative `GiftWrapLabel` / `ExpressLabel`, without text, not clickable or focusable.
+- Mac Catalyst through the macOS accessibility API (`AXIdentifier`): `OrderCard` before; with the switch on, the four id-only elements (`AXGenericElement`).
+- A UI-test driver: the Maestro flow `tests/Maestro/accessibility-automation-ids.yaml` (Maestro 2.5.0) on an Android emulator (API 36) and the iPhone 17 simulator (iOS 26.5). Maestro queries the same trees as Appium (UiAutomator on Android, XCTest on iOS), and a bare id matches Android's `package:id/…` form. Passed on both: the surface and `OrderCard` with its merged name with the switch off, the absorbed and decorative ids absent; a tap on `OrderCard` by id activates it; with the switch on, the four id-only elements, without text; with it off again, gone.
+- Not yet run: Appium itself (its C# client), real iOS devices and Windows, TalkBack and VoiceOver with the option on.
+
+## Drawn parts: clear buttons (M7)
+
+Some controls draw a button of their own inside them that is not a node: a text field's clear button (`ClearButtonVisibility`, always on a search bar with text) and a picker's (`IsClearButtonVisible`). Natively the clear button is an element (iOS's `UITextField` reads "Clear text"), so the drawn one is too: while it shows, the control reports it from `OnPopulateSemantics` as an `SkUiSemanticsPart` (a stable id of its own from `SkUiSemanticsTree.NewId`, its bounds in the control's coordinates, its label, an id suffix), and the builder adds it as a `Button` child of the control's element after the control's children, with `Activate` only, not focusable, the control's enabled state and its bounds clipped as the control's. Its `SkUiSemanticsNode.PartIndex` routes actions: `SkUiSemanticsOwner.Perform` calls the control's `ISkUiAccessibleNode.PerformSemanticsPartAction` (internal `OnSemanticsPartAction` on both layers) instead of its own action, and text editing and selection never reach the field through it. Activating it does what a tap does: the field's text goes (it keeps focus), a picker's choice clears without opening.
+
+- **Label:** fields `SkUiStrings.ClearTextButtonText` ("Clear text"); pickers their `ClearText`, else `SkUiStrings.ClearText` ("Clear").
+- **Automation id:** the control's `AutomationId` + `SkUiAccessibility.ClearButtonAutomationIdSuffix` (`"_Clear"`): an entry `Search` has its button at `Search_Clear`. None without an id on the control; no option needed (the part is a real element).
+- **Platforms:** the bridges read it as any button element (Android `android.widget.Button` with the id as its view id, Apple a button trait, Windows a `Button` control type and class name); focus requests on it focus the field.
+
+Both layers share it: the text field model (`SkUiTextFieldModel`) and the picker model (`SkUiPickerModel`) report the part and perform it. Tests: `ClearButtonSemanticsTests` (entry, search bar, picker on both layers: shown only while the button shows, its id and bounds, hit-testing, activation clears, disabled). The demo's Accessibility page has a drawn search bar (`PostcodeSearch`, button `PostcodeSearch_Clear`). Checked 2026-10-20 with the Maestro flow `tests/Maestro/accessibility-automation-ids.yaml` on an Android emulator (API 36) and the iPhone 17 simulator (iOS 26.5): the button is found by its id, a tap on it by id empties the field (`uiautomator dump`: the `EditText` with no text and its `Postcode` hint), and the button's element goes. Not yet run: real devices, Windows, TalkBack and VoiceOver activating it.
 
 ## Keeping it current
 
@@ -96,7 +132,7 @@ MAUI's `Semantics` mapping of the root view is replaced (`SkUiViewHandler` mappe
 ## Verification
 
 - Windows 11 (2026-10-04, remote over SSH; UI Automation client in the desktop session): the tree as Narrator gets it (roles, names, toggle / selection / range / invoke patterns, the hosted Entry between its neighbours), pattern calls, `SetFocus`, Tab / Shift+Tab through and out of the surface, the focus ring, and the page `ScrollView` following the drawn focus both ways. Narrator itself not run.
-- Headless: `AccessibilityTests` (tree rules, both layers, bounds through scrolling, actions, ids and change reports, hit-testing), `KeyboardFocusTests` (MAUI focus API, Core focus, tab order, keys, ring pixels, native focus hooks, scroll into view), `FontScalingTests`; leak scenario `AccessibleFocused`.
+- Headless: `AccessibilityTests` (tree rules, both layers, bounds through scrolling, actions, ids and change reports, hit-testing), `AutomationIdTests` (M3), `KeyboardFocusTests` (MAUI focus API, Core focus, tab order, keys, ring pixels, native focus hooks, scroll into view), `FontScalingTests`; leak scenario `AccessibleFocused`.
 - Mac Catalyst (2026-10-03): the demo's **Accessibility** page through the macOS accessibility API (what VoiceOver reads): every drawn element with its role, name, value and hint, the hosted Entry in place, Core nodes; press, increment and page-scroll actions; Tab / Shift+Tab / Space / Enter from a hardware keyboard with the ring.
 - Windows compiles on macOS against the real WinAppSDK references: `dotnet build MauiSkiaUi -f net10.0-windows10.0.19041.0 -p:TargetFrameworks=net10.0-windows10.0.19041.0 -p:EnableWindowsTargeting=true -p:AppxGeneratePriEnabled=false -p:EnableCoreMrtTooling=false -p:EnableMsixTooling=false`.
 - Not yet run: TalkBack, VoiceOver on iOS, Narrator; keyboards on Android and Windows (checklist in [Testing.md](Testing.md#accessibility-and-keyboard-p10)).
@@ -108,6 +144,5 @@ MAUI's `Semantics` mapping of the root view is replaced (`SkUiViewHandler` mappe
 - A picker's popup takes keyboard focus when shown and gives it back to the field when it closes (as a native combo box); not yet checked with hardware keyboards on devices. Android has no expanded state on its nodes before API 36 (the expand / collapse actions stand for it).
 - iPad keyboard navigation (implemented through the same focus-system path as Mac Catalyst) is not verified yet.
 - Windows' text scaling is applied linearly; WinUI grows large text less.
-- Android: MAUI maps a root's `AutomationId` to the surface container's content description (what Appium finds it by), so TalkBack may read that id on the container itself.
 - Font images keep the text size of when their source was created.
 - Text fields: VoiceOver's text navigation (characters, words, lines through the rotor; checked in-process on the simulator only) and TalkBack / Narrator editing are not yet checked on devices. On Windows Narrator does not read the selected text (the drawn field has no Text pattern) and UI Automation's focused element is the surface, not the field ([TextInput.md](TextInput.md#text-fields-d3)).

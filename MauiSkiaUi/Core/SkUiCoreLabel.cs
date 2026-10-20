@@ -16,7 +16,7 @@ namespace MauiSkiaUi.Core;
 /// painter replaces it. Text fits the label on request: <see cref="ShrinkToFit"/> (down to <see cref="MinimumFontScale"/>),
 /// <see cref="AllowsTightening"/> and <see cref="GrowToFill"/> (up to <see cref="MaximumFontScale"/>).
 /// </summary>
-public class SkUiCoreLabel : SkUiCoreNode
+public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
 {
     private string _text = string.Empty;
     private string _displayText = string.Empty; // _text after _textTransform
@@ -655,10 +655,17 @@ public class SkUiCoreLabel : SkUiCoreNode
         return this;
     }
 
+    /// <summary>Whether <see cref="FillColor"/> was set (a control's default from <see cref="InitFillColor"/> is not).</summary>
+    private protected bool IsFillColorSet { get; private set; }
+
+    /// <summary>Gives a control its default fill color without marking it set (buttons: the scheme's button background).</summary>
+    private protected void InitFillColor(Color value) => _fillColor = value;
+
     /// <summary>Sets the chrome fill color.</summary>
     public SkUiCoreLabel SetFillColor(Color value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        IsFillColorSet = true;
         if (!SetProperty(ref _fillColor, value, nameof(FillColor))) return this;
         InvalidatePaint();
         return this;
@@ -850,11 +857,15 @@ public class SkUiCoreLabel : SkUiCoreNode
     /// <summary>Draws content beside the text (a button's image), clipped with it to the rounded corners.</summary>
     private protected virtual void PaintIcon(SKCanvas canvas) { }
 
+    /// <summary>The opacity the text and icon are drawn at (1: as set; a disabled text button: the look's <see cref="SkUiLook.DisabledButtonContentOpacity"/>).</summary>
+    private protected virtual double ContentOpacity => 1;
+
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
         var hasText = HasText;
         if (!hasText && !HasIcon) return;
+        var layerCount = SkUiButtonFill.BeginContentOpacity(canvas, ContentOpacity);
         // Glyphs never bleed past the rounded corners.
         var saveCount = _chrome.ClipToRadii(canvas, (float)Frame.Width, (float)Frame.Height, EffectiveCornerRadii);
         try
@@ -874,7 +885,11 @@ public class SkUiCoreLabel : SkUiCoreNode
                     PaintText(canvas);
             }
         }
-        finally { SkUiChromeState.EndClip(canvas, saveCount); }
+        finally
+        {
+            SkUiChromeState.EndClip(canvas, saveCount);
+            SkUiChromeState.EndClip(canvas, layerCount);
+        }
     }
 
     private void PaintText(SKCanvas canvas)

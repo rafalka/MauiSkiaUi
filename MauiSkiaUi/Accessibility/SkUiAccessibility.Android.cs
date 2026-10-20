@@ -143,6 +143,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         var info = AccessibilityNodeInfoCompat.Obtain(_host)!;
         ViewCompat.OnInitializeAccessibilityNodeInfo(_host, info);
 #pragma warning restore CS0618
+        ApplyRootAutomationId(info);
         if (Tree is not { } tree)
             return info;
         // The container may have listed hosted views as its own children: each goes where the tree has it instead.
@@ -153,6 +154,28 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
             AddChild(info, node);
         return info;
     }
+
+    /// <summary>
+    /// The root's <c>AutomationId</c>, as MAUI's accessibility delegate reports a view's: MAUI writes it into the container's
+    /// content description (for automation), which TalkBack would read in place of the drawn content; the node reports it as the
+    /// view id resource name instead, where Appium's id lookup finds MAUI views.
+    /// </summary>
+    private void ApplyRootAutomationId(AccessibilityNodeInfoCompat info)
+    {
+        if (_root.AutomationId is not { } automationId || string.IsNullOrWhiteSpace(automationId))
+            return;
+        if (info.ContentDescription == automationId)
+            info.ContentDescription = null;
+        if (ResourceId(automationId) is { } resourceId)
+            info.ViewIdResourceName = resourceId;
+    }
+
+    /// <summary>
+    /// An <c>AutomationId</c> as a view id resource name, the form MAUI gives its views (<c>package:id/automationId</c>), which
+    /// Appium's (UiAutomator2's) id lookup expands a bare id to.
+    /// </summary>
+    private string? ResourceId(string automationId) =>
+        _host.Context?.PackageName is { } package ? $"{package}:id/{automationId}" : null;
 
     /// <summary>Adds <paramref name="child"/> to <paramref name="info"/>: a virtual view, or the hosted native view.</summary>
     private void AddChild(AccessibilityNodeInfoCompat info, SkUiSemanticsNode child)
@@ -214,8 +237,8 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
             node.HintText = hint;
         if (element.HeadingLevel != SemanticHeadingLevel.None)
             node.Heading = true;
-        if (element.AutomationId is { } automationId && OperatingSystem.IsAndroidVersionAtLeast(18))
-            node.ViewIdResourceName = automationId;
+        if (element.AutomationId is { } automationId && ResourceId(automationId) is { } resourceId)
+            node.ViewIdResourceName = resourceId;
         node.Enabled = element.IsEnabled;
         node.Focusable = element.IsFocusable;
         if (element.CheckState is { } state)

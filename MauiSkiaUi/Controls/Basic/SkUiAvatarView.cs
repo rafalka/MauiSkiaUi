@@ -29,7 +29,7 @@ namespace MauiSkiaUi;
 /// semantic properties are set.
 /// </para>
 /// </remarks>
-public class SkUiAvatarView : SkUiBorder
+public class SkUiAvatarView : SkUiBorder, ISkUiFontElement
 {
     private static readonly Thickness DefaultPadding = new(1);
     // Shared by every avatar with the default border color; never changed.
@@ -300,7 +300,7 @@ public class SkUiAvatarView : SkUiBorder
             if (SkUiMauiImageSources.AffectsImage(change.PropertyName))
                 avatar.Avatar.Reload();
         })).Listen(value);
-        Avatar.SetSource(SkUiMauiImageSources.Convert(value), ExpectedContentSize());
+        Avatar.SetSource(SkUiImageSource.FromMaui(value), ExpectedContentSize());
         InvalidatePaint();
     }
 

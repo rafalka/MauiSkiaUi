@@ -55,3 +55,5 @@ var core = new SkUiCoreTimePicker().SetMinimumTime(TimeSpan.FromHours(8)).SetMin
 | `Title`, `Placeholder`, `TextColor`, font properties, `IsOpen` / `Opened` / `Closed`, popup settings, `UpdateMode`, clearing, the app's popup views, `SelectionChangedCommand` | | As `SkUiPicker`'s; `ClearSelection()` sets `Time` to `null` |
 
 Shared conventions: [SkUiView.md](SkUiView.md).
+
+The picker's [field chrome](SkUiPicker.md#field-chrome) applies too: `FieldStyle`, `FillColor`, `BorderColor`, `BorderWidth`, `CornerRadii` / `CornerRadius`.

@@ -10,8 +10,11 @@ namespace MauiSkiaUi.Core;
 /// settings, <see cref="IsOpen"/> with <see cref="Opened"/> and <see cref="Closed"/>, the popup's placement and presenter, keyboard
 /// and screen readers. A derived picker says what the field shows and what the popup holds.
 /// </summary>
-/// <remarks>Core nodes have no enabled state: the picker always reacts (hide it, or remove it, to stop it).</remarks>
-public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUiKeyHandler
+/// <remarks>
+/// While disabled (<see cref="SkUiCoreNode.IsEnabled"/> <c>false</c>, also through a Core ancestor or the host) the picker draws
+/// its disabled look and does not open; an open popup closes.
+/// </remarks>
+public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUiFieldChromeElement, ISkUiPickerOwner, ISkUiKeyHandler
 {
     /// <summary>The field and popup engine the derived pickers fill.</summary>
     private protected SkUiPickerModel Model { get; }
@@ -86,6 +89,21 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
 
     /// <summary>The placeholder's color; <c>null</c> (default): <see cref="TitleColor"/>, else the color scheme's muted color.</summary>
     public Color? PlaceholderColor { get => Model.PlaceholderColor; set => SetPlaceholderColor(value); }
+
+    /// <summary>How the look draws this field's chrome; <see cref="SkUiPickerFieldStyle.Default"/> (default): the look's (see <see cref="SkUiPickerBase.FieldStyle"/>).</summary>
+    public SkUiPickerFieldStyle FieldStyle { get => Model.FieldStyle; set => SetFieldStyle(value); }
+
+    /// <summary>The field's fill; <c>null</c> (default): its style's (see <see cref="SkUiPickerBase.FillColor"/>).</summary>
+    public Color? FillColor { get => Model.Chrome.FillColor; set => SetFillColor(value); }
+
+    /// <summary>The idle outline's or underline's color; <c>null</c> (default): the color scheme's muted color (see <see cref="SkUiPickerBase.BorderColor"/>).</summary>
+    public Color? BorderColor { get => Model.Chrome.BorderColor; set => SetBorderColor(value); }
+
+    /// <summary>The idle outline's or underline's width in DIPs; <c>null</c> (default): the style's (see <see cref="SkUiPickerBase.BorderWidth"/>).</summary>
+    public double? BorderWidth { get => Model.Chrome.BorderWidth; set => SetBorderWidth(value); }
+
+    /// <summary>The chrome's corner radii in DIPs; <c>null</c> (default): the style's (see <see cref="SkUiPickerBase.CornerRadii"/>).</summary>
+    public CornerRadius? CornerRadii { get => Model.Chrome.CornerRadii; set => SetCornerRadii(value); }
 
     /// <summary>The popup's width in DIPs; -1 (default): as wide as its content wants.</summary>
     public double PopupWidth { get => Model.PopupWidth; set => SetPopupWidth(value); }
@@ -262,6 +280,43 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     /// <summary>Sets <see cref="PlaceholderColor"/>.</summary>
     public SkUiCorePickerBase SetPlaceholderColor(Color? value) => Update(ref Model.PlaceholderColor, value, nameof(PlaceholderColor));
 
+    /// <summary>Sets <see cref="FieldStyle"/>.</summary>
+    public SkUiCorePickerBase SetFieldStyle(SkUiPickerFieldStyle value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value), value, null);
+        return Update(ref Model.FieldStyle, value, nameof(FieldStyle));
+    }
+
+    /// <summary>Sets <see cref="FillColor"/> (<c>null</c>: the style's).</summary>
+    public SkUiCorePickerBase SetFillColor(Color? value) => Update(ref Model.Chrome.FillColor, value, nameof(FillColor));
+
+    /// <summary>Sets <see cref="BorderColor"/> (<c>null</c>: the color scheme's).</summary>
+    public SkUiCorePickerBase SetBorderColor(Color? value) => Update(ref Model.Chrome.BorderColor, value, nameof(BorderColor));
+
+    /// <summary>Sets <see cref="BorderWidth"/> (<c>null</c>: the style's).</summary>
+    public SkUiCorePickerBase SetBorderWidth(double? value)
+    {
+        if (value is { } width)
+            SkUiValidate.ThrowIfNegativeOrNotFinite(width, nameof(value));
+        return Update(ref Model.Chrome.BorderWidth, value, nameof(BorderWidth));
+    }
+
+    /// <summary>Sets <see cref="CornerRadii"/> (<c>null</c>: the style's).</summary>
+    public SkUiCorePickerBase SetCornerRadii(CornerRadius? value)
+    {
+        if (value is { } radii)
+            SkUiCornerRadii.Validate(radii, nameof(value));
+        return Update(ref Model.Chrome.CornerRadii, value, nameof(CornerRadii));
+    }
+
+    /// <summary>Sets all four <see cref="CornerRadii"/> to <paramref name="value"/> DIPs (<c>null</c>: the style's).</summary>
+    public SkUiCorePickerBase SetCornerRadius(double? value)
+    {
+        if (value is { } radius)
+            SkUiValidate.ThrowIfNegativeOrNotFinite(radius, nameof(value));
+        return SetCornerRadii(value is { } uniform ? new CornerRadius(uniform) : null);
+    }
+
     /// <summary>Sets <see cref="PopupWidth"/>.</summary>
     public SkUiCorePickerBase SetPopupWidth(double value)
     {
@@ -319,7 +374,7 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
 
     #region Field
 
-    private bool CanOpen => IsVisible && SkUiDiagnostics.GetSurfaceRoot(this) is not null;
+    private bool CanOpen => IsEnabled && IsVisible && SkUiDiagnostics.GetSurfaceRoot(this) is not null;
 
     /// <summary>The field's tokens as laid out: texts, rectangles and ×'s (tests).</summary>
     internal IReadOnlyList<(string Text, Rect Bounds, Rect Remove)> TokenBoxes => Model.TokenBoxes(Frame.Width, Frame.Height);
@@ -353,7 +408,7 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     }
 
     /// <inheritdoc />
-    internal override void OnGesturePressedChanged(bool pressed) => Model.SetPressed(pressed, PressPosition);
+    protected override void OnPressedChanged() => Model.SetPressed(IsPressed, PressPosition);
 
     /// <inheritdoc />
     internal override void OnPointerOverChanged(bool isOver)
@@ -367,6 +422,16 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     {
         base.OnIsVisibleChanged();
         if (!IsVisible)
+            SetIsOpen(false);
+    }
+
+    /// <inheritdoc />
+    protected override void OnIsEnabledChanged()
+    {
+        base.OnIsEnabledChanged();
+        Model.IsEnabled = IsEnabled;
+        Model.PaintChanged();
+        if (!IsEnabled)
             SetIsOpen(false);
     }
 
@@ -398,8 +463,11 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
     {
         base.OnPopulateSemantics(info);
-        Model.PopulateSemantics(info);
+        Model.PopulateSemantics(info, Frame.Width, Frame.Height);
     }
+
+    /// <inheritdoc />
+    internal override bool OnSemanticsPartAction(int part, SkUiSemanticsActions action) => Model.PerformSemanticsPartAction(part, action);
 
     /// <inheritdoc />
     internal override bool TakesKeyboardFocus => true;
@@ -432,7 +500,7 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiPickerOwner, ISkUi
 
     void ISkUiPickerOwner.FocusField()
     {
-        if (IsVisible)
+        if (IsEnabled && IsVisible)
             Focus();
     }
 

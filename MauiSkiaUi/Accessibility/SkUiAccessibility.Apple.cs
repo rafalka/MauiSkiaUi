@@ -64,8 +64,9 @@ internal sealed class SkUiAccessibilityBridge
     public NSArray Elements()
     {
         var tree = Tree;
-        Listen(UIAccessibility.IsVoiceOverRunning);
-        if (_array is { } array && _builtVersion == _owner!.Version)
+        var voiceOver = UIAccessibility.IsVoiceOverRunning;
+        Listen(voiceOver);
+        if (_array is { } array && _builtVersion == _owner!.Version && _builtForVoiceOver == voiceOver)
             return array;
         var items = new List<NSObject>();
         var live = new HashSet<int>();
@@ -77,8 +78,13 @@ internal sealed class SkUiAccessibilityBridge
                     items.Add(native);
                 continue;
             }
-            // A scroller without a name is only a container: its children are the elements (they scroll it).
-            if (node.Role == SkUiSemanticsRole.ScrollView && node.Label is null)
+            // Id-only elements are for UI tests (ExposeAutomationIds): VoiceOver would stop on them.
+            if (node.IsIdOnly && voiceOver)
+                continue;
+            // A scroller without a name is only a container: its children are the elements (they scroll it). One with an id
+            // stays for UI tests (ExposeAutomationIds) while VoiceOver is off.
+            if (node.Role == SkUiSemanticsRole.ScrollView && node.Label is null
+                && (voiceOver || node.AutomationId is null || !SkUiAccessibility.ExposeAutomationIds))
                 continue;
             if (!_elements.TryGetValue(node.Id, out var element) || element is SkUiTextFieldAccessibilityElement != NavigatesText(node))
                 _elements[node.Id] = element = NavigatesText(node)
@@ -92,11 +98,15 @@ internal sealed class SkUiAccessibilityBridge
             _elements.Remove(id);
         ReleaseIdleTextInput();
         _builtVersion = _owner!.Version;
+        _builtForVoiceOver = voiceOver;
         return _array = NSArray.FromNSObjects(items.ToArray());
     }
 
     /// <summary>The tree version the element array was built from (not the tree: it would keep its nodes alive).</summary>
     private int _builtVersion = -1;
+
+    /// <summary>Whether the element array was built while VoiceOver ran (without id-only elements).</summary>
+    private bool _builtForVoiceOver;
 
     private void OnSemanticsChanged(bool structureChanged, IReadOnlyList<int> changed)
     {

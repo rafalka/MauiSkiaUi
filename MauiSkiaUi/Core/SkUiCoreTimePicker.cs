@@ -6,7 +6,10 @@ namespace MauiSkiaUi.Core;
 /// Drawn time picker (Core analogue of <see cref="SkUiTimePicker"/>): the same field, wheels and rules (MAUI's time, a range, the
 /// wheels' steps, the highlighted time, the wheel format), set with fluent <c>Set*</c> calls.
 /// </summary>
-/// <remarks>Core nodes have no enabled state: the picker always reacts (hide it, or remove it, to stop it).</remarks>
+/// <remarks>
+/// While disabled (<see cref="SkUiCoreNode.IsEnabled"/> <c>false</c>, also through a Core ancestor or the host) the picker draws
+/// its disabled look and does not open; an open popup closes.
+/// </remarks>
 public class SkUiCoreTimePicker : SkUiCoreDateTimePickerBase
 {
     private TimeSpan? _time = TimeSpan.Zero;
@@ -227,6 +230,24 @@ public class SkUiCoreTimePicker : SkUiCoreDateTimePickerBase
 
     /// <summary>Sets <see cref="SkUiCorePickerBase.PlaceholderColor"/> (same as the property setter).</summary>
     public new SkUiCoreTimePicker SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetFieldStyle" />
+    public new SkUiCoreTimePicker SetFieldStyle(SkUiPickerFieldStyle value) { base.SetFieldStyle(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetFillColor" />
+    public new SkUiCoreTimePicker SetFillColor(Color? value) { base.SetFillColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetBorderColor" />
+    public new SkUiCoreTimePicker SetBorderColor(Color? value) { base.SetBorderColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetBorderWidth" />
+    public new SkUiCoreTimePicker SetBorderWidth(double? value) { base.SetBorderWidth(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetCornerRadii" />
+    public new SkUiCoreTimePicker SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetCornerRadius" />
+    public new SkUiCoreTimePicker SetCornerRadius(double? value) { base.SetCornerRadius(value); return this; }
 
     /// <summary>Sets <see cref="SkUiCorePickerBase.PopupWidth"/> (same as the property setter).</summary>
     public new SkUiCoreTimePicker SetPopupWidth(double value) { base.SetPopupWidth(value); return this; }

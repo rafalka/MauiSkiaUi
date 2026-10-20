@@ -41,6 +41,7 @@ public class SkUiLookComparisonPage : ContentPage
     private static readonly Color MismatchColor = Color.FromArgb("#D32F2F");
     private static readonly Color MatchColor = Color.FromArgb("#388E3C");
     private static readonly string[] PickerItems = [SampleText];
+    private static readonly Color AppFill = Color.FromArgb("#EEF1F3");
 
     /// <summary>The stock looks, in the order the look picker lists them.</summary>
     public static IReadOnlyList<(string Name, SkUiLook Look)> StockLooks { get; } =
@@ -189,6 +190,9 @@ public class SkUiLookComparisonPage : ContentPage
         new(nameof(ProgressBar), () => new ProgressBar { Progress = 0.6 }, () => new SkUiProgressBar { Progress = 0.6 }, Stretch: true),
         new(nameof(ActivityIndicator), () => new ActivityIndicator { IsRunning = true }, () => new SkUiActivityIndicator { IsRunning = true }),
         new(nameof(Entry), () => new Entry { Text = SampleText }, () => new SkUiEntry { Text = SampleText }, Stretch: true),
+        // A field's own fill (MAUI's background) on the look's chrome: a filled field without its idle outline.
+        new("Entry (app fill)", () => new Entry { Text = SampleText, BackgroundColor = AppFill },
+            () => new SkUiEntry { Text = SampleText, FillColor = AppFill, BorderWidth = 0 }, Stretch: true),
         new(nameof(Picker), () => new Picker { ItemsSource = PickerItems, SelectedIndex = 0 }, () => new SkUiPicker { ItemsSource = PickerItems, SelectedIndex = 0 }),
         new(nameof(Stepper), () => new Stepper { Value = 1 }, () => new SkUiStepper { Value = 1 })
     ];

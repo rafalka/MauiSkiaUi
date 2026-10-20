@@ -11,7 +11,10 @@ namespace MauiSkiaUi.Core;
 /// <c>ToString()</c>); <see cref="SelectedIndex"/> / <see cref="SelectedItem"/> follow MAUI's picker rules: an index set
 /// before the items applies when they come, and on collection changes the selected item is kept (or the index clamped).
 /// </summary>
-/// <remarks>Core nodes have no enabled state: the picker always reacts (hide it, or remove it, to stop it).</remarks>
+/// <remarks>
+/// While disabled (<see cref="SkUiCoreNode.IsEnabled"/> <c>false</c>, also through a Core ancestor or the host) the picker draws
+/// its disabled look and does not open; an open popup closes.
+/// </remarks>
 public partial class SkUiCorePicker : SkUiCorePickerBase
 {
     private readonly SkUiPickerItems _items = new();
@@ -263,6 +266,24 @@ public partial class SkUiCorePicker : SkUiCorePickerBase
 
     /// <summary>Sets <see cref="SkUiCorePickerBase.PlaceholderColor"/> (same as the property setter).</summary>
     public new SkUiCorePicker SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetFieldStyle" />
+    public new SkUiCorePicker SetFieldStyle(SkUiPickerFieldStyle value) { base.SetFieldStyle(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetFillColor" />
+    public new SkUiCorePicker SetFillColor(Color? value) { base.SetFillColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetBorderColor" />
+    public new SkUiCorePicker SetBorderColor(Color? value) { base.SetBorderColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetBorderWidth" />
+    public new SkUiCorePicker SetBorderWidth(double? value) { base.SetBorderWidth(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetCornerRadii" />
+    public new SkUiCorePicker SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
+
+    /// <inheritdoc cref="SkUiCorePickerBase.SetCornerRadius" />
+    public new SkUiCorePicker SetCornerRadius(double? value) { base.SetCornerRadius(value); return this; }
 
     /// <summary>Sets <see cref="SkUiCorePickerBase.PopupWidth"/> (same as the property setter).</summary>
     public new SkUiCorePicker SetPopupWidth(double value) { base.SetPopupWidth(value); return this; }

@@ -4,6 +4,8 @@ Per-control guides for public `SkUi*` types. For MAUI reimplementations, baselin
 
 Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechanism.md](../design/DrawingMechanism.md) · [ControlLook.md](../design/ControlLook.md) · [ColorScheme.md](../design/ColorScheme.md) · [Localization.md](../design/Localization.md) (SkiaUi's own texts: `SkUiStrings`) · [EventMechanism.md](../design/EventMechanism.md) · [AnimationMechanism.md](../design/AnimationMechanism.md) · [ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) · [Accessibility.md](../design/Accessibility.md) (screen readers, keyboard focus, text size: [SkUiView.md](SkUiView.md#accessibility-and-keyboard))
 
+**Shared property sets.** Controls with the same set of properties implement one interface for it on both layers, so code that styles them (a helper that brands every field) takes the interface instead of each control: `ISkUiFontElement` (`FontFamily`, `FontSize`, `FontAttributes`, `FontAutoScalingEnabled`: labels and buttons, radio buttons, avatars, text fields, pickers, steppers), `ISkUiFieldChromeElement` (`FillColor`, `BorderColor`, `BorderWidth`, `CornerRadii`, each `null` for the look's: text fields and pickers) and `ISkUiBorderElement` (`BorderColor`, `BorderWidth`, `CornerRadii`: labels, buttons, image buttons). Setting through the interface is setting the control's property: an invalid value is ignored with a warning on the SkUi layer and throws on the Core layer.
+
 ## Core layer (lightweight, no MAUI View)
 
 | Type | Doc | Notes |

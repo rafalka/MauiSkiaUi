@@ -15,7 +15,7 @@ namespace MauiSkiaUi;
 /// <see cref="GrowToFill"/> makes it larger (up to <see cref="MaximumFontScale"/>) to fill the label.
 /// </summary>
 [ContentProperty(nameof(Text))]
-public class SkUiLabel : SkUiView
+public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
 {
     private string _text = string.Empty;
     private string _displayText = string.Empty; // _text after _textTransform
@@ -770,11 +770,15 @@ public class SkUiLabel : SkUiView
     /// <summary>Draws content beside the text (a button's image), clipped with it to the rounded corners.</summary>
     private protected virtual void PaintIcon(SKCanvas canvas) { }
 
+    /// <summary>The opacity the text and icon are drawn at (1: as set; a disabled text button: the look's <see cref="SkUiLook.DisabledButtonContentOpacity"/>).</summary>
+    private protected virtual double ContentOpacity => 1;
+
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
     {
         var hasText = HasText;
         if (!hasText && !HasIcon) return;
+        var layerCount = SkUiButtonFill.BeginContentOpacity(canvas, ContentOpacity);
         // Glyphs never bleed past the rounded corners.
         var saveCount = _chrome.ClipToRadii(canvas, (float)Width, (float)Height, _chrome.Radii);
         try
@@ -794,7 +798,11 @@ public class SkUiLabel : SkUiView
                     PaintText(canvas);
             }
         }
-        finally { SkUiChromeState.EndClip(canvas, saveCount); }
+        finally
+        {
+            SkUiChromeState.EndClip(canvas, saveCount);
+            SkUiChromeState.EndClip(canvas, layerCount);
+        }
     }
 
     private void PaintText(SKCanvas canvas)

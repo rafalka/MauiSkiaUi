@@ -30,6 +30,28 @@ internal static class SkUiValidate
 
     public static bool CornerRadii(BindableObject bindable, object? value) => value is CornerRadius radii && SkUiCornerRadii.IsValid(radii);
 
+    /// <summary><c>null</c> (the look's), or a value <see cref="NonNegative"/> takes.</summary>
+    public static bool OptionalNonNegative(BindableObject bindable, object? value) => value is null || NonNegative(bindable, value);
+
+    /// <summary><c>null</c> (the look's), or radii <see cref="CornerRadii"/> takes.</summary>
+    public static bool OptionalCornerRadii(BindableObject bindable, object? value) => value is null || CornerRadii(bindable, value);
+
+    /// <summary><c>null</c> (the look's), or a thickness whose sides are finite and not negative.</summary>
+    public static bool OptionalThickness(BindableObject bindable, object? value) => value is null || value is Thickness thickness && IsThickness(thickness);
+
+    /// <summary>Whether every side of <paramref name="thickness"/> is finite and not negative.</summary>
+    public static bool IsThickness(Thickness thickness) =>
+        IsLength(thickness.Left) && IsLength(thickness.Top) && IsLength(thickness.Right) && IsLength(thickness.Bottom);
+
+    private static bool IsLength(double value) => double.IsFinite(value) && value >= 0;
+
+    /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is <c>null</c> or a thickness <see cref="OptionalThickness"/> takes.</summary>
+    public static void ThrowIfNotThickness(Thickness? value, string name)
+    {
+        if (value is { } thickness && !IsThickness(thickness))
+            throw new ArgumentOutOfRangeException(name, thickness, "Every side must be finite and not negative.");
+    }
+
     /// <summary>A finite number of type <typeparamref name="T"/> (integers and <see cref="decimal"/> always are).</summary>
     public static bool FiniteNumber<T>(BindableObject bindable, object? value) where T : struct, INumber<T> => value is T number && T.IsFinite(number);
 

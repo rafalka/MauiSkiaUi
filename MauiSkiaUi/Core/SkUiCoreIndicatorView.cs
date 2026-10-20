@@ -156,7 +156,7 @@ public class SkUiCoreIndicatorView : SkUiCoreNode
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>
-        _model.Draw(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, enabled: true);
+        _model.Draw(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, IsEnabled);
 
     /// <inheritdoc />
     internal override bool HasIntrinsicTap => !_model.IsHidden && _model.Count > 1;

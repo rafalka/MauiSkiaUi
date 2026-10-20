@@ -32,7 +32,7 @@ public enum SkUiSelectedItemsDisplay
 /// <see cref="PopupPresenter"/>, keyboard and screen readers. A derived picker says what the field shows and what the popup
 /// holds (<see cref="SkUiPicker"/>: a list to choose from; <see cref="SkUiMultiColumnPicker"/>: wheels).
 /// </summary>
-public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandler
+public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChromeElement, ISkUiPickerOwner, ISkUiKeyHandler
 {
     private static readonly PickerOpenedEventArgs OpenedArgs = new();
     private static readonly PickerClosedEventArgs ClosedArgs = new();
@@ -301,6 +301,57 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
     /// <summary>The most width of the popup in DIPs (its items are truncated at it); -1 (default): the window's safe area. A popup is as wide as its widest item within <see cref="MinPopupWidth"/> and this, so a narrow field (a currency's code) can open a list of wider items (its full name). SkiaUi extension.</summary>
     public double MaxPopupWidth { get => (double)GetValue(MaxPopupWidthProperty); set => SetValue(MaxPopupWidthProperty, value); }
 
+    /// <summary>Bindable property for <see cref="FieldStyle"/>.</summary>
+    public static readonly BindableProperty FieldStyleProperty = BindableProperty.Create(nameof(FieldStyle), typeof(SkUiPickerFieldStyle), typeof(SkUiPickerBase), SkUiPickerFieldStyle.Default,
+        validateValue: (_, value) => Enum.IsDefined((SkUiPickerFieldStyle)value),
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.FieldStyle = (SkUiPickerFieldStyle)value));
+
+    /// <summary>
+    /// How the look draws this picker's field (an outline, an underline, Material's filled field, the Mac's pop-up button, Fluent's
+    /// combo box, or only the chevron); <see cref="SkUiPickerFieldStyle.Default"/> (default): the look's
+    /// (<see cref="DefaultSkUiLook.PickerFieldStyle"/>). Focus, open and disabled emphasis stay the look's. SkiaUi extension.
+    /// </summary>
+    public SkUiPickerFieldStyle FieldStyle { get => (SkUiPickerFieldStyle)GetValue(FieldStyleProperty); set => SetValue(FieldStyleProperty, value); }
+
+    /// <summary>Bindable property for <see cref="FillColor"/>.</summary>
+    public static readonly BindableProperty FillColorProperty = BindableProperty.Create(nameof(FillColor), typeof(Color), typeof(SkUiPickerBase), null,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.Chrome.FillColor = (Color?)value));
+
+    /// <summary>The field's fill; <c>null</c> (default): its style's (none for an outline or an underline). Drawn as set, also while disabled, inside <see cref="CornerRadii"/>. SkiaUi extension.</summary>
+    public Color? FillColor { get => (Color?)GetValue(FillColorProperty); set => SetValue(FillColorProperty, value); }
+
+    /// <summary>Bindable property for <see cref="BorderColor"/>.</summary>
+    public static readonly BindableProperty BorderColorProperty = BindableProperty.Create(nameof(BorderColor), typeof(Color), typeof(SkUiPickerBase), null,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.Chrome.BorderColor = (Color?)value));
+
+    /// <summary>The idle outline's or underline's color; <c>null</c> (default): the color scheme's muted color. A focused or open field still turns to the accent color. SkiaUi extension.</summary>
+    public Color? BorderColor { get => (Color?)GetValue(BorderColorProperty); set => SetValue(BorderColorProperty, value); }
+
+    /// <summary>Bindable property for <see cref="BorderWidth"/>.</summary>
+    public static readonly BindableProperty BorderWidthProperty = BindableProperty.Create(nameof(BorderWidth), typeof(double?), typeof(SkUiPickerBase), null,
+        validateValue: SkUiValidate.OptionalNonNegative,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.Chrome.BorderWidth = (double?)value));
+
+    /// <summary>The idle outline's or underline's width in DIPs (0: none while idle); <c>null</c> (default): the style's (1). The look still thickens it while focused or open; with <see cref="SkUiPickerFieldStyle.None"/>, an outline of this width. SkiaUi extension.</summary>
+    public double? BorderWidth { get => (double?)GetValue(BorderWidthProperty); set => SetValue(BorderWidthProperty, value); }
+
+    /// <summary>Bindable property for <see cref="CornerRadii"/>.</summary>
+    public static readonly BindableProperty CornerRadiiProperty = BindableProperty.Create(nameof(CornerRadii), typeof(CornerRadius?), typeof(SkUiPickerBase), null,
+        validateValue: SkUiValidate.OptionalCornerRadii,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).OnCornerRadiiChanged((CornerRadius?)value));
+
+    /// <summary>The field's corner radii in DIPs (radii larger than the field allows give a pill); <c>null</c> (default): the style's (<see cref="DefaultSkUiLook.FieldCornerRadius"/>). SkiaUi extension.</summary>
+    [System.ComponentModel.TypeConverter(typeof(Microsoft.Maui.Converters.CornerRadiusTypeConverter))]
+    public CornerRadius? CornerRadii { get => (CornerRadius?)GetValue(CornerRadiiProperty); set => SetValue(CornerRadiiProperty, value); }
+
+    /// <summary>Bindable property for <see cref="CornerRadius"/>.</summary>
+    public static readonly BindableProperty CornerRadiusProperty = BindableProperty.Create(nameof(CornerRadius), typeof(int?), typeof(SkUiPickerBase), null,
+        validateValue: SkUiValidate.OptionalNonNegative,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).OnCornerRadiusChanged((int?)value));
+
+    /// <summary>Uniform view of <see cref="CornerRadii"/>, an <c>int</c> as the labels' and buttons': setting it sets all four corners (<c>null</c>: the style's); it reads the top-left radius, rounded. SkiaUi extension.</summary>
+    public int? CornerRadius { get => (int?)GetValue(CornerRadiusProperty); set => SetValue(CornerRadiusProperty, value); }
+
     /// <summary>Raised when <see cref="IsOpen"/> becomes <c>true</c> (the list opens).</summary>
     public event EventHandler<PickerOpenedEventArgs>? Opened;
 
@@ -421,6 +472,67 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
 
     /// <summary>Sets <see cref="SelectionChangedCommandParameter"/> (same as the property setter).</summary>
     public SkUiPickerBase SetSelectionChangedCommandParameter(object? value) { SelectionChangedCommandParameter = value; return this; }
+
+    /// <summary>Sets <see cref="FieldStyle"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetFieldStyle(SkUiPickerFieldStyle value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        FieldStyle = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="FillColor"/> (same as the property setter; <c>null</c>: the style's).</summary>
+    public SkUiPickerBase SetFillColor(Color? value) { FillColor = value; return this; }
+
+    /// <summary>Sets <see cref="BorderColor"/> (same as the property setter; <c>null</c>: the color scheme's).</summary>
+    public SkUiPickerBase SetBorderColor(Color? value) { BorderColor = value; return this; }
+
+    /// <summary>Sets <see cref="BorderWidth"/> (same as the property setter; <c>null</c>: the style's).</summary>
+    public SkUiPickerBase SetBorderWidth(double? value)
+    {
+        if (value is { } width)
+            SkUiValidate.ThrowIfNegativeOrNotFinite(width, nameof(value));
+        BorderWidth = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="CornerRadii"/> (same as the property setter; <c>null</c>: the style's).</summary>
+    public SkUiPickerBase SetCornerRadii(CornerRadius? value)
+    {
+        if (value is { } radii)
+            SkUiCornerRadii.Validate(radii, nameof(value));
+        CornerRadii = value;
+        return this;
+    }
+
+    /// <summary>Sets all four <see cref="CornerRadii"/> to <paramref name="value"/> DIPs (<c>null</c>: the style's).</summary>
+    public SkUiPickerBase SetCornerRadius(int? value)
+    {
+        if (value is { } radius)
+            ArgumentOutOfRangeException.ThrowIfNegative(radius, nameof(value));
+        CornerRadius = value;
+        return this;
+    }
+
+    private bool _syncingCornerRadius;
+
+    private void OnCornerRadiiChanged(CornerRadius? value)
+    {
+        Apply(model => model.Chrome.CornerRadii = value);
+        // The uniform view follows, without setting all four corners back.
+        var uniform = value is { } radii ? (int)Math.Round(radii.TopLeft) : (int?)null;
+        if ((int?)GetValue(CornerRadiusProperty) == uniform)
+            return;
+        _syncingCornerRadius = true;
+        try { SetValue(CornerRadiusProperty, uniform); }
+        finally { _syncingCornerRadius = false; }
+    }
+
+    private void OnCornerRadiusChanged(int? value)
+    {
+        if (!_syncingCornerRadius)
+            CornerRadii = value is { } radius ? new CornerRadius(radius) : null;
+    }
 
     private void Apply(Action<SkUiPickerModel> apply, bool measure = false)
     {
@@ -589,8 +701,11 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiPickerOwner, ISkUiKeyHandl
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
     {
         base.OnPopulateSemantics(info);
-        Model.PopulateSemantics(info);
+        Model.PopulateSemantics(info, Width, Height);
     }
+
+    /// <inheritdoc />
+    internal override bool OnSemanticsPartAction(int part, SkUiSemanticsActions action) => Model.PerformSemanticsPartAction(part, action);
 
     /// <inheritdoc />
     internal override bool TakesKeyboardFocus => true;

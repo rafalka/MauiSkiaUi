@@ -2,7 +2,8 @@ namespace MauiSkiaUi;
 
 /// <summary>
 /// Where a drawn image comes from, on both layers: Core nodes take it directly (<c>SkUiCoreImage.SetSource</c>), and
-/// SkUi* controls convert MAUI's <c>ImageSource</c> to it. Loading goes through one shared loader and cache
+/// SkUi* controls convert MAUI's <c>ImageSource</c> to it (<see cref="FromMaui"/>; strings convert as in XAML,
+/// <see cref="FromString"/>; both also implicitly). Loading goes through one shared loader and cache
 /// (<see cref="SkUiImageCache"/>), so a second view of the same source decodes nothing. Sources are immutable records:
 /// equal sources share cache entries and reassigning an equal source does not reload.
 /// </summary>
@@ -57,6 +58,67 @@ public abstract record SkUiImageSource
     public static SkUiImageSource FromFont(string glyph, string? fontFamily = null, double size = SkUiFontImageSource.DefaultSize,
         Color? color = null, FontAttributes fontAttributes = FontAttributes.None, bool fontAutoScalingEnabled = true) =>
         new SkUiFontImageSource(glyph, fontFamily, size, color, fontAttributes, fontAutoScalingEnabled);
+
+    /// <summary>
+    /// The source for a MAUI <c>ImageSource</c>, as the SkUi* controls draw it: a file or <c>MauiImage</c>, a URI with its cache
+    /// options, a stream or a font glyph. A snapshot: later changes of <paramref name="source"/> are not followed (set the
+    /// converted source again). <c>null</c> for no or an empty source; an unsupported or invalid source becomes one that fails
+    /// to load, so the error shows in <c>LoadError</c>.
+    /// </summary>
+    public static SkUiImageSource? FromMaui(ImageSource? source)
+    {
+        try
+        {
+            return source switch
+            {
+                null => null,
+                { IsEmpty: true } => null,
+                FileImageSource file => FromFile(file.File),
+                UriImageSource uri => FromUri(uri.Uri, uri.CachingEnabled, uri.CacheValidity),
+                StreamImageSource stream => FromStream(stream.Stream),
+                // MAUI 10's FontImageSource has no FontAttributes: a bold or italic glyph comes from its FontFamily's face.
+                FontImageSource font => FromFont(font.Glyph, font.FontFamily, font.Size, font.Color,
+                    fontAutoScalingEnabled: font.FontAutoScalingEnabled),
+                _ => new SkUiFailedImageSource(new NotSupportedException(
+                    $"{source.GetType().Name} is not supported: use a file, MauiImage, raw package asset, stream, font or HTTP(S) source."))
+            };
+        }
+        catch (Exception error) when (error is ArgumentException or NotSupportedException)
+        {
+            return new SkUiFailedImageSource(error);
+        }
+    }
+
+    /// <summary>
+    /// The source for a string, by MAUI's <c>ImageSourceConverter</c> rule (what <c>Source="..."</c> means in XAML): an
+    /// absolute HTTP(S) URI is downloaded (<see cref="FromUri"/>), anything else is a file (<see cref="FromFile"/>; a
+    /// <c>file:</c> URI by its local path). <c>null</c> for a <c>null</c>, empty or white-space string.
+    /// </summary>
+    public static SkUiImageSource? FromString(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
+        {
+            if (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp)
+                return FromUri(uri);
+            if (uri.IsFile)
+                return FromFile(uri.LocalPath);
+        }
+        return FromFile(value);
+    }
+
+    /// <summary>
+    /// A MAUI <c>ImageSource</c> as a SkiaUi source (<see cref="FromMaui"/>), so Core image properties take one directly:
+    /// <c>image.SetSource(mauiSource)</c>.
+    /// </summary>
+    public static implicit operator SkUiImageSource?(ImageSource? source) => FromMaui(source);
+
+    /// <summary>
+    /// A file name, path or HTTP(S) URI as a SkiaUi source (<see cref="FromString"/>), so Core image properties take one
+    /// directly: <c>button.SetImageSource("icon.png")</c>.
+    /// </summary>
+    public static implicit operator SkUiImageSource?(string? value) => FromString(value);
 }
 
 /// <summary>An absolute file path or a name in the app package (see <see cref="SkUiImageSource.FromFile"/>).</summary>

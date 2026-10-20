@@ -1224,11 +1224,19 @@ deploy_ios() {
     fi
 
     # Build .app first, then Run (Run does not depend on Build).
-    echo "Building $target_label…"
+    echo "Building ${target_label}…"
     command "${cmd[@]}"
 
-    echo "Launching on $target_label…"
-    command "${cmd[@]}" -t:Run
+    echo "Launching on ${target_label}…"
+    if [[ "$type" == "sim" ]]; then
+        # -t:Run (mlaunch --launchsim) stays attached to the app's console until the app quits; logs are streamed separately
+        # (stream_ios_logs), so install and launch directly and return once the app has started.
+        local app="$DEMO_DIR/bin/$CONFIGURATION/$TARGET_FRAMEWORK/$sim_rid/MauiSkiaUiDemo.app"
+        xcrun simctl install "$id" "$app"
+        xcrun simctl launch --terminate-running-process "$id" "$APPLICATION_ID"
+    else
+        command "${cmd[@]}" -t:Run
+    fi
 }
 
 deploy_maccatalyst() {

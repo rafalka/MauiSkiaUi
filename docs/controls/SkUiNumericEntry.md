@@ -49,6 +49,8 @@ var core = new SkUiCoreNumericEntry<decimal>().SetIncrement(0.25m).SetMaximumDec
 
 Left open: holding a button does not accelerate; device checks of the number keyboards (iOS `NumbersAndPunctuation`, Samsung Keyboard's separators) and of screen readers' increment / decrement on a text field; Windows' RangeValue pattern.
 
+The entry's [field chrome](SkUiEntry.md#field-chrome) applies too (`FieldStyle`, `TextPadding`, `FillColor`, `BorderColor`, `BorderWidth`, `CornerRadii` / `CornerRadius`); the − and + buttons stay inside the padding.
+
 ## Related
 
 [`SkUiEntry`](SkUiEntry.md) · [`SkUiStepper`](SkUiStepper.md) · Gallery: `NumericEntryDemoPage` (next to an `Entry` with `Keyboard.Numeric`), `TypedNumericEntryDemoPage` (`SkUiNumericEntry<decimal>`) · Design: [TextInput.md](../design/TextInput.md#numeric-entry-d16)

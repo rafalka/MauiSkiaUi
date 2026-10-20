@@ -151,10 +151,13 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     /// <summary>The field's rectangle in its node (a stepper's value between its buttons); <c>null</c> (default): the whole node.</summary>
     public SKRect? FieldArea;
 
-    /// <summary>Whether the look draws the text field's chrome (default); a field drawn inside another control's chrome does not.</summary>
-    public bool DrawsChrome = true;
+    /// <summary>The control's <c>FieldStyle</c>: how the look draws its chrome; <see cref="SkUiTextFieldStyle.Default"/>: the look's.</summary>
+    public SkUiTextFieldStyle FieldStyle;
 
-    /// <summary>The look's padding around the text (default); a field in another control's chrome sets its own.</summary>
+    /// <summary>The control's own idle chrome over its style's (<c>FillColor</c>, <c>BorderColor</c>, <c>BorderWidth</c>, <c>CornerRadii</c>).</summary>
+    public SkUiFieldChromeState Chrome;
+
+    /// <summary>The control's <c>TextPadding</c>: the space around the text; <c>null</c>: the look's (<see cref="SkUiLook.TextFieldPadding"/>).</summary>
     public Thickness? Padding;
 
     /// <summary>A search bar: the look's search field with its icon at the start, and a clear button whenever there is text.</summary>
@@ -780,22 +783,9 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     public void Draw(SKCanvas canvas, float width, float height)
     {
         var foreground = ToSkColor(TextColor ?? SkUiColors.DefaultForeground);
-        if (IsSearch)
-            SkUiLook.Current.DrawSearchField(canvas, new SkUiSearchFieldPaint
-            {
-                Bounds = Area(width, height),
-                IconBounds = SearchIconBounds(width, height),
-                Accent = ToSkColor(SkUiColors.Accent),
-                Fill = ToSkColor(SkUiColors.Muted),
-                IconColor = ToSkColor(SearchIconColor ?? SkUiColors.Muted),
-                Focused = _focus.Value,
-                IsPointerOver = IsPointerOver,
-                IsEnabled = IsEnabled,
-                IsRightToLeft = _owner.IsRightToLeft,
-                HasError = HasError,
-                Error = ToSkColor(ErrorColor ?? SkUiColors.Error)
-            });
-        else if (DrawsChrome)
+        var chrome = Chrome.ToPaint();
+        // A search bar with a field style of its own: that text field's chrome, then the search field's icon only.
+        if (!IsSearch || FieldStyle != SkUiTextFieldStyle.Default)
             SkUiLook.Current.DrawTextField(canvas, new SkUiTextFieldPaint
             {
                 Bounds = Area(width, height),
@@ -809,7 +799,26 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
                 IsMultiline = IsMultiline,
                 IsRightToLeft = _owner.IsRightToLeft,
                 HasError = HasError,
-                Error = ToSkColor(ErrorColor ?? SkUiColors.Error)
+                Error = ToSkColor(ErrorColor ?? SkUiColors.Error),
+                Style = FieldStyle,
+                Chrome = chrome
+            });
+        if (IsSearch)
+            SkUiLook.Current.DrawSearchField(canvas, new SkUiSearchFieldPaint
+            {
+                Bounds = Area(width, height),
+                IconBounds = SearchIconBounds(width, height),
+                Accent = ToSkColor(SkUiColors.Accent),
+                Fill = ToSkColor(SkUiColors.Muted),
+                IconColor = ToSkColor(SearchIconColor ?? SkUiColors.Muted),
+                Focused = _focus.Value,
+                IsPointerOver = IsPointerOver,
+                IsEnabled = IsEnabled,
+                IsRightToLeft = _owner.IsRightToLeft,
+                HasError = HasError,
+                Error = ToSkColor(ErrorColor ?? SkUiColors.Error),
+                Style = FieldStyle,
+                Chrome = chrome
             });
         if (Steps is { HasButtons: true } steps)
         {
@@ -1822,11 +1831,33 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         var (start, end) = IsPassword ? (ToDisplayIndex(Editor.SelectionStart), ToDisplayIndex(Editor.SelectionEnd)) : (Editor.SelectionStart, Editor.SelectionEnd);
         info.TextField = new SkUiSemanticsTextField(start, end, IsPassword, Editor.IsReadOnly, IsMultiline, HasError, Message);
         Steps?.PopulateSemantics(info);
+        if (ClearButtonShown)
+        {
+            var (width, height) = Size;
+            var bounds = ClearButtonBounds(width, height);
+            info.AddPart(new SkUiSemanticsPart(ClearButtonSemanticsId, ClearButtonPart, new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height),
+                SkUiStrings.Current.ClearTextButtonText, SkUiAccessibility.ClearButtonAutomationIdSuffix));
+        }
     }
 
     /// <summary>A screen reader's action: activation focuses the field, increment / decrement step a numeric entry.</summary>
     public bool PerformSemanticsAction(SkUiSemanticsActions action) =>
         action == SkUiSemanticsActions.Activate ? Activate() : Steps?.PerformSemanticsAction(action) ?? false;
+
+    /// <summary>The clear button's <see cref="SkUiSemanticsPart.Index"/>.</summary>
+    private const int ClearButtonPart = 0;
+
+    /// <summary>The clear button's element id, kept while the field lives.</summary>
+    private int ClearButtonSemanticsId => field == 0 ? field = SkUiSemanticsTree.NewId() : field;
+
+    /// <summary>A screen reader activated a part (<see cref="PopulateSemantics"/>): the clear button clears, as a tap on it.</summary>
+    public bool PerformSemanticsPartAction(int part, SkUiSemanticsActions action)
+    {
+        if (part != ClearButtonPart || action != SkUiSemanticsActions.Activate || !ClearButtonShown)
+            return false;
+        Clear();
+        return true;
+    }
 
     /// <summary>
     /// A text index as the bullets of a password count it (screen readers read the bullets). The bullets are counted again when the

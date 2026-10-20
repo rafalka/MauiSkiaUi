@@ -80,7 +80,7 @@ Override these in a `DefaultSkUiLook` subclass (or a stock platform look's). Siz
 
 | Member | What |
 | --- | --- |
-| `DefaultTextFieldStyle`, `DefaultPickerFieldStyle` | `Outline`, `Underline`, `Filled`, Fluent's `TextBox` (text fields) and `ComboBox` (pickers), … |
+| `DefaultTextFieldStyle`, `DefaultPickerFieldStyle` | `Outline`, `Underline`, `Filled`, Fluent's `TextBox` (text fields) and `ComboBox` (pickers), … (one field that differs: its own `FieldStyle` and chrome, not the look) |
 | `DefaultTextFieldMinimumHeight` (base), `TextFieldPadding` (base) | [34, 7 × 6 / same / 0, 4 10 4 11 / 0, 16 × 19.8 / 32, 11 6 7 7] |
 | `DefaultPickerMinimumHeight` (base), `PickerFieldPadding` (base), `PickerChevronWidth` (base) | MAUI's pickers have no arrow on iOS and Android [34, 14 × 6, 0 / same / 0, 4 10 4 11, 0 / same / 32, 12 5 0 7, 38] |
 | `FieldCornerRadius` | [5 / 5 / 4 / 4 / 4] |

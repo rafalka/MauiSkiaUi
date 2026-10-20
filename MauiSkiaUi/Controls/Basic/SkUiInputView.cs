@@ -11,7 +11,7 @@ namespace MauiSkiaUi;
 /// <see cref="CaretColor"/>, <see cref="SelectionColor"/>, <see cref="AutofillHint"/>, input formatters, leading and trailing
 /// views, and validation chrome (<see cref="HasError"/>, <see cref="ErrorText"/>, <see cref="HelperText"/>).
 /// </summary>
-public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHandler, ISkUiTextInputNode, ISkUiWheelHandler
+public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChromeElement, ISkUiTextFieldOwner, ISkUiKeyHandler, ISkUiTextInputNode, ISkUiWheelHandler
 {
     private SkUiTextFieldModel? _model;
 
@@ -167,6 +167,39 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     public static readonly BindableProperty ErrorColorProperty = BindableProperty.Create(nameof(ErrorColor), typeof(Color), typeof(SkUiInputView), null,
         propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.ErrorColor = (Color?)value));
 
+    /// <summary>Bindable property for <see cref="FieldStyle"/>.</summary>
+    public static readonly BindableProperty FieldStyleProperty = BindableProperty.Create(nameof(FieldStyle), typeof(SkUiTextFieldStyle), typeof(SkUiInputView), SkUiTextFieldStyle.Default,
+        validateValue: (_, value) => Enum.IsDefined((SkUiTextFieldStyle)value),
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.FieldStyle = (SkUiTextFieldStyle)value));
+
+    /// <summary>Bindable property for <see cref="TextPadding"/>.</summary>
+    public static readonly BindableProperty TextPaddingProperty = BindableProperty.Create(nameof(TextPadding), typeof(Thickness?), typeof(SkUiInputView), null,
+        validateValue: SkUiValidate.OptionalThickness,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.Padding = (Thickness?)value, measure: true));
+
+    /// <summary>Bindable property for <see cref="FillColor"/>.</summary>
+    public static readonly BindableProperty FillColorProperty = BindableProperty.Create(nameof(FillColor), typeof(Color), typeof(SkUiInputView), null,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.Chrome.FillColor = (Color?)value));
+
+    /// <summary>Bindable property for <see cref="BorderColor"/>.</summary>
+    public static readonly BindableProperty BorderColorProperty = BindableProperty.Create(nameof(BorderColor), typeof(Color), typeof(SkUiInputView), null,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.Chrome.BorderColor = (Color?)value));
+
+    /// <summary>Bindable property for <see cref="BorderWidth"/>.</summary>
+    public static readonly BindableProperty BorderWidthProperty = BindableProperty.Create(nameof(BorderWidth), typeof(double?), typeof(SkUiInputView), null,
+        validateValue: SkUiValidate.OptionalNonNegative,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.Chrome.BorderWidth = (double?)value));
+
+    /// <summary>Bindable property for <see cref="CornerRadii"/>.</summary>
+    public static readonly BindableProperty CornerRadiiProperty = BindableProperty.Create(nameof(CornerRadii), typeof(CornerRadius?), typeof(SkUiInputView), null,
+        validateValue: SkUiValidate.OptionalCornerRadii,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).OnCornerRadiiChanged((CornerRadius?)value));
+
+    /// <summary>Bindable property for <see cref="CornerRadius"/>.</summary>
+    public static readonly BindableProperty CornerRadiusProperty = BindableProperty.Create(nameof(CornerRadius), typeof(int?), typeof(SkUiInputView), null,
+        validateValue: SkUiValidate.OptionalNonNegative,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).OnCornerRadiusChanged((int?)value));
+
     private static BindableProperty AdornmentProperty(string name) => BindableProperty.Create(name, typeof(ISkUiView), typeof(SkUiInputView), null,
         validateValue: (bindable, value) =>
         {
@@ -319,6 +352,54 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// </summary>
     public Color? ErrorColor { get => (Color?)GetValue(ErrorColorProperty); set => SetValue(ErrorColorProperty, value); }
 
+    /// <summary>
+    /// How the look draws this field's chrome (SkiaUi): an outline, an underline, Material's filled field, Fluent's text box, or none;
+    /// <see cref="SkUiTextFieldStyle.Default"/> (default): the look's (<see cref="DefaultSkUiLook.TextFieldStyle"/>), so one form can
+    /// mix bordered, borderless and pill fields. A search bar's <see cref="SkUiTextFieldStyle.Default"/> is the look's search field;
+    /// any other style draws that text field with the search icon in it. Focus, error and disabled emphasis stay the look's.
+    /// </summary>
+    public SkUiTextFieldStyle FieldStyle { get => (SkUiTextFieldStyle)GetValue(FieldStyleProperty); set => SetValue(FieldStyleProperty, value); }
+
+    /// <summary>
+    /// The space between the field's edges and its text in DIPs (SkiaUi); <c>null</c> (default): the look's
+    /// (<see cref="SkUiLook.TextFieldPadding"/>). The leading and trailing views, the clear button and a numeric entry's buttons
+    /// keep their room inside it; the message under the field follows its start and end.
+    /// </summary>
+    [System.ComponentModel.TypeConverter(typeof(Microsoft.Maui.Converters.ThicknessTypeConverter))]
+    public Thickness? TextPadding { get => (Thickness?)GetValue(TextPaddingProperty); set => SetValue(TextPaddingProperty, value); }
+
+    /// <summary>
+    /// The field's fill (SkiaUi; MAUI's entries take a <c>Background</c>, which draws behind the chrome); <c>null</c> (default): its
+    /// style's (none for an outline or an underline). Drawn as set, also while disabled, inside <see cref="CornerRadii"/>.
+    /// </summary>
+    public Color? FillColor { get => (Color?)GetValue(FillColorProperty); set => SetValue(FillColorProperty, value); }
+
+    /// <summary>
+    /// The idle outline's or underline's color (SkiaUi); <c>null</c> (default): the color scheme's muted color. A focused field still
+    /// turns to the accent color, an invalid one to the error color.
+    /// </summary>
+    public Color? BorderColor { get => (Color?)GetValue(BorderColorProperty); set => SetValue(BorderColorProperty, value); }
+
+    /// <summary>
+    /// The idle outline's or underline's width in DIPs (SkiaUi; 0: none while idle); <c>null</c> (default): the style's (1). The look
+    /// still thickens it while focused, and an invalid field keeps at least 1. With <see cref="SkUiTextFieldStyle.None"/>, an
+    /// outline of this width in the state's color.
+    /// </summary>
+    public double? BorderWidth { get => (double?)GetValue(BorderWidthProperty); set => SetValue(BorderWidthProperty, value); }
+
+    /// <summary>
+    /// The chrome's corner radii in DIPs (SkiaUi; radii larger than the field allows give a pill); <c>null</c> (default): the
+    /// style's (<see cref="DefaultSkUiLook.FieldCornerRadius"/>; a filled field's top corners, an underlined field's none).
+    /// </summary>
+    [System.ComponentModel.TypeConverter(typeof(Microsoft.Maui.Converters.CornerRadiusTypeConverter))]
+    public CornerRadius? CornerRadii { get => (CornerRadius?)GetValue(CornerRadiiProperty); set => SetValue(CornerRadiiProperty, value); }
+
+    /// <summary>
+    /// Uniform view of <see cref="CornerRadii"/>, an <c>int</c> as the labels' and buttons' (SkiaUi): setting it sets all four
+    /// corners (<c>null</c>: the style's); it reads the top-left radius, rounded.
+    /// </summary>
+    public int? CornerRadius { get => (int?)GetValue(CornerRadiusProperty); set => SetValue(CornerRadiusProperty, value); }
+
     /// <summary>The visual state while <see cref="HasError"/> is not set (SkiaUi; with <see cref="InvalidVisualState"/>, in a group of their own).</summary>
     public const string ValidVisualState = "Valid";
 
@@ -445,6 +526,45 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     /// <summary>Sets <see cref="ErrorColor"/>.</summary>
     public SkUiInputView SetErrorColor(Color? value) { ErrorColor = value; return this; }
 
+    /// <summary>Sets <see cref="FieldStyle"/>.</summary>
+    public SkUiInputView SetFieldStyle(SkUiTextFieldStyle value) { ThrowIfUndefined(value); FieldStyle = value; return this; }
+
+    /// <summary>Sets <see cref="TextPadding"/> (<c>null</c>: the look's).</summary>
+    public SkUiInputView SetTextPadding(Thickness? value) { SkUiValidate.ThrowIfNotThickness(value, nameof(value)); TextPadding = value; return this; }
+
+    /// <summary>Sets <see cref="FillColor"/> (<c>null</c>: the style's).</summary>
+    public SkUiInputView SetFillColor(Color? value) { FillColor = value; return this; }
+
+    /// <summary>Sets <see cref="BorderColor"/> (<c>null</c>: the color scheme's).</summary>
+    public SkUiInputView SetBorderColor(Color? value) { BorderColor = value; return this; }
+
+    /// <summary>Sets <see cref="BorderWidth"/> (<c>null</c>: the style's).</summary>
+    public SkUiInputView SetBorderWidth(double? value)
+    {
+        if (value is { } width)
+            SkUiValidate.ThrowIfNegativeOrNotFinite(width, nameof(value));
+        BorderWidth = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="CornerRadii"/> (<c>null</c>: the style's).</summary>
+    public SkUiInputView SetCornerRadii(CornerRadius? value)
+    {
+        if (value is { } radii)
+            SkUiCornerRadii.Validate(radii, nameof(value));
+        CornerRadii = value;
+        return this;
+    }
+
+    /// <summary>Sets all four <see cref="CornerRadii"/> to <paramref name="value"/> DIPs (<c>null</c>: the style's).</summary>
+    public SkUiInputView SetCornerRadius(int? value)
+    {
+        if (value is { } radius)
+            ArgumentOutOfRangeException.ThrowIfNegative(radius, nameof(value));
+        CornerRadius = value;
+        return this;
+    }
+
     private protected static void ThrowIfUndefined<T>(T value) where T : struct, Enum
     {
         if (!Enum.IsDefined(value))
@@ -474,6 +594,26 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
     {
         apply(Model);
         Model.MessageChanged();
+    }
+
+    private bool _syncingCornerRadius;
+
+    private void OnCornerRadiiChanged(CornerRadius? value)
+    {
+        Apply(model => model.Chrome.CornerRadii = value);
+        // The uniform view follows, without setting all four corners back.
+        var uniform = value is { } radii ? (int)Math.Round(radii.TopLeft) : (int?)null;
+        if ((int?)GetValue(CornerRadiusProperty) == uniform)
+            return;
+        _syncingCornerRadius = true;
+        try { SetValue(CornerRadiusProperty, uniform); }
+        finally { _syncingCornerRadius = false; }
+    }
+
+    private void OnCornerRadiusChanged(int? value)
+    {
+        if (!_syncingCornerRadius)
+            CornerRadii = value is { } radius ? new CornerRadius(radius) : null;
     }
 
     private void OnHasErrorChanged(bool value)
@@ -698,6 +838,9 @@ public abstract class SkUiInputView : SkUiView, ISkUiTextFieldOwner, ISkUiKeyHan
 
     /// <inheritdoc />
     protected override bool OnSemanticsAction(SkUiSemanticsActions action) => Model.PerformSemanticsAction(action) || base.OnSemanticsAction(action);
+
+    /// <inheritdoc />
+    internal override bool OnSemanticsPartAction(int part, SkUiSemanticsActions action) => Model.PerformSemanticsPartAction(part, action);
 
     /// <inheritdoc />
     internal override bool TakesKeyboardFocus => true;

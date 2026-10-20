@@ -16,7 +16,7 @@ namespace MauiSkiaUi;
 /// </para>
 /// </summary>
 [ContentProperty(nameof(Content))]
-public class SkUiRadioButton : SkUiToggleControl, ISkUiTemplatedContent
+public class SkUiRadioButton : SkUiToggleControl, ISkUiFontElement, ISkUiTemplatedContent
 {
     private Color _color = SkUiColors.Accent;
     private string? _groupName;

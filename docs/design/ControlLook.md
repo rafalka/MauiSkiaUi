@@ -77,11 +77,12 @@ public class SkUiLook
     public void AddSkeletonBones(SkUiSkeletonPart part, IList<SkUiSkeletonBone> bones) { … } // → SkeletonBones ?? AddSkeletonBonesCore
     // Picker fields (C6): chrome and chevron behind the control's text; Focused / Open animate (FieldFocus, PickerOpen).
     // DefaultSkUiLook: PickerFieldStyle (Default → DefaultPickerFieldStyle: outline; underline, filled, none);
-    // AndroidSkUiLook: underline.
+    // AndroidSkUiLook: underline. A picker's own FieldStyle and chrome (M5) come in field.Style / field.Chrome.
     public void DrawPickerField(SKCanvas canvas, SkUiPickerFieldPaint field) { … } // → PickerFieldPainter ?? DrawPickerFieldCore
     public virtual Thickness PickerFieldPadding => new(12, 8); // and PickerChevronWidth (32), DefaultPickerMinimumHeight (44)
     // Text fields (Phase D, TextInput.md): chrome behind the text, as the picker field's (FieldFocus);
     // DefaultSkUiLook: TextFieldStyle (Default → DefaultTextFieldStyle: outline; underline, filled); AndroidSkUiLook: underline.
+    // A field's own FieldStyle wins; its FillColor / BorderColor / BorderWidth / CornerRadii come in field.Chrome (SkUiFieldChrome).
     public void DrawTextField(SKCanvas canvas, SkUiTextFieldPaint field) { … }      // → TextFieldPainter ?? DrawTextFieldCore
     public virtual Thickness TextFieldPadding => new(12, 8); // and DefaultTextFieldMinimumHeight (44), TextFieldClearButtonWidth (32)
     public virtual double CaretWidth => 2;                 // and CaretBlinkInterval (500 ms; zero: no blink), DefaultCaretColor, DefaultSelectionColor
@@ -131,6 +132,7 @@ public class SkUiLook
     public virtual double DefaultProgressBarHeight => 4;  // and DefaultProgressBarLength
     public virtual double DefaultButtonMinimumHeight => 44;
     public virtual double DefaultButtonCornerRadius => 6;
+    public virtual double DisabledButtonContentOpacity => 0.38;   // a disabled button without a fill: its text and image
 
     public Size MeasureSwitch(double widthConstraint, double heightConstraint) =>
         SwitchMeasure?.Invoke(widthConstraint, heightConstraint) ?? MeasureSwitchCore(widthConstraint, heightConstraint);
@@ -252,6 +254,8 @@ SkUiColorScheme.Current = look.GetColorScheme(RequestedTheme == AppTheme.Dark);
 ```
 
 Platform-specific choices belong in the platform looks, not in `DefaultSkUiLook`: an option of the default look (such as `PickerFieldStyle`) resolves its `Default` value through a virtual (`DefaultPickerFieldStyle`) the platform looks override. Choices that depend on the device rather than the platform (a phone, a tablet, a desktop) can stay in the default look (`DevicePopupPlacement`). The overscroll (`BaseOverscroll`) and pull-to-refresh style (`BaseRefreshStyle`) follow the same pattern: the default look stops at the edge and shows an overlay badge everywhere; the Apple looks bounce with an inline indicator, Android's stretches.
+
+A control can override such an option for itself (M5): a text field's or picker's own `FieldStyle` wins over the look's `TextFieldStyle` / `PickerFieldStyle`, which wins over the look's `Default…` virtual; its own idle chrome (`FillColor`, `BorderColor`, `BorderWidth`, `CornerRadii`) reaches the look in the paint (`SkUiFieldChrome`), so a look or painter draws it with its own focus, error and disabled emphasis. A control's own `TextPadding` replaces the look's `TextFieldPadding` in the field's layout.
 
 ## Matching MAUI's native controls
 

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  Field styles in one form (FieldStylesSample.xaml.cs): each field sets its own chrome over the look's - a pill search bar, a
+  filled pill entry from a style, an underlined entry, an outlined picker in the accent color, and a borderless editor inside the
+  app's own border. Focus, error and disabled emphasis stay the look's.
+-->
+<samples:SamplePage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                    xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+                    xmlns:samples="clr-namespace:MauiSkiaUiSamples"
+                    x:Class="MauiSkiaUiSamples.Samples.Customisation.FieldStylesSample">
+
+    <samples:SamplePage.Resources>
+        <!-- A filled pill: an outline style without its outline, the app's fill and radii, more room for the text. -->
+        <Style x:Key="PillEntry" TargetType="sk:SkUiEntry">
+            <Setter Property="FieldStyle" Value="Outline" />
+            <Setter Property="BorderWidth" Value="0" />
+            <Setter Property="FillColor" Value="#EEF1F3" />
+            <Setter Property="CornerRadii" Value="22" />
+            <Setter Property="TextPadding" Value="18,10" />
+            <Setter Property="TextColor" Value="{x:Static samples:SampleColors.Ink}" />
+        </Style>
+        <Style x:Key="Caption" TargetType="sk:SkUiLabel">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontAttributes" Value="Bold" />
+            <Setter Property="TextColor" Value="{x:Static samples:SampleColors.Caption}" />
+        </Style>
+    </samples:SamplePage.Resources>
+
+    <sk:SkUiVerticalStackLayout Spacing="10" Padding="16" BackgroundColor="{x:Static samples:SampleColors.Surface}">
+
+        <!-- The look's search field, with the app's fill and a pill's corners. -->
+        <sk:SkUiSearchBar Placeholder="Search people" FillColor="#EEF1F3" CornerRadius="22" />
+
+        <sk:SkUiLabel Text="NAME" Style="{StaticResource Caption}" />
+        <sk:SkUiEntry Placeholder="Full name" Style="{StaticResource PillEntry}" />
+
+        <sk:SkUiLabel Text="EMAIL" Style="{StaticResource Caption}" />
+        <!-- An underline whatever the look's field style; the text starts at the line's start. -->
+        <sk:SkUiEntry Placeholder="name@example.com" Keyboard="Email" FieldStyle="Underline" TextPadding="0,10"
+                      HelperText="We only use it to send the receipt." />
+
+        <sk:SkUiLabel Text="COUNTRY" Style="{StaticResource Caption}" />
+        <!-- An outline in the accent color, rounder than the look's. -->
+        <sk:SkUiPicker Title="Country" FieldStyle="Outline" BorderColor="{x:Static samples:SampleColors.Accent}" CornerRadius="12">
+            <sk:SkUiPicker.ItemsSource>
+                <x:Array Type="{x:Type x:String}">
+                    <x:String>Denmark</x:String>
+                    <x:String>Norway</x:String>
+                    <x:String>Poland</x:String>
+                    <x:String>Sweden</x:String>
+                </x:Array>
+            </sk:SkUiPicker.ItemsSource>
+        </sk:SkUiPicker>
+
+        <sk:SkUiLabel Text="NOTES" Style="{StaticResource Caption}" />
+        <!-- No chrome of the field's: the app's border draws it. -->
+        <sk:SkUiBorder Stroke="{x:Static samples:SampleColors.Border}" StrokeThickness="1" CornerRadius="12" Padding="4">
+            <sk:SkUiEditor Placeholder="Anything we should know?" FieldStyle="None" HeightRequest="96" />
+        </sk:SkUiBorder>
+
+    </sk:SkUiVerticalStackLayout>
+</samples:SamplePage>

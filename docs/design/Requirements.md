@@ -206,6 +206,7 @@ Design and checklist: [LayoutSystem.md](LayoutSystem.md).
 - [x] Each Skia-drawn control derives from **`SkUiView`** (implements `ISkUiView`), is XAML-constructible, works under `SkUiContentView` / `SkUiLayout`, and can be used standalone in the MAUI tree (FR-13).
 - [x] Labels (both layers) have MAUI Label's text properties (`MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`) and custom line breaking (`SkUiTextLineBreaker`), so text can get shorter in its own way (fewer decimals, another ellipsis) instead of the stock ellipsis.
 - [x] Labels (both layers) fit text to their size (C3): text that does not fit is tightened (`AllowsTightening`) and shrunk (`ShrinkToFit`, down to `MinimumFontScale`), every font size alike, as little as needed so nothing is truncated, left past `MaxLines` or broken inside a word, and the lines fit the label's height; text with room grows (`GrowToFill`, up to `MaximumFontScale`).
+- [x] Images on both layers through one loader (P4); Core image properties take MAUI's `ImageSource` and strings (M2: `SkUiImageSource.FromMaui` / `FromString`, implicit conversions), so own controls with a bindable MAUI source draw it with Core nodes.
 - [x] Labels (both layers) draw optional rounded chrome — per-corner radii, border, fill — so badges, chips, tags and tabs need no wrapping border node; buttons inherit it and keep MAUI's uniform `CornerRadius`.
 
 ### FR-5 — Demo gallery
@@ -331,7 +332,7 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 - [x] **Implemented once:** the arena, hit-testing and recognizers exist once for both layers. `SkUiView` and Core nodes expose events and commands, and recognizers are created only while used. There are no per-control gesture state machines.
 - [x] **Passive by default:** passive controls (e.g. `SkUiLabel`) do not take pointers unless the app opts in. Untouched labels let hits through to views underneath.
 - [x] **Intrinsic handling:** active controls (`SkUiButton`, toggles, Core buttons) handle taps and press feedback without app handlers.
-- [x] **`InputTransparent` and `IsEnabled`:** input-transparent views are skipped; disabled views block (they are hit, nothing reacts).
+- [x] **`InputTransparent` and `IsEnabled`:** on both layers (Core nodes since M1, cascading as MAUI's and from the host): input-transparent views are skipped; disabled views block (they are hit, nothing reacts), while their ancestors' scrolling, pans and swipes still compete.
 - [x] **Hit region:** hit-testing uses **arranged bounds** (FR-11).
 - [x] **One path:** standalone and hosted modes share the API and rules; only the root maps platform input.
 - [x] **Competition:** gestures compete in a per-pointer arena. Nested scrolling works, controls inside scrollers can drag, contested presses show after `PressDelay`, and multi-touch is independent per pointer.
@@ -360,6 +361,7 @@ Design details: [DrawingMechanism.md](DrawingMechanism.md).
 - [x] **Scope for v1 demos:** `MauiContentViewDemoPage` hosts both **`Editor`** and **`WebView`** (switchable) under a `SkUiContentView` in the gallery.
 - [x] Explicitly **out of product scope:** `SkUiWebView` (and similar Skia reimplementations of platform-engine controls). `SkUiEntry` / `SkUiEditor` are back in scope with an IME proxy (Phase D).
 - [x] **Drawn text input (Phase D):** `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar` and their Core twins draw text, caret, selection and chrome (and `SkUiStepper` its buttons); the platform keyboard, IME composition, autocorrect, the clipboard and the edit menu are reached through one proxy per surface (Android `InputConnection` on the overlay container, a hidden `UITextInput` view on iOS / Mac Catalyst, a hidden `TextBox` on Windows). Focused fields scroll above the soft keyboard in drawn scrollers and are editable text fields for screen readers; input formatters filter, cap and mask the user's edits (D9); leading and trailing views put icons, units and buttons inside the field (D11); `HasError` / `ErrorText` / `HelperText` draw error chrome and a message under the field (D10); `SkUiNumericEntry` / `SkUiNumericEntry<T>` take numbers only, with − / + buttons in the field (D16) ([TextInput.md](TextInput.md)).
+- [x] **Per-field chrome (M5):** text fields and pickers of both layers set their own `FieldStyle`, `FillColor`, `BorderColor`, `BorderWidth` and `CornerRadii` / `CornerRadius` over the look's (text fields also `TextPadding`), so one form mixes field styles; focus, error and disabled emphasis stay the look's. Checked SkUi vs Core pixel by pixel (`FieldChromeTests`), with implicit styles and compiled XAML.
 - [x] Document cost: each hosted control is a real platform view; prefer few overlays, not one per collection cell, unless measured acceptable.
 - [x] XML docs on `SkUiMauiContentView` describing overlay model, gesture boundary vs FR-15, and the v1 limits above.
 Primary references: DrawnUi `SkiaMauiElement`; MAUI handlers for Entry / Editor / WebView; Flutter platform views / Avalonia `NativeControlHost` for composition tradeoffs.
@@ -569,7 +571,10 @@ Design: [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md#fr-22--s
 - [x] Keyboard focus: MAUI's `Focus()` / `Unfocus()` / `IsFocused` / `Focused` / `Unfocused` on drawn views, Core focus API, `IsTabStop` / `TabIndex`, Tab / Shift+Tab within the surface and on to native controls, Space / Enter activation, arrow / page / home / end keys, a look-drawn focus ring (focus-visible), scroll into view.
 - [x] OS font scaling: `FontAutoScalingEnabled` (labels, buttons, radio buttons, spans, HTML, font images; both layers), system text size per platform, `SkUiFontScaling.Factor` override, live surfaces re-measure on change.
 - [x] Extensible: `OnPopulateSemantics` / `OnSemanticsAction` / `OnSemanticsSetValue` on both layers for own controls.
-- [x] Headless tests (`AccessibilityTests`, `KeyboardFocusTests`, `FontScalingTests`), leak scenario (`AccessibleFocused`), demo page (**Accessibility**), Mac Catalyst checked through the accessibility API and a hardware keyboard.
+- [x] UI tests find every `AutomationId` (M3): Android ids in MAUI's `package:id/…` form, the surface root's id kept off TalkBack; item containers take their item root's id; `SkUiAccessibility.ExposeAutomationIds` (`SkUiOptions`) for absorbed, decorative and hidden nodes (id-only elements). Checked with `uiautomator dump` and the Mac accessibility API.
+- [x] A UI-test driver run on an Android emulator and the iOS simulator (M3): Maestro (UiAutomator on Android, XCTest on iOS) finds the ids with the option off and on, and taps the drawn card by its id (`tests/Maestro/accessibility-automation-ids.yaml`).
+- [ ] An Appium run (its C# client), real iOS devices and Windows; TalkBack and VoiceOver with `ExposeAutomationIds` on.
+- [x] Headless tests (`AccessibilityTests`, `AutomationIdTests`, `KeyboardFocusTests`, `FontScalingTests`), leak scenario (`AccessibleFocused`), demo page (**Accessibility**), Mac Catalyst checked through the accessibility API and a hardware keyboard.
 - [ ] Device runs with TalkBack, VoiceOver (iOS) and Narrator; keyboards on Android and Windows.
 - [ ] Links inside text as elements, custom actions, live regions, arrow keys within radio groups.
 

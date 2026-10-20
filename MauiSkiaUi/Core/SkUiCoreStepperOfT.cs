@@ -117,7 +117,7 @@ public class SkUiCoreStepper<T> : SkUiCoreStepperBase where T : struct, INumber<
     public new SkUiCoreStepper<T> SetFontAutoScalingEnabled(bool value) { base.SetFontAutoScalingEnabled(value); return this; }
 
     /// <summary>Sets <see cref="SkUiCoreStepperBase.CornerRadius"/>.</summary>
-    public new SkUiCoreStepper<T> SetCornerRadius(double value) { base.SetCornerRadius(value); return this; }
+    public new SkUiCoreStepper<T> SetCornerRadius(int value) { base.SetCornerRadius(value); return this; }
 
     /// <summary>Sets <see cref="SkUiCoreStepperBase.BorderWidth"/>.</summary>
     public new SkUiCoreStepper<T> SetBorderWidth(double value) { base.SetBorderWidth(value); return this; }

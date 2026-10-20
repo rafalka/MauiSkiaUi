@@ -137,6 +137,36 @@ public class KeyboardFocusTests
     }
 
     [Fact]
+    public void DisabledOrInputTransparentCoreSubtreesLoseAndRefuseFocus()
+    {
+        var button = new SkUiCoreButton { Text = "Core" };
+        var group = new SkUiCoreVerticalStackLayout();
+        group.Add(button);
+        var host = new SkUiCoreHost().SetContent(group);
+        var root = Stack(host);
+
+        Assert.True(button.Focus());
+        group.SetIsEnabled(false);
+        Assert.False(button.IsFocused);
+        Assert.False(button.Focus());
+        Assert.Empty(root.FocusManager.GetTabOrder());
+        group.SetIsEnabled(true);
+
+        Assert.True(button.Focus());
+        host.IsEnabled = false;
+        Assert.False(button.IsFocused);
+        Assert.False(button.Focus());
+        host.IsEnabled = true;
+
+        Assert.True(button.Focus());
+        group.SetInputTransparent(true);
+        Assert.False(button.IsFocused);
+        Assert.False(button.Focus());
+        group.SetInputTransparent(false);
+        Assert.True(button.Focus());
+    }
+
+    [Fact]
     public void TabMovesThroughTheSurfaceAndLeavesAtTheEnds()
     {
         var a = new SkUiButton { Text = "A" };

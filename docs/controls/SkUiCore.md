@@ -35,12 +35,12 @@ MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `Sk
 | `SkUiCoreToggleControl` / `CheckBox` / `RadioButton` / `Switch` | Toggles: `CheckState` (Unchecked / Checked / Indeterminate), `IsChecked` view, `IsThreeState`; Switch `IsToggled` / `Toggled`; radio buttons only check on tap and do not group themselves: `SkUiCoreRadioButtons.Group(buttons, onChecked)` makes a list exclude each other (dispose to stop), `Uncheck(buttons)` and `node.UncheckRadioButtons(excluded, recursive)` uncheck them. A bare circle: compose labels and borders around it (`SkUiRadioButton` has MAUI's `Content`) |
 | `SkUiCoreSlider` | Horizontal or vertical slider (`Minimum` / `Maximum` / `Value`, drag events, `SetThumbImageSource`) |
 | `SkUiCoreStepper` | − and + buttons (`Minimum` / `Maximum` / `Value` / `Increment`, coerced as MAUI's), optionally showing the value, editable ([SkUiStepper.md](SkUiStepper.md)) |
-| `SkUiCoreEntry` / `SkUiCoreEditor` / `SkUiCoreSearchBar` (on `SkUiCoreInputView`) | Drawn text fields on the engine of `SkUiEntry` / `SkUiEditor` / `SkUiSearchBar`: text, caret, selection, the platform's keyboard and input methods through the surface's proxy, `TextChanged`, `Completed` / `SearchButtonPressed`; no enabled state (`SetIsReadOnly`) ([SkUiEntry.md](SkUiEntry.md)) |
+| `SkUiCoreEntry` / `SkUiCoreEditor` / `SkUiCoreSearchBar` (on `SkUiCoreInputView`) | Drawn text fields on the engine of `SkUiEntry` / `SkUiEditor` / `SkUiSearchBar`: text, caret, selection, the platform's keyboard and input methods through the surface's proxy, `TextChanged`, `Completed` / `SearchButtonPressed`; `SetIsEnabled`, `SetIsReadOnly` ([SkUiEntry.md](SkUiEntry.md)) |
 | `SkUiCoreNumericEntry` / `SkUiCoreNumericEntry<T>` (on `SkUiCoreNumericEntryBase`) | A numeric entry on the same engine as `SkUiNumericEntry`: `Value` (`T?`), range, increments, `Format` / `Culture`, − / + buttons in the field, `ValueChanged` ([SkUiNumericEntry.md](SkUiNumericEntry.md)) |
 | `SkUiCoreProgressBar` | Determinate or indeterminate (render-thread) progress bar, `ProgressTo` |
 | `SkUiCoreShape` / `Ellipse` / `Line` / `Rectangle` / `RoundRectangle` / `Path` / `Polygon` / `Polyline` | MAUI's shape model with MAUI Graphics types: `Fill` / `Stroke` paints (`SetFill(Color)`, gradients), `StrokeThickness`, dashes, `LineCap` / `LineJoin`, `SkUiCoreStretch` aspect; paths from `PathF` or markup ([SkUiShape.md](SkUiShape.md)) |
 | `SkUiCoreBox` | BoxView twin: `Color` (else `Background`), per-corner `CornerRadius`, 40 × 40 unless sized |
-| `SkUiCoreImage` / `SkUiCoreImageButton` | Image from an `SkUiImageSource` (`SetSource`, or `SetSourceFile` (`MauiImage` / raw asset / path), `SetSourceUri`, `SetSourceStream(open, cacheKey)`, `SetSourceFont`) or a decoded `SKImage` (`SetImage`), through the cache shared with SkUi* images; `SetTransformations`, `SetDownsample`, `SetCacheType`, `SetIsAnimationPlaying`, `SetLoadingPlaceholder` / `SetErrorPlaceholder`, `LoadingStarted` / `LoadingFinished` ([SkUiImage.md](SkUiImage.md)). The button adds tap/tint, `Pressed` / `Released`, `Padding`, `CornerRadii` clip (`SetCornerRadius(double)`), border. No MAUI `ImageSource` |
+| `SkUiCoreImage` / `SkUiCoreImageButton` | Image from an `SkUiImageSource` (`SetSource`, or `SetSourceFile` (`MauiImage` / raw asset / path), `SetSourceUri`, `SetSourceStream(open, cacheKey)`, `SetSourceFont`) or a decoded `SKImage` (`SetImage`), through the cache shared with SkUi* images; `SetTransformations`, `SetDownsample`, `SetCacheType`, `SetIsAnimationPlaying`, `SetLoadingPlaceholder` / `SetErrorPlaceholder`, `LoadingStarted` / `LoadingFinished` ([SkUiImage.md](SkUiImage.md)). The button adds tap/tint, `Pressed` / `Released`, `Padding`, `CornerRadii` clip (`SetCornerRadius(double)`), border. MAUI `ImageSource`s and strings convert implicitly ([below](#images-from-maui-sources)) |
 | `SkUiCoreActivityIndicator` | Indeterminate spinner, rotated by the compositor on the render thread |
 | `SkUiCoreScrollView` | Scroller on the shared scroll engine: offsets, render-thread fling / animated scroll, wheel (both axes), nesting with Core and SkUi* scrollers; scroll bars (`SetHorizontalScrollBarVisibility`, `SetVerticalScrollBarVisibility`), overscroll (`SetOverscroll`) and its events (`Overscrolled`, `PullReleased`, `SetPullEdges`), snap points (`SetSnapPointsType`, `SetSnapPointsAlignment`), `ScrollToAsync(SkUiCoreNode, ScrollToPosition, bool)` / `GetScrollPositionForNode` ([SkUiScrollView.md](SkUiScrollView.md)) |
 | `SkUiCoreRefreshIndicator` | The pull-to-refresh indicator drawn by the look (`PullProgress`, `IsRefreshing`, `Style`, `Color`): the one `SkUiRefreshView` and `SkUiCollectionView` show, or one of your own on a scroller's overscroll events ([below](#refresh-indicator)) |
@@ -122,6 +122,44 @@ link.Tapped += (_, _) => OpenTerms();
 var consent = new SkUiCoreLabel()
     .SetSpans(new SkUiCoreSpan("I accept the "), link, new SkUiCoreSpan(".").SetFontAttributes(FontAttributes.Bold))
     .SetFontSize(15);
+```
+
+## Images from MAUI sources
+
+Every Core image property (`SkUiCoreImage.SetSource` and its placeholders, `SkUiCoreImageButton`, `SkUiCoreButton.SetImageSource`, `SkUiCoreSlider.SetThumbImageSource`, `SkUiCoreAvatar.SetImageSource`) takes an `SkUiImageSource`, and MAUI's `ImageSource` and strings convert to it implicitly, as the SkUi\* controls convert them:
+
+- **`SkUiImageSource.FromMaui(ImageSource?)`**: files and `MauiImage`s, URIs with `CachingEnabled` / `CacheValidity`, streams and `FontImageSource` glyphs. `null` or an empty source gives `null`; an unsupported kind fails when it loads (`LoadError`), as on `SkUiImage`.
+- **`SkUiImageSource.FromString(string?)`**: MAUI's XAML rule (`ImageSourceConverter`): an absolute HTTP(S) URI is downloaded, anything else is a file (a package name such as `icon.png`, an absolute path, a `file:` URI).
+
+```csharp
+image.SetSource(viewModel.Photo);                        // a MAUI ImageSource
+button.SetImageSource("save.png");                       // a MauiImage by name
+avatar.SetImageSource("https://example.com/me.png");     // a download
+image.SetSource(null);                                   // no image
+```
+
+The conversion is a snapshot: a later change of the MAUI source (its `File`, `Uri`, a font image's `Glyph` or `Color`) is not followed. A control that exposes a bindable MAUI `ImageSource` and draws it with Core nodes sets it again when it changes, listening to the source weakly (MAUI's image sources are `INotifyPropertyChanged`):
+
+```csharp
+public sealed class IconTile : SkUiCoreHost
+{
+    public static readonly BindableProperty IconProperty = BindableProperty.Create(nameof(Icon), typeof(ImageSource), typeof(IconTile),
+        propertyChanged: static (view, _, value) => ((IconTile)view).OnIconChanged((ImageSource?)value));
+
+    private readonly SkUiCoreImage _image = new();
+    private SkUiWeakListener<IconTile>? _iconListener;
+
+    public IconTile() => SetContent(_image);
+
+    public ImageSource? Icon { get => (ImageSource?)GetValue(IconProperty); set => SetValue(IconProperty, value); }
+
+    private void OnIconChanged(ImageSource? icon)
+    {
+        // Created on first use: a style can set Icon before the constructor body runs.
+        (_iconListener ??= new(this, static (tile, _) => tile._image.SetSource(tile.Icon))).Listen(icon);
+        _image.SetSource(icon);
+    }
+}
 ```
 
 ## Backgrounds, shadows and clips
@@ -255,6 +293,10 @@ public static class Units
 
 Core nodes take part in the same gesture arena as SkUi* views:
 - **Events:** `Tapped`, `DoubleTapped`, `LongPressed`, `Swiped` (`SetSwipeDirections`), `PanUpdated` (`SetPanAxis`), `PinchUpdated`.
+- **Tap command:** `TappedCommand` / `TappedCommandParameter` (`SetTappedCommand`, `SetTappedCommandParameter`), the twin of `SkUiView.TappedCommand`: while it can execute, the node takes taps, keyboard activation and a screen reader's double tap (after its `Tapped` handlers); while it cannot, a node with only the command lets taps through, as a passive node. `CanExecuteChanged` is followed weakly and `CanExecute` is read when it is raised (or the command or parameter changes), not per press. Core buttons run their own `Command` instead.
+- **Enabled state:** `IsEnabled` / `SetIsEnabled` as MAUI's: the effective value, `false` while the node, a Core ancestor or the hosting `SkUiCoreHost` (MAUI's effective `IsEnabled`, so also the host's ancestors) is disabled; `SetIsEnabled` sets the node's own value, and `PropertyChanged` reports changes of the effective one (also those an ancestor causes). A disabled node takes the taps on it without acting (what is underneath gets none) while scrollers around it still scroll, is not focusable (a focused one loses focus), is reported disabled to screen readers, and controls draw their disabled look (the same look parameters as their SkUi\* twins). A Core button whose command cannot execute is disabled the same way. The effective value is cached on each node and pushed down when it changes; own controls react in `OnIsEnabledChanged`.
+- **Pressed state:** `IsPressed` as `SkUiView.IsPressed`: `true` while an eligible pointer is pressed inside a node with a tap action (`Tapped`, `TappedCommand`, a button or toggle) that is enabled, `false` on release and when its gestures are cancelled (a scroller claims the drag); `PropertyChanged` reports it. An own control draws its pressed look by overriding `protected virtual void OnPressedChanged()` (invalidate paint, start a transition); `ShowsPressEffect` draws the look's overlay without one. The Core buttons, toggles and pickers keep their pressed look on it.
+- **Input transparency:** `InputTransparent` / `SetInputTransparent`: pointers pass through the node and its subtree to what is underneath (MAUI's cascading default); keyboard focus skips the subtree.
 - **Custom recognizers:** `AddGestureRecognizer` (e.g. `SkUiPointerGestureRecognizer` for raw pointer handling).
 - **Buttons and toggles** handle taps intrinsically.
 - **Cost:** recognizers exist only while used, so passive nodes carry a single null field.
@@ -277,7 +319,7 @@ save.Focus();
 | --- | --- |
 | `SemanticDescription` / `SemanticHint` / `SemanticHeadingLevel` | MAUI's `SemanticProperties`: the name (replaces the node's text), what is read after it, a heading level |
 | `IsInAccessibleTree` (`bool?`) / `ExcludedWithChildren` | MAUI's `AutomationProperties`: force the node in or out (children still read), or hide the whole subtree |
-| `Focus()` / `Unfocus()` / `IsFocused` / `Focused` / `Unfocused` | Keyboard focus; interactive nodes (buttons, toggles, sliders, nodes with a `Tapped` handler) take it |
+| `Focus()` / `Unfocus()` / `IsFocused` / `Focused` / `Unfocused` | Keyboard focus; interactive nodes (buttons, toggles, sliders, nodes with a `Tapped` handler or a `TappedCommand` that can execute) take it while enabled |
 | `IsTabStop` / `TabIndex` | Tab order within the surface, shared with the SkUi* views around the host |
 | `SetSemanticFocus()` | Moves the screen reader to the node |
 | `OnPopulateSemantics` / `OnSemanticsAction` / `OnSemanticsSetValue` | What own nodes report and do (`SkUiSemanticsInfo`) |
@@ -289,7 +331,7 @@ Core labels and buttons follow the system text size like SkUi* ones (`FontAutoSc
 
 - **Visual tree:** Core nodes implement `IVisualTreeElement`, so MAUI's visual tree continues from `SkUiCoreHost` into the Core tree (Live Visual Tree, `GetVisualTreeDescendants()`, automation agents).
 - **Notifications:** adds and removes are reported to `VisualDiagnostics` only when MAUI diagnostics are enabled (Debug). Release builds pay nothing.
-- **`AutomationId` / `SetAutomationId`:** identify a node for automation, like MAUI's `AutomationId`.
+- **`AutomationId` / `SetAutomationId`:** identify a node for automation, like MAUI's `AutomationId`: UI-test drivers find it through the accessibility tree; a node that is not read on its own (inside a tappable row, a plain panel, a box) only with `SkUiAccessibility.ExposeAutomationIds` ([Accessibility.md](../design/Accessibility.md#automation-ids-ui-tests-m3)).
 - **`SkUiDiagnostics`:** locates drawn elements, which have no platform view:
   - `GetRootBounds` / `GetWindowBounds`: bounds after transforms and scroll offsets;
   - `HitTest` / `HitTestWindow`: the deepest element at a point;

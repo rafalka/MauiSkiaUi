@@ -148,7 +148,8 @@ SkUiImageCache.CacheKeyFactory = source => source switch
   variants that really differ (sizes, formats, crops) their own keys, e.g. keep the query parameters that select them.
 - A key for a stream source makes it cacheable, which otherwise it is not.
 - The factory sees SkiaUi's source records (`SkUiUriImageSource`, `SkUiFileImageSource`, `SkUiStreamImageSource`,
-  `SkUiFontImageSource`), on both layers: MAUI's `ImageSource` is converted first.
+  `SkUiFontImageSource`), on both layers: MAUI's `ImageSource` is converted first (`SkUiImageSource.FromMaui`, public for
+  Core nodes and own controls; strings by MAUI's XAML rule with `SkUiImageSource.FromString`; both convert implicitly).
 - It runs for every load on the thread that starts it (usually the UI thread): keep it fast and thread-safe. An
   exception fails the load with a `LoadError`.
 - Images cached before the factory changed keep their old keys: set it before images load.
@@ -197,4 +198,4 @@ Animated GIF / WebP play on the view's UI clock while `IsAnimationPlaying` is tr
 
 ## Related
 
-[`SkUiImageButton`](SkUiImageButton.md), [`SkUiSlider`](SkUiSlider.md) (`ThumbImageSource`), Core: [`SkUiCoreImage`](SkUiCore.md). Gallery: `ImageDemoPage` (every source kind, animation, transformations, cache).
+[`SkUiImageButton`](SkUiImageButton.md), [`SkUiSlider`](SkUiSlider.md) (`ThumbImageSource`), Core: [`SkUiCoreImage`](SkUiCore.md) (MAUI sources: [Images from MAUI sources](SkUiCore.md#images-from-maui-sources)). Gallery: `ImageDemoPage` (every source kind, animation, transformations, cache).

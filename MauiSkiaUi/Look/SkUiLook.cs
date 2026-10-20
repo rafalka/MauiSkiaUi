@@ -179,22 +179,28 @@ public class SkUiLook
     {
         if (CreateCustomRoundRectPath(bounds, radii) is { } custom)
             return custom;
+        using var roundRect = new SKRoundRect();
+        SetRadii(roundRect, bounds, radii);
+        using var builder = new SKPathBuilder();
+        // Start where MAUI's rectangle paths start, clockwise: on the left edge below the top-left corner (at the corner
+        // when it is square), so dashed borders lay out their pattern as MAUI's.
+        builder.AddRoundRect(roundRect, SKPathDirection.Clockwise, 7);
+        return builder.Detach();
+    }
+
+    /// <summary>Sets <paramref name="roundRect"/> to <paramref name="bounds"/> with MAUI's corner order (Skia's is TL, TR, BR, BL).</summary>
+    private static void SetRadii(SKRoundRect roundRect, SKRect bounds, CornerRadius radii)
+    {
         var tl = (float)Math.Max(0, radii.TopLeft);
         var tr = (float)Math.Max(0, radii.TopRight);
         var bl = (float)Math.Max(0, radii.BottomLeft);
         var br = (float)Math.Max(0, radii.BottomRight);
-        using var roundRect = new SKRoundRect();
         roundRect.SetRectRadii(bounds, [
             new SKPoint(tl, tl),
             new SKPoint(tr, tr),
             new SKPoint(br, br),
             new SKPoint(bl, bl),
         ]);
-        using var builder = new SKPathBuilder();
-        // Start where MAUI's rectangle paths start, clockwise: on the left edge below the top-left corner (at the corner
-        // when it is square), so dashed borders lay out their pattern as MAUI's.
-        builder.AddRoundRect(roundRect, SKPathDirection.Clockwise, 7);
-        return builder.Detach();
     }
 
     /// <summary>Fills/strokes a rounded rectangle with a uniform corner radius.</summary>
@@ -293,6 +299,54 @@ public class SkUiLook
             Math.Max(0, radii.BottomLeft - inset),
             Math.Max(0, radii.BottomRight - inset));
 
+    /// <summary>Blends two colors (straight alpha): 0 gives <paramref name="from"/>, 1 <paramref name="to"/>.</summary>
+    protected static SKColor Mix(SKColor from, SKColor to, float amount)
+    {
+        amount = Math.Clamp(amount, 0, 1);
+        if (amount <= 0) return from;
+        if (amount >= 1) return to;
+        static byte Channel(byte a, byte b, float t) => (byte)Math.Round(a + (b - a) * t);
+        return new SKColor(Channel(from.Red, to.Red, amount), Channel(from.Green, to.Green, amount),
+            Channel(from.Blue, to.Blue, amount), Channel(from.Alpha, to.Alpha, amount));
+    }
+
+    /// <summary>
+    /// Fills or strokes (as <paramref name="paint"/> is set up) a rectangle with <paramref name="radii"/>: a plain rounded rectangle
+    /// for uniform radii (no allocation), the look's path (<see cref="CreateRoundRectPath(SKRect, CornerRadius)"/>) otherwise.
+    /// </summary>
+    private protected void DrawRoundRect(SKCanvas canvas, SKRect bounds, CornerRadius radii, SKPaint paint)
+    {
+        if (IsUniformCornerRadius(radii))
+        {
+            var radius = (float)Math.Max(0, radii.TopLeft);
+            canvas.DrawRoundRect(bounds, radius, radius, paint);
+            return;
+        }
+        if (CreateCustomRoundRectPath(bounds, radii) is { } custom)
+        {
+            using (custom)
+                canvas.DrawPath(custom, paint);
+            return;
+        }
+        using var shape = new SKRoundRect();
+        SetRadii(shape, bounds, radii);
+        canvas.DrawRoundRect(shape, paint);
+    }
+
+    /// <summary>
+    /// Strokes a ring <paramref name="width"/> DIPs wide just inside <paramref name="bounds"/> (its outer edge on the bounds), the
+    /// radii shrunk by half the width so it follows the shape <paramref name="radii"/> fill.
+    /// </summary>
+    private protected void DrawInnerRing(SKCanvas canvas, SKRect bounds, CornerRadius radii, float width, SKPaint paint)
+    {
+        if (width <= 0)
+            return;
+        bounds.Inflate(-width / 2, -width / 2);
+        paint.Style = SKPaintStyle.Stroke;
+        paint.StrokeWidth = width;
+        DrawRoundRect(canvas, bounds, ShrinkCornerRadius(radii, width / 2), paint);
+    }
+
     #endregion
 
     #region Button
@@ -311,6 +365,13 @@ public class SkUiLook
     /// (default 0; Windows: Fluent's 1 epx). Read when the button is created; it does not change the button's size.
     /// </summary>
     public virtual double DefaultButtonBorderWidth => 0;
+
+    /// <summary>
+    /// The opacity of a disabled button's text and image when the button draws no fill (a text button: a transparent fill or
+    /// background, and no <c>DisabledFillColor</c>), 0–1 (default 0.38, Material's disabled content). Buttons with a fill show
+    /// they are disabled by it: the scheme's default fill turns into <see cref="SkUiColorScheme.Disabled"/>.
+    /// </summary>
+    public virtual double DisabledButtonContentOpacity => 0.38;
 
     /// <summary>Optional Button painter (fill, border and press feedback behind the text); replaces <see cref="DrawButtonCore"/>.</summary>
     public Action<SKCanvas, SkUiButtonPaint>? ButtonPainter { get; set; }
@@ -1364,31 +1425,18 @@ public class SkUiLook
 
     /// <summary>
     /// Default search field: a lightly filled pill (a little darker under a pointer, an accent outline while focused, an outline in
-    /// the error color while it has an error) and a magnifying glass in the icon color.
+    /// the error color while it has an error) and a magnifying glass in the icon color. The search bar's own chrome
+    /// (<see cref="SkUiSearchFieldPaint.Chrome"/>) replaces the pill's fill (drawn as set, half as opaque while disabled) and corner
+    /// radii and adds an idle outline; with a field style of its own (<see cref="SkUiSearchFieldPaint.Style"/>) only the icon is drawn.
     /// </summary>
     protected virtual void DrawSearchFieldCore(SKCanvas canvas, SkUiSearchFieldPaint field)
     {
         var bounds = field.Bounds;
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return;
-        var radius = Math.Min(10, bounds.Height / 2);
         using var paint = new SKPaint { IsAntialias = true };
-        var fill = field.IsPointerOver && field.IsEnabled ? 0.24f : 0.16f;
-        paint.Color = field.Fill.WithAlpha((byte)(field.Fill.Alpha * (field.IsEnabled ? fill : fill / 2)));
-        canvas.DrawRoundRect(bounds, radius, radius, paint);
-        var focus = field.IsEnabled ? Math.Clamp(field.Focused, 0, 1) : 0;
-        if (focus > 0 || field.HasError)
-        {
-            // An error outlines the pill while unfocused too (1 DIP), as an error outlines a text field.
-            var width = field.HasError ? 1 + 0.5f * focus : 1.5f * focus;
-            var ring = bounds;
-            ring.Inflate(-width / 2, -width / 2);
-            paint.Style = SKPaintStyle.Stroke;
-            paint.StrokeWidth = width;
-            paint.Color = !field.HasError ? field.Accent
-                : field.IsEnabled ? field.Error : field.Error.WithAlpha((byte)(field.Error.Alpha / 2));
-            canvas.DrawRoundRect(ring, radius - width / 2, radius - width / 2, paint);
-        }
+        if (field.Style == SkUiTextFieldStyle.Default)
+            DrawSearchFieldBackground(canvas, field, paint);
         // The magnifying glass: a ring and a handle to the bottom right (left in right-to-left layouts).
         var icon = field.IconBounds;
         var size = Math.Min(14f, Math.Min(icon.Width, icon.Height) * 0.7f);
@@ -1402,6 +1450,38 @@ public class SkUiLook
         var direction = field.IsRightToLeft ? -1 : 1;
         var start = new SKPoint(center.X + direction * ringRadius * 0.72f, center.Y + ringRadius * 0.72f);
         canvas.DrawLine(start, new SKPoint(start.X + direction * size * 0.3f, start.Y + size * 0.3f), paint);
+    }
+
+    private void DrawSearchFieldBackground(SKCanvas canvas, SkUiSearchFieldPaint field, SKPaint paint)
+    {
+        var bounds = field.Bounds;
+        var chrome = field.Chrome;
+        var radii = chrome.CornerRadii ?? new CornerRadius(Math.Min(10, bounds.Height / 2));
+        if (chrome.Fill is { } own)
+            paint.Color = field.IsEnabled ? own : own.WithAlpha((byte)(own.Alpha / 2));
+        else
+        {
+            var fill = field.IsPointerOver && field.IsEnabled ? 0.24f : 0.16f;
+            paint.Color = field.Fill.WithAlpha((byte)(field.Fill.Alpha * (field.IsEnabled ? fill : fill / 2)));
+        }
+        DrawRoundRect(canvas, bounds, radii, paint);
+        var focus = field.IsEnabled ? Math.Clamp(field.Focused, 0, 1) : 0;
+        var idle = chrome.BorderWidth ?? 0;
+        if (focus > 0 || field.HasError)
+        {
+            // An error outlines the pill while unfocused too (1 DIP), as an error outlines a text field.
+            var width = Math.Max(idle, field.HasError ? 1 + 0.5f * focus : 1.5f * focus);
+            paint.Color = !field.HasError ? Mix(chrome.Border ?? field.Accent, field.Accent, focus)
+                : field.IsEnabled ? field.Error : field.Error.WithAlpha((byte)(field.Error.Alpha / 2));
+            DrawInnerRing(canvas, bounds, radii, width, paint);
+        }
+        else if (idle > 0)
+        {
+            var border = chrome.Border ?? field.Fill;
+            paint.Color = field.IsEnabled ? border : border.WithAlpha((byte)(border.Alpha / 2));
+            DrawInnerRing(canvas, bounds, radii, idle, paint);
+        }
+        paint.Style = SKPaintStyle.Fill;
     }
 
     #endregion

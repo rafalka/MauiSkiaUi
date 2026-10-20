@@ -52,7 +52,38 @@ The image's reference on the shared decoded-image cache is released when `ImageS
 
 ## Key properties
 
-Inherits Label text APIs (MAUI Button's `CharacterSpacing`, `TextTransform`, `LineBreakMode`, which defaults to `NoWrap` as in MAUI: text that does not fit is cut at the padding, from its start, plus the label's `MaxLines`, `LineHeight`, `TextDecorations`, a custom `LineBreaker`, and `ShrinkToFit` / `MinimumFontScale`, `AllowsTightening`, `GrowToFill` / `MaximumFontScale`: a title that does not fit gets tighter or smaller) and its rounded chrome: per-corner `CornerRadii`, and `CornerRadius` as in MAUI (an `int` that sets all four corners; use `CornerRadii` for fractional radii), both defaulting to the look's `DefaultButtonCornerRadius` (`SkUiCoreButton` has only `CornerRadii`, plus `SetCornerRadius(double)` for all four); `BorderColor`, `BorderWidth`. Adds `Command`, `CommandParameter`, `Clicked`, `Pressed`, `Released`, `FillColor`, `ImageSource`, `ContentLayout`. As in MAUI, a tap raises `Pressed`, `Released`, then `Clicked`; a cancelled press (a scroll took over, the pointer left) raises `Released` without `Clicked`.
+Inherits Label text APIs (MAUI Button's `CharacterSpacing`, `TextTransform`, `LineBreakMode`, which defaults to `NoWrap` as in MAUI: text that does not fit is cut at the padding, from its start, plus the label's `MaxLines`, `LineHeight`, `TextDecorations`, a custom `LineBreaker`, and `ShrinkToFit` / `MinimumFontScale`, `AllowsTightening`, `GrowToFill` / `MaximumFontScale`: a title that does not fit gets tighter or smaller) and its rounded chrome: per-corner `CornerRadii`, and `CornerRadius` as in MAUI (an `int` that sets all four corners; use `CornerRadii` for fractional radii), both defaulting to the look's `DefaultButtonCornerRadius` (`SkUiCoreButton` has only `CornerRadii`, plus `SetCornerRadius(double)` for all four); `BorderColor`, `BorderWidth`. Adds `Command`, `CommandParameter`, `Clicked`, `Pressed`, `Released`, `FillColor`, `DisabledFillColor`, `ImageSource`, `ContentLayout`. As in MAUI, a tap raises `Pressed`, `Released`, then `Clicked`; a cancelled press (a scroll took over, the pointer left) raises `Released` without `Clicked`. A press also ends that way when the command's `CanExecute` turns `false` during it, on both layers.
+
+## Disabled buttons
+
+A button is disabled while `IsEnabled` is `false` (on it or an ancestor) or its `Command` cannot execute. It then draws, as MAUI draws a disabled button's background:
+
+- **What the app set, as set:** a `Background` or a `FillColor` (also from a style or a `Disabled` visual state's setter), so a design's disabled colors come from the app, as in MAUI.
+- **The scheme's default fill** (`ButtonBackground`, when neither is set) turns into the color scheme's `Disabled` color.
+- **No fill** (a transparent fill or background: a text button, an iOS system button) stays without one; the text and image are drawn at the look's `DisabledButtonContentOpacity` (0.38 by default) instead of getting a grey box.
+- **`DisabledFillColor`** (`Color?`, `null` by default) replaces all of these while disabled; the content is then drawn as set (`Transparent` for a text button whose disabled text color comes from a `Disabled` visual state).
+
+```xml
+<!-- MAUI's way works unchanged -->
+<sk:SkUiButton Text="Save" FillColor="{StaticResource Primary}">
+  <VisualStateManager.VisualStateGroups>
+    <VisualStateGroup x:Name="CommonStates">
+      <VisualState x:Name="Normal" />
+      <VisualState x:Name="Disabled">
+        <VisualState.Setters>
+          <Setter Property="FillColor" Value="{StaticResource Gray200}" />
+          <Setter Property="TextColor" Value="{StaticResource Gray500}" />
+        </VisualState.Setters>
+      </VisualState>
+    </VisualStateGroup>
+  </VisualStateManager.VisualStateGroups>
+</sk:SkUiButton>
+
+<!-- Or one property -->
+<sk:SkUiButton Text="Save" FillColor="{StaticResource Primary}" DisabledFillColor="{StaticResource Gray200}" />
+```
+
+`SkUiCoreButton` follows the same rule (`SetDisabledFillColor`); a fill color it gets from `SetFillColor` counts as set, also the scheme's own.
 
 ## Differences from MAUI Button
 
@@ -63,6 +94,7 @@ Inherits Label text APIs (MAUI Button's `CharacterSpacing`, `TextTransform`, `Li
 | `TappedCommand` vs `Command` | On tap, only `Command` runs (plus `Clicked` / `Tapped` event). Do not rely on both commands. |
 | Chrome | `FillColor`; a `Background` (solid or gradient) overrides it. Defaults, read when the button is created (Core twin too): the color scheme's `ButtonBackground`, `ButtonForeground` (`TextColor`) and `ButtonBorder` (`BorderColor`), drawn `SkUiLook.DefaultButtonBorderWidth` wide (`BorderWidth`; the border does not change the size): white on the accent by default, a system button's tinted text without a fill in the iOS and Mac schemes, Fluent's light standard button with a 1 epx border in the Windows scheme and look. Gradients reach the look as `SkUiButtonPaint.FillPaint` (`Fill` then holds the stops averaged, for looks that draw colors only); the default look dims them when pressed. An opaque fill casts the `Shadow` from the rounded chrome |
 | Visual states | MAUI's: `Normal`, `PointerOver` (hover), `Pressed`, `Disabled` (also when the command cannot execute), `Focused` / `Unfocused` |
+| Disabled | The fill the app set, as MAUI; the scheme's default fill turns into its `Disabled` color, a button without a fill dims its content; `DisabledFillColor` beyond MAUI ([above](#disabled-buttons)) |
 | Keyboard and screen readers | A button element named by its text (or `SemanticProperties.Description`; an image-only button needs one); Space / Enter and a screen reader's double tap raise `Clicked` and run the command, without `Pressed` / `Released` (as native buttons activated by assistive technology) |
 
 ## Related

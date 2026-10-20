@@ -12,6 +12,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     private ICommand? _command;
     private object? _commandParameter;
     private Color _fillColor = SkUiColors.ButtonBackground;
+    private Color? _disabledFillColor;
     private SkUiPressAnimator? _press;
     private ImageSource? _imageSource;
     private SkUiWeakListener<SkUiButton>? _imageSourceListener; // a shared image source must not keep the button alive
@@ -30,6 +31,9 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
         defaultValueCreator: _ => SkUiColors.ButtonBackground,
         validateValue: SkUiValidate.NotNull,
         propertyChanged: (view, _, value) => ((SkUiButton)view).OnFillColorChanged((Color)value));
+    /// <summary>Bindable <see cref="DisabledFillColor"/>.</summary>
+    public static readonly BindableProperty DisabledFillColorProperty = BindableProperty.Create(nameof(DisabledFillColor), typeof(Color), typeof(SkUiButton), null,
+        propertyChanged: (view, _, value) => ((SkUiButton)view).OnDisabledFillColorChanged((Color?)value));
     /// <summary>Bindable <see cref="ImageSource"/>.</summary>
     public static readonly BindableProperty ImageSourceProperty = BindableProperty.Create(nameof(ImageSource), typeof(ImageSource), typeof(SkUiButton), null,
         propertyChanged: (view, _, value) => ((SkUiButton)view).OnImageSourceChanged((ImageSource?)value));
@@ -99,6 +103,14 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     /// <summary>Button background fill.</summary>
     public Color FillColor { get => (Color)GetValue(FillColorProperty); set => SetValue(FillColorProperty, value); }
     /// <summary>
+    /// The fill while the button is disabled (or its command cannot execute); <c>null</c> (the default): a <c>Background</c> or
+    /// <see cref="FillColor"/> the app set (also from a <c>Disabled</c> visual state) is drawn as set, as MAUI draws a disabled
+    /// button's background, and only the color scheme's default fill turns into its <see cref="SkUiColorScheme.Disabled"/>
+    /// color; a button without a fill keeps none and draws its text and image at the look's
+    /// <see cref="SkUiLook.DisabledButtonContentOpacity"/>. When set, the content is drawn as set.
+    /// </summary>
+    public Color? DisabledFillColor { get => (Color?)GetValue(DisabledFillColorProperty); set => SetValue(DisabledFillColorProperty, value); }
+    /// <summary>
     /// Image drawn beside the text (MAUI's <c>ImageSource</c>), loaded through the shared image loader and cache (files,
     /// <c>MauiImage</c> resources, <see cref="FontImageSource"/> glyphs, URIs, streams). It keeps its intrinsic size and
     /// is scaled down (never up) to fit inside <see cref="SkUiLabel.Padding"/>; it is not tinted.
@@ -140,6 +152,9 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     /// <summary>Sets fill (same as the property setter).</summary>
     public SkUiButton SetFillColor(Color value) { ArgumentNullException.ThrowIfNull(value); FillColor = value; return this; }
     private void OnFillColorChanged(Color value) { _fillColor = value; InvalidatePaint(); }
+    /// <summary>Sets <see cref="DisabledFillColor"/> (same as the property setter; <c>null</c>: the default rule).</summary>
+    public SkUiButton SetDisabledFillColor(Color? value) { DisabledFillColor = value; return this; }
+    private void OnDisabledFillColorChanged(Color? value) { _disabledFillColor = value; InvalidatePaint(); }
     /// <summary>Sets the image (same as the property setter).</summary>
     public SkUiButton SetImageSource(ImageSource? value) { ImageSource = value; return this; }
 
@@ -167,7 +182,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     private void LoadImage()
     {
         if (_imageSource is null && _image is null) return;
-        (_image ??= new SkUiImageSlot(this, InvalidateMeasureOverride)).Load(SkUiMauiImageSources.Convert(_imageSource), default);
+        (_image ??= new SkUiImageSlot(this, InvalidateMeasureOverride)).Load(SkUiImageSource.FromMaui(_imageSource), default);
     }
 
     /// <summary>Sets the content layout (same as the property setter).</summary>
@@ -227,6 +242,8 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     }
     private void UpdateState()
     {
+        // A press held while the command stops executing ends without a click, as when IsEnabled turns false.
+        if (!CanReceiveTap) CancelGestures();
         ChangeVisualState();
         InvalidatePaint();
         RevalidateFocus();
@@ -250,11 +267,13 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
         if (propertyName == nameof(IsEnabled)) UpdateState();
     }
     /// <summary>
-    /// Raises the shared Tapped event and Clicked, then executes Command. TappedCommand (inherited from SkUiView)
+    /// While the command can execute: raises the shared Tapped event and Clicked, then executes Command. TappedCommand (inherited from SkUiView)
     /// is intentionally not executed here to avoid running two commands from a single tap; use Command instead.
     /// </summary>
     protected override void OnTapped(SkUiTappedEventArgs args)
     {
+        // As MAUI's buttons, whose IsEnabled includes CanExecute: no click while the command cannot execute.
+        if (!CanReceiveTap) return;
         RaiseTapped(args);
         Clicked?.Invoke(this, EventArgs.Empty);
         if (_command?.CanExecute(_commandParameter) == true) _command.Execute(_commandParameter);
@@ -265,7 +284,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     /// </summary>
     protected void PaintButtonBackground(SKCanvas canvas)
     {
-        var enabled = IsEnabled && CanReceiveTap;
+        var enabled = IsVisualStateEnabled;
         var fill = ButtonFill(enabled);
         SkUiLook.Current.DrawButton(canvas, new SkUiButtonPaint(new SKRect(0, 0, (float)Width, (float)Height), CornerRadii,
             fill.Color, ToSkColor(BorderColor), (float)BorderWidth, _press?.Visual ?? SkUiPressVisual.None, enabled)
@@ -274,12 +293,17 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
         });
     }
 
-    /// <summary>The fill: a set <see cref="VisualElement.Background"/> (solid or gradient), else <see cref="FillColor"/>; disabled, the disabled color.</summary>
-    private SkUiFill ButtonFill(bool enabled) => enabled ? ResolveBackgroundFill() ?? SkUiFill.From(_fillColor) : SkUiFill.From(SkUiColors.Disabled);
+    /// <summary>The fill: a set <see cref="VisualElement.Background"/> (solid or gradient), else <see cref="FillColor"/>; disabled, see <see cref="DisabledFillColor"/>.</summary>
+    private SkUiFill ButtonFill(bool enabled) =>
+        SkUiButtonFill.Resolve(enabled, ResolveBackgroundFill(), _fillColor, !IsSet(FillColorProperty), _disabledFillColor);
+
+    /// <inheritdoc />
+    private protected override double ContentOpacity =>
+        !IsVisualStateEnabled && SkUiButtonFill.DimsContent(ButtonFill(false), _disabledFillColor) ? SkUiLook.Current.DisabledButtonContentOpacity : 1;
 
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height) =>
-        ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(IsEnabled && CanReceiveTap).ToPaint()) : null;
+        ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(IsVisualStateEnabled).ToPaint()) : null;
 
     /// <inheritdoc />
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)

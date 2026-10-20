@@ -62,6 +62,18 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <summary>Sets the tap parameter (same as the property setter).</summary>
     public SkUiView SetTappedCommandParameter(object? value) { TappedCommandParameter = value; return this; }
     private void OnTappedCommandParameterChanged(object? value) { _tappedCommandParameter = value; }
+    /// <summary>The Core trees this view hosts (a Core host's content, scroll bars): they follow its enabled state.</summary>
+    private List<Core.SkUiCoreNode>? _coreRoots;
+
+    /// <summary><paramref name="node"/> became (<c>true</c>) or stopped being a Core tree this view hosts.</summary>
+    internal void SetHostsCoreRoot(Core.SkUiCoreNode node, bool hosts)
+    {
+        if (hosts)
+            (_coreRoots ??= []).Add(node);
+        else
+            _coreRoots?.Remove(node);
+    }
+
     /// <summary>
     /// Any object the app wants to keep with this view (an id, a model, a cache). SkiaUi never reads or changes it. Not a
     /// bindable property: it raises no change notification and takes no part in layout, drawing or input.
@@ -195,7 +207,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <summary>MAUI's (internal) name of the focus group's unfocused state.</summary>
     private const string UnfocusedState = "Unfocused";
 
-    /// <summary>Enabled for visual states: <see cref="VisualElement.IsEnabled"/> and <see cref="CanReceiveTap"/>.</summary>
+    /// <summary>Enabled for visual states, input and the enabled look: <see cref="VisualElement.IsEnabled"/> and <see cref="CanReceiveTap"/>.</summary>
     private protected bool IsVisualStateEnabled => IsEnabled && CanReceiveTap;
 
     /// <summary>Updates intrinsic control feedback when the shared pointer state changes.</summary>
@@ -673,6 +685,15 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         }
         if (IsSemanticProperty(propertyName))
             SkUiSemantics.Invalidate(this);
+        // MAUI raises IsEnabled on every descendant whose effective value changes: controls draw their disabled look.
+        // Hosted Core trees are no MAUI elements; they follow here.
+        if (propertyName == nameof(IsEnabled))
+        {
+            InvalidatePaint();
+            if (_coreRoots is { } coreRoots)
+                for (var index = 0; index < coreRoots.Count; index++)
+                    coreRoots[index].RefreshIsEnabled();
+        }
         if (propertyName == nameof(IsVisible))
         {
             InvalidateMeasureOverride();
@@ -1301,7 +1322,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     bool ISkUiInputNode.IsHitTestVisible => IsVisible && !InputTransparent;
 
-    bool ISkUiInputNode.IsInputEnabled => IsEnabled && CanReceiveTap;
+    bool ISkUiInputNode.IsInputEnabled => IsVisualStateEnabled;
 
     bool ISkUiInputNode.HitTestsChildren => HitTestsChildren;
 

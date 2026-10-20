@@ -9,7 +9,7 @@ Find every custom element the region uses (`local:`, `controls:` and other `clr-
 | A MAUI control with a custom handler, mapper changes (`AppendToMapping`), renderer or effect | Redraw it with drawn views, or keep it native in `SkUiMauiContentView` |
 | A templated control (`ControlTemplate`, `TemplateBinding`) | A `SkUiContentView` subclass (or a style on `SkUiContentView`) with a `ControlTemplate` of drawn views and `sk:SkUiContentPresenter`; every `TemplateBinding` becomes a `RelativeSource AncestorType` binding ([below](#templated-control)) |
 | A third-party control (charts, calendars, data grids, signature pads, list views) | Native: `SkUiMauiContentView`, or outside the drawn region |
-| Many small repeated parts where allocation matters (grid cells, chips, tiles) | Core nodes (`MauiSkiaUi.Core`, `SkUiCore*` fluent nodes) under a `SkUiCoreHost`: no `BindableObject` per node |
+| Many small repeated parts where allocation matters (grid cells, chips, tiles) | Core nodes (`MauiSkiaUi.Core`, `SkUiCore*` fluent nodes) under a `SkUiCoreHost`: no `BindableObject` per node. `IsEnabled` → `SetIsEnabled` (cascades as MAUI's, also from the host), `InputTransparent` → `SetInputTransparent`, a tap command → `SetTappedCommand` / `SetTappedCommandParameter`; an `ImageSource` (or an image name / URL string) passes straight to the Core image setters (`SetSource`, `SetImageSource`: implicit conversion, MAUI's XAML rule for strings); no bindings, so update them from the view model's `PropertyChanged`, and set an image again when its MAUI source changes |
 
 ## Composite control
 

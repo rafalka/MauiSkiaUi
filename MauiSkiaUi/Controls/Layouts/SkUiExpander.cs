@@ -464,6 +464,7 @@ public class SkUiExpander : SkUiView
             base.OnPopulateSemantics(info);
             if (Content is null)
                 return;
+            info.AutomationIdRoot = Content as ISkUiRenderable; // the app's header carries the id
             info.Role = SkUiSemanticsRole.Button;
             info.Value = SkUiStrings.Current.ExpansionStateText(owner.IsExpanded);
         }

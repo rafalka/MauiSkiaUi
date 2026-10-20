@@ -382,8 +382,11 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         set
         {
             if (ReferenceEquals(field, value)) return;
+            field?.SetHostsCoreRoot(this, hosts: false);
             field = value;
+            value?.SetHostsCoreRoot(this, hosts: true);
             _treeLook.ParentChanged(this);
+            RefreshIsEnabled();
             if (_skeletonState is not null || value is { MayPassSkeleton: true })
                 SkUiSkeletonScope.OnParentChanged(this); // the host is its drawn parent
         }
@@ -450,6 +453,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             throw new InvalidOperationException("A Core node already has a parent.");
         SetProperty(ref _parent, parent, nameof(Parent));
         _treeLook.ParentChanged(this);
+        RefreshIsEnabled();
         if (parent is null && _renderState is not null)
             SkUiRenderInvalidation.ResetSubtree(this);
         if (parent is null)
@@ -1170,9 +1174,9 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// </summary>
     public bool Touch(SkUiTouchEvent touch) => Routers.GetValue(this, node => new SkUiPointerRouter(node)).Dispatch(touch);
 
-    bool ISkUiInputNode.IsHitTestVisible => _isVisible;
+    bool ISkUiInputNode.IsHitTestVisible => _isVisible && !_inputTransparent;
 
-    bool ISkUiInputNode.IsInputEnabled => true;
+    bool ISkUiInputNode.IsInputEnabled => IsInteractionEnabled;
 
     bool ISkUiInputNode.HitTestsChildren => HitTestsChildren;
 
@@ -1190,24 +1194,22 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     internal virtual void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
     {
         var set = _gestures;
-        if (HasIntrinsicTap || set?.Tapped is not null || set?.WantsDoubleTap == true)
+        if (HasTapAction || set?.WantsDoubleTap == true)
         {
             set = GestureSet;
             recognizers.Add(set.Tap ??= new SkUiTapGestureRecognizer
             {
                 TapHandler = args =>
                 {
-                    _gestures?.Tapped?.Invoke(this, args);
-                    if (HasIntrinsicTap)
-                        OnIntrinsicTap(args);
+                    if (HasTapAction)
+                        RunTap(args);
                 },
                 WantsDoubleTap = () => _gestures?.WantsDoubleTap == true,
                 DoubleTapHandler = args => _gestures?.RaiseDoubleTapped(args),
                 PressedHandler = (pressed, position) =>
                 {
                     PressPosition = position;
-                    UpdatePressEffect(pressed);
-                    OnGesturePressedChanged(pressed);
+                    SetPressed(pressed);
                 }
             });
         }
@@ -1217,11 +1219,47 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// <summary>Whether the control reacts to taps without app handlers (buttons, toggles).</summary>
     internal virtual bool HasIntrinsicTap => false;
 
+    /// <summary>Whether the node reacts to a tap: an intrinsic action, a <see cref="Tapped"/> handler or <see cref="TappedCommand"/>.</summary>
+    private bool HasTapAction => HasIntrinsicTap || _gestures?.Tapped is not null || WantsTappedCommand;
+
+    /// <summary>
+    /// A tap (or keyboard / screen reader activation), in <see cref="SkUiView"/>'s order: <see cref="Tapped"/>,
+    /// <see cref="TappedCommand"/>, then the control's own action.
+    /// </summary>
+    private void RunTap(SkUiTappedEventArgs args)
+    {
+        _gestures?.Tapped?.Invoke(this, args);
+        if (WantsTappedCommand)
+            _tappedCommand!.Execute();
+        if (HasIntrinsicTap)
+            OnIntrinsicTap(args);
+    }
+
     /// <summary>Intrinsic tap action (click, toggle).</summary>
     internal virtual void OnIntrinsicTap(SkUiTappedEventArgs args) { }
 
-    /// <summary>Press feedback from the tap recognizer.</summary>
-    internal virtual void OnGesturePressedChanged(bool pressed) { }
+    /// <summary>
+    /// Whether an eligible captured pointer is currently pressed inside this node, as <see cref="SkUiView.IsPressed"/>: a node
+    /// with a tap action (<see cref="Tapped"/>, <see cref="TappedCommand"/>, a button or toggle) while it is enabled. Raises
+    /// <see cref="INotifyPropertyChanged.PropertyChanged"/>; own controls draw their pressed look in <see cref="OnPressedChanged"/>.
+    /// </summary>
+    public bool IsPressed { get; private set; }
+
+    /// <summary>
+    /// Runs when <see cref="IsPressed"/> changes (after <c>PropertyChanged</c>), as <see cref="SkUiView"/>'s: own controls update
+    /// their pressed look here (invalidate paint, start a transition).
+    /// </summary>
+    protected virtual void OnPressedChanged() { }
+
+    private void SetPressed(bool value)
+    {
+        if (IsPressed == value) return;
+        IsPressed = value;
+        UpdatePressEffect(value);
+        OnPropertyChanged(nameof(IsPressed));
+        OnPressedChanged();
+        InvalidatePaint();
+    }
 
     /// <summary>Where the last press started, in this node's coordinates (ripple origin).</summary>
     internal Point PressPosition { get; private set; }
@@ -1283,8 +1321,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         _gestures?.CancelAll();
         if (Routers.TryGetValue(this, out var router))
             router.CancelAll();
-        UpdatePressEffect(false);
-        OnGesturePressedChanged(false);
+        SetPressed(false);
     }
 
     private SkUiGestureSet GestureSet => _gestures ??= new SkUiGestureSet(this);

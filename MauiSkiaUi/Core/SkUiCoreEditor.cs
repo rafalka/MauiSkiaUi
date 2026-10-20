@@ -9,7 +9,11 @@ public class SkUiCoreEditor : SkUiCoreInputView
     /// <summary>Creates an empty editor.</summary>
     public SkUiCoreEditor() : base(multiline: true)
     {
-        Unfocused += (_, _) => Completed?.Invoke(this, EventArgs.Empty);
+        Unfocused += (_, _) =>
+        {
+            if (IsEnabled)
+                Completed?.Invoke(this, EventArgs.Empty);
+        };
     }
 
     /// <summary>Whether the measured height follows the text (see <see cref="SkUiEditor.AutoSize"/>).</summary>
@@ -120,4 +124,25 @@ public class SkUiCoreEditor : SkUiCoreInputView
 
     /// <inheritdoc cref="SkUiCoreInputView.SetErrorColor" />
     public new SkUiCoreEditor SetErrorColor(Color? value) { base.SetErrorColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetFieldStyle" />
+    public new SkUiCoreEditor SetFieldStyle(SkUiTextFieldStyle value) { base.SetFieldStyle(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetTextPadding" />
+    public new SkUiCoreEditor SetTextPadding(Thickness? value) { base.SetTextPadding(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetFillColor" />
+    public new SkUiCoreEditor SetFillColor(Color? value) { base.SetFillColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetBorderColor" />
+    public new SkUiCoreEditor SetBorderColor(Color? value) { base.SetBorderColor(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetBorderWidth" />
+    public new SkUiCoreEditor SetBorderWidth(double? value) { base.SetBorderWidth(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetCornerRadii" />
+    public new SkUiCoreEditor SetCornerRadii(CornerRadius? value) { base.SetCornerRadii(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetCornerRadius" />
+    public new SkUiCoreEditor SetCornerRadius(double? value) { base.SetCornerRadius(value); return this; }
 }

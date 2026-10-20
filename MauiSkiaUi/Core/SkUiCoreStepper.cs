@@ -111,7 +111,7 @@ public class SkUiCoreStepper : SkUiCoreStepperBase
     public new SkUiCoreStepper SetFontAutoScalingEnabled(bool value) { base.SetFontAutoScalingEnabled(value); return this; }
 
     /// <summary>Sets <see cref="SkUiCoreStepperBase.CornerRadius"/>.</summary>
-    public new SkUiCoreStepper SetCornerRadius(double value) { base.SetCornerRadius(value); return this; }
+    public new SkUiCoreStepper SetCornerRadius(int value) { base.SetCornerRadius(value); return this; }
 
     /// <summary>Sets <see cref="SkUiCoreStepperBase.BorderWidth"/>.</summary>
     public new SkUiCoreStepper SetBorderWidth(double value) { base.SetBorderWidth(value); return this; }
