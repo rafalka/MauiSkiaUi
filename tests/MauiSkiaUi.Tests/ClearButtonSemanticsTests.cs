@@ -72,8 +72,13 @@ public sealed class ClearButtonSemanticsTests : IDisposable
         AssertClearButton(field, clear, SkUiStrings.Current.ClearTextButtonText, SkUiLook.Current.TextFieldClearButtonWidth);
         Assert.Equal(clear.Id, Clear(SkUiSemanticsTree.Build(root))!.Id); // a stable id
 
-        // Activation clears, as a tap on it; the field keeps focus and the button goes.
+        // Text editing and selection never reach the field through its clear button.
         var owner = new SkUiSemanticsOwner(root);
+        Assert.False(owner.SetText(clear.Id, "plums"));
+        Assert.False(owner.SetSelection(clear.Id, 0, 2));
+        Assert.Equal("pears", entry.Text);
+
+        // Activation clears, as a tap on it; the field keeps focus and the button goes.
         Assert.True(owner.Perform(clear.Id, SkUiSemanticsActions.Activate));
         Assert.Equal("", entry.Text);
         Assert.True(entry.IsFocused);
