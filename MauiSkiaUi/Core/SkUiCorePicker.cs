@@ -407,9 +407,11 @@ public partial class SkUiCorePicker : SkUiCorePickerBase
     /// else the app's); override it for a picker of your own that shows its own UI for <paramref name="selection"/> (its items, texts,
     /// which can be chosen, the current choice, whether several may be chosen). Close the UI when <paramref name="cancellationToken"/>
     /// is cancelled (the picker closed it: <c>IsOpen = false</c>, disabled, removed, its items changed); what is returned then is
-    /// ignored. The picker applies the answer with its selection rules and events, as a choice made in the drawn list. For wheels,
-    /// dates and full control over the popup, override <c>ShowPopupAsync</c> instead. Called on the UI thread, once per opening.
-    /// SkiaUi extension.
+    /// ignored. The picker applies the answer with its selection rules and events, as a choice made in the drawn list. It replaces the
+    /// list wherever the picker shows it, also the wheel a bottom pane shows a list as (<c>PickerPaneShowsWheel</c> looks): call the
+    /// base for the placements you leave to the picker (<see cref="SkUiPopupRequest.Placement"/> on <c>selection.PopupRequest</c>).
+    /// For the multi-column, date and time wheels and full control over the popup, override <c>ShowPopupAsync</c> instead. Called on
+    /// the UI thread, once per opening. SkiaUi extension.
     /// </summary>
     /// <param name="selection">What to choose from.</param>
     /// <param name="cancellationToken">Cancelled when the selector must close now.</param>

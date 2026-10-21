@@ -68,7 +68,6 @@ public class ToolTipTests
     {
         var changes = 0;
         _root.Router.HoveredToolTipChanged += () => changes++;
-        void Hover(double x, double y) => _root.Touch(new(0, SkUiTouchAction.HoverMoved, new Point(x, y)));
 
         Hover(20, 15);
         Assert.Equal(1, changes);
@@ -90,9 +89,57 @@ public class ToolTipTests
         using var renderer = new SkUiFrameRenderer(_root, _ => { }, () => { }, () => { });
         Assert.Equal(new SkUiToolTipTarget("box", new Rect(30, 10, 40, 20)), renderer.ToolTipAtDips(new Point(35, 15)));
 
-        _root.Router.HoveredToolTipChanged += () => { }; // hover is tracked for a platform that follows it
         _root.Touch(new(0, SkUiTouchAction.HoverMoved, new Point(70, 20)));
         Assert.Equal(new SkUiToolTipTarget("container", new Rect(80, 10, 60, 40)), renderer.HoveredToolTip);
+    }
+
+    private void Hover(double x, double y) => _root.Touch(new(0, SkUiTouchAction.HoverMoved, new Point(x, y)));
+
+    [Fact]
+    public void HoverIsTrackedWithoutSubscribers()
+    {
+        Hover(20, 15);
+        Assert.Equal("box", _root.Router.HoveredToolTip?.Text);
+    }
+
+    [Fact]
+    public void ATextChangedUnderARestingPointerIsReported()
+    {
+        var changes = 0;
+        void Changed() => changes++;
+        _root.Router.HoveredToolTipChanged += Changed;
+        Hover(20, 15);
+        ToolTipProperties.SetText(_box, "renamed");
+        Assert.Equal(2, changes);
+        Assert.Equal("renamed", _root.Router.HoveredToolTip?.Text);
+        // A Core node's too.
+        Hover(140, 20);
+        _coreBox.SetToolTip("core renamed");
+        Assert.Equal(4, changes);
+        Assert.Equal("core renamed", _root.Router.HoveredToolTip?.Text);
+        _root.Router.HoveredToolTipChanged -= Changed;
+    }
+
+    [Fact]
+    public void AfterAPressTheSameViewsTooltipIsReportedAgainOnTheNextHover()
+    {
+        var changes = 0;
+        void Changed() => changes++;
+        _root.Router.HoveredToolTipChanged += Changed;
+        Hover(20, 15);
+        _root.Router.ResetHoveredToolTip();
+        Hover(21, 15);
+        Assert.Equal(2, changes);
+        Assert.Equal("box", _root.Router.HoveredToolTip?.Text);
+        _root.Router.HoveredToolTipChanged -= Changed;
+    }
+
+    [Fact]
+    public void AViewThatLeftTheTreeUnderThePointerShowsNoTooltip()
+    {
+        Hover(20, 15);
+        _root.Remove(_box);
+        Assert.NotEqual("box", _root.Router.HoveredToolTip?.Text);
     }
 
     [Fact]

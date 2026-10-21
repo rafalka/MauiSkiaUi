@@ -146,6 +146,30 @@ public class AlignStackLayoutTests
         Assert.Equal(new Rect(100, 0, 170, Height), FrameOf(row, 1));
     }
 
+    [Fact]
+    public void ArrangedInAnotherHeightThanMeasuredItMeasuresAgain()
+    {
+        // A height-dependent child (aspect fit) measured in 100 high and arranged in 40 takes the arranged height's size.
+        var row = new SkUiHorizontalAlignStackLayout
+        {
+            Children = { new SquareView { HorizontalOptions = LayoutOptions.Start }, new WrappingSkView(50, 20) { HorizontalOptions = LayoutOptions.Center } }
+        };
+        ((IView)row).Measure(Width, 100);
+        ((IView)row).Arrange(new Rect(0, 0, Width, Height));
+        Assert.Equal(new Rect(0, 0, Height, Height), FrameOf(row, 0));
+        // Measured unconstrained, it stays valid while the content fits.
+        ((IView)row).Measure(Width, double.PositiveInfinity);
+        ((IView)row).Arrange(new Rect(0, 0, Width, 60));
+        Assert.Equal(10, FrameOf(row, 0).Width);
+    }
+
+    /// <summary>As wide as it is high: as high as the height it gets (10 unconstrained).</summary>
+    private sealed class SquareView : SkUiView
+    {
+        protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
+            double.IsPositiveInfinity(heightConstraint) ? new Size(10, 10) : new Size(heightConstraint, heightConstraint);
+    }
+
     [Theory]
     [InlineData(SkUiCenterStrategy.Parent, 300)]
     [InlineData(SkUiCenterStrategy.Parent, 160)]

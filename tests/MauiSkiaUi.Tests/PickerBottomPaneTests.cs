@@ -181,6 +181,18 @@ public sealed class PickerBottomPaneTests : IDisposable
     }
 
     [Fact]
+    public void ListRequestsChooseLiveForPresentersOfOnesOwn()
+    {
+        // A presenter that keeps the list open while the user moves through it chooses with SetSelectedIndex.
+        var picker = Picker();
+        var request = Open(picker);
+        Assert.IsType<SkUiPickerPopup>(request.Content);
+        Assert.True(request.SetSelectedIndex(2));
+        Assert.Equal(2, picker.SelectedIndex);
+        Assert.True(picker.IsOpen);
+    }
+
+    [Fact]
     public void TheIosLooksPaneShowsAWheelThatChoosesAsItTurns()
     {
         SkUiLook.Current = new IosSkUiLook();
@@ -190,6 +202,8 @@ public sealed class PickerBottomPaneTests : IDisposable
         var request = Open(picker);
 
         var wheel = Assert.IsType<SkUiColumnsPopup>(request.Content);
+        // Screen readers name the wheel by the picker's title.
+        Assert.Equal("Monkey", SemanticProperties.GetDescription(wheel.Wheel(0)));
         // Nothing chosen: the wheel shows the first item, the one closing takes.
         Assert.Equal(0, wheel.Wheel(0).Position);
         Assert.Equal(0, request.CurrentIndex);

@@ -11,6 +11,10 @@ internal struct SkUiAlignStackState
     public double AvailableWidth;
     /// <summary>Content width of the children plus spacing.</summary>
     public double TotalWidth;
+    /// <summary>Content height the children were measured for (infinite when unconstrained).</summary>
+    public double AvailableHeight;
+    /// <summary>Height of the tallest child.</summary>
+    public double Height;
 }
 
 /// <summary>
@@ -24,6 +28,10 @@ internal struct SkUiAlignStackState
 internal static class SkUiAlignStackEngine
 {
     private const double Tolerance = 0.01;
+
+    /// <summary>Whether <paramref name="arranged"/> space differs from what was measured for (unconstrained: the content no longer fits).</summary>
+    private static bool Differs(double arranged, double measured, double content) =>
+        double.IsPositiveInfinity(measured) ? arranged + Tolerance < content : Math.Abs(arranged - measured) > Tolerance;
 
     public static Size Measure<TChildren>(ref TChildren children, ref SkUiAlignStackState state, SkUiCenterStrategy strategy,
         double widthConstraint, double heightConstraint, Thickness padding, double spacing)
@@ -60,6 +68,8 @@ internal static class SkUiAlignStackEngine
         state.Count = count;
         state.AvailableWidth = availableWidth;
         state.TotalWidth = total;
+        state.AvailableHeight = contentHeight;
+        state.Height = height;
         return new Size(width + padding.HorizontalThickness, height + padding.VerticalThickness);
     }
 
@@ -68,18 +78,19 @@ internal static class SkUiAlignStackEngine
         where TChildren : struct, ISkUiLayoutChildren
     {
         var availableWidth = Math.Max(0, size.Width - padding.HorizontalThickness);
-        // Arranged in a different width than measured (or never measured): measure again for the real space, so the centered
-        // children get what is left there. An unconstrained measure stays valid as long as its content fits.
+        var availableHeight = Math.Max(0, size.Height - padding.VerticalThickness);
+        // Arranged in a different size than measured (or never measured): measure again for the real space, so the centered
+        // children get what is left there and height-dependent children (wrapping, aspect-fit) fit the height. An unconstrained
+        // measure stays valid as long as its content fits.
         var stale = !state.IsMeasured || state.Count != children.Count
-            || (double.IsPositiveInfinity(state.AvailableWidth)
-                ? availableWidth + Tolerance < state.TotalWidth
-                : Math.Abs(availableWidth - state.AvailableWidth) > Tolerance);
+            || Differs(availableWidth, state.AvailableWidth, state.TotalWidth)
+            || Differs(availableHeight, state.AvailableHeight, state.Height);
         if (stale)
             Measure(ref children, ref state, strategy, size.Width, size.Height, padding, spacing);
 
         var count = children.Count;
         var top = padding.Top;
-        var height = Math.Max(0, size.Height - padding.VerticalThickness);
+        var height = availableHeight;
         var left = padding.Left;
         var right = left + availableWidth;
 

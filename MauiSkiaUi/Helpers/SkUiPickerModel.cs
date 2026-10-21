@@ -992,12 +992,13 @@ internal sealed class SkUiPickerModel
                 _sourceItems = new object?[source.Count];
                 source.CopyTo(_sourceItems, 0);
             }
+            // The wheel is named by the picker's title, as a native wheel column by its field (the title is otherwise only on the toolbar).
             if (context.Placement == SkUiPopupPlacement.BottomPane && SkUiLook.Current.PickerPaneShowsWheel)
                 return new SkUiColumnsPopup([items], [false], [-1], [model.SelectedIndex], SkUiColumnsModel.DefaultVisibleRows, context.RowStyle, context.Title,
                     context.RightToLeft, context.Chrome, indices => model._owner.Choose(indices[0]), () => [model.SelectedIndex], [model._itemEnabled],
-                    [new SkUiColumnsPopup.ColumnParts(null, model.ItemTemplate, model._owner.ItemsSource)], context.Extras, singleList: true);
+                    [new SkUiColumnsPopup.ColumnParts(null, model.ItemTemplate, model._owner.ItemsSource, Name: context.Title)], context.Extras, singleList: true);
             return new SkUiPickerPopup(items, model.SelectedIndex, model.ItemTemplate, model._owner.ItemsSource, context.RowStyle, context.Title, context.RightToLeft,
-                context.Chrome, itemEnabled: model._itemEnabled, extras: context.Extras);
+                context.Chrome, itemEnabled: model._itemEnabled, extras: context.Extras, choose: model._owner.Choose);
         }
 
         private async Task RunAsync(SkUiPopupRequest request)

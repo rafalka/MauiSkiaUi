@@ -229,9 +229,14 @@ public class SkUiPopupRequest
     /// <summary>The control closes the popup (or a result was chosen): the presenter's token is cancelled.</summary>
     internal void Close()
     {
-        if (!_close.IsCancellationRequested)
-            _close.Cancel();
+        if (_close.IsCancellationRequested)
+            return;
+        _close.Cancel();
+        OnClosing();
     }
+
+    /// <summary>The popup closes: what only a live popup uses can go (a presenter may keep the request after it closed).</summary>
+    private protected virtual void OnClosing() { }
 
     /// <summary>The presenter's task finished: nothing more happens, and the request lets go of the views it held.</summary>
     internal void MarkCompleted()
@@ -381,6 +386,9 @@ public sealed class SkUiListPopupRequest : SkUiPopupRequest<int>
 
     /// <inheritdoc />
     private protected override bool IsValidResult(int result) => result >= -1 && result < _items.Count && SkUiItemStates.IsEnabled(ItemsEnabled, result);
+
+    /// <inheritdoc />
+    private protected override void OnClosing() => _apply = null;
 
     /// <inheritdoc />
     private protected override void OnCompleted()

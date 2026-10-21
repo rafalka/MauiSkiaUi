@@ -703,6 +703,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         }
         if (IsSemanticProperty(propertyName))
             SkUiSemantics.Invalidate(this);
+        // The attached tooltip shares its name with labels' Text: the check behind it is one per-thread read while nothing hovers.
+        if (propertyName == ToolTipProperties.TextProperty.PropertyName)
+            SkUiPointerRouter.OnToolTipChanged();
         // MAUI raises IsEnabled on every descendant whose effective value changes: controls draw their disabled look.
         // Hosted Core trees are no MAUI elements; they follow here.
         if (propertyName == nameof(IsEnabled))

@@ -161,6 +161,15 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     private readonly List<ISkUiInputNode> _hovered = [];
     private readonly List<ISkUiInputNode> _hoverChain = [];
     private ISkUiInputNode? _hoveredToolTipNode;
+    private string? _hoveredToolTipText;
+    private Action? _hoveredToolTipChanged;
+    private bool _watchesToolTips;
+
+    /// <summary>
+    /// Routers of this UI thread with a hover a platform follows (<see cref="HoveredToolTipChanged"/> subscribed): a tooltip set
+    /// while the pointer rests re-checks only them. Usually none or one.
+    /// </summary>
+    [ThreadStatic] private static List<SkUiPointerRouter>? _toolTipWatchers;
     private readonly List<SkUiGestureRecognizer> _recognizers = [];
     private readonly List<ISkUiRenderable> _children = [];
 
@@ -337,30 +346,69 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         _hovered.Clear();
         _hovered.AddRange(_hoverChain);
         _hoverChain.Clear();
-        if (HoveredToolTipChanged is not null)
-            SetHoveredToolTipNode(FindToolTipNode(_hovered));
+        TrackHoveredToolTip();
     }
 
     /// <summary>Nothing is pointer-over any more (the pointer left, or the surface went away).</summary>
     internal void ClearHover()
     {
-        SetHoveredToolTipNode(null);
         if (_hovered.Count == 0)
+        {
+            TrackHoveredToolTip();
             return;
+        }
         var left = _hovered.ToArray();
         _hovered.Clear();
+        TrackHoveredToolTip();
         foreach (var node in left)
             node.SetPointerOver(false);
     }
 
     /// <summary>
-    /// The hovered node whose tooltip shows changed (another node, or none): platforms that time tooltips themselves
-    /// (Windows) restart their delay. Tracked only while subscribed; tooltip texts are read on each hover move then.
+    /// The hovered tooltip changed: another node shows one (or none does), its text changed under a resting pointer
+    /// (<see cref="OnToolTipChanged"/>), or a press closed it and the pointer moved again (<see cref="ResetHoveredToolTip"/>).
+    /// Platforms that time tooltips themselves (Windows) follow it.
     /// </summary>
-    internal event Action? HoveredToolTipChanged;
+    internal event Action? HoveredToolTipChanged
+    {
+        add
+        {
+            _hoveredToolTipChanged += value;
+            TrackHoveredToolTip();
+        }
+        remove
+        {
+            _hoveredToolTipChanged -= value;
+            TrackHoveredToolTip();
+        }
+    }
 
-    /// <summary>The tooltip of the hovered node (or its nearest ancestor with one), read now; <c>null</c> for none.</summary>
-    internal SkUiToolTipTarget? HoveredToolTip => _hoveredToolTipNode is { } node ? ToolTipOf(node) : null;
+    /// <summary>
+    /// The tooltip of the hovered node (or its nearest ancestor with one), read now; <c>null</c> for none, or when that node
+    /// left the tree under the pointer.
+    /// </summary>
+    internal SkUiToolTipTarget? HoveredToolTip =>
+        _hoveredToolTipNode is { } node && IsUnderRoot(node) ? ToolTipOf(node) : null;
+
+    /// <summary>
+    /// A press closed the tooltip: the next hover move reports the hovered tooltip as new, so it opens again after the delay
+    /// (the pointer moving on, as a native view's tooltip shows again).
+    /// </summary>
+    internal void ResetHoveredToolTip()
+    {
+        _hoveredToolTipNode = null;
+        _hoveredToolTipText = null;
+    }
+
+    /// <summary>A node's tooltip text changed (UI thread): routers with a followed hover re-check theirs.</summary>
+    internal static void OnToolTipChanged()
+    {
+        if (_toolTipWatchers is not { Count: > 0 } watchers)
+            return;
+        // Backwards: a router that stops watching removes itself.
+        for (var index = watchers.Count - 1; index >= 0; index--)
+            watchers[index].TrackHoveredToolTip();
+    }
 
     /// <summary>
     /// The tooltip at <paramref name="position"/> (root coordinates): of the topmost hit-test-visible node there, or of its
@@ -387,12 +435,34 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         return null;
     }
 
-    private void SetHoveredToolTipNode(ISkUiInputNode? node)
+    /// <summary>Finds the hovered tooltip (node and text) and raises <see cref="HoveredToolTipChanged"/> when it changed.</summary>
+    private void TrackHoveredToolTip()
     {
-        if (ReferenceEquals(_hoveredToolTipNode, node))
+        var watches = _hoveredToolTipChanged is not null && _hovered.Count > 0;
+        if (watches != _watchesToolTips)
+        {
+            _watchesToolTips = watches;
+            if (watches)
+                (_toolTipWatchers ??= []).Add(this);
+            else
+                _toolTipWatchers?.Remove(this);
+        }
+        var node = FindToolTipNode(_hovered);
+        var text = node?.ToolTipText;
+        // Exact comparisons: whether anything changed, not a measure.
+        if (ReferenceEquals(_hoveredToolTipNode, node) && _hoveredToolTipText == text)
             return;
         _hoveredToolTipNode = node;
-        HoveredToolTipChanged?.Invoke();
+        _hoveredToolTipText = text;
+        _hoveredToolTipChanged?.Invoke();
+    }
+
+    private bool IsUnderRoot(ISkUiRenderable node)
+    {
+        for (var current = node; current is not null; current = current.RenderParent)
+            if (ReferenceEquals(current, root))
+                return true;
+        return false;
     }
 
     private SkUiToolTipTarget? ToolTipOf(ISkUiInputNode node) =>

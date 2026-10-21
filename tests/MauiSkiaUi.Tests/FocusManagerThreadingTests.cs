@@ -27,16 +27,15 @@ public class FocusManagerThreadingTests
         }
     }
 
-    [Fact]
-    public void TwoUiThreadsFocusAndChangeTheirTreesAtOnce()
+    /// <summary>Runs <paramref name="work"/> on <paramref name="count"/> new threads at once and fails with the first failure.</summary>
+    private static void OnThreads(int count, Action work)
     {
-        using var start = new Barrier(2);
-        var failures = new Exception?[2];
-        var threads = Enumerable.Range(0, 2).Select(index => new Thread(() =>
+        var failures = new Exception?[count];
+        var threads = Enumerable.Range(0, count).Select(index => new Thread(() =>
         {
             try
             {
-                FocusAndDetach(start);
+                work();
             }
             catch (Exception exception)
             {
@@ -48,5 +47,37 @@ public class FocusManagerThreadingTests
         foreach (var thread in threads)
             thread.Join();
         Assert.All(failures, Assert.Null);
+    }
+
+    [Fact]
+    public void TwoUiThreadsFocusAndChangeTheirTreesAtOnce()
+    {
+        using var start = new Barrier(2);
+        OnThreads(2, () => FocusAndDetach(start));
+    }
+
+    [Fact]
+    public void AKeyPressShowsFocusRingsOnItsOwnUiThreadOnly()
+    {
+        OnThreads(1, () =>
+        {
+            using var ui = TestUiContext.Install();
+            var a = new SkUiButton { Text = "A" };
+            var b = new SkUiButton { Text = "B" };
+            var stack = new SkUiVerticalStackLayout { Children = { a, b } };
+            SkUiTestHelpers.Arrange(stack, 200, 100);
+            a.Focus();
+            stack.FocusManager.KeyDown(SkUiKey.Tab);
+            Assert.True(b.IsFocusRingVisible);
+        });
+        // Another UI thread had no key press: programmatic focus there shows no ring.
+        OnThreads(1, () =>
+        {
+            using var ui = TestUiContext.Install();
+            var button = new SkUiButton { Text = "Focus me" };
+            SkUiTestHelpers.Arrange(new SkUiVerticalStackLayout { Children = { button } }, 200, 100);
+            Assert.True(button.Focus());
+            Assert.False(button.IsFocusRingVisible);
+        });
     }
 }

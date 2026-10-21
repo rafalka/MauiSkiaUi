@@ -76,7 +76,9 @@ internal sealed class SkUiFocusManager(SkUiView root)
     // change there concerns only that thread's surfaces, so windows with a UI thread each (Windows), and test collections running in
     // parallel, never share it (a shared list let one thread's clean-up drop another thread's live entry, or throw).
     [ThreadStatic] private static List<WeakReference<SkUiFocusManager>>? _threadHolders;
-    private static bool _lastInputWasPointer = true;
+    // Per UI thread too (false until a key press: a thread static starts at its default): a key press on one window's thread
+    // shows focus rings there only.
+    [ThreadStatic] private static bool _lastInputWasKey;
     private readonly List<ISkUiAccessibleNode> _order = [];
     private readonly List<(int TabIndex, int Position, ISkUiAccessibleNode Node)> _sorted = [];
     private readonly List<ISkUiRenderable> _scratch = [];
@@ -161,9 +163,9 @@ internal sealed class SkUiFocusManager(SkUiView root)
     /// <summary>A pointer pressed somewhere: focus rings (of this UI thread's surfaces) hide until the next key press (focus-visible).</summary>
     internal static void NotePointerInput()
     {
-        if (_lastInputWasPointer)
+        if (!_lastInputWasKey)
             return;
-        _lastInputWasPointer = true;
+        _lastInputWasKey = false;
         for (var index = Holders.Count - 1; index >= 0; index--)
             if (LiveHolder(index) is { } manager)
                 manager.SetRingVisible(false);
@@ -184,7 +186,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
         }
         if (_focused is null && forward is { } direction && SkUiAccessibility.IsEnabled)
         {
-            _lastInputWasPointer = false;
+            _lastInputWasKey = true;
             BuildOrder();
             var first = _order.Count == 0 ? null : direction ? _order[0] : _order[^1];
             _order.Clear();
@@ -271,7 +273,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
         {
             return false;
         }
-        SetFocused(node, ring ?? !_lastInputWasPointer);
+        SetFocused(node, ring ?? _lastInputWasKey);
         if (SkUiSemantics.BringIntoView(node) is { } bounds)
             RequestNativeReveal?.Invoke(bounds);
         return true;
@@ -405,7 +407,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
     {
         if (!SkUiAccessibility.IsEnabled && _focused is not ISkUiTextInputNode { WantsTextInput: true })
             return false;
-        _lastInputWasPointer = false;
+        _lastInputWasKey = true;
         Validate();
         if (_focused is not null && !_ringVisible && key is not (SkUiKey.None or SkUiKey.Character))
             SetRingVisible(true);

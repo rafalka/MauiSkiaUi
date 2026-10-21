@@ -47,6 +47,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     private readonly bool _multiple;
     private readonly bool _closesOnToggle;
     private readonly Action<IReadOnlyList<int>>? _apply;
+    private Action<int>? _choose;
     private readonly Func<IReadOnlyList<int>>? _currentSelection;
     private readonly int _initialSelected;
     private readonly int[] _initialChecked = [];
@@ -62,13 +63,15 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     /// <summary>
     /// Creates the content. <paramref name="apply"/> (with <paramref name="currentSelection"/>, the picker's chosen indices now)
     /// makes it a list of several choices starting with <paramref name="checkedIndices"/>; <paramref name="selected"/> is for single lists.
-    /// <paramref name="chrome"/>: whether the choice waits to be accepted, and the buttons.
+    /// <paramref name="chrome"/>: whether the choice waits to be accepted, and the buttons. <paramref name="choose"/> applies a single
+    /// list's choice while the popup stays open (<see cref="SkUiListPopupRequest.SetSelectedIndex"/> from a presenter of one's own).
     /// </summary>
     public SkUiPickerPopup(IReadOnlyList<string> texts, int selected, DataTemplate? template, IList? itemsSource, SkUiPickerRowStyle style, string? title,
         bool rightToLeft, SkUiPickerPopupChrome chrome, Action<IReadOnlyList<int>>? apply = null, Func<IReadOnlyList<int>>? currentSelection = null,
         IReadOnlyList<int>? checkedIndices = null, bool closesOnToggle = false, IReadOnlyList<bool>? itemEnabled = null, SkUiPopupExtras extras = default,
-        string? selectAllText = null)
+        string? selectAllText = null, Action<int>? choose = null)
     {
+        _choose = choose;
         _closesOnToggle = closesOnToggle;
         _itemEnabled = itemEnabled;
         _texts = texts;
@@ -161,12 +164,14 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
                 Title = options.Title, OverlayColor = options.OverlayColor, IsAnimated = options.IsAnimated,
                 RequiresAccept = chrome.RequiresAccept, AcceptText = chrome.AcceptText, CancelText = chrome.CancelText
             }
-            : new SkUiListPopupRequest(anchor, platformAnchor, this, layout, _texts, _initialSelected, _itemEnabled)
+            : new SkUiListPopupRequest(anchor, platformAnchor, this, layout, _texts, _initialSelected, _itemEnabled, _choose)
             {
                 Title = options.Title, OverlayColor = options.OverlayColor, IsAnimated = options.IsAnimated,
                 RequiresAccept = chrome.RequiresAccept, AcceptText = chrome.AcceptText, CancelText = chrome.CancelText
             };
         Request = request;
+        // Handed to the request, which lets go of it when it completes: a presenter may keep this content, and it must not keep the picker.
+        _choose = null;
         return request;
     }
 

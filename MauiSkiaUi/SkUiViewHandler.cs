@@ -1216,9 +1216,16 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         TimeSpan.FromMilliseconds(new global::Windows.UI.ViewManagement.UISettings().MouseHoverTime));
 
     // WinUI times a tooltip from the pointer entering its owner, and the surface is the one owner of every drawn view: it
-    // opens and closes the tooltip itself, restarting the delay whenever the hovered view with a tooltip changes.
+    // opens and closes the tooltip itself, restarting the delay whenever the hovered view with a tooltip changes (an open one
+    // follows instead).
     private void OnHoveredToolTipChanged()
     {
+        // An open tooltip follows (its text changed, or the pointer moved to another view with one) as WinUI's do.
+        if (_toolTip is { IsOpen: true } && _renderer?.HoveredToolTip is { } shown)
+        {
+            ShowToolTip(shown);
+            return;
+        }
         HideToolTip();
         if (_toolTipOwner is not { } owner || VirtualView?.Router.HoveredToolTip is null)
             return;
@@ -1234,7 +1241,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
     private void OnToolTipTimer(Microsoft.UI.Dispatching.DispatcherQueueTimer sender, object args)
     {
-        if (_toolTipOwner is not { } owner || _renderer?.HoveredToolTip is not { } tip)
+        if (_renderer?.HoveredToolTip is { } tip)
+            ShowToolTip(tip);
+    }
+
+    private void ShowToolTip(SkUiToolTipTarget tip)
+    {
+        if (_toolTipOwner is not { } owner)
             return;
         _toolTip ??= new Microsoft.UI.Xaml.Controls.ToolTip();
         _toolTip.Content = tip.Text;
@@ -1273,9 +1286,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         // SkiaSharp drops the wheel's axis: OnSurfaceWheel (after this handler) dispatches it with both axes.
         if (action == SkUiTouchAction.Wheel)
             return;
-        // A press closes a tooltip (and stops one about to open), as on native views; the next hovered view opens one again.
+        // A press closes a tooltip (and stops one about to open), as on native views; it opens again after the delay once the
+        // pointer hovers on (the same view too).
         if (action == SkUiTouchAction.Pressed)
+        {
             HideToolTip();
+            VirtualView?.Router.ResetHoveredToolTip();
+        }
 #endif
         args.Handled = _renderer?.TouchPixels(new(args.Id, action.Value,
             new Point(args.Location.X, args.Location.Y), null, args.WheelDelta, Device: SkUiPointerDevices.From(args.DeviceType))

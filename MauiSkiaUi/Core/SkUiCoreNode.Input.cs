@@ -74,7 +74,13 @@ public partial class SkUiCoreNode
     }
 
     /// <summary>Sets <see cref="ToolTip"/>.</summary>
-    public SkUiCoreNode SetToolTip(string? value) => SetValue(ToolTipProperty, value);
+    public SkUiCoreNode SetToolTip(string? value)
+    {
+        SetValue(ToolTipProperty, value);
+        // An open tooltip under a resting pointer shows the new text.
+        SkUiPointerRouter.OnToolTipChanged();
+        return this;
+    }
 
     string? ISkUiInputNode.ToolTipText => ToolTip;
 
