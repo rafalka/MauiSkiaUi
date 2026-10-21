@@ -162,14 +162,14 @@ internal sealed class SkUiColumnsModel
         var columns = new SkUiColumnsPopup.ColumnParts[texts.Length];
         for (var column = 0; column < texts.Length; column++)
         {
-            texts[column] = Columns[column].Texts;
-            states[column] = Columns[column].ItemStates;
             var source = Columns[column];
+            texts[column] = source.Texts;
+            states[column] = source.ItemStates;
             // A column is a bindable object: MAUI's semantic properties set on it name and describe its wheel.
             columns[column] = new SkUiColumnsPopup.ColumnParts(source.Header, source.ItemTemplate, source.ItemsSource,
                 SemanticProperties.GetDescription(source), SemanticProperties.GetHint(source));
-            loops[column] = Columns[column].Loop;
-            widths[column] = Columns[column].Width;
+            loops[column] = source.Loop;
+            widths[column] = source.Width;
         }
         // Weak: a request kept by a presenter (a popup still shown after its page went) keeps no picker alive.
         var weak = new WeakReference<SkUiColumnsModel>(this);

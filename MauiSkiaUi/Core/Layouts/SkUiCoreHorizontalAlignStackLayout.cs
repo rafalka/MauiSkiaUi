@@ -3,8 +3,9 @@ namespace MauiSkiaUi.Core;
 /// <summary>
 /// Core horizontal stack that places its children by their <see cref="SkUiCoreNode.HorizontalAlignment"/>, not by their place
 /// in the list: Start children stacked from the start side, End children from the end side, and Center (and Fill) children in a
-/// row placed by <see cref="CenterStrategy"/>, by default centered in the layout whatever is at the sides. The side children are
-/// measured first and the centered ones get the width left. Same engine as <see cref="SkUiHorizontalAlignStackLayout"/>.
+/// row placed by <see cref="CenterStrategy"/>, by default centered in the layout whatever is at the sides; with Fill children, the
+/// row takes the whole room between the sides and they share what is left of it. The side children are measured first and the
+/// centered ones get the width left. Same engine as <see cref="SkUiHorizontalAlignStackLayout"/>.
 /// </summary>
 public class SkUiCoreHorizontalAlignStackLayout : SkUiCorePanel
 {
@@ -19,7 +20,7 @@ public class SkUiCoreHorizontalAlignStackLayout : SkUiCorePanel
         set => SetSpacing(value);
     }
 
-    /// <summary>Where the Center and Fill children go; default <see cref="SkUiCenterStrategy.Parent"/>.</summary>
+    /// <summary>Where the Center children go (a row with Fill children spans the room between the sides); default <see cref="SkUiCenterStrategy.Parent"/>.</summary>
     public SkUiCenterStrategy CenterStrategy
     {
         get => _centerStrategy;
@@ -35,7 +36,7 @@ public class SkUiCoreHorizontalAlignStackLayout : SkUiCorePanel
         return this;
     }
 
-    /// <summary>Sets where the Center and Fill children go.</summary>
+    /// <summary>Sets where the Center children go (a row with Fill children spans the room between the sides).</summary>
     public SkUiCoreHorizontalAlignStackLayout SetCenterStrategy(SkUiCenterStrategy value)
     {
         if (!Enum.IsDefined(value))

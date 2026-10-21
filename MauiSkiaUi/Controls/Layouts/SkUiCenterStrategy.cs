@@ -3,7 +3,8 @@ namespace MauiSkiaUi;
 /// <summary>
 /// Where an align stack (<see cref="SkUiHorizontalAlignStackLayout"/>, <see cref="Core.SkUiCoreHorizontalAlignStackLayout"/>)
 /// places its centered children. Centered children never overlap the start or end children: when the chosen center leaves
-/// them no room, they move just enough to clear them.
+/// them no room, they move just enough to clear them. A row with Fill children is not placed by it: it spans the room between
+/// the sides.
 /// </summary>
 public enum SkUiCenterStrategy
 {

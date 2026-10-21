@@ -21,7 +21,8 @@ internal struct SkUiAlignStackState
 /// Horizontal align stack shared by <see cref="SkUiHorizontalAlignStackLayout"/> and
 /// <see cref="Core.SkUiCoreHorizontalAlignStackLayout"/>. Children are grouped by their horizontal alignment, not by their place
 /// in the list: Start children are stacked from the start side, End children from the end side (in list order, the last one at
-/// the end), and Center and Fill children in a row placed by the <see cref="SkUiCenterStrategy"/>. The start and end children are
+/// the end), and Center and Fill children in a row placed by the <see cref="SkUiCenterStrategy"/>; with Fill children, the row
+/// spans the room between the sides instead and they share what their desired widths leave of it. The start and end children are
 /// measured first; the centered ones get the width left (a title truncates). Every child gets the full content height and
 /// aligns itself vertically in it.
 /// </summary>
@@ -57,9 +58,10 @@ internal static class SkUiAlignStackEngine
         var groups = (start.Count > 0 ? 1 : 0) + (center.Count > 0 ? 1 : 0) + (end.Count > 0 ? 1 : 0);
         var total = start.Width + center.Width + end.Width + (groups > 1 ? spacing * (groups - 1) : 0);
         var width = total;
-        if (center.Count > 0 && Resolve(strategy, start.Width, end.Width) != SkUiCenterStrategy.AvailableSpace)
+        if (center.Count > 0 && !HasFill(ref children) && Resolve(strategy, start.Width, end.Width) != SkUiCenterStrategy.AvailableSpace)
         {
-            // Centered in the layout: as wide as the wider side on both sides of the centered children, as far as the width allows.
+            // Centered in the layout: as wide as the wider side on both sides of the centered children, as far as the width allows
+            // (a row with Fill children spans the room between the sides instead: it needs no room to center).
             var side = Math.Max(start.Width + (start.Count > 0 ? spacing : 0), end.Width + (end.Count > 0 ? spacing : 0));
             width = Math.Max(total, Math.Min(center.Width + 2 * side, availableWidth));
         }
@@ -129,26 +131,36 @@ internal static class SkUiAlignStackEngine
         }
         var regionRight = Math.Max(regionLeft, endCount > 0 ? x - spacing : right);
 
-        // Centered children, in a row placed by the strategy and kept between the sides.
+        // Centered children, in a row placed by the strategy and kept between the sides; with Fill children, the row takes the
+        // whole room between the sides and they share what their desired widths leave of it.
         double centerWidth = 0;
         var centerCount = 0;
+        var fillCount = 0;
         for (var index = 0; index < count; index++)
         {
             if (!children.IsVisible(index) || Group(children.HorizontalAlignment(index)) != LayoutAlignment.Center)
                 continue;
             centerWidth += children.DesiredSize(index).Width + (centerCount++ > 0 ? spacing : 0);
+            if (children.HorizontalAlignment(index) == LayoutAlignment.Fill)
+                fillCount++;
         }
         if (centerCount == 0)
             return;
-        var inParent = left + (availableWidth - centerWidth) / 2;
-        var inSpace = (regionLeft + regionRight - centerWidth) / 2;
-        x = Resolve(strategy, regionLeft - left - (startCount > 0 ? spacing : 0), right - regionRight - (endCount > 0 ? spacing : 0)) switch
+        var fillExtra = fillCount > 0 ? Math.Max(0, regionRight - regionLeft - centerWidth) / fillCount : 0;
+        if (fillCount > 0)
+            x = regionLeft;
+        else
         {
-            SkUiCenterStrategy.AvailableSpace => inSpace,
-            SkUiCenterStrategy.ParentOrAvailableSpace => inParent + Tolerance >= regionLeft && inParent + centerWidth <= regionRight + Tolerance ? inParent : inSpace,
-            _ => inParent
-        };
-        x = Math.Max(regionLeft, Math.Min(x, regionRight - centerWidth));
+            var inParent = left + (availableWidth - centerWidth) / 2;
+            var inSpace = (regionLeft + regionRight - centerWidth) / 2;
+            x = Resolve(strategy, regionLeft - left - (startCount > 0 ? spacing : 0), right - regionRight - (endCount > 0 ? spacing : 0)) switch
+            {
+                SkUiCenterStrategy.AvailableSpace => inSpace,
+                SkUiCenterStrategy.ParentOrAvailableSpace => inParent + Tolerance >= regionLeft && inParent + centerWidth <= regionRight + Tolerance ? inParent : inSpace,
+                _ => inParent
+            };
+            x = Math.Max(regionLeft, Math.Min(x, regionRight - centerWidth));
+        }
         centerCount = 0;
         for (var index = 0; index < count; index++)
         {
@@ -156,10 +168,21 @@ internal static class SkUiAlignStackEngine
                 continue;
             if (centerCount++ > 0)
                 x += spacing;
-            var width = Math.Max(0, Math.Min(children.DesiredSize(index).Width, regionRight - x));
+            var desired = children.DesiredSize(index).Width + (children.HorizontalAlignment(index) == LayoutAlignment.Fill ? fillExtra : 0);
+            var width = Math.Max(0, Math.Min(desired, regionRight - x));
             children.Arrange(index, new Rect(x, top, width, height));
             x += width;
         }
+    }
+
+    /// <summary>Whether a visible child fills (<see cref="LayoutAlignment.Fill"/>): then the centered row spans the room between the sides.</summary>
+    private static bool HasFill<TChildren>(ref TChildren children)
+        where TChildren : struct, ISkUiLayoutChildren
+    {
+        for (var index = 0; index < children.Count; index++)
+            if (children.IsVisible(index) && children.HorizontalAlignment(index) == LayoutAlignment.Fill)
+                return true;
+        return false;
     }
 
     /// <summary>The group of a child: Start, End, or Center (for Center and Fill).</summary>

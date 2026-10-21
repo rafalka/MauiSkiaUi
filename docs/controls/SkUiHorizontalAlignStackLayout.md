@@ -8,9 +8,9 @@
 
 One engine serves both layers (`SkUiAlignStackEngine`).
 
-1. Children are grouped by `HorizontalOptions` (SkUi*) / `HorizontalAlignment` (Core): `Start` children are stacked from the start side, `End` children from the end side (in list order, the last one at the end), and `Center` and `Fill` children in one row in the middle. `Fill` counts as `Center`, and children are not stretched.
+1. Children are grouped by `HorizontalOptions` (SkUi*) / `HorizontalAlignment` (Core): `Start` children are stacked from the start side, `End` children from the end side (in list order, the last one at the end), and `Center` and `Fill` children in one row in the middle. When the row has `Fill` children, it takes the whole room between the sides and the `Fill` children share what the row's desired widths leave of it (equally; `Center` children keep their width), as `*` columns of a `Grid` would: a search field between a back and a menu button. A row of `Center` children only is not stretched.
 2. The start and end children are measured first, then the centered ones in the width left (a title truncates or wraps rather than overlap the sides).
-3. The centered row is placed by `CenterStrategy`:
+3. A row without `Fill` children is placed by `CenterStrategy`:
 
    | `SkUiCenterStrategy` | Centered row |
    | --- | --- |
@@ -22,7 +22,7 @@ One engine serves both layers (`SkUiAlignStackEngine`).
 4. `Spacing` is the gap between children, also kept between the sides and the centered row.
 5. Every child gets the full content height and aligns itself in it by its vertical alignment.
 
-Measured size: the children plus spacing; for the strategies that center in the layout, also room for the wider side on both sides of the centered row, as far as the width allows. Arranged in a different width than measured, the children are measured again for it. Collapsed (Core: invisible) children take no space. Mirrored right to left (start is the right side).
+Measured size: the children plus spacing; for the strategies that center in the layout (a row without `Fill` children), also room for the wider side on both sides of the centered row, as far as the width allows. Arranged in a different width than measured, the children are measured again for it. Collapsed (Core: invisible) children take no space. Mirrored right to left (start is the right side).
 
 The picker's bottom pane toolbar (Cancel and Clear at the start, the title, the close button at the end) uses it.
 
@@ -62,7 +62,7 @@ var bar = new SkUiCoreHorizontalAlignStackLayout()
 | --- | --- |
 | `Spacing` | Gap between children and between the sides and the centered row (DIPs, ≥ 0) |
 | `CenterStrategy` | `SkUiCenterStrategy`: `Parent` (default), `AvailableSpace`, `ParentOrAvailableSpace`, `AvailableSpaceWhenBothSides` |
-| `Add(child, alignment)` (Core) | Appends a child and sets its `HorizontalAlignment`; plain `Add(child)` keeps the child's own alignment (default `Fill`: centered) |
+| `Add(child, alignment)` (Core) | Appends a child and sets its `HorizontalAlignment`; plain `Add(child)` keeps the child's own alignment (default `Fill`: it fills the room between the sides) |
 
 ## Related
 

@@ -81,6 +81,9 @@ internal static class SkUiValidate
     /// <summary>A defined <see cref="StackOrientation"/> (horizontal or vertical).</summary>
     public static bool Orientation(BindableObject bindable, object? value) => value is StackOrientation orientation && Enum.IsDefined(orientation);
 
+    /// <summary>A defined <see cref="SkUiCenterStrategy"/>.</summary>
+    public static bool CenterStrategy(BindableObject bindable, object? value) => value is SkUiCenterStrategy strategy && Enum.IsDefined(strategy);
+
     /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is finite and not negative (the rule of <see cref="NonNegative"/>).</summary>
     public static void ThrowIfNegativeOrNotFinite(double value, string name)
     {

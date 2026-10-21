@@ -4,8 +4,10 @@ namespace MauiSkiaUi;
 /// A drawn horizontal stack that places its children by their <c>HorizontalOptions</c>, not by their place in the list:
 /// Start children stacked from the start side, End children from the end side, and Center (and Fill) children in a row
 /// placed by <see cref="CenterStrategy"/>, by default centered in the layout whatever is at the sides (a bar's title next to
-/// a close button). The side children are measured first and the centered ones get the width left, so a long title truncates
-/// instead of overlapping them. Mirrored right to left. Same engine as <see cref="Core.SkUiCoreHorizontalAlignStackLayout"/>.
+/// a close button). With Fill children, the row takes the whole room between the sides and they share what is left of it (a
+/// search field between a back and a menu button). The side children are measured first and the centered ones get the width
+/// left, so a long title truncates instead of overlapping them. Mirrored right to left. Same engine as
+/// <see cref="Core.SkUiCoreHorizontalAlignStackLayout"/>.
 /// </summary>
 public class SkUiHorizontalAlignStackLayout : SkUiLayout
 {
@@ -21,13 +23,13 @@ public class SkUiHorizontalAlignStackLayout : SkUiLayout
     /// <summary>Bindable placement of the centered children; default <see cref="SkUiCenterStrategy.Parent"/>.</summary>
     public static readonly BindableProperty CenterStrategyProperty = BindableProperty.Create(nameof(CenterStrategy), typeof(SkUiCenterStrategy),
         typeof(SkUiHorizontalAlignStackLayout), SkUiCenterStrategy.Parent,
-        validateValue: (_, value) => Enum.IsDefined((SkUiCenterStrategy)value),
+        validateValue: SkUiValidate.CenterStrategy,
         propertyChanged: (view, _, value) => ((SkUiHorizontalAlignStackLayout)view).OnCenterStrategyChanged((SkUiCenterStrategy)value));
 
     /// <summary>Gap between children in DIPs.</summary>
     public double Spacing { get => (double)GetValue(SpacingProperty); set => SetValue(SpacingProperty, value); }
 
-    /// <summary>Where the Center and Fill children go; default <see cref="SkUiCenterStrategy.Parent"/>.</summary>
+    /// <summary>Where the Center children go (a row with Fill children spans the room between the sides); default <see cref="SkUiCenterStrategy.Parent"/>.</summary>
     public SkUiCenterStrategy CenterStrategy { get => (SkUiCenterStrategy)GetValue(CenterStrategyProperty); set => SetValue(CenterStrategyProperty, value); }
 
     /// <summary>Sets <see cref="Spacing"/> (same as the property setter).</summary>

@@ -60,16 +60,38 @@ public class AlignStackLayoutTests
     }
 
     [Fact]
-    public void FillChildrenAreCenteredAndCollapsedChildrenTakeNoSpace()
+    public void FillChildrenTakeTheRoomBetweenTheSidesAndCollapsedChildrenTakeNoSpace()
     {
+        // A search field between a back and a menu button: the room between the sides, whatever the strategy.
         var row = Row(0, (100, LayoutAlignment.Start), (50, LayoutAlignment.Fill), (30, LayoutAlignment.End));
         Arranged(row);
-        Assert.Equal(new Rect(125, 0, 50, Height), FrameOf(row, 1));
+        Assert.Equal(new Rect(100, 0, 170, Height), FrameOf(row, 1));
+        // It needs no room to center in the layout: as wide as its children.
+        Assert.Equal(new Size(180, 20), ((IView)row).Measure(double.PositiveInfinity, double.PositiveInfinity));
 
         ((View)row.Children[0]).IsVisible = false;
         row.CenterStrategy = SkUiCenterStrategy.AvailableSpace;
         Arranged(row);
-        Assert.Equal((270 - 50) / 2.0, FrameOf(row, 1).X, 3);
+        Assert.Equal(new Rect(0, 0, 270, Height), FrameOf(row, 1));
+    }
+
+    [Fact]
+    public void FillChildrenShareTheExtraWidthAndCenterChildrenKeepTheirs()
+    {
+        // Room 110 … 260 (spacing 10): Center 40, then Fill 50 + the 50 left.
+        var mixed = Arranged(Row(10, (100, LayoutAlignment.Start), (40, LayoutAlignment.Center), (50, LayoutAlignment.Fill), (30, LayoutAlignment.End)));
+        Assert.Equal(new Rect(110, 0, 40, Height), FrameOf(mixed, 1));
+        Assert.Equal(new Rect(160, 0, 100, Height), FrameOf(mixed, 2));
+
+        // Two Fill children share the 110 their 20 and 40 leave of 170 equally.
+        var shared = Arranged(Row(0, (100, LayoutAlignment.Start), (20, LayoutAlignment.Fill), (40, LayoutAlignment.Fill), (30, LayoutAlignment.End)));
+        Assert.Equal(new Rect(100, 0, 75, Height), FrameOf(shared, 1));
+        Assert.Equal(new Rect(175, 0, 95, Height), FrameOf(shared, 2));
+
+        // Mirrored right to left.
+        var rtl = Row(0, (100, LayoutAlignment.Start), (50, LayoutAlignment.Fill), (30, LayoutAlignment.End));
+        SkUiTestHelpers.Arrange(new SkUiContentView { FlowDirection = FlowDirection.RightToLeft, Content = rtl }, Width, Height);
+        Assert.Equal(new Rect(30, 0, 170, Height), FrameOf(rtl, 1));
     }
 
     [Fact]
