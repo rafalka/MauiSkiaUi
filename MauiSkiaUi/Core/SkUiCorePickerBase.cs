@@ -478,6 +478,16 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
 
     #region Owner
 
+    /// <summary>
+    /// Shows this picker's popup and completes once it is gone: by default on <see cref="PopupPresenter"/>, else the app's. Override
+    /// it to show your own UI for the typed request (see <c>SkUiPickerBase.ShowPopupAsync</c>); call the base for requests you do
+    /// not handle.
+    /// </summary>
+    /// <param name="request">What the popup chooses from, where SkiaUi would place it, and how it completes.</param>
+    /// <param name="cancellationToken">Cancelled when the popup must close now (also <see cref="SkUiPopupRequest.CloseRequested"/>).</param>
+    protected virtual Task ShowPopupAsync(SkUiPopupRequest request, CancellationToken cancellationToken) =>
+        SkUiPopups.Resolve(PopupPresenter).ShowAsync(request, cancellationToken);
+
     ISkUiRenderable ISkUiPickerOwner.Node => this;
 
     bool ISkUiPickerOwner.IsRightToLeft => IsRightToLeft;
@@ -489,6 +499,8 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     IList? ISkUiPickerOwner.ItemsSource => PopupItemsSource;
 
     void ISkUiPickerOwner.Choose(int index) => ChooseItem(index);
+
+    Task ISkUiPickerOwner.ShowPopupAsync(SkUiPopupRequest request, CancellationToken cancellationToken) => ShowPopupAsync(request, cancellationToken);
 
     void ISkUiPickerOwner.ClearChoice() => ClearChoice();
 

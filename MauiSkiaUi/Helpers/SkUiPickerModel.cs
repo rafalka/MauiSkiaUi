@@ -94,6 +94,12 @@ internal interface ISkUiPickerOwner : ISkUiTransitionHost
     /// <summary>What the app's popup header and footer bind to (the picker's binding context; Core: none).</summary>
     object? PopupBindingContext { get; }
 
+    /// <summary>
+    /// Shows the popup <paramref name="request"/> describes and completes once it is gone (the control's <c>ShowPopupAsync</c>: by
+    /// default on its presenter).
+    /// </summary>
+    Task ShowPopupAsync(SkUiPopupRequest request, CancellationToken cancellationToken);
+
     /// <summary>The user chose <paramref name="index"/> (in the popup, or with an arrow key on the closed field).</summary>
     void Choose(int index);
 
@@ -938,7 +944,6 @@ internal sealed class SkUiPickerModel
             var windowSize = SkUiWindowMetrics.WindowSize(anchor.Window);
             var rowStyle = new SkUiPickerRowStyle(model.FontFamily, model.EffectiveFontSize, model.FontAttributes, model.FontAutoScalingEnabled, model.CharacterSpacing,
                 model.TextColor, model.SelectionBackground);
-            var presenter = SkUiPopups.Resolve(model.PopupPresenter);
             var requiresAccept = model.UpdateMode == SkUiPickerUpdateMode.WhenFinished;
             var pane = placement == SkUiPopupPlacement.BottomPane;
             var safeArea = SkUiWindowMetrics.SafeAreaInsets(surfaceRoot);
@@ -974,7 +979,7 @@ internal sealed class SkUiPickerModel
             Request = request;
             if (layout.Placement == SkUiPopupPlacement.Anchored)
                 WatchAnchor();
-            _ = RunAsync(request, presenter);
+            _ = RunAsync(request);
         }
 
         /// <summary>The default content: the items to choose one from (in a bottom pane, as a wheel when the look shows one).</summary>
@@ -995,11 +1000,11 @@ internal sealed class SkUiPickerModel
                 context.Chrome, itemEnabled: model._itemEnabled, extras: context.Extras);
         }
 
-        private async Task RunAsync(SkUiPopupRequest request, ISkUiPopupPresenter presenter)
+        private async Task RunAsync(SkUiPopupRequest request)
         {
             try
             {
-                await presenter.ShowAsync(request, request.CloseRequested);
+                await model._owner.ShowPopupAsync(request, request.CloseRequested);
             }
             catch (OperationCanceledException)
             {
@@ -1007,7 +1012,7 @@ internal sealed class SkUiPickerModel
             }
             catch (Exception exception)
             {
-                Trace.WriteLine($"SkiaUi: the popup presenter {presenter.GetType().Name} failed: {exception.Message}");
+                Trace.WriteLine($"SkiaUi: showing the popup of {model._owner.GetType().Name} failed: {exception.Message}");
             }
             finally
             {

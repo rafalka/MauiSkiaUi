@@ -714,6 +714,41 @@ public partial class SkUiPicker : SkUiPickerBase
 
     #endregion
 
+    #region Selector
+
+    /// <summary>
+    /// Chooses the picker's items when it opens, and returns the chosen ones, taken from <see cref="SkUiPickerSelection.Items"/> (none:
+    /// clear the choice; <c>null</c>: dismissed, nothing changes). By default the drawn list on the presenter (<c>PopupPresenter</c>,
+    /// else the app's); override it for a picker of your own that shows its own UI for <paramref name="selection"/> (its items, texts,
+    /// which can be chosen, the current choice, whether several may be chosen). Close the UI when <paramref name="cancellationToken"/>
+    /// is cancelled (the picker closed it: <c>IsOpen = false</c>, disabled, removed, its items changed); what is returned then is
+    /// ignored. The picker applies the answer with its selection rules and events, as a choice made in the drawn list. For wheels,
+    /// dates and full control over the popup, override <c>ShowPopupAsync</c> instead. Called on the UI thread, once per opening.
+    /// SkiaUi extension.
+    /// </summary>
+    /// <param name="selection">What to choose from.</param>
+    /// <param name="cancellationToken">Cancelled when the selector must close now.</param>
+    protected virtual async Task<IReadOnlyList<object>?> SelectItemsAsync(SkUiPickerSelection selection, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        await base.ShowPopupAsync(selection.PopupRequest, cancellationToken);
+        return selection.Chosen();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Lists (one choice or several) go through <see cref="SelectItemsAsync"/>.</remarks>
+    protected override async Task ShowPopupAsync(SkUiPopupRequest request, CancellationToken cancellationToken)
+    {
+        if (SkUiPickerSelection.From(request, ItemsSource) is not { } selection)
+        {
+            await base.ShowPopupAsync(request, cancellationToken);
+            return;
+        }
+        selection.Apply(await SelectItemsAsync(selection, cancellationToken));
+    }
+
+    #endregion
+
     #region Base
 
     /// <inheritdoc />

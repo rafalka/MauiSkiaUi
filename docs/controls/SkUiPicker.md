@@ -150,6 +150,25 @@ What the request carries:
 
 **Showing your own UI instead** (a platform list, a picker of your own): read the typed request, `SkUiListPopupRequest` (`Items` texts, `SelectedIndex`, `Title`), and call `request.Complete(index)` with the choice; then close and return. Choices that wait for OK: `request.RequiresAccept`; move the highlight with `SetCurrentIndex(index)` and call `request.Accept()` / `Cancel()`, or `Complete(index)` directly. A UI that stays open while the user moves through the items (a wheel) calls `SetSelectedIndex(index)` as it goes: applied to the picker at once, or the draft `Accept()` takes. Several choices and wheels have typed requests of their own that report each change (`SkUiSelectionPopupRequest`, applied at once or kept as a draft until `Accept`: `SkUiMultiListPopupRequest`, [above](#several-choices), and `SkUiColumnsPopupRequest`, [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md#presenters)). Date and time pickers (C7) will add their own.
 
+**A picker of your own with its own UI:** derive from `SkUiPicker` (or `SkUiCorePicker`) and override `SelectItemsAsync(selection, token)` (SkiaUi). It is called when the picker opens with what to choose from, `SkUiPickerSelection`: `Items` (the `ItemsSource` objects, else the `Items` texts), `Texts` (the display texts), `SelectedItems`, `AllowsMultiple`, `IsItemEnabled(index)`, `Title`, and the `PopupRequest` underneath for placement details. Return the chosen items, taken from `Items`; none clears the choice and `null` (a dismissal) changes nothing. Close your UI when the token is cancelled (the picker closed it); what you return then is ignored. The picker applies the answer with its own rules and events, as a choice in the drawn list: one item at most without `SelectionMode="Multiple"`, items it does not have and disabled ones are ignored (disabled ones keep their state). The base shows the drawn list on the presenter and answers with what was chosen there.
+
+```csharp
+public sealed class SheetPicker : SkUiPicker
+{
+    protected override async Task<IReadOnlyList<object>?> SelectItemsAsync(SkUiPickerSelection selection, CancellationToken token)
+    {
+        // Your UI for selection.Texts (selection.SelectedItems, selection.IsItemEnabled(i), selection.Title);
+        // close it when the token is cancelled.
+        var index = await MySheet.ChooseAsync(selection.Texts, token);
+        return index >= 0 ? [selection.Items[index]] : null;
+    }
+}
+```
+
+Lower down, `ShowPopupAsync(request, token)` (on `SkUiPickerBase` and `SkUiCorePickerBase`, so on every picker) shows the popup itself, with the presenter's contract and its typed requests: override it for the multi-column, date and time pickers' wheels, or for full control over the popup; call the base for the requests you do not handle. On `SkUiPicker` it is what calls `SelectItemsAsync` for lists.
+
+The drawn list is still built for each opening (`request.Content`), unused by such a UI.
+
 ### Presenter examples
 
 - **CommunityToolkit.Maui** (`Popup`, modal pages placed by alignment and margins): `SkUiToolkitPopupPresenter` in the **SkiaUi.Maui.CommunityToolkit** package (source: `MauiSkiaUi.CommunityToolkit/`; a model for presenters of your own), used by the samples and the demo. Window popups are aligned by the request's options inside the safe area (the popup page is edge to edge, MAUI 10's default) and dimmed; anchored ones are placed at `Bounds` through their margins over a transparent page, and moved once shown by how far the popup page is from the window's origin. `CornerRadius` and `Shadow` are settable (`new SkUiToolkitPopupPresenter { CornerRadius = 4 }`).

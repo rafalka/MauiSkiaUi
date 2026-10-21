@@ -590,6 +590,22 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
             Closed?.Invoke(this, ClosedArgs);
     }
 
+    /// <summary>
+    /// Shows this picker's popup and completes once it is gone, under the contract of <see cref="ISkUiPopupPresenter.ShowAsync"/>:
+    /// by default on <see cref="PopupPresenter"/>, else the app's (<see cref="SkUiPopups.Presenter"/>, else MAUI's action sheet).
+    /// Override it for a picker of your own that shows its own UI for the items: read the typed request
+    /// (<see cref="SkUiListPopupRequest"/>: <c>Items</c>, <c>SelectedIndex</c>, <c>ItemsEnabled</c>, <c>Title</c>, <c>RequiresAccept</c>;
+    /// <see cref="SkUiMultiListPopupRequest"/>, <see cref="SkUiColumnsPopupRequest"/> and the date and time requests), choose with
+    /// <c>Complete</c> (or <c>SetSelectedIndex</c> / <c>SetSelection</c> as the user goes, <c>Clear</c> for none), close your UI when
+    /// <paramref name="cancellationToken"/> is cancelled (the picker closed it: <c>IsOpen = false</c>, disabled, removed), and return
+    /// once it is gone; call the base for the requests you do not handle. The picker applies the choice and raises its events as with a
+    /// presenter. Called on the UI thread, once per opening. SkiaUi extension.
+    /// </summary>
+    /// <param name="request">What the popup chooses from, where SkiaUi would place it, and how it completes.</param>
+    /// <param name="cancellationToken">Cancelled when the popup must close now (also <see cref="SkUiPopupRequest.CloseRequested"/>).</param>
+    protected virtual Task ShowPopupAsync(SkUiPopupRequest request, CancellationToken cancellationToken) =>
+        SkUiPopups.Resolve(PopupPresenter).ShowAsync(request, cancellationToken);
+
     /// <summary>The open popup's request (tests), or <c>null</c>.</summary>
     internal SkUiPopupRequest? PopupRequest => Model.Request;
 
@@ -737,6 +753,8 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     IList? ISkUiPickerOwner.ItemsSource => PopupItemsSource;
 
     void ISkUiPickerOwner.Choose(int index) => ChooseItem(index);
+
+    Task ISkUiPickerOwner.ShowPopupAsync(SkUiPopupRequest request, CancellationToken cancellationToken) => ShowPopupAsync(request, cancellationToken);
 
     void ISkUiPickerOwner.ClearChoice() => ClearChoice();
 
