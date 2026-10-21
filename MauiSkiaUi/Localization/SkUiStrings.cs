@@ -109,6 +109,12 @@ public class SkUiStrings
     /// </summary>
     public virtual string MoreTokensFormat { get; set => Set(ref field, value); } = "+{0}";
 
+    /// <summary>
+    /// What screen readers read after the item in a picker wheel's middle row: its place among the wheel's items, a
+    /// <c>string.Format</c> format with the place (from 1) as <c>{0}</c> and the count as <c>{1}</c>. Default "{0} of {1}".
+    /// </summary>
+    public virtual string WheelPositionFormat { get; set => Set(ref field, value); } = "{0} of {1}";
+
     /// <summary>The header of a date picker's day wheel (<c>AreColumnHeadersVisible</c>). Default "Day".</summary>
     public virtual string DayText { get; set => Set(ref field, value); } = "Day";
 

@@ -10,6 +10,7 @@ A drawn picker of **a day and a time of it** on one popup of wheels (an appointm
 - `MinimumDate` / `MaximumDate` include the time (defaults: the start of 1 January 1900, the end of 31 December 2100): on the first day only the times from the minimum's can be chosen, on the last day those up to the maximum's. `Date` is kept between them; moving them moves it.
 - `Format` (default `"g"`, the culture's short date and time) is the field's; `WheelFormat` chooses the wheels (by default the culture's date order with abbreviated month names, and its short time: six wheels in en-US). Parts without a wheel follow the date picker's rule: below the smallest wheel their least (`"d"` wheels choose midnight), above it the value's.
 - `HourInterval`, `MinuteInterval`, `SecondInterval` as [SkUiTimePicker](SkUiTimePicker.md#the-wheels)'s; `BlackoutDates` and `DateEnabled` as the date picker's (the time stays when a blocked day moves to the nearest allowed one).
+- Screen readers read each wheel as one adjustable element named by its part ("Month", "Hour"), as the date and time pickers' ([SkUiMultiColumnPicker](SkUiMultiColumnPicker.md)).
 - `DateSelected` (MAUI's `DateChangedEventArgs`) on every change; `Opened` / `Closed` are the base picker's.
 - The typed request is `SkUiDatePopupRequest` with `IncludesTime` `true` ([SkUiDatePicker](SkUiDatePicker.md#presenters-and-your-own-date-ui)).
 

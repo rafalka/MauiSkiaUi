@@ -19,6 +19,7 @@ A drawn date picker with **MAUI's `DatePicker` API**: change the XAML prefix of 
 - **The wheels depend on each other.** Items that cannot be chosen with the other wheels' choice are dimmed: the days a month does not have, the months, days and years outside the range, `BlackoutDates` and the days `DateEnabled` refuses (these two need a day wheel: a month and year picker allows every month). A wheel passes them while it turns without choosing them; one that stops on such an item rolls to the nearest one that can be chosen. A choice that cannot be made moves to the nearest one that can: the 31st of a month turned into February becomes its last day, a date before the minimum the minimum, a blocked day the nearest allowed day (the earlier one first). A wheel still turning is left alone and follows once it stops.
 - **Nothing chosen.** With `Date` `null` the wheels show `DefaultHighlightedDate` (else today), kept in the range; turning one wheel (or OK) chooses what all of them show.
 - **Choosing**, **keyboard** and **closing** are the wheels' of [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md): a turn, a tap or a key changes the date at once (`UpdateMode="Immediately"`, the default) or as a draft that OK applies (`WhenFinished`); Left / Right change the wheel, Up / Down, Page Up / Down, Home / End and typing move it; the popup's Clear chooses no date and closes. Changing the range, the blackout list, `DateEnabled` or a wheel setting while the popup is open closes it (the next one has the change).
+- **Screen readers** read each wheel as one adjustable element ([SkUiMultiColumnPicker](SkUiMultiColumnPicker.md)), named "Day", "Month", "Year" also without headers shown, with its item and place as the value ("February, 2 of 12"); stepping follows the wheels' rules (from January 31st, the next month chooses February 28th).
 - `AreColumnHeadersVisible` shows "Day", "Month", "Year" above the wheels (from [SkUiStrings](../design/Localization.md): `DayText`, `MonthText`, `YearText`); `IsLooping` (default `true`) lets the day and month wheels loop (years never do); `VisibleRows` (default 5).
 - The wheels use the Gregorian calendar; the field's text follows the culture's calendar.
 
@@ -82,7 +83,7 @@ host.SetContent(core);
 | `DateSelected` | | MAUI's `DateChangedEventArgs` |
 | `Title`, `Placeholder`, `TextColor`, font properties, alignments, `IsOpen` / `Opened` / `Closed`, `PopupPlacement`, popup sizes, `PopupPresenter`, `UpdateMode`, `AcceptText`, `CancelText`, `IsClearButtonVisible`, `IsPopupClearButtonVisible`, `ClearText`, `PopupHeaderTemplate`, `PopupFooterTemplate`, `SelectionChangedCommand` | | As `SkUiPicker`'s (`SkUiPickerBase`); `ClearSelection()` sets `Date` to `null` |
 
-Not yet: a drawn month calendar as the popup (with `SkUiCalendar`, [Phase F](../design/ImplementationPlan.md#phase-f--calendar-skuicalendar)); screen-reader elements for the wheels.
+Not yet: a drawn month calendar as the popup (with `SkUiCalendar`, [Phase F](../design/ImplementationPlan.md#phase-f--calendar-skuicalendar)).
 
 Shared conventions (DIPs, bindable properties with fluent `Set*` setters, the gesture arena) as for every control: [SkUiView.md](SkUiView.md).
 

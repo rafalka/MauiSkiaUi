@@ -16,6 +16,7 @@ A drawn time picker with **MAUI's `TimePicker` API**: change the XAML prefix of 
 - **The clock.** By default the culture's short time: en-US hours 12, 1, … 11 with an AM / PM wheel; pl-PL hours 00–23. `WheelFormat` chooses: `H` / `HH` a 24-hour clock, `h` / `hh` a 12-hour one (an AM / PM wheel is added when the format has no `tt`), `mm` the minutes, `ss` the seconds (`"T"`: the culture's long time, with seconds).
 - **Steps.** `HourInterval` (1–23), `MinuteInterval` and `SecondInterval` (1–59): the wheels show 0, the step, twice the step, … (`MinuteInterval="15"`: 00, 15, 30, 45). The range is taken onto the steps: with quarter hours and a minimum of 9:10, 9:15 is the first time.
 - **The range dims what is outside it**: the hours, minutes and AM or PM that cannot be chosen; a choice outside it moves to its end (17:45 with a maximum of 17:30 becomes 17:30).
+- **Screen readers** read each wheel as one adjustable element ([SkUiMultiColumnPicker](SkUiMultiColumnPicker.md)), named "Hour", "Minute", "Second" also without headers shown (AM / PM has no name, as natively), with its item and place as the value.
 - The hour, minute and second wheels loop (`IsLooping`, default `true`); AM / PM does not. `AreColumnHeadersVisible` shows "Hour", "Minute", "Second" (`SkUiStrings.HourText`, `MinuteText`, `SecondText`).
 
 ## Your own time UI

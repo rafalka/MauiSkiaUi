@@ -13,6 +13,14 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Picker wheels for screen readers:** in the popups of `SkUiMultiColumnPicker`, `SkUiDatePicker`, `SkUiTimePicker` and `SkUiDateTimePicker` (and their Core twins) each wheel is one adjustable element, as a native wheel picker's column: named by MAUI's `SemanticProperties.Description` set on its `SkUiPickerColumn` (new `SetSemanticDescription` / `SetSemanticHint`), else its `Header`, and the date and time wheels by `SkUiStrings`' `DayText` … `SecondText` also without headers shown; its value is the middle row's item and its place ("10, 2 of 12", new `SkUiStrings.WheelPositionFormat`). Increment and decrement (VoiceOver and TalkBack swipes, Narrator's range value) step to the next or previous item that can be chosen and choose it, following the date's rules; the wheels' rows are no longer elements of their own.
+
+### Other
+
+- **Slider value texts on Windows and older Android:** an adjustable element with a value text of its own (a stepper's number, a picker wheel's item) gives Narrator a read-only Value pattern with it, and on Android 10 and older TalkBack reads it with the element's name instead of the range as a percentage.
+
 ## 1.0.0-Prerelease15
 
 ### New features

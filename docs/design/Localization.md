@@ -10,8 +10,9 @@ SkiaUi shows or reads out only a few texts of its own; everything else (labels, 
 | `SelectAllText` | "Select all" | The "Select all" row of picker lists with several choices (`IsSelectAllVisible`), unless the picker sets its own `SelectAllText`; the item of a text field's edit menu on Windows |
 | `CutText`, `CopyText`, `PasteText` | "Cut", "Copy", "Paste" | The items of a text field's edit menu on Windows (Android and Apple platforms show their system menu, in the system's language) |
 | `MoreTokensFormat` | "+{0}" | The token that stands for the chosen items that do not fit in a picker's field (`MaxTokenLines`), with their count as `{0}` |
-| `DayText`, `MonthText`, `YearText` | "Day", "Month", "Year" | The headers of a date picker's wheels (`AreColumnHeadersVisible`) |
-| `HourText`, `MinuteText`, `SecondText` | "Hour", "Minute", "Second" | The headers of a time picker's wheels |
+| `DayText`, `MonthText`, `YearText` | "Day", "Month", "Year" | The headers of a date picker's wheels (`AreColumnHeadersVisible`), and what screen readers call the wheels, headers shown or not |
+| `HourText`, `MinuteText`, `SecondText` | "Hour", "Minute", "Second" | The headers of a time picker's wheels, and what screen readers call them |
+| `WheelPositionFormat` | "{0} of {1}" | What screen readers read after the item in a picker wheel's middle row: its place (from 1) as `{0}`, the wheel's item count as `{1}` |
 | `LoadMoreText` | "Load more" | The default load-more button of `SkUiCollectionView` (`LoadMoreMode="Manual"`) |
 | `SelectedStateText` | "Selected" | What screen readers read as the value of a selected collection view item (also a chosen row of a picker with several choices) |
 | `ExpandedStateText` / `CollapsedStateText` | "Expanded" / "Collapsed" | What screen readers read after the header of an `SkUiExpander` or a collapsible collection view group |

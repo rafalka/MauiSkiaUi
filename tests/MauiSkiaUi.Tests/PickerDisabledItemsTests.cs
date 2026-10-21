@@ -33,7 +33,7 @@ public sealed class PickerDisabledItemsTests : IDisposable
         public override string ToString() => Name;
     }
 
-    private static List<Product> Products() =>
+    internal static List<Product> Products() =>
         [new("Apple", true), new("Banana", false), new("Cherry", true), new("Date", false), new("Elderberry", true)];
 
     private static SkUiPicker Picker(List<Product> products, SkUiSelectionMode mode = SkUiSelectionMode.Single) =>

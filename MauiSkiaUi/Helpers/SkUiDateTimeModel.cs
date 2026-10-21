@@ -130,7 +130,7 @@ internal sealed class SkUiDateTimeModel
         var columns = wheels.Texts.Length;
         var widths = new double[columns];
         Array.Fill(widths, -1d);
-        var parts = wheels.Headers.Select(header => new SkUiColumnsPopup.ColumnParts(header, null, null)).ToArray();
+        var parts = wheels.Headers.Select((header, column) => new SkUiColumnsPopup.ColumnParts(header, null, null, wheels.Names[column])).ToArray();
         // Weak: a request kept by a presenter (a popup still shown after its page went) keeps no picker alive.
         var weak = new WeakReference<SkUiDateTimeModel>(this);
         return new SkUiColumnsPopup(wheels.Texts, wheels.Loops, widths, wheels.IndicesOf(Value), Math.Max(1, VisibleRows), context.RowStyle, context.Title,

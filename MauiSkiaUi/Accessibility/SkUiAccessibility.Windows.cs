@@ -251,7 +251,7 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
         if (expandCollapse != _expandCollapse)
             RaisePropertyChangedEvent(ExpandCollapsePatternIdentifiers.ExpandCollapseStateProperty, _expandCollapse, expandCollapse);
         _expandCollapse = expandCollapse;
-        var text = node.Role == SkUiSemanticsRole.ComboBox ? node.Value ?? string.Empty : string.Empty;
+        var text = HasValueText(node) ? node.Value ?? string.Empty : string.Empty;
         if (text != _text)
             RaisePropertyChangedEvent(ValuePatternIdentifiers.ValueProperty, _text, text);
         _text = text;
@@ -373,7 +373,7 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
             PatternInterface.RangeValue when node.Range is not null => this,
             // A combo box opens through ExpandCollapse (as WinUI's), not Invoke.
             PatternInterface.ExpandCollapse when node.IsExpanded is not null => this,
-            PatternInterface.Value when node.Role is SkUiSemanticsRole.ComboBox or SkUiSemanticsRole.TextField => this,
+            PatternInterface.Value when node.Role == SkUiSemanticsRole.TextField || HasValueText(node) => this,
             PatternInterface.Invoke when node.CheckState is null && node.IsExpanded is null && node.TextField is null
                                          && (actions & SkUiSemanticsActions.Activate) != 0 => this,
             _ => null
@@ -434,8 +434,17 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
             Perform(SkUiSemanticsActions.Activate);
     }
 
-    // Value: a combo box's selected text (read-only, as WinUI's non-editable ComboBox); a text field's text (Narrator edits it, as a TextBox's).
-    string IValueProvider.Value => _text = Node is { Role: SkUiSemanticsRole.ComboBox or SkUiSemanticsRole.TextField } node ? node.Value ?? string.Empty : string.Empty;
+    /// <summary>
+    /// Whether the element reads a value text through the (read-only) Value pattern: a combo box's selection, and a slider's own
+    /// text for its value (a stepper's number, a picker wheel's item), which Narrator reads instead of the range's number.
+    /// </summary>
+    private static bool HasValueText(SkUiSemanticsNode node) =>
+        node.Role == SkUiSemanticsRole.ComboBox || node is { Role: SkUiSemanticsRole.Slider, Value: not null };
+
+    // Value: a combo box's selected text (read-only, as WinUI's non-editable ComboBox), a slider's value text; a text field's text
+    // (Narrator edits it, as a TextBox's).
+    string IValueProvider.Value =>
+        _text = Node is { } node && (node.Role == SkUiSemanticsRole.TextField || HasValueText(node)) ? node.Value ?? string.Empty : string.Empty;
 
     bool IValueProvider.IsReadOnly => Node is not { TextField.IsReadOnly: false, IsEnabled: true };
 

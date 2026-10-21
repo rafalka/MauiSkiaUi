@@ -164,7 +164,10 @@ internal sealed class SkUiColumnsModel
         {
             texts[column] = Columns[column].Texts;
             states[column] = Columns[column].ItemStates;
-            columns[column] = new SkUiColumnsPopup.ColumnParts(Columns[column].Header, Columns[column].ItemTemplate, Columns[column].ItemsSource);
+            var source = Columns[column];
+            // A column is a bindable object: MAUI's semantic properties set on it name and describe its wheel.
+            columns[column] = new SkUiColumnsPopup.ColumnParts(source.Header, source.ItemTemplate, source.ItemsSource,
+                SemanticProperties.GetDescription(source), SemanticProperties.GetHint(source));
             loops[column] = Columns[column].Loop;
             widths[column] = Columns[column].Width;
         }
