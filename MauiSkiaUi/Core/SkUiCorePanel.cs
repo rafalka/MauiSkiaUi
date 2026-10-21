@@ -42,6 +42,13 @@ public abstract class SkUiCorePanel : SkUiCoreNode
         return this;
     }
 
+    /// <summary>Inserts a child at <paramref name="index"/>; the child must be an unparented <see cref="SkUiCoreNode"/>.</summary>
+    public SkUiCorePanel Insert(int index, ISkUiCoreNode child)
+    {
+        InsertChild(index, child);
+        return this;
+    }
+
     /// <summary>Removes a child if present.</summary>
     public bool Remove(ISkUiCoreNode child)
     {
@@ -51,6 +58,18 @@ public abstract class SkUiCorePanel : SkUiCoreNode
         RemoveChildAt(index);
         return true;
     }
+
+    /// <summary>Removes the child at <paramref name="index"/>.</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is not a child's index.</exception>
+    public void RemoveAt(int index)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, _children.Count);
+        RemoveChildAt(index);
+    }
+
+    /// <summary>Index of a child, <c>-1</c> when it is not one.</summary>
+    public int IndexOf(ISkUiCoreNode child) => _children.IndexOf(child);
 
     /// <summary>Removes all children.</summary>
     public void Clear()

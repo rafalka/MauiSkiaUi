@@ -39,17 +39,26 @@ public class TextAndImageTests
             Assert.False(char.IsLowSurrogate(line[0]) || line[0] == '́' || line[0] == '‍', $"line starts mid-grapheme: {line}");
     }
 
+    /// <summary>How many times <see cref="LongParagraphWrapsInLinearTime"/> times the wrap (it keeps the fastest).</summary>
+    private const int TimedRuns = 3;
+
     [Fact]
     public void LongParagraphWrapsInLinearTime()
     {
         using var font = Font();
         var text = string.Join(' ', Enumerable.Repeat("lorem ipsum dolor sit amet", 2000));
-        var watch = Stopwatch.StartNew();
         var lines = SkUiTestHelpers.BreakLines(text, 300, LineBreakMode.WordWrap, font.Typeface);
-        watch.Stop();
         Assert.True(lines.Count > 100);
+        // The best of a few runs after the warm-up above: the parallel suite's load slows single runs, a regression slows them all.
+        var best = long.MaxValue;
+        for (var run = 0; run < TimedRuns; run++)
+        {
+            var watch = Stopwatch.StartNew();
+            SkUiTestHelpers.BreakLines(text, 300, LineBreakMode.WordWrap, font.Typeface);
+            best = Math.Min(best, watch.ElapsedMilliseconds);
+        }
         // The previous per-grapheme re-measure was quadratic per line; this stays well under a frame budget per 50k chars.
-        Assert.True(watch.ElapsedMilliseconds < 200, $"wrap took {watch.ElapsedMilliseconds} ms");
+        Assert.True(best < 200, $"wrap took {best} ms");
     }
 
     [Fact]

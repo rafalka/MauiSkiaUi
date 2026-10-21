@@ -36,15 +36,15 @@ public class StagedLoadingSampleTests
             return request.Task;
         });
         var page = new StagedLoadingSample(model);
-        var grid = (Grid)page.SampleContent!;
+        var grid = (SkUiGrid)page.SampleContent!;
         var shimmer = grid.Children.OfType<SkUiShimmer>().Single();
-        grid.Remove(shimmer);
+        grid.Children.Remove(shimmer);
         shimmer.BindingContext = model; // out of the page: no context inherited
         using var surface = new SkUiTestSurface(new SkUiContentView { Content = shimmer }, 380, 700);
         surface.Frame();
 
         // Before Load: nothing requested, the page hidden behind one label.
-        var idle = grid.Children.OfType<Label>().Single(label => label.IsVisible);
+        var idle = grid.Children.OfType<SkUiLabel>().Single(label => label.IsVisible);
         Assert.True(model.IsIdle);
         Assert.False(shimmer.IsVisible);
         Assert.Empty(requests);

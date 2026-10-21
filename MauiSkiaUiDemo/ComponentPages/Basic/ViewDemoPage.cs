@@ -5,6 +5,8 @@ namespace MauiSkiaUiDemo;
 /// <summary>Side-by-side property playground for <see cref="SkUiView"/>.</summary>
 public sealed class ViewDemoPage : ComponentDemoPage
 {
+    private const string ToolTipEditor = "ToolTip";
+
     public ViewDemoPage() : base(nameof(SkUiView), new SkUiView())
     {
         // The color is the solid fill; the brush editor swaps it for a gradient.
@@ -22,6 +24,9 @@ public sealed class ViewDemoPage : ComponentDemoPage
         Toggle(nameof(InputTransparent), false, value => SkiaControl.InputTransparent = value, () => SkiaControl.InputTransparent);
         // Press feedback from the look (Dim / Ripple and speed: Look & colors page).
         Toggle(nameof(SkUiView.ShowsPressEffect), true, value => SkiaControl.ShowsPressEffect = value, () => SkiaControl.ShowsPressEffect);
+        // Shown while a mouse or trackpad pointer rests on the view (Mac Catalyst, iPad with a pointer, Windows).
+        Text(ToolTipEditor, "A drawn view", value => ToolTipProperties.SetText(SkiaControl, value),
+            () => ToolTipProperties.GetText(SkiaControl)?.ToString() ?? string.Empty);
         OnReset(() => taps = 0);
     }
 }

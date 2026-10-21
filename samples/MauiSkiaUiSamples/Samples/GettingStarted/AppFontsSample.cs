@@ -43,7 +43,7 @@ public sealed class AppFontsSample : SamplePage, ISample
 
     private static View Build()
     {
-        var rows = new VerticalStackLayout { Spacing = 18 };
+        var rows = new SkUiVerticalStackLayout { Spacing = 18 };
         List<(string Family, string Text)> fonts =
         [
             ("Lobster", "Lobster — a display font"),
@@ -55,27 +55,28 @@ public sealed class AppFontsSample : SamplePage, ISample
             fonts.Add((LobsterPostScriptName, "Lobster by its PostScript name"));
         foreach (var (alias, text) in fonts)
         {
-            rows.Add(new VerticalStackLayout
+            rows.Children.Add(new SkUiVerticalStackLayout
             {
                 Spacing = 4,
                 Children =
                 {
-                    new Label { Text = $"Native · {alias}", FontSize = 12, TextColor = SampleColors.Caption },
-                    new Label { Text = text, FontFamily = alias, FontSize = 22, TextColor = SampleColors.Ink },
-                    new Label { Text = $"Drawn · {alias}", FontSize = 12, TextColor = SampleColors.Caption, Margin = new Thickness(0, 6, 0, 0) },
-                    // A drawn label: SkiaUi resolves the ConfigureFonts alias itself.
-                    new SkUiContentView
+                    new SkUiLabel { Text = $"Native · {alias}", FontSize = 12, TextColor = SampleColors.Caption },
+                    // The native label, hosted in the drawn page for the comparison.
+                    new SkUiMauiContentView
                     {
-                        Content = new SkUiLabel { Text = text, FontFamily = alias, FontSize = 22, TextColor = SampleColors.Ink }
-                    }
+                        Content = new Label { Text = text, FontFamily = alias, FontSize = 22, TextColor = SampleColors.Ink }
+                    },
+                    new SkUiLabel { Text = $"Drawn · {alias}", FontSize = 12, TextColor = SampleColors.Caption, Margin = new Thickness(0, 6, 0, 0) },
+                    // A drawn label: SkiaUi resolves the ConfigureFonts alias itself.
+                    new SkUiLabel { Text = text, FontFamily = alias, FontSize = 22, TextColor = SampleColors.Ink }
                 }
             });
         }
-        return new Border
+        return new SkUiBorder
         {
             BackgroundColor = SampleColors.Surface,
             Stroke = SampleColors.Border,
-            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
+            CornerRadius = 8,
             Padding = new Thickness(16),
             Content = rows
         };

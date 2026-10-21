@@ -12,6 +12,7 @@ public sealed class CoreShimmerBonesDemoPage : ComponentDemoPage
     public CoreShimmerBonesDemoPage()
         : base(nameof(SkUiCoreShimmerBone), CreateHost(out var shimmer), native: null, widthRange: (200, 400, 320), heightRange: (160, 700, 460))
     {
+        DocumentTypes(typeof(SkUiCoreShimmer));
         Toggle(nameof(SkUiCoreShimmer.IsLoading), true, value => shimmer.IsLoading = value, () => shimmer.IsLoading);
         Choice(nameof(SkUiCoreShimmer.Mode), [SkUiShimmerMode.Bones, SkUiShimmerMode.Silhouette], SkUiShimmerMode.Bones,
             value => shimmer.Mode = value, () => shimmer.Mode);

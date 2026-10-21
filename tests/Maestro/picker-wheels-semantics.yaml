@@ -1,0 +1,54 @@
+# Picker wheels as screen readers see them (docs/design/Accessibility.md#picker-wheels): the demo's MultiColumnPicker page opens
+# its time wheels (headers off), each wheel one element named by its column with its item and place as the value; the rows are
+# not elements. Maestro reads UiAutomator's tree on Android and XCTest's on iOS.
+#   maestro --device <emulator serial or simulator UDID> test tests/Maestro/picker-wheels-semantics.yaml
+# The app must be installed (scripts/device_verify.sh).
+appId: com.rkdevel.mauiskiauidemo
+name: Picker wheels semantics
+---
+- launchApp:
+    stopApp: true
+
+# The flyout's button: "Open navigation drawer" on Android, "Menu" on iOS.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn: Open navigation drawer
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: Menu
+- tapOn: Basic controls
+- scrollUntilVisible:
+    element:
+      text: SkUiMultiColumnPicker
+    centerElement: true
+- tapOn: SkUiMultiColumnPicker
+- extendedWaitUntil:
+    visible: Pick a time
+    timeout: 10000
+
+# The field opens the wheels.
+- tapOn: Pick a time
+- extendedWaitUntil:
+    visible: "Hour.*"
+    timeout: 10000
+
+# One element per wheel, named by its column (its accessibility label).
+- assertVisible: Hour
+- assertVisible: Minute
+# The middle row's item and its place as the value (XCTest's value; on Android TalkBack's state description, which UiAutomator does
+# not report).
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - assertVisible: "01, 1 of 12"
+      - assertVisible: "00, 1 of 60"
+      # The part of the day has no name in the demo: it is read by its value only.
+      - assertVisible: "AM, 1 of 2"
+# The rows are not elements of their own.
+- assertNotVisible: "02"
+- assertNotVisible: "PM"

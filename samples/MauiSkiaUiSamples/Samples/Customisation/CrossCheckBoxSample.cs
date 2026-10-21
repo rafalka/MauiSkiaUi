@@ -93,14 +93,14 @@ public sealed class CrossCheckBoxSample : SamplePage, ISample
             SkUiCheckState.Checked => threeState ? SkUiCheckState.Indeterminate : SkUiCheckState.Unchecked,
             _ => SkUiCheckState.Unchecked
         };
-        var toggleAll = new Button { Text = "Toggle all", HorizontalOptions = LayoutOptions.Start, BackgroundColor = SampleColors.Accent, TextColor = Colors.White };
+        var toggleAll = new SkUiButton { Text = "Toggle all", HorizontalOptions = LayoutOptions.Start, BackgroundColor = SampleColors.Accent, TextColor = Colors.White };
         toggleAll.Clicked += (_, _) =>
         {
             foreach (var box in boxes)
                 box.CheckState = Next(box.CheckState, box.IsThreeState);
             core.SetCheckState(Next(core.CheckState, core.IsThreeState));
         };
-        return new VerticalStackLayout { Spacing = 12, Children = { surface, toggleAll } };
+        return new SkUiVerticalStackLayout { Spacing = 12, Children = { surface, toggleAll } };
     }
 }
 

@@ -27,12 +27,12 @@ public sealed class StressPage : ContentPage
     private const int RunDelayMilliseconds = 200;
     private static readonly TimeSpan ScrollProbeDuration = TimeSpan.FromSeconds(12);
 
-    private readonly Entry _countEntry;
-    private readonly CheckBox _hwAcceleration;
-    private readonly CheckBox _animate;
-    private readonly Picker _layerPicker;
+    private readonly SkUiEntry _countEntry;
+    private readonly SkUiCheckBox _hwAcceleration;
+    private readonly SkUiCheckBox _animate;
+    private readonly SkUiPicker _layerPicker;
     private readonly StressPageChrome _chrome;
-    private readonly Label _selected;
+    private readonly SkUiLabel _selected;
     private readonly ContentView _stressHost;
     private SkUiScrollView? _skUiScroller;
     private ScrollView? _nativeScroller;
@@ -45,7 +45,7 @@ public sealed class StressPage : ContentPage
         Title = "Stress test";
         Background = DemoColors.PageBackground;
 
-        var description = new Label
+        var description = new SkUiLabel
         {
             Text =
                 "Builds a two-column grid of buttons under one scroll view, then measures generate, attach, " +
@@ -60,7 +60,7 @@ public sealed class StressPage : ContentPage
             LineBreakMode = LineBreakMode.WordWrap
         };
 
-        _countEntry = new Entry
+        _countEntry = new SkUiEntry
         {
             Text = DefaultChildCount.ToString(),
             Keyboard = Keyboard.Numeric,
@@ -73,7 +73,7 @@ public sealed class StressPage : ContentPage
             VerticalOptions = LayoutOptions.Center
         };
 
-        _hwAcceleration = new CheckBox
+        _hwAcceleration = new SkUiCheckBox
         {
             IsChecked = true,
             Color = DemoColors.Accent,
@@ -81,7 +81,7 @@ public sealed class StressPage : ContentPage
             VerticalOptions = LayoutOptions.Center
         };
 
-        _animate = new CheckBox
+        _animate = new SkUiCheckBox
         {
             IsChecked = false,
             Color = DemoColors.Accent,
@@ -89,7 +89,7 @@ public sealed class StressPage : ContentPage
             VerticalOptions = LayoutOptions.Center
         };
 
-        _layerPicker = new Picker
+        _layerPicker = new SkUiPicker
         {
             Title = "Layer",
             ItemsSource = new[]
@@ -110,18 +110,18 @@ public sealed class StressPage : ContentPage
             _hwAcceleration.IsEnabled = !native;
         };
 
-        var configurationContent = new VerticalStackLayout
+        var configurationContent = new SkUiVerticalStackLayout
         {
             Spacing = 8,
             Children =
             {
-                new HorizontalStackLayout
+                new SkUiHorizontalStackLayout
                 {
                     Spacing = 12,
                     VerticalOptions = LayoutOptions.Center,
                     Children =
                     {
-                        new Label
+                        new SkUiLabel
                         {
                             Text = "Children",
                             TextColor = DemoColors.Ink,
@@ -131,7 +131,7 @@ public sealed class StressPage : ContentPage
                         },
                         _countEntry,
                         _hwAcceleration,
-                        new Label
+                        new SkUiLabel
                         {
                             Text = "HW accel",
                             TextColor = DemoColors.Ink,
@@ -141,14 +141,14 @@ public sealed class StressPage : ContentPage
                         }
                     }
                 },
-                new HorizontalStackLayout
+                new SkUiHorizontalStackLayout
                 {
                     Spacing = 12,
                     VerticalOptions = LayoutOptions.Center,
                     Children =
                     {
                         _animate,
-                        new Label
+                        new SkUiLabel
                         {
                             Text = "Animate (2nd column = spinners)",
                             TextColor = DemoColors.Ink,
@@ -158,7 +158,7 @@ public sealed class StressPage : ContentPage
                         }
                     }
                 },
-                new Label
+                new SkUiLabel
                 {
                     Text = "Layer",
                     TextColor = DemoColors.Ink,
@@ -169,7 +169,7 @@ public sealed class StressPage : ContentPage
             }
         };
 
-        _selected = new Label
+        _selected = new SkUiLabel
         {
             Text = "No selection",
             TextColor = DemoColors.Ink,

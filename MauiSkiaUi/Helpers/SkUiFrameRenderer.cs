@@ -199,6 +199,26 @@ internal sealed class SkUiFrameRenderer : IDisposable
             && _root.Touch(touch with { Position = local });
     }
 
+    /// <summary>The tooltip at a surface point in DIPs (<see cref="SkUiPointerRouter.ToolTipAt"/>), its bounds in surface DIPs.</summary>
+    internal SkUiToolTipTarget? ToolTipAtDips(Point point)
+    {
+        if (_disposed)
+            return null;
+        var position = new Point(point.X + _root.Frame.X, point.Y + _root.Frame.Y);
+        return SkUiView.MapPoint(_root, position, out var local) ? ToSurface(_root.Router.ToolTipAt(local)) : null;
+    }
+
+    /// <summary>The hovered tooltip (<see cref="SkUiPointerRouter.HoveredToolTip"/>), its bounds in surface DIPs.</summary>
+    internal SkUiToolTipTarget? HoveredToolTip => _disposed ? null : ToSurface(_root.Router.HoveredToolTip);
+
+    private SkUiToolTipTarget? ToSurface(SkUiToolTipTarget? target)
+    {
+        if (target is not { } value)
+            return null;
+        var bounds = SkUiView.MapRectToParent(_root, value.Bounds);
+        return value with { Bounds = new Rect(bounds.X - _root.Frame.X, bounds.Y - _root.Frame.Y, bounds.Width, bounds.Height) };
+    }
+
     public void Dispose()
     {
         if (_disposed)

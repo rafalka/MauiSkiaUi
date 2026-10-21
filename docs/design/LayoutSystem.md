@@ -152,7 +152,7 @@ SkUiGrid : SkUiLayout, IGridLayout
 
 **Flex:** `SkUiFlexLayout` calls MAUI's shipped `FlexLayoutManager`, but the flex engine it drives through `IFlexLayout.Layout` (`Microsoft.Maui.Layouts.Flex.Item`) is internal to MAUI. SkiaUi carries a port of that engine (`SkUiFlexItem`, from dotnet/maui 10.0.101) with the algorithm unchanged; a headless test checks its frames against MAUI's own `FlexLayout` over every container combination.
 
-**Layouts without a MAUI manager** (wrap, shrink) use one engine per algorithm for both layers (`SkUiWrapEngine`, `SkUiShrinkEngine`). Engines reach children through struct adapters (`ISkUiLayoutChildren`: `SkUiViewChildren` for SkUi*, `SkUiCoreNodeChildren` for Core), so they take no allocation per pass. The SkUi* adapter lets the child align itself (`ComputeFrame`); the Core adapter aligns it in its slot (`AlignInSlot`), since Core nodes do not align themselves.
+**Layouts without a MAUI manager** (wrap, shrink, align stack) use one engine per algorithm for both layers (`SkUiWrapEngine`, `SkUiShrinkEngine`, `SkUiAlignStackEngine`). Engines reach children through struct adapters (`ISkUiLayoutChildren`: `SkUiViewChildren` for SkUi*, `SkUiCoreNodeChildren` for Core), so they take no allocation per pass. The SkUi* adapter lets the child align itself (`ComputeFrame`); the Core adapter aligns it in its slot (`AlignInSlot`), since Core nodes do not align themselves.
 
 **Attached properties:** MAUI's attached-property callbacks only invalidate MAUI's own layout types, so each `SkUiLayout` lists the child properties it reads (`AffectsChildLayout`: `Grid.Row`…, `AbsoluteLayout.LayoutBounds`…, `FlexLayout.Grow`…, `SkUiShrinkLayout.Shrink`) and re-measures when one changes.
 

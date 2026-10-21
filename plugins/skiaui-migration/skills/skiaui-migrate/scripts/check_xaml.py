@@ -132,7 +132,7 @@ DRAWN_VALUE_PROPERTIES = {"ControlTemplate", "ItemTemplate", "EmptyView", "Empty
 # surface of its own.
 REGION_ROOTS = {"SkUiContentView", "SkUiLayout", "SkUiGrid", "SkUiVerticalStackLayout", "SkUiHorizontalStackLayout",
                 "SkUiAbsoluteLayout", "SkUiFlexLayout", "SkUiWrapLayout", "SkUiHorizontalShrinkLayout",
-                "SkUiVerticalShrinkLayout", "SkUiScrollView", "SkUiBorder", "SkUiCoreHost"}
+                "SkUiVerticalShrinkLayout", "SkUiHorizontalAlignStackLayout", "SkUiScrollView", "SkUiBorder", "SkUiCoreHost"}
 
 
 class Node:

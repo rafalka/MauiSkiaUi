@@ -54,18 +54,83 @@ public class SkUiLayout : SkUiView, ILayout, IBindableLayout
     bool ISafeAreaView.IgnoreSafeArea => true;
     Size ILayout.CrossPlatformMeasure(double widthConstraint, double heightConstraint) => MeasureContent(widthConstraint, heightConstraint);
     Size ILayout.CrossPlatformArrange(Rect bounds) { ArrangeContent(bounds.Size); return bounds.Size; }
-    int ICollection<IView>.Count => Children.Count;
-    bool ICollection<IView>.IsReadOnly => false;
-    IView IList<IView>.this[int index] { get => Children[index]; set => Children[index] = RequireSkia(value); }
-    void ICollection<IView>.Add(IView item) => Children.Add(RequireSkia(item));
-    void ICollection<IView>.Clear() => Children.Clear();
-    bool ICollection<IView>.Contains(IView item) => item is ISkUiView child && Children.Contains(child);
-    void ICollection<IView>.CopyTo(IView[] array, int index) { foreach (var child in Children) array[index++] = child; }
-    bool ICollection<IView>.Remove(IView item) => item is ISkUiView child && Children.Remove(child);
-    int IList<IView>.IndexOf(IView item) => item is ISkUiView child ? Children.IndexOf(child) : -1;
-    void IList<IView>.Insert(int index, IView item) => Children.Insert(index, RequireSkia(item));
-    void IList<IView>.RemoveAt(int index) => Children.RemoveAt(index);
-    IEnumerator<IView> IEnumerable<IView>.GetEnumerator() => Children.GetEnumerator();
+    // MAUI's Layout members, public as there, so code-behind (stack.Add(view), collection initializers) ports by renaming the
+    // type. They take IView, as MAUI's, and require drawn views; null is ignored by Add / Insert and an index past the end by
+    // RemoveAt, as MAUI does.
+
+    /// <summary>Number of children (<see cref="Children"/>).</summary>
+    public int Count => Children.Count;
+
+    /// <summary>Always <c>false</c>: children can be added and removed.</summary>
+    public bool IsReadOnly => false;
+
+    /// <summary>The child at <paramref name="index"/>; a replacement must be a drawn (SkUi*) view.</summary>
+    public IView this[int index] { get => Children[index]; set => Children[index] = RequireSkia(value); }
+
+    /// <summary>Appends a drawn child (MAUI's <c>Layout.Add</c>); <c>null</c> is ignored.</summary>
+    /// <exception cref="ArgumentException"><paramref name="child"/> is not a drawn (SkUi*) view.</exception>
+    public void Add(IView child)
+    {
+        if (child is not null)
+            Children.Add(RequireSkia(child));
+    }
+
+    /// <summary>
+    /// Appends many drawn children inside one <see cref="SkUiView.StartUpdating"/> / <see cref="SkUiView.EndUpdating"/> batch,
+    /// so measure, arrange and paint invalidate once after all of them. An outer batch stays open until its own end.
+    /// </summary>
+    public void AddRange(IEnumerable<IView> children)
+    {
+        ArgumentNullException.ThrowIfNull(children);
+        StartUpdating();
+        try
+        {
+            foreach (var child in children)
+                Add(child);
+        }
+        finally
+        {
+            EndUpdating();
+        }
+    }
+
+    /// <summary>Inserts a drawn child at <paramref name="index"/> (MAUI's <c>Layout.Insert</c>); <c>null</c> is ignored.</summary>
+    /// <exception cref="ArgumentException"><paramref name="child"/> is not a drawn (SkUi*) view.</exception>
+    public void Insert(int index, IView child)
+    {
+        if (child is not null)
+            Children.Insert(index, RequireSkia(child));
+    }
+
+    /// <summary>Removes a child; <c>false</c> when it is not one.</summary>
+    public bool Remove(IView child) => child is ISkUiView view && Children.Remove(view);
+
+    /// <summary>Removes the child at <paramref name="index"/>; an index past the end is ignored, as by MAUI's layouts.</summary>
+    public void RemoveAt(int index)
+    {
+        if (index < Children.Count)
+            Children.RemoveAt(index);
+    }
+
+    /// <summary>Removes all children.</summary>
+    public void Clear() => Children.Clear();
+
+    /// <summary>Whether <paramref name="item"/> is a child.</summary>
+    public bool Contains(IView item) => item is ISkUiView child && Children.Contains(child);
+
+    /// <summary>Copies the children to <paramref name="array"/> from <paramref name="arrayIndex"/>.</summary>
+    public void CopyTo(IView[] array, int arrayIndex)
+    {
+        foreach (var child in Children)
+            array[arrayIndex++] = child;
+    }
+
+    /// <summary>Index of a child, <c>-1</c> when it is not one.</summary>
+    public int IndexOf(IView item) => item is ISkUiView child ? Children.IndexOf(child) : -1;
+
+    /// <summary>Enumerates the children in insertion order.</summary>
+    public IEnumerator<IView> GetEnumerator() => Children.GetEnumerator();
+
     IEnumerator IEnumerable.GetEnumerator() => Children.GetEnumerator();
     // MAUI's BindableLayout casts to IBindableLayout. It writes through ILayout above today; writes through this list take
     // the same path, so a MAUI change (or app code) using it gets the same conversion and errors.

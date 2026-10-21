@@ -21,6 +21,7 @@ public sealed class RadioButtonTemplateDemoPage : ComponentDemoPage
     public RadioButtonTemplateDemoPage() : base(nameof(SkUiContentPresenter), CreateSkiaGroup(out var skiaRadios), CreateNativeGroup(out var nativeRadios),
         widthRange: (200, 360, 320), heightRange: (100, 220, 120))
     {
+        DocumentTypes(typeof(SkUiRadioButton));
         var skia = (SkUiHorizontalStackLayout)SkiaControl;
         var native = (HorizontalStackLayout)NativeControl!;
         RadioButtonGroup.SetSelectedValue(skia, Initial);

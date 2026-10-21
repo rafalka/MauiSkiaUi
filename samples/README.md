@@ -18,6 +18,8 @@ Each example is **one source file** under `Samples/<Section>/` (a XAML example i
 
 The project embeds every file under `Samples/`, and each page's **Source** button shows its own file. What people read in the app is the code that runs.
 
+The app's own UI is drawn too: each list page and example page is one SkiaUi surface (pages, Shell and the toolbar stay MAUI). A drawn example joins the page's surface; an example whose root is a MAUI view (a page that stays native, a comparison with native controls) is hosted in it with `SkUiMauiContentView`. Build examples from drawn views, and host native ones only where the example is about them. The **Source** page shows the code in a web view on purpose: highlighted, scrolling both ways, selectable and copyable.
+
 ### XAML examples
 
 A XAML example is a XAML page and its code-behind (`<Name>Sample.xaml` + `<Name>Sample.xaml.cs`): the page's root is `samples:SamplePage`, its content is the live example (`SamplePage.SampleContent` is the content property), and `Info` with whatever the example needs lives in the code-behind. The Source page shows the XAML first, with a toolbar button to switch to the code-behind. XAML is compiled by the source generator (`MauiXamlInflator=SourceGen`), in the app and in the test project.
@@ -39,7 +41,7 @@ A XAML example is a XAML page and its code-behind (`<Name>Sample.xaml` + `<Name>
   - The Mac Catalyst app is **not sandboxed** for this. It is a development tool, not for the Mac App Store.
 
 Why plain strings instead of HTML:
-- they render with native labels on every platform, with no web view and no escaping;
+- they render with drawn labels (`SkUiLabel` spans) on every platform, with no web view and no escaping;
 - they stay readable in the source;
 - a test checks them: every example has all four parts, balanced backticks, and an embedded source.
 

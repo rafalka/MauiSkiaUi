@@ -42,7 +42,7 @@ internal sealed class DemoConfigurableLook : DefaultSkUiLook
     public double TransitionScale { get; set; } = 1;
 
     /// <summary>
-    /// A platform look whose picker defaults (field style, popup alignment) this look takes; <c>null</c>: the default look's,
+    /// A platform look whose picker defaults (field style, popup alignment, a bottom pane's wheel) this look takes; <c>null</c>: the default look's,
     /// the same on every platform.
     /// </summary>
     public DefaultSkUiLook? PlatformLook { get; set; }
@@ -55,6 +55,9 @@ internal sealed class DemoConfigurableLook : DefaultSkUiLook
 
     /// <inheritdoc />
     public override LayoutOptions PopupVerticalOptions => PlatformLook?.PopupVerticalOptions ?? base.PopupVerticalOptions;
+
+    /// <inheritdoc />
+    public override bool PickerPaneShowsWheel => PlatformLook?.PickerPaneShowsWheel ?? base.PickerPaneShowsWheel;
 
     /// <inheritdoc />
     protected override SkUiTransition GetTransitionCore(SkUiTransitionKind kind)

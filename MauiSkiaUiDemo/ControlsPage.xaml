@@ -17,8 +17,9 @@
             <Setter Property="CornerRadius" Value="6" />
         </Style>
     </ContentPage.Resources>
-    <Grid RowDefinitions="Auto,*,Auto" Padding="20" RowSpacing="12">
-        <Label Text="Core controls" FontFamily="OpenSansSemibold" FontSize="26" TextColor="#202A2C" />
+    <!-- One drawn surface: the title, the scrolling content and the status. -->
+    <sk:SkUiGrid RowDefinitions="Auto,*,Auto" Padding="20" RowSpacing="12" Background="#F4F6F6">
+        <sk:SkUiLabel Text="Core controls" FontFamily="OpenSansSemibold" FontSize="26" TextColor="#202A2C" />
         <sk:SkUiContentView Grid.Row="1" AutomationId="ControlsHost" Background="White">
             <sk:SkUiScrollView x:Name="Scroller" AutomationId="ControlsScroller" Padding="20">
                 <sk:SkUiGrid RowDefinitions="Auto,240,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="16">
@@ -58,6 +59,6 @@
                 </sk:SkUiGrid>
             </sk:SkUiScrollView>
         </sk:SkUiContentView>
-        <Label x:Name="ScrollStatus" Grid.Row="2" Text="Offset 0" FontSize="13" TextColor="#526164" />
-    </Grid>
+        <sk:SkUiLabel x:Name="ScrollStatus" Grid.Row="2" Text="Offset 0" FontSize="13" TextColor="#526164" />
+    </sk:SkUiGrid>
 </ContentPage>

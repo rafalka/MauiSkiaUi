@@ -103,6 +103,15 @@ A pointer moving over the surface without contact (mouse, trackpad, pen hover, i
 - **Effect:** `SkUiView.IsPointerOver` (with a property change) and `ChangeVisualState`, so `PointerOver` visual states apply. Core nodes ignore hover. Hover does not touch gesture arenas: a press while hovered runs as usual, and on release the view is still pointer-over.
 - **Limits:** content that scrolls under a still pointer updates on the next pointer move; a hovered view removed from the tree is cleared on the next move; the surface disconnecting clears all.
 
+### Tooltips
+
+MAUI's `ToolTipProperties.Text` needs a native view; drawn views have none, so the surface shows the tooltip of the drawn view under the pointer (U2). The text comes from `ToolTipProperties.Text` on SkUi\* views and `ToolTip` / `SetToolTip` on Core nodes (`ISkUiInputNode.ToolTipText`); a node without one shows its nearest ancestor's, so the surface root's covers what no drawn view claims. The region it stays up over is the node's bounds, mapped to the surface through transforms and scroll offsets like the semantics tree's.
+
+- **Apple (Mac Catalyst, iPad with a pointer):** a `UIToolTipInteraction` on the surface, whose delegate asks `SkUiPointerRouter.ToolTipAt` for the point UIKit gives: the topmost hit-test-visible node there, found as hover finds it (a disabled node is hit, an input-transparent one is not). UIKit times it and asks again once the pointer leaves the region. Not added on phones.
+- **Windows:** WinUI times a tooltip from the pointer entering its owner, and the surface owns every drawn view's, so the handler times them: the router follows the hover chain (`HoveredToolTip`, `HoveredToolTipChanged`, only while a handler listens), each change restarts a timer of the system's hover time (`UISettings.MouseHoverTime`), and the timer opens a WinUI `ToolTip` on the surface with `PlacementRect` at the view. A press or the pointer leaving closes it; it opens again for the next view hovered.
+- **Android:** none (as phones have none with MAUI); a surface root's tooltip keeps MAUI's native mapping. On Apple and Windows the handler maps the root's `ToolTip` to nothing, since a native tooltip on the container would cover the drawn views'.
+- **Limits:** a text changed while its tooltip is up shows the next time it opens.
+
 ## Native coordination
 
 The drawn arena runs inside one platform view. Native ancestors (a MAUI `ScrollView`, Shell swipe-back, …) are coordinated at the surface boundary through `SkUiPointerRouter.NativeState`:

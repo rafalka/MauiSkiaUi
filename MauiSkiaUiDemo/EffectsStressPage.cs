@@ -20,11 +20,11 @@ public sealed class EffectsStressPage : ContentPage
          StressEffects.TextShadow, StressEffects.Clip, StressEffects.Translucent, StressEffects.Spinner];
     private static readonly TimeSpan IdleDuration = TimeSpan.FromSeconds(1);
 
-    private readonly Entry _countEntry;
-    private readonly CheckBox _hwAcceleration;
-    private readonly Picker _layerPicker;
-    private readonly Picker _scrollPicker;
-    private readonly Dictionary<StressEffects, CheckBox> _featureBoxes = [];
+    private readonly SkUiEntry _countEntry;
+    private readonly SkUiCheckBox _hwAcceleration;
+    private readonly SkUiPicker _layerPicker;
+    private readonly SkUiPicker _scrollPicker;
+    private readonly Dictionary<StressEffects, SkUiCheckBox> _featureBoxes = [];
     private readonly ToolbarItem[] _actions;
     private readonly StressPageChrome _chrome;
     private readonly ContentView _host;
@@ -69,31 +69,34 @@ public sealed class EffectsStressPage : ContentPage
         Title = "Effects stress";
         Background = DemoColors.PageBackground;
 
-        _countEntry = new Entry
+        _countEntry = new SkUiEntry
         {
             Text = DefaultCardCount.ToString(), Keyboard = Keyboard.Numeric, WidthRequest = 88, AutomationId = "EffectsStressCount",
             FontFamily = DemoFonts.OpenSansRegular, TextColor = DemoColors.Ink, VerticalOptions = LayoutOptions.Center
         };
-        _hwAcceleration = new CheckBox { IsChecked = true, Color = DemoColors.Accent, AutomationId = "EffectsStressHw", VerticalOptions = LayoutOptions.Center };
-        _layerPicker = new Picker
+        _hwAcceleration = new SkUiCheckBox { IsChecked = true, Color = DemoColors.Accent, AutomationId = "EffectsStressHw", VerticalOptions = LayoutOptions.Center };
+        _layerPicker = new SkUiPicker
         {
             Title = "Layer", ItemsSource = new[] { "SkUi* (MAUI-compatible)", "Core", "Native MAUI (reference)" }, SelectedIndex = 0,
             AutomationId = "EffectsStressLayer", FontFamily = DemoFonts.OpenSansRegular, TextColor = DemoColors.Ink
         };
-        _scrollPicker = new Picker
+        _scrollPicker = new SkUiPicker
         {
             Title = "Scroll", ItemsSource = new[] { "Render thread (animated scroll)", "UI thread (ScrollTo every frame)" }, SelectedIndex = 0,
             AutomationId = "EffectsStressScrollMode", FontFamily = DemoFonts.OpenSansRegular, TextColor = DemoColors.Ink
         };
 
-        var features = new Grid { ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star)], RowSpacing = 0, ColumnSpacing = 8 };
+        var features = new SkUiGrid { ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star)], RowSpacing = 0, ColumnSpacing = 8 };
         for (var index = 0; index < Features.Length; index++)
         {
             var feature = Features[index];
-            var box = new CheckBox { Color = DemoColors.Accent, AutomationId = "EffectsStress" + feature, VerticalOptions = LayoutOptions.Center };
+            var box = new SkUiCheckBox { Color = DemoColors.Accent, AutomationId = "EffectsStress" + feature, VerticalOptions = LayoutOptions.Center };
             _featureBoxes[feature] = box;
-            features.AddRowDefinition(new RowDefinition(GridLength.Auto));
-            features.Add(new HorizontalStackLayout { Spacing = 4, Children = { box, Caption(FeatureName(feature), 13, DemoColors.Ink) } }, index % 2, index / 2);
+            features.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            var cell = new SkUiHorizontalStackLayout { Spacing = 4, Children = { box, Caption(FeatureName(feature), 13, DemoColors.Ink) } };
+            Grid.SetColumn(cell, index % 2);
+            Grid.SetRow(cell, index / 2);
+            features.Children.Add(cell);
         }
 
         var about = Caption("A scrolling list of cards (avatar, title, subtitle). Tick effects in Config, Run (build and first " +
@@ -104,12 +107,12 @@ public sealed class EffectsStressPage : ContentPage
             "per second during one second with nothing scrolling, measured before each scroll; 0 unless something animates " +
             "(the spinner effect puts a running activity indicator on every card).",
             13, DemoColors.Ink);
-        var configuration = new VerticalStackLayout
+        var configuration = new SkUiVerticalStackLayout
         {
             Spacing = 6,
             Children =
             {
-                new HorizontalStackLayout
+                new SkUiHorizontalStackLayout
                 {
                     Spacing = 10,
                     Children = { Caption("Cards", 13, DemoColors.Ink), _countEntry, _hwAcceleration, Caption("HW accel", 13, DemoColors.Ink) }
@@ -546,7 +549,7 @@ public sealed class EffectsStressPage : ContentPage
 
     // ---- UI helpers -------------------------------------------------------------------------------------------
 
-    private static Label Caption(string text, double size, Color color) => new()
+    private static SkUiLabel Caption(string text, double size, Color color) => new()
     {
         Text = text, FontSize = size, TextColor = color, FontFamily = DemoFonts.OpenSansRegular,
         LineBreakMode = LineBreakMode.WordWrap, VerticalOptions = LayoutOptions.Center

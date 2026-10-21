@@ -127,4 +127,7 @@
 		<ProjectReference Include="..\MauiSkiaUi.CommunityToolkit\MauiSkiaUi.CommunityToolkit.csproj" />
 	</ItemGroup>
 
+	<!-- The component pages' (?) popups: EditorHelp.md and the XML documentation of SkiaUi and MAUI's controls. -->
+	<Import Project="EditorHelp.targets" />
+
 </Project>

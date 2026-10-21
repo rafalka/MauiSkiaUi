@@ -18,9 +18,9 @@ public sealed class AccessibilityPage : ContentPage
 
     private readonly SkUiVerticalStackLayout _surface;
     private readonly SkUiButton _continue;
-    private readonly Label _status;
-    private readonly Label _action;
-    private readonly Label _tree;
+    private readonly SkUiLabel _status;
+    private readonly SkUiLabel _action;
+    private readonly SkUiLabel _tree;
     private IDispatcherTimer? _timer;
 
     public AccessibilityPage()
@@ -34,7 +34,7 @@ public sealed class AccessibilityPage : ContentPage
             "and the arrow keys with a hardware keyboard. The tree on the right (below on phones) is what they get. Text scale " +
             "(SkUiLook.FontScale) prescales all drawn text in the app, on top of the system text size, until it is set back to 100 %.");
 
-        var scale = new Picker
+        var scale = new SkUiPicker
         {
             Title = "Text scale",
             ItemsSource = _scaleNames,
@@ -49,7 +49,7 @@ public sealed class AccessibilityPage : ContentPage
         _status.AutomationId = "AccessibilityStatus";
         _action = Caption("Last action: none");
         _action.AutomationId = "AccessibilityAction";
-        _tree = new Label
+        _tree = new SkUiLabel
         {
             FontFamily = DemoFonts.RobotoMono,
             FontSize = 11,
@@ -63,9 +63,11 @@ public sealed class AccessibilityPage : ContentPage
         _continue = Button("Continue", "continue");
         BuildForm();
 
-        var focusFirst = new Button { Text = "Focus Continue", AutomationId = "FocusContinue" };
+        // The page's own controls are drawn too, on surfaces apart from the form: the form's surface is the one the screen
+        // readers, its focus group and the semantics tree are about.
+        var focusFirst = new SkUiButton { Text = "Focus Continue", AutomationId = "FocusContinue" };
         focusFirst.Clicked += (_, _) => _action.Text = $"Last action: Focus() returned {_continue.Focus()}";
-        var unfocus = new Button { Text = "Unfocus", AutomationId = "UnfocusDrawn" };
+        var unfocus = new SkUiButton { Text = "Unfocus", AutomationId = "UnfocusDrawn" };
         unfocus.Clicked += (_, _) =>
         {
             if (_surface.FocusManagerIfCreated?.Focused is VisualElement element)
@@ -73,34 +75,35 @@ public sealed class AccessibilityPage : ContentPage
             else if (_surface.FocusManagerIfCreated?.Focused is SkUiCoreNode core)
                 core.Unfocus();
         };
-        var announce = new Button { Text = "Read Continue", AutomationId = "SemanticFocusContinue" };
+        var announce = new SkUiButton { Text = "Read Continue", AutomationId = "SemanticFocusContinue" };
         announce.Clicked += (_, _) => _continue.SetSemanticFocus();
 
         // App-wide switch (SkUiAccessibility.IsEnabled): off, the drawn form is one native view to screen readers and takes no
         // keyboard focus; text scaling stays.
-        var enabled = new Switch { IsToggled = SkUiAccessibility.IsEnabled, AutomationId = "DrawnAccessibilitySwitch" };
+        var enabled = new SkUiSwitch { IsToggled = SkUiAccessibility.IsEnabled, AutomationId = "DrawnAccessibilitySwitch" };
         enabled.Toggled += (_, args) => SkUiAccessibility.IsEnabled = args.Value;
-        var enabledRow = new HorizontalStackLayout
+        var enabledRow = new SkUiHorizontalStackLayout
         {
             Spacing = 8,
-            Children = { enabled, new Label { Text = "Drawn accessibility (app-wide)", TextColor = DemoColors.Ink, VerticalOptions = LayoutOptions.Center } }
+            Children = { enabled, new SkUiLabel { Text = "Drawn accessibility (app-wide)", TextColor = DemoColors.Ink, VerticalOptions = LayoutOptions.Center } }
         };
         // UI-test builds turn this on at startup (UseSkiaUi options): absorbed and decorative nodes keep their AutomationIds.
-        var exposeIds = new Switch { IsToggled = SkUiAccessibility.ExposeAutomationIds, AutomationId = "ExposeAutomationIdsSwitch" };
+        var exposeIds = new SkUiSwitch { IsToggled = SkUiAccessibility.ExposeAutomationIds, AutomationId = "ExposeAutomationIdsSwitch" };
         exposeIds.Toggled += (_, args) => SkUiAccessibility.ExposeAutomationIds = args.Value;
-        var exposeIdsRow = new HorizontalStackLayout
+        var exposeIdsRow = new SkUiHorizontalStackLayout
         {
             Spacing = 8,
-            Children = { exposeIds, new Label { Text = "Expose automation ids (UI tests)", TextColor = DemoColors.Ink, VerticalOptions = LayoutOptions.Center } }
+            Children = { exposeIds, new SkUiLabel { Text = "Expose automation ids (UI tests)", TextColor = DemoColors.Ink, VerticalOptions = LayoutOptions.Center } }
         };
-        var tools = new HorizontalStackLayout { Spacing = 8, Children = { focusFirst, unfocus, announce } };
+        var tools = new SkUiHorizontalStackLayout { Spacing = 8, Children = { focusFirst, unfocus, announce } };
+        var header = new SkUiVerticalStackLayout { Spacing = 12, Children = { description, enabledRow, exposeIdsRow, tools, _status, _action } };
         var form = new Border
         {
             StrokeThickness = 1,
             Stroke = DemoColors.Border,
             Content = _surface
         };
-        var tree = new ScrollView { Orientation = ScrollOrientation.Both, Content = _tree, HeightRequest = 520 };
+        var tree = new SkUiScrollView { Orientation = ScrollOrientation.Both, Content = _tree, HeightRequest = 520, Background = DemoColors.PageBackground };
         var columns = new Grid
         {
             ColumnSpacing = 16,
@@ -125,8 +128,8 @@ public sealed class AccessibilityPage : ContentPage
             {
                 Padding = new Thickness(16),
                 Spacing = 12,
-                // The picker last: on Mac Catalyst it opens its selection sheet when Tab reaches it, which keeps Tab inside.
-                Children = { description, enabledRow, exposeIdsRow, tools, _status, _action, columns, scale }
+                // Three drawn surfaces (the controls, the tree, the text scale picker) around the form, a surface of its own.
+                Children = { header, columns, scale }
             }
         };
     }
@@ -312,7 +315,7 @@ public sealed class AccessibilityPage : ContentPage
         return builder.ToString();
     }
 
-    private static Label Caption(string text) => new()
+    private static SkUiLabel Caption(string text) => new()
     {
         Text = text,
         TextColor = DemoColors.Caption,

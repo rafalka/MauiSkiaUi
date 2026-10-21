@@ -915,10 +915,9 @@ print_checklist() {
   Record what you observe. Do not mark items verified without checking them.
 ══════════════════════════════════════════════════════════════════════════════
 
-Navigation tips (gallery home):
-  • Components gallery lists every SkUi* demo (OpenSkUiMauiContentView, …)
-  • Toolbar: Composition | Stress | Primitives
-  • Shell routes: composition, stress, primitives, demo-SkUiMauiContentView, …
+Navigation tips (flyout):
+  • Flyout groups: Controls (Basic controls, Layouts, Graphics, Scrolling & collections, Core), Showcase, Look, Performance
+  • Shell routes: basic-controls, core, composition, stress, primitives, demo-SkUiMauiContentView, …
 
 EOF
 

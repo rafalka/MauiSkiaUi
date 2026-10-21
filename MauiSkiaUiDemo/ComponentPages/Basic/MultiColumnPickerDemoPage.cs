@@ -111,13 +111,17 @@ public sealed class MultiColumnPickerDemoPage : ComponentDemoPage
         Status();
     }
 
-    /// <summary>Every column loops (or none), and the first has the width set (a set of columns keeps the settings).</summary>
+    /// <summary>
+    /// Every column loops (or none), and the first has the width set (a set of columns keeps the settings). Screen readers name
+    /// each wheel by what its items are, also without headers.
+    /// </summary>
     private void ApplyColumnSettings()
     {
         foreach (var column in _picker.Columns)
         {
             column.Loop = _loop;
             column.Header = _headers ? HeaderOf(column) : null;
+            column.SetSemanticDescription(HeaderOf(column));
         }
         if (_picker.Columns.Count > 0)
             _picker.Columns[0].Width = _firstWidth;

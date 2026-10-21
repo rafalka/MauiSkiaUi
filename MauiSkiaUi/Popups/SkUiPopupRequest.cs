@@ -13,7 +13,13 @@ public enum SkUiPopupPlacement
     /// <summary>In the window, aligned by <see cref="SkUiPopupRequest.HorizontalOptions"/> / <see cref="SkUiPopupRequest.VerticalOptions"/>: a centered dialog, a bottom sheet.</summary>
     Window,
     /// <summary>At a rectangle of the window the app gives (a picker's <c>PopupBounds</c>).</summary>
-    Absolute
+    Absolute,
+    /// <summary>
+    /// Docked to the window's bottom edge, edge to edge, as iOS's picker: as wide as the window and down to its bottom (the content
+    /// pads itself by the safe area: the home indicator, a landscape notch), with the buttons in a toolbar on top (a close button ×, and Cancel
+    /// when the choice waits for it). Stays open while the page scrolls.
+    /// </summary>
+    BottomPane
 }
 
 /// <summary>
@@ -110,7 +116,10 @@ public class SkUiPopupRequest
     /// <summary>The space kept between popups and the safe area's edges (the look's <see cref="SkUiLook.PopupMargin"/>).</summary>
     public Thickness Margin { get; }
 
-    /// <summary>Where the popup goes: <see cref="SkUiPopupPlacement.Anchored"/>, <see cref="SkUiPopupPlacement.Window"/> or <see cref="SkUiPopupPlacement.Absolute"/>.</summary>
+    /// <summary>
+    /// Where the popup goes: <see cref="SkUiPopupPlacement.Anchored"/>, <see cref="SkUiPopupPlacement.Window"/>,
+    /// <see cref="SkUiPopupPlacement.Absolute"/> or <see cref="SkUiPopupPlacement.BottomPane"/>.
+    /// </summary>
     public SkUiPopupPlacement Placement { get; }
 
     /// <summary>How a <see cref="SkUiPopupPlacement.Window"/> popup is aligned horizontally in the window (<c>Fill</c>: as wide as it allows).</summary>
@@ -122,14 +131,18 @@ public class SkUiPopupRequest
     /// <summary>The content's own size (measured), before it is limited to <see cref="MaximumSize"/> and the room there is.</summary>
     public Size PreferredSize { get; }
 
-    /// <summary>The largest the popup may be: the window's safe area less <see cref="Margin"/>, and the control's maximum (<c>MaxPopupHeight</c>).</summary>
+    /// <summary>
+    /// The largest the popup may be: the window's safe area less <see cref="Margin"/>, and the control's maximum (<c>MaxPopupHeight</c>);
+    /// for a <see cref="SkUiPopupPlacement.BottomPane"/>, the window's width and its height below the safe area's top.
+    /// </summary>
     public Size MaximumSize { get; }
 
     /// <summary>
     /// Where SkiaUi puts the popup, in the window: for <see cref="SkUiPopupPlacement.Anchored"/> below the anchor (or above,
     /// <see cref="OpensAbove"/>), start-aligned and at least its width, kept inside the safe area; for
     /// <see cref="SkUiPopupPlacement.Window"/> aligned in the window; for <see cref="SkUiPopupPlacement.Absolute"/> the app's
-    /// rectangle. Presenters that position by coordinates or margins use it as it is.
+    /// rectangle; for <see cref="SkUiPopupPlacement.BottomPane"/> the window's width at its bottom edge, the safe area included
+    /// (the content pads itself). Presenters that position by coordinates or margins use it as it is.
     /// </summary>
     public Rect Bounds { get; }
 
@@ -216,9 +229,14 @@ public class SkUiPopupRequest
     /// <summary>The control closes the popup (or a result was chosen): the presenter's token is cancelled.</summary>
     internal void Close()
     {
-        if (!_close.IsCancellationRequested)
-            _close.Cancel();
+        if (_close.IsCancellationRequested)
+            return;
+        _close.Cancel();
+        OnClosing();
     }
+
+    /// <summary>The popup closes: what only a live popup uses can go (a presenter may keep the request after it closed).</summary>
+    private protected virtual void OnClosing() { }
 
     /// <summary>The presenter's task finished: nothing more happens, and the request lets go of the views it held.</summary>
     internal void MarkCompleted()
@@ -286,20 +304,38 @@ public class SkUiPopupRequest<TResult> : SkUiPopupRequest
 /// <summary>
 /// A request for a list to choose one item from (a picker's): the item texts, the selected one and a title, for presenters
 /// that show their own list instead of <see cref="SkUiPopupRequest.Content"/>; the result is the chosen index, or -1 to clear
-/// the choice (<see cref="SkUiPopupRequest.Clear"/>).
+/// the choice (<see cref="SkUiPopupRequest.Clear"/>). A popup that stays open while the user moves through the items (a wheel)
+/// chooses as it goes with <see cref="SetSelectedIndex"/>.
 /// </summary>
 public sealed class SkUiListPopupRequest : SkUiPopupRequest<int>
 {
     private IReadOnlyList<string> _items;
+    private Action<int>? _apply;
 
     internal SkUiListPopupRequest(View anchor, View? platformAnchor, View? content, in SkUiPopupLayout layout, IReadOnlyList<string> items, int selectedIndex,
-        IReadOnlyList<bool>? itemsEnabled = null)
+        IReadOnlyList<bool>? itemsEnabled = null, Action<int>? apply = null)
         : base(anchor, platformAnchor, content, layout)
     {
         _items = items;
+        _apply = apply;
         ItemsEnabled = itemsEnabled;
         SelectedIndex = selectedIndex;
         CurrentIndex = selectedIndex;
+    }
+
+    /// <summary>
+    /// Chooses the item at <paramref name="index"/> while the popup stays open (a wheel that turned to it): applied to the picker at
+    /// once, or, with <see cref="SkUiPopupRequest.RequiresAccept"/>, highlighted as the draft <see cref="SkUiPopupRequest.Accept"/>
+    /// chooses (as <see cref="SetCurrentIndex"/>). Returns <c>false</c> (and changes nothing) for an index that is not an item, a
+    /// disabled one, or when the popup is closing.
+    /// </summary>
+    public bool SetSelectedIndex(int index)
+    {
+        if (IsCompleted || CloseRequested.IsCancellationRequested || index < 0 || !SetCurrentIndex(index))
+            return false;
+        if (!RequiresAccept)
+            _apply?.Invoke(index);
+        return true;
     }
 
     /// <summary>
@@ -352,7 +388,14 @@ public sealed class SkUiListPopupRequest : SkUiPopupRequest<int>
     private protected override bool IsValidResult(int result) => result >= -1 && result < _items.Count && SkUiItemStates.IsEnabled(ItemsEnabled, result);
 
     /// <inheritdoc />
-    private protected override void OnCompleted() => _items = [];
+    private protected override void OnClosing() => _apply = null;
+
+    /// <inheritdoc />
+    private protected override void OnCompleted()
+    {
+        _items = [];
+        _apply = null;
+    }
 }
 
 /// <summary>

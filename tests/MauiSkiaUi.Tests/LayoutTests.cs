@@ -135,14 +135,14 @@ public class LayoutTests
             return (IView)box;
         }).ToArray();
 
-        layout.Add(children);
+        layout.AddRange(children);
         Assert.Equal(8, layout.Children.Count);
         Assert.Equal(1, invalidations);
 
         // Nested with an outer batch: Add's EndUpdating must not flush early.
         invalidations = 0;
         layout.StartUpdating();
-        layout.Add([(IView)new SkUiBox { WidthRequest = 4, HeightRequest = 4 }]);
+        layout.AddRange([new SkUiBox { WidthRequest = 4, HeightRequest = 4 }]);
         Assert.Equal(0, invalidations);
         layout.EndUpdating();
         Assert.Equal(1, invalidations);
@@ -184,5 +184,37 @@ public class LayoutTests
         canvas.Clear(SKColors.Transparent);
         view.Paint(canvas);
         Assert.Equal(SKColors.Blue, bitmap.GetPixel(10, 10));
+    }
+
+    [Fact]
+    public void ARootArrangedWithoutAMatchingMeasureIsMeasuredAtItsArrangedSize()
+    {
+        // Shell's flyout on iOS and Mac Catalyst arranges its content without measuring it: before, a drawn root kept no
+        // measure (or one at width 0) and its labels wrapped one character per line.
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        SkUiLabel Caption() => new() { Text = "Performance", FontSize = 12, FontFamily = SkUiTestHelpers.BundledFontFamily };
+        var expected = Caption();
+        var oneLine = ((IView)expected).Measure(320, double.PositiveInfinity).Height;
+
+        var caption = Caption();
+        IView root = new SkUiScrollView { Content = new SkUiVerticalStackLayout { Children = { caption } } };
+        root.Arrange(new Rect(0, 0, 320, 600));
+        Assert.Equal(oneLine, caption.Height, 3);
+
+        // Measured narrower than arranged (a first pass at width 0): measured again at the arranged width.
+        var narrow = Caption();
+        IView narrowRoot = new SkUiScrollView { Content = new SkUiVerticalStackLayout { Children = { narrow } } };
+        narrowRoot.Measure(0, double.PositiveInfinity);
+        narrowRoot.Arrange(new Rect(0, 0, 320, 600));
+        Assert.Equal(oneLine, narrow.Height, 3);
+
+        // A parent that measured with an unbounded height and arranges in a finite one keeps its measure.
+        var measured = Caption();
+        var stack = new SkUiVerticalStackLayout { Children = { measured } };
+        IView measuredRoot = stack;
+        measuredRoot.Measure(320, double.PositiveInfinity);
+        var desired = measuredRoot.DesiredSize;
+        measuredRoot.Arrange(new Rect(0, 0, 320, desired.Height));
+        Assert.Equal(desired, measuredRoot.DesiredSize);
     }
 }

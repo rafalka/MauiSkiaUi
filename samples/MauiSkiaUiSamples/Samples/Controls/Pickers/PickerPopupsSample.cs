@@ -10,7 +10,8 @@ namespace MauiSkiaUiSamples.Samples.Controls.Pickers;
 /// (<see cref="SkUiActionSheetPopupPresenter"/>, the fallback when nothing is registered).
 /// <para>
 /// The page shows a picker anchored to its field as a combo box, one whose list opens in the window as a dialog with a title,
-/// one with drawn rows (an item template over objects), one on MAUI's action sheet, and what was picked. The samples app
+/// one docked to the window's bottom edge as iOS's picker, one with drawn rows (an item template over objects), one on MAUI's
+/// action sheet, and what was picked. The samples app
 /// registers the toolkit's presenter once (<c>UseSkiaUiCommunityToolkit()</c> in MauiProgram); the pickers here also set it
 /// per picker, to show that option, and the T-shirt size picker uses MAUI's action sheet instead.
 /// </para>
@@ -20,7 +21,7 @@ public sealed class PickerPopupsSample : SamplePage, ISample
     public static SampleInfo Info { get; } = new(
         SampleSection.Controls,
         Title: "Pickers on your popup system",
-        Summary: "Drawn pickers (MAUI's Picker API) whose lists open in CommunityToolkit's popup: anchored as a combo box, as a dialog, with drawn rows, or on MAUI's action sheet.",
+        Summary: "Drawn pickers (MAUI's Picker API) whose lists open in CommunityToolkit's popup: anchored as a combo box, as a dialog, docked at the bottom as iOS's picker, with drawn rows, or on MAUI's action sheet.",
         HowTo:
         [
             "With CommunityToolkit.Maui: add the `SkiaUi.Maui.CommunityToolkit` package and call " +
@@ -29,8 +30,8 @@ public sealed class PickerPopupsSample : SamplePage, ISample
                 "(or aligned by `request.HorizontalOptions` / `VerticalOptions`), closes it when the token is cancelled, and returns once it is gone. " +
                 "Register it with `builder.UseSkiaUi(options => options.PopupPresenter = …)`.",
             "Use the picker as MAUI's: `<sk:SkUiPicker Title=\"Fruit\" ItemsSource=\"{Binding Fruits}\" SelectedItem=\"{Binding Fruit}\" />`.",
-            "Choose where the list opens: `PopupPlacement=\"Anchored\"` (a combo box), `\"Window\"` (a centered dialog), or leave " +
-                "`Default` for the look's choice per platform.",
+            "Choose where the list opens: `PopupPlacement=\"Anchored\"` (a combo box), `\"Window\"` (a centered dialog), " +
+                "`\"BottomPane\"` (docked to the window's bottom edge with a toolbar and a close button, as iOS's picker), or leave `Default` for the look's choice per platform.",
             "Draw rows of your own: an `ItemTemplate` of `SkUi*` views bound to your items; `ItemDisplayBinding` still names the field's text."
         ],
         ThingsToKnow:
@@ -39,6 +40,7 @@ public sealed class PickerPopupsSample : SamplePage, ISample
             "A presenter that shows its own UI instead (a vendor picker) reads `SkUiListPopupRequest` (`Items`, `SelectedIndex`) " +
                 "and calls `request.Complete(index)`.",
             "An anchored list closes when the page scrolls or the window resizes, as a combo box does; Escape and a tap outside close it too.",
+            "The bottom pane is a wheel with the iOS look (it chooses as it turns; the × takes the item it shows) and a list with the others.",
             "Keyboard: arrow keys change the selection of the closed field, Alt+Down opens it; in the list, arrows, Home / End, " +
                 "typing and Enter choose.",
             "The request lets go of the picker once the popup has gone: a presenter that keeps requests (a popup stack) leaks nothing."
@@ -49,6 +51,8 @@ public sealed class PickerPopupsSample : SamplePage, ISample
 
     private static readonly string[] Fruits = ["Apple", "Apricot", "Banana", "Blueberry", "Cherry", "Grape", "Kiwi", "Lemon", "Mango", "Orange", "Peach", "Pear", "Plum"];
 
+    private static readonly string[] Seasons = ["Spring", "Summer", "Autumn", "Winter"];
+
     private static readonly Paint[] Paints =
     [
         new("Teal", Color.FromArgb("#087F83")), new("Coral", Color.FromArgb("#F2665C")), new("Sun", Color.FromArgb("#F2B33D")),
@@ -58,6 +62,7 @@ public sealed class PickerPopupsSample : SamplePage, ISample
     private readonly SkUiLabel _summary = new() { FontSize = 14, TextColor = SampleColors.Caption };
     private readonly SkUiPicker _fruit;
     private readonly SkUiPicker _country;
+    private readonly SkUiPicker _season;
     private readonly SkUiPicker _paint;
     private readonly SkUiPicker _size;
 
@@ -65,6 +70,7 @@ public sealed class PickerPopupsSample : SamplePage, ISample
     {
         _fruit = new SkUiPicker { Title = "Pick a fruit", ItemsSource = Fruits, PopupPlacement = SkUiPopupPlacement.Anchored, MaxPopupHeight = 280 };
         _country = new SkUiPicker { Title = "Choose a country", ItemsSource = Countries(), PopupPlacement = SkUiPopupPlacement.Window, MaxPopupHeight = 480 };
+        _season = new SkUiPicker { Title = "Season", ItemsSource = Seasons, PopupPlacement = SkUiPopupPlacement.BottomPane };
         _paint = new SkUiPicker
         {
             Title = "Pick a paint",
@@ -74,9 +80,9 @@ public sealed class PickerPopupsSample : SamplePage, ISample
             PopupPlacement = SkUiPopupPlacement.Anchored
         };
         _size = new SkUiPicker { Title = "T-shirt size", ItemsSource = new[] { "S", "M", "L", "XL" }, PopupPresenter = SkUiActionSheetPopupPresenter.Instance };
-        foreach (var picker in new[] { _fruit, _country, _paint })
+        foreach (var picker in new[] { _fruit, _country, _season, _paint })
             picker.PopupPresenter = SkUiToolkitPopupPresenter.Instance;
-        foreach (var picker in new[] { _fruit, _country, _paint, _size })
+        foreach (var picker in new[] { _fruit, _country, _season, _paint, _size })
         {
             picker.TextColor = SampleColors.Ink;
             picker.SelectedIndexChanged += (_, _) => UpdateSummary();
@@ -92,6 +98,8 @@ public sealed class PickerPopupsSample : SamplePage, ISample
         column.Children.Add(_fruit);
         column.Children.Add(Heading("In the window (a dialog)"));
         column.Children.Add(_country);
+        column.Children.Add(Heading("Docked at the bottom (iOS's picker)"));
+        column.Children.Add(_season);
         column.Children.Add(Heading("Drawn rows"));
         column.Children.Add(_paint);
         column.Children.Add(Heading("MAUI's action sheet"));
@@ -132,7 +140,7 @@ public sealed class PickerPopupsSample : SamplePage, ISample
     }
 
     private void UpdateSummary() =>
-        _summary.Text = $"{_fruit.SelectedItem ?? "No fruit"} · {_country.SelectedItem ?? "no country"} · {(_paint.SelectedItem as Paint)?.Name ?? "no paint"} · size {_size.SelectedItem ?? "–"}";
+        _summary.Text = $"{_fruit.SelectedItem ?? "No fruit"} · {_country.SelectedItem ?? "no country"} · {_season.SelectedItem ?? "no season"} · {(_paint.SelectedItem as Paint)?.Name ?? "no paint"} · size {_size.SelectedItem ?? "–"}";
 
     private static SkUiLabel Heading(string text) =>
         new() { Text = text, FontSize = 13, FontAttributes = FontAttributes.Bold, TextColor = SampleColors.Caption, TextTransform = TextTransform.Uppercase };

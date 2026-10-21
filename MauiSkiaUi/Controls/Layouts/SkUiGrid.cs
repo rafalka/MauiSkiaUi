@@ -99,10 +99,47 @@ public class SkUiGrid : SkUiLayout, IGridLayout
         propertyName == Grid.RowProperty.PropertyName || propertyName == Grid.ColumnProperty.PropertyName
         || propertyName == Grid.RowSpanProperty.PropertyName || propertyName == Grid.ColumnSpanProperty.PropertyName;
 
-    int IGridLayout.GetRow(IView view) => Grid.GetRow((BindableObject)view);
-    int IGridLayout.GetColumn(IView view) => Grid.GetColumn((BindableObject)view);
-    int IGridLayout.GetRowSpan(IView view) => Grid.GetRowSpan((BindableObject)view);
-    int IGridLayout.GetColumnSpan(IView view) => Grid.GetColumnSpan((BindableObject)view);
+    // MAUI Grid's per-view members, reading and writing the Grid.Row / Column / RowSpan / ColumnSpan attached properties.
+
+    /// <summary>The zero-based row of <paramref name="view"/> (<c>Grid.Row</c>).</summary>
+    public int GetRow(IView view) => Grid.GetRow(Bindable(view));
+    /// <summary>The zero-based column of <paramref name="view"/> (<c>Grid.Column</c>).</summary>
+    public int GetColumn(IView view) => Grid.GetColumn(Bindable(view));
+    /// <summary>The rows <paramref name="view"/> spans (<c>Grid.RowSpan</c>).</summary>
+    public int GetRowSpan(IView view) => Grid.GetRowSpan(Bindable(view));
+    /// <summary>The columns <paramref name="view"/> spans (<c>Grid.ColumnSpan</c>).</summary>
+    public int GetColumnSpan(IView view) => Grid.GetColumnSpan(Bindable(view));
+
+    /// <summary>Sets the zero-based row of <paramref name="view"/> (<c>Grid.Row</c>).</summary>
+    public SkUiGrid SetRow(IView view, int row) { Bindable(view).SetValue(Grid.RowProperty, row); return this; }
+    /// <summary>Sets the zero-based column of <paramref name="view"/> (<c>Grid.Column</c>).</summary>
+    public SkUiGrid SetColumn(IView view, int column) { Bindable(view).SetValue(Grid.ColumnProperty, column); return this; }
+    /// <summary>Sets the rows <paramref name="view"/> spans (<c>Grid.RowSpan</c>, at least 1).</summary>
+    public SkUiGrid SetRowSpan(IView view, int span) { Bindable(view).SetValue(Grid.RowSpanProperty, span); return this; }
+    /// <summary>Sets the columns <paramref name="view"/> spans (<c>Grid.ColumnSpan</c>, at least 1).</summary>
+    public SkUiGrid SetColumnSpan(IView view, int span) { Bindable(view).SetValue(Grid.ColumnSpanProperty, span); return this; }
+
+    /// <summary>Appends a row definition (MAUI's <c>Grid.AddRowDefinition</c>).</summary>
+    public SkUiGrid AddRowDefinition(RowDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        RowDefinitions.Add(definition);
+        return this;
+    }
+
+    /// <summary>Appends a column definition (MAUI's <c>Grid.AddColumnDefinition</c>).</summary>
+    public SkUiGrid AddColumnDefinition(ColumnDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ColumnDefinitions.Add(definition);
+        return this;
+    }
+
+    private static BindableObject Bindable(IView view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        return view as BindableObject ?? throw new ArgumentException($"SkiaUi grids place drawn (SkUi*) views, not {view.GetType().Name}.", nameof(view));
+    }
     private void OnDefinitionsChanged(object? sender, EventArgs args)
     {
         _rowSnapshot = null;

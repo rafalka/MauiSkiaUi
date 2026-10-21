@@ -56,6 +56,26 @@ public class SamplesTests
     }
 
     [Fact]
+    public void EveryExamplePageIsOneDrawnSurfaceThatLaysOutAndDraws()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var pages = SampleCatalog.All.Select(entry => (Page)entry.Create())
+            .Append(new SampleListPage(section: null))
+            .Concat(SampleCatalog.Sections.Select(section => new SampleListPage(section)));
+        foreach (var page in pages)
+        {
+            // The page's content is the surface root; the example (or the list) is drawn in it, MAUI views hosted.
+            var root = Assert.IsAssignableFrom<SkUiView>(((ContentPage)page).Content);
+            using var surface = new SkUiTestSurface(root, 380, 800);
+            surface.Frame();
+            Assert.True(root.Height > 0, page.Title);
+            if (page is SamplePage { SampleContent: { } content })
+                Assert.True(content.Width > 0, $"{page.Title}: the example was not laid out");
+        }
+    }
+
+    [Fact]
     public void SourceIsShownSyntaxHighlighted()
     {
         var html = SampleSource.ToHtml("public sealed class A { string s = \"<x>\"; } // note");
@@ -76,7 +96,7 @@ public class SamplesTests
     {
         using var font = SkUiTestHelpers.UseBundledFont();
         var page = new PresenceAvatarsSample();
-        var root = Assert.IsAssignableFrom<SkUiView>(page.SampleContent);
+        var root = Assert.IsAssignableFrom<SkUiView>(SkUiTestHelpers.DetachSampleContent(page));
         root.HeightRequest = 1200;
         using var surface = new SkUiTestSurface(root, 380, 1200);
         var bitmap = surface.Frame();
@@ -219,7 +239,7 @@ public class SamplesTests
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
         var page = new OrderListSample();
         var model = (OrderListModel)page.BindingContext;
-        var list = ((SkUiGrid)page.SampleContent!).Children.OfType<SkUiCollectionView>().Single();
+        var list = ((SkUiGrid)SkUiTestHelpers.DetachSampleContent(page)).Children.OfType<SkUiCollectionView>().Single();
         SkUiTestHelpers.Arrange(list, 360, 420);
         Assert.True(list.IsStickyHeader);
         Assert.InRange(list.LastVisibleIndex, 3, 12);

@@ -125,8 +125,8 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | MAUI | SkiaUi | Notes |
 | --- | --- | --- |
 | `ContentView` | `SkUiContentView` | Also the base class for drawn custom controls; `ControlTemplate` of drawn views ([templated controls](#templated-controls)) |
-| `Grid` | `SkUiGrid` | |
-| `VerticalStackLayout` / `HorizontalStackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | |
+| `Grid` | `SkUiGrid` | Prefix swap, also in code: `grid.Add(view, column, row)`, `AddWithSpan`, `SetRow` / `SetColumn` / spans for a view and `AddRowDefinition` / `AddColumnDefinition` work as on MAUI's `Grid`; children must be drawn views |
+| `VerticalStackLayout` / `HorizontalStackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | Prefix swap, also in code: every drawn layout has MAUI `Layout`'s `Add` / `Insert` / `Remove` / `Clear` and collection initializers; `AddRange` adds many children with one re-measure |
 | `StackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | Pick by `Orientation`; keep `Spacing` |
 | `AbsoluteLayout` | `SkUiAbsoluteLayout` | |
 | `FlexLayout` | `SkUiFlexLayout` | Also `SkUiWrapLayout` for chips and tags |
@@ -208,6 +208,8 @@ Styles target a type, and drawn controls are different types:
 <!-- Drawn form -->
 <sk:SkUiGrid TappedCommand="{Binding OpenCommand}" TappedCommandParameter="{Binding .}" ShowsPressEffect="True" />
 ```
+
+MAUI's tooltips (`ToolTipProperties.Text`) also need no change: the surface shows them for the drawn view under a mouse or trackpad pointer (Mac Catalyst, iPad with a pointer, Windows; none on phones, as MAUI). A Core node takes `SetToolTip(text)`.
 
 Other gesture input needs converting. A drawn view that has it writes one `Trace` line on its first press, naming what is ignored and what to use.
 
@@ -339,10 +341,10 @@ What differs is where the list shows. SkiaUi has no popup windows: the picker dr
 
 - **CommunityToolkit.Maui:** add the **SkiaUi.Maui.CommunityToolkit** package and call `UseSkiaUiCommunityToolkit()` after `UseSkiaUi()`.
 - **A popup control or navigation service of your own:** one method to write, `ShowAsync(request, token)`: show `request.Content` at `request.Bounds` (or relative to `request.PlatformAnchor` with `request.AnchorBoundsInPlatformAnchor`), close it when the token is cancelled, return when it is gone. Sketches in [SkUiPicker.md](controls/SkUiPicker.md#presenter-examples).
-- **A picker UI of your own** (a wheel, a searchable list): the presenter reads `SkUiListPopupRequest` (`Items`, `SelectedIndex`, `Title`) and calls `request.Complete(index)`.
+- **A picker UI of your own** (a wheel, a searchable list): the presenter reads `SkUiListPopupRequest` (`Items`, `SelectedIndex`, `Title`) and calls `request.Complete(index)` (or `SetSelectedIndex(index)` as the user goes, for a UI that stays open). For one picker type rather than the whole app, derive the picker and override `SelectItemsAsync(selection, token)`: the items in, the chosen items out (or `ShowPopupAsync(request, token)` for wheels and dates).
 - **Nothing registered:** the list opens in MAUI's action sheet (plain item texts, MAUI's UI), with one trace line.
 
-Platform differences go: the list is the same drawn list everywhere, anchored to the field as a combo box on desktops and tablets and in the window on phones (`PopupPlacement` and the look decide). `ios:Picker.UpdateMode="WhenFinished"` becomes `UpdateMode="WhenFinished"` on the picker itself, on every platform: the choice waits for an OK button (texts translated with SkiaUi's other texts in `SkUiStrings`, [Localization.md](design/Localization.md), or per picker). New: `ItemTemplate` (drawn rows), `MaxPopupHeight`, keyboard navigation and type-ahead on every platform, several choices (`SelectionMode="Multiple"`, `SelectedItems`: a replacement for a multi-select combo box) and, as a control of its own, wheels of several columns ([SkUiMultiColumnPicker](controls/SkUiMultiColumnPicker.md): a replacement for a multi-column wheel picker).
+Platform differences go: the list is the same drawn list everywhere, anchored to the field as a combo box on desktops and tablets and in the window on phones (`PopupPlacement` and the look decide). To keep iOS's wheel picker, set `PopupPlacement="BottomPane"`: docked to the window's bottom edge, drawn as a wheel with `IosSkUiLook` (a list in the pane with other looks; [The bottom pane](controls/SkUiPicker.md#the-bottom-pane)). `ios:Picker.UpdateMode="WhenFinished"` becomes `UpdateMode="WhenFinished"` on the picker itself, on every platform: the choice waits for an OK button (texts translated with SkiaUi's other texts in `SkUiStrings`, [Localization.md](design/Localization.md), or per picker). New: `ItemTemplate` (drawn rows), `MaxPopupHeight`, keyboard navigation and type-ahead on every platform, several choices (`SelectionMode="Multiple"`, `SelectedItems`: a replacement for a multi-select combo box) and, as a control of its own, wheels of several columns ([SkUiMultiColumnPicker](controls/SkUiMultiColumnPicker.md): a replacement for a multi-column wheel picker).
 
 **`DatePicker` and `TimePicker`** become `SkUiDatePicker` and `SkUiTimePicker` by the prefix ([SkUiDatePicker.md](controls/SkUiDatePicker.md), [SkUiTimePicker.md](controls/SkUiTimePicker.md)): the same `Date` / `MinimumDate` / `MaximumDate` / `Format` / `DateSelected`, `Time` / `Format` / `TimeSelected`, `IsOpen` / `Opened` / `Closed` (MAUI's event types), the text and font properties. Instead of the platform's dialog or wheels, drawn wheels open on the same presenter as the picker's list, ordered and named by the culture; a presenter can still show a platform dialog by handling `SkUiDatePopupRequest` / `SkUiTimePopupRequest`. SkiaUi keeps a time between `MinimumTime` and `MaximumTime` as MAUI keeps a date in its range. New beyond MAUI: `WheelFormat` (which wheels: a month and year picker), `BlackoutDates` / `DateEnabled`, `MinimumTime` / `MaximumTime`, `HourInterval` / `MinuteInterval` / `SecondInterval`, `DefaultHighlightedDate` / `DefaultHighlightedTime`, headers, `UpdateMode`, clearing, and `SkUiDateTimePicker` for a day and a time on one popup.
 
@@ -413,7 +415,7 @@ Styles now apply to everything the toolkit's constructor set (padding, stroke, s
 | MAUI | Status | Meanwhile |
 | --- | --- | --- |
 | `CollectionView`: reordering (`CanReorderItems`), snap points on the items layout | Not available | Keep the MAUI `CollectionView` with native item templates (outside the drawn region); everything else ports ([Lists](#lists-collectionview)) |
-| Drag and drop, tooltips, context flyouts | Not planned | Keep native |
+| Drag and drop, context flyouts | Not planned | Keep native |
 | `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists), `SkUiBorder` |
 | Shell, pages, navigation | Out of scope | Stay MAUI |
 | Third-party controls (charts, calendars, data grids, signature pads) | Native | Host in `SkUiMauiContentView`, or keep them outside the surface |

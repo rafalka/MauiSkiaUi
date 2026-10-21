@@ -28,7 +28,7 @@ public sealed class ExpanderNestingDemoPage : ComponentDemoPage
             expander.ExpandedChanged += (_, _) => Report();
 
         // First, so they are on screen without scrolling the editors.
-        AddEditor("All expanders", new HorizontalStackLayout
+        AddEditor("All expanders", new SkUiHorizontalStackLayout
         {
             Spacing = 8,
             Children = { HeaderButton("Expand all", () => ForAll(e => e.IsExpanded = true)), HeaderButton("Collapse all", () => ForAll(e => e.IsExpanded = false)) }
@@ -40,9 +40,9 @@ public sealed class ExpanderNestingDemoPage : ComponentDemoPage
     }
 
     /// <summary>A button above the preview (not an editor row, as the base page's <c>ActionButton</c>).</summary>
-    private static Button HeaderButton(string title, Action action)
+    private static SkUiButton HeaderButton(string title, Action action)
     {
-        var button = new Button { Text = title, Background = Accent, TextColor = Colors.White, AutomationId = title.Replace(" ", "") };
+        var button = new SkUiButton { Text = title, Background = Accent, TextColor = Colors.White, AutomationId = title.Replace(" ", "") };
         button.Clicked += (_, _) => action();
         return button;
     }

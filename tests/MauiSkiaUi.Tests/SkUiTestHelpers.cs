@@ -13,6 +13,20 @@ internal static class SkUiTestHelpers
     }
 
     /// <summary>
+    /// A sample's example out of its page (whose drawn surface it joins in the app), with the page's binding context: to
+    /// lay it out or draw it as a root of its own.
+    /// </summary>
+    public static View DetachSampleContent(MauiSkiaUiSamples.SamplePage page)
+    {
+        var content = page.SampleContent!;
+        // Set before it leaves the page: an inherited context would become null meanwhile, and two-way bindings (a
+        // picker's SelectedItem) would write that back.
+        content.BindingContext = page.BindingContext;
+        page.SampleContent = null;
+        return content;
+    }
+
+    /// <summary>
     /// Gives the calling thread a MAUI dispatcher (bindings need one) until disposed. Thread-scoped: tests in other
     /// classes, which run in parallel and rely on "no dispatcher, no gesture timers", are unaffected.
     /// </summary>

@@ -45,6 +45,38 @@ public class ComponentDemoTests
     }
 
     [Fact]
+    public void EveryCategoryGalleryListsItsDemosUnderItsOwnRoute()
+    {
+        // The demo's flyout has one entry per category (DemoFlyout); the routes must not collide with the demo pages'.
+        var routes = ComponentCategoryInfo.Order.Select(ComponentCategoryInfo.Route).ToList();
+        Assert.Equal(routes.Count, routes.Distinct().Count());
+        Assert.DoesNotContain(routes, route => ComponentDemos.All.Any(demo => demo.Route == route));
+        foreach (var category in ComponentCategoryInfo.Order)
+        {
+            var gallery = new ComponentGalleryPage(category);
+            var catalog = ((SkUiGrid)gallery.Content).Children.OfType<SkUiScrollView>().Single();
+            var buttons = Descendants(catalog).OfType<SkUiButton>().ToList();
+            var demos = ComponentDemos.All.Where(demo => demo.Category == category).ToList();
+            Assert.Equal(demos.Select(demo => "Open" + demo.Name), buttons.Select(button => button.AutomationId));
+            // Buttons name the real control type (never a route key), then the scenario / counterpart.
+            Assert.Equal(demos.Select(demo => demo.DisplayName), buttons.Select(button => button.FormattedText!.Spans[0].Text));
+        }
+    }
+
+    [Fact]
+    public void DemoDisplayNamesAreTheControlTypes()
+    {
+        var stepper = ComponentDemos.All.Single(demo => demo.PageType == typeof(TypedStepperDemoPage));
+        Assert.Equal("SkUiStepper<decimal>", stepper.DisplayName);
+        Assert.Equal("Typed values · Replaces Stepper", stepper.Description);
+        var shimmer = ComponentDemos.All.Single(demo => demo.PageType == typeof(ShimmerContentDemoPage));
+        Assert.Equal(nameof(SkUiShimmer), shimmer.DisplayName);
+        Assert.Equal("Skeleton built from the content (a feed loading) · No MAUI counterpart", shimmer.Description);
+        foreach (var demo in ComponentDemos.All.Where(demo => demo.Key is not null))
+            Assert.False(string.IsNullOrEmpty(demo.Scenario), $"{demo.Name} is a scenario page and should describe its scenario.");
+    }
+
+    [Fact]
     public void AllPagesHaveWorkingEditorsAndResetWithoutHandlers()
     {
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher(); // MAUI's RadioButton template binds its content labels
@@ -55,9 +87,9 @@ public class ComponentDemoTests
             Assert.True(ContainsComponent(page, demo.ComponentType),
                 $"{demo.PageType.Name}'s preview does not contain a {demo.ComponentType.Name}.");
             Assert.Empty(page.CheckProperties());
-            foreach (var slider in Descendants(page.Editors).OfType<Slider>()) slider.Value = (slider.Minimum + slider.Maximum) / 2;
-            foreach (var toggle in Descendants(page.Editors).OfType<Switch>()) toggle.IsToggled = !toggle.IsToggled;
-            foreach (var picker in Descendants(page.Editors).OfType<Picker>()) picker.SelectedIndex = picker.Items.Count - 1;
+            foreach (var slider in Descendants(page.Editors).OfType<SkUiSlider>()) slider.Value = (slider.Minimum + slider.Maximum) / 2;
+            foreach (var toggle in Descendants(page.Editors).OfType<SkUiSwitch>()) toggle.IsToggled = !toggle.IsToggled;
+            foreach (var picker in Descendants(page.Editors).OfType<SkUiPicker>()) picker.SelectedIndex = picker.Items.Count - 1;
             Assert.Empty(page.CheckProperties());
             page.ResetProperties();
             Assert.Empty(page.CheckProperties());
@@ -108,7 +140,7 @@ public class ComponentDemoTests
     {
         var page = new LabelDemoPage();
         Assert.Empty(page.CheckProperties());
-        var editor = Descendants(page.Editors).OfType<Editor>().Single();
+        var editor = Descendants(page.Editors).OfType<SkUiEditor>().Single();
         editor.Text = "Changed\nMultiline";
         Assert.Equal("Changed\nMultiline", ((SkUiLabel)page.SkiaControl).Text);
         Assert.Equal("Changed\nMultiline", ((Label)page.NativeControl!).Text);
@@ -125,7 +157,7 @@ public class ComponentDemoTests
     [Fact]
     public void GalleryShowsTheNarrowScreenNoteWhileThePageShorterSideIsBelowSideBySide()
     {
-        var gallery = new ComponentGalleryPage();
+        var gallery = new ComponentGalleryPage(ComponentCategory.BasicControls);
         Assert.False(gallery.ShowsNarrowNote);
         gallery.UpdateNarrowNote(390, 760); // phone, portrait
         Assert.True(gallery.ShowsNarrowNote);
@@ -141,7 +173,7 @@ public class ComponentDemoTests
     public void ControlSpecificEditorsComeBeforeTheCommonOnes()
     {
         var page = new GridDemoPage();
-        var captions = Descendants(page.Editors).OfType<Label>().Select(label => label.Text).ToList();
+        var captions = Descendants(page.Editors).OfType<SkUiLabel>().Select(label => label.Text).ToList();
         Assert.Equal(nameof(SkUiGrid.Padding), captions[0]);
         var common = captions.IndexOf("Common properties");
         Assert.True(common > captions.IndexOf("SpanLastCell"));
@@ -152,7 +184,7 @@ public class ComponentDemoTests
     public void LabelFontFamilyChoiceUsesRegisteredAndSystemNames()
     {
         var page = new LabelDemoPage();
-        var picker = Descendants(page.Editors).OfType<Picker>().Single(picker => picker.Title == nameof(SkUiLabel.FontFamily));
+        var picker = Descendants(page.Editors).OfType<SkUiPicker>().Single(picker => picker.Title == nameof(SkUiLabel.FontFamily));
         picker.SelectedIndex = picker.Items.IndexOf(DemoFonts.Lobster);
         Assert.Equal(DemoFonts.Lobster, ((SkUiLabel)page.SkiaControl).FontFamily);
         Assert.Equal(DemoFonts.Lobster, ((Label)page.NativeControl!).FontFamily);
@@ -161,13 +193,12 @@ public class ComponentDemoTests
         Assert.Null(((SkUiLabel)page.SkiaControl).FontFamily);
     }
 
-    private static IEnumerable<View> Descendants(Layout root)
+    private static IEnumerable<SkUiView> Descendants(SkUiView root)
     {
-        foreach (var child in root.Children.OfType<View>())
+        foreach (var child in root.SkiaChildren.OfType<SkUiView>())
         {
             yield return child;
-            if (child is Layout layout)
-                foreach (var nested in Descendants(layout)) yield return nested;
+            foreach (var nested in Descendants(child)) yield return nested;
         }
     }
 }

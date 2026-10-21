@@ -81,6 +81,12 @@ public class SkUiStrings
     /// </summary>
     public virtual string CancelText { get; set => Set(ref field, value); } = "Cancel";
 
+    /// <summary>
+    /// What screen readers call the close button (×) in the toolbar of a bottom pane (a picker's <c>PopupPlacement</c>
+    /// <see cref="SkUiPopupPlacement.BottomPane"/>), unless the picker sets its own <c>AcceptText</c>. Default "Done".
+    /// </summary>
+    public virtual string DoneText { get; set => Set(ref field, value); } = "Done";
+
     /// <summary>The Clear button of popups (a picker's <c>IsPopupClearButtonVisible</c>), unless the picker sets its own <c>ClearText</c>. Default "Clear".</summary>
     public virtual string ClearText { get; set => Set(ref field, value); } = "Clear";
 
@@ -108,6 +114,12 @@ public class SkUiStrings
     /// format with their count as <c>{0}</c>. Default "+{0}".
     /// </summary>
     public virtual string MoreTokensFormat { get; set => Set(ref field, value); } = "+{0}";
+
+    /// <summary>
+    /// What screen readers read after the item in a picker wheel's middle row: its place among the wheel's items, a
+    /// <c>string.Format</c> format with the place (from 1) as <c>{0}</c> and the count as <c>{1}</c>. Default "{0} of {1}".
+    /// </summary>
+    public virtual string WheelPositionFormat { get; set => Set(ref field, value); } = "{0} of {1}";
 
     /// <summary>The header of a date picker's day wheel (<c>AreColumnHeadersVisible</c>). Default "Day".</summary>
     public virtual string DayText { get; set => Set(ref field, value); } = "Day";

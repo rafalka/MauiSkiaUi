@@ -379,10 +379,17 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
 
     /// <summary>
     /// What TalkBack reads as the element's name: its label; for a combo box (a spinner) the selection, as native spinners,
-    /// else its label (the title).
+    /// else its label (the title); for a slider with a value text before Android 11, its label and that text.
     /// </summary>
-    private static string SpokenName(SkUiSemanticsNode node) =>
-        (node.Role == SkUiSemanticsRole.ComboBox ? node.Value ?? node.Label : node.Label) ?? string.Empty;
+    private static string SpokenName(SkUiSemanticsNode node) => node switch
+    {
+        { Role: SkUiSemanticsRole.ComboBox } => node.Value ?? node.Label ?? string.Empty,
+        // Before Android 11 there is no state description: a slider's value text (a picker wheel's item) is read with its name,
+        // else TalkBack reads the range as a percentage.
+        { Role: SkUiSemanticsRole.Slider, Value: { } value } when !OperatingSystem.IsAndroidVersionAtLeast(30) =>
+            node.Label is { } label ? $"{label}, {value}" : value,
+        _ => node.Label ?? string.Empty
+    };
 
     /// <summary>The element's hint; a combo box read by its selection adds its label (the title) in front.</summary>
     private static string? Hint(SkUiSemanticsNode node) =>

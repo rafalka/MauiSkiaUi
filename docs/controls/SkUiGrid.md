@@ -34,6 +34,24 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 `RowDefinitions`, `ColumnDefinitions`, `RowSpacing`, `ColumnSpacing` (+ `Set*`).
 
+## In code
+
+MAUI Grid's code-behind API, so `Grid` → `SkUiGrid` is a rename:
+
+```csharp
+var grid = new SkUiGrid { ColumnSpacing = 8 }
+    .AddColumnDefinition(new ColumnDefinition(GridLength.Auto))
+    .AddColumnDefinition(new ColumnDefinition(GridLength.Star));
+grid.Add(icon);                         // cell from its Grid.Row / Grid.Column (0, 0 unless set)
+grid.Add(title, 1, 0);                  // column 1, row 0
+grid.AddWithSpan(footer, row: 1, column: 0, columnSpan: 2);
+grid.SetRow(title, 0).SetColumnSpan(title, 1);
+```
+
+- `Add(view, column, row)` and `AddWithSpan(view, row, column, rowSpan, columnSpan)` (`SkUiGridExtensions`, MAUI's `GridExtensions`) append star rows and columns when the grid has too few for the cell, as MAUI does; `Add(view)` keeps the view's attached cell.
+- `GetRow` / `SetRow`, `GetColumn` / `SetColumn`, `GetRowSpan` / `SetRowSpan`, `GetColumnSpan` / `SetColumnSpan` read and write the `Grid.*` attached properties (the setters are fluent); `AddRowDefinition` / `AddColumnDefinition` append to the definitions.
+- The children members are [`SkUiLayout`](SkUiLayout.md#children-in-code)'s.
+
 ## Differences from MAUI Grid
 
 | Topic | SkiaUi |

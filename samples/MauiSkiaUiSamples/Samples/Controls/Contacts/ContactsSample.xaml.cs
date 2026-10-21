@@ -41,7 +41,7 @@ public sealed partial class ContactsSample : SamplePage, ISample
             "Swipe actions: make the row an `SkUiSwipeView` with MAUI's `SwipeItems` (`LeftItems`: star, `RightItems`: delete). " +
                 "`Mode=\"Execute\"` acts once a swipe passes the threshold; vertical drags still scroll the list.",
             "`KeepSelectionVisible=\"True\"` keeps the previewed contact in view, also after a rotation.",
-            "Native controls (the search box, the form's entries) are hosted in `SkUiMauiContentView`."
+            "The search box and the form's fields are drawn too (`SkUiSearchBar`, `SkUiEntry`): the screen is one surface."
         ],
         ThingsToKnow:
         [

@@ -27,6 +27,7 @@ public sealed class SwipeViewDemoPage : ComponentDemoPage
     public SwipeViewDemoPage()
         : base(nameof(SkUiSwipeView), new SkUiSwipeView(), new SwipeView(), widthRange: (200, 400, 300), heightRange: (48, 160, 72))
     {
+        DocumentTypes(typeof(SwipeItems));
         _skia = (SkUiSwipeView)SkiaControl;
         _native = (SwipeView)NativeControl!;
         _skia.Content = SkiaCard();

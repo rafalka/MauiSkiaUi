@@ -82,8 +82,11 @@ internal sealed class SkUiDateTimeWheels : ISkUiColumnsRules
 
     private const int UnitCount = 7;
 
-    /// <summary>A column: the unit it chooses, its values (ascending) and their texts, whether it loops, its header.</summary>
-    internal sealed record Column(SkUiDateTimeUnit Unit, int[] Values, string[] Texts, bool Loop, string? Header);
+    /// <summary>
+    /// A column: the unit it chooses, its values (ascending) and their texts, whether it loops, its header, and its name (what
+    /// screen readers call its wheel, also without a header shown).
+    /// </summary>
+    internal sealed record Column(SkUiDateTimeUnit Unit, int[] Values, string[] Texts, bool Loop, string? Header, string? Name);
 
     /// <summary>A unit of the format: which, the letter (h or H) and how many times it is repeated.</summary>
     private readonly record struct Token(SkUiDateTimeUnit Unit, char Letter, int Length);
@@ -145,6 +148,7 @@ internal sealed class SkUiDateTimeWheels : ISkUiColumnsRules
         Texts = [.. _columns.Select(column => column.Texts)];
         Loops = [.. _columns.Select(column => column.Loop)];
         Headers = [.. _columns.Select(column => column.Header)];
+        Names = [.. _columns.Select(column => column.Name)];
     }
 
     /// <summary>The wheels for <paramref name="settings"/>, with the texts of <paramref name="culture"/> and the headers of <paramref name="strings"/>.</summary>
@@ -176,6 +180,9 @@ internal sealed class SkUiDateTimeWheels : ISkUiColumnsRules
 
     /// <summary>Each column's header (<c>null</c>: none).</summary>
     public string?[] Headers { get; }
+
+    /// <summary>Each column's name for screen readers ("Month"; the part of the day has none), whether or not its header shows.</summary>
+    public string?[] Names { get; }
 
     /// <summary>Whether the hours are shown 0–23 (else 1–12 with AM / PM).</summary>
     public bool Is24Hour => !_twelveHour;
@@ -633,7 +640,7 @@ internal sealed class SkUiDateTimeWheels : ISkUiColumnsRules
                 break;
         }
         var loops = settings.Loop && token.Unit is not (SkUiDateTimeUnit.Year or SkUiDateTimeUnit.Half);
-        return new Column(token.Unit, values, [.. values.Select(text)], loops, settings.ShowsHeaders ? header : null);
+        return new Column(token.Unit, values, [.. values.Select(text)], loops, settings.ShowsHeaders ? header : null, header);
     }
 
     /// <summary>0, <paramref name="step"/>, 2 × <paramref name="step"/>, … below <paramref name="count"/>.</summary>

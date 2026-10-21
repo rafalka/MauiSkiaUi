@@ -11,8 +11,14 @@ namespace MauiSkiaUi;
 /// by pickers, and does not keep them alive).
 /// </summary>
 /// <remarks>
+/// <para>
+/// Screen readers read each wheel as an adjustable element named by MAUI's <c>SemanticProperties.Description</c> set on the column
+/// (<see cref="SetSemanticDescription"/>), else its <see cref="Header"/>, with <c>SemanticProperties.Hint</c> as its hint.
+/// </para>
+/// <para>
 /// The selection follows the rules of <see cref="SkUiPicker"/> where they fit: an index beyond the items is clamped to the last
 /// item, an index set before the items applies when they come, and a selected item that moves in a changing source stays selected.
+/// </para>
 /// </remarks>
 public class SkUiPickerColumn : BindableObject
 {
@@ -149,7 +155,10 @@ public class SkUiPickerColumn : BindableObject
     /// <summary>Whether the wheel's items repeat without an end (default <c>false</c>: it stops at the first and last item), as a clock's hours.</summary>
     public bool Loop { get => (bool)GetValue(LoopProperty); set => SetValue(LoopProperty, value); }
 
-    /// <summary>A header above the column's wheel in the popup ("Hour", "Minute"); <c>null</c> (default): none. SkiaUi extension.</summary>
+    /// <summary>
+    /// A header above the column's wheel in the popup ("Hour", "Minute"), also what screen readers call the wheel; <c>null</c>
+    /// (default): none. SkiaUi extension.
+    /// </summary>
     public string? Header { get => (string?)GetValue(HeaderProperty); set => SetValue(HeaderProperty, value); }
 
     /// <summary>
@@ -220,6 +229,15 @@ public class SkUiPickerColumn : BindableObject
 
     /// <summary>Sets <see cref="Header"/> (same as the property setter).</summary>
     public SkUiPickerColumn SetHeader(string? value) { Header = value; return this; }
+
+    /// <summary>
+    /// Sets MAUI's <see cref="SemanticProperties.DescriptionProperty"/> on the column: what screen readers call its wheel (else its
+    /// <see cref="Header"/>), also without a header shown.
+    /// </summary>
+    public SkUiPickerColumn SetSemanticDescription(string? value) { SemanticProperties.SetDescription(this, value); return this; }
+
+    /// <summary>Sets MAUI's <see cref="SemanticProperties.HintProperty"/> on the column: what screen readers read after its wheel.</summary>
+    public SkUiPickerColumn SetSemanticHint(string? value) { SemanticProperties.SetHint(this, value); return this; }
 
     /// <summary>Sets <see cref="ItemTemplate"/> (same as the property setter).</summary>
     public SkUiPickerColumn SetItemTemplate(DataTemplate? value) { ItemTemplate = value; return this; }

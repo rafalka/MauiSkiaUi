@@ -12,7 +12,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | --- | --- | --- |
 | `SkUiCoreNode` / `ISkUiCoreNode` | [SkUiCore.md](SkUiCore.md) | Public Core tree; fluent + INPC |
 | `SkUiCorePanel` / stacks / absolute / overlay / **grid** / **table** / **scroll view** | [SkUiCore.md](SkUiCore.md), [SkUiCoreGrid.md](SkUiCoreGrid.md), [SkUiCoreTable.md](SkUiCoreTable.md) | Core-only layouts; `SkUiCoreScrollView` shares the `SkUiScrollView` engine; `SkUiCoreScrollBar` is the scroll bar of both scroll views |
-| `SkUiCoreWrapLayout` / `SkUiCoreHorizontalShrinkLayout` / `SkUiCoreVerticalShrinkLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md), [SkUiShrinkLayout.md](SkUiShrinkLayout.md) | Same engines as the SkUi* twins (no Core flex layout) |
+| `SkUiCoreWrapLayout` / `SkUiCoreHorizontalShrinkLayout` / `SkUiCoreVerticalShrinkLayout` / `SkUiCoreHorizontalAlignStackLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md), [SkUiShrinkLayout.md](SkUiShrinkLayout.md), [SkUiHorizontalAlignStackLayout.md](SkUiHorizontalAlignStackLayout.md) | Same engines as the SkUi* twins (no Core flex layout) |
 | `SkUiCoreLabel` / `Button` / toggles / `Slider` / `ProgressBar` / Image / shapes / … | [SkUiCore.md](SkUiCore.md) | Core primitives & basic controls |
 | `SkUiCoreHost` | [SkUiCore.md](SkUiCore.md) | `SkUiView` bridge for Core roots |
 | `SkUiWeakListener<T>` / `SkUiWeakEvent` | [SkUiCore.md](SkUiCore.md#listening-to-shared-sources-own-controls) | Weak listening to shared sources and weak app-wide events, for your own controls (both layers) |
@@ -64,6 +64,7 @@ Shared pipelines: [LayoutSystem.md](../design/LayoutSystem.md) · [DrawingMechan
 | `SkUiFlexLayout` | [SkUiFlexLayout.md](SkUiFlexLayout.md) | FlexLayout |
 | `SkUiWrapLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md) | — (chips / tags) |
 | `SkUiHorizontalShrinkLayout` / `SkUiVerticalShrinkLayout` | [SkUiShrinkLayout.md](SkUiShrinkLayout.md) | — (stacks whose children shrink to fit) |
+| `SkUiHorizontalAlignStackLayout` | [SkUiHorizontalAlignStackLayout.md](SkUiHorizontalAlignStackLayout.md) | — (children placed by alignment: a bar's title stays centered) |
 | `SkUiStateContainer` / `SkUiStateView` (attached properties on any drawn layout) | [SkUiStateContainer.md](SkUiStateContainer.md) | Community Toolkit `StateContainer` / `StateView` |
 | `SkUiExpander` | [SkUiExpander.md](SkUiExpander.md) | Community Toolkit `Expander` |
 | `SkUiSwipeView` / `SkUiSwipeItemView` | [SkUiSwipeView.md](SkUiSwipeView.md) | SwipeView (MAUI's `SwipeItems` / `SwipeItem`) / SwipeItemView |

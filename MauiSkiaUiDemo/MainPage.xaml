@@ -5,14 +5,15 @@
              x:Class="MauiSkiaUiDemo.MainPage"
              Title="SkiaUi" Background="#FFFFFF" SafeAreaEdges="All">
     <Grid Padding="24" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="20">
-        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="4">
-            <Label Text="SkiaUi" FontFamily="OpenSansSemibold" FontSize="28"
-                   TextColor="#182326" SemanticProperties.HeadingLevel="Level1" />
-            <Label Grid.Row="1" Text="Phase 0" FontSize="14" TextColor="#465357" />
-            <Label x:Name="AnimationStatus" AutomationId="AnimationStatus"
-                   Grid.Column="1" VerticalOptions="Center" Text="Ready"
-                   FontSize="14" TextColor="#465357" />
-        </Grid>
+        <!-- Separate surfaces: the header and the footer (drawn), the hardware scene and the software sample. -->
+        <sk:SkUiGrid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="4">
+            <sk:SkUiLabel Text="SkiaUi" FontFamily="OpenSansSemibold" FontSize="28"
+                          TextColor="#182326" SemanticProperties.HeadingLevel="Level1" />
+            <sk:SkUiLabel Grid.Row="1" Text="Phase 0" FontSize="14" TextColor="#465357" />
+            <sk:SkUiLabel x:Name="AnimationStatus" AutomationId="AnimationStatus"
+                          Grid.Column="1" VerticalOptions="Center" Text="Ready"
+                          FontSize="14" TextColor="#465357" />
+        </sk:SkUiGrid>
         <sk:SkUiContentView x:Name="Scene" AutomationId="Scene" Grid.Row="1"
                             MinimumHeightRequest="280" Background="#F1F5F5"
                             SemanticProperties.Description="Animated geometric canvas">
@@ -32,13 +33,13 @@
                              Stroke="#263D43" StrokeThickness="5" InputTransparent="True" />
             </sk:SkUiLayout>
         </sk:SkUiContentView>
-        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="16">
-            <Label x:Name="TapStatus" AutomationId="TapStatus" Text="Taps: 0"
-                   TextColor="#182326" VerticalOptions="Center" FontSize="16" />
-            <Button x:Name="AnimateButton" AutomationId="AnimateButton" Grid.Column="1"
-                    Text="Animate" Clicked="OnAnimateClicked" Background="#087F83"
-                    TextColor="White" CornerRadius="6" Padding="20,12" />
-        </Grid>
+        <sk:SkUiGrid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="16">
+            <sk:SkUiLabel x:Name="TapStatus" AutomationId="TapStatus" Text="Taps: 0"
+                          TextColor="#182326" VerticalOptions="Center" FontSize="16" />
+            <sk:SkUiButton x:Name="AnimateButton" AutomationId="AnimateButton" Grid.Column="1"
+                           Text="Animate" Clicked="OnAnimateClicked" Background="#087F83"
+                           TextColor="White" CornerRadius="6" Padding="20,12" />
+        </sk:SkUiGrid>
         <sk:SkUiBox x:Name="SoftwareSample" AutomationId="SoftwareSample" Grid.Row="3"
                     HeightRequest="8" Color="#C54150" />
     </Grid>

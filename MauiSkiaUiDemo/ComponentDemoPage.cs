@@ -2,7 +2,12 @@ using MauiSkiaUi;
 
 namespace MauiSkiaUiDemo;
 
-/// <summary>Base page that hosts a SkiaUi preview, optional MAUI counterpart, and property editors.</summary>
+/// <summary>
+/// Base page that hosts a SkiaUi preview, optional MAUI counterpart, and property editors. The editors are drawn (one
+/// SkiaUi surface below the previews); the previews stay apart: the SkiaUi preview is a surface of its own (its
+/// <see cref="SkUiView.HwAccelerated"/> is an editor) and the MAUI counterpart is a native control in a MAUI grid. An editor
+/// with a description (<see cref="EditorHelp"/>) has a (?) button that shows it (<see cref="EditorHelpBubble"/>).
+/// </summary>
 public abstract class ComponentDemoPage : ContentPage
 {
     /// <summary>Primary body text color for captions and editors.</summary>
@@ -12,18 +17,21 @@ public abstract class ComponentDemoPage : ContentPage
     private readonly Grid _comparisons = new() { ColumnSpacing = 16, RowSpacing = 12 };
     // Control-specific editors (added by the derived page) come first; the common ones the base page adds for every
     // control (HwAccelerated, sizes, opacity, ...) follow under their own heading.
-    private readonly Grid _specificEditors = new() { RowSpacing = 10 };
-    private readonly Grid _commonEditors = new() { RowSpacing = 10 };
-    private readonly Grid _editors = new() { RowSpacing = 16, Padding = new Thickness(0, 8, 0, 24) };
+    private readonly SkUiVerticalStackLayout _specificEditors = new() { Spacing = 10 };
+    private readonly SkUiVerticalStackLayout _commonEditors = new() { Spacing = 10 };
+    private readonly SkUiVerticalStackLayout _editors = new() { Spacing = 16, Padding = new Thickness(0, 8, 0, 24) };
     private bool _addingCommonEditors;
     private readonly List<Action> _resets = [];
     private readonly List<(string Name, Func<bool> Check)> _checks = [];
     private readonly View? _nativePanel;
     private readonly Grid? _nativeArea;
     private readonly Grid _skiaPanel;
-    private readonly Label _result;
-    private readonly Label _skiaStatus;
-    private readonly Label? _nativeStatus;
+    private readonly SkUiLabel _result;
+    private readonly SkUiLabel _skiaStatus;
+    private readonly SkUiLabel? _nativeStatus;
+    private readonly EditorHelpBubble _help;
+    // Where editors named after a property find its documentation: the control, the page's other documented types, the MAUI control.
+    private readonly List<Type> _documentedTypes;
     private SkUiContentView _host;
     private bool _hwAccelerated = true;
 
@@ -33,7 +41,10 @@ public abstract class ComponentDemoPage : ContentPage
     internal SkUiView SkiaControl { get; }
     internal View? NativeControl { get; }
     internal bool IsWide { get; private set; }
-    internal Grid Editors => _editors;
+    internal SkUiLayout Editors => _editors;
+    internal EditorHelpBubble Help => _help;
+    /// <summary>Every editor's title and description (<c>null</c>: no (?) button).</summary>
+    internal List<(string Title, bool Property, EditorHelpEntry? Help)> EditorDescriptions { get; } = [];
 
     /// <summary>Whether the preview host uses a GPU Skia surface (<see cref="SkUiView.HwAccelerated"/>).</summary>
     protected bool HwAccelerated => _hwAccelerated;
@@ -67,11 +78,24 @@ public abstract class ComponentDemoPage : ContentPage
         }
         _result = Caption("", "PropertyCheckResult");
         _result.HeightRequest = 40;
-        var propertyArea = new ScrollView { Content = _editors, AutomationId = "PropertyEditors" };
-        var root = new Grid { Padding = 12, RowSpacing = 8, RowDefinitions = [new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto)] };
+        // The editors and the check result: one drawn surface.
+        var propertyArea = new SkUiScrollView { Content = _editors, AutomationId = "PropertyEditors" };
+        var editorsArea = new SkUiGrid
+        {
+            Background = DemoColors.PageBackground, RowSpacing = 8, RowDefinitions = [new(GridLength.Star), new(GridLength.Auto)],
+            Children = { propertyArea, _result }
+        };
+        Grid.SetRow(_result, 1);
+        _help = new EditorHelpBubble(editorsArea);
+        propertyArea.Scrolled += (_, _) => _help.Hide();
+        // The control the gallery lists the page for (the preview may be a container of it), then the preview's own type.
+        _documentedTypes = ComponentDemos.All.Where(demo => demo.PageType == GetType()).Select(demo => demo.ComponentType)
+            .Append(skia.GetType()).Distinct().ToList();
+        if (native is not null)
+            _documentedTypes.Add(native.GetType());
+        var root = new Grid { Padding = 12, RowSpacing = 8, RowDefinitions = [new(GridLength.Auto), new(GridLength.Star)] };
         root.Add(_comparisons);
-        root.Add(propertyArea, 0, 1);
-        root.Add(_result, 0, 2);
+        root.Add(editorsArea, 0, 1);
         Content = root;
         ToolbarItems.Add(new ToolbarItem("Reset", null, ResetProperties));
         ToolbarItems.Add(new ToolbarItem("Check properties", null, () => CheckProperties()));
@@ -84,14 +108,13 @@ public abstract class ComponentDemoPage : ContentPage
         UpdateComparisonLayout(0);
         skia.SizeChanged += (_, _) => UpdateBounds();
         if (native is not null) native.SizeChanged += (_, _) => UpdateBounds();
-        _editors.RowDefinitions = [new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto)];
-        _editors.Add(_specificEditors, 0, 0);
-        _editors.Add(new Label
+        _editors.Children.Add(_specificEditors);
+        _editors.Children.Add(new SkUiLabel
         {
             Text = "Common properties", TextColor = DemoColors.Caption, FontSize = 13, FontFamily = DemoFonts.OpenSansSemibold,
             Margin = new Thickness(0, 8, 0, 0)
-        }, 0, 1);
-        _editors.Add(_commonEditors, 0, 2);
+        });
+        _editors.Children.Add(_commonEditors);
         _addingCommonEditors = true;
         Toggle("HwAccelerated", true, ApplyHwAcceleration, () => _hwAccelerated);
         // Without explicit ranges the sizes switch to the control's natural size (its SkUiLook default), measured once
@@ -191,7 +214,9 @@ public abstract class ComponentDemoPage : ContentPage
         UpdateBounds();
     }
 
-    private static Grid MakePanel(string title, View view, out Label status)
+    // The panels stay MAUI grids: the SkiaUi preview is a surface of its own and the MAUI one a native control. Their
+    // captions are drawn labels (each a small surface).
+    private static Grid MakePanel(string title, View view, out SkUiLabel status)
     {
         status = Caption("", title + "Status");
         status.HeightRequest = 32;
@@ -232,22 +257,34 @@ public abstract class ComponentDemoPage : ContentPage
         }
     }
 
-    protected static Label Caption(string text, string? automationId = null) => new()
+    protected static SkUiLabel Caption(string text, string? automationId = null) => new()
     {
         Text = text, TextColor = Ink, FontSize = 13, FontFamily = DemoFonts.OpenSansRegular,
         AutomationId = automationId, VerticalTextAlignment = TextAlignment.Center
     };
 
-    protected void AddEditor(string title, View editor)
+    /// <summary>
+    /// Adds an editor row under its caption; a native view is hosted in the drawn editors (<see cref="SkUiMauiContentView"/>).
+    /// The caption has a (?) button when the editor has a description: its section of <c>EditorHelp.md</c>, else (unless
+    /// <paramref name="property"/> is <c>false</c>) the documentation of the property <paramref name="title"/> names.
+    /// </summary>
+    protected void AddEditor(string title, View editor, bool property = true)
     {
         var editors = _addingCommonEditors ? _commonEditors : _specificEditors;
-        var row = editors.RowDefinitions.Count;
-        editors.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        var field = new Grid { RowDefinitions = [new(GridLength.Auto), new(GridLength.Auto)], RowSpacing = 2 };
-        field.Add(Caption(title));
-        field.Add(editor, 0, 1);
-        editors.Add(field, 0, row);
+        var view = editor as ISkUiView ?? new SkUiMauiContentView { Content = editor };
+        var header = new SkUiHorizontalStackLayout { Spacing = 6, HorizontalOptions = LayoutOptions.Start, Children = { Caption(title) } };
+        var help = EditorHelp.Shared.Find(GetType(), _documentedTypes, title, property);
+        if (help is not null)
+            header.Children.Add(_help.CreateButton(header, title, help));
+        EditorDescriptions.Add((title, property, help));
+        editors.Children.Add(new SkUiVerticalStackLayout { Spacing = 2, Children = { header, view } });
     }
+
+    /// <summary>
+    /// Types whose properties the page's editors also set (an item's, a hosted control's), documented after the control's own;
+    /// call before adding their editors.
+    /// </summary>
+    protected void DocumentTypes(params Type[] types) => _documentedTypes.InsertRange(1, types);
 
     private void SetBoth(BindableProperty property, object value)
     {
@@ -258,11 +295,10 @@ public abstract class ComponentDemoPage : ContentPage
     /// <param name="whole">Snaps the slider to whole numbers (for <c>int</c> properties such as a button's <c>CornerRadius</c>).</param>
     protected void Number(string name, double minimum, double maximum, double initial, Action<double> apply, Func<double> skia, Func<double>? native = null, bool whole = false)
     {
-        var slider = new Slider { Minimum = minimum, Maximum = maximum, Value = initial, MinimumTrackColor = Accent, AutomationId = "Edit" + name };
+        var slider = new SkUiSlider { Minimum = minimum, Maximum = maximum, Value = initial, MinimumTrackColor = Accent, AutomationId = "Edit" + name };
         var valueLabel = Caption(initial.ToString("0.##"));
-        var row = new Grid { ColumnDefinitions = [new(GridLength.Star), new(new GridLength(48))] };
-        row.Add(slider);
-        row.Add(valueLabel, 1);
+        Grid.SetColumn(valueLabel, 1);
+        var row = new SkUiGrid { ColumnDefinitions = [new(GridLength.Star), new(new GridLength(48))], ColumnSpacing = 8, Children = { slider, valueLabel } };
         void Apply(double value) { apply(value); valueLabel.Text = value.ToString("0.##"); }
         slider.ValueChanged += (_, args) =>
         {
@@ -279,13 +315,13 @@ public abstract class ComponentDemoPage : ContentPage
     }
 
     // Assigning the same Value does not raise ValueChanged; only then apply explicitly.
-    private static void SetSlider(Slider slider, double value, Action<double> apply)
+    private static void SetSlider(SkUiSlider slider, double value, Action<double> apply)
     {
         if (Math.Abs(slider.Value - value) < 0.001) apply(value);
         else slider.Value = value;
     }
 
-    private readonly Dictionary<string, (Slider Slider, double Initial, Action<double> Apply)> _numbers = [];
+    private readonly Dictionary<string, (SkUiSlider Slider, double Initial, Action<double> Apply)> _numbers = [];
 
     /// <summary>
     /// Replaces the initial (and Reset) value of a <see cref="Number"/> editor and applies it, clamped to its range
@@ -321,11 +357,11 @@ public abstract class ComponentDemoPage : ContentPage
             choice.Picker.SelectedIndex = index;
     }
 
-    private readonly Dictionary<string, (Picker Picker, object[] Values)> _choices = [];
+    private readonly Dictionary<string, (SkUiPicker Picker, object[] Values)> _choices = [];
 
     protected void Toggle(string name, bool initial, Action<bool> apply, Func<bool> skia, Func<bool>? native = null)
     {
-        var toggle = new Switch { IsToggled = initial, OnColor = Accent, HorizontalOptions = LayoutOptions.Start, AutomationId = "Edit" + name };
+        var toggle = new SkUiSwitch { IsToggled = initial, OnColor = Accent, HorizontalOptions = LayoutOptions.Start, AutomationId = "Edit" + name };
         toggle.Toggled += (_, args) => apply(args.Value);
         AddEditor(name, toggle);
         _resets.Add(() =>
@@ -339,7 +375,7 @@ public abstract class ComponentDemoPage : ContentPage
 
     protected void Text(string name, string initial, Action<string> apply, Func<string> skia, Func<string>? native = null)
     {
-        var entry = new Entry { Text = initial, Background = Colors.White, TextColor = Ink, PlaceholderColor = DemoColors.Caption, AutomationId = "Edit" + name };
+        var entry = new SkUiEntry { Text = initial, FillColor = Colors.White, TextColor = Ink, PlaceholderColor = DemoColors.Caption, AutomationId = "Edit" + name };
         entry.TextChanged += (_, args) => apply(args.NewTextValue ?? string.Empty);
         AddEditor(name, entry);
         _resets.Add(() =>
@@ -351,12 +387,12 @@ public abstract class ComponentDemoPage : ContentPage
         apply(initial);
     }
 
-    /// <summary>A multi-line text editor (e.g. for Label's Text) using an <see cref="Editor"/> instead of a single-line Entry.</summary>
-    protected Editor MultilineText(string name, string initial, Action<string> apply, Func<string> skia, Func<string>? native = null)
+    /// <summary>A multi-line text editor (e.g. for Label's Text) using an <see cref="SkUiEditor"/> instead of a single-line entry.</summary>
+    protected SkUiEditor MultilineText(string name, string initial, Action<string> apply, Func<string> skia, Func<string>? native = null)
     {
-        var editor = new Editor
+        var editor = new SkUiEditor
         {
-            Text = initial, Background = Colors.White, TextColor = Ink, PlaceholderColor = DemoColors.Caption,
+            Text = initial, FillColor = Colors.White, TextColor = Ink, PlaceholderColor = DemoColors.Caption,
             AutoSize = EditorAutoSizeOption.TextChanges, HeightRequest = 90, AutomationId = "Edit" + name
         };
         editor.TextChanged += (_, args) => apply(args.NewTextValue ?? string.Empty);
@@ -366,7 +402,7 @@ public abstract class ComponentDemoPage : ContentPage
             if (editor.Text == initial) apply(initial);
             else editor.Text = initial;
         });
-        // Line breaks compared as \n: MAUI's Editor on Windows gives them as \r, a drawn editor takes them as \n.
+        // Line breaks compared as \n: MAUI's Editor (the native preview) on Windows gives them as \r, a drawn editor takes them as \n.
         _checks.Add((name, () => Lines(skia()) == Lines(editor.Text) && (native is null || Lines(native()) == Lines(editor.Text))));
         apply(initial);
         return editor;
@@ -376,7 +412,7 @@ public abstract class ComponentDemoPage : ContentPage
 
     protected void Choice<T>(string name, T[] values, T initial, Action<T> apply, Func<T> skia, Func<T>? native = null) where T : notnull
     {
-        var picker = new Picker { Title = name, Background = Colors.White, TextColor = Ink, TitleColor = DemoColors.Caption, AutomationId = "Edit" + name };
+        var picker = new SkUiPicker { Title = name, FillColor = Colors.White, TextColor = Ink, TitleColor = DemoColors.Caption, AutomationId = "Edit" + name };
         foreach (var value in values) picker.Items.Add(value.ToString()!);
         picker.SelectedIndex = Array.IndexOf(values, initial);
         picker.SelectedIndexChanged += (_, _) => { if (picker.SelectedIndex >= 0) apply(values[picker.SelectedIndex]); };
@@ -396,12 +432,12 @@ public abstract class ComponentDemoPage : ContentPage
     protected void ColorEditor(string name, Color initial, Action<Color> apply, Func<Color> skia, Func<Color>? native = null)
     {
         var selected = initial;
-        var palette = new Grid { ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star), new(GridLength.Star), new(GridLength.Star)], ColumnSpacing = 8 };
+        var palette = new SkUiGrid { ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star), new(GridLength.Star), new(GridLength.Star)], ColumnSpacing = 8 };
         var colors = new[] { initial, DemoColors.SampleA, DemoColors.SampleB, DemoColors.Ink };
         for (var index = 0; index < colors.Length; index++)
         {
             var color = colors[index];
-            var swatch = new Button { Background = color, HeightRequest = 44, BorderColor = Colors.Gray, BorderWidth = 1, CornerRadius = 4, AutomationId = $"Edit{name}{index}" };
+            var swatch = new SkUiButton { Background = color, HeightRequest = 44, BorderColor = Colors.Gray, BorderWidth = 1, CornerRadius = 4, AutomationId = $"Edit{name}{index}" };
             SemanticProperties.SetDescription(swatch, name + " " + color.ToArgbHex());
             ToolTipProperties.SetText(swatch, color.ToArgbHex());
             swatch.Clicked += (_, _) => { selected = color; apply(color); };
@@ -497,9 +533,9 @@ public abstract class ComponentDemoPage : ContentPage
 
     protected void ActionButton(string title, Action action)
     {
-        var button = new Button { Text = title, Background = Accent, TextColor = Colors.White, AutomationId = title.Replace(" ", "") };
+        var button = new SkUiButton { Text = title, Background = Accent, TextColor = Colors.White, AutomationId = title.Replace(" ", "") };
         button.Clicked += (_, _) => action();
-        AddEditor(title, button);
+        AddEditor(title, button, property: false);
     }
 
     protected void OnReset(Action action) => _resets.Add(action);
@@ -534,6 +570,7 @@ public abstract class ComponentDemoPage : ContentPage
 
     protected override void OnDisappearing()
     {
+        _help.Hide();
         _host.AnimationClock.StopAll();
         base.OnDisappearing();
     }

@@ -139,6 +139,8 @@ public class ScrollViewTests
         grid.Children.Add(left);
         grid.Children.Add(right);
         var scroll = new SkUiScrollView { Content = grid };
+        // Hosted: a surface root arranged wider than it was measured is measured again at the arranged size.
+        _ = new SkUiContentView { Content = scroll };
         ((IView)scroll).Measure(40, 40);
         ((IView)scroll).Arrange(new Rect(0, 0, 100, 40));
         Assert.True(scroll.ContentSize.Width <= 40);

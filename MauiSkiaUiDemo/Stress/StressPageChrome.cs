@@ -1,6 +1,7 @@
 using CommunityToolkit.Maui;
 using CommunityToolkit.Maui.Extensions;
 using CommunityToolkit.Maui.Views;
+using MauiSkiaUi;
 
 namespace MauiSkiaUiDemo;
 
@@ -8,7 +9,8 @@ namespace MauiSkiaUiDemo;
 /// The fixed header of a stress page: status chips of the current configuration (layer, HW, animation, …), the last
 /// test's one- or two-line summary, and buttons that open the description, the configuration and the full results in
 /// popups and run the test. The header never changes height, so the test area below always covers the same screen area
-/// and runs stay comparable.
+/// and runs stay comparable. The header and the popups' content are drawn; the test area below stays a MAUI view, as
+/// the native layer's test tree is.
 /// </summary>
 internal sealed class StressPageChrome
 {
@@ -18,13 +20,13 @@ internal sealed class StressPageChrome
     private readonly ContentPage _page;
     private readonly string _title;
     private readonly string _logTag;
-    private readonly View _about;
-    private readonly View _configuration;
+    private readonly SkUiView _about;
+    private readonly SkUiView _configuration;
     private readonly Func<IEnumerable<string>> _chips;
-    private readonly HorizontalStackLayout _chipRow = new() { Spacing = 6, VerticalOptions = LayoutOptions.Center };
-    private readonly Label _summary;
-    private readonly Label _results;
-    private readonly Button _run;
+    private readonly SkUiHorizontalStackLayout _chipRow = new() { Spacing = 6, VerticalOptions = LayoutOptions.Center };
+    private readonly SkUiLabel _summary;
+    private readonly SkUiLabel _results;
+    private readonly SkUiButton _run;
     private readonly Action _runAction;
     private bool _popupOpen;
 
@@ -35,7 +37,7 @@ internal sealed class StressPageChrome
     /// <param name="chips">The status chips of the current configuration, e.g. <c>CORE</c>, <c>HW</c>, <c>ANIM</c>.</param>
     /// <param name="run">Runs the test.</param>
     /// <param name="logTag">Prefix of the console lines (<c>[logTag] …</c>) that scripted runs read.</param>
-    public StressPageChrome(ContentPage page, string title, View about, View configuration, Func<IEnumerable<string>> chips, Action run, string logTag)
+    public StressPageChrome(ContentPage page, string title, SkUiView about, SkUiView configuration, Func<IEnumerable<string>> chips, Action run, string logTag)
     {
         _page = page;
         _title = title;
@@ -43,16 +45,14 @@ internal sealed class StressPageChrome
         _about = about;
         _configuration = configuration;
         _chips = chips;
-        _summary = new Label
+        _summary = new SkUiLabel
         {
             Text = "Not run yet.", FontFamily = DemoFonts.OpenSansRegular, FontSize = 12, TextColor = DemoColors.Ink,
             MaxLines = 2, LineBreakMode = LineBreakMode.TailTruncation, HeightRequest = SummaryHeight,
             AutomationId = "StressSummary"
         };
-        var openResults = new TapGestureRecognizer();
-        openResults.Tapped += (_, _) => _ = ShowResultsAsync();
-        _summary.GestureRecognizers.Add(openResults);
-        _results = new Label
+        _summary.Tapped += (_, _) => _ = ShowResultsAsync();
+        _results = new SkUiLabel
         {
             Text = "Not run yet.", FontFamily = DemoFonts.RobotoMono, FontSize = 11, TextColor = DemoColors.Ink,
             LineBreakMode = LineBreakMode.WordWrap, AutomationId = "StressResults"
@@ -60,18 +60,18 @@ internal sealed class StressPageChrome
         _runAction = run;
         _run = HeaderButton("Run", "StressRun", run, primary: true);
 
-        Header = new VerticalStackLayout
+        Header = new SkUiVerticalStackLayout
         {
             Spacing = 4,
             Children =
             {
-                new ScrollView
+                new SkUiScrollView
                 {
                     Orientation = ScrollOrientation.Horizontal, HorizontalScrollBarVisibility = ScrollBarVisibility.Never,
                     HeightRequest = ChipRowHeight, Content = _chipRow
                 },
                 _summary,
-                new HorizontalStackLayout
+                new SkUiHorizontalStackLayout
                 {
                     Spacing = 6,
                     Children =
@@ -100,7 +100,7 @@ internal sealed class StressPageChrome
     }
 
     /// <summary>The fixed-height header to place above the test area.</summary>
-    public View Header { get; }
+    public SkUiView Header { get; }
 
     /// <summary>The full results text (shown in the Results popup).</summary>
     public string Results => _results.Text;
@@ -117,14 +117,10 @@ internal sealed class StressPageChrome
     {
         _chipRow.Children.Clear();
         foreach (var chip in _chips())
-            _chipRow.Children.Add(new Border
+            _chipRow.Children.Add(new SkUiLabel
             {
-                StrokeThickness = 0,
-                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
-                BackgroundColor = DemoColors.SoftSurface,
-                Padding = new Thickness(8, 2),
-                VerticalOptions = LayoutOptions.Center,
-                Content = new Label { Text = chip, FontFamily = DemoFonts.OpenSansSemibold, FontSize = 11, TextColor = DemoColors.Ink }
+                Text = chip, FontFamily = DemoFonts.OpenSansSemibold, FontSize = 11, TextColor = DemoColors.Ink,
+                BackgroundColor = DemoColors.SoftSurface, CornerRadius = 10, Padding = new Thickness(8, 2), VerticalOptions = LayoutOptions.Center
             });
     }
 
@@ -169,29 +165,29 @@ internal sealed class StressPageChrome
     /// button; it is disabled while a test runs). Returns whether it was closed with Run. The body is detached again when
     /// the popup closes, so the same editors can be shown again in a later popup.
     /// </summary>
-    private async Task<bool> ShowAsync(string title, View body, bool runnable = false)
+    private async Task<bool> ShowAsync(string title, SkUiView body, bool runnable = false)
     {
         if (_popupOpen)
             return false;
         _popupOpen = true;
         var runRequested = false;
-        var scroll = new ScrollView { Content = body, MaximumHeightRequest = Math.Max(240, _page.Height * 0.7) };
+        var scroll = new SkUiScrollView { Content = body, MaximumHeightRequest = Math.Max(240, _page.Height * 0.7) };
         var popup = new Popup
         {
             Padding = new Thickness(16, 12),
             WidthRequest = Math.Min(Math.Max(280, _page.Width - 32), 560),
             BackgroundColor = Colors.White,
         };
-        var close = new Button
+        var close = new SkUiButton
         {
             Text = "Close", AutomationId = "StressPopupClose", BackgroundColor = DemoColors.Accent, TextColor = Colors.White,
             FontFamily = DemoFonts.OpenSansSemibold, FontSize = 13, Padding = new Thickness(14, 4), HorizontalOptions = LayoutOptions.End
         };
         close.Clicked += async (_, _) => await popup.CloseAsync();
-        var actions = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.End };
+        var actions = new SkUiHorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.End };
         if (runnable)
         {
-            var run = new Button
+            var run = new SkUiButton
             {
                 Text = "Run", AutomationId = "StressPopupRun", BackgroundColor = DemoColors.Accent, TextColor = Colors.White,
                 FontFamily = DemoFonts.OpenSansSemibold, FontSize = 13, Padding = new Thickness(14, 4), IsEnabled = _run.IsEnabled
@@ -203,19 +199,20 @@ internal sealed class StressPageChrome
             };
             close.BackgroundColor = DemoColors.SoftSurface;
             close.TextColor = DemoColors.Ink;
-            actions.Add(close);
-            actions.Add(run);
+            actions.Children.Add(close);
+            actions.Children.Add(run);
         }
         else
         {
-            actions.Add(close);
+            actions.Children.Add(close);
         }
-        popup.Content = new VerticalStackLayout
+        // The popup is the toolkit's (a page-level overlay); its content is one drawn surface.
+        popup.Content = new SkUiVerticalStackLayout
         {
             Spacing = 10,
             Children =
             {
-                new Label { Text = $"{_title} · {title}", FontFamily = DemoFonts.OpenSansSemibold, FontSize = 15, TextColor = DemoColors.Ink },
+                new SkUiLabel { Text = $"{_title} · {title}", FontFamily = DemoFonts.OpenSansSemibold, FontSize = 15, TextColor = DemoColors.Ink },
                 scroll,
                 actions
             }
@@ -232,9 +229,9 @@ internal sealed class StressPageChrome
         return runRequested;
     }
 
-    private static Button HeaderButton(string text, string automationId, Action action, bool primary = false)
+    private static SkUiButton HeaderButton(string text, string automationId, Action action, bool primary = false)
     {
-        var button = new Button
+        var button = new SkUiButton
         {
             Text = text, AutomationId = automationId, FontFamily = DemoFonts.OpenSansSemibold, FontSize = 13, Padding = new Thickness(12, 4),
             BackgroundColor = primary ? DemoColors.Accent : DemoColors.SoftSurface, TextColor = primary ? Colors.White : DemoColors.Ink

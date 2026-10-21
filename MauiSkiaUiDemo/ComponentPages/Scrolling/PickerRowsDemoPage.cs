@@ -20,6 +20,7 @@ public sealed class PickerRowsDemoPage : ComponentDemoPage
     public PickerRowsDemoPage()
         : base("SkUiPicker rows", new SkUiCollectionView(), new CollectionView(), widthRange: (200, 400, 300), heightRange: (160, 600, 360))
     {
+        DocumentTypes(typeof(SkUiPicker));
         var skia = (SkUiCollectionView)SkiaControl;
         var native = (CollectionView)NativeControl!;
         for (var index = 0; index < 40; index++)

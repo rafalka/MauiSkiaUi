@@ -29,7 +29,7 @@ public sealed class PickerSamplesTests : IDisposable
     /// <summary>The example's drawn content, laid out at a phone's width.</summary>
     private static SkUiView Content(MauiSkiaUiSamples.SamplePage page)
     {
-        var content = Assert.IsAssignableFrom<SkUiView>(page.SampleContent);
+        var content = Assert.IsAssignableFrom<SkUiView>(SkUiTestHelpers.DetachSampleContent(page));
         SkUiTestHelpers.Arrange(content, 380, 900);
         return content;
     }

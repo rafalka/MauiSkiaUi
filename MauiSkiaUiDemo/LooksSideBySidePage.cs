@@ -5,7 +5,8 @@ namespace MauiSkiaUiDemo;
 /// <summary>
 /// The same controls under each platform look at once (<see cref="SkUiView.Look"/> on one border per look), next to MAUI's
 /// native controls on the platform the demo runs on. The color scheme is the app's; each section only paints its own
-/// background from the matching scheme.
+/// background from the matching scheme. The page is one drawn surface; the native sections are hosted in it
+/// (<see cref="SkUiMauiContentView"/>).
 /// </summary>
 public sealed class LooksSideBySidePage : ContentPage
 {
@@ -15,9 +16,9 @@ public sealed class LooksSideBySidePage : ContentPage
     public LooksSideBySidePage()
     {
         Title = "Looks side by side";
-        var stack = new VerticalStackLayout { Padding = 16, Spacing = 16 };
-        stack.Add(UnstyledNativeSection());
-        stack.Add(NativeSection(NativeTitle));
+        var stack = new SkUiVerticalStackLayout { Padding = 16, Spacing = 16 };
+        stack.Children.Add(new SkUiMauiContentView { Content = UnstyledNativeSection() });
+        stack.Children.Add(new SkUiMauiContentView { Content = NativeSection(NativeTitle) });
         foreach (var (name, look) in new (string, DefaultSkUiLook)[]
                  {
                      ("Default look", DefaultSkUiLook.Instance), ("Android (Material 2)", AndroidSkUiLook.Instance),
@@ -25,7 +26,7 @@ public sealed class LooksSideBySidePage : ContentPage
                      ("iOS", IosSkUiLook.Instance), ("macOS", MacSkUiLook.Instance), ("Windows (Fluent)", WindowsSkUiLook.Instance)
                  })
         {
-            stack.Add(new SkUiBorder
+            stack.Children.Add(new SkUiBorder
             {
                 Look = look,
                 Padding = 12,
@@ -35,7 +36,7 @@ public sealed class LooksSideBySidePage : ContentPage
                 Content = Section(name, look)
             });
         }
-        Content = new ScrollView { Content = stack };
+        Content = new SkUiScrollView { Content = stack, Background = Colors.White };
     }
 
     private static SkUiVerticalStackLayout Section(string name, DefaultSkUiLook look)
