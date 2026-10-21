@@ -15,7 +15,7 @@ namespace MauiSkiaUi;
 /// <remarks>
 /// <para>
 /// <b>Beyond MAUI:</b> <see cref="SkUiPickerBase.PopupPlacement"/> (anchored like a combo box, in the window like a dialog or a sheet, at
-/// <see cref="SkUiPickerBase.PopupBounds"/>, or the look's choice per platform), <see cref="ItemTemplate"/> (drawn rows),
+/// <see cref="SkUiPickerBase.PopupBounds"/>, docked at the bottom as iOS's picker, or the look's choice per platform), <see cref="ItemTemplate"/> (drawn rows),
 /// <see cref="SkUiPickerBase.MaxPopupHeight"/> and <see cref="SkUiPickerBase.PopupPresenter"/>.
 /// </para>
 /// <para>

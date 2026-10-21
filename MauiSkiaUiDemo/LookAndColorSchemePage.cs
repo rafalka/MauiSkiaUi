@@ -20,6 +20,10 @@ public sealed class LookAndColorSchemePage : ContentPage
     private readonly SkUiPicker _platformLookPicker;
     private readonly SkUiPicker _pickerFieldPicker;
     private readonly SkUiPicker _popupPlacementPicker;
+
+    /// <summary>The placements the look can default to (not <see cref="SkUiPopupPlacement.Absolute"/>, which needs a picker's rectangle).</summary>
+    private static readonly SkUiPopupPlacement[] PopupPlacements =
+        [SkUiPopupPlacement.Default, SkUiPopupPlacement.Anchored, SkUiPopupPlacement.Window, SkUiPopupPlacement.BottomPane];
     private readonly SkUiPicker _motionPicker;
     private readonly SkUiGrid _sizeGrid;
     /// <summary>The page's selections, shared by every visit (the look they produce stays current app-wide).</summary>
@@ -162,7 +166,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         _popupPlacementPicker = new SkUiPicker
         {
             Title = "Popup placement",
-            ItemsSource = Enum.GetNames<SkUiPopupPlacement>()[..3],
+            ItemsSource = PopupPlacements.Select(placement => placement.ToString()).ToArray(),
             SelectedIndex = Settings.PopupPlacement,
             AutomationId = "LookPopupPlacementPicker",
             FontFamily = DemoFonts.OpenSansRegular
@@ -254,9 +258,10 @@ public sealed class LookAndColorSchemePage : ContentPage
                 _indicatorPicker,
                 Section("Pickers"),
                 Caption("The platform look whose picker defaults apply (Common: the default look, the same on every platform; " +
-                    "Android: underlined fields; iOS: lists in a sheet at the bottom on phones), how picker fields draw (Default: " +
-                    "the platform look's, an outline in the common look) and where pickers that do not set PopupPlacement open " +
-                    "their list (Default: anchored on desktops and tablets, in the window on phones)."),
+                    "Android: underlined fields; iOS: lists in a sheet at the bottom on phones, a wheel in a bottom pane), how picker " +
+                    "fields draw (Default: the platform look's, an outline in the common look) and where pickers that do not set " +
+                    "PopupPlacement open their list (Default: anchored on desktops and tablets, in the window on phones; BottomPane: " +
+                    "docked to the window's bottom edge with a close button)."),
                 _platformLookPicker,
                 _pickerFieldPicker,
                 _popupPlacementPicker,
@@ -562,7 +567,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         Settings.PickerField = Math.Max(0, _pickerFieldPicker.SelectedIndex);
         Settings.PopupPlacement = Math.Max(0, _popupPlacementPicker.SelectedIndex);
         _look.PickerFieldStyle = (SkUiPickerFieldStyle)Settings.PickerField;
-        _look.PopupPlacement = (SkUiPopupPlacement)Settings.PopupPlacement;
+        _look.PopupPlacement = PopupPlacements[Math.Min(Settings.PopupPlacement, PopupPlacements.Length - 1)];
         Settings.Motion = _motionPicker.SelectedIndex;
         _look.PressEffect = _pressPicker.SelectedIndex == 1 ? SkUiPressEffect.Ripple : SkUiPressEffect.Dim;
         _look.IndicatorStyle = _indicatorPicker.SelectedIndex == 1 ? SkUiIndicatorStyle.Pill : SkUiIndicatorStyle.Dots;

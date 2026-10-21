@@ -54,7 +54,8 @@ internal readonly record struct SkUiPopupPlacementInput(
 /// <summary>
 /// Places popups (pure geometry, window coordinates): anchored below the anchor or flipped above when the content fits there
 /// better, start-aligned (the anchor's right edge in right-to-left layouts) and at least the anchor's width; window-aligned by
-/// layout options; absolute at the app's rectangle. Every popup stays inside the safe area less the margin.
+/// layout options; absolute at the app's rectangle. Every popup stays inside the safe area less the margin, but a bottom pane,
+/// which spans the window's width down to its bottom edge (its content pads itself by the safe area).
 /// </summary>
 internal static class SkUiPopupGeometry
 {
@@ -80,6 +81,9 @@ internal static class SkUiPopupGeometry
             case SkUiPopupPlacement.Anchored:
                 bounds = Anchored(input, area, maximum, spaceAbove, spaceBelow, out opensAbove);
                 break;
+            case SkUiPopupPlacement.BottomPane:
+                bounds = Pane(input, out maximum);
+                break;
             default:
                 bounds = Aligned(input, area, maximum);
                 break;
@@ -92,12 +96,22 @@ internal static class SkUiPopupGeometry
             input.IsRightToLeft);
     }
 
+    /// <summary>
+    /// The safe area's insets a bottom pane's content pads itself by: the window's left, right and bottom ones (its top edge is
+    /// inside the window).
+    /// </summary>
+    public static Thickness PaneContentPadding(Thickness safeAreaInsets) => new(safeAreaInsets.Left, 0, safeAreaInsets.Right, safeAreaInsets.Bottom);
+
+    /// <summary>The window; around the anchor when its size is unknown.</summary>
+    private static Rect Window(in SkUiPopupPlacementInput input) =>
+        input.WindowSize is { Width: > 0, Height: > 0 } size
+            ? new Rect(Point.Zero, size)
+            : input.AnchorBounds.Union(new Rect(0, 0, input.AnchorBounds.Right + input.PreferredSize.Width, input.AnchorBounds.Bottom + input.PreferredSize.Height));
+
     /// <summary>The window's safe area less the margin; around the anchor when the window's size is unknown.</summary>
     private static Rect Area(in SkUiPopupPlacementInput input)
     {
-        var window = input.WindowSize is { Width: > 0, Height: > 0 } size
-            ? new Rect(Point.Zero, size)
-            : input.AnchorBounds.Union(new Rect(0, 0, input.AnchorBounds.Right + input.PreferredSize.Width, input.AnchorBounds.Bottom + input.PreferredSize.Height));
+        var window = Window(input);
         var safe = input.SafeAreaInsets;
         var margin = input.Margin;
         var left = window.Left + safe.Left + margin.Left;
@@ -126,6 +140,18 @@ internal static class SkUiPopupGeometry
         var top = opensAbove ? anchor.Top - input.AnchorGap - height : anchor.Bottom + input.AnchorGap;
         top = Clamp(top, area.Top, area.Bottom - height);
         return new Rect(left, top, width, height);
+    }
+
+    /// <summary>
+    /// A bottom pane: the window's width, at its bottom edge, as tall as the content (at most the control's maximum) and the safe
+    /// area's bottom inset it pads itself by, never above the safe area's top less the margin.
+    /// </summary>
+    private static Rect Pane(in SkUiPopupPlacementInput input, out Size maximum)
+    {
+        var window = Window(input);
+        maximum = new Size(window.Width, Math.Max(0, window.Height - input.SafeAreaInsets.Top - input.Margin.Top));
+        var height = Math.Min(Math.Min(input.PreferredSize.Height, input.MaximumHeight) + input.SafeAreaInsets.Bottom, maximum.Height);
+        return new Rect(window.Left, window.Bottom - height, window.Width, height);
     }
 
     private static Rect Aligned(in SkUiPopupPlacementInput input, Rect area, Size maximum)

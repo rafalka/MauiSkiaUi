@@ -81,6 +81,12 @@ public class SkUiStrings
     /// </summary>
     public virtual string CancelText { get; set => Set(ref field, value); } = "Cancel";
 
+    /// <summary>
+    /// What screen readers call the close button (×) in the toolbar of a bottom pane (a picker's <c>PopupPlacement</c>
+    /// <see cref="SkUiPopupPlacement.BottomPane"/>), unless the picker sets its own <c>AcceptText</c>. Default "Done".
+    /// </summary>
+    public virtual string DoneText { get; set => Set(ref field, value); } = "Done";
+
     /// <summary>The Clear button of popups (a picker's <c>IsPopupClearButtonVisible</c>), unless the picker sets its own <c>ClearText</c>. Default "Clear".</summary>
     public virtual string ClearText { get; set => Set(ref field, value); } = "Clear";
 

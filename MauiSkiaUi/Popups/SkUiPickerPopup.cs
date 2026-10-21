@@ -119,8 +119,9 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             _list.SelectedItem = _rows[_highlighted];
         _list.ItemTapped += OnItemTapped;
         _list.SelectionChanging += OnListSelectionChanging;
-        _title = title is null ? null : SkUiPopupParts.Title(title, style);
-        _footer = chrome.HasButtons ? SkUiPopupParts.Buttons(chrome, style, () => Request, ClearChoice) : null;
+        // A bottom pane's title is in its toolbar.
+        _title = title is null || chrome.IsToolbar ? null : SkUiPopupParts.Title(title, style);
+        _footer = SkUiPopupParts.Buttons(chrome, style, title, () => Request, ClearChoice);
         _appHeader = extras.CreateHeader();
         _appFooter = extras.CreateFooter();
         // Several choices: a "Select all" row above the rows (with the app's header, under it).
@@ -132,7 +133,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         var header = _appHeader is not null && _selectAll is not null
             ? new SkUiVerticalStackLayout { Children = { _appHeader, _selectAll } }
             : _appHeader ?? _selectAll;
-        Content = SkUiPopupParts.Compose(_title, header, _list, _appFooter, _footer);
+        Content = SkUiPopupParts.Compose(_title, header, _list, _appFooter, _footer, chrome.IsToolbar);
         var first = _multiple ? (_initialChecked.Length > 0 ? _initialChecked[0] : -1) : _highlighted;
         if (first >= 0 && first < _rows.Length)
             _ = _list.ScrollToIndex(first, ScrollToPosition.Center, animated: false);

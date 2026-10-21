@@ -53,7 +53,9 @@ internal interface ISkUiColumnsRules
 /// keyboard focus (it takes it when shown): Left / Right change the column, Up / Down, Page Up / Page Down, Home / End and typing
 /// move its wheel, Enter or Space accept, Escape cancels. Screen readers read each wheel as one adjustable element (its column's
 /// name, the item in its middle row and its place, increment / decrement for the next / previous item that can be chosen). Holds
-/// the texts it was opened with, never the picker.
+/// the texts it was opened with, never the picker. As a list's wheel (one column, <c>singleList</c>: a picker's list in a bottom pane on
+/// a look that shows it as a wheel) it chooses through a <see cref="SkUiListPopupRequest"/> instead
+/// (<see cref="SkUiListPopupRequest.SetSelectedIndex"/>), whose close button (×) takes the item in the middle row.
 /// </summary>
 internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUiPickerPopupContent
 {
@@ -94,6 +96,7 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
     private readonly SkUiLabel?[] _headers;
     private readonly double _rowHeight;
     private readonly ISkUiColumnsRules? _rules;
+    private readonly bool _singleList;
     private readonly int[] _start;
     private SkUiTypeAhead _typeAhead;
     private int _active;
@@ -110,9 +113,10 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
     public SkUiColumnsPopup(string[][] texts, bool[] loops, double[] widths, IReadOnlyList<int> selected, int rows, SkUiPickerRowStyle style, string? title,
         bool rightToLeft, SkUiPickerPopupChrome chrome, Action<IReadOnlyList<int>> apply, Func<IReadOnlyList<int>> current,
         IReadOnlyList<bool>?[]? states = null, ColumnParts[]? parts = null, SkUiPopupExtras extras = default, ISkUiColumnsRules? rules = null,
-        IReadOnlyList<int>? positions = null)
+        IReadOnlyList<int>? positions = null, bool singleList = false)
     {
         _chrome = chrome;
+        _singleList = singleList && texts.Length == 1 && rules is null;
         _texts = texts;
         _rules = rules;
         // Where each wheel starts: its chosen item, else the item the picker shows while nothing is chosen, else the first.
@@ -194,11 +198,12 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
         if (hasHeaders)
             Grid.SetRow(band, 1);
         // The band sits behind the wheels; the wheels are transparent, so the chosen texts stay clear.
-        _title = title is null ? null : SkUiPopupParts.Title(title, style);
-        _footer = chrome.HasButtons ? SkUiPopupParts.Buttons(chrome, style, () => Request, () => Request?.Clear()) : null;
+        // A bottom pane's title is in its toolbar.
+        _title = title is null || chrome.IsToolbar ? null : SkUiPopupParts.Title(title, style);
+        _footer = SkUiPopupParts.Buttons(chrome, style, title, () => Request, ClearChoice);
         _appHeader = extras.CreateHeader();
         _appFooter = extras.CreateFooter();
-        Content = SkUiPopupParts.Compose(_title, _appHeader, wheels, _appFooter, _footer);
+        Content = SkUiPopupParts.Compose(_title, _appHeader, wheels, _appFooter, _footer, chrome.IsToolbar);
         // Handlers last: setting the starting positions is not a choice.
         foreach (var wheel in _wheels)
         {
@@ -278,6 +283,22 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
     public SkUiPopupRequest CreateRequest(View anchor, View? platformAnchor, in SkUiPopupLayout layout, in SkUiPopupRequestOptions options)
     {
         var chrome = options.Chrome;
+        if (_singleList)
+        {
+            var list = new SkUiListPopupRequest(anchor, platformAnchor, this, layout, _texts[0], _initial[0], _states[0], index => _apply([index]))
+            {
+                Title = options.Title,
+                OverlayColor = options.OverlayColor,
+                IsAnimated = options.IsAnimated,
+                RequiresAccept = chrome.RequiresAccept,
+                AcceptText = chrome.AcceptText,
+                CancelText = chrome.CancelText
+            };
+            Request = list;
+            // A wheel always shows an item in its middle row: the one the close button chooses, also when the picker has none chosen yet.
+            list.SetCurrentIndex(Shown(_initial)[0]);
+            return list;
+        }
         var request = _rules?.CreateRequest(anchor, platformAnchor, this, layout, options, _initial, indices => _apply(indices))
             ?? new SkUiColumnsPopupRequest(anchor, platformAnchor, this, layout, _texts, _loops, _initial, indices => _apply(indices),
                 [.. _parts.Select(part => part.Header)])
@@ -358,14 +379,49 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
             return;
         }
         // The item already chosen is chosen again only while another column has nothing chosen (it then takes its wheel's item).
-        if (Request is not SkUiSelectionPopupRequest request || index < 0 || index >= _texts[column].Length
-            || (request.SelectedIndices[column] == index && !request.SelectedIndices.Contains(-1))
+        if (Chosen() is not { } chosen || index < 0 || index >= _texts[column].Length
+            || (chosen[column] == index && !chosen.Contains(-1))
             || !SkUiItemStates.IsEnabled(_states[column], index))
             return;
         // The other columns with nothing chosen take what their wheels show: a time is never half chosen ("01:").
-        var next = Shown(request.SelectedIndices);
+        var next = Shown(chosen);
         next[column] = index;
-        request.SetSelection(next);
+        Select(next);
+    }
+
+    /// <summary>
+    /// What the wheels have chosen, one index per column: the request's selection; for a list's wheel, the picker's selection while
+    /// each choice applies at once, else the draft (the request's current item). <c>null</c> without a request.
+    /// </summary>
+    private IReadOnlyList<int>? Chosen() => Request switch
+    {
+        SkUiSelectionPopupRequest selection => selection.SelectedIndices,
+        SkUiListPopupRequest list => list.RequiresAccept ? [list.CurrentIndex] : _current(),
+        _ => null
+    };
+
+    /// <summary>Chooses <paramref name="indices"/> through the request (a list's wheel: its one index).</summary>
+    private void Select(int[] indices)
+    {
+        if (Request is SkUiSelectionPopupRequest selection)
+            selection.SetSelection(indices);
+        else if (Request is SkUiListPopupRequest list && indices.Length == 1)
+            list.SetSelectedIndex(indices[0]);
+    }
+
+    /// <summary>
+    /// The Clear button. Wheels cannot show that nothing is chosen, so a list's wheel clears and closes, also when the popup waits
+    /// for OK (as <see cref="SkUiColumnsPopupRequest"/>'s Clear).
+    /// </summary>
+    private void ClearChoice()
+    {
+        if (Request is SkUiListPopupRequest list)
+        {
+            if (list.Clear() && !list.CloseRequested.IsCancellationRequested)
+                list.Accept();
+            return;
+        }
+        Request?.Clear();
     }
 
     /// <summary>
@@ -454,11 +510,9 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
         foreach (var entry in _entries[column])
             entry.IsEnabled = SkUiItemStates.IsEnabled(states, entry.Index);
         (Request as SkUiColumnsPopupRequest)?.SetItemStates(column, states);
-        if (Request is SkUiSelectionPopupRequest request)
-        {
-            var chosen = request.SelectedIndices[column];
-            MoveOffDisabled(column, chosen >= 0 ? chosen : _wheels[column].Position, step: -1);
-        }
+        (Request as SkUiListPopupRequest)?.SetItemStates(states);
+        if (Chosen() is { } chosen)
+            MoveOffDisabled(column, chosen[column] >= 0 ? chosen[column] : _wheels[column].Position, step: -1);
     }
 
     /// <summary>The picker's selection changed while the popup is open (the app set it): the wheels follow.</summary>
@@ -477,6 +531,8 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
             _syncing = false;
         }
         (Request as SkUiSelectionPopupRequest)?.Refresh(chosen);
+        if (Request is SkUiListPopupRequest list && chosen.Count == 1 && chosen[0] >= 0)
+            list.SetCurrentIndex(chosen[0]);
         if (_rules is not null && chosen.Count == _wheels.Length)
             ApplyStates(Shown(chosen));
     }
@@ -502,7 +558,7 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
             return false;
         var column = _active;
         var count = _texts[column].Length;
-        var current = Request is SkUiSelectionPopupRequest selection ? selection.SelectedIndices[column] : -1;
+        var current = Chosen() is { } chosen ? chosen[column] : -1;
         var wheelPosition = _wheels[column].Position;
         // A column with nothing chosen starts from the wheel's middle row.
         var from = current >= 0 ? current : wheelPosition;

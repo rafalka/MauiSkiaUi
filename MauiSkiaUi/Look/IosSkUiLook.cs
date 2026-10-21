@@ -26,6 +26,10 @@ public class IosSkUiLook : DefaultSkUiLook
     public override LayoutOptions PopupVerticalOptions => IsPhone ? LayoutOptions.End : base.PopupVerticalOptions;
 
     /// <inheritdoc />
+    /// <remarks>A wheel, as iOS's picker (<c>UIPickerView</c>).</remarks>
+    public override bool PickerPaneShowsWheel => true;
+
+    /// <inheritdoc />
     /// <remarks>Apple's rubber-band bounce.</remarks>
     public override SkUiOverscrollMode BaseOverscroll => SkUiOverscrollMode.Bounce;
 

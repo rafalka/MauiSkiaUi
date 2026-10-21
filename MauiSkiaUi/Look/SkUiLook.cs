@@ -962,14 +962,20 @@ public class SkUiLook
     public virtual CornerRadius PickerWheelBandCornerRadius => new(8);
 
     /// <summary>
+    /// Whether a picker's list to choose one item from shows as a wheel in a <see cref="SkUiPopupPlacement.BottomPane"/> (default
+    /// <c>false</c>: the list; <see cref="IosSkUiLook"/>: <c>true</c>, as iOS's picker). A list with several choices stays a list.
+    /// </summary>
+    public virtual bool PickerPaneShowsWheel => false;
+
+    /// <summary>
     /// Whether OK comes before Cancel in a popup's footer, at its end side (default <c>false</c>: Cancel, then OK, as on Android,
     /// Apple platforms and the web; <c>true</c> as Windows' dialogs).
     /// </summary>
     public virtual bool PopupAcceptButtonFirst => false;
 
     /// <summary>
-    /// Styles a button of a popup's footer after SkiaUi created it with its text and the picker's font: by default OK is a filled
-    /// button in the accent color, Cancel and Clear are text in the accent color. Override it for the look's buttons.
+    /// Styles a button of a popup's footer or a bottom pane's toolbar after SkiaUi created it with its text and the picker's font: by
+    /// default OK is a filled button in the accent color, Cancel and Clear are text in the accent color. Override it for the look's buttons.
     /// </summary>
     public virtual void StylePopupButton(SkUiButton button, SkUiPopupButton kind)
     {
@@ -1063,6 +1069,41 @@ public class SkUiLook
         canvas.DrawLine(center.X - arm, center.Y + arm, center.X + arm, center.Y - arm, paint);
     }
 
+    /// <summary>Optional painter of a bottom pane's close button; when set, replaces <see cref="DrawPopupCloseButtonCore"/>.</summary>
+    public Action<SKCanvas, SkUiClearButtonPaint>? PopupCloseButtonPainter { get; set; }
+
+    /// <summary>
+    /// Draws the close button (×) at the end of a bottom pane's toolbar (delegate or <see cref="DrawPopupCloseButtonCore"/>) in
+    /// <see cref="SkUiClearButtonPaint.Bounds"/> (its touch target): <see cref="SkUiClearButtonPaint.Color"/> is the cross's,
+    /// <see cref="SkUiClearButtonPaint.Background"/> the circle's.
+    /// </summary>
+    public void DrawPopupCloseButton(SKCanvas canvas, SkUiClearButtonPaint button)
+    {
+        if (PopupCloseButtonPainter is { } painter)
+        {
+            painter(canvas, button);
+            return;
+        }
+        DrawPopupCloseButtonCore(canvas, button);
+    }
+
+    /// <summary>Default close button: a soft circle with a cross, centered, as iOS 26's sheets (dimmed while pressed).</summary>
+    protected virtual void DrawPopupCloseButtonCore(SKCanvas canvas, SkUiClearButtonPaint button)
+    {
+        const float radius = 15;
+        const float arm = 5;
+        var center = new SKPoint(button.Bounds.MidX, button.Bounds.MidY);
+        var alpha = button.IsEnabled ? (button.IsPressed ? 0.6f : 1f) : 0.5f;
+        using var paint = new SKPaint { IsAntialias = true, Color = button.Background.WithAlpha((byte)(button.Background.Alpha * alpha)) };
+        canvas.DrawCircle(center, radius, paint);
+        paint.Color = button.Color.WithAlpha((byte)(button.Color.Alpha * alpha));
+        paint.Style = SKPaintStyle.Stroke;
+        paint.StrokeWidth = 2;
+        paint.StrokeCap = SKStrokeCap.Round;
+        canvas.DrawLine(center.X - arm, center.Y - arm, center.X + arm, center.Y + arm, paint);
+        canvas.DrawLine(center.X - arm, center.Y + arm, center.X + arm, center.Y - arm, paint);
+    }
+
     /// <summary>
     /// Where pickers that do not set their own <c>PopupPlacement</c> open their list (default <see cref="SkUiPopupPlacement.Anchored"/>;
     /// <see cref="DefaultSkUiLook"/> follows the device: anchored on desktops and tablets, a dialog on phones).
@@ -1092,10 +1133,11 @@ public class SkUiLook
 
     /// <summary>
     /// What a modal popup system dims the page with behind a popup of <paramref name="placement"/>
-    /// (<see cref="SkUiPopupRequest.OverlayColor"/>); default: nothing for anchored popups, black at 32 % for the others.
+    /// (<see cref="SkUiPopupRequest.OverlayColor"/>); default: nothing for anchored popups and bottom panes (as a keyboard), black
+    /// at 32 % for the others.
     /// </summary>
     public virtual Color? GetPopupOverlayColor(SkUiPopupPlacement placement) =>
-        placement == SkUiPopupPlacement.Anchored ? null : Color.FromRgba(0, 0, 0, 0.32);
+        placement is SkUiPopupPlacement.Anchored or SkUiPopupPlacement.BottomPane ? null : Color.FromRgba(0, 0, 0, 0.32);
 
     /// <summary>A popup list's highlighted row background (the selection and the keyboard's position): default the accent at 12 %.</summary>
     public virtual Color PopupHighlightColor => SkUiColors.Accent.WithAlpha(0.12f);

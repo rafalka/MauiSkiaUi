@@ -16,8 +16,8 @@ namespace MauiSkiaUi.CommunityToolkit;
 /// Toolkit popups (v2) are modal pages placed by alignment and margins. A window popup (a centered dialog, a bottom sheet) is
 /// aligned with the request's <see cref="SkUiPopupRequest.HorizontalOptions"/> / <see cref="SkUiPopupRequest.VerticalOptions"/>
 /// inside the window's safe area, over a page dimmed by <see cref="SkUiPopupRequest.OverlayColor"/>, and stays aligned as the
-/// window turns. An anchored or absolute one (a combo box) sits at <see cref="SkUiPopupRequest.Bounds"/> through its margins,
-/// over a transparent page. The toolkit's popup page may be inset from the window (on iOS by the bottom safe area), so once
+/// window turns. An anchored or absolute one (a combo box) sits at <see cref="SkUiPopupRequest.Bounds"/> through its margins, over a
+/// transparent page; a bottom pane is aligned to the page's bottom (so its height always fits), square and undimmed. The toolkit's popup page may be inset from the window (on iOS by the bottom safe area), so once
 /// shown every popup is moved by the difference between where it landed and <see cref="SkUiPopupRequest.Bounds"/>.
 /// </para>
 /// <para>
@@ -30,7 +30,7 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
     /// <summary>The shared presenter (it keeps no state between popups).</summary>
     public static SkUiToolkitPopupPresenter Instance { get; } = new();
 
-    /// <summary>The popup's corner radius (the drawn content is clipped to it); default 10.</summary>
+    /// <summary>The popup's corner radius (the drawn content is clipped to it); default 10. Bottom panes are square.</summary>
     public double CornerRadius { get; init; } = 10;
 
     /// <summary>The popup's shadow; default a soft drop shadow. <c>null</c>: none.</summary>
@@ -63,6 +63,7 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
     internal (Popup Popup, PopupOptions Options) Create(SkUiPopupRequest request, View content)
     {
         var positioned = IsPositioned(request);
+        var pane = request.Placement == SkUiPopupPlacement.BottomPane;
         var bounds = request.Bounds;
         var popup = new Popup
         {
@@ -71,19 +72,31 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
             // Opaque, as the drawn content: Android casts a view's shadow from its background's outline (a clear one casts none).
             BackgroundColor = content.BackgroundColor ?? SkUiColors.DefaultBackground,
             CanBeDismissedByTappingOutsideOfPopup = request.IsDismissible,
+            // A pane is aligned to the popup page's bottom, so its whole height fits there even when the page is inset (iOS: by the
+            // safe area); once shown it moves down to the window's edge.
             HorizontalOptions = positioned ? LayoutOptions.Start : request.HorizontalOptions,
-            VerticalOptions = positioned ? LayoutOptions.Start : request.VerticalOptions,
-            Margin = positioned ? new Thickness(bounds.Left, bounds.Top, 0, 0) : WindowMargin(request)
+            VerticalOptions = pane ? LayoutOptions.End : positioned ? LayoutOptions.Start : request.VerticalOptions,
+            Margin = Kept(pane ? new Thickness(bounds.Left, 0, 0, 0) : positioned ? new Thickness(bounds.Left, bounds.Top, 0, 0) : WindowMargin(request))
         };
         var options = new PopupOptions
         {
             CanBeDismissedByTappingOutsideOfPopup = request.IsDismissible,
             PageOverlayColor = request.OverlayColor ?? Colors.Transparent,
-            Shape = new RoundRectangle { CornerRadius = CornerRadius, StrokeThickness = 0 },
+            // A bottom pane is square, docked to the window's edges.
+            Shape = new RoundRectangle { CornerRadius = request.Placement == SkUiPopupPlacement.BottomPane ? 0 : CornerRadius, StrokeThickness = 0 },
             Shadow = Shadow
         };
         return (popup, options);
     }
+
+    /// <summary>A margin too small to see, which stands for none.</summary>
+    private const double NoMargin = 0.001;
+
+    /// <summary>
+    /// <paramref name="margin"/> as the toolkit keeps it: it replaces an empty margin (all zero: a pane, a popup at the window's
+    /// origin) with its default one (30 on every side), so none is a margin too small to see.
+    /// </summary>
+    internal static Thickness Kept(Thickness margin) => margin.IsEmpty ? new Thickness(margin.Left, NoMargin, margin.Right, margin.Bottom) : margin;
 
     /// <summary>Whether the popup goes at <see cref="SkUiPopupRequest.Bounds"/> (anchored, absolute) rather than aligned in the window.</summary>
     private static bool IsPositioned(SkUiPopupRequest request) => request.Placement != SkUiPopupPlacement.Window;

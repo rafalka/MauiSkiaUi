@@ -2,7 +2,7 @@
 
 A drawn picker: a field that shows the selected item (or a title), and a list to choose from that opens on **your app's popup system** (CommunityToolkit's `Popup`, a popup control or navigation service of your own, or MAUI's action sheet).
 
-**MAUI counterpart:** `Picker`. Its XAML ports by changing the prefix. Beyond MAUI: several choices (`SelectionMode`, [below](#several-choices)), choices that wait for OK (`UpdateMode`, [below](#when-a-choice-takes-effect)), `PopupPlacement` (anchored like a combo box, in the window like a dialog or a sheet, at a rectangle), `PopupBounds`, `ItemTemplate` (drawn rows), `MaxPopupHeight`, `PopupPresenter`. Core twin: `SkUiCorePicker` (fluent setters, `ItemDisplay` as a function instead of a binding, `SetSelectedItems` instead of a mutable list, the same field and list). What every drawn picker shares (the field, fonts and colors, `IsOpen`, the popup's placement and presenter) is in the base class `SkUiPickerBase` (Core: `SkUiCorePickerBase`).
+**MAUI counterpart:** `Picker`. Its XAML ports by changing the prefix. Beyond MAUI: several choices (`SelectionMode`, [below](#several-choices)), choices that wait for OK (`UpdateMode`, [below](#when-a-choice-takes-effect)), `PopupPlacement` (anchored like a combo box, in the window like a dialog or a sheet, at a rectangle, or [docked at the bottom](#the-bottom-pane) as iOS's picker), `PopupBounds`, `ItemTemplate` (drawn rows), `MaxPopupHeight`, `PopupPresenter`. Core twin: `SkUiCorePicker` (fluent setters, `ItemDisplay` as a function instead of a binding, `SetSelectedItems` instead of a mutable list, the same field and list). What every drawn picker shares (the field, fonts and colors, `IsOpen`, the popup's placement and presenter) is in the base class `SkUiPickerBase` (Core: `SkUiCorePickerBase`).
 
 ## How it works
 
@@ -97,6 +97,21 @@ Every picker (lists, several choices, [wheels](SkUiMultiColumnPicker.md)) can be
 
 Clearing raises the change events (`SelectedIndexChanged`, `SelectionChanged`) and `SelectionChangedCommand` as any other change.
 
+## The bottom pane
+
+`PopupPlacement="BottomPane"` (SkiaUi) docks the popup to the window's bottom edge, as iOS's picker (and the keyboard):
+
+- **Where.** As wide as the window and down to its bottom edge; the content pads itself by the safe area's sides and bottom (the home indicator, a landscape notch), so its background reaches the edges. As tall as the content (at most `MaxPopupHeight`, plus that inset), never above the safe area's top. The popup widths (`MinPopupWidth`, `MaxPopupWidth`, `PopupWidth`) do not apply. The page is not dimmed (the look's `GetPopupOverlayColor`), and the pane stays open while the page scrolls.
+- **A toolbar on top** instead of the title and the footer: the title in the middle, a **close button** (×) at the end side, and Cancel (with `UpdateMode="WhenFinished"`) and Clear (`IsPopupClearButtonVisible`) at the start side. The close button accepts what the popup shows (iOS's Done); screen readers read it as `AcceptText`, else `SkUiStrings.Current.DoneText` ("Done"). The look draws it (`DrawPopupCloseButton`, or set `PopupCloseButtonPainter`; default a soft circle with a cross). A dismissal (a tap outside) closes without accepting.
+- **A wheel on iOS.** With a look whose `PickerPaneShowsWheel` is `true` (`IosSkUiLook`, and `MacSkUiLook` that derives from it), a list to choose one item from shows as one wheel, as `UIPickerView`: the item in its middle row is chosen as the wheel turns (`SelectedIndexChanged` each time it settles on another item; with `WhenFinished`, a draft until the close button), and the close button chooses the item it shows, also when nothing was chosen yet (as MAUI's iOS picker). Disabled items are passed by, `ItemTemplate` draws the wheel's items, and Clear clears and closes (a wheel cannot show that nothing is chosen). Other looks keep the list in the pane. Lists with several choices stay lists; the multi-column, date and time pickers' wheels get the toolbar.
+
+```xml
+<sk:SkUiPicker Title="Monkey" ItemsSource="{Binding Monkeys}" SelectedItem="{Binding Monkey}"
+               PopupPlacement="BottomPane" />
+```
+
+A presenter places a pane at `request.Bounds` like an anchored popup (`SkUiToolkitPopupPresenter` does, with square corners). One that shows its own UI reads the same `SkUiListPopupRequest` and may choose as the user goes with `request.SetSelectedIndex(index)` (applied at once, or the draft with `RequiresAccept`).
+
 ## Popups on your popup system
 
 SkiaUi has no popup windows. A picker asks an `ISkUiPopupPresenter` to show its list: the picker's `PopupPresenter`, else the app's `SkUiPopups.Presenter` (also set by `UseSkiaUi(options => options.PopupPresenter = …)`), else MAUI's action sheet (`SkUiActionSheetPopupPresenter`: plain item texts, centered, MAUI's own UI; one trace line says so the first time). The action sheet has no OK button: with `UpdateMode="WhenFinished"` a tap on an item chooses and accepts it at once, and its cancel button (or a tap outside) changes nothing; lists with several choices and wheels need a presenter of their own.
@@ -125,15 +140,15 @@ What the request carries:
 | --- | --- |
 | `Anchor` / `PlatformAnchor` | The picker (for `SkUiCorePicker`, its `SkUiCoreHost`) / the nearest view with a platform view (its surface), for popups placed relative to a view |
 | `AnchorBounds` / `AnchorBoundsInPlatformAnchor` | The picker's rectangle in the window / in its surface, through drawn offsets, transforms and scrolling |
-| `Placement` | `Anchored`, `Window` or `Absolute` (`Default` is resolved by the look) |
-| `Bounds`, `OpensAbove`, `SpaceAbove` / `SpaceBelow` | Where SkiaUi puts the popup: anchored below the picker or above when it fits better, start-aligned (mirrored in right-to-left), at least the picker's width, inside the safe area less `Margin`; window popups aligned there; absolute ones at `PopupBounds` |
+| `Placement` | `Anchored`, `Window`, `Absolute` or `BottomPane` (`Default` is resolved by the look) |
+| `Bounds`, `OpensAbove`, `SpaceAbove` / `SpaceBelow` | Where SkiaUi puts the popup: anchored below the picker or above when it fits better, start-aligned (mirrored in right-to-left), at least the picker's width, inside the safe area less `Margin`; window popups aligned there; absolute ones at `PopupBounds`; a bottom pane at the window's bottom edge, its full width (the safe area inside it) |
 | `PreferredSize`, `MaximumSize` | The content's measured size; the safe area less the margin and `MaxPopupHeight` |
 | `WindowSize`, `SafeAreaInsets`, `Margin`, `HorizontalOptions` / `VerticalOptions` | For presenters that place popups themselves |
 | `Title`, `IsDismissible`, `OverlayColor`, `IsAnimated` | A title (dialogs, action sheets); whether a tap outside may close it; what to dim the page with (none for anchored popups); whether to animate (off with reduced motion) |
 | `CloseRequested` | The token `ShowAsync` gets |
 | `HasResult`, `IsCompleted` | Whether a choice was made; whether the presenter's task finished |
 
-**Showing your own UI instead** (a platform list, a picker of your own): read the typed request, `SkUiListPopupRequest` (`Items` texts, `SelectedIndex`, `Title`), and call `request.Complete(index)` with the choice; then close and return. Choices that wait for OK: `request.RequiresAccept`; move the highlight with `SetCurrentIndex(index)` and call `request.Accept()` / `Cancel()`, or `Complete(index)` directly. Several choices and wheels have typed requests of their own that report each change (`SkUiSelectionPopupRequest`, applied at once or kept as a draft until `Accept`: `SkUiMultiListPopupRequest`, [above](#several-choices), and `SkUiColumnsPopupRequest`, [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md#presenters)). Date and time pickers (C7) will add their own.
+**Showing your own UI instead** (a platform list, a picker of your own): read the typed request, `SkUiListPopupRequest` (`Items` texts, `SelectedIndex`, `Title`), and call `request.Complete(index)` with the choice; then close and return. Choices that wait for OK: `request.RequiresAccept`; move the highlight with `SetCurrentIndex(index)` and call `request.Accept()` / `Cancel()`, or `Complete(index)` directly. A UI that stays open while the user moves through the items (a wheel) calls `SetSelectedIndex(index)` as it goes: applied to the picker at once, or the draft `Accept()` takes. Several choices and wheels have typed requests of their own that report each change (`SkUiSelectionPopupRequest`, applied at once or kept as a draft until `Accept`: `SkUiMultiListPopupRequest`, [above](#several-choices), and `SkUiColumnsPopupRequest`, [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md#presenters)). Date and time pickers (C7) will add their own.
 
 ### Presenter examples
 
@@ -148,11 +163,11 @@ The current look ([ControlLook.md](../design/ControlLook.md)) draws every picker
 
 - `SkUiLook.DrawPickerField(canvas, SkUiPickerFieldPaint)` (or the `PickerFieldPainter` delegate) draws the chrome and the chevron behind the text: the field's `Bounds`, `ChevronBounds`, the accent, border and foreground colors, `Focused` (keyboard focus or an open list, animated by `SkUiTransitionKind.FieldFocus`) and `Open` (animated by `PickerOpen`), the press, pointer-over and enabled states, right to left.
 - `DefaultSkUiLook.PickerFieldStyle`: `Default` (the look's `DefaultPickerFieldStyle`: an outline, the same on every platform), `Underline`, `Outline`, `Filled`, `PopUpButton`, `ComboBox` or `None`. Call `SkUiLook.NotifyChanged()` after changing it. A picker's own `FieldStyle` wins over it; its own chrome comes in `SkUiPickerFieldPaint.Style` and `Chrome` ([Field chrome](#field-chrome)).
-- Platform looks mimic one platform each (`DefaultSkUiLook.ForCurrentPlatform()` picks the one the app runs on; set it with `UseSkiaUi(options => options.Look = …)` or `SkUiLook.Current`): `AndroidSkUiLook` underlines the field (Material's), `IosSkUiLook` opens window popups as a sheet at the bottom on phones; `MacSkUiLook` and `WindowsSkUiLook` match the default look so far.
+- Platform looks mimic one platform each (`DefaultSkUiLook.ForCurrentPlatform()` picks the one the app runs on; set it with `UseSkiaUi(options => options.Look = …)` or `SkUiLook.Current`): `AndroidSkUiLook` underlines the field (Material's), `IosSkUiLook` opens window popups as a sheet at the bottom on phones and shows a [bottom pane](#the-bottom-pane)'s list as a wheel; `MacSkUiLook` and `WindowsSkUiLook` match the default look so far.
 - The popup's footer: `PopupAcceptButtonFirst` (OK before Cancel; `WindowsSkUiLook`: `true`), `StylePopupButton(button, SkUiPopupButton)` (OK filled in the accent color, Cancel and Clear as accent text by default).
-- Wheels ([SkUiMultiColumnPicker](SkUiMultiColumnPicker.md)): `PickerWheelRowHeight`, `PickerWheelEffect`, `PickerWheelBandColor`, `PickerWheelBandCornerRadius`.
+- Wheels ([SkUiMultiColumnPicker](SkUiMultiColumnPicker.md)): `PickerWheelRowHeight`, `PickerWheelEffect`, `PickerWheelBandColor`, `PickerWheelBandCornerRadius`; `PickerPaneShowsWheel` (a bottom pane's list as a wheel; default `false`, `IosSkUiLook` `true`); `DrawPopupCloseButton` / `PopupCloseButtonPainter` (a bottom pane's ×).
 - `PickerFieldPadding`, `PickerChevronWidth`, `PickerClearButtonWidth` (32), `DefaultPickerMinimumHeight` (44); `DrawPickerClearButton` / `PickerClearButtonPainter` (`SkUiClearButtonPaint`) draws the field's clear button.
-- Popups: `DefaultPopupPlacement` (`DefaultSkUiLook.PopupPlacement`, default the device's, `DevicePopupPlacement`: anchored on desktops and tablets; on phones a dialog centered in the window), `PopupHorizontalOptions` / `PopupVerticalOptions` (window popups, default centered; `Fill` / `End` makes a bottom sheet, as `IosSkUiLook` on phones), `PopupMargin` (8), `PopupAnchorGap` (4), `PopupPreferredWidth` (320, window popups), `PopupItemHeight` (44) and `PopupItemPadding` (rows without a template), `PopupHighlightColor` (the selection: the accent at 12 %), `GetPopupOverlayColor(placement)`.
+- Popups: `DefaultPopupPlacement` (`DefaultSkUiLook.PopupPlacement`, default the device's, `DevicePopupPlacement`: anchored on desktops and tablets; on phones a dialog centered in the window), `PopupHorizontalOptions` / `PopupVerticalOptions` (window popups, default centered; `Fill` / `End` makes a bottom sheet, as `IosSkUiLook` on phones), `PopupMargin` (8), `PopupAnchorGap` (4), `PopupPreferredWidth` (320, window popups), `PopupItemHeight` (44) and `PopupItemPadding` (rows without a template), `PopupHighlightColor` (the selection: the accent at 12 %), `GetPopupOverlayColor(placement)` (none for anchored popups and bottom panes).
 
 ## Field chrome
 
@@ -278,7 +293,7 @@ host.SetContent(picker);
 | `FontFamily`, `FontSize` (16), `FontAttributes`, `FontAutoScalingEnabled`, `CharacterSpacing` | | The field and plain rows |
 | `HorizontalTextAlignment` / `VerticalTextAlignment` | `Start` / `Center` | In the field |
 | `IsOpen` | `false` | Two-way; `Opened` / `Closed` |
-| `PopupPlacement` | `Default` | `Anchored`, `Window`, `Absolute` (SkiaUi) |
+| `PopupPlacement` | `Default` | `Anchored`, `Window`, `Absolute`, `BottomPane` ([The bottom pane](#the-bottom-pane)) (SkiaUi) |
 | `PopupBounds` | empty | The window rectangle of `Absolute` popups (SkiaUi) |
 | `ItemTemplate` | `null` | Drawn rows (`SkUi*` views) bound to the items; a selector picks per item; the selected row's root is in the `Selected` visual state (SkiaUi) |
 | `ItemEnabledBinding` | `null` | Whether each item can be chosen ([Items that cannot be chosen](#items-that-cannot-be-chosen)); `RefreshItemStates()` (SkiaUi; Core `ItemEnabled`) |
@@ -298,8 +313,8 @@ host.SetContent(picker);
 | `FieldStyle`, `FillColor`, `BorderColor`, `BorderWidth`, `CornerRadii` / `CornerRadius` | `Default` / `null` | The field's own chrome over the look's ([Field chrome](#field-chrome)) (SkiaUi) |
 | `SelectionMode` | `Single` | `Multiple`: check boxes, the list stays open (SkiaUi) |
 | `UpdateMode` | `Immediately` | `WhenFinished`: a draft until OK, with Cancel and OK buttons (MAUI's iOS `Picker.UpdateMode`, on every platform) |
-| `AcceptText` / `CancelText` | `null` | The buttons' texts; `null`: `SkUiStrings.Current`'s (SkiaUi) |
+| `AcceptText` / `CancelText` | `null` | The buttons' texts (`AcceptText`: also how screen readers read a bottom pane's close button); `null`: `SkUiStrings.Current`'s (SkiaUi) |
 | `SelectedItems` / `SelectedIndices` | empty | The choice with `Multiple`; `SelectionChanged`, `SelectAll()`, `ClearSelection()` (SkiaUi) |
 | `SelectedTextSeparator` / `SelectedCountFormat` | `", "` / `null` | The field with several choices (SkiaUi) |
 
-MAUI's iOS-only `UpdateMode` is `UpdateMode` on every platform ([above](#when-a-choice-takes-effect)). Not available: the per-platform picker UIs (wheels, dialogs): the list is SkiaUi's, on the popup system you choose, or MAUI's action sheet.
+MAUI's iOS-only `UpdateMode` is `UpdateMode` on every platform ([above](#when-a-choice-takes-effect)). iOS's picker is `PopupPlacement="BottomPane"` with `IosSkUiLook` (a wheel under a toolbar with a close button, drawn). Not available: the other per-platform picker UIs (Android's dialogs): the list is SkiaUi's, on the popup system you choose, or MAUI's action sheet.

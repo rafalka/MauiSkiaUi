@@ -6,6 +6,7 @@ SkiaUi shows or reads out only a few texts of its own; everything else (labels, 
 | --- | --- | --- |
 | `AcceptText` | "OK" | The OK button of pickers with `UpdateMode="WhenFinished"` ([SkUiPicker](../controls/SkUiPicker.md#when-a-choice-takes-effect)), unless the picker sets its own `AcceptText` |
 | `CancelText` | "Cancel" | Their Cancel button (unless the picker sets its own `CancelText`), and the cancel button of MAUI's action sheet (the fallback presenter) |
+| `DoneText` | "Done" | What screen readers call the close button (×) in the toolbar of a picker's bottom pane (`PopupPlacement="BottomPane"`, [SkUiPicker](../controls/SkUiPicker.md#the-bottom-pane)), unless the picker sets its own `AcceptText` |
 | `ClearText` | "Clear" | The Clear button of picker popups (`IsPopupClearButtonVisible`), unless the picker sets its own `ClearText` |
 | `SelectAllText` | "Select all" | The "Select all" row of picker lists with several choices (`IsSelectAllVisible`), unless the picker sets its own `SelectAllText`; the item of a text field's edit menu on Windows |
 | `CutText`, `CopyText`, `PasteText` | "Cut", "Copy", "Paste" | The items of a text field's edit menu on Windows (Android and Apple platforms show their system menu, in the system's language) |

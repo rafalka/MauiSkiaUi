@@ -174,7 +174,9 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     /// <summary>
     /// Where the list opens: <see cref="SkUiPopupPlacement.Anchored"/> (below or above the picker, at least its width, as a combo
     /// box), <see cref="SkUiPopupPlacement.Window"/> (in the window, aligned by the look: centered by default),
-    /// <see cref="SkUiPopupPlacement.Absolute"/> (at <see cref="PopupBounds"/>) or <see cref="SkUiPopupPlacement.Default"/>
+    /// <see cref="SkUiPopupPlacement.Absolute"/> (at <see cref="PopupBounds"/>), <see cref="SkUiPopupPlacement.BottomPane"/> (docked
+    /// to the window's bottom edge with a toolbar and a close button, as iOS's picker; a wheel on looks that show one,
+    /// <see cref="SkUiLook.PickerPaneShowsWheel"/>; the popup widths do not apply) or <see cref="SkUiPopupPlacement.Default"/>
     /// (default: the look's, <see cref="SkUiLook.DefaultPopupPlacement"/>, per platform and idiom). SkiaUi extension.
     /// </summary>
     public SkUiPopupPlacement PopupPlacement { get => (SkUiPopupPlacement)GetValue(PopupPlacementProperty); set => SetValue(PopupPlacementProperty, value); }
