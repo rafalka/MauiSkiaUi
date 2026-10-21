@@ -388,7 +388,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     /// left the tree under the pointer.
     /// </summary>
     internal SkUiToolTipTarget? HoveredToolTip =>
-        _hoveredToolTipNode is { } node && IsUnderRoot(node) ? ToolTipOf(node) : null;
+        _hoveredToolTipNode is { } node ? ToolTipOf(node) : null;
 
     /// <summary>
     /// A press closed the tooltip: the next hover move reports the hovered tooltip as new, so it opens again after the delay
@@ -457,35 +457,42 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         _hoveredToolTipChanged?.Invoke();
     }
 
-    private bool IsUnderRoot(ISkUiRenderable node)
-    {
-        for (var current = node; current is not null; current = current.RenderParent)
-            if (ReferenceEquals(current, root))
-                return true;
-        return false;
-    }
-
     private SkUiToolTipTarget? ToolTipOf(ISkUiInputNode node) =>
-        node.ToolTipText is { Length: > 0 } text ? new SkUiToolTipTarget(text, MapToRoot(node)) : null;
+        node.ToolTipText is { Length: > 0 } text && MapToRoot(node) is { } bounds ? new SkUiToolTipTarget(text, bounds) : null;
 
-    /// <summary>The bounds of <paramref name="node"/> in root coordinates (through transforms and scroll offsets).</summary>
-    internal Rect MapToRoot(ISkUiRenderable node)
+    /// <summary>
+    /// The bounds of <paramref name="node"/> in root coordinates (through transforms and scroll offsets); <c>null</c> when it is
+    /// not under this root (it left the tree).
+    /// </summary>
+    internal Rect? MapToRoot(ISkUiRenderable node)
     {
-        var chain = new List<ISkUiRenderable>(8);
-        for (var current = node; current is not null && !ReferenceEquals(current, root); current = current.RenderParent)
-            chain.Add(current);
-        var toRoot = SKMatrix.Identity;
-        ISkUiRenderable parent = root;
-        for (var index = chain.Count - 1; index >= 0; index--)
-        {
-            var props = GetProps(chain[index]);
-            if (!props.Pinned)
-                toRoot = toRoot.PreConcat(GetProps(parent).ChildrenMatrix);
-            toRoot = toRoot.PreConcat(props.Matrix);
-            parent = chain[index];
-        }
+        if (!TryGetToRootMatrix(node, out var toRoot))
+            return null;
         var bounds = toRoot.MapRect(GetProps(node).Bounds);
         return new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
+    }
+
+    /// <summary>
+    /// The matrix from <paramref name="node"/>'s coordinates to the root's, built from the root down (recursive: no list per
+    /// call, the depth is the tree's); <c>false</c> when the node is not under this root.
+    /// </summary>
+    private bool TryGetToRootMatrix(ISkUiRenderable node, out SKMatrix toRoot)
+    {
+        if (ReferenceEquals(node, root))
+        {
+            toRoot = SKMatrix.Identity;
+            return true;
+        }
+        if (node.RenderParent is not { } parent || !TryGetToRootMatrix(parent, out toRoot))
+        {
+            toRoot = default;
+            return false;
+        }
+        var props = GetProps(node);
+        if (!props.Pinned)
+            toRoot = toRoot.PreConcat(GetProps(parent).ChildrenMatrix);
+        toRoot = toRoot.PreConcat(props.Matrix);
+        return true;
     }
 
     private bool Press(SkUiTouchEvent touch, TimeSpan time)

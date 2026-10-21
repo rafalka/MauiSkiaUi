@@ -124,6 +124,30 @@ public class AlignStackLayoutTests
     }
 
     [Fact]
+    public void ChildrenLeftNoWidthDoNotSetTheHeight()
+    {
+        // The sides take the whole width: the centered label is measured at 0 (a character per line, 200 high) and arranged
+        // zero wide, so the row stays as high as the sides.
+        var row = Row(0, (200, LayoutAlignment.Start), (100, LayoutAlignment.End));
+        row.Children.Add(new CharacterWrappingView(10) { HorizontalOptions = LayoutOptions.Center });
+        Assert.Equal(new Size(Width, 20), ((IView)row).Measure(Width, double.PositiveInfinity));
+        ((IView)row).Arrange(new Rect(0, 0, Width, 20));
+        Assert.Equal(0, FrameOf(row, 2).Width);
+        // With room, its height counts again.
+        Assert.Equal(new Size(Width + 50, 40), ((IView)row).Measure(Width + 50, double.PositiveInfinity));
+    }
+
+    /// <summary>Wraps a character (10 wide, 20 high) at a time, at least one per line, as a label.</summary>
+    private sealed class CharacterWrappingView(int characters) : SkUiView
+    {
+        protected override Size MeasureContent(double widthConstraint, double heightConstraint)
+        {
+            var perLine = Math.Clamp(Math.Floor(widthConstraint / 10), 1, characters);
+            return new Size(perLine * 10, Math.Ceiling(characters / perLine) * 20);
+        }
+    }
+
+    [Fact]
     public void MeasuresRoomToCenterInTheLayout()
     {
         var row = Row(0, (100, LayoutAlignment.Start), (50, LayoutAlignment.Center), (30, LayoutAlignment.End));

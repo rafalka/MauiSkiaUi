@@ -186,10 +186,16 @@ internal static class SkUiAlignStackEngine
         {
             if (!children.IsVisible(index) || Group(children.HorizontalAlignment(index)) != group)
                 continue;
-            var size = children.Measure(index, Math.Max(0, remaining), contentHeight);
-            remaining -= size.Width;
-            width += size.Width + (count++ > 0 ? spacing : 0);
-            height = Math.Max(height, size.Height);
+            // A child is arranged no wider than the width left: it counts that much (a label's least width, a character, does not
+            // push the row past its constraint). One with no width left is still measured (its desired size stays current), but
+            // its height does not count either, or a wrapping label measured at 0 (a character per line) would make the row that tall.
+            var room = Math.Max(0, remaining);
+            var size = children.Measure(index, room, contentHeight);
+            var used = Math.Min(size.Width, room);
+            remaining -= used;
+            width += used + (count++ > 0 ? spacing : 0);
+            if (room > Tolerance)
+                height = Math.Max(height, size.Height);
         }
         return (width, count);
     }

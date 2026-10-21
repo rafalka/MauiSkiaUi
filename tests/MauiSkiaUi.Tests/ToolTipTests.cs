@@ -143,6 +143,19 @@ public class ToolTipTests
     }
 
     [Fact]
+    public void BoundsMapThroughNestedParentsAndNotForANodeOutsideTheRoot()
+    {
+        _container.TranslationY = 4;
+        Assert.Equal(new Rect(130, 10, 50, 30), _root.Router.MapToRoot(_coreBox));
+        Assert.Equal(new Rect(60, 14, 60, 40), _root.Router.MapToRoot((SkUiView)_container.Content!));
+        Assert.Equal(new Rect(0, 0, 200, 100), _root.Router.MapToRoot(_root));
+
+        _root.Remove(_box);
+        Assert.Null(_root.Router.MapToRoot(_box));
+        Assert.Null(_root.Router.MapToRoot(new SkUiBox()));
+    }
+
+    [Fact]
     public void CoreToolTipRaisesPropertyChanged()
     {
         var node = new SkUiCoreBox();
