@@ -32,6 +32,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Fixes
 
+- **Keyboard focus across UI threads:** the list of surfaces holding keyboard focus is now kept per UI thread. It was shared, so surfaces on two UI threads changing their trees at once (windows with a thread each on Windows, test runs in parallel) could make a focused view keep its focus after it left the tree, or throw from `SkUiFocusManager` while a view was added.
 - **Drawn roots arranged without a matching measure:** a surface root that its native parent arranges without measuring it for those bounds (Shell's `FlyoutContent` on iOS and Mac Catalyst is only arranged) is now measured at the arranged size first, as MAUI's own layouts are. Before, it kept no measure or one made at width 0: the flyout was empty on iOS and its labels wrapped one character per line on Mac Catalyst.
 
 ### Other
