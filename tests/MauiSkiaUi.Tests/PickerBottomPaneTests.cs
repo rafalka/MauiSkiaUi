@@ -151,8 +151,17 @@ public sealed class PickerBottomPaneTests : IDisposable
         var toolbar = Toolbar((SkUiContentView)request.Content!);
         Assert.Equal([Cancel, Clear], Descendants(toolbar).OfType<SkUiButton>().Select(button => button.Text));
         Assert.Single(Descendants(toolbar).OfType<SkUiPopupCloseButton>());
-        // The picker's own accept text names the close button.
+        // Too wide to center in the pane next to Cancel and Clear, the title moves just clear of them.
+        var title = Descendants(toolbar).OfType<SkUiLabel>().Single(label => label.Text == "Monkey");
+        Assert.Equal(Button(request.Content!, Clear).Frame.Right + 8, title.Frame.X, 0.5);
+        // With Cancel only, the title is centered in the pane although only one side has buttons.
         request.Cancel();
+        var cancelOnly = Toolbar((SkUiContentView)Open(Picker(SkUiPickerUpdateMode.WhenFinished)).Content!);
+        var row = Assert.IsType<SkUiHorizontalAlignStackLayout>(cancelOnly.Children[0]);
+        title = Descendants(cancelOnly).OfType<SkUiLabel>().Single(label => label.Text == "Monkey");
+        Assert.Equal(cancelOnly.Width / 2, row.Frame.X + title.Frame.Center.X, 0.5);
+        // The picker's own accept text names the close button.
+        _presenter.Current!.Cancel();
         picker.AcceptText = "Use";
         Assert.Equal("Use", SemanticProperties.GetDescription(Close(Open(picker).Content!)));
     }

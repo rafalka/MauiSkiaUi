@@ -94,52 +94,48 @@ internal static class SkUiPopupParts
 
     /// <summary>
     /// A bottom pane's toolbar: Cancel (<see cref="SkUiPickerPopupChrome.RequiresAccept"/>) and Clear
-    /// (<see cref="SkUiPickerPopupChrome.ShowsClear"/>) at the start side, the title in the middle, a close button (×, read as the
-    /// accept text; it accepts what the popup shows) at the end side, over a hairline; mirrored right to left.
+    /// (<see cref="SkUiPickerPopupChrome.ShowsClear"/>) at the start side, the title centered in the pane whatever the sides hold
+    /// (moved aside only when it would overlap them), a close button (×, read as the accept text; it accepts what the popup shows)
+    /// at the end side, over a hairline; mirrored right to left.
     /// </summary>
     public static SkUiGrid Toolbar(in SkUiPickerPopupChrome chrome, in SkUiPickerRowStyle style, string? title, Func<SkUiPopupRequest?> request, Action clear)
     {
         var padding = SkUiLook.Current.PopupItemPadding;
         var bar = new SkUiGrid
         {
-            ColumnDefinitions = [new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto)],
             Padding = new Thickness(padding.Left / 2, 0, padding.Right / 2, 0),
             MinimumHeightRequest = ToolbarHeight
         };
-        // At least as wide as the close button, so the title is centered in the pane when the start side has no buttons.
-        var start = new SkUiHorizontalStackLayout
-        {
-            Spacing = ButtonSpacing,
-            VerticalOptions = LayoutOptions.Center,
-            MinimumWidthRequest = SkUiPopupCloseButton.TargetSize
-        };
+        var row = new SkUiHorizontalAlignStackLayout { Spacing = ButtonSpacing };
         if (chrome.RequiresAccept)
         {
             var cancel = Button(chrome.CancelText, style, SkUiPopupButton.Cancel);
+            cancel.HorizontalOptions = LayoutOptions.Start;
+            cancel.VerticalOptions = LayoutOptions.Center;
             cancel.Clicked += (_, _) => request()?.Cancel();
-            start.Children.Add(cancel);
+            row.Children.Add(cancel);
         }
         if (chrome.ShowsClear)
         {
             var clearButton = Button(chrome.ClearText ?? SkUiStrings.Current.ClearText, style, SkUiPopupButton.Clear);
+            clearButton.HorizontalOptions = LayoutOptions.Start;
+            clearButton.VerticalOptions = LayoutOptions.Center;
             clearButton.Clicked += (_, _) => clear();
-            start.Children.Add(clearButton);
+            row.Children.Add(clearButton);
         }
-        bar.Children.Add(start);
         if (title is not null)
         {
             var label = Title(title, style);
-            label.Padding = new Thickness(8, 0);
+            label.Padding = new Thickness(0);
             label.MaxLines = 1;
-            label.HorizontalTextAlignment = TextAlignment.Center;
+            label.HorizontalOptions = LayoutOptions.Center;
             label.VerticalOptions = LayoutOptions.Center;
-            bar.Children.Add(label);
-            Grid.SetColumn(label, 1);
+            row.Children.Add(label);
         }
-        var close = new SkUiPopupCloseButton(() => request()?.Accept()) { VerticalOptions = LayoutOptions.Center };
+        var close = new SkUiPopupCloseButton(() => request()?.Accept()) { HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.Center };
         SemanticProperties.SetDescription(close, chrome.AcceptText);
-        bar.Children.Add(close);
-        Grid.SetColumn(close, 2);
+        row.Children.Add(close);
+        bar.Children.Add(row);
         var divider = new SkUiBox
         {
             Color = SkUiColors.Muted.WithAlpha(0.3f),
@@ -150,7 +146,6 @@ internal static class SkUiPopupParts
         };
         AutomationProperties.SetIsInAccessibleTree(divider, false);
         bar.Children.Add(divider);
-        Grid.SetColumnSpan(divider, 3);
         return bar;
     }
 

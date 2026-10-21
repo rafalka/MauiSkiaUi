@@ -17,6 +17,8 @@ internal interface ISkUiLayoutChildren
     Size DesiredSize(int index);
     /// <summary>The smallest size the child accepts (its minimum size requests), including margins.</summary>
     Size MinimumSize(int index);
+    /// <summary>The child's horizontal alignment (<c>HorizontalOptions</c> / <see cref="SkUiCoreNode.HorizontalAlignment"/>).</summary>
+    LayoutAlignment HorizontalAlignment(int index);
     /// <summary>Arranges a visible child in its slot; the child aligns itself inside it.</summary>
     void Arrange(int index, Rect slot);
     /// <summary>Handles a child that takes no space (collapsed / hidden).</summary>
@@ -41,6 +43,15 @@ internal readonly struct SkUiViewChildren(IList<ISkUiView> children) : ISkUiLayo
     // Unset minimum requests can read as NaN (and Math.Max(0, NaN) is NaN).
     private static double Minimum(double value) => double.IsNaN(value) || value < 0 ? 0 : value;
 
+    // The view's alignment is MAUI's primitive enum, whose values differ from Controls' LayoutAlignment (Fill first).
+    public LayoutAlignment HorizontalAlignment(int index) => children[index].HorizontalLayoutAlignment switch
+    {
+        Microsoft.Maui.Primitives.LayoutAlignment.Start => LayoutAlignment.Start,
+        Microsoft.Maui.Primitives.LayoutAlignment.Center => LayoutAlignment.Center,
+        Microsoft.Maui.Primitives.LayoutAlignment.End => LayoutAlignment.End,
+        _ => LayoutAlignment.Fill
+    };
+
     public void Arrange(int index, Rect slot) => children[index].Arrange(slot);
     // As MAUI's stack managers: collapsed children are skipped.
     public void ArrangeHidden(int index) { }
@@ -57,6 +68,8 @@ internal readonly struct SkUiCoreNodeChildren(IReadOnlyList<ISkUiCoreNode> child
     public Size MinimumSize(int index) => children[index] is SkUiCoreNode node
         ? new Size(Math.Max(0, node.MinimumWidth) + node.Margin.HorizontalThickness, Math.Max(0, node.MinimumHeight) + node.Margin.VerticalThickness)
         : Size.Zero;
+
+    public LayoutAlignment HorizontalAlignment(int index) => children[index] is SkUiCoreNode node ? node.HorizontalAlignment : LayoutAlignment.Fill;
 
     public void Arrange(int index, Rect slot)
     {
