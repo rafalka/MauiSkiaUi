@@ -55,9 +55,25 @@ public class ComponentDemoTests
         {
             var gallery = new ComponentGalleryPage(category);
             var catalog = ((SkUiGrid)gallery.Content).Children.OfType<SkUiScrollView>().Single();
-            var buttons = Descendants(catalog).OfType<SkUiButton>().Select(button => button.Text);
-            Assert.Equal(ComponentDemos.All.Where(demo => demo.Category == category).Select(demo => demo.Name), buttons);
+            var buttons = Descendants(catalog).OfType<SkUiButton>().ToList();
+            var demos = ComponentDemos.All.Where(demo => demo.Category == category).ToList();
+            Assert.Equal(demos.Select(demo => "Open" + demo.Name), buttons.Select(button => button.AutomationId));
+            // Buttons name the real control type (never a route key), then the scenario / counterpart.
+            Assert.Equal(demos.Select(demo => demo.DisplayName), buttons.Select(button => button.FormattedText!.Spans[0].Text));
         }
+    }
+
+    [Fact]
+    public void DemoDisplayNamesAreTheControlTypes()
+    {
+        var stepper = ComponentDemos.All.Single(demo => demo.PageType == typeof(TypedStepperDemoPage));
+        Assert.Equal("SkUiStepper<decimal>", stepper.DisplayName);
+        Assert.Equal("Typed values · Replaces Stepper", stepper.Description);
+        var shimmer = ComponentDemos.All.Single(demo => demo.PageType == typeof(ShimmerContentDemoPage));
+        Assert.Equal(nameof(SkUiShimmer), shimmer.DisplayName);
+        Assert.Equal("Skeleton built from the content (a feed loading) · No MAUI counterpart", shimmer.Description);
+        foreach (var demo in ComponentDemos.All.Where(demo => demo.Key is not null))
+            Assert.False(string.IsNullOrEmpty(demo.Scenario), $"{demo.Name} is a scenario page and should describe its scenario.");
     }
 
     [Fact]

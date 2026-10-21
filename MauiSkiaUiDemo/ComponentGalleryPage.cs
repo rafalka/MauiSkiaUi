@@ -30,10 +30,17 @@ public sealed class ComponentGalleryPage : ContentPage
             });
         foreach (var demo in ComponentDemos.All.Where(demo => demo.Category == category))
         {
+            // The control's type, then what the page shows and which MAUI control it replaces.
+            var text = new FormattedString { Spans = { new Span { Text = demo.DisplayName, FontFamily = DemoFonts.OpenSansSemibold, FontSize = 15 } } };
+            if (demo.Description is { Length: > 0 } description)
+                text.Spans.Add(new Span
+                {
+                    Text = "\n" + description, FontFamily = DemoFonts.OpenSansRegular, FontSize = 12, TextColor = DemoColors.Caption
+                });
             var button = new SkUiButton
             {
-                Text = demo.Name, Background = Colors.White, TextColor = DemoColors.Ink,
-                FontFamily = DemoFonts.OpenSansSemibold, HeightRequest = 52, CornerRadius = 4,
+                FormattedText = text, Background = Colors.White, TextColor = DemoColors.Ink, LineBreakMode = LineBreakMode.WordWrap,
+                HorizontalTextAlignment = TextAlignment.Start, Padding = new Thickness(16, 8), MinimumHeightRequest = 52, CornerRadius = 4,
                 BorderColor = DemoColors.Border, BorderWidth = 1, AutomationId = "Open" + demo.Name
             };
             button.Clicked += async (_, _) => await Navigate(demo.Route);
