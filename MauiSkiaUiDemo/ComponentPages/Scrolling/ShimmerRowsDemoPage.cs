@@ -16,6 +16,7 @@ public sealed class ShimmerRowsDemoPage : ComponentDemoPage
     public ShimmerRowsDemoPage()
         : base("SkUiShimmer rows", new SkUiCollectionView(), widthRange: (200, 400, 300), heightRange: (160, 600, 420))
     {
+        DocumentTypes(typeof(SkUiShimmer));
         var list = (SkUiCollectionView)SkiaControl;
         var region = SkUiShimmerWaveRegion.Surface;
         list.ItemsSource = Enumerable.Range(1, 300).Select(index => $"Row {index}").ToList();

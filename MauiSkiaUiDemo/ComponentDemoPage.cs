@@ -5,7 +5,8 @@ namespace MauiSkiaUiDemo;
 /// <summary>
 /// Base page that hosts a SkiaUi preview, optional MAUI counterpart, and property editors. The editors are drawn (one
 /// SkiaUi surface below the previews); the previews stay apart: the SkiaUi preview is a surface of its own (its
-/// <see cref="SkUiView.HwAccelerated"/> is an editor) and the MAUI counterpart is a native control in a MAUI grid.
+/// <see cref="SkUiView.HwAccelerated"/> is an editor) and the MAUI counterpart is a native control in a MAUI grid. An editor
+/// with a description (<see cref="EditorHelp"/>) has a (?) button that shows it (<see cref="EditorHelpBubble"/>).
 /// </summary>
 public abstract class ComponentDemoPage : ContentPage
 {
@@ -28,6 +29,9 @@ public abstract class ComponentDemoPage : ContentPage
     private readonly SkUiLabel _result;
     private readonly SkUiLabel _skiaStatus;
     private readonly SkUiLabel? _nativeStatus;
+    private readonly EditorHelpBubble _help;
+    // Where editors named after a property find its documentation: the control, the page's other documented types, the MAUI control.
+    private readonly List<Type> _documentedTypes;
     private SkUiContentView _host;
     private bool _hwAccelerated = true;
 
@@ -38,6 +42,9 @@ public abstract class ComponentDemoPage : ContentPage
     internal View? NativeControl { get; }
     internal bool IsWide { get; private set; }
     internal SkUiLayout Editors => _editors;
+    internal EditorHelpBubble Help => _help;
+    /// <summary>Every editor's title and description (<c>null</c>: no (?) button).</summary>
+    internal List<(string Title, bool Property, EditorHelpEntry? Help)> EditorDescriptions { get; } = [];
 
     /// <summary>Whether the preview host uses a GPU Skia surface (<see cref="SkUiView.HwAccelerated"/>).</summary>
     protected bool HwAccelerated => _hwAccelerated;
@@ -79,6 +86,13 @@ public abstract class ComponentDemoPage : ContentPage
             Children = { propertyArea, _result }
         };
         Grid.SetRow(_result, 1);
+        _help = new EditorHelpBubble(editorsArea);
+        propertyArea.Scrolled += (_, _) => _help.Hide();
+        // The control the gallery lists the page for (the preview may be a container of it), then the preview's own type.
+        _documentedTypes = ComponentDemos.All.Where(demo => demo.PageType == GetType()).Select(demo => demo.ComponentType)
+            .Append(skia.GetType()).Distinct().ToList();
+        if (native is not null)
+            _documentedTypes.Add(native.GetType());
         var root = new Grid { Padding = 12, RowSpacing = 8, RowDefinitions = [new(GridLength.Auto), new(GridLength.Star)] };
         root.Add(_comparisons);
         root.Add(editorsArea, 0, 1);
@@ -249,13 +263,28 @@ public abstract class ComponentDemoPage : ContentPage
         AutomationId = automationId, VerticalTextAlignment = TextAlignment.Center
     };
 
-    /// <summary>Adds an editor row under its caption; a native view is hosted in the drawn editors (<see cref="SkUiMauiContentView"/>).</summary>
-    protected void AddEditor(string title, View editor)
+    /// <summary>
+    /// Adds an editor row under its caption; a native view is hosted in the drawn editors (<see cref="SkUiMauiContentView"/>).
+    /// The caption has a (?) button when the editor has a description: its section of <c>EditorHelp.md</c>, else (unless
+    /// <paramref name="property"/> is <c>false</c>) the documentation of the property <paramref name="title"/> names.
+    /// </summary>
+    protected void AddEditor(string title, View editor, bool property = true)
     {
         var editors = _addingCommonEditors ? _commonEditors : _specificEditors;
         var view = editor as ISkUiView ?? new SkUiMauiContentView { Content = editor };
-        editors.Children.Add(new SkUiVerticalStackLayout { Spacing = 2, Children = { Caption(title), view } });
+        var header = new SkUiHorizontalStackLayout { Spacing = 6, HorizontalOptions = LayoutOptions.Start, Children = { Caption(title) } };
+        var help = EditorHelp.Shared.Find(GetType(), _documentedTypes, title, property);
+        if (help is not null)
+            header.Children.Add(_help.CreateButton(header, title, help));
+        EditorDescriptions.Add((title, property, help));
+        editors.Children.Add(new SkUiVerticalStackLayout { Spacing = 2, Children = { header, view } });
     }
+
+    /// <summary>
+    /// Types whose properties the page's editors also set (an item's, a hosted control's), documented after the control's own;
+    /// call before adding their editors.
+    /// </summary>
+    protected void DocumentTypes(params Type[] types) => _documentedTypes.InsertRange(1, types);
 
     private void SetBoth(BindableProperty property, object value)
     {
@@ -506,7 +535,7 @@ public abstract class ComponentDemoPage : ContentPage
     {
         var button = new SkUiButton { Text = title, Background = Accent, TextColor = Colors.White, AutomationId = title.Replace(" ", "") };
         button.Clicked += (_, _) => action();
-        AddEditor(title, button);
+        AddEditor(title, button, property: false);
     }
 
     protected void OnReset(Action action) => _resets.Add(action);
@@ -541,6 +570,7 @@ public abstract class ComponentDemoPage : ContentPage
 
     protected override void OnDisappearing()
     {
+        _help.Hide();
         _host.AnimationClock.StopAll();
         base.OnDisappearing();
     }

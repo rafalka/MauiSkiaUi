@@ -16,6 +16,7 @@ public sealed class CoreGridDemoPage : ComponentDemoPage
         : base(nameof(SkUiCoreGrid), CreateHost(out var grid, out var cell0, out var cell2), native: null,
             widthRange: (120, 360, 280), heightRange: (120, 280, 180))
     {
+        DocumentTypes(typeof(SkUiCoreColumnDefinition), typeof(SkUiCoreRowDefinition));
         _grid = grid;
         _cell0 = cell0;
         _cell2 = cell2;

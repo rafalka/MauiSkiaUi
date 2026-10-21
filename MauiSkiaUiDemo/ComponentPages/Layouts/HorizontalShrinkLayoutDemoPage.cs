@@ -12,6 +12,7 @@ public sealed class HorizontalShrinkLayoutDemoPage : ComponentDemoPage
     public HorizontalShrinkLayoutDemoPage()
         : base(nameof(SkUiHorizontalShrinkLayout), new SkUiContentView(), widthRange: (100, 480, 420), heightRange: (40, 200, 80))
     {
+        DocumentTypes(typeof(SkUiLabel));
         var area = (SkUiContentView)SkiaControl;
         area.BackgroundColor = Colors.LightGray;
         var row = new SkUiHorizontalShrinkLayout

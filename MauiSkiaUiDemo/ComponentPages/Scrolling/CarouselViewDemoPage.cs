@@ -46,6 +46,7 @@ public sealed class CarouselViewDemoPage : ComponentDemoPage
             new Grid { RowDefinitions = [new(GridLength.Star), new(GridLength.Auto)], RowSpacing = 8 },
             widthRange: (200, 600, 340), heightRange: (140, 300, 240))
     {
+        DocumentTypes(typeof(SkUiIndicatorView));
         // Room for the tallest preview (the default panel is shorter than the carousel and its indicator).
         SinglePanelHeight = 350;
         var skiaRoot = (SkUiGrid)SkiaControl;

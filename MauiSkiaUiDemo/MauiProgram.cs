@@ -13,6 +13,7 @@ public static class MauiProgram
 	public static MauiApp CreateMauiApp()
 	{
 		DemoTrace.StartIfRequested();
+		EditorHelp.Preload();
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()

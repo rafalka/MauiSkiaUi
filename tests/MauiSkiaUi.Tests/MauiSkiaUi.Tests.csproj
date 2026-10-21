@@ -37,4 +37,6 @@
     <!-- SkiaUi.Maui.CommunityToolkit (the samples' and the demo's popups). -->
     <ProjectReference Include="../../MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj" AdditionalProperties="SKUI_ENABLE_DIAGNOSTICS=true" />
   </ItemGroup>
+  <!-- The component pages' editor help (EditorHelp.md, SkiaUi's and MAUI's XML documentation), embedded as in the demo. -->
+  <Import Project="../../MauiSkiaUiDemo/EditorHelp.targets" />
 </Project>

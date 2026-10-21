@@ -15,6 +15,7 @@ public sealed class CoreHorizontalShrinkLayoutDemoPage : ComponentDemoPage
         : base(nameof(SkUiCoreHorizontalShrinkLayout), CreateHost(out var row, out var first, out var second),
             native: null, widthRange: (100, 480, 420), heightRange: (40, 200, 80))
     {
+        DocumentTypes(typeof(SkUiCoreLabel));
         var host = SkiaControl;
         var state = new ShrinkLayoutDemoState(vertical: false);
         void Update() => state.Update(row.Frame.Size, new Size(host.Width, host.Height));

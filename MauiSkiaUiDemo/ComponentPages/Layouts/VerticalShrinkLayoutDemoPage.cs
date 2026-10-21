@@ -12,6 +12,7 @@ public sealed class VerticalShrinkLayoutDemoPage : ComponentDemoPage
     public VerticalShrinkLayoutDemoPage()
         : base(nameof(SkUiVerticalShrinkLayout), new SkUiContentView(), widthRange: (80, 360, 240), heightRange: (60, 480, 320))
     {
+        DocumentTypes(typeof(SkUiLabel));
         var area = (SkUiContentView)SkiaControl;
         area.BackgroundColor = Colors.LightGray;
         var column = new SkUiVerticalShrinkLayout

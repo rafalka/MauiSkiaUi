@@ -1,0 +1,15 @@
+<Project>
+	<!-- Descriptions for the component pages' (?) popups (ComponentPages/EditorHelp.cs): the demo's own texts and the XML
+	     documentation of SkiaUi and MAUI's controls, embedded so the popups follow the library's documentation comments. -->
+	<ItemGroup>
+		<EmbeddedResource Include="$(MSBuildThisFileDirectory)ComponentPages/EditorHelp.md" Link="ComponentPages/EditorHelp.md" LogicalName="EditorHelp.md" />
+	</ItemGroup>
+
+	<Target Name="EmbedEditorHelpApiDocs" AfterTargets="ResolveAssemblyReferences">
+		<ItemGroup>
+			<_EditorHelpApiDocs Include="@(ReferencePath->'%(RootDir)%(Directory)%(Filename).xml')" Condition="'%(Filename)' == 'MauiSkiaUi' or '%(Filename)' == 'Microsoft.Maui.Controls'" />
+			<EmbeddedResource Include="@(_EditorHelpApiDocs)" Condition="Exists('%(FullPath)')" LogicalName="ApiDocs/%(Filename)%(Extension)" />
+		</ItemGroup>
+		<Warning Condition="'@(_EditorHelpApiDocs)' == ''" Text="No XML documentation found for the editor help popups (MauiSkiaUi, Microsoft.Maui.Controls)." />
+	</Target>
+</Project>
