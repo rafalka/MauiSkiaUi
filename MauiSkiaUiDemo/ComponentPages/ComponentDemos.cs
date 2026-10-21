@@ -101,11 +101,11 @@ public static class ComponentDemos
         new(typeof(SkUiCoreShimmerBone), typeof(CoreShimmerBonesDemoPage), "Cards with shimmering bones", ComponentCategory.Core, () => new CoreShimmerBonesDemoPage())
     ];
 
-    /// <summary>MAUI-compatible <c>SkUi*</c> demos shown on the Components flyout.</summary>
+    /// <summary>MAUI-compatible <c>SkUi*</c> demos (every category but <see cref="ComponentCategory.Core"/>).</summary>
     public static IEnumerable<ComponentDemo> MauiCompatible =>
         All.Where(demo => demo.Category != ComponentCategory.Core);
 
-    /// <summary>Core-layer demos shown on the Core flyout.</summary>
+    /// <summary>Core-layer demos (<see cref="ComponentCategory.Core"/>).</summary>
     public static IEnumerable<ComponentDemo> Core =>
         All.Where(demo => demo.Category == ComponentCategory.Core);
 }

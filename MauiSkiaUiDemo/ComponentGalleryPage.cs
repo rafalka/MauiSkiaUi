@@ -1,6 +1,6 @@
 namespace MauiSkiaUiDemo;
 
-/// <summary>Gallery of every dedicated component demo, grouped by <see cref="ComponentCategory"/>.</summary>
+/// <summary>Gallery of the dedicated component demos of one <see cref="ComponentCategory"/> (one flyout entry per category).</summary>
 public sealed class ComponentGalleryPage : ContentPage
 {
     private bool _navigating;
@@ -14,38 +14,28 @@ public sealed class ComponentGalleryPage : ContentPage
         Padding = new Thickness(16, 8), IsVisible = false, AutomationId = "NarrowScreenNote"
     };
 
-    public ComponentGalleryPage()
+    public ComponentGalleryPage(ComponentCategory category)
     {
-        Title = "SkiaUi / Components";
+        Category = category;
+        Title = ComponentCategoryInfo.Title(category);
         Background = DemoColors.PageBackground;
-        var rows = new Grid { RowSpacing = 8, Padding = new Thickness(16, 8, 16, 24) };
-        var groups = ComponentDemos.All.ToLookup(demo => demo.Category);
-        foreach (var category in ComponentCategoryInfo.MauiCompatibleOrder)
+        var rows = new VerticalStackLayout { Spacing = 8, Padding = new Thickness(16, 8, 16, 24) };
+        if (ComponentCategoryInfo.Intro(category) is { } intro)
+            rows.Add(new Label
+            {
+                Text = intro, TextColor = DemoColors.Caption, FontFamily = DemoFonts.OpenSansRegular, FontSize = 13,
+                Margin = new Thickness(0, 0, 0, 8), AutomationId = "GalleryIntro"
+            });
+        foreach (var demo in ComponentDemos.All.Where(demo => demo.Category == category))
         {
-            var demos = groups[category];
-            if (!demos.Any()) continue;
-            var headerRow = rows.RowDefinitions.Count;
-            rows.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            var header = new Label
+            var button = new Button
             {
-                Text = ComponentCategoryInfo.Title(category), TextColor = DemoColors.Ink,
-                FontFamily = DemoFonts.OpenSansSemibold, FontSize = 15, Margin = new Thickness(0, headerRow == 0 ? 0 : 12, 0, 4),
-                AutomationId = "Group" + category
+                Text = demo.Name, Background = Colors.White, TextColor = DemoColors.Ink,
+                FontFamily = DemoFonts.OpenSansSemibold, HeightRequest = 52, CornerRadius = 4,
+                BorderColor = DemoColors.Border, BorderWidth = 1, AutomationId = "Open" + demo.Name
             };
-            rows.Add(header, 0, headerRow);
-            foreach (var demo in demos)
-            {
-                var row = rows.RowDefinitions.Count;
-                rows.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                var button = new Button
-                {
-                    Text = demo.Name, Background = Colors.White, TextColor = DemoColors.Ink,
-                    FontFamily = DemoFonts.OpenSansSemibold, HeightRequest = 52, CornerRadius = 4,
-                    BorderColor = DemoColors.Border, BorderWidth = 1, AutomationId = "Open" + demo.Name
-                };
-                button.Clicked += async (_, _) => await Navigate(demo.Route);
-                rows.Add(button, 0, row);
-            }
+            button.Clicked += async (_, _) => await Navigate(demo.Route);
+            rows.Add(button);
         }
         var root = new Grid { RowDefinitions = [new(GridLength.Auto), new(GridLength.Star)] };
         root.Add(_narrowNote);
@@ -53,6 +43,9 @@ public sealed class ComponentGalleryPage : ContentPage
         Content = root;
         SizeChanged += (_, _) => UpdateNarrowNote(Width, Height);
     }
+
+    /// <summary>The category whose demos this page lists.</summary>
+    public ComponentCategory Category { get; }
 
     internal bool ShowsNarrowNote => _narrowNote.IsVisible;
 

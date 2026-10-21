@@ -20,7 +20,7 @@ name: Picker wheels semantics
       platform: iOS
     commands:
       - tapOn: Menu
-- tapOn: Components
+- tapOn: Basic controls
 - scrollUntilVisible:
     element:
       text: SkUiMultiColumnPicker

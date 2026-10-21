@@ -1,87 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+<!-- Items and the grouped flyout are built from DemoFlyout in AppShell.xaml.cs. -->
 <Shell
     x:Class="MauiSkiaUiDemo.AppShell"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:local="clr-namespace:MauiSkiaUiDemo"
     Title="MauiSkiaUi Demo"
-    FlyoutBehavior="Flyout">
-
-    <FlyoutItem Title="Components">
-        <ShellContent
-            Title="Components"
-            ContentTemplate="{DataTemplate local:ComponentGalleryPage}"
-            Route="components" />
-    </FlyoutItem>
-
-    <FlyoutItem Title="Core">
-        <ShellContent
-            Title="Core"
-            ContentTemplate="{DataTemplate local:CoreGalleryPage}"
-            Route="core" />
-    </FlyoutItem>
-
-    <FlyoutItem Title="Composition">
-        <ShellContent
-            Title="Composition"
-            ContentTemplate="{DataTemplate local:ControlsPage}"
-            Route="composition" />
-    </FlyoutItem>
-
-    <FlyoutItem Title="Native nesting">
-        <ShellContent
-            Title="Native nesting"
-            ContentTemplate="{DataTemplate local:NativeNestingPage}"
-            Route="nesting" />
-    </FlyoutItem>
-
-    <FlyoutItem Title="Look &amp; colors">
-        <ShellContent
-            Title="Look &amp; colors"
-            ContentTemplate="{DataTemplate local:LookAndColorSchemePage}"
-            Route="look" />
-    </FlyoutItem>
-
-    <FlyoutItem Title="Looks side by side">
-        <ShellContent
-            Title="Looks side by side"
-            ContentTemplate="{DataTemplate local:LooksSideBySidePage}"
-            Route="looks" />
-    </FlyoutItem>
-
-    <FlyoutItem Title="Look comparison">
-        <ShellContent
-            Title="Look comparison"
-            ContentTemplate="{DataTemplate local:LookComparisonPage}"
-            Route="look-comparison" />
-    </FlyoutItem>
-
-    <FlyoutItem Title="Accessibility">
-        <ShellContent
-            Title="Accessibility"
-            ContentTemplate="{DataTemplate local:AccessibilityPage}"
-            Route="accessibility" />
-    </FlyoutItem>
-
-    <FlyoutItem Title="Stress">
-        <ShellContent
-            Title="Stress"
-            ContentTemplate="{DataTemplate local:StressPage}"
-            Route="stress" />
-    </FlyoutItem>
-
-    <FlyoutItem Title="Effects stress">
-        <ShellContent
-            Title="Effects stress"
-            ContentTemplate="{DataTemplate local:EffectsStressPage}"
-            Route="effects-stress" />
-    </FlyoutItem>
-
-    <FlyoutItem Title="Primitives">
-        <ShellContent
-            Title="Primitives"
-            ContentTemplate="{DataTemplate local:MainPage}"
-            Route="primitives" />
-    </FlyoutItem>
-
-</Shell>
+    FlyoutBehavior="Flyout" />

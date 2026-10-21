@@ -45,6 +45,22 @@ public class ComponentDemoTests
     }
 
     [Fact]
+    public void EveryCategoryGalleryListsItsDemosUnderItsOwnRoute()
+    {
+        // The demo's flyout has one entry per category (DemoFlyout); the routes must not collide with the demo pages'.
+        var routes = ComponentCategoryInfo.Order.Select(ComponentCategoryInfo.Route).ToList();
+        Assert.Equal(routes.Count, routes.Distinct().Count());
+        Assert.DoesNotContain(routes, route => ComponentDemos.All.Any(demo => demo.Route == route));
+        foreach (var category in ComponentCategoryInfo.Order)
+        {
+            var gallery = new ComponentGalleryPage(category);
+            var catalog = ((Grid)gallery.Content).Children.OfType<ScrollView>().Single();
+            var buttons = Descendants((Layout)catalog.Content).OfType<Button>().Select(button => button.Text);
+            Assert.Equal(ComponentDemos.All.Where(demo => demo.Category == category).Select(demo => demo.Name), buttons);
+        }
+    }
+
+    [Fact]
     public void AllPagesHaveWorkingEditorsAndResetWithoutHandlers()
     {
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher(); // MAUI's RadioButton template binds its content labels
@@ -125,7 +141,7 @@ public class ComponentDemoTests
     [Fact]
     public void GalleryShowsTheNarrowScreenNoteWhileThePageShorterSideIsBelowSideBySide()
     {
-        var gallery = new ComponentGalleryPage();
+        var gallery = new ComponentGalleryPage(ComponentCategory.BasicControls);
         Assert.False(gallery.ShowsNarrowNote);
         gallery.UpdateNarrowNote(390, 760); // phone, portrait
         Assert.True(gallery.ShowsNarrowNote);
