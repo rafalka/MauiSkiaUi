@@ -136,6 +136,11 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
                 ViewHandler.MapSemantics(handler, view);
         };
         mapper[nameof(SkUiView.IsAccessibilityEnabled)] = static (handler, _) => handler.UpdateAccessibility();
+#if IOS || MACCATALYST || WINDOWS
+        // The surface shows the root's tooltip as any drawn view's (where no drawn view with its own is under the pointer);
+        // on the native container it would cover the drawn views' tooltips.
+        mapper[nameof(IToolTipElement.ToolTip)] = static (_, _) => { };
+#endif
 #if WINDOWS
         // The drawn tree mirrors itself for RTL. WinUI FlowDirection (inherited through the XAML tree) would mirror
         // the surface's pixels on top of that (mirrored text, LTR order), so the container stays LeftToRight.
@@ -1077,12 +1082,19 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #elif IOS || MACCATALYST
     private UIKit.UIView? _hoverView;
     private UIKit.UIHoverGestureRecognizer? _hover;
+    private UIKit.UIToolTipInteraction? _toolTips;
+    private ToolTipDelegate? _toolTipDelegate;
+#elif WINDOWS
+    private Microsoft.UI.Xaml.FrameworkElement? _toolTipOwner;
+    private Microsoft.UI.Xaml.Controls.ToolTip? _toolTip;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _toolTipTimer;
 #endif
 
     /// <summary>
     /// Hover input for <see cref="SkUiView.IsPointerOver"/> and the <c>PointerOver</c> visual state. Windows reports
     /// hover through SkiaSharp's touch events (<see cref="OnMauiTouch"/>); Android and Apple surfaces need their own
-    /// listener (mouse, trackpad and stylus hover; the iPad pointer), for GPU and software surfaces alike.
+    /// listener (mouse, trackpad and stylus hover; the iPad pointer), for GPU and software surfaces alike. Tooltips of drawn
+    /// views (<c>ToolTipProperties.Text</c>, a Core node's <c>ToolTip</c>) come with it on Mac Catalyst, iPad and Windows.
     /// </summary>
     private void AttachHover(PlatformView surface)
     {
@@ -1102,6 +1114,16 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         });
         _hoverView = surface;
         surface.AddGestureRecognizer(_hover);
+        // UIKit asks for the tooltip at the pointer and times it; its region is the drawn view's bounds. Phones show none.
+        if (UIKit.UIDevice.CurrentDevice.UserInterfaceIdiom != UIKit.UIUserInterfaceIdiom.Phone)
+        {
+            _toolTipDelegate = new ToolTipDelegate(weak);
+            _toolTips = new UIKit.UIToolTipInteraction { Delegate = _toolTipDelegate };
+            surface.AddInteraction(_toolTips);
+        }
+#elif WINDOWS
+        _toolTipOwner = surface;
+        VirtualView.Router.HoveredToolTipChanged += OnHoveredToolTipChanged;
 #endif
     }
 
@@ -1119,7 +1141,22 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             _hoverView?.RemoveGestureRecognizer(_hover);
         _hover?.Dispose();
         _hover = null;
+        if (_toolTips is not null)
+            _hoverView?.RemoveInteraction(_toolTips);
+        _toolTips?.Dispose();
+        _toolTips = null;
+        _toolTipDelegate?.Dispose();
+        _toolTipDelegate = null;
         _hoverView = null;
+#elif WINDOWS
+        if (VirtualView is { } view)
+            view.Router.HoveredToolTipChanged -= OnHoveredToolTipChanged;
+        HideToolTip();
+        if (_toolTipTimer is not null)
+            _toolTipTimer.Tick -= OnToolTipTimer;
+        _toolTipTimer = null;
+        _toolTip = null;
+        _toolTipOwner = null;
 #endif
         // The pointer may still be over the surface: nothing stays pointer-over in a tree without a surface.
         VirtualView?.Router.ClearHover();
@@ -1165,6 +1202,55 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             _renderer?.TouchDips(new(0, SkUiTouchAction.HoverExited, Point.Zero));
         }
     }
+
+    private sealed class ToolTipDelegate(WeakReference<SkUiViewHandler> handler) : UIKit.UIToolTipInteractionDelegate
+    {
+        public override UIKit.UIToolTipConfiguration? GetConfiguration(UIKit.UIToolTipInteraction interaction, CoreGraphics.CGPoint point) =>
+            handler.TryGetTarget(out var target) && target._renderer?.ToolTipAtDips(new Point(point.X, point.Y)) is { } tip
+                ? UIKit.UIToolTipConfiguration.Create(tip.Text, new CoreGraphics.CGRect(tip.Bounds.X, tip.Bounds.Y, tip.Bounds.Width, tip.Bounds.Height))
+                : null;
+    }
+#elif WINDOWS
+    /// <summary>The system's hover time (400 ms by default), which WinUI waits before it opens a tooltip.</summary>
+    private static readonly Lazy<TimeSpan> ToolTipDelay = new(() =>
+        TimeSpan.FromMilliseconds(new global::Windows.UI.ViewManagement.UISettings().MouseHoverTime));
+
+    // WinUI times a tooltip from the pointer entering its owner, and the surface is the one owner of every drawn view: it
+    // opens and closes the tooltip itself, restarting the delay whenever the hovered view with a tooltip changes.
+    private void OnHoveredToolTipChanged()
+    {
+        HideToolTip();
+        if (_toolTipOwner is not { } owner || VirtualView?.Router.HoveredToolTip is null)
+            return;
+        if (_toolTipTimer is null)
+        {
+            _toolTipTimer = owner.DispatcherQueue.CreateTimer();
+            _toolTipTimer.IsRepeating = false;
+            _toolTipTimer.Tick += OnToolTipTimer;
+        }
+        _toolTipTimer.Interval = ToolTipDelay.Value;
+        _toolTipTimer.Start();
+    }
+
+    private void OnToolTipTimer(Microsoft.UI.Dispatching.DispatcherQueueTimer sender, object args)
+    {
+        if (_toolTipOwner is not { } owner || _renderer?.HoveredToolTip is not { } tip)
+            return;
+        _toolTip ??= new Microsoft.UI.Xaml.Controls.ToolTip();
+        _toolTip.Content = tip.Text;
+        _toolTip.PlacementRect = new global::Windows.Foundation.Rect(tip.Bounds.X, tip.Bounds.Y, tip.Bounds.Width, tip.Bounds.Height);
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(owner, _toolTip);
+        _toolTip.IsOpen = true;
+    }
+
+    private void HideToolTip()
+    {
+        _toolTipTimer?.Stop();
+        if (_toolTip is null || _toolTipOwner is null)
+            return;
+        _toolTip.IsOpen = false;
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(_toolTipOwner, null);
+    }
 #endif
 
     private void OnMauiTouch(object? sender, SKTouchEventArgs args)
@@ -1187,6 +1273,9 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         // SkiaSharp drops the wheel's axis: OnSurfaceWheel (after this handler) dispatches it with both axes.
         if (action == SkUiTouchAction.Wheel)
             return;
+        // A press closes a tooltip (and stops one about to open), as on native views; the next hovered view opens one again.
+        if (action == SkUiTouchAction.Pressed)
+            HideToolTip();
 #endif
         args.Handled = _renderer?.TouchPixels(new(args.Id, action.Value,
             new Point(args.Location.X, args.Location.Y), null, args.WheelDelta, Device: SkUiPointerDevices.From(args.DeviceType))

@@ -7,7 +7,7 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 | MAUI | SkiaUi | Notes |
 | --- | --- | --- |
 | `ContentView` | `sk:SkUiContentView` | Surface root (one child) or a hosted container; base class for drawn custom controls. Also `ContentTemplate`, `ControlTemplate` of drawn views (`TemplateBinding` → `RelativeSource AncestorType`, see [custom-controls.md](custom-controls.md#templated-control)), and `ContentLoading="WhenShown"` (+ `ContentLoadingDelay`, `ContentLoadedAnimation`) to create a pane only when first shown: use it for heavy tabs and hidden or collapsed panes |
-| `Grid` | `sk:SkUiGrid` | `RowDefinitions`, `ColumnDefinitions`, spacing, `Grid.Row` / `Grid.Column` / spans as in MAUI |
+| `Grid` | `sk:SkUiGrid` | `RowDefinitions`, `ColumnDefinitions`, spacing, `Grid.Row` / `Grid.Column` / spans as in MAUI; code-behind `grid.Add(view, column, row)`, `AddWithSpan`, `SetRow` / `SetColumn` and `AddRowDefinition` / `AddColumnDefinition` unchanged |
 | `VerticalStackLayout` | `sk:SkUiVerticalStackLayout` | |
 | `HorizontalStackLayout` | `sk:SkUiHorizontalStackLayout` | |
 | `StackLayout` | `sk:SkUiVerticalStackLayout` / `sk:SkUiHorizontalStackLayout` | Choose by `Orientation` (default vertical); drop `Orientation`; keep `Spacing` |
@@ -31,7 +31,7 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 | `Frame` | `sk:SkUiBorder` | `CornerRadius="8"` → `StrokeShape="RoundRectangle 8"`; `BorderColor` → `Stroke`; `HasShadow="True"` → `<sk:SkUiBorder.Shadow><Shadow .../></sk:SkUiBorder.Shadow>`; Frame's default `Padding` is 20 |
 | `ContentPresenter` | `sk:SkUiContentPresenter` | Inside a drawn `ControlTemplate` (of a `SkUiContentView`, a content view built on it, or a `SkUiRadioButton`) |
 
-`IsClippedToBounds` → `ClipToBounds` (leaf controls clip by default, layouts do not). Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `FlexLayout.Grow`, `SemanticProperties.*`, `AutomationProperties.*`, `RadioButtonGroup.GroupName`, `VisualStateManager.VisualStateGroups`).
+`IsClippedToBounds` → `ClipToBounds` (leaf controls clip by default, layouts do not). Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `FlexLayout.Grow`, `SemanticProperties.*`, `AutomationProperties.*`, `ToolTipProperties.Text` (shown on Mac Catalyst, iPad and Windows), `RadioButtonGroup.GroupName`, `VisualStateManager.VisualStateGroups`).
 
 `BindableLayout` works on every drawn layout (`ItemsSource`, `ItemTemplate`, `ItemTemplateSelector`, `EmptyView`, `EmptyViewTemplate`): convert the template content and the empty view to drawn controls like the rest of the region (native ones go inside `sk:SkUiMauiContentView`). A string `EmptyView` throws: replace it with `<BindableLayout.EmptyView><sk:SkUiLabel Text="..." /></BindableLayout.EmptyView>`. No virtualization: fine for tens to a few hundred items; longer lists: `sk:SkUiCollectionView` (selection, header, empty view; [collection-view.md](collection-view.md)) or `sk:SkUiVirtualScrollView` (or `sk:SkUiVirtualVerticalStackLayout` inside a drawn scroller) with the same template.
 

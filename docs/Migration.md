@@ -125,8 +125,8 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | MAUI | SkiaUi | Notes |
 | --- | --- | --- |
 | `ContentView` | `SkUiContentView` | Also the base class for drawn custom controls; `ControlTemplate` of drawn views ([templated controls](#templated-controls)) |
-| `Grid` | `SkUiGrid` | In code, add children with `Children.Add` and `Grid.SetRow` / `SetColumn`: MAUI's `grid.Add(view, column, row)` and `AddRowDefinition` are not there yet ([U1](design/ImplementationPlan.md#phase-u--app-ui-on-skiaui)) |
-| `VerticalStackLayout` / `HorizontalStackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | In code, `stack.Children.Add(view)` (no `stack.Add(view)` yet, [U1](design/ImplementationPlan.md#phase-u--app-ui-on-skiaui)) |
+| `Grid` | `SkUiGrid` | Prefix swap, also in code: `grid.Add(view, column, row)`, `AddWithSpan`, `SetRow` / `SetColumn` / spans for a view and `AddRowDefinition` / `AddColumnDefinition` work as on MAUI's `Grid`; children must be drawn views |
+| `VerticalStackLayout` / `HorizontalStackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | Prefix swap, also in code: every drawn layout has MAUI `Layout`'s `Add` / `Insert` / `Remove` / `Clear` and collection initializers; `AddRange` adds many children with one re-measure |
 | `StackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | Pick by `Orientation`; keep `Spacing` |
 | `AbsoluteLayout` | `SkUiAbsoluteLayout` | |
 | `FlexLayout` | `SkUiFlexLayout` | Also `SkUiWrapLayout` for chips and tags |
@@ -208,6 +208,8 @@ Styles target a type, and drawn controls are different types:
 <!-- Drawn form -->
 <sk:SkUiGrid TappedCommand="{Binding OpenCommand}" TappedCommandParameter="{Binding .}" ShowsPressEffect="True" />
 ```
+
+MAUI's tooltips (`ToolTipProperties.Text`) also need no change: the surface shows them for the drawn view under a mouse or trackpad pointer (Mac Catalyst, iPad with a pointer, Windows; none on phones, as MAUI). A Core node takes `SetToolTip(text)`.
 
 Other gesture input needs converting. A drawn view that has it writes one `Trace` line on its first press, naming what is ignored and what to use.
 
@@ -413,7 +415,6 @@ Styles now apply to everything the toolkit's constructor set (padding, stroke, s
 | MAUI | Status | Meanwhile |
 | --- | --- | --- |
 | `CollectionView`: reordering (`CanReorderItems`), snap points on the items layout | Not available | Keep the MAUI `CollectionView` with native item templates (outside the drawn region); everything else ports ([Lists](#lists-collectionview)) |
-| Tooltips (`ToolTipProperties.Text`) | Planned for 1.0 ([U2](design/ImplementationPlan.md#phase-u--app-ui-on-skiaui)); not shown on drawn views yet | Keep the control native where its tooltip matters |
 | Drag and drop, context flyouts | Not planned | Keep native |
 | `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists), `SkUiBorder` |
 | Shell, pages, navigation | Out of scope | Stay MAUI |

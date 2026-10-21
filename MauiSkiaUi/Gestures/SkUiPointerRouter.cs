@@ -23,7 +23,13 @@ internal interface ISkUiInputNode : ISkUiRenderable
 
     /// <summary>A hovering pointer entered (<c>true</c>) or left this node or one of its descendants.</summary>
     void SetPointerOver(bool isOver) { }
+
+    /// <summary>The node's tooltip (<c>ToolTipProperties.Text</c>, a Core node's <c>ToolTip</c>); <c>null</c> or empty for none.</summary>
+    string? ToolTipText => null;
 }
+
+/// <summary>A tooltip to show: its text and the bounds of the node it belongs to (the region it stays up over).</summary>
+internal readonly record struct SkUiToolTipTarget(string Text, Rect Bounds);
 
 /// <summary>What a surface's gestures mean for native ancestors (e.g. a MAUI ScrollView around the surface).</summary>
 internal enum SkUiNativeGestureState
@@ -154,6 +160,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     /// <summary>The hovered node and its ancestors up to the root, innermost first.</summary>
     private readonly List<ISkUiInputNode> _hovered = [];
     private readonly List<ISkUiInputNode> _hoverChain = [];
+    private ISkUiInputNode? _hoveredToolTipNode;
     private readonly List<SkUiGestureRecognizer> _recognizers = [];
     private readonly List<ISkUiRenderable> _children = [];
 
@@ -330,17 +337,85 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         _hovered.Clear();
         _hovered.AddRange(_hoverChain);
         _hoverChain.Clear();
+        if (HoveredToolTipChanged is not null)
+            SetHoveredToolTipNode(FindToolTipNode(_hovered));
     }
 
     /// <summary>Nothing is pointer-over any more (the pointer left, or the surface went away).</summary>
     internal void ClearHover()
     {
+        SetHoveredToolTipNode(null);
         if (_hovered.Count == 0)
             return;
         var left = _hovered.ToArray();
         _hovered.Clear();
         foreach (var node in left)
             node.SetPointerOver(false);
+    }
+
+    /// <summary>
+    /// The hovered node whose tooltip shows changed (another node, or none): platforms that time tooltips themselves
+    /// (Windows) restart their delay. Tracked only while subscribed; tooltip texts are read on each hover move then.
+    /// </summary>
+    internal event Action? HoveredToolTipChanged;
+
+    /// <summary>The tooltip of the hovered node (or its nearest ancestor with one), read now; <c>null</c> for none.</summary>
+    internal SkUiToolTipTarget? HoveredToolTip => _hoveredToolTipNode is { } node ? ToolTipOf(node) : null;
+
+    /// <summary>
+    /// The tooltip at <paramref name="position"/> (root coordinates): of the topmost hit-test-visible node there, or of its
+    /// nearest ancestor with one, as hover finds them; for platforms that ask by position (Apple's tooltip interaction).
+    /// </summary>
+    internal SkUiToolTipTarget? ToolTipAt(Point position)
+    {
+        for (var node = FindTarget(root, ToSk(position), isRoot: true, requireParticipant: false);
+             node is not null; node = node.RenderParent as ISkUiInputNode)
+        {
+            if (ToolTipOf(node) is { } target)
+                return target;
+            if (ReferenceEquals(node, root))
+                break;
+        }
+        return null;
+    }
+
+    private static ISkUiInputNode? FindToolTipNode(List<ISkUiInputNode> chain)
+    {
+        foreach (var node in chain)
+            if (!string.IsNullOrEmpty(node.ToolTipText))
+                return node;
+        return null;
+    }
+
+    private void SetHoveredToolTipNode(ISkUiInputNode? node)
+    {
+        if (ReferenceEquals(_hoveredToolTipNode, node))
+            return;
+        _hoveredToolTipNode = node;
+        HoveredToolTipChanged?.Invoke();
+    }
+
+    private SkUiToolTipTarget? ToolTipOf(ISkUiInputNode node) =>
+        node.ToolTipText is { Length: > 0 } text ? new SkUiToolTipTarget(text, MapToRoot(node)) : null;
+
+    /// <summary>The bounds of <paramref name="node"/> in root coordinates (through transforms and scroll offsets).</summary>
+    internal Rect MapToRoot(ISkUiRenderable node)
+    {
+        var chain = new List<ISkUiRenderable>(8);
+        for (var current = node; current is not null && !ReferenceEquals(current, root); current = current.RenderParent)
+            chain.Add(current);
+        var toRoot = SKMatrix.Identity;
+        ISkUiRenderable parent = root;
+        for (var index = chain.Count - 1; index >= 0; index--)
+        {
+            var props = GetProps(chain[index]);
+            if (!props.Pinned)
+                toRoot = toRoot.PreConcat(GetProps(parent).ChildrenMatrix);
+            toRoot = toRoot.PreConcat(props.Matrix);
+            parent = chain[index];
+        }
+        var bounds = toRoot.MapRect(GetProps(node).Bounds);
+        return new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
     }
 
     private bool Press(SkUiTouchEvent touch, TimeSpan time)

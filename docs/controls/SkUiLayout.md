@@ -35,6 +35,17 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 `Children`, `Padding`.
 
+## Children in code
+
+Every drawn layout has MAUI `Layout`'s child members, so code-behind ports by renaming the type: `Add`, `Insert`, `Remove`, `RemoveAt`, `Clear`, `Contains`, `IndexOf`, `Count` and the indexer take `IView` (as MAUI's) and require drawn views (an `ArgumentException` names a native one; host it in an [`SkUiMauiContentView`](SkUiMauiContentView.md)). As with MAUI, `Add(null)` / `Insert(i, null)` and `RemoveAt` past the end do nothing. `AddRange` adds many children with one re-measure (`StartUpdating` / `EndUpdating`). Collection initializers work:
+
+```csharp
+var card = new SkUiVerticalStackLayout { Spacing = 4, Padding = 12 };
+card.Add(new SkUiLabel { Text = "Title" });
+card.Insert(0, icon);
+var row = new SkUiHorizontalStackLayout { avatar, card };
+```
+
 ## BindableLayout
 
 MAUI's `BindableLayout` works on `SkUiLayout` and every layout built on it (`SkUiGrid`, the stacks, `SkUiAbsoluteLayout`, `SkUiFlexLayout`, `SkUiWrapLayout`, the shrink stacks): `ItemsSource` (collection changes add, insert, replace, move and remove children), `ItemTemplate`, `ItemTemplateSelector`, `EmptyView`, `EmptyViewTemplate`. MAUI XAML ports by changing the prefix of the layout and the template content:

@@ -58,6 +58,26 @@ public partial class SkUiCoreNode
         return this;
     }
 
+    // In the attached-value store: most nodes have no tooltip, so they pay no field for it.
+    private static readonly SkUiCoreAttachedProperty<string?> ToolTipProperty =
+        new(nameof(ToolTip), typeof(SkUiCoreNode), null, affectsParentMeasure: false);
+
+    /// <summary>
+    /// Text the platform shows in a tooltip while a mouse or trackpad pointer rests on the node (the twin of MAUI's
+    /// <c>ToolTipProperties.Text</c> on SkUi* views): Mac Catalyst, iPad with a pointer and Windows; none on phones, as MAUI.
+    /// A node without one shows its nearest ancestor's. <c>null</c> or empty for none.
+    /// </summary>
+    public string? ToolTip
+    {
+        get => GetValue(ToolTipProperty);
+        set => SetToolTip(value);
+    }
+
+    /// <summary>Sets <see cref="ToolTip"/>.</summary>
+    public SkUiCoreNode SetToolTip(string? value) => SetValue(ToolTipProperty, value);
+
+    string? ISkUiInputNode.ToolTipText => ToolTip;
+
     /// <summary>
     /// Command run on a tap (the twin of <see cref="SkUiView.TappedCommand"/>): while it can execute, the node takes taps (and
     /// keyboard / screen reader activation) like one with a <see cref="Tapped"/> handler, which runs first. Its

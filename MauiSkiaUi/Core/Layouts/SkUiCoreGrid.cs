@@ -176,6 +176,18 @@ public class SkUiCoreGrid : SkUiCorePanel
     private static SkUiCoreNode Node(ISkUiCoreNode child) =>
         child as SkUiCoreNode ?? throw new ArgumentException("Core layouts accept SkUiCoreNode instances only.", nameof(child));
 
+    /// <summary>The row of <paramref name="child"/> (its attached <see cref="RowProperty"/>).</summary>
+    public int GetRow(ISkUiCoreNode child) => GetPlacement(child).Row;
+
+    /// <summary>The column of <paramref name="child"/> (its attached <see cref="ColumnProperty"/>).</summary>
+    public int GetColumn(ISkUiCoreNode child) => GetPlacement(child).Column;
+
+    /// <summary>The rows <paramref name="child"/> spans (its attached <see cref="RowSpanProperty"/>).</summary>
+    public int GetRowSpan(ISkUiCoreNode child) => GetPlacement(child).RowSpan;
+
+    /// <summary>The columns <paramref name="child"/> spans (its attached <see cref="ColumnSpanProperty"/>).</summary>
+    public int GetColumnSpan(ISkUiCoreNode child) => GetPlacement(child).ColumnSpan;
+
     /// <summary>Sets the row index for <paramref name="child"/>.</summary>
     public SkUiCoreGrid SetRow(ISkUiCoreNode child, int row)
     {

@@ -5,6 +5,7 @@ namespace MauiSkiaUiDemo;
 /// <summary>Side-by-side property playground for <see cref="SkUiButton"/>, including an image beside the text (P9).</summary>
 public sealed class ButtonDemoPage : ComponentDemoPage
 {
+    private const string ToolTipEditor = "ToolTip";
     private const string NoImage = "None";
     private const string GlyphImage = "Glyph (FontImageSource)";
     private const string BadgeImage = "Badge (MauiImage)";
@@ -17,6 +18,8 @@ public sealed class ButtonDemoPage : ComponentDemoPage
     private static readonly Button.ButtonContentLayout.ImagePosition[] Positions =
         [Button.ButtonContentLayout.ImagePosition.Left, Button.ButtonContentLayout.ImagePosition.Top,
          Button.ButtonContentLayout.ImagePosition.Right, Button.ButtonContentLayout.ImagePosition.Bottom];
+
+    private static string ToolTipOf(BindableObject view) => ToolTipProperties.GetText(view)?.ToString() ?? string.Empty;
 
     private static ImageSource? CreateImage(string name) => name switch
     {
@@ -65,6 +68,12 @@ public sealed class ButtonDemoPage : ComponentDemoPage
         native.TextColor = Colors.White;
         skia.TextColor = Colors.White;
         Text(nameof(SkUiButton.Text), "Add observation", value => { skia.Text = value; native.Text = value; }, () => skia.Text, () => native.Text);
+        // Shown while a mouse or trackpad pointer rests on the button (Mac Catalyst, iPad with a pointer, Windows).
+        Text(ToolTipEditor, "Adds an observation to the list", value =>
+        {
+            ToolTipProperties.SetText(skia, value);
+            ToolTipProperties.SetText(native, value);
+        }, () => ToolTipOf(skia), () => ToolTipOf(native));
         Choice(nameof(SkUiButton.LineBreakMode), [LineBreakMode.NoWrap, LineBreakMode.WordWrap, LineBreakMode.CharacterWrap, LineBreakMode.HeadTruncation, LineBreakMode.MiddleTruncation, LineBreakMode.TailTruncation],
             LineBreakMode.NoWrap, value => { skia.LineBreakMode = value; native.LineBreakMode = value; }, () => skia.LineBreakMode, () => native.LineBreakMode);
         Number(nameof(SkUiButton.FontSize), 10, 30, 16, value => { skia.FontSize = value; native.FontSize = value; }, () => skia.FontSize, () => native.FontSize);

@@ -401,16 +401,16 @@ public sealed class LookAndColorSchemePage : ContentPage
             pair.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             pair.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             pair.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            Place(pair, row.MauiBlock, 0, 0);
-            Place(pair, row.CoreBlock, 1, 0);
+            pair.Add(row.MauiBlock, 0, 0);
+            pair.Add(row.CoreBlock, 1, 0);
         }
         else
         {
             pair.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             pair.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             pair.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            Place(pair, row.MauiBlock, 0, 0);
-            Place(pair, row.CoreBlock, 0, 1);
+            pair.Add(row.MauiBlock, 0, 0);
+            pair.Add(row.CoreBlock, 0, 1);
         }
     }
 
@@ -418,9 +418,9 @@ public sealed class LookAndColorSchemePage : ContentPage
     {
         _sizeGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         const int row = 0;
-        Place(_sizeGrid, Header("Preview"), 0, row);
-        Place(_sizeGrid, Header("Width"), 1, row);
-        Place(_sizeGrid, Header("Height"), 2, row);
+        _sizeGrid.Add(Header("Preview"), 0, row);
+        _sizeGrid.Add(Header("Width"), 1, row);
+        _sizeGrid.Add(Header("Height"), 2, row);
     }
 
     private void AddSizeRow(SizeRow row)
@@ -434,7 +434,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         row.CoreBlock = CreateNamedPreviewBlock(row.CoreTypeName, row.CorePreviewHost);
         row.PreviewPair = new SkUiGrid { HorizontalOptions = LayoutOptions.Fill };
         LayoutPreviewPair(row, _widePreviews ?? false);
-        Place(_sizeGrid, row.PreviewPair, 0, rowIndex);
+        _sizeGrid.Add(row.PreviewPair, 0, rowIndex);
 
         if (row.HasWidth)
         {
@@ -448,8 +448,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         row.HeightEntry.Unfocused += (_, _) => CommitSizeRow(row);
 
         var editors = CreateSizeEditors(row);
-        Place(_sizeGrid, editors, 1, rowIndex);
-        Grid.SetColumnSpan(editors, 2);
+        _sizeGrid.AddWithSpan(editors, rowIndex, 1, columnSpan: 2);
 
         _sizeRows.Add(row);
     }
@@ -474,10 +473,10 @@ public sealed class LookAndColorSchemePage : ContentPage
         };
 
         if (row.WidthEntry is not null)
-            Place(editors, row.WidthEntry, 0, 0);
+            editors.Add(row.WidthEntry, 0, 0);
         else
         {
-            Place(editors, new SkUiLabel
+            editors.Add(new SkUiLabel
             {
                 Text = "—",
                 TextColor = DemoColors.Caption,
@@ -487,7 +486,7 @@ public sealed class LookAndColorSchemePage : ContentPage
             }, 0, 0);
         }
 
-        Place(editors, row.HeightEntry, 1, 0);
+        editors.Add(row.HeightEntry, 1, 0);
 
         var fieldLabel = new SkUiLabel
         {
@@ -500,8 +499,7 @@ public sealed class LookAndColorSchemePage : ContentPage
             Margin = new Thickness(0, 2, 0, 0)
         };
         fieldLabel.Tapped += async (_, _) => await CopySetterSnippetAsync(row);
-        Place(editors, fieldLabel, 0, 1);
-        Grid.SetColumnSpan(fieldLabel, 2);
+        editors.AddWithSpan(fieldLabel, 1, 0, columnSpan: 2);
 
         return editors;
     }
@@ -808,14 +806,6 @@ public sealed class LookAndColorSchemePage : ContentPage
         VerticalOptions = LayoutOptions.Center,
         Placeholder = "DIPs"
     };
-
-    /// <summary>Places <paramref name="view"/> in a cell of a drawn grid (MAUI's <c>Grid.Add(view, column, row)</c>).</summary>
-    private static void Place(SkUiGrid grid, View view, int column, int row)
-    {
-        Grid.SetColumn(view, column);
-        Grid.SetRow(view, row);
-        grid.Children.Add((ISkUiView)view);
-    }
 
     private static SkUiLabel Header(string text) => new()
     {

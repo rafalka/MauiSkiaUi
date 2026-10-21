@@ -135,14 +135,14 @@ public class LayoutTests
             return (IView)box;
         }).ToArray();
 
-        layout.Add(children);
+        layout.AddRange(children);
         Assert.Equal(8, layout.Children.Count);
         Assert.Equal(1, invalidations);
 
         // Nested with an outer batch: Add's EndUpdating must not flush early.
         invalidations = 0;
         layout.StartUpdating();
-        layout.Add([(IView)new SkUiBox { WidthRequest = 4, HeightRequest = 4 }]);
+        layout.AddRange([new SkUiBox { WidthRequest = 4, HeightRequest = 4 }]);
         Assert.Equal(0, invalidations);
         layout.EndUpdating();
         Assert.Equal(1, invalidations);

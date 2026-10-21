@@ -1274,6 +1274,15 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         return true;
     }
 
+    /// <summary>Maps a rectangle in <paramref name="child"/>'s local coordinates to its parent's (the reverse of <see cref="MapPoint"/>).</summary>
+    internal static Rect MapRectToParent(ISkUiView child, Rect local)
+    {
+        var rect = new SKRect((float)local.Left, (float)local.Top, (float)local.Right, (float)local.Bottom);
+        if (child is SkUiView node)
+            rect = node.RenderMatrix.MapRect(rect);
+        return new Rect(rect.Left + child.Frame.X, rect.Top + child.Frame.Y, rect.Width, rect.Height);
+    }
+
     internal void ValidateChild(ISkUiView child)
     {
         ArgumentNullException.ThrowIfNull(child);
@@ -1343,6 +1352,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     bool ISkUiInputNode.IsInputEnabled => IsVisualStateEnabled;
 
     bool ISkUiInputNode.HitTestsChildren => HitTestsChildren;
+
+    // MAUI's attached tooltip, shown by the surface for the drawn view under the pointer (its handler maps a root's too).
+    string? ISkUiInputNode.ToolTipText => ToolTipProperties.GetText(this)?.ToString();
 
     /// <inheritdoc cref="ISkUiInputNode.HitTestsChildren" />
     internal virtual bool HitTestsChildren => true;

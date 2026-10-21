@@ -410,11 +410,9 @@ public abstract class ComponentDemoPage : ContentPage
             var color = colors[index];
             var swatch = new SkUiButton { Background = color, HeightRequest = 44, BorderColor = Colors.Gray, BorderWidth = 1, CornerRadius = 4, AutomationId = $"Edit{name}{index}" };
             SemanticProperties.SetDescription(swatch, name + " " + color.ToArgbHex());
-            // Drawn views show no tooltips yet (MAUI's ToolTipProperties need a native view; see the implementation plan).
             ToolTipProperties.SetText(swatch, color.ToArgbHex());
             swatch.Clicked += (_, _) => { selected = color; apply(color); };
-            Grid.SetColumn(swatch, index);
-            palette.Children.Add(swatch);
+            palette.Add(swatch, index);
         }
         AddEditor(name, palette);
         _resets.Add(() => { selected = initial; apply(initial); });

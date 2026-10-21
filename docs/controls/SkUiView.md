@@ -59,6 +59,7 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 | `Focus()` / `Unfocus()` / `IsFocused` / `Focused` / `Unfocused` | MAUI's keyboard focus, on drawn views too (see below) |
 | `IsTabStop` / `TabIndex` | Tab order within the surface (SkiaUi's own: MAUI 10 has none) |
 | `SetSemanticFocus()` | Moves the screen reader to the view (MAUI's `SetSemanticFocus` needs a native view) |
+| `ToolTipProperties.Text` | MAUI's tooltip: the surface shows it while a mouse or trackpad pointer rests on the view, on Mac Catalyst, iPad with a pointer and Windows (none on phones, as MAUI); a view without one shows its nearest drawn ancestor's ([EventMechanism.md](../design/EventMechanism.md#tooltips)) |
 | `IsAccessibilityEnabled` | `false`: the subtree is hidden from screen readers and keyboard focus (on a surface root: no platform bridge). App-wide: `SkUiAccessibility.IsEnabled` |
 | `OnPopulateSemantics` / `OnSemanticsAction` | What the view reports to screen readers and what their actions do (own controls) |
 | `Paint` / `Touch` | `ISkUiView` surface |

@@ -37,13 +37,13 @@ SkUiAbsoluteLayout.SetLayoutFlags(child, AbsoluteLayoutFlags.PositionProportiona
 
 ## Key APIs
 
-Static `Get/SetLayoutBounds`, `Get/SetLayoutFlags`; instance `Children`, `Padding`, and batch `Add(IEnumerable<IView>)` (wraps `StartUpdating` / `EndUpdating` so many inserts invalidate once).
+Static `Get/SetLayoutBounds`, `Get/SetLayoutFlags`; instance `Children`, `Padding`, MAUI `Layout`'s `Add` / `Insert` / `Remove` / `Clear` ([SkUiLayout](SkUiLayout.md#children-in-code)), and batch `AddRange(IEnumerable<IView>)` (wraps `StartUpdating` / `EndUpdating` so many inserts invalidate once).
 
 While `StartUpdating()` is active, adding or mutating children only marks dirty flags; measure / layout / paint notifications flush on the matching `EndUpdating()`.
 
 ## Differences from MAUI AbsoluteLayout
 
-Children must be `ISkUiView`. Attached property APIs are the MAUI ones (via wrappers on the SkUi type). Use `Add(IEnumerable<IView>)` or an explicit update batch when inserting large child sets.
+Children must be `ISkUiView`. Attached property APIs are the MAUI ones (via wrappers on the SkUi type). Use `AddRange(IEnumerable<IView>)` or an explicit update batch when inserting large child sets.
 
 ## Related
 

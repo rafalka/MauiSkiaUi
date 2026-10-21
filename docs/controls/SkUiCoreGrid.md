@@ -49,7 +49,8 @@ var host = new SkUiCoreHost().SetContent(grid);
 | `RowDefinitions` / `ColumnDefinitions` | Read-only track list; mutate with `Set*Definitions` / `Add*Definition` |
 | `SetRowDefinitions` / `SetColumnDefinitions` / `AddRowDefinition` / `AddColumnDefinition` | Structural definition changes (subscribe + invalidate) |
 | `RowSpacing` / `ColumnSpacing` / `Padding` | Gaps and inset |
-| `Add` / `SetPlacement` / `SetRow` / … | Cell indices and spans |
+| `Add` / `SetPlacement` / `SetRow` / … / `GetPlacement` / `GetRow` / … | Cell indices and spans |
+| `Insert` / `Remove` / `RemoveAt` / `IndexOf` / `Clear` | Children (`SkUiCorePanel`'s, as on every Core layout) |
 | `GetRowOffset` / `GetColumnOffset` / `GetRowHeight` / `GetColumnWidth` / `GetCellBounds` | Metrics after measure/arrange (for subclasses / tests) |
 
 ## Differences from MAUI / SkUiGrid
