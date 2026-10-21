@@ -37,6 +37,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 - **Keyboard focus across UI threads:** the list of surfaces holding keyboard focus is now kept per UI thread. It was shared, so surfaces on two UI threads changing their trees at once (windows with a thread each on Windows, test runs in parallel) could make a focused view keep its focus after it left the tree, or throw from `SkUiFocusManager` while a view was added.
 - **Drawn roots arranged without a matching measure:** a surface root that its native parent arranges without measuring it for those bounds (Shell's `FlyoutContent` on iOS and Mac Catalyst is only arranged) is now measured at the arranged size first, as MAUI's own layouts are. Before, it kept no measure or one made at width 0: the flyout was empty on iOS and its labels wrapped one character per line on Mac Catalyst.
+- **Picker popups on Mac Catalyst placed in the whole window:** popups are now placed in the window's size as the app lays out (the UIKit window's bounds on iOS and Mac Catalyst), not MAUI's `Window.Width` / `Height`, which on Mac Catalyst are screen points (77 % of the app's in the iPad idiom). Before, a bottom pane there was about three quarters of the window's width and ended above its bottom edge, and anchored and window popups were kept inside that smaller area.
 
 ### Other
 

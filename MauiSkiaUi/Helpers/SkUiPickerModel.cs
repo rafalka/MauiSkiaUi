@@ -941,7 +941,7 @@ internal sealed class SkUiPickerModel
             var rootBounds = SkUiDiagnostics.GetRootBounds(model._owner.Node) ?? Rect.Zero;
             var origin = SkUiWindowMetrics.SurfaceOrigin(surfaceRoot);
             var anchorBounds = rootBounds.Offset(origin.X, origin.Y);
-            var windowSize = SkUiWindowMetrics.WindowSize(anchor.Window);
+            var windowSize = SkUiWindowMetrics.WindowSize(surfaceRoot);
             var rowStyle = new SkUiPickerRowStyle(model.FontFamily, model.EffectiveFontSize, model.FontAttributes, model.FontAutoScalingEnabled, model.CharacterSpacing,
                 model.TextColor, model.SelectionBackground);
             var requiresAccept = model.UpdateMode == SkUiPickerUpdateMode.WhenFinished;

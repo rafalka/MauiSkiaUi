@@ -117,6 +117,18 @@ public sealed class PickerBottomPaneTests : IDisposable
     }
 
     [Fact]
+    public void PanesSpanThePlatformWindowNotMauisFrame()
+    {
+        // Mac Catalyst's iPad idiom: MAUI's frame is in screen points (77 % of the app's), the platform window in the app's.
+        var window = new Window(new ContentPage());
+        ((IWindow)window).FrameChanged(new Rect(0, 0, 859, 907));
+        Assert.Equal(new Size(1116, 1178), SkUiWindowMetrics.WindowSize(window, new Size(1116, 1178)));
+        // Without a platform window (headless), the frame.
+        Assert.Equal(new Size(859, 907), SkUiWindowMetrics.WindowSize(window, Size.Zero));
+        Assert.Equal(Size.Zero, SkUiWindowMetrics.WindowSize(null, Size.Zero));
+    }
+
+    [Fact]
     public void APickersPaneDocksWithAToolbarOverAClearPage()
     {
         var picker = Picker();
