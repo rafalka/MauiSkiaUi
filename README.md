@@ -142,18 +142,20 @@ Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](
 
 ## Stress results (device)
 
-The demo's Stress page: **1,000 buttons** in a two-column grid under one scroll view, animation off; SkUi* and Core on a GPU surface. Release builds, average of 6 rounds (2 launches × 3 rounds after a warm-up round). Times in milliseconds.
+The demo's Stress page: **1,000 buttons** in a two-column grid under one scroll view, animation off; SkUi* and Core on a GPU surface. Release builds on **.NET 10** (MAUI 10.0.110), measured in October 2026; average of 6 rounds (2 launches × 3 rounds after a warm-up round). Times in milliseconds.
+
+The Galaxy S9 (2018) and iPhone 8 (2017) were chosen to represent old, slow devices: a UI that is fast on them is fast on the phones most apps support.
 
 | Device | Layer | Generate UI | Add to page | First frame | Overall (start → UI idle) | Scrolling |
 | --- | --- | ---: | ---: | ---: | ---: | --- |
-| Galaxy S9 (Android 10) | Native MAUI | 415 | 4,798 | 774 | 5,988 | — |
-| | SkUi* | 241 | 28 | 214 | 484 | 59 fps |
-| | Core | 55 | 7 | 165 | 228 | 59 fps |
-| iPhone 8 (iOS 16) | Native MAUI | 240 | 1,649 | 927 | 2,816 | — |
-| | SkUi* | 73 | 14 | 48 | 135 | 59 fps |
-| | Core | 52 | 8 | 31 | 91 | 60 fps |
+| Galaxy S9 (Android 10) | Native MAUI | 388 | 5,235 | 805 | 6,428 | — |
+| | SkUi* | 208 | 36 | 167 | 413 | 59 fps |
+| | Core | 76 | 11 | 169 | 257 | 59 fps |
+| iPhone 8 (iOS 16) | Native MAUI | 237 | 1,683 | 965 | 2,885 | — |
+| | SkUi* | 114 | 14 | 37 | 164 | 60 fps |
+| | Core | 50 | 4 | 35 | 89 | 60 fps |
 
-The drawn tree is ready **12× (SkUi\*) and 26× (Core) faster** than native MAUI on the S9, and **21× and 31× faster** on the iPhone 8, and scrolls at the display's 60 fps. What gradients, shadows, clips, shaped borders and animated content cost while scrolling, and which of them to avoid in long lists: **[docs/Performance.md](docs/Performance.md)**.
+The drawn tree is ready **16× (SkUi\*) and 25× (Core) faster** than native MAUI on the S9, and **18× and 32× faster** on the iPhone 8, and scrolls at the display's 60 fps. What gradients, shadows, clips, shaped borders and animated content cost while scrolling, and which of them to avoid in long lists: **[docs/Performance.md](docs/Performance.md)**.
 
 ## Contributing / developing SkiaUi
 

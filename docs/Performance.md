@@ -4,7 +4,8 @@ What SkiaUi costs on real devices, measured with the demo app's stress pages: ho
 
 ## How it was measured
 
-- **Devices:** Samsung Galaxy S9 (Android 10, Exynos 9810, OpenGL ES; 60 Hz) and iPhone 8 (iOS 16.7, A11, Metal; 60 Hz), measured in October 2026 with the P7 code (gradients, shadows, clips), on devices that had not been under load before each batch. Back-to-back sessions on a warm device ran up to 30 % slower, so compare numbers from one session.
+- **Devices:** Samsung Galaxy S9 (Android 10, Exynos 9810, OpenGL ES; 60 Hz) and iPhone 8 (iOS 16.7, A11, Metal; 60 Hz). Both were chosen to represent old, slow devices: what holds up on them holds up on the phones most apps support. Devices had not been under load before each batch. Back-to-back sessions on a warm device ran up to 30 % slower, so compare numbers from one session.
+- **Code and toolchain:** measured on 21 October 2026 at commit `f9ca53c`, on .NET 10 (SDK 10.0.400, MAUI 10.0.110, SkiaSharp 4.153.1).
 - **Builds:** Release builds of `MauiSkiaUiDemo` (iOS: full AOT), GPU surfaces (`HwAccelerated = true`).
 - **Runs:** scripted, with no one touching the device (see [Reproducing](#reproducing)).
   - Stress page: 2 launches of 4 rounds per layer; the first round of each launch warms up and is not counted, so each number is the average of 6 rounds.
@@ -25,21 +26,21 @@ The Stress page: **1,000 buttons** in a two-column grid under one scroll view, a
 
 | Layer | Generate | Add | First frame | Overall | Scroll |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Native MAUI | 415 | 4,798 | 774 | 5,988 | — |
-| SkUi* | 241 | 28 | 214 | 484 | 59.0 fps, 5.9 ms per frame |
-| Core | 55 | 7 | 165 | 228 | 58.7 fps, 6.0 ms per frame |
+| Native MAUI | 388 | 5,235 | 805 | 6,428 | — |
+| SkUi* | 208 | 36 | 167 | 413 | 59.1 fps, 6.3 ms per frame |
+| Core | 76 | 11 | 169 | 257 | 58.9 fps, 6.3 ms per frame |
 
 **iPhone 8**
 
 | Layer | Generate | Add | First frame | Overall | Scroll |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Native MAUI | 240 | 1,649 | 927 | 2,816 | — |
-| SkUi* | 73 | 14 | 48 | 135 | 59.1 fps, 6.5 ms per frame |
-| Core | 52 | 8 | 31 | 91 | 60.1 fps, 6.5 ms per frame |
+| Native MAUI | 237 | 1,683 | 965 | 2,885 | — |
+| SkUi* | 114 | 14 | 37 | 164 | 60.1 fps, 6.5 ms per frame |
+| Core | 50 | 4 | 35 | 89 | 60.0 fps, 6.5 ms per frame |
 
-The drawn layers are ready **12× (SkUi*) and 26× (Core) faster** than native MAUI on the S9, and **21× and 31× faster** on the iPhone 8. Most of the native time is attaching the tree: every MAUI control creates a handler and a platform view, while a drawn tree creates none. Scrolling the drawn list holds the display's 60 fps on both devices; native MAUI scrolls through the platform's own scroll view, which these runs time only as a whole (no frame statistics).
+The drawn layers are ready **16× (SkUi*) and 25× (Core) faster** than native MAUI on the S9, and **18× and 32× faster** on the iPhone 8. Most of the native time is attaching the tree: every MAUI control creates a handler and a platform view, while a drawn tree creates none. Scrolling the drawn list holds the display's 60 fps on both devices; native MAUI scrolls through the platform's own scroll view, which these runs time only as a whole (no frame statistics).
 
-The first round after launch is slower on every layer (S9 SkUi* 907 ms, Core 577 ms overall): it also pays for creating the GPU surface and for code that runs for the first time.
+The first round after launch is slower on every layer (S9 SkUi* 570 ms, Core 303 ms overall): it also pays for creating the GPU surface and for code that runs for the first time.
 
 ## Drawing effects
 
@@ -61,42 +62,44 @@ Render time per frame while scrolling, and frames per second. The change from th
 
 | Effect | iPhone 8 SkUi* | iPhone 8 Core | Galaxy S9 SkUi* | Galaxy S9 Core |
 | --- | --- | --- | --- | --- |
-| baseline | 4.8 ms · 60 fps | 4.7 ms · 60 fps | 4.6 ms · 58 fps | 4.6 ms · 59 fps |
-| gradient | 5.0 ms (+5 %) · 60 fps | 5.0 ms (+6 %) · 60 fps | 4.6 ms (+1 %) · 58 fps | 4.8 ms (+5 %) · 58 fps |
-| rounded | 5.2 ms (+8 %) · 60 fps | 5.2 ms (+9 %) · 60 fps | 4.7 ms (+2 %) · 59 fps | 5.0 ms (+9 %) · 59 fps |
-| clip | 5.6 ms (+17 %) · 60 fps | 5.6 ms (+18 %) · 59 fps | 5.4 ms (+19 %) · 59 fps | 5.5 ms (+21 %) · 58 fps |
-| spinner | 5.2 ms (+8 %) · 60 fps | 5.1 ms (+9 %) · 60 fps | 4.5 ms (−2 %) · 60 fps | 4.6 ms (0 %) · 60 fps |
-| translucent | 6.3 ms (+33 %) · 60 fps | 6.0 ms (+28 %) · 60 fps | 6.7 ms (+48 %) · 58 fps | 6.7 ms (+46 %) · 57 fps |
-| card shadow | 6.4 ms (+33 %) · 60 fps | 6.1 ms (+30 %) · 60 fps | 7.6 ms (+67 %) · **51 fps** | 6.2 ms (+37 %) · 58 fps |
-| text shadow | 7.2 ms (+52 %) · 59 fps | 7.2 ms (+53 %) · 60 fps | 13.6 ms (+199 %) · **39 fps** | 14.3 ms (+213 %) · **38 fps** |
-| shaped border | 7.8 ms (+63 %) · 59 fps | 7.7 ms (+64 %) · 60 fps | 21.2 ms (+366 %) · **30 fps** | 23.0 ms (+404 %) · **29 fps** |
-| **all** | 9.6 ms (+101 %) · **53 fps** | 9.5 ms (+101 %) · **53 fps** | 46.6 ms (+924 %) · **19 fps** | 45.1 ms (+889 %) · **20 fps** |
+| baseline | 5.0 ms · 60 fps | 5.0 ms · 60 fps | 5.1 ms · 59 fps | 5.1 ms · 59 fps |
+| gradient | 5.2 ms (+4 %) · 60 fps | 5.3 ms (+4 %) · 60 fps | 6.0 ms (+18 %) · 57 fps | 5.1 ms (0 %) · 59 fps |
+| rounded | 5.3 ms (+7 %) · 60 fps | 5.4 ms (+6 %) · 60 fps | 5.6 ms (+10 %) · 58 fps | 5.4 ms (+6 %) · 59 fps |
+| clip | 5.7 ms (+15 %) · 60 fps | 5.7 ms (+14 %) · 60 fps | 6.6 ms (+31 %) · 57 fps | 5.9 ms (+16 %) · 59 fps |
+| spinner | 7.3 ms (+45 %) · 57 fps | 6.5 ms (+29 %) · 60 fps | 4.9 ms (−3 %) · 60 fps | 5.3 ms (+4 %) · 59 fps |
+| translucent | 6.4 ms (+27 %) · 60 fps | 6.5 ms (+28 %) · 60 fps | 6.8 ms (+35 %) · 58 fps | 6.9 ms (+35 %) · 59 fps |
+| card shadow | 6.4 ms (+28 %) · 60 fps | 6.2 ms (+23 %) · 60 fps | 7.3 ms (+45 %) · 55 fps | 6.5 ms (+28 %) · 58 fps |
+| text shadow | 7.2 ms (+44 %) · 60 fps | 7.2 ms (+43 %) · 60 fps | 14.2 ms (+180 %) · **45 fps** | 13.6 ms (+168 %) · **45 fps** |
+| shaped border | 7.6 ms (+52 %) · 60 fps | 7.6 ms (+51 %) · 60 fps | 19.8 ms (+292 %) · **33 fps** | 19.4 ms (+282 %) · **34 fps** |
+| **all** | 11.2 ms (+124 %) · **53 fps** | 11.7 ms (+133 %) · **51 fps** | 46.8 ms (+825 %) · **20 fps** | 46.1 ms (+807 %) · **20 fps** |
 
 First frame of the 400-card list (ms):
 
 | Effect | iPhone 8 SkUi* | iPhone 8 Core | Galaxy S9 SkUi* | Galaxy S9 Core |
 | --- | ---: | ---: | ---: | ---: |
-| baseline | 124 | 32 | 600 | 184 |
-| shaped border | 1,027 | 904 | 1,893 | 1,605 |
-| all | 1,726 | 1,589 | 2,992 | 2,634 |
-| any other single effect | 96–113 | 38–44 | 297–691 | 127–200 |
+| baseline | 127 | 37 | 552 | 139 |
+| shaped border | 1,002 | 908 | 1,886 | 1,454 |
+| all | 1,746 | 1,588 | 2,795 | 2,482 |
+| any other single effect | 97–113 | 42–47 | 286–336 | 117–195 |
 
 ### What the numbers mean
 
 - **Nothing re-records while scrolling.** No configuration recorded a picture during the scroll: gradients, shadows, clips and opacity are applied when compositing, and moving content only changes offsets. The cost of an effect is compositing (and GPU) work per frame.
-- **Free in practice:** gradient backgrounds, rounded corners, clips and running activity indicators cost 0–20 % render time and keep 58–60 fps on both devices.
-- **Moderate:** translucent cards (an opacity layer each) and card shadows from opaque fills cost 30–70 %. The iPhone 8 keeps 60 fps. On the S9, SkUi* card shadows dropped to 51 fps although the render thread stayed at 7.6 ms per frame. The blur work is on the GPU, and these numbers don't include GPU time.
+- **Free in practice:** gradient backgrounds, rounded corners and clips cost 0–30 % render time and keep 57–60 fps on both devices.
+- **Moderate:**
+  - Translucent cards (an opacity layer each) and card shadows from opaque fills cost 25–45 %. The iPhone 8 keeps 60 fps; the S9 keeps 55–59 fps. The blur work is on the GPU, and these numbers don't include GPU time.
+  - Running activity indicators cost nothing on the S9 but 30–45 % on the iPhone 8, where the SkUi* list drops to 57 fps while scrolling.
 - **Expensive on the S9:**
-  - **Shaped borders** (a path with a dashed gradient stroke, 21–23 ms per frame) and **text shadows** (14 ms per frame) take the S9 to 30–40 fps. The iPhone 8 holds 59–60 fps with both.
+  - **Shaped borders** (a path with a dashed gradient stroke, about 20 ms per frame) and **text shadows** (14 ms per frame) take the S9 to 33–45 fps. The iPhone 8 holds 60 fps with both.
   - The dashed outline of a complex path is costly on the S9's GL backend.
   - A text shadow is cast from the glyphs, so each card's shadow is rasterized on the CPU once, when the card first scrolls into view. That is about 50 per second in this scroll, capped at 3 per frame. The iPhone's faster CPU absorbs it; the S9's doesn't.
-- **All effects together** stay usable on the iPhone 8 (53 fps) but not on the S9 (20 fps).
+- **All effects together** stay usable on the iPhone 8 (51–53 fps) but not on the S9 (20 fps).
 - **Animated content keeps the surface drawing.** With spinners, the surface composites about 60 frames per second even while nothing scrolls, where a static list composites none. That is little work per frame, but it never stops, which costs battery. With every effect on, even the idle S9 only manages 30 fps.
 - **First frames:**
   - A shaped border costs about 1–2 s for the first frame of 400 cards, because each card computes its outline and its content clip (a path operation) when it is first laid out.
-  - With the other effects, the S9's SkUi* first frame varies between 300 and 700 ms.
+  - With the other effects, the S9's SkUi* first frame takes 290–340 ms.
   - The first configuration of each run (the baseline) also pays one-time costs.
-- **Native MAUI** builds the same card lists in 2.7–6.4 s to first frame on the iPhone 8 and 3.7–12.5 s on the S9, depending on the effects. Later configurations in a run are slower, as earlier native trees are still being released; only the first configuration compares cleanly.
+- **Native MAUI** builds the same card lists in 2.7–6.4 s to first frame on the iPhone 8 and 3.1–11.7 s on the S9, depending on the effects. Later configurations in a run are slower, as earlier native trees are still being released; only the first configuration compares cleanly.
 
 ### Recommendations for long lists
 

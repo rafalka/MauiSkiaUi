@@ -23,7 +23,7 @@ The property names are MAUI's: the parity work ([ImplementationPlan.md](design/I
 
 ## Which screens to port first
 
-Drawn controls pay off where a screen holds **many views**. Every native MAUI view has a handler and a platform view; a drawn tree has one surface. On the stress page, 1,000 buttons are ready 12× (SkUi\*) to 26× (Core) faster than native MAUI on a mid-range Android phone ([README](../README.md#stress-results-device)).
+Drawn controls pay off where a screen holds **many views**. Every native MAUI view has a handler and a platform view; a drawn tree has one surface. On the stress page, 1,000 buttons are ready 16× (SkUi\*) to 25× (Core) faster than native MAUI on an old Android phone (Galaxy S9) ([README](../README.md#stress-results-device)).
 
 Good first candidates:
 - dashboards, cards, detail pages and forms with deep `Grid` / `StackLayout` nesting;
