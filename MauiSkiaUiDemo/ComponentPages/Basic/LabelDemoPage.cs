@@ -101,9 +101,10 @@ public sealed class LabelDemoPage : ComponentDemoPage
         var skia = (SkUiLabel)SkiaControl;
         var native = (Label)NativeControl!;
         // With FormattedText set, Text is empty on both sides (as on MAUI): the editor's text waits for "None (Text)".
-        Editor textEditor = null!;
+        SkUiEditor textEditor = null!;
         textEditor = MultilineText(nameof(SkUiLabel.Text), "Earth is our home.\nOceans cover 71 percent of its surface.", value => { skia.Text = value; native.Text = value; },
-            () => skia.FormattedText is null ? skia.Text : textEditor.Text, () => native.FormattedText is null ? native.Text : textEditor.Text);
+            () => skia.FormattedText is null ? skia.Text : textEditor.Text ?? string.Empty,
+            () => native.FormattedText is null ? native.Text : textEditor.Text ?? string.Empty);
         Choice(nameof(SkUiLabel.FontFamily), new[] { DefaultFontFamily }.Concat(DemoFonts.RegisteredFamilies).ToArray(), DefaultFontFamily,
             value => { var family = value == DefaultFontFamily ? null : value; skia.FontFamily = family; native.FontFamily = family; },
             () => skia.FontFamily ?? DefaultFontFamily, () => native.FontFamily ?? DefaultFontFamily);
@@ -148,7 +149,7 @@ public sealed class LabelDemoPage : ComponentDemoPage
             formatted = value;
             if (value == NoFormattedText)
             {
-                skia.Text = textEditor.Text;
+                skia.Text = textEditor.Text ?? string.Empty;
                 native.Text = textEditor.Text;
                 return;
             }

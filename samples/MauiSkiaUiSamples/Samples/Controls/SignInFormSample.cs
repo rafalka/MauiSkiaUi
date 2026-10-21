@@ -98,7 +98,7 @@ public sealed class SignInFormSample : SamplePage, ISample
             BackgroundColor = SampleColors.Surface,
             Children = { Heading("Drawn fields (SkUiEntry)"), mode, _user, _password, _newPassword, _confirmPassword, commit, _submit, _status }
         };
-        return new VerticalStackLayout { Spacing = 16, Children = { drawn, NativeForm(_nativeUser, _nativePassword, _nativeSubmit) } };
+        return new SkUiVerticalStackLayout { Spacing = 16, Children = { drawn, NativeForm(_nativeUser, _nativePassword, _nativeSubmit) } };
     }
 
     private static SkUiEntry Field(string placeholder, string hint) => new()
@@ -123,7 +123,8 @@ public sealed class SignInFormSample : SamplePage, ISample
 
     private static Button NativeButton(string text) => new() { Text = text, BackgroundColor = SampleColors.Accent, TextColor = Colors.White };
 
-    private static View NativeForm(params View[] views)
+    /// <summary>The native fields for the comparison, hosted in the drawn page.</summary>
+    private static SkUiMauiContentView NativeForm(params View[] views)
     {
         var form = new VerticalStackLayout
         {
@@ -134,7 +135,7 @@ public sealed class SignInFormSample : SamplePage, ISample
         };
         foreach (var view in views)
             form.Children.Add(view);
-        return form;
+        return new SkUiMauiContentView { Content = form };
     }
 
     private static SkUiLabel Heading(string text) =>
@@ -172,9 +173,9 @@ public sealed class SignInFormSample : SamplePage, ISample
         {
             Title = "Verify",
             BackgroundColor = SampleColors.Page,
-            Content = new ScrollView
+            Content = new SkUiScrollView
             {
-                Content = new VerticalStackLayout
+                Content = new SkUiVerticalStackLayout
                 {
                     Spacing = 16,
                     Padding = new Thickness(16),
@@ -207,16 +208,16 @@ public sealed class SignInFormSample : SamplePage, ISample
     {
         // Nothing on this page is a credential: the platform forgets it instead of offering to save the code.
         SkUiAutofill.Cancel();
-        var signOut = NativeButton("Sign out");
+        var signOut = new SkUiButton { Text = "Sign out", FillColor = SampleColors.Accent, CornerRadius = 8, HorizontalOptions = LayoutOptions.Start };
         var signedIn = new ContentPage
         {
             Title = "Signed in",
             BackgroundColor = SampleColors.Page,
-            Content = new VerticalStackLayout
+            Content = new SkUiVerticalStackLayout
             {
                 Spacing = 16,
                 Padding = new Thickness(16),
-                Children = { new Label { Text = $"Signed in as \"{user}\" ({source}).", TextColor = SampleColors.Ink }, signOut }
+                Children = { new SkUiLabel { Text = $"Signed in as \"{user}\" ({source}).", TextColor = SampleColors.Ink }, signOut }
             }
         };
         SampleColors.ApplyNavigationBar(signedIn);

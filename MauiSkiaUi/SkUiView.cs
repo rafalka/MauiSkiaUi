@@ -514,6 +514,12 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <inheritdoc />
     protected override Size ArrangeOverride(Rect bounds)
     {
+        // A native parent can arrange a surface root it did not measure for these bounds (Shell's flyout content on iOS
+        // and Mac Catalyst is only arranged): measure it at the arranged size first, as MAUI's own layout views do in
+        // LayoutSubviews. Otherwise the tree keeps a measure made for another width (or none: labels wrapped at width 0,
+        // one character per line), and RelayoutIfNeeded reuses that constraint.
+        if (SkiaParent is null && !IsMeasureValidFor(bounds.Size))
+            ((IView)this).Measure(bounds.Width, bounds.Height);
         if (!_arrangeDirty && bounds == _lastArrangeBounds)
         {
 #if WINDOWS
@@ -547,6 +553,18 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
             InvalidateRender(SkUiRenderDirty.Props);
         return Frame.Size;
     }
+
+    /// <summary>
+    /// Whether the last measure holds for arranging in <paramref name="size"/>: it is current and its constraint was at
+    /// least that size (a parent that measured with an unbounded height and arranges in a finite one is the usual case).
+    /// </summary>
+    private bool IsMeasureValidFor(Size size) =>
+        !_measureDirty
+        && _lastConstraint.Width >= size.Width - MeasureConstraintTolerance
+        && _lastConstraint.Height >= size.Height - MeasureConstraintTolerance;
+
+    /// <summary>DIPs by which an arranged size may exceed the measure constraint before the root is measured again.</summary>
+    private const double MeasureConstraintTolerance = 0.01;
 
     /// <summary>Arranges hosted content in this node's local coordinate system.</summary>
     protected virtual void ArrangeContent(Size size) { }

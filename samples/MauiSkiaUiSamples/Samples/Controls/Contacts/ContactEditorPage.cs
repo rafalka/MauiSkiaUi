@@ -3,16 +3,16 @@ using MauiSkiaUi;
 namespace MauiSkiaUiSamples.Samples.Controls.Contacts;
 
 /// <summary>
-/// Adds a contact: first and last name (native entries hosted in the drawn page, <see cref="SkUiMauiContentView"/>: drawn
-/// text input is not available yet), a photo from the gallery (<see cref="MediaPicker"/>), groups and a star. Shown modally;
+/// Adds a contact: first and last name (drawn entries, <see cref="SkUiEntry"/>), a photo from the gallery
+/// (<see cref="MediaPicker"/>), groups and a star. Shown modally;
 /// <see cref="Result"/> completes with the new contact, or <c>null</c> when canceled.
 /// </summary>
 public sealed class ContactEditorPage : ContentPage
 {
     private readonly TaskCompletionSource<Contact?> _result = new();
     private readonly Contact _draft = new() { FirstName = "", LastName = "" };
-    private readonly Entry _firstName = new() { Placeholder = "First name", FontSize = 16 };
-    private readonly Entry _lastName = new() { Placeholder = "Last name", FontSize = 16 };
+    private readonly SkUiEntry _firstName = new() { Placeholder = "First name", FontSize = 16, ReturnType = ReturnType.Next };
+    private readonly SkUiEntry _lastName = new() { Placeholder = "Last name", FontSize = 16 };
     private readonly SkUiCheckBox _family = new() { VerticalOptions = LayoutOptions.Center };
     private readonly SkUiCheckBox _business = new() { VerticalOptions = LayoutOptions.Center };
     private readonly SkUiSwitch _starred = new() { VerticalOptions = LayoutOptions.Center };
@@ -43,8 +43,8 @@ public sealed class ContactEditorPage : ContentPage
             {
                 avatar,
                 choosePhoto,
-                Native(_firstName),
-                Native(_lastName),
+                _firstName,
+                _lastName,
                 Option("Family", _family),
                 Option("Business", _business),
                 Option("Starred", _starred),
@@ -56,17 +56,6 @@ public sealed class ContactEditorPage : ContentPage
 
     /// <summary>The new contact, or <c>null</c> when canceled.</summary>
     public Task<Contact?> Result => _result.Task;
-
-    /// <summary>A native entry inside the drawn form, with a frame of its own.</summary>
-    private static SkUiBorder Native(View entry) => new()
-    {
-        StrokeThickness = 1,
-        Stroke = SampleColors.Border,
-        StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
-        BackgroundColor = SampleColors.Surface,
-        Padding = new Thickness(8, 0),
-        Content = new SkUiMauiContentView { Content = entry, HeightRequest = 44 }
-    };
 
     private static SkUiGrid Option(string text, SkUiView control)
     {

@@ -1,3 +1,5 @@
+using MauiSkiaUi;
+
 namespace MauiSkiaUiDemo;
 
 /// <summary>
@@ -11,10 +13,10 @@ internal sealed class ShrinkLayoutDemoState
     public ShrinkLayoutDemoState(bool vertical)
     {
         _vertical = vertical;
-        View = new Label { TextColor = DemoColors.Ink, FontSize = 13, LineBreakMode = LineBreakMode.WordWrap, AutomationId = "ShrinkState" };
+        View = new SkUiLabel { TextColor = DemoColors.Ink, FontSize = 13, LineBreakMode = LineBreakMode.WordWrap, AutomationId = "ShrinkState" };
     }
 
-    public Label View { get; }
+    public SkUiLabel View { get; }
 
     public void Update(Size layout, Size available)
     {

@@ -47,7 +47,7 @@ public sealed class TextWithLinksSample : SamplePage, ISample
 
     private static View Build()
     {
-        var caption = new Label { Text = "Tap a link", FontSize = 13, TextColor = SampleColors.Caption };
+        var caption = new SkUiLabel { Text = "Tap a link", FontSize = 13, TextColor = SampleColors.Caption };
         void Opened(string what) => caption.Text = $"Opened: {what}";
 
         Span Link(string text)
@@ -119,6 +119,6 @@ public sealed class TextWithLinksSample : SamplePage, ISample
             Children = { consent, notification, html, new SkUiCoreHost().SetContent(core) }
         };
         var surface = new SkUiContentView { Content = column, BackgroundColor = SampleColors.Surface };
-        return new VerticalStackLayout { Spacing = 8, Children = { caption, surface } };
+        return new SkUiVerticalStackLayout { Spacing = 8, Children = { caption, surface } };
     }
 }

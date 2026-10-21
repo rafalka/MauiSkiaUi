@@ -1,3 +1,5 @@
+using MauiSkiaUi;
+
 namespace MauiSkiaUiDemo;
 
 /// <summary>Gallery of the dedicated component demos of one <see cref="ComponentCategory"/> (one flyout entry per category).</summary>
@@ -7,7 +9,7 @@ public sealed class ComponentGalleryPage : ContentPage
 
     // Shown while the page's shorter side cannot fit the SkUi and MAUI previews side by side: the shorter side, not the
     // width, so a phone in landscape (wide, but no height left for the editors) still shows it.
-    private readonly Label _narrowNote = new()
+    private readonly SkUiLabel _narrowNote = new()
     {
         Text = "This demo works best on wide devices like tablets or desktops.",
         TextColor = DemoColors.Caption, Background = DemoColors.SoftSurface, FontFamily = DemoFonts.OpenSansRegular, FontSize = 12,
@@ -19,28 +21,32 @@ public sealed class ComponentGalleryPage : ContentPage
         Category = category;
         Title = ComponentCategoryInfo.Title(category);
         Background = DemoColors.PageBackground;
-        var rows = new VerticalStackLayout { Spacing = 8, Padding = new Thickness(16, 8, 16, 24) };
+        var rows = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(16, 8, 16, 24) };
         if (ComponentCategoryInfo.Intro(category) is { } intro)
-            rows.Add(new Label
+            rows.Children.Add(new SkUiLabel
             {
                 Text = intro, TextColor = DemoColors.Caption, FontFamily = DemoFonts.OpenSansRegular, FontSize = 13,
                 Margin = new Thickness(0, 0, 0, 8), AutomationId = "GalleryIntro"
             });
         foreach (var demo in ComponentDemos.All.Where(demo => demo.Category == category))
         {
-            var button = new Button
+            var button = new SkUiButton
             {
                 Text = demo.Name, Background = Colors.White, TextColor = DemoColors.Ink,
                 FontFamily = DemoFonts.OpenSansSemibold, HeightRequest = 52, CornerRadius = 4,
                 BorderColor = DemoColors.Border, BorderWidth = 1, AutomationId = "Open" + demo.Name
             };
             button.Clicked += async (_, _) => await Navigate(demo.Route);
-            rows.Add(button);
+            rows.Children.Add(button);
         }
-        var root = new Grid { RowDefinitions = [new(GridLength.Auto), new(GridLength.Star)] };
-        root.Add(_narrowNote);
-        root.Add(new ScrollView { Content = rows, AutomationId = "ComponentCatalog" }, 0, 1);
-        Content = root;
+        // One drawn surface: the note above the scrolling list of demos.
+        var catalog = new SkUiScrollView { Content = rows, AutomationId = "ComponentCatalog" };
+        Grid.SetRow(catalog, 1);
+        Content = new SkUiGrid
+        {
+            Background = DemoColors.PageBackground, RowDefinitions = [new(GridLength.Auto), new(GridLength.Star)],
+            Children = { _narrowNote, catalog }
+        };
         SizeChanged += (_, _) => UpdateNarrowNote(Width, Height);
     }
 

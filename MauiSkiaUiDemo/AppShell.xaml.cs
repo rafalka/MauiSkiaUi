@@ -1,4 +1,6 @@
-﻿namespace MauiSkiaUiDemo;
+﻿using MauiSkiaUi;
+
+namespace MauiSkiaUiDemo;
 
 public partial class AppShell : Shell
 {
@@ -21,7 +23,7 @@ public partial class AppShell : Shell
 		// scrolls under it.
 		FlyoutBackgroundColor = Colors.White;
 		FlyoutHeaderBehavior = FlyoutHeaderBehavior.Fixed;
-		FlyoutHeader = new Label
+		FlyoutHeader = new SkUiLabel
 		{
 			Text = Title, TextColor = DemoColors.Ink, FontFamily = DemoFonts.OpenSansSemibold, FontSize = 18, Padding = new Thickness(20, 16, 20, 4),
 			Background = Colors.White

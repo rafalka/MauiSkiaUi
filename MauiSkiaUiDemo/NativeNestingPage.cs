@@ -12,12 +12,13 @@ namespace MauiSkiaUiDemo;
 /// <item>No drawn scroller: taps and swipes work, vertical drags scroll the page.</item>
 /// <item>A Core scroll view behaves like the drawn list.</item>
 /// </list>
-/// The switch rebuilds every surface in software (SKCanvasView path) to check the second touch path.
+/// The switch rebuilds every surface in software (SKCanvasView path) to check the second touch path. The header and the
+/// status line above the page are drawn too; the captions and fillers inside the page stay native, on purpose.
 /// </summary>
 public sealed class NativeNestingPage : ContentPage
 {
     private readonly ScrollView _page = new();
-    private readonly Label _status = new() { FontSize = 13, TextColor = DemoColors.Ink, Padding = new Thickness(12, 6), BackgroundColor = Color.FromArgb("#E0F2F1") };
+    private readonly SkUiLabel _status = new() { FontSize = 13, TextColor = DemoColors.Ink, Padding = new Thickness(12, 6), BackgroundColor = Color.FromArgb("#E0F2F1") };
     private SkUiScrollView? _list;
     private SkUiScrollView? _carousel;
     private SkUiCoreScrollView? _core;
@@ -27,12 +28,12 @@ public sealed class NativeNestingPage : ContentPage
     {
         Title = "Native nesting";
         BackgroundColor = DemoColors.PageBackground;
-        var software = new Switch { IsToggled = false, AutomationId = "SoftwareSurfaces" };
+        var software = new SkUiSwitch { IsToggled = false, AutomationId = "SoftwareSurfaces" };
         software.Toggled += (_, args) => Build(hwAccelerated: !args.Value);
-        var header = new HorizontalStackLayout
+        var header = new SkUiHorizontalStackLayout
         {
             Padding = new Thickness(12, 6), Spacing = 8,
-            Children = { new Label { Text = "Software surfaces", VerticalOptions = LayoutOptions.Center, TextColor = DemoColors.Ink }, software }
+            Children = { new SkUiLabel { Text = "Software surfaces", VerticalOptions = LayoutOptions.Center, TextColor = DemoColors.Ink }, software }
         };
         _page.Scrolled += (_, _) => Status();
         Content = new Grid

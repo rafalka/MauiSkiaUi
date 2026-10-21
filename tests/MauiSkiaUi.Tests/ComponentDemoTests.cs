@@ -54,8 +54,8 @@ public class ComponentDemoTests
         foreach (var category in ComponentCategoryInfo.Order)
         {
             var gallery = new ComponentGalleryPage(category);
-            var catalog = ((Grid)gallery.Content).Children.OfType<ScrollView>().Single();
-            var buttons = Descendants((Layout)catalog.Content).OfType<Button>().Select(button => button.Text);
+            var catalog = ((SkUiGrid)gallery.Content).Children.OfType<SkUiScrollView>().Single();
+            var buttons = Descendants(catalog).OfType<SkUiButton>().Select(button => button.Text);
             Assert.Equal(ComponentDemos.All.Where(demo => demo.Category == category).Select(demo => demo.Name), buttons);
         }
     }
@@ -71,9 +71,9 @@ public class ComponentDemoTests
             Assert.True(ContainsComponent(page, demo.ComponentType),
                 $"{demo.PageType.Name}'s preview does not contain a {demo.ComponentType.Name}.");
             Assert.Empty(page.CheckProperties());
-            foreach (var slider in Descendants(page.Editors).OfType<Slider>()) slider.Value = (slider.Minimum + slider.Maximum) / 2;
-            foreach (var toggle in Descendants(page.Editors).OfType<Switch>()) toggle.IsToggled = !toggle.IsToggled;
-            foreach (var picker in Descendants(page.Editors).OfType<Picker>()) picker.SelectedIndex = picker.Items.Count - 1;
+            foreach (var slider in Descendants(page.Editors).OfType<SkUiSlider>()) slider.Value = (slider.Minimum + slider.Maximum) / 2;
+            foreach (var toggle in Descendants(page.Editors).OfType<SkUiSwitch>()) toggle.IsToggled = !toggle.IsToggled;
+            foreach (var picker in Descendants(page.Editors).OfType<SkUiPicker>()) picker.SelectedIndex = picker.Items.Count - 1;
             Assert.Empty(page.CheckProperties());
             page.ResetProperties();
             Assert.Empty(page.CheckProperties());
@@ -124,7 +124,7 @@ public class ComponentDemoTests
     {
         var page = new LabelDemoPage();
         Assert.Empty(page.CheckProperties());
-        var editor = Descendants(page.Editors).OfType<Editor>().Single();
+        var editor = Descendants(page.Editors).OfType<SkUiEditor>().Single();
         editor.Text = "Changed\nMultiline";
         Assert.Equal("Changed\nMultiline", ((SkUiLabel)page.SkiaControl).Text);
         Assert.Equal("Changed\nMultiline", ((Label)page.NativeControl!).Text);
@@ -157,7 +157,7 @@ public class ComponentDemoTests
     public void ControlSpecificEditorsComeBeforeTheCommonOnes()
     {
         var page = new GridDemoPage();
-        var captions = Descendants(page.Editors).OfType<Label>().Select(label => label.Text).ToList();
+        var captions = Descendants(page.Editors).OfType<SkUiLabel>().Select(label => label.Text).ToList();
         Assert.Equal(nameof(SkUiGrid.Padding), captions[0]);
         var common = captions.IndexOf("Common properties");
         Assert.True(common > captions.IndexOf("SpanLastCell"));
@@ -168,7 +168,7 @@ public class ComponentDemoTests
     public void LabelFontFamilyChoiceUsesRegisteredAndSystemNames()
     {
         var page = new LabelDemoPage();
-        var picker = Descendants(page.Editors).OfType<Picker>().Single(picker => picker.Title == nameof(SkUiLabel.FontFamily));
+        var picker = Descendants(page.Editors).OfType<SkUiPicker>().Single(picker => picker.Title == nameof(SkUiLabel.FontFamily));
         picker.SelectedIndex = picker.Items.IndexOf(DemoFonts.Lobster);
         Assert.Equal(DemoFonts.Lobster, ((SkUiLabel)page.SkiaControl).FontFamily);
         Assert.Equal(DemoFonts.Lobster, ((Label)page.NativeControl!).FontFamily);
@@ -177,13 +177,12 @@ public class ComponentDemoTests
         Assert.Null(((SkUiLabel)page.SkiaControl).FontFamily);
     }
 
-    private static IEnumerable<View> Descendants(Layout root)
+    private static IEnumerable<SkUiView> Descendants(SkUiView root)
     {
-        foreach (var child in root.Children.OfType<View>())
+        foreach (var child in root.SkiaChildren.OfType<SkUiView>())
         {
             yield return child;
-            if (child is Layout layout)
-                foreach (var nested in Descendants(layout)) yield return nested;
+            foreach (var nested in Descendants(child)) yield return nested;
         }
     }
 }

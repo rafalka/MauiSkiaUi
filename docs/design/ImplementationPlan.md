@@ -56,7 +56,7 @@ Phase 0 (state-change animations, FR-26) is shipped: looks draw from continuous 
 
 ### Road to 1.0 (first stable release)
 
-SkiaUi is published as `1.0.0-PrereleaseNN` until then ([Releasing.md](../Releasing.md)). The first stable release needs four phases; the rest of the plan follows it in `1.x` releases.
+SkiaUi is published as `1.0.0-PrereleaseNN` until then ([Releasing.md](../Releasing.md)). The first stable release needs five phases; the rest of the plan follows it in `1.x` releases.
 
 | Step | Scope | Done when |
 | --- | --- | --- |
@@ -64,6 +64,7 @@ SkiaUi is published as `1.0.0-PrereleaseNN` until then ([Releasing.md](../Releas
 | 2. **Phase D — drawn text input** (shipped; device checks open) | D0–D8: the proxy decision, the editing engine, the IME proxy per platform, `SkUiEntry` / `SkUiEditor` (+ Core), selection UI, integration (keyboard avoidance, focus, accessibility), `SkUiStepper`, `SkUiSearchBar`; D14 Android autofill (a login form ports too) | A MAUI page with entries ports by changing the prefix, verified on Android, iOS, Mac Catalyst and Windows (IME composition, autocorrect, dictation, password managers). Checked on physical Android and iOS devices, Mac Catalyst and Windows (touch keyboard, IMEs); Android autofill with Samsung Pass. Open: CJK and Korean composition on devices, dictation, Google / iOS / third-party password managers ([steps](Testing.md#input-method-composition-cjk-korean)) |
 | 3. **Phase L — platform looks** | L2–L6: behavior defaults out of the default look, every stock control's shapes and sizes per platform (D's fields and the stepper included), text defaults, matching color schemes, per-tree looks and the look gallery | Each platform look draws every shipped control after its platform's guidelines, side by side with native MAUI controls on each platform |
 | 4. **[Phase M](#phase-m--migration-blockers) — migration blockers** | M1–M5: Core `IsEnabled` / `InputTransparent` / `TappedCommand` (N3), MAUI image sources on the Core layer, AutomationIds that UI tests find, the disabled button fill, per-field chrome on text fields and pickers | App-made Core controls disable and bind commands like SkUi\* controls; every `AutomationId` set on a drawn node is found by a UI-test driver on Android and iOS (with `ExposeAutomationIds` where it is absorbed or hidden); disabled buttons and fields draw the app's design |
+| 5. **[Phase U](#phase-u--app-ui-on-skiaui) — app UI on SkiaUi** | U1–U2: MAUI's child APIs on drawn layouts (`Add`, `Grid.Add(view, column, row)`, `AddRowDefinition`), tooltips on drawn views | The demo and samples apps draw all their own UI (everything but pages, Shell, toolbars and the native controls they compare against) without app-side helpers or native stand-ins; `Grid` / `Layout` code-behind ports by changing the type name |
 
 Also for 1.0: the public API is the one `1.x` keeps, so MAUI-named replacements of SkiaUi's own names land before it (the [parity rules](#phase-p--maui-parity-of-shipped-controls)). With 1.0, development moves to `devel` and `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)). After 1.0: Phase F (calendar), Phase E (SVG images), P11b, C5, and the left-open items of the shipped phases.
 
@@ -241,6 +242,17 @@ Gaps found by migrating real apps' pages to SkiaUi that have no acceptable worka
 
 Order: M1 first (M4's disabled drawing and the Core controls' disabled state build on it), M2 alongside (small), M3 next (UI tests of migrated pages), then M4 and M5; M6 and M7 last (small, found later: M6 finishes M1's Core input state, M7 M3's automation ids). Each item lands with its control pages, a demo page section, headless tests, a [Migration.md](../Migration.md) / migration skill update where it changes a conversion, and a changelog entry.
 
+### Phase U — App UI on SkiaUi
+
+The demo and samples apps now draw their own UI with SkiaUi: the component pages' property editors, the category galleries, the demo's flyout, the stress and look pages' chrome, and the samples' list and example pages (one drawn surface each; MAUI views an example compares against are hosted in it). What stays MAUI: pages, Shell, toolbar items, the toolkit's popup windows, the samples' Source page (a `WebView` with syntax-highlighted code that can be selected and copied, by design), the native counterparts the pages compare against, and the surfaces that must stay apart (a preview whose `HwAccelerated` is an editor, the accessibility page's form under test, the native-nesting page's MAUI scroll view). Converting them found these gaps; each was worked around in the app, which a migrating app should not have to do.
+
+| # | Deliverable | Notes |
+| --- | --- | --- |
+| U1 | **MAUI's child APIs on drawn layouts** | MAUI's `Layout` has public `Add` / `Insert` / `Remove` / `Clear`, and `Grid` has the `GridExtensions` (`Add(view, column, row)`, `AddWithSpan`) and `AddRowDefinition` / `AddColumnDefinition`. `SkUiLayout` implements `IList<IView>` explicitly, so code-behind that builds a `Grid` or a stack (`grid.Add(label, 1, 0)`, `stack.Add(view)`) does not compile after `Grid` → `SkUiGrid`; the demo uses `Children.Add` plus `Grid.SetRow` / `SetColumn`, and a local `Place` helper on the look page. Add the same members to `SkUiLayout` / `SkUiGrid` (taking `IView` and requiring a drawn view, as the explicit interface does now), and `SkUiCoreGrid` twins where the Core grid lacks them. Update [Migration.md](../Migration.md#2-rename-the-controls) and the migration skills' converter |
+| U2 | **Tooltips on drawn views** | MAUI's `ToolTipProperties.Text` needs a native view; on a drawn view it does nothing (the component pages' color swatches set it). Show the platform's tooltip for the drawn view under the pointer: hover (`IsPointerOver`, [EventMechanism.md](EventMechanism.md#hover)) starts the platform's delay, the text comes from the attached property on SkUi\* views and a `SetToolTip` on Core nodes; Mac Catalyst and iPad (`UIToolTipInteraction` on the surface, its region the view's bounds), Windows (`ToolTipService` on the surface, repositioned), none on phones (as MAUI). Was "not planned"; context flyouts and drag and drop stay so |
+
+Order: U1 first (small; every converted page benefits), then U2 (desktop only).
+
 ### Phase F — Calendar (`SkUiCalendar`)
 
 A drawn calendar: a control of its own on a page (bookings, schedules, a date range) and the month grid the date picker's popup shows instead of wheels (Android's and Windows' date dialogs). Formerly C7b; requirements in [FR-33](Requirements.md#fr-33--calendar). MAUI has no calendar, so the API is SkiaUi's own (MAUI's names where the date picker already has them: `MinimumDate` / `MaximumDate`), and a conversion path from both in [Migration.md](../Migration.md) and the migration skills. Both layers (`SkUiCalendar`, `SkUiCoreCalendar`) on one engine, and on C7's date rules, so the picker and the calendar agree about which days can be chosen.
@@ -313,7 +325,7 @@ Checked against `Microsoft.Maui.Controls` 10.0.110 (the pinned version). **Parti
 | Pages, Shell, navigation | MAUI | Out of scope |
 | Frame, ListView, TableView, cells (`TextCell`, `ImageCell`, `SwitchCell`, `EntryCell`, `ViewCell`), Compatibility layouts | — | Out of scope: obsolete in MAUI (Frame since .NET 9, the rest in .NET 10); use Border and CollectionView |
 
-**Not planned (by design):** drawn WebView / media / maps (host them); Shell and navigation replacements, pages and popup windows of SkiaUi's own (drawn controls open popups through the app's popup system, C6); MAUI-obsolete controls (above); tooltips, context flyouts and drag and drop gestures; vendor control clones; a Core flex layout (Core uses the wrap and shrink layouts and the grid).
+**Not planned (by design):** drawn WebView / media / maps (host them); Shell and navigation replacements, pages and popup windows of SkiaUi's own (drawn controls open popups through the app's popup system, C6); MAUI-obsolete controls (above); context flyouts and drag and drop gestures (tooltips moved to [U2](#phase-u--app-ui-on-skiaui)); vendor control clones; a Core flex layout (Core uses the wrap and shrink layouts and the grid).
 
 ---
 

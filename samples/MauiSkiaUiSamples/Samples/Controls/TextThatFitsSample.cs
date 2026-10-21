@@ -112,14 +112,14 @@ public sealed class TextThatFitsSample : SamplePage, ISample
         }
         var surface = new SkUiContentView { Content = column, BackgroundColor = SampleColors.Surface, WidthRequest = 320, HorizontalOptions = LayoutOptions.Start };
 
-        var width = new Slider { Minimum = 80, Maximum = 360, Value = 320 };
-        var widthCaption = new Label { Text = "Width: 320", FontSize = 13, TextColor = SampleColors.Caption };
+        var width = new SkUiSlider { Minimum = 80, Maximum = 360, Value = 320 };
+        var widthCaption = new SkUiLabel { Text = "Width: 320", FontSize = 13, TextColor = SampleColors.Caption };
         width.ValueChanged += (_, args) =>
         {
             surface.WidthRequest = args.NewValue;
             widthCaption.Text = $"Width: {args.NewValue:0}";
         };
-        return new VerticalStackLayout { Spacing = 8, Children = { widthCaption, width, surface } };
+        return new SkUiVerticalStackLayout { Spacing = 8, Children = { widthCaption, width, surface } };
     }
 
     /// <summary>A tail-truncating label: what each breaker falls back to.</summary>

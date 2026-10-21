@@ -11,17 +11,17 @@ namespace MauiSkiaUiDemo;
 /// </summary>
 public sealed class LookAndColorSchemePage : ContentPage
 {
-    private readonly Label _status;
-    private readonly Picker _schemePicker;
-    private readonly Picker _lookPicker;
-    private readonly Picker _accentPicker;
-    private readonly Picker _pressPicker;
-    private readonly Picker _indicatorPicker;
-    private readonly Picker _platformLookPicker;
-    private readonly Picker _pickerFieldPicker;
-    private readonly Picker _popupPlacementPicker;
-    private readonly Picker _motionPicker;
-    private readonly Grid _sizeGrid;
+    private readonly SkUiLabel _status;
+    private readonly SkUiPicker _schemePicker;
+    private readonly SkUiPicker _lookPicker;
+    private readonly SkUiPicker _accentPicker;
+    private readonly SkUiPicker _pressPicker;
+    private readonly SkUiPicker _indicatorPicker;
+    private readonly SkUiPicker _platformLookPicker;
+    private readonly SkUiPicker _pickerFieldPicker;
+    private readonly SkUiPicker _popupPlacementPicker;
+    private readonly SkUiPicker _motionPicker;
+    private readonly SkUiGrid _sizeGrid;
     /// <summary>The page's selections, shared by every visit (the look they produce stays current app-wide).</summary>
     private static class Settings
     {
@@ -72,7 +72,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         Background = DemoColors.PageBackground;
         AutomationId = "LookAndColorSchemePage";
 
-        var description = new Label
+        var description = new SkUiLabel
         {
             Text =
                 "Control look (shapes + default sizes) and color scheme (shared palette) are separate from MAUI Style. " +
@@ -85,35 +85,32 @@ public sealed class LookAndColorSchemePage : ContentPage
             LineBreakMode = LineBreakMode.WordWrap
         };
 
-        _schemePicker = new Picker
+        _schemePicker = new SkUiPicker
         {
             Title = "Color scheme",
             ItemsSource = new[] { "Light", "Dark", "Light + custom accent" },
             SelectedIndex = Settings.Scheme,
             AutomationId = "LookSchemePicker",
-            TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular
         };
         _schemePicker.SelectedIndexChanged += (_, _) => Apply();
 
-        _accentPicker = new Picker
+        _accentPicker = new SkUiPicker
         {
             Title = "Accent",
             ItemsSource = AccentPresets.Select(p => p.Name).ToList(),
             SelectedIndex = Settings.Accent,
             AutomationId = "LookAccentPicker",
-            TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular
         };
         _accentPicker.SelectedIndexChanged += (_, _) => Apply();
 
-        _lookPicker = new Picker
+        _lookPicker = new SkUiPicker
         {
             Title = "Control look",
             ItemsSource = new[] { "Default", "Chunky (alternate)", "Minimal (alternate)" },
             SelectedIndex = Settings.Pack,
             AutomationId = "LookPackPicker",
-            TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular
         };
         _lookPicker.SelectedIndexChanged += (_, _) =>
@@ -122,73 +119,67 @@ public sealed class LookAndColorSchemePage : ContentPage
             Apply();
         };
 
-        _pressPicker = new Picker
+        _pressPicker = new SkUiPicker
         {
             Title = "Press effect",
             ItemsSource = new[] { "Dim", "Ripple" },
             SelectedIndex = Settings.Press,
             AutomationId = "LookPressPicker",
-            TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular
         };
         _pressPicker.SelectedIndexChanged += (_, _) => Apply();
 
-        _indicatorPicker = new Picker
+        _indicatorPicker = new SkUiPicker
         {
             Title = "Indicator style",
             ItemsSource = new[] { "Dots", "Pill" },
             SelectedIndex = Settings.Indicator,
             AutomationId = "LookIndicatorPicker",
-            TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular
         };
         _indicatorPicker.SelectedIndexChanged += (_, _) => Apply();
 
-        _platformLookPicker = new Picker
+        _platformLookPicker = new SkUiPicker
         {
             Title = "Platform look",
             ItemsSource = PlatformLooks.Select(platform => platform.Name).ToList(),
             SelectedIndex = Settings.PlatformLook,
             AutomationId = "LookPlatformPicker",
-            TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular
         };
         _platformLookPicker.SelectedIndexChanged += (_, _) => Apply();
 
-        _pickerFieldPicker = new Picker
+        _pickerFieldPicker = new SkUiPicker
         {
             Title = "Picker field style",
             ItemsSource = Enum.GetNames<SkUiPickerFieldStyle>(),
             SelectedIndex = Settings.PickerField,
             AutomationId = "LookPickerFieldPicker",
-            TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular
         };
         _pickerFieldPicker.SelectedIndexChanged += (_, _) => Apply();
 
-        _popupPlacementPicker = new Picker
+        _popupPlacementPicker = new SkUiPicker
         {
             Title = "Popup placement",
             ItemsSource = Enum.GetNames<SkUiPopupPlacement>()[..3],
             SelectedIndex = Settings.PopupPlacement,
             AutomationId = "LookPopupPlacementPicker",
-            TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular
         };
         _popupPlacementPicker.SelectedIndexChanged += (_, _) => Apply();
 
-        _motionPicker = new Picker
+        _motionPicker = new SkUiPicker
         {
             Title = "Transitions",
             ItemsSource = new[] { "Normal (follows the system's reduce motion)", "Slow motion (×5, always on)", "Off (reduce motion)" },
             SelectedIndex = Settings.Motion,
             AutomationId = "LookMotionPicker",
-            TextColor = DemoColors.Ink,
             FontFamily = DemoFonts.OpenSansRegular
         };
         _motionPicker.SelectedIndexChanged += (_, _) => Apply();
 
-        var reset = new Button
+        var reset = new SkUiButton
         {
             Text = "Reset to light + default look",
             AutomationId = "LookReset",
@@ -216,7 +207,7 @@ public sealed class LookAndColorSchemePage : ContentPage
             Apply();
         };
 
-        _status = new Label
+        _status = new SkUiLabel
         {
             TextColor = DemoColors.Caption,
             FontFamily = DemoFonts.OpenSansRegular,
@@ -225,7 +216,7 @@ public sealed class LookAndColorSchemePage : ContentPage
             AutomationId = "LookStatus"
         };
 
-        _sizeGrid = new Grid
+        _sizeGrid = new SkUiGrid
         {
             ColumnDefinitions =
             [
@@ -240,7 +231,7 @@ public sealed class LookAndColorSchemePage : ContentPage
 
         BuildSizeRows();
 
-        var editors = new VerticalStackLayout
+        var editors = new SkUiVerticalStackLayout
         {
             Spacing = 10,
             Padding = new Thickness(16, 12, 16, 24),
@@ -281,7 +272,8 @@ public sealed class LookAndColorSchemePage : ContentPage
             }
         };
 
-        Content = new ScrollView { Content = editors, AutomationId = "LookScroll" };
+        // One drawn surface: the editors are drawn with the look and scheme they edit, the previews are nested in it.
+        Content = new SkUiScrollView { Content = editors, AutomationId = "LookScroll", Background = DemoColors.PageBackground };
         Apply();
     }
 
@@ -409,16 +401,16 @@ public sealed class LookAndColorSchemePage : ContentPage
             pair.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             pair.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             pair.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            pair.Add(row.MauiBlock, 0, 0);
-            pair.Add(row.CoreBlock, 1, 0);
+            Place(pair, row.MauiBlock, 0, 0);
+            Place(pair, row.CoreBlock, 1, 0);
         }
         else
         {
             pair.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             pair.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             pair.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            pair.Add(row.MauiBlock, 0, 0);
-            pair.Add(row.CoreBlock, 0, 1);
+            Place(pair, row.MauiBlock, 0, 0);
+            Place(pair, row.CoreBlock, 0, 1);
         }
     }
 
@@ -426,9 +418,9 @@ public sealed class LookAndColorSchemePage : ContentPage
     {
         _sizeGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         const int row = 0;
-        _sizeGrid.Add(Header("Preview"), 0, row);
-        _sizeGrid.Add(Header("Width"), 1, row);
-        _sizeGrid.Add(Header("Height"), 2, row);
+        Place(_sizeGrid, Header("Preview"), 0, row);
+        Place(_sizeGrid, Header("Width"), 1, row);
+        Place(_sizeGrid, Header("Height"), 2, row);
     }
 
     private void AddSizeRow(SizeRow row)
@@ -436,13 +428,13 @@ public sealed class LookAndColorSchemePage : ContentPage
         var rowIndex = _sizeGrid.RowDefinitions.Count;
         _sizeGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-        row.MauiPreviewHost = new ContentView { MinimumHeightRequest = 48 };
-        row.CorePreviewHost = new ContentView { MinimumHeightRequest = 48 };
+        row.MauiPreviewHost = new SkUiContentView { MinimumHeightRequest = 48 };
+        row.CorePreviewHost = new SkUiContentView { MinimumHeightRequest = 48 };
         row.MauiBlock = CreateNamedPreviewBlock(row.MauiTypeName, row.MauiPreviewHost);
         row.CoreBlock = CreateNamedPreviewBlock(row.CoreTypeName, row.CorePreviewHost);
-        row.PreviewPair = new Grid { HorizontalOptions = LayoutOptions.Fill };
+        row.PreviewPair = new SkUiGrid { HorizontalOptions = LayoutOptions.Fill };
         LayoutPreviewPair(row, _widePreviews ?? false);
-        _sizeGrid.Add(row.PreviewPair, 0, rowIndex);
+        Place(_sizeGrid, row.PreviewPair, 0, rowIndex);
 
         if (row.HasWidth)
         {
@@ -456,15 +448,15 @@ public sealed class LookAndColorSchemePage : ContentPage
         row.HeightEntry.Unfocused += (_, _) => CommitSizeRow(row);
 
         var editors = CreateSizeEditors(row);
-        _sizeGrid.Add(editors, 1, rowIndex);
+        Place(_sizeGrid, editors, 1, rowIndex);
         Grid.SetColumnSpan(editors, 2);
 
         _sizeRows.Add(row);
     }
 
-    private View CreateSizeEditors(SizeRow row)
+    private SkUiGrid CreateSizeEditors(SizeRow row)
     {
-        var editors = new Grid
+        var editors = new SkUiGrid
         {
             ColumnDefinitions =
             [
@@ -482,10 +474,10 @@ public sealed class LookAndColorSchemePage : ContentPage
         };
 
         if (row.WidthEntry is not null)
-            editors.Add(row.WidthEntry, 0, 0);
+            Place(editors, row.WidthEntry, 0, 0);
         else
         {
-            editors.Add(new Label
+            Place(editors, new SkUiLabel
             {
                 Text = "—",
                 TextColor = DemoColors.Caption,
@@ -495,9 +487,9 @@ public sealed class LookAndColorSchemePage : ContentPage
             }, 0, 0);
         }
 
-        editors.Add(row.HeightEntry, 1, 0);
+        Place(editors, row.HeightEntry, 1, 0);
 
-        var fieldLabel = new Label
+        var fieldLabel = new SkUiLabel
         {
             Text = row.PropertyName,
             FontFamily = DemoFonts.RobotoMono,
@@ -507,23 +499,21 @@ public sealed class LookAndColorSchemePage : ContentPage
             HorizontalTextAlignment = TextAlignment.Start,
             Margin = new Thickness(0, 2, 0, 0)
         };
-        var tap = new TapGestureRecognizer();
-        tap.Tapped += async (_, _) => await CopySetterSnippetAsync(row);
-        fieldLabel.GestureRecognizers.Add(tap);
-        editors.Add(fieldLabel, 0, 1);
+        fieldLabel.Tapped += async (_, _) => await CopySetterSnippetAsync(row);
+        Place(editors, fieldLabel, 0, 1);
         Grid.SetColumnSpan(fieldLabel, 2);
 
         return editors;
     }
 
-    private static VerticalStackLayout CreateNamedPreviewBlock(string typeName, ContentView host) => new()
+    private static SkUiVerticalStackLayout CreateNamedPreviewBlock(string typeName, SkUiContentView host) => new()
     {
         Spacing = 2,
         HorizontalOptions = LayoutOptions.Fill,
         Children =
         {
             host,
-            new Label
+            new SkUiLabel
             {
                 Text = typeName,
                 FontFamily = DemoFonts.RobotoMono,
@@ -807,19 +797,27 @@ public sealed class LookAndColorSchemePage : ContentPage
         return spinner;
     }
 
-    private static Entry CreateDipEntry(string automationId) => new()
+    private static SkUiEntry CreateDipEntry(string automationId) => new()
     {
         Keyboard = Keyboard.Numeric,
         FontFamily = DemoFonts.OpenSansRegular,
         FontSize = 13,
         TextColor = DemoColors.Ink,
-        BackgroundColor = Colors.White,
+        FillColor = Colors.White,
         AutomationId = automationId,
         VerticalOptions = LayoutOptions.Center,
         Placeholder = "DIPs"
     };
 
-    private static Label Header(string text) => new()
+    /// <summary>Places <paramref name="view"/> in a cell of a drawn grid (MAUI's <c>Grid.Add(view, column, row)</c>).</summary>
+    private static void Place(SkUiGrid grid, View view, int column, int row)
+    {
+        Grid.SetColumn(view, column);
+        Grid.SetRow(view, row);
+        grid.Children.Add((ISkUiView)view);
+    }
+
+    private static SkUiLabel Header(string text) => new()
     {
         Text = text,
         FontFamily = DemoFonts.OpenSansSemibold,
@@ -827,7 +825,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         TextColor = DemoColors.Caption
     };
 
-    private static Label Caption(string text) => new()
+    private static SkUiLabel Caption(string text) => new()
     {
         Text = text,
         TextColor = DemoColors.Caption,
@@ -836,7 +834,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         LineBreakMode = LineBreakMode.WordWrap
     };
 
-    private static Label Section(string title) => new()
+    private static SkUiLabel Section(string title) => new()
     {
         Text = title,
         TextColor = DemoColors.Ink,
@@ -901,12 +899,12 @@ public sealed class LookAndColorSchemePage : ContentPage
         public Func<double?, double, string> FormatCode { get; }
         public Func<SkUiColorScheme, SkUiLook, SkUiView> BuildMaui { get; }
         public Func<SkUiColorScheme, SkUiLook, SkUiCoreNode> BuildCore { get; }
-        public Grid PreviewPair { get; set; } = null!;
-        public View MauiBlock { get; set; } = null!;
-        public View CoreBlock { get; set; } = null!;
-        public ContentView MauiPreviewHost { get; set; } = null!;
-        public ContentView CorePreviewHost { get; set; } = null!;
-        public Entry? WidthEntry { get; set; }
-        public Entry HeightEntry { get; set; } = null!;
+        public SkUiGrid PreviewPair { get; set; } = null!;
+        public SkUiView MauiBlock { get; set; } = null!;
+        public SkUiView CoreBlock { get; set; } = null!;
+        public SkUiContentView MauiPreviewHost { get; set; } = null!;
+        public SkUiContentView CorePreviewHost { get; set; } = null!;
+        public SkUiEntry? WidthEntry { get; set; }
+        public SkUiEntry HeightEntry { get; set; } = null!;
     }
 }

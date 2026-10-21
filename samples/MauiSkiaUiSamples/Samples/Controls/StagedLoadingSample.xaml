@@ -17,16 +17,16 @@
                     x:Class="MauiSkiaUiSamples.Samples.Controls.StagedLoadingSample"
                     x:DataType="local:StagedLoadingModel">
 
-    <Grid RowDefinitions="Auto,*" RowSpacing="8">
-        <HorizontalStackLayout Spacing="12">
-            <Button Text="Load" Command="{Binding LoadCommand}" />
-            <Label Text="{Binding Status}" FontSize="13" VerticalOptions="Center" TextColor="{x:Static samples:SampleColors.Caption}" />
-        </HorizontalStackLayout>
+    <sk:SkUiGrid RowDefinitions="Auto,*" RowSpacing="8">
+        <sk:SkUiHorizontalStackLayout Spacing="12">
+            <sk:SkUiButton Text="Load" Command="{Binding LoadCommand}" />
+            <sk:SkUiLabel Text="{Binding Status}" FontSize="13" VerticalOptions="Center" TextColor="{x:Static samples:SampleColors.Caption}" />
+        </sk:SkUiHorizontalStackLayout>
 
         <!-- Before the first load: nothing but this label. -->
-        <Label Grid.Row="1" Text="Nothing loaded yet. Tap Load to load the team and its members." IsVisible="{Binding IsIdle}"
-               HorizontalOptions="Center" VerticalOptions="Center" HorizontalTextAlignment="Center" Margin="24"
-               TextColor="{x:Static samples:SampleColors.Caption}" />
+        <sk:SkUiLabel Grid.Row="1" Text="Nothing loaded yet. Tap Load to load the team and its members." IsVisible="{Binding IsIdle}"
+                      HorizontalOptions="Center" VerticalOptions="Center" HorizontalTextAlignment="Center" Margin="24"
+                      TextColor="{x:Static samples:SampleColors.Caption}" />
 
         <!-- Stage 1: the whole page is its own skeleton while the team loads (no SkeletonContent). -->
         <sk:SkUiShimmer Grid.Row="1" Mode="Bones" WaveRegion="Surface" IsLoading="{Binding IsLoadingTeam}" IsVisible="{Binding HasStarted}"
@@ -83,5 +83,5 @@
                 </sk:SkUiCollectionView>
             </sk:SkUiGrid>
         </sk:SkUiShimmer>
-    </Grid>
+    </sk:SkUiGrid>
 </samples:SamplePage>

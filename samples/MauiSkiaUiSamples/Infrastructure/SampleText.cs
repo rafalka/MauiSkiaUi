@@ -1,30 +1,37 @@
+using MauiSkiaUi;
+
 namespace MauiSkiaUiSamples;
 
-/// <summary>Renders <see cref="SampleInfo"/> text with native labels: <c>`code`</c> in backticks becomes a monospace span.</summary>
+/// <summary>Renders <see cref="SampleInfo"/> text with drawn labels: <c>`code`</c> in backticks becomes a monospace span.</summary>
 public static class SampleText
 {
     /// <summary>A wrapping label for <paramref name="text"/>.</summary>
-    public static Label Paragraph(string text, double fontSize = 14, Color? color = null) => new()
+    public static SkUiLabel Paragraph(string text, double fontSize = 14, Color? color = null) => new()
     {
         FormattedText = Format(text, fontSize, color ?? SampleColors.Ink),
         LineBreakMode = LineBreakMode.WordWrap
     };
 
     /// <summary>Items with a hanging marker: "1." … for steps, "•" for notes.</summary>
-    public static View List(IReadOnlyList<string> items, bool numbered)
+    public static SkUiGrid List(IReadOnlyList<string> items, bool numbered)
     {
-        var grid = new Grid { ColumnDefinitions = [new(new GridLength(22)), new(GridLength.Star)], RowSpacing = 6 };
+        var grid = new SkUiGrid { ColumnDefinitions = [new(new GridLength(22)), new(GridLength.Star)], RowSpacing = 6 };
         for (var index = 0; index < items.Count; index++)
         {
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            grid.Add(new Label
+            var marker = new SkUiLabel
             {
                 Text = numbered ? $"{index + 1}." : "•",
                 FontFamily = SampleFonts.Semibold,
                 FontSize = 14,
                 TextColor = SampleColors.Accent
-            }, 0, index);
-            grid.Add(Paragraph(items[index]), 1, index);
+            };
+            Grid.SetRow(marker, index);
+            var paragraph = Paragraph(items[index]);
+            Grid.SetRow(paragraph, index);
+            Grid.SetColumn(paragraph, 1);
+            grid.Children.Add(marker);
+            grid.Children.Add(paragraph);
         }
         return grid;
     }

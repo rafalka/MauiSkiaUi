@@ -48,13 +48,13 @@ public sealed class BrandLookSample : SamplePage, ISample
 
     private View Build()
     {
-        var compare = new Button { Text = CompareTitle, HorizontalOptions = LayoutOptions.Start };
+        var compare = new SkUiButton { Text = CompareTitle, HorizontalOptions = LayoutOptions.Start };
         compare.Clicked += async (_, _) => await Navigation.PushAsync(new SkUiLookComparisonPage(_look)
             .AddLook(BrandLookName, _look)
             // An app's own pair: a styled native button and the drawn one that replaces it.
             .AddRow("Pay button", () => new Button { Text = PayText, CornerRadius = 12, MinimumHeightRequest = 50 },
                 () => new SkUiButton { Text = PayText }));
-        return new VerticalStackLayout
+        return new SkUiVerticalStackLayout
         {
             Spacing = 16,
             Children =

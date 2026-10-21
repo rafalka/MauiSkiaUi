@@ -125,8 +125,8 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | MAUI | SkiaUi | Notes |
 | --- | --- | --- |
 | `ContentView` | `SkUiContentView` | Also the base class for drawn custom controls; `ControlTemplate` of drawn views ([templated controls](#templated-controls)) |
-| `Grid` | `SkUiGrid` | |
-| `VerticalStackLayout` / `HorizontalStackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | |
+| `Grid` | `SkUiGrid` | In code, add children with `Children.Add` and `Grid.SetRow` / `SetColumn`: MAUI's `grid.Add(view, column, row)` and `AddRowDefinition` are not there yet ([U1](design/ImplementationPlan.md#phase-u--app-ui-on-skiaui)) |
+| `VerticalStackLayout` / `HorizontalStackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | In code, `stack.Children.Add(view)` (no `stack.Add(view)` yet, [U1](design/ImplementationPlan.md#phase-u--app-ui-on-skiaui)) |
 | `StackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | Pick by `Orientation`; keep `Spacing` |
 | `AbsoluteLayout` | `SkUiAbsoluteLayout` | |
 | `FlexLayout` | `SkUiFlexLayout` | Also `SkUiWrapLayout` for chips and tags |
@@ -413,7 +413,8 @@ Styles now apply to everything the toolkit's constructor set (padding, stroke, s
 | MAUI | Status | Meanwhile |
 | --- | --- | --- |
 | `CollectionView`: reordering (`CanReorderItems`), snap points on the items layout | Not available | Keep the MAUI `CollectionView` with native item templates (outside the drawn region); everything else ports ([Lists](#lists-collectionview)) |
-| Drag and drop, tooltips, context flyouts | Not planned | Keep native |
+| Tooltips (`ToolTipProperties.Text`) | Planned for 1.0 ([U2](design/ImplementationPlan.md#phase-u--app-ui-on-skiaui)); not shown on drawn views yet | Keep the control native where its tooltip matters |
+| Drag and drop, context flyouts | Not planned | Keep native |
 | `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists), `SkUiBorder` |
 | Shell, pages, navigation | Out of scope | Stay MAUI |
 | Third-party controls (charts, calendars, data grids, signature pads) | Native | Host in `SkUiMauiContentView`, or keep them outside the surface |

@@ -6,7 +6,9 @@ Check the region for these before converting. If one is central to the page (the
 | --- | --- | --- |
 | `CollectionView` with `CanReorderItems` or snap points on its items layout | Not available | Keep the native `CollectionView` (outside the drawn region; its item templates stay native). Every other list (grouped, grid, horizontal, multiple selection) ports to `sk:SkUiCollectionView` member by member ([collection-view.md](collection-view.md)) |
 | `ListView`, `TableView`, cells, compatibility layouts | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists); `SkUiBorder` for `Frame` |
-| Drag and drop, tooltips, context flyouts, `ImageBrush` | Not planned | Keep native |
+| Tooltips (`ToolTipProperties.Text`) | Planned for 1.0; not shown on drawn views yet | Keep the control native where its tooltip matters |
+| Drag and drop, context flyouts, `ImageBrush` | Not planned | Keep native |
+| `grid.Add(view, column, row)`, `layout.Add(view)`, `grid.AddRowDefinition(...)` in code-behind | Planned for 1.0; not on drawn layouts yet | `Children.Add(view)` with `Grid.SetRow` / `Grid.SetColumn`; `RowDefinitions.Add(...)` |
 | `WebView`, maps, media | Native by design | `SkUiMauiContentView` |
 | Third-party controls | Native | `SkUiMauiContentView` or outside the region |
 | Pages, Shell, navigation, toolbar, popups | Stay MAUI | — |

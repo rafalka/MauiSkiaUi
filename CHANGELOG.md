@@ -17,8 +17,13 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 - **Picker wheels for screen readers:** in the popups of `SkUiMultiColumnPicker`, `SkUiDatePicker`, `SkUiTimePicker` and `SkUiDateTimePicker` (and their Core twins) each wheel is one adjustable element, as a native wheel picker's column: named by MAUI's `SemanticProperties.Description` set on its `SkUiPickerColumn` (new `SetSemanticDescription` / `SetSemanticHint`), else its `Header`, and the date and time wheels by `SkUiStrings`' `DayText` … `SecondText` also without headers shown; its value is the middle row's item and its place ("10, 2 of 12", new `SkUiStrings.WheelPositionFormat`). Increment and decrement (VoiceOver and TalkBack swipes, Narrator's range value) step to the next or previous item that can be chosen and choose it, following the date's rules; the wheels' rows are no longer elements of their own.
 
+### Fixes
+
+- **Drawn roots arranged without a matching measure:** a surface root that its native parent arranges without measuring it for those bounds (Shell's `FlyoutContent` on iOS and Mac Catalyst is only arranged) is now measured at the arranged size first, as MAUI's own layouts are. Before, it kept no measure or one made at width 0: the flyout was empty on iOS and its labels wrapped one character per line on Mac Catalyst.
+
 ### Other
 
+- **Demo and samples apps drawn with SkiaUi:** the apps' own UI uses SkiaUi controls instead of MAUI's: the component pages' property editors (sliders, switches, entries, editors, pickers, buttons), the category galleries, the demo's flyout, the composition, primitives, accessibility, look and stress pages' controls, and the samples' list and example pages (one drawn surface each, with `SkUiExpander` panels; the contacts example's search box and form fields are now drawn). Pages, Shell, toolbars, the toolkit's popup windows, the samples' Source page (a web view) and the native controls the pages compare against stay MAUI. Gaps found on the way are planned for 1.0 ([Phase U](docs/design/ImplementationPlan.md#phase-u--app-ui-on-skiaui): MAUI's child APIs on drawn layouts, tooltips).
 - **Slider value texts on Windows and older Android:** an adjustable element with a value text of its own (a stepper's number, a picker wheel's item) gives Narrator a read-only Value pattern with it, and on Android 10 and older TalkBack reads it with the element's name instead of the range as a percentage.
 
 ## 1.0.0-Prerelease15
