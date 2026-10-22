@@ -17,6 +17,7 @@ public static class Scenarios
         new SkUiLabels(),
         new CoreButtons(),
         new SkUiButtons(),
+        new SkUiStressButtons(),
         new MixedScriptLabels(),
         new CoreLabelsSimpleMode(),
         new CoreLabelsUpdate(),
@@ -509,6 +510,37 @@ public sealed class SkUiButtons : BenchScenario
         for (var i = 0; i < Scenarios.Count; i++)
         {
             var button = new SkUiButton { Text = $"Item {i:0000}", FontSize = 14, Padding = new Thickness(6) };
+            Grid.SetRow(button, i / 2);
+            Grid.SetColumn(button, i % 2);
+            grid.Children.Add(button);
+        }
+        grid.EndUpdating();
+        return Scenarios.Scroll(grid);
+    }
+}
+
+/// <summary>The demo's Stress page exactly: <see cref="SkUiButtons"/> with the page's colors, border and a command each.</summary>
+public sealed class SkUiStressButtons : BenchScenario
+{
+    private static readonly Color Ink = Color.FromArgb("#1F2933");
+    private static readonly Color Alternate = Color.FromArgb("#F3F6FA");
+    private static readonly Color Border = Color.FromArgb("#D9E2EC");
+
+    public override string Name => "skui-stress-buttons";
+    public override string Description => "1,000 SkUiButton as the demo's Stress page builds them (text color, fill, border, a command each)";
+
+    public override View Build()
+    {
+        var grid = Scenarios.SkUiGrid(Scenarios.Count);
+        grid.StartUpdating();
+        for (var i = 0; i < Scenarios.Count; i++)
+        {
+            var button = new SkUiButton
+            {
+                Text = $"Item {i + 1:0000}", FontSize = 14, Padding = new Thickness(6), TextColor = Ink,
+                FillColor = i % 4 < 2 ? Colors.White : Alternate, BorderColor = Border, BorderWidth = 1,
+                Command = new Command(() => { })
+            };
             Grid.SetRow(button, i / 2);
             Grid.SetColumn(button, i % 2);
             grid.Children.Add(button);

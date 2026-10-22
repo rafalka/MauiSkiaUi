@@ -1,4 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Reflection;
 using System.Text.Json;
 
 namespace MauiSkiaUi.Benchmarks;
@@ -16,8 +18,10 @@ public sealed class BenchArgs
     public bool AutoRun { get; private set; }
     /// <summary>Device app: terminate the process after an automatic run (used by scripts on iOS).</summary>
     public bool ExitWhenDone { get; private set; }
+    /// <summary>The look to run with, by type name (e.g. <c>IosSkUiLook</c>, as an app that uses the platform's look); <c>null</c>: the default.</summary>
+    public string? Look { get; private set; }
 
-    /// <summary>Parses <c>--runs 6 --warmup 1 --scenarios a,b --json path --label x --list --autorun --exit</c>.</summary>
+    /// <summary>Parses <c>--runs 6 --warmup 1 --scenarios a,b --json path --label x --look IosSkUiLook --list --autorun --exit</c>.</summary>
     public static BenchArgs Parse(IReadOnlyList<string> args)
     {
         var options = new BenchArgs();
@@ -32,6 +36,7 @@ public sealed class BenchArgs
                 case "--scenarios": options.ScenarioNames = SplitNames(Next()); break;
                 case "--json": options.JsonPath = Next(); break;
                 case "--label": options.Label = Next(); break;
+                case "--look": options.Look = Next(); break;
                 case "--list": options.List = true; break;
                 case "--autorun": options.AutoRun = true; break;
                 case "--exit": options.ExitWhenDone = true; break;
@@ -41,14 +46,33 @@ public sealed class BenchArgs
     }
 
     /// <summary>Builds options from key/value launch extras (Android intent extras).</summary>
-    public static BenchArgs FromValues(string? scenarios, int? runs, int? warmup, bool autoRun, string? label)
+    public static BenchArgs FromValues(string? scenarios, int? runs, int? warmup, bool autoRun, string? label, string? look = null)
     {
-        var options = new BenchArgs { AutoRun = autoRun };
+        var options = new BenchArgs { AutoRun = autoRun, Look = string.IsNullOrWhiteSpace(look) ? null : look };
         if (!string.IsNullOrWhiteSpace(scenarios)) options.ScenarioNames = SplitNames(scenarios);
         if (runs is > 0) options.Runs = runs.Value;
         if (warmup is >= 0) options.Warmup = warmup.Value;
         if (!string.IsNullOrWhiteSpace(label)) options.Label = label;
         return options;
+    }
+
+    /// <summary>
+    /// Makes <see cref="Look"/> current. Looked up by name: a library from before the look keeps its default one (reported).
+    /// The platform looks are kept from trimming by name too (device builds trim what nothing references).
+    /// </summary>
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, "MauiSkiaUi.IosSkUiLook", "MauiSkiaUi")]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, "MauiSkiaUi.MacSkUiLook", "MauiSkiaUi")]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, "MauiSkiaUi.AndroidSkUiLook", "MauiSkiaUi")]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, "MauiSkiaUi.AndroidMaterial3SkUiLook", "MauiSkiaUi")]
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, "MauiSkiaUi.WindowsSkUiLook", "MauiSkiaUi")]
+    public void ApplyLook()
+    {
+        if (string.IsNullOrEmpty(Look)) return;
+        var type = typeof(SkUiLook).Assembly.GetType("MauiSkiaUi." + Look);
+        if (type?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)?.GetValue(null) is SkUiLook look)
+            SkUiLook.Current = look;
+        else
+            Console.WriteLine($"SKUIBENCH_WARN no look '{Look}'; running with the default one");
     }
 
     private static string[] SplitNames(string value) =>

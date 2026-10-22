@@ -50,6 +50,7 @@ public sealed class BenchPage : ContentPage
         try
         {
             Console.WriteLine($"SKUIBENCH_START label={options.Label} runs={options.Runs} warmup={options.Warmup}");
+            options.ApplyLook();
             if (GetStats is null)
                 Console.WriteLine("SKUIBENCH_WARN library has no render statistics: firstFrame/update are approximated (layout + dispatcher turns), motion is not measured");
             foreach (var scenario in options.Resolve())

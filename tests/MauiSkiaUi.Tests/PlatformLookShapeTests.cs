@@ -171,6 +171,49 @@ public class PlatformLookShapeTests
         Assert.Equal(2, WindowsSkUiLook.Instance.ScrollBarThickness);
     }
 
+    [Fact]
+    public void SpokesRecordOneImageThatMatchesTheirShapes()
+    {
+        const float size = 32;
+        using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeCap = SKStrokeCap.Round, IsAntialias = true, Color = SKColors.Black };
+        using var recorder = new SKPictureRecorder();
+        IosSkUiLook.Instance.DrawActivityIndicator(recorder.BeginRecording(new SKRect(0, 0, size, size)), size, size, 0, paint);
+        using var picture = recorder.EndRecording();
+        // The render thread turns the picture every frame: one draw, not one per spoke.
+        Assert.Equal(1, picture.ApproximateOperationCount);
+        Assert.Equal(SKPaintStyle.Stroke, paint.Style);
+        Assert.Equal(SKColors.Black, paint.Color);
+
+        using var drawn = new SKBitmap((int)size, (int)size);
+        using (var canvas = new SKCanvas(drawn))
+        {
+            canvas.Clear(SKColors.Transparent);
+            canvas.DrawPicture(picture);
+        }
+        using var expected = new SKBitmap((int)size, (int)size);
+        using (var canvas = new SKCanvas(expected))
+        {
+            // The spokes as round-capped lines from 55 % of the radius to the circle, the first at the top and the brightest.
+            canvas.Clear(SKColors.Transparent);
+            using var line = new SKPaint { Style = SKPaintStyle.Stroke, StrokeCap = SKStrokeCap.Round, IsAntialias = true, StrokeWidth = Math.Max(1.5f, size * 0.09f) };
+            const int spokes = 8;
+            for (var spoke = 0; spoke < spokes; spoke++)
+            {
+                line.Color = SKColors.Black.WithAlpha((byte)(255 * (1 - 0.8f * spoke / spokes)));
+                var angle = -Math.PI / 2 + spoke * 2 * Math.PI / spokes;
+                var (cos, sin) = ((float)Math.Cos(angle), (float)Math.Sin(angle));
+                canvas.DrawLine(size / 2 + cos * size / 2 * 0.55f, size / 2 + sin * size / 2 * 0.55f, size / 2 + cos * size / 2, size / 2 + sin * size / 2, line);
+            }
+        }
+        // Not turned, the image lands on whole pixels: it draws what the spokes drew as shapes.
+        double total = 0;
+        for (var y = 0; y < size; y++)
+            for (var x = 0; x < size; x++)
+                total += Math.Abs(drawn.GetPixel(x, y).Alpha - expected.GetPixel(x, y).Alpha);
+        var mean = total / (size * size);
+        Assert.True(mean < 1, $"mean alpha difference {mean:F2}");
+    }
+
     private static bool HasInk(SKBitmap bitmap)
     {
         for (var y = 0; y < bitmap.Height; y++)

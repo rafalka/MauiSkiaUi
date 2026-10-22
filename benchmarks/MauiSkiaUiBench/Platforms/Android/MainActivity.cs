@@ -23,7 +23,8 @@ public class MainActivity : MauiAppCompatActivity
                 extras.ContainsKey("runs") ? extras.GetInt("runs") : null,
                 extras.ContainsKey("warmup") ? extras.GetInt("warmup") : null,
                 extras.GetBoolean("autorun"),
-                extras.GetString("label"));
+                extras.GetString("label"),
+                extras.GetString("look"));
         }
         base.OnCreate(savedInstanceState);
     }
