@@ -64,6 +64,7 @@ Workflows live under [`.github/workflows/`](.github/workflows/). Shared setup: [
 | Name | Used by | Purpose |
 | --- | --- | --- |
 | `NUGET_USER` | nuget-publish | Your [nuget.org](https://www.nuget.org/) **profile username** (not email) for `NuGet/login` |
+| `RELEASE_DEPLOY_KEY` | nuget-publish (environment `nuget.org`) | Private half of a write deploy key; pushes the release commit and tag past the `master` ruleset ([docs/Releasing.md](docs/Releasing.md#setup)) |
 | `ANDROID_KEYSTORE_BASE64` | demo-publish (optional) | Base64-encoded `.jks` / `.keystore` for signed Release APKs |
 | `ANDROID_KEYSTORE_PASSWORD` | demo-publish (optional) | Keystore password |
 | `ANDROID_KEY_ALIAS` | demo-publish (optional) | Key alias |
@@ -71,7 +72,7 @@ Workflows live under [`.github/workflows/`](.github/workflows/). Shared setup: [
 
 #### nuget.org Trusted Publishing (no long-lived API key)
 
-1. Create a GitHub Environment named **`nuget.org`** (Settings → Environments). Optional: require reviewers.
+1. Create a GitHub Environment named **`nuget.org`** (Settings → Environments). Require yourself as reviewer and limit deployment branches to `master` and `devel`.
 2. Add repository or environment secret **`NUGET_USER`** = your nuget.org profile username.
 3. On nuget.org (account menu → **Trusted Publishing**) add a policy:
    - **Repository Owner:** `rafalka`
