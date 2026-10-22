@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.0.0
+
 ### New features
 
 - **Align stack, for bars whose title stays centered:** `SkUiHorizontalAlignStackLayout` and its Core twin `SkUiCoreHorizontalAlignStackLayout` place children by their horizontal alignment, not their place in the list ([SkUiHorizontalAlignStackLayout.md](docs/controls/SkUiHorizontalAlignStackLayout.md)).
