@@ -26,6 +26,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 - **Built with MAUI 10.0.120 and Xcode 27:** SkiaUi.Maui now references MAUI 10.0.120 and builds with .NET SDK 10.0.402, whose iOS and Mac Catalyst workloads need Xcode 27. iOS 27 closes apps built with Xcode 27 that do not use the UIKit scene lifecycle. The demo, samples, benchmark and device-test apps now use it: a `SceneDelegate : MauiUISceneDelegate` on iOS and Mac Catalyst and a `UIApplicationSceneManifest` in each `Info.plist`. The Mac Catalyst minimum rises to 17.0 (see Breaking changes). CI builds the Apple targets on macOS 26.
 - **Development moved to `devel`:** pull requests target the `devel` branch, which publishes the `1.1.0` prereleases; `master` holds stable releases ([docs/Releasing.md](docs/Releasing.md#branches-and-versions)). The README, roadmap, contributing guide and security policy describe the stable state.
+- **Package README:** the readme on nuget.org no longer calls SkiaUi a preview (1.0.0 shipped with the prerelease notice). It now says who SkiaUi is for, what it adds beyond MAUI and which controls it has, and its quick start shows a collection view loading behind a shimmer.
 
 ## 1.0.0
 
