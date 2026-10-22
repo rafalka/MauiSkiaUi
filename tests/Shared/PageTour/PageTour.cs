@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using MauiSkiaUi;
+using MauiSkiaUi.Core;
 
 namespace MauiSkiaUiTour;
 
@@ -90,11 +91,16 @@ internal static class PageTour
         try
         {
             // A first-chance exception's own trace has only the throwing frame: the current stack shows who threw it.
+            // Cancellations are frequent and known by their type alone (page_tour.sh): no stack, whose line numbers read PDBs.
             var firstChance = kind == FirstChance;
-            var trace = firstChance ? new StackTrace(2, true).ToString() : new StackTrace(ex, true).ToString();
-            var stack = string.Join("\n", trace.Split('\n').Take(firstChance ? 25 : 14));
+            var stack = "";
+            if (!firstChance || ex is not OperationCanceledException)
+            {
+                var trace = firstChance ? new StackTrace(2, true).ToString() : new StackTrace(ex, true).ToString();
+                stack = "\n" + string.Join("\n", trace.Split('\n').Take(firstChance ? 25 : 14));
+            }
             lock (Gate)
-                Console.WriteLine($"[Tour] {kind} on '{_page}' thread {Environment.CurrentManagedThreadId}: {ex.GetType().FullName}: {ex.Message}\n{stack}\n[Tour] end");
+                Console.WriteLine($"[Tour] {kind} on '{_page}' thread {Environment.CurrentManagedThreadId}: {ex.GetType().FullName}: {ex.Message}{stack}\n[Tour] end");
         }
         catch
         {
@@ -115,8 +121,14 @@ internal static class PageTour
             {
                 switch (element)
                 {
+                    // Offsets past the end are clamped, on both axes (also the one a scroller does not scroll).
                     case SkUiScrollView scroll:
-                        await scroll.ScrollToAsync(0, 1e6, false);
+                        await scroll.ScrollToAsync(1e6, 1e6, false);
+                        await Task.Delay(150);
+                        await scroll.ScrollToAsync(0, 0, false);
+                        break;
+                    case SkUiCoreScrollView scroll:
+                        await scroll.ScrollToAsync(1e6, 1e6, false);
                         await Task.Delay(150);
                         await scroll.ScrollToAsync(0, 0, false);
                         break;
@@ -124,6 +136,12 @@ internal static class PageTour
                         await list.ScrollToAsync(1e6, false);
                         await Task.Delay(150);
                         await list.ScrollToAsync(0, false);
+                        break;
+                    case SkUiCarouselView carousel when carousel.ItemCount > 1:
+                        var position = carousel.Position;
+                        await carousel.ScrollToIndex(carousel.ItemCount - 1, false);
+                        await Task.Delay(150);
+                        await carousel.ScrollToIndex(Math.Clamp(position, 0, carousel.ItemCount - 1), false);
                         break;
                 }
             }
@@ -134,15 +152,16 @@ internal static class PageTour
         }
     }
 
-    private static IEnumerable<Element> Descendants(Element root)
+    /// <summary>The visual tree: also the Core nodes under an <see cref="SkUiCoreHost"/>, which are not logical children.</summary>
+    private static IEnumerable<IVisualTreeElement> Descendants(IVisualTreeElement root)
     {
-        var stack = new Stack<Element>();
+        var stack = new Stack<IVisualTreeElement>();
         stack.Push(root);
         while (stack.Count > 0)
         {
             var element = stack.Pop();
             yield return element;
-            foreach (var child in ((IElementController)element).LogicalChildren.ToList())
+            foreach (var child in element.GetVisualChildren().ToList())
                 stack.Push(child);
         }
     }

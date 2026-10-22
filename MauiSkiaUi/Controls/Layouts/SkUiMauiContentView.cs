@@ -398,23 +398,7 @@ public partial class SkUiMauiContentView : SkUiView
     /// <see cref="SkUiScrollView"/> nodes are subtracted so overlays track painted content. See the type-level
     /// remarks for the rotation/scale/opacity limit.
     /// </summary>
-    internal Rect ComputeRootRelativeFrame()
-    {
-        double x = Frame.X + TranslationX, y = Frame.Y + TranslationY;
-        for (var ancestor = Parent as SkUiView; ancestor is not null && ancestor.Handler is null; ancestor = ancestor.Parent as SkUiView)
-        {
-            x += ancestor.Frame.X + ancestor.TranslationX;
-            y += ancestor.Frame.Y + ancestor.TranslationY;
-            if (ancestor is SkUiScrollView scroll)
-            {
-                var offset = scroll.VisualScrollOffset;
-                x -= offset.X;
-                y -= offset.Y;
-            }
-        }
-        // Not arranged yet: MAUI's default Frame is (0, 0, -1, -1), and a negative size is invalid for platform views.
-        return new Rect(x, y, Math.Max(0, Frame.Width), Math.Max(0, Frame.Height));
-    }
+    internal Rect ComputeRootRelativeFrame() => RootRelativeFrame(this);
 
     /// <summary>
     /// Root-relative rectangle the overlay may draw and take touches in: the intersection of the viewports of ancestor
@@ -440,7 +424,11 @@ public partial class SkUiMauiContentView : SkUiView
         return clipped ? clip : new Rect(-1e6, -1e6, 2e6, 2e6);
     }
 
-    /// <summary>Root-relative arranged rectangle of <paramref name="node"/> (translations and ancestor scroll offsets).</summary>
+    /// <summary>
+    /// Root-relative arranged rectangle of <paramref name="node"/> (translations and ancestor scroll offsets). Empty
+    /// before <paramref name="node"/> is arranged: MAUI's default Frame is (0, 0, -1, -1), and platform views reject a
+    /// negative size (the root can attach an overlay before layout runs).
+    /// </summary>
     private static Rect RootRelativeFrame(SkUiView node)
     {
         double x = node.Frame.X + node.TranslationX, y = node.Frame.Y + node.TranslationY;
@@ -455,7 +443,7 @@ public partial class SkUiMauiContentView : SkUiView
                 y -= offset.Y;
             }
         }
-        return new Rect(x, y, node.Frame.Width, node.Frame.Height);
+        return new Rect(x, y, Math.Max(0, node.Frame.Width), Math.Max(0, node.Frame.Height));
     }
 
     /// <summary>Repositions the native overlay after an ancestor scroll offset change (no local rearrange).</summary>

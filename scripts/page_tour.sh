@@ -70,11 +70,12 @@ project_dir() {
     esac
 }
 
+# The SDK picks the runtime identifier (win-x64, win-arm64) from the host: ask MSBuild where the build goes.
 executable() {
-    local dir name
-    dir="$(project_dir "$1")"
-    name="$(basename "$dir")"
-    echo "$dir/bin/$CONFIG/$TFM/win-x64/$name.exe"
+    local target
+    target="$(dotnet msbuild "$(project_dir "$1")" -getProperty:TargetPath -p:TargetFramework="$TFM" -p:Configuration="$CONFIG" | tr -d '\r')"
+    target="$(cygpath -u "$target")"
+    echo "${target%.dll}.exe"
 }
 
 # Known exceptions, not failures. A block (one logged exception with its stack) matching one of these is skipped.
@@ -93,20 +94,25 @@ summarize() {
             if (header ~ /FormatException/ && block ~ /SkUiColumnsModel\.Compose/) return "SkUiColumnsModel format (caught)"
             return ""
         }
-        function flush(   reason, key, frame, n, lines, i) {
+        function flush(   reason, key, name, start, frame, n, lines, i) {
             if (header == "") return
             reason = known(block, header)
             if (reason != "") ignored[reason]++
             if (reason == "" || all == "true") {
-                # Group by kind, type and message, and the first frame of our code.
-                key = header
-                sub(/ on \x27[^\x27]*\x27 thread [0-9]+/, "", key)
+                # Header: [Tour] <kind> on "<page>" thread <id>: <type>: <message> (single quotes around the page).
+                # The page name ends at the first closing quote followed by " thread <id>: ": names and messages may
+                # contain quotes. Group by kind, type and message, and the first frame of our code.
+                match(header, /^\[Tour\] [A-Za-z-]+ on \x27/)
+                start = RLENGTH + 1
+                match(header, /\x27 thread [0-9]+: /)
+                name = substr(header, start, RSTART - start)
+                key = substr(header, 1, start - 6) ": " substr(header, RSTART + RLENGTH)
                 frame = ""
                 n = split(block, lines, "\n")
                 for (i = 1; i <= n; i++)
                     if (lines[i] ~ /at (MauiSkiaUi|MauiSkiaUiDemo|MauiSkiaUiSamples)\./ && lines[i] !~ /MauiSkiaUiTour/) { frame = lines[i]; break }
                 key = key (reason != "" ? "  [known: " reason "]" : "") "\n" frame
-                if (!(key in count)) { order[++keys] = key; page[key] = header; sub(/.* on \x27/, "", page[key]); sub(/\x27.*/, "", page[key]) }
+                if (!(key in count)) { order[++keys] = key; page[key] = name }
                 count[key]++
                 if (reason == "") failures++
             }
@@ -149,8 +155,9 @@ for app in "${APP_LIST[@]}"; do
     echo "Touring $app..."
     code=0
     SKUI_TOUR=1 SKUI_TOUR_DWELL="$DWELL" timeout "$TIMEOUT" "$exe" > "$OUT/$app.log" 2>&1 || code=$?
+    # A crash after the tour finished (closing down) leaves a complete log: only the exit code shows it.
     [[ $code -eq 0 ]] || echo "  exit code $code"
-    if summarize "$OUT/$app.log"; then echo "  OK"; else echo "  FAILED"; status=1; fi
+    if summarize "$OUT/$app.log" && [[ $code -eq 0 ]]; then echo "  OK"; else echo "  FAILED"; status=1; fi
 done
 echo "Logs: $OUT"
 exit $status

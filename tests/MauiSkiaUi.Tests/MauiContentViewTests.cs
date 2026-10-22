@@ -24,9 +24,11 @@ public class MauiContentViewTests
     public void MauiContentViewRootRelativeFrameIsNeverNegativeBeforeArrange()
     {
         // The root can attach overlays before layout ran (Frame is (0, 0, -1, -1)); WinUI throws on a negative Width.
+        // These are the bounds and clip the attach passes to the platform container (SyncOverlayBounds).
         var overlay = new SkUiMauiContentView { Content = new Editor() };
-        _ = new SkUiContentView { Content = new SkUiLayout { Children = { overlay } } };
+        _ = new SkUiScrollView { Content = new SkUiLayout { Children = { overlay } } };
         Assert.Equal(new Rect(0, 0, 0, 0), overlay.ComputeRootRelativeFrame());
+        Assert.Equal(Rect.Zero, overlay.ComputeRootRelativeClip()); // the unarranged scroller shows nothing yet
     }
 
     [Fact]
