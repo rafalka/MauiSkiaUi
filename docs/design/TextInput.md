@@ -1,6 +1,6 @@
 # Drawn text input (Phase D, FR-16)
 
-`SkUiEntry` / `SkUiEditor` (and their Core twins) draw their text, caret and selection with SkiaSharp. The platform still owns the keyboard, input methods (IME composition), autocorrect, dictation, the clipboard and autofill; SkiaUi drives them through a **proxy** per surface. This document records the proxy decision (D0) and how the pieces fit; the plan is in [ImplementationPlan.md](ImplementationPlan.md#phase-d--drawn-text-input-fr-16-amended).
+`SkUiEntry` / `SkUiEditor` (and their Core twins) draw their text, caret and selection with SkiaSharp. The platform still owns the keyboard, input methods (IME composition), autocorrect, dictation, the clipboard and autofill; SkiaUi drives them through a **proxy** per surface. This document records the proxy decision (D0) and how the pieces fit; open work is in the [roadmap](Roadmap.md#text-input), and the delivery plan (D0–D16) is archived in [ImplementationPlan-1.0.md](../archive/ImplementationPlan-1.0.md#phase-d--drawn-text-input-fr-16-amended).
 
 ## The pieces
 
@@ -188,7 +188,7 @@ Left open in D16: holding a button does not accelerate (`RepeatAcceleration`); d
 
 ## Possible future extensions
 
-Not scheduled for 1.0; ordered from most to less important among ideas that fit the drawn-field architecture (engine, look, proxy, or a thin composition on `SkUiEntry`). Planned next steps for drawn fields are [Phase D extensions](ImplementationPlan.md#phase-d-extensions) in the implementation plan.
+Not scheduled for 1.0; ordered from most to less important among ideas that fit the drawn-field architecture (engine, look, proxy, or a thin composition on `SkUiEntry`). Planned next steps for drawn fields are in the [roadmap](Roadmap.md#text-input).
 
 | # | Extension | Notes |
 | --- | --- | --- |

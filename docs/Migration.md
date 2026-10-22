@@ -19,7 +19,48 @@ You replace a **subtree** of a page with drawn controls. Everything around it st
 | Fonts from `ConfigureFonts`, `MauiImage` / `FontImageSource` images | Custom handlers, renderers and effects do not apply to drawn controls |
 | `SemanticProperties`, `AutomationProperties`, `AutomationId` | |
 
-The property names are MAUI's: the parity work ([ImplementationPlan.md](design/ImplementationPlan.md#maui-parity-at-a-glance)) adds the MAUI API to each drawn control, so most XAML converts by changing the element prefix.
+The property names are MAUI's: each drawn control has its MAUI counterpart's API ([MAUI parity at a glance](#maui-parity-at-a-glance)), so most XAML converts by changing the element prefix.
+
+## MAUI parity at a glance
+
+Checked against .NET MAUI 10.0.110. Controls marked SkUi\* + Core exist on both layers. The [control pages](controls/README.md) list each control's differences; [Not available yet](#not-available-yet) has the gaps.
+
+| MAUI | SkiaUi | Status |
+| --- | --- | --- |
+| ActivityIndicator, ProgressBar | SkUi* + Core | Done (ProgressBar plus indeterminate) |
+| CheckBox | SkUi* + Core | Done, plus three states |
+| Slider | SkUi* + Core | Done, plus vertical; `ThumbImageSource` |
+| Switch | SkUi* + Core | Done, plus three states (`On` / `Off` visual states) |
+| RadioButton | SkUi* + Core | Done: `Content` (text or a drawn view), text properties, border chrome, `ControlTemplate` with `SkUiContentPresenter` (SkUi* only: the Core radio stays a circle to compose; `TemplateBinding` → `AncestorType`); group exclusion, `Value`, `RadioButtonGroup` |
+| Label | SkUi* + Core | Done: text properties, spans and span taps, `TextType="Html"`, plus custom line breaking and tappable HTML links |
+| Button | SkUi* + Core | Done: `ImageSource` + `ContentLayout`, text properties |
+| Image, ImageButton | SkUi* + Core | Done, plus shared memory / disk cache, transformations, downsampling; runtime SVG files: planned |
+| BoxView | SkUi* + Core | Done, gradient `Background` |
+| Ellipse, Line, Rectangle, RoundRectangle, Path, Polygon, Polyline | SkUi* + Core | Done: brushes, stroke model, `Aspect`, geometries and path markup; `ImageBrush` not drawn |
+| Border | SkUi* + Core | Done: `StrokeShape`, brush stroke, dashes, stroke inset and shape clip; gradient `Background` |
+| ScrollView | SkUi* + Core | Done: scroll bars (draggable on desktop, `SkUiCoreScrollBar`), overscroll (bounce, stretch), scroll to element, both wheel axes, plus snap points |
+| Grid, VerticalStackLayout, HorizontalStackLayout, AbsoluteLayout, ContentView | SkUi* + Core | Done |
+| FlexLayout | `SkUiFlexLayout` (SkUi* only) | Done |
+| Toolkit Expander | `SkUiExpander` (SkUi* only) | Done, plus `ContentTemplate`, lazy content, animation |
+| Toolkit StateContainer | `SkUiStateContainer` / `SkUiStateView` attached properties on every drawn layout (SkUi* only) | Done, plus animations before and after each state change |
+| Toolkit AvatarView | `SkUiAvatarView` + Core | Done, plus initials of the text, colors by the text, a status badge |
+| StackLayout | Stacks | Map |
+| BindableLayout | Every `SkUiLayout` (grid, stacks, absolute, flex, wrap, shrink) | Done: MAUI's controller over `IBindableLayout`; templates and empty views must be drawn (a string `EmptyView` throws); no virtualization (use the collection view) |
+| Every view: visual states | MAUI's states per control, `PointerOver` from hover, `Focused` from keyboard focus, state triggers | Done; `Selected` on collection items |
+| Every view: `Shadow`, gradient `Background`, `Clip` | SkUi* + Core | Done; `ImageBrush` not drawn |
+| Every view: `SemanticProperties`, focus, font scaling | SkUi* + Core | Done: TalkBack, VoiceOver, Narrator; keyboard focus and ring; `FontAutoScalingEnabled`; plus `IsTabStop` / `TabIndex` (gone from MAUI) |
+| Every view: `GestureRecognizers` | Arena gestures (`Tapped`, …) | Taps done: `TapGestureRecognizer` runs on drawn views; other recognizers are reported, not run (planned) |
+| CollectionView | `SkUiCollectionView`; `SkUiVirtualScrollView` for plain lists | Done but reordering and snap points: templates and selectors, variable sizes, single and multiple selection, `Selected` state, item taps, header / footer (also sticky), empty view, groups (also collapsible, sticky headers), grids, horizontal, load more, `RemainingItemsThreshold`, scroll to index / item / group, pull-to-refresh |
+| SwipeView | `SkUiSwipeView`, MAUI's `SwipeItems` / `SwipeItem`; `SkUiSwipeItemView` for `SwipeItemView` | Done; custom accessibility actions open |
+| RefreshView | `SkUiRefreshView`; pull-to-refresh also built into `SkUiCollectionView` | Done; screen-reader refresh action open |
+| CarouselView, IndicatorView | `SkUiCarouselView`; `SkUiIndicatorView` + Core | Done: the items layout as carousel properties; plus several items in view and item effects; `ItemsUpdatingScrollMode`, `VisibleViews` and `IndicatorTemplate` open |
+| Picker | `SkUiPicker` + Core | Done: drawn field, drawn list on the app's popup system (`ISkUiPopupPresenter`); plus placement, drawn rows, keyboard and type-ahead everywhere; `UpdateMode` on every platform |
+| DatePicker, TimePicker | `SkUiDatePicker`, `SkUiTimePicker` + Core; `SkUiDateTimePicker` | Done: drawn wheels on the app's popup system; plus wheel formats, ranges of times, steps, blackout days; a month calendar planned |
+| Stepper | `SkUiStepper` + Core | Done, plus stacked buttons (`Orientation`), texts in place of − / +, corner radius and outline, and typed values (`SkUiStepper<T>`) |
+| Entry, Editor, SearchBar | `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar` + Core | Done: drawn, the platform keyboard and IME through a proxy per surface; plus `CaretColor`, `SelectionColor`, `AutofillHint`; device checks of composition, dictation and password managers open; hosted `Entry` (`SkUiMauiContentView`) for native-only needs |
+| WebView, Map, media | Hosted (`SkUiMauiContentView`) | By design |
+| Pages, Shell, navigation | MAUI | Out of scope |
+| Frame, ListView, TableView, cells (`TextCell`, `ImageCell`, `SwitchCell`, `EntryCell`, `ViewCell`), Compatibility layouts | — | Out of scope: obsolete in MAUI (Frame since .NET 9, the rest in .NET 10); use Border and CollectionView |
 
 ## Which screens to port first
 
@@ -420,7 +461,7 @@ Styles now apply to everything the toolkit's constructor set (padding, stroke, s
 | Shell, pages, navigation | Out of scope | Stay MAUI |
 | Third-party controls (charts, calendars, data grids, signature pads) | Native | Host in `SkUiMauiContentView`, or keep them outside the surface |
 
-Swipe, pan and pinch *recognizers* may later run on drawn views like taps do (P11b); until then use the gesture events above.
+Swipe, pan and pinch *recognizers* may later run on drawn views like taps do ([roadmap](design/Roadmap.md#maui-parity)); until then use the gesture events above.
 
 ## Checklist
 

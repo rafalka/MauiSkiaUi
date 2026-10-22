@@ -77,11 +77,9 @@ core.SetStrokeShape(new SkUiCoreEllipse()).SetStroke(Colors.Teal).SetStrokeThick
 | `CornerRadius` | SkiaUi shorthand for `StrokeShape="RoundRectangle …"` |
 | `StrokeShape` default | `null` (a rectangle rounded by `CornerRadius`); MAUI returns a `Rectangle` instance |
 | Stroke position | Inside the bounds, centered on the inset shape (MAUI's Android and Windows; iOS strokes the full-size shape from inside) |
-| Gradient backgrounds | Fill the outline (P7) |
+| Gradient backgrounds | Fill the outline |
 | `Shadow` | With an opaque background (and an opaque or no stroke), cast from the outline's outer edge, as MAUI on Android; otherwise from what the border draws ([SkUiView.md](SkUiView.md#backgrounds-shadows-and-clips)) |
 | Hit testing | Rectangular arranged bounds |
-
-**Breaking (P6):** `Stroke` is a `Brush` (was `Color?`; `Stroke = Colors.Red` still compiles), `CornerRadius` defaults to 0 (was 6), and the content is inset by `StrokeThickness` as well as `Padding`. Core: `SkUiCoreBorder.Stroke` is a MAUI Graphics `Paint` (`SetStroke(Color)` still works).
 
 ## Related
 

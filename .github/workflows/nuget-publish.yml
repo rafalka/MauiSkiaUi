@@ -14,12 +14,13 @@ on:
     inputs:
       bump:
         description: >-
-          Version bump (docs/Releasing.md): prerelease (-PrereleaseNN+1), release (drop the prerelease suffix),
-          patch / minor / major, or none (publish the current version again, e.g. after a failed publish)
+          Version bump (docs/Releasing.md): auto (release on master, prerelease elsewhere), prerelease
+          (-PrereleaseNN+1), release (drop the prerelease suffix), patch / minor / major, or none (publish the
+          current version again, e.g. after a failed publish)
         required: true
         type: choice
-        options: [prerelease, release, patch, minor, major, none]
-        default: prerelease
+        options: [auto, prerelease, release, patch, minor, major, none]
+        default: auto
       dry_run:
         description: Compute, pack and upload artifacts only; no commit, tag, push to nuget.org or GitHub release
         required: false
@@ -56,6 +57,10 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$REF_TYPE" == branch ]] || { echo "Run this workflow from a branch (master or devel)." >&2; exit 1; }
+          # A choice input's default cannot depend on the branch, so "auto" picks it here.
+          if [[ "$BUMP" == auto ]]; then
+            if [[ "$BRANCH" == master ]]; then BUMP=release; else BUMP=prerelease; fi
+          fi
           VERSION="$(python3 scripts/release_version.py next --bump "$BUMP" --branch "$BRANCH")"
           PUSH=true
           [[ "$DRY_RUN" == true ]] && PUSH=false
@@ -243,10 +248,25 @@ jobs:
       id-token: write
 
     steps:
+      # The release commit is pushed with a deploy key: the master ruleset requires pull requests and lets only
+      # admins and deploy keys bypass it, so the workflow token cannot push there. The key is a secret of this
+      # environment, so only an approved run of this job can use it.
+      - name: Check the deploy key
+        if: needs.prepare.outputs.push == 'true' && inputs.bump != 'none'
+        env:
+          HAS_KEY: ${{ secrets.RELEASE_DEPLOY_KEY != '' }}
+        shell: bash
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::error::Secret RELEASE_DEPLOY_KEY is missing from the nuget.org environment (docs/Releasing.md)."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.ref }}
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
       - name: Release files (version, changelog)
         uses: actions/download-artifact@v8
@@ -344,3 +364,19 @@ jobs:
       - name: Dry run notice
         if: needs.prepare.outputs.push != 'true'
         run: echo "Dry run — packages were packed and uploaded as artifacts only."
+
+  # The demo and samples apps, built from the release tag and attached to the GitHub release. After the package is
+  # published, so a failed app build never holds the package back (rerun Demo publish with release_tag to retry).
+  apps:
+    name: Demo and samples apps
+    needs: [prepare, publish]
+    if: needs.prepare.outputs.push == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/demo-publish.yml
+    with:
+      configuration: Release
+      app: demo-and-samples
+      platforms: android-and-maccatalyst
+      release_tag: v${{ needs.prepare.outputs.version }}
+    secrets: inherit

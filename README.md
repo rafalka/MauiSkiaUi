@@ -47,6 +47,8 @@ MAUI page
 
 Package on nuget.org: **[SkiaUi.Maui](https://www.nuget.org/packages/SkiaUi.Maui/)**.
 
+**Requirements:** .NET 10 with .NET MAUI 10.0.110 or a later 10.x; Android 5.0 (API 21), iOS 15, Mac Catalyst 15 and Windows 10 1809 or newer. iOS and Mac Catalyst builds need Xcode 26.
+
 ```bash
 dotnet add package SkiaUi.Maui
 ```
@@ -138,6 +140,8 @@ Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](
 
 `MauiSkiaUiDemo` in this repo is a component gallery (editors, native side-by-side comparisons, look/color playground, stress pages). It is for exploration and verification, not published with the NuGet package.
 
+**Prebuilt apps:** every [GitHub release](https://github.com/rafalka/MauiSkiaUi/releases) has the demo and samples apps attached: an Android APK (arm64, signed with a debug key: allow installing from unknown sources) and a Mac Catalyst app in a zip (not signed: right-click it and choose **Open** the first time).
+
 `samples/MauiSkiaUiSamples` shows **how to** build things with SkiaUi, e.g. a custom look with its own check-box transition. Each example page explains what it presents and how to achieve it, lists the things to know, and shows its own source ([samples/README.md](samples/README.md)).
 
 ## Stress results (device)
@@ -161,7 +165,7 @@ The drawn tree is ready **16× (SkUi\*) and 25× (Core) faster** than native MAU
 
 How to report bugs, request features and open pull requests: **[CONTRIBUTING.md](https://github.com/rafalka/MauiSkiaUi/blob/master/CONTRIBUTING.md)**. Questions go to [Discussions](https://github.com/rafalka/MauiSkiaUi/discussions) ([SUPPORT.md](https://github.com/rafalka/MauiSkiaUi/blob/master/SUPPORT.md)); security problems are reported privately ([SECURITY.md](https://github.com/rafalka/MauiSkiaUi/blob/master/SECURITY.md)).
 
-Build, test, CI, architecture, and design docs: **[Development.md](Development.md)**.
+Build, test and CI: **[Development.md](https://github.com/rafalka/MauiSkiaUi/blob/master/Development.md)**. Architecture, requirements and the roadmap: **[docs](https://github.com/rafalka/MauiSkiaUi/blob/master/docs/README.md)**.
 
 ## Changes
 

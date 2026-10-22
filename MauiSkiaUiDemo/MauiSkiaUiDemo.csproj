@@ -130,4 +130,9 @@
 	<!-- The component pages' (?) popups: EditorHelp.md and the XML documentation of SkiaUi and MAUI's controls. -->
 	<Import Project="EditorHelp.targets" />
 
+	<!-- SKUI_TOUR=1: opens every page and logs exceptions (scripts/page_tour.sh). -->
+	<ItemGroup>
+		<Compile Include="../tests/Shared/PageTour/PageTour.cs" Link="Diagnostics/PageTour.cs" />
+	</ItemGroup>
+
 </Project>

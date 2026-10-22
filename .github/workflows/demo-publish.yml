@@ -4,6 +4,10 @@ name: Demo publish
 # uploads them as artifacts. Android APK is produced unsigned/debug-keystore style for sideload testing unless
 # ANDROID_KEYSTORE_* secrets are configured. Mac Catalyst requires a macOS runner and is published as an unsigned
 # .app in a zip (right-click > Open on first launch).
+#
+# With release_tag set (by hand, or by nuget-publish.yml after each release), the apps are built from that tag and
+# attached to its GitHub release as SkiaUi-Demo-<version>-android-arm64.apk, SkiaUi-Demo-<version>-maccatalyst.zip
+# and the same for SkiaUi-Samples.
 
 on:
   workflow_dispatch:
@@ -34,6 +38,25 @@ on:
           - maccatalyst
           - android-and-maccatalyst
         default: android
+      release_tag:
+        description: Release tag (e.g. v1.0.0) to build from and attach the apps to; empty for artifacts only
+        required: false
+        type: string
+        default: ""
+  workflow_call:
+    inputs:
+      configuration:
+        type: string
+        default: Release
+      app:
+        type: string
+        default: demo-and-samples
+      platforms:
+        type: string
+        default: android-and-maccatalyst
+      release_tag:
+        type: string
+        default: ""
   push:
     tags:
       - "demo-v*"
@@ -89,6 +112,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag }}
 
       - name: Setup .NET MAUI
         uses: ./.github/actions/setup-dotnet-maui
@@ -178,6 +203,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag }}
 
       - name: Setup .NET MAUI
         uses: ./.github/actions/setup-dotnet-maui
@@ -231,3 +258,52 @@ jobs:
           name: ${{ matrix.app }}-maccatalyst
           path: artifacts/${{ matrix.app }}/maccatalyst
           if-no-files-found: error
+
+  release-assets:
+    name: Attach apps to ${{ inputs.release_tag }}
+    needs: [android, maccatalyst]
+    # One platform may be skipped (not selected); attach when nothing failed.
+    if: ${{ !cancelled() && inputs.release_tag != '' && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download Android apps
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "*-android"
+          path: incoming
+
+      - name: Download Mac Catalyst apps
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "*-maccatalyst"
+          path: incoming
+
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          mkdir -p out
+          shopt -s nullglob
+          for dir in incoming/*-android; do
+            app="$(basename "$dir" -android)"
+            # A Release build without a keystore is signed with the debug key (*-Signed.apk), which installs.
+            apk="$(find "$dir" -name '*-Signed.apk' | head -1)"
+            [[ -n "$apk" ]] || apk="$(find "$dir" -name '*.apk' | head -1)"
+            [[ -n "$apk" ]] || { echo "No APK in $dir" >&2; exit 1; }
+            cp "$apk" "out/SkiaUi-${app^}-${version}-android-arm64.apk"
+          done
+          for dir in incoming/*-maccatalyst; do
+            app="$(basename "$dir" -maccatalyst)"
+            cp "$dir/${app}-maccatalyst.zip" "out/SkiaUi-${app^}-${version}-maccatalyst.zip"
+          done
+          ls -la out
+          files=(out/*)
+          (( ${#files[@]} )) || { echo "Nothing to attach." >&2; exit 1; }
+          gh release upload "$TAG" "${files[@]}" --clobber -R "$REPO"

@@ -1,56 +1,6 @@
 # SkiaUi layout system
 
-Design notes and implementation checklist for **FR-3**, **FR-3a**, and dual-mode measure/arrange (**FR-13**) in [Requirements.md](Requirements.md).
-
-## Goal
-
-Provide a **MAUI-compatible** measure / arrange pipeline so SkiaUi can ship near drop-in copies of MAUI layouts (e.g. `SkUiGrid`) and **reuse MAUI layout managers** where practical, while supporting two hosting modes:
-
-| Mode | Meaning |
-| --- | --- |
-| **Standalone** | `SkUiView` (or subclass) is a child of the MAUI visual tree; our custom handler creates a SW or GL platform surface (`HwAccelerated`). |
-| **Hosted** | Node is `SkUiContentView.Content` or an item in `SkUiLayout.Children`; **no** MAUI handler / platform view; measure/arrange via `IView`, paint/touch on the parent’s shared surface. |
-
-Apps should be able to move a slow MAUI subtree to SkiaUi without rewriting layout markup (Grid rows/columns, stacks, margins, alignment).
-
-## Decision summary
-
-| Topic | Choice |
-| --- | --- |
-| Layout contract | **MAUI** measure + arrange / layout managers (**not** Flutter `BoxConstraints`) |
-| Why | Drop-in replacement goal; reuse `GridLayoutManager` and peers |
-| Type surface | `ISkUiView : IView`; `SkUiView` / `SkUiContentView` / `SkUiLayout` |
-| Platform base | `SkUiView` does **not** derive from `SKGLView`; custom handler maps `HwAccelerated` |
-| Hosted measure | Own `MeasureOverride` / `ArrangeOverride` — **must not** depend on `Handler` |
-| Coordinates | Same as MAUI (DIPs / density) for Measure, Arrange, Paint, Touch |
-
-## Architecture
-
-```
-Standalone root (handler + surface)
-        │  IView.Measure / IView.Arrange
-        ▼
-SkUiContentView / SkUiLayout / SkUiView
-        │  layout manager or Content forward
-        ▼
-Children (ISkUiView / IView)          ← Handler == null when hosted
-        │  MeasureOverride / ArrangeOverride (SkiaUi-owned)
-        ▼
-DesiredSize / Frame (DIPs)
-        │
-        ▼
-Paint on shared SKCanvas (hosted) or own surface (standalone)
-```
-
-### Who owns the layout pass?
-
-| Role | Responsibility |
-| --- | --- |
-| **MAUI parent** (e.g. `VerticalStackLayout`) | Measures/arranges the **standalone** SkiaUi root via `IView` like any other MAUI view. |
-| **SkUi layout managers** | On `SkUiLayout` subclasses (e.g. `SkUiGrid`), run MAUI-compatible measure/arrange over `Children` (reuse or port `GridLayoutManager`, stack managers, etc.). |
-| **`SkUiContentView`** | Forwards measure/arrange to single `Content`. |
-| **`SkUiView.MeasureOverride` / `ArrangeOverride`** | Single implementation used in **both** modes; sets `DesiredSize` / `Frame` without requiring a handler. |
-| **Custom handler** | Standalone only: creates platform view; may call into the same measure path or rely on `IView.Measure` already having run. Does **not** measure hosted descendants. |
+How drawn views measure and arrange: MAUI's measure / arrange contract and layout managers, not Flutter-style box constraints, so a `SkUi*` layout replaces its MAUI counterpart by changing the XAML prefix. Overview: [Architecture.md](Architecture.md#layout). The original design notes are archived in [docs/archive/LayoutSystem.md](../archive/LayoutSystem.md).
 
 ## Hosted vs standalone
 
@@ -89,9 +39,9 @@ if (view.Handler == null)
 
 4. Paint/touch come only from the ancestor that owns the surface.
 
-## Measure and arrange — what to implement on `SkUiView`
+## Measure and arrange on `SkUiView`
 
-### `MeasureOverride` (required)
+### `MeasureOverride`
 
 Override on `SkUiView` (and refine in layouts/controls as needed):
 
@@ -106,14 +56,14 @@ Override on `SkUiView` (and refine in layouts/controls as needed):
 
 Layouts (`SkUiLayout`): `MeasureOverride` (or `CrossPlatformMeasure` if mirroring MAUI `Layout`) should invoke the **layout manager** (`Measure(widthConstraint, heightConstraint)`), which in turn calls each child’s `IView.Measure`.
 
-### `ArrangeOverride` (required)
+### `ArrangeOverride`
 
 - Set **`Frame`** from arranged bounds (typically via `ComputeFrame` for margin/alignment parity, or an equivalent that works with `Handler == null`).
 - Position hosted children / update Skia layout rects used by Paint and hit-testing.
 - **`Handler?.PlatformArrange(Frame)`** only when standalone (root with a surface); never required for hosted children.
 - Changing offset alone must not force child remeasure/repaint when size and visual content are unchanged (FR-3a).
 
-### `InvalidateMeasureOverride` (required for hosted)
+### `InvalidateMeasureOverride`
 
 Default MAUI behavior invokes the handler. With no handler, invalidation must:
 
@@ -123,32 +73,7 @@ Default MAUI behavior invokes the handler. With no handler, invalidation must:
 
 ## Reusing MAUI layout managers
 
-### Feasibility
-
-Because every child implements **`IView`**, shipped managers such as **`GridLayoutManager`** can call `child.Measure` / `child.Arrange` **if**:
-
-1. `SkUiGrid` (etc.) implements the matching host interface (`IGridLayout` / `ILayout` as required).
-2. Children’s `MeasureOverride` / `ArrangeOverride` work with **`Handler == null`** (above).
-3. `DesiredSize`, `Visibility`, margins, and alignment properties match what the manager reads from `IView`.
-
-### `SkUiGrid` sketch
-
-```
-SkUiGrid : SkUiLayout, IGridLayout
-  CreateLayoutManager() → new GridLayoutManager(this)   // or ported copy
-  CrossPlatformMeasure / MeasureOverride → manager.Measure(...)
-  CrossPlatformArrange / ArrangeOverride → manager.ArrangeChildren(...)
-  Children as IList<ISkUiView> also exposed as ILayout/IContainer enumeration
-  Attached Row/Column/Span properties → IGridLayout.GetRow/GetColumn/...
-```
-
-### Reuse vs port
-
-| Approach | When |
-| --- | --- |
-| **Call shipped `GridLayoutManager`** | Prefer if `IGridLayout` + dual-mode Measure/Arrange are solid; least Grid math to maintain. |
-| **Port / copy `GridStructure`** | If interface surface or multi-pass interaction with selective caching is awkward; keep MAUI behavior, own the code. |
-| **Reimplement from scratch** | Last resort; still target MAUI-compatible results for drop-in markup. |
+Every child implements **`IView`**, so MAUI's own managers measure and arrange drawn children: `SkUiGrid` runs `GridLayoutManager` (as `IGridLayout`), the stacks `VerticalStackLayoutManager` / `HorizontalStackLayoutManager`, `SkUiAbsoluteLayout` `AbsoluteLayoutManager`. This works because children's `MeasureOverride` / `ArrangeOverride` run without a handler (above) and expose the `DesiredSize`, visibility, margins and alignment the managers read. Grid behavior (Auto / star / absolute tracks, spans, spacing) is therefore MAUI's, with no grid math of SkiaUi's own.
 
 **Flex:** `SkUiFlexLayout` calls MAUI's shipped `FlexLayoutManager`, but the flex engine it drives through `IFlexLayout.Layout` (`Microsoft.Maui.Layouts.Flex.Item`) is internal to MAUI. SkiaUi carries a port of that engine (`SkUiFlexItem`, from dotnet/maui 10.0.101) with the algorithm unchanged; a headless test checks its frames against MAUI's own `FlexLayout` over every container combination.
 
@@ -160,12 +85,10 @@ Multi-pass measure (Auto then `*` columns/rows) is **expected**. Optimize with p
 
 ## Selective measure / arrange / paint
 
-Aligned with NFR-2 / FR-3:
-
-- Per-node dirty flags: size, arrangement, visual layers.
-- Layout managers should ideally skip clean children when constraints are unchanged; if a stock manager always measures all children, wrap or port so SkiaUi can short-circuit via cached `DesiredSize` when safe.
-- Arrange-only changes (same size, new offset) update `Frame` / paint transform without remeasure.
-- Retained per-node pictures for unchanged paint ([RenderingPipeline.md](RenderingPipeline.md)); transparency-aware invalidation (FR-8).
+- Measure results are cached per constraint (`SkUiView.MeasureOverride`, `SkUiCoreNode.Measure`); controls implement `MeasureContent`. A node measured again with the same constraints and nothing invalidated returns its cached size without visiting its children.
+- Arrange-only changes (same size, new offset) update `Frame` and the node's composite-time offset: no remeasure, no re-record.
+- A child's measure change re-lays out its ancestors without re-recording them; only nodes whose size changed re-record (SkUi* views; Core nodes still re-record measure-dirty parents, see the [roadmap](Roadmap.md)).
+- Paint is retained per node ([RenderingPipeline.md](RenderingPipeline.md)).
 
 ## Right-to-left (FlowDirection)
 
@@ -185,54 +108,3 @@ MAUI mirrors native views for `FlowDirection="RightToLeft"`. Hosted SkiaUi nodes
 - The standalone root handler maps DIPs ↔ Skia pixels (`IgnorePixelScaling` / density) at the surface boundary only.
 - Layout managers and hosted children never work in raw pixels.
 
-## Implementation checklist
-
-### Core (`SkUiView`)
-
-- [x] Override **`MeasureOverride`**: handler-independent; margins + dimension requests; cache + dirty flags.
-- [x] Override **`ArrangeOverride`**: set `Frame`; optional `Handler?.PlatformArrange` for standalone root only.
-- [x] Override **`InvalidateMeasureOverride`** (and arrange/paint invalidation): propagate in hosted tree without handler.
-- [x] Document hosted vs standalone detection ([Detection](#detection)).
-- [x] Ensure `IView.Measure` / `Arrange` assign `DesiredSize` / `Frame` consistently with MAUI.
-
-### Content host (`SkUiContentView`)
-
-- [x] Measure: constrain and measure `Content`; return size including padding if any.
-- [x] Arrange: arrange `Content` into content bounds.
-- [x] Do not create a handler for `Content` when nested.
-
-### Layouts (`SkUiLayout` + concrete)
-
-- [x] Implement MAUI layout host interfaces as needed (`ILayout`, `IGridLayout`, …).
-- [x] Wire **layout managers** (reuse or port) for Grid, Vertical/Horizontal stack, Absolute, Flex (ported engine), etc.
-- [x] Wrap and shrink layouts on shared engines for SkUi* and Core.
-- [x] Attached properties for Grid row/column/span with drop-in names/behavior.
-- [x] Selective dirty tracking over `Children` (FR-3).
-- [x] Default `HwAccelerated = true` when the layout is a standalone root (FR-14).
-
-### Controls
-
-- [x] Leaf `MeasureOverride` based on content (e.g. `SkUiLabel` text / font metrics).
-- [x] Default `HwAccelerated = false` for leaves used standalone in collections (FR-14).
-
-### Verification
-
-- [x] Hosted tree under `SkUiContentView`: children `Handler == null`; non-zero measures; correct Grid Auto/`*` layout.
-- [x] Standalone `SkUiLabel` / `SkUiGrid` in a MAUI `VerticalStackLayout`: correct size and position.
-- [x] Standalone `SkUiGrid` with hosted children: one surface, children arranged by manager.
-- [x] Parity samples vs MAUI `Grid` / `StackLayout` for the same markup structure (spot-check).
-- [x] Invalidation: property change on hosted child remeasures only what is needed and redraws the root surface.
-
-## Open items
-
-- How aggressively to wrap stock managers for selective child measure vs porting them. Today `SkUiLayout` overrides `MeasureOverride` / `ArrangeOverride`, calls the stock MAUI managers, and unchanged children answer from their measure cache.
-
-Resolved: detection is structural ([Detection](#detection)); composite-time animations run on the render thread and never trigger layout passes ([RenderingPipeline.md](RenderingPipeline.md#animation-tiers)).
-
-## References
-
-- [Requirements.md](Requirements.md) — FR-3, FR-3a, FR-13, FR-14, NFR-2, Decided (layout system).
-- [DrawingMechanism.md](DrawingMechanism.md) — paint walk, layers, clip, and caching on the same arranged tree.
-- [EventMechanism.md](EventMechanism.md) — input delivery on the same arranged tree (hit-test uses bounds; clip is paint-only by default).
-- Local MAUI: `Microsoft.Maui.Layouts.GridLayoutManager`, `LayoutManager`, `LayoutExtensions.ComputeDesiredSize` / `ComputeFrame`.
-- Local MAUI Controls: `VisualElement.MeasureOverride` / `ArrangeOverride`, `Layout` + `CreateLayoutManager()`.

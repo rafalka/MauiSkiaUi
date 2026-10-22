@@ -6,7 +6,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// The disabled button fill (M4 in ImplementationPlan.md): a disabled button draws what the app set (a <c>Background</c>, a
+/// The disabled button fill (M4 in docs/archive/ImplementationPlan-1.0.md): a disabled button draws what the app set (a <c>Background</c>, a
 /// <c>FillColor</c>, a <c>Disabled</c> visual state's setters), only the scheme's default fill turns into the scheme's
 /// <c>Disabled</c> color, a button without a fill keeps none and dims its content, and <c>DisabledFillColor</c> replaces
 /// all of it; one rule on both layers, checked pixel by pixel SkUi vs Core.

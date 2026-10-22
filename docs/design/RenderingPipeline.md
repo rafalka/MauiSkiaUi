@@ -1,6 +1,6 @@
 # SkiaUi rendering pipeline and threading model
 
-This document is the source of truth for how a frame is produced and which thread does what (NFR-6). It supersedes the "v1 full-tree redraw" model that [DrawingMechanism.md](DrawingMechanism.md) used to describe. Layer semantics, clipping, and transparency rules in that document still apply.
+How a frame is produced and which thread does what (NFR-6). Overview, paint phases and clipping rules: [Architecture.md](Architecture.md#drawing-and-the-render-pipeline). The earlier full-tree redraw design is archived in [DrawingMechanism.md](../archive/DrawingMechanism.md).
 
 ## Goal
 

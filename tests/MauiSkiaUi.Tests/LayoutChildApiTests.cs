@@ -4,7 +4,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// MAUI's child APIs on drawn layouts (U1 in ImplementationPlan.md): <c>Layout.Add</c> / <c>Insert</c> / <c>Remove</c> /
+/// MAUI's child APIs on drawn layouts (U1 in docs/archive/ImplementationPlan-1.0.md): <c>Layout.Add</c> / <c>Insert</c> / <c>Remove</c> /
 /// <c>Clear</c>, MAUI's <c>GridExtensions</c> and Grid's per-view members, so code-behind ports by renaming the type; and
 /// the Core twins.
 /// </summary>

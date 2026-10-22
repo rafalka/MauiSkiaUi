@@ -4,7 +4,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// Semantics trees of drawn surfaces (P10 in ImplementationPlan.md): which drawn nodes of either layer screen readers
+/// Semantics trees of drawn surfaces (P10 in docs/archive/ImplementationPlan-1.0.md): which drawn nodes of either layer screen readers
 /// read, what they read, where they are, and the actions they perform. Labels get a fixed size: without an installed
 /// font (Linux CI) text measures empty, and zero-size views are not elements.
 /// </summary>

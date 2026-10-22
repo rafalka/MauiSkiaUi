@@ -30,10 +30,11 @@ Write entries under `## Unreleased` at the top of [CHANGELOG.md](../CHANGELOG.md
 
 ## Publishing
 
-Run the **NuGet publish** workflow ([nuget-publish.yml](../.github/workflows/nuget-publish.yml)) from GitHub Actions. Choose the branch (`master` or `devel`) in "Use workflow from", and pick a **bump**:
+Run the **NuGet publish** workflow ([nuget-publish.yml](../.github/workflows/nuget-publish.yml)) from GitHub Actions. Choose the branch (`master` or `devel`) in "Use workflow from", and pick a **bump** (`auto` fits the usual case):
 
 | Bump | Effect | Allowed on |
 | --- | --- | --- |
+| `auto` (default) | `release` on `master`, `prerelease` on `devel` (a choice's default can't depend on the branch, so the workflow picks) | Both |
 | `prerelease` | `-PrereleaseNN` → `-Prerelease(NN+1)` | `devel`; `master` only before the first stable release |
 | `release` | Drops the suffix: `1.1.0-Prerelease03` → `1.1.0` | `master` |
 | `patch` / `minor` / `major` | Next `X.Y.Z`; on `devel`, its `-Prerelease01` | Both |
@@ -44,7 +45,8 @@ The workflow then:
 1. Computes the version with [`scripts/release_version.py`](../scripts/release_version.py). It fails if the version is already on nuget.org, or if its tag already exists. If nuget.org can't be reached, it warns and continues; the push itself would still refuse a duplicate.
 2. Updates `Directory.Build.props` and `CHANGELOG.md` in the job's workspace, and packs that on macOS and Windows. The changelog section becomes `PackageReleaseNotes`.
 3. After the `nuget.org` environment gate (where reviewers approve, if required), commits `Release <version>` on top of the dispatch commit and pushes it together with the tag `v<version>` (`git push --atomic`). If the branch moved since the run started, the push is rejected and nothing is published or tagged: run it again.
-4. Pushes the package to nuget.org (Trusted Publishing), then creates the GitHub release `v<version>` with the notes and the package. Prereleases are marked as such.
+4. Pushes the package to nuget.org (Trusted Publishing), then creates the GitHub release `v<version>` with the notes and the package. Prereleases are marked as such. GitHub adds the source code (zip and tar.gz) to every release.
+5. Builds the demo and samples apps from the tag ([demo-publish.yml](../.github/workflows/demo-publish.yml)) and attaches them to the release: `SkiaUi-Demo-<version>-android-arm64.apk`, `SkiaUi-Demo-<version>-maccatalyst.zip`, and the same for `SkiaUi-Samples`. This runs after the package is published, so a failed app build does not hold it back: run **Demo publish** with `release_tag` = `v<version>` to attach them again. The same run attaches apps to an older release.
 
 **Dry run:** computes the version and packs, but doesn't commit, tag, push to nuget.org or create a release. The packages are uploaded as workflow artifacts.
 
@@ -56,4 +58,17 @@ Preview the next version locally:
 scripts/release_version.py next --bump prerelease --branch master
 ```
 
-**Setup:** see [Development.md](../Development.md#continuous-integration-github-actions) for the `nuget.org` environment and Trusted Publishing. The workflow pushes its release commit with the workflow token. If `master` or `devel` becomes a protected branch, allow GitHub Actions to push to it.
+## Setup
+
+See [Development.md](../Development.md#continuous-integration-github-actions) for the `nuget.org` environment and Trusted Publishing.
+
+The `master` ruleset requires pull requests and the `Build & test (Ubuntu)` check; only repository admins and deploy keys bypass it. The workflow therefore pushes its release commit and tag with a deploy key, not the workflow token. One-time setup:
+
+```bash
+ssh-keygen -t ed25519 -N "" -C "SkiaUi release" -f skiaui-release-key
+gh repo deploy-key add skiaui-release-key.pub --allow-write --title "nuget-publish release push" -R rafalka/MauiSkiaUi
+gh secret set RELEASE_DEPLOY_KEY --env nuget.org -R rafalka/MauiSkiaUi < skiaui-release-key
+rm skiaui-release-key skiaui-release-key.pub
+```
+
+The key is a secret of the `nuget.org` environment, so only a publish run you approved can use it. Without it, the publish job stops before pushing anything. Unlike the workflow token, a push with the key starts other workflows: CI runs on the release commit, and `nuget-pack.yml` packs the `v*` tag as artifacts (nothing is published).

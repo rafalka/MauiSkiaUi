@@ -60,8 +60,6 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | Sized shapes | Measure to their requests (as MAUI with a platform view) |
 | Hit testing | Rectangular arranged bounds |
 
-**Breaking (P6):** `Color` and `StrokeWidth` were replaced by `Fill` / `Stroke` and `StrokeThickness` (default 1, was 2). Shapes no longer default to a teal fill, and no longer measure 48 × 48 without a size.
-
 ## Related
 
 Demo pages: `EllipseDemoPage`, `RectangleDemoPage`, `RoundRectangleDemoPage`, `LineDemoPage`, `PolygonDemoPage`, `PolylineDemoPage`, `PathDemoPage` (side by side with MAUI's shapes). Samples app: **Controls › Shapes and borders**.
