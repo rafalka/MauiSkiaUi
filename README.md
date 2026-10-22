@@ -140,6 +140,8 @@ Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](
 
 `MauiSkiaUiDemo` in this repo is a component gallery (editors, native side-by-side comparisons, look/color playground, stress pages). It is for exploration and verification, not published with the NuGet package.
 
+**Prebuilt apps:** every [GitHub release](https://github.com/rafalka/MauiSkiaUi/releases) has the demo and samples apps attached: an Android APK (arm64, signed with a debug key: allow installing from unknown sources) and a Mac Catalyst app in a zip (not signed: right-click it and choose **Open** the first time).
+
 `samples/MauiSkiaUiSamples` shows **how to** build things with SkiaUi, e.g. a custom look with its own check-box transition. Each example page explains what it presents and how to achieve it, lists the things to know, and shows its own source ([samples/README.md](samples/README.md)).
 
 ## Stress results (device)
