@@ -62,13 +62,13 @@ runs:
 
     # ---- All platforms -----------------------------------------------------------------------------------------
     - name: Setup .NET SDK
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@v6
       with:
         global-json-file: global.json
 
     - name: Setup Java
       if: inputs.java-version != ''
-      uses: actions/setup-java@v5
+      uses: actions/setup-java@v6
       with:
         distribution: temurin
         java-version: ${{ inputs.java-version }}

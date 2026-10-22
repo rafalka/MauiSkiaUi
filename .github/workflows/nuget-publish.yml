@@ -43,7 +43,7 @@ jobs:
       push: ${{ steps.ver.outputs.push }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Compute version
         id: ver
@@ -104,7 +104,7 @@ jobs:
         run: echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Upload release files
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-files
           path: |
@@ -117,12 +117,12 @@ jobs:
     runs-on: macos-15
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
       - name: Release files (version, changelog)
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-files
           path: .
@@ -168,7 +168,7 @@ jobs:
           done
 
       - name: Upload macOS package
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-macos
           path: |
@@ -182,12 +182,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
       - name: Release files (version, changelog)
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-files
           path: .
@@ -225,7 +225,7 @@ jobs:
           done
 
       - name: Upload Windows package
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-windows
           path: |
@@ -244,29 +244,29 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
       - name: Release files (version, changelog)
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-files
           path: .
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
       - name: Download macOS package
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: nuget-macos
           path: incoming/macos
 
       - name: Download Windows package
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: nuget-windows
           path: incoming/windows
@@ -278,7 +278,7 @@ jobs:
           python3 scripts/merge_nupkgs.py incoming/macos incoming/windows artifacts/nuget
 
       - name: Upload NuGet packages
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-packages-${{ needs.prepare.outputs.version }}
           path: |

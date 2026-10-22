@@ -88,7 +88,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup .NET MAUI
         uses: ./.github/actions/setup-dotnet-maui
@@ -158,7 +158,7 @@ jobs:
           find artifacts/${{ matrix.app }}/android -type f \( -name '*.apk' -o -name '*.aab' \) -print
 
       - name: Upload Android artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.app }}-android
           path: |
@@ -177,7 +177,7 @@ jobs:
     runs-on: macos-15
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup .NET MAUI
         uses: ./.github/actions/setup-dotnet-maui
@@ -226,7 +226,7 @@ jobs:
           ls -la artifacts/${{ matrix.app }}/maccatalyst
 
       - name: Upload Mac Catalyst artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.app }}-maccatalyst
           path: artifacts/${{ matrix.app }}/maccatalyst
