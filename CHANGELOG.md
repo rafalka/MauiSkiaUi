@@ -16,6 +16,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### Other
 
 - **Development moved to `devel`:** pull requests target the `devel` branch, which publishes the `1.1.0` prereleases; `master` holds stable releases ([docs/Releasing.md](docs/Releasing.md#branches-and-versions)). The README, roadmap, contributing guide and security policy describe the stable state.
+- **Package README:** the readme on nuget.org no longer calls SkiaUi a preview (1.0.0 shipped with the prerelease notice). It now says who SkiaUi is for, what it adds beyond MAUI and which controls it has, and its quick start shows a collection view loading behind a shimmer.
 
 ## 1.0.0
 
