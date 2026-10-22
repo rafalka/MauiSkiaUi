@@ -44,6 +44,9 @@ dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
 # On-device verification outside VS Code (pick simulator/emulator/device, launch demo, print checklist)
 ./scripts/device_verify.sh -l
 ./scripts/device_verify.sh -p android --checklist overlay
+
+# Smoke run on Windows (Git Bash): opens every demo and samples page, fails on crashes and unexpected exceptions
+./scripts/page_tour.sh
 ```
 
 In VS Code, select **.NET MAUI: Select Startup Project > MauiSkiaUiDemo**, choose an Android or Apple target, and start debugging. Apply changes with Hot Reload while debugging. The demo includes MauiDevFlow by default in **Debug**, including ordinary builds/F5: the project references the agent and defines `MAUI_DEVFLOW` to activate the existing startup registration. **Release** excludes both the agent package and registration. No extension injection is needed for ordinary Debug builds; Copilot-triggered launch remains subject to the installed extension's injection-target error described under *Verification status*. For checklist-driven manual runs without DevFlow MCP, prefer [`scripts/device_verify.sh`](scripts/device_verify.sh) (see [Testing.md](docs/design/Testing.md#cli-path-no-vs-code--devflow-mcp)).

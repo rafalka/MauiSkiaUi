@@ -75,4 +75,9 @@
     <!-- SkiaUi.Maui.CommunityToolkit: the picker example's popups (CommunityToolkit.Maui comes with it). -->
     <ProjectReference Include="../../MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj" />
   </ItemGroup>
+  <!-- SKUI_TOUR=1: opens every page and logs exceptions (scripts/page_tour.sh). -->
+  <ItemGroup>
+    <Compile Include="../../tests/Shared/PageTour/PageTour.cs" Link="Diagnostics/PageTour.cs" />
+  </ItemGroup>
+
 </Project>

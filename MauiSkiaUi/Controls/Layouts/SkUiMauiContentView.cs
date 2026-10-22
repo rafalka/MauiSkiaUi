@@ -412,7 +412,8 @@ public partial class SkUiMauiContentView : SkUiView
                 y -= offset.Y;
             }
         }
-        return new Rect(x, y, Frame.Width, Frame.Height);
+        // Not arranged yet: MAUI's default Frame is (0, 0, -1, -1), and a negative size is invalid for platform views.
+        return new Rect(x, y, Math.Max(0, Frame.Width), Math.Max(0, Frame.Height));
     }
 
     /// <summary>

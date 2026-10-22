@@ -71,6 +71,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Fixes
 
+- **Windows: crash hosting native views before layout:** a root that attached a `SkUiMauiContentView` overlay before the overlay was arranged (for example the demo's accessibility page) threw `ArgumentException` (`E_RUNTIME_SETVALUE`), because the unarranged frame's size of -1 went to WinUI's `Width`. The overlay now gets a size of 0 until it is arranged.
 - **Core stepper corner radius:** `SkUiCoreStepper.CornerRadius` (and `SetCornerRadius`) is an `int`, as `SkUiStepper`'s; it was a `double`.
 - **Buttons whose command stops executing mid-press:** a press held on a button or image button (both layers) while its command's `CanExecute` turned `false` still completed: the SkUi\* buttons raised `Clicked`, the Core ones did not. The press now ends without a click, as when `IsEnabled` turns `false`, and no button raises `Clicked` while its command cannot execute (MAUI's rule).
 - **Android: drawn `AutomationId`s in MAUI's form:** drawn elements reported their id as a bare view id resource name, which Appium's id lookup (`package:id/automationId`) does not match; they now report it as MAUI's views do. A surface root's id no longer stays in its container's content description, where TalkBack read it.

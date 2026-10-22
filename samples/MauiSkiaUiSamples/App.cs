@@ -1,3 +1,5 @@
+using MauiSkiaUiTour;
+
 namespace MauiSkiaUiSamples;
 
 public sealed class App : Application
@@ -22,6 +24,19 @@ public sealed class AppShell : Shell
         Add("Overview", "overview", () => new SampleListPage(section: null));
         foreach (var section in SampleCatalog.Sections)
             Add(section.DisplayName(), "section-" + section, () => new SampleListPage(section));
+        // Scripted smoke run: SKUI_TOUR=1 opens every page and example (scripts/page_tour.sh).
+        PageTour.StartIfRequested(this, () =>
+        [
+            new("overview", () => GoToAsync("//overview")),
+            .. SampleCatalog.Sections.Select(section => new PageTour.Step("section-" + section, () => GoToAsync("//section-" + section))),
+            .. SampleCatalog.All.Select(entry => new PageTour.Step(entry.Info.Title,
+                async () =>
+                {
+                    await GoToAsync("//overview");
+                    await Navigation.PushAsync(entry.Create());
+                },
+                () => Navigation.PopAsync()))
+        ]);
     }
 
     private void Add(string title, string route, Func<Page> create) =>

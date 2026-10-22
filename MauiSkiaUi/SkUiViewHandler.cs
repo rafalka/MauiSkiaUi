@@ -2445,8 +2445,9 @@ internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.
         overlay.Clip.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry { Rect = new global::Windows.Foundation.Rect(0, 0, visible.Width, visible.Height) };
         SetLeft(child, bounds.X - visible.X);
         SetTop(child, bounds.Y - visible.Y);
-        child.Width = bounds.Width;
-        child.Height = bounds.Height;
+        // WinUI throws (E_RUNTIME_SETVALUE) on a negative or infinite size.
+        child.Width = double.IsFinite(bounds.Width) ? Math.Max(0, bounds.Width) : 0;
+        child.Height = double.IsFinite(bounds.Height) ? Math.Max(0, bounds.Height) : 0;
     }
 }
 #endif

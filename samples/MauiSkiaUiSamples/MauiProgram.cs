@@ -1,6 +1,7 @@
 using CommunityToolkit.Maui;
 using MauiSkiaUi;
 using MauiSkiaUi.CommunityToolkit;
+using MauiSkiaUiTour;
 
 namespace MauiSkiaUiSamples;
 
@@ -8,6 +9,7 @@ public static class MauiProgram
 {
     public static MauiApp CreateMauiApp()
     {
+        PageTour.HookExceptionsIfRequested();
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()

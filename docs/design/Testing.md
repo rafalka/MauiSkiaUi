@@ -118,6 +118,16 @@ It prints a table and exits non-zero on any failure. Logs go to `artifacts/devic
 
 Launched normally, the app shows the test page: **Run all**, **Rerun failed**, **Self-checks** (detector and render check), and **Run** per scenario, with results and survivors inline.
 
+## Page tour (smoke run of the apps)
+
+`scripts/page_tour.sh` (Windows, Git Bash) builds the demo and the samples app and launches each with `SKUI_TOUR=1`. The tour ([tests/Shared/PageTour/PageTour.cs](../../tests/Shared/PageTour/PageTour.cs), linked into both apps) opens every page in turn: the demo's flyout pages and component demos, and the samples app's section pages and examples. It scrolls each page's scrollers to the end and back, then quits the app.
+
+- **What it logs:** every exception with the page it happened on, also first-chance ones the code catches, because a caught exception can still hide a bug (the accessibility page's overlay sized to -1 threw inside `ConnectHandler`).
+- **When it fails:** the script exits non-zero when an app crashed or did not finish, or threw an exception that is not on the script's known list. The known list covers DevFlow's agent retrying its broker, cancellations, MAUI's packaged-app probe and `SkUiColumnsModel`'s caught format.
+- **Options:** `--all` lists the known exceptions too, `-d MS` sets how long each page stays open, and `-a demo|samples` runs one app. Logs go to `artifacts/page-tour/<timestamp>/`.
+- **Limits:** pages are opened and scrolled only. Nothing is tapped, so popups, pickers and dialogs are not covered.
+- **Other platforms:** the tour runs on any platform (`SKUI_TOUR=1` in the app's environment) and writes to the console (logcat on Android), but only the Windows run is scripted.
+
 ## Device profiling (dotnet-trace)
 
 Always profile **Release** builds. The demo enables emulator/simulator diagnostic defaults from the [MAUI profiling guide](https://learn.microsoft.com/dotnet/maui/fundamentals/profiling) unless you pass `-p:EnableProfiling=false`: Android emulator `10.0.2.2` + `connect`, iOS simulator `127.0.0.1` + `listen`, port `9000`, `DiagnosticSuspend=false`.
