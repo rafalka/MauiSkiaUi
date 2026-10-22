@@ -30,10 +30,11 @@ Write entries under `## Unreleased` at the top of [CHANGELOG.md](../CHANGELOG.md
 
 ## Publishing
 
-Run the **NuGet publish** workflow ([nuget-publish.yml](../.github/workflows/nuget-publish.yml)) from GitHub Actions. Choose the branch (`master` or `devel`) in "Use workflow from", and pick a **bump**:
+Run the **NuGet publish** workflow ([nuget-publish.yml](../.github/workflows/nuget-publish.yml)) from GitHub Actions. Choose the branch (`master` or `devel`) in "Use workflow from", and pick a **bump** (`auto` fits the usual case):
 
 | Bump | Effect | Allowed on |
 | --- | --- | --- |
+| `auto` (default) | `release` on `master`, `prerelease` on `devel` (a choice's default can't depend on the branch, so the workflow picks) | Both |
 | `prerelease` | `-PrereleaseNN` → `-Prerelease(NN+1)` | `devel`; `master` only before the first stable release |
 | `release` | Drops the suffix: `1.1.0-Prerelease03` → `1.1.0` | `master` |
 | `patch` / `minor` / `major` | Next `X.Y.Z`; on `devel`, its `-Prerelease01` | Both |
