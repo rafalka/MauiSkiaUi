@@ -7,6 +7,7 @@
 #   scripts/bench.sh --baseline HEAD                   # headless: uncommitted changes vs last commit
 #   scripts/bench.sh -t android -s 2299011508047ece --baseline master -S core-labels,skui-labels
 #   scripts/bench.sh -t ios -s <simulator-udid> -n 8
+#   scripts/bench.sh -t ios -s <device-udid> --look IosSkUiLook -S skui-buttons   # iOS 16 and older devices launch through mlaunch
 #   scripts/bench.sh -t maccatalyst
 #
 set -euo pipefail
@@ -24,6 +25,7 @@ BASELINE=""
 ROUNDS=1
 THRESHOLD=5
 QUIET_GC=0
+LOOK=""
 OUT=""
 TIMEOUT=900
 
@@ -44,6 +46,8 @@ Usage: scripts/bench.sh [options]
   --quiet-gc       headless: a gen0 budget large enough that no garbage collection lands inside an iteration
                    (each starts after a full one), so a change in allocations does not move a collection
                    into another phase; compares code paths, not collection costs
+  --look NAME      run with this look current, by type name (e.g. IosSkUiLook, AndroidSkUiLook), as an app that uses
+                   the platform's look; a baseline without it keeps the default look
   -o DIR           output directory (default artifacts/bench/<timestamp>)
   -l, --list       list scenarios and exit
   -h, --help       this help
@@ -61,6 +65,7 @@ while [[ $# -gt 0 ]]; do
         -r) ROUNDS="$2"; shift 2 ;;
         --threshold) THRESHOLD="$2"; shift 2 ;;
         --quiet-gc) QUIET_GC=1; shift ;;
+        --look) LOOK="$2"; shift 2 ;;
         -o) OUT="$2"; shift 2 ;;
         -l|--list) exec dotnet run -c Release --project "$REPO_ROOT/benchmarks/MauiSkiaUi.Benchmarks" -- --list ;;
         -h|--help) usage; exit 0 ;;
@@ -99,6 +104,13 @@ pick_android() {
 }
 
 ios_is_simulator() { xcrun simctl list devices | grep -q "$DEVICE"; }
+# devicectl drives iOS 17+ only. A 40-hex-digit UDID is an iPhone X or older (iOS 16 at most): launch it through mlaunch.
+ios_uses_mlaunch() { [[ "$DEVICE" =~ ^[0-9a-f]{40}$ ]]; }
+mlaunch_path() {
+    local root
+    root="$(dirname "$(readlink -f "$(command -v dotnet)")")"
+    find "$root"/packs/Microsoft.iOS.Sdk.net*/*/tools/bin -name mlaunch -type f 2>/dev/null | sort -V | tail -1
+}
 
 pick_ios() {
     [[ -n "$DEVICE" ]] && return
@@ -109,6 +121,7 @@ pick_ios() {
 app_args() { # label → launch arguments for the bench app / headless runner
     local args=(--runs "$RUNS" --warmup "$WARMUP" --label "$1")
     [[ -n "$SCENARIOS" ]] && args+=(--scenarios "$SCENARIOS")
+    [[ -n "$LOOK" ]] && args+=(--look "$LOOK")
     echo "${args[@]}"
 }
 
@@ -164,6 +177,7 @@ run_android() { # label dir round
     adb -s "$DEVICE" logcat -c
     local extras=(--ez autorun true --ei runs "$RUNS" --ei warmup "$WARMUP" --es label "$label")
     [[ -n "$SCENARIOS" ]] && extras+=(--es scenarios "$SCENARIOS")
+    [[ -n "$LOOK" ]] && extras+=(--es look "$LOOK")
     adb -s "$DEVICE" shell am start -n "$ACTIVITY" "${extras[@]}" >/dev/null
     local waited=0
     until adb -s "$DEVICE" logcat -d | grep -q "SKUIBENCH_DONE"; do
@@ -186,6 +200,16 @@ run_ios() { # label dir round
             | grep "SKUIBENCH" | sed 's/.*SKUIBENCH/SKUIBENCH/' >"$logfile" || true
     else
         app="$(find_output "$dir" "*-ios/ios-arm64/*.app")"
+        if ios_uses_mlaunch; then
+            local mlaunch launch_args=(--autorun --exit "${args[@]}")
+            mlaunch="$(mlaunch_path)"
+            [[ -n "$mlaunch" ]] || { echo "mlaunch not found (iOS workload)" >&2; exit 1; }
+            "$mlaunch" --installdev "$app" --devname "$DEVICE" >/dev/null 2>&1
+            timeout "$TIMEOUT" "$mlaunch" --launchdev "$app" --devname "$DEVICE" --wait-for-exit:true \
+                "${launch_args[@]/#/--argument=}" 2>&1 | grep "SKUIBENCH" | sed 's/.*SKUIBENCH/SKUIBENCH/' >"$logfile" || true
+            echo "$logfile"
+            return
+        fi
         xcrun devicectl device install app --device "$DEVICE" "$app" >/dev/null
         timeout "$TIMEOUT" xcrun devicectl device process launch --console --terminate-existing --device "$DEVICE" "$APP_ID" --autorun --exit "${args[@]}" 2>&1 \
             | grep "SKUIBENCH" | sed 's/.*SKUIBENCH/SKUIBENCH/' >"$logfile" || true

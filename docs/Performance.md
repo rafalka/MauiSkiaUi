@@ -5,7 +5,7 @@ What SkiaUi costs on real devices, measured with the demo app's stress pages: ho
 ## How it was measured
 
 - **Devices:** Samsung Galaxy S9 (Android 10, Exynos 9810, OpenGL ES; 60 Hz) and iPhone 8 (iOS 16.7, A11, Metal; 60 Hz). Both were chosen to represent old, slow devices: what holds up on them holds up on the phones most apps support. Devices had not been under load before each batch. Back-to-back sessions on a warm device ran up to 30 % slower, so compare numbers from one session.
-- **Code and toolchain:** measured on 21 October 2026 at commit `f9ca53c`, on .NET 10 (SDK 10.0.400, MAUI 10.0.110, SkiaSharp 4.153.1).
+- **Code and toolchain:** measured on 21 October 2026 at commit `f9ca53c`, on .NET 10 (SDK 10.0.400, MAUI 10.0.110, SkiaSharp 4.153.1). The iPhone 8's spinner row was measured again on 22 October, after the iOS look's activity indicator was drawn as one image (2 launches per layer, against that session's baseline).
 - **Builds:** Release builds of `MauiSkiaUiDemo` (iOS: full AOT), GPU surfaces (`HwAccelerated = true`).
 - **Runs:** scripted, with no one touching the device (see [Reproducing](#reproducing)).
   - Stress page: 2 launches of 4 rounds per layer; the first round of each launch warms up and is not counted, so each number is the average of 6 rounds.
@@ -42,6 +42,8 @@ The drawn layers are ready **16× (SkUi*) and 25× (Core) faster** than native M
 
 The first round after launch is slower on every layer (S9 SkUi* 570 ms, Core 303 ms overall): it also pays for creating the GPU surface and for code that runs for the first time.
 
+On the iPhone 8 the garbage collector takes a large share of SkUi*'s *Generate*: the 1,000 buttons are about 8 MB of objects that all stay alive, and the collections that run while they are built (minor and major ones) took about 33 ms per round in a profile of the demo. Whether a costly one lands inside a round moves *Generate* between about 60 and 110 ms, so compare averages of several rounds from one session. The earlier 73 ms (2 October, commit `5b5b28b`) is not a different cost of the code: that commit's own demo, run on the same device on 22 October, built in 110 ms (one round in eight in about 60 ms), as the current one does. The benchmark app builds the same buttons in about 50 ms, where collections cost about half as much.
+
 ## Drawing effects
 
 The Effects stress page: **400 cards** (avatar, title, subtitle) in a scroll view, with one effect switched on at a time, then all together:
@@ -66,7 +68,7 @@ Render time per frame while scrolling, and frames per second. The change from th
 | gradient | 5.2 ms (+4 %) · 60 fps | 5.3 ms (+4 %) · 60 fps | 6.0 ms (+18 %) · 57 fps | 5.1 ms (0 %) · 59 fps |
 | rounded | 5.3 ms (+7 %) · 60 fps | 5.4 ms (+6 %) · 60 fps | 5.6 ms (+10 %) · 58 fps | 5.4 ms (+6 %) · 59 fps |
 | clip | 5.7 ms (+15 %) · 60 fps | 5.7 ms (+14 %) · 60 fps | 6.6 ms (+31 %) · 57 fps | 5.9 ms (+16 %) · 59 fps |
-| spinner | 7.3 ms (+45 %) · 57 fps | 6.5 ms (+29 %) · 60 fps | 4.9 ms (−3 %) · 60 fps | 5.3 ms (+4 %) · 59 fps |
+| spinner | 5.5 ms (+9 %) · 60 fps | 5.5 ms (+9 %) · 60 fps | 4.9 ms (−3 %) · 60 fps | 5.3 ms (+4 %) · 59 fps |
 | translucent | 6.4 ms (+27 %) · 60 fps | 6.5 ms (+28 %) · 60 fps | 6.8 ms (+35 %) · 58 fps | 6.9 ms (+35 %) · 59 fps |
 | card shadow | 6.4 ms (+28 %) · 60 fps | 6.2 ms (+23 %) · 60 fps | 7.3 ms (+45 %) · 55 fps | 6.5 ms (+28 %) · 58 fps |
 | text shadow | 7.2 ms (+44 %) · 60 fps | 7.2 ms (+43 %) · 60 fps | 14.2 ms (+180 %) · **45 fps** | 13.6 ms (+168 %) · **45 fps** |
@@ -85,10 +87,9 @@ First frame of the 400-card list (ms):
 ### What the numbers mean
 
 - **Nothing re-records while scrolling.** No configuration recorded a picture during the scroll: gradients, shadows, clips and opacity are applied when compositing, and moving content only changes offsets. The cost of an effect is compositing (and GPU) work per frame.
-- **Free in practice:** gradient backgrounds, rounded corners and clips cost 0–30 % render time and keep 57–60 fps on both devices.
+- **Free in practice:** gradient backgrounds, rounded corners, clips and running activity indicators cost 0–30 % render time and keep 57–60 fps on both devices. (The iOS look's spinner drew its 8 spokes one by one until 22 October, which cost 30–45 % on the iPhone 8; it is one image now.)
 - **Moderate:**
   - Translucent cards (an opacity layer each) and card shadows from opaque fills cost 25–45 %. The iPhone 8 keeps 60 fps; the S9 keeps 55–59 fps. The blur work is on the GPU, and these numbers don't include GPU time.
-  - Running activity indicators cost nothing on the S9 but 30–45 % on the iPhone 8, where the SkUi* list drops to 57 fps while scrolling.
 - **Expensive on the S9:**
   - **Shaped borders** (a path with a dashed gradient stroke, about 20 ms per frame) and **text shadows** (14 ms per frame) take the S9 to 33–45 fps. The iPhone 8 holds 60 fps with both.
   - The dashed outline of a complex path is costly on the S9's GL backend.

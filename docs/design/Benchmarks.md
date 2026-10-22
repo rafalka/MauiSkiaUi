@@ -30,8 +30,12 @@ scripts/bench.sh --baseline HEAD --quiet-gc
 # Device: a branch vs master on a connected Android phone, selected scenarios, 8 runs
 scripts/bench.sh -t android -s 2299011508047ece --baseline master -S core-labels,skui-labels -n 8
 
-# iOS simulator (UDID from `xcrun simctl list devices`); a physical iPhone UDID uses devicectl
+# iOS simulator (UDID from `xcrun simctl list devices`); a physical iPhone UDID uses devicectl (iOS 17+), or mlaunch
+# from the iOS workload for a 40-hex-digit UDID (iPhone X and older, iOS 16 at most)
 scripts/bench.sh -t ios -s A7AC4C38-0DC8-471D-831B-7B3C9452BB76
+
+# With the platform's look current, as an app built with DefaultSkUiLook.ForCurrentPlatform() (any SkUiLook type name)
+scripts/bench.sh -t ios -s bd3d146c5a1990681dc15b4df632a85236005695 --look IosSkUiLook -S skui-stress-buttons,spinners
 
 # Mac Catalyst
 scripts/bench.sh -t maccatalyst
@@ -95,6 +99,7 @@ The catalog lives in [benchmarks/Scenarios/Scenarios.cs](../../benchmarks/Scenar
 | --- | --- |
 | `core-labels`, `skui-labels` | 1,000 plain labels in a 2-column grid (Core vs SkUi* layer) |
 | `core-buttons`, `skui-buttons` | 1,000 buttons (the Stress page workload) |
+| `skui-stress-buttons` | The same buttons as the Stress page builds them: text color, fill, border and a command each |
 | `mixed-script-labels` | Arabic / Hebrew / Devanagari / emoji / CJK: HarfBuzz shaping, bidi, font fallback |
 | `core-labels-simple` | Numeric labels with `TextRendering = Simple` |
 | `core-labels-update`, `skui-labels-update` | Steady state: change every label's text (re-layout + re-record) |
@@ -168,3 +173,7 @@ The headless runner reaches the internal frame pipeline (`SkUiFrameRenderer`) by
 - **State-change transitions (UI thread)** (found by `toggle-transitions`):
   - **First run:** re-toggling every 250 ms reported about 50 frames per second even on Mac Catalyst at 0.4 ms per frame. The transitions (160–200 ms) had ended before each re-toggle, so no frames were needed in between. The scenarios now re-toggle every 120 ms.
   - **Result:** with 96 controls always animating, the Galaxy S9 runs 58.4 UI animation frames per second at 4.7 ms each (about 0.05 ms per control); Mac Catalyst runs 59.9 at 0.6 ms. With the UI thread blocked 25% of the time, it drops to 51.5 / 49.9. Details and the design decision: [ArchitectureReview.md](ArchitectureReview.md#state-change-animations).
+
+- **iOS look spinners and Stress page Generate on the iPhone 8** (found by `spinners`, `skui-stress-buttons` with `--look IosSkUiLook`):
+  - **Spinners:** the iOS look's activity indicator drew its 8 spokes one by one, so each running spinner was 8 draws on every frame the render thread turned it (an arc is one). 120 spinners rendered in 7.3 ms per frame against 4.1 ms with the arc, and the Effects stress page's spinner cards cost +33 % render time while scrolling. The spokes are now rasterized once per size and color and drawn as one image: 6.0 ms for 120 spinners, +9 % on the Effects page.
+  - **Generate:** the Stress page's SkUi\* *Generate* went from 73 ms (2 October) to 114 ms. In the benchmark app the same buttons built in 48 ms at the old commit and 52 ms now, with the iOS look or without it, and the old commit's demo, run on the same day as the new one, built in 110 ms as well. A Time Profiler trace of the demo put about 33 ms per round in Mono's collector (minor and major collections while 8 MB of live buttons are built), against 16 ms in the benchmark app. Whether a costly collection lands inside a round moves the demo between about 60 and 110 ms.

@@ -6,6 +6,7 @@ using SkiaSharp;
 // Tier-1 headless benchmark runner. Output: a median table on stdout, one "SKUIBENCH {json}" line per sample,
 // and (with --json) a results file consumed by scripts/bench_compare.py.
 var options = BenchArgs.Parse(args);
+options.ApplyLook();
 // SKUIBENCH_RETAINED=1: also print the managed heap the tree keeps (SKUIRETAINED lines; full collections between phases,
 // so timings are not comparable). Exact only for scenarios that keep nothing of the previous iteration's tree.
 var measureRetained = Environment.GetEnvironmentVariable("SKUIBENCH_RETAINED") == "1";

@@ -789,20 +789,124 @@ public class DefaultSkUiLook : SkUiLook
     {
         var spokeCount = Math.Max(1, ActivityIndicatorSpokeCount);
         var diameter = Math.Min(width, height);
-        var outer = diameter / 2;
-        var inner = outer * 0.55f;
-        paint.StrokeWidth = Math.Max(1.5f, diameter * 0.09f);
-        var color = paint.Color;
-        for (var spoke = 0; spoke < spokeCount; spoke++)
+        // One image per size, color and spoke count, drawn as one quad: spokes drawn one by one are a draw each on every frame
+        // the render thread turns the picture (a scrolling list with a spinner per card took 6.7 instead of 5.5 ms a frame on
+        // an iPhone 8; an arc is one draw).
+        if (SpokesImage.TryDraw(canvas, width, height, diameter, paint.Color, spokeCount))
+            return;
+        // Too large to keep as an image (or no surface for it): the spokes themselves.
+        SpokesImage.DrawShapes(canvas, width / 2, height / 2, diameter, paint.Color, spokeCount);
+    }
+
+    /// <summary>
+    /// Spokes rasterized at the display scale, shared by the indicators that draw them alike (an indicator scaled up by a
+    /// transform draws them a little softer). Keyed by exact size and color: the values the indicators record. The least
+    /// recently drawn image goes first once <see cref="Capacity"/> are kept.
+    /// </summary>
+    internal static class SpokesImage
+    {
+        internal const int Capacity = 16;
+
+        /// <summary>Pixels across the largest image kept (1 MB); larger spinners (over about 170 DIPs at 3×) draw their spokes.</summary>
+        internal const int MaxPixels = 512;
+
+        private static readonly Dictionary<Key, LinkedListNode<Entry>> Entries = [];
+        private static readonly LinkedList<Entry> Recency = []; // most recent first
+
+        internal static int Count
         {
-            // The first spoke is the brightest; the following ones fade (the render thread rotates the picture).
-            paint.Color = color.WithAlpha((byte)(color.Alpha * (1 - 0.8f * spoke / spokeCount)));
-            var angle = -Math.PI / 2 + spoke * 2 * Math.PI / spokeCount;
-            var cos = (float)Math.Cos(angle);
-            var sin = (float)Math.Sin(angle);
-            canvas.DrawLine(width / 2 + cos * inner, height / 2 + sin * inner, width / 2 + cos * outer, height / 2 + sin * outer, paint);
+            get { lock (Entries) return Entries.Count; }
         }
-        paint.Color = color;
+
+        /// <summary>
+        /// Draws the cached (or newly rasterized) image centered in <paramref name="width"/> × <paramref name="height"/>;
+        /// <c>false</c> when the spinner is too large to keep as an image or no surface could be made.
+        /// </summary>
+        internal static bool TryDraw(SKCanvas canvas, float width, float height, float diameter, SKColor color, int spokeCount)
+        {
+            var scale = Math.Max(1, SkUiImageLoader.DisplayScale);
+            var pixels = Pixels(diameter, scale);
+            if (pixels > MaxPixels)
+                return false;
+            var extent = pixels / scale;
+            var key = new Key(diameter, color, spokeCount, scale);
+            // Drawn under the lock: another recording that evicts (and disposes) the image cannot do so between finding and
+            // drawing it. Pictures keep their own reference to the images they draw, so evicting leaves recorded spinners intact.
+            lock (Entries)
+            {
+                if (Entries.TryGetValue(key, out var node))
+                {
+                    Recency.Remove(node);
+                    Recency.AddFirst(node);
+                }
+                else
+                {
+                    if (Render(diameter, color, spokeCount, pixels, extent) is not { } image)
+                        return false;
+                    if (Entries.Count >= Capacity && Recency.Last is { } oldest)
+                    {
+                        Entries.Remove(oldest.Value.Key);
+                        Recency.RemoveLast();
+                        oldest.Value.Image.Dispose();
+                    }
+                    node = Recency.AddFirst(new Entry(key, image));
+                    Entries[key] = node;
+                }
+                var left = (width - extent) / 2;
+                var top = (height - extent) / 2;
+                canvas.DrawImage(node.Value.Image, new SKRect(left, top, left + extent, top + extent), new SKSamplingOptions(SKFilterMode.Linear), null);
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// The spokes as shapes about (<paramref name="centerX"/>, <paramref name="centerY"/>): each a capsule (a round-capped
+        /// line from 55 % of the radius to the circle), the first at the top and the brightest, the following ones, clockwise,
+        /// fading (the render thread rotates the picture).
+        /// </summary>
+        internal static void DrawShapes(SKCanvas canvas, float centerX, float centerY, float diameter, SKColor color, int spokeCount)
+        {
+            var outer = diameter / 2;
+            var inner = outer * 0.55f;
+            var half = Math.Max(1.5f, diameter * 0.09f) / 2;
+            var spoke = new SKRect(centerX - half, centerY - outer - half, centerX + half, centerY - inner + half);
+            using var paint = new SKPaint { IsAntialias = true };
+            var save = canvas.Save();
+            for (var index = 0; index < spokeCount; index++)
+            {
+                paint.Color = color.WithAlpha((byte)(color.Alpha * (1 - 0.8f * index / spokeCount)));
+                canvas.DrawRoundRect(spoke, half, half, paint);
+                canvas.RotateDegrees(360f / spokeCount, centerX, centerY);
+            }
+            canvas.RestoreToCount(save);
+        }
+
+        /// <summary>
+        /// Pixels across the image: the circle and the spokes' round ends, half a spoke width past it, rounded up so the
+        /// margin is whole pixels on each side (centered on an indicator whose size is whole pixels, it is not resampled).
+        /// </summary>
+        private static int Pixels(float diameter, float scale)
+        {
+            var circle = (int)Math.Round(diameter * scale);
+            var pixels = Math.Max(1, (int)Math.Ceiling((diameter + Math.Max(1.5f, diameter * 0.09f)) * scale));
+            return (pixels - circle) % 2 == 0 ? pixels : pixels + 1;
+        }
+
+        private static SKImage? Render(float diameter, SKColor color, int spokeCount, int pixels, float extent)
+        {
+            using var surface = SKSurface.Create(new SKImageInfo(pixels, pixels, SKImageInfo.PlatformColorType, SKAlphaType.Premul));
+            if (surface is null)
+                return null;
+            var canvas = surface.Canvas;
+            canvas.Clear(SKColors.Transparent);
+            canvas.Scale(pixels / extent);
+            DrawShapes(canvas, extent / 2, extent / 2, diameter, color, spokeCount);
+            return surface.Snapshot();
+        }
+
+        private readonly record struct Key(float Diameter, SKColor Color, int Spokes, float Scale);
+
+        private readonly record struct Entry(Key Key, SKImage Image);
     }
 
     /// <inheritdoc />
