@@ -25,7 +25,7 @@ Re-review of the implementation against the previous review (2026-09-25), checke
 | Virtualization (2.7) | Open | FR-21 / FR-22 recorded; readiness gaps in §4 |
 | Masked native overlays (2.8) | Open | Overlays clip to rectangles only; drawn content can't cover them |
 | `ITicker` / reduce motion (2.9) | Open | Own `SkUiUiTicker`; the OS reduce-motion setting is not honored |
-| Accessibility, keyboard focus, OS font scaling | Done (P10) | A semantics tree per surface mapped to TalkBack, VoiceOver and Narrator; keyboard focus with a look-drawn ring; `FontAutoScalingEnabled` (N8, [Accessibility.md](Accessibility.md)) |
+| Accessibility, keyboard focus, OS font scaling | Done (P10) | A semantics tree per surface mapped to TalkBack, VoiceOver and Narrator; keyboard focus with a look-drawn ring; `FontAutoScalingEnabled` (N8, [Accessibility.md](../design/Accessibility.md)) |
 | Enforced performance budget | Open | `PerformanceTests` logs numbers for the immediate painter, not the retained record / commit path |
 | Drawn `SkUiEntry` with an IME proxy | Planned (Phase D) | Reversed: hosted text fields carry every overlay limit (snapshots, rectangle clips, nothing drawn on top, one platform view per list cell, no Core use), and controls built on editable text need a drawn editor. FR-16 keeps hosting for WebView and other platform engines |
 | Core as a separate assembly (FR-C1) | Open, re-decide | Core now uses MAUI Controls types (`IVisualElementController` for flow direction) |
@@ -44,7 +44,7 @@ Ordered by severity. File references are to the code at the time of the review.
 | N5 | Medium | `InvalidateMeasure` walks to the root without an early-out, and each level calls `InvalidatePaint`: every ancestor re-records its picture (e.g. `SkUiCoreTable` redraws all track backgrounds on a cell text change) | Propagate layout without content dirtiness (size changes already re-record): **done for SkUi* views** (A5: a parent reached from a child is marked for layout only; `PipelineTests`, `ExpanderTests` check that relayouts record only resized nodes). Surface roots are relayout boundaries (A5: a descendant's change is laid out in place before the next frame; the native layout only when the root's size changes). Open: the same for Core nodes, stop at measure-dirty parents, relayout boundaries inside the tree (§4) |
 | N6 | Medium — **partly fixed** | Swapping `SkUiLook.Current` / `SkUiColorScheme.Current` left retained pictures stale; some controls snapshot scheme colors at construction | Fixed: live surfaces re-measure and redraw their drawn tree on `CurrentChanged` (`SkUiLook.NotifyChanged()` for looks changed in place). Open: resolve scheme defaults at paint time ("not explicitly set") instead of snapshots; hook `RequestedThemeChanged` |
 | N7 | Medium | Any running render-thread animation (a 36-DIP spinner, an indeterminate bar) re-composites the whole surface at display rate | Raster-cache stable siblings (§4) |
-| N8 | Medium — **fixed** | No OS font scaling (`FontAutoScalingEnabled`), no semantics tree, no keyboard focus / activation | Fixed (P10): a semantics tree built lazily from the render tree (both layers), rebuilt after committed frames and scrolls only while a platform bridge reads it; `ExploreByTouchHelper`, accessibility elements, automation peers; a per-surface focus manager; OS text size in the text styles ([Accessibility.md](Accessibility.md)) |
+| N8 | Medium — **fixed** | No OS font scaling (`FontAutoScalingEnabled`), no semantics tree, no keyboard focus / activation | Fixed (P10): a semantics tree built lazily from the render tree (both layers), rebuilt after committed frames and scrolls only while a platform bridge reads it; `ExploreByTouchHelper`, accessibility elements, automation peers; a per-surface focus manager; OS text size in the text styles ([Accessibility.md](../design/Accessibility.md)) |
 | N9 | Medium — **fixed** | No shared image cache: every instance re-loads and re-decodes the same source and holds several copies of the encoded bytes; duplicated between SkUi\* and Core | Fixed (P4): one loader (`SkUiImageLoader`) and one image slot for both layers; decoded images in a memory LRU keyed by source, decode size and transformations, leased by the views that show them; shared in-flight loads; a download disk cache (`ImageLoadingTests`) |
 | N10 | Low–Medium | Android overlays allocate `Rect` Java peers per offset report and look overlays up with LINQ per child; clip computation walks ancestors per ancestor (O(depth²)) | Reuse rectangles, key overlays by clip view, one ancestor walk |
 | N11 | Low — **fixed** | Fling stop test ignores direction (a flick inward from an edge stops at once); `maxX` / `maxY` are frozen at fling start | Fixed (P8): an axis stops only at the edge it moves towards (with overscroll it bounces from it), and the fling follows extent and viewport changes while it runs (`ScrollViewParityTests`) |
@@ -104,7 +104,7 @@ The spinner and fling cases (N7) are the benchmark.
 - Apply it as a mask: `CAShapeLayer` on iOS, a path clip on Android, a geometric clip on Windows.
 - Fall back to the snapshot mode while an occluder overlaps.
 
-**Accessibility** (done in P10, [Accessibility.md](Accessibility.md)).
+**Accessibility** (done in P10, [Accessibility.md](../design/Accessibility.md)).
 - A semantics tree from MAUI `SemanticProperties` / `AutomationProperties` on SkUi\* and semantic properties on Core, built lazily from the render tree when a platform bridge reads it (not during recording: most frames have no reader).
 - Exposed through `ExploreByTouchHelper` (Android), accessibility elements on the surface container (iOS / Mac Catalyst) and automation peers (Windows); actions call the nodes' tap paths directly (a simulated touch could hit a child instead).
 - OS font scaling and keyboard focus / activation; reduce motion was already followed (`SkUiMotion`).
@@ -113,7 +113,7 @@ The spinner and fling cases (N7) are the benchmark.
 
 Requirement FR-26: switch, check box and radio transitions, press feedback (dim, ripple), slider and progress motion, configurable by `SkUiLook`. **Implemented** on the UI-thread design below; the render-thread variants stay open for later.
 
-**Design as built** ([ControlLook.md](ControlLook.md#state-change-transitions-fr-26), [AnimationMechanism.md](AnimationMechanism.md#state-change-transitions)):
+**Design as built** ([ControlLook.md](../design/ControlLook.md#state-change-transitions-fr-26), [AnimationMechanism.md](AnimationMechanism.md#state-change-transitions)):
 
 1. **Looks draw from continuous parameters.**
    - Paint structs carry the transition: `SkUiToggleVisual` (from / to state, eased progress, press amount, with `Weight` / `Blend` helpers) and `SkUiPressVisual` (press amount, press point, ripple spread and fade). The slider's drawn fraction and press amount, and the progress bar's drawn fill, travel in their paint structs too.
@@ -127,7 +127,7 @@ Requirement FR-26: switch, check box and radio transitions, press feedback (dim,
 5. **One timeline.** Every transition runs on the UI clock; nothing mixes it with the render clock.
 6. **Reduce motion.** `SkUiMotion` follows the OS setting and can be overridden. While reduced, every transition is `None`.
 
-**Measurements.** Device benchmarks `toggle-transitions` and `toggle-transitions-busy` ([Benchmarks.md](Benchmarks.md)): 96 switches and check boxes re-toggled every 120 ms, so all of them are always mid-transition. Release builds, medians of 6 runs.
+**Measurements.** Device benchmarks `toggle-transitions` and `toggle-transitions-busy` ([Benchmarks.md](../design/Benchmarks.md)): 96 switches and check boxes re-toggled every 120 ms, so all of them are always mid-transition. Release builds, medians of 6 runs.
 
 | Device | Scenario | UI animation frames / s | UI work per frame (avg / max) | Render per frame (avg) |
 | --- | --- | --- | --- | --- |

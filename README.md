@@ -47,6 +47,8 @@ MAUI page
 
 Package on nuget.org: **[SkiaUi.Maui](https://www.nuget.org/packages/SkiaUi.Maui/)**.
 
+**Requirements:** .NET 10 with .NET MAUI 10.0.110 or a later 10.x; Android 5.0 (API 21), iOS 15, Mac Catalyst 15 and Windows 10 1809 or newer. iOS and Mac Catalyst builds need Xcode 26.
+
 ```bash
 dotnet add package SkiaUi.Maui
 ```
@@ -161,7 +163,7 @@ The drawn tree is ready **16× (SkUi\*) and 25× (Core) faster** than native MAU
 
 How to report bugs, request features and open pull requests: **[CONTRIBUTING.md](https://github.com/rafalka/MauiSkiaUi/blob/master/CONTRIBUTING.md)**. Questions go to [Discussions](https://github.com/rafalka/MauiSkiaUi/discussions) ([SUPPORT.md](https://github.com/rafalka/MauiSkiaUi/blob/master/SUPPORT.md)); security problems are reported privately ([SECURITY.md](https://github.com/rafalka/MauiSkiaUi/blob/master/SECURITY.md)).
 
-Build, test, CI, architecture, and design docs: **[Development.md](Development.md)**.
+Build, test and CI: **[Development.md](https://github.com/rafalka/MauiSkiaUi/blob/master/Development.md)**. Architecture, requirements and the roadmap: **[docs](https://github.com/rafalka/MauiSkiaUi/blob/master/docs/README.md)**.
 
 ## Changes
 

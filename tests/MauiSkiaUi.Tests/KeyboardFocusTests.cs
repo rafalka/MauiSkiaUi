@@ -4,7 +4,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// Keyboard focus of drawn surfaces (P10 in ImplementationPlan.md): MAUI's <c>Focus()</c> / <c>Unfocus()</c> /
+/// Keyboard focus of drawn surfaces (P10 in docs/archive/ImplementationPlan-1.0.md): MAUI's <c>Focus()</c> / <c>Unfocus()</c> /
 /// <c>IsFocused</c> on drawn views, Core focus, tab order, activation and arrow keys, the focus ring. In the global
 /// collection: whether the keyboard or a pointer was used last is process-wide.
 /// </summary>

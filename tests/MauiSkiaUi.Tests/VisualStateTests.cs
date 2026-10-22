@@ -3,7 +3,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// MAUI visual states on drawn controls (Phase P2 in ImplementationPlan.md): each control goes through the same states as
+/// MAUI visual states on drawn controls (Phase P2 in docs/archive/ImplementationPlan-1.0.md): each control goes through the same states as
 /// its MAUI counterpart for the same steps, plus <c>PointerOver</c> from hover input and state triggers.
 /// </summary>
 public class VisualStateTests

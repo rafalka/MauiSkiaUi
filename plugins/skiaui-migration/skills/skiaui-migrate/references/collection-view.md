@@ -4,9 +4,9 @@
 
 ## Status
 
-Shipped (Phases B2–B3): vertical and horizontal lists and grids with `ItemsSource` + templates, single and multiple selection, item taps, groups (headers, footers, collapsible, sticky group headers), header / footer (scrolled or sticky), empty view, loading more (manual and automatic, at the end or the start), the remaining-items threshold, pull-to-refresh, scrolling to an index, item or group.
+Supported: vertical and horizontal lists and grids with `ItemsSource` + templates, single and multiple selection, item taps, groups (headers, footers, collapsible, sticky group headers), header / footer (scrolled or sticky), empty view, loading more (manual and automatic, at the end or the start), the remaining-items threshold, pull-to-refresh, scrolling to an index, item or group.
 
-Not available: **reordering** (`CanReorderItems`), **snap points** on the items layout, swipe actions (Phase C). Keep those lists as a native `CollectionView` outside the drawn region (see [gaps.md](gaps.md)).
+Not available: **reordering** (`CanReorderItems`), **snap points** on the items layout. Swipe actions port: wrap the item template in `sk:SkUiSwipeView`. Keep those lists as a native `CollectionView` outside the drawn region (see [gaps.md](gaps.md)).
 
 A plain list (items and a template only) can also use the lighter **`SkUiVirtualScrollView`** (a vertical scroll view of an `SkUiVirtualVerticalStackLayout`, [SkUiVirtualVerticalStackLayout.md](../../../../../docs/controls/SkUiVirtualVerticalStackLayout.md)): the same item members, no item containers.
 

@@ -6,7 +6,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// Label spans (Phase P5 in ImplementationPlan.md): MAUI's <c>FormattedText</c> / <c>Span</c> on <see cref="SkUiLabel"/>,
+/// Label spans (Phase P5 in docs/archive/ImplementationPlan-1.0.md): MAUI's <c>FormattedText</c> / <c>Span</c> on <see cref="SkUiLabel"/>,
 /// <see cref="SkUiCoreSpan"/> on <see cref="SkUiCoreLabel"/>, both through the formatted-text engine
 /// (<see cref="SkUiRichTextLayout"/>): per-span styles wrapping as one paragraph, the label's values for what a span does
 /// not set, span taps (MAUI <c>TapGestureRecognizer</c>s, Core <c>Tapped</c>) hit-tested on the shaped runs, also in RTL.

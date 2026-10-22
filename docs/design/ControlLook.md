@@ -1,6 +1,6 @@
 # Control look (shape / chrome)
 
-Design notes for **FR-18** in [Requirements.md](Requirements.md).
+How controls are drawn and sized (FR-18 in [Requirements.md](Requirements.md#functional-requirements)). Colors are the color scheme's: [ColorScheme.md](ColorScheme.md).
 
 This is **not**:
 
@@ -26,7 +26,7 @@ One **extensible look object** supplies the shared Skia painters **and default s
 
 Colors come from the **color scheme** (FR-19) and/or explicit control properties / FR-12 styles; the look receives already-resolved `SKColor`s and decides **shape**. Default **width/height** (intrinsic measure) come from the look when applicable.
 
-## API shape (sketch)
+## API
 
 ```csharp
 // Public, subclassable. Built-in DefaultSkUiLook holds the default geometry + sizes (formerly SkUiChrome).
@@ -198,7 +198,7 @@ Override `GetTransitionCore` in a subclass, or set `TransitionProvider` on a loo
 - Transitions run on the surface's UI-thread animation clock. Each frame re-records only the animating control's picture (ancestors are not re-recorded), and the rest of the tree is composited from retained pictures. Painters stay ordinary single-threaded code.
 - Controls animate only after they have been drawn on a surface. A state set before a page appears (a constructor, a binding) shows at once.
 - Stopping the clock (the page closes, the surface is replaced) jumps every transition to its end state.
-- The decision and its measurements: [ArchitectureReview.md](ArchitectureReview.md#state-change-animations).
+- The decision and its measurements: [ArchitectureReview-2026-09.md](../archive/ArchitectureReview-2026-09.md#state-change-animations) (archived).
 
 ### Text prescale
 
@@ -217,12 +217,11 @@ Where a control has a meaningful **intrinsic** or **default** size (Switch, Chec
 - Explicit control size requests (`Width` / `Height` / `WidthRequest` / `MinimumHeight`, fluent `SetWidth`, …) still win over look defaults for that instance.
 - Changing a look’s sizes must **invalidate measure** (and paint when drawing also changes).
 
-## Resolution order (proposed)
+## Resolution
 
-1. **Control-local look** (optional property / attached) if set.
-2. Else **tree / host look** (optional — e.g. on `SkUiCoreHost` or root `SkUiContentView`) if set.
-3. Else **`SkUiLook.Current`** (process / app default).
-4. Else built-in **`DefaultSkUiLook`**.
+1. The `Look` of the node or its nearest drawn ancestor that sets one (`SkUiView.Look`, `SkUiCoreNode.Look`); measuring and recording a node run with it as `SkUiLook.Current` on the thread (`SkUiLookScope`).
+2. Else **`SkUiLook.Current`** (app-wide; `UseSkiaUi(options => options.Look = …)`).
+3. Else the built-in **`DefaultSkUiLook`**.
 
 Changing the active look re-measures and redraws every live surface (each standalone root re-marks its drawn tree on `CurrentChanged`). After changing the current look **in place** (sizes, painters, `PressEffect`), call `SkUiLook.NotifyChanged()`.
 
@@ -236,7 +235,7 @@ Look methods are the **shared Content/Background chrome implementations**. Contr
 
 Looks do **not** replace `PaintBackground` / `OnPaintContent` hooks; they are what those hooks call for stock geometry. Looks do **not** own the palette — that is **FR-19**.
 
-## Built-in packs (roadmap)
+## Built-in looks
 
 | Pack | Intent |
 | --- | --- |
@@ -269,11 +268,11 @@ On Windows the native controls keep WinUI's own minimums: a check box and a radi
 
 <img src="../images/look-comparison-windows.png" width="360" alt="SkUiLookComparisonPage on Windows 11: MAUI's WinUI controls and WindowsSkUiLook's drawn ones with matching sizes">
 
-Known differences: Android text measures up to 1–2% wider than a TextView's; the radio button label is about 2 DIPs wider than MAUI's template on Apple; on Android and Windows the Stepper keeps SkiaUi's segmented look instead of MAUI's two separate buttons (a choice, not a gap). Colors are the color scheme's: the platform schemes' control tokens (`ButtonBackground`, `ButtonForeground`, `ButtonBorder`, `ActivityIndicator`; [ColorScheme.md](ColorScheme.md#built-in-packs-roadmap)) give buttons and activity indicators the native colors, and the look draws the button's border (`DefaultButtonBorderWidth`, `ButtonHasElevationBorder`: Windows' 1 epx border, darker along the bottom). Compare them with the page's "Look's colors" on. The schemes do not read the user's system accent (Windows, Android 12+): pass it to `WithAccent`.
+Known differences: Android text measures up to 1–2% wider than a TextView's; the radio button label is about 2 DIPs wider than MAUI's template on Apple; on Android and Windows the Stepper keeps SkiaUi's segmented look instead of MAUI's two separate buttons (a choice, not a gap). Colors are the color scheme's: the platform schemes' control tokens (`ButtonBackground`, `ButtonForeground`, `ButtonBorder`, `ActivityIndicator`; [ColorScheme.md](ColorScheme.md#built-in-schemes)) give buttons and activity indicators the native colors, and the look draws the button's border (`DefaultButtonBorderWidth`, `ButtonHasElevationBorder`: Windows' 1 epx border, darker along the bottom). Compare them with the page's "Look's colors" on. The schemes do not read the user's system accent (Windows, Android 12+): pass it to `WithAccent`.
 
 ## Core
 
-Core and MAUI-compatible controls **must** use the same look resolution so Stress / dual-layer demos stay visually aligned. Look types live in a namespace both layers can reference (likely next to Core or in the shared helpers area once Core is a separate assembly).
+Core and SkUi\* controls use the same look resolution and the same painters, so both layers draw the same pixels.
 
 ## Non-goals
 
@@ -281,17 +280,3 @@ Core and MAUI-compatible controls **must** use the same look resolution so Stres
 - Replacing FR-12 MAUI `Style` for per-control property overrides.
 - Full native design-system parity (Material 3 / Cupertino every detail).
 - Per-frame look allocation (look instances should be long-lived; hot path = virtual call / delegate invoke only).
-
-## Checklist (implementation)
-
-- [x] Promote today’s `SkUiChrome` painters into a public subclassable **`SkUiLook`** / **`DefaultSkUiLook`**.
-- [x] Look exposes **default width/height** (and related defaults such as corner radius / min height) for controls that use intrinsic sizes; controls’ `MeasureContent` reads the active look when applicable.
-- [x] App can set global current look (`SkUiLook.Current`).
-- [x] Single-control override via virtual method **or** replaceable painter / size delegate (drawing and/or default size).
-- [x] Wire `SkUi*` and `SkUiCore*` Content painters **and** default measures through the active look.
-- [x] Document naming vs FR-12 / FR-19; tests cover swap look + override painter and measure.
-- [x] Look change raises `CurrentChanged`; live surfaces re-measure and redraw their drawn trees (`SkUiLook.NotifyChanged()` for in-place changes).
-- [x] State-change transitions: paint structs carry the transition, `GetTransition` / `TransitionProvider`, reduce motion (FR-26).
-
-- [x] Per-tree look attachment: `SkUiView.Look` / `SkUiCoreNode.Look` (the nearest ancestor that sets one wins, then `SkUiLook.Current`). Measuring and recording a node run with that look as `SkUiLook.Current` on the thread (`SkUiLookScope`, one flag check while no node sets a look); state-change transitions start with it (`ISkUiTransitionHost.TransitionLook`). Not scoped: transitions already running when the look changes, input handling and the scheme (still the app's). Text sizes, and the padding, corners and border width of buttons that do not set them, follow the subtree's look when they are measured; the `FontSize` / `Padding` getters report the app look's.
-- [x] Gallery sample page for look packs (`LookAndColorSchemePage`, route `look`).

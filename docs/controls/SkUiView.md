@@ -6,7 +6,7 @@ Base class for every Skia-drawn SkiaUi node. Implements [`ISkUiView`](../../Maui
 
 ## How it works
 
-`SkUiView` owns handler-independent measure/arrange caching, Background → Content → Overlay paint (`PaintBackground` / `PaintOverlay` delegates for chrome; virtual `OnPaintContent` for structure), render transforms (translation/rotation/scale), opacity, opt-in clipping (`ClipToBounds`: on for leaves, off for layouts / content hosts, as in MAUI), tap participation, render-thread `AnimateAsync`, and access to the shared UI-thread [`SkUiAnimationClock`](../design/AnimationMechanism.md). Surfaces composite retained per-node pictures ([RenderingPipeline.md](../design/RenderingPipeline.md)). A custom MAUI handler creates a Skia surface only when the view is **standalone** in the MAUI tree.
+`SkUiView` owns handler-independent measure/arrange caching, Background → Content → Overlay paint (`PaintBackground` / `PaintOverlay` delegates for chrome; virtual `OnPaintContent` for structure), render transforms (translation/rotation/scale), opacity, opt-in clipping (`ClipToBounds`: on for leaves, off for layouts / content hosts, as in MAUI), tap participation, render-thread `AnimateAsync`, and access to the shared UI-thread [`SkUiAnimationClock`](../design/Architecture.md#animation). Surfaces composite retained per-node pictures ([RenderingPipeline.md](../design/RenderingPipeline.md)). A custom MAUI handler creates a Skia surface only when the view is **standalone** in the MAUI tree.
 
 
 ## Shared conventions
@@ -91,7 +91,7 @@ As in MAUI, everything a drawn view binds through gets its `BindingContext` (and
 
 ## Backgrounds, shadows and clips
 
-MAUI's `Background`, `Shadow` and `Clip` work on every drawn view, so MAUI XAML that uses them ports by changing the prefix (MAUI parity P7):
+MAUI's `Background`, `Shadow` and `Clip` work on every drawn view, so MAUI XAML that uses them ports by changing the prefix:
 
 ```xml
 <sk:SkUiBorder StrokeShape="RoundRectangle 16" StrokeThickness="0" Padding="16"
@@ -121,7 +121,7 @@ MAUI's `Background`, `Shadow` and `Clip` work on every drawn view, so MAUI XAML 
 
 ## Accessibility and keyboard
 
-Drawn views are read by TalkBack, VoiceOver and Narrator, take keyboard focus, and follow the system text size (MAUI parity P10, [Accessibility.md](../design/Accessibility.md)). MAUI's accessibility XAML ports by changing the prefix:
+Drawn views are read by TalkBack, VoiceOver and Narrator, take keyboard focus, and follow the system text size ([Accessibility.md](../design/Accessibility.md)). MAUI's accessibility XAML ports by changing the prefix:
 
 ```xml
 <sk:SkUiLabel Text="Settings" SemanticProperties.HeadingLevel="Level1" />
@@ -143,5 +143,5 @@ Drawn views are read by TalkBack, VoiceOver and Narrator, take keyboard focus, a
 
 ## Related
 
-- [DrawingMechanism.md](../design/DrawingMechanism.md) · [EventMechanism.md](../design/EventMechanism.md) · [LayoutSystem.md](../design/LayoutSystem.md) · [Accessibility.md](../design/Accessibility.md)
+- [Architecture.md](../design/Architecture.md) · [RenderingPipeline.md](../design/RenderingPipeline.md) · [EventMechanism.md](../design/EventMechanism.md) · [LayoutSystem.md](../design/LayoutSystem.md) · [Accessibility.md](../design/Accessibility.md)
 - Demo: the **Accessibility** flyout page (semantics tree, keyboard focus, text scale). Gallery: `ViewDemoPage`; `BoxDemoPage` and `BorderDemoPage` compare backgrounds, shadows and clips with MAUI's own controls. Samples app: **Controls › Cards with shadows**.

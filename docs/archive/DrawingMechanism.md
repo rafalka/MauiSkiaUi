@@ -1,8 +1,8 @@
 # SkiaUi drawing mechanism
 
-> **Superseded in part (2026-09):** paint caching / surface present are now defined by [RenderingPipeline.md](RenderingPipeline.md) — retained per-node pictures, UI-thread recording, render-thread compositing on Metal / GL, opt-in `ClipToBounds` for layouts. Layer phases, clip vs hit-test and transparency rules below still apply; the "v1 full-tree redraw" and iOS offscreen-blit sections are historical.
+> **Superseded in part (2026-09):** paint caching / surface present are now defined by [RenderingPipeline.md](../design/RenderingPipeline.md) — retained per-node pictures, UI-thread recording, render-thread compositing on Metal / GL, opt-in `ClipToBounds` for layouts. Layer phases, clip vs hit-test and transparency rules below still apply; the "v1 full-tree redraw" and iOS offscreen-blit sections are historical.
 
-Design notes and implementation checklist for **FR-9** (layers), **FR-8** (transparency), **FR-11** (clip/mask), surface ownership (**FR-14** / **FR-13**), and selective paint / caching (**NFR-2**) in [Requirements.md](Requirements.md).
+Design notes and implementation checklist for **FR-9** (layers), **FR-8** (transparency), **FR-11** (clip/mask), surface ownership (**FR-14** / **FR-13**), and selective paint / caching (**NFR-2**) in [Requirements.md](Requirements-1.0.md).
 
 ## Goal
 
@@ -220,7 +220,7 @@ Exact API: **Background / Overlay** use optional `PaintBackground` / `PaintOverl
 
 ### Reusable drawing helpers
 
-Favor shared primitives used by many Background/Content layers — the public, replaceable **control look** `SkUiLook.Current` (**FR-18** / [ControlLook.md](ControlLook.md)):
+Favor shared primitives used by many Background/Content layers — the public, replaceable **control look** `SkUiLook.Current` (**FR-18** / [ControlLook.md](../design/ControlLook.md)):
 
 - Rounded rectangle fill / stroke / clip path (`DrawRoundedBox`, `CreateRoundRectPath`) — uniform radius (Button, ImageButton tint) or per-corner radii (labels, buttons and image buttons through one chrome state, `SkUiChromeState`; borders with rectangle shapes)
 - Shapes and border outlines (`SkUiShapeGeometry`, `SkUiShapePainter`, `SkUiBorderGeometry`) — MAUI's shape measure / stretch / placement, MAUI Graphics paints (solid, gradients) and the stroke model (dashes, caps, joins), shared by both layers
@@ -232,12 +232,12 @@ Reuse is via **utilities or shared look implementations**, not by making every c
 
 **Do not confuse** control look with:
 
-- **Color scheme** ([ColorScheme.md](ColorScheme.md) / FR-19) — default palette
-- **MAUI `Style` / VSM** ([FR-12](Requirements.md#fr-12--styles-and-visualstates-maui-per-control-property-appearance)) — per-control property overrides
+- **Color scheme** ([ColorScheme.md](../design/ColorScheme.md) / FR-19) — default palette
+- **MAUI `Style` / VSM** ([FR-12](Requirements-1.0.md#fr-12--styles-and-visualstates-maui-per-control-property-appearance)) — per-control property overrides
 
 ### Layers vs hit-testing
 
-Default: hit-testing is **not** layer-shaped (FR-11). Overlays that must steal input do so via normal participation / hit-test rules on the **view** ([EventMechanism.md](EventMechanism.md)), not by hit-testing the Overlay bitmap. Optional future: layer-level “input intercept” flags if a chrome overlay must capture without a separate child view — **out of scope for v1** unless a built-in control proves it necessary.
+Default: hit-testing is **not** layer-shaped (FR-11). Overlays that must steal input do so via normal participation / hit-test rules on the **view** ([EventMechanism.md](../design/EventMechanism.md)), not by hit-testing the Overlay bitmap. Optional future: layer-level “input intercept” flags if a chrome overlay must capture without a separate child view — **out of scope for v1** unless a built-in control proves it necessary.
 
 ## Clipping and masking (FR-11)
 
@@ -345,9 +345,9 @@ Exact signatures TBD (Requirements open decisions); intent:
 
 ### Caching / performance (NFR-2)
 
-- [x] ~~**v1:** full-tree paint on root invalidate; no retained paint cache by default.~~ Superseded by retained per-node pictures ([RenderingPipeline.md](RenderingPipeline.md)).
+- [x] ~~**v1:** full-tree paint on root invalidate; no retained paint cache by default.~~ Superseded by retained per-node pictures ([RenderingPipeline.md](../design/RenderingPipeline.md)).
 - [x] Dirty flags coalesce paint to root; selective **measure/arrange** remains required (LayoutSystem).
-- [x] ~~*(Later)* Opt-in `UseCache` = `None` | `Picture` | `Image`; drop on size/density change.~~ Superseded: every node keeps a retained `SKPicture`, re-recorded on content or size change; raster caching of stable subtrees is open in [RenderingPipeline.md](RenderingPipeline.md#not-done-yet--next-steps).
+- [x] ~~*(Later)* Opt-in `UseCache` = `None` | `Picture` | `Image`; drop on size/density change.~~ Superseded: every node keeps a retained `SKPicture`, re-recorded on content or size change; raster caching of stable subtrees is open in [RenderingPipeline.md](../design/RenderingPipeline.md#not-done-yet--next-steps).
 - [x] *(Later)* Animation path may keep static sibling pictures warm — composite-time animations never re-record siblings.
 
 ### Verification
@@ -367,15 +367,15 @@ Record answers here when decided; keep Requirements “Open decisions” in sync
 1. ~~**`ISkUiView.Paint` signature:** …~~ **Decided:** `void Paint(SKCanvas canvas)` in local DIPs; density is applied by the surface.
 2. ~~**Layer API names:** …~~ **Decided:** Content = virtual `OnPaintContent`; Background: delegate, else virtual `OnPaintBackground`; overlay: `PaintOverlay` delegate only (no `OnPaintOverlay`). Fluent `SetPaint*`.
 3. **Children vs Content:** **Decided** — paint Children / Content after Content chrome, before Overlay.
-4. ~~**When to add `UseCache`:** …~~ **Superseded:** retained per-node pictures ([RenderingPipeline.md](RenderingPipeline.md)).
-5. ~~**Animation / `HasRenderLoop`:** …~~ **Superseded:** render-thread composite animations; no `HasRenderLoop` ([RenderingPipeline.md](RenderingPipeline.md#animation-tiers)).
+4. ~~**When to add `UseCache`:** …~~ **Superseded:** retained per-node pictures ([RenderingPipeline.md](../design/RenderingPipeline.md)).
+5. ~~**Animation / `HasRenderLoop`:** …~~ **Superseded:** render-thread composite animations; no `HasRenderLoop` ([RenderingPipeline.md](../design/RenderingPipeline.md#animation-tiers)).
 6. **Overlay input:** v1 view-level hit-test only (**Decided**).
 
 ## References
 
-- [Requirements.md](Requirements.md) — FR-8, FR-9, FR-11, FR-13, FR-14, NFR-2, Decided (drawing layers, clip vs hit-test, coordinates, HW acceleration).
+- [Requirements.md](Requirements-1.0.md) — FR-8, FR-9, FR-11, FR-13, FR-14, NFR-2, Decided (drawing layers, clip vs hit-test, coordinates, HW acceleration).
 - [LayoutSystem.md](LayoutSystem.md) — arranged bounds and DIP frames that paint consumes.
-- [EventMechanism.md](EventMechanism.md) — hit-test uses arranged bounds; clip is paint-only by default.
+- [EventMechanism.md](../design/EventMechanism.md) — hit-test uses arranged bounds; clip is paint-only by default.
 - **DrawnUi** ([taublast/drawnui](https://github.com/taublast/drawnui)) — closest analogue: default `SkiaCacheType.None`; opt-in Picture/Image/GPU/composite; warns on GPU reuse and composite invalidation churn.
 - **Flutter** — `RepaintBoundary` / `OffsetLayer`: cache only for asymmetric dirty; selective record + full composite; not a second layout model.
 - **Avalonia** — record/replay draw lists; optional `BitmapCache`; dirty rects when frame retained; chrome via parent `Render` order, not nested chrome visuals.

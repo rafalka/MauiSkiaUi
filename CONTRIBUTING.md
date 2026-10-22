@@ -29,7 +29,7 @@ Open a [feature request](https://github.com/rafalka/MauiSkiaUi/issues/new?templa
 ### Before you start
 
 - Small fixes (typos, docs, an obvious bug with a test) can go straight to a PR.
-- For anything bigger, comment on the issue first so that two people don't work on the same thing, and so that the design fits the architecture ([Development.md](Development.md#design-documentation)).
+- For anything bigger, comment on the issue first so that two people don't work on the same thing, and so that the design fits the architecture ([docs/design/Architecture.md](docs/design/Architecture.md)).
 - Issues labeled [`good first issue`](https://github.com/rafalka/MauiSkiaUi/labels/good%20first%20issue) and [`help wanted`](https://github.com/rafalka/MauiSkiaUi/labels/help%20wanted) are open for anyone.
 
 ### Workflow

@@ -282,7 +282,7 @@ While the skeleton shows, the shimmer is one element, a progress bar read as "Lo
 
 ## Not built yet
 
-Device runs of the skeleton from the content ([ImplementationPlan.md](../design/ImplementationPlan.md)).
+Device runs of the skeleton from the content ([roadmap](../design/Roadmap.md#verification-backlog)).
 
 ## Related
 

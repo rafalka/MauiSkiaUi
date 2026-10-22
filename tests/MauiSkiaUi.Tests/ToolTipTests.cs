@@ -4,7 +4,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// Tooltips on drawn views (U2 in ImplementationPlan.md): the drawn view under the pointer with
+/// Tooltips on drawn views (U2 in docs/archive/ImplementationPlan-1.0.md): the drawn view under the pointer with
 /// <c>ToolTipProperties.Text</c> (a Core node's <c>ToolTip</c>), or its nearest ancestor with one, and its bounds, which
 /// the platforms show (Apple asks by position, Windows follows hover).
 /// </summary>
