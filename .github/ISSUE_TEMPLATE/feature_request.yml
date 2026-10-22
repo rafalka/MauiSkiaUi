@@ -1,0 +1,45 @@
+name: Feature request
+description: A new control, property or behavior.
+labels: [enhancement, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Not sure yet what you need, or want to talk an idea through first? Start a [discussion](https://github.com/rafalka/MauiSkiaUi/discussions/categories/ideas) instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you are trying to build, and what SkiaUi is missing for it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API or behavior
+      description: How you would like to use it. XAML or C# sketches are welcome.
+    validations:
+      required: true
+
+  - type: input
+    id: maui-api
+    attributes:
+      label: Matching MAUI or Community Toolkit API
+      description: SkiaUi follows MAUI's API where it can. Name the control or property this corresponds to, if any.
+      placeholder: Microsoft.Maui.Controls.SwipeView
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+      description: What you use today, for example a native control hosted with SkUiMauiContentView.
+
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you like to implement it?
+      options:
+        - "Yes, with guidance"
+        - "No"

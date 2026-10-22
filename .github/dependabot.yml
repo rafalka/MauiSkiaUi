@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories: ["/", "/.github/actions/*"]
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    ignore:
+      # MAUI stays on 10.x; a major version (MAUI 11, SkiaSharp 5, xUnit 3) is an upgrade done by hand.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      maui:
+        patterns: ["Microsoft.Maui.*", "CommunityToolkit.Maui*"]
+      skiasharp:
+        patterns: ["SkiaSharp*", "HarfBuzzSharp*"]
+      test:
+        patterns: ["xunit*", "Microsoft.NET.Test.Sdk"]

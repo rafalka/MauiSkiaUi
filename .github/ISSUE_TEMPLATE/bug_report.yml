@@ -1,0 +1,94 @@
+name: Bug report
+description: Something drawn, laid out or behaving differently than it should.
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Search the [open issues](https://github.com/rafalka/MauiSkiaUi/issues) first, and check that the bug still happens with the latest `SkiaUi.Maui` package.
+        Security problems go through private reporting instead ([SECURITY.md](https://github.com/rafalka/MauiSkiaUi/blob/master/SECURITY.md)).
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Add screenshots or a screen recording for drawing and layout problems.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The smallest XAML or C# that shows the problem, or a link to a small repository. A reproduction gets a bug fixed much faster.
+      placeholder: |
+        <sk:SkUiLabel Text="..." MaxLines="2" />
+        1. Run on ...
+        2. Tap ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Platforms
+      description: Where you saw it. Leave the others unselected if you could not test them.
+      multiple: true
+      options:
+        - Android
+        - iOS
+        - Mac Catalyst
+        - Windows
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device and OS version
+      placeholder: Pixel 8, Android 15 / iPhone 15 simulator, iOS 26.0 / MacBook Air M2, macOS 26
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Layer
+      options:
+        - SkUi* controls (XAML, bindable properties)
+        - SkUiCore* nodes (fluent Set* API)
+        - Both
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: skiaui-version
+    attributes:
+      label: SkiaUi.Maui version
+      placeholder: 1.0.0-Prerelease15
+    validations:
+      required: true
+
+  - type: input
+    id: maui-version
+    attributes:
+      label: .NET MAUI and SkiaSharp versions
+      placeholder: MAUI 10.0.110, SkiaSharp 4.153.1
+
+  - type: dropdown
+    id: maui-parity
+    attributes:
+      label: Does the matching native MAUI control behave correctly?
+      options:
+        - "Yes, the MAUI control works"
+        - "No, the MAUI control has the same problem"
+        - Not tested
+        - There is no matching MAUI control
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Exception or log output
+      description: Paste the full exception with its stack trace, if there is one.
+      render: shell
