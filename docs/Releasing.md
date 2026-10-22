@@ -56,4 +56,17 @@ Preview the next version locally:
 scripts/release_version.py next --bump prerelease --branch master
 ```
 
-**Setup:** see [Development.md](../Development.md#continuous-integration-github-actions) for the `nuget.org` environment and Trusted Publishing. The workflow pushes its release commit with the workflow token. If `master` or `devel` becomes a protected branch, allow GitHub Actions to push to it.
+## Setup
+
+See [Development.md](../Development.md#continuous-integration-github-actions) for the `nuget.org` environment and Trusted Publishing.
+
+The `master` ruleset requires pull requests and the `Build & test (Ubuntu)` check; only repository admins and deploy keys bypass it. The workflow therefore pushes its release commit and tag with a deploy key, not the workflow token. One-time setup:
+
+```bash
+ssh-keygen -t ed25519 -N "" -C "SkiaUi release" -f skiaui-release-key
+gh repo deploy-key add skiaui-release-key.pub --allow-write --title "nuget-publish release push" -R rafalka/MauiSkiaUi
+gh secret set RELEASE_DEPLOY_KEY --env nuget.org -R rafalka/MauiSkiaUi < skiaui-release-key
+rm skiaui-release-key skiaui-release-key.pub
+```
+
+The key is a secret of the `nuget.org` environment, so only a publish run you approved can use it. Without it, the publish job stops before pushing anything. Unlike the workflow token, a push with the key starts other workflows: CI runs on the release commit, and `nuget-pack.yml` packs the `v*` tag as artifacts (nothing is published).
