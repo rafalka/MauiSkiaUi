@@ -5,7 +5,7 @@ What SkiaUi costs on real devices, measured with the demo app's stress pages: ho
 ## How it was measured
 
 - **Devices:** Samsung Galaxy S9 (Android 10, Exynos 9810, OpenGL ES; 60 Hz) and iPhone 8 (iOS 16.7, A11, Metal; 60 Hz). Both were chosen to represent old, slow devices: what holds up on them holds up on the phones most apps support. Devices had not been under load before each batch. Back-to-back sessions on a warm device ran up to 30 % slower, so compare numbers from one session.
-- **Code and toolchain:** measured on 21 October 2026 at commit `f9ca53c`, on .NET 10 (SDK 10.0.400, MAUI 10.0.110, SkiaSharp 4.153.1). The iPhone 8's spinner row was measured again on 22 October, after the iOS look's activity indicator was drawn as one image (2 launches per layer, against that session's baseline).
+- **Code and toolchain:** measured on 21 October 2026 at commit `f9ca53c`, on .NET 10 (SDK 10.0.400, MAUI 10.0.110, SkiaSharp 4.153.1). The iPhone 8's drawing-effects results were measured again on 22 October at commit `8e5bfda`, after the iOS look's activity indicator was drawn as one image (the full matrix, 3 launches per layer).
 - **Builds:** Release builds of `MauiSkiaUiDemo` (iOS: full AOT), GPU surfaces (`HwAccelerated = true`).
 - **Runs:** scripted, with no one touching the device (see [Reproducing](#reproducing)).
   - Stress page: 2 launches of 4 rounds per layer; the first round of each launch warms up and is not counted, so each number is the average of 6 rounds.
@@ -64,37 +64,37 @@ Render time per frame while scrolling, and frames per second. The change from th
 
 | Effect | iPhone 8 SkUi* | iPhone 8 Core | Galaxy S9 SkUi* | Galaxy S9 Core |
 | --- | --- | --- | --- | --- |
-| baseline | 5.0 ms · 60 fps | 5.0 ms · 60 fps | 5.1 ms · 59 fps | 5.1 ms · 59 fps |
-| gradient | 5.2 ms (+4 %) · 60 fps | 5.3 ms (+4 %) · 60 fps | 6.0 ms (+18 %) · 57 fps | 5.1 ms (0 %) · 59 fps |
-| rounded | 5.3 ms (+7 %) · 60 fps | 5.4 ms (+6 %) · 60 fps | 5.6 ms (+10 %) · 58 fps | 5.4 ms (+6 %) · 59 fps |
-| clip | 5.7 ms (+15 %) · 60 fps | 5.7 ms (+14 %) · 60 fps | 6.6 ms (+31 %) · 57 fps | 5.9 ms (+16 %) · 59 fps |
-| spinner | 5.5 ms (+9 %) · 60 fps | 5.5 ms (+9 %) · 60 fps | 4.9 ms (−3 %) · 60 fps | 5.3 ms (+4 %) · 59 fps |
-| translucent | 6.4 ms (+27 %) · 60 fps | 6.5 ms (+28 %) · 60 fps | 6.8 ms (+35 %) · 58 fps | 6.9 ms (+35 %) · 59 fps |
-| card shadow | 6.4 ms (+28 %) · 60 fps | 6.2 ms (+23 %) · 60 fps | 7.3 ms (+45 %) · 55 fps | 6.5 ms (+28 %) · 58 fps |
-| text shadow | 7.2 ms (+44 %) · 60 fps | 7.2 ms (+43 %) · 60 fps | 14.2 ms (+180 %) · **45 fps** | 13.6 ms (+168 %) · **45 fps** |
-| shaped border | 7.6 ms (+52 %) · 60 fps | 7.6 ms (+51 %) · 60 fps | 19.8 ms (+292 %) · **33 fps** | 19.4 ms (+282 %) · **34 fps** |
-| **all** | 11.2 ms (+124 %) · **53 fps** | 11.7 ms (+133 %) · **51 fps** | 46.8 ms (+825 %) · **20 fps** | 46.1 ms (+807 %) · **20 fps** |
+| baseline | 5.2 ms · 60 fps | 5.1 ms · 60 fps | 5.1 ms · 59 fps | 5.1 ms · 59 fps |
+| gradient | 5.4 ms (+5 %) · 60 fps | 5.2 ms (+3 %) · 60 fps | 6.0 ms (+18 %) · 57 fps | 5.1 ms (0 %) · 59 fps |
+| rounded | 5.5 ms (+7 %) · 60 fps | 5.4 ms (+6 %) · 60 fps | 5.6 ms (+10 %) · 58 fps | 5.4 ms (+6 %) · 59 fps |
+| clip | 6.0 ms (+16 %) · 60 fps | 5.8 ms (+15 %) · 60 fps | 6.6 ms (+31 %) · 57 fps | 5.9 ms (+16 %) · 59 fps |
+| spinner | 5.9 ms (+15 %) · 60 fps | 5.6 ms (+11 %) · 60 fps | 4.9 ms (−3 %) · 60 fps | 5.3 ms (+4 %) · 59 fps |
+| translucent | 6.5 ms (+26 %) · 60 fps | 6.5 ms (+28 %) · 60 fps | 6.8 ms (+35 %) · 58 fps | 6.9 ms (+35 %) · 59 fps |
+| card shadow | 6.3 ms (+21 %) · 60 fps | 6.4 ms (+26 %) · 60 fps | 7.3 ms (+45 %) · 55 fps | 6.5 ms (+28 %) · 58 fps |
+| text shadow | 7.1 ms (+38 %) · 60 fps | 7.2 ms (+43 %) · 60 fps | 14.2 ms (+180 %) · **45 fps** | 13.6 ms (+168 %) · **45 fps** |
+| shaped border | 7.5 ms (+46 %) · 60 fps | 7.6 ms (+49 %) · 60 fps | 19.8 ms (+292 %) · **33 fps** | 19.4 ms (+282 %) · **34 fps** |
+| **all** | 10.2 ms (+97 %) · **52 fps** | 10.1 ms (+99 %) · **53 fps** | 46.8 ms (+825 %) · **20 fps** | 46.1 ms (+807 %) · **20 fps** |
 
 First frame of the 400-card list (ms):
 
 | Effect | iPhone 8 SkUi* | iPhone 8 Core | Galaxy S9 SkUi* | Galaxy S9 Core |
 | --- | ---: | ---: | ---: | ---: |
-| baseline | 127 | 37 | 552 | 139 |
-| shaped border | 1,002 | 908 | 1,886 | 1,454 |
-| all | 1,746 | 1,588 | 2,795 | 2,482 |
-| any other single effect | 97–113 | 42–47 | 286–336 | 117–195 |
+| baseline | 131 | 38 | 552 | 139 |
+| shaped border | 999 | 907 | 1,886 | 1,454 |
+| all | 1,765 | 1,582 | 2,795 | 2,482 |
+| any other single effect | 100–117 | 42–48 | 286–336 | 117–195 |
 
 ### What the numbers mean
 
 - **Nothing re-records while scrolling.** No configuration recorded a picture during the scroll: gradients, shadows, clips and opacity are applied when compositing, and moving content only changes offsets. The cost of an effect is compositing (and GPU) work per frame.
-- **Free in practice:** gradient backgrounds, rounded corners, clips and running activity indicators cost 0–30 % render time and keep 57–60 fps on both devices. (The iOS look's spinner drew its 8 spokes one by one until 22 October, which cost 30–45 % on the iPhone 8; it is one image now.)
+- **Free in practice:** gradient backgrounds, rounded corners, clips and running activity indicators cost 0–30 % render time and keep 57–60 fps on both devices. (The iOS look's spinner drew its 8 spokes one by one until 22 October, which cost 30–45 % on the iPhone 8 and took the SkUi* list to 57 fps; drawn as one image, it costs 11–15 % at 60 fps.)
 - **Moderate:**
-  - Translucent cards (an opacity layer each) and card shadows from opaque fills cost 25–45 %. The iPhone 8 keeps 60 fps; the S9 keeps 55–59 fps. The blur work is on the GPU, and these numbers don't include GPU time.
+  - Translucent cards (an opacity layer each) and card shadows from opaque fills cost 20–45 %. The iPhone 8 keeps 60 fps; the S9 keeps 55–59 fps. The blur work is on the GPU, and these numbers don't include GPU time.
 - **Expensive on the S9:**
   - **Shaped borders** (a path with a dashed gradient stroke, about 20 ms per frame) and **text shadows** (14 ms per frame) take the S9 to 33–45 fps. The iPhone 8 holds 60 fps with both.
   - The dashed outline of a complex path is costly on the S9's GL backend.
   - A text shadow is cast from the glyphs, so each card's shadow is rasterized on the CPU once, when the card first scrolls into view. That is about 50 per second in this scroll, capped at 3 per frame. The iPhone's faster CPU absorbs it; the S9's doesn't.
-- **All effects together** stay usable on the iPhone 8 (51–53 fps) but not on the S9 (20 fps).
+- **All effects together** stay usable on the iPhone 8 (52–53 fps) but not on the S9 (20 fps).
 - **Animated content keeps the surface drawing.** With spinners, the surface composites about 60 frames per second even while nothing scrolls, where a static list composites none. That is little work per frame, but it never stops, which costs battery. With every effect on, even the idle S9 only manages 30 fps.
 - **First frames:**
   - A shaped border costs about 1–2 s for the first frame of 400 cards, because each card computes its outline and its content clip (a path operation) when it is first laid out.
