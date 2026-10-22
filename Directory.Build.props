@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <!-- Pin Microsoft.Maui.Controls and related package versions used via $(MauiVersion). -->
-    <MauiVersion>10.0.110</MauiVersion>
+    <MauiVersion>10.0.120</MauiVersion>
 
     <!-- Pin SkiaSharp and its companion packages (HarfBuzz, Views, native assets) via $(SkiaSharpVersion); keep them in lockstep. -->
     <SkiaSharpVersion>4.153.1</SkiaSharpVersion>

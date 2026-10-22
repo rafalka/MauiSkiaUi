@@ -59,7 +59,7 @@ jobs:
   pack-apple:
     name: Pack (macOS TFMs)
     needs: resolve-version
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v7

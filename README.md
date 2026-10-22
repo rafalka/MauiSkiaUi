@@ -47,7 +47,7 @@ MAUI page
 
 Package on nuget.org: **[SkiaUi.Maui](https://www.nuget.org/packages/SkiaUi.Maui/)**.
 
-**Requirements:** .NET 10 with .NET MAUI 10.0.110 or a later 10.x; Android 5.0 (API 21), iOS 15, Mac Catalyst 15 and Windows 10 1809 or newer. iOS and Mac Catalyst builds need Xcode 26.
+**Requirements:** .NET 10 with .NET MAUI 10.0.120 or a later 10.x (SDK 10.0.402 or newer); Android 5.0 (API 21), iOS 15, Mac Catalyst 17 and Windows 10 1809 or newer. iOS and Mac Catalyst builds need Xcode 27 (on macOS 26.4 or newer), and apps built with it use the UIKit scene lifecycle ([migration guide](docs/Migration.md#ios-and-mac-catalyst-scene-lifecycle)). SkiaUi 1.0.x builds with MAUI 10.0.110, Mac Catalyst 15 and Xcode 26.
 
 ```bash
 dotnet add package SkiaUi.Maui

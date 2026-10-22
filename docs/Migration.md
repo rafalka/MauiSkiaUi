@@ -90,6 +90,43 @@ builder.UseMauiApp<App>().UseMauiCommunityToolkit().UseSkiaUi().UseSkiaUiCommuni
 xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 ```
 
+### iOS and Mac Catalyst: scene lifecycle
+
+From SkiaUi 1.1.0, the iOS and Mac Catalyst workloads need Xcode 27, and iOS 27 closes apps built with Xcode 27 that don't use the UIKit scene lifecycle. This is a MAUI and Xcode requirement, not a SkiaUi one, but it comes with the upgrade. In each app's `Platforms/iOS` and `Platforms/MacCatalyst`:
+
+```csharp
+// SceneDelegate.cs
+using Foundation;
+
+[Register("SceneDelegate")]
+public class SceneDelegate : MauiUISceneDelegate
+{
+}
+```
+
+```xml
+<!-- Info.plist -->
+<key>UIApplicationSceneManifest</key>
+<dict>
+	<key>UIApplicationSupportsMultipleScenes</key>
+	<false/>
+	<key>UISceneConfigurations</key>
+	<dict>
+		<key>UIWindowSceneSessionRoleApplication</key>
+		<array>
+			<dict>
+				<key>UISceneConfigurationName</key>
+				<string>__MAUI_DEFAULT_SCENE_CONFIGURATION__</string>
+				<key>UISceneDelegateClassName</key>
+				<string>SceneDelegate</string>
+			</dict>
+		</array>
+	</dict>
+</dict>
+```
+
+Also raise the app's Mac Catalyst `SupportedOSPlatformVersion` to `17.0` or higher. The demo and samples apps show the full setup (`MauiSkiaUiDemo/Platforms/iOS`, `MauiSkiaUiDemo/Platforms/MacCatalyst`). Microsoft's guide covers it in detail: [migrate .NET MAUI apps to the UIKit scene lifecycle](https://devblogs.microsoft.com/dotnet/migrate-dotnet-maui-apps-uikit-scene-lifecycle/).
+
 ## Where the drawn surface goes
 
 A drawn tree starts at a **surface root**: a `SkUiContentView` (one child) or a drawn layout (`SkUiGrid`, stacks, `SkUiLayout`) placed in ordinary MAUI content. The root owns the Skia surface (GPU by default, `HwAccelerated`); every drawn view below it paints into that surface and has no platform view of its own.

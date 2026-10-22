@@ -13,6 +13,19 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### Breaking changes
+
+- **Mac Catalyst 17.0 minimum:** SkiaUi.Maui and SkiaUi.Maui.CommunityToolkit target Mac Catalyst 17.0 (macOS 14) or newer, up from 15.0, because the Mac Catalyst workload that builds with Xcode 27 refuses lower minimums. Apps set `SupportedOSPlatformVersion` for `maccatalyst` to `17.0` or higher. iOS stays at 15.0.
+- **Xcode 27 builds need the UIKit scene lifecycle:** iOS 27 closes apps built with Xcode 27 that don't use it. Each app adds a `SceneDelegate : MauiUISceneDelegate` on iOS and Mac Catalyst and a `UIApplicationSceneManifest` in each `Info.plist` that names it ([migration guide](docs/Migration.md#ios-and-mac-catalyst-scene-lifecycle)). The library itself needs no change.
+
+### Fixes
+
+- **Showing a view again no longer re-records what it holds:** MAUI 10.0.120 invalidates the measure of every descendant whose effective visibility changes when a view is shown or hidden, and drawn views measured and recorded again for it (a swipe view's items each time it opened). A drawn view now ignores that invalidation: its size and drawing are unchanged, and the view shown or hidden lays itself out again.
+
+### Other
+
+- **Built with MAUI 10.0.120 and Xcode 27:** SkiaUi.Maui now references MAUI 10.0.120 and builds with .NET SDK 10.0.402, whose iOS and Mac Catalyst workloads need Xcode 27. iOS 27 closes apps built with Xcode 27 that do not use the UIKit scene lifecycle. The demo, samples, benchmark and device-test apps now use it: a `SceneDelegate : MauiUISceneDelegate` on iOS and Mac Catalyst and a `UIApplicationSceneManifest` in each `Info.plist`. The Mac Catalyst minimum rises to 17.0 (see Breaking changes). CI builds the Apple targets on macOS 26.
+
 ## 1.0.0
 
 ### New features

@@ -522,6 +522,39 @@ public class PipelineTests
     }
 
     [Fact]
+    public void ShowingAContainerAgainDoesNotRerecordItsChildren()
+    {
+        // MAUI invalidates the measure of every descendant whose effective visibility changes; their size and drawing stay valid.
+        var first = new SkUiBox { Color = Colors.Red, HeightRequest = 20 };
+        var second = new SkUiBox { Color = Colors.Blue, HeightRequest = 20 };
+        var stack = new SkUiVerticalStackLayout { Children = { first, second } };
+        var host = new SkUiContentView { Content = stack };
+        using var surface = new SkUiTestSurface(host, 100, 100);
+        surface.Frame(0);
+        stack.IsVisible = false;
+        surface.Frame(1);
+        var childPaints = 0;
+        first.PaintInvalidated += (_, _) => childPaints++;
+        second.PaintInvalidated += (_, _) => childPaints++;
+        var recorded = surface.RecordedPictures;
+
+        stack.IsVisible = true;
+        SkUiTestHelpers.Arrange(host, 100, 100);
+        surface.Frame(2);
+
+        Assert.Equal(0, childPaints);
+        Assert.InRange(surface.RecordedPictures - recorded, 0, 1); // the stack itself, shown again
+        Assert.Equal(new Rect(0, 20, 100, 20), second.Frame);
+        stack.IsVisible = false;
+        stack.IsVisible = true;
+        second.HeightRequest = 30; // a change of its own still lays out and records
+        SkUiTestHelpers.Arrange(host, 100, 100);
+        surface.Frame(3);
+        Assert.Equal(30, second.Height);
+        Assert.True(childPaints > 0);
+    }
+
+    [Fact]
     public void TransformAnimationDoesNotRemeasureOrRearrange()
     {
         var child = new LayoutProbe();
