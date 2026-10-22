@@ -21,13 +21,13 @@ Solution file: `SkiaUi.slnx`
 
 ## Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download) **10.0.400** (see [global.json](global.json); `rollForward: latestPatch`)
-- MAUI Controls packages pinned to **10.0.110** via [Directory.Build.props](Directory.Build.props) (`MauiVersion`)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download) **10.0.402** (see [global.json](global.json); `rollForward: latestPatch`)
+- MAUI Controls packages pinned to **10.0.120** via [Directory.Build.props](Directory.Build.props) (`MauiVersion`)
 - CommunityToolkit.Maui (`SkiaUi.Maui.CommunityToolkit`, demo, samples, tests) pinned via the same file (`CommunityToolkitMauiVersion`)
 - SkiaSharp packages (SkiaSharp, SkiaSharp.HarfBuzz, SkiaSharp.Views.Maui.Controls, native assets) pinned to **4.153.1** via the same file (`SkiaSharpVersion`). After a bump, [Directory.Build.targets](Directory.Build.targets) clears each iOS / Mac Catalyst app's extracted native frameworks and app bundle once: the Apple SDK re-extracts and copies them by file date, and NuGet keeps the package's (older) dates, so the previous `libSkiaSharp` would stay and fail with "The version of the native libSkiaSharp library … is incompatible"
 - Product version (and demo `ApplicationDisplayVersion`) via the same file (`Version` / `ApplicationVersion`). Per-version notes: [CHANGELOG.md](CHANGELOG.md)
 - .NET MAUI workload (`dotnet workload install maui`)
-- Platform SDKs for the targets you build (Android SDK, Xcode for iOS/Mac Catalyst, etc.)
+- Platform SDKs for the targets you build (Android SDK, Xcode for iOS/Mac Catalyst, etc.). The iOS / Mac Catalyst workload of SDK 10.0.402 needs Xcode 27 (macOS 26.4+); apps built with it use the UIKit scene lifecycle, so each app has a `SceneDelegate` and a `UIApplicationSceneManifest` in its `Info.plist`
 
 ## Build and run
 

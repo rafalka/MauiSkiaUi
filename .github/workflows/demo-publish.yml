@@ -174,7 +174,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.prepare.outputs.maccatalyst) }}
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -186,7 +186,7 @@ jobs:
           java-version: ""
 
       # Building an app (unlike the library) needs the Xcode version the installed MAUI workload was built for (its
-      # SDK pack name ends in it, e.g. ..._26.0); the image may default to another. Take its newest patch release.
+      # SDK pack name ends in it, e.g. ..._27.0); the image may default to another. Take its newest patch release.
       - name: Select Xcode
         run: |
           set -euo pipefail

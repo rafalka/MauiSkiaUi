@@ -20,6 +20,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private bool _ownLayoutPending; // this node's own measure changed (not only a descendant's)
     private bool _laidOut;          // measured and arranged at least once
     private bool _relayoutPending;  // surface roots: a descendant's measure changed, relaid out before the next frame
+    private Visibility _effectiveVisibility = Visibility.Visible; // IView.Visibility when last invalidated (MAUI's default)
     private SkUiRenderDirty _renderPending;
     private SkUiRenderState? _renderState;
 #if SKUI_DIAGNOSTICS
@@ -572,6 +573,14 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <inheritdoc />
     protected override void InvalidateMeasureOverride()
     {
+        // MAUI invalidates every descendant whose effective visibility changes when an ancestor is shown or hidden. Its
+        // size and drawing stay valid (the ancestor lays itself out again); its own IsVisible change was handled before.
+        var visibility = ((IView)this).Visibility;
+        if (visibility != _effectiveVisibility)
+        {
+            _effectiveVisibility = visibility;
+            return;
+        }
         _measureDirty = true;
         _arrangeDirty = true;
         _layoutPending = true;

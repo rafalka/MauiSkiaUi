@@ -51,7 +51,7 @@
 		<WindowsAppSDKSelfContained Condition="'$(SelfContained)' == 'true' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</WindowsAppSDKSelfContained>
 
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">17.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
@@ -115,7 +115,7 @@
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Maui" Version="$(CommunityToolkitMauiVersion)" />
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.12" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.13" />
 		<PackageReference Include="Microsoft.Maui.DevFlow.Agent" Version="0.1.0-preview.13.26512.5" Condition="'$(Configuration)' == 'Debug'" />
 	</ItemGroup>
 
