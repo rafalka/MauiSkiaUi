@@ -57,7 +57,7 @@ Workflows live under [`.github/workflows/`](.github/workflows/). Shared setup: [
 | [ci.yml](.github/workflows/ci.yml) | Push / PR to `master` or `devel` | Headless tests (Ubuntu `net10.0`); build iOS/Mac Catalyst (macOS) and Windows TFMs; Mac Catalyst device tests (memory leaks) |
 | [nuget-pack.yml](.github/workflows/nuget-pack.yml) | Manual, or tag `v*` | `dotnet pack` on macOS + Windows; merge multi-TFM `.nupkg` / `.snupkg` artifacts |
 | [nuget-publish.yml](.github/workflows/nuget-publish.yml) | Manual: version bump (+ dry run), from `master` or `devel` | Bumps the version and changelog, commits and tags the release, packs it, pushes to [nuget.org](https://www.nuget.org/) via [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) (OIDC; Environment `nuget.org`), creates the GitHub release. See [docs/Releasing.md](docs/Releasing.md) |
-| [demo-publish.yml](.github/workflows/demo-publish.yml) | Manual (app and platform choice), or tag `demo-v*` | Publish the demo and/or samples app as artifacts: Android APK (`android-arm64`) and/or an unsigned universal Mac Catalyst `.app` in a zip. A tag publishes both Android APKs |
+| [demo-publish.yml](.github/workflows/demo-publish.yml) | Manual (app and platform choice, optional release tag), tag `demo-v*`, or called by `nuget-publish.yml` after a release | Publish the demo and/or samples app: Android APK (`android-arm64`) and/or an unsigned universal Mac Catalyst `.app` in a zip, as artifacts; with a release tag, built from it and attached to that GitHub release. A `demo-v*` tag publishes both Android APKs |
 
 ### Secrets and environments
 

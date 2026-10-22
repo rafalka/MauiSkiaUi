@@ -364,3 +364,19 @@ jobs:
       - name: Dry run notice
         if: needs.prepare.outputs.push != 'true'
         run: echo "Dry run — packages were packed and uploaded as artifacts only."
+
+  # The demo and samples apps, built from the release tag and attached to the GitHub release. After the package is
+  # published, so a failed app build never holds the package back (rerun Demo publish with release_tag to retry).
+  apps:
+    name: Demo and samples apps
+    needs: [prepare, publish]
+    if: needs.prepare.outputs.push == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/demo-publish.yml
+    with:
+      configuration: Release
+      app: demo-and-samples
+      platforms: android-and-maccatalyst
+      release_tag: v${{ needs.prepare.outputs.version }}
+    secrets: inherit

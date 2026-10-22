@@ -45,7 +45,8 @@ The workflow then:
 1. Computes the version with [`scripts/release_version.py`](../scripts/release_version.py). It fails if the version is already on nuget.org, or if its tag already exists. If nuget.org can't be reached, it warns and continues; the push itself would still refuse a duplicate.
 2. Updates `Directory.Build.props` and `CHANGELOG.md` in the job's workspace, and packs that on macOS and Windows. The changelog section becomes `PackageReleaseNotes`.
 3. After the `nuget.org` environment gate (where reviewers approve, if required), commits `Release <version>` on top of the dispatch commit and pushes it together with the tag `v<version>` (`git push --atomic`). If the branch moved since the run started, the push is rejected and nothing is published or tagged: run it again.
-4. Pushes the package to nuget.org (Trusted Publishing), then creates the GitHub release `v<version>` with the notes and the package. Prereleases are marked as such.
+4. Pushes the package to nuget.org (Trusted Publishing), then creates the GitHub release `v<version>` with the notes and the package. Prereleases are marked as such. GitHub adds the source code (zip and tar.gz) to every release.
+5. Builds the demo and samples apps from the tag ([demo-publish.yml](../.github/workflows/demo-publish.yml)) and attaches them to the release: `SkiaUi-Demo-<version>-android-arm64.apk`, `SkiaUi-Demo-<version>-maccatalyst.zip`, and the same for `SkiaUi-Samples`. This runs after the package is published, so a failed app build does not hold it back: run **Demo publish** with `release_tag` = `v<version>` to attach them again. The same run attaches apps to an older release.
 
 **Dry run:** computes the version and packs, but doesn't commit, tag, push to nuget.org or create a release. The packages are uploaded as workflow artifacts.
 
