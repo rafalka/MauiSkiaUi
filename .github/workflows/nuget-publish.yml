@@ -243,10 +243,25 @@ jobs:
       id-token: write
 
     steps:
+      # The release commit is pushed with a deploy key: the master ruleset requires pull requests and lets only
+      # admins and deploy keys bypass it, so the workflow token cannot push there. The key is a secret of this
+      # environment, so only an approved run of this job can use it.
+      - name: Check the deploy key
+        if: needs.prepare.outputs.push == 'true' && inputs.bump != 'none'
+        env:
+          HAS_KEY: ${{ secrets.RELEASE_DEPLOY_KEY != '' }}
+        shell: bash
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::error::Secret RELEASE_DEPLOY_KEY is missing from the nuget.org environment (docs/Releasing.md)."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.ref }}
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
       - name: Release files (version, changelog)
         uses: actions/download-artifact@v8
