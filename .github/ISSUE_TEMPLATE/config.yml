@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/rafalka/MauiSkiaUi/discussions
+    about: Ask how to do something, or talk an idea through, in Discussions.
+  - name: Security vulnerability
+    url: https://github.com/rafalka/MauiSkiaUi/security/advisories/new
+    about: Report security problems privately, not as a public issue.

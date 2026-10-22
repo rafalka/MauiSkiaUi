@@ -159,6 +159,8 @@ The drawn tree is ready **16× (SkUi\*) and 25× (Core) faster** than native MAU
 
 ## Contributing / developing SkiaUi
 
+How to report bugs, request features and open pull requests: **[CONTRIBUTING.md](https://github.com/rafalka/MauiSkiaUi/blob/master/CONTRIBUTING.md)**. Questions go to [Discussions](https://github.com/rafalka/MauiSkiaUi/discussions) ([SUPPORT.md](https://github.com/rafalka/MauiSkiaUi/blob/master/SUPPORT.md)); security problems are reported privately ([SECURITY.md](https://github.com/rafalka/MauiSkiaUi/blob/master/SECURITY.md)).
+
 Build, test, CI, architecture, and design docs: **[Development.md](Development.md)**.
 
 ## Changes
