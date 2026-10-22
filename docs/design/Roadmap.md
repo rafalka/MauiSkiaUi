@@ -6,21 +6,16 @@ What the next releases bring, and the work after them. What has shipped is in th
 
 | Version | .NET MAUI | Xcode | .NET SDK | Minimum OS | Branch |
 | --- | --- | --- | --- | --- | --- |
-| **1.0.0** | 10.0.110 | 26 | 10.0.400 | iOS 15, Mac Catalyst 15, Android 5.0 (API 21), Windows 10 1809 | `master` (now in `1.0.0-PrereleaseNN`) |
-| **1.1.0** | 10.0.120 | 27 | 10.0.402 | iOS 15, **Mac Catalyst 17**, Android 5.0 (API 21), Windows 10 1809 | `devel` after 1.0.0 |
+| **1.0.0** | 10.0.110 | 26 | 10.0.400 | iOS 15, Mac Catalyst 15, Android 5.0 (API 21), Windows 10 1809 | `master`, released 22 October 2026 |
+| **1.1.0** | 10.0.120 | 27 | 10.0.402 | iOS 15, **Mac Catalyst 17**, Android 5.0 (API 21), Windows 10 1809 | `devel` (in progress) |
 
-SkiaUi stays on MAUI 10.x. After 1.0.0, development moves to `devel` and `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
+SkiaUi stays on MAUI 10.x. Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
-### 1.0.0: first stable release
+### 1.0.0: first stable release (shipped)
 
-The controls and API that are on `master` now: MAUI parity of the shipped controls, page-shell layouts and containers, virtual lists and the collection view, list chrome, the carousel, pickers, drawn text input, platform looks, the migration blockers found by porting real apps, and the demo and samples drawing their own UI. The public API in 1.0.0 is the one every `1.x` release keeps: MAUI-named replacements of SkiaUi's own names are already in.
+The controls and API listed in the [changelog](../../CHANGELOG.md#100) and its prerelease sections: MAUI parity of the shipped controls, page-shell layouts and containers, virtual lists and the collection view, list chrome, the carousel, pickers, drawn text input, platform looks, the migration blockers found by porting real apps, and the demo and samples drawing their own UI. Its public API is the one every `1.x` release keeps. The device checks that were open at release stay in the [verification backlog](#verification-backlog).
 
-Left before the release:
-
-- **Release setup:** the release push with a deploy key ([#51](https://github.com/rafalka/MauiSkiaUi/pull/51)) and its key ([Releasing.md](../Releasing.md)).
-- **Device checks** that a migrated page relies on (the full list is under [Verification backlog](#verification-backlog)): drawn text input with input-method composition, dictation and password managers; screen readers on each platform; the demo gallery on Android and an Apple device.
-
-### 1.1.0: MAUI 10.0.120 and Xcode 27
+### 1.1.0: MAUI 10.0.120 and Xcode 27 (next, on `devel`)
 
 From [#49](https://github.com/rafalka/MauiSkiaUi/pull/49):
 

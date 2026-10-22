@@ -34,7 +34,7 @@ Open a [feature request](https://github.com/rafalka/MauiSkiaUi/issues/new?templa
 
 ### Workflow
 
-1. Fork the repository and create a branch from `master`.
+1. Fork the repository and create a branch from `devel`, the development branch (`master` holds stable releases).
 2. Set up the toolchain: the .NET SDK from [global.json](global.json) and the MAUI workload ([Development.md](Development.md#prerequisites)). Stay on MAUI 10.x.
 3. Make the change. Keep a PR to one topic; unrelated cleanups go in their own PR.
 4. Build and test:
@@ -45,7 +45,7 @@ Open a [feature request](https://github.com/rafalka/MauiSkiaUi/issues/new?templa
    ```
 
    The library build must have **0 warnings** (trim/AOT analyzer warnings fail it).
-5. Push to your fork and open a pull request against `master`. Fill in the template.
+5. Push to your fork and open a pull request against `devel`. Fill in the template.
 6. CI runs the headless tests and the platform builds. A first-time contributor's run starts after a maintainer approves it.
 7. A maintainer reviews the PR. When it is approved, it is squash-merged, and the PR title becomes the commit message.
 
@@ -55,7 +55,7 @@ Open a [feature request](https://github.com/rafalka/MauiSkiaUi/issues/new?templa
 - **Both layers.** Most controls exist as `SkUi*` and `SkUiCore*` and share one engine. A change to one usually belongs on the other too.
 - **A changelog entry** under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md), in the right subsection (`### New features`, `### Breaking changes`, `### Fixes`, `### Other`).
 - **Docs** for user-visible changes: the control's page in [docs/controls/](docs/controls/README.md), and [docs/Migration.md](docs/Migration.md) when MAUI parity changes. A new control also gets a page in the demo's component gallery (`MauiSkiaUiDemo/ComponentPages`).
-- **Performance** for changes on hot paths (layout, recording, compositing, text): compare against `master` with `scripts/bench.sh --baseline HEAD` and paste the verdict table into the PR.
+- **Performance** for changes on hot paths (layout, recording, compositing, text): compare against `devel` with `scripts/bench.sh --baseline HEAD` and paste the verdict table into the PR.
 
 ### Code style
 
