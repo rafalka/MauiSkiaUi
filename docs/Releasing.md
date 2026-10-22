@@ -4,18 +4,22 @@ Every release publishes all of the repository's packages with one version: **Ski
 
 ## Branches and versions
 
-**Now (no stable release yet):** there is only `master`, and prereleases are published from it: `1.0.0-Prerelease04`, `1.0.0-Prerelease05`, …
-
-**After the first stable release (`1.0.0`):**
+1.0.0 was the first stable release. Since then:
 
 | Branch | Holds | Versions |
 | --- | --- | --- |
 | `master` | Stable releases | `1.0.0`, `1.1.0`, `1.1.1`, … |
-| `devel` | Active development | `1.1.0-Prerelease01`, `1.1.0-Prerelease02`, … |
+| `devel` | Active development; pull requests target it | `1.1.0-Prerelease01`, `1.1.0-Prerelease02`, … |
+
+`devel` was created from the `Release 1.0.0` commit. Its `Version` is still `1.0.0`, so its first prerelease is published with bump `minor` (`1.1.0-Prerelease01`), or `patch` for a `1.0.1` line; `auto` (`prerelease`) is refused while the branch's version is stable. Later prereleases use `auto`.
 
 When `devel` is merged into `master`, the versions on both branches are updated:
-- `master` releases the stable version, e.g. `1.1.0-Prerelease03` → `1.1.0` with bump `release`;
-- `devel` starts the next prerelease line, e.g. `1.2.0-Prerelease01` with bump `minor` (or `patch`).
+- `master` releases the stable version, e.g. `1.1.0-Prerelease03` → `1.1.0` with bump `auto` (`release`);
+- `devel` gets `master` merged back (the release commit and its changelog section), then starts the next prerelease line, e.g. `1.2.0-Prerelease01` with bump `minor` (or `patch`).
+
+A fix that can't wait for the next minor release can go to `master` directly and be released with bump `patch` (`1.1.0` → `1.1.1`); merge `master` into `devel` afterwards.
+
+Before 1.0.0 there was only `master`, which published `1.0.0-Prerelease01` … `1.0.0-Prerelease15`.
 
 Version format: `X.Y.Z`, or `X.Y.Z-PrereleaseNN` with a two-digit `NN`. `Version` in [Directory.Build.props](../Directory.Build.props) is the **last released** version of the branch; the demo app's display version is its numeric part.
 
@@ -34,8 +38,8 @@ Run the **NuGet publish** workflow ([nuget-publish.yml](../.github/workflows/nug
 
 | Bump | Effect | Allowed on |
 | --- | --- | --- |
-| `auto` (default) | `release` on `master`, `prerelease` on `devel` (a choice's default can't depend on the branch, so the workflow picks) | Both |
-| `prerelease` | `-PrereleaseNN` → `-Prerelease(NN+1)` | `devel`; `master` only before the first stable release |
+| `auto` (default) | `release` on `master`, `prerelease` on `devel` (a choice's default can't depend on the branch, so the workflow picks); on `master` at a stable version it is refused, use `patch` | Both |
+| `prerelease` | `-PrereleaseNN` → `-Prerelease(NN+1)` | `devel` (from a prerelease version) |
 | `release` | Drops the suffix: `1.1.0-Prerelease03` → `1.1.0` | `master` |
 | `patch` / `minor` / `major` | Next `X.Y.Z`; on `devel`, its `-Prerelease01` | Both |
 | `none` | Publishes the current, already tagged version again from its tag (e.g. after a failed publish) | Both |
@@ -55,7 +59,7 @@ The workflow then:
 Preview the next version locally:
 
 ```bash
-scripts/release_version.py next --bump prerelease --branch master
+scripts/release_version.py next --bump minor --branch devel
 ```
 
 ## Setup
