@@ -214,6 +214,54 @@ public class PlatformLookShapeTests
         Assert.True(mean < 1, $"mean alpha difference {mean:F2}");
     }
 
+    [Fact]
+    public void SpokesTooLargeForAnImageDrawAsShapes()
+    {
+        // Past the largest image kept, the spokes are drawn one by one instead of rasterized.
+        const float size = DefaultSkUiLook.SpokesImage.MaxPixels + 10;
+        using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeCap = SKStrokeCap.Round, IsAntialias = true, Color = SKColors.Black };
+        using var recorder = new SKPictureRecorder();
+        IosSkUiLook.Instance.DrawActivityIndicator(recorder.BeginRecording(new SKRect(0, 0, size, size)), size, size, 0, paint);
+        using var picture = recorder.EndRecording();
+        Assert.True(picture.ApproximateOperationCount >= IosSkUiLook.Instance.ActivityIndicatorSpokeCount, $"{picture.ApproximateOperationCount} operations");
+        Assert.Equal(SKColors.Black, paint.Color);
+
+        using var drawn = new SKBitmap((int)size, (int)size);
+        using (var canvas = new SKCanvas(drawn))
+        {
+            canvas.Clear(SKColors.Transparent);
+            canvas.DrawPicture(picture);
+        }
+        // The first spoke, at the top and the brightest, halfway between 55 % of the radius and the circle.
+        Assert.Equal(255, drawn.GetPixel((int)(size / 2), (int)(size / 2 - size / 2 * 0.775f)).Alpha);
+    }
+
+    [Fact]
+    public void SpokesEvictedFromTheCacheStayInRecordedPictures()
+    {
+        using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeCap = SKStrokeCap.Round, IsAntialias = true, Color = SKColors.Black };
+        static SKPicture Record(SKPaint paint, float size)
+        {
+            using var recorder = new SKPictureRecorder();
+            IosSkUiLook.Instance.DrawActivityIndicator(recorder.BeginRecording(new SKRect(0, 0, size, size)), size, size, 0, paint);
+            return recorder.EndRecording();
+        }
+
+        // A size no other test records, then more sizes than the cache keeps: the first image is evicted (and disposed).
+        using var first = Record(paint, 41.25f);
+        for (var index = 0; index <= DefaultSkUiLook.SpokesImage.Capacity; index++)
+            Record(paint, 50.25f + index).Dispose();
+        Assert.True(DefaultSkUiLook.SpokesImage.Count <= DefaultSkUiLook.SpokesImage.Capacity);
+
+        using var drawn = new SKBitmap(42, 42);
+        using (var canvas = new SKCanvas(drawn))
+        {
+            canvas.Clear(SKColors.Transparent);
+            canvas.DrawPicture(first);
+        }
+        Assert.True(drawn.GetPixel(21, 21 - (int)(41.25f / 2 * 0.775f)).Alpha > 200);
+    }
+
     private static bool HasInk(SKBitmap bitmap)
     {
         for (var y = 0; y < bitmap.Height; y++)
