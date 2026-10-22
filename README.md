@@ -1,8 +1,16 @@
 # SkiaUi
 
-.NET MAUI library of **SkiaSharp-drawn UI** with two layers you can mix in one tree: a **MAUI-compatible `SkUi*` surface** for replacing native controls, and a **lightweight Core** for building custom controls and dense UI without MAUI `View` overhead. GPU acceleration when available; **`SkUiMauiContentView`** hosts Entry, Editor, WebView, and similar as native overlays.
+.NET MAUI library of **SkiaSharp-drawn UI**. Controls are drawn on one GPU surface instead of each owning a platform view, in two layers you can mix in one tree: **`SkUi*` controls** that replace MAUI's by changing the XAML prefix, and a lightweight **Core** layer for building controls of your own. WebView, maps, media and other native views stay native, as overlays in **`SkUiMauiContentView`**.
 
 > **1.0.0 is the first stable release.** Its public API is kept by every `1.x` release; prereleases of the next version (`1.1.0-PrereleaseNN`) are published from the `devel` branch. What's next: [roadmap](docs/design/Roadmap.md).
+
+## Who it's for
+
+**Apps whose MAUI screens are slow.** Long forms, dashboards, lists of rich rows: on a screen with hundreds of controls, MAUI spends seconds creating handlers and platform views before the first frame. `SkUi*` controls are drop-in replacements that keep MAUI's API (the same properties, XAML, bindings, styles, VisualStateManager and layout rules), so a slow page moves to drawn controls by changing `<Label>` to `<sk:SkUiLabel>` and `<Grid>` to `<sk:SkUiGrid>`, one page or one hot spot at a time. On a 2018 Android phone a page of 1,000 buttons is ready in 0.4 s instead of 6.4 s ([stress results](#stress-results-device)). The [migration guide](docs/Migration.md) and the [migration skills](plugins/skiaui-migration/README.md) for AI coding agents cover the rest.
+
+**Developers who build custom Skia-drawn controls.** Drawing a control on a bare `SKCanvasView` means writing its layout, text, hit-testing, gestures, accessibility and animations yourself. With Core, a custom control is composed from drawn building blocks (labels, buttons, shapes, borders, images, toggles, text fields, layouts) that are plain objects with fluent setters, no `BindableObject` and no handler, and it gets SkiaUi's text engine, gesture arena, keyboard focus, screen-reader support, render-thread animations, looks and color schemes for free. Host it in any page with `SkUiCoreHost`, or wrap it in a thin `SkUi*` view to use it from XAML ([Core guide](docs/controls/SkUiCore.md), [samples](samples/README.md)).
+
+**Apps that need richer UI than MAUI offers.** Skeleton loading screens, chips that wrap, carousels with cover-flow effects, lists with sticky and collapsible groups, numeric and date-and-time fields, text that shrinks to fit, one consistent look on every platform: with MAUI alone these mean third-party packages, platform renderers or custom drawing. SkiaUi ships them as drawn controls that work like MAUI's, in XAML or in code, the same on Android, iOS, Mac Catalyst and Windows ([what SkiaUi adds](#beyond-maui)).
 
 ## Why SkiaUi
 
@@ -31,17 +39,17 @@ MAUI page
             └── SkUiCore* tree       ← Core (compose / dense UI)
 ```
 
-## Benefits
+## Beyond MAUI
 
-- **Faster trees** — one shared Skia surface instead of a platform view per control; Core avoids MAUI control identity for dense composition (see [stress results](#stress-results-device) and [performance](docs/Performance.md)).
-- **Drop-in replacement path** — `SkUi*` mirrors common MAUI controls/layouts with MAUI layout semantics so you can swap hot spots without reinventing measure/arrange.
-- **Composition substrate** — build custom chrome and complex controls from Core primitives, then expose a thin `SkUi*` or host them via `SkUiCoreHost`.
-- **XAML where you want it** — bindable properties, styles, VisualStateManager on `SkUi*`; batch updates with `StartUpdating` / `EndUpdating`.
-- **GPU when it helps** — `HwAccelerated` on hosts (Metal/GL where supported); software path for leaves and constrained devices.
-- **Drawn text input** — `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar` and `SkUiNumericEntry` (and `SkUiStepper`) are drawn; the platform keyboard, IME, autocorrect and edit menu reach them through a proxy.
-- **Native when Skia isn’t enough** — `SkUiMauiContentView` keeps real WebView, maps or any native control as overlays.
-- **Shared look & palette** — control look and color scheme drive defaults for both layers without fighting MAUI `AppTheme` alone.
-- **Same gesture model** — SkiaUi tap / commands on drawn nodes; overlays keep platform input.
+Parity with MAUI is the starting point. What drawn controls add on top of it:
+
+- **The same pixels on every platform, or the platform's own look.** The default look draws each control the same on Android, iOS, Mac Catalyst and Windows. The platform looks (iOS 26, Material 2 and Material 3, Mac Catalyst, Windows) are measured against MAUI's native controls. Shapes, sizes, state transitions and colors come from one `SkUiLook` and `SkUiColorScheme` you customise once for the whole app ([control look](docs/design/ControlLook.md), [color scheme](docs/design/ColorScheme.md)).
+- **Motion off the UI thread.** `AnimateAsync`, scroll flings, indeterminate progress and shimmer run on the render thread and keep going while the UI thread is busy. Moving, fading, scrolling or transforming a view with shadows and clips records and blurs nothing again ([rendering pipeline](docs/design/RenderingPipeline.md)).
+- **Text MAUI doesn't have:** shrink and grow to fit, tightening, custom line breaking, HTML parsed the same on every platform with tappable links, justified text and synthetic bold / italic everywhere, rounded backgrounds and borders on labels themselves ([SkUiLabel](docs/controls/SkUiLabel.md#differences-from-maui-label)).
+- **Controls MAUI doesn't have:** numeric entries with typed values, multi-column and date-and-time pickers, shimmer skeletons of your own views, wrap layouts for chips and tags, stacks whose children shrink to fit, a stack that keeps a bar's title centered, content switches with animations, virtualized stacks; the Community Toolkit's avatar, expander and state container built in, drawn.
+- **More from the controls MAUI has:** a collection view with collapsible groups, sticky group headers, sticky header and footer, load more and pull-to-refresh built in; a carousel that loops without an end, shows the next cards peeking and draws item effects (cover flow, scaling, your own) on the compositor; snap points and overscroll on scroll views; vertical sliders, indeterminate progress bars, steppers with stacked buttons and typed values; pickers whose lists open on your app's popup system ([all controls](docs/controls/README.md)).
+- **One gesture model.** A per-pointer gesture arena decides between nested taps, long presses, swipes and scrolls the same way on every platform; MAUI's `TapGestureRecognizer` works on drawn views ([event mechanism](docs/design/EventMechanism.md)).
+- **Fewer leaks to chase.** Drawn controls have no handler and no native peer to keep them alive, long-lived sources are listened to weakly, and leak scenarios run headless with every test run and on devices.
 
 ## Install
 
@@ -75,16 +83,7 @@ builder.UseMauiCommunityToolkit().UseSkiaUi().UseSkiaUiCommunityToolkit();
 xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 ```
 
-```xml
-<sk:SkUiContentView HeightRequest="200" Background="White">
-	<sk:SkUiLayout>
-		<sk:SkUiBox WidthRequest="80" HeightRequest="60" Color="Crimson"
-					HorizontalOptions="Start" VerticalOptions="Start" Margin="16" />
-		<sk:SkUiEllipse WidthRequest="60" HeightRequest="60" Fill="Teal"
-						HorizontalOptions="End" VerticalOptions="End" Margin="16" />
-	</sk:SkUiLayout>
-</sk:SkUiContentView>
-```
+A drawn page, with MAUI's controls under the `sk:` prefix:
 
 ```xml
 <sk:SkUiContentView Background="White">
@@ -98,6 +97,26 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 </sk:SkUiContentView>
 ```
 
+A list that shows a shimmering skeleton while it loads:
+
+```xml
+<sk:SkUiShimmer IsLoading="{Binding IsLoading}" AfterStateChangeAnimation="FadeIn 250">
+	<sk:SkUiCollectionView ItemsSource="{Binding Contacts}" SelectionMode="Single">
+		<DataTemplate x:DataType="local:Contact">
+			<sk:SkUiGrid ColumnDefinitions="Auto,*" ColumnSpacing="12" Padding="16,8">
+				<sk:SkUiAvatarView Text="{Binding Name}" WidthRequest="40" HeightRequest="40" CornerRadius="20" />
+				<sk:SkUiVerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+					<sk:SkUiLabel Text="{Binding Name}" FontAttributes="Bold" />
+					<sk:SkUiLabel Text="{Binding Email}" FontSize="13" TextColor="Gray" />
+				</sk:SkUiVerticalStackLayout>
+			</sk:SkUiGrid>
+		</DataTemplate>
+	</sk:SkUiCollectionView>
+</sk:SkUiShimmer>
+```
+
+No second layout for the skeleton: while `IsLoading` is true, the still-empty list fills itself with placeholder rows made from its own item template, and each control in them draws as bones (the avatar a circle, each label a bar). The bones shimmer on the render thread, and when the contacts arrive and `IsLoading` turns false, the rows fade in ([SkUiShimmer](docs/controls/SkUiShimmer.md), [SkUiCollectionView](docs/controls/SkUiCollectionView.md)).
+
 ## Migrating a MAUI app
 
 **[docs/Migration.md](docs/Migration.md)** walks through moving existing MAUI screens to drawn controls: where the drawn surface goes, the control mapping, styles, gestures, custom controls and what has no drawn equivalent yet. For AI coding agents, the **[SkiaUi migration skills](plugins/skiaui-migration/README.md)** audit an app and convert pages by the same rules (Claude Code: `/plugin marketplace add rafalka/MauiSkiaUi`, then `/plugin install skiaui-migration@skiaui`).
@@ -108,10 +127,13 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 
 | Area | Types |
 | --- | --- |
-| Hosts & layout | `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiScrollView`, `SkUiBorder` |
-| Text & chrome | `SkUiLabel`, `SkUiButton`, `SkUiImage`, `SkUiImageButton`, `SkUiActivityIndicator` |
-| Toggles | `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton` |
-| Text input | `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar`, `SkUiNumericEntry` / `SkUiNumericEntry<T>`, `SkUiStepper` |
+| Hosts & layout | `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiFlexLayout`, `SkUiBorder`; `SkUiWrapLayout`, shrink stacks, `SkUiHorizontalAlignStackLayout` |
+| Scrolling & lists | `SkUiScrollView`, `SkUiRefreshView`, `SkUiCollectionView`, `SkUiCarouselView`, `SkUiIndicatorView`, `SkUiSwipeView`, virtual stacks |
+| Text & chrome | `SkUiLabel`, `SkUiButton`, `SkUiImage`, `SkUiImageButton`, `SkUiAvatarView`, `SkUiActivityIndicator`, `SkUiProgressBar` |
+| Toggles & values | `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton`, `SkUiSlider`, `SkUiStepper` |
+| Text input | `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar`, `SkUiNumericEntry` / `SkUiNumericEntry<T>` |
+| Pickers | `SkUiPicker`, `SkUiMultiColumnPicker`, `SkUiDatePicker`, `SkUiTimePicker`, `SkUiDateTimePicker` |
+| Content & loading | `SkUiContentPresenter`, `SkUiAlternateContentView`, `SkUiExpander`, `SkUiStateContainer`, `SkUiShimmer` |
 | Shapes | `SkUiBox` (BoxView), MAUI's shapes with brushes, dashes and stretch: `SkUiEllipse`, `SkUiLine`, `SkUiRectangle`, `SkUiRoundRectangle`, `SkUiPath`, `SkUiPolygon`, `SkUiPolyline`; `SkUiBorder.StrokeShape` takes any of them |
 | Native overlay | `SkUiMauiContentView` (WebView, maps, …) |
 
@@ -120,8 +142,9 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 | Area | Types |
 | --- | --- |
 | Bridge | `SkUiCoreHost` |
-| Layouts | `SkUiCoreAbsoluteLayout`, stacks, overlay, `SkUiCoreGrid` / `SkUiCoreTable`, `SkUiCoreContentView` / `SkUiCoreBorder` |
-| Controls | `SkUiCoreLabel`, `SkUiCoreButton`, toggles, image / image button, activity indicator, shapes, `SkUiCoreEntry` / `SkUiCoreEditor` / `SkUiCoreSearchBar` / `SkUiCoreNumericEntry` / `SkUiCoreStepper` |
+| Layouts | `SkUiCoreAbsoluteLayout`, stacks, overlay, `SkUiCoreGrid` / `SkUiCoreTable`, wrap and shrink layouts, `SkUiCoreContentView` / `SkUiCoreBorder`, `SkUiCoreScrollView` |
+| Controls | `SkUiCoreLabel`, `SkUiCoreButton`, toggles, `SkUiCoreSlider`, `SkUiCoreProgressBar`, image / image button, `SkUiCoreAvatar`, activity indicator, shapes, `SkUiCoreShimmer`, `SkUiCoreIndicatorView` |
+| Text input & pickers | `SkUiCoreEntry` / `SkUiCoreEditor` / `SkUiCoreSearchBar` / `SkUiCoreNumericEntry` / `SkUiCoreStepper`; `SkUiCorePicker`, `SkUiCoreMultiColumnPicker`, `SkUiCoreDatePicker`, `SkUiCoreTimePicker`, `SkUiCoreDateTimePicker` |
 
 Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](docs/controls/README.md)** · Core overview: **[docs/controls/SkUiCore.md](docs/controls/SkUiCore.md)**.
 
