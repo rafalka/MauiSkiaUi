@@ -13,6 +13,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### Other
+
+- **Development moved to `devel`:** pull requests target the `devel` branch, which publishes the `1.1.0` prereleases; `master` holds stable releases ([docs/Releasing.md](docs/Releasing.md#branches-and-versions)). The README, roadmap, contributing guide and security policy describe the stable state.
+
 ## 1.0.0
 
 ### New features

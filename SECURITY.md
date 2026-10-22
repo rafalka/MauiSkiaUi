@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-SkiaUi is in prerelease. Security fixes go into the next release only; older versions are not patched. Update to the [latest `SkiaUi.Maui` package](https://www.nuget.org/packages/SkiaUi.Maui).
+Security fixes go into the next stable release of the latest `1.x` line (a patch release when it can't wait); older versions and prereleases are not patched. Update to the [latest stable `SkiaUi.Maui` package](https://www.nuget.org/packages/SkiaUi.Maui).
 
 ## Reporting a vulnerability
 

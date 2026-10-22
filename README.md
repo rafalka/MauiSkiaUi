@@ -2,7 +2,7 @@
 
 .NET MAUI library of **SkiaSharp-drawn UI** with two layers you can mix in one tree: a **MAUI-compatible `SkUi*` surface** for replacing native controls, and a **lightweight Core** for building custom controls and dense UI without MAUI `View` overhead. GPU acceleration when available; **`SkUiMauiContentView`** hosts Entry, Editor, WebView, and similar as native overlays.
 
-> **Preview.** SkiaUi is still in a prerelease state. It may contain bugs, and public APIs may change without a stable compatibility guarantee. **It is not recommended for production use** yet.
+> **1.0.0 is the first stable release.** Its public API is kept by every `1.x` release; prereleases of the next version (`1.1.0-PrereleaseNN`) are published from the `devel` branch. What's next: [roadmap](docs/design/Roadmap.md).
 
 ## Why SkiaUi
 
