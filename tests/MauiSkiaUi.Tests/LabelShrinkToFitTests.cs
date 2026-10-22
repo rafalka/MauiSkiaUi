@@ -5,7 +5,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// Text that fits its label (Phase C3 in ImplementationPlan.md): <c>ShrinkToFit</c> / <c>MinimumFontScale</c>,
+/// Text that fits its label (Phase C3 in docs/archive/ImplementationPlan-1.0.md): <c>ShrinkToFit</c> / <c>MinimumFontScale</c>,
 /// <c>AllowsTightening</c> and <c>GrowToFill</c> / <c>MaximumFontScale</c> on both label layers, the engine's fit
 /// (<see cref="SkUiTextFit"/>) for plain text, spans and custom breakers, and its cache.
 /// </summary>

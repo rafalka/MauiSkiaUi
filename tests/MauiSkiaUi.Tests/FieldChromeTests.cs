@@ -6,7 +6,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// Per-field chrome (M5 in ImplementationPlan.md): a text field's or picker's own <c>FieldStyle</c> wins over the look's, its
+/// Per-field chrome (M5 in docs/archive/ImplementationPlan-1.0.md): a text field's or picker's own <c>FieldStyle</c> wins over the look's, its
 /// <c>FillColor</c>, <c>BorderColor</c>, <c>BorderWidth</c> and <c>CornerRadii</c> replace the style's idle chrome while focus,
 /// error and disabled emphasis stay the look's, and <c>TextPadding</c> replaces the look's text padding; the same on both
 /// layers, checked pixel by pixel SkUi vs Core.

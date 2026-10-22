@@ -1,6 +1,6 @@
 # Color scheme (default palette)
 
-Design notes for **FR-19** in [Requirements.md](Requirements.md).
+The default palette of SkiaUi's controls (FR-19 in [Requirements.md](Requirements.md#functional-requirements)). Shapes and sizes are the look's: [ControlLook.md](ControlLook.md).
 
 This is **not**:
 
@@ -23,11 +23,11 @@ Prefer **“color scheme”** or **“palette”** in public API and docs. Avoid
 One **extensible scheme object** supplies the default colors that both `SkUi*` and `SkUiCore*` use when a control property is not explicitly set. Apps can:
 
 1. **Replace the entire scheme** — e.g. light pack, dark pack, brand pack.
-2. **Change particular colors** — e.g. only `Accent`, or only `DefaultBackground` — via property setters on the scheme instance, subclass overrides, or (open) replaceable slots.
+2. **Change particular colors** — e.g. only `Accent`, or only `DefaultBackground` — via property setters on the scheme instance or subclass overrides.
 
-Today’s static `SkUiColors` (Accent, Muted, TrackOff, Disabled) is the seed for the **default** scheme.
+`SkUiColors` reads tokens from the active scheme at paint time.
 
-## Proposed API shape (sketch — names open)
+## API
 
 ```csharp
 public class SkUiColorScheme
@@ -51,7 +51,7 @@ public class SkUiColorScheme
 public sealed class LightSkUiColorScheme : SkUiColorScheme { … }  // today’s SkUiColors values
 public sealed class DarkSkUiColorScheme : SkUiColorScheme { … }
 
-// App-wide current scheme (exact static/DI API open — mirror control look).
+// App-wide current scheme.
 SkUiColorScheme.Current = new DarkSkUiColorScheme();
 
 // Partial change without a new pack:
@@ -64,25 +64,20 @@ var scheme = new LightSkUiColorScheme { Accent = Colors.Purple };
 Controls initialize (or resolve) defaults from the **active** scheme:
 
 ```csharp
-// Sketch — construction / first paint
+// When a control is created
 _onColor = scheme.Accent;
 _fillColor = scheme.Accent;
 _trackOff = scheme.TrackOff;
 ```
 
-## Resolution / precedence (proposed)
+## Resolution
 
-**For a given control property** (e.g. `SkUiButton.FillColor`):
+**For a given control color** (e.g. `SkUiButton.FillColor`):
 
-1. Value **explicitly set** by the app (CLR setter, fluent `Set*`, XAML attribute, or FR-12 `Style` / VSM) wins.
-2. Else **control-local scheme** (optional) if set.
-3. Else **tree / host scheme** (optional) if set.
-4. Else **`SkUiColorScheme.Current`**.
-5. Else built-in **light / default** scheme.
+1. A value **set** by the app (CLR setter, fluent `Set*`, XAML attribute, MAUI `Style` / visual state) wins.
+2. Else the active scheme, `SkUiColorScheme.Current` (`LightSkUiColorScheme.Instance` by default).
 
-Chosen rule: controls snapshot scheme colors (e.g. accents) into their fields at construction, so an explicit value simply overwrites the snapshot; paint-time tokens read through `SkUiColors` follow `Current` live. Steps 2–3 (control-local / tree scheme) are not implemented.
-
-Changing the active scheme must invalidate paint for controls that still follow scheme defaults (and optionally push updated defaults into controls that opted in to live tracking).
+Controls snapshot the scheme colors they keep in fields (accents, button and indicator tokens) when they are created, so an explicit value simply overwrites the snapshot; tokens read at paint time through `SkUiColors` follow `Current` live. Replacing `Current` raises `CurrentChanged`, and live surfaces re-measure and redraw their drawn trees; controls created earlier keep the colors they snapshotted. Per-control and per-tree schemes are not implemented ([roadmap](Roadmap.md#looks-colors-and-motion)).
 
 ## Relationship to FR-12 and FR-18
 
@@ -95,14 +90,14 @@ MAUI Style/VSM   →  optional per-control property overrides (SkUi* only)
 - Core has **no** MAUI styles; Core depends on **scheme + look** (+ explicit `Set*`) for appearance.
 - MAUI-compatible controls use scheme/look for defaults, then FR-12 for XAML-friendly overrides.
 
-## Built-in packs (roadmap)
+## Built-in schemes
 
 | Pack | Intent |
 | --- | --- |
-| Light / default | Current `SkUiColors` values |
-| Dark | Dark surfaces + adjusted accent/muted/disabled |
+| `LightSkUiColorScheme` | The default |
+| `DarkSkUiColorScheme` | Dark surfaces, adjusted accent / muted / disabled |
 | Platform packs | `IosSkUiColorScheme`, `MacSkUiColorScheme`, `AndroidSkUiColorScheme`, `AndroidMaterial3SkUiColorScheme`, `WindowsSkUiColorScheme` (`DefaultSkUiLook.GetColorScheme(isDark)`) |
-| App / library packs | Brand palettes |
+| App schemes | Brand palettes: subclass or copy a scheme |
 
 **Control tokens.** `ButtonBackground`, `ButtonForeground`, `ButtonBorder` and `ActivityIndicator` give buttons (both layers) and activity indicators the colors MAUI's native controls have on each platform, measured with `SkUiLookComparisonPage`: iOS's (and Mac Catalyst's) system button has no fill and tinted text; Android's buttons fill with the accent and its spinner takes it; Windows' standard button is light (`#B3FFFFFF`, dark `#0FFFFFFF`) with the primary text color and a faint 1 epx border (`#0F000000`, dark `#18FFFFFF`; the look's `DefaultButtonBorderWidth` and `ButtonHasElevationBorder` draw it, darker along the bottom), and its progress ring takes the accent. Until set, a token follows its fallback, so `WithAccent` and later `Accent` changes carry into it; once set, it keeps its value. `CopyFrom` copies the colors they have. Like the other defaults, controls read them when they are created; explicit values win.
 
@@ -114,15 +109,4 @@ Core and MAUI-compatible controls **must** resolve the same scheme so dual-layer
 
 - Replacing MAUI `Style` for per-control customization (FR-12 remains).
 - Implementing full Material / Cupertino token graphs.
-- Automatically mirroring OS light/dark unless the app wires that (optional helper later).
-
-## Checklist (implementation)
-
-- [x] Promote today’s `SkUiColors` into a public **`SkUiColorScheme`** (default / light pack) plus **`DarkSkUiColorScheme`**.
-- [x] App can set global current scheme (`SkUiColorScheme.Current`).
-- [x] App can change individual scheme colors (properties) without replacing the whole pack.
-- [x] Wire Core + MAUI control **defaults** through the active scheme (`SkUiColors` accessors + construction snapshots).
-- [x] Document precedence: explicit property wins; paint-time tokens via `SkUiColors` follow `Current`; construction fields snapshot `Current`.
-- [x] Scheme change raises `CurrentChanged`; live surfaces re-measure and redraw their drawn trees. Controls that snapshotted a default color at construction keep it (open, ArchitectureReview N6).
-- [ ] Optional per-control / per-tree scheme attachment.
-- [x] Gallery sample: swap light/dark + change Accent (`LookAndColorSchemePage`, route `look`).
+- Automatically mirroring the OS light / dark mode: the app sets the scheme (see [ControlLook.md](ControlLook.md#built-in-looks)).

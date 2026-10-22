@@ -7,7 +7,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// MAUI Label's text properties (Phase P3 in ImplementationPlan.md) on both layers: <c>MaxLines</c>, <c>LineHeight</c>,
+/// MAUI Label's text properties (Phase P3 in docs/archive/ImplementationPlan-1.0.md) on both layers: <c>MaxLines</c>, <c>LineHeight</c>,
 /// <c>CharacterSpacing</c>, <c>TextDecorations</c>, <c>TextTransform</c>, Core <c>FontAttributes</c>; and custom line
 /// breakers (<see cref="SkUiTextLineBreaker"/>): a custom ellipsis, fewer decimals instead of an ellipsis.
 /// </summary>

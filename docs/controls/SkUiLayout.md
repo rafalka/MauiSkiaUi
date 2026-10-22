@@ -68,7 +68,7 @@ MAUI's `BindableLayout` works on `SkUiLayout` and every layout built on it (`SkU
 - Writes through `IBindableLayout.Children` go through the same checks as writes through `ILayout`.
 - `EmptyView` must be a drawn view, or come from `EmptyViewTemplate`: a string `EmptyView` throws, because MAUI turns it into its own `Label`.
 - Templates can set attached properties (`Grid.Row`, `FlexLayout.Grow`, …); they re-lay out the layout like any child's.
-- Every item gets a view, as in MAUI: no virtualization. For long lists use a scroller with a few hundred items at most, until the virtualized collection view (Phase B).
+- Every item gets a view, as in MAUI: no virtualization. For long lists use [`SkUiCollectionView`](SkUiCollectionView.md) or [`SkUiVirtualScrollView`](SkUiVirtualVerticalStackLayout.md), which create items near the viewport only.
 
 ## Notes
 

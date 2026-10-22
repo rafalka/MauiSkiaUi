@@ -2,7 +2,7 @@
 
 Lightweight Skia nodes **without** MAUI `View` / `BindableObject` identity. Use them to compose complex controls or dense trees; place the tree in the MAUI-compatible surface via **`SkUiCoreHost`**.
 
-**Contract:** [CoreRequirements.md](../design/CoreRequirements.md) (goals, FR-C*, fluent/INPC/MVVM Toolkit, Core-as-delegate sharing).
+**Contract:** [Requirements.md](../design/Requirements.md#core-layer-fr-c) (FR-C*: fluent / INPC / MVVM Toolkit, engines shared with SkUi\*); motivation and decisions: [CoreRequirements.md](../archive/CoreRequirements.md) (archived).
 
 MAUI-compatible controls keep the existing names (`SkUiLabel`, `SkUiButton`, `SkUiAbsoluteLayout`, …).
 
@@ -58,7 +58,6 @@ Every Core container places a node in its slot by `HorizontalAlignment` / `Verti
 - `Start` / `Center` / `End` place the node's desired size.
 - One difference from MAUI: a frame never grows past its slot (MAUI lets a view larger than its slot overflow it).
 
-**Migrating from earlier versions:** before P7 most Core containers ignored alignment (a `Center`ed node in a stack stretched or sat at the start) and anchored explicitly sized `Fill` nodes at the top-left. Set `Start` alignments where a layout relied on that.
 
 ## Attached properties
 
@@ -340,14 +339,13 @@ Core labels and buttons follow the system text size like SkUi* ones (`FontAutoSc
 
 ## Stress comparison
 
-Demo **Stress test** page: toggle **Core layer** to build the same two-column grid of buttons with Core nodes vs MAUI-compatible `SkUiGrid` + `SkUiButton`. **Animate** puts running `SkUiCoreActivityIndicator` / `SkUiActivityIndicator` cells in the second column on either layer. Compare Generate / Add / Render timings (see measured gap in [CoreRequirements.md](../design/CoreRequirements.md)).
+Demo **Stress test** page: toggle **Core layer** to build the same two-column grid of buttons with Core nodes vs MAUI-compatible `SkUiGrid` + `SkUiButton`. **Animate** puts running `SkUiCoreActivityIndicator` / `SkUiActivityIndicator` cells in the second column on either layer. Compare Generate / Add / Render timings (see the measured gap in [CoreRequirements.md](../archive/CoreRequirements.md#motivation-measured)).
 
-## Roadmap (see CoreRequirements)
+## Status
 
-- Separate `MauiSkiaUi.Core` assembly without `Microsoft.Maui.Controls`
-- `SkUiLabel` / `SkUiButton` delegate measure & paint to Core instances (today they are separate types that share the internal text engine and the `SkUiLook` chrome)
+Open ([roadmap](../design/Roadmap.md#architecture-and-performance)): a separate Core assembly without `Microsoft.Maui.Controls`. SkUi\* controls and their Core twins are separate types that share engines (text, shapes, toggles, scrolling, images) and the `SkUiLook` chrome, rather than SkUi\* controls wrapping Core instances.
 
-Already shipped: hand-rolled INPC on `SkUiCoreNode` with `ICommand` commands (`SkUiCoreCommand` helper); fluent `Set*` as the single apply path, with CLR setters calling `Set*`; shared painters, default sizes and state-change transitions via **`SkUiLook`** (FR-18, FR-26: Core toggles, buttons, sliders and progress bars animate like their SkUi* counterparts, through the same internal animators; `ShowsPressEffect` on any node gives a composite button, e.g. a `SkUiCoreBorder` holding an icon and labels, the look's press feedback: see the "Composite buttons" demo) and the shared palette via **`SkUiColorScheme`** / **`SkUiColors`** (FR-19) — neither is MAUI Style/VSM (FR-12); Grid, Table and ScrollView layouts.
+Shipped: hand-rolled INPC on `SkUiCoreNode` with `ICommand` commands (`SkUiCoreCommand` helper); fluent `Set*` as the single apply path, with CLR setters calling `Set*`; shared painters, default sizes and state-change transitions via **`SkUiLook`** (FR-18, FR-26: Core toggles, buttons, sliders and progress bars animate like their SkUi* counterparts, through the same internal animators; `ShowsPressEffect` on any node gives a composite button, e.g. a `SkUiCoreBorder` holding an icon and labels, the look's press feedback: see the "Composite buttons" demo) and the shared palette via **`SkUiColorScheme`** / **`SkUiColors`** (FR-19) — neither is MAUI Style/VSM (FR-12); Grid, Table and ScrollView layouts.
 
 ## Refresh indicator
 

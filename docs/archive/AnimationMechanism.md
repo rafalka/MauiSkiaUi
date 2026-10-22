@@ -1,8 +1,8 @@
 # SkiaUi animation mechanism
 
-> **Update (2026-09):** composite-time animations (opacity, transforms, scroll offset, fling, spinners) now run on the **render thread** via `AnimateAsync` / internal render animations, independent of the UI thread; `SkUiAnimationClock` remains for UI-thread callback animations and is ticked by a UI vsync ticker (not `HasRenderLoop`). See [RenderingPipeline.md](RenderingPipeline.md#animation-tiers).
+> **Update (2026-09):** composite-time animations (opacity, transforms, scroll offset, fling, spinners) now run on the **render thread** via `AnimateAsync` / internal render animations, independent of the UI thread; `SkUiAnimationClock` remains for UI-thread callback animations and is ticked by a UI vsync ticker (not `HasRenderLoop`). See [RenderingPipeline.md](../design/RenderingPipeline.md#animation-tiers).
 
-Design notes and implementation checklist for **FR-7** in [Requirements.md](Requirements.md). Aligns with [DrawingMechanism.md](DrawingMechanism.md) (paint / opacity / transform at paint time) and [LayoutSystem.md](LayoutSystem.md) (selective measure/arrange).
+Design notes and implementation checklist for **FR-7** in [Requirements.md](Requirements-1.0.md). Aligns with [DrawingMechanism.md](DrawingMechanism.md) (paint / opacity / transform at paint time) and [LayoutSystem.md](LayoutSystem.md) (selective measure/arrange).
 
 ## Goal
 
@@ -20,7 +20,7 @@ The clock must integrate with root invalidation: continuous frames **only while*
 
 | Topic | Choice |
 | --- | --- |
-| Frame source | **Display vsync** while animations run — **not** a fixed `Timer(1000/60)`. Today: the render thread's vsync for composite animations, a UI vsync ticker for `SkUiAnimationClock` ([RenderingPipeline.md](RenderingPipeline.md#animation-tiers)); the original `HasRenderLoop` design below is historical |
+| Frame source | **Display vsync** while animations run — **not** a fixed `Timer(1000/60)`. Today: the render thread's vsync for composite animations, a UI vsync ticker for `SkUiAnimationClock` ([RenderingPipeline.md](../design/RenderingPipeline.md#animation-tiers)); the original `HasRenderLoop` design below is historical |
 | “60 fps” meaning | Target **display-smooth** motion; nominal budget ~16.7 ms on 60 Hz. Prefer **time-based** interpolation so 90/120 Hz devices stay correct (and still look smooth) |
 | Primary animation class | **Paint + render-transform** (cheap). Layout animation is **opt-in / later** |
 | Clock ownership | **Standalone SkUi root** owns animator registry + render-loop on/off |
@@ -222,7 +222,7 @@ These create a registered animator, apply via direct setters, complete when fini
 
 > Should a HW-accelerated root set `HasRenderLoop = true` whenever any descendant has an active animation? When the last animation ends, turn it off?
 
-**Superseded.** Frames are requested only while animations run: the render thread ticks composite animations and stops when none remain; the root `SkUiAnimationClock` runs its UI ticker only while it has animations. Unchanged nodes replay their retained pictures ([RenderingPipeline.md](RenderingPipeline.md)).
+**Superseded.** Frames are requested only while animations run: the render thread ticks composite animations and stops when none remain; the root `SkUiAnimationClock` runs its UI ticker only while it has animations. Unchanged nodes replay their retained pictures ([RenderingPipeline.md](../design/RenderingPipeline.md)).
 
 ## Invalidation rules
 
@@ -249,13 +249,13 @@ These create a registered animator, apply via direct setters, complete when fini
 
 ## State-change transitions
 
-Switch, check box and radio transitions, button press feedback (dim or ripple), slider thumb glides and optional progress smoothing (FR-26). The look draws them and sets their timing: [ControlLook.md](ControlLook.md#state-change-transitions-fr-26).
+Switch, check box and radio transitions, button press feedback (dim or ripple), slider thumb glides and optional progress smoothing (FR-26). The look draws them and sets their timing: [ControlLook.md](../design/ControlLook.md#state-change-transitions-fr-26).
 
 - **Engine:** internal tweens on the root's `SkUiAnimationClock`, shared by the SkUi* and Core controls (`SkUiTween`, `SkUiToggleAnimator`, `SkUiPressAnimator`, `SkUiSliderVisual`). Each frame the control re-records its own picture; ancestors are only walked.
 - **Interruptions:** a toggle sent back mid-way reverses from its current point, over the part already travelled. A third state mid-way starts from the nearer state.
 - **Quick taps:** a press released before it showed fully finishes its press, then releases.
 - **When they run:** only for controls already drawn on a surface. States set before the first frame show at once. Stopping the clock (the handler disconnects, the surface is replaced) jumps to the end state.
-- **Why the UI thread:** see [ArchitectureReview.md](ArchitectureReview.md#state-change-animations) for the measurements and the render-thread alternatives kept open.
+- **Why the UI thread:** see [ArchitectureReview.md](ArchitectureReview-2026-09.md#state-change-animations) for the measurements and the render-thread alternatives kept open.
 
 ## Reduced motion / accessibility
 
@@ -306,4 +306,4 @@ Switch, check box and radio transitions, button press feedback (dim or ripple), 
 
 ## Tracking
 
-When implemented, check items above and summarize in [Development.md](../../Development.md) under *Current implementation*. Keep FR-7 checkboxes in [Requirements.md](Requirements.md) in sync.
+When implemented, check items above and summarize in [Development.md](../../Development.md) under *Current implementation*. Keep FR-7 checkboxes in [Requirements.md](Requirements-1.0.md) in sync.

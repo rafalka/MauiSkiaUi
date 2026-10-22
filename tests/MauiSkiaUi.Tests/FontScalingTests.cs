@@ -4,7 +4,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// System text size on drawn text (P10 in ImplementationPlan.md): <c>FontAutoScalingEnabled</c> on labels, buttons, radio
+/// System text size on drawn text (P10 in docs/archive/ImplementationPlan-1.0.md): <c>FontAutoScalingEnabled</c> on labels, buttons, radio
 /// button text, spans, HTML and font images, on both layers. In the global collection: the scale is process-wide.
 /// </summary>
 [Collection(GlobalStateCollection.Name)]

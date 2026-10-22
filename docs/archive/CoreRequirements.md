@@ -2,7 +2,7 @@
 
 Requirements for the **SkiaUi Core** layer (`MauiSkiaUi.Core`): a separate, low-level tree for composing complex UI and new controls from primitives **without** MAUI control / XAML overhead.
 
-The MAUI-compatible surface (`SkUiLabel`, `SkUiGrid`, …) remains the primary drop-in API and is specified in [Requirements.md](Requirements.md). This document covers Core only.
+The MAUI-compatible surface (`SkUiLabel`, `SkUiGrid`, …) remains the primary drop-in API and is specified in [Requirements.md](Requirements-1.0.md). This document covers Core only.
 
 **Status:** Core layouts (Absolute, stacks, overlay, ContentView/Border, **Grid**, **Table**, **ScrollView**) and basic controls (Label, Button, toggles, Image/ImageButton, ActivityIndicator, shapes) exist under `MauiSkiaUi/Core/` (same assembly today). Stress results below motivate promoting Core to a first-class, dependency-clean layer. Items are **not complete** unless checked and summarized in [Development.md](../../Development.md).
 
@@ -24,7 +24,7 @@ Generate is ~**12×** faster on Core (no `View` / `BindableObject` per cell). Th
 3. **No XAML / Styles / MAUI Binding** — Core is code-first. No `[ContentProperty]`, no resource styles, no `BindableProperty`.
 4. **Observable for app / control authors** — Core raises **property change notifications** via `INotifyPropertyChanged` on `SkUiCoreNode`; see FR-C5.
 5. **Fluent API** — ergonomic `Set*` chaining for tree construction (stress / factories / control ctors).
-6. **Single implementation of paint & measure** — MAUI-compatible controls **delegate** to Core (or a shared Core engine) so Label/Button/etc. are not duplicated. Shared chrome geometry / default sizes use one **control look** ([FR-18](Requirements.md#fr-18--control-look-shape--chrome--default-sizes-not-maui-styles) / [ControlLook.md](ControlLook.md)); shared default colors use one **color scheme** ([FR-19](Requirements.md#fr-19--color-scheme-shared-default-palette-not-maui-styles--not-look) / [ColorScheme.md](ColorScheme.md)).
+6. **Single implementation of paint & measure** — MAUI-compatible controls **delegate** to Core (or a shared Core engine) so Label/Button/etc. are not duplicated. Shared chrome geometry / default sizes use one **control look** ([FR-18](Requirements-1.0.md#fr-18--control-look-shape--chrome--default-sizes-not-maui-styles) / [ControlLook.md](../design/ControlLook.md)); shared default colors use one **color scheme** ([FR-19](Requirements-1.0.md#fr-19--color-scheme-shared-default-palette-not-maui-styles--not-look) / [ColorScheme.md](../design/ColorScheme.md)).
 
 Non-goals for Core:
 
@@ -175,7 +175,7 @@ Requirements:
 - [x] Same for Button chrome + label (and later Image, toggles, etc.) — prioritize high-churn controls first. *(Chrome and default sizes go through `SkUiLook.Current`, text through the shared engine.)*
 - [ ] MAUI bindable `propertyChanged` handlers call the same `Set*` that mutates the Core delegate (FR-10: BP → Set*; a direct Set* writes the BP first).
 - [ ] Core delegate lifetime: owned by the MAUI control; not inserted into a Core layout tree unless the author also builds a Core subtree.
-- [x] Avoid duplicating line-breaking / typeface resolution / chrome path code in both layers; chrome geometry and default sizes go through the shared **control look** (FR-18 / [ControlLook.md](ControlLook.md)); default colors go through the shared **color scheme** (FR-19 / [ColorScheme.md](ColorScheme.md)).
+- [x] Avoid duplicating line-breaking / typeface resolution / chrome path code in both layers; chrome geometry and default sizes go through the shared **control look** (FR-18 / [ControlLook.md](../design/ControlLook.md)); default colors go through the shared **color scheme** (FR-19 / [ColorScheme.md](../design/ColorScheme.md)).
 - [ ] Unit tests: Core label measure/paint golden behavior; MAUI `SkUiLabel` matches for the same inputs (delegate path).
 
 Alternative rejected for v1: parallel “engine” structs neither public as Core nor used as nodes — prefer **public Core controls** so composition and delegation are the same types.
@@ -219,7 +219,7 @@ Minimum public Core primitives (expand as MAUI wrappers gain delegates):
 
 - Core node construction must stay far cheaper than `new SkUiView()` (order-of-magnitude Generate wins as in Motivation).
 - Hot `Set*` with unchanged values: no INPC, no invalidate.
-- Prefer struct dirty flags; avoid per-frame allocations in paint (align with NFR-2 in [Requirements.md](Requirements.md)).
+- Prefer struct dirty flags; avoid per-frame allocations in paint (align with NFR-2 in [Requirements.md](Requirements-1.0.md)).
 
 ### NFR-C2 — Quality & docs
 

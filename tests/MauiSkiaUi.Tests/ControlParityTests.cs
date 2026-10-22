@@ -6,7 +6,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// MAUI API parity of shipped controls (Phase P1 in ImplementationPlan.md): Switch <c>IsToggled</c>, button press events,
+/// MAUI API parity of shipped controls (Phase P1 in docs/archive/ImplementationPlan-1.0.md): Switch <c>IsToggled</c>, button press events,
 /// BoxView corner radius, Line points, Image <c>Aspect.Center</c> / http, ImageButton chrome, on both layers.
 /// </summary>
 [Collection(RuntimeXamlCollection.Name)]

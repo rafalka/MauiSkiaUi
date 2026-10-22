@@ -6,7 +6,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// Core enabled state and tap command (M1 in ImplementationPlan.md, architecture review N2 / N3): <c>IsEnabled</c> cascading
+/// Core enabled state and tap command (M1 in docs/archive/ImplementationPlan-1.0.md, architecture review N2 / N3): <c>IsEnabled</c> cascading
 /// through Core trees and from the host, <c>InputTransparent</c>, <c>TappedCommand</c>, and one blocking rule for both layers,
 /// checked SkUi vs Core: taps, ancestor scrolling, semantics and the drawn disabled state.
 /// </summary>

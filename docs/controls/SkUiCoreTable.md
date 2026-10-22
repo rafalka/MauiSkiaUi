@@ -2,7 +2,7 @@
 
 Core grid subclass that paints **row/column backgrounds** and **span-aware separators** in the Background layer before children. Layout is identical to [`SkUiCoreGrid`](SkUiCoreGrid.md).
 
-**Related:** [SkUiCoreGrid.md](SkUiCoreGrid.md), [DrawingMechanism.md](../design/DrawingMechanism.md) (layers / grid lines)
+**Related:** [SkUiCoreGrid.md](SkUiCoreGrid.md), [Architecture.md](../design/Architecture.md#drawing-and-the-render-pipeline) (paint phases / grid lines)
 
 ## How it works
 
