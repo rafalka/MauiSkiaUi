@@ -2,6 +2,7 @@
 using CommunityToolkit.Maui;
 using MauiSkiaUi;
 using MauiSkiaUi.CommunityToolkit;
+using MauiSkiaUiTour;
 #if MAUI_DEVFLOW
 using Microsoft.Maui.DevFlow.Agent;
 #endif
@@ -12,6 +13,7 @@ public static class MauiProgram
 {
 	public static MauiApp CreateMauiApp()
 	{
+		PageTour.HookExceptionsIfRequested();
 		DemoTrace.StartIfRequested();
 		EditorHelp.Preload();
 		var builder = MauiApp.CreateBuilder();

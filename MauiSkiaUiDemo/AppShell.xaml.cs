@@ -1,4 +1,5 @@
 ﻿using MauiSkiaUi;
+using MauiSkiaUiTour;
 
 namespace MauiSkiaUiDemo;
 
@@ -32,6 +33,18 @@ public partial class AppShell : Shell
 		// Hierarchical routes for per-control demos (pushed from the category galleries).
 		foreach (var demo in ComponentDemos.All)
 			Routing.RegisterRoute(demo.Route, demo.PageType);
+		// Scripted smoke run: SKUI_TOUR=1 opens every flyout page and component demo (scripts/page_tour.sh).
+		PageTour.StartIfRequested(this, () =>
+		[
+			.. DemoFlyout.Groups.SelectMany(group => group.Entries).Select(entry => new PageTour.Step(entry.Title, () => GoToAsync("//" + entry.Route))),
+			.. ComponentDemos.All.Select(demo => new PageTour.Step(demo.Route,
+				async () =>
+				{
+					await GoToAsync("//" + DemoFlyout.Groups[0].Entries[0].Route);
+					await GoToAsync(demo.Route);
+				},
+				() => GoToAsync("..")))
+		]);
 		// Scripted runs: SKUI_DEMO_ROUTE=effects-stress opens a flyout page at launch.
 		if (Environment.GetEnvironmentVariable("SKUI_DEMO_ROUTE") is { Length: > 0 } route)
 			Loaded += async (_, _) =>
