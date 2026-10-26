@@ -92,7 +92,7 @@ xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
 
 ### iOS and Mac Catalyst: scene lifecycle
 
-From SkiaUi 1.1.0, the iOS and Mac Catalyst workloads need Xcode 27, and iOS 27 closes apps built with Xcode 27 that don't use the UIKit scene lifecycle. This is a MAUI and Xcode requirement, not a SkiaUi one, but it comes with the upgrade. In each app's `Platforms/iOS` and `Platforms/MacCatalyst`:
+SkiaUi 1.1.0 builds with Xcode 26.6 (workload set 10.0.401) or Xcode 27.1 (workload set 10.0.402.1); the installed workload set picks the Xcode. iOS 27 closes apps built with Xcode 27 that don't use the UIKit scene lifecycle. This is a MAUI and Xcode requirement, not a SkiaUi one, but apps that move to Xcode 27 need it. In each app's `Platforms/iOS` and `Platforms/MacCatalyst`:
 
 ```csharp
 // SceneDelegate.cs

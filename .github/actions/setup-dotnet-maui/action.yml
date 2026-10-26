@@ -12,10 +12,11 @@ inputs:
     default: ""
   workload-version:
     description: >
-      Workload set version (dotnet/macios release notes name the one for each Xcode; 10.0.402.1 is the iOS 27.1 /
-      Mac Catalyst 27.0 SDKs, which need Xcode 27.1). On macOS the step after the install selects that Xcode.
+      Workload set version; empty for the pinned 10.0.402.1 (iOS 27.1 / Mac Catalyst 27.0 SDKs, which need Xcode 27.1).
+      dotnet/macios release notes name the set for each Xcode (10.0.401: Xcode 26.6). On macOS the step after the
+      install selects that Xcode.
     required: false
-    default: "10.0.402.1"
+    default: ""
 
 runs:
   using: composite
@@ -81,13 +82,16 @@ runs:
 
     - name: Install MAUI workloads
       shell: bash
+      env:
+        # Callers pass an empty value through when their own input is unset (a tag push has no inputs).
+        WORKLOAD_VERSION: ${{ inputs.workload-version || '10.0.402.1' }}
       run: |
         set -euo pipefail
         # A pinned workload set, not the SDK's baseline manifests: those carry the first iOS / Mac Catalyst SDKs of
         # the band (Xcode 26), and the set is what moves them to a newer Xcode.
         for wl in ${{ inputs.workloads }}; do
           echo "Installing workload: $wl"
-          dotnet workload install "$wl" --version "${{ inputs.workload-version }}"
+          dotnet workload install "$wl" --version "$WORKLOAD_VERSION"
         done
         echo "MauiVersion / Version (Directory.Build.props):"
         # Surface pins used by PackageReference Version="$(MauiVersion)" and product Version.

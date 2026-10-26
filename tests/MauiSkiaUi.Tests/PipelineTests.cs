@@ -524,34 +524,46 @@ public class PipelineTests
     [Fact]
     public void ShowingAContainerAgainDoesNotRerecordItsChildren()
     {
-        // MAUI invalidates the measure of every descendant whose effective visibility changes; their size and drawing stay valid.
+        // MAUI invalidates the measure of every descendant whose effective visibility changes; their size and drawing stay
+        // valid. A nested layout covers descendants below the first level.
         var first = new SkUiBox { Color = Colors.Red, HeightRequest = 20 };
         var second = new SkUiBox { Color = Colors.Blue, HeightRequest = 20 };
-        var stack = new SkUiVerticalStackLayout { Children = { first, second } };
+        var inner = new SkUiVerticalStackLayout { Children = { first, second } };
+        var stack = new SkUiVerticalStackLayout { Children = { inner } };
         var host = new SkUiContentView { Content = stack };
         using var surface = new SkUiTestSurface(host, 100, 100);
         surface.Frame(0);
         stack.IsVisible = false;
-        surface.Frame(1);
-        var childPaints = 0;
-        first.PaintInvalidated += (_, _) => childPaints++;
-        second.PaintInvalidated += (_, _) => childPaints++;
+        var bitmap = surface.Frame(1);
+        Assert.Equal(0, bitmap.GetPixel(50, 10).Alpha);
+        var stackPaints = 0;
+        var descendantPaints = 0;
+        stack.PaintInvalidated += (_, _) => stackPaints++;
+        inner.PaintInvalidated += (_, _) => descendantPaints++;
+        first.PaintInvalidated += (_, _) => descendantPaints++;
+        second.PaintInvalidated += (_, _) => descendantPaints++;
         var recorded = surface.RecordedPictures;
 
         stack.IsVisible = true;
         SkUiTestHelpers.Arrange(host, 100, 100);
-        surface.Frame(2);
+        bitmap = surface.Frame(2);
 
-        Assert.Equal(0, childPaints);
-        Assert.InRange(surface.RecordedPictures - recorded, 0, 1); // the stack itself, shown again
+        // The shown view's own IsVisible change still invalidates it (MAUI raises OnPropertyChanged before it updates the
+        // effective visibility); only what it holds keeps its recording.
+        Assert.Equal(1, stackPaints);
+        Assert.Equal(0, descendantPaints);
+        Assert.Equal(1, surface.RecordedPictures - recorded);
         Assert.Equal(new Rect(0, 20, 100, 20), second.Frame);
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(50, 10));
+        Assert.Equal(SKColors.Blue, bitmap.GetPixel(50, 30));
         stack.IsVisible = false;
         stack.IsVisible = true;
         second.HeightRequest = 30; // a change of its own still lays out and records
         SkUiTestHelpers.Arrange(host, 100, 100);
-        surface.Frame(3);
+        bitmap = surface.Frame(3);
         Assert.Equal(30, second.Height);
-        Assert.True(childPaints > 0);
+        Assert.True(descendantPaints > 0);
+        Assert.Equal(SKColors.Blue, bitmap.GetPixel(50, 45));
     }
 
     [Fact]

@@ -13,10 +13,15 @@ on:
         type: string
         default: ""
       macos-runner:
-        description: Runner label for the macOS pack (it needs Xcode 27.1, which only the xcode-27 image has)
+        description: Runner label for the macOS pack; it must have the Xcode the workload set needs (27.1 is only on xcode-27)
         required: false
         type: string
         default: xcode-27
+      workload-version:
+        description: Workload set for the macOS pack (empty = 10.0.402.1, Xcode 27.1; 10.0.401 = Xcode 26.6, e.g. on macos-26)
+        required: false
+        type: string
+        default: ""
   push:
     tags:
       - "v*"
@@ -75,6 +80,7 @@ jobs:
         with:
           workloads: maui-android maui-ios maui-maccatalyst
           java-version: "21"
+          workload-version: ${{ inputs.workload-version }}
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
