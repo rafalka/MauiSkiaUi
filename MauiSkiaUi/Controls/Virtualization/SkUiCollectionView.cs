@@ -76,9 +76,20 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     private BodyPart Body { get { CreateParts(); return _body!; } }
     private SkUiScrollView Scroller { get { CreateParts(); return _scroller!; } }
     private SkUiPullToRefresh Refresh { get { CreateParts(); return _refresh!; } }
-    private SkUiContentSlot HeaderSlot => _headerSlot ??= new SkUiContentSlot(this, HeaderProperty, HeaderTemplateProperty);
-    private SkUiContentSlot FooterSlot => _footerSlot ??= new SkUiContentSlot(this, FooterProperty, FooterTemplateProperty);
-    private SkUiContentSlot EmptySlot => _emptySlot ??= new SkUiContentSlot(this, EmptyViewProperty, EmptyViewTemplateProperty);
+    private SkUiContentSlot HeaderSlot => _headerSlot ??= new SkUiContentSlot(this, HeaderProperty, HeaderTemplateProperty, TextView, PlaceHeader);
+    private SkUiContentSlot FooterSlot => _footerSlot ??= new SkUiContentSlot(this, FooterProperty, FooterTemplateProperty, TextView, PlaceFooter);
+    private SkUiContentSlot EmptySlot => _emptySlot ??= new SkUiContentSlot(this, EmptyViewProperty, EmptyViewTemplateProperty, EmptyText, ShowEmptyView);
+
+    /// <summary>A string or data header or footer without a template (MAUI's): a label of its text.</summary>
+    private static ISkUiView TextView(string text) => new SkUiLabel { Text = text };
+
+    /// <summary>A string or data empty view without a template: a label of its text in the middle of the space.</summary>
+    private static ISkUiView EmptyText(string text) => new SkUiLabel
+    {
+        Text = text,
+        HorizontalTextAlignment = TextAlignment.Center,
+        VerticalTextAlignment = TextAlignment.Center
+    };
 
     /// <summary>Creates the items, their model, the body and its scroller, and the pull to refresh, once (in this order: each part may read the ones before).</summary>
     private void CreateParts()
@@ -287,6 +298,41 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         return index < 0 ? Task.CompletedTask : ScrollToIndex(index, position, animated);
     }
 
+    /// <summary>
+    /// MAUI's <c>ItemsView.ScrollTo</c>: raises <see cref="ScrollToRequested"/>, then scrolls to the item at
+    /// <paramref name="index"/>, in the group at <paramref name="groupIndex"/> when it is 0 or more (<see cref="ScrollToIndex"/>
+    /// without waiting for it). An index or group that is not in the list is ignored, as on MAUI.
+    /// </summary>
+    public void ScrollTo(int index, int groupIndex = -1, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animate = true)
+    {
+        ScrollToRequested?.Invoke(this, new ScrollToRequestEventArgs(index, groupIndex, position, animate));
+        if (!Enum.IsDefined(position) || index < 0)
+            return;
+        if (groupIndex >= 0)
+        {
+            if (!Model.Grouped || groupIndex >= Model.Groups.Count || index >= Model.Groups[groupIndex].Count)
+                return;
+            index = Model.GlobalIndex(groupIndex, index);
+        }
+        if (index < Model.ItemCount)
+            _ = ScrollToIndex(index, position, animate);
+    }
+
+    /// <summary>
+    /// MAUI's <c>ItemsView.ScrollTo</c>: raises <see cref="ScrollToRequested"/>, then scrolls to <paramref name="item"/> in
+    /// <paramref name="group"/> (<c>null</c>: its first appearance; <see cref="ScrollToItem(object?, object?, ScrollToPosition, bool)"/>
+    /// without waiting for it).
+    /// </summary>
+    public void ScrollTo(object item, object? group = null, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animate = true)
+    {
+        ScrollToRequested?.Invoke(this, new ScrollToRequestEventArgs(item, group, position, animate));
+        if (Enum.IsDefined(position))
+            _ = ScrollToItem(item, group, position, animate);
+    }
+
+    /// <summary>Raised by MAUI's <c>ScrollTo</c> methods before the list scrolls (MAUI's handlers scroll on it; here it reports).</summary>
+    public event EventHandler<ScrollToRequestEventArgs>? ScrollToRequested;
+
     /// <summary>Sets <see cref="ItemsSource"/> (same as the property setter).</summary>
     public SkUiCollectionView SetItemsSource(IEnumerable? value) { ItemsSource = value; return this; }
 
@@ -432,7 +478,87 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     {
         Model.Configure(IsGrouped, Span, IsGrouped && GroupHeaderTemplate is not null, IsGrouped && GroupFooterTemplate is not null, force: templatesChanged);
         DropViews();
+        UpdateItemSizing();
     }
+
+    /// <summary>Bindable property for <see cref="ItemsLayout"/>.</summary>
+    public static readonly BindableProperty ItemsLayoutProperty = BindableProperty.Create(nameof(ItemsLayout), typeof(IItemsLayout), typeof(SkUiCollectionView), null,
+        validateValue: (_, value) => value is not null,
+        propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnItemsLayoutChanged((IItemsLayout)value),
+        defaultValueCreator: _ => new LinearItemsLayout(ItemsLayoutOrientation.Vertical));
+
+    /// <summary>
+    /// MAUI's items layout: a <see cref="LinearItemsLayout"/> (XAML: <c>"VerticalList"</c>, <c>"HorizontalList"</c>) or a
+    /// <see cref="GridItemsLayout"/> (<c>"VerticalGrid, 2"</c>), as a string or an element. It sets <see cref="Orientation"/>,
+    /// <see cref="Span"/>, <see cref="ItemSpacing"/> (the gap between rows) and <see cref="SpanSpacing"/> (between the items of a
+    /// row), and again when the layout object changes; whichever is set last wins, the layout or one of those properties. Its
+    /// snap points are not drawn yet. Default: a vertical list, which changes nothing.
+    /// </summary>
+    public IItemsLayout ItemsLayout { get => (IItemsLayout)GetValue(ItemsLayoutProperty); set => SetValue(ItemsLayoutProperty, value); }
+
+    /// <summary>Sets <see cref="ItemsLayout"/> (same as the property setter).</summary>
+    public SkUiCollectionView SetItemsLayout(IItemsLayout value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ItemsLayout = value;
+        return this;
+    }
+
+    private SkUiWeakListener<SkUiCollectionView>? _itemsLayoutListener;
+
+    private void OnItemsLayoutChanged(IItemsLayout layout)
+    {
+        // Layouts are often shared (LinearItemsLayout.Vertical is static): a weak listener keeps the list collectable.
+        (_itemsLayoutListener ??= new SkUiWeakListener<SkUiCollectionView>(this, static (view, change) =>
+        {
+            if (change.Kind == SkUiChangeKind.Property)
+                view.ApplyItemsLayout();
+        })).Listen(layout);
+        ApplyItemsLayout();
+    }
+
+    private void ApplyItemsLayout()
+    {
+        switch (ItemsLayout)
+        {
+            case GridItemsLayout grid:
+                var vertical = grid.Orientation == ItemsLayoutOrientation.Vertical;
+                Orientation = grid.Orientation;
+                Span = Math.Max(1, grid.Span);
+                ItemSpacing = Math.Max(0, vertical ? grid.VerticalItemSpacing : grid.HorizontalItemSpacing);
+                SpanSpacing = Math.Max(0, vertical ? grid.HorizontalItemSpacing : grid.VerticalItemSpacing);
+                break;
+            case LinearItemsLayout linear:
+                Orientation = linear.Orientation;
+                Span = 1;
+                ItemSpacing = Math.Max(0, linear.ItemSpacing);
+                break;
+        }
+    }
+
+    /// <summary>Bindable property for <see cref="ItemSizingStrategy"/>.</summary>
+    public static readonly BindableProperty ItemSizingStrategyProperty = BindableProperty.Create(nameof(ItemSizingStrategy), typeof(ItemSizingStrategy),
+        typeof(SkUiCollectionView), ItemSizingStrategy.MeasureAllItems,
+        validateValue: (_, value) => Enum.IsDefined((ItemSizingStrategy)value),
+        propertyChanged: (view, _, _) => ((SkUiCollectionView)view).UpdateItemSizing());
+
+    /// <summary>
+    /// MAUI's sizing strategy: <see cref="ItemSizingStrategy.MeasureAllItems"/> (default: every row as it measures) or
+    /// <see cref="ItemSizingStrategy.MeasureFirstItem"/>: the first row measured gives every row its size, as
+    /// <see cref="ItemExtent"/> would (which wins when set). Measured again when the list's width (height, horizontal) or the
+    /// items' sizing changes. A grouped list measures every row, since its group headers are rows too.
+    /// </summary>
+    public ItemSizingStrategy ItemSizingStrategy { get => (ItemSizingStrategy)GetValue(ItemSizingStrategyProperty); set => SetValue(ItemSizingStrategyProperty, value); }
+
+    /// <summary>Sets <see cref="ItemSizingStrategy"/> (same as the property setter).</summary>
+    public SkUiCollectionView SetItemSizingStrategy(ItemSizingStrategy value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        ItemSizingStrategy = value;
+        return this;
+    }
+
+    private void UpdateItemSizing() => ItemsHost.SizesFromFirstItem = ItemSizingStrategy == ItemSizingStrategy.MeasureFirstItem && !IsGrouped;
 
     #endregion
 
@@ -502,14 +628,15 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     #region Header, footer, empty view
 
+    // A drawn view, or data as on MAUI (shown through the template, else as text); native views are refused (with a warning).
     private static BindableProperty ViewProperty(string name, Action<SkUiCollectionView> changed) => BindableProperty.Create(
-        name, typeof(ISkUiView), typeof(SkUiCollectionView), null,
+        name, typeof(object), typeof(SkUiCollectionView), null,
         validateValue: (bindable, value) =>
         {
             var owner = (SkUiCollectionView)bindable;
             if (value is ISkUiView child && !ReferenceEquals(owner.GetValue(owner.PropertyNamed(name)), child))
                 owner.ValidateChild(child);
-            return true;
+            return value is null or ISkUiView or not Element;
         },
         propertyChanged: (bindable, _, _) => changed((SkUiCollectionView)bindable));
 
@@ -549,8 +676,13 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     public static readonly BindableProperty EmptyViewTemplateProperty = BindableProperty.Create(nameof(EmptyViewTemplate), typeof(DataTemplate), typeof(SkUiCollectionView), null,
         propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable).OnTemplateChanged(((SkUiCollectionView)bindable).EmptySlot));
 
-    /// <summary>A drawn view before the items: it scrolls with them, or stays at the start with <see cref="IsStickyHeader"/>.</summary>
-    public ISkUiView? Header { get => (ISkUiView?)GetValue(HeaderProperty); set => SetValue(HeaderProperty, value); }
+    /// <summary>
+    /// A drawn view before the items: it scrolls with them, or stays at the start with <see cref="IsStickyHeader"/>. As on MAUI,
+    /// <see cref="HeaderProperty"/> also takes data (XAML: <c>Header="Contacts"</c> or a binding): it shows through
+    /// <see cref="HeaderTemplate"/> with the data as its binding context, else as a label of its text. This property then
+    /// reads <c>null</c>; <c>GetValue(HeaderProperty)</c> reads the data.
+    /// </summary>
+    public ISkUiView? Header { get => GetValue(HeaderProperty) as ISkUiView; set => SetValue(HeaderProperty, value); }
 
     /// <summary>
     /// Creates <see cref="Header"/> when it is not set (drawn views; a <see cref="DataTemplateSelector"/> chooses by the
@@ -567,8 +699,11 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// </summary>
     public bool IsStickyHeader { get => (bool)GetValue(IsStickyHeaderProperty); set => SetValue(IsStickyHeaderProperty, value); }
 
-    /// <summary>A drawn view after the items: it scrolls with them (right after the last item), or stays at the end with <see cref="IsStickyFooter"/>.</summary>
-    public ISkUiView? Footer { get => (ISkUiView?)GetValue(FooterProperty); set => SetValue(FooterProperty, value); }
+    /// <summary>
+    /// A drawn view after the items: it scrolls with them (right after the last item), or stays at the end with
+    /// <see cref="IsStickyFooter"/>. <see cref="FooterProperty"/> also takes data, as <see cref="Header"/>'s does.
+    /// </summary>
+    public ISkUiView? Footer { get => GetValue(FooterProperty) as ISkUiView; set => SetValue(FooterProperty, value); }
 
     /// <summary>Creates <see cref="Footer"/> when it is not set; see <see cref="HeaderTemplate"/>.</summary>
     public DataTemplate? FooterTemplate { get => (DataTemplate?)GetValue(FooterTemplateProperty); set => SetValue(FooterTemplateProperty, value); }
@@ -584,7 +719,11 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// grouped list with groups but no rows to show is empty too), between the header and the footer; it fills the space
     /// the list has left (center its content to place it in the middle).
     /// </summary>
-    public ISkUiView? EmptyView { get => (ISkUiView?)GetValue(EmptyViewProperty); set => SetValue(EmptyViewProperty, value); }
+    /// <remarks>
+    /// <see cref="EmptyViewProperty"/> also takes data, as <see cref="Header"/>'s does (XAML: <c>EmptyView="No results"</c>):
+    /// without a template its text shows in the middle.
+    /// </remarks>
+    public ISkUiView? EmptyView { get => GetValue(EmptyViewProperty) as ISkUiView; set => SetValue(EmptyViewProperty, value); }
 
     /// <summary>Creates <see cref="EmptyView"/> when it is not set, the first time the list is empty; see <see cref="HeaderTemplate"/>.</summary>
     public DataTemplate? EmptyViewTemplate { get => (DataTemplate?)GetValue(EmptyViewTemplateProperty); set => SetValue(EmptyViewTemplateProperty, value); }
@@ -626,9 +765,9 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         PlaceHeader();
     }
 
-    private void PlaceHeader() => Place(Header, IsStickyHeader, ref _stickyHeaderHost, ref Body.HeaderHost);
+    private void PlaceHeader() => Place(HeaderSlot.Shown, IsStickyHeader, ref _stickyHeaderHost, ref Body.HeaderHost);
 
-    private void PlaceFooter() => Place(Footer, IsStickyFooter, ref _stickyFooterHost, ref Body.FooterHost);
+    private void PlaceFooter() => Place(FooterSlot.Shown, IsStickyFooter, ref _stickyFooterHost, ref Body.FooterHost);
 
     private void OnFooterChanged()
     {
@@ -665,6 +804,9 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         return part;
     }
 
+    /// <summary>The header, footer and empty view shown: a view set, made by a template, or made for data (tests).</summary>
+    internal (ISkUiView? Header, ISkUiView? Footer, ISkUiView? EmptyView) Shown => (HeaderSlot.Shown, FooterSlot.Shown, EmptySlot.Shown);
+
     /// <summary>Which header and footer hosts exist (tests).</summary>
     internal (bool StickyHeader, bool StickyFooter, bool Header, bool Footer) CreatedHosts =>
         (_stickyHeaderHost is not null, _stickyFooterHost is not null, Body.HeaderHost is not null, Body.FooterHost is not null);
@@ -674,8 +816,10 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         EmptySlot.OnContentChanged();
         if (EmptyView is null && !EmptySlot.IsSetting && _isEmpty && Parent is not null)
             EmptySlot.Ensure();
-        Body.EmptyHost.Content = EmptyView;
+        ShowEmptyView();
     }
+
+    private void ShowEmptyView() => Body.EmptyHost.Content = EmptySlot.Shown;
 
     private void OnTemplateChanged(SkUiContentSlot slot)
     {
@@ -836,7 +980,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     internal SkUiScrollView ScrollView => Scroller;
 
     /// <summary>The virtual layout of the rows (tests).</summary>
-    internal SkUiVirtualVerticalStackLayoutBase ItemsLayout => ItemsHost;
+    internal SkUiVirtualVerticalStackLayoutBase RowsLayout => ItemsHost;
 
     /// <inheritdoc />
     internal override IEnumerable<ISkUiView> SkiaChildren

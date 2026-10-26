@@ -104,6 +104,7 @@ Breaking changes for MAUI parity, kept out of 1.x so the 1.0 API stays as it is.
 - `SkUiCollectionView.Scrolled` raises MAUI's `ItemsViewScrolledEventArgs` (deltas, first / center / last visible index) instead of `ScrolledEventArgs`, as the carousel already does.
 - `SkUiCollectionView.SelectionChanged` raises MAUI's `SelectionChangedEventArgs` (its constructors are internal: raised through an accessor) instead of `SkUiSelectionChangedEventArgs`; `PreviousItem` / `CurrentItem` move elsewhere or go.
 - `SkUiCollectionView.SelectionMode` takes MAUI's `SelectionMode`; `SingleDeselect` moves elsewhere (for example a separate property).
+- `SkUiCollectionView.Header` / `Footer` / `EmptyView` and `SkUiCarouselView.EmptyView` become `object`, as MAUI's. Their bindable properties take data since 1.2; the CLR properties keep the 1.0 type `ISkUiView`.
 
 ## Not planned
 

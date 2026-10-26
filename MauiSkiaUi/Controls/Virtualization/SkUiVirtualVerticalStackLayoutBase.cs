@@ -346,8 +346,15 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     {
         apply();
         if (forget)
-            _sizes.ForgetAll();
+            ForgetSizes();
         InvalidateMeasureOverride();
+    }
+
+    /// <summary>Forgets every measured size, and the size taken from the first item (<see cref="SizesFromFirstItem"/>).</summary>
+    private void ForgetSizes()
+    {
+        _sizes.ForgetAll();
+        _sizes.FixedExtent = ItemExtent;
     }
 
     private void OnWindowSettingChanged(Action apply)
@@ -377,7 +384,7 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
                 return;
             _horizontal = value;
             _cross = double.NaN;
-            _sizes.ForgetAll();
+            ForgetSizes();
             RegisterWithScrollers(Parent is null);
             InvalidateMeasureOverride();
         }
@@ -416,7 +423,7 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     /// <summary>Forgets every item size (the items' layout changed, e.g. a grid's spacing): realized items measure again.</summary>
     internal void ForgetItemSizes()
     {
-        _sizes.ForgetAll();
+        ForgetSizes();
         foreach (var realized in _realized)
             realized.View.InvalidateMeasure();
         InvalidateMeasure();
@@ -659,7 +666,31 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         var fixedExtent = _sizes.FixedExtent;
         var length = fixedExtent > 0 ? fixedExtent : double.PositiveInfinity;
         var size = _horizontal ? view.Measure(length, _cross) : view.Measure(_cross, length);
-        _sizes.SetSize(index, _horizontal ? size.Width : size.Height);
+        var measured = _horizontal ? size.Width : size.Height;
+        if (_sizesFromFirstItem && fixedExtent <= 0 && measured > 0)
+        {
+            _sizes.FixedExtent = measured; // every item from now on: the fast path
+            return;
+        }
+        _sizes.SetSize(index, measured);
+    }
+
+    private bool _sizesFromFirstItem;
+
+    /// <summary>
+    /// MAUI's <c>ItemSizingStrategy.MeasureFirstItem</c>: unless <see cref="ItemExtent"/> is set, the first item measured gives
+    /// every item its size (as <see cref="ItemExtent"/>); forgetting the sizes (a new width, spacing) measures it again.
+    /// </summary>
+    internal bool SizesFromFirstItem
+    {
+        get => _sizesFromFirstItem;
+        set
+        {
+            if (_sizesFromFirstItem == value)
+                return;
+            _sizesFromFirstItem = value;
+            ForgetItemSizes();
+        }
     }
 
     private void ReleaseAt(int position, bool recycle = true)
@@ -1033,7 +1064,7 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
             if (cross != _cross)
             {
                 _cross = cross;
-                _sizes.ForgetAll();
+                ForgetSizes();
             }
             foreach (var realized in _realized)
                 MeasureItem(realized.Index, realized.View);

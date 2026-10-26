@@ -1139,13 +1139,13 @@ public class VirtualVerticalStackLayoutTests
     [Fact]
     public void CollectionViewForwardsEveryCommonListMemberToItsLayout()
     {
-        AssertForwardsEveryMember<ISkUiItemsView, SkUiCollectionView>(() => new SkUiCollectionView(), list => list.ItemsLayout);
+        AssertForwardsEveryMember<ISkUiItemsView, SkUiCollectionView>(() => new SkUiCollectionView(), list => list.RowsLayout);
 
         var refusing = new SkUiCollectionView { ItemSpacing = 4, PrefetchBudget = TimeSpan.FromMilliseconds(2) };
         refusing.ItemSpacing = -1;
         refusing.PrefetchBudget = TimeSpan.FromMilliseconds(-1);
-        Assert.Equal(4, refusing.ItemsLayout.ItemSpacing);
-        Assert.Equal(TimeSpan.FromMilliseconds(2), refusing.ItemsLayout.PrefetchBudget);
+        Assert.Equal(4, refusing.RowsLayout.ItemSpacing);
+        Assert.Equal(TimeSpan.FromMilliseconds(2), refusing.RowsLayout.PrefetchBudget);
     }
 
     [Fact]

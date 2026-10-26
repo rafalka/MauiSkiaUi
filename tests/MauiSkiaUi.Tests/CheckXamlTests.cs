@@ -94,8 +94,7 @@ public class CheckXamlTests
             Assert.Equal(1, exitCode);
             var lines = output.Split('\n');
             var errors = lines.Where(line => line.Contains("error:")).ToArray();
-            Assert.Equal(4, errors.Length);
-            Assert.Contains(errors, error => error.Contains("SkUiCarouselView.ItemsLayout") && error.Contains("ItemSpacing"));
+            Assert.Equal(3, errors.Length); // the carousel's ItemsLayout ports as is
             Assert.Contains(errors, error => error.Contains("ItemsUpdatingScrollMode"));
             Assert.Contains(errors, error => error.Contains("IndicatorTemplate"));
             // The native carousel inside the drawn tree: the drawn one replaces it.
@@ -167,10 +166,8 @@ public class CheckXamlTests
             var (exitCode, output) = Run(project.FullName);
             Assert.Equal(1, exitCode);
             var errors = output.Split('\n').Where(line => line.Contains("error:")).ToArray();
-            Assert.Equal(4, errors.Length); // grouping and multiple selection are supported
-            Assert.Contains(errors, error => error.Contains("ItemsLayout") && error.Contains("Span="));
+            Assert.Equal(2, errors.Length); // grouping, multiple selection, ItemsLayout and a string header port as is
             Assert.Contains(errors, error => error.Contains("CanReorderItems"));
-            Assert.Contains(errors, error => error.Contains("Header=\"Orders\"") && error.Contains("<sk:SkUiCollectionView.Header>"));
             Assert.Contains(errors, error => error.Contains("Page.xaml:6:") && error.Contains("sk:SkUiCollectionView"));
         }
         finally

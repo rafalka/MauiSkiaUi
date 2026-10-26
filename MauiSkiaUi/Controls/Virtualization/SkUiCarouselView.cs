@@ -1,4 +1,5 @@
 using System.Collections;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using MauiSkiaUi.Rendering;
@@ -89,7 +90,15 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         AttachChild(_emptyHost);
     }
 
-    private SkUiContentSlot EmptySlot => _emptySlot ??= new SkUiContentSlot(this, EmptyViewProperty, EmptyViewTemplateProperty);
+    private SkUiContentSlot EmptySlot => _emptySlot ??= new SkUiContentSlot(this, EmptyViewProperty, EmptyViewTemplateProperty, EmptyText, ShowEmptyView);
+
+    /// <summary>A string or data empty view without a template (MAUI's): a label of its text in the middle.</summary>
+    private static ISkUiView EmptyText(string text) => new SkUiLabel
+    {
+        Text = text,
+        HorizontalTextAlignment = TextAlignment.Center,
+        VerticalTextAlignment = TextAlignment.Center
+    };
 
     private SkUiWeakListener<SkUiCarouselView> SourceListener => _sourceListener ??= new(this, static (carousel, change) =>
     {
@@ -367,13 +376,20 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// </summary>
     public void ScrollTo(int index, int groupIndex = -1, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animate = true)
     {
+        ScrollToRequested?.Invoke(this, new ScrollToRequestEventArgs(index, groupIndex, position, animate));
         if (index >= 0 && index < ItemCount)
             _ = ScrollToIndex(index, animate);
     }
 
     /// <summary>MAUI's <c>ItemsView.ScrollTo</c>: scrolls to <paramref name="item"/> (<see cref="ScrollToItem"/>); the group and position are ignored.</summary>
-    public void ScrollTo(object item, object? group = null, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animate = true) =>
+    public void ScrollTo(object item, object? group = null, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animate = true)
+    {
+        ScrollToRequested?.Invoke(this, new ScrollToRequestEventArgs(item, group, position, animate));
         _ = ScrollToItem(item, animate);
+    }
+
+    /// <summary>Raised by MAUI's <c>ScrollTo</c> methods before the carousel scrolls (MAUI's handlers scroll on it; here it reports).</summary>
+    public event EventHandler<ScrollToRequestEventArgs>? ScrollToRequested;
 
     private void OnPositionChanged(int previous, int value)
     {
@@ -699,6 +715,55 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// </summary>
     public SnapPointsAlignment SnapPointsAlignment { get => (SnapPointsAlignment)GetValue(SnapPointsAlignmentProperty); set => SetValue(SnapPointsAlignmentProperty, value); }
 
+    /// <summary>Bindable property for <see cref="ItemsLayout"/>.</summary>
+    public static readonly BindableProperty ItemsLayoutProperty = BindableProperty.Create(nameof(ItemsLayout), typeof(LinearItemsLayout), typeof(SkUiCarouselView), null,
+        validateValue: (_, value) => value is not null,
+        propertyChanged: (view, _, value) => ((SkUiCarouselView)view).OnItemsLayoutChanged((LinearItemsLayout)value),
+        defaultValueCreator: _ => new LinearItemsLayout(ItemsLayoutOrientation.Horizontal)
+        {
+            SnapPointsType = SnapPointsType.MandatorySingle,
+            SnapPointsAlignment = SnapPointsAlignment.Center
+        });
+
+    /// <summary>
+    /// MAUI's items layout of a carousel (XAML: <c>"HorizontalList"</c> / <c>"VerticalList"</c>, or a <see cref="LinearItemsLayout"/>
+    /// element): it sets <see cref="Orientation"/>, <see cref="ItemSpacing"/>, <see cref="SnapPointsType"/> and
+    /// <see cref="SnapPointsAlignment"/>, and again when the layout object changes; whichever is set last wins, the layout or
+    /// one of those properties. Default: horizontal, one item per swipe, centered, which changes nothing.
+    /// </summary>
+    [TypeConverter(typeof(CarouselLayoutTypeConverter))]
+    public LinearItemsLayout ItemsLayout { get => (LinearItemsLayout)GetValue(ItemsLayoutProperty); set => SetValue(ItemsLayoutProperty, value); }
+
+    /// <summary>Sets <see cref="ItemsLayout"/> (same as the property setter).</summary>
+    public SkUiCarouselView SetItemsLayout(LinearItemsLayout value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ItemsLayout = value;
+        return this;
+    }
+
+    private SkUiWeakListener<SkUiCarouselView>? _itemsLayoutListener;
+
+    private void OnItemsLayoutChanged(LinearItemsLayout layout)
+    {
+        // Layouts may be shared and long-lived: a weak listener keeps the carousel collectable.
+        (_itemsLayoutListener ??= new SkUiWeakListener<SkUiCarouselView>(this, static (carousel, change) =>
+        {
+            if (change.Kind == SkUiChangeKind.Property)
+                carousel.ApplyItemsLayout();
+        })).Listen(layout);
+        ApplyItemsLayout();
+    }
+
+    private void ApplyItemsLayout()
+    {
+        var layout = ItemsLayout;
+        Orientation = layout.Orientation;
+        ItemSpacing = Math.Max(0, layout.ItemSpacing);
+        SnapPointsType = layout.SnapPointsType;
+        SnapPointsAlignment = layout.SnapPointsAlignment;
+    }
+
     /// <summary>Sets <see cref="Loop"/> (same as the property setter).</summary>
     public SkUiCarouselView SetLoop(bool value) { Loop = value; return this; }
 
@@ -938,13 +1003,14 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     #region Empty view
 
     /// <summary>Bindable property for <see cref="EmptyView"/>.</summary>
-    public static readonly BindableProperty EmptyViewProperty = BindableProperty.Create(nameof(EmptyView), typeof(ISkUiView), typeof(SkUiCarouselView), null,
+    // A drawn view, or data as on MAUI (shown through the template, else as text); native views are refused (with a warning).
+    public static readonly BindableProperty EmptyViewProperty = BindableProperty.Create(nameof(EmptyView), typeof(object), typeof(SkUiCarouselView), null,
         validateValue: (bindable, value) =>
         {
             var carousel = (SkUiCarouselView)bindable;
             if (value is ISkUiView view && !ReferenceEquals(carousel.EmptyView, view) && !ReferenceEquals(carousel._emptyHost.Content, view))
                 carousel.ValidateChild(view);
-            return true;
+            return value is null or ISkUiView or not Element;
         },
         propertyChanged: (view, _, _) => ((SkUiCarouselView)view).OnEmptyViewChanged());
 
@@ -957,8 +1023,13 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             carousel.EnsureEmptyView();
         });
 
-    /// <summary>A drawn view shown instead of the items while there are none (<see cref="ItemsSource"/> is <c>null</c> or empty); it fills the carousel.</summary>
-    public ISkUiView? EmptyView { get => (ISkUiView?)GetValue(EmptyViewProperty); set => SetValue(EmptyViewProperty, value); }
+    /// <summary>
+    /// A drawn view shown instead of the items while there are none (<see cref="ItemsSource"/> is <c>null</c> or empty); it fills
+    /// the carousel. As on MAUI, <see cref="EmptyViewProperty"/> also takes data (XAML: <c>EmptyView="No photos"</c> or a
+    /// binding): it shows through <see cref="EmptyViewTemplate"/> with the data as its binding context, else as its text in the
+    /// middle. This property then reads <c>null</c>; <c>GetValue(EmptyViewProperty)</c> reads the data.
+    /// </summary>
+    public ISkUiView? EmptyView { get => GetValue(EmptyViewProperty) as ISkUiView; set => SetValue(EmptyViewProperty, value); }
 
     /// <summary>Creates <see cref="EmptyView"/> when it is not set, the first time the carousel is empty in a tree (a <see cref="DataTemplateSelector"/> chooses by the binding context).</summary>
     public DataTemplate? EmptyViewTemplate { get => (DataTemplate?)GetValue(EmptyViewTemplateProperty); set => SetValue(EmptyViewTemplateProperty, value); }
@@ -976,8 +1047,13 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         EmptySlot.OnContentChanged();
         if (EmptyView is null && !EmptySlot.IsSetting)
             EnsureEmptyView();
-        _emptyHost.Content = EmptyView;
+        ShowEmptyView();
     }
+
+    private void ShowEmptyView() => _emptyHost.Content = EmptySlot.Shown;
+
+    /// <summary>The empty view shown: a view set, made by the template, or made for data (tests).</summary>
+    internal ISkUiView? ShownEmptyView => EmptySlot.Shown;
 
     private void EnsureEmptyView()
     {

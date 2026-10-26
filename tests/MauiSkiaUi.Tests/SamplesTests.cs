@@ -245,7 +245,7 @@ public class SamplesTests
         Assert.InRange(list.LastVisibleIndex, 3, 12);
 
         var row = (SkUiView)list.GetRealizedView(1)!;
-        var rowTop = ((View)row.Parent).Frame.Y + ((View)list.ItemsLayout).Frame.Y + ((View)list.ItemsLayout.Parent).Frame.Y - list.ScrollY; // container, items, body
+        var rowTop = ((View)row.Parent).Frame.Y + ((View)list.RowsLayout).Frame.Y + ((View)list.RowsLayout.Parent).Frame.Y - list.ScrollY; // container, items, body
         void TapAt(double x, long id)
         {
             list.Touch(new(id, SkUiTouchAction.Pressed, new Point(x, rowTop + row.Height / 2), TimeSpan.FromSeconds(id)));

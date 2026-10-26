@@ -71,7 +71,7 @@ REPLACE = {
     "SwipeView": "SkUiSwipeView (SwipeItems and SwipeItem stay MAUI's)",
     "SwipeItemView": "SkUiSwipeItemView",
     "RefreshView": "SkUiRefreshView (around a list, SkUiCollectionView's own IsPullToRefreshEnabled also works)",
-    "CarouselView": "SkUiCarouselView (ItemsLayout settings become carousel properties: Orientation, ItemSpacing, SnapPointsType, SnapPointsAlignment)",
+    "CarouselView": "SkUiCarouselView (ItemsLayout ports as is)",
     "IndicatorView": "SkUiIndicatorView (IndicatorTemplate is not supported: the look draws the indicators)",
     "Picker": "SkUiPicker (its list opens on the app's popup system: register a presenter with UseSkiaUi(options => options.PopupPresenter = ...) or SkUiPopups.Presenter; without one, MAUI's action sheet)",
     "DatePicker": "SkUiDatePicker (same Date / MinimumDate / MaximumDate / Format / DateSelected; its wheels open on the app's popup system: register a presenter with UseSkiaUi(options => options.PopupPresenter = ...) or SkUiPopups.Presenter)",
@@ -93,16 +93,13 @@ GESTURE_ADVICE = {
 }
 # MAUI CollectionView members an SkUiCollectionView does not have, with what to do instead.
 COLLECTION_VIEW_MAUI_ONLY = {
-    "ItemsLayout": "no ItemsLayout object: Orientation=\"Horizontal\", Span=\"<columns>\", ItemSpacing (between rows) and SpanSpacing (within a row); snap points are not available",
     "CanReorderItems": "reordering items is not available: keep a reorderable list native",
-    "ItemSizingStrategy": "every item is measured; MeasureFirstItem becomes ItemExtent=\"<height>\"",
     "ItemsUpdatingScrollMode": "items inserted above the first visible one keep what shows in place; remove it",
     "ItemTemplateSelector": "set the DataTemplateSelector as ItemTemplate",
     "Command": "on a RefreshView this is RefreshCommand",
 }
 # MAUI CarouselView / IndicatorView members the drawn ones do not have, with what to do instead.
 CAROUSEL_MAUI_ONLY = {
-    "ItemsLayout": "no ItemsLayout object: set Orientation, ItemSpacing, SnapPointsType and SnapPointsAlignment on the carousel (horizontal, MandatorySingle and Center are the defaults)",
     "ItemsUpdatingScrollMode": "the current item is always kept in view; remove it",
     "VisibleViews": "not available: use GetRealizedView(index) or the Scrolled event",
 }
@@ -110,8 +107,6 @@ INDICATOR_MAUI_ONLY = {
     "IndicatorTemplate": "not supported: the look draws the indicators (DefaultSkUiLook.IndicatorStyle, SkUiLook.IndicatorPainter)",
     "IndicatorLayout": "not supported: the look draws the indicators",
 }
-# CollectionView members that take a drawn view: a string value would become a MAUI label.
-COLLECTION_VIEW_VIEWS = ("Header", "Footer", "EmptyView")
 SKIA_BASE_RE = re.compile(r"^(SkUi\w+|ISkUiView)$")
 TEMPLATED_PARENT_RE = re.compile(r"\{\s*TemplateBinding\b|RelativeSource\s+(?:Mode\s*=\s*)?TemplatedParent\b")
 # Drawn view -> the MAUI types it replaces (implicit styles of those no longer reach it).
@@ -327,6 +322,12 @@ class Checker:
                 return
             if drawn and owner == "StateContainer" and not is_skia_uri(node.uri):
                 self.report(path, node, "error", f"{node.name} on a drawn layout: use sk:SkUi{node.name}")
+            if drawn and owner == "SkUiCollectionView" and prop == "ItemsLayout":
+                for child in node.children:
+                    snap = child.attr("SnapPointsType") or "None"
+                    if snap != "None":
+                        self.report(path, child, "warning", f"{child.name} SnapPointsType={snap} on SkUiCollectionView: snap points are not drawn yet (the list scrolls freely)")
+                return
             if drawn and owner == "SkUiCarouselView" and prop in CAROUSEL_MAUI_ONLY:
                 self.report(path, node, "error", f"{node.name}: {CAROUSEL_MAUI_ONLY[prop]}")
                 return
@@ -403,8 +404,6 @@ class Checker:
                 self.report(path, node, "error", f"{local} on SkUiIndicatorView: {INDICATOR_MAUI_ONLY[local]}")
             elif node.name == "SkUiCollectionView" and local in COLLECTION_VIEW_MAUI_ONLY:
                 self.report(path, node, "error", f"{local} on SkUiCollectionView: {COLLECTION_VIEW_MAUI_ONLY[local]}")
-            elif node.name == "SkUiCollectionView" and local in COLLECTION_VIEW_VIEWS and not value.lstrip().startswith("{"):
-                self.report(path, node, "error", f"{local}=\"{value}\" on SkUiCollectionView: {local} takes a drawn view; use <sk:SkUiCollectionView.{local}><sk:SkUiLabel Text=\"{value}\" /></sk:SkUiCollectionView.{local}>")
             elif node.name == "SkUiCollectionView" and local == "IsPullToRefreshEnabled" and value.strip().lower() != "false" and in_refresh_view(node):
                 self.report(path, node, "error", "IsPullToRefreshEnabled on an SkUiCollectionView inside an SkUiRefreshView: both would refresh; keep one (the refresh view's Command, or the list's RefreshCommand)")
             elif TEMPLATED_PARENT_RE.search(value):
