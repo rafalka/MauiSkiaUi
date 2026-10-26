@@ -12,6 +12,11 @@ on:
         required: false
         type: string
         default: ""
+      macos-runner:
+        description: Runner label for the macOS pack (e.g. xcode-27 to try a preview image)
+        required: false
+        type: string
+        default: macos-26
   push:
     tags:
       - "v*"
@@ -59,7 +64,8 @@ jobs:
   pack-apple:
     name: Pack (macOS TFMs)
     needs: resolve-version
-    runs-on: macos-26
+    # A tag push has no inputs, so it always packs on macos-26.
+    runs-on: ${{ inputs.macos-runner || 'macos-26' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7

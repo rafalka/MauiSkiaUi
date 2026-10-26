@@ -90,7 +90,7 @@ Without Android signing secrets, the demo Android job still publishes an APK for
 
 Demo app icon/splash SVGs intentionally omit SVG `<filter>` elements: MAUI **10.0.101** Resizetizer regresses on filtered SVGs ([dotnet/maui#38319](https://github.com/dotnet/maui/issues/38319)).
 
-Versions and releases: branches, version format, bumps and the publish procedure are in [docs/Releasing.md](docs/Releasing.md). `nuget-pack.yml` (artifacts only) still accepts an optional version input, or takes it from a `v*` tag or [Directory.Build.props](Directory.Build.props); a manual run of a version with no changelog section yet packs the `## Unreleased` notes.
+Versions and releases: branches, version format, bumps and the publish procedure are in [docs/Releasing.md](docs/Releasing.md). `nuget-pack.yml` (artifacts only) still accepts an optional version input, or takes it from a `v*` tag or [Directory.Build.props](Directory.Build.props); a manual run of a version with no changelog section yet packs the `## Unreleased` notes, and a `macos-runner` input picks the macOS pack's runner image (default `macos-26`; e.g. the `xcode-27` preview).
 
 Release notes: write entries under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md), in its `### New features` / `### Breaking changes` / `### Fixes` / `### Other` subsections; publishing renames the section to the version. Workflows run [`scripts/extract-release-notes.py`](scripts/extract-release-notes.py): the library packs a plain-text summary as `PackageReleaseNotes` (shown on nuget.org: a link to the section, new feature titles, breaking changes), and the GitHub release gets the whole section ([docs/Releasing.md](docs/Releasing.md#changelog)).
 
