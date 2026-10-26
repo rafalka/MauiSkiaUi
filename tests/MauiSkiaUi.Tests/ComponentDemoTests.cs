@@ -4,6 +4,9 @@ using Xunit;
 
 namespace MauiSkiaUi.Tests;
 
+// Demo pages set SkUiMauiContentView's static snapshot options (the overlay scrolling page) and create overlays
+// the static capture hook would see: one collection with OverlayScrollTests and the other demo-page tests.
+[Collection(nameof(OverlayScrollTests))]
 public class ComponentDemoTests
 {
     [Fact]

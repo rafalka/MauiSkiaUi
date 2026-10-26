@@ -4,6 +4,9 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>The component pages' (?) popups: their descriptions (<see cref="EditorHelp"/>) and the bubble that shows them.</summary>
+// Demo pages set SkUiMauiContentView's static snapshot options (the overlay scrolling page) and create overlays
+// the static capture hook would see: one collection with OverlayScrollTests and the other demo-page tests.
+[Collection(nameof(OverlayScrollTests))]
 public class EditorHelpTests
 {
     private static long _pointer = 95_000;
