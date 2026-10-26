@@ -5,6 +5,30 @@ namespace MauiSkiaUi.Core;
 /// <summary>Single-child Core host with optional padding (Core analogue of <c>SkUiContentView</c>).</summary>
 public class SkUiCoreContentView : SkUiCoreNode
 {
+    /// <summary>
+    /// Whether <see cref="SkUiCoreNode.InputTransparent"/> covers the children too (<c>true</c>, the default, as MAUI's
+    /// <c>CascadeInputTransparent</c>). <c>false</c>: pointers pass through the view itself, and its children still take them.
+    /// </summary>
+    public bool CascadeInputTransparent
+    {
+        get => CascadeInputTransparentCore;
+        set => SetCascadeInputTransparent(value);
+    }
+
+    /// <summary>Sets <see cref="CascadeInputTransparent"/>.</summary>
+    public SkUiCoreContentView SetCascadeInputTransparent(bool value)
+    {
+        SetCascadeInputTransparentCore(value);
+        return this;
+    }
+
+    /// <summary>MAUI's name for <see cref="SkUiCoreNode.ClipToBounds"/>: the same property.</summary>
+    public bool IsClippedToBounds
+    {
+        get => ClipToBounds;
+        set => SetClipToBounds(value);
+    }
+
     private SkUiCoreNode? _content;
     private Thickness _padding;
 

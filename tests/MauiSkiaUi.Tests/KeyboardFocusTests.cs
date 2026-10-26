@@ -164,6 +164,13 @@ public class KeyboardFocusTests
         Assert.False(button.Focus());
         group.SetInputTransparent(false);
         Assert.True(button.Focus());
+
+        // Without cascading, only the group is transparent: its button keeps focus until the transparency cascades.
+        group.SetCascadeInputTransparent(false).SetInputTransparent(true);
+        Assert.True(button.IsFocused);
+        group.SetCascadeInputTransparent(true);
+        Assert.False(button.IsFocused);
+        Assert.False(button.Focus());
     }
 
     [Fact]

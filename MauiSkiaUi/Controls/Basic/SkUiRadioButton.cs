@@ -18,6 +18,24 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(Content))]
 public class SkUiRadioButton : SkUiToggleControl, ISkUiFontElement, ISkUiTemplatedContent
 {
+    /// <summary>Bindable property for <see cref="CascadeInputTransparent"/>.</summary>
+    public static readonly BindableProperty CascadeInputTransparentProperty = CascadeInputTransparentShared;
+
+    /// <summary>
+    /// Whether <see cref="VisualElement.InputTransparent"/> covers the children too (<c>true</c>, the default, as in MAUI).
+    /// <c>false</c>: pointers pass through the radio button itself, and its children still take them.
+    /// </summary>
+    public bool CascadeInputTransparent { get => (bool)GetValue(CascadeInputTransparentProperty); set => SetValue(CascadeInputTransparentProperty, value); }
+
+    /// <summary>Sets <see cref="CascadeInputTransparent"/>.</summary>
+    public SkUiRadioButton SetCascadeInputTransparent(bool value) { CascadeInputTransparent = value; return this; }
+
+    /// <summary>Bindable property for <see cref="IsClippedToBounds"/>: MAUI's name for <see cref="SkUiView.ClipToBoundsProperty"/>.</summary>
+    public static readonly BindableProperty IsClippedToBoundsProperty = ClipToBoundsProperty;
+
+    /// <summary>MAUI's name for <see cref="SkUiView.ClipToBounds"/>: the same property.</summary>
+    public bool IsClippedToBounds { get => ClipToBounds; set => ClipToBounds = value; }
+
     private Color _color = SkUiColors.Accent;
     private string? _groupName;
     private object? _value;

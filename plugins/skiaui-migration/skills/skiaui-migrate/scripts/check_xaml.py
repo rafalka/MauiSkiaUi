@@ -18,7 +18,7 @@ A drawn tree is everything inside a SkiaUi view (an element from the MauiSkiaUi 
   Community Toolkit's AvatarView in a drawn tree (SkUiAvatarView), MAUI's
   SwipeItemView in an SkUiSwipeView (SkUiSwipeItemView; MAUI's SwipeItems and SwipeItem are what it draws), an
   SkUiCollectionView with its own pull-to-refresh inside an SkUiRefreshView (both would refresh),
-  IsClippedToBounds (ClipToBounds), TemplateBinding / RelativeSource TemplatedParent on drawn views (RelativeSource
+  TemplateBinding / RelativeSource TemplatedParent on drawn views (RelativeSource
   AncestorType), and styles that
   target MAUI types:
   keyed styles a drawn view uses, and implicit styles (no x:Key) of the MAUI type a drawn view replaces when no implicit
@@ -410,8 +410,6 @@ class Checker:
                 self.report(path, node, "error", f"{local}=\"{value}\" on SkUiCollectionView: {local} takes a drawn view; use <sk:SkUiCollectionView.{local}><sk:SkUiLabel Text=\"{value}\" /></sk:SkUiCollectionView.{local}>")
             elif node.name == "SkUiCollectionView" and local == "IsPullToRefreshEnabled" and value.strip().lower() != "false" and in_refresh_view(node):
                 self.report(path, node, "error", "IsPullToRefreshEnabled on an SkUiCollectionView inside an SkUiRefreshView: both would refresh; keep one (the refresh view's Command, or the list's RefreshCommand)")
-            elif local == "IsClippedToBounds":
-                self.report(path, node, "error", f"IsClippedToBounds on {node.name}: use ClipToBounds")
             elif TEMPLATED_PARENT_RE.search(value):
                 self.report(path, node, "error", f"{local}=\"{value}\" on {node.name}: TemplateBinding / RelativeSource TemplatedParent do not reach drawn controls; use {{Binding Path, Source={{RelativeSource AncestorType={{x:Type local:TemplatedControl}}}}}}")
             elif local == "Style":

@@ -22,7 +22,7 @@ Design and status of **FR-15** in [Requirements.md](Requirements.md): one shared
 | Layers | One implementation for SkUi* and Core: hit-testing over the shared render tree (`ISkUiRenderable`), recognizers on any node |
 | Gestures | Tap, double tap, long press, swipe, pan, pinch / rotate, raw pointer; scrolling is a built-in recognizer of scroll views |
 | Hit region | **Arranged bounds** (FR-11); clip / mask is paint-only; children of a scroll viewport are hit only inside the viewport |
-| `InputTransparent` / invisible | Skipped: pointers reach what is underneath |
+| `InputTransparent` / invisible | Skipped with the subtree: pointers reach what is underneath. A container with `CascadeInputTransparent` off is skipped alone (`ISkUiInputNode.HitTestsSelf`): its children are still hit, while its own recognizers, hover, tooltip and scrolling are off |
 | Disabled (`IsEnabled = false` on either layer, cascading as MAUI's, or a button whose command cannot execute) | **Blocks**: hit, but neither it nor its subtree reacts; the continuous gestures of its ancestors (scrolling, pans, swipes) still compete, so a scroller around it scrolls |
 | Passive nodes | Transparent to pointers: the search continues **underneath** (z-order) at that point |
 | Unhandled at the target | **Ancestors** on the hit path also compete (their recognizers are in the arena), so both rules apply: passive nodes pass through, and participating ancestors compete |

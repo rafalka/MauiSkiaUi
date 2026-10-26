@@ -234,7 +234,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `Picker` | `SkUiPicker` | Prefix swap; its list opens on your popup system: see [Pickers](#pickers-picker) |
 | `DatePicker`, `TimePicker` | `SkUiDatePicker`, `SkUiTimePicker` | Prefix swap; wheels on your popup system like the picker's list: see [Pickers](#pickers-picker) |
 | `WebView`, maps, media | Wrapped in `SkUiMauiContentView` | Native by design |
-| `Layout.IsClippedToBounds` | `ClipToBounds` | Leaves clip by default, layouts do not |
+| `IsClippedToBounds` (layouts, content views, the scroll, swipe, refresh and indicator views, the radio button) | Same name on the drawn containers | The same property as `ClipToBounds`, which every drawn view has: leaves clip by default, layouts do not |
 
 Per-control differences: [docs/controls/](controls/README.md).
 
@@ -303,7 +303,7 @@ Other gesture input needs converting. A drawn view that has it writes one `Trace
 | Toolkit `TouchBehavior` `Command` / `LongPressCommand` | `TappedCommand` / `LongPressedCommand` (+ parameters) |
 | Toolkit `TouchBehavior` press scale / opacity / color | `ShowsPressEffect="True"` (the look's dim or ripple), or a `Pressed` visual state with your own setters |
 | A tap or pan recognizer that only swallows touches | Often not needed: drawn layouts, labels and images without gestures are transparent to touches, and what is under them gets the touch. Where blocking is the point (a backdrop under a drawn popover), keep an empty `TapGestureRecognizer` or give the view an empty `Tapped` handler |
-| `InputTransparent`, `CascadeInputTransparent` | Same meaning |
+| `InputTransparent`, `CascadeInputTransparent` | Same meaning on both layers: with `CascadeInputTransparent="False"`, only the container lets touches through and its children still take them. A cascading container does not set its children's own `InputTransparent` (MAUI does); what they receive is the same |
 
 How drawn gestures resolve: every press runs a **gesture arena** over the views under the finger and their ancestors. The innermost tap wins, a scroll or swipe that moves past the touch slop wins over taps, and a long press wins once it fires. A tappable row with a check box inside therefore behaves the same on every platform, without per-platform workarounds. See [EventMechanism.md](design/EventMechanism.md).
 

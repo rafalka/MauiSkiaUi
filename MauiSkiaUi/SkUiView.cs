@@ -244,6 +244,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <inheritdoc cref="ClipToBoundsProperty" />
     public bool ClipToBounds { get => (bool)GetValue(ClipToBoundsProperty); set => SetValue(ClipToBoundsProperty, value); }
 
+    private const string IsClippedToBoundsName = "IsClippedToBounds";
+
     /// <summary>
     /// The control's <see cref="ClipToBounds"/> default. Controls that clip unlike their kind override it instead of
     /// setting the property in their constructor, which would hide a style's value.
@@ -256,6 +258,24 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// while drawn content is revealed in a band native views cannot be scaled into (an animating expander).
     /// </summary>
     internal virtual bool ClipsHostedViews => ClipToBounds;
+
+    /// <summary>
+    /// The bindable property behind <c>CascadeInputTransparent</c> on the drawn containers that have it in MAUI (layouts,
+    /// content views, the scroll, swipe, refresh and indicator views, the radio button): whether <see cref="VisualElement.InputTransparent"/>
+    /// covers the container's subtree (<c>true</c>, the default) or the container only, whose children then still take
+    /// pointers. Other views read the default. Unlike MAUI, the children's own <c>InputTransparent</c> is not changed.
+    /// </summary>
+    internal static readonly BindableProperty CascadeInputTransparentShared = BindableProperty.Create(
+        "CascadeInputTransparent", typeof(bool), typeof(SkUiView), true, propertyChanged: OnCascadeInputTransparentChanged);
+
+    private static void OnCascadeInputTransparentChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        // Pointers on the subtree are checked at the next event; keyboard focus moves off it now.
+        if (((SkUiView)bindable).InputTransparent)
+            SkUiFocusManager.ValidateAll();
+    }
+
+    private bool CascadesInputTransparent => (bool)GetValue(CascadeInputTransparentShared);
 
     /// <summary>
     /// Opts this node into single taps. MAUI <c>GestureRecognizers</c> also work for taps: a <see cref="TapGestureRecognizer"/>
@@ -712,6 +732,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         }
         if (IsSemanticProperty(propertyName))
             SkUiSemantics.Invalidate(this);
+        // MAUI's name for it on containers (IsClippedToBoundsProperty is ClipToBoundsProperty): bindings to it follow.
+        if (propertyName == nameof(ClipToBounds))
+            OnPropertyChanged(IsClippedToBoundsName);
         // The attached tooltip shares its name with labels' Text: the check behind it is one per-thread read while nothing hovers.
         if (propertyName == ToolTipProperties.TextProperty.PropertyName)
             SkUiPointerRouter.OnToolTipChanged();
@@ -1359,7 +1382,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     internal SkUiPointerRouter Router => _router ??= new SkUiPointerRouter(this);
 
-    bool ISkUiInputNode.IsHitTestVisible => IsVisible && !InputTransparent;
+    bool ISkUiInputNode.IsHitTestVisible => IsVisible && (!InputTransparent || !CascadesInputTransparent);
+
+    bool ISkUiInputNode.HitTestsSelf => !InputTransparent;
 
     bool ISkUiInputNode.IsInputEnabled => IsVisualStateEnabled;
 

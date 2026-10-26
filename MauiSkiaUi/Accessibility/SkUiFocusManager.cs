@@ -239,7 +239,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
     /// </summary>
     private bool CanFocus(ISkUiAccessibleNode node) => node is ISkUiTextInputNode { WantsTextInput: true } textField
         ? textField.CanTakeTextFocus && IsLive(node, textInput: true)
-        : SkUiAccessibility.IsEnabled && node.IsKeyboardFocusable && IsLive(node);
+        : SkUiAccessibility.IsEnabled && node.IsKeyboardFocusable && node is not ISkUiInputNode { HitTestsSelf: false } && IsLive(node);
 
     /// <summary>Platform hooks are set and the surface starts without keyboard focus.</summary>
     public void Connect() => _hasNativeFocus = false;

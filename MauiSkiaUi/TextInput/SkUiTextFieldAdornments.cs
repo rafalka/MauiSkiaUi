@@ -30,7 +30,7 @@ internal static class SkUiTextFieldAdornments
         var props = Props(node);
         if (!props.Bounds.Contains(local.X, local.Y))
             return false;
-        if (!node.IsInputEnabled)
+        if (!node.IsInputEnabled && node.HitTestsSelf)
             return true;
         var clip = props.ChildrenClipRect;
         var passes = !node.HitTestsChildren ? 0 : clip.IsEmpty || clip.Contains(local.X, local.Y) ? 2 : 1;
@@ -56,6 +56,8 @@ internal static class SkUiTextFieldAdornments
         {
             children.RemoveRange(start, children.Count - start);
         }
+        if (!node.HitTestsSelf)
+            return false;
         recognizers.Clear();
         node.CollectGestureRecognizers(recognizers);
         var participates = recognizers.Count > 0;

@@ -13,6 +13,12 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **`CascadeInputTransparent` and `IsClippedToBounds` on drawn containers:** MAUI's names on the layouts, the content views, the scroll, swipe, refresh and indicator views, the radio button and the expander, and on the Core containers (`SetCascadeInputTransparent`).
+  - `CascadeInputTransparent="False"`: an input-transparent container lets pointers through itself only. Its children still take taps, hover and keyboard focus, and its own recognizers, tooltip and scrolling stay off. The default, `true`, works as before: the whole subtree lets pointers through.
+  - `IsClippedToBounds` is the same property as `ClipToBounds`.
+
 ## 1.1.0
 
 ### Breaking changes

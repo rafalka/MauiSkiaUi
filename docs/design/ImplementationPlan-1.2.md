@@ -14,17 +14,17 @@
 
 ## Gap inventory
 
-Measured on MAUI 10.0.120 by comparing the public members of 38 MAUI controls (by reflection) with their drawn counterparts, and from the controls' "Differences from MAUI" sections.
+Measured on MAUI 10.0.120 by comparing the public members of 40 MAUI controls (by reflection, now [R1](#phase-r--api-parity-sweep)) with their drawn counterparts, and from the controls' "Differences from MAUI" sections.
 
 | Area | Gap | Phase |
 | --- | --- | --- |
-| Drawn layouts and content hosts | `CascadeInputTransparent` does not exist on them. [Migration.md](../Migration.md#5-convert-gestures-and-touch-behaviors) says "same meaning", but XAML that sets it does not compile. `IsClippedToBounds` is named `ClipToBounds` | R |
+| Drawn layouts and content hosts (done in R2) | `CascadeInputTransparent` does not exist on them. [Migration.md](../Migration.md#5-convert-gestures-and-touch-behaviors) says "same meaning", but XAML that sets it does not compile. `IsClippedToBounds` is named `ClipToBounds` | R |
 | MAUI 10 additions | `Switch.OffColor`; `CheckBox.Command` / `CommandParameter`; `SafeAreaEdges` on layouts, `ContentView`, `Border`, `ScrollView` | R, S |
-| Small members | `StrokeDashPattern` (shapes, `Border`); `IsOpaque` (`Image`, `ImageButton`); `Padding` (`IndicatorView`, `RefreshView`); `SwipeView.OpenRequested` / `CloseRequested` | R |
+| Small members | `StrokeDashPattern` (shapes, `Border`); `IsOpaque` (`Image`, `ImageButton`); `Padding` (`IndicatorView`, `RefreshView`); the read-only bindable `IsPressed`, `IsLoading` and `IsDragging` (for triggers); `CollectionView.UpdateSelectedItems` | R |
 | `GestureRecognizers` | Only taps run (1 or 2 taps, primary button). Pan, swipe, pinch and pointer recognizers are reported and not run, and so are taps with `Buttons="Secondary"` | G |
 | Templates | `{TemplateBinding}` / `RelativeSource TemplatedParent` do not resolve in drawn templates (MAUI resolves them through its internal `IControlTemplated`). `RadioButton.DefaultTemplate` builds MAUI views. `IndicatorView.IndicatorTemplate` / `IndicatorLayout` are missing | T |
 | CollectionView | `ItemsLayout` (`LinearItemsLayout`, `GridItemsLayout`, `"VerticalGrid, 2"`), `ItemSizingStrategy`, MAUI's `ScrollTo(…)` and `ScrollToRequested`, `ItemsUpdatingScrollMode`, a string or object `Header` / `Footer` / `EmptyView`, snap points, `CanReorderItems` / `ReorderCompleted` / `CanMixGroups` | V |
-| CarouselView | `ItemsLayout`, `AnimateCurrentItemChanges` / `AnimatePositionChanges`, `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility`, `ItemsUpdatingScrollMode`, `VisibleViews`, `ScrollToRequested` | V |
+| CarouselView | `ItemsLayout`, `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility`, `ItemsUpdatingScrollMode`, `VisibleViews`, `ScrollToRequested` | V |
 | Brushes | `ImageBrush` is not drawn (backgrounds, shape fill and stroke, border stroke) | B |
 | Platform-specifics | Attached `ios:` / `android:` / `windows:` properties compile on drawn controls but are ignored, including the ones with a drawn meaning | S |
 | Member types | CollectionView `Scrolled` (`ScrolledEventArgs`, MAUI: `ItemsViewScrolledEventArgs`), `SelectionChanged` (`SkUiSelectionChangedEventArgs`, MAUI: `SelectionChangedEventArgs`), `SelectionMode` (`SkUiSelectionMode`) | Held for 2.0 ([D1](#decisions)) |
@@ -35,11 +35,11 @@ Not in 1.2: drag and drop and context flyouts (not planned); the calendar and ru
 
 First, because the parity test then guards every later step. Size: S–M.
 
-- **R1 MAUI API parity test.** A headless `MauiApiParityTests` reflects each MAUI control and its drawn counterpart (the 38 pairs, plus the Core twins where they mirror a SkUi\* control). It fails when a public MAUI property, event or method is missing from the drawn type or has a type that cannot be assigned to MAUI's, unless an allowlist entry gives a reason. On a new MAUI 10.0.x service release the test lists what MAUI added.
-- **R2 Input and clipping on drawn containers.**
-  - `CascadeInputTransparent` with MAUI's meaning on `SkUiLayout`, `SkUiContentView` and the other containers MAUI has it on (scroll view, radio button, swipe view, refresh view, indicator view). With the default `true`, `InputTransparent` covers the whole subtree, as today. With `false`, only the container lets touches through and its children still hit-test. This applies to presses, hover routing and the accessibility hit test. Core: `SetCascadeInputTransparent`.
-  - `IsClippedToBounds` on the layouts and content hosts that have it in MAUI, forwarding to `ClipToBounds` ([D3](#decisions)).
-  - Correct the Migration.md row.
+- **R1 MAUI API parity test** (done). `MauiApiParityTests` reflects 40 MAUI controls and their drawn counterparts, and MAUI's own properties against the Core twins. It fails when a public MAUI property, event, method overload or bindable property field is missing from the drawn type, or when its type cannot be used as MAUI's: a property must read as MAUI's type and take MAUI's values, and an event's arguments must be MAUI's or derive from them. Members MAUI hides with `EditorBrowsable(Never)` are handler plumbing and are not compared. Every other difference has an entry: kept on purpose with a reason, or planned with the step that closes it. A step removes its entries, and an entry that no longer matches a difference fails. On a new MAUI 10.0.x service release the test lists what MAUI added.
+- **R2 Input and clipping on drawn containers** (done).
+  - `CascadeInputTransparent` with MAUI's meaning on `SkUiLayout`, `SkUiContentView` and the other containers MAUI has it on (scroll view, radio button, swipe view, refresh view, indicator view, content presenter, swipe item view, and the expander, the toolkit's being a content view), and on the Core panels, content views and indicator view (`SetCascadeInputTransparent`). With the default `true`, `InputTransparent` covers the whole subtree, as before. With `false`, only the container lets touches through (`ISkUiInputNode.HitTestsSelf`): its children still hit-test and take keyboard focus, and its own recognizers, hover, tooltip, wheel and scrolling are off. Unlike MAUI, a cascading container does not coerce its children's own `InputTransparent`: MAUI does that through an internal interface (`IInputTransparentContainerElement`), and what the children receive is the same. Semantics hit tests do not read input transparency, so screen readers are unchanged.
+  - `IsClippedToBounds` on the same containers: the same bindable property as `ClipToBounds`, with change notifications under both names ([D3](#decisions)).
+  - The Migration.md rows and the migration skill are corrected. The XAML checker no longer reports `IsClippedToBounds`.
 - **R3 MAUI 10 members.**
   - `Switch.OffColor`: the track color while off, passed to the look's switch paint. Core: `SetOffColor`.
   - `CheckBox.Command` / `CommandParameter`: run when `IsChecked` changes, after `CheckedChanged`. A command that cannot execute disables the check box, as in MAUI. Core: `SetCommand`.
@@ -47,7 +47,9 @@ First, because the parity test then guards every later step. Size: S–M.
   - `StrokeDashPattern`: read-only, from `StrokeDashArray`.
   - `IsOpaque` on images: accepted, a hint only.
   - `Padding` on the indicator and refresh views.
-  - `SwipeView.OpenRequested` / `CloseRequested`, raised by `Open` / `Close`.
+  - Read-only bindable properties for the state MAUI exposes to triggers and bindings: `IsPressedProperty` (buttons), `IsLoadingProperty` (images), `IsDraggingProperty` (carousel). Each is set once per change, never per frame. The scroll view's `ScrollX` / `ScrollY` / `ContentSize` stay CLR properties, because a bindable property would cost a `SetValue` per scroll frame.
+  - `CollectionView.UpdateSelectedItems(IList<object>)`: replaces the selection in one change.
+  - `SwipeView.OpenRequested` / `CloseRequested` and the carousel's `AnimateCurrentItemChanges` / `AnimatePositionChanges` are handler plumbing that MAUI hides (`EditorBrowsable(Never)`), so they stay out. `Open` / `Close` and `IsScrollAnimated` are already drawn.
 
 Tests: the parity test; hit tests for cascading; `ImplicitStyleTests` for each new bindable property; SkUi-vs-Core pixel tests for `OffColor`.
 
@@ -77,7 +79,6 @@ The collection view's API is SkiaUi's own today ([Migration.md](../Migration.md#
 - **V5 `ItemsUpdatingScrollMode`:** `KeepItemsInView` (the default), `KeepScrollOffset` and `KeepLastItemInView`, on both views, built on the existing scroll anchoring. The carousel always keeps the current item today; that becomes `KeepItemsInView`.
 - **V6 Data in `Header` / `Footer` / `EmptyView`:** shown as in MAUI. A string becomes a drawn label in the look's text style; an object with a template uses that template with the object as its binding context. Applies to both views (the carousel's `EmptyView`). A type converter is tried first, so the property types can stay; if that fails, see [D1](#decisions).
 - **V7 Carousel members:**
-  - `AnimateCurrentItemChanges` / `AnimatePositionChanges`: whether a change from code animates.
   - Scroll bars on the strip.
   - `VisibleViews`: kept up to date only once read or observed, so carousels that never use it pay nothing.
 - **V8 Reordering:** `CanReorderItems`, `ReorderCompleted`, `CanMixGroups`. The largest step, and it may slip to 1.3.
@@ -160,7 +161,7 @@ Independent tracks that can run in parallel: R and B; G; V; T and S. V8 starts o
 
   **Decided:** 1.2 stays non-breaking. The conversions are in [Migration.md](../Migration.md#lists-collectionview) and the migration skill's `collection-view.md`, and the three changes are collected for 2.0 in the [roadmap](Roadmap.md#held-for-20). V1–V7 add no member whose type would need one of them; a step that finds another such member adds it to that list instead of breaking 1.x.
 - **D2 The `TemplateBinding` mechanism** (open), after the T1 spike: MAUI's markup if it can be made to resolve, else `{sk:TemplateBinding}`.
-- **D3 `IsClippedToBounds` and `ClipToBounds`** (open): both names stay. **Recommended:** document MAUI's name on containers and keep `ClipToBounds` as the drawn name for leaf controls, where MAUI has no member.
+- **D3 `IsClippedToBounds` and `ClipToBounds`:** both names stay. Built in R2 as recommended: MAUI's name on the containers, as an alias of `ClipToBounds`, which stays the drawn name on every view (leaf controls, where MAUI has no member, included).
 
 ## Acceptance
 

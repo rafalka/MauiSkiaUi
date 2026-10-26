@@ -1485,7 +1485,7 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
     private IEnumerable<SkUiScrollController> OuterScrollers()
     {
         for (var node = Node?.RenderParent; node is not null; node = node.RenderParent)
-            if (node is ISkUiScrollHost { IsHitTestVisible: true, IsInputEnabled: true } host)
+            if (node is ISkUiScrollHost { IsHitTestVisible: true, HitTestsSelf: true, IsInputEnabled: true } host)
                 yield return host.Scroller;
     }
 }
