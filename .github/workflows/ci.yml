@@ -64,9 +64,21 @@ jobs:
           path: ${{ runner.temp }}/test-results
           if-no-files-found: ignore
 
+  # The workload set picks the iOS / Mac Catalyst SDKs and so the Xcode (dotnet/macios release notes name the set
+  # for each Xcode). Both legs keep building: Xcode 26 on macOS 26 and Xcode 27 on the xcode-27 image.
   build-apple:
-    name: Build libraries (macOS Apple TFMs)
-    runs-on: xcode-27
+    name: Build libraries and iOS demo (Xcode ${{ matrix.xcode }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - xcode: "27.1"
+            runner: xcode-27
+            workload-version: "10.0.402.1"
+          - xcode: "26.6"
+            runner: macos-26
+            workload-version: "10.0.401"
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -76,6 +88,14 @@ jobs:
         with:
           workloads: maui-ios maui-maccatalyst
           java-version: ""
+          workload-version: ${{ matrix.workload-version }}
+
+      - name: Check Xcode version
+        run: |
+          set -euo pipefail
+          have="$(xcodebuild -version | sed -nE 's/^Xcode ([0-9.]+)$/\1/p')"
+          [[ "$have" == "${{ matrix.xcode }}" || "$have" == "${{ matrix.xcode }}".* ]] \
+            || { echo "Selected Xcode $have, expected ${{ matrix.xcode }}." >&2; exit 1; }
 
       - name: Restore Apple TFMs only
         # %3B = ';' so MSBuild does not treat the list as multiple -p switches.

@@ -96,8 +96,9 @@ runs:
         dotnet workload list
 
     # Apple builds (libraries too) need the Xcode the installed iOS / Mac Catalyst SDK packs were built for. Its
-    # version is in the pack's Versions.props (the pack name's suffix is the API level, e.g. Mac Catalyst 27.0 needs
-    # Xcode 27.1), and the image may default to another. Take that version's newest stable patch release.
+    # version is in each pack's Versions.props (`_RecommendedXcodeVersion` before the 27.x packs); the pack name's
+    # suffix is the API level, not the Xcode (Mac Catalyst 27.0 needs Xcode 27.1). The image may default to another
+    # Xcode: take that version's newest stable patch release.
     - name: Select Xcode
       if: runner.os == 'macOS' && (contains(inputs.workloads, 'ios') || contains(inputs.workloads, 'maccatalyst'))
       shell: bash
@@ -105,7 +106,7 @@ runs:
         set -euo pipefail
         root="$(dirname "$(readlink -f "$(command -v dotnet)")")"
         want="$(cat "$root"/packs/Microsoft.{iOS,MacCatalyst}.Sdk.net10.0_*/*/targets/Microsoft.*.Sdk.Versions.props \
-          2>/dev/null | sed -nE 's|.*<RecommendedXcodeVersion>([0-9.]+)</RecommendedXcodeVersion>.*|\1|p' \
+          2>/dev/null | sed -nE 's|.*<_?RecommendedXcodeVersion>([0-9.]+)</_?RecommendedXcodeVersion>.*|\1|p' \
           | sort -V | tail -1 || true)"
         [[ -n "$want" ]] || { echo "No iOS / Mac Catalyst SDK pack under $root/packs." >&2; exit 1; }
         echo "iOS / Mac Catalyst SDK packs need Xcode $want"
