@@ -18,6 +18,16 @@ paint a gradient like MAUI's native ones, clipped to their shape.
 MAUI's attached tooltip (`ToolTipProperties.Text`) on the drawn view. With a mouse or trackpad (Mac Catalyst, Windows, an
 iPad's pointer), resting the pointer on the preview shows it as a system tooltip; phones show none.
 
+## GestureRecognizersDemoPage.Recognizer
+
+The MAUI gesture recognizer both previews get, in their `GestureRecognizers`. The drawn view runs it in SkiaUi's gesture
+arena; the native `BoxView` runs it through MAUI's platform code. Each side shows the last event it raised:
+
+- `Tap`, `DoubleTap`, `TripleTap`: `TapGestureRecognizer` with 1, 2 or 3 `NumberOfTapsRequired`.
+- `SecondaryTap`: `Buttons="Secondary"`, a right click (mouse, trackpad or pen).
+- `Swipe`, `Pan`, `Pinch`: the status, totals, direction or scale MAUI reports.
+- `Pointer`: entered, moved and exited while a mouse or trackpad hovers; pressed and released for both buttons.
+
 ## ButtonDemoPage.ToolTip
 
 MAUI's attached tooltip (`ToolTipProperties.Text`) on both buttons. With a mouse or trackpad (Mac Catalyst, Windows, an

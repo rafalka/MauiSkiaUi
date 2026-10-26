@@ -37,7 +37,7 @@ public class CollectionViewTests
             VerticalScrollBarVisibility = ScrollBarVisibility.Never,
             Overscroll = SkUiOverscrollMode.None
         };
-        list.ItemsLayout.PrefetchBudget = TimeSpan.FromSeconds(10);
+        list.RowsLayout.PrefetchBudget = TimeSpan.FromSeconds(10);
         return list;
     }
 
@@ -99,7 +99,7 @@ public class CollectionViewTests
         Assert.Equal(new Rect(0, 80, 300, 50), OnScreen(list, (View)list.GetRealizedView(0)!));
         Assert.Equal(0, list.FirstVisibleIndex);
         Assert.Equal(8, list.LastVisibleIndex); // 80 + 9 · 50 > 500
-        var (_, last) = list.ItemsLayout.RealizedRange;
+        var (_, last) = list.RowsLayout.RealizedRange;
         Assert.InRange(last, 9, 40);
         Assert.Equal(80 + 10_000 * 50 + 40, list.ScrollView.ContentSize.Height);
 
@@ -392,7 +392,7 @@ public class CollectionViewTests
         Assert.Equal("Normal", State(0));
 
         var repainted = new HashSet<object>();
-        foreach (var view in list.ItemsLayout.RealizedViews)
+        foreach (var view in list.RowsLayout.RealizedViews)
             ((SkUiView)view).PaintInvalidated += (sender, _) => repainted.Add(sender!);
         list.SelectedItem = rows[4];
         Assert.Equal("Normal", State(1));

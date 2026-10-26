@@ -7,7 +7,8 @@ What the next releases bring, and the work after them. What has shipped is in th
 | Version | .NET MAUI | Xcode | .NET SDK | Minimum OS | Branch |
 | --- | --- | --- | --- | --- | --- |
 | **1.0.0** | 10.0.110 | 26 | 10.0.400 | iOS 15, Mac Catalyst 15, Android 5.0 (API 21), Windows 10 1809 | `master`, released 22 October 2026 |
-| **1.1.0** | 10.0.120 | 27 | 10.0.402 | iOS 15, **Mac Catalyst 17**, Android 5.0 (API 21), Windows 10 1809 | `devel` (in progress) |
+| **1.1.0** | 10.0.120 | 27 | 10.0.402 | iOS 15, **Mac Catalyst 17**, Android 5.0 (API 21), Windows 10 1809 | `master`, released 26 October 2026 |
+| **1.2.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | `devel` (in progress) |
 
 SkiaUi stays on MAUI 10.x. Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -15,7 +16,7 @@ SkiaUi stays on MAUI 10.x. Development happens on `devel`; `master` holds stable
 
 The controls and API listed in the [changelog](../../CHANGELOG.md#100) and its prerelease sections: MAUI parity of the shipped controls, page-shell layouts and containers, virtual lists and the collection view, list chrome, the carousel, pickers, drawn text input, platform looks, the migration blockers found by porting real apps, and the demo and samples drawing their own UI. Its public API is the one every `1.x` release keeps. The device checks that were open at release stay in the [verification backlog](#verification-backlog).
 
-### 1.1.0: MAUI 10.0.120 and Xcode 27 (next, on `devel`)
+### 1.1.0: MAUI 10.0.120 and Xcode 27 (shipped)
 
 From [#49](https://github.com/rafalka/MauiSkiaUi/pull/49):
 
@@ -24,7 +25,11 @@ From [#49](https://github.com/rafalka/MauiSkiaUi/pull/49):
 - **Mac Catalyst minimum 15.0 → 17.0:** the 27.x Mac Catalyst workload refuses lower minimums (library, toolkit package and apps). iOS stays at 15.0.
 - **Fix:** in MAUI 10.0.120, showing or hiding a view invalidates the measure of every descendant whose visibility changed; drawn views ignore that invalidation, so showing a view again does not re-record everything it holds.
 
-Work merged into `devel` after 1.0.0 ships with 1.1.0 too.
+Work merged into `devel` after 1.0.0 shipped with 1.1.0 too.
+
+### 1.2.0: MAUI parity (next, on `devel`)
+
+More MAUI pages port by changing the XAML prefix: MAUI's pan, swipe, pinch and pointer recognizers on drawn views; the collection view's and carousel's `ItemsLayout`, `ScrollTo`, snap points, `ItemsUpdatingScrollMode` and text headers; `IndicatorTemplate`; MAUI 10's new members (`SafeAreaEdges` on the surface root, `Switch.OffColor`, `CheckBox.Command`); and a test that compares the drawn controls' API with MAUI's. `TemplateBinding`, data headers and platform-specifics become conversions in the migration checker. Collection view reordering follows in 1.3. Steps, order and decisions: [ImplementationPlan-1.2.md](ImplementationPlan-1.2.md).
 
 ## Backlog (1.x)
 
@@ -40,12 +45,12 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 ### MAUI parity
 
-- **Gesture recognizers:** run MAUI's `SwipeGestureRecognizer`, `PanGestureRecognizer` and `PinchGestureRecognizer` on drawn views through the arena, and `PointerGestureRecognizer` from hover and pointer samples (taps already run).
-- **CollectionView:** reordering, snap points on the items layout, a selected-item template, extended selection, keyboard item navigation, animated insert and remove.
+- **CollectionView:** reordering (next, in 1.3: [plan](ImplementationPlan-1.2.md#moved-to-13)), snap points on the items layout, a selected-item template, extended selection, keyboard item navigation, animated insert and remove.
 - **CarouselView / IndicatorView:** `ItemsUpdatingScrollMode`, `VisibleViews`, `IndicatorTemplate`; autoplay, several items per snap point, a Core carousel.
-- **Images:** `ImageBrush`; fade-in, download progress, a per-view cache key, downsampling to the view's size, Android vector drawables.
+- **Images:** fade-in, download progress, a per-view cache key, downsampling to the view's size, Android vector drawables.
 - **Labels:** span press feedback, HTML images, `sub` / `sup`, block indents; one fitted size for a group of labels.
-- **Templates:** a drawn `RadioButton.DefaultTemplate`; button image tint.
+- **Templates:** button image tint.
+- **Drawn meanings of platform-specifics,** as SkiaUi members on both layers: a tap on a slider's track that moves the thumb, swipe view transition modes (reveal / drag), the press ripple's color, search bar chrome (minimal / prominent); pulling from other edges is under [Lists and scrolling](#lists-and-scrolling).
 
 ### Text input
 
@@ -91,7 +96,16 @@ Device runs that are still open. How to run them: [Testing.md](Testing.md#device
 - **Hosted controls:** the manual checklist (soft keyboard, IME, WebView nesting) on devices and Windows.
 - **Controls:** feel and frame time on devices for the collection view (fling at 10k items, memory), virtual stack, swipe view, refresh view, carousel, expander, avatar view, shimmer (a scrolling list of shimmering rows), scroll bars and overscroll; the pickers' presenters on Windows, in landscape, on rotation and window resize, with screen readers; tooltips on Windows and iPad.
 - **Demo gallery:** a full pass on Android and an Apple device.
+- **MAUI gesture recognizers on drawn views (1.2):** swipe, pan, pinch, pointer, secondary-button and triple taps on Android, iOS, Mac Catalyst and Windows, against the native view on the gallery's "MAUI gesture recognizers" page.
+
+## Held for 2.0
+
+Breaking changes for MAUI parity, kept out of 1.x so the 1.0 API stays as it is. Until then, [Migration.md](../Migration.md#lists-collectionview) has the conversions.
+
+- `SkUiCollectionView.Scrolled` raises MAUI's `ItemsViewScrolledEventArgs` (deltas, first / center / last visible index) instead of `ScrolledEventArgs`, as the carousel already does.
+- `SkUiCollectionView.SelectionChanged` raises MAUI's `SelectionChangedEventArgs` (its constructors are internal: raised through an accessor) instead of `SkUiSelectionChangedEventArgs`; `PreviousItem` / `CurrentItem` move elsewhere or go.
+- `SkUiCollectionView.SelectionMode` takes MAUI's `SelectionMode`; `SingleDeselect` moves elsewhere (for example a separate property).
 
 ## Not planned
 
-By design: drawn WebView, media and maps (host them in `SkUiMauiContentView`); Shell, navigation, pages and popup windows of SkiaUi's own (drawn controls open popups through the app's popup system); controls MAUI made obsolete (Frame, ListView, TableView, cells, compatibility layouts); context flyouts and drag and drop; clones of other vendors' controls; a Core flex layout (Core uses the wrap and shrink layouts and the grid).
+By design: drawn WebView, media and maps (host them in `SkUiMauiContentView`); Shell, navigation, pages and popup windows of SkiaUi's own (drawn controls open popups through the app's popup system); controls MAUI made obsolete (Frame, ListView, TableView, cells, compatibility layouts); context flyouts and drag and drop; `ImageBrush` (internal in MAUI 10, so no MAUI page can use one: an `SkUiImage` behind the content does it); clones of other vendors' controls; a Core flex layout (Core uses the wrap and shrink layouts and the grid).

@@ -77,3 +77,4 @@ On its own, bound to a pager of your own:
 | `HideSingle` | `true` | Nothing drawn for one item |
 | `IndicatorSpacing` | `-1` | Gap; negative: the look's (8) (SkiaUi) |
 | `Orientation` | `Horizontal` | `StackOrientation` (SkiaUi) |
+| `Padding` | `0` | As MAUI's: space around the row, added to the measured size; the row is centered inside it |

@@ -28,6 +28,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private double _diagnosticRecordFrameTotalMs;
 #endif
     private SkUiGestureSet? _gestures;
+    private SkUiMauiGestures? _mauiGestures;
     private SkUiPointerRouter? _router;
     private SkUiTapGestureRecognizer? _tap;
     private bool _mauiGesturesReported;
@@ -156,7 +157,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         IsPressed = value;
         if (_showsPressEffect || _pressEffect is not null)
             (_pressEffect ??= new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
-        OnPropertyChanged(nameof(IsPressed));
+        RaiseIsPressedChanged();
         OnPressedChanged();
         ChangeVisualState();
         InvalidatePaint();
@@ -169,6 +170,14 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         SkUiHover.Changed(isOver);
         OnPropertyChanged(nameof(IsPointerOver));
         ChangeVisualState();
+        if (!isOver)
+            _mauiGestures?.HoverEnded();
+    }
+
+    void ISkUiInputNode.PointerHovered(SkUiPointerRouter router, Point position)
+    {
+        if (GestureRecognizers.Count > 0 && RunsMauiTaps && SkUiMauiGestures.HasPointer(GestureRecognizers))
+            (_mauiGestures ??= new SkUiMauiGestures(this)).Hovered(router, position);
     }
 
     /// <summary>
@@ -211,6 +220,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <summary>Enabled for visual states, input and the enabled look: <see cref="VisualElement.IsEnabled"/> and <see cref="CanReceiveTap"/>.</summary>
     private protected bool IsVisualStateEnabled => IsEnabled && CanReceiveTap;
 
+    /// <summary>Reports <see cref="IsPressed"/>; buttons set their read-only bindable property instead, which reports it.</summary>
+    private protected virtual void RaiseIsPressedChanged() => OnPropertyChanged(nameof(IsPressed));
+
     /// <summary>Updates intrinsic control feedback when the shared pointer state changes.</summary>
     protected virtual void OnPressedChanged() { }
 
@@ -244,6 +256,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <inheritdoc cref="ClipToBoundsProperty" />
     public bool ClipToBounds { get => (bool)GetValue(ClipToBoundsProperty); set => SetValue(ClipToBoundsProperty, value); }
 
+    private const string IsClippedToBoundsName = "IsClippedToBounds";
+
     /// <summary>
     /// The control's <see cref="ClipToBounds"/> default. Controls that clip unlike their kind override it instead of
     /// setting the property in their constructor, which would hide a style's value.
@@ -256,6 +270,24 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// while drawn content is revealed in a band native views cannot be scaled into (an animating expander).
     /// </summary>
     internal virtual bool ClipsHostedViews => ClipToBounds;
+
+    /// <summary>
+    /// The bindable property behind <c>CascadeInputTransparent</c> on the drawn containers that have it in MAUI (layouts,
+    /// content views, the scroll, swipe, refresh and indicator views, the radio button): whether <see cref="VisualElement.InputTransparent"/>
+    /// covers the container's subtree (<c>true</c>, the default) or the container only, whose children then still take
+    /// pointers. Other views read the default. Unlike MAUI, the children's own <c>InputTransparent</c> is not changed.
+    /// </summary>
+    internal static readonly BindableProperty CascadeInputTransparentShared = BindableProperty.Create(
+        "CascadeInputTransparent", typeof(bool), typeof(SkUiView), true, propertyChanged: OnCascadeInputTransparentChanged);
+
+    private static void OnCascadeInputTransparentChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        // Pointers on the subtree are checked at the next event; keyboard focus moves off it now.
+        if (((SkUiView)bindable).InputTransparent)
+            SkUiFocusManager.ValidateAll();
+    }
+
+    private bool CascadesInputTransparent => (bool)GetValue(CascadeInputTransparentShared);
 
     /// <summary>
     /// Opts this node into single taps. MAUI <c>GestureRecognizers</c> also work for taps: a <see cref="TapGestureRecognizer"/>
@@ -712,6 +744,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         }
         if (IsSemanticProperty(propertyName))
             SkUiSemantics.Invalidate(this);
+        // MAUI's name for it on containers (IsClippedToBoundsProperty is ClipToBoundsProperty): bindings to it follow.
+        if (propertyName == nameof(ClipToBounds))
+            OnPropertyChanged(IsClippedToBoundsName);
         // The attached tooltip shares its name with labels' Text: the check behind it is one per-thread read while nothing hovers.
         if (propertyName == ToolTipProperties.TextProperty.PropertyName)
             SkUiPointerRouter.OnToolTipChanged();
@@ -1359,7 +1394,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     internal SkUiPointerRouter Router => _router ??= new SkUiPointerRouter(this);
 
-    bool ISkUiInputNode.IsHitTestVisible => IsVisible && !InputTransparent;
+    bool ISkUiInputNode.IsHitTestVisible => IsVisible && (!InputTransparent || !CascadesInputTransparent);
+
+    bool ISkUiInputNode.HitTestsSelf => !InputTransparent;
 
     bool ISkUiInputNode.IsInputEnabled => IsVisualStateEnabled;
 
@@ -1373,13 +1410,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     void ISkUiInputNode.CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers) => CollectGestureRecognizers(recognizers);
 
-    /// <summary>Appends this view's recognizers: built-in tap, long press, swipe, pan, pinch, custom, then intrinsic ones.</summary>
+    /// <summary>Appends this view's recognizers: built-in tap, long press, swipe, pan, pinch, custom, MAUI's bridged ones, then intrinsic ones.</summary>
     internal virtual void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
     {
         // Called for the views under a press: MAUI gesture input a drawn view does not run is reported then, once.
         if (!_mauiGesturesReported && (GestureRecognizers.Count > 0 || IsSet(BehaviorsProperty)))
             _mauiGesturesReported = SkUiMauiTaps.ReportUnsupported(this, native: !RunsMauiTaps);
-        if (WantsSingleTap || WantsDoubleTap)
+        if (WantsSingleTap || WantsDoubleTap || MauiTapCount > 2)
             recognizers.Add(_tap ??= new SkUiTapGestureRecognizer
             {
                 TapHandler = args => { if (WantsSingleTap) OnTapped(args); },
@@ -1389,6 +1426,10 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
                     _gestures?.RaiseDoubleTapped(args);
                     RaiseMauiTaps(args, 2);
                 },
+                MaxTaps = () => MauiTapCount,
+                // A press of a button only MAUI's recognizers could want, and none does, leaves the tap to ancestors.
+                TakesPress = buttons => HasOwnTaps || (GestureRecognizers.Count > 0 && RunsMauiTaps && SkUiMauiTaps.Takes(GestureRecognizers, buttons)),
+                MultiTapHandler = args => RaiseMauiTaps(args, args.NumberOfTaps),
                 PressedHandler = (pressed, position) =>
                 {
                     PressPosition = position;
@@ -1396,9 +1437,16 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
                 }
             });
         _gestures?.Collect(recognizers);
+        if (GestureRecognizers.Count > 0 && RunsMauiTaps && SkUiMauiGestures.HasAny(GestureRecognizers))
+            (_mauiGestures ??= new SkUiMauiGestures(this)).Collect(recognizers);
     }
 
-    private bool WantsSingleTap => Tapped is not null || HandlesTap || (_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false) || HasMauiTaps(1);
+    private bool WantsSingleTap => HasOwnSingleTap || HasMauiTaps(1);
+
+    private bool HasOwnSingleTap => Tapped is not null || HandlesTap || (_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false);
+
+    /// <summary>Taps of SkiaUi's own events and commands, which every button makes.</summary>
+    private bool HasOwnTaps => HasOwnSingleTap || _gestures?.WantsDoubleTap == true;
 
     private bool WantsDoubleTap => _gestures?.WantsDoubleTap == true || HasMauiTaps(2);
 
@@ -1414,10 +1462,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// </summary>
     private bool HasMauiTaps(int taps) => GestureRecognizers.Count > 0 && RunsMauiTaps && SkUiMauiTaps.Has(GestureRecognizers, taps);
 
+    /// <summary>The most taps a MAUI tap recognizer of this view requires (0: none).</summary>
+    private int MauiTapCount => GestureRecognizers.Count > 0 && RunsMauiTaps ? SkUiMauiTaps.MaxTaps(GestureRecognizers) : 0;
+
     private void RaiseMauiTaps(SkUiTappedEventArgs args, int taps)
     {
         if (GestureRecognizers.Count > 0 && RunsMauiTaps)
-            SkUiMauiTaps.Raise(GestureRecognizers, taps, this, args.Position);
+            SkUiMauiTaps.Raise(GestureRecognizers, taps, this, args.Position, args.Buttons);
     }
 
     void ISkUiGestureElement.CancelGestures() => CancelGestures();
@@ -1427,6 +1478,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     {
         _tap?.Cancel();
         _gestures?.CancelAll();
+        _mauiGestures?.CancelAll();
         _router?.CancelAll();
         SetPressed(false);
     }

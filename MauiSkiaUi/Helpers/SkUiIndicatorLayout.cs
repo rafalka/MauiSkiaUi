@@ -79,6 +79,8 @@ internal sealed class SkUiIndicatorModel(ISkUiTransitionHost host)
     public int MaximumVisible = int.MaxValue;
     public bool HideSingle = true;
     public StackOrientation Orientation = StackOrientation.Horizontal;
+    /// <summary>Space around the row (MAUI's <c>IndicatorView.Padding</c>): added to the measured size; the row is centered inside it.</summary>
+    public Thickness Padding;
     public Color IndicatorColor = null!;
     public Color SelectedColor = null!;
 
@@ -136,10 +138,14 @@ internal sealed class SkUiIndicatorModel(ISkUiTransitionHost host)
         var visible = SkUiIndicatorLayout.Visible(Count, MaximumVisible);
         var length = SkUiIndicatorLayout.Length(visible, IndicatorSize, ResolvedSpacing, visible > 0 ? ExtraLength : 0);
         var thickness = visible > 0 ? IndicatorSize : 0;
-        return Orientation == StackOrientation.Horizontal ? new Size(length, thickness) : new Size(thickness, length);
+        var (width, height) = Orientation == StackOrientation.Horizontal ? (length, thickness) : (thickness, length);
+        return new Size(width + Padding.HorizontalThickness, height + Padding.VerticalThickness);
     }
 
-    /// <summary>The paint struct for a view of <paramref name="width"/> × <paramref name="height"/>, the row centered in it (left-to-right coordinates).</summary>
+    /// <summary>
+    /// The paint struct for a view of <paramref name="width"/> × <paramref name="height"/>, the row centered inside its
+    /// <see cref="Padding"/> (left-to-right coordinates).
+    /// </summary>
     public SkUiIndicatorPaint CreatePaint(float width, float height, bool enabled)
     {
         var visible = SkUiIndicatorLayout.Visible(Count, MaximumVisible);
@@ -149,9 +155,10 @@ internal sealed class SkUiIndicatorModel(ISkUiTransitionHost host)
         var length = (float)SkUiIndicatorLayout.Length(visible, IndicatorSize, ResolvedSpacing, extra);
         var horizontal = Orientation == StackOrientation.Horizontal;
         var size = (float)IndicatorSize;
-        var bounds = horizontal
-            ? new SKRect((width - length) / 2, (height - size) / 2, (width + length) / 2, (height + size) / 2)
-            : new SKRect((width - size) / 2, (height - length) / 2, (width + size) / 2, (height + length) / 2);
+        var (rowWidth, rowHeight) = horizontal ? (length, size) : (size, length);
+        var left = (float)Padding.Left + (width - (float)Padding.HorizontalThickness - rowWidth) / 2;
+        var top = (float)Padding.Top + (height - (float)Padding.VerticalThickness - rowHeight) / 2;
+        var bounds = new SKRect(left, top, left + rowWidth, top + rowHeight);
         var color = SkUiShapePainter.ToSkColor(IndicatorColor);
         var selected = SkUiShapePainter.ToSkColor(SelectedColor);
         if (!enabled)

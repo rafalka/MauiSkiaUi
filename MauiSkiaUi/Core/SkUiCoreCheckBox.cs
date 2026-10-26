@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using SkiaSharp;
 
 namespace MauiSkiaUi.Core;
@@ -6,6 +7,54 @@ namespace MauiSkiaUi.Core;
 public class SkUiCoreCheckBox : SkUiCoreToggleControl
 {
     private Color _color = SkUiColors.Accent;
+    private SkUiCommandSlot<SkUiCoreCheckBox>? _command;
+
+    /// <summary>
+    /// Runs when <see cref="SkUiCoreToggleControl.IsChecked"/> changes, from a tap or from code, after
+    /// <see cref="SkUiCoreToggleControl.CheckedChanged"/> (MAUI 10's <c>CheckBox.Command</c>). While it cannot execute, the
+    /// check box looks and acts disabled.
+    /// </summary>
+    public ICommand? Command
+    {
+        get => _command?.Command;
+        set => SetCommand(value);
+    }
+
+    /// <summary>The parameter passed to <see cref="Command"/>.</summary>
+    public object? CommandParameter
+    {
+        get => _command?.Parameter;
+        set => SetCommandParameter(value);
+    }
+
+    /// <summary>Sets <see cref="Command"/>; command notifications use a weak target.</summary>
+    public SkUiCoreCheckBox SetCommand(ICommand? value)
+    {
+        if (ReferenceEquals(Command, value)) return this;
+        CommandSlot.SetCommand(value);
+        OnPropertyChanged(nameof(Command));
+        return this;
+    }
+
+    /// <summary>Sets <see cref="CommandParameter"/>.</summary>
+    public SkUiCoreCheckBox SetCommandParameter(object? value)
+    {
+        if (Equals(CommandParameter, value)) return this;
+        CommandSlot.SetParameter(value);
+        OnPropertyChanged(nameof(CommandParameter));
+        return this;
+    }
+
+    private SkUiCommandSlot<SkUiCoreCheckBox> CommandSlot => _command ??= new(this, static box => box.OnTapStateChanged());
+
+    /// <inheritdoc />
+    internal override bool CanReceiveTap => _command is not { Command: not null, CanExecute: false };
+
+    private protected override void RaiseCheckedChanged(bool isChecked)
+    {
+        base.RaiseCheckedChanged(isChecked);
+        _command?.Execute();
+    }
 
     /// <summary>Fill/checkmark color while checked; unchecked draws a neutral outline.</summary>
     public Color Color
@@ -33,7 +82,7 @@ public class SkUiCoreCheckBox : SkUiCoreToggleControl
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>
-        SkUiToggleDrawing.DrawCheckBox(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, ToggleVisual, _color, IsEnabled);
+        SkUiToggleDrawing.DrawCheckBox(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, ToggleVisual, _color, IsInteractionEnabled);
 
     /// <summary>The box: as large as the control's smaller side, at its start, from the top.</summary>
     protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones)

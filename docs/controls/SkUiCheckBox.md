@@ -16,7 +16,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 - **Coordinates** use DIPs. Paint and touch share the same local space as measure/arrange.
 - **BindableProperty + fluent `Set*` setters:** a `Set*` setter is the property setter in fluent form (`label.SetText("a").SetFontSize(20)`): getters read the bindable store, as in MAUI, so bindings, triggers and `x:Reference` see every change (FR-10). Invalid values: `Set*` throws; XAML, bindings, styles and the property setter ignore them with a logged warning, as MAUI does.
 - **`StartUpdating` / `EndUpdating`** batch layout and paint invalidation.
-- **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`). Of MAUI's `GestureRecognizers`, `TapGestureRecognizer` (1 or 2 taps) runs on the arena; other recognizers are not run and are reported once as a `Trace` line. See [EventMechanism.md](../design/EventMechanism.md#maui-gesture-recognizers).
+- **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`). MAUI's `GestureRecognizers` run on the arena too: tap (any `NumberOfTapsRequired`, primary or secondary button), swipe, pan, pinch and pointer recognizers; drag and drop is not run and is reported once as a `Trace` line. See [EventMechanism.md](../design/EventMechanism.md#maui-gesture-recognizers).
 - **Hosted vs standalone:** when nested under another SkiaUi parent, the node has no platform handler and paints into the root surface. See [LayoutSystem.md](../design/LayoutSystem.md).
 
 
@@ -29,7 +29,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`CheckState`, `IsChecked`, `IsThreeState`, `CheckStateChanged`, `CheckedChanged` (`CheckedChangedEventArgs`, as in MAUI), `Color`.
+`CheckState`, `IsChecked`, `IsThreeState`, `CheckStateChanged`, `CheckedChanged` (`CheckedChangedEventArgs`, as in MAUI), `Color`, and MAUI 10's `Command` / `CommandParameter`. The command runs whenever `IsChecked` changes, from a tap or from code, after `CheckedChanged`, and only if it can execute at that moment. While it cannot execute, the check box looks and acts disabled. Core: `SkUiCoreCheckBox.SetCommand` / `SetCommandParameter`.
 
 ## Differences from MAUI CheckBox
 
@@ -38,6 +38,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | Label text | None — compose with [`SkUiLabel`](SkUiLabel.md) in a stack |
 | Color model | Single `Color` for checked chrome |
 | Three states | `CheckState` / `IsThreeState` (MAUI has two) |
+| A command that cannot execute | Disables the check box as in MAUI, but `IsEnabled` keeps its value (MAUI's reads `false`), as on drawn buttons |
 | Gestures | Intrinsic SkiaUi tap |
 | Visual states | As MAUI's CheckBox: while checked, `IsChecked` when the `CommonStates` group defines it, else `Normal`; otherwise `Normal` / `PointerOver` / `Disabled`. Indeterminate counts as unchecked |
 

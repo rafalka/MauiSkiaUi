@@ -15,6 +15,8 @@ public class SkUiImage : SkUiView
     private ImageSource? _source;
     private Aspect _aspect = Aspect.AspectFit;
     private SkUiImageOptions _options;
+    // Set on the thread pool by a load finished without a dispatcher, read on the view's thread (see PublishState).
+    private volatile bool _isLoadingStoreStale;
     // Image sources and transformation lists are often shared resources: listened to weakly, so they never keep the view alive.
     private SkUiWeakListener<SkUiImage>? _sourceListener;
     private SkUiWeakListener<SkUiImage> SourceListener => _sourceListener ??= new(this, static (image, change) =>
@@ -128,8 +130,26 @@ public class SkUiImage : SkUiView
     public double DownsampleHeight { get => (double)GetValue(DownsampleHeightProperty); set => SetValue(DownsampleHeightProperty, value); }
     /// <summary>Current asynchronous load, including error-state publication.</summary>
     public Task LoadingTask => Slot.LoadingTask;
+    private static readonly BindablePropertyKey IsLoadingPropertyKey =
+        BindableProperty.CreateReadOnly(nameof(IsLoading), typeof(bool), typeof(SkUiImage), false);
+
+    /// <summary>Read-only bindable <see cref="IsLoading"/>, as MAUI's, for triggers and bindings.</summary>
+    public static readonly BindableProperty IsLoadingProperty = IsLoadingPropertyKey.BindableProperty;
+
     /// <summary>Whether the current source is loading.</summary>
     public bool IsLoading => Slot.IsLoading;
+
+    /// <summary>Bindable <see cref="IsOpaque"/>.</summary>
+    public static readonly BindableProperty IsOpaqueProperty = BindableProperty.Create(nameof(IsOpaque), typeof(bool), typeof(SkUiImage), false);
+
+    /// <summary>
+    /// MAUI's hint that the image has no transparent pixels, which its handlers pass to the platform image view. Accepted
+    /// for MAUI markup; drawn images composite the same either way.
+    /// </summary>
+    public bool IsOpaque { get => (bool)GetValue(IsOpaqueProperty); set => SetValue(IsOpaqueProperty, value); }
+
+    /// <summary>Sets <see cref="IsOpaque"/>.</summary>
+    public SkUiImage SetIsOpaque(bool value) { IsOpaque = value; return this; }
     /// <summary>Last current-source error, or null on success.</summary>
     public Exception? LoadError => Slot.LoadError;
     /// <summary>
@@ -270,11 +290,35 @@ public class SkUiImage : SkUiView
 
     private void PublishState()
     {
-        OnPropertyChanged(nameof(IsLoading));
+        // Reports IsLoading when it changed. A load started without a dispatcher finishes on the thread pool, where the
+        // bindable store (not thread-safe) is left alone: the stored value follows on the view's next change
+        // (OnPropertyChanged), such as its layout once it is shown.
+        if (SkUiImageSlot.CompletingWithoutDispatcher)
+        {
+            _isLoadingStoreStale = true;
+            OnPropertyChanged(nameof(IsLoading));
+        }
+        else
+        {
+            _isLoadingStoreStale = false;
+            SetValue(IsLoadingPropertyKey, Slot.IsLoading);
+        }
         OnPropertyChanged(nameof(LoadError));
         OnPropertyChanged(nameof(ImageSize));
         OnPropertyChanged(nameof(IsShowingPlaceholder));
         InvalidateMeasureOverride();
+    }
+
+    /// <inheritdoc />
+    protected override void OnPropertyChanged(string? propertyName = null)
+    {
+        base.OnPropertyChanged(propertyName);
+        // The view's thread changes it: the stored IsLoading catches up with a load finished on the thread pool.
+        if (_isLoadingStoreStale && !SkUiImageSlot.CompletingWithoutDispatcher)
+        {
+            _isLoadingStoreStale = false;
+            SetValue(IsLoadingPropertyKey, Slot.IsLoading);
+        }
     }
 
     /// <summary>Whether a loading or error placeholder is drawn instead of the image.</summary>

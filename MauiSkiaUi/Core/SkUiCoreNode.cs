@@ -247,9 +247,14 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// <summary>Sets <see cref="ClipToBounds"/>.</summary>
     public SkUiCoreNode SetClipToBounds(bool value)
     {
-        if (SetProperty(ref _clipToBounds, value, nameof(ClipToBounds))) InvalidateRender(SkUiRenderDirty.Props);
+        if (!SetProperty(ref _clipToBounds, value, nameof(ClipToBounds))) return this;
+        InvalidateRender(SkUiRenderDirty.Props);
+        // MAUI's name for it on containers: bindings to IsClippedToBounds follow.
+        OnPropertyChanged(IsClippedToBoundsName);
         return this;
     }
+
+    private const string IsClippedToBoundsName = "IsClippedToBounds";
 
     // Core nodes scale uniformly: ScaleX / ScaleY read and write the one scale.
     double ISkUiAnimationTarget.GetAnimatable(SkUiAnimatableProperty property) => property switch
@@ -1174,7 +1179,9 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// </summary>
     public bool Touch(SkUiTouchEvent touch) => Routers.GetValue(this, node => new SkUiPointerRouter(node)).Dispatch(touch);
 
-    bool ISkUiInputNode.IsHitTestVisible => _isVisible && !_inputTransparent;
+    bool ISkUiInputNode.IsHitTestVisible => _isVisible && (!_inputTransparent || !_cascadeInputTransparent);
+
+    bool ISkUiInputNode.HitTestsSelf => !_inputTransparent;
 
     bool ISkUiInputNode.IsInputEnabled => IsInteractionEnabled;
 

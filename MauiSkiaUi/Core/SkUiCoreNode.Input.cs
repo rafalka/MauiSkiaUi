@@ -9,6 +9,7 @@ public partial class SkUiCoreNode
     private bool _isEnabledExplicit = true;
     private bool _isEnabled = true;
     private bool _inputTransparent;
+    private bool _cascadeInputTransparent = true;
     private SkUiCommandSlot<SkUiCoreNode>? _tappedCommand;
 
     /// <summary>The render children a change of the effective enabled state walks (UI thread; reentrant by ranges).</summary>
@@ -52,10 +53,27 @@ public partial class SkUiCoreNode
         if (!SetProperty(ref _inputTransparent, value, nameof(InputTransparent))) return this;
         if (value)
         {
-            SkUiGestureSet.CancelSubtree(this);
+            if (_cascadeInputTransparent)
+                SkUiGestureSet.CancelSubtree(this);
+            else
+                CancelGestures();
             SkUiFocusManager.ValidateAll();
         }
         return this;
+    }
+
+    /// <summary>
+    /// Whether <see cref="InputTransparent"/> covers the subtree (<c>true</c>, the default) or the node only, whose children
+    /// then still take pointers; public as <c>CascadeInputTransparent</c> on the containers that have it in MAUI.
+    /// </summary>
+    private protected bool CascadeInputTransparentCore => _cascadeInputTransparent;
+
+    /// <summary>Sets <see cref="CascadeInputTransparentCore"/>.</summary>
+    private protected void SetCascadeInputTransparentCore(bool value)
+    {
+        if (!SetProperty(ref _cascadeInputTransparent, value, "CascadeInputTransparent") || !_inputTransparent || !value) return;
+        SkUiGestureSet.CancelSubtree(this);
+        SkUiFocusManager.ValidateAll();
     }
 
     // In the attached-value store: most nodes have no tooltip, so they pay no field for it.

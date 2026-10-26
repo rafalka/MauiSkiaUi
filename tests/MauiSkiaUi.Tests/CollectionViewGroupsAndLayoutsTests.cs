@@ -172,7 +172,7 @@ public class CollectionViewGroupsAndLayoutsTests
         Assert.Equal(new Rect(0, 580, 300, 50), ItemOnScreen(list, 10));
         Assert.Equal(0, list.FirstVisibleIndex);
         Assert.Equal(10, list.LastVisibleIndex);
-        Assert.Equal(3 * 12, list.ItemsLayout.ItemCount); // a header, 10 items and a footer per group
+        Assert.Equal(3 * 12, list.RowsLayout.ItemCount); // a header, 10 items and a footer per group
 
         Tap(list, new Point(150, 595));
         Assert.Same(sections[1], tappedGroup);
@@ -223,7 +223,7 @@ public class CollectionViewGroupsAndLayoutsTests
         SkUiTestHelpers.Arrange(list, 300, 600);
 
         list.GroupHeaderTemplate = new DataTemplate(() => new SkUiBox { HeightRequest = 40, Color = Colors.Red });
-        Assert.Equal(0, list.ItemsLayout.PooledViews); // views of the old templates are not kept for reuse
+        Assert.Equal(0, list.RowsLayout.PooledViews); // views of the old templates are not kept for reuse
         list.ScrollView.ScrollTo(0, 0);
         SkUiTestHelpers.Arrange(list, 300, 600);
         Assert.Equal(Colors.Red, ((SkUiBox)HeaderView(list, 0)!).Color);
@@ -232,7 +232,7 @@ public class CollectionViewGroupsAndLayoutsTests
         list.ScrollView.ScrollTo(0, 800);
         SkUiTestHelpers.Arrange(list, 300, 600);
         list.ItemTemplate = new DataTemplate(() => new RowView { Color = Colors.Blue });
-        Assert.Equal(0, list.ItemsLayout.PooledViews);
+        Assert.Equal(0, list.RowsLayout.PooledViews);
         SkUiTestHelpers.Arrange(list, 300, 600);
         Assert.Equal(Colors.Blue, ((SkUiBox)list.GetRealizedView(list.FirstVisibleIndex)!).Color);
     }
@@ -283,7 +283,7 @@ public class CollectionViewGroupsAndLayoutsTests
     }
 
     private static ISkUiView? HeaderView(SkUiCollectionView list, int rowIndex) =>
-        ((SkUiContentView?)list.ItemsLayout.GetRealizedView(rowIndex))?.Content;
+        ((SkUiContentView?)list.RowsLayout.GetRealizedView(rowIndex))?.Content;
 
     [Fact]
     public void ExpansionCanBeCanceledDrivenFromCodeAndFromTheGroupAndKeepsWhatShows()
@@ -344,9 +344,9 @@ public class CollectionViewGroupsAndLayoutsTests
         list.ItemsSource = new ObservableCollection<Section>(sections); // read again with the setting
         SkUiTestHelpers.Arrange(list, 300, 600);
         Assert.Equal(3 * 30, list.ScrollView.ContentSize.Height);
-        Assert.Equal(3, list.ItemsLayout.ItemCount); // the headers
+        Assert.Equal(3, list.RowsLayout.ItemCount); // the headers
         list.ExpandAll();
-        Assert.Equal(3 + 30, list.ItemsLayout.ItemCount);
+        Assert.Equal(3 + 30, list.RowsLayout.ItemCount);
         list.CollapseAll();
         SkUiTestHelpers.Arrange(list, 300, 600);
         Assert.Equal(3 * 30, list.ScrollView.ContentSize.Height);
@@ -392,7 +392,7 @@ public class CollectionViewGroupsAndLayoutsTests
         SkUiTestHelpers.Arrange(list, 300, 600);
         Assert.False(list.IsGroupExpanded(sections[1]));
         Assert.Equal(-1, list.StickyGroupShown);
-        Assert.Equal(0, OnScreen(list, (View)list.ItemsLayout.GetRealizedView(sections[0].Count + 1)!).Y, 1);
+        Assert.Equal(0, OnScreen(list, (View)list.RowsLayout.GetRealizedView(sections[0].Count + 1)!).Y, 1);
     }
 
     [Fact]
@@ -449,7 +449,7 @@ public class CollectionViewGroupsAndLayoutsTests
         Assert.Equal(100, ((Row)((BindableObject)list.GetRealizedView(0)!).BindingContext).Index);
         Assert.Equal(0, ((Row)((BindableObject)list.GetRealizedView(1)!).BindingContext).Index);
         Assert.Equal(11, list.ItemCount);
-        Assert.True(((SkUiCollectionView)list).ItemsLayout.ItemCount == 4);
+        Assert.True(((SkUiCollectionView)list).RowsLayout.ItemCount == 4);
     }
 
     [Fact]
@@ -513,7 +513,7 @@ public class CollectionViewGroupsAndLayoutsTests
         Assert.Equal(new Rect(120, 0, 80, 100), ItemOnScreen(list, 1));
         Assert.Equal(40 + 1000 * 80, list.ScrollView.ContentSize.Width);
         Assert.Equal(4, list.LastVisibleIndex);
-        var (_, last) = list.ItemsLayout.RealizedRange;
+        var (_, last) = list.RowsLayout.RealizedRange;
         Assert.InRange(last, 4, 20); // only near the viewport
 
         list.ScrollToIndex(500, ScrollToPosition.Start, animated: false);
@@ -616,6 +616,13 @@ public class CollectionViewGroupsAndLayoutsTests
         list.ClearSelection();
         Assert.Empty(list.SelectedItems);
         Assert.Equal([(2, 20), (20, 0)], changes);
+
+        // MAUI's UpdateSelectedItems: one change, also when passed the selection itself.
+        changes.Clear();
+        list.UpdateSelectedItems([rows[1], rows[2]]);
+        list.UpdateSelectedItems(list.SelectedItems);
+        list.UpdateSelectedItems(null);
+        Assert.Equal([(0, 2), (2, 0)], changes);
 
         // Removed items leave the selection; another mode clears it.
         list.SelectedItems.Add(rows[5]);

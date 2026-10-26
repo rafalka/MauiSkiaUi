@@ -6,8 +6,18 @@ namespace MauiSkiaUi;
 /// <summary>A drawn node that takes part in hit-testing and gestures (<see cref="SkUiView"/> or a Core node).</summary>
 internal interface ISkUiInputNode : ISkUiRenderable
 {
-    /// <summary><c>false</c>: skipped by hit-testing (invisible / input-transparent); pointers reach what is underneath.</summary>
+    /// <summary>
+    /// <c>false</c>: the node and its subtree are skipped by hit-testing (invisible, or input-transparent with the transparency
+    /// cascading to the subtree); pointers reach what is underneath.
+    /// </summary>
     bool IsHitTestVisible { get; }
+
+    /// <summary>
+    /// <c>false</c>: pointers pass through the node itself while its subtree still takes them (input-transparent with
+    /// <c>CascadeInputTransparent</c> off): it is never a target, its recognizers stay out of the arena, it is not hovered and
+    /// it does not scroll. Only read while <see cref="IsHitTestVisible"/>.
+    /// </summary>
+    bool HitTestsSelf => true;
 
     /// <summary><c>false</c>: the node blocks pointers (disabled) — it is hit, but neither it nor its subtree reacts.</summary>
     bool IsInputEnabled { get; }
@@ -23,6 +33,12 @@ internal interface ISkUiInputNode : ISkUiRenderable
 
     /// <summary>A hovering pointer entered (<c>true</c>) or left this node or one of its descendants.</summary>
     void SetPointerOver(bool isOver) { }
+
+    /// <summary>
+    /// A hovering pointer moved over this node or one of its descendants, to <paramref name="position"/> in
+    /// <paramref name="router"/>'s root coordinates; after <see cref="SetPointerOver"/>.
+    /// </summary>
+    void PointerHovered(SkUiPointerRouter router, Point position) { }
 
     /// <summary>The node's tooltip (<c>ToolTipProperties.Text</c>, a Core node's <c>ToolTip</c>); <c>null</c> or empty for none.</summary>
     string? ToolTipText => null;
@@ -332,7 +348,8 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         for (var node = FindTarget(root, ToSk(position), isRoot: true, requireParticipant: false);
              node is not null; node = node.RenderParent as ISkUiInputNode)
         {
-            _hoverChain.Add(node);
+            if (node.HitTestsSelf)
+                _hoverChain.Add(node);
             if (ReferenceEquals(node, root))
                 break;
         }
@@ -343,6 +360,8 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         // unchanged value): a node detached while hovered cleared its own flag, and may be back under the pointer.
         for (var index = _hoverChain.Count - 1; index >= 0; index--)
             _hoverChain[index].SetPointerOver(true);
+        for (var index = _hoverChain.Count - 1; index >= 0; index--)
+            _hoverChain[index].PointerHovered(this, position);
         _hovered.Clear();
         _hovered.AddRange(_hoverChain);
         _hoverChain.Clear();
@@ -419,7 +438,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         for (var node = FindTarget(root, ToSk(position), isRoot: true, requireParticipant: false);
              node is not null; node = node.RenderParent as ISkUiInputNode)
         {
-            if (ToolTipOf(node) is { } target)
+            if (node.HitTestsSelf && ToolTipOf(node) is { } target)
                 return target;
             if (ReferenceEquals(node, root))
                 break;
@@ -533,7 +552,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     private ISkUiInputNode? FocusedTextHandleAt(SkUiTouchEvent touch)
     {
         if (touch.Device != SkUiPointerDevice.Touch || root is not SkUiView { FocusManagerIfCreated.Focused: ISkUiTextInputNode field }
-            || field is not ISkUiInputNode node || !node.IsHitTestVisible || !node.IsInputEnabled || !IsLive(node))
+            || field is not ISkUiInputNode node || !node.IsHitTestVisible || !node.HitTestsSelf || !node.IsInputEnabled || !IsLive(node))
             return null;
         return MapInsideClips(node, touch.Position) is { } local && field.HitsTextHandle(local) ? node : null;
     }
@@ -595,7 +614,8 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         for (var node = leaf; node is not null; node = node.RenderParent as ISkUiInputNode)
         {
             _recognizers.Clear();
-            node.CollectGestureRecognizers(_recognizers);
+            if (node.HitTestsSelf)
+                node.CollectGestureRecognizers(_recognizers);
             foreach (var recognizer in _recognizers)
             {
                 if (continuousOnly && !recognizer.IsExclusive)
@@ -655,7 +675,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         for (ISkUiRenderable? current = node; current is not null; current = current.RenderParent)
         {
             if (current is ISkUiInputNode input && (!input.IsHitTestVisible || !input.IsInputEnabled
-                    || (!input.HitTestsChildren && !ReferenceEquals(current, node))))
+                    || (ReferenceEquals(current, node) ? !input.HitTestsSelf : !input.HitTestsChildren)))
                 return false;
             if (ReferenceEquals(current, root))
                 return true;
@@ -675,13 +695,14 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         {
             if (!node.IsInputEnabled)
                 return true;
-            if (((node as ISkUiScrollHost)?.Scroller ?? (node as ISkUiWheelProxy)?.WheelScroller) is { } scroller)
+            // A node that passes presses through passes the wheel on too.
+            if (node.HitTestsSelf && ((node as ISkUiScrollHost)?.Scroller ?? (node as ISkUiWheelProxy)?.WheelScroller) is { } scroller)
             {
                 rest = scroller.Wheel(rest.X, rest.Y);
                 if (rest.X == 0 && rest.Y == 0)
                     return true;
             }
-            else if (node is ISkUiWheelHandler handler)
+            else if (node is ISkUiWheelHandler { HitTestsSelf: true } handler)
             {
                 rest = handler.OnWheel(rest.X, rest.Y);
                 if (rest.X == 0 && rest.Y == 0)
@@ -703,7 +724,8 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     /// <summary>
     /// Topmost node under <paramref name="local"/> that reacts (has recognizers) or blocks (disabled); passive nodes
     /// let the search continue underneath. Nodes are only hit inside their arranged rectangle (the root always), and a text field
-    /// also on the message it hangs below a fixed height (<see cref="ISkUiTextInputNode.HitsOverflowMessage"/>).
+    /// also on the message it hangs below a fixed height (<see cref="ISkUiTextInputNode.HitsOverflowMessage"/>). A node that
+    /// does not hit-test itself (<see cref="ISkUiInputNode.HitTestsSelf"/>) is searched for children only.
     /// </summary>
     private ISkUiInputNode? FindTarget(ISkUiInputNode node, SKPoint local, bool isRoot, bool requireParticipant)
     {
@@ -713,7 +735,8 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         if (!isRoot && !props.Bounds.Contains(local.X, local.Y)
             && !(node is ISkUiTextInputNode field && field.HitsOverflowMessage(new Point(local.X, local.Y))))
             return null;
-        if (!node.IsInputEnabled)
+        var hitTestsSelf = node.HitTestsSelf;
+        if (!node.IsInputEnabled && hitTestsSelf)
             return node;
         var clip = props.ChildrenClipRect;
         var insideClip = clip.IsEmpty || clip.Contains(local.X, local.Y);
@@ -742,6 +765,8 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         {
             _children.RemoveRange(start, _children.Count - start);
         }
+        if (!hitTestsSelf)
+            return null;
         if (!requireParticipant)
             return node;
         _recognizers.Clear();
@@ -749,6 +774,15 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         var participates = _recognizers.Count > 0;
         _recognizers.Clear();
         return participates ? node : null;
+    }
+
+    /// <summary>Whether <paramref name="element"/> is this router's root or drawn below it.</summary>
+    internal bool Contains(object element)
+    {
+        for (var current = element as ISkUiRenderable; current is not null; current = current.RenderParent)
+            if (ReferenceEquals(current, root))
+                return true;
+        return false;
     }
 
     /// <summary>Maps a root point into <paramref name="element"/>'s local coordinates (through transforms and scroll offsets).</summary>

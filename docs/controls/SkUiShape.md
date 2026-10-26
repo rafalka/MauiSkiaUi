@@ -12,6 +12,7 @@ Abstract base of the drawn shapes, with MAUI's [`Shape`](https://learn.microsoft
 | `Stroke` | `null` | `Brush` of the outline; a stroke gradient spans the outline's bounds (as MAUI's `ShapeDrawable`) |
 | `StrokeThickness` | 1 | DIPs; part of the measured size |
 | `StrokeDashArray` | empty | Dashes and gaps in multiples of `StrokeThickness` (`"4,2"`); an odd count repeats once more, as in SVG. Edits of the collection redraw |
+| `StrokeDashPattern` | empty | Read-only, as MAUI's: `StrokeDashArray` as a new `float[]` on every read |
 | `StrokeDashOffset` | 0 | Where the pattern starts, in multiples of `StrokeThickness` |
 | `StrokeLineCap` | `Flat` | `Flat`, `Round`, `Square`: ends of open figures and of dashes |
 | `StrokeLineJoin` | `Miter` | `Miter`, `Round`, `Bevel` |
@@ -47,14 +48,14 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 - **Coordinates** use DIPs. Paint and touch share the same local space as measure/arrange.
 - **BindableProperty + fluent `Set*` setters:** a `Set*` setter is the property setter in fluent form (`label.SetText("a").SetFontSize(20)`): getters read the bindable store, as in MAUI, so bindings, triggers and `x:Reference` see every change (FR-10). Invalid values: `Set*` throws; XAML, bindings, styles and the property setter ignore them with a logged warning, as MAUI does.
 - **`StartUpdating` / `EndUpdating`** batch layout and paint invalidation.
-- **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`). Of MAUI's `GestureRecognizers`, `TapGestureRecognizer` (1 or 2 taps) runs on the arena; other recognizers are not run and are reported once as a `Trace` line. See [EventMechanism.md](../design/EventMechanism.md#maui-gesture-recognizers).
+- **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`). MAUI's `GestureRecognizers` run on the arena too: tap (any `NumberOfTapsRequired`, primary or secondary button), swipe, pan, pinch and pointer recognizers; drag and drop is not run and is reported once as a `Trace` line. See [EventMechanism.md](../design/EventMechanism.md#maui-gesture-recognizers).
 - **Hosted vs standalone:** when nested under another SkiaUi parent, the node has no platform handler and paints into the root surface. See [LayoutSystem.md](../design/LayoutSystem.md).
 
 ## Differences from MAUI
 
 | Topic | SkiaUi |
 | --- | --- |
-| `ImageBrush` | Not drawn |
+| `ImageBrush` | Internal in MAUI, so no MAUI page sets one; an image paint is not drawn |
 | `Uniform` under one unbounded constraint | Scaled by the bounded one (MAUI scales by 0 and collapses the shape to its stroke) |
 | `UniformToFill` measure | Clamped to the constraint (MAUI may report more) |
 | Sized shapes | Measure to their requests (as MAUI with a platform view) |

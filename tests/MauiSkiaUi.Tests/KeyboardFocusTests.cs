@@ -164,6 +164,13 @@ public class KeyboardFocusTests
         Assert.False(button.Focus());
         group.SetInputTransparent(false);
         Assert.True(button.Focus());
+
+        // Without cascading, only the group is transparent: its button keeps focus until the transparency cascades.
+        group.SetCascadeInputTransparent(false).SetInputTransparent(true);
+        Assert.True(button.IsFocused);
+        group.SetCascadeInputTransparent(true);
+        Assert.False(button.IsFocused);
+        Assert.False(button.Focus());
     }
 
     [Fact]
@@ -303,6 +310,30 @@ public class KeyboardFocusTests
         Assert.Equal(SkUiFocusManager.LineStep + 175, scroll.ScrollY);
         Assert.True(focus.KeyDown(SkUiKey.Up));
         Assert.Equal(175, scroll.ScrollY);
+    }
+
+    [Fact]
+    public void KeysPassThroughAScrollViewThatPassesPointersThrough()
+    {
+        // Input-transparent without cascading: pointers and the wheel pass through the inner scroll view to its
+        // children and the scroller below; so do the keys of a focused child.
+        var inner = new SkUiVerticalStackLayout();
+        var button = new SkUiButton { Text = "Inside", HeightRequest = 50 };
+        inner.Children.Add(button);
+        for (var index = 0; index < 10; index++)
+            inner.Children.Add(new SkUiLabel { Text = $"Inner {index}", HeightRequest = 50 });
+        var innerScroll = new SkUiScrollView { Content = inner, HeightRequest = 150, InputTransparent = true, CascadeInputTransparent = false };
+        var outer = new SkUiVerticalStackLayout { Children = { innerScroll } };
+        for (var index = 0; index < 20; index++)
+            outer.Children.Add(new SkUiLabel { Text = $"Outer {index}", HeightRequest = 50 });
+        var outerScroll = new SkUiScrollView { Content = outer, HeightRequest = 300 };
+        var root = Stack(outerScroll);
+        var focus = root.FocusManager;
+
+        button.Focus();
+        Assert.True(focus.KeyDown(SkUiKey.Down));
+        Assert.Equal(0, innerScroll.ScrollY);
+        Assert.Equal(SkUiFocusManager.LineStep, outerScroll.ScrollY);
     }
 
     [Fact]

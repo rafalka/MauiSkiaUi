@@ -13,6 +13,34 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **`CascadeInputTransparent` and `IsClippedToBounds` on drawn containers:** MAUI's names on the layouts, the content views, the scroll, swipe, refresh and indicator views, the radio button and the expander, and on the Core containers (`SetCascadeInputTransparent`).
+  - `CascadeInputTransparent="False"`: an input-transparent container lets pointers through itself only. Its children still take taps, hover and keyboard focus, and its own recognizers, tooltip and scrolling (by drag, wheel or keys) stay off. The default, `true`, works as before: the whole subtree lets pointers through.
+  - `IsClippedToBounds` is the same property as `ClipToBounds`.
+- **`Switch.OffColor`** (MAUI 10) on `SkUiSwitch` and `SkUiCoreSwitch`: the track color while off, in every look. `null`, the default, keeps the color scheme's off track.
+- **`CheckBox.Command` / `CommandParameter`** (MAUI 10) on `SkUiCheckBox` and `SkUiCoreCheckBox`: the command runs when `IsChecked` changes, from a tap or from code, after `CheckedChanged`. While it cannot execute, the check box looks and acts disabled.
+- **MAUI's small members:**
+  - `StrokeDashPattern` (read-only) on shapes and borders, both layers.
+  - `IsOpaque` on `SkUiImage` and `SkUiImageButton`: accepted for MAUI markup, with no effect on drawing.
+  - `Padding` on `SkUiIndicatorView`, `SkUiCoreIndicatorView` and `SkUiRefreshView`.
+  - The read-only bindable properties MAUI triggers use: `IsPressedProperty` on `SkUiButton` and `SkUiImageButton`, `IsLoadingProperty` on images (after a load that finished without a dispatcher, on the view's next change), `IsDraggingProperty` on `SkUiCarouselView`.
+  - `SkUiCollectionView.UpdateSelectedItems`: replaces the selection in one change.
+- **MAUI's gesture recognizers on drawn views:** `SwipeGestureRecognizer`, `PanGestureRecognizer` (one touch point), `PinchGestureRecognizer` and `PointerGestureRecognizer` in a drawn view's `GestureRecognizers` now run in the gesture arena, with MAUI's events, commands and argument types and the view as the sender.
+  - `TapGestureRecognizer` runs for any `NumberOfTapsRequired` and for `Buttons="Secondary"` (mouse, pen, trackpad), on views and label spans; a press with a button no recognizer wants is left to the ancestors.
+  - Pointer recognizers take entered / moved / exited from hover and pressed / released from presses. `GetPosition` works for the view and other drawn elements on the same surface; `GetPosition(null)` is `null`.
+  - Drag and drop recognizers are still not run and are reported once as a `Trace` line, as before.
+  - The demo's component gallery has a page with the recognizers on a drawn and a native view side by side.
+- **The collection view's and carousel's MAUI shape:**
+  - `ItemsLayout` on `SkUiCollectionView` (`LinearItemsLayout` / `GridItemsLayout`, `"VerticalGrid, 2"`) and `SkUiCarouselView` (`LinearItemsLayout`, `"HorizontalList"`): once set, it decides the list's orientation, span and spacings (the carousel's orientation, spacing and snap points), following the layout object's changes. `Orientation`, `Span` and the spacings keep their own values and apply again when it is cleared; setting both is reported once. Snap points on lists are not drawn yet.
+  - `ItemSizingStrategy="MeasureFirstItem"` on `SkUiCollectionView`: the first row measured sizes every row.
+  - MAUI's `ScrollTo(index, groupIndex, position, animate)` / `ScrollTo(item, group, …)` on `SkUiCollectionView`, and `ScrollToRequested` on both views.
+  - `Header="Contacts"`, `Footer` and `EmptyView="No results"` take text in XAML, as on MAUI (a label; the empty view's centered), and the carousel's `EmptyView` too, through `SkUiTextViewTypeConverter`. The properties keep their type (`ISkUiView`); a data header converts to a template bound through the list's context (Migration.md).
+
+### Other
+
+- `SkUiImage` raises `PropertyChanged` for `IsLoading` only when it changes (it was raised with every load state update).
+
 ## 1.1.0
 
 ### Breaking changes

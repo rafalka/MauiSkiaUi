@@ -56,6 +56,14 @@ internal sealed class SkUiImageSlot
         _gate = gate;
     }
 
+    /// <summary>
+    /// Whether this thread is finishing a load that started without a dispatcher (on the thread pool, while the node's
+    /// own thread may be changing it): the change callback must not write state that is not thread-safe, such as a
+    /// view's bindable store.
+    /// </summary>
+    [field: ThreadStatic]
+    public static bool CompletingWithoutDispatcher { get; private set; }
+
     /// <summary>Raised when a load of a source starts (after the state shows it loading).</summary>
     public Action<SkUiImageLoadStartedEventArgs>? LoadingStarted { get; set; }
 
@@ -262,7 +270,19 @@ internal sealed class SkUiImageSlot
         {
             // Read from the task in Complete.
         }
-        if (dispatcher is null || !dispatcher.IsDispatchRequired)
+        if (dispatcher is null)
+        {
+            CompletingWithoutDispatcher = true;
+            try
+            {
+                Complete(load, version);
+            }
+            finally
+            {
+                CompletingWithoutDispatcher = false;
+            }
+        }
+        else if (!dispatcher.IsDispatchRequired)
             Complete(load, version);
         else
             await dispatcher.DispatchAsync(() => Complete(load, version)).ConfigureAwait(false);

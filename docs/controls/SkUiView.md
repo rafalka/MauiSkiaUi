@@ -16,7 +16,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 - **Coordinates** use DIPs. Paint and touch share the same local space as measure/arrange.
 - **BindableProperty + fluent `Set*` setters:** a `Set*` setter is the property setter in fluent form (`label.SetText("a").SetFontSize(20)`): getters read the bindable store, as in MAUI, so bindings, triggers and `x:Reference` see every change (FR-10). Invalid values: `Set*` throws; XAML, bindings, styles and the property setter ignore them with a logged warning, as MAUI does.
 - **`StartUpdating` / `EndUpdating`** batch layout and paint invalidation.
-- **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`). Of MAUI's `GestureRecognizers`, `TapGestureRecognizer` (1 or 2 taps) runs on the arena, so tap XAML ports unchanged; other recognizers and platform behaviors such as `TouchBehavior` are not run and are reported once as a `Trace` line. See [EventMechanism.md](../design/EventMechanism.md#maui-gesture-recognizers).
+- **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`). MAUI's `GestureRecognizers` run on the arena too: tap (any `NumberOfTapsRequired`, primary or secondary button), swipe, pan, pinch and pointer recognizers, so gesture XAML ports unchanged; drag and drop and platform behaviors such as `TouchBehavior` are not run and are reported once as a `Trace` line. See [EventMechanism.md](../design/EventMechanism.md#maui-gesture-recognizers).
 - **Hosted vs standalone:** when nested under another SkiaUi parent, the node has no platform handler and paints into the root surface. See [LayoutSystem.md](../design/LayoutSystem.md).
 
 
@@ -47,7 +47,8 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 | `ShowsPressEffect` | Draws the look's press feedback (dim or ripple) over the view and its children while pressed, clipped to its rounded shape; for cards and composite buttons with a `Tapped` / `TappedCommand` handler ([transitions](../design/ControlLook.md#state-change-transitions-fr-26)) |
 | `StartUpdating` / `EndUpdating` | Coalesce invalidation |
 | `InvalidatePaint` | Re-record this node's content (not its children) without remeasure. Transform / opacity / offset changes need no call: they are composite-time |
-| `ClipToBounds` | Clip content, children and overlay to the arranged rect. Defaults: `true` for leaves, `false` for `SkUiLayout` / `SkUiContentView` / `SkUiCoreHost` |
+| `ClipToBounds` | Clip content, children and overlay to the arranged rect. Defaults: `true` for leaves, `false` for `SkUiLayout` / `SkUiContentView` / `SkUiCoreHost`. Containers also have it under MAUI's name, `IsClippedToBounds` |
+| `CascadeInputTransparent` (containers) | MAUI's: `true` (the default) makes `InputTransparent` cover the subtree; `false` only the container, whose children still take pointers and focus |
 | `AnimateAsync(property, to, length, easing)` | Animates `Opacity`, translation, `Rotation` or scale **on the render thread**; the bindable is updated to the final value. Setting the property meanwhile cancels it |
 | `IsShown` / `IsShownChanged` | Whether the view is shown: it and its drawn ancestors are `IsVisible` and its tree is on a live surface ([below](#isshown)) |
 | `SkUiViewAnimation` | A reusable, shareable description of such an animation: `SkUiPropertyAnimation` entries (property, optional `From`, optional `To`; no `To` returns to the view's own value) run together over `Length` ms with `Easing`. `RunAsync(view)` ends at exact values (off screen it jumps there). XAML: `"FadeIn"` / `"FadeOut"` [length] [easing], or an element listing the entries. Read-only once used. Containers take it for their transitions ([SkUiStateContainer](SkUiStateContainer.md#animating-every-change)); it replaces MAUI `Animation`s ([Migration.md](../Migration.md#7-animations)) |
@@ -70,7 +71,7 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 - Defaults: leaf controls `HwAccelerated = false`; hosts/layouts default `true`.
 - Hit-testing uses **arranged bounds** (shape-aware hits deferred).
 - **Visual states:** MAUI's `VisualStateManager` groups and setters work; `SkUiView` raises the states from SkiaUi's input state: `Disabled` (also while a control cannot be tapped, e.g. a command that cannot execute), else `PointerOver` while `IsPointerOver` (mouse, trackpad, pen or iPad pointer hover; see [EventMechanism.md](../design/EventMechanism.md#hover)), else `Normal`; `Focused` / `Unfocused` in a focus group, from keyboard focus (see below). Controls add their MAUI states (buttons `Pressed`, toggles their checked states). State triggers (`StateTrigger`, `CompareStateTrigger`, `AdaptiveTrigger`) work as in MAUI.
-- `ImageBrush` backgrounds are not drawn. Empty MAUI brushes (the default brush, a gradient without stops) do not hide `BackgroundColor`.
+- Image paints are not drawn (MAUI's `ImageBrush` is internal, so no MAUI page sets one; put an `SkUiImage` behind the content). Empty MAUI brushes (the default brush, a gradient without stops) do not hide `BackgroundColor`.
 
 ## Binding context
 
@@ -117,7 +118,7 @@ MAUI's `Background`, `Shadow` and `Clip` work on every drawn view, so MAUI XAML 
 - **`Clip`** (any MAUI `Geometry`, in the view's coordinates; path and group geometries keep their `FillRule`) clips the view's content, children and overlay. Drawing only: taps still hit the rectangular bounds (FR-11). Geometry edits re-clip.
 - **Composite-time:** shadows and clips are render-node properties, applied when compositing. Moving, scrolling, fading or transforming a shadowed or clipped view (`TranslationX`, `AnimateAsync`, a scroll fling) records nothing and blurs nothing again; editing the shadow or the clip redraws it without recording the view's content.
 - Core nodes have the same three: `SetBackground(Paint)`, `SetShadow(IShadow)` (e.g. `SkUiCoreShadow`), `SetClip(IShape)` ([SkUiCore.md](SkUiCore.md#backgrounds-shadows-and-clips)).
-- Not drawn: `ImageBrush`; shape-aware hit-testing stays opt-in for later.
+- Not drawn: image paints (MAUI's `ImageBrush` is internal); shape-aware hit-testing stays opt-in for later.
 
 ## Accessibility and keyboard
 

@@ -12,7 +12,7 @@ namespace MauiSkiaUi;
 /// <see cref="StrokeThickness"/>, dashes, caps, joins and <see cref="Aspect"/>. Shapes measure, stretch and place their
 /// geometry as MAUI's shapes do, and are MAUI <see cref="IShape"/>s, so they also shape a <see cref="SkUiBorder"/>.
 /// </summary>
-/// <remarks>Input uses the rectangular arranged bounds. <c>ImageBrush</c> fills and strokes are not drawn.</remarks>
+/// <remarks>Input uses the rectangular arranged bounds. Image paints (MAUI's <c>ImageBrush</c> is internal) are not drawn.</remarks>
 public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
 {
     private Brush? _fill;
@@ -77,6 +77,8 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
     public double StrokeThickness { get => (double)GetValue(StrokeThicknessProperty); set => SetValue(StrokeThicknessProperty, value); }
     /// <summary>Dashes and gaps of the outline, in multiples of <see cref="StrokeThickness"/> (empty: solid). XAML: <c>"4,2"</c>.</summary>
     public DoubleCollection StrokeDashArray { get => (DoubleCollection)GetValue(StrokeDashArrayProperty); set => SetValue(StrokeDashArrayProperty, value); }
+    /// <summary>MAUI's <c>StrokeDashPattern</c>: <see cref="StrokeDashArray"/> as a new float array on every read (empty: solid).</summary>
+    public float[] StrokeDashPattern => SkUiStrokeStyle.DashPattern(StrokeDashArray);
     /// <summary>Where the dash pattern starts, in multiples of <see cref="StrokeThickness"/>.</summary>
     public double StrokeDashOffset { get => (double)GetValue(StrokeDashOffsetProperty); set => SetValue(StrokeDashOffsetProperty, value); }
     /// <summary>The caps at the ends of open figures and dashes.</summary>
@@ -224,13 +226,7 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
     {
         var dashArray = StrokeDashArray;
         DashListener.Listen(dashArray); // the default collection is created on first read
-        float[]? dashes = null;
-        if (dashArray is { Count: > 0 })
-        {
-            dashes = new float[dashArray.Count];
-            for (var index = 0; index < dashes.Length; index++)
-                dashes[index] = (float)dashArray[index];
-        }
+        var dashes = dashArray is { Count: > 0 } ? SkUiStrokeStyle.DashPattern(dashArray) : null;
         return new SkUiStrokeStyle(_strokeThickness, dashes, _strokeDashOffset, _strokeLineCap switch
         {
             PenLineCap.Round => LineCap.Round,

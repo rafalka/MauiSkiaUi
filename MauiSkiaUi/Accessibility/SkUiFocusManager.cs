@@ -239,7 +239,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
     /// </summary>
     private bool CanFocus(ISkUiAccessibleNode node) => node is ISkUiTextInputNode { WantsTextInput: true } textField
         ? textField.CanTakeTextFocus && IsLive(node, textInput: true)
-        : SkUiAccessibility.IsEnabled && node.IsKeyboardFocusable && IsLive(node);
+        : SkUiAccessibility.IsEnabled && node.IsKeyboardFocusable && node is not ISkUiInputNode { HitTestsSelf: false } && IsLive(node);
 
     /// <summary>Platform hooks are set and the surface starts without keyboard focus.</summary>
     public void Connect() => _hasNativeFocus = false;
@@ -601,15 +601,16 @@ internal sealed class SkUiFocusManager(SkUiView root)
     private SkUiScrollController? FindScroller(bool horizontal = false)
     {
         bool Fits(SkUiScrollController scroller) => horizontal ? scroller.Horizontal : scroller.Vertical || scroller.Horizontal;
+        // A scroll view that passes pointers through (input-transparent, not cascading) passes keys on too, as the wheel.
         for (ISkUiRenderable? current = _focused; current is not null; current = current.RenderParent)
-            if (current is ISkUiScrollHost host && Fits(host.Scroller))
+            if (current is ISkUiScrollHost { HitTestsSelf: true } host && Fits(host.Scroller))
                 return host.Scroller;
         return _focused is null ? FirstScroller(root, horizontal) : null;
     }
 
     private SkUiScrollController? FirstScroller(ISkUiRenderable node, bool horizontal)
     {
-        if (node is ISkUiScrollHost host && (horizontal ? host.Scroller.Horizontal : host.Scroller.MaxY > 0 || host.Scroller.MaxX > 0))
+        if (node is ISkUiScrollHost { HitTestsSelf: true } host && (horizontal ? host.Scroller.Horizontal : host.Scroller.MaxY > 0 || host.Scroller.MaxX > 0))
             return host.Scroller;
         var start = _scratch.Count;
         node.GetRenderChildren(_scratch);

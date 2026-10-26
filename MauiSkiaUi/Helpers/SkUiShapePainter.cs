@@ -10,6 +10,20 @@ internal readonly record struct SkUiStrokeStyle(double Thickness, float[]? Dashe
 {
     /// <summary>A solid stroke with MAUI's default caps, joins and miter limit.</summary>
     public static SkUiStrokeStyle Solid(double thickness) => new(thickness, null, 0, LineCap.Butt, LineJoin.Miter, 10);
+
+    /// <summary>
+    /// A new array of <paramref name="dashArray"/> as floats (MAUI's <c>StrokeDashPattern</c>, which also copies on every
+    /// read); empty for a solid stroke.
+    /// </summary>
+    public static float[] DashPattern(IReadOnlyList<double>? dashArray)
+    {
+        if (dashArray is not { Count: > 0 })
+            return [];
+        var pattern = new float[dashArray.Count];
+        for (var index = 0; index < pattern.Length; index++)
+            pattern[index] = (float)dashArray[index];
+        return pattern;
+    }
 }
 
 /// <summary>Fills and strokes shape paths with MAUI Graphics paints (solid colors and gradients); shared by both layers.</summary>
@@ -238,14 +252,14 @@ internal static class SkUiShapePainter
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, bool> _warned = new();
 
     /// <summary>
-    /// Says once per paint type that it is not drawn (an <c>ImageBrush</c> arrives as an image paint), so a ported page with
-    /// a missing image fill is easy to diagnose instead of silently empty.
+    /// Says once per paint type that it is not drawn (an image paint, the only way MAUI's internal <c>ImageBrush</c>
+    /// arrives), so a ported page with a missing image fill is easy to diagnose instead of silently empty.
     /// </summary>
     internal static void WarnUnsupported(Paint brush)
     {
         if (_warned.TryAdd(brush.GetType(), true))
             System.Diagnostics.Trace.TraceWarning(
-                $"SkiaUi: {brush.GetType().Name} is not drawn (ImageBrush is not supported yet); the fill or stroke stays empty.");
+                $"SkiaUi: {brush.GetType().Name} is not drawn (MAUI has no public ImageBrush; draw an SkUiImage behind the content); the fill or stroke stays empty.");
     }
 
     /// <summary>Whether <paramref name="brush"/> draws anything (see <see cref="Apply"/>).</summary>

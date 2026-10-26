@@ -9,9 +9,9 @@ namespace MauiSkiaUi;
 internal static class SkUiToggleDrawing
 {
     public static void DrawSwitch(SKCanvas canvas, float width, float height, bool rightToLeft, SkUiToggleVisual visual,
-        Color onColor, Color thumbColor, bool enabled)
+        Color onColor, Color? offColor, Color thumbColor, bool enabled)
     {
-        var offTrack = SkUiColors.TrackOff;
+        var offTrack = offColor ?? SkUiColors.TrackOff;
         if (!enabled)
         {
             onColor = onColor.MultiplyAlpha(0.5f);

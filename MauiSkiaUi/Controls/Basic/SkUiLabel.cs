@@ -656,12 +656,32 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
             recognizers.Add(_spanTap ??= new SkUiSpanTapGestureRecognizer
             {
                 TappableSpanAt = TappableSpanAt,
-                WantsDoubleTap = () => _formattedText?.Spans.Any(span => SkUiMauiTaps.Has(span.GestureRecognizers, 2)) == true,
+                SpanTakesPress = SpanTakesPress,
+                MaxTaps = SpanTapCount,
                 TapHandler = args => RaiseSpanTap(args, 1),
-                DoubleTapHandler = args => RaiseSpanTap(args, 2)
+                DoubleTapHandler = args => RaiseSpanTap(args, 2),
+                MultiTapHandler = args => RaiseSpanTap(args, args.NumberOfTaps)
             });
         base.CollectGestureRecognizers(recognizers);
     }
+
+    /// <summary>The most taps a span's MAUI tap recognizer requires (0: none).</summary>
+    private int SpanTapCount()
+    {
+        var most = 0;
+        if (_formattedText is { } formatted)
+            foreach (var span in formatted.Spans)
+                most = Math.Max(most, SkUiMauiTaps.MaxTaps(span.GestureRecognizers));
+        return most;
+    }
+
+    /// <summary>
+    /// Whether a press with <paramref name="buttons"/> can tap the span at <paramref name="index"/>: a button one of its
+    /// tap recognizers wants; HTML links take the primary button (and touches).
+    /// </summary>
+    private bool SpanTakesPress(int index, SkUiPointerButtons buttons) => _formattedText is { } formatted
+        ? index < formatted.Spans.Count && SkUiMauiTaps.Takes(formatted.Spans[index].GestureRecognizers, buttons)
+        : SkUiMauiTaps.ButtonOf(buttons) == ButtonsMask.Primary;
 
     private static bool HasSpanTaps(FormattedString formatted)
     {
@@ -671,7 +691,7 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
         return false;
     }
 
-    private static bool IsTappable(Span span) => SkUiMauiTaps.Has(span.GestureRecognizers, 1) || SkUiMauiTaps.Has(span.GestureRecognizers, 2);
+    private static bool IsTappable(Span span) => SkUiMauiTaps.MaxTaps(span.GestureRecognizers) > 0;
 
     private int TappableSpanAt(Point point)
     {
@@ -687,7 +707,7 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
         if (_formattedText is { } formatted)
         {
             if (index < formatted.Spans.Count)
-                SkUiMauiTaps.Raise(formatted.Spans[index].GestureRecognizers, taps, this, args.Position);
+                SkUiMauiTaps.Raise(formatted.Spans[index].GestureRecognizers, taps, this, args.Position, args.Buttons);
             return;
         }
         if (taps == 1 && index < HtmlRuns.Count && HtmlRuns[index].Style.Href is { } href)

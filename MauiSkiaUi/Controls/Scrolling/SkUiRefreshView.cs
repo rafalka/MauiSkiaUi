@@ -43,6 +43,24 @@ namespace MauiSkiaUi;
 [ContentProperty(nameof(Content))]
 public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
 {
+    /// <summary>Bindable property for <see cref="CascadeInputTransparent"/>.</summary>
+    public static readonly BindableProperty CascadeInputTransparentProperty = CascadeInputTransparentShared;
+
+    /// <summary>
+    /// Whether <see cref="VisualElement.InputTransparent"/> covers the children too (<c>true</c>, the default, as in MAUI).
+    /// <c>false</c>: pointers pass through the refresh view itself, and its children still take them.
+    /// </summary>
+    public bool CascadeInputTransparent { get => (bool)GetValue(CascadeInputTransparentProperty); set => SetValue(CascadeInputTransparentProperty, value); }
+
+    /// <summary>Sets <see cref="CascadeInputTransparent"/>.</summary>
+    public SkUiRefreshView SetCascadeInputTransparent(bool value) { CascadeInputTransparent = value; return this; }
+
+    /// <summary>Bindable property for <see cref="IsClippedToBounds"/>: MAUI's name for <see cref="SkUiView.ClipToBoundsProperty"/>.</summary>
+    public static readonly BindableProperty IsClippedToBoundsProperty = ClipToBoundsProperty;
+
+    /// <summary>MAUI's name for <see cref="SkUiView.ClipToBounds"/>: the same property.</summary>
+    public bool IsClippedToBounds { get => ClipToBounds; set => ClipToBounds = value; }
+
     /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
     internal override bool IsSkeletonContainer => true;
 
@@ -74,6 +92,12 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
             return true;
         },
         propertyChanged: (bindable, _, newValue) => ((SkUiRefreshView)bindable).OnContentChanged((ISkUiView?)newValue));
+
+    /// <summary>Bindable <see cref="Padding"/>.</summary>
+    public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiRefreshView), default(Thickness),
+        validateValue: SkUiValidate.OptionalThickness,
+        // The content part exists already: field initializers run before an implicit style applies.
+        propertyChanged: (bindable, _, value) => ((SkUiRefreshView)bindable)._contentPart.Padding = (Thickness)value);
 
     /// <summary>Bindable <see cref="IsRefreshing"/> (two-way by default: a pull sets it).</summary>
     public static readonly BindableProperty IsRefreshingProperty = BindableProperty.Create(
@@ -144,6 +168,17 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     {
         get => (ISkUiView?)GetValue(ContentProperty);
         set => SetValue(ContentProperty, value);
+    }
+
+    /// <summary>Space around the content, as MAUI's; the pull indicator still spans the whole view.</summary>
+    public Thickness Padding { get => (Thickness)GetValue(PaddingProperty); set => SetValue(PaddingProperty, value); }
+
+    /// <summary>Sets <see cref="Padding"/>.</summary>
+    public SkUiRefreshView SetPadding(Thickness value)
+    {
+        SkUiValidate.ThrowIfNotThickness(value, nameof(value));
+        Padding = value;
+        return this;
     }
 
     /// <summary>

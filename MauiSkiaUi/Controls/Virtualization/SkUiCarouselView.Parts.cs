@@ -227,7 +227,7 @@ public partial class SkUiCarouselView
             _crossConstraint = crossConstraint;
             var insets = owner.PeekAreaInsets;
             var (start, end) = Horizontal ? (Mirrored ? (insets.Right, insets.Left) : (insets.Left, insets.Right)) : (insets.Top, insets.Bottom);
-            var spacing = owner.ItemSpacing;
+            var spacing = owner.LayoutItemSpacing;
             var itemExtent = owner.ItemExtent;
             var extent = itemExtent > 0 ? itemExtent
                 : double.IsFinite(_viewport) ? Math.Max(0, _viewport - start - end)
@@ -235,7 +235,7 @@ public partial class SkUiCarouselView
             var viewport = double.IsFinite(_viewport) ? _viewport : extent + start + end;
             var stride = extent + spacing;
             var inner = viewport - start - end;
-            var align = owner.SnapPointsAlignment switch
+            var align = owner.LayoutSnapPointsAlignment switch
             {
                 SnapPointsAlignment.Center => (inner - extent) / 2,
                 SnapPointsAlignment.End => inner - extent,

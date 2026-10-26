@@ -10,6 +10,7 @@ namespace MauiSkiaUi;
 public class SkUiSwitch : SkUiToggleControl
 {
     private Color _onColor = SkUiColors.Accent;
+    private Color? _offColor;
     private Color _thumbColor = Colors.White;
     private bool _syncingIsToggled;
 
@@ -23,6 +24,9 @@ public class SkUiSwitch : SkUiToggleControl
         defaultValueCreator: _ => SkUiColors.Accent,
         validateValue: SkUiValidate.NotNull,
         propertyChanged: (view, _, value) => ((SkUiSwitch)view).OnOnColorChanged((Color)value));
+    /// <summary>Bindable <see cref="OffColor"/>.</summary>
+    public static readonly BindableProperty OffColorProperty = BindableProperty.Create(nameof(OffColor), typeof(Color), typeof(SkUiSwitch), null,
+        propertyChanged: (view, _, value) => ((SkUiSwitch)view).OnOffColorChanged((Color?)value));
     /// <summary>Bindable thumb color.</summary>
     public static readonly BindableProperty ThumbColorProperty = BindableProperty.Create(nameof(ThumbColor), typeof(Color), typeof(SkUiSwitch), Colors.White,
         validateValue: SkUiValidate.NotNull,
@@ -50,6 +54,11 @@ public class SkUiSwitch : SkUiToggleControl
 
     /// <summary>Track color while toggled on.</summary>
     public Color OnColor { get => (Color)GetValue(OnColorProperty); set => SetValue(OnColorProperty, value); }
+    /// <summary>
+    /// Track color while toggled off (MAUI 10's <c>Switch.OffColor</c>); <c>null</c>, the default, uses the color scheme's
+    /// off track (<see cref="SkUiColorScheme.TrackOff"/>). Looks that outline the off track (Material 3) draw the outline in it.
+    /// </summary>
+    public Color? OffColor { get => (Color?)GetValue(OffColorProperty); set => SetValue(OffColorProperty, value); }
     /// <summary>Thumb (knob) color.</summary>
     public Color ThumbColor { get => (Color)GetValue(ThumbColorProperty); set => SetValue(ThumbColorProperty, value); }
 
@@ -58,6 +67,9 @@ public class SkUiSwitch : SkUiToggleControl
     /// <summary>Sets the on-color (same as the property setter).</summary>
     public SkUiSwitch SetOnColor(Color value) { ArgumentNullException.ThrowIfNull(value); OnColor = value; return this; }
     private void OnOnColorChanged(Color value) { _onColor = value; InvalidatePaint(); }
+    /// <summary>Sets <see cref="OffColor"/> (<c>null</c>: the color scheme's off track).</summary>
+    public SkUiSwitch SetOffColor(Color? value) { OffColor = value; return this; }
+    private void OnOffColorChanged(Color? value) { _offColor = value; InvalidatePaint(); }
     /// <summary>Sets the thumb color (same as the property setter).</summary>
     public SkUiSwitch SetThumbColor(Color value) { ArgumentNullException.ThrowIfNull(value); ThumbColor = value; return this; }
     private void OnThumbColorChanged(Color value) { _thumbColor = value; InvalidatePaint(); }
@@ -113,7 +125,7 @@ public class SkUiSwitch : SkUiToggleControl
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>
-        SkUiToggleDrawing.DrawSwitch(canvas, (float)Width, (float)Height, IsRightToLeft, ToggleVisual, _onColor, _thumbColor, IsEnabled);
+        SkUiToggleDrawing.DrawSwitch(canvas, (float)Width, (float)Height, IsRightToLeft, ToggleVisual, _onColor, _offColor, _thumbColor, IsEnabled);
 
     /// <inheritdoc />
     protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.Add(SkUiSkeletonPartKind.Switch, bones.Bounds);

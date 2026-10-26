@@ -36,6 +36,41 @@ public class CheckXamlTests
     }
 
     [Fact]
+    public void ReportsOnlyTheGestureRecognizersDrawnViewsDoNotRun()
+    {
+        var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
+        try
+        {
+            File.WriteAllText(Path.Combine(project.FullName, "Page.xaml"), """
+                <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
+                  <sk:SkUiGrid>
+                    <sk:SkUiGrid.GestureRecognizers>
+                      <TapGestureRecognizer NumberOfTapsRequired="3" Buttons="Secondary" />
+                      <SwipeGestureRecognizer Direction="Left" />
+                      <PanGestureRecognizer />
+                      <PinchGestureRecognizer />
+                      <PointerGestureRecognizer />
+                      <PanGestureRecognizer TouchPoints="2" />
+                      <DragGestureRecognizer />
+                    </sk:SkUiGrid.GestureRecognizers>
+                  </sk:SkUiGrid>
+                </ContentPage>
+                """);
+            var (exitCode, output) = Run(project.FullName);
+            Assert.Equal(1, exitCode);
+            var errors = output.Split('\n').Where(line => line.Contains("error:")).ToArray();
+            Assert.Equal(2, errors.Length);
+            Assert.Contains(errors, error => error.Contains("Page.xaml:10:") && error.Contains("TouchPoints=2"));
+            Assert.Contains(errors, error => error.Contains("Page.xaml:11:") && error.Contains("DragGestureRecognizer"));
+        }
+        finally
+        {
+            project.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void ReportsMauiOnlyCarouselMembersAndSuggestsTheDrawnCarousel()
     {
         var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
@@ -59,8 +94,7 @@ public class CheckXamlTests
             Assert.Equal(1, exitCode);
             var lines = output.Split('\n');
             var errors = lines.Where(line => line.Contains("error:")).ToArray();
-            Assert.Equal(4, errors.Length);
-            Assert.Contains(errors, error => error.Contains("SkUiCarouselView.ItemsLayout") && error.Contains("ItemSpacing"));
+            Assert.Equal(3, errors.Length); // the carousel's ItemsLayout ports as is
             Assert.Contains(errors, error => error.Contains("ItemsUpdatingScrollMode"));
             Assert.Contains(errors, error => error.Contains("IndicatorTemplate"));
             // The native carousel inside the drawn tree: the drawn one replaces it.
@@ -123,7 +157,7 @@ public class CheckXamlTests
                 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
                              xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
                   <sk:SkUiGrid>
-                    <sk:SkUiCollectionView ItemsSource="{Binding Orders}" IsGrouped="True" Header="Orders"
+                    <sk:SkUiCollectionView ItemsSource="{Binding Orders}" IsGrouped="True" Header="Orders" Footer="{Binding Summary}"
                                            SelectionMode="Multiple" ItemsLayout="VerticalGrid, 2" CanReorderItems="True" />
                     <CollectionView />
                   </sk:SkUiGrid>
@@ -132,11 +166,11 @@ public class CheckXamlTests
             var (exitCode, output) = Run(project.FullName);
             Assert.Equal(1, exitCode);
             var errors = output.Split('\n').Where(line => line.Contains("error:")).ToArray();
-            Assert.Equal(4, errors.Length); // grouping and multiple selection are supported
-            Assert.Contains(errors, error => error.Contains("ItemsLayout") && error.Contains("Span="));
+            Assert.Equal(2, errors.Length); // grouping, multiple selection, ItemsLayout and a string header port as is
             Assert.Contains(errors, error => error.Contains("CanReorderItems"));
-            Assert.Contains(errors, error => error.Contains("Header=\"Orders\"") && error.Contains("<sk:SkUiCollectionView.Header>"));
             Assert.Contains(errors, error => error.Contains("Page.xaml:6:") && error.Contains("sk:SkUiCollectionView"));
+            // A data footer converts to a template bound through the list's context.
+            Assert.Contains(output.Split('\n'), line => line.Contains("warning:") && line.Contains("Footer=\"{Binding Summary}\"") && line.Contains("{Binding Info.Title}"));
         }
         finally
         {

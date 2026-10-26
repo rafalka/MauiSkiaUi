@@ -1,4 +1,5 @@
 using System.Collections;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using MauiSkiaUi.Rendering;
@@ -367,13 +368,20 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// </summary>
     public void ScrollTo(int index, int groupIndex = -1, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animate = true)
     {
+        ScrollToRequested?.Invoke(this, new ScrollToRequestEventArgs(index, groupIndex, position, animate));
         if (index >= 0 && index < ItemCount)
             _ = ScrollToIndex(index, animate);
     }
 
     /// <summary>MAUI's <c>ItemsView.ScrollTo</c>: scrolls to <paramref name="item"/> (<see cref="ScrollToItem"/>); the group and position are ignored.</summary>
-    public void ScrollTo(object item, object? group = null, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animate = true) =>
+    public void ScrollTo(object item, object? group = null, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animate = true)
+    {
+        ScrollToRequested?.Invoke(this, new ScrollToRequestEventArgs(item, group, position, animate));
         _ = ScrollToItem(item, animate);
+    }
+
+    /// <summary>Raised by MAUI's <c>ScrollTo</c> methods before the carousel scrolls (MAUI's handlers scroll on it; here it reports).</summary>
+    public event EventHandler<ScrollToRequestEventArgs>? ScrollToRequested;
 
     private void OnPositionChanged(int previous, int value)
     {
@@ -539,6 +547,12 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// </summary>
     public bool IsBounceEnabled { get => (bool)GetValue(IsBounceEnabledProperty); set => SetValue(IsBounceEnabledProperty, value); }
 
+    private static readonly BindablePropertyKey IsDraggingPropertyKey =
+        BindableProperty.CreateReadOnly(nameof(IsDragging), typeof(bool), typeof(SkUiCarouselView), false);
+
+    /// <summary>Read-only bindable <see cref="IsDragging"/>, as MAUI's: set when a drag starts and ends, not per frame.</summary>
+    public static readonly BindableProperty IsDraggingProperty = IsDraggingPropertyKey.BindableProperty;
+
     /// <summary>Whether the user drags the carousel now.</summary>
     public bool IsDragging => _isDragging;
 
@@ -610,7 +624,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         if (dragging == _isDragging)
             return;
         _isDragging = dragging;
-        OnPropertyChanged(nameof(IsDragging));
+        SetValue(IsDraggingPropertyKey, dragging); // reports IsDragging
     }
 
     /// <summary>A scroll correction or a layout moved the carousel by whole cycles of its items (looping): what shows stays.</summary>
@@ -637,22 +651,22 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// <summary>Bindable property for <see cref="ItemSpacing"/>.</summary>
     public static readonly BindableProperty ItemSpacingProperty = BindableProperty.Create(nameof(ItemSpacing), typeof(double), typeof(SkUiCarouselView), 0d,
         validateValue: SkUiValidate.NonNegative,
-        propertyChanged: (view, _, _) => ((SkUiCarouselView)view).OnLayoutChanged(null));
+        propertyChanged: (view, _, _) => ((SkUiCarouselView)view).OnLayoutPropertyChanged());
 
     /// <summary>Bindable property for <see cref="Orientation"/>.</summary>
     public static readonly BindableProperty OrientationProperty = BindableProperty.Create(nameof(Orientation), typeof(ItemsLayoutOrientation), typeof(SkUiCarouselView),
         ItemsLayoutOrientation.Horizontal, validateValue: (_, value) => Enum.IsDefined((ItemsLayoutOrientation)value),
-        propertyChanged: (view, _, value) => ((SkUiCarouselView)view).OnOrientationChanged((ItemsLayoutOrientation)value));
+        propertyChanged: (view, _, _) => ((SkUiCarouselView)view).OnLayoutPropertyChanged());
 
     /// <summary>Bindable property for <see cref="SnapPointsType"/>.</summary>
     public static readonly BindableProperty SnapPointsTypeProperty = BindableProperty.Create(nameof(SnapPointsType), typeof(SnapPointsType), typeof(SkUiCarouselView),
         SnapPointsType.MandatorySingle, validateValue: (_, value) => Enum.IsDefined((SnapPointsType)value),
-        propertyChanged: (view, _, value) => ((SkUiCarouselView)view).Scroller.SnapPointsType = (SnapPointsType)value);
+        propertyChanged: (view, _, _) => ((SkUiCarouselView)view).OnLayoutPropertyChanged());
 
     /// <summary>Bindable property for <see cref="SnapPointsAlignment"/>.</summary>
     public static readonly BindableProperty SnapPointsAlignmentProperty = BindableProperty.Create(nameof(SnapPointsAlignment), typeof(SnapPointsAlignment), typeof(SkUiCarouselView),
         SnapPointsAlignment.Center, validateValue: (_, value) => Enum.IsDefined((SnapPointsAlignment)value),
-        propertyChanged: (view, _, _) => ((SkUiCarouselView)view).OnLayoutChanged(null));
+        propertyChanged: (view, _, _) => ((SkUiCarouselView)view).OnLayoutPropertyChanged());
 
     /// <summary>
     /// Whether scrolling goes on past the last item to the first (and before the first to the last) without an end (default
@@ -692,6 +706,104 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// inside <see cref="PeekAreaInsets"/>. A carousel that does not loop cannot scroll its first and last items past its ends.
     /// </summary>
     public SnapPointsAlignment SnapPointsAlignment { get => (SnapPointsAlignment)GetValue(SnapPointsAlignmentProperty); set => SetValue(SnapPointsAlignmentProperty, value); }
+
+    /// <summary>Bindable property for <see cref="ItemsLayout"/>.</summary>
+    public static readonly BindableProperty ItemsLayoutProperty = BindableProperty.Create(nameof(ItemsLayout), typeof(LinearItemsLayout), typeof(SkUiCarouselView), null,
+        validateValue: SkUiValidate.NotNull,
+        propertyChanged: (view, _, value) => ((SkUiCarouselView)view).OnItemsLayoutChanged((LinearItemsLayout?)value),
+        defaultValueCreator: _ => new LinearItemsLayout(ItemsLayoutOrientation.Horizontal)
+        {
+            SnapPointsType = SnapPointsType.MandatorySingle,
+            SnapPointsAlignment = SnapPointsAlignment.Center
+        });
+
+    /// <summary>
+    /// MAUI's items layout of a carousel (XAML: <c>"HorizontalList"</c> / <c>"VerticalList"</c>, or a <see cref="LinearItemsLayout"/>
+    /// element). Once set, it decides the orientation, the gap between items and the snap points, also as the layout object
+    /// changes; <see cref="Orientation"/>, <see cref="ItemSpacing"/>, <see cref="SnapPointsType"/> and
+    /// <see cref="SnapPointsAlignment"/> keep their values and apply again only when it is cleared (setting both is reported
+    /// once). Not set (default), it reads as horizontal, one item per swipe, centered, and those properties apply.
+    /// </summary>
+    [TypeConverter(typeof(CarouselLayoutTypeConverter))]
+    public LinearItemsLayout ItemsLayout { get => (LinearItemsLayout)GetValue(ItemsLayoutProperty); set => SetValue(ItemsLayoutProperty, value); }
+
+    /// <summary>Sets <see cref="ItemsLayout"/> (same as the property setter).</summary>
+    public SkUiCarouselView SetItemsLayout(LinearItemsLayout value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ItemsLayout = value;
+        return this;
+    }
+
+    /// <summary>The items layout the app set, read by <see cref="ApplyLayout"/>; <c>null</c>: the carousel's own properties apply.</summary>
+    private LinearItemsLayout? _appItemsLayout;
+    private SkUiWeakListener<SkUiCarouselView>? _itemsLayoutListener;
+    private bool _layoutOverrideReported;
+    // The spacing and alignment the items were last laid out with (the bindable properties' defaults until then).
+    private double _laidOutSpacing;
+    private SnapPointsAlignment _laidOutAlignment = SnapPointsAlignment.Center;
+
+    private void OnItemsLayoutChanged(LinearItemsLayout? layout)
+    {
+        // Cleared, the property reads its default layout again, which leaves the carousel's properties in charge.
+        _appItemsLayout = IsSet(ItemsLayoutProperty) ? layout : null;
+        // Layouts may be shared and long-lived: a weak listener keeps the carousel collectable.
+        (_itemsLayoutListener ??= new SkUiWeakListener<SkUiCarouselView>(this, static (carousel, change) =>
+        {
+            if (change.Kind == SkUiChangeKind.Property)
+                carousel.ApplyLayout();
+        })).Listen(_appItemsLayout);
+        OnLayoutPropertyChanged();
+    }
+
+    /// <summary>The items layout whose changes the carousel follows (tests).</summary>
+    internal object? FollowedItemsLayout => _itemsLayoutListener?.Source;
+
+    /// <summary>The layout in use (tests).</summary>
+    internal (bool Horizontal, double ItemSpacing, SnapPointsType SnapPointsType, SnapPointsAlignment SnapPointsAlignment) LayoutInUse =>
+        (_horizontal, LayoutItemSpacing, Scroller.SnapPointsType, LayoutSnapPointsAlignment);
+
+    /// <summary>The gap between items in use: the items layout's when the app set one, else <see cref="ItemSpacing"/>.</summary>
+    private double LayoutItemSpacing => _appItemsLayout is { } layout ? Math.Max(0, layout.ItemSpacing) : ItemSpacing;
+
+    /// <summary>Where the current item lines up: the items layout's when the app set one, else <see cref="SnapPointsAlignment"/>.</summary>
+    private SnapPointsAlignment LayoutSnapPointsAlignment => _appItemsLayout?.SnapPointsAlignment ?? SnapPointsAlignment;
+
+    private void OnLayoutPropertyChanged()
+    {
+        if (_appItemsLayout is not null && !_layoutOverrideReported && (IsSet(OrientationProperty) || IsSet(ItemSpacingProperty)
+            || IsSet(SnapPointsTypeProperty) || IsSet(SnapPointsAlignmentProperty)))
+        {
+            _layoutOverrideReported = true;
+            System.Diagnostics.Trace.TraceWarning(
+                "SkiaUi: SkUiCarouselView.ItemsLayout is set, so it decides the orientation, spacing and snap points; Orientation, ItemSpacing, SnapPointsType and SnapPointsAlignment set on the same carousel are ignored.");
+        }
+        ApplyLayout();
+    }
+
+    /// <summary>
+    /// The layout the carousel uses: <see cref="ItemsLayout"/> when the app set one, else <see cref="Orientation"/>,
+    /// <see cref="ItemSpacing"/>, <see cref="SnapPointsType"/> and <see cref="SnapPointsAlignment"/>. When the orientation,
+    /// spacing or alignment changed, the current place is kept and the items are laid out again; the snap points type only
+    /// goes to the scroller.
+    /// </summary>
+    private void ApplyLayout()
+    {
+        var horizontal = (_appItemsLayout?.Orientation ?? Orientation) == ItemsLayoutOrientation.Horizontal;
+        var spacing = LayoutItemSpacing;
+        var alignment = LayoutSnapPointsAlignment;
+        // Exact: an unchanged spacing keeps the items where they are.
+        if (horizontal != _horizontal || spacing != _laidOutSpacing || alignment != _laidOutAlignment)
+        {
+            OnLayoutChanged(carousel => carousel._horizontal = horizontal);
+            _laidOutSpacing = spacing;
+            _laidOutAlignment = alignment;
+        }
+        Scroller.Orientation = _horizontal ? ScrollOrientation.Horizontal : ScrollOrientation.Vertical;
+        Scroller.SnapPointsType = _appItemsLayout?.SnapPointsType ?? SnapPointsType;
+        if (_indicator is { } indicator)
+            indicator.Orientation = _horizontal ? StackOrientation.Horizontal : StackOrientation.Vertical;
+    }
 
     /// <summary>Sets <see cref="Loop"/> (same as the property setter).</summary>
     public SkUiCarouselView SetLoop(bool value) { Loop = value; return this; }
@@ -746,14 +858,6 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         Panel.Refresh();
         UpdateOverscroll();
         FollowWithIndicator(); // whether its selection wraps (Loop)
-    }
-
-    private void OnOrientationChanged(ItemsLayoutOrientation value)
-    {
-        OnLayoutChanged(carousel => carousel._horizontal = value == ItemsLayoutOrientation.Horizontal);
-        Scroller.Orientation = _horizontal ? ScrollOrientation.Horizontal : ScrollOrientation.Vertical;
-        if (_indicator is { } indicator)
-            indicator.Orientation = _horizontal ? StackOrientation.Horizontal : StackOrientation.Vertical;
     }
 
     #endregion
@@ -951,7 +1055,11 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             carousel.EnsureEmptyView();
         });
 
-    /// <summary>A drawn view shown instead of the items while there are none (<see cref="ItemsSource"/> is <c>null</c> or empty); it fills the carousel.</summary>
+    /// <summary>
+    /// A drawn view shown instead of the items while there are none (<see cref="ItemsSource"/> is <c>null</c> or empty); it fills
+    /// the carousel. In XAML, text makes a label of it, centered (<c>EmptyView="No photos"</c>, as MAUI's string empty view).
+    /// </summary>
+    [TypeConverter(typeof(SkUiCenteredTextViewTypeConverter))]
     public ISkUiView? EmptyView { get => (ISkUiView?)GetValue(EmptyViewProperty); set => SetValue(EmptyViewProperty, value); }
 
     /// <summary>Creates <see cref="EmptyView"/> when it is not set, the first time the carousel is empty in a tree (a <see cref="DataTemplateSelector"/> chooses by the binding context).</summary>

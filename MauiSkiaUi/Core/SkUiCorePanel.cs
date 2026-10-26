@@ -8,6 +8,30 @@ namespace MauiSkiaUi.Core;
 /// </summary>
 public abstract class SkUiCorePanel : SkUiCoreNode
 {
+    /// <summary>
+    /// Whether <see cref="SkUiCoreNode.InputTransparent"/> covers the children too (<c>true</c>, the default, as MAUI's
+    /// <c>CascadeInputTransparent</c>). <c>false</c>: pointers pass through the panel itself, and its children still take them.
+    /// </summary>
+    public bool CascadeInputTransparent
+    {
+        get => CascadeInputTransparentCore;
+        set => SetCascadeInputTransparent(value);
+    }
+
+    /// <summary>Sets <see cref="CascadeInputTransparent"/>.</summary>
+    public SkUiCorePanel SetCascadeInputTransparent(bool value)
+    {
+        SetCascadeInputTransparentCore(value);
+        return this;
+    }
+
+    /// <summary>MAUI's name for <see cref="SkUiCoreNode.ClipToBounds"/>: the same property.</summary>
+    public bool IsClippedToBounds
+    {
+        get => ClipToBounds;
+        set => SetClipToBounds(value);
+    }
+
     /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
     internal override bool IsSkeletonContainer => true;
 

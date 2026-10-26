@@ -21,7 +21,8 @@
 | [Releasing](Releasing.md) | Versions, branches, the changelog and the publish workflow |
 | [Architecture](design/Architecture.md) | How SkiaUi works: start here |
 | [Requirements](design/Requirements.md) | Goals, scope, principles, requirement status |
-| [Roadmap](design/Roadmap.md) | 1.0.0, 1.1.0 and the backlog |
+| [Roadmap](design/Roadmap.md) | 1.0.0, 1.1.0, 1.2.0 and the backlog |
+| [Implementation plan 1.2](design/ImplementationPlan-1.2.md) | MAUI parity: phases, order, decisions |
 
 Design docs, by mechanism:
 

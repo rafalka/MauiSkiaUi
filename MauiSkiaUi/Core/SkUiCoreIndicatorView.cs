@@ -10,6 +10,30 @@ namespace MauiSkiaUi.Core;
 /// </summary>
 public class SkUiCoreIndicatorView : SkUiCoreNode
 {
+    /// <summary>
+    /// Whether <see cref="SkUiCoreNode.InputTransparent"/> covers the children too (<c>true</c>, the default, as MAUI's
+    /// <c>CascadeInputTransparent</c>). <c>false</c>: pointers pass through the indicator view itself, and its children still take them.
+    /// </summary>
+    public bool CascadeInputTransparent
+    {
+        get => CascadeInputTransparentCore;
+        set => SetCascadeInputTransparent(value);
+    }
+
+    /// <summary>Sets <see cref="CascadeInputTransparent"/>.</summary>
+    public SkUiCoreIndicatorView SetCascadeInputTransparent(bool value)
+    {
+        SetCascadeInputTransparentCore(value);
+        return this;
+    }
+
+    /// <summary>MAUI's name for <see cref="SkUiCoreNode.ClipToBounds"/>: the same property.</summary>
+    public bool IsClippedToBounds
+    {
+        get => ClipToBounds;
+        set => SetClipToBounds(value);
+    }
+
     private readonly SkUiIndicatorModel _model;
 
     /// <summary>Creates an indicator view without items.</summary>
@@ -135,6 +159,22 @@ public class SkUiCoreIndicatorView : SkUiCoreNode
     {
         SkUiValidate.ThrowIfNotFinite(value, nameof(value));
         if (SetProperty(ref _model.Spacing, value, nameof(IndicatorSpacing)))
+            InvalidateMeasure();
+        return this;
+    }
+
+    /// <summary>Space around the indicators, as MAUI's: added to the measured size; the row is centered inside it.</summary>
+    public Thickness Padding
+    {
+        get => _model.Padding;
+        set => SetPadding(value);
+    }
+
+    /// <summary>Sets <see cref="Padding"/>.</summary>
+    public SkUiCoreIndicatorView SetPadding(Thickness value)
+    {
+        SkUiValidate.ThrowIfNotThickness(value, nameof(value));
+        if (SetProperty(ref _model.Padding, value, nameof(Padding)))
             InvalidateMeasure();
         return this;
     }

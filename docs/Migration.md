@@ -14,7 +14,7 @@ You replace a **subtree** of a page with drawn controls. Everything around it st
 | --- | --- |
 | Pages, Shell, navigation, popups | The controls inside the drawn region: `Label` → `SkUiLabel`, `Grid` → `SkUiGrid`, … |
 | View models, commands, `INotifyPropertyChanged` | Styles get a new `TargetType` (`sk:SkUiLabel`) |
-| Bindings, `x:DataType`, converters, triggers, `VisualStateManager` | Gestures: `TapGestureRecognizer` keeps working; other recognizers and `TouchBehavior` become gesture events |
+| Bindings, `x:DataType`, converters, triggers, `VisualStateManager` | Gestures: MAUI's tap, swipe, pan, pinch and pointer recognizers keep working; drag and drop and `TouchBehavior` become gesture events or stay native |
 | Resources, `StaticResource` / `DynamicResource`, `AppThemeBinding` | Native-only controls (WebView, maps, media, third-party controls) are wrapped in `SkUiMauiContentView` |
 | Fonts from `ConfigureFonts`, `MauiImage` / `FontImageSource` images | Custom handlers, renderers and effects do not apply to drawn controls |
 | `SemanticProperties`, `AutomationProperties`, `AutomationId` | |
@@ -36,7 +36,7 @@ Checked against .NET MAUI 10.0.110. Controls marked SkUi\* + Core exist on both 
 | Button | SkUi* + Core | Done: `ImageSource` + `ContentLayout`, text properties |
 | Image, ImageButton | SkUi* + Core | Done, plus shared memory / disk cache, transformations, downsampling; runtime SVG files: planned |
 | BoxView | SkUi* + Core | Done, gradient `Background` |
-| Ellipse, Line, Rectangle, RoundRectangle, Path, Polygon, Polyline | SkUi* + Core | Done: brushes, stroke model, `Aspect`, geometries and path markup; `ImageBrush` not drawn |
+| Ellipse, Line, Rectangle, RoundRectangle, Path, Polygon, Polyline | SkUi* + Core | Done: brushes, stroke model, `Aspect`, geometries and path markup |
 | Border | SkUi* + Core | Done: `StrokeShape`, brush stroke, dashes, stroke inset and shape clip; gradient `Background` |
 | ScrollView | SkUi* + Core | Done: scroll bars (draggable on desktop, `SkUiCoreScrollBar`), overscroll (bounce, stretch), scroll to element, both wheel axes, plus snap points |
 | Grid, VerticalStackLayout, HorizontalStackLayout, AbsoluteLayout, ContentView | SkUi* + Core | Done |
@@ -47,9 +47,9 @@ Checked against .NET MAUI 10.0.110. Controls marked SkUi\* + Core exist on both 
 | StackLayout | Stacks | Map |
 | BindableLayout | Every `SkUiLayout` (grid, stacks, absolute, flex, wrap, shrink) | Done: MAUI's controller over `IBindableLayout`; templates and empty views must be drawn (a string `EmptyView` throws); no virtualization (use the collection view) |
 | Every view: visual states | MAUI's states per control, `PointerOver` from hover, `Focused` from keyboard focus, state triggers | Done; `Selected` on collection items |
-| Every view: `Shadow`, gradient `Background`, `Clip` | SkUi* + Core | Done; `ImageBrush` not drawn |
+| Every view: `Shadow`, gradient `Background`, `Clip` | SkUi* + Core | Done (MAUI's `ImageBrush` is internal: an `SkUiImage` behind the content) |
 | Every view: `SemanticProperties`, focus, font scaling | SkUi* + Core | Done: TalkBack, VoiceOver, Narrator; keyboard focus and ring; `FontAutoScalingEnabled`; plus `IsTabStop` / `TabIndex` (gone from MAUI) |
-| Every view: `GestureRecognizers` | Arena gestures (`Tapped`, …) | Taps done: `TapGestureRecognizer` runs on drawn views; other recognizers are reported, not run (planned) |
+| Every view: `GestureRecognizers` | Arena gestures (`Tapped`, …) | Done: tap (any count, primary or secondary button), swipe, pan (one pointer), pinch and pointer recognizers run on drawn views; drag and drop is reported, not run |
 | CollectionView | `SkUiCollectionView`; `SkUiVirtualScrollView` for plain lists | Done but reordering and snap points: templates and selectors, variable sizes, single and multiple selection, `Selected` state, item taps, header / footer (also sticky), empty view, groups (also collapsible, sticky headers), grids, horizontal, load more, `RemainingItemsThreshold`, scroll to index / item / group, pull-to-refresh |
 | SwipeView | `SkUiSwipeView`, MAUI's `SwipeItems` / `SwipeItem`; `SkUiSwipeItemView` for `SwipeItemView` | Done; custom accessibility actions open |
 | RefreshView | `SkUiRefreshView`; pull-to-refresh also built into `SkUiCollectionView` | Done; screen-reader refresh action open |
@@ -234,7 +234,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `Picker` | `SkUiPicker` | Prefix swap; its list opens on your popup system: see [Pickers](#pickers-picker) |
 | `DatePicker`, `TimePicker` | `SkUiDatePicker`, `SkUiTimePicker` | Prefix swap; wheels on your popup system like the picker's list: see [Pickers](#pickers-picker) |
 | `WebView`, maps, media | Wrapped in `SkUiMauiContentView` | Native by design |
-| `Layout.IsClippedToBounds` | `ClipToBounds` | Leaves clip by default, layouts do not |
+| `IsClippedToBounds` (layouts, content views, the scroll, swipe, refresh and indicator views, the radio button) | Same name on the drawn containers | The same property as `ClipToBounds`, which every drawn view has: leaves clip by default, layouts do not |
 
 Per-control differences: [docs/controls/](controls/README.md).
 
@@ -273,7 +273,7 @@ Styles target a type, and drawn controls are different types:
 
 ### 5. Convert gestures and touch behaviors
 
-`TapGestureRecognizer` works on drawn views as it does on MAUI (single and double taps, `Command` / `CommandParameter`, `Tapped`, `GetPosition`), so tap XAML needs no change. The shorter drawn form is also available:
+MAUI's tap, swipe, pan, pinch and pointer recognizers work on drawn views as on MAUI: same events and argument types, commands and parameters, the view as the sender. Gesture XAML and code-behind handlers need no change. They run in the gesture arena, so a pan or swipe inside a drawn scroller competes with it as the drawn gestures do (the innermost wins once it moves past the touch slop). For taps, the shorter drawn form is also available:
 
 ```xml
 <!-- MAUI form: still works -->
@@ -289,21 +289,20 @@ Styles target a type, and drawn controls are different types:
 
 MAUI's tooltips (`ToolTipProperties.Text`) also need no change: the surface shows them for the drawn view under a mouse or trackpad pointer (Mac Catalyst, iPad with a pointer, Windows; none on phones, as MAUI). A Core node takes `SetToolTip(text)`.
 
-Other gesture input needs converting. A drawn view that has it writes one `Trace` line on its first press, naming what is ignored and what to use.
+The rest needs converting. A drawn view that has it writes one `Trace` line on its first press, naming what is ignored and what to use. The drawn gesture events remain an alternative to the recognizers.
 
 | MAUI / toolkit | SkiaUi |
 | --- | --- |
-| `TapGestureRecognizer` | Works as is, or `Tapped` / `TappedCommand` + `TappedCommandParameter` |
-| `TapGestureRecognizer NumberOfTapsRequired="2"` | Works as is, or `DoubleTapped` / `DoubleTappedCommand` |
-| `TapGestureRecognizer Buttons="Secondary"` | Not available (drawn taps are primary) |
-| `SwipeGestureRecognizer Direction="Left"` | `SwipeDirections="Left"` + `Swiped` / `SwipedCommand` (the parameter defaults to the direction). Different commands per direction: one handler that switches on `e.Direction`, or several `SkUiSwipeGestureRecognizer`s in `Gestures` (they also take `Threshold`) |
-| `PanGestureRecognizer` | `PanUpdated`: MAUI's `GestureStatus` and `TotalX` / `TotalY`, so handlers port almost unchanged; plus the release velocity on `Completed`. `PanAxis` limits the axis |
-| `PinchGestureRecognizer` | `PinchUpdated`: `Status` and `Scale` (change since the last update) as on MAUI, plus `TotalScale` and rotation. `Origin` is the pointers' midpoint in DIPs relative to the view, where MAUI's `ScaleOrigin` is a 0–1 fraction of its size |
-| `PointerGestureRecognizer` | `IsPointerOver` and the `PointerOver` visual state for hover; `SkUiPointerGestureRecognizer` in `Gestures` for raw pointers |
+| `TapGestureRecognizer` | Works as is (any `NumberOfTapsRequired`; `Buttons` primary, secondary or both), or `Tapped` / `TappedCommand` + `TappedCommandParameter`, `DoubleTapped` / `DoubleTappedCommand` |
+| `SwipeGestureRecognizer` | Works as is (`Direction`, `Threshold`, `Command`). A fast flick past the touch slop also swipes, as on iOS. Alternative: `SwipeDirections` + `Swiped` / `SwipedCommand` |
+| `PanGestureRecognizer` | Works as is with `TouchPoints="1"` (the default); more touch points are not run. Alternative: `PanUpdated` (also the release velocity, and `PanAxis`) |
+| `PinchGestureRecognizer` | Works as is (`ScaleOrigin` a 0–1 fraction, as MAUI's). Alternative: `PinchUpdated` (also `TotalScale`, rotation, `Origin` in DIPs) |
+| `PointerGestureRecognizer` | Works as is: entered / moved / exited from hover, pressed / released from presses of its `Buttons`. `GetPosition` takes the view or any element drawn on the same surface; `GetPosition(null)` (the window) is `null`. A press another gesture takes (a scroller's drag) still ends with `PointerReleased`. Alternatives: `IsPointerOver` and the `PointerOver` visual state; `SkUiPointerGestureRecognizer` in `Gestures` |
+| `DragGestureRecognizer`, `DropGestureRecognizer` | Not run: keep that part native (in an `SkUiMauiContentView`) |
 | Toolkit `TouchBehavior` `Command` / `LongPressCommand` | `TappedCommand` / `LongPressedCommand` (+ parameters) |
 | Toolkit `TouchBehavior` press scale / opacity / color | `ShowsPressEffect="True"` (the look's dim or ripple), or a `Pressed` visual state with your own setters |
 | A tap or pan recognizer that only swallows touches | Often not needed: drawn layouts, labels and images without gestures are transparent to touches, and what is under them gets the touch. Where blocking is the point (a backdrop under a drawn popover), keep an empty `TapGestureRecognizer` or give the view an empty `Tapped` handler |
-| `InputTransparent`, `CascadeInputTransparent` | Same meaning |
+| `InputTransparent`, `CascadeInputTransparent` | Same meaning on both layers: with `CascadeInputTransparent="False"`, only the container lets touches through and its children still take them. A cascading container does not set its children's own `InputTransparent` (MAUI does); what they receive is the same |
 
 How drawn gestures resolve: every press runs a **gesture arena** over the views under the finger and their ancestors. The innermost tap wins, a scroll or swipe that moves past the touch slop wins over taps, and a long press wins once it fires. A tappable row with a check box inside therefore behaves the same on every platform, without per-platform workarounds. See [EventMechanism.md](design/EventMechanism.md).
 
@@ -383,16 +382,22 @@ Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and 
 
 ## Lists (`CollectionView`)
 
-`SkUiCollectionView` ([SkUiCollectionView.md](controls/SkUiCollectionView.md)) replaces a `CollectionView` (and a `RefreshView` around it) on the drawn surface: items are created near the viewport and recycled, with drawn item templates. Its API is SkiaUi's own, so a list is converted member by member; the full mapping is in [collection-view.md](../plugins/skiaui-migration/skills/skiaui-migrate/references/collection-view.md). The usual changes:
+`SkUiCollectionView` ([SkUiCollectionView.md](controls/SkUiCollectionView.md)) replaces a `CollectionView` (and a `RefreshView` around it) on the drawn surface: items are created near the viewport and recycled, with drawn item templates. Most of MAUI's list XAML ports by changing the prefix; the rest of its API is SkiaUi's own and is converted member by member. The full mapping is in [collection-view.md](../plugins/skiaui-migration/skills/skiaui-migrate/references/collection-view.md). The usual changes:
 
 - `ItemsSource`, `ItemTemplate` (or a selector), `SelectedItem`, `SelectedItems`, `SelectionChangedCommand` (+ parameter), `EmptyView`, `IsGrouped`, `GroupHeaderTemplate`, `GroupFooterTemplate`, `RemainingItemsThreshold` (+ event, command): same names. The templates and the empty view create drawn views; a grouped source has MAUI's shape (each group the list of its items).
 - `SelectionMode="Single"` / `"Multiple"`: same; `SkUiSelectionMode.SingleDeselect` clears the selection when the selected item is tapped again. `SelectionChanged` gets `SkUiSelectionChangedEventArgs` (`PreviousSelection` / `CurrentSelection`, plus `PreviousItem` / `CurrentItem`), and `SelectionChanging` can cancel a tap's change; `SelectAll()` / `ClearSelection()`.
 - The `Selected` visual state on the item's root works as in MAUI; by default the selected item also gets a light accent background (`SelectionBackground="Transparent"` turns it off).
-- `Header` / `Footer` take a drawn view (or `HeaderTemplate` / `FooterTemplate`), not a string; `IsStickyHeader` / `IsStickyFooter` keep them in place over the list (the items scroll behind them, uncovered at the start and the end).
-- `ItemsLayout` → properties of the list: `Orientation="Horizontal"` for a horizontal list, `Span` for a grid (`GridItemsLayout.Span`), `ItemSpacing` between rows, `SpanSpacing` within a row; `ItemSizingStrategy="MeasureFirstItem"` → `ItemExtent`.
+- `Header` / `Footer` / `EmptyView`: a drawn view, or text in XAML as on MAUI (`Header="Contacts"` shows a label; the empty view's is centered). Data with a template converts: drop `Header="{Binding Info}"` and bind the template through the list's context (`{Binding Info.Title}` instead of `{Binding Title}`), since `HeaderTemplate` / `FooterTemplate` / `EmptyViewTemplate` take the list's binding context. `IsStickyHeader` / `IsStickyFooter` keep them in place over the list (the items scroll behind them, uncovered at the start and the end).
+- `ItemsLayout` as on MAUI (`"VerticalGrid, 2"`, `LinearItemsLayout` / `GridItemsLayout` elements): it decides the orientation, span and spacings. Without it, the list's own `Orientation`, `Span`, `ItemSpacing` (between rows) and `SpanSpacing` (within a row) give them; use one or the other. Its snap points are not drawn yet. `ItemSizingStrategy="MeasureFirstItem"` as on MAUI (or a fixed `ItemExtent`).
 - Groups can collapse (`AllowGroupExpandCollapse`, `ExpandGroup` / `CollapseGroup`) and keep their header at the start (`IsStickyGroupHeader`): SkiaUi additions.
 - A "Load more" footer built by hand → `LoadMoreMode` (`Manual`, `Auto`, `AutoOnUserScroll`), `LoadMoreCommand`, `IsLoadMoreActive`, at the end or the start (`LoadMorePosition`).
-- `ScrollTo(index | item [, group], position, animate)` → `ScrollToIndex` / `ScrollToItem` / `ScrollToGroup` (awaitable); `Scrolled` reports `ScrollX` / `ScrollY`, and `FirstVisibleIndex` / `LastVisibleIndex` / `VisibleRangeChanged` give the visible items.
+- MAUI's `ScrollTo(index, groupIndex, position, animate)` / `ScrollTo(item, group, position, animate)` and `ScrollToRequested` as on MAUI; the awaitable `ScrollToIndex` / `ScrollToItem` / `ScrollToGroup` complete when the scroll ends. `Scrolled` reports `ScrollX` / `ScrollY`, and `FirstVisibleIndex` / `LastVisibleIndex` / `VisibleRangeChanged` give the visible items.
+- **C# that names MAUI's types** needs these changes. XAML does not, but a handler wired in XAML has to take SkiaUi's argument type:
+  - `Scrolled` passes MAUI's `ScrolledEventArgs`, not `ItemsViewScrolledEventArgs`: `VerticalOffset` / `HorizontalOffset` → `ScrollY` / `ScrollX`; `FirstVisibleItemIndex` / `LastVisibleItemIndex` → the list's `FirstVisibleIndex` / `LastVisibleIndex`, or `VisibleRangeChanged`, which is raised only when they change; `VerticalDelta` / `HorizontalDelta` → the difference from the offset of the previous event; `CenterItemIndex` → from the visible range.
+  - `SelectionChanged` handlers take `SkUiSelectionChangedEventArgs` instead of `SelectionChangedEventArgs`; `PreviousSelection` / `CurrentSelection` stay. `SelectionChangedCommand` needs no change.
+  - `SelectionMode.Single` → `SkUiSelectionMode.Single`, and the same for `None` and `Multiple`. Never cast one enum to the other: their values differ (`SkUiSelectionMode` puts `SingleDeselect` where MAUI has `Multiple`). A view-model property bound to `SelectionMode` becomes an `SkUiSelectionMode`.
+
+  These stay as they are through 1.x; 2.0 is to take MAUI's types ([roadmap](design/Roadmap.md#held-for-20)).
 - A `TapGestureRecognizer` on the item root that opens the item → `ItemTappedCommand` (the parameter defaults to the item). Buttons inside an item keep their own taps.
 - `RefreshView` around it → `IsPullToRefreshEnabled="True"` with `IsRefreshing` and `RefreshCommand` (`Command` on `RefreshView`); setting `IsRefreshing` runs the command, as in MAUI. Keeping the `RefreshView` as `SkUiRefreshView` around the list works too ([SkUiRefreshView.md](controls/SkUiRefreshView.md)); then leave `IsPullToRefreshEnabled` off.
 - `SwipeView` rows → `SkUiSwipeView` in the item template ([SkUiSwipeView.md](controls/SkUiSwipeView.md)): rows swipe horizontally while the list scrolls vertically, a scroll closes an open row, and a recycled row shows closed.
@@ -405,9 +410,9 @@ Not available: reordering (`CanReorderItems`) and snap points on the items layou
 `SkUiCarouselView` ([SkUiCarouselView.md](controls/SkUiCarouselView.md)) and `SkUiIndicatorView` ([SkUiIndicatorView.md](controls/SkUiIndicatorView.md)) keep MAUI's names; the usual changes:
 
 - `CarouselView` → `sk:SkUiCarouselView`, `IndicatorView` → `sk:SkUiIndicatorView`; `IndicatorView="{x:Reference …}"` links them as in MAUI. The item template creates drawn views (`EmptyView` too).
-- `ItemsLayout` → properties of the carousel: `Orientation`, `ItemSpacing`, `SnapPointsType`, `SnapPointsAlignment` (the defaults are MAUI's carousel defaults: horizontal, `MandatorySingle`, `Center`). Drop a `LinearItemsLayout` that only restates them.
+- `ItemsLayout` as on MAUI (`"HorizontalList"`, `"VerticalList"`, a `LinearItemsLayout` element): it decides the orientation, spacing and snap points. Without it, the carousel's own `Orientation`, `ItemSpacing`, `SnapPointsType` and `SnapPointsAlignment` give them (the defaults are MAUI's carousel defaults: horizontal, `MandatorySingle`, `Center`); use one or the other. A text `EmptyView` shows as on MAUI; data converts as on the collection view.
 - Same: `ItemsSource`, `Position` and `CurrentItem` (two-way, with their events, commands and MAUI's argument types), `Loop` (default `true`), `PeekAreaInsets`, `IsSwipeEnabled`, `IsBounceEnabled`, `IsScrollAnimated`, `IsDragging`, `RemainingItemsThreshold` (+ event, command), `Scrolled`, `ScrollTo`, the `CurrentItem` / `NextItem` / `PreviousItem` / `DefaultItem` visual states.
-- `ScrollTo(index, …)` also exists as awaitable `ScrollToIndex(index, animated)` / `ScrollToItem(item, animated)`.
+- `ScrollTo(index, …)` and `ScrollToRequested` as on MAUI; also awaitable as `ScrollToIndex(index, animated)` / `ScrollToItem(item, animated)`.
 - Not available: `ItemsUpdatingScrollMode` (the current item is always kept), `VisibleViews`, `IndicatorTemplate` (draw other indicators through the look: `IndicatorPainter`, `DefaultSkUiLook.IndicatorStyle`).
 - New: several cards in view (`ItemExtent`), item effects drawn by the compositor (`ItemEffect`: `SkUiCoverFlowEffect`, `SkUiScaleEffect`), `ScrollPosition`; on the indicator `IndicatorSpacing` and `Orientation`.
 

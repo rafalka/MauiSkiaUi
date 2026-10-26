@@ -11,6 +11,9 @@ internal sealed class SkUiSpanTapGestureRecognizer : SkUiTapGestureRecognizer
     /// <summary>The tappable span at a point in the label's coordinates, or -1.</summary>
     internal Func<Point, int>? TappableSpanAt { get; init; }
 
+    /// <summary>Whether a press with these buttons can tap the span at this index (MAUI's <c>Buttons</c>); <c>null</c>: every press.</summary>
+    internal Func<int, SkUiPointerButtons, bool>? SpanTakesPress { get; init; }
+
     /// <summary>The span the last press started on.</summary>
     internal int PressedSpan { get; private set; } = -1;
 
@@ -25,7 +28,8 @@ internal sealed class SkUiSpanTapGestureRecognizer : SkUiTapGestureRecognizer
     {
         if (Owner is not { } owner || SpanAt(pointer.GetPosition(owner)) is not (var span and >= 0))
             return false;
-        if (!base.OnPointerPressed(pointer))
+        // A button the span's recognizers do not want leaves the press to the label and its ancestors.
+        if (SpanTakesPress?.Invoke(span, pointer.Buttons) == false || !base.OnPointerPressed(pointer))
             return false;
         PressedSpan = span;
         return true;

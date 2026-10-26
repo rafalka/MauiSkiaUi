@@ -171,6 +171,14 @@ public partial class SkUiCollectionView
             SelectedItem = null;
     }
 
+    /// <summary>
+    /// Replaces the contents of <see cref="SelectedItems"/> with <paramref name="newSelection"/> (<c>null</c>: none) in one
+    /// change, raising <see cref="SelectionChanged"/> once, as MAUI's. Items show as selected in
+    /// <see cref="SkUiSelectionMode.Multiple"/>.
+    /// </summary>
+    public void UpdateSelectedItems(IList<object>? newSelection) =>
+        ReplaceSelectedItems(newSelection is null ? [] : [.. newSelection]); // a copy: it may be SelectedItems itself
+
     /// <summary>Whether item containers take taps.</summary>
     private bool WantsItemTaps => _selectionMode != SkUiSelectionMode.None || ItemTapped is not null || ItemTappedCommand is not null;
 

@@ -108,6 +108,7 @@ From MAUI, change `RefreshView` to `sk:SkUiRefreshView` and its content to drawn
 | Property | Default | Notes |
 | --- | --- | --- |
 | `Content` | — | Drawn view that is refreshed |
+| `Padding` | `0` | As MAUI's: space around the content; the pull indicator still spans the view |
 | `IsRefreshing` | `false` | Two-way; `true` raises `Refreshing` and runs `Command` |
 | `Command` / `CommandParameter` | — | Runs when a refresh starts; while it cannot execute, the pull is off |
 | `RefreshColor` | `null` | The indicator's arc; `null`: the accent color |
