@@ -95,21 +95,29 @@ runs:
         dotnet --info
         dotnet workload list
 
-    # Apple builds (libraries too) need the Xcode the installed iOS / Mac Catalyst SDK packs were built for. Its
-    # version is in each pack's Versions.props (`_RecommendedXcodeVersion` before the 27.x packs); the pack name's
-    # suffix is the API level, not the Xcode (Mac Catalyst 27.0 needs Xcode 27.1). The image may default to another
-    # Xcode: take that version's newest stable patch release.
+    # Apple builds (libraries too) need the Xcode the workload set's iOS / Mac Catalyst SDKs were built for; the pack
+    # name's suffix is the API level, not the Xcode (Mac Catalyst 27.0 needs Xcode 27.1). An app project evaluated
+    # with this SDK reports it; the image's own packs (other versions) sit next to the set's, so their files can't
+    # tell. The image may default to another Xcode: take that version's newest stable patch release.
     - name: Select Xcode
       if: runner.os == 'macOS' && (contains(inputs.workloads, 'ios') || contains(inputs.workloads, 'maccatalyst'))
       shell: bash
       run: |
         set -euo pipefail
-        root="$(dirname "$(readlink -f "$(command -v dotnet)")")"
-        want="$(cat "$root"/packs/Microsoft.{iOS,MacCatalyst}.Sdk.net10.0_*/*/targets/Microsoft.*.Sdk.Versions.props \
-          2>/dev/null | sed -nE 's|.*<_?RecommendedXcodeVersion>([0-9.]+)</_?RecommendedXcodeVersion>.*|\1|p' \
-          | sort -V | tail -1 || true)"
-        [[ -n "$want" ]] || { echo "No iOS / Mac Catalyst SDK pack under $root/packs." >&2; exit 1; }
-        echo "iOS / Mac Catalyst SDK packs need Xcode $want"
+        probe="$RUNNER_TEMP/xcode-probe"
+        mkdir -p "$probe"
+        cp global.json "$probe/"
+        printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk">' \
+          '  <PropertyGroup><TargetFrameworks>net10.0-ios;net10.0-maccatalyst</TargetFrameworks><OutputType>Exe</OutputType></PropertyGroup>' \
+          '</Project>' > "$probe/probe.csproj"
+        want=""
+        for wl in ios maccatalyst; do
+          [[ " ${{ inputs.workloads }} " == *"$wl"* ]] || continue
+          v="$(cd "$probe" && dotnet msbuild probe.csproj -nologo -getProperty:_RecommendedXcodeVersion -p:TargetFramework="net10.0-$wl")"
+          echo "net10.0-$wl needs Xcode $v"
+          want="$(printf '%s\n%s\n' "$want" "$v" | sed '/^$/d' | sort -V | tail -1)"
+        done
+        [[ -n "$want" ]] || { echo "Could not tell which Xcode the iOS / Mac Catalyst SDKs need." >&2; exit 1; }
         ls -d /Applications/Xcode*.app
         xcode="$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' \
           | grep -E "/Xcode_${want//./\\.}(\.[0-9]+)*\.app$" | sort -V | tail -1 || true)"
