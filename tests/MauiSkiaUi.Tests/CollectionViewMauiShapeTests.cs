@@ -120,8 +120,10 @@ public class CollectionViewMauiShapeTests
         Assert.Equal((false, 10d, SnapPointsType.Mandatory, SnapPointsAlignment.Start), carousel.LayoutInUse);
         Assert.Equal((ItemsLayoutOrientation.Horizontal, 3d), (carousel.Orientation, carousel.ItemSpacing));
 
+        Assert.Same(carousel.ItemsLayout, carousel.FollowedItemsLayout);
         carousel.ClearValue(SkUiCarouselView.ItemsLayoutProperty);
         Assert.Equal((true, 3d, SnapPointsType.MandatorySingle, SnapPointsAlignment.Center), carousel.LayoutInUse);
+        Assert.Null(carousel.FollowedItemsLayout); // not the default layout the property reads now
 
         var vertical = Load<SkUiCarouselView>("""<sk:SkUiCarouselView ItemsLayout="VerticalList" />""");
         Assert.False(vertical.LayoutInUse.Horizontal);

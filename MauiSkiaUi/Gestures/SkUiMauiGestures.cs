@@ -260,8 +260,8 @@ internal sealed class SkUiMauiGestures(View view)
         PlatformPointerEventArgs? platformArgs, ButtonsMask button);
 
     /// <summary>
-    /// A pointer recognizer's presses: an arena member that observes and never claims, so the view's other gestures and its
-    /// scrolling ancestors run as without it. <c>PointerReleased</c> follows on release, and also when another recognizer
+    /// A pointer recognizer's presses: an arena member that observes, never claims and resigns on release, so the view's
+    /// other gestures and its ancestors' (taps, scrolling) run as without it. <c>PointerReleased</c> follows on release, and also when another recognizer
     /// takes the pointer (a scroller's drag), so presses and releases pair up. Only buttons in <c>Buttons</c> count (a touch
     /// is the primary button).
     /// </summary>
@@ -300,6 +300,8 @@ internal sealed class SkUiMauiGestures(View view)
                 return;
             _pointer = null;
             bridge.Send(maui, PointerEvent.Released, PositionsOf(pointer), _button);
+            // Out of the arena before its sweep: it must not win the release over the view's or an ancestor's tap.
+            Resign(pointer.Id);
         }
 
         protected internal override void OnRejected(long pointerId)

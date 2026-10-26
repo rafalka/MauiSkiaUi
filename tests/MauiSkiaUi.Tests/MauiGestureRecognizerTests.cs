@@ -207,6 +207,48 @@ public class MauiGestureRecognizerTests
         Assert.Equal(["triple", "single"], events);
     }
 
+    [Fact]
+    public void TapSequencesCountOneButtonAtATime()
+    {
+        using var clock = new ManualGestureClock();
+        var (root, box) = Tree();
+        var events = new List<string>();
+        const ButtonsMask both = ButtonsMask.Primary | ButtonsMask.Secondary;
+        box.GestureRecognizers.Add(new TapGestureRecognizer { Buttons = both, Command = new TestCommand(_ => events.Add("single")) });
+        box.GestureRecognizers.Add(new TapGestureRecognizer { NumberOfTapsRequired = 2, Buttons = both, Command = new TestCommand(_ => events.Add("double")) });
+
+        // A secondary click right after a primary one ends the primary's sequence and starts its own.
+        Click(root, new Point(20, 20), 0, SkUiPointerButtons.Primary);
+        Click(root, new Point(20, 20), 100, SkUiPointerButtons.Secondary);
+        Assert.Equal(["single"], events);
+        Click(root, new Point(20, 20), 200, SkUiPointerButtons.Secondary);
+        Assert.Equal(["single", "double"], events);
+        clock.Advance(SkUiGestureSettings.DoubleTapTimeout);
+        Assert.Equal(2, events.Count);
+
+        // So does a tap too far from the last one.
+        Click(root, new Point(20, 20), 2000);
+        Click(root, new Point(250, 250), 2100);
+        Assert.Equal(["single", "double", "single"], events);
+        clock.Advance(SkUiGestureSettings.DoubleTapTimeout);
+        Assert.Equal(["single", "double", "single", "single"], events);
+    }
+
+    [Fact]
+    public void APointerRecognizerOnAChildLeavesTheReleaseToTheParentsTap()
+    {
+        var (root, box) = Tree();
+        var events = new List<string>();
+        root.GestureRecognizers.Add(new TapGestureRecognizer { Command = new TestCommand(_ => events.Add("parent tapped")) });
+        var pointer = new PointerGestureRecognizer();
+        pointer.PointerPressed += (_, _) => events.Add("pressed");
+        pointer.PointerReleased += (_, _) => events.Add("released");
+        box.GestureRecognizers.Add(pointer);
+
+        Click(root, new Point(20, 20), 0);
+        Assert.Equal(["pressed", "released", "parent tapped"], events);
+    }
+
     private static List<string> Record(PointerGestureRecognizer pointer, View relativeTo)
     {
         var events = new List<string>();

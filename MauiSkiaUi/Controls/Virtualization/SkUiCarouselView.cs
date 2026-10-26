@@ -749,9 +749,12 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         {
             if (change.Kind == SkUiChangeKind.Property)
                 carousel.ApplyLayout();
-        })).Listen(layout);
+        })).Listen(_appItemsLayout);
         OnLayoutPropertyChanged();
     }
+
+    /// <summary>The items layout whose changes the carousel follows (tests).</summary>
+    internal object? FollowedItemsLayout => _itemsLayoutListener?.Source;
 
     /// <summary>The layout in use (tests).</summary>
     internal (bool Horizontal, double ItemSpacing, SnapPointsType SnapPointsType, SnapPointsAlignment SnapPointsAlignment) LayoutInUse =>

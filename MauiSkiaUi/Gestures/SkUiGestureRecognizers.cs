@@ -5,8 +5,8 @@ namespace MauiSkiaUi;
 /// <see cref="SkUiGestureSettings.PressDelay"/> when an ancestor (e.g. a scroll view) competes, and never when that
 /// ancestor wins first. When double taps are handled, single taps wait <see cref="SkUiGestureSettings.DoubleTapTimeout"/>.
 /// Taps count up to the most a handler wants (MAUI's <c>NumberOfTapsRequired</c> can ask for more than two): a sequence
-/// ends at that count or when the next tap does not follow within the double-tap timeout and slop, and is raised once
-/// with its count.
+/// ends at that count or when the next tap does not follow (same button, within the double-tap timeout and slop), and is
+/// raised once with its count.
 /// </summary>
 public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
 {
@@ -129,11 +129,20 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
         }
         var dx = release.Position.X - _pendingPosition.X;
         var dy = release.Position.Y - _pendingPosition.Y;
-        var follows = _pendingCount > 0 && release.Timestamp - _pendingTime <= SkUiGestureSettings.DoubleTapTimeout
+        var follows = _pendingCount > 0 && release.Buttons == _pendingButtons
+            && release.Timestamp - _pendingTime <= SkUiGestureSettings.DoubleTapTimeout
             && dx * dx + dy * dy <= SkUiGestureSettings.DoubleTapSlop * SkUiGestureSettings.DoubleTapSlop;
         var count = follows ? _pendingCount + 1 : 1;
+        // Still waiting for a next tap (without a timer source the last tap was raised already).
+        var unfinished = _singleTimer is not null ? _pendingCount : 0;
         _singleTimer?.Dispose();
         _singleTimer = null;
+        if (!follows && unfinished > 0)
+        {
+            // Another button, or too far from the last tap: that sequence ends with its own count and button.
+            _pendingCount = 0;
+            RaiseTaps(_pendingLocal, unfinished, _pendingButtons);
+        }
         if (count >= wanted)
         {
             _pendingCount = 0;
