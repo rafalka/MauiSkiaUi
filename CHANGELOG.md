@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.1.0
+
 ### Breaking changes
 
 - **Mac Catalyst 17.0 minimum:** SkiaUi.Maui and SkiaUi.Maui.CommunityToolkit target Mac Catalyst 17.0 (macOS 14) or newer, up from 15.0, because the Mac Catalyst workload that builds with Xcode 27 refuses lower minimums. Apps set `SupportedOSPlatformVersion` for `maccatalyst` to `17.0` or higher. iOS stays at 15.0.
