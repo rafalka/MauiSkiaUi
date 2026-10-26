@@ -573,6 +573,7 @@ public sealed class ImageLoadingTests : IDisposable
     [Fact]
     public async Task IsLoadingIsAReadOnlyBindablePropertyForTriggersAndBindings()
     {
+        using var _ = SkUiTestHelpers.UseTestDispatcher(); // as in an app: the load completes on the dispatcher
         var gate = new TaskCompletionSource();
         var bytes = Png(SKColors.Red);
         var image = new SkUiImage();
@@ -589,6 +590,31 @@ public sealed class ImageLoadingTests : IDisposable
         await image.LoadingTask;
         Assert.False((bool)image.GetValue(SkUiImage.IsLoadingProperty));
         Assert.Equal([true, false], notified); // once per change
+    }
+
+    [Fact]
+    public async Task ALoadWithoutADispatcherLeavesTheBindableStoreToTheViewsThread()
+    {
+        // Finishing on the thread pool, the load raises IsLoading but does not write the store (MAUI's is not
+        // thread-safe), which follows on the view's next change.
+        var gate = new TaskCompletionSource();
+        var bytes = Png(SKColors.Red);
+        var image = new SkUiImage();
+        var notified = new List<bool>();
+        image.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SkUiImage.IsLoading)) notified.Add(image.IsLoading);
+        };
+        image.Source = ImageSource.FromStream(async token => { await gate.Task.WaitAsync(token); return new MemoryStream(bytes); });
+        Assert.True((bool)image.GetValue(SkUiImage.IsLoadingProperty));
+
+        gate.SetResult();
+        await image.LoadingTask;
+        Assert.False(image.IsLoading);
+        Assert.Equal([true, false], notified);
+
+        image.Source = null;
+        Assert.False((bool)image.GetValue(SkUiImage.IsLoadingProperty));
     }
 
     [Fact]

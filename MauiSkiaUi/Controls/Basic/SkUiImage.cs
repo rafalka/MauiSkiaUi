@@ -288,8 +288,12 @@ public class SkUiImage : SkUiView
 
     private void PublishState()
     {
-        // Reports IsLoading when it changed.
-        SetValue(IsLoadingPropertyKey, Slot.IsLoading);
+        // Reports IsLoading when it changed. A load started without a dispatcher finishes on the thread pool, where the
+        // bindable store (not thread-safe) is left alone: the stored value follows on the view's next change.
+        if (SkUiImageSlot.CompletingWithoutDispatcher)
+            OnPropertyChanged(nameof(IsLoading));
+        else
+            SetValue(IsLoadingPropertyKey, Slot.IsLoading);
         OnPropertyChanged(nameof(LoadError));
         OnPropertyChanged(nameof(ImageSize));
         OnPropertyChanged(nameof(IsShowingPlaceholder));
