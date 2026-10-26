@@ -122,5 +122,8 @@ runs:
         xcode="$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' \
           | grep -E "/Xcode_${want//./\\.}(\.[0-9]+)*\.app$" | sort -V | tail -1 || true)"
         [[ -n "$xcode" ]] || { echo "No Xcode $want on this runner image." >&2; exit 1; }
+        # Images alias Xcode_26.6.0.app -> Xcode_26.6.app; actool can't find the macOS SDK through the alias.
+        xcode="$(readlink -f "$xcode")"
+        echo "Selecting $xcode"
         sudo xcode-select -s "$xcode"
         xcodebuild -version
