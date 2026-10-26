@@ -211,8 +211,10 @@ public class CarouselViewTests
         carousel.Touch(new(id, SkUiTouchAction.Moved, new Point(160, 100), TimeSpan.FromMilliseconds(2100)));
         carousel.Touch(new(id, SkUiTouchAction.Moved, new Point(120, 100), TimeSpan.FromMilliseconds(2200)));
         Assert.True(carousel.IsDragging);
+        Assert.True((bool)carousel.GetValue(SkUiCarouselView.IsDraggingProperty));
         carousel.Touch(new(id, SkUiTouchAction.Released, new Point(120, 100), TimeSpan.FromMilliseconds(2500)));
         Assert.False(carousel.IsDragging);
+        Assert.False((bool)carousel.GetValue(SkUiCarouselView.IsDraggingProperty));
         Run(surface, 2500, 4000);
         Assert.Equal(300, carousel.ScrollView.ScrollX);
         Assert.Equal(1, carousel.Position);

@@ -617,6 +617,13 @@ public class CollectionViewGroupsAndLayoutsTests
         Assert.Empty(list.SelectedItems);
         Assert.Equal([(2, 20), (20, 0)], changes);
 
+        // MAUI's UpdateSelectedItems: one change, also when passed the selection itself.
+        changes.Clear();
+        list.UpdateSelectedItems([rows[1], rows[2]]);
+        list.UpdateSelectedItems(list.SelectedItems);
+        list.UpdateSelectedItems(null);
+        Assert.Equal([(0, 2), (2, 0)], changes);
+
         // Removed items leave the selection; another mode clears it.
         list.SelectedItems.Add(rows[5]);
         list.SelectedItems.Add(rows[6]);

@@ -12,6 +12,7 @@ Abstract base of the drawn shapes, with MAUI's [`Shape`](https://learn.microsoft
 | `Stroke` | `null` | `Brush` of the outline; a stroke gradient spans the outline's bounds (as MAUI's `ShapeDrawable`) |
 | `StrokeThickness` | 1 | DIPs; part of the measured size |
 | `StrokeDashArray` | empty | Dashes and gaps in multiples of `StrokeThickness` (`"4,2"`); an odd count repeats once more, as in SVG. Edits of the collection redraw |
+| `StrokeDashPattern` | empty | Read-only, as MAUI's: `StrokeDashArray` as a new `float[]` on every read |
 | `StrokeDashOffset` | 0 | Where the pattern starts, in multiples of `StrokeThickness` |
 | `StrokeLineCap` | `Flat` | `Flat`, `Round`, `Square`: ends of open figures and of dashes |
 | `StrokeLineJoin` | `Miter` | `Miter`, `Round`, `Bevel` |

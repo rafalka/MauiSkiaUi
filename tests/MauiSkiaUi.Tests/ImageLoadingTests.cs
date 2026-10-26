@@ -571,6 +571,27 @@ public sealed class ImageLoadingTests : IDisposable
     }
 
     [Fact]
+    public async Task IsLoadingIsAReadOnlyBindablePropertyForTriggersAndBindings()
+    {
+        var gate = new TaskCompletionSource();
+        var bytes = Png(SKColors.Red);
+        var image = new SkUiImage();
+        var notified = new List<bool>();
+        image.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SkUiImage.IsLoading)) notified.Add(image.IsLoading);
+        };
+        image.Source = ImageSource.FromStream(async token => { await gate.Task.WaitAsync(token); return new MemoryStream(bytes); });
+        Assert.True((bool)image.GetValue(SkUiImage.IsLoadingProperty));
+        Assert.True(SkUiImage.IsLoadingProperty.IsReadOnly);
+
+        gate.SetResult();
+        await image.LoadingTask;
+        Assert.False((bool)image.GetValue(SkUiImage.IsLoadingProperty));
+        Assert.Equal([true, false], notified); // once per change
+    }
+
+    [Fact]
     public async Task TheLoadingPlaceholderShowsAndSizesTheViewUntilTheImageArrives()
     {
         var gate = new TaskCompletionSource();

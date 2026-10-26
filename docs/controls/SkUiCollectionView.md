@@ -131,7 +131,7 @@ var carousel = new SkUiCollectionView { Orientation = ItemsLayoutOrientation.Hor
 | `VerticalScrollBarVisibility`, `HorizontalScrollBarVisibility`, `Overscroll` | `Default` | Of the list's scroller |
 | `ItemCount`, `FirstVisibleIndex`, `LastVisibleIndex`, `ScrollX`, `ScrollY`, `IsScrolling` | | Read-only; items only (headers and footers are not items); the visible indices and `IsScrolling` raise `PropertyChanged` |
 | `ScrollToIndex(index, position, animated)`, `ScrollToItem(item, …)`, `ScrollToGroup(group, …)`, `ScrollToAsync(offset, animated)` | | Return `Task`s; an item lands exactly where asked (rows between are measured on the way), after the sticky parts. `ScrollToItem` ignores an item not in the list. An item in several groups: `ScrollToItem(item)` goes to its first appearance, `ScrollToItem(item, group, …)` to the one in that group |
-| `SelectAll()`, `ClearSelection()` | | One selection change each (`SelectAll`: `Multiple` only) |
+| `SelectAll()`, `ClearSelection()`, `UpdateSelectedItems(items)` | | One selection change each (`SelectAll`: `Multiple` only). `UpdateSelectedItems` is MAUI's: it replaces `SelectedItems`, `null` clears it |
 | `IsGroupExpanded(group)`, `ExpandGroup(group)`, `CollapseGroup(group)`, `ExpandAll()`, `CollapseAll()` | | `ExpandGroup` / `CollapseGroup` return `false` when canceled |
 | `GetRealizedView(index)`, `RemeasureItem(index)` | | The template's view of a realized item; measure an item (its row) again |
 | `ISkUiItemsView` | | The members every list has, with the same names as on `SkUiVirtualScrollView` and `SkUiVirtualVerticalStackLayout` (a test checks they reach the layout inside); code that only configures or follows a list can take any of them |

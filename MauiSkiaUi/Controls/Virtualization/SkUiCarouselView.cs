@@ -539,6 +539,12 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// </summary>
     public bool IsBounceEnabled { get => (bool)GetValue(IsBounceEnabledProperty); set => SetValue(IsBounceEnabledProperty, value); }
 
+    private static readonly BindablePropertyKey IsDraggingPropertyKey =
+        BindableProperty.CreateReadOnly(nameof(IsDragging), typeof(bool), typeof(SkUiCarouselView), false);
+
+    /// <summary>Read-only bindable <see cref="IsDragging"/>, as MAUI's: set when a drag starts and ends, not per frame.</summary>
+    public static readonly BindableProperty IsDraggingProperty = IsDraggingPropertyKey.BindableProperty;
+
     /// <summary>Whether the user drags the carousel now.</summary>
     public bool IsDragging => _isDragging;
 
@@ -610,7 +616,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         if (dragging == _isDragging)
             return;
         _isDragging = dragging;
-        OnPropertyChanged(nameof(IsDragging));
+        SetValue(IsDraggingPropertyKey, dragging); // reports IsDragging
     }
 
     /// <summary>A scroll correction or a layout moved the carousel by whole cycles of its items (looping): what shows stays.</summary>

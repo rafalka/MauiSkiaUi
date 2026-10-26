@@ -10,6 +10,20 @@ internal readonly record struct SkUiStrokeStyle(double Thickness, float[]? Dashe
 {
     /// <summary>A solid stroke with MAUI's default caps, joins and miter limit.</summary>
     public static SkUiStrokeStyle Solid(double thickness) => new(thickness, null, 0, LineCap.Butt, LineJoin.Miter, 10);
+
+    /// <summary>
+    /// A new array of <paramref name="dashArray"/> as floats (MAUI's <c>StrokeDashPattern</c>, which also copies on every
+    /// read); empty for a solid stroke.
+    /// </summary>
+    public static float[] DashPattern(IReadOnlyList<double>? dashArray)
+    {
+        if (dashArray is not { Count: > 0 })
+            return [];
+        var pattern = new float[dashArray.Count];
+        for (var index = 0; index < pattern.Length; index++)
+            pattern[index] = (float)dashArray[index];
+        return pattern;
+    }
 }
 
 /// <summary>Fills and strokes shape paths with MAUI Graphics paints (solid colors and gradients); shared by both layers.</summary>

@@ -163,6 +163,22 @@ public class SkUiCoreIndicatorView : SkUiCoreNode
         return this;
     }
 
+    /// <summary>Space around the indicators, as MAUI's: added to the measured size; the row is centered inside it.</summary>
+    public Thickness Padding
+    {
+        get => _model.Padding;
+        set => SetPadding(value);
+    }
+
+    /// <summary>Sets <see cref="Padding"/>.</summary>
+    public SkUiCoreIndicatorView SetPadding(Thickness value)
+    {
+        SkUiValidate.ThrowIfNotThickness(value, nameof(value));
+        if (SetProperty(ref _model.Padding, value, nameof(Padding)))
+            InvalidateMeasure();
+        return this;
+    }
+
     /// <summary>Sets <see cref="Orientation"/>.</summary>
     public SkUiCoreIndicatorView SetOrientation(StackOrientation value)
     {

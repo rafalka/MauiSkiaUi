@@ -68,7 +68,7 @@ core.SetStrokeShape(new SkUiCoreEllipse()).SetStroke(Colors.Teal).SetStrokeThick
 
 ## Key properties
 
-`StrokeShape`, `Stroke` (`Brush`), `StrokeThickness` (1), `StrokeDashArray`, `StrokeDashOffset`, `StrokeLineCap`, `StrokeLineJoin`, `StrokeMiterLimit`, `CornerRadius` (shorthand, without a `StrokeShape`), plus ContentView `Content` / `Padding`.
+`StrokeShape`, `Stroke` (`Brush`), `StrokeThickness` (1), `StrokeDashArray` (and MAUI's read-only `StrokeDashPattern`), `StrokeDashOffset`, `StrokeLineCap`, `StrokeLineJoin`, `StrokeMiterLimit`, `CornerRadius` (shorthand, without a `StrokeShape`), plus ContentView `Content` / `Padding`.
 
 ## Differences from MAUI Border
 

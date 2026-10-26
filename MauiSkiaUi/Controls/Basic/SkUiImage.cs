@@ -128,8 +128,26 @@ public class SkUiImage : SkUiView
     public double DownsampleHeight { get => (double)GetValue(DownsampleHeightProperty); set => SetValue(DownsampleHeightProperty, value); }
     /// <summary>Current asynchronous load, including error-state publication.</summary>
     public Task LoadingTask => Slot.LoadingTask;
+    private static readonly BindablePropertyKey IsLoadingPropertyKey =
+        BindableProperty.CreateReadOnly(nameof(IsLoading), typeof(bool), typeof(SkUiImage), false);
+
+    /// <summary>Read-only bindable <see cref="IsLoading"/>, as MAUI's, for triggers and bindings.</summary>
+    public static readonly BindableProperty IsLoadingProperty = IsLoadingPropertyKey.BindableProperty;
+
     /// <summary>Whether the current source is loading.</summary>
     public bool IsLoading => Slot.IsLoading;
+
+    /// <summary>Bindable <see cref="IsOpaque"/>.</summary>
+    public static readonly BindableProperty IsOpaqueProperty = BindableProperty.Create(nameof(IsOpaque), typeof(bool), typeof(SkUiImage), false);
+
+    /// <summary>
+    /// MAUI's hint that the image has no transparent pixels, which its handlers pass to the platform image view. Accepted
+    /// for MAUI markup; drawn images composite the same either way.
+    /// </summary>
+    public bool IsOpaque { get => (bool)GetValue(IsOpaqueProperty); set => SetValue(IsOpaqueProperty, value); }
+
+    /// <summary>Sets <see cref="IsOpaque"/>.</summary>
+    public SkUiImage SetIsOpaque(bool value) { IsOpaque = value; return this; }
     /// <summary>Last current-source error, or null on success.</summary>
     public Exception? LoadError => Slot.LoadError;
     /// <summary>
@@ -270,7 +288,8 @@ public class SkUiImage : SkUiView
 
     private void PublishState()
     {
-        OnPropertyChanged(nameof(IsLoading));
+        // Reports IsLoading when it changed.
+        SetValue(IsLoadingPropertyKey, Slot.IsLoading);
         OnPropertyChanged(nameof(LoadError));
         OnPropertyChanged(nameof(ImageSize));
         OnPropertyChanged(nameof(IsShowingPlaceholder));

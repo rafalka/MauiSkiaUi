@@ -79,8 +79,6 @@ public class MauiApiParityTests
         "SkUiScrollView", "SkUiSwipeItemView", "SkUiSwipeView", "SkUiVerticalStackLayout",
     ];
 
-    private static readonly string[] DrawnShapes = ["SkUiEllipse", "SkUiLine", "SkUiPath", "SkUiPolygon", "SkUiPolyline", "SkUiRectangle", "SkUiRoundRectangle"];
-
     /// <summary>Handler and bindable-property plumbing that MAUI does not hide, compared by member name on every type.</summary>
     private static readonly Dictionary<string, string> PlumbingEverywhere = new(StringComparer.Ordinal)
     {
@@ -133,13 +131,6 @@ public class MauiApiParityTests
 
     /// <summary>Gaps that 1.2 closes, keyed like <see cref="Excluded"/>, with the plan step.</summary>
     private static readonly Dictionary<string, string> Planned = Entries(
-        ("R4", [.. DrawnShapes, .. DrawnShapes.Select(shape => shape.Replace("SkUi", "SkUiCore")), "SkUiBorder", "SkUiCoreBorder"], ["StrokeDashPattern"]),
-        ("R4", ["SkUiImage", "SkUiImageButton"], ["IsOpaque", "IsOpaqueProperty", "IsLoadingProperty"]),
-        ("R4", ["SkUiButton", "SkUiImageButton"], ["IsPressedProperty"]),
-        ("R4", ["SkUiCarouselView"], ["IsDraggingProperty"]),
-        ("R4", ["SkUiIndicatorView", "SkUiRefreshView"], ["Padding", "PaddingProperty"]),
-        ("R4", ["SkUiCoreIndicatorView"], ["Padding"]),
-        ("R4", ["SkUiCollectionView"], ["UpdateSelectedItems"]),
         ("S1", SafeAreaViews, ["SafeAreaEdges", "SafeAreaEdgesProperty"]),
         ("S1", ["SkUiCoreAbsoluteLayout", "SkUiCoreBorder", "SkUiCoreContentView", "SkUiCoreGrid", "SkUiCoreHorizontalStackLayout", "SkUiCoreScrollView", "SkUiCoreVerticalStackLayout"],
             ["SafeAreaEdges"]),

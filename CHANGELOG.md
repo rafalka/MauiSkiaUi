@@ -20,6 +20,16 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `IsClippedToBounds` is the same property as `ClipToBounds`.
 - **`Switch.OffColor`** (MAUI 10) on `SkUiSwitch` and `SkUiCoreSwitch`: the track color while off, in every look. `null`, the default, keeps the color scheme's off track.
 - **`CheckBox.Command` / `CommandParameter`** (MAUI 10) on `SkUiCheckBox` and `SkUiCoreCheckBox`: the command runs when `IsChecked` changes, from a tap or from code, after `CheckedChanged`. While it cannot execute, the check box looks and acts disabled.
+- **MAUI's small members:**
+  - `StrokeDashPattern` (read-only) on shapes and borders, both layers.
+  - `IsOpaque` on `SkUiImage` and `SkUiImageButton`: accepted for MAUI markup, with no effect on drawing.
+  - `Padding` on `SkUiIndicatorView`, `SkUiCoreIndicatorView` and `SkUiRefreshView`.
+  - The read-only bindable properties MAUI triggers use: `IsPressedProperty` on `SkUiButton` and `SkUiImageButton`, `IsLoadingProperty` on images, `IsDraggingProperty` on `SkUiCarouselView`.
+  - `SkUiCollectionView.UpdateSelectedItems`: replaces the selection in one change.
+
+### Other
+
+- `SkUiImage` raises `PropertyChanged` for `IsLoading` only when it changes (it was raised with every load state update).
 
 ## 1.1.0
 

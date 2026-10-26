@@ -43,10 +43,10 @@ First, because the parity test then guards every later step. Size: S–M.
 - **R3 MAUI 10 members** (done).
   - `Switch.OffColor`: the track color while off, passed to the look's switch paint (`SkUiSwitchPaint.OffTrack`, so every look uses it); `null`, MAUI's default, keeps the color scheme's off track. Core: `SetOffColor`.
   - `CheckBox.Command` / `CommandParameter`: run when `IsChecked` changes (tap or code), after `CheckedChanged`, if the command can execute then. A command that cannot execute disables the check box, as in MAUI, through `CanReceiveTap` as on drawn buttons, so `IsEnabled` keeps its value. Core: `SetCommand`.
-- **R4 Small members.**
-  - `StrokeDashPattern`: read-only, from `StrokeDashArray`.
-  - `IsOpaque` on images: accepted, a hint only.
-  - `Padding` on the indicator and refresh views.
+- **R4 Small members** (done).
+  - `StrokeDashPattern`: read-only, from `StrokeDashArray`, a new `float[]` per read as in MAUI (`SkUiStrokeStyle.DashPattern`, also what painting uses). `float[]` on `SkUiBorder` too, where MAUI's is `float[]?`: it is never null.
+  - `IsOpaque` on images (and so image buttons): accepted, a hint only. Not on Core images.
+  - `Padding` on the indicator views (in the shared indicator model: measure, paint and hit test, on both layers) and on the refresh view (forwarded to its content part; the pull indicator keeps the whole view).
   - Read-only bindable properties for the state MAUI exposes to triggers and bindings: `IsPressedProperty` (buttons), `IsLoadingProperty` (images), `IsDraggingProperty` (carousel). Each is set once per change, never per frame. The scroll view's `ScrollX` / `ScrollY` / `ContentSize` stay CLR properties, because a bindable property would cost a `SetValue` per scroll frame.
   - `CollectionView.UpdateSelectedItems(IList<object>)`: replaces the selection in one change.
   - `SwipeView.OpenRequested` / `CloseRequested` and the carousel's `AnimateCurrentItemChanges` / `AnimatePositionChanges` are handler plumbing that MAUI hides (`EditorBrowsable(Never)`), so they stay out. `Open` / `Close` and `IsScrollAnimated` are already drawn.

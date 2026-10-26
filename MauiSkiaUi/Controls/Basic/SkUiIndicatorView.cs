@@ -106,10 +106,26 @@ public class SkUiIndicatorView : SkUiView
         validateValue: SkUiValidate.Finite,
         propertyChanged: (view, _, value) => ((SkUiIndicatorView)view).OnSizeChanged(model => model.Spacing = (double)value));
 
+    /// <summary>Bindable property for <see cref="Padding"/>.</summary>
+    public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiIndicatorView), default(Thickness),
+        validateValue: SkUiValidate.OptionalThickness,
+        propertyChanged: (view, _, value) => ((SkUiIndicatorView)view).OnSizeChanged(model => model.Padding = (Thickness)value));
+
     /// <summary>Bindable property for <see cref="Orientation"/>.</summary>
     public static readonly BindableProperty OrientationProperty = BindableProperty.Create(nameof(Orientation), typeof(StackOrientation), typeof(SkUiIndicatorView), StackOrientation.Horizontal,
         validateValue: (_, value) => Enum.IsDefined((StackOrientation)value),
         propertyChanged: (view, _, value) => ((SkUiIndicatorView)view).OnSizeChanged(model => model.Orientation = (StackOrientation)value));
+
+    /// <summary>Space around the indicators, as MAUI's: added to the measured size; the row is centered inside it.</summary>
+    public Thickness Padding { get => (Thickness)GetValue(PaddingProperty); set => SetValue(PaddingProperty, value); }
+
+    /// <summary>Sets <see cref="Padding"/>.</summary>
+    public SkUiIndicatorView SetPadding(Thickness value)
+    {
+        SkUiValidate.ThrowIfNotThickness(value, nameof(value));
+        Padding = value;
+        return this;
+    }
 
     /// <summary>
     /// The selected item (0 = the first; default 0). A tap on an indicator sets it; a linked carousel keeps it at its position.

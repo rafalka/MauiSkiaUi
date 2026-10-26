@@ -93,6 +93,12 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
         },
         propertyChanged: (bindable, _, newValue) => ((SkUiRefreshView)bindable).OnContentChanged((ISkUiView?)newValue));
 
+    /// <summary>Bindable <see cref="Padding"/>.</summary>
+    public static readonly BindableProperty PaddingProperty = BindableProperty.Create(nameof(Padding), typeof(Thickness), typeof(SkUiRefreshView), default(Thickness),
+        validateValue: SkUiValidate.OptionalThickness,
+        // The content part exists already: field initializers run before an implicit style applies.
+        propertyChanged: (bindable, _, value) => ((SkUiRefreshView)bindable)._contentPart.Padding = (Thickness)value);
+
     /// <summary>Bindable <see cref="IsRefreshing"/> (two-way by default: a pull sets it).</summary>
     public static readonly BindableProperty IsRefreshingProperty = BindableProperty.Create(
         nameof(IsRefreshing), typeof(bool), typeof(SkUiRefreshView), false, BindingMode.TwoWay,
@@ -162,6 +168,17 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     {
         get => (ISkUiView?)GetValue(ContentProperty);
         set => SetValue(ContentProperty, value);
+    }
+
+    /// <summary>Space around the content, as MAUI's; the pull indicator still spans the whole view.</summary>
+    public Thickness Padding { get => (Thickness)GetValue(PaddingProperty); set => SetValue(PaddingProperty, value); }
+
+    /// <summary>Sets <see cref="Padding"/>.</summary>
+    public SkUiRefreshView SetPadding(Thickness value)
+    {
+        SkUiValidate.ThrowIfNotThickness(value, nameof(value));
+        Padding = value;
+        return this;
     }
 
     /// <summary>

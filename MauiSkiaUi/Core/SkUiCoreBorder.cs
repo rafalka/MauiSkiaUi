@@ -57,6 +57,8 @@ public class SkUiCoreBorder : SkUiCoreContentView
 
     /// <summary>Dashes and gaps of the outline, in multiples of <see cref="StrokeThickness"/> (empty: solid).</summary>
     public IReadOnlyList<double> StrokeDashArray { get => _strokeDashArray; set => SetStrokeDashArray([.. value]); }
+    /// <summary>MAUI's <c>StrokeDashPattern</c>: <see cref="StrokeDashArray"/> as a new float array on every read (empty: solid).</summary>
+    public float[] StrokeDashPattern => SkUiStrokeStyle.DashPattern(_strokeDashArray);
 
     /// <summary>Where the dash pattern starts, in multiples of <see cref="StrokeThickness"/>.</summary>
     public double StrokeDashOffset { get => _strokeDashOffset; set => SetStrokeDashOffset(value); }
@@ -249,7 +251,7 @@ public class SkUiCoreBorder : SkUiCoreContentView
     {
         if (_strokeThickness > 0 && SkUiShapePainter.IsVisible(_stroke))
         {
-            float[]? dashes = _strokeDashArray.Length == 0 ? null : Array.ConvertAll(_strokeDashArray, value => (float)value);
+            var dashes = _strokeDashArray.Length == 0 ? null : SkUiStrokeStyle.DashPattern(_strokeDashArray);
             SkUiShapePainter.Stroke(canvas, Outline(), _stroke, new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
                 new SkUiStrokeStyle(_strokeThickness, dashes, _strokeDashOffset, _strokeLineCap, _strokeLineJoin, _strokeMiterLimit));
         }

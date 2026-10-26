@@ -156,7 +156,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         IsPressed = value;
         if (_showsPressEffect || _pressEffect is not null)
             (_pressEffect ??= new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
-        OnPropertyChanged(nameof(IsPressed));
+        RaiseIsPressedChanged();
         OnPressedChanged();
         ChangeVisualState();
         InvalidatePaint();
@@ -210,6 +210,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     /// <summary>Enabled for visual states, input and the enabled look: <see cref="VisualElement.IsEnabled"/> and <see cref="CanReceiveTap"/>.</summary>
     private protected bool IsVisualStateEnabled => IsEnabled && CanReceiveTap;
+
+    /// <summary>Reports <see cref="IsPressed"/>; buttons set their read-only bindable property instead, which reports it.</summary>
+    private protected virtual void RaiseIsPressedChanged() => OnPropertyChanged(nameof(IsPressed));
 
     /// <summary>Updates intrinsic control feedback when the shared pointer state changes.</summary>
     protected virtual void OnPressedChanged() { }

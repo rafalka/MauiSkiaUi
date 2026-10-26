@@ -33,6 +33,8 @@ public abstract class SkUiCoreShape : SkUiCoreNode, IShape, ISkUiShapeOutline
     public double StrokeThickness { get => _strokeThickness; set => SetStrokeThickness(value); }
     /// <summary>Dashes and gaps of the outline, in multiples of <see cref="StrokeThickness"/> (empty: solid).</summary>
     public IReadOnlyList<double> StrokeDashArray { get => _strokeDashArray; set => SetStrokeDashArray([.. value]); }
+    /// <summary>MAUI's <c>StrokeDashPattern</c>: <see cref="StrokeDashArray"/> as a new float array on every read (empty: solid).</summary>
+    public float[] StrokeDashPattern => SkUiStrokeStyle.DashPattern(_strokeDashArray);
     /// <summary>Where the dash pattern starts, in multiples of <see cref="StrokeThickness"/>.</summary>
     public double StrokeDashOffset { get => _strokeDashOffset; set => SetStrokeDashOffset(value); }
     /// <summary>The caps at the ends of open figures and dashes (<see cref="LineCap.Butt"/>: MAUI's <c>Flat</c>).</summary>
@@ -171,7 +173,7 @@ public abstract class SkUiCoreShape : SkUiCoreNode, IShape, ISkUiShapeOutline
 
     private SkUiStrokeStyle StrokeStyle()
     {
-        float[]? dashes = _strokeDashArray.Length == 0 ? null : Array.ConvertAll(_strokeDashArray, value => (float)value);
+        var dashes = _strokeDashArray.Length == 0 ? null : SkUiStrokeStyle.DashPattern(_strokeDashArray);
         return new SkUiStrokeStyle(_strokeThickness, dashes, _strokeDashOffset, _strokeLineCap, _strokeLineJoin, _strokeMiterLimit);
     }
 

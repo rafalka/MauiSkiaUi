@@ -17,6 +17,14 @@ public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDra
     private Thickness _padding;
     private Color? _disabledFillColor;
 
+    private static readonly BindablePropertyKey IsPressedPropertyKey =
+        BindableProperty.CreateReadOnly(nameof(IsPressed), typeof(bool), typeof(SkUiImageButton), false);
+
+    /// <summary>
+    /// Read-only bindable <see cref="SkUiView.IsPressed"/>, as MAUI's, for triggers and bindings: set once per press and release.
+    /// </summary>
+    public static readonly BindableProperty IsPressedProperty = IsPressedPropertyKey.BindableProperty;
+
     /// <summary>Bindable command executed on a valid release.</summary>
     public static readonly BindableProperty CommandProperty = BindableProperty.Create(nameof(Command), typeof(ICommand), typeof(SkUiImageButton), null,
         propertyChanged: (view, _, value) => ((SkUiImageButton)view).OnCommandChanged((ICommand?)value));
@@ -140,6 +148,8 @@ public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDra
     protected override bool HandlesTap => true;
     /// <inheritdoc />
     protected override bool CanReceiveTap => _command?.CanExecute(_commandParameter) ?? true;
+    private protected override void RaiseIsPressedChanged() => SetValue(IsPressedPropertyKey, IsPressed);
+
     /// <inheritdoc />
     protected override void OnPressedChanged()
     {

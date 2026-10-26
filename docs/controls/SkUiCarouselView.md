@@ -117,7 +117,7 @@ From MAUI: change `CarouselView` to `sk:SkUiCarouselView` and `IndicatorView` to
 | `Orientation` | `Horizontal` | `ItemsLayoutOrientation` |
 | `SnapPointsType` / `SnapPointsAlignment` | `MandatorySingle` / `Center` | MAUI's `LinearItemsLayout` settings |
 | `IsSwipeEnabled` / `IsBounceEnabled` / `IsScrollAnimated` | `true` | As MAUI's |
-| `IsDragging` / `IsScrolling` | — | Read-only |
+| `IsDragging` / `IsScrolling` | — | Read-only; `IsDraggingProperty` (MAUI's) for triggers, set when a drag starts and ends |
 | `ScrollPosition` | — | Fractional item at the snap point (SkiaUi) |
 | `ItemEffect` | `null` | `SkUiCoverFlowEffect`, `SkUiScaleEffect`, or your own (SkiaUi) |
 | `IndicatorView` | `null` | A linked `SkUiIndicatorView` |

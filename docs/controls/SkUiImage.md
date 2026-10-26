@@ -191,7 +191,8 @@ Animated GIF / WebP play on the view's UI clock while `IsAnimationPlaying` is tr
 | `MauiImage` lookup | The file Resizetizer generated for the display density; Android vector (XML) drawables are not decoded |
 | `FontImageSource.FontAutoScalingEnabled` | As MAUI's: the glyph follows the system text size (default `true`). The size is fixed when the source is set: after a change of the system text size or `SkUiLook.FontScale`, images already shown keep their size (labels re-measure); set the source again to draw the glyph at the new size |
 | Screen readers | An image is read only with `SemanticProperties.Description` (or `AutomationProperties.IsInAccessibleTree="True"`); an image button is a button named by its description |
-| `IsOpaque` | Not available (no effect on drawn images) |
+| `IsOpaque` | Accepted for MAUI markup; a hint for platform image views, so drawn images draw the same either way |
+| `IsLoading` | As MAUI's, also as the read-only `IsLoadingProperty` for triggers and bindings |
 | SVG at runtime | Not yet: an SVG `MauiImage` works (as the PNG generated at build time); drawing `.svg` files at runtime is planned ([roadmap](../design/Roadmap.md#new-controls-and-packages)) |
 | Size limits | 32 MiB encoded; decoded edge ≤ `MaxDecodeDimension` (2048 px) |
 | Disposal | Not needed (images are not `IDisposable`): a collected image releases its reference on the shared cache by itself; set `Source` to `null` (Core: `Clear()`) to release it at once |
