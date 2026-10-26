@@ -28,6 +28,21 @@ public class SkUiLayout : SkUiView, ILayout, IBindableLayout
     /// <summary>MAUI's name for <see cref="SkUiView.ClipToBounds"/>: the same property.</summary>
     public bool IsClippedToBounds { get => ClipToBounds; set => ClipToBounds = value; }
 
+    /// <summary>Bindable property for <see cref="SafeAreaEdges"/>.</summary>
+    public static readonly BindableProperty SafeAreaEdgesProperty = SafeAreaEdgesShared;
+
+    /// <summary>
+    /// Which edges keep clear of the window's bars, notch and soft keyboard (MAUI 10). Opt-in: the default is
+    /// <see cref="SafeAreaRegions.None"/>, edge to edge as in 1.x (MAUI's layouts default to <c>Container</c>: set
+    /// <c>SafeAreaEdges="Container"</c> for MAUI's behavior). Applied by a layout that is a surface of its own: it pads its
+    /// children by how far the window's insets reach into it on each such edge, as MAUI's layouts pad themselves. Layouts
+    /// inside a surface accept it and ignore it (their place in the window is the surface's).
+    /// </summary>
+    public SafeAreaEdges SafeAreaEdges { get => (SafeAreaEdges)GetValue(SafeAreaEdgesProperty); set => SetValue(SafeAreaEdgesProperty, value); }
+
+    /// <summary>Sets <see cref="SafeAreaEdges"/> (same as the property setter).</summary>
+    public SkUiLayout SetSafeAreaEdges(SafeAreaEdges value) { SafeAreaEdges = value; return this; }
+
     /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
     internal override bool IsSkeletonContainer => true;
 
@@ -49,6 +64,12 @@ public class SkUiLayout : SkUiView, ILayout, IBindableLayout
         Padding = value;
         return this;
     }
+
+    /// <summary>The padding the children are laid out in: <see cref="Padding"/>, plus the safe area's on a surface root (<see cref="SafeAreaEdges"/>).</summary>
+    private protected Thickness EffectivePadding => _padding + SafeAreaInset;
+
+    // MAUI's layout managers read the padding through IPadding.
+    Thickness IPadding.Padding => EffectivePadding;
 
     private void OnPaddingChanged(Thickness value)
     {
@@ -212,20 +233,22 @@ public class SkUiLayout : SkUiView, ILayout, IBindableLayout
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
+        var padding = EffectivePadding;
         var desired = Size.Zero;
         foreach (var child in Children)
         {
-            var size = child.Measure(Math.Max(0, widthConstraint - _padding.HorizontalThickness), Math.Max(0, heightConstraint - _padding.VerticalThickness));
+            var size = child.Measure(Math.Max(0, widthConstraint - padding.HorizontalThickness), Math.Max(0, heightConstraint - padding.VerticalThickness));
             desired = new Size(Math.Max(desired.Width, size.Width), Math.Max(desired.Height, size.Height));
         }
-        return new Size(desired.Width + _padding.HorizontalThickness, desired.Height + _padding.VerticalThickness);
+        return new Size(desired.Width + padding.HorizontalThickness, desired.Height + padding.VerticalThickness);
     }
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
+        var padding = EffectivePadding;
         foreach (var child in Children)
-            child.Arrange(new Rect(_padding.Left, _padding.Top, Math.Max(0, size.Width - _padding.HorizontalThickness), Math.Max(0, size.Height - _padding.VerticalThickness)));
+            child.Arrange(new Rect(padding.Left, padding.Top, Math.Max(0, size.Width - padding.HorizontalThickness), Math.Max(0, size.Height - padding.VerticalThickness)));
     }
 
     /// <inheritdoc />

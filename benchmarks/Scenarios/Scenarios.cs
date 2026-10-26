@@ -50,6 +50,7 @@ public static class Scenarios
         new SkeletonTax(active: false, skui: true),
         new ScrollFling(),
         new VirtualListFling(),
+        new CollectionSnapFling(),
         new Spinners(),
         new ToggleTransitions(),
         new ToggleTransitions(busy: true),
@@ -900,6 +901,49 @@ public sealed class VirtualListFling : BenchScenario
     {
         var scroll = (SkUiScrollView)root;
         return scroll.AnimateScrollTo(0, scroll.ContentSize.Height, MotionDuration + TimeSpan.FromSeconds(0.5));
+    };
+
+    private sealed class Row : SkUiButton
+    {
+        protected override void OnBindingContextChanged()
+        {
+            base.OnBindingContextChanged();
+            if (BindingContext is not int index)
+                return;
+            Text = $"Row {index:00000}";
+            HeightRequest = 40 + index % 3 * 12;
+        }
+    }
+}
+
+/// <summary>A long collection view with MAUI's items layout and snap points (1.2: V1, V4); snapping must cost nothing while it scrolls.</summary>
+public sealed class CollectionSnapFling : BenchScenario
+{
+    public override string Name => "collection-snap-fling";
+    public override string Description => "SkUiCollectionView over 10,000 rows of different heights with a LinearItemsLayout snapping to rows (none before 1.2); motion = animated scroll towards the end";
+
+    public override View Build()
+    {
+        var list = new SkUiCollectionView
+        {
+            Background = Colors.White,
+            ItemsSource = Enumerable.Range(0, 10_000).ToList(),
+            ItemTemplate = new DataTemplate(() => new Row())
+        };
+        // Baselines without ItemsLayout (before 1.2) scroll the same list without snap points.
+        TrySet(list, "ItemsLayout", new LinearItemsLayout(ItemsLayoutOrientation.Vertical)
+        {
+            ItemSpacing = 4,
+            SnapPointsType = SnapPointsType.Mandatory,
+            SnapPointsAlignment = SnapPointsAlignment.Start
+        });
+        return list;
+    }
+
+    public override Func<View, IDisposable?>? Motion => root =>
+    {
+        _ = ((SkUiCollectionView)root).ScrollToAsync(10_000 * 50, animated: true);
+        return null;
     };
 
     private sealed class Row : SkUiButton

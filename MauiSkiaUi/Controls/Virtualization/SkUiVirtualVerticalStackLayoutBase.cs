@@ -397,6 +397,13 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     internal bool AnchorsAtStart { get; set; }
 
     /// <summary>
+    /// Inserted, removed and moved items do not move the scroll offset: what shows moves with them instead of staying in
+    /// place (a collection view's <see cref="ItemsUpdatingScrollMode.KeepScrollOffset"/>). Items resized as they are measured
+    /// still keep what shows in place.
+    /// </summary>
+    internal bool KeepsScrollOffset { get; set; }
+
+    /// <summary>
     /// Room that must stay free before an item scrolled to (<see cref="ScrollToIndex"/>) besides the scroller's insets: a
     /// sticky group header over the list, as high as it is for that item. <c>null</c>: none.
     /// </summary>
@@ -879,7 +886,7 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     {
         if (_pinnedAnchor >= 0 && _pinnedAnchor < _sizes.Count)
             return (_pinnedAnchor, _sizes.OffsetOf(_pinnedAnchor));
-        if (_realized.Count == 0 || double.IsNaN(_cross))
+        if (KeepsScrollOffset || _realized.Count == 0 || double.IsNaN(_cross))
             return (-1, 0);
         var window = ComputeWindow();
         var top = window.Top - PadStart;
@@ -1488,7 +1495,14 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     /// request waits for it; a newer scroll or a touch cancels the task. Without a vertical scroller nothing happens.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is not an item, or <paramref name="position"/> is not defined.</exception>
-    public Task ScrollToIndex(int index, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true)
+    public Task ScrollToIndex(int index, ScrollToPosition position = ScrollToPosition.MakeVisible, bool animated = true) =>
+        ScrollToItemAt(index, position, animated, afterLayout: false);
+
+    /// <summary><see cref="ScrollToIndex(int, ScrollToPosition, bool)"/> once the scroller has laid out the items again (items that just changed).</summary>
+    internal Task ScrollToIndexAfterLayout(int index, ScrollToPosition position, bool animated) =>
+        ScrollToItemAt(index, position, animated, afterLayout: true);
+
+    private Task ScrollToItemAt(int index, ScrollToPosition position, bool animated, bool afterLayout)
     {
         if (!Enum.IsDefined(position))
             throw new ArgumentOutOfRangeException(nameof(position));
@@ -1504,7 +1518,7 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         // The item keeps its place on screen while items before it are measured, also on the way there.
         _pinnedAnchor = index;
         _pinTask = null;
-        var task = controller.ScrollToTargetAsync(() => OffsetOfItem(target, controller, index, position), animated);
+        var task = controller.ScrollToTargetAsync(() => OffsetOfItem(target, controller, index, position), animated, afterLayout);
         if (task.IsCompleted)
             _pinnedAnchor = -1;
         else
@@ -1517,7 +1531,49 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         if (index >= _sizes.Count)
             return new Point(controller.X, controller.Y);
         EnsureMeasured(index);
-        var origin = SkUiScrollController.GetContentBounds(scroller, this) ?? Rect.Zero;
+        return OffsetOfItem(SkUiScrollController.GetContentBounds(scroller, this) ?? Rect.Zero, controller, index, position);
+    }
+
+    /// <summary>The most snap points listed at once (a fling across a long list of small rows).</summary>
+    private const int MaxSnapPoints = 4096;
+
+    /// <summary>
+    /// Adds the scroller offsets at which the items reach the viewport's start, center or end (<paramref name="alignment"/>)
+    /// between <paramref name="from"/> and <paramref name="to"/> to <paramref name="points"/>: snap points of a list (MAUI's
+    /// items layout). Sizes are the measured ones, else estimated; nothing is realized or measured for it.
+    /// </summary>
+    internal void AddSnapOffsets(SkUiScrollView scroller, SnapPointsAlignment alignment, double from, double to, List<double> points)
+    {
+        if (_sizes.Count == 0 || SkUiScrollController.GetContentBounds(scroller, this) is not { } origin)
+            return;
+        var controller = ((ISkUiScrollHost)scroller).Scroller;
+        var viewport = _horizontal ? controller.Viewport.Width : controller.Viewport.Height;
+        // The items' range (item coordinates) that can line up with the viewport somewhere between the two offsets.
+        double low, high;
+        if (_horizontal && IsRightToLeft)
+            (low, high) = (origin.X + origin.Width - PadStart - to - viewport, origin.X + origin.Width - PadStart - from + viewport);
+        else
+        {
+            var start = (_horizontal ? origin.X : origin.Y) + PadStart;
+            (low, high) = (from - viewport - start, to + viewport - start);
+        }
+        var first = _sizes.IndexAt(Math.Max(0, low));
+        var last = Math.Min(_sizes.IndexAt(Math.Max(0, high)), first + MaxSnapPoints - 1);
+        var position = alignment switch
+        {
+            SnapPointsAlignment.Center => ScrollToPosition.Center,
+            SnapPointsAlignment.End => ScrollToPosition.End,
+            _ => ScrollToPosition.Start
+        };
+        for (var index = first; index <= last && index < _sizes.Count; index++)
+        {
+            var offset = OffsetOfItem(origin, controller, index, position);
+            points.Add(_horizontal ? offset.X : offset.Y);
+        }
+    }
+
+    private Point OffsetOfItem(Rect origin, SkUiScrollController controller, int index, ScrollToPosition position)
+    {
         // Room for what covers the start of the list besides the scroller's insets (a sticky group header).
         var extra = ScrollTargetInset?.Invoke(index) ?? 0;
         var start = PadStart + _sizes.OffsetOf(index) - extra;

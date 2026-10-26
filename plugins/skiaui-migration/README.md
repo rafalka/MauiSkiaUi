@@ -8,7 +8,7 @@ Agent skills that help an AI coding agent move .NET MAUI screens to SkiaUi's dra
 | `skiaui-migrate` | Converts a page, view or custom control: places the drawn surface, renames controls, wraps native-only controls, moves styles, converts gestures; checks the result with a XAML checker and a build |
 | `skiaui-look` | Checks that the drawn controls look like the app's MAUI controls on each platform with `SkUiLookComparisonPage`, reads its size report and screenshots, and writes or tunes the app's look until they match |
 
-Each includes a Python 3 script (standard library only): `audit_maui_app.py` writes the inventory, `look_report.py` summarizes comparison reports, `check_xaml.py` reports MAUI content that drawn trees do not run (native views, unsupported gesture recognizers, platform behaviors, effects, `BindableLayout` content that is not drawn, styles targeting MAUI types (keyed, and implicit ones the drawn replacements no longer get), lone drawn controls).
+Each includes a Python 3 script (standard library only): `audit_maui_app.py` writes the inventory, `look_report.py` summarizes comparison reports, `check_xaml.py` reports MAUI content that drawn trees do not run (native views, unsupported gesture recognizers, platform behaviors, effects, `BindableLayout` content that is not drawn, styles targeting MAUI types (keyed, and implicit ones the drawn replacements no longer get), lone drawn controls, ignored platform-specifics); with `--fix` it also rewrites `TemplateBinding`s, data headers and platform-specifics that have a drawn member.
 
 ## Install in Claude Code
 
@@ -35,7 +35,7 @@ python3 skills/skiaui-migrate/scripts/check_xaml.py --root path/to/app path/to/a
 python3 skills/skiaui-look/scripts/look_report.py ios.log android.log
 ```
 
-`check_xaml.py` exits with 1 when it finds errors, so it can also run in CI over converted folders.
+`check_xaml.py` exits with 1 when it finds errors, so it can also run in CI over converted folders. `--fix` rewrites the documented conversions in place (review the diff).
 
 ## Maintaining
 

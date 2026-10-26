@@ -31,6 +31,19 @@ public class SkUiContentView : SkUiView, ISkUiTemplatedContent
     /// <summary>MAUI's name for <see cref="SkUiView.ClipToBounds"/>: the same property.</summary>
     public bool IsClippedToBounds { get => ClipToBounds; set => ClipToBounds = value; }
 
+    /// <summary>Bindable property for <see cref="SafeAreaEdges"/>.</summary>
+    public static readonly BindableProperty SafeAreaEdgesProperty = SafeAreaEdgesShared;
+
+    /// <summary>
+    /// Which edges keep clear of the window's bars, notch and soft keyboard (MAUI 10; default <see cref="SafeAreaRegions.None"/>,
+    /// edge to edge, as MAUI's content views). Applied by a content view that is a surface of its own: it pads its content by
+    /// how far the window's insets reach into it on each such edge. Content views inside a surface accept it and ignore it.
+    /// </summary>
+    public SafeAreaEdges SafeAreaEdges { get => (SafeAreaEdges)GetValue(SafeAreaEdgesProperty); set => SetValue(SafeAreaEdgesProperty, value); }
+
+    /// <summary>Sets <see cref="SafeAreaEdges"/> (same as the property setter).</summary>
+    public SkUiContentView SetSafeAreaEdges(SafeAreaEdges value) { SafeAreaEdges = value; return this; }
+
     private ISkUiView? _content;
     private Thickness _padding;
     private bool _loaded = true;
@@ -478,7 +491,7 @@ public class SkUiContentView : SkUiView, ISkUiTemplatedContent
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        var inset = ContentInset;
+        var inset = ContentInset + SafeAreaInset;
         var size = LayoutChild?.Measure(Math.Max(0, widthConstraint - inset.HorizontalThickness), Math.Max(0, heightConstraint - inset.VerticalThickness)) ?? Size.Zero;
         return new Size(size.Width + inset.HorizontalThickness, size.Height + inset.VerticalThickness);
     }
@@ -486,7 +499,7 @@ public class SkUiContentView : SkUiView, ISkUiTemplatedContent
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
-        var inset = ContentInset;
+        var inset = ContentInset + SafeAreaInset;
         LayoutChild?.Arrange(new Rect(inset.Left, inset.Top,
             Math.Max(0, size.Width - inset.HorizontalThickness), Math.Max(0, size.Height - inset.VerticalThickness)));
     }

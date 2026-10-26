@@ -290,6 +290,9 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         InvalidateMeasureOverride();
     }
 
+    /// <summary>MAUI's scroll view reads <see cref="SafeAreaRegions.Default"/> (on iOS, the platform's content insets); drawn, it is edge to edge.</summary>
+    private protected override SafeAreaEdges DefaultSafeAreaEdges => SafeAreaEdges.Default;
+
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {

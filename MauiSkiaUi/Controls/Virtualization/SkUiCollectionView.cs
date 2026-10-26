@@ -59,6 +59,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     private DataTemplate? _itemTemplate;
     private bool _horizontal;
     private double _spanSpacing;
+    private SnapPointsAlignment _snapPointsAlignment;
     private bool _isEmpty;
     private int _firstVisible = -1;
     private int _lastVisible = -1;
@@ -376,6 +377,36 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         OnVisibleRowsChanged();
         UpdateStickyGroupHeader();
         CheckLoadMore();
+        if (ItemsUpdatingScrollMode == ItemsUpdatingScrollMode.KeepLastItemInView && Model.RowCount > 0)
+            _ = ItemsHost.ScrollToIndexAfterLayout(Model.RowCount - 1, ScrollToPosition.End, animated: !reset && IsShown);
+    }
+
+    /// <summary>Bindable property for <see cref="ItemsUpdatingScrollMode"/>.</summary>
+    public static readonly BindableProperty ItemsUpdatingScrollModeProperty = BindableProperty.Create(nameof(ItemsUpdatingScrollMode),
+        typeof(ItemsUpdatingScrollMode), typeof(SkUiCollectionView), ItemsUpdatingScrollMode.KeepItemsInView,
+        validateValue: (_, value) => Enum.IsDefined((ItemsUpdatingScrollMode)value),
+        propertyChanged: (view, _, value) =>
+            ((SkUiCollectionView)view).ItemsHost.KeepsScrollOffset = (ItemsUpdatingScrollMode)value == ItemsUpdatingScrollMode.KeepScrollOffset);
+
+    /// <summary>
+    /// What stays in view when items are added, removed or moved (MAUI's values):
+    /// <see cref="ItemsUpdatingScrollMode.KeepItemsInView"/> (default) the items that show stay in place (at the very start
+    /// of the list, items inserted before them push them along); <see cref="ItemsUpdatingScrollMode.KeepScrollOffset"/> the
+    /// scroll offset stays, and the items that show move with the change; <see cref="ItemsUpdatingScrollMode.KeepLastItemInView"/>
+    /// the list scrolls to its end after every change (a chat or a log), animated while it shows.
+    /// </summary>
+    public ItemsUpdatingScrollMode ItemsUpdatingScrollMode
+    {
+        get => (ItemsUpdatingScrollMode)GetValue(ItemsUpdatingScrollModeProperty);
+        set => SetValue(ItemsUpdatingScrollModeProperty, value);
+    }
+
+    /// <summary>Sets <see cref="ItemsUpdatingScrollMode"/> (same as the property setter).</summary>
+    public SkUiCollectionView SetItemsUpdatingScrollMode(ItemsUpdatingScrollMode value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        ItemsUpdatingScrollMode = value;
+        return this;
     }
 
     /// <summary>The visible rows changed: the visible items follow (headers and footers skipped).</summary>
@@ -467,6 +498,9 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         }
         if (LayoutSpan != Model.Span)
             ApplyStructure();
+        // Only an items layout the app set snaps; the list's own properties have no snap points.
+        Scroller.SnapPointsType = _appItemsLayout?.SnapPointsType ?? SnapPointsType.None;
+        _snapPointsAlignment = _appItemsLayout?.SnapPointsAlignment ?? SnapPointsAlignment.Start;
         ItemsHost.SetValue(SkUiVirtualVerticalStackLayoutBase.ItemSpacingProperty, LayoutItemSpacing);
         var spanSpacing = LayoutSpanSpacing;
         // Exact: an unchanged value keeps the measured sizes.
@@ -479,6 +513,9 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     /// <summary>The layout in use (tests).</summary>
     internal (bool Horizontal, int Span, double ItemSpacing, double SpanSpacing) LayoutInUse => (_horizontal, Model.Span, ItemsHost.ItemSpacing, _spanSpacing);
+
+    /// <summary>The snap points in use (tests).</summary>
+    internal (SnapPointsType Type, SnapPointsAlignment Alignment) SnapPointsInUse => (Scroller.SnapPointsType, _snapPointsAlignment);
 
     /// <summary>Items in a row: the grid layout's span, 1 for a linear layout, else <see cref="Span"/>.</summary>
     private int LayoutSpan => _appItemsLayout switch
@@ -540,8 +577,10 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// <see cref="GridItemsLayout"/> (<c>"VerticalGrid, 2"</c>), as a string or an element. Once set, it decides the list's
     /// orientation, span, the gap between rows and the gap between the items of a row, also as the layout object changes;
     /// <see cref="Orientation"/>, <see cref="Span"/>, <see cref="ItemSpacing"/> and <see cref="SpanSpacing"/> keep their values
-    /// and apply again only when it is cleared (setting both is reported once). Its snap points are not drawn yet. Not set
-    /// (default), it reads as a vertical list and those properties apply.
+    /// and apply again only when it is cleared (setting both is reported once). Its <c>SnapPointsType</c> and
+    /// <c>SnapPointsAlignment</c> decide where drags, flings and wheel scrolling end: on a row lined up with the viewport's
+    /// start, center or end, or at either end of the list. Not set (default), it reads as a vertical list with no snap points,
+    /// and those properties apply.
     /// </summary>
     public IItemsLayout ItemsLayout { get => (IItemsLayout)GetValue(ItemsLayoutProperty); set => SetValue(ItemsLayoutProperty, value); }
 

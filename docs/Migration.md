@@ -23,7 +23,7 @@ The property names are MAUI's: each drawn control has its MAUI counterpart's API
 
 ## MAUI parity at a glance
 
-Checked against .NET MAUI 10.0.110. Controls marked SkUi\* + Core exist on both layers. The [control pages](controls/README.md) list each control's differences; [Not available yet](#not-available-yet) has the gaps.
+Checked against .NET MAUI 10.0.120 (`MauiApiParityTests` compares every drawn control's public API with MAUI's). Controls marked SkUi\* + Core exist on both layers. The [control pages](controls/README.md) list each control's differences; [Not available yet](#not-available-yet) has the gaps.
 
 | MAUI | SkiaUi | Status |
 | --- | --- | --- |
@@ -50,10 +50,10 @@ Checked against .NET MAUI 10.0.110. Controls marked SkUi\* + Core exist on both 
 | Every view: `Shadow`, gradient `Background`, `Clip` | SkUi* + Core | Done (MAUI's `ImageBrush` is internal: an `SkUiImage` behind the content) |
 | Every view: `SemanticProperties`, focus, font scaling | SkUi* + Core | Done: TalkBack, VoiceOver, Narrator; keyboard focus and ring; `FontAutoScalingEnabled`; plus `IsTabStop` / `TabIndex` (gone from MAUI) |
 | Every view: `GestureRecognizers` | Arena gestures (`Tapped`, …) | Done: tap (any count, primary or secondary button), swipe, pan (one pointer), pinch and pointer recognizers run on drawn views; drag and drop is reported, not run |
-| CollectionView | `SkUiCollectionView`; `SkUiVirtualScrollView` for plain lists | Done but reordering and snap points: templates and selectors, variable sizes, single and multiple selection, `Selected` state, item taps, header / footer (also sticky), empty view, groups (also collapsible, sticky headers), grids, horizontal, load more, `RemainingItemsThreshold`, scroll to index / item / group, pull-to-refresh |
+| CollectionView | `SkUiCollectionView`; `SkUiVirtualScrollView` for plain lists | Done but reordering: MAUI's `ItemsLayout` (snap points included), `ItemSizingStrategy`, `ScrollTo`, `ItemsUpdatingScrollMode`, templates and selectors, variable sizes, single and multiple selection, `Selected` state, item taps, header / footer (also sticky), empty view, groups (also collapsible, sticky headers), grids, horizontal, load more, `RemainingItemsThreshold`, scroll to index / item / group, pull-to-refresh |
 | SwipeView | `SkUiSwipeView`, MAUI's `SwipeItems` / `SwipeItem`; `SkUiSwipeItemView` for `SwipeItemView` | Done; custom accessibility actions open |
 | RefreshView | `SkUiRefreshView`; pull-to-refresh also built into `SkUiCollectionView` | Done; screen-reader refresh action open |
-| CarouselView, IndicatorView | `SkUiCarouselView`; `SkUiIndicatorView` + Core | Done: the items layout as carousel properties; plus several items in view and item effects; `ItemsUpdatingScrollMode`, `VisibleViews` and `IndicatorTemplate` open |
+| CarouselView, IndicatorView | `SkUiCarouselView`; `SkUiIndicatorView` + Core | Done: `ItemsLayout` (or the items layout as carousel properties), `ItemsUpdatingScrollMode`, scroll bars, `IndicatorTemplate` (SkUi* only); plus several items in view and item effects; `VisibleViews` open |
 | Picker | `SkUiPicker` + Core | Done: drawn field, drawn list on the app's popup system (`ISkUiPopupPresenter`); plus placement, drawn rows, keyboard and type-ahead everywhere; `UpdateMode` on every platform |
 | DatePicker, TimePicker | `SkUiDatePicker`, `SkUiTimePicker` + Core; `SkUiDateTimePicker` | Done: drawn wheels on the app's popup system; plus wheel formats, ranges of times, steps, blackout days; a month calendar planned |
 | Stepper | `SkUiStepper` + Core | Done, plus stacked buttons (`Orientation`), texts in place of − / +, corner radius and outline, and typed values (`SkUiStepper<T>`) |
@@ -147,6 +147,7 @@ Rules:
 - **Only drawn views go inside a drawn tree.** A plain `Label` or `Entry` inside `SkUiGrid` throws "Only SkiaUi children are supported". Wrap native controls in `SkUiMauiContentView`.
 - **One surface per screen region.** Prefer one root for the page body (usually around the scroll view) over many small roots: each root is a platform view with its own GPU surface.
 - **Drawn scrolling beats native scrolling.** Put the `SkUiScrollView` inside the root, not the root inside a MAUI `ScrollView`. Drawn surfaces inside a native `ScrollView` work (gestures are coordinated), but the drawn scroller is what keeps scrolling smooth.
+- **The safe area is opt-in on the root** (MAUI 10's `SafeAreaEdges`). Every drawn root goes edge to edge by default (`None`), unlike MAUI's layouts, which default to `Container`. A page whose MAUI `Grid` kept its content out of the status bar and notch keeps doing so once drawn with `SafeAreaEdges="Container"` on the drawn layout root: it pads its children by how far the window's bars, notch and home indicator reach into it. `SoftInput` keeps the bottom clear of the keyboard too, `All` both. Drawn views inside the surface accept `SafeAreaEdges` and ignore it: pad them yourself, or make the region a root of its own.
 - **Native islands sit on top.** `SkUiMauiContentView` places the real control above the surface, so drawn content (a drawn dropdown or popover) cannot cover it. While its scroller moves, it is drawn from a snapshot on Android and Windows ([SkUiMauiContentView.md](controls/SkUiMauiContentView.md)).
 
 ## Converting a page, step by step
@@ -348,7 +349,7 @@ Custom handlers registered for MAUI types (`Label`, `Button`, …) do not affect
 </ControlTemplate>
 ```
 
-- `{TemplateBinding X}` and `{Binding X, Source={RelativeSource TemplatedParent}}` both become `{Binding X, Source={RelativeSource AncestorType={x:Type local:CardView}}}`, naming the templated control's type (`local:CardView` here, which now derives from `SkUiContentView`). Keep `Mode`, `Converter` and `StringFormat`.
+- `{TemplateBinding X}` and `{Binding X, Source={RelativeSource TemplatedParent}}` both become `{Binding X, Source={RelativeSource AncestorType={x:Type local:CardView}}}`, naming the templated control's type (`local:CardView` here, which now derives from `SkUiContentView`). Keep `Mode`, `Converter` and `StringFormat`. `check_xaml.py --fix` rewrites them when it finds the type (the template's `TargetType`, its style's, or the control whose `ControlTemplate` it is).
 - This is a compiled binding (XAML source generator, or XamlC with `x:DataType` in scope): no reflection, safe for trimming and NativeAOT. A custom markup extension imitating `TemplateBinding` could not be compiled.
 - The template root inherits the control's binding context (MAUI's does not), so `{Binding X}` inside the template reaches the view model directly.
 - The template is created when the content loads: with `ContentLoading="WhenShown"`, only once shown. Details: [SkUiContentView.md](controls/SkUiContentView.md#controltemplate).
@@ -387,10 +388,11 @@ Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and 
 - `ItemsSource`, `ItemTemplate` (or a selector), `SelectedItem`, `SelectedItems`, `SelectionChangedCommand` (+ parameter), `EmptyView`, `IsGrouped`, `GroupHeaderTemplate`, `GroupFooterTemplate`, `RemainingItemsThreshold` (+ event, command): same names. The templates and the empty view create drawn views; a grouped source has MAUI's shape (each group the list of its items).
 - `SelectionMode="Single"` / `"Multiple"`: same; `SkUiSelectionMode.SingleDeselect` clears the selection when the selected item is tapped again. `SelectionChanged` gets `SkUiSelectionChangedEventArgs` (`PreviousSelection` / `CurrentSelection`, plus `PreviousItem` / `CurrentItem`), and `SelectionChanging` can cancel a tap's change; `SelectAll()` / `ClearSelection()`.
 - The `Selected` visual state on the item's root works as in MAUI; by default the selected item also gets a light accent background (`SelectionBackground="Transparent"` turns it off).
-- `Header` / `Footer` / `EmptyView`: a drawn view, or text in XAML as on MAUI (`Header="Contacts"` shows a label; the empty view's is centered). Data with a template converts: drop `Header="{Binding Info}"` and bind the template through the list's context (`{Binding Info.Title}` instead of `{Binding Title}`), since `HeaderTemplate` / `FooterTemplate` / `EmptyViewTemplate` take the list's binding context. `IsStickyHeader` / `IsStickyFooter` keep them in place over the list (the items scroll behind them, uncovered at the start and the end).
-- `ItemsLayout` as on MAUI (`"VerticalGrid, 2"`, `LinearItemsLayout` / `GridItemsLayout` elements): it decides the orientation, span and spacings. Without it, the list's own `Orientation`, `Span`, `ItemSpacing` (between rows) and `SpanSpacing` (within a row) give them; use one or the other. Its snap points are not drawn yet. `ItemSizingStrategy="MeasureFirstItem"` as on MAUI (or a fixed `ItemExtent`).
+- `Header` / `Footer` / `EmptyView`: a drawn view, or text in XAML as on MAUI (`Header="Contacts"` shows a label; the empty view's is centered). Data with a template converts: drop `Header="{Binding Info}"` and bind the template through the list's context (`{Binding Info.Title}` instead of `{Binding Title}`; `check_xaml.py --fix` rewrites an inline template), since `HeaderTemplate` / `FooterTemplate` / `EmptyViewTemplate` take the list's binding context. `IsStickyHeader` / `IsStickyFooter` keep them in place over the list (the items scroll behind them, uncovered at the start and the end).
+- `ItemsLayout` as on MAUI (`"VerticalGrid, 2"`, `LinearItemsLayout` / `GridItemsLayout` elements): it decides the orientation, span and spacings. Without it, the list's own `Orientation`, `Span`, `ItemSpacing` (between rows) and `SpanSpacing` (within a row) give them; use one or the other. Its `SnapPointsType` / `SnapPointsAlignment` work as on MAUI: drags, flings and the wheel end on a row lined up with the start, center or end (or at either end of the list, so a header stays reachable). `ItemSizingStrategy="MeasureFirstItem"` as on MAUI (or a fixed `ItemExtent`).
 - Groups can collapse (`AllowGroupExpandCollapse`, `ExpandGroup` / `CollapseGroup`) and keep their header at the start (`IsStickyGroupHeader`): SkiaUi additions.
 - A "Load more" footer built by hand → `LoadMoreMode` (`Manual`, `Auto`, `AutoOnUserScroll`), `LoadMoreCommand`, `IsLoadMoreActive`, at the end or the start (`LoadMorePosition`).
+- `ItemsUpdatingScrollMode` as on MAUI: `KeepItemsInView` (default; the items that show stay in place when items are added before them), `KeepScrollOffset`, `KeepLastItemInView` (a chat or a log: the list scrolls to its end after each change).
 - MAUI's `ScrollTo(index, groupIndex, position, animate)` / `ScrollTo(item, group, position, animate)` and `ScrollToRequested` as on MAUI; the awaitable `ScrollToIndex` / `ScrollToItem` / `ScrollToGroup` complete when the scroll ends. `Scrolled` reports `ScrollX` / `ScrollY`, and `FirstVisibleIndex` / `LastVisibleIndex` / `VisibleRangeChanged` give the visible items.
 - **C# that names MAUI's types** needs these changes. XAML does not, but a handler wired in XAML has to take SkiaUi's argument type:
   - `Scrolled` passes MAUI's `ScrolledEventArgs`, not `ItemsViewScrolledEventArgs`: `VerticalOffset` / `HorizontalOffset` → `ScrollY` / `ScrollX`; `FirstVisibleItemIndex` / `LastVisibleItemIndex` → the list's `FirstVisibleIndex` / `LastVisibleIndex`, or `VisibleRangeChanged`, which is raised only when they change; `VerticalDelta` / `HorizontalDelta` → the difference from the offset of the previous event; `CenterItemIndex` → from the visible range.
@@ -403,7 +405,7 @@ Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and 
 - `SwipeView` rows → `SkUiSwipeView` in the item template ([SkUiSwipeView.md](controls/SkUiSwipeView.md)): rows swipe horizontally while the list scrolls vertically, a scroll closes an open row, and a recycled row shows closed.
 - The list needs a bounded size along its axis: in a stack layout or a `ScrollView` of the same axis it would create every item (as a native `CollectionView` there would).
 
-Not available: reordering (`CanReorderItems`) and snap points on the items layout; keep those lists native. Plain lists can also use the lighter `SkUiVirtualScrollView` ([SkUiVirtualVerticalStackLayout.md](controls/SkUiVirtualVerticalStackLayout.md)).
+Not available: reordering (`CanReorderItems`, planned for 1.3); keep those lists native. Plain lists can also use the lighter `SkUiVirtualScrollView` ([SkUiVirtualVerticalStackLayout.md](controls/SkUiVirtualVerticalStackLayout.md)).
 
 ## Carousels (`CarouselView`, `IndicatorView`)
 
@@ -413,7 +415,9 @@ Not available: reordering (`CanReorderItems`) and snap points on the items layou
 - `ItemsLayout` as on MAUI (`"HorizontalList"`, `"VerticalList"`, a `LinearItemsLayout` element): it decides the orientation, spacing and snap points. Without it, the carousel's own `Orientation`, `ItemSpacing`, `SnapPointsType` and `SnapPointsAlignment` give them (the defaults are MAUI's carousel defaults: horizontal, `MandatorySingle`, `Center`); use one or the other. A text `EmptyView` shows as on MAUI; data converts as on the collection view.
 - Same: `ItemsSource`, `Position` and `CurrentItem` (two-way, with their events, commands and MAUI's argument types), `Loop` (default `true`), `PeekAreaInsets`, `IsSwipeEnabled`, `IsBounceEnabled`, `IsScrollAnimated`, `IsDragging`, `RemainingItemsThreshold` (+ event, command), `Scrolled`, `ScrollTo`, the `CurrentItem` / `NextItem` / `PreviousItem` / `DefaultItem` visual states.
 - `ScrollTo(index, …)` and `ScrollToRequested` as on MAUI; also awaitable as `ScrollToIndex(index, animated)` / `ScrollToItem(item, animated)`.
-- Not available: `ItemsUpdatingScrollMode` (the current item is always kept), `VisibleViews`, `IndicatorTemplate` (draw other indicators through the look: `IndicatorPainter`, `DefaultSkUiLook.IndicatorStyle`).
+- `ItemsUpdatingScrollMode`: `KeepItemsInView` (default) keeps the current item current wherever it moves (MAUI's handlers go back to the first item instead), `KeepScrollOffset` keeps `Position`, `KeepLastItemInView` moves to the last item. `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility` as on MAUI; `Default` shows none, and a looping carousel never does.
+- `IndicatorTemplate` as on MAUI: a drawn view per indicator (the template must create drawn views), bound to its item, with the indicator colors as backgrounds and the `Selected` visual state on the current one. Drawing the indicators through the look (`IndicatorPainter`, `DefaultSkUiLook.IndicatorStyle`) stays the cheaper path, and its selection follows the scrolling.
+- Not available: `VisibleViews` (use `GetRealizedView(index)` or `Scrolled`).
 - New: several cards in view (`ItemExtent`), item effects drawn by the compositor (`ItemEffect`: `SkUiCoverFlowEffect`, `SkUiScaleEffect`), `ScrollPosition`; on the indicator `IndicatorSpacing` and `Orientation`.
 
 ## Pickers (`Picker`)
@@ -497,13 +501,24 @@ Styles now apply to everything the toolkit's constructor set (padding, stroke, s
 
 | MAUI | Status | Meanwhile |
 | --- | --- | --- |
-| `CollectionView`: reordering (`CanReorderItems`), snap points on the items layout | Not available | Keep the MAUI `CollectionView` with native item templates (outside the drawn region); everything else ports ([Lists](#lists-collectionview)) |
+| `CollectionView`: reordering (`CanReorderItems`) | Planned for 1.3 | Keep the MAUI `CollectionView` with native item templates (outside the drawn region); everything else ports ([Lists](#lists-collectionview)) |
 | Drag and drop, context flyouts | Not planned | Keep native |
 | `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists), `SkUiBorder` |
 | Shell, pages, navigation | Out of scope | Stay MAUI |
 | Third-party controls (charts, calendars, data grids, signature pads) | Native | Host in `SkUiMauiContentView`, or keep them outside the surface |
 
-Swipe, pan and pinch *recognizers* may later run on drawn views like taps do ([roadmap](design/Roadmap.md#maui-parity)); until then use the gesture events above.
+## Platform-specifics
+
+Platform-specifics (`ios:`, `android:`, `windows:` attached properties) compile on drawn controls and are ignored. The ones with a drawn member convert, and `check_xaml.py --fix` rewrites them inside `OnPlatform`, so they still apply on that platform only:
+
+| Platform-specific | Drawn member |
+| --- | --- |
+| iOS `Entry.CursorColor` | `CaretColor` (every text field) |
+| Android `Entry.ImeOptions` (`Done`, `Go`, `Next`, `Search`, `Send`) | `ReturnType` |
+| iOS `Picker.UpdateMode`, `DatePicker.UpdateMode`, `TimePicker.UpdateMode` | `UpdateMode` (every picker, every platform) |
+| iOS `Entry.AdjustsFontSizeToFitWidth` | None: the drawn entry does not shrink its text |
+
+The checker reports the others as ignored. Drawn meanings of some of them (a tap on a slider's track, swipe transition modes) are in the [roadmap's backlog](design/Roadmap.md#backlog-1x).
 
 ## Checklist
 

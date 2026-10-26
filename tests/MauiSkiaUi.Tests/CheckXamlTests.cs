@@ -93,12 +93,11 @@ public class CheckXamlTests
             var (exitCode, output) = Run(project.FullName);
             Assert.Equal(1, exitCode);
             var lines = output.Split('\n');
-            var errors = lines.Where(line => line.Contains("error:")).ToArray();
-            Assert.Equal(3, errors.Length); // the carousel's ItemsLayout ports as is
-            Assert.Contains(errors, error => error.Contains("ItemsUpdatingScrollMode"));
-            Assert.Contains(errors, error => error.Contains("IndicatorTemplate"));
-            // The native carousel inside the drawn tree: the drawn one replaces it.
-            Assert.Contains(errors, error => error.Contains("Page.xaml:10:") && error.Contains("SkUiCarouselView"));
+            // ItemsLayout, ItemsUpdatingScrollMode and IndicatorTemplate port as they are (1.2): only the native carousel
+            // inside the drawn tree is reported, and the drawn one replaces it.
+            var error = Assert.Single(lines, line => line.Contains("error:"));
+            Assert.Contains("Page.xaml:10:", error);
+            Assert.Contains("SkUiCarouselView", error);
         }
         finally
         {
@@ -297,10 +296,138 @@ public class CheckXamlTests
         }
     }
 
-    private static (int ExitCode, string Output) Run(string project)
+    [Fact]
+    public void FixRewritesTemplateBindingsOfDrawnControls()
+    {
+        var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
+        try
+        {
+            File.WriteAllText(Path.Combine(project.FullName, "CardView.cs"), "public class CardView : SkUiContentView { }");
+            var page = Path.Combine(project.FullName, "Page.xaml");
+            File.WriteAllText(page, """
+                <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+                             xmlns:local="clr-namespace:App">
+                  <ContentPage.Resources>
+                    <Style TargetType="local:CardView">
+                      <Setter Property="ControlTemplate">
+                        <ControlTemplate>
+                          <sk:SkUiBorder Stroke="{TemplateBinding BorderColor}">
+                            <sk:SkUiLabel Text="{Binding Title, Source={RelativeSource TemplatedParent}, StringFormat='{0}!'}" />
+                          </sk:SkUiBorder>
+                        </ControlTemplate>
+                      </Setter>
+                    </Style>
+                    <ControlTemplate x:Key="Native" TargetType="ContentView">
+                      <Label Text="{TemplateBinding Title}" />
+                    </ControlTemplate>
+                  </ContentPage.Resources>
+                  <sk:SkUiVerticalStackLayout>
+                    <local:CardView Title="Hello" />
+                  </sk:SkUiVerticalStackLayout>
+                </ContentPage>
+                """);
+            var (exitCode, output) = Run(project.FullName, "--fix");
+            Assert.Equal(0, exitCode);
+            Assert.Equal(2, output.Split('\n').Count(line => line.Contains("fixed:")));
+            var fixedXaml = File.ReadAllText(page);
+            Assert.Contains("Stroke=\"{Binding BorderColor, Source={RelativeSource AncestorType={x:Type local:CardView}}}\"", fixedXaml);
+            Assert.Contains("Text=\"{Binding Title, Source={RelativeSource AncestorType={x:Type local:CardView}}, StringFormat='{0}!'}\"", fixedXaml);
+            Assert.Contains("""<Label Text="{TemplateBinding Title}" />""", fixedXaml); // a native control's template: MAUI resolves it
+            Assert.Equal(0, Run(project.FullName).ExitCode); // nothing left to report
+        }
+        finally
+        {
+            project.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void FixBindsADataHeadersTemplateThroughTheListsContext()
+    {
+        var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
+        try
+        {
+            var page = Path.Combine(project.FullName, "Page.xaml");
+            File.WriteAllText(page, """
+                <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
+                  <sk:SkUiCollectionView ItemsSource="{Binding Monkeys}"
+                                         Header="{Binding Info}">
+                    <sk:SkUiCollectionView.HeaderTemplate>
+                      <DataTemplate>
+                        <sk:SkUiVerticalStackLayout BindableLayout.ItemsSource="{Binding Tags}">
+                          <sk:SkUiLabel Text="{Binding Title}" TextColor="{Binding Color, Source={StaticResource Theme}}" />
+                          <sk:SkUiLabel Text="{Binding}" />
+                          <BindableLayout.ItemTemplate>
+                            <DataTemplate><sk:SkUiLabel Text="{Binding Name}" /></DataTemplate>
+                          </BindableLayout.ItemTemplate>
+                        </sk:SkUiVerticalStackLayout>
+                      </DataTemplate>
+                    </sk:SkUiCollectionView.HeaderTemplate>
+                  </sk:SkUiCollectionView>
+                </ContentPage>
+                """);
+            var (_, output) = Run(project.FullName, "--fix");
+            Assert.Contains(output.Split('\n'), line => line.Contains("fixed:") && line.Contains("3 binding(s)"));
+            var fixedXaml = File.ReadAllText(page);
+            Assert.DoesNotContain("Header=", fixedXaml);
+            Assert.Contains("BindableLayout.ItemsSource=\"{Binding Info.Tags}\"", fixedXaml);
+            Assert.Contains("""<sk:SkUiLabel Text="{Binding Info.Title}" TextColor="{Binding Color, Source={StaticResource Theme}}" />""", fixedXaml);
+            Assert.Contains("""<sk:SkUiLabel Text="{Binding Info}" />""", fixedXaml);
+            Assert.Contains("""<sk:SkUiLabel Text="{Binding Name}" />""", fixedXaml); // the nested template binds to its own items
+        }
+        finally
+        {
+            project.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void FixConvertsPlatformSpecificsWithADrawnMemberAndReportsTheRest()
+    {
+        var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
+        try
+        {
+            var page = Path.Combine(project.FullName, "Page.xaml");
+            File.WriteAllText(page, """
+                <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+                             xmlns:ios="clr-namespace:Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific;assembly=Microsoft.Maui.Controls"
+                             xmlns:android="clr-namespace:Microsoft.Maui.Controls.PlatformConfiguration.AndroidSpecific;assembly=Microsoft.Maui.Controls">
+                  <sk:SkUiVerticalStackLayout>
+                    <sk:SkUiEntry ios:Entry.CursorColor="Red" android:Entry.ImeOptions="Search" />
+                    <sk:SkUiPicker ios:Picker.UpdateMode="WhenFinished" />
+                    <sk:SkUiEntry ios:Entry.AdjustsFontSizeToFitWidth="True" android:Entry.ImeOptions="Previous" />
+                    <sk:SkUiSlider ios:Slider.UpdateOnTap="True" />
+                  </sk:SkUiVerticalStackLayout>
+                </ContentPage>
+                """);
+            Assert.Equal(1, Run(project.FullName).ExitCode); // the convertible ones are errors until converted
+            var (exitCode, output) = Run(project.FullName, "--fix");
+            Assert.Equal(0, exitCode);
+            var lines = output.Split('\n');
+            Assert.Equal(3, lines.Count(line => line.Contains("fixed:")));
+            Assert.Equal(3, lines.Count(line => line.Contains("warning:") && line.Contains("ignored")));
+            var fixedXaml = File.ReadAllText(page);
+            Assert.Contains("""<sk:SkUiEntry CaretColor="{OnPlatform iOS=Red, MacCatalyst=Red}" ReturnType="{OnPlatform Android=Search}" />""", fixedXaml);
+            Assert.Contains("""<sk:SkUiPicker UpdateMode="{OnPlatform iOS=WhenFinished, MacCatalyst=WhenFinished}" />""", fixedXaml);
+
+            File.WriteAllText(page, File.ReadAllText(page).Replace("CaretColor=\"{OnPlatform iOS=Red, MacCatalyst=Red}\"", "ios:Entry.CursorColor=\"Red\""));
+            Run(project.FullName, "--fix", "--all-platforms");
+            Assert.Contains("CaretColor=\"Red\"", File.ReadAllText(page));
+        }
+        finally
+        {
+            project.Delete(recursive: true);
+        }
+    }
+
+    private static (int ExitCode, string Output) Run(string project, params string[] options)
     {
         var start = new ProcessStartInfo("python3") { RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (var argument in new[] { Script(), "--root", project, project })
+        foreach (var argument in new[] { Script(), "--root", project }.Concat(options).Append(project))
             start.ArgumentList.Add(argument);
         using var process = Process.Start(start)!;
         var output = process.StandardOutput.ReadToEnd();

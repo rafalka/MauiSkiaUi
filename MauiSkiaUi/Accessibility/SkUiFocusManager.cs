@@ -301,6 +301,8 @@ internal sealed class SkUiFocusManager(SkUiView root)
         if (surfaceY == _keyboardTop)
             return;
         _keyboardTop = surfaceY;
+        // A root whose SafeAreaEdges keep its bottom clear of the keyboard lays out again, then reveals the field once more.
+        root.OnKeyboardTopChanged(surfaceY, this);
         RevealFocusedField();
     }
 

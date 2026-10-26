@@ -33,7 +33,19 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`Children`, `Padding`.
+`Children`, `Padding`, `SafeAreaEdges`.
+
+## Safe area
+
+`SafeAreaEdges` (MAUI 10) says which edges keep clear of the window's bars, notch, home indicator and soft keyboard. It is opt-in: every drawn layout defaults to `None` and goes edge to edge, as in 1.x (MAUI's layouts default to `Container`, clear of the bars and the notch; set it for MAUI's behavior). A layout that is a **surface root** applies it as MAUI's layouts do: it pads its children by how far the window's insets reach into it on each such edge (only the overlap: a root below a native header gets no top padding), on top of `Padding`. `SoftInput` on the bottom edge also keeps it clear of the keyboard while a drawn field has focus (iOS and Mac Catalyst, where SkiaUi tracks the keyboard). `None` (the default) goes edge to edge; `All` keeps clear of everything. Layouts inside a surface accept the property and ignore it: their place in the window is the surface's, and following it would lay them out again on every scroll.
+
+```xml
+<!-- A full-page drawn root: its content stays out of the status bar and the home indicator, as MAUI's Grid. -->
+<sk:SkUiGrid SafeAreaEdges="Container" RowDefinitions="Auto,*">…</sk:SkUiGrid>
+
+<!-- The default: edge to edge (a hero image under the status bar); pad what needs it yourself. -->
+<sk:SkUiGrid RowDefinitions="Auto,*">…</sk:SkUiGrid>
+```
 
 ## Children in code
 

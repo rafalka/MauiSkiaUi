@@ -30,7 +30,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`Content`, `ContentTemplate`, `ControlTemplate` (+ `TemplateRoot`), `Padding` (+ `SetContent` / `SetControlTemplate` / `SetPadding`); `ContentLoading`, `ContentLoadingDelay`, `ContentLoadedAnimation`, `IsContentLoaded`, `ContentLoaded`, `LoadContent()`.
+`Content`, `ContentTemplate`, `ControlTemplate` (+ `TemplateRoot`), `Padding` (+ `SetContent` / `SetControlTemplate` / `SetPadding`), `SafeAreaEdges` (MAUI 10; default `None`, edge to edge, as MAUI's content views: set `Container` or `All` on a surface root to pad its content by the window's insets, as [layouts](SkUiLayout.md#safe-area) do; ignored inside a surface); `ContentLoading`, `ContentLoadingDelay`, `ContentLoadedAnimation`, `IsContentLoaded`, `ContentLoaded`, `LoadContent()`.
 
 ## ContentTemplate
 
@@ -112,6 +112,7 @@ MAUI resolves `{TemplateBinding X}` and `RelativeSource TemplatedParent` only fo
 | Child type | Must be `ISkUiView` / `Element` (not arbitrary `View` unless it implements the contract) |
 | Surface | Owns the Skia GL/SW surface when standalone |
 | Nested MAUI controls | Use [`SkUiMauiContentView`](SkUiMauiContentView.md) |
+| `SafeAreaEdges` | Applied by a surface root only (drawn views inside a surface ignore it) |
 | `ControlTemplate` | Drawn views; `TemplateBinding` / `RelativeSource TemplatedParent` do not resolve (use [`AncestorType`](#binding-to-the-templated-control)); the root inherits the binding context; created when the content loads |
 
 ## Related
