@@ -23,11 +23,11 @@ A plain list (items and a template only) can also use the lighter **`SkUiVirtual
 | `ItemsLayout="HorizontalList"` / `LinearItemsLayout Orientation="Horizontal"` | `Orientation="Horizontal"` | Rows along X (right to left in RTL); no pull-to-refresh |
 | `ItemsLayout="VerticalGrid, 3"` / `GridItemsLayout Span="3"` (`VerticalItemSpacing`, `HorizontalItemSpacing`) | `Span="3"` (`ItemSpacing` between rows, `SpanSpacing` within a row) | A horizontal grid: `Orientation="Horizontal"` with `Span` rows. In a grouped grid each group starts a new row |
 | `SnapPointsType` / `SnapPointsAlignment` on the items layout | — | Not available: keep the list native, or use an `SkUiScrollView` with snap points |
-| `SelectionMode="None"` / `"Single"` / `"Multiple"` | same names | `SkUiSelectionMode`; plus `SingleDeselect` (tapping the selected item clears it) |
+| `SelectionMode="None"` / `"Single"` / `"Multiple"` | same names | `SkUiSelectionMode`; plus `SingleDeselect` (tapping the selected item clears it). C#: `SelectionMode.X` → `SkUiSelectionMode.X`; never cast between the enums (their values differ); a bound view-model property becomes `SkUiSelectionMode` |
 | Scrolling to the selected item by hand (`ScrollTo(SelectedItem)` after selection or rotation) | `KeepSelectionVisible="True"` | Also after size changes; multiple selections show as many selected items as fit |
 | `SelectedItems` | `SelectedItems` | An `ObservableCollection<object>` by default, or a list of yours (`IList<object>`); changes made to an observable list show; `SelectAll()` / `ClearSelection()` |
 | `SelectedItem` (two-way) | `SelectedItem` (two-way) | Compared with `Equals`; removing the item from the source clears it |
-| `SelectionChanged` (`SelectionChangedEventArgs.PreviousSelection` / `CurrentSelection` lists) | `SelectionChanged` (`SkUiSelectionChangedEventArgs.PreviousSelection` / `CurrentSelection`, plus `PreviousItem` / `CurrentItem`) | Raised once per change: taps, code, `SelectAll` / `ClearSelection`, removed items |
+| `SelectionChanged` (`SelectionChangedEventArgs.PreviousSelection` / `CurrentSelection` lists) | `SelectionChanged` (`SkUiSelectionChangedEventArgs.PreviousSelection` / `CurrentSelection`, plus `PreviousItem` / `CurrentItem`) | Raised once per change: taps, code, `SelectAll` / `ClearSelection`, removed items. Change the handler's parameter type to `SkUiSelectionChangedEventArgs` (also for handlers wired in XAML) |
 | — | `SelectionChanging` (`Cancel`) | Taps only: veto a change (unsaved edits, …) |
 | `SelectionChangedCommand` (+ `Parameter`) | same names | Runs before `SelectionChanged` |
 | `Selected` visual state on the item root | same | `CommonStates`; `Disabled` wins, `Selected` comes before `PointerOver` |
@@ -40,7 +40,7 @@ A plain list (items and a template only) can also use the lighter **`SkUiVirtual
 | — (a "Load more" footer or busy indicator built by hand) | `LoadMoreMode` (`Manual`, `Auto`, `AutoOnUserScroll`), `LoadMorePosition` (`End`, `Start`), `LoadMoreCommand`, `LoadMoreTemplate`, `IsLoadMoreActive`, `LoadingMore` | A load-more row (button, spinner); `Start` keeps what shows while older items are inserted (chats) |
 | `ScrollTo(index, position: …, animate: …)` | `ScrollToIndex(index, position, animated)` | Returns a `Task`; lands exactly on items of any height |
 | `ScrollTo(item, …)` | `ScrollToItem(item, position, animated)` | Ignores an item not in the list |
-| `Scrolled` (`ItemsViewScrolledEventArgs.FirstVisibleItemIndex` / `LastVisibleItemIndex`, `VerticalOffset`) | `Scrolled` (`ScrollY`) and `VisibleRangeChanged` / `FirstVisibleIndex` / `LastVisibleIndex` | |
+| `Scrolled` (`ItemsViewScrolledEventArgs.FirstVisibleItemIndex` / `LastVisibleItemIndex`, `VerticalOffset`) | `Scrolled` (`ScrolledEventArgs.ScrollY` / `ScrollX`) and `VisibleRangeChanged` / `FirstVisibleIndex` / `LastVisibleIndex` | Change the handler's parameter type to `ScrolledEventArgs`. Deltas: the difference from the previous event's offset; `CenterItemIndex`: from the visible range |
 | `ItemsUpdatingScrollMode` | — | Items inserted or resized above the first visible item keep what shows in place; at the very top, new items show |
 | `VerticalScrollBarVisibility` | same | Plus `Overscroll` (bounce / stretch) |
 | `IsGrouped`, `GroupHeaderTemplate`, `GroupFooterTemplate` | same names | A group is the list of its items (MAUI's shape); group and item changes are followed; the group is the header's and footer's binding context |
