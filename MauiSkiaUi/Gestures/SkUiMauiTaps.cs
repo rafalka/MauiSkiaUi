@@ -47,7 +47,7 @@ internal static class SkUiMauiTaps
     }
 
     /// <summary>MAUI's button of a press: a touch, the primary or no button reported is <see cref="ButtonsMask.Primary"/>.</summary>
-    private static ButtonsMask ButtonOf(SkUiPointerButtons buttons) =>
+    internal static ButtonsMask ButtonOf(SkUiPointerButtons buttons) =>
         buttons.HasFlag(SkUiPointerButtons.Secondary) ? ButtonsMask.Secondary
         : buttons is SkUiPointerButtons.None or SkUiPointerButtons.Primary ? ButtonsMask.Primary : 0;
 

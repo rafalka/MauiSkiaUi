@@ -709,7 +709,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
 
     /// <summary>Bindable property for <see cref="ItemsLayout"/>.</summary>
     public static readonly BindableProperty ItemsLayoutProperty = BindableProperty.Create(nameof(ItemsLayout), typeof(LinearItemsLayout), typeof(SkUiCarouselView), null,
-        validateValue: (_, value) => value is not null,
+        validateValue: SkUiValidate.NotNull,
         propertyChanged: (view, _, value) => ((SkUiCarouselView)view).OnItemsLayoutChanged((LinearItemsLayout?)value),
         defaultValueCreator: _ => new LinearItemsLayout(ItemsLayoutOrientation.Horizontal)
         {
@@ -739,6 +739,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     private LinearItemsLayout? _appItemsLayout;
     private SkUiWeakListener<SkUiCarouselView>? _itemsLayoutListener;
     private bool _layoutOverrideReported;
+    // The spacing and alignment the items were last laid out with (the bindable properties' defaults until then).
+    private double _laidOutSpacing;
+    private SnapPointsAlignment _laidOutAlignment = SnapPointsAlignment.Center;
 
     private void OnItemsLayoutChanged(LinearItemsLayout? layout)
     {
@@ -780,13 +783,22 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
 
     /// <summary>
     /// The layout the carousel uses: <see cref="ItemsLayout"/> when the app set one, else <see cref="Orientation"/>,
-    /// <see cref="ItemSpacing"/>, <see cref="SnapPointsType"/> and <see cref="SnapPointsAlignment"/>. The current place is
-    /// kept and the items are laid out again.
+    /// <see cref="ItemSpacing"/>, <see cref="SnapPointsType"/> and <see cref="SnapPointsAlignment"/>. When the orientation,
+    /// spacing or alignment changed, the current place is kept and the items are laid out again; the snap points type only
+    /// goes to the scroller.
     /// </summary>
     private void ApplyLayout()
     {
         var horizontal = (_appItemsLayout?.Orientation ?? Orientation) == ItemsLayoutOrientation.Horizontal;
-        OnLayoutChanged(carousel => carousel._horizontal = horizontal);
+        var spacing = LayoutItemSpacing;
+        var alignment = LayoutSnapPointsAlignment;
+        // Exact: an unchanged spacing keeps the items where they are.
+        if (horizontal != _horizontal || spacing != _laidOutSpacing || alignment != _laidOutAlignment)
+        {
+            OnLayoutChanged(carousel => carousel._horizontal = horizontal);
+            _laidOutSpacing = spacing;
+            _laidOutAlignment = alignment;
+        }
         Scroller.Orientation = _horizontal ? ScrollOrientation.Horizontal : ScrollOrientation.Vertical;
         Scroller.SnapPointsType = _appItemsLayout?.SnapPointsType ?? SnapPointsType;
         if (_indicator is { } indicator)

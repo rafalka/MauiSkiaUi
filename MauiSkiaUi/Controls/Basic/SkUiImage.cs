@@ -15,6 +15,8 @@ public class SkUiImage : SkUiView
     private ImageSource? _source;
     private Aspect _aspect = Aspect.AspectFit;
     private SkUiImageOptions _options;
+    // Set on the thread pool by a load finished without a dispatcher, read on the view's thread (see PublishState).
+    private volatile bool _isLoadingStoreStale;
     // Image sources and transformation lists are often shared resources: listened to weakly, so they never keep the view alive.
     private SkUiWeakListener<SkUiImage>? _sourceListener;
     private SkUiWeakListener<SkUiImage> SourceListener => _sourceListener ??= new(this, static (image, change) =>
@@ -289,15 +291,34 @@ public class SkUiImage : SkUiView
     private void PublishState()
     {
         // Reports IsLoading when it changed. A load started without a dispatcher finishes on the thread pool, where the
-        // bindable store (not thread-safe) is left alone: the stored value follows on the view's next change.
+        // bindable store (not thread-safe) is left alone: the stored value follows on the view's next change
+        // (OnPropertyChanged), such as its layout once it is shown.
         if (SkUiImageSlot.CompletingWithoutDispatcher)
+        {
+            _isLoadingStoreStale = true;
             OnPropertyChanged(nameof(IsLoading));
+        }
         else
+        {
+            _isLoadingStoreStale = false;
             SetValue(IsLoadingPropertyKey, Slot.IsLoading);
+        }
         OnPropertyChanged(nameof(LoadError));
         OnPropertyChanged(nameof(ImageSize));
         OnPropertyChanged(nameof(IsShowingPlaceholder));
         InvalidateMeasureOverride();
+    }
+
+    /// <inheritdoc />
+    protected override void OnPropertyChanged(string? propertyName = null)
+    {
+        base.OnPropertyChanged(propertyName);
+        // The view's thread changes it: the stored IsLoading catches up with a load finished on the thread pool.
+        if (_isLoadingStoreStale && !SkUiImageSlot.CompletingWithoutDispatcher)
+        {
+            _isLoadingStoreStale = false;
+            SetValue(IsLoadingPropertyKey, Slot.IsLoading);
+        }
     }
 
     /// <summary>Whether a loading or error placeholder is drawn instead of the image.</summary>

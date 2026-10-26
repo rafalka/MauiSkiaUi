@@ -656,6 +656,7 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
             recognizers.Add(_spanTap ??= new SkUiSpanTapGestureRecognizer
             {
                 TappableSpanAt = TappableSpanAt,
+                SpanTakesPress = SpanTakesPress,
                 MaxTaps = SpanTapCount,
                 TapHandler = args => RaiseSpanTap(args, 1),
                 DoubleTapHandler = args => RaiseSpanTap(args, 2),
@@ -673,6 +674,14 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
                 most = Math.Max(most, SkUiMauiTaps.MaxTaps(span.GestureRecognizers));
         return most;
     }
+
+    /// <summary>
+    /// Whether a press with <paramref name="buttons"/> can tap the span at <paramref name="index"/>: a button one of its
+    /// tap recognizers wants; HTML links take the primary button (and touches).
+    /// </summary>
+    private bool SpanTakesPress(int index, SkUiPointerButtons buttons) => _formattedText is { } formatted
+        ? index < formatted.Spans.Count && SkUiMauiTaps.Takes(formatted.Spans[index].GestureRecognizers, buttons)
+        : SkUiMauiTaps.ButtonOf(buttons) == ButtonsMask.Primary;
 
     private static bool HasSpanTaps(FormattedString formatted)
     {

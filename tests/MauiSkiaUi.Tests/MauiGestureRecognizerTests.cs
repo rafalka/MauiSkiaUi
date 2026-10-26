@@ -249,6 +249,45 @@ public class MauiGestureRecognizerTests
         Assert.Equal(["pressed", "released", "parent tapped"], events);
     }
 
+    [Fact]
+    public void ASpanTakesOnlyPressesOfButtonsItsRecognizersWant()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var events = new List<string>();
+        var span = new Span { Text = "Tap here" };
+        span.GestureRecognizers.Add(new TapGestureRecognizer { Command = new TestCommand(_ => events.Add("span")) });
+        var label = new SkUiLabel
+        {
+            FontFamily = SkUiTestHelpers.BundledFontFamily,
+            FormattedText = new FormattedString { Spans = { span } },
+            HorizontalOptions = LayoutOptions.Start,
+            VerticalOptions = LayoutOptions.Start
+        };
+        var root = new SkUiContentView { Content = label };
+        root.GestureRecognizers.Add(new TapGestureRecognizer { Buttons = ButtonsMask.Secondary, Command = new TestCommand(_ => events.Add("menu")) });
+        SkUiTestHelpers.Arrange(root, Size, Size);
+
+        // A right click on the primary-only span leaves the press to the parent's secondary recognizer.
+        Click(root, new Point(10, 8), 0, SkUiPointerButtons.Secondary);
+        Click(root, new Point(10, 8), 1000, SkUiPointerButtons.Primary);
+        Assert.Equal(["menu", "span"], events);
+    }
+
+    [Fact]
+    public void PointerAndTapRecognizersReadAButtonChordAlike()
+    {
+        var (root, box) = Tree();
+        var events = new List<string>();
+        box.GestureRecognizers.Add(new TapGestureRecognizer { Buttons = ButtonsMask.Secondary, Command = new TestCommand(_ => events.Add("tap")) });
+        var pointer = new PointerGestureRecognizer { Buttons = ButtonsMask.Secondary };
+        pointer.PointerPressed += (_, args) => events.Add($"pressed {args.Button}");
+        pointer.PointerReleased += (_, args) => events.Add($"released {args.Button}");
+        box.GestureRecognizers.Add(pointer);
+
+        Click(root, new Point(20, 20), 0, SkUiPointerButtons.Primary | SkUiPointerButtons.Secondary);
+        Assert.Equal(["pressed Secondary", "released Secondary", "tap"], events);
+    }
+
     private static List<string> Record(PointerGestureRecognizer pointer, View relativeTo)
     {
         var events = new List<string>();

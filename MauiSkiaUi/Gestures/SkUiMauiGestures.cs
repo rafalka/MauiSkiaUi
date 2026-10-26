@@ -154,14 +154,15 @@ internal sealed class SkUiMauiGestures(View view)
         _hovering = true;
         _hoverRouter = router;
         _hoverPosition = position;
-        var getPosition = PositionsAt(router, position);
-        foreach (var recognizer in view.GestureRecognizers.ToArray())
+        // Hover moves come at the mouse's rate: no copy of the collection and one position delegate per bridge.
+        var recognizers = view.GestureRecognizers;
+        for (var index = 0; index < recognizers.Count; index++)
         {
-            if (recognizer is not PointerGestureRecognizer pointer)
+            if (recognizers[index] is not PointerGestureRecognizer pointer)
                 continue;
             if (entered)
-                Send(pointer, PointerEvent.Entered, getPosition, ButtonsMask.Primary);
-            Send(pointer, PointerEvent.Moved, getPosition, ButtonsMask.Primary);
+                Send(pointer, PointerEvent.Entered, HoverPositions, ButtonsMask.Primary);
+            Send(pointer, PointerEvent.Moved, HoverPositions, ButtonsMask.Primary);
         }
     }
 
@@ -171,12 +172,19 @@ internal sealed class SkUiMauiGestures(View view)
         if (!_hovering)
             return;
         _hovering = false;
-        var getPosition = _hoverRouter is { } router ? PositionsAt(router, _hoverPosition) : null;
+        var recognizers = view.GestureRecognizers;
+        for (var index = 0; index < recognizers.Count; index++)
+            if (recognizers[index] is PointerGestureRecognizer pointer)
+                Send(pointer, PointerEvent.Exited, HoverPositions, ButtonsMask.Primary);
         _hoverRouter = null;
-        foreach (var recognizer in view.GestureRecognizers.ToArray())
-            if (recognizer is PointerGestureRecognizer pointer)
-                Send(pointer, PointerEvent.Exited, getPosition, ButtonsMask.Primary);
     }
+
+    /// <summary>
+    /// <see cref="PositionsAt"/> for the hovering pointer, read when called: a handler gets the event's position; arguments
+    /// kept after it get the latest hover position, and <c>null</c> once the hover ended.
+    /// </summary>
+    private Func<IElement?, Point?> HoverPositions => field ??= element =>
+        _hoverRouter is { } router && element is not null && router.Contains(element) ? router.MapToNode(element, _hoverPosition) : null;
 
     /// <summary>
     /// MAUI's <c>PointerEventArgs.GetPosition</c>: relative to the view or any element drawn on the same surface; <c>null</c>
@@ -273,12 +281,8 @@ internal sealed class SkUiMauiGestures(View view)
 
         protected internal override bool OnPointerPressed(SkUiPointer pointer)
         {
-            var button = pointer.Buttons switch
-            {
-                SkUiPointerButtons.None or SkUiPointerButtons.Primary => ButtonsMask.Primary,
-                SkUiPointerButtons.Secondary => ButtonsMask.Secondary,
-                _ => (ButtonsMask)0
-            };
+            // The button as tap recognizers read it, so both bridges agree on a press.
+            var button = SkUiMauiTaps.ButtonOf(pointer.Buttons);
             if (_pointer is not null || (maui.Buttons & button) == 0)
                 return false;
             _pointer = pointer.Id;

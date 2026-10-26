@@ -612,6 +612,12 @@ public sealed class ImageLoadingTests : IDisposable
         await image.LoadingTask;
         Assert.False(image.IsLoading);
         Assert.Equal([true, false], notified);
+        Assert.True((bool)image.GetValue(SkUiImage.IsLoadingProperty));
+
+        // Any change on the view's thread (here its aspect; in an app, its layout) brings the store up to date.
+        image.Aspect = Aspect.Fill;
+        Assert.False((bool)image.GetValue(SkUiImage.IsLoadingProperty));
+        Assert.Equal([true, false, false], notified);
 
         image.Source = null;
         Assert.False((bool)image.GetValue(SkUiImage.IsLoadingProperty));

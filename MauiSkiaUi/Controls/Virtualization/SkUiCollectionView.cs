@@ -531,7 +531,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     /// <summary>Bindable property for <see cref="ItemsLayout"/>.</summary>
     public static readonly BindableProperty ItemsLayoutProperty = BindableProperty.Create(nameof(ItemsLayout), typeof(IItemsLayout), typeof(SkUiCollectionView), null,
-        validateValue: (_, value) => value is not null,
+        validateValue: SkUiValidate.NotNull,
         propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnItemsLayoutChanged((IItemsLayout?)value),
         defaultValueCreator: _ => new LinearItemsLayout(ItemsLayoutOrientation.Vertical));
 
