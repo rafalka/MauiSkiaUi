@@ -1,6 +1,6 @@
 # SkiaUi 1.2 implementation plan: MAUI parity
 
-**Goal:** more MAUI pages port by changing the XAML prefix. The MAUI XAML that has to be converted member by member today (gesture recognizers, the collection view's items layout and scroll API, control templates with `TemplateBinding`, image brushes, MAUI 10's new members) loads and behaves as on MAUI.
+**Goal:** more MAUI pages port by changing the XAML prefix. The MAUI XAML that has to be converted member by member today (gesture recognizers, the collection view's items layout and scroll API, MAUI 10's new members) loads and behaves as on MAUI. Where MAUI's own mechanism is internal (`TemplateBinding`, platform-specifics), the migration checker converts the XAML instead; `ImageBrush` is not public in MAUI at all ([scope review](#scope-review)).
 
 **Baseline:** .NET MAUI 10.0.120, or the latest 10.0.x service release when 1.2 ships; SkiaUi stays on MAUI 10.x. What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
 
@@ -22,14 +22,13 @@ Measured on MAUI 10.0.120 by comparing the public members of 40 MAUI controls (b
 | MAUI 10 additions | `Switch.OffColor`; `CheckBox.Command` / `CommandParameter`; `SafeAreaEdges` on layouts, `ContentView`, `Border`, `ScrollView` | R, S |
 | Small members | `StrokeDashPattern` (shapes, `Border`); `IsOpaque` (`Image`, `ImageButton`); `Padding` (`IndicatorView`, `RefreshView`); the read-only bindable `IsPressed`, `IsLoading` and `IsDragging` (for triggers); `CollectionView.UpdateSelectedItems` | R |
 | `GestureRecognizers` | Only taps run (1 or 2 taps, primary button). Pan, swipe, pinch and pointer recognizers are reported and not run, and so are taps with `Buttons="Secondary"` | G |
-| Templates | `{TemplateBinding}` / `RelativeSource TemplatedParent` do not resolve in drawn templates (MAUI resolves them through its internal `IControlTemplated`). `RadioButton.DefaultTemplate` builds MAUI views. `IndicatorView.IndicatorTemplate` / `IndicatorLayout` are missing | T |
-| CollectionView | `ItemsLayout` (`LinearItemsLayout`, `GridItemsLayout`, `"VerticalGrid, 2"`), `ItemSizingStrategy`, MAUI's `ScrollTo(…)` and `ScrollToRequested`, `ItemsUpdatingScrollMode`, a string or object `Header` / `Footer` / `EmptyView`, snap points, `CanReorderItems` / `ReorderCompleted` / `CanMixGroups` | V |
-| CarouselView | `ItemsLayout`, `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility`, `ItemsUpdatingScrollMode`, `VisibleViews`, `ScrollToRequested` | V |
-| Brushes | `ImageBrush` is not drawn (backgrounds, shape fill and stroke, border stroke) | B |
-| Platform-specifics | Attached `ios:` / `android:` / `windows:` properties compile on drawn controls but are ignored, including the ones with a drawn meaning | S |
+| Templates | `{TemplateBinding}` / `RelativeSource TemplatedParent` do not resolve in drawn templates (MAUI resolves them through its internal `IControlTemplated`): converted to `RelativeSource AncestorType` by the checker. `IndicatorView.IndicatorTemplate` / `IndicatorLayout` are missing | T |
+| CollectionView | `ItemsLayout` (`LinearItemsLayout`, `GridItemsLayout`, `"VerticalGrid, 2"`), `ItemSizingStrategy`, MAUI's `ScrollTo(…)` and `ScrollToRequested`, `ItemsUpdatingScrollMode`, a string `Header` / `Footer` / `EmptyView`, snap points | V |
+| CarouselView | `ItemsLayout`, `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility`, `ItemsUpdatingScrollMode`, `ScrollToRequested` | V |
+| Platform-specifics | Attached `ios:` / `android:` / `windows:` properties compile on drawn controls but are ignored, including the ones with a drawn meaning: the checker converts those to SkiaUi's members | S |
 | Member types | CollectionView `Scrolled` (`ScrolledEventArgs`, MAUI: `ItemsViewScrolledEventArgs`), `SelectionChanged` (`SkUiSelectionChangedEventArgs`, MAUI: `SelectionChangedEventArgs`), `SelectionMode` (`SkUiSelectionMode`) | Held for 2.0 ([D1](#decisions)) |
 
-Not in 1.2: drag and drop and context flyouts (not planned); the calendar and runtime SVG (backlog, new controls); text selection in labels (MAUI's `Label` has none either). The parity test's allowlist ([R1](#phase-r--api-parity-sweep)) lists the MAUI members that stay out on purpose. These include `On<T>()`, because MAUI's platform-specific extension methods are typed to its own control classes (the XAML form is covered in [S2](#phase-s--safe-area-and-platform-specifics)). They also include handler plumbing (`Send*`, `Update*`, `CrossPlatformMeasure` / `CrossPlatformArrange`, `ResolveControlTemplate`) and `Shape.GetPath()`.
+Not in 1.2: drag and drop and context flyouts (not planned); the calendar and runtime SVG (backlog, new controls); text selection in labels (MAUI's `Label` has none either); collection view reordering (`CanReorderItems`, moved to [1.3](#moved-to-13)); what the [scope review](#scope-review) dropped. The parity test's allowlist ([R1](#phase-r--api-parity-sweep)) lists the MAUI members that stay out on purpose. These include `On<T>()`, because MAUI's platform-specific extension methods are typed to its own control classes (the XAML form is covered in [S2](#phase-s--safe-area-and-platform-specifics)). They also include handler plumbing (`Send*`, `Update*`, `CrossPlatformMeasure` / `CrossPlatformArrange`, `ResolveControlTemplate`) and `Shape.GetPath()`.
 
 ## Phase R — API parity sweep
 
@@ -70,87 +69,74 @@ Tests: each recognizer through the arena with synthetic pointers, also inside dr
 
 ## Phase V — Collection and carousel API by prefix
 
-The collection view's API is SkiaUi's own today ([Migration.md](../Migration.md#lists-collectionview)). Each step adds MAUI's member over the existing engine; the SkiaUi properties stay. Size: M, plus L for V8.
+The collection view's API is SkiaUi's own today ([Migration.md](../Migration.md#lists-collectionview)). Each step adds MAUI's member over the existing engine; the SkiaUi properties stay. Size: M.
 
-- **V1 `ItemsLayout`** (done) on the collection view and the carousel. It takes MAUI's `LinearItemsLayout` / `GridItemsLayout` and the converter strings (`"VerticalList"`, `"HorizontalGrid, 3"`, through MAUI's `ItemsLayoutTypeConverter`). It writes `Orientation`, `Span`, `ItemSpacing` / `SpanSpacing` (the carousel: `Orientation`, `ItemSpacing`, `SnapPointsType`, `SnapPointsAlignment`), and the snap points of lists once V4 draws them. It follows the layout object's changes through a weak listener (layouts are often shared, `LinearItemsLayout.Vertical` is static). Rule: the last one set wins, whether the layout object or a property. The carousel's property is MAUI's `LinearItemsLayout` with MAUI's `CarouselLayoutTypeConverter`.
+- **V1 `ItemsLayout`** (done) on the collection view and the carousel. It takes MAUI's `LinearItemsLayout` / `GridItemsLayout` and the converter strings (`"VerticalList"`, `"HorizontalGrid, 3"`, through MAUI's `ItemsLayoutTypeConverter`). It is a source the view reads, not a writer of other properties ([D4](#decisions)): once the app sets it, it decides the orientation, span and spacings (the carousel: orientation, spacing, `SnapPointsType`, `SnapPointsAlignment`), and the snap points of lists once V4 draws them. `Orientation`, `Span`, `ItemSpacing` / `SpanSpacing` keep their own values and apply when it is not set or cleared; setting both is reported once. It follows the layout object's changes through a weak listener (layouts are often shared, `LinearItemsLayout.Vertical` is static). The carousel's property is MAUI's `LinearItemsLayout` with MAUI's `CarouselLayoutTypeConverter`.
 - **V2 `ItemSizingStrategy`** (done): `MeasureAllItems` (the default) or `MeasureFirstItem`, which uses the first row's measured size as the fixed extent in the virtual stack (`SizesFromFirstItem`), measured again whenever the sizes are forgotten (a new width, spacing, orientation). `ItemExtent` wins when set. Grouped lists measure every row, since their group headers are rows too.
 - **V3 MAUI's `ScrollTo`** (done): `ScrollTo(index, groupIndex = -1, position, animate)` and `ScrollTo(item, group = null, position, animate)` (void, as in MAUI), plus `ScrollToRequested` with `ScrollToRequestEventArgs`, on both views. The awaitable `ScrollToIndex` / `ScrollToItem` stay.
 - **V4 Snap points on the items layout:** `SnapPointsType` (`None`, `Mandatory`, `MandatorySingle`) and `SnapPointsAlignment` on lists and grids in both orientations. The virtual stack uses the scroll engine's snap points: the fling's end is chosen on the render thread, with no re-recording.
 - **V5 `ItemsUpdatingScrollMode`:** `KeepItemsInView` (the default), `KeepScrollOffset` and `KeepLastItemInView`, on both views, built on the existing scroll anchoring. The carousel always keeps the current item today; that becomes `KeepItemsInView`.
-- **V6 Data in `Header` / `Footer` / `EmptyView`** (done): shown as in MAUI. A string becomes a drawn label (the empty view's centered); an object with a template uses that template with the object as its binding context. Applies to both views (the carousel's `EmptyView`). A type converter would not cover bindings, so the bindable properties take `object` (binary-compatible: the fields stay `BindableProperty`, and nothing could set a non-view before), refusing native views as before, and the content slot builds the view for data. The CLR properties keep the 1.0 type `ISkUiView` (they read `null` for data): C# that assigns data uses `SetValue`, and the change to `object` joins the [held for 2.0](Roadmap.md#held-for-20) list ([D1](#decisions)).
-- **V7 Carousel members:**
-  - Scroll bars on the strip.
-  - `VisibleViews`: kept up to date only once read or observed, so carousels that never use it pay nothing.
-- **V8 Reordering:** `CanReorderItems`, `ReorderCompleted`, `CanMixGroups`. The largest step, and it may slip to 1.3.
-  - Lifting: a long press (touch) or a press and drag (mouse) lifts the item. Its render node follows the pointer at composite time, the other items move aside with render-thread animations, and the list auto-scrolls at its edges.
-  - Dropping: the drop moves the item in an `IList` source (`ObservableCollection.Move`); between groups only when `CanMixGroups` is set.
-  - Accessibility: screen-reader move up / move down actions.
-  - The design goes into [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md) before the code.
+- **V6 Text in `Header` / `Footer` / `EmptyView`** (done): `Header="Contacts"` and `EmptyView="No results"` show as in MAUI, through a type converter on the properties (`SkUiTextViewTypeConverter`; the empty view's label centered), on both views (the carousel's `EmptyView`). The properties keep their 1.0 type `ISkUiView` ([D5](#decisions)). Data headers (`Header="{Binding Info}"` with a `HeaderTemplate`) convert: the template binds through the list's binding context (`{Binding Info.Title}`), which the checker reports.
+- **V7 Carousel scroll bars:** `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility` on the strip. `VisibleViews` goes into the parity test's allowlist (rarely used; the backlog keeps it).
 
-Tests: the XAML samples in MAUI's CollectionView and CarouselView docs (layouts, scrolling, snap points, headers and footers, empty views) with only the prefix changed; scroll-anchoring tests for each `ItemsUpdatingScrollMode`; a leak scenario for reordering. Bench: the existing list scenarios do not move, plus a new scenario with an `ItemsLayout` and snap points.
+Tests: the XAML samples in MAUI's CollectionView and CarouselView docs (layouts, scrolling, snap points, headers and footers, empty views) with only the prefix changed; scroll-anchoring tests for each `ItemsUpdatingScrollMode`. Bench: the existing list scenarios do not move, plus a new scenario with an `ItemsLayout` and snap points.
 
 ## Phase T — Templates
 
-Size: M.
+Size: S.
 
-- **T1 `TemplateBinding` in drawn control templates.** MAUI resolves `{TemplateBinding}` and `RelativeSource TemplatedParent` by walking parents to an `IControlTemplated`, an internal interface that drawn controls cannot implement.
-  - Spike first: can the compiled and runtime XAML bindings be resolved for drawn templates without MAUI internals? If not, SkiaUi adds its own markup extension, `{sk:TemplateBinding Path}`. It resolves the templated control by MAUI's rule: the nearest ancestor with a `ControlTemplate`, skipping one for each content presenter on the way. MAUI's `TemplateBinding` options (converter, mode, string format) are supported.
-  - Acceptance: the `ControlTemplate` samples in MAUI's docs (a card view) work with at most the prefix added to `TemplateBinding`. [D2](#decisions).
-- **T2 A drawn `RadioButton` default template:** `SkUiRadioButton.DefaultTemplate`, a drawn template that looks like the look's radio button. Apps that restyle a copy of MAUI's default template (ellipses, `Checked` / `Unchecked` states) then port.
 - **T3 `IndicatorView.IndicatorTemplate` / `IndicatorLayout`:** one drawn template view per indicator, as MAUI's model, with the selected one marked as MAUI marks it. The look's painter stays the default and the cheaper path.
-
-## Phase B — Image brushes
-
-Size: M.
-
-- **B1 `ImageBrush`** drawn as an image shader wherever SkiaUi draws a brush: view `Background`, `SkUiBox`, the border's fill and stroke, shape `Fill` / `Stroke`, label and button chrome. The image comes through the shared loader and cache, with one lease per view that uses it. Loading the image re-records only those views. Scaling follows MAUI's (checked against MAUI on each platform). The "not drawn" trace line goes.
-- **B2 Core:** an image paint for Core nodes (`SetBackground` with an image source, shapes' fill and stroke).
+- `TemplateBinding` and MAUI's default radio template are conversions, not steps ([scope review](#scope-review)): the checker rewrites `{TemplateBinding X}` and `RelativeSource TemplatedParent` to `RelativeSource AncestorType` ([Migration.md](../Migration.md#templated-controls)), and `RadioButton.DefaultTemplate` goes into the parity test's allowlist.
 
 ## Phase S — Safe area and platform-specifics
 
-Size: M.
+Size: S–M.
 
-- **S1 `SafeAreaEdges`** (MAUI 10) on drawn layouts, content views, the border and the scroll view. Spike first: MAUI applies it through an internal interface (`ISafeAreaView2`). The surface root may get MAUI's own handling through it; if not, SkiaUi pads the root itself. Nested drawn views pad by the part of the window's safe-area insets they overlap (the picker's bottom pane already reads them). `SoftInput` uses the keyboard inset that keyboard avoidance already tracks.
-- **S2 Platform-specifics with a drawn meaning,** read as the attached properties they are, on their platform only, as in MAUI. SkiaUi's own cross-platform member wins when it is set.
+- **S1 `SafeAreaEdges` on the surface root** (MAUI 10): an `SkUiLayout` or `SkUiContentView` that is a surface of its own takes MAUI's `SafeAreaEdges` and its default (`Container` on layouts, `None` on content views; today the root ignores the safe area). MAUI applies it through an internal interface (`ISafeAreaView2`), so the root pads itself by the window's insets per edge, from the metrics the picker already reads; `SoftInput` uses the keyboard inset that keyboard avoidance already tracks. Drawn views inside a surface accept the property and ignore it, as documented: padding them by their overlap with the insets would make layout depend on where the view is in the window, and every scroll or move would lay it out again.
+- **S2 Platform-specifics:** no runtime reading. The checker converts the ones with a SkiaUi member (iOS `Entry.CursorColor` → `CaretColor`, Android `Entry.ImeOptions` → `ReturnType`, iOS pickers' `UpdateMode` → `UpdateMode`, iOS `Entry.AdjustsFontSizeToFitWidth` → shrink to fit), inside `OnPlatform` when the app wants it on one platform only, and reports the rest as ignored. Drawn equivalents of the others (a tap that moves a slider's thumb, swipe transition modes, ripple color, search bar chrome, pull direction) are SkiaUi members on both layers when an app needs them, in the [backlog](Roadmap.md#backlog-1x), not attached properties.
 
-  | Platform-specific | Drawn meaning |
-  | --- | --- |
-  | iOS `Entry.CursorColor` | `CaretColor` |
-  | iOS `Entry.AdjustsFontSizeToFitWidth` | Shrink to fit on a single-line field |
-  | iOS `Picker` / `DatePicker` / `TimePicker.UpdateMode` | `UpdateMode` |
-  | iOS `Slider.UpdateOnTap` | A tap on the track moves the thumb |
-  | iOS / Android `SwipeView.SwipeTransitionMode` | `Reveal` / `Drag` of the items |
-  | iOS `SearchBar.SearchBarStyle` | Minimal / prominent field chrome |
-  | Android `Entry.ImeOptions` | `ReturnType` |
-  | Android `Button.RippleColor` / `ImageButton.RippleColor` | The press ripple's color |
-  | Windows `RefreshView.RefreshPullDirection` | Pulling from other edges ([roadmap](Roadmap.md#lists-and-scrolling)) |
+## Scope review
 
-  The rest (native shadows, `Elevation`, access keys, legacy color mode, blur) stay ignored, and the control pages list them.
+The first plan also had these steps. They were dropped because MAUI does not expose what they port, or because an existing mechanism covers them at no cost to the architecture:
+
+- **Image brushes (phase B).** MAUI 10's `ImageBrush` is internal (not in its public API), so no MAUI XAML or C# creates one; a brush only arrives as one through the Graphics `ImageSourcePaint` conversion, which MAUI itself draws only as a page background on iOS. The "not drawn" trace line and the docs now say that MAUI has no public `ImageBrush` and point to an `SkUiImage` behind the content.
+- **A `{sk:TemplateBinding}` markup extension (T1).** MAUI marks `TemplateBinding` obsolete in favor of `RelativeSource TemplatedParent`, and that resolves only through MAUI's internal `IControlTemplated`, so no public route exists. A markup extension of SkiaUi's own would still mean editing the XAML, and would be a second binding resolution that has to follow reparenting; `RelativeSource AncestorType` already does both ([D2](#decisions)).
+- **A drawn `RadioButton.DefaultTemplate` (T2).** Apps that restyle a copy of MAUI's template port already: a `ControlTemplate` of drawn ellipses and visual states works on `SkUiRadioButton`.
+- **Reading platform-specifics at runtime (S2's first form).** Three of them already have a cross-platform SkiaUi member, which would get a second source of the same state and a precedence rule in every change path; the others are new features that belong on both layers.
+- **Padding nested drawn views by the safe area (S1's first form)** and **`VisibleViews` on the carousel (V7)**: see S1 and V7.
+
+### Moved to 1.3
+
+- **V8 Reordering:** `CanReorderItems`, `ReorderCompleted`, `CanMixGroups`. A new feature rather than a port by prefix, and the only L-sized step, so it no longer holds 1.2 back.
+  - Lifting: a long press (touch) or a press and drag (mouse) lifts the item. Its render node follows the pointer at composite time, the other items move aside with render-thread animations, and the list auto-scrolls at its edges.
+  - Dropping: the drop moves the item in an `IList` source (`ObservableCollection.Move`); between groups only when `CanMixGroups` is set.
+  - Accessibility: screen-reader move up / move down actions.
+  - The design goes into [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md) before the code; a leak scenario for reordering.
 
 ## Docs, migration and demo
 
 Done with each step, not at the end:
 
-- [Migration.md](../Migration.md): the parity table checked against MAUI 10.0.120 (its header says 10.0.110), the gesture and collection view sections, and "Not available yet". The migration skills' references: `gestures.md`, `collection-view.md`, `controls.md`, `gaps.md`.
-- The control pages' "Differences" tables; [EventMechanism.md](EventMechanism.md) (P11b), [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md) (items layout, snap points, reordering), [RenderingPipeline.md](RenderingPipeline.md) (image brushes, if they change ownership rules).
-- The demo's component gallery: MAUI gesture recognizers next to native views, a collection view page for items layouts, snap points and reordering, `ImageBrush` on the brushes page.
+- [Migration.md](../Migration.md): the parity table checked against MAUI 10.0.120 (its header says 10.0.110), the gesture and collection view sections, `ImageBrush` (none public in MAUI), templated controls and platform-specifics (the checker's conversions), and "Not available yet". The migration skills' references: `gestures.md`, `collection-view.md`, `controls.md`, `gaps.md`; the checker's rewrites for `TemplateBinding`, data headers and platform-specifics.
+- The control pages' "Differences" tables; [EventMechanism.md](EventMechanism.md) (P11b), [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md) (items layout, snap points).
+- The demo's component gallery: MAUI gesture recognizers next to native views, a collection view page for items layouts and snap points.
 - [Roadmap.md](Roadmap.md): items leave the backlog as they ship. [Requirements.md](Requirements.md): status. [CHANGELOG.md](../../CHANGELOG.md): an entry under `## Unreleased` per feature.
 
 ## Order
 
 | # | Steps | Size | Why here |
 | --- | --- | --- | --- |
-| 1 | R1–R4 | S–M | The parity test guards everything after it; the CascadeInputTransparent row in the docs is wrong today |
-| 2 | G1–G6 | M | Gesture recognizers are the most common conversion in ported pages |
-| 3 | V1–V3, V6 | M | The collection view's MAUI shape, so list XAML ports by prefix |
-| 4 | T1 (spike, then the build) | M | `TemplateBinding` blocks porting templated controls |
-| 5 | B1–B2 | M | Independent of the rest; can run alongside 3–4 |
-| 6 | V4, V5, V7 | M | On top of V1 |
-| 7 | S1 (spike, then the build), S2 | M | Independent |
-| 8 | T2, T3 | S–M | Lower demand |
-| 9 | V8 | L | The largest step; ships in 1.2 if ready, otherwise 1.3 |
+| # | Steps | Size | Why here |
+| --- | --- | --- | --- |
+| 1 | R1–R4 (done) | S–M | The parity test guards everything after it; the CascadeInputTransparent row in the docs was wrong |
+| 2 | G1–G6 (done) | M | Gesture recognizers are the most common conversion in ported pages |
+| 3 | V1–V3, V6 (done) | M | The collection view's MAUI shape, so list XAML ports by prefix |
+| 4 | The checker's conversions: `TemplateBinding`, data headers, platform-specifics; the `ImageBrush` docs | S | What the scope review turned into conversions |
+| 5 | V4, V5, V7 | M | On top of V1 |
+| 6 | S1 | S–M | Independent |
+| 7 | T3 | S | Lower demand |
 
-Independent tracks that can run in parallel: R and B; G; V; T and S. V8 starts only after V1–V5.
+Independent tracks that can run in parallel: the conversions; V; S; T.
 
 ## Decisions
 
@@ -160,13 +146,15 @@ Independent tracks that can run in parallel: R and B; G; V; T and S. V8 starts o
   - `SelectionMode`: `SkUiSelectionMode`, which adds `SingleDeselect`. XAML already ports; C# that names `SelectionMode.Single` does not.
 
   **Decided:** 1.2 stays non-breaking. The conversions are in [Migration.md](../Migration.md#lists-collectionview) and the migration skill's `collection-view.md`, and the three changes are collected for 2.0 in the [roadmap](Roadmap.md#held-for-20). V1–V7 add no member whose type would need one of them; a step that finds another such member adds it to that list instead of breaking 1.x.
-- **D2 The `TemplateBinding` mechanism** (open), after the T1 spike: MAUI's markup if it can be made to resolve, else `{sk:TemplateBinding}`.
+- **D2 The `TemplateBinding` mechanism. Decided:** a conversion, `RelativeSource AncestorType`, rewritten by the checker. MAUI's markup cannot resolve on drawn controls without its internal `IControlTemplated`, MAUI itself marks `TemplateBinding` obsolete, and a markup extension of SkiaUi's own would not spare the XAML edit ([scope review](#scope-review)).
 - **D3 `IsClippedToBounds` and `ClipToBounds`:** both names stay. Built in R2 as recommended: MAUI's name on the containers, as an alias of `ClipToBounds`, which stays the drawn name on every view (leaf controls, where MAUI has no member, included).
+- **D4 `ItemsLayout` is read, not written through.** Writing the layout object's values into `Orientation`, `Span` and the spacings made XAML attribute order matter (`ItemSpacing="8" ItemsLayout="VerticalList"` ended with spacing 0, the other order with 8) and replaced values the app set. Set, the layout decides; the view's own properties keep their values for when it is cleared.
+- **D5 `Header` / `Footer` / `EmptyView` keep `ISkUiView`.** Taking `object` in the bindable properties left the CLR properties reading `null` while the property held data, through all of 1.x, and added a 2.0 change. Text, the common case in MAUI's docs, comes through a type converter; data converts to a template bound through the list's context. Nothing about them is held for 2.0.
 
 ## Acceptance
 
 - `MauiApiParityTests` passes, and every allowlist entry gives a reason.
-- The XAML samples in MAUI's docs for gestures, CollectionView, CarouselView and `ControlTemplate` load, bind and behave in headless tests with only the prefix changed, plus the documented conversions (D1, D2). No 1.0 member changes type or goes away (D1).
+- The XAML samples in MAUI's docs for gestures, CollectionView, CarouselView and `ControlTemplate` load, bind and behave in headless tests with only the prefix changed, plus the documented conversions (D1, D2, D5). No 1.0 member changes type or goes away (D1).
 - 0 build warnings with the trim and AOT analyzers; the headless suite and the memory-leak scenarios pass.
 - `scripts/bench.sh --baseline 1.1.0` shows no regression in the existing scenarios.
-- Device runs: gesture recognizers on Android, iOS, Mac Catalyst and Windows; snap points and reordering feel on a phone (added to the [verification backlog](Roadmap.md#verification-backlog) if they are still open at release).
+- Device runs: gesture recognizers on Android, iOS, Mac Catalyst and Windows; snap points on a phone; `SafeAreaEdges` on a notched iPhone and an Android phone with edge-to-edge (added to the [verification backlog](Roadmap.md#verification-backlog) if they are still open at release).

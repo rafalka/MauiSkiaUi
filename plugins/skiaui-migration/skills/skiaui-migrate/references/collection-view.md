@@ -19,7 +19,7 @@ A plain list (items and a template only) can also use the lighter **`SkUiVirtual
 | `ItemTemplateSelector` property (custom code) | `ItemTemplate="{StaticResource Selector}"` | A selector is set as the template |
 | `ItemSizingStrategy="MeasureAllItems"` (default) | default | Every item may have its own height; unmeasured items are estimated (`EstimatedItemSize`, else the average) |
 | `ItemSizingStrategy="MeasureFirstItem"` | same, or `ItemExtent="<height>"` | The first row measured sizes every row (a grouped list measures every row); `ItemExtent` sets the size explicitly and wins |
-| `ItemsLayout="VerticalList"` / `"HorizontalList"` / `"VerticalGrid, 3"`, `LinearItemsLayout` / `GridItemsLayout` elements | same | Sets the list's `Orientation`, `Span`, `ItemSpacing` (between rows) and `SpanSpacing` (within a row), which can also be set directly; the last one set wins. Horizontal: rows along X (right to left in RTL), no pull-to-refresh. In a grouped grid each group starts a new row |
+| `ItemsLayout="VerticalList"` / `"HorizontalList"` / `"VerticalGrid, 3"`, `LinearItemsLayout` / `GridItemsLayout` elements | same | Decides the orientation, span and spacings; without it the list's `Orientation`, `Span`, `ItemSpacing` (between rows) and `SpanSpacing` (within a row) give them: use one or the other (setting both is reported, and the layout wins). Horizontal: rows along X (right to left in RTL), no pull-to-refresh. In a grouped grid each group starts a new row |
 | `SnapPointsType` / `SnapPointsAlignment` on the items layout | — | Not drawn yet (the checker warns): the list scrolls freely. Keep the list native where snapping matters, or use an `SkUiScrollView` with snap points |
 | `SelectionMode="None"` / `"Single"` / `"Multiple"` | same names | `SkUiSelectionMode`; plus `SingleDeselect` (tapping the selected item clears it). C#: `SelectionMode.X` → `SkUiSelectionMode.X`; never cast between the enums (their values differ); a bound view-model property becomes `SkUiSelectionMode` |
 | Scrolling to the selected item by hand (`ScrollTo(SelectedItem)` after selection or rotation) | `KeepSelectionVisible="True"` | Also after size changes; multiple selections show as many selected items as fit |
@@ -31,9 +31,10 @@ A plain list (items and a template only) can also use the lighter **`SkUiVirtual
 | `Selected` visual state on the item root | same | `CommonStates`; `Disabled` wins, `Selected` comes before `PointerOver` |
 | Selected-row background from the platform / a `Selected` state setter | `SelectionBackground` (brush; default accent at 12 %) | `SelectionBackground="Transparent"` when the template styles its own `Selected` state |
 | `TapGestureRecognizer` on the item root (open the item) | `ItemTapped` / `ItemTappedCommand` (+ `Parameter`, default the item) | Fires for every tap on the item, whatever the selection mode, after the selection changed; buttons inside the item keep their own taps |
-| `Header` / `Footer` (object or view) + `HeaderTemplate` / `FooterTemplate` | same | A drawn view, a string (a label) or data through the template (its binding context is the data). Without data, a template binds to the list's context. In C#, data goes in with `SetValue(SkUiCollectionView.HeaderProperty, data)`: the `Header` property takes drawn views |
+| `Header` / `Footer` (string or view) + `HeaderTemplate` / `FooterTemplate` | same | A drawn view, or text in XAML (`Header="Contacts"`: a label). The template binds to the list's context |
+| `Header="{Binding Info}"` (data) + `HeaderTemplate` binding `{Binding Title}` | drop `Header`; `HeaderTemplate` binding `{Binding Info.Title}` | The template's binding context is the list's, not the data (the checker reports a bound `Header` / `Footer` / `EmptyView`). Same for `Footer` and `EmptyView` |
 | — | `IsStickyHeader`, `IsStickyFooter` | Keep them in place, drawn over the list: the items scroll behind them (use a translucent or inset header to show them) and are never covered at the start or the end |
-| `EmptyView` (object or view) + `EmptyViewTemplate` | same | Shown while `ItemsSource` is null or empty; fills the space between header and footer. A string shows as a centered label |
+| `EmptyView` (string or view) + `EmptyViewTemplate` | same | Shown while `ItemsSource` is null or empty; fills the space between header and footer. Text in XAML shows as a centered label |
 | `RemainingItemsThreshold`, `RemainingItemsThresholdReached`, `RemainingItemsThresholdReachedCommand` (+ `Parameter`) | same names | Fires once per row count, when what shows changes (rows: items of a plain list; grid rows, group headers and footers otherwise) |
 | — (a "Load more" footer or busy indicator built by hand) | `LoadMoreMode` (`Manual`, `Auto`, `AutoOnUserScroll`), `LoadMorePosition` (`End`, `Start`), `LoadMoreCommand`, `LoadMoreTemplate`, `IsLoadMoreActive`, `LoadingMore` | A load-more row (button, spinner); `Start` keeps what shows while older items are inserted (chats) |
 | `ScrollTo(index, groupIndex, position, animate)`, `ScrollToRequested` | same, or `ScrollToIndex(index, position, animated)` | The awaitable form returns a `Task`; both land exactly on items of any height |
@@ -54,11 +55,11 @@ A plain list (items and a template only) can also use the lighter **`SkUiVirtual
 | Topic | MAUI `CollectionView` | `SkUiCollectionView` |
 | --- | --- | --- |
 | Rendering | Platform recycler + one MAUI handler per cell | One Skia surface; items created near the viewport, recycled per template |
-| Header / footer / empty view | Any object (strings become labels) | The same in XAML and bindings; the C# properties take drawn views (data: `SetValue`) |
+| Header / footer / empty view | Any object (strings become labels) | Drawn views, or text in XAML (a label); data goes through the template bound to the list's context |
 | Selection events | Lists of previous / current items | One previous / current item (single selection), plus cancelable `SelectionChanging` |
 | Item taps | No event (gesture recognizers on the template) | `ItemTapped` + command, independent of selection |
 | Sticky header / footer | Not available | `IsStickyHeader` / `IsStickyFooter`, and sticky group headers |
-| Layout | An `ItemsLayout` object | The same object, or `Orientation`, `Span`, `ItemSpacing`, `SpanSpacing` on the list; snap points not drawn yet |
+| Layout | An `ItemsLayout` object | The same object (it wins when set), or `Orientation`, `Span`, `ItemSpacing`, `SpanSpacing` on the list; snap points not drawn yet |
 | Expandable groups | Not available | Built in |
 | Pull to refresh | A separate `RefreshView` | Built in; works also on short lists and without overscroll; the look's indicator (overlay badge or inline, the platform's); mouse drags pull only with `IsMousePullEnabled`; `RefreshCompletion="Automatic"` ends it when an async command is done |
 | Height | Fills its slot; in a `StackLayout` / `ScrollView` it may create every cell | Same rule: give it a bounded height (grid row, page) |

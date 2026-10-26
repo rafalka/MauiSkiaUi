@@ -32,10 +32,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - Drag and drop recognizers are still not run and are reported once as a `Trace` line, as before.
   - The demo's component gallery has a page with the recognizers on a drawn and a native view side by side.
 - **The collection view's and carousel's MAUI shape:**
-  - `ItemsLayout` on `SkUiCollectionView` (`LinearItemsLayout` / `GridItemsLayout`, `"VerticalGrid, 2"`) and `SkUiCarouselView` (`LinearItemsLayout`, `"HorizontalList"`): it sets the list's orientation, span and spacings (the carousel's orientation, spacing and snap points), following the layout object's changes. Snap points on lists are not drawn yet.
+  - `ItemsLayout` on `SkUiCollectionView` (`LinearItemsLayout` / `GridItemsLayout`, `"VerticalGrid, 2"`) and `SkUiCarouselView` (`LinearItemsLayout`, `"HorizontalList"`): once set, it decides the list's orientation, span and spacings (the carousel's orientation, spacing and snap points), following the layout object's changes. `Orientation`, `Span` and the spacings keep their own values and apply again when it is cleared; setting both is reported once. Snap points on lists are not drawn yet.
   - `ItemSizingStrategy="MeasureFirstItem"` on `SkUiCollectionView`: the first row measured sizes every row.
   - MAUI's `ScrollTo(index, groupIndex, position, animate)` / `ScrollTo(item, group, …)` on `SkUiCollectionView`, and `ScrollToRequested` on both views.
-  - `Header`, `Footer` and `EmptyView` take a string (shown as a label) or data (shown through `HeaderTemplate` / `FooterTemplate` / `EmptyViewTemplate`, with the data as the binding context), in XAML and bindings as on MAUI, and the carousel's `EmptyView` too. In C#, the properties keep their type (`ISkUiView`): data goes in with `SetValue(SkUiCollectionView.HeaderProperty, data)`.
+  - `Header="Contacts"`, `Footer` and `EmptyView="No results"` take text in XAML, as on MAUI (a label; the empty view's centered), and the carousel's `EmptyView` too, through `SkUiTextViewTypeConverter`. The properties keep their type (`ISkUiView`); a data header converts to a template bound through the list's context (Migration.md).
 
 ### Other
 

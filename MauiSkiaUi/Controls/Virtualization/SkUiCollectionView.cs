@@ -1,4 +1,5 @@
 using System.Collections;
+using System.ComponentModel;
 using System.Windows.Input;
 using MauiSkiaUi.Core;
 using MauiSkiaUi.Rendering;
@@ -76,20 +77,9 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     private BodyPart Body { get { CreateParts(); return _body!; } }
     private SkUiScrollView Scroller { get { CreateParts(); return _scroller!; } }
     private SkUiPullToRefresh Refresh { get { CreateParts(); return _refresh!; } }
-    private SkUiContentSlot HeaderSlot => _headerSlot ??= new SkUiContentSlot(this, HeaderProperty, HeaderTemplateProperty, TextView, PlaceHeader);
-    private SkUiContentSlot FooterSlot => _footerSlot ??= new SkUiContentSlot(this, FooterProperty, FooterTemplateProperty, TextView, PlaceFooter);
-    private SkUiContentSlot EmptySlot => _emptySlot ??= new SkUiContentSlot(this, EmptyViewProperty, EmptyViewTemplateProperty, EmptyText, ShowEmptyView);
-
-    /// <summary>A string or data header or footer without a template (MAUI's): a label of its text.</summary>
-    private static ISkUiView TextView(string text) => new SkUiLabel { Text = text };
-
-    /// <summary>A string or data empty view without a template: a label of its text in the middle of the space.</summary>
-    private static ISkUiView EmptyText(string text) => new SkUiLabel
-    {
-        Text = text,
-        HorizontalTextAlignment = TextAlignment.Center,
-        VerticalTextAlignment = TextAlignment.Center
-    };
+    private SkUiContentSlot HeaderSlot => _headerSlot ??= new SkUiContentSlot(this, HeaderProperty, HeaderTemplateProperty);
+    private SkUiContentSlot FooterSlot => _footerSlot ??= new SkUiContentSlot(this, FooterProperty, FooterTemplateProperty);
+    private SkUiContentSlot EmptySlot => _emptySlot ??= new SkUiContentSlot(this, EmptyViewProperty, EmptyViewTemplateProperty);
 
     /// <summary>Creates the items, their model, the body and its scroller, and the pull to refresh, once (in this order: each part may read the ones before).</summary>
     private void CreateParts()
@@ -135,7 +125,9 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnItemTemplateChanged((DataTemplate?)value));
 
     /// <summary>Bindable property for <see cref="ItemSpacing"/>.</summary>
-    public static readonly BindableProperty ItemSpacingProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.ItemSpacingProperty, SkUiValidate.NonNegative);
+    public static readonly BindableProperty ItemSpacingProperty = BindableProperty.Create(nameof(ItemSpacing), typeof(double), typeof(SkUiCollectionView),
+        SkUiVirtualVerticalStackLayoutBase.ItemSpacingProperty.DefaultValue, validateValue: SkUiValidate.NonNegative,
+        propertyChanged: (view, _, _) => ((SkUiCollectionView)view).OnLayoutPropertyChanged());
 
     /// <summary>Bindable property for <see cref="ItemExtent"/>.</summary>
     public static readonly BindableProperty ItemExtentProperty = ForwardedToItems(SkUiVirtualVerticalStackLayoutBase.ItemExtentProperty, SkUiValidate.NonNegative);
@@ -418,17 +410,17 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     public static readonly BindableProperty OrientationProperty = BindableProperty.Create(nameof(Orientation), typeof(ItemsLayoutOrientation),
         typeof(SkUiCollectionView), ItemsLayoutOrientation.Vertical,
         validateValue: (_, value) => Enum.IsDefined((ItemsLayoutOrientation)value),
-        propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnOrientationChanged((ItemsLayoutOrientation)value));
+        propertyChanged: (view, _, _) => ((SkUiCollectionView)view).OnLayoutPropertyChanged());
 
     /// <summary>Bindable property for <see cref="Span"/>.</summary>
     public static readonly BindableProperty SpanProperty = BindableProperty.Create(nameof(Span), typeof(int), typeof(SkUiCollectionView), 1,
         validateValue: (_, value) => value is int span && span >= 1,
-        propertyChanged: (view, _, _) => ((SkUiCollectionView)view).ApplyStructure());
+        propertyChanged: (view, _, _) => ((SkUiCollectionView)view).OnLayoutPropertyChanged());
 
     /// <summary>Bindable property for <see cref="SpanSpacing"/>.</summary>
     public static readonly BindableProperty SpanSpacingProperty = BindableProperty.Create(nameof(SpanSpacing), typeof(double), typeof(SkUiCollectionView), 0d,
         validateValue: SkUiValidate.NonNegative,
-        propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnSpanSpacingChanged((double)value));
+        propertyChanged: (view, _, _) => ((SkUiCollectionView)view).OnLayoutPropertyChanged());
 
     /// <summary>
     /// The list's axis: <see cref="ItemsLayoutOrientation.Vertical"/> (default) or <see cref="ItemsLayoutOrientation.Horizontal"/>
@@ -457,26 +449,82 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         return this;
     }
 
-    private void OnOrientationChanged(ItemsLayoutOrientation value)
+    /// <summary>
+    /// The layout the list uses: <see cref="ItemsLayout"/> when the app set one, else <see cref="Orientation"/>,
+    /// <see cref="Span"/>, <see cref="ItemSpacing"/> and <see cref="SpanSpacing"/>. Applies what differs from what is in use.
+    /// </summary>
+    private void ApplyLayout()
     {
-        _horizontal = value == ItemsLayoutOrientation.Horizontal;
-        ItemsHost.IsHorizontal = _horizontal;
-        Scroller.Orientation = _horizontal ? ScrollOrientation.Horizontal : ScrollOrientation.Vertical;
-        Refresh.PullEnabled = IsPullToRefreshEnabled && !_horizontal;
-        Body.InvalidateBody();
-        InvalidateMeasure();
+        var horizontal = (_appItemsLayout?.Orientation ?? Orientation) == ItemsLayoutOrientation.Horizontal;
+        if (horizontal != _horizontal)
+        {
+            _horizontal = horizontal;
+            ItemsHost.IsHorizontal = _horizontal;
+            Scroller.Orientation = _horizontal ? ScrollOrientation.Horizontal : ScrollOrientation.Vertical;
+            Refresh.PullEnabled = IsPullToRefreshEnabled && !_horizontal;
+            Body.InvalidateBody();
+            InvalidateMeasure();
+        }
+        if (LayoutSpan != Model.Span)
+            ApplyStructure();
+        ItemsHost.SetValue(SkUiVirtualVerticalStackLayoutBase.ItemSpacingProperty, LayoutItemSpacing);
+        var spanSpacing = LayoutSpanSpacing;
+        // Exact: an unchanged value keeps the measured sizes.
+        if (spanSpacing != _spanSpacing)
+        {
+            _spanSpacing = spanSpacing;
+            ItemsHost.ForgetItemSizes();
+        }
     }
 
-    private void OnSpanSpacingChanged(double value)
+    /// <summary>The layout in use (tests).</summary>
+    internal (bool Horizontal, int Span, double ItemSpacing, double SpanSpacing) LayoutInUse => (_horizontal, Model.Span, ItemsHost.ItemSpacing, _spanSpacing);
+
+    /// <summary>Items in a row: the grid layout's span, 1 for a linear layout, else <see cref="Span"/>.</summary>
+    private int LayoutSpan => _appItemsLayout switch
     {
-        _spanSpacing = value;
-        ItemsHost.ForgetItemSizes();
+        GridItemsLayout grid => Math.Max(1, grid.Span),
+        not null => 1,
+        _ => Span
+    };
+
+    /// <summary>The gap between rows in use (see <see cref="ApplyLayout"/>).</summary>
+    private double LayoutItemSpacing => _appItemsLayout switch
+    {
+        GridItemsLayout grid => Math.Max(0, grid.Orientation == ItemsLayoutOrientation.Vertical ? grid.VerticalItemSpacing : grid.HorizontalItemSpacing),
+        LinearItemsLayout linear => Math.Max(0, linear.ItemSpacing),
+        _ => ItemSpacing
+    };
+
+    /// <summary>The gap between the items of a row in use (see <see cref="ApplyLayout"/>).</summary>
+    private double LayoutSpanSpacing => _appItemsLayout switch
+    {
+        GridItemsLayout grid => Math.Max(0, grid.Orientation == ItemsLayoutOrientation.Vertical ? grid.HorizontalItemSpacing : grid.VerticalItemSpacing),
+        not null => 0,
+        _ => SpanSpacing
+    };
+
+    private void OnLayoutPropertyChanged()
+    {
+        ReportLayoutOverride();
+        ApplyLayout();
+    }
+
+    /// <summary>Says once that <see cref="ItemsLayout"/> decides the layout although the properties it stands in for are set too.</summary>
+    private void ReportLayoutOverride()
+    {
+        if (_appItemsLayout is null || _layoutOverrideReported
+            || !IsSet(OrientationProperty) && !IsSet(SpanProperty) && !IsSet(ItemSpacingProperty) && !IsSet(SpanSpacingProperty))
+            return;
+        _layoutOverrideReported = true;
+        System.Diagnostics.Trace.TraceWarning(
+            "SkiaUi: SkUiCollectionView.ItemsLayout is set, so it decides the orientation, span and spacings; Orientation, Span, ItemSpacing and SpanSpacing set on the same list are ignored.");
     }
 
     /// <summary>The structure of the rows changed (grouping, span, group templates): every row is built again.</summary>
     private void ApplyStructure(bool templatesChanged = false)
     {
-        Model.Configure(IsGrouped, Span, IsGrouped && GroupHeaderTemplate is not null, IsGrouped && GroupFooterTemplate is not null, force: templatesChanged);
+        Model.Configure(IsGrouped, LayoutSpan, IsGrouped && GroupHeaderTemplate is not null, IsGrouped && GroupFooterTemplate is not null, force: templatesChanged);
         DropViews();
         UpdateItemSizing();
     }
@@ -484,15 +532,16 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// <summary>Bindable property for <see cref="ItemsLayout"/>.</summary>
     public static readonly BindableProperty ItemsLayoutProperty = BindableProperty.Create(nameof(ItemsLayout), typeof(IItemsLayout), typeof(SkUiCollectionView), null,
         validateValue: (_, value) => value is not null,
-        propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnItemsLayoutChanged((IItemsLayout)value),
+        propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnItemsLayoutChanged((IItemsLayout?)value),
         defaultValueCreator: _ => new LinearItemsLayout(ItemsLayoutOrientation.Vertical));
 
     /// <summary>
     /// MAUI's items layout: a <see cref="LinearItemsLayout"/> (XAML: <c>"VerticalList"</c>, <c>"HorizontalList"</c>) or a
-    /// <see cref="GridItemsLayout"/> (<c>"VerticalGrid, 2"</c>), as a string or an element. It sets <see cref="Orientation"/>,
-    /// <see cref="Span"/>, <see cref="ItemSpacing"/> (the gap between rows) and <see cref="SpanSpacing"/> (between the items of a
-    /// row), and again when the layout object changes; whichever is set last wins, the layout or one of those properties. Its
-    /// snap points are not drawn yet. Default: a vertical list, which changes nothing.
+    /// <see cref="GridItemsLayout"/> (<c>"VerticalGrid, 2"</c>), as a string or an element. Once set, it decides the list's
+    /// orientation, span, the gap between rows and the gap between the items of a row, also as the layout object changes;
+    /// <see cref="Orientation"/>, <see cref="Span"/>, <see cref="ItemSpacing"/> and <see cref="SpanSpacing"/> keep their values
+    /// and apply again only when it is cleared (setting both is reported once). Its snap points are not drawn yet. Not set
+    /// (default), it reads as a vertical list and those properties apply.
     /// </summary>
     public IItemsLayout ItemsLayout { get => (IItemsLayout)GetValue(ItemsLayoutProperty); set => SetValue(ItemsLayoutProperty, value); }
 
@@ -504,36 +553,22 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         return this;
     }
 
+    /// <summary>The items layout the app set, read by <see cref="ApplyLayout"/>; <c>null</c>: the list's own properties apply.</summary>
+    private ItemsLayout? _appItemsLayout;
     private SkUiWeakListener<SkUiCollectionView>? _itemsLayoutListener;
+    private bool _layoutOverrideReported;
 
-    private void OnItemsLayoutChanged(IItemsLayout layout)
+    private void OnItemsLayoutChanged(IItemsLayout? layout)
     {
+        // Cleared, the property reads its default layout again, which leaves the list's properties in charge.
+        _appItemsLayout = IsSet(ItemsLayoutProperty) ? layout as ItemsLayout : null;
         // Layouts are often shared (LinearItemsLayout.Vertical is static): a weak listener keeps the list collectable.
         (_itemsLayoutListener ??= new SkUiWeakListener<SkUiCollectionView>(this, static (view, change) =>
         {
             if (change.Kind == SkUiChangeKind.Property)
-                view.ApplyItemsLayout();
-        })).Listen(layout);
-        ApplyItemsLayout();
-    }
-
-    private void ApplyItemsLayout()
-    {
-        switch (ItemsLayout)
-        {
-            case GridItemsLayout grid:
-                var vertical = grid.Orientation == ItemsLayoutOrientation.Vertical;
-                Orientation = grid.Orientation;
-                Span = Math.Max(1, grid.Span);
-                ItemSpacing = Math.Max(0, vertical ? grid.VerticalItemSpacing : grid.HorizontalItemSpacing);
-                SpanSpacing = Math.Max(0, vertical ? grid.HorizontalItemSpacing : grid.VerticalItemSpacing);
-                break;
-            case LinearItemsLayout linear:
-                Orientation = linear.Orientation;
-                Span = 1;
-                ItemSpacing = Math.Max(0, linear.ItemSpacing);
-                break;
-        }
+                view.ApplyLayout();
+        })).Listen(_appItemsLayout);
+        OnLayoutPropertyChanged();
     }
 
     /// <summary>Bindable property for <see cref="ItemSizingStrategy"/>.</summary>
@@ -628,15 +663,14 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     #region Header, footer, empty view
 
-    // A drawn view, or data as on MAUI (shown through the template, else as text); native views are refused (with a warning).
     private static BindableProperty ViewProperty(string name, Action<SkUiCollectionView> changed) => BindableProperty.Create(
-        name, typeof(object), typeof(SkUiCollectionView), null,
+        name, typeof(ISkUiView), typeof(SkUiCollectionView), null,
         validateValue: (bindable, value) =>
         {
             var owner = (SkUiCollectionView)bindable;
             if (value is ISkUiView child && !ReferenceEquals(owner.GetValue(owner.PropertyNamed(name)), child))
                 owner.ValidateChild(child);
-            return value is null or ISkUiView or not Element;
+            return true;
         },
         propertyChanged: (bindable, _, _) => changed((SkUiCollectionView)bindable));
 
@@ -677,12 +711,11 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         propertyChanged: (bindable, _, _) => ((SkUiCollectionView)bindable).OnTemplateChanged(((SkUiCollectionView)bindable).EmptySlot));
 
     /// <summary>
-    /// A drawn view before the items: it scrolls with them, or stays at the start with <see cref="IsStickyHeader"/>. As on MAUI,
-    /// <see cref="HeaderProperty"/> also takes data (XAML: <c>Header="Contacts"</c> or a binding): it shows through
-    /// <see cref="HeaderTemplate"/> with the data as its binding context, else as a label of its text. This property then
-    /// reads <c>null</c>; <c>GetValue(HeaderProperty)</c> reads the data.
+    /// A drawn view before the items: it scrolls with them, or stays at the start with <see cref="IsStickyHeader"/>. In XAML,
+    /// text makes a label of it (<c>Header="Contacts"</c>, as MAUI's string header).
     /// </summary>
-    public ISkUiView? Header { get => GetValue(HeaderProperty) as ISkUiView; set => SetValue(HeaderProperty, value); }
+    [TypeConverter(typeof(SkUiTextViewTypeConverter))]
+    public ISkUiView? Header { get => (ISkUiView?)GetValue(HeaderProperty); set => SetValue(HeaderProperty, value); }
 
     /// <summary>
     /// Creates <see cref="Header"/> when it is not set (drawn views; a <see cref="DataTemplateSelector"/> chooses by the
@@ -701,9 +734,10 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     /// <summary>
     /// A drawn view after the items: it scrolls with them (right after the last item), or stays at the end with
-    /// <see cref="IsStickyFooter"/>. <see cref="FooterProperty"/> also takes data, as <see cref="Header"/>'s does.
+    /// <see cref="IsStickyFooter"/>. In XAML, text makes a label of it, as for <see cref="Header"/>.
     /// </summary>
-    public ISkUiView? Footer { get => GetValue(FooterProperty) as ISkUiView; set => SetValue(FooterProperty, value); }
+    [TypeConverter(typeof(SkUiTextViewTypeConverter))]
+    public ISkUiView? Footer { get => (ISkUiView?)GetValue(FooterProperty); set => SetValue(FooterProperty, value); }
 
     /// <summary>Creates <see cref="Footer"/> when it is not set; see <see cref="HeaderTemplate"/>.</summary>
     public DataTemplate? FooterTemplate { get => (DataTemplate?)GetValue(FooterTemplateProperty); set => SetValue(FooterTemplateProperty, value); }
@@ -719,11 +753,9 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// grouped list with groups but no rows to show is empty too), between the header and the footer; it fills the space
     /// the list has left (center its content to place it in the middle).
     /// </summary>
-    /// <remarks>
-    /// <see cref="EmptyViewProperty"/> also takes data, as <see cref="Header"/>'s does (XAML: <c>EmptyView="No results"</c>):
-    /// without a template its text shows in the middle.
-    /// </remarks>
-    public ISkUiView? EmptyView { get => GetValue(EmptyViewProperty) as ISkUiView; set => SetValue(EmptyViewProperty, value); }
+    /// <remarks>In XAML, text makes a label of it, centered (<c>EmptyView="No results"</c>, as MAUI's string empty view).</remarks>
+    [TypeConverter(typeof(SkUiCenteredTextViewTypeConverter))]
+    public ISkUiView? EmptyView { get => (ISkUiView?)GetValue(EmptyViewProperty); set => SetValue(EmptyViewProperty, value); }
 
     /// <summary>Creates <see cref="EmptyView"/> when it is not set, the first time the list is empty; see <see cref="HeaderTemplate"/>.</summary>
     public DataTemplate? EmptyViewTemplate { get => (DataTemplate?)GetValue(EmptyViewTemplateProperty); set => SetValue(EmptyViewTemplateProperty, value); }
@@ -765,9 +797,9 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         PlaceHeader();
     }
 
-    private void PlaceHeader() => Place(HeaderSlot.Shown, IsStickyHeader, ref _stickyHeaderHost, ref Body.HeaderHost);
+    private void PlaceHeader() => Place(Header, IsStickyHeader, ref _stickyHeaderHost, ref Body.HeaderHost);
 
-    private void PlaceFooter() => Place(FooterSlot.Shown, IsStickyFooter, ref _stickyFooterHost, ref Body.FooterHost);
+    private void PlaceFooter() => Place(Footer, IsStickyFooter, ref _stickyFooterHost, ref Body.FooterHost);
 
     private void OnFooterChanged()
     {
@@ -804,9 +836,6 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         return part;
     }
 
-    /// <summary>The header, footer and empty view shown: a view set, made by a template, or made for data (tests).</summary>
-    internal (ISkUiView? Header, ISkUiView? Footer, ISkUiView? EmptyView) Shown => (HeaderSlot.Shown, FooterSlot.Shown, EmptySlot.Shown);
-
     /// <summary>Which header and footer hosts exist (tests).</summary>
     internal (bool StickyHeader, bool StickyFooter, bool Header, bool Footer) CreatedHosts =>
         (_stickyHeaderHost is not null, _stickyFooterHost is not null, Body.HeaderHost is not null, Body.FooterHost is not null);
@@ -816,10 +845,8 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         EmptySlot.OnContentChanged();
         if (EmptyView is null && !EmptySlot.IsSetting && _isEmpty && Parent is not null)
             EmptySlot.Ensure();
-        ShowEmptyView();
+        Body.EmptyHost.Content = EmptyView;
     }
-
-    private void ShowEmptyView() => Body.EmptyHost.Content = EmptySlot.Shown;
 
     private void OnTemplateChanged(SkUiContentSlot slot)
     {

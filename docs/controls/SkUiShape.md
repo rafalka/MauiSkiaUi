@@ -55,7 +55,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 | Topic | SkiaUi |
 | --- | --- |
-| `ImageBrush` | Not drawn |
+| `ImageBrush` | Internal in MAUI, so no MAUI page sets one; an image paint is not drawn |
 | `Uniform` under one unbounded constraint | Scaled by the bounded one (MAUI scales by 0 and collapses the shape to its stroke) |
 | `UniformToFill` measure | Clamped to the constraint (MAUI may report more) |
 | Sized shapes | Measure to their requests (as MAUI with a platform view) |

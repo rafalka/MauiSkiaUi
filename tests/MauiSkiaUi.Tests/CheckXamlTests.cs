@@ -157,7 +157,7 @@ public class CheckXamlTests
                 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
                              xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
                   <sk:SkUiGrid>
-                    <sk:SkUiCollectionView ItemsSource="{Binding Orders}" IsGrouped="True" Header="Orders"
+                    <sk:SkUiCollectionView ItemsSource="{Binding Orders}" IsGrouped="True" Header="Orders" Footer="{Binding Summary}"
                                            SelectionMode="Multiple" ItemsLayout="VerticalGrid, 2" CanReorderItems="True" />
                     <CollectionView />
                   </sk:SkUiGrid>
@@ -169,6 +169,8 @@ public class CheckXamlTests
             Assert.Equal(2, errors.Length); // grouping, multiple selection, ItemsLayout and a string header port as is
             Assert.Contains(errors, error => error.Contains("CanReorderItems"));
             Assert.Contains(errors, error => error.Contains("Page.xaml:6:") && error.Contains("sk:SkUiCollectionView"));
+            // A data footer converts to a template bound through the list's context.
+            Assert.Contains(output.Split('\n'), line => line.Contains("warning:") && line.Contains("Footer=\"{Binding Summary}\"") && line.Contains("{Binding Info.Title}"));
         }
         finally
         {

@@ -29,7 +29,7 @@ Work merged into `devel` after 1.0.0 shipped with 1.1.0 too.
 
 ### 1.2.0: MAUI parity (next, on `devel`)
 
-More MAUI pages port by changing the XAML prefix: MAUI's pan, swipe, pinch and pointer recognizers on drawn views; the collection view's and carousel's `ItemsLayout`, `ScrollTo`, snap points, `ItemsUpdatingScrollMode` and data headers, then reordering; `TemplateBinding` in drawn templates; `ImageBrush`; MAUI 10's new members (`SafeAreaEdges`, `Switch.OffColor`, `CheckBox.Command`); platform-specifics with a drawn meaning; and a test that compares the drawn controls' API with MAUI's. Steps, order and open decisions: [ImplementationPlan-1.2.md](ImplementationPlan-1.2.md).
+More MAUI pages port by changing the XAML prefix: MAUI's pan, swipe, pinch and pointer recognizers on drawn views; the collection view's and carousel's `ItemsLayout`, `ScrollTo`, snap points, `ItemsUpdatingScrollMode` and text headers; `IndicatorTemplate`; MAUI 10's new members (`SafeAreaEdges` on the surface root, `Switch.OffColor`, `CheckBox.Command`); and a test that compares the drawn controls' API with MAUI's. `TemplateBinding`, data headers and platform-specifics become conversions in the migration checker. Collection view reordering follows in 1.3. Steps, order and decisions: [ImplementationPlan-1.2.md](ImplementationPlan-1.2.md).
 
 ## Backlog (1.x)
 
@@ -45,11 +45,12 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 ### MAUI parity
 
-- **CollectionView:** reordering, snap points on the items layout, a selected-item template, extended selection, keyboard item navigation, animated insert and remove.
+- **CollectionView:** reordering (next, in 1.3: [plan](ImplementationPlan-1.2.md#moved-to-13)), snap points on the items layout, a selected-item template, extended selection, keyboard item navigation, animated insert and remove.
 - **CarouselView / IndicatorView:** `ItemsUpdatingScrollMode`, `VisibleViews`, `IndicatorTemplate`; autoplay, several items per snap point, a Core carousel.
-- **Images:** `ImageBrush`; fade-in, download progress, a per-view cache key, downsampling to the view's size, Android vector drawables.
+- **Images:** fade-in, download progress, a per-view cache key, downsampling to the view's size, Android vector drawables.
 - **Labels:** span press feedback, HTML images, `sub` / `sup`, block indents; one fitted size for a group of labels.
-- **Templates:** a drawn `RadioButton.DefaultTemplate`; button image tint.
+- **Templates:** button image tint.
+- **Drawn meanings of platform-specifics,** as SkiaUi members on both layers: a tap on a slider's track that moves the thumb, swipe view transition modes (reveal / drag), the press ripple's color, search bar chrome (minimal / prominent); pulling from other edges is under [Lists and scrolling](#lists-and-scrolling).
 
 ### Text input
 
@@ -104,8 +105,7 @@ Breaking changes for MAUI parity, kept out of 1.x so the 1.0 API stays as it is.
 - `SkUiCollectionView.Scrolled` raises MAUI's `ItemsViewScrolledEventArgs` (deltas, first / center / last visible index) instead of `ScrolledEventArgs`, as the carousel already does.
 - `SkUiCollectionView.SelectionChanged` raises MAUI's `SelectionChangedEventArgs` (its constructors are internal: raised through an accessor) instead of `SkUiSelectionChangedEventArgs`; `PreviousItem` / `CurrentItem` move elsewhere or go.
 - `SkUiCollectionView.SelectionMode` takes MAUI's `SelectionMode`; `SingleDeselect` moves elsewhere (for example a separate property).
-- `SkUiCollectionView.Header` / `Footer` / `EmptyView` and `SkUiCarouselView.EmptyView` become `object`, as MAUI's. Their bindable properties take data since 1.2; the CLR properties keep the 1.0 type `ISkUiView`.
 
 ## Not planned
 
-By design: drawn WebView, media and maps (host them in `SkUiMauiContentView`); Shell, navigation, pages and popup windows of SkiaUi's own (drawn controls open popups through the app's popup system); controls MAUI made obsolete (Frame, ListView, TableView, cells, compatibility layouts); context flyouts and drag and drop; clones of other vendors' controls; a Core flex layout (Core uses the wrap and shrink layouts and the grid).
+By design: drawn WebView, media and maps (host them in `SkUiMauiContentView`); Shell, navigation, pages and popup windows of SkiaUi's own (drawn controls open popups through the app's popup system); controls MAUI made obsolete (Frame, ListView, TableView, cells, compatibility layouts); context flyouts and drag and drop; `ImageBrush` (internal in MAUI 10, so no MAUI page can use one: an `SkUiImage` behind the content does it); clones of other vendors' controls; a Core flex layout (Core uses the wrap and shrink layouts and the grid).

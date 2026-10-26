@@ -5,7 +5,7 @@ namespace MauiSkiaUi.Tests;
 
 /// <summary>
 /// The collection view's and carousel's MAUI shape (steps V1–V3 and V6 in docs/design/ImplementationPlan-1.2.md):
-/// <c>ItemsLayout</c>, <c>ItemSizingStrategy</c>, MAUI's <c>ScrollTo</c> with <c>ScrollToRequested</c>, and data in
+/// <c>ItemsLayout</c>, <c>ItemSizingStrategy</c>, MAUI's <c>ScrollTo</c> with <c>ScrollToRequested</c>, and text in
 /// <c>Header</c> / <c>Footer</c> / <c>EmptyView</c>, in MAUI's XAML with only the prefix changed.
 /// </summary>
 [Collection(RuntimeXamlCollection.Name)]
@@ -55,10 +55,11 @@ public class CollectionViewMauiShapeTests
     }
 
     [Fact]
-    public void ItemsLayoutStringsAndElementsSetTheListsLayout()
+    public void ItemsLayoutStringsAndElementsDecideTheListsLayout()
     {
         var grid = Load<SkUiCollectionView>("""<sk:SkUiCollectionView ItemsLayout="VerticalGrid, 3" />""");
-        Assert.Equal((ItemsLayoutOrientation.Vertical, 3), (grid.Orientation, grid.Span));
+        Assert.Equal((false, 3), (grid.LayoutInUse.Horizontal, grid.LayoutInUse.Span));
+        Assert.Equal(1, grid.Span); // read, not written: the list's own properties keep their values
 
         var horizontal = Load<SkUiCollectionView>("""
             <sk:SkUiCollectionView>
@@ -68,23 +69,41 @@ public class CollectionViewMauiShapeTests
             </sk:SkUiCollectionView>
             """);
         // Horizontal: the rows follow each other horizontally, so the horizontal spacing is the gap between them.
-        Assert.Equal((ItemsLayoutOrientation.Horizontal, 2, 8d, 4d), (horizontal.Orientation, horizontal.Span, horizontal.ItemSpacing, horizontal.SpanSpacing));
+        Assert.Equal((true, 2, 8d, 4d), horizontal.LayoutInUse);
 
         var list = Load<SkUiCollectionView>("""<sk:SkUiCollectionView ItemsLayout="HorizontalList" />""");
-        Assert.Equal((ItemsLayoutOrientation.Horizontal, 1), (list.Orientation, list.Span));
+        Assert.Equal((true, 1), (list.LayoutInUse.Horizontal, list.LayoutInUse.Span));
     }
 
     [Fact]
-    public void TheLastOfTheLayoutAndTheListsPropertiesWins()
+    public void ASetItemsLayoutDecidesWhateverTheAttributeOrder()
+    {
+        foreach (var xaml in new[]
+                 {
+                     """<sk:SkUiCollectionView ItemSpacing="8" Span="2" ItemsLayout="VerticalList" />""",
+                     """<sk:SkUiCollectionView ItemsLayout="VerticalList" ItemSpacing="8" Span="2" />"""
+                 })
+        {
+            var list = Load<SkUiCollectionView>(xaml);
+            Assert.Equal((false, 1, 0d, 0d), list.LayoutInUse);
+            Assert.Equal((8d, 2), (list.ItemSpacing, list.Span));
+        }
+    }
+
+    [Fact]
+    public void TheListFollowsItsItemsLayoutUntilItIsCleared()
     {
         var layout = new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 6 };
-        var list = new SkUiCollectionView { ItemsLayout = layout };
-        Assert.Equal(6, list.ItemSpacing);
+        var list = new SkUiCollectionView { ItemsLayout = layout, ItemSpacing = 2, Orientation = ItemsLayoutOrientation.Horizontal };
+        Assert.Equal((false, 6d), (list.LayoutInUse.Horizontal, list.LayoutInUse.ItemSpacing));
 
-        list.ItemSpacing = 2;
-        Assert.Equal(2, list.ItemSpacing);
-        layout.ItemSpacing = 10; // the layout changed after: it wins again
-        Assert.Equal(10, list.ItemSpacing);
+        layout.ItemSpacing = 10;
+        Assert.Equal(10, list.LayoutInUse.ItemSpacing);
+
+        list.ClearValue(SkUiCollectionView.ItemsLayoutProperty);
+        Assert.Equal((true, 2d), (list.LayoutInUse.Horizontal, list.LayoutInUse.ItemSpacing));
+        layout.ItemSpacing = 12; // no longer followed
+        Assert.Equal(2, list.LayoutInUse.ItemSpacing);
         Assert.IsType<LinearItemsLayout>(new SkUiCollectionView().ItemsLayout); // MAUI's default, a vertical list
     }
 
@@ -92,17 +111,20 @@ public class CollectionViewMauiShapeTests
     public void TheCarouselTakesALinearItemsLayout()
     {
         var carousel = Load<SkUiCarouselView>("""
-            <sk:SkUiCarouselView>
+            <sk:SkUiCarouselView ItemSpacing="3">
               <sk:SkUiCarouselView.ItemsLayout>
                 <LinearItemsLayout Orientation="Vertical" ItemSpacing="10" SnapPointsType="Mandatory" SnapPointsAlignment="Start" />
               </sk:SkUiCarouselView.ItemsLayout>
             </sk:SkUiCarouselView>
             """);
-        Assert.Equal((ItemsLayoutOrientation.Vertical, 10d, SnapPointsType.Mandatory, SnapPointsAlignment.Start),
-            (carousel.Orientation, carousel.ItemSpacing, carousel.SnapPointsType, carousel.SnapPointsAlignment));
+        Assert.Equal((false, 10d, SnapPointsType.Mandatory, SnapPointsAlignment.Start), carousel.LayoutInUse);
+        Assert.Equal((ItemsLayoutOrientation.Horizontal, 3d), (carousel.Orientation, carousel.ItemSpacing));
+
+        carousel.ClearValue(SkUiCarouselView.ItemsLayoutProperty);
+        Assert.Equal((true, 3d, SnapPointsType.MandatorySingle, SnapPointsAlignment.Center), carousel.LayoutInUse);
 
         var vertical = Load<SkUiCarouselView>("""<sk:SkUiCarouselView ItemsLayout="VerticalList" />""");
-        Assert.Equal(ItemsLayoutOrientation.Vertical, vertical.Orientation);
+        Assert.False(vertical.LayoutInUse.Horizontal);
         Assert.Equal(SnapPointsType.MandatorySingle, new SkUiCarouselView().ItemsLayout.SnapPointsType);
     }
 
@@ -163,46 +185,29 @@ public class CollectionViewMauiShapeTests
     }
 
     [Fact]
-    public void StringHeadersFootersAndEmptyViewsShowAsLabels()
+    public void StringHeadersFootersAndEmptyViewsBecomeLabels()
     {
         var list = Load<SkUiCollectionView>($"""<sk:SkUiCollectionView Header="{ContactsTitle}" Footer="End" EmptyView="{NoContacts}" />""");
         SkUiTestHelpers.Arrange(list, 300, 400);
 
-        var (header, footer, empty) = list.Shown;
-        Assert.Equal(ContactsTitle, Assert.IsType<SkUiLabel>(header).Text);
-        Assert.Equal("End", Assert.IsType<SkUiLabel>(footer).Text);
-        Assert.Equal(NoContacts, Assert.IsType<SkUiLabel>(empty).Text);
-        Assert.Null(list.Header); // the data is in the bindable property
-        Assert.Equal(ContactsTitle, list.GetValue(SkUiCollectionView.HeaderProperty));
+        Assert.Equal(ContactsTitle, Assert.IsType<SkUiLabel>(list.Header).Text);
+        Assert.Equal("End", Assert.IsType<SkUiLabel>(list.Footer).Text);
+        var empty = Assert.IsType<SkUiLabel>(list.EmptyView);
+        Assert.Equal((NoContacts, TextAlignment.Center, TextAlignment.Center), (empty.Text, empty.HorizontalTextAlignment, empty.VerticalTextAlignment));
 
         var carousel = Load<SkUiCarouselView>($"""<sk:SkUiCarouselView EmptyView="{NoContacts}" />""");
         SkUiTestHelpers.Arrange(carousel, 300, 400);
-        Assert.Equal(NoContacts, Assert.IsType<SkUiLabel>(carousel.ShownEmptyView).Text);
+        Assert.Equal(NoContacts, Assert.IsType<SkUiLabel>(carousel.EmptyView).Text);
     }
 
     [Fact]
-    public void DataHeadersShowThroughTheTemplateWithTheDataAsBindingContext()
+    public void DataIsRefusedAsBefore()
     {
-        var list = List(Rows(3));
-        list.HeaderTemplate = new DataTemplate(() =>
-        {
-            var label = new SkUiLabel();
-            label.SetBinding(SkUiLabel.TextProperty, nameof(HeaderInfo.Title));
-            return label;
-        });
+        // Data headers convert to a template bound through the list's binding context (Migration.md).
+        var list = new SkUiCollectionView();
         list.SetValue(SkUiCollectionView.HeaderProperty, new HeaderInfo(ContactsTitle));
-        SkUiTestHelpers.Arrange(new SkUiContentView { Content = list }, 300, 400);
-        Assert.Equal(ContactsTitle, Assert.IsType<SkUiLabel>(list.Shown.Header).Text);
-
-        // New data, then a drawn view: each replaces what shows.
-        list.SetValue(SkUiCollectionView.HeaderProperty, new HeaderInfo("People"));
-        Assert.Equal("People", Assert.IsType<SkUiLabel>(list.Shown.Header).Text);
-        var view = new SkUiBox();
-        list.Header = view;
-        Assert.Same(view, list.Shown.Header);
-
-        // A native view is refused, as before.
+        Assert.Null(list.Header);
         list.SetValue(SkUiCollectionView.HeaderProperty, new Label());
-        Assert.Same(view, list.Header);
+        Assert.Null(list.Header);
     }
 }

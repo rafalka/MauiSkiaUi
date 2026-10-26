@@ -71,7 +71,7 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 - Defaults: leaf controls `HwAccelerated = false`; hosts/layouts default `true`.
 - Hit-testing uses **arranged bounds** (shape-aware hits deferred).
 - **Visual states:** MAUI's `VisualStateManager` groups and setters work; `SkUiView` raises the states from SkiaUi's input state: `Disabled` (also while a control cannot be tapped, e.g. a command that cannot execute), else `PointerOver` while `IsPointerOver` (mouse, trackpad, pen or iPad pointer hover; see [EventMechanism.md](../design/EventMechanism.md#hover)), else `Normal`; `Focused` / `Unfocused` in a focus group, from keyboard focus (see below). Controls add their MAUI states (buttons `Pressed`, toggles their checked states). State triggers (`StateTrigger`, `CompareStateTrigger`, `AdaptiveTrigger`) work as in MAUI.
-- `ImageBrush` backgrounds are not drawn. Empty MAUI brushes (the default brush, a gradient without stops) do not hide `BackgroundColor`.
+- Image paints are not drawn (MAUI's `ImageBrush` is internal, so no MAUI page sets one; put an `SkUiImage` behind the content). Empty MAUI brushes (the default brush, a gradient without stops) do not hide `BackgroundColor`.
 
 ## Binding context
 
@@ -118,7 +118,7 @@ MAUI's `Background`, `Shadow` and `Clip` work on every drawn view, so MAUI XAML 
 - **`Clip`** (any MAUI `Geometry`, in the view's coordinates; path and group geometries keep their `FillRule`) clips the view's content, children and overlay. Drawing only: taps still hit the rectangular bounds (FR-11). Geometry edits re-clip.
 - **Composite-time:** shadows and clips are render-node properties, applied when compositing. Moving, scrolling, fading or transforming a shadowed or clipped view (`TranslationX`, `AnimateAsync`, a scroll fling) records nothing and blurs nothing again; editing the shadow or the clip redraws it without recording the view's content.
 - Core nodes have the same three: `SetBackground(Paint)`, `SetShadow(IShadow)` (e.g. `SkUiCoreShadow`), `SetClip(IShape)` ([SkUiCore.md](SkUiCore.md#backgrounds-shadows-and-clips)).
-- Not drawn: `ImageBrush`; shape-aware hit-testing stays opt-in for later.
+- Not drawn: image paints (MAUI's `ImageBrush` is internal); shape-aware hit-testing stays opt-in for later.
 
 ## Accessibility and keyboard
 

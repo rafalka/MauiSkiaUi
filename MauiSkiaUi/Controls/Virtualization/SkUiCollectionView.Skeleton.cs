@@ -138,8 +138,8 @@ public partial class SkUiCollectionView
 
         private (int Span, double Cell) Cells(double across)
         {
-            var span = Math.Max(1, owner.Span);
-            var cell = double.IsFinite(across) ? Math.Max(0, (across - (span - 1) * owner.SpanSpacing) / span) : double.PositiveInfinity;
+            var span = owner.LayoutSpan;
+            var cell = double.IsFinite(across) ? Math.Max(0, (across - (span - 1) * owner._spanSpacing) / span) : double.PositiveInfinity;
             return (span, cell);
         }
 
@@ -152,7 +152,7 @@ public partial class SkUiCollectionView
             {
                 var size = horizontal ? _views[index].Measure(double.PositiveInfinity, cell) : _views[index].Measure(cell, double.PositiveInfinity);
                 along = Math.Max(along, owner.Along(size));
-                across += owner.Across(size) + (index > start ? owner.SpanSpacing : 0);
+                across += owner.Across(size) + (index > start ? owner._spanSpacing : 0);
             }
             return (along, across);
         }
@@ -162,7 +162,7 @@ public partial class SkUiCollectionView
             var horizontal = owner._horizontal;
             var available = horizontal ? heightConstraint : widthConstraint;
             var (span, cell) = Cells(available);
-            var spacing = owner.ItemSpacing;
+            var spacing = owner.LayoutItemSpacing;
             var requested = SkUiShimmer.GetSkeletonItemCount(owner);
             int count;
             if (requested > 0)
@@ -205,11 +205,11 @@ public partial class SkUiCollectionView
                 var length = _rows[row];
                 for (var column = 0; column < span && row * span + column < _views.Count; column++)
                 {
-                    var offset = column * (cell + owner.SpanSpacing);
+                    var offset = column * (cell + owner._spanSpacing);
                     var width = span == 1 ? owner.Across(size) : cell;
                     _views[row * span + column].Arrange(horizontal ? new Rect(position, offset, length, width) : new Rect(offset, position, width, length));
                 }
-                position += length + owner.ItemSpacing;
+                position += length + owner.LayoutItemSpacing;
             }
         }
     }

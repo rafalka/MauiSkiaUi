@@ -31,7 +31,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Differences from MAUI BoxView
 
-Drawn with Skia; passive unless `Tapped` is subscribed. Without a `Color`, a solid or gradient `Background` (linear, radial) fills the box, rounded by `CornerRadius`, as MAUI's BoxView; `ImageBrush` is not drawn.
+Drawn with Skia; passive unless `Tapped` is subscribed. Without a `Color`, a solid or gradient `Background` (linear, radial) fills the box, rounded by `CornerRadius`, as MAUI's BoxView.
 
 ## Related
 

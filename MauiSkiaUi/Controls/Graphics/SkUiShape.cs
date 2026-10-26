@@ -12,7 +12,7 @@ namespace MauiSkiaUi;
 /// <see cref="StrokeThickness"/>, dashes, caps, joins and <see cref="Aspect"/>. Shapes measure, stretch and place their
 /// geometry as MAUI's shapes do, and are MAUI <see cref="IShape"/>s, so they also shape a <see cref="SkUiBorder"/>.
 /// </summary>
-/// <remarks>Input uses the rectangular arranged bounds. <c>ImageBrush</c> fills and strokes are not drawn.</remarks>
+/// <remarks>Input uses the rectangular arranged bounds. Image paints (MAUI's <c>ImageBrush</c> is internal) are not drawn.</remarks>
 public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
 {
     private Brush? _fill;

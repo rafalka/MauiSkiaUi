@@ -82,7 +82,7 @@ public class MauiApiParityTests
     /// <summary>Handler and bindable-property plumbing that MAUI does not hide, compared by member name on every type.</summary>
     private static readonly Dictionary<string, string> PlumbingEverywhere = new(StringComparer.Ordinal)
     {
-        ["On"] = "Platform-specifics: MAUI's On<T>() is typed to its own control classes (the XAML attached properties are step S2)",
+        ["On"] = "Platform-specifics: MAUI's On<T>() is typed to its own control classes (the migration checker converts the XAML attached properties with a drawn meaning, S2)",
         ["UpdateFormsText"] = "Handler plumbing for TextTransform; drawn text transforms itself",
         ["OnTextTransformChanged"] = "Handler plumbing for TextTransform; drawn text transforms itself",
         ["OnHorizontalTextAlignmentPropertyChanged"] = "Handler plumbing",
@@ -111,10 +111,14 @@ public class MauiApiParityTests
         ("ICheckBox's paint for MAUI's handlers, derived from Color", ["SkUiCheckBox", "SkUiCoreCheckBox"], ["Foreground"]),
         ("Handler plumbing of the platform radio button", ["SkUiRadioButton"], ["ContentAsString"]),
         ("Held for 2.0 (D1 in ImplementationPlan-1.2.md); the conversion is in Migration.md", ["SkUiCollectionView"], ["Scrolled", "SelectionChanged", "SelectionMode"]),
-        ("Held for 2.0 (D1): the bindable property takes data as MAUI's; the CLR setter keeps the 1.0 type ISkUiView (C#: SetValue(HeaderProperty, data))",
+        ("Drawn views (D5 in ImplementationPlan-1.2.md): text in XAML converts to a label (SkUiTextViewTypeConverter); data converts to a template bound through the list's context (Migration.md)",
             ["SkUiCollectionView"], ["Header", "Footer", "EmptyView"]),
-        ("Held for 2.0 (D1): the bindable property takes data as MAUI's; the CLR setter keeps the 1.0 type ISkUiView (C#: SetValue(EmptyViewProperty, data))",
+        ("A drawn view (D5): text in XAML converts to a centered label; data converts to a template bound through the carousel's context",
             ["SkUiCarouselView"], ["EmptyView"]),
+        ("Core nodes are never a surface root, the only place SkiaUi applies the safe area (S1)",
+            ["SkUiCoreAbsoluteLayout", "SkUiCoreBorder", "SkUiCoreContentView", "SkUiCoreGrid", "SkUiCoreHorizontalStackLayout", "SkUiCoreScrollView", "SkUiCoreVerticalStackLayout"],
+            ["SafeAreaEdges"]),
+        ("Rarely used: GetRealizedView(index) or Scrolled instead; the roadmap's backlog keeps it", ["SkUiCarouselView"], ["VisibleViews", "VisibleViewsProperty"]),
         (CoreChildren, CoreLayouts, ["Count", "IsReadOnly", "Item"]),
         ("Filled in place: SetRowDefinitions / AddRowDefinition, SetColumnDefinitions / AddColumnDefinition", ["SkUiCoreGrid"], ["RowDefinitions", "ColumnDefinitions"]),
         (CoreNotTemplated, ["SkUiCoreContentView", "SkUiCoreIndicatorView"], ["ControlTemplate"]),
@@ -133,16 +137,14 @@ public class MauiApiParityTests
                 "FontAutoScalingEnabled", "FontFamily", "FontSize", "GroupName", "IsClippedToBounds", "Padding", "TextColor", "TextTransform", "Value",
             ]));
 
-    /// <summary>Gaps that 1.2 closes, keyed like <see cref="Excluded"/>, with the plan step.</summary>
+    /// <summary>Gaps a planned step closes, keyed like <see cref="Excluded"/>, with the step (ImplementationPlan-1.2.md).</summary>
     private static readonly Dictionary<string, string> Planned = Entries(
         ("S1", SafeAreaViews, ["SafeAreaEdges", "SafeAreaEdgesProperty"]),
-        ("S1", ["SkUiCoreAbsoluteLayout", "SkUiCoreBorder", "SkUiCoreContentView", "SkUiCoreGrid", "SkUiCoreHorizontalStackLayout", "SkUiCoreScrollView", "SkUiCoreVerticalStackLayout"],
-            ["SafeAreaEdges"]),
         ("T3", ["SkUiIndicatorView"], ["IndicatorTemplate", "IndicatorTemplateProperty", "IndicatorLayout"]),
         ("V5", ["SkUiCollectionView", "SkUiCarouselView"], ["ItemsUpdatingScrollMode", "ItemsUpdatingScrollModeProperty"]),
         ("V7", ["SkUiCarouselView"],
-            ["HorizontalScrollBarVisibility", "HorizontalScrollBarVisibilityProperty", "VerticalScrollBarVisibility", "VerticalScrollBarVisibilityProperty", "VisibleViews", "VisibleViewsProperty"]),
-        ("V8", ["SkUiCollectionView"], ["CanReorderItems", "CanReorderItemsProperty", "CanMixGroups", "CanMixGroupsProperty", "ReorderCompleted"]));
+            ["HorizontalScrollBarVisibility", "HorizontalScrollBarVisibilityProperty", "VerticalScrollBarVisibility", "VerticalScrollBarVisibilityProperty"]),
+        ("V8, in 1.3", ["SkUiCollectionView"], ["CanReorderItems", "CanReorderItemsProperty", "CanMixGroups", "CanMixGroupsProperty", "ReorderCompleted"]));
 
     private static readonly Lazy<List<(string Key, string Problem)>> DrawnDifferences =
         new(() => [.. Pairs.SelectMany(pair => Differences(pair.Maui, pair.Drawn))]);

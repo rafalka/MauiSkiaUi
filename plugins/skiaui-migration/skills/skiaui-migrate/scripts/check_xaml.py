@@ -108,6 +108,10 @@ INDICATOR_MAUI_ONLY = {
     "IndicatorLayout": "not supported: the look draws the indicators",
 }
 SKIA_BASE_RE = re.compile(r"^(SkUi\w+|ISkUiView)$")
+# Drawn views or text in XAML; MAUI's data form (a bound object shown through the template) converts.
+DATA_VIEW_PROPERTIES = {"SkUiCollectionView": ("Header", "Footer", "EmptyView"), "SkUiCarouselView": ("EmptyView",)}
+BINDING_RE = re.compile(r"^\{\s*Binding\b")
+
 TEMPLATED_PARENT_RE = re.compile(r"\{\s*TemplateBinding\b|RelativeSource\s+(?:Mode\s*=\s*)?TemplatedParent\b")
 # Drawn view -> the MAUI types it replaces (implicit styles of those no longer reach it).
 REPLACED_BY = {}
@@ -404,6 +408,8 @@ class Checker:
                 self.report(path, node, "error", f"{local} on SkUiIndicatorView: {INDICATOR_MAUI_ONLY[local]}")
             elif node.name == "SkUiCollectionView" and local in COLLECTION_VIEW_MAUI_ONLY:
                 self.report(path, node, "error", f"{local} on SkUiCollectionView: {COLLECTION_VIEW_MAUI_ONLY[local]}")
+            elif local in DATA_VIEW_PROPERTIES.get(node.name, ()) and BINDING_RE.match(value.strip()):
+                self.report(path, node, "warning", f"{local}=\"{value}\" on {node.name}: data is not shown through {local}Template here (unless the binding yields a drawn view); drop it and bind the template through the list's context ({{Binding Info.Title}} instead of {{Binding Title}})")
             elif node.name == "SkUiCollectionView" and local == "IsPullToRefreshEnabled" and value.strip().lower() != "false" and in_refresh_view(node):
                 self.report(path, node, "error", "IsPullToRefreshEnabled on an SkUiCollectionView inside an SkUiRefreshView: both would refresh; keep one (the refresh view's Command, or the list's RefreshCommand)")
             elif TEMPLATED_PARENT_RE.search(value):

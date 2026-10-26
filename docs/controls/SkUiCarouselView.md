@@ -2,7 +2,7 @@
 
 A drawn carousel: a strip of cards scrolled one at a time (a photo gallery, onboarding pages, featured products), with a current item, looping past the last card back to the first, and an indicator view underneath.
 
-**MAUI counterpart:** `CarouselView`. Most of its XAML ports by changing the prefix, `ItemsLayout` included (it sets the carousel's `Orientation`, `ItemSpacing`, `SnapPointsType` and `SnapPointsAlignment`, which can also be set directly), and item templates create drawn views. Beyond MAUI: several cards in view (`ItemExtent`), item effects as the cards scroll (cover flow, scaling, or your own), `ScrollPosition`, `ScrollToIndex` / `ScrollToItem` returning a task. Its indicator view is [`SkUiIndicatorView`](SkUiIndicatorView.md).
+**MAUI counterpart:** `CarouselView`. Most of its XAML ports by changing the prefix, `ItemsLayout` included (once set, it decides the orientation, spacing and snap points that `Orientation`, `ItemSpacing`, `SnapPointsType` and `SnapPointsAlignment` give without it), and item templates create drawn views. Beyond MAUI: several cards in view (`ItemExtent`), item effects as the cards scroll (cover flow, scaling, or your own), `ScrollPosition`, `ScrollToIndex` / `ScrollToItem` returning a task. Its indicator view is [`SkUiIndicatorView`](SkUiIndicatorView.md).
 
 ## How it works
 
@@ -117,14 +117,14 @@ From MAUI: change `CarouselView` to `sk:SkUiCarouselView` and `IndicatorView` to
 | `ItemSpacing` | `0` | Gap between items |
 | `Orientation` | `Horizontal` | `ItemsLayoutOrientation` |
 | `SnapPointsType` / `SnapPointsAlignment` | `MandatorySingle` / `Center` | MAUI's `LinearItemsLayout` settings |
-| `ItemsLayout` | horizontal, `MandatorySingle`, `Center` | MAUI's `LinearItemsLayout` (XAML: `"HorizontalList"`, `"VerticalList"` or an element): sets the four properties above, again when it changes; the last one set wins |
+| `ItemsLayout` | not set: reads as horizontal, `MandatorySingle`, `Center` | MAUI's `LinearItemsLayout` (XAML: `"HorizontalList"`, `"VerticalList"` or an element). Once set, it decides what the four properties above give without it (also as it changes); they keep their values and apply again when it is cleared (setting both is reported once) |
 | `IsSwipeEnabled` / `IsBounceEnabled` / `IsScrollAnimated` | `true` | As MAUI's |
 | `IsDragging` / `IsScrolling` | — | Read-only; `IsDraggingProperty` (MAUI's) for triggers, set when a drag starts and ends |
 | `ScrollPosition` | — | Fractional item at the snap point (SkiaUi) |
 | `ItemEffect` | `null` | `SkUiCoverFlowEffect`, `SkUiScaleEffect`, or your own (SkiaUi) |
 | `IndicatorView` | `null` | A linked `SkUiIndicatorView` |
 | `RemainingItemsThreshold` (+ event, command) | `-1` | Load more near the end |
-| `EmptyView` / `EmptyViewTemplate` | — | Shown without items: a drawn view, a string (centered label) or data through the template, as on MAUI |
+| `EmptyView` / `EmptyViewTemplate` | — | Shown without items: a drawn view, or in XAML text as a centered label (`EmptyView="No photos"`), as on MAUI |
 | `ScrollTo(index, …)`, `ScrollTo(item, …)`, `ScrollToRequested` | | MAUI's: the event, then the scroll (not awaited); `ScrollToIndex` / `ScrollToItem` return a task |
 | `ScrollToIndex(index, animated)` / `ScrollToItem(item, animated)` | — | Tasks that complete when the scroll ends (SkiaUi); MAUI's `ScrollTo` overloads too |
 | `Scrolled` (event) | — | MAUI's `ItemsViewScrolledEventArgs` |
