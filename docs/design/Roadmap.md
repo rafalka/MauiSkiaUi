@@ -45,7 +45,6 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 ### MAUI parity
 
-- **Gesture recognizers:** run MAUI's `SwipeGestureRecognizer`, `PanGestureRecognizer` and `PinchGestureRecognizer` on drawn views through the arena, and `PointerGestureRecognizer` from hover and pointer samples (taps already run).
 - **CollectionView:** reordering, snap points on the items layout, a selected-item template, extended selection, keyboard item navigation, animated insert and remove.
 - **CarouselView / IndicatorView:** `ItemsUpdatingScrollMode`, `VisibleViews`, `IndicatorTemplate`; autoplay, several items per snap point, a Core carousel.
 - **Images:** `ImageBrush`; fade-in, download progress, a per-view cache key, downsampling to the view's size, Android vector drawables.
@@ -96,6 +95,7 @@ Device runs that are still open. How to run them: [Testing.md](Testing.md#device
 - **Hosted controls:** the manual checklist (soft keyboard, IME, WebView nesting) on devices and Windows.
 - **Controls:** feel and frame time on devices for the collection view (fling at 10k items, memory), virtual stack, swipe view, refresh view, carousel, expander, avatar view, shimmer (a scrolling list of shimmering rows), scroll bars and overscroll; the pickers' presenters on Windows, in landscape, on rotation and window resize, with screen readers; tooltips on Windows and iPad.
 - **Demo gallery:** a full pass on Android and an Apple device.
+- **MAUI gesture recognizers on drawn views (1.2):** swipe, pan, pinch, pointer, secondary-button and triple taps on Android, iOS, Mac Catalyst and Windows, against the native view on the gallery's "MAUI gesture recognizers" page.
 
 ## Held for 2.0
 

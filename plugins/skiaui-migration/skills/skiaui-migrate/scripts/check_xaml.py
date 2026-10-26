@@ -9,7 +9,8 @@ styles (default: the current folder). Prints `file:line: error|warning: message`
 A drawn tree is everything inside a SkiaUi view (an element from the MauiSkiaUi XAML namespace). Inside one, it reports:
 - native MAUI views that are not wrapped in SkUiMauiContentView, with the drawn replacement;
 - custom controls that do not derive from a SkiaUi view;
-- gesture recognizers drawn views do not run (all but TapGestureRecognizer with 1 or 2 taps and the primary button);
+- gesture recognizers drawn views do not run (drag and drop, pans with TouchPoints other than 1, taps without a count or a
+  primary or secondary button);
 - behaviors (platform behaviors such as TouchBehavior do not run) and effects (never run);
 - BindableLayout content that is not drawn (item and empty view templates are checked like other drawn content; a string
   EmptyView becomes a MAUI Label), the Community Toolkit's StateContainer / StateView on drawn layouts (SkUiStateContainer /
@@ -87,10 +88,6 @@ NO_DRAWN = {
     "TableView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",
 }
 GESTURE_ADVICE = {
-    "SwipeGestureRecognizer": "use SwipeDirections + Swiped / SwipedCommand (parameter = direction), or SkUiSwipeGestureRecognizer in Gestures",
-    "PanGestureRecognizer": "use PanUpdated (MAUI's GestureStatus, TotalX / TotalY) and PanAxis",
-    "PinchGestureRecognizer": "use PinchUpdated (Scale as on MAUI; Origin in DIPs instead of ScaleOrigin 0-1)",
-    "PointerGestureRecognizer": "use IsPointerOver / the PointerOver visual state, or SkUiPointerGestureRecognizer in Gestures",
     "DragGestureRecognizer": "drag and drop is not available on drawn views",
     "DropGestureRecognizer": "drag and drop is not available on drawn views",
 }
@@ -446,10 +443,17 @@ class Checker:
         if name == "TapGestureRecognizer":
             taps = node.attr("NumberOfTapsRequired") or "1"
             buttons = node.attr("Buttons") or "Primary"
-            if taps not in ("1", "2"):
-                self.report(path, node, "error", f"TapGestureRecognizer NumberOfTapsRequired={taps}: drawn views run 1 or 2 taps")
-            elif "Primary" not in buttons:
-                self.report(path, node, "error", f"TapGestureRecognizer Buttons={buttons}: drawn taps are primary-button taps")
+            if taps.isdigit() and int(taps) < 1:
+                self.report(path, node, "error", f"TapGestureRecognizer NumberOfTapsRequired={taps}: it never taps")
+            elif not buttons.startswith("{") and "Primary" not in buttons and "Secondary" not in buttons:
+                self.report(path, node, "error", f"TapGestureRecognizer Buttons={buttons}: drawn taps are primary- or secondary-button taps")
+            return
+        if name == "PanGestureRecognizer":
+            points = node.attr("TouchPoints") or "1"
+            if points != "1" and not points.startswith("{"):
+                self.report(path, node, "error", f"PanGestureRecognizer TouchPoints={points}: drawn pans follow one pointer; use PinchUpdated or SkUiPointerGestureRecognizer in Gestures")
+            return
+        if name in ("SwipeGestureRecognizer", "PinchGestureRecognizer", "PointerGestureRecognizer"):
             return
         advice = GESTURE_ADVICE.get(name, "not run on drawn views; use the view's gesture events")
         self.report(path, node, "error", f"{name} is not run on drawn views: {advice}")

@@ -34,6 +34,12 @@ internal interface ISkUiInputNode : ISkUiRenderable
     /// <summary>A hovering pointer entered (<c>true</c>) or left this node or one of its descendants.</summary>
     void SetPointerOver(bool isOver) { }
 
+    /// <summary>
+    /// A hovering pointer moved over this node or one of its descendants, to <paramref name="position"/> in
+    /// <paramref name="router"/>'s root coordinates; after <see cref="SetPointerOver"/>.
+    /// </summary>
+    void PointerHovered(SkUiPointerRouter router, Point position) { }
+
     /// <summary>The node's tooltip (<c>ToolTipProperties.Text</c>, a Core node's <c>ToolTip</c>); <c>null</c> or empty for none.</summary>
     string? ToolTipText => null;
 }
@@ -354,6 +360,8 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         // unchanged value): a node detached while hovered cleared its own flag, and may be back under the pointer.
         for (var index = _hoverChain.Count - 1; index >= 0; index--)
             _hoverChain[index].SetPointerOver(true);
+        for (var index = _hoverChain.Count - 1; index >= 0; index--)
+            _hoverChain[index].PointerHovered(this, position);
         _hovered.Clear();
         _hovered.AddRange(_hoverChain);
         _hoverChain.Clear();
@@ -766,6 +774,15 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         var participates = _recognizers.Count > 0;
         _recognizers.Clear();
         return participates ? node : null;
+    }
+
+    /// <summary>Whether <paramref name="element"/> is this router's root or drawn below it.</summary>
+    internal bool Contains(object element)
+    {
+        for (var current = element as ISkUiRenderable; current is not null; current = current.RenderParent)
+            if (ReferenceEquals(current, root))
+                return true;
+        return false;
     }
 
     /// <summary>Maps a root point into <paramref name="element"/>'s local coordinates (through transforms and scroll offsets).</summary>

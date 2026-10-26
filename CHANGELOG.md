@@ -26,6 +26,11 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `Padding` on `SkUiIndicatorView`, `SkUiCoreIndicatorView` and `SkUiRefreshView`.
   - The read-only bindable properties MAUI triggers use: `IsPressedProperty` on `SkUiButton` and `SkUiImageButton`, `IsLoadingProperty` on images, `IsDraggingProperty` on `SkUiCarouselView`.
   - `SkUiCollectionView.UpdateSelectedItems`: replaces the selection in one change.
+- **MAUI's gesture recognizers on drawn views:** `SwipeGestureRecognizer`, `PanGestureRecognizer` (one touch point), `PinchGestureRecognizer` and `PointerGestureRecognizer` in a drawn view's `GestureRecognizers` now run in the gesture arena, with MAUI's events, commands and argument types and the view as the sender.
+  - `TapGestureRecognizer` runs for any `NumberOfTapsRequired` and for `Buttons="Secondary"` (mouse, pen, trackpad).
+  - Pointer recognizers take entered / moved / exited from hover and pressed / released from presses. `GetPosition` works for the view and other drawn elements on the same surface; `GetPosition(null)` is `null`.
+  - Drag and drop recognizers are still not run and are reported once as a `Trace` line, as before.
+  - The demo's component gallery has a page with the recognizers on a drawn and a native view side by side.
 
 ### Other
 

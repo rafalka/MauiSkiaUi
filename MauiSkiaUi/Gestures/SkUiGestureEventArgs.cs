@@ -6,8 +6,11 @@ public sealed class SkUiTappedEventArgs(Point position, int numberOfTaps = 1) : 
     /// <summary>The release position relative to the tapped node.</summary>
     public Point Position { get; } = position;
 
-    /// <summary>1 for a single tap, 2 for a double tap.</summary>
+    /// <summary>1 for a single tap, 2 for a double tap (more for MAUI tap recognizers that require more).</summary>
     public int NumberOfTaps { get; } = numberOfTaps;
+
+    /// <summary>The buttons the last press of the tap had (<see cref="SkUiPointerButtons.None"/> for a touch).</summary>
+    internal SkUiPointerButtons Buttons { get; init; }
 }
 
 /// <summary>A tapped link of HTML text (<c>TextType="Html"</c>).</summary>

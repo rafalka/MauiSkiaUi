@@ -36,6 +36,41 @@ public class CheckXamlTests
     }
 
     [Fact]
+    public void ReportsOnlyTheGestureRecognizersDrawnViewsDoNotRun()
+    {
+        var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
+        try
+        {
+            File.WriteAllText(Path.Combine(project.FullName, "Page.xaml"), """
+                <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
+                  <sk:SkUiGrid>
+                    <sk:SkUiGrid.GestureRecognizers>
+                      <TapGestureRecognizer NumberOfTapsRequired="3" Buttons="Secondary" />
+                      <SwipeGestureRecognizer Direction="Left" />
+                      <PanGestureRecognizer />
+                      <PinchGestureRecognizer />
+                      <PointerGestureRecognizer />
+                      <PanGestureRecognizer TouchPoints="2" />
+                      <DragGestureRecognizer />
+                    </sk:SkUiGrid.GestureRecognizers>
+                  </sk:SkUiGrid>
+                </ContentPage>
+                """);
+            var (exitCode, output) = Run(project.FullName);
+            Assert.Equal(1, exitCode);
+            var errors = output.Split('\n').Where(line => line.Contains("error:")).ToArray();
+            Assert.Equal(2, errors.Length);
+            Assert.Contains(errors, error => error.Contains("Page.xaml:10:") && error.Contains("TouchPoints=2"));
+            Assert.Contains(errors, error => error.Contains("Page.xaml:11:") && error.Contains("DragGestureRecognizer"));
+        }
+        finally
+        {
+            project.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void ReportsMauiOnlyCarouselMembersAndSuggestsTheDrawnCarousel()
     {
         var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");

@@ -14,7 +14,7 @@ You replace a **subtree** of a page with drawn controls. Everything around it st
 | --- | --- |
 | Pages, Shell, navigation, popups | The controls inside the drawn region: `Label` → `SkUiLabel`, `Grid` → `SkUiGrid`, … |
 | View models, commands, `INotifyPropertyChanged` | Styles get a new `TargetType` (`sk:SkUiLabel`) |
-| Bindings, `x:DataType`, converters, triggers, `VisualStateManager` | Gestures: `TapGestureRecognizer` keeps working; other recognizers and `TouchBehavior` become gesture events |
+| Bindings, `x:DataType`, converters, triggers, `VisualStateManager` | Gestures: MAUI's tap, swipe, pan, pinch and pointer recognizers keep working; drag and drop and `TouchBehavior` become gesture events or stay native |
 | Resources, `StaticResource` / `DynamicResource`, `AppThemeBinding` | Native-only controls (WebView, maps, media, third-party controls) are wrapped in `SkUiMauiContentView` |
 | Fonts from `ConfigureFonts`, `MauiImage` / `FontImageSource` images | Custom handlers, renderers and effects do not apply to drawn controls |
 | `SemanticProperties`, `AutomationProperties`, `AutomationId` | |
@@ -49,7 +49,7 @@ Checked against .NET MAUI 10.0.110. Controls marked SkUi\* + Core exist on both 
 | Every view: visual states | MAUI's states per control, `PointerOver` from hover, `Focused` from keyboard focus, state triggers | Done; `Selected` on collection items |
 | Every view: `Shadow`, gradient `Background`, `Clip` | SkUi* + Core | Done; `ImageBrush` not drawn |
 | Every view: `SemanticProperties`, focus, font scaling | SkUi* + Core | Done: TalkBack, VoiceOver, Narrator; keyboard focus and ring; `FontAutoScalingEnabled`; plus `IsTabStop` / `TabIndex` (gone from MAUI) |
-| Every view: `GestureRecognizers` | Arena gestures (`Tapped`, …) | Taps done: `TapGestureRecognizer` runs on drawn views; other recognizers are reported, not run (planned) |
+| Every view: `GestureRecognizers` | Arena gestures (`Tapped`, …) | Done: tap (any count, primary or secondary button), swipe, pan (one pointer), pinch and pointer recognizers run on drawn views; drag and drop is reported, not run |
 | CollectionView | `SkUiCollectionView`; `SkUiVirtualScrollView` for plain lists | Done but reordering and snap points: templates and selectors, variable sizes, single and multiple selection, `Selected` state, item taps, header / footer (also sticky), empty view, groups (also collapsible, sticky headers), grids, horizontal, load more, `RemainingItemsThreshold`, scroll to index / item / group, pull-to-refresh |
 | SwipeView | `SkUiSwipeView`, MAUI's `SwipeItems` / `SwipeItem`; `SkUiSwipeItemView` for `SwipeItemView` | Done; custom accessibility actions open |
 | RefreshView | `SkUiRefreshView`; pull-to-refresh also built into `SkUiCollectionView` | Done; screen-reader refresh action open |
@@ -273,7 +273,7 @@ Styles target a type, and drawn controls are different types:
 
 ### 5. Convert gestures and touch behaviors
 
-`TapGestureRecognizer` works on drawn views as it does on MAUI (single and double taps, `Command` / `CommandParameter`, `Tapped`, `GetPosition`), so tap XAML needs no change. The shorter drawn form is also available:
+MAUI's tap, swipe, pan, pinch and pointer recognizers work on drawn views as on MAUI: same events and argument types, commands and parameters, the view as the sender. Gesture XAML and code-behind handlers need no change. They run in the gesture arena, so a pan or swipe inside a drawn scroller competes with it as the drawn gestures do (the innermost wins once it moves past the touch slop). For taps, the shorter drawn form is also available:
 
 ```xml
 <!-- MAUI form: still works -->
@@ -289,17 +289,16 @@ Styles target a type, and drawn controls are different types:
 
 MAUI's tooltips (`ToolTipProperties.Text`) also need no change: the surface shows them for the drawn view under a mouse or trackpad pointer (Mac Catalyst, iPad with a pointer, Windows; none on phones, as MAUI). A Core node takes `SetToolTip(text)`.
 
-Other gesture input needs converting. A drawn view that has it writes one `Trace` line on its first press, naming what is ignored and what to use.
+The rest needs converting. A drawn view that has it writes one `Trace` line on its first press, naming what is ignored and what to use. The drawn gesture events remain an alternative to the recognizers.
 
 | MAUI / toolkit | SkiaUi |
 | --- | --- |
-| `TapGestureRecognizer` | Works as is, or `Tapped` / `TappedCommand` + `TappedCommandParameter` |
-| `TapGestureRecognizer NumberOfTapsRequired="2"` | Works as is, or `DoubleTapped` / `DoubleTappedCommand` |
-| `TapGestureRecognizer Buttons="Secondary"` | Not available (drawn taps are primary) |
-| `SwipeGestureRecognizer Direction="Left"` | `SwipeDirections="Left"` + `Swiped` / `SwipedCommand` (the parameter defaults to the direction). Different commands per direction: one handler that switches on `e.Direction`, or several `SkUiSwipeGestureRecognizer`s in `Gestures` (they also take `Threshold`) |
-| `PanGestureRecognizer` | `PanUpdated`: MAUI's `GestureStatus` and `TotalX` / `TotalY`, so handlers port almost unchanged; plus the release velocity on `Completed`. `PanAxis` limits the axis |
-| `PinchGestureRecognizer` | `PinchUpdated`: `Status` and `Scale` (change since the last update) as on MAUI, plus `TotalScale` and rotation. `Origin` is the pointers' midpoint in DIPs relative to the view, where MAUI's `ScaleOrigin` is a 0–1 fraction of its size |
-| `PointerGestureRecognizer` | `IsPointerOver` and the `PointerOver` visual state for hover; `SkUiPointerGestureRecognizer` in `Gestures` for raw pointers |
+| `TapGestureRecognizer` | Works as is (any `NumberOfTapsRequired`; `Buttons` primary, secondary or both), or `Tapped` / `TappedCommand` + `TappedCommandParameter`, `DoubleTapped` / `DoubleTappedCommand` |
+| `SwipeGestureRecognizer` | Works as is (`Direction`, `Threshold`, `Command`). A fast flick past the touch slop also swipes, as on iOS. Alternative: `SwipeDirections` + `Swiped` / `SwipedCommand` |
+| `PanGestureRecognizer` | Works as is with `TouchPoints="1"` (the default); more touch points are not run. Alternative: `PanUpdated` (also the release velocity, and `PanAxis`) |
+| `PinchGestureRecognizer` | Works as is (`ScaleOrigin` a 0–1 fraction, as MAUI's). Alternative: `PinchUpdated` (also `TotalScale`, rotation, `Origin` in DIPs) |
+| `PointerGestureRecognizer` | Works as is: entered / moved / exited from hover, pressed / released from presses of its `Buttons`. `GetPosition` takes the view or any element drawn on the same surface; `GetPosition(null)` (the window) is `null`. A press another gesture takes (a scroller's drag) still ends with `PointerReleased`. Alternatives: `IsPointerOver` and the `PointerOver` visual state; `SkUiPointerGestureRecognizer` in `Gestures` |
+| `DragGestureRecognizer`, `DropGestureRecognizer` | Not run: keep that part native (in an `SkUiMauiContentView`) |
 | Toolkit `TouchBehavior` `Command` / `LongPressCommand` | `TappedCommand` / `LongPressedCommand` (+ parameters) |
 | Toolkit `TouchBehavior` press scale / opacity / color | `ShowsPressEffect="True"` (the look's dim or ripple), or a `Pressed` visual state with your own setters |
 | A tap or pan recognizer that only swallows touches | Often not needed: drawn layouts, labels and images without gestures are transparent to touches, and what is under them gets the touch. Where blocking is the point (a backdrop under a drawn popover), keep an empty `TapGestureRecognizer` or give the view an empty `Tapped` handler |

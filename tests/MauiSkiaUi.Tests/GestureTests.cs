@@ -564,8 +564,8 @@ public class GestureTests
         var box = Box(100, 100);
         box.AutomationId = "unsupported-gestures";
         box.GestureRecognizers.Add(new TapGestureRecognizer());
-        box.GestureRecognizers.Add(new TapGestureRecognizer { NumberOfTapsRequired = 3 });
-        box.GestureRecognizers.Add(new PanGestureRecognizer());
+        box.GestureRecognizers.Add(new TapGestureRecognizer { Buttons = 0 });
+        box.GestureRecognizers.Add(new DragGestureRecognizer()); // drag and drop stays native
         box.Behaviors.Add(new TestPlatformBehavior());
         var root = new SkUiContentView { Content = box };
         SkUiTestHelpers.Arrange(root, 200, 200);
@@ -583,7 +583,7 @@ public class GestureTests
 
         Assert.Collection(listener.Messages,
             message => Assert.StartsWith("SkiaUi: TapGestureRecognizer on SkUiBox 'unsupported-gestures' is not run", message),
-            message => Assert.StartsWith("SkiaUi: PanGestureRecognizer on SkUiBox 'unsupported-gestures' is not run", message),
+            message => Assert.StartsWith("SkiaUi: DragGestureRecognizer on SkUiBox 'unsupported-gestures' is not run", message),
             message => Assert.StartsWith("SkiaUi: TestPlatformBehavior on SkUiBox 'unsupported-gestures' is not run", message));
     }
 

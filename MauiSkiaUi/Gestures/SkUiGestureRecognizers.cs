@@ -4,6 +4,9 @@ namespace MauiSkiaUi;
 /// Single and double taps. The press state (<see cref="PressedChanged"/>) shows at once when uncontested, after
 /// <see cref="SkUiGestureSettings.PressDelay"/> when an ancestor (e.g. a scroll view) competes, and never when that
 /// ancestor wins first. When double taps are handled, single taps wait <see cref="SkUiGestureSettings.DoubleTapTimeout"/>.
+/// Taps count up to the most a handler wants (MAUI's <c>NumberOfTapsRequired</c> can ask for more than two): a sequence
+/// ends at that count or when the next tap does not follow within the double-tap timeout and slop, and is raised once
+/// with its count.
 /// </summary>
 public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
 {
@@ -16,7 +19,9 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
     private bool _pressed;
     private IDisposable? _pressTimer;
     private IDisposable? _singleTimer;
-    private SkUiTappedEventArgs? _pendingSingle;
+    private int _pendingCount;
+    private Point _pendingLocal;
+    private SkUiPointerButtons _pendingButtons;
     private TimeSpan _pendingTime;
     private Point _pendingPosition;
 
@@ -33,13 +38,19 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
     public bool IsPressed => _pressed;
 
     internal Func<bool>? CanTap { get; init; }
+    /// <summary>Whether a press with these buttons can tap (MAUI's <c>Buttons</c>); <c>null</c>: every press.</summary>
+    internal Func<SkUiPointerButtons, bool>? TakesPress { get; init; }
     internal Func<bool>? WantsDoubleTap { get; init; }
     internal Action<SkUiTappedEventArgs>? TapHandler { get; init; }
     internal Action<SkUiTappedEventArgs>? DoubleTapHandler { get; init; }
+    /// <summary>The most taps a handler wants beyond a double tap (MAUI's <c>NumberOfTapsRequired</c>); 0 or 1 for none.</summary>
+    internal Func<int>? MaxTaps { get; init; }
+    /// <summary>Sequences of more than two taps (<see cref="SkUiTappedEventArgs.NumberOfTaps"/>).</summary>
+    internal Action<SkUiTappedEventArgs>? MultiTapHandler { get; init; }
     /// <summary>Press state changes with the press point in the owner's coordinates.</summary>
     internal Action<bool, Point>? PressedHandler { get; init; }
 
-    private bool HandlesDoubleTap => DoubleTapped is not null || WantsDoubleTap?.Invoke() == true;
+    private int TapsWanted => Math.Max(DoubleTapped is not null || WantsDoubleTap?.Invoke() == true ? 2 : 1, MaxTaps?.Invoke() ?? 1);
 
     /// <inheritdoc />
     protected internal override bool IsDiscrete => true;
@@ -47,7 +58,7 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
     /// <inheritdoc />
     protected internal override bool OnPointerPressed(SkUiPointer pointer)
     {
-        if (_pointer is not null || CanTap?.Invoke() == false)
+        if (_pointer is not null || CanTap?.Invoke() == false || TakesPress?.Invoke(pointer.Buttons) == false)
             return false;
         _pointer = pointer.Id;
         _start = pointer.Position;
@@ -110,45 +121,60 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
         Reset();
         if (!IsInsideOwner(local))
             return;
-        var args = new SkUiTappedEventArgs(local);
-        if (!HandlesDoubleTap)
+        var wanted = TapsWanted;
+        if (wanted <= 1)
         {
-            RaiseTap(args);
+            RaiseTaps(local, 1, release.Buttons);
             return;
         }
         var dx = release.Position.X - _pendingPosition.X;
         var dy = release.Position.Y - _pendingPosition.Y;
-        if (_pendingSingle is not null && release.Timestamp - _pendingTime <= SkUiGestureSettings.DoubleTapTimeout
-            && dx * dx + dy * dy <= SkUiGestureSettings.DoubleTapSlop * SkUiGestureSettings.DoubleTapSlop)
+        var follows = _pendingCount > 0 && release.Timestamp - _pendingTime <= SkUiGestureSettings.DoubleTapTimeout
+            && dx * dx + dy * dy <= SkUiGestureSettings.DoubleTapSlop * SkUiGestureSettings.DoubleTapSlop;
+        var count = follows ? _pendingCount + 1 : 1;
+        _singleTimer?.Dispose();
+        _singleTimer = null;
+        if (count >= wanted)
         {
-            _singleTimer?.Dispose();
-            _singleTimer = null;
-            _pendingSingle = null;
-            var doubleArgs = new SkUiTappedEventArgs(local, 2);
-            DoubleTapped?.Invoke(Owner, doubleArgs);
-            DoubleTapHandler?.Invoke(doubleArgs);
+            _pendingCount = 0;
+            RaiseTaps(local, count, release.Buttons);
             return;
         }
-        _pendingSingle = args;
+        _pendingCount = count;
+        _pendingLocal = local;
+        _pendingButtons = release.Buttons;
         _pendingTime = release.Timestamp;
         _pendingPosition = release.Position;
-        _singleTimer?.Dispose();
         _singleTimer = SkUiGestureSettings.Schedule(SkUiGestureSettings.DoubleTapTimeout, () =>
         {
-            if (_pendingSingle is { } pending)
+            if (_pendingCount is var pending and > 0)
             {
-                _pendingSingle = null;
-                RaiseTap(pending);
+                _pendingCount = 0;
+                RaiseTaps(_pendingLocal, pending, _pendingButtons);
             }
         });
+        // No timer source: the sequence cannot wait for a next tap; it is raised now and keeps counting.
         if (_singleTimer is null)
-            RaiseTap(args); // no timer source: single taps cannot wait for a possible second tap
+            RaiseTaps(local, count, release.Buttons);
     }
 
-    private void RaiseTap(SkUiTappedEventArgs args)
+    private void RaiseTaps(Point local, int count, SkUiPointerButtons buttons)
     {
-        Tapped?.Invoke(Owner, args);
-        TapHandler?.Invoke(args);
+        var args = new SkUiTappedEventArgs(local, count) { Buttons = buttons };
+        switch (count)
+        {
+            case 1:
+                Tapped?.Invoke(Owner, args);
+                TapHandler?.Invoke(args);
+                break;
+            case 2:
+                DoubleTapped?.Invoke(Owner, args);
+                DoubleTapHandler?.Invoke(args);
+                break;
+            default:
+                MultiTapHandler?.Invoke(args);
+                break;
+        }
     }
 
     private void Reset()

@@ -6,13 +6,11 @@ Drawn views get input from SkiaUi's gesture arena, not from native gesture recog
 
 | MAUI | On a drawn view | Convert to |
 | --- | --- | --- |
-| `TapGestureRecognizer` (1 tap, primary button) | **Runs as is**: `Command` (if it can execute), then `Tapped` (sender = the view, `Parameter` = `CommandParameter`, `GetPosition(view)`) | Optional: `TappedCommand="…" TappedCommandParameter="…"` or `Tapped="Handler"` |
-| `TapGestureRecognizer NumberOfTapsRequired="2"` | **Runs as is** (single taps wait for the double-tap timeout) | Optional: `DoubleTappedCommand` / `DoubleTapped` |
-| `TapGestureRecognizer` with 3+ taps or `Buttons="Secondary"` | Not run | No drawn equivalent: rethink the interaction |
-| `SwipeGestureRecognizer` | Not run | `SwipeDirections="Left,Right"` + `SwipedCommand` (parameter defaults to the `SwipeDirection`) or `Swiped` (`e.Direction`) |
-| `PanGestureRecognizer` | Not run | `PanUpdated` (`e.Status`: MAUI's `GestureStatus`; `e.TotalX`, `e.TotalY`; `e.VelocityX`, `e.VelocityY` on `Completed`), `PanAxis` |
-| `PinchGestureRecognizer` | Not run | `PinchUpdated` (`e.Status`, `e.Scale` per update as MAUI, `e.TotalScale`, `e.Rotation`, `e.Origin` in DIPs relative to the view; MAUI's `ScaleOrigin` was 0–1) |
-| `PointerGestureRecognizer` | Not run | Hover: `IsPointerOver` and the `PointerOver` visual state. Raw input: `SkUiPointerGestureRecognizer` in `Gestures` |
+| `TapGestureRecognizer` | **Runs as is**, any `NumberOfTapsRequired` and `Buttons` primary / secondary: `Command` (if it can execute), then `Tapped` (sender = the view, `Parameter` = `CommandParameter`, `GetPosition(view)`). Single taps wait while a recognizer wants more taps | Optional: `TappedCommand` / `Tapped`, `DoubleTappedCommand` / `DoubleTapped` |
+| `SwipeGestureRecognizer` | **Runs as is** (`Direction`, `Threshold`, `Command`, `Swiped`); a fast flick past the touch slop also swipes | Optional: `SwipeDirections` + `SwipedCommand` / `Swiped` |
+| `PanGestureRecognizer` | **Runs as is** with `TouchPoints="1"` (the default); more touch points are not run | Optional: `PanUpdated` (also the release velocity, `PanAxis`) |
+| `PinchGestureRecognizer` | **Runs as is** (`ScaleOrigin` 0–1 as MAUI) | Optional: `PinchUpdated` (also `TotalScale`, rotation, `Origin` in DIPs) |
+| `PointerGestureRecognizer` | **Runs as is**: entered / moved / exited from hover, pressed / released for its `Buttons`. `GetPosition(null)` is `null` (use the view or another drawn element) | Optional: `IsPointerOver` and the `PointerOver` visual state; `SkUiPointerGestureRecognizer` in `Gestures` |
 | `DragGestureRecognizer`, `DropGestureRecognizer` | Not run | Not available: keep that part native |
 | Long press (toolkit, platform code) | — | `LongPressed` / `LongPressedCommand` + `LongPressedCommandParameter` |
 
@@ -20,36 +18,9 @@ Drawn views log ignored recognizers once (debug output line starting with `SkiaU
 
 Recognizers on native views *around* a surface root (a page's background `TapGestureRecognizer`, a native `ScrollView`) stay native and need no change. On iOS / Mac Catalyst they yield to drawn gestures: an ancestor tap or long press fires only where no drawn control takes the touch, so a background tap that hides the keyboard still works over labels and empty areas.
 
-### Swipe with a command per direction
-
-```xml
-<!-- MAUI -->
-<Grid.GestureRecognizers>
-    <SwipeGestureRecognizer Direction="Left" Command="{Binding NextCommand}" />
-    <SwipeGestureRecognizer Direction="Right" Command="{Binding PreviousCommand}" />
-</Grid.GestureRecognizers>
-```
-
-Either one command that takes the direction (`SwipeDirections="Left,Right" SwipedCommand="{Binding PageCommand}"`, with the view model switching on `SwipeDirection`), or code-behind:
-
-```csharp
-grid.SwipeDirections = SwipeDirection.Left | SwipeDirection.Right;
-grid.Swiped += (_, e) =>
-{
-    var command = e.Direction == SwipeDirection.Left ? vm.NextCommand : vm.PreviousCommand;
-    if (command.CanExecute(null)) command.Execute(null);
-};
-```
-
-A `Threshold` other than the default: add `new SkUiSwipeGestureRecognizer { Direction = …, Threshold = 50 }` to the view's `Gestures` collection and handle its event, instead of `SwipeDirections`.
-
-### Pan handlers
-
-MAUI pan handlers port almost unchanged: subscribe to `PanUpdated` on the drawn view instead of the recognizer's `PanUpdated`, and change the argument type to `SkUiPanUpdatedEventArgs`. Animating `TranslationX` / `TranslationY` from a pan works; for the settle animation after `Completed`, prefer `view.AnimateAsync(SkUiAnimatableProperty.TranslationY, target, 250, Easing.CubicOut)` (render thread).
-
 ### Recognizers added in code
 
-`view.GestureRecognizers.Add(new TapGestureRecognizer { … })` keeps working on drawn views, also when added or removed later. Other recognizer types added in code must become the drawn events above. Handlers removed when a page closes: unsubscribe the drawn events the same way.
+`view.GestureRecognizers.Add(…)` keeps working on drawn views for every recognizer that runs as is, also when added or removed later (from the next press). Handlers keep MAUI's argument types (`PanUpdatedEventArgs`, `PinchGestureUpdatedEventArgs`, `SwipedEventArgs`, `PointerEventArgs`).
 
 ## Toolkit TouchBehavior (and subclasses)
 

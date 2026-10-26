@@ -28,6 +28,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private double _diagnosticRecordFrameTotalMs;
 #endif
     private SkUiGestureSet? _gestures;
+    private SkUiMauiGestures? _mauiGestures;
     private SkUiPointerRouter? _router;
     private SkUiTapGestureRecognizer? _tap;
     private bool _mauiGesturesReported;
@@ -169,6 +170,14 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         SkUiHover.Changed(isOver);
         OnPropertyChanged(nameof(IsPointerOver));
         ChangeVisualState();
+        if (!isOver)
+            _mauiGestures?.HoverEnded();
+    }
+
+    void ISkUiInputNode.PointerHovered(SkUiPointerRouter router, Point position)
+    {
+        if (GestureRecognizers.Count > 0 && RunsMauiTaps && SkUiMauiGestures.HasPointer(GestureRecognizers))
+            (_mauiGestures ??= new SkUiMauiGestures(this)).Hovered(router, position);
     }
 
     /// <summary>
@@ -1401,13 +1410,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     void ISkUiInputNode.CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers) => CollectGestureRecognizers(recognizers);
 
-    /// <summary>Appends this view's recognizers: built-in tap, long press, swipe, pan, pinch, custom, then intrinsic ones.</summary>
+    /// <summary>Appends this view's recognizers: built-in tap, long press, swipe, pan, pinch, custom, MAUI's bridged ones, then intrinsic ones.</summary>
     internal virtual void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
     {
         // Called for the views under a press: MAUI gesture input a drawn view does not run is reported then, once.
         if (!_mauiGesturesReported && (GestureRecognizers.Count > 0 || IsSet(BehaviorsProperty)))
             _mauiGesturesReported = SkUiMauiTaps.ReportUnsupported(this, native: !RunsMauiTaps);
-        if (WantsSingleTap || WantsDoubleTap)
+        if (WantsSingleTap || WantsDoubleTap || MauiTapCount > 2)
             recognizers.Add(_tap ??= new SkUiTapGestureRecognizer
             {
                 TapHandler = args => { if (WantsSingleTap) OnTapped(args); },
@@ -1417,6 +1426,10 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
                     _gestures?.RaiseDoubleTapped(args);
                     RaiseMauiTaps(args, 2);
                 },
+                MaxTaps = () => MauiTapCount,
+                // A press of a button only MAUI's recognizers could want, and none does, leaves the tap to ancestors.
+                TakesPress = buttons => HasOwnTaps || (GestureRecognizers.Count > 0 && RunsMauiTaps && SkUiMauiTaps.Takes(GestureRecognizers, buttons)),
+                MultiTapHandler = args => RaiseMauiTaps(args, args.NumberOfTaps),
                 PressedHandler = (pressed, position) =>
                 {
                     PressPosition = position;
@@ -1424,9 +1437,16 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
                 }
             });
         _gestures?.Collect(recognizers);
+        if (GestureRecognizers.Count > 0 && RunsMauiTaps && SkUiMauiGestures.HasAny(GestureRecognizers))
+            (_mauiGestures ??= new SkUiMauiGestures(this)).Collect(recognizers);
     }
 
-    private bool WantsSingleTap => Tapped is not null || HandlesTap || (_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false) || HasMauiTaps(1);
+    private bool WantsSingleTap => HasOwnSingleTap || HasMauiTaps(1);
+
+    private bool HasOwnSingleTap => Tapped is not null || HandlesTap || (_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false);
+
+    /// <summary>Taps of SkiaUi's own events and commands, which every button makes.</summary>
+    private bool HasOwnTaps => HasOwnSingleTap || _gestures?.WantsDoubleTap == true;
 
     private bool WantsDoubleTap => _gestures?.WantsDoubleTap == true || HasMauiTaps(2);
 
@@ -1442,10 +1462,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// </summary>
     private bool HasMauiTaps(int taps) => GestureRecognizers.Count > 0 && RunsMauiTaps && SkUiMauiTaps.Has(GestureRecognizers, taps);
 
+    /// <summary>The most taps a MAUI tap recognizer of this view requires (0: none).</summary>
+    private int MauiTapCount => GestureRecognizers.Count > 0 && RunsMauiTaps ? SkUiMauiTaps.MaxTaps(GestureRecognizers) : 0;
+
     private void RaiseMauiTaps(SkUiTappedEventArgs args, int taps)
     {
         if (GestureRecognizers.Count > 0 && RunsMauiTaps)
-            SkUiMauiTaps.Raise(GestureRecognizers, taps, this, args.Position);
+            SkUiMauiTaps.Raise(GestureRecognizers, taps, this, args.Position, args.Buttons);
     }
 
     void ISkUiGestureElement.CancelGestures() => CancelGestures();
@@ -1455,6 +1478,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     {
         _tap?.Cancel();
         _gestures?.CancelAll();
+        _mauiGestures?.CancelAll();
         _router?.CancelAll();
         SetPressed(false);
     }

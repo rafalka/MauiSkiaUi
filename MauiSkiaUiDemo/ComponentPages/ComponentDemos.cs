@@ -14,6 +14,8 @@ public static class ComponentDemos
         new(typeof(SkUiButton), typeof(ButtonDemoPage), nameof(Button), ComponentCategory.BasicControls, () => new ButtonDemoPage()),
         new(typeof(SkUiImage), typeof(ImageDemoPage), nameof(Image), ComponentCategory.BasicControls, () => new ImageDemoPage()),
         new(typeof(SkUiImageButton), typeof(ImageButtonDemoPage), nameof(ImageButton), ComponentCategory.BasicControls, () => new ImageButtonDemoPage()),
+        new(typeof(SkUiBox), typeof(GestureRecognizersDemoPage), nameof(BoxView), ComponentCategory.BasicControls, () => new GestureRecognizersDemoPage(),
+            Key: "MauiGestureRecognizers", Scenario: "MAUI gesture recognizers"),
         new(typeof(SkUiAvatarView), typeof(AvatarViewDemoPage), "Community Toolkit AvatarView", ComponentCategory.BasicControls, () => new AvatarViewDemoPage()),
         new(typeof(SkUiActivityIndicator), typeof(ActivityIndicatorDemoPage), nameof(ActivityIndicator), ComponentCategory.BasicControls, () => new ActivityIndicatorDemoPage()),
         new(typeof(SkUiSwitch), typeof(SwitchDemoPage), nameof(Switch), ComponentCategory.BasicControls, () => new SwitchDemoPage()),

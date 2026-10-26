@@ -53,18 +53,18 @@ First, because the parity test then guards every later step. Size: S–M.
 
 Tests: the parity test; hit tests for cascading; `ImplicitStyleTests` for each new bindable property; SkUi-vs-Core pixel tests for `OffColor`.
 
-## Phase G — MAUI gesture recognizers on drawn views
+## Phase G — MAUI gesture recognizers on drawn views (done)
 
 Open since 1.0 as P11b ([EventMechanism.md](EventMechanism.md#maui-gesture-recognizers)). The tap bridge (`SkUiMauiTaps`) becomes a bridge for every recognizer type. A recognizer in a drawn view's `GestureRecognizers` becomes an arena member of that view while it is in the collection; changes to the collection apply from the next press, as for taps today. Views without recognizers allocate nothing. Size: M.
 
-- **G1 `SwipeGestureRecognizer`:** `Direction` (flags), `Threshold` (MAUI's default of 100), `Command` / `CommandParameter`, and `Swiped` through MAUI's public `SendSwiped(view, direction)`. Runs on the drawn swipe recognizer.
-- **G2 `PanGestureRecognizer`:** `TouchPoints`, and `PanUpdated` through the public `IPanGestureController` (`SendPanStarted` / `SendPan` / `SendPanCompleted` / `SendPanCanceled`, with the gesture id taken from the pointer). `TotalX` / `TotalY` in DIPs. Arena rules are those of the drawn `PanUpdated`: it claims past the touch slop and loses the other axis to scrollers.
+- **G1 `SwipeGestureRecognizer`:** `Direction` (flags; MAUI's default, none, never swipes), `Threshold` (MAUI's default of 100), `Command` / `CommandParameter`, and `Swiped` through MAUI's public `SendSwiped(view, direction)`. Runs on the drawn swipe recognizer, so a fast flick past the touch slop also swipes, as on iOS.
+- **G2 `PanGestureRecognizer`:** `PanUpdated` through the public `IPanGestureController` (`SendPanStarted` / `SendPan` / `SendPanCompleted` / `SendPanCanceled`, one gesture id per pan from `PanGestureRecognizer.CurrentId`, as MAUI's platform code). `TotalX` / `TotalY` in DIPs. Arena rules are those of the drawn `PanUpdated`: it claims past the touch slop and the innermost claimant wins, so a pan inside a drawn scroller takes the drags that start on it. `TouchPoints` other than 1 is not run (reported).
 - **G3 `PinchGestureRecognizer`:** through the public `IPinchGestureController`. `ScaleOrigin` is a 0–1 fraction of the view, as in MAUI; the drawn `PinchUpdated` keeps DIPs.
 - **G4 `PointerGestureRecognizer`:**
-  - `PointerEntered` / `PointerExited` / `PointerMoved` come from hover routing, and `PointerPressed` / `PointerReleased` from presses. Also `Buttons`, `GetPosition`, the commands and their parameters.
+  - `PointerEntered` / `PointerExited` / `PointerMoved` come from hover routing (`ISkUiInputNode.PointerHovered`), and `PointerPressed` / `PointerReleased` from presses, through an arena member that observes and never claims (a press another recognizer takes ends with `PointerReleased`). Also `Buttons`, the commands and their parameters. `GetPosition` maps to the view or any element drawn on the same surface; `GetPosition(null)` (the window) is `null`.
   - MAUI's `Send*` methods are internal. They are reached through `UnsafeAccessor` (AOT-safe), as the tap bridge reaches `SendTapped`: probed once, falling back to the commands. A test fails if MAUI changes the signatures.
-- **G5 Taps:** `Buttons="Secondary"` and `"Primary, Secondary"`, from the `SkUiPointerButtons` the surfaces already report (mouse and pen on Windows, Mac Catalyst, the iPad pointer, an Android mouse); `NumberOfTapsRequired` above 2.
-- **G6 What stays native:** recognizers on a surface root (MAUI runs them) and platform behaviors. The one-time trace line then names only drag and drop and platform behaviors.
+- **G5 Taps:** `Buttons="Secondary"` and `"Primary, Secondary"`, from the `SkUiPointerButtons` the surfaces already report (mouse and pen on Windows, Mac Catalyst, the iPad pointer, an Android mouse); a press of a button no recognizer wants leaves the tap to the ancestors, while SkiaUi's own `Tapped` still takes every button. `NumberOfTapsRequired` above 2: the drawn tap recognizer counts a sequence up to the most taps a recognizer wants and raises it once with its count.
+- **G6 What stays native:** recognizers on a surface root (MAUI runs them) and platform behaviors. The one-time trace line now names only drag and drop, pans with several touch points, taps with no count or no primary or secondary button, and platform behaviors. The migration checker reports the same.
 
 Tests: each recognizer through the arena with synthetic pointers, also inside drawn scroll views and collection items; the samples in MAUI's gesture docs (a pan container, a pinch-to-zoom container), with only the prefix changed. Demo: a gesture page with native and drawn views side by side.
 

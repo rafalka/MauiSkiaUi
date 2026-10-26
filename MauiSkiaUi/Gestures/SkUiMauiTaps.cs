@@ -4,9 +4,11 @@ using System.Runtime.CompilerServices;
 namespace MauiSkiaUi;
 
 /// <summary>
-/// The MAUI <see cref="TapGestureRecognizer"/> bridge: drawn single and double taps run the tap recognizers in a drawn view's
-/// <c>GestureRecognizers</c> and in its label spans' <c>Span.GestureRecognizers</c>, as MAUI does. Only primary-button taps
-/// with one or two taps required are drawn taps; other recognizers are reported once per view (<see cref="ReportUnsupported"/>).
+/// The MAUI <see cref="TapGestureRecognizer"/> bridge: drawn taps run the tap recognizers in a drawn view's
+/// <c>GestureRecognizers</c> and in its label spans' <c>Span.GestureRecognizers</c>, as MAUI does: a recognizer runs for a
+/// sequence of its <c>NumberOfTapsRequired</c> taps made with a button in its <c>Buttons</c> (a touch is the primary
+/// button). Swipes, pans, pinches and pointers run on <see cref="SkUiMauiGestures"/>, and other recognizers are reported
+/// once per view (<see cref="ReportUnsupported"/>).
 /// </summary>
 internal static class SkUiMauiTaps
 {
@@ -19,23 +21,51 @@ internal static class SkUiMauiTaps
         return false;
     }
 
-    private static bool IsBridged(IGestureRecognizer recognizer, int taps) =>
-        recognizer is TapGestureRecognizer tap && tap.NumberOfTapsRequired == taps && tap.Buttons.HasFlag(ButtonsMask.Primary);
+    private static bool IsBridged(IGestureRecognizer recognizer, int taps) => IsBridged(recognizer) && ((TapGestureRecognizer)recognizer).NumberOfTapsRequired == taps;
+
+    private static bool IsBridged(IGestureRecognizer recognizer) =>
+        recognizer is TapGestureRecognizer { NumberOfTapsRequired: > 0 } tap && (tap.Buttons & (ButtonsMask.Primary | ButtonsMask.Secondary)) != 0;
+
+    /// <summary>The most taps a tap recognizer of <paramref name="recognizers"/> requires; 0 without one.</summary>
+    internal static int MaxTaps(IList<IGestureRecognizer> recognizers)
+    {
+        var most = 0;
+        for (var index = 0; index < recognizers.Count; index++)
+            if (IsBridged(recognizers[index]))
+                most = Math.Max(most, ((TapGestureRecognizer)recognizers[index]).NumberOfTapsRequired);
+        return most;
+    }
+
+    /// <summary>Whether a tap recognizer of <paramref name="recognizers"/> takes presses with <paramref name="buttons"/>.</summary>
+    internal static bool Takes(IList<IGestureRecognizer> recognizers, SkUiPointerButtons buttons)
+    {
+        var button = ButtonOf(buttons);
+        for (var index = 0; index < recognizers.Count; index++)
+            if (IsBridged(recognizers[index]) && (((TapGestureRecognizer)recognizers[index]).Buttons & button) != 0)
+                return true;
+        return false;
+    }
+
+    /// <summary>MAUI's button of a press: a touch, the primary or no button reported is <see cref="ButtonsMask.Primary"/>.</summary>
+    private static ButtonsMask ButtonOf(SkUiPointerButtons buttons) =>
+        buttons.HasFlag(SkUiPointerButtons.Secondary) ? ButtonsMask.Secondary
+        : buttons is SkUiPointerButtons.None or SkUiPointerButtons.Primary ? ButtonsMask.Primary : 0;
 
     /// <summary>
-    /// Raises the tap recognizers of <paramref name="recognizers"/> that want <paramref name="taps"/> taps, as MAUI does: the
-    /// command (when it can execute), then <see cref="TapGestureRecognizer.Tapped"/> with <paramref name="sender"/> as the
-    /// sender and <paramref name="position"/> (in <paramref name="sender"/>'s coordinates) from
-    /// <see cref="TappedEventArgs.GetPosition"/>. Drawn taps are primary-button taps.
+    /// Raises the tap recognizers of <paramref name="recognizers"/> that want <paramref name="taps"/> taps of the pressed
+    /// <paramref name="buttons"/>, as MAUI does: the command (when it can execute), then <see cref="TapGestureRecognizer.Tapped"/>
+    /// with <paramref name="sender"/> as the sender and <paramref name="position"/> (in <paramref name="sender"/>'s
+    /// coordinates) from <see cref="TappedEventArgs.GetPosition"/>.
     /// </summary>
-    internal static void Raise(IList<IGestureRecognizer> recognizers, int taps, View sender, Point position)
+    internal static void Raise(IList<IGestureRecognizer> recognizers, int taps, View sender, Point position, SkUiPointerButtons buttons)
     {
         if (!Has(recognizers, taps))
             return;
+        var button = ButtonOf(buttons);
         Point? PositionRelativeTo(IElement? element) => ReferenceEquals(element, sender) ? position : null;
         foreach (var recognizer in recognizers.ToArray())
         {
-            if (!IsBridged(recognizer, taps))
+            if (!IsBridged(recognizer, taps) || (((TapGestureRecognizer)recognizer).Buttons & button) == 0)
                 continue;
             var tap = (TapGestureRecognizer)recognizer;
             if (CanSendTapped(sender))
@@ -87,10 +117,13 @@ internal static class SkUiMauiTaps
             var recognizer = recognizers[index];
             if (native)
                 reported |= Warn(view, recognizer, "runs natively on the surface, outside the drawn gesture arena: drawn controls under it do not stop it. Use the view's Tapped / TappedCommand instead");
-            else if (!IsBridged(recognizer, 1) && !IsBridged(recognizer, 2))
-                reported |= Warn(view, recognizer, recognizer is TapGestureRecognizer
-                    ? "is not run: drawn views run tap recognizers with 1 or 2 taps and the primary button"
-                    : "is not run: drawn views run only TapGestureRecognizer. Use the view's gesture events instead (LongPressed, Swiped, PanUpdated, PinchUpdated, or a recognizer in Gestures)");
+            else if (!IsBridged(recognizer) && !SkUiMauiGestures.Runs(recognizer))
+                reported |= Warn(view, recognizer, recognizer switch
+                {
+                    TapGestureRecognizer => "is not run: it requires no taps, or no primary or secondary button",
+                    PanGestureRecognizer => "is not run: drawn pans follow one pointer (TouchPoints 1)",
+                    _ => "is not run: drawn views run MAUI's tap, swipe, pan, pinch and pointer recognizers; drag and drop needs a native view (host it in an SkUiMauiContentView)",
+                });
         }
         // Reading Behaviors creates the collection: only when it exists.
         if (!native && view.IsSet(VisualElement.BehaviorsProperty))
