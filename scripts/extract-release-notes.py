@@ -8,6 +8,9 @@ version's section, the titles of its ``### New features`` and its ``### Breaking
 A section without ``###`` subsections (versions up to 1.0.0-Prerelease07) is written whole, as plain text.
 
 ``--format markdown`` writes the whole section with a link to the changelog, for the GitHub release.
+
+``--unreleased-ref <branch>`` uses ``## Unreleased`` when the version has no section yet (a manual pack of a version
+that is not released, which only publishing names), linking to it on that branch.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ import re
 from pathlib import Path
 
 REPO_URL = "https://github.com/rafalka/MauiSkiaUi"
+UNRELEASED = "Unreleased"
 CHANGELOG_URL = f"{REPO_URL}/blob/master/CHANGELOG.md"
 
 FEATURES = "New features"
@@ -24,6 +28,11 @@ BREAKING = "Breaking changes"
 SUBSECTIONS = (FEATURES, BREAKING, "Fixes", "Other")
 
 NOTHING_NEW = "No new features or breaking changes. Fixes and other changes are in the full release notes."
+
+
+def has_section(markdown: str, version: str) -> bool:
+    heading = f"## {version}"
+    return any(line.strip() == heading for line in markdown.splitlines())
 
 
 def extract(markdown: str, version: str) -> str:
@@ -47,8 +56,11 @@ def markdown_notes(section: str) -> str:
     return f"{section}\n\nFull changelog: {CHANGELOG_URL}\n"
 
 
-def nuget_notes(section: str, version: str) -> str:
-    link = f"Full release notes: {REPO_URL}/blob/v{version}/CHANGELOG.md#{github_anchor(version)}"
+def nuget_notes(section: str, version: str, unreleased_ref: str | None = None) -> str:
+    if unreleased_ref is None:
+        link = f"Full release notes: {REPO_URL}/blob/v{version}/CHANGELOG.md#{github_anchor(version)}"
+    else:
+        link = f"Full release notes: {REPO_URL}/blob/{unreleased_ref}/CHANGELOG.md#{github_anchor(UNRELEASED)}"
     groups = subsections(section)
     if groups is None:
         return f"{link}\n\n{plain_text(section)}\n"
@@ -144,9 +156,16 @@ def main() -> None:
     parser.add_argument("changelog", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--format", choices=("nuget", "markdown"), default="nuget")
+    parser.add_argument("--unreleased-ref", metavar="BRANCH",
+                        help=f"use '## {UNRELEASED}' when the version has no section, linking to it on BRANCH")
     args = parser.parse_args()
-    section = extract(args.changelog.read_text(encoding="utf-8"), args.version)
-    notes = markdown_notes(section) if args.format == "markdown" else nuget_notes(section, args.version)
+    markdown = args.changelog.read_text(encoding="utf-8")
+    unreleased_ref = None
+    if args.unreleased_ref and not has_section(markdown, args.version):
+        print(f"No changelog section '## {args.version}'; using '## {UNRELEASED}'")
+        unreleased_ref = args.unreleased_ref
+    section = extract(markdown, UNRELEASED if unreleased_ref else args.version)
+    notes = markdown_notes(section) if args.format == "markdown" else nuget_notes(section, args.version, unreleased_ref)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(notes, encoding="utf-8")
     print(f"Wrote {args.format} release notes for {args.version} ({len(notes)} chars) to {args.output}")

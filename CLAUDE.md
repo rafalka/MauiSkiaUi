@@ -25,7 +25,7 @@ scripts/device_tests.sh                      # memory-leak scenarios on a device
 scripts/page_tour.sh                         # Windows: open every demo/samples page (SKUI_TOUR=1), report exceptions
 ```
 
-Toolchain is pinned: .NET SDK 10.0.400 ([global.json](global.json)); MAUI 10.0.110 and SkiaSharp 4.153.1 via `MauiVersion` / `SkiaSharpVersion` in [Directory.Build.props](Directory.Build.props) (also the product `Version`). Stay on MAUI 10.x. The library is `IsAotCompatible`: trim/AOT analyzer warnings fail its build, and the build is expected to have 0 warnings.
+Toolchain is pinned: .NET SDK 10.0.402 ([global.json](global.json)); MAUI 10.0.120 and SkiaSharp 4.153.1 via `MauiVersion` / `SkiaSharpVersion` in [Directory.Build.props](Directory.Build.props) (also the product `Version`). Stay on MAUI 10.x. The library is `IsAotCompatible`: trim/AOT analyzer warnings fail its build, and the build is expected to have 0 warnings.
 
 ## Token hygiene
 

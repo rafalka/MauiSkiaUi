@@ -64,9 +64,21 @@ jobs:
           path: ${{ runner.temp }}/test-results
           if-no-files-found: ignore
 
+  # The workload set picks the iOS / Mac Catalyst SDKs and so the Xcode (dotnet/macios release notes name the set
+  # for each Xcode). Both legs keep building: Xcode 26 on macOS 26 and Xcode 27 on the xcode-27 image.
   build-apple:
-    name: Build libraries (macOS Apple TFMs)
-    runs-on: macos-15
+    name: Build libraries and iOS demo (Xcode ${{ matrix.xcode }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - xcode: "27.1"
+            runner: xcode-27
+            workload-version: "10.0.402.1"
+          - xcode: "26.6"
+            runner: macos-26
+            workload-version: "10.0.401"
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -76,6 +88,14 @@ jobs:
         with:
           workloads: maui-ios maui-maccatalyst
           java-version: ""
+          workload-version: ${{ matrix.workload-version }}
+
+      - name: Check Xcode version
+        run: |
+          set -euo pipefail
+          have="$(xcodebuild -version | sed -nE 's/^Xcode ([0-9.]+)$/\1/p')"
+          [[ "$have" == "${{ matrix.xcode }}" || "$have" == "${{ matrix.xcode }}".* ]] \
+            || { echo "Selected Xcode $have, expected ${{ matrix.xcode }}." >&2; exit 1; }
 
       - name: Restore Apple TFMs only
         # %3B = ';' so MSBuild does not treat the list as multiple -p switches.
@@ -109,9 +129,18 @@ jobs:
           dotnet build MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj -c Release -f net10.0-ios --no-restore -p:ContinuousIntegrationBuild=true
           dotnet build MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj -c Release -f net10.0-maccatalyst --no-restore -p:ContinuousIntegrationBuild=true
 
+      # An app build runs the Xcode toolchain (actool, ibtool, linking) that a library build does not. Simulator, so
+      # no signing; the TFM list is scoped so restore does not need the android workload (NETSDK1147).
+      - name: Build demo app (iOS simulator)
+        run: >
+          dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj
+          -f net10.0-ios
+          -p:TargetFrameworks=net10.0-ios
+          -p:ContinuousIntegrationBuild=true
+
   device-tests-maccatalyst:
     name: Device tests (Mac Catalyst, Native AOT)
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - name: Checkout
@@ -122,21 +151,6 @@ jobs:
         with:
           workloads: maui-maccatalyst
           java-version: ""
-
-      # Building an app (unlike the library) needs the Xcode version the installed MAUI workload was built for (its
-      # SDK pack name ends in it, e.g. ..._26.0); the image may default to another. Take its newest patch release.
-      - name: Select Xcode
-        run: |
-          set -euo pipefail
-          pack="$(ls -d "${DOTNET_ROOT:-$HOME/.dotnet}"/packs/Microsoft.MacCatalyst.Sdk.net*_* | sort -V | tail -1)"
-          want="${pack##*_}"
-          echo "Mac Catalyst SDK pack $(basename "$pack") needs Xcode $want"
-          ls -d /Applications/Xcode*.app
-          xcode="$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' \
-            | grep -E "/Xcode_${want//./\\.}(\.[0-9]+)*\.app$" | sort -V | tail -1)"
-          [[ -n "$xcode" ]] || { echo "No Xcode $want on this runner image." >&2; exit 1; }
-          sudo xcode-select -s "$xcode"
-          xcodebuild -version
 
       # Native AOT (full trimming): also fails on trim / AOT warnings from SkiaUi and checks that drawing works.
       - name: Run memory leak tests (real handlers and platform views)

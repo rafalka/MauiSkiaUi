@@ -12,6 +12,16 @@ on:
         required: false
         type: string
         default: ""
+      macos-runner:
+        description: Runner label for the macOS pack; it must have the Xcode the workload set needs (27.1 is only on xcode-27)
+        required: false
+        type: string
+        default: xcode-27
+      workload-version:
+        description: Workload set for the macOS pack (empty = 10.0.402.1, Xcode 27.1; 10.0.401 = Xcode 26.6, e.g. on macos-26)
+        required: false
+        type: string
+        default: ""
   push:
     tags:
       - "v*"
@@ -59,7 +69,8 @@ jobs:
   pack-apple:
     name: Pack (macOS TFMs)
     needs: resolve-version
-    runs-on: macos-15
+    # A tag push has no inputs, so it always packs on xcode-27.
+    runs-on: ${{ inputs.macos-runner || 'xcode-27' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -69,6 +80,7 @@ jobs:
         with:
           workloads: maui-android maui-ios maui-maccatalyst
           java-version: "21"
+          workload-version: ${{ inputs.workload-version }}
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
@@ -78,6 +90,8 @@ jobs:
       - name: Extract release notes
         env:
           PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
@@ -85,7 +99,13 @@ jobs:
           if [[ -z "$VERSION" ]]; then
             VERSION="$(sed -n 's/^[[:space:]]*<Version>\([^<]*\)<\/Version>/\1/p' Directory.Build.props | head -1)"
           fi
-          python3 scripts/extract-release-notes.py "$VERSION" CHANGELOG.md artifacts/release-notes.txt
+          ARGS=()
+          # A manual pack of a version that is not released yet has only "## Unreleased" (publishing names
+          # the section); a tag push must have the version's own section.
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            ARGS+=(--unreleased-ref "$REF_NAME")
+          fi
+          python3 scripts/extract-release-notes.py ${ARGS[@]+"${ARGS[@]}"} "$VERSION" CHANGELOG.md artifacts/release-notes.txt
 
       - name: Pack
         env:
@@ -139,6 +159,8 @@ jobs:
       - name: Extract release notes
         env:
           PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail
@@ -146,7 +168,13 @@ jobs:
           if [[ -z "$VERSION" ]]; then
             VERSION="$(sed -n 's/^[[:space:]]*<Version>\([^<]*\)<\/Version>/\1/p' Directory.Build.props | head -1)"
           fi
-          python3 scripts/extract-release-notes.py "$VERSION" CHANGELOG.md artifacts/release-notes.txt
+          ARGS=()
+          # A manual pack of a version that is not released yet has only "## Unreleased" (publishing names
+          # the section); a tag push must have the version's own section.
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            ARGS+=(--unreleased-ref "$REF_NAME")
+          fi
+          python3 scripts/extract-release-notes.py ${ARGS[@]+"${ARGS[@]}"} "$VERSION" CHANGELOG.md artifacts/release-notes.txt
 
       - name: Pack Windows TFM
         env:

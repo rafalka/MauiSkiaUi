@@ -10,6 +10,13 @@ inputs:
     description: Temurin JDK major version (empty skips Java setup)
     required: false
     default: ""
+  workload-version:
+    description: >
+      Workload set version; empty for the pinned 10.0.402.1 (iOS 27.1 / Mac Catalyst 27.0 SDKs, which need Xcode 27.1).
+      dotnet/macios release notes name the set for each Xcode (10.0.401: Xcode 26.6). On macOS the step after the
+      install selects that Xcode.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -48,7 +55,7 @@ runs:
       uses: actions/cache@v6
       with:
         path: ${{ steps.dotnet-dir.outputs.dir }}
-        key: dotnet-${{ runner.os }}-${{ hashFiles('global.json') }}-${{ inputs.workloads }}-${{ steps.dotnet-dir.outputs.month }}-v1
+        key: dotnet-${{ runner.os }}-${{ hashFiles('global.json') }}-${{ inputs.workloads }}-${{ inputs.workload-version }}-${{ steps.dotnet-dir.outputs.month }}-v1
 
     # Restore downloads the large Windows App SDK packages on every run otherwise.
     - name: Cache NuGet packages
@@ -75,15 +82,52 @@ runs:
 
     - name: Install MAUI workloads
       shell: bash
+      env:
+        # Callers pass an empty value through when their own input is unset (a tag push has no inputs).
+        WORKLOAD_VERSION: ${{ inputs.workload-version || '10.0.402.1' }}
       run: |
         set -euo pipefail
-        # Prefer the SDK baseline manifests so install + GC stay in sync on Linux agents.
+        # A pinned workload set, not the SDK's baseline manifests: those carry the first iOS / Mac Catalyst SDKs of
+        # the band (Xcode 26), and the set is what moves them to a newer Xcode.
         for wl in ${{ inputs.workloads }}; do
           echo "Installing workload: $wl"
-          dotnet workload install "$wl" --skip-manifest-update
+          dotnet workload install "$wl" --version "$WORKLOAD_VERSION"
         done
         echo "MauiVersion / Version (Directory.Build.props):"
         # Surface pins used by PackageReference Version="$(MauiVersion)" and product Version.
         grep -E '<MauiVersion>|<Version>' Directory.Build.props || true
         dotnet --info
         dotnet workload list
+
+    # Apple builds (libraries too) need the Xcode the workload set's iOS / Mac Catalyst SDKs were built for; the pack
+    # name's suffix is the API level, not the Xcode (Mac Catalyst 27.0 needs Xcode 27.1). An app project evaluated
+    # with this SDK reports it; the image's own packs (other versions) sit next to the set's, so their files can't
+    # tell. The image may default to another Xcode: take that version's newest stable patch release.
+    - name: Select Xcode
+      if: runner.os == 'macOS' && (contains(inputs.workloads, 'ios') || contains(inputs.workloads, 'maccatalyst'))
+      shell: bash
+      run: |
+        set -euo pipefail
+        probe="$RUNNER_TEMP/xcode-probe"
+        mkdir -p "$probe"
+        cp global.json "$probe/"
+        printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk">' \
+          '  <PropertyGroup><TargetFrameworks>net10.0-ios;net10.0-maccatalyst</TargetFrameworks><OutputType>Exe</OutputType></PropertyGroup>' \
+          '</Project>' > "$probe/probe.csproj"
+        want=""
+        for wl in ios maccatalyst; do
+          [[ " ${{ inputs.workloads }} " == *"$wl"* ]] || continue
+          v="$(cd "$probe" && dotnet msbuild probe.csproj -nologo -getProperty:_RecommendedXcodeVersion -p:TargetFramework="net10.0-$wl")"
+          echo "net10.0-$wl needs Xcode $v"
+          want="$(printf '%s\n%s\n' "$want" "$v" | sed '/^$/d' | sort -V | tail -1)"
+        done
+        [[ -n "$want" ]] || { echo "Could not tell which Xcode the iOS / Mac Catalyst SDKs need." >&2; exit 1; }
+        ls -d /Applications/Xcode*.app
+        xcode="$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' \
+          | grep -E "/Xcode_${want//./\\.}(\.[0-9]+)*\.app$" | sort -V | tail -1 || true)"
+        [[ -n "$xcode" ]] || { echo "No Xcode $want on this runner image." >&2; exit 1; }
+        # Images alias Xcode_26.6.0.app -> Xcode_26.6.app; actool can't find the macOS SDK through the alias.
+        xcode="$(readlink -f "$xcode")"
+        echo "Selecting $xcode"
+        sudo xcode-select -s "$xcode"
+        xcodebuild -version
