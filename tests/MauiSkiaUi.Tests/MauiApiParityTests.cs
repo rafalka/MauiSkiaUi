@@ -133,10 +133,6 @@ public class MauiApiParityTests
 
     /// <summary>Gaps that 1.2 closes, keyed like <see cref="Excluded"/>, with the plan step.</summary>
     private static readonly Dictionary<string, string> Planned = Entries(
-        ("R3", ["SkUiSwitch"], ["OffColor", "OffColorProperty"]),
-        ("R3", ["SkUiCoreSwitch"], ["OffColor"]),
-        ("R3", ["SkUiCheckBox"], ["Command", "CommandParameter", "CommandProperty", "CommandParameterProperty"]),
-        ("R3", ["SkUiCoreCheckBox"], ["Command", "CommandParameter"]),
         ("R4", [.. DrawnShapes, .. DrawnShapes.Select(shape => shape.Replace("SkUi", "SkUiCore")), "SkUiBorder", "SkUiCoreBorder"], ["StrokeDashPattern"]),
         ("R4", ["SkUiImage", "SkUiImageButton"], ["IsOpaque", "IsOpaqueProperty", "IsLoadingProperty"]),
         ("R4", ["SkUiButton", "SkUiImageButton"], ["IsPressedProperty"]),

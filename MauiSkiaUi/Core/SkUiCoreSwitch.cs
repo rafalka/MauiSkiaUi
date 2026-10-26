@@ -9,6 +9,7 @@ namespace MauiSkiaUi.Core;
 public class SkUiCoreSwitch : SkUiCoreToggleControl
 {
     private Color _onColor = SkUiColors.Accent;
+    private Color? _offColor;
     private Color _thumbColor = Colors.White;
 
     /// <summary>Whether the switch is on (MAUI's name for <see cref="SkUiCoreToggleControl.IsChecked"/>).</summary>
@@ -26,6 +27,16 @@ public class SkUiCoreSwitch : SkUiCoreToggleControl
     {
         get => _onColor;
         set => SetOnColor(value);
+    }
+
+    /// <summary>
+    /// Track color while toggled off (MAUI 10's <c>Switch.OffColor</c>); <c>null</c>, the default, uses the color scheme's
+    /// off track (<see cref="SkUiColorScheme.TrackOff"/>).
+    /// </summary>
+    public Color? OffColor
+    {
+        get => _offColor;
+        set => SetOffColor(value);
     }
 
     /// <summary>Thumb (knob) color.</summary>
@@ -47,6 +58,14 @@ public class SkUiCoreSwitch : SkUiCoreToggleControl
     {
         ArgumentNullException.ThrowIfNull(value);
         if (!SetProperty(ref _onColor, value, nameof(OnColor))) return this;
+        InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets <see cref="OffColor"/> (<c>null</c>: the color scheme's off track).</summary>
+    public SkUiCoreSwitch SetOffColor(Color? value)
+    {
+        if (!SetProperty(ref _offColor, value, nameof(OffColor))) return this;
         InvalidatePaint();
         return this;
     }
@@ -81,7 +100,7 @@ public class SkUiCoreSwitch : SkUiCoreToggleControl
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>
-        SkUiToggleDrawing.DrawSwitch(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, ToggleVisual, _onColor, _thumbColor, IsEnabled);
+        SkUiToggleDrawing.DrawSwitch(canvas, (float)Frame.Width, (float)Frame.Height, IsRightToLeft, ToggleVisual, _onColor, _offColor, _thumbColor, IsEnabled);
 
     /// <inheritdoc />
     protected internal override void AddSkeletonBones(SkUiSkeletonBuilder bones) => bones.Add(SkUiSkeletonPartKind.Switch, bones.Bounds);

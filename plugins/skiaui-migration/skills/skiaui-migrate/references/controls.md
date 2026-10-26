@@ -45,8 +45,8 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 | `ImageButton` | `sk:SkUiImageButton` | Disabled: the `Background` stays, under the look's tint; `DisabledFillColor` replaces it |
 | `BoxView` | `sk:SkUiBox` | `Color`, `CornerRadius` |
 | `Ellipse`, `Line`, `Rectangle`, `RoundRectangle`, `Path`, `Polygon`, `Polyline` | `sk:SkUiEllipse`, `sk:SkUiLine`, `sk:SkUiRectangle`, `sk:SkUiRoundRectangle`, `sk:SkUiPath`, `sk:SkUiPolygon`, `sk:SkUiPolyline` | Brushes, stroke model, `Aspect`, path markup |
-| `CheckBox` | `sk:SkUiCheckBox` | `IsChecked`, `CheckedChanged`, `Color` |
-| `Switch` | `sk:SkUiSwitch` | `IsToggled`, `Toggled`, `OnColor`, `ThumbColor` |
+| `CheckBox` | `sk:SkUiCheckBox` | `IsChecked`, `CheckedChanged`, `Color`, `Command` / `CommandParameter` |
+| `Switch` | `sk:SkUiSwitch` | `IsToggled`, `Toggled`, `OnColor`, `OffColor`, `ThumbColor` |
 | `RadioButton` | `sk:SkUiRadioButton` | `Content` (text or a drawn view), `GroupName`, `Value`, `ControlTemplate` of drawn views |
 | `Slider` | `sk:SkUiSlider` | `ThumbImageSource`; plus vertical |
 | `ProgressBar` | `sk:SkUiProgressBar` | Plus indeterminate |

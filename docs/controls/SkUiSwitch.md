@@ -23,12 +23,12 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 ## How to use
 
 ```xml
-<sk:SkUiSwitch IsToggled="{Binding Notifications}" OnColor="#087F83" ThumbColor="White" />
+<sk:SkUiSwitch IsToggled="{Binding Notifications}" OnColor="#087F83" OffColor="#C9D1D3" ThumbColor="White" />
 ```
 
 ## Key properties
 
-`IsToggled`, `Toggled` (`ToggledEventArgs`), `OnColor`, `ThumbColor`; `IsChecked` / `CheckedChanged` as on the other toggles. `CheckState` (Indeterminate: centered thumb, half-on track) and `IsThreeState` come from [`SkUiToggleControl`](SkUiToggleControl.md).
+`IsToggled`, `Toggled` (`ToggledEventArgs`), `OnColor`, MAUI 10's `OffColor` (the off track; `null`, the default, takes the color scheme's `TrackOff`, and looks that outline the off track draw the outline in it), `ThumbColor`; `IsChecked` / `CheckedChanged` as on the other toggles. `CheckState` (Indeterminate: centered thumb, half-on track) and `IsThreeState` come from [`SkUiToggleControl`](SkUiToggleControl.md).
 
 ## Differences from MAUI Switch
 

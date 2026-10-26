@@ -29,7 +29,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`CheckState`, `IsChecked`, `IsThreeState`, `CheckStateChanged`, `CheckedChanged` (`CheckedChangedEventArgs`, as in MAUI), `Color`.
+`CheckState`, `IsChecked`, `IsThreeState`, `CheckStateChanged`, `CheckedChanged` (`CheckedChangedEventArgs`, as in MAUI), `Color`, and MAUI 10's `Command` / `CommandParameter`. The command runs whenever `IsChecked` changes, from a tap or from code, after `CheckedChanged`, and only if it can execute at that moment. While it cannot execute, the check box looks and acts disabled. Core: `SkUiCoreCheckBox.SetCommand` / `SetCommandParameter`.
 
 ## Differences from MAUI CheckBox
 
@@ -38,6 +38,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | Label text | None — compose with [`SkUiLabel`](SkUiLabel.md) in a stack |
 | Color model | Single `Color` for checked chrome |
 | Three states | `CheckState` / `IsThreeState` (MAUI has two) |
+| A command that cannot execute | Disables the check box as in MAUI, but `IsEnabled` keeps its value (MAUI's reads `false`), as on drawn buttons |
 | Gestures | Intrinsic SkiaUi tap |
 | Visual states | As MAUI's CheckBox: while checked, `IsChecked` when the `CommonStates` group defines it, else `Normal`; otherwise `Normal` / `PointerOver` / `Disabled`. Indeterminate counts as unchecked |
 

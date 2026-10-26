@@ -18,6 +18,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 - **`CascadeInputTransparent` and `IsClippedToBounds` on drawn containers:** MAUI's names on the layouts, the content views, the scroll, swipe, refresh and indicator views, the radio button and the expander, and on the Core containers (`SetCascadeInputTransparent`).
   - `CascadeInputTransparent="False"`: an input-transparent container lets pointers through itself only. Its children still take taps, hover and keyboard focus, and its own recognizers, tooltip and scrolling stay off. The default, `true`, works as before: the whole subtree lets pointers through.
   - `IsClippedToBounds` is the same property as `ClipToBounds`.
+- **`Switch.OffColor`** (MAUI 10) on `SkUiSwitch` and `SkUiCoreSwitch`: the track color while off, in every look. `null`, the default, keeps the color scheme's off track.
+- **`CheckBox.Command` / `CommandParameter`** (MAUI 10) on `SkUiCheckBox` and `SkUiCoreCheckBox`: the command runs when `IsChecked` changes, from a tap or from code, after `CheckedChanged`. While it cannot execute, the check box looks and acts disabled.
 
 ## 1.1.0
 

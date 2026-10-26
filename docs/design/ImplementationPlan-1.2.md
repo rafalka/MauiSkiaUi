@@ -40,9 +40,9 @@ First, because the parity test then guards every later step. Size: S–M.
   - `CascadeInputTransparent` with MAUI's meaning on `SkUiLayout`, `SkUiContentView` and the other containers MAUI has it on (scroll view, radio button, swipe view, refresh view, indicator view, content presenter, swipe item view, and the expander, the toolkit's being a content view), and on the Core panels, content views and indicator view (`SetCascadeInputTransparent`). With the default `true`, `InputTransparent` covers the whole subtree, as before. With `false`, only the container lets touches through (`ISkUiInputNode.HitTestsSelf`): its children still hit-test and take keyboard focus, and its own recognizers, hover, tooltip, wheel and scrolling are off. Unlike MAUI, a cascading container does not coerce its children's own `InputTransparent`: MAUI does that through an internal interface (`IInputTransparentContainerElement`), and what the children receive is the same. Semantics hit tests do not read input transparency, so screen readers are unchanged.
   - `IsClippedToBounds` on the same containers: the same bindable property as `ClipToBounds`, with change notifications under both names ([D3](#decisions)).
   - The Migration.md rows and the migration skill are corrected. The XAML checker no longer reports `IsClippedToBounds`.
-- **R3 MAUI 10 members.**
-  - `Switch.OffColor`: the track color while off, passed to the look's switch paint. Core: `SetOffColor`.
-  - `CheckBox.Command` / `CommandParameter`: run when `IsChecked` changes, after `CheckedChanged`. A command that cannot execute disables the check box, as in MAUI. Core: `SetCommand`.
+- **R3 MAUI 10 members** (done).
+  - `Switch.OffColor`: the track color while off, passed to the look's switch paint (`SkUiSwitchPaint.OffTrack`, so every look uses it); `null`, MAUI's default, keeps the color scheme's off track. Core: `SetOffColor`.
+  - `CheckBox.Command` / `CommandParameter`: run when `IsChecked` changes (tap or code), after `CheckedChanged`, if the command can execute then. A command that cannot execute disables the check box, as in MAUI, through `CanReceiveTap` as on drawn buttons, so `IsEnabled` keeps its value. Core: `SetCommand`.
 - **R4 Small members.**
   - `StrokeDashPattern`: read-only, from `StrokeDashArray`.
   - `IsOpaque` on images: accepted, a hint only.
