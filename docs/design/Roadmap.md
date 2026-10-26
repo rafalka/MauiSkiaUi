@@ -19,7 +19,7 @@ The controls and API listed in the [changelog](../../CHANGELOG.md#100) and its p
 
 From [#49](https://github.com/rafalka/MauiSkiaUi/pull/49):
 
-- MAUI 10.0.120 and .NET SDK 10.0.402, whose iOS and Mac Catalyst workloads (27.x) build with Xcode 27. CI's macOS jobs move to `macos-26` (Xcode 27 needs macOS 26.4 or newer).
+- MAUI 10.0.120 and .NET SDK 10.0.402, whose iOS and Mac Catalyst workloads (27.x) build with Xcode 27.1 (workload set 10.0.402.1). CI's macOS jobs move to the `xcode-27` image, the only one with Xcode 27.1 (it needs macOS 26.6 or newer).
 - **UIKit scene lifecycle:** iOS 27 closes apps built with Xcode 27 that do not use it. The demo, samples, benchmark and device-test apps get a `SceneDelegate` and a scene manifest. The library needs no change. Apps that use SkiaUi need the same change for their own Xcode 27 builds, so the migration guide and the README say so with this release.
 - **Mac Catalyst minimum 15.0 → 17.0:** the 27.x Mac Catalyst workload refuses lower minimums (library, toolkit package and apps). iOS stays at 15.0.
 - **Fix:** in MAUI 10.0.120, showing or hiding a view invalidates the measure of every descendant whose visibility changed; drawn views ignore that invalidation, so showing a view again does not re-record everything it holds.

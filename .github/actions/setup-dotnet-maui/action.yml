@@ -10,6 +10,12 @@ inputs:
     description: Temurin JDK major version (empty skips Java setup)
     required: false
     default: ""
+  workload-version:
+    description: >
+      Workload set version (dotnet/macios release notes name the one for each Xcode; 10.0.402.1 is the iOS 27.1 /
+      Mac Catalyst 27.0 SDKs, which need Xcode 27.1). On macOS the step after the install selects that Xcode.
+    required: false
+    default: "10.0.402.1"
 
 runs:
   using: composite
@@ -48,7 +54,7 @@ runs:
       uses: actions/cache@v6
       with:
         path: ${{ steps.dotnet-dir.outputs.dir }}
-        key: dotnet-${{ runner.os }}-${{ hashFiles('global.json') }}-${{ inputs.workloads }}-${{ steps.dotnet-dir.outputs.month }}-v1
+        key: dotnet-${{ runner.os }}-${{ hashFiles('global.json') }}-${{ inputs.workloads }}-${{ inputs.workload-version }}-${{ steps.dotnet-dir.outputs.month }}-v1
 
     # Restore downloads the large Windows App SDK packages on every run otherwise.
     - name: Cache NuGet packages
@@ -77,13 +83,35 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        # Prefer the SDK baseline manifests so install + GC stay in sync on Linux agents.
+        # A pinned workload set, not the SDK's baseline manifests: those carry the first iOS / Mac Catalyst SDKs of
+        # the band (Xcode 26), and the set is what moves them to a newer Xcode.
         for wl in ${{ inputs.workloads }}; do
           echo "Installing workload: $wl"
-          dotnet workload install "$wl" --skip-manifest-update
+          dotnet workload install "$wl" --version "${{ inputs.workload-version }}"
         done
         echo "MauiVersion / Version (Directory.Build.props):"
         # Surface pins used by PackageReference Version="$(MauiVersion)" and product Version.
         grep -E '<MauiVersion>|<Version>' Directory.Build.props || true
         dotnet --info
         dotnet workload list
+
+    # Apple builds (libraries too) need the Xcode the installed iOS / Mac Catalyst SDK packs were built for. Its
+    # version is in the pack's Versions.props (the pack name's suffix is the API level, e.g. Mac Catalyst 27.0 needs
+    # Xcode 27.1), and the image may default to another. Take that version's newest stable patch release.
+    - name: Select Xcode
+      if: runner.os == 'macOS' && (contains(inputs.workloads, 'ios') || contains(inputs.workloads, 'maccatalyst'))
+      shell: bash
+      run: |
+        set -euo pipefail
+        root="$(dirname "$(readlink -f "$(command -v dotnet)")")"
+        want="$(cat "$root"/packs/Microsoft.{iOS,MacCatalyst}.Sdk.net10.0_*/*/targets/Microsoft.*.Sdk.Versions.props \
+          2>/dev/null | sed -nE 's|.*<RecommendedXcodeVersion>([0-9.]+)</RecommendedXcodeVersion>.*|\1|p' \
+          | sort -V | tail -1 || true)"
+        [[ -n "$want" ]] || { echo "No iOS / Mac Catalyst SDK pack under $root/packs." >&2; exit 1; }
+        echo "iOS / Mac Catalyst SDK packs need Xcode $want"
+        ls -d /Applications/Xcode*.app
+        xcode="$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|release_candidate|_rc' \
+          | grep -E "/Xcode_${want//./\\.}(\.[0-9]+)*\.app$" | sort -V | tail -1 || true)"
+        [[ -n "$xcode" ]] || { echo "No Xcode $want on this runner image." >&2; exit 1; }
+        sudo xcode-select -s "$xcode"
+        xcodebuild -version

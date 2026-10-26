@@ -27,7 +27,7 @@ Solution file: `SkiaUi.slnx`
 - SkiaSharp packages (SkiaSharp, SkiaSharp.HarfBuzz, SkiaSharp.Views.Maui.Controls, native assets) pinned to **4.153.1** via the same file (`SkiaSharpVersion`). After a bump, [Directory.Build.targets](Directory.Build.targets) clears each iOS / Mac Catalyst app's extracted native frameworks and app bundle once: the Apple SDK re-extracts and copies them by file date, and NuGet keeps the package's (older) dates, so the previous `libSkiaSharp` would stay and fail with "The version of the native libSkiaSharp library … is incompatible"
 - Product version (and demo `ApplicationDisplayVersion`) via the same file (`Version` / `ApplicationVersion`). Per-version notes: [CHANGELOG.md](CHANGELOG.md)
 - .NET MAUI workload (`dotnet workload install maui`)
-- Platform SDKs for the targets you build (Android SDK, Xcode for iOS/Mac Catalyst, etc.). The iOS / Mac Catalyst workload of SDK 10.0.402 needs Xcode 27 (macOS 26.4+); apps built with it use the UIKit scene lifecycle, so each app has a `SceneDelegate` and a `UIApplicationSceneManifest` in its `Info.plist`
+- Platform SDKs for the targets you build (Android SDK, Xcode for iOS/Mac Catalyst, etc.). The iOS / Mac Catalyst workloads of workload set 10.0.402.1 (`dotnet workload install maui --version 10.0.402.1`; CI pins it in [setup-dotnet-maui](.github/actions/setup-dotnet-maui/action.yml)) need Xcode 27.1 (macOS 26.6+), and CI's macOS jobs run on the `xcode-27` image, the only one that has it; apps built with it use the UIKit scene lifecycle, so each app has a `SceneDelegate` and a `UIApplicationSceneManifest` in its `Info.plist`
 
 ## Build and run
 
@@ -90,7 +90,7 @@ Without Android signing secrets, the demo Android job still publishes an APK for
 
 Demo app icon/splash SVGs intentionally omit SVG `<filter>` elements: MAUI **10.0.101** Resizetizer regresses on filtered SVGs ([dotnet/maui#38319](https://github.com/dotnet/maui/issues/38319)).
 
-Versions and releases: branches, version format, bumps and the publish procedure are in [docs/Releasing.md](docs/Releasing.md). `nuget-pack.yml` (artifacts only) still accepts an optional version input, or takes it from a `v*` tag or [Directory.Build.props](Directory.Build.props); a manual run of a version with no changelog section yet packs the `## Unreleased` notes, and a `macos-runner` input picks the macOS pack's runner image (default `macos-26`; e.g. the `xcode-27` preview).
+Versions and releases: branches, version format, bumps and the publish procedure are in [docs/Releasing.md](docs/Releasing.md). `nuget-pack.yml` (artifacts only) still accepts an optional version input, or takes it from a `v*` tag or [Directory.Build.props](Directory.Build.props); a manual run of a version with no changelog section yet packs the `## Unreleased` notes, and a `macos-runner` input picks the macOS pack's runner image (default `xcode-27`).
 
 Release notes: write entries under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md), in its `### New features` / `### Breaking changes` / `### Fixes` / `### Other` subsections; publishing renames the section to the version. Workflows run [`scripts/extract-release-notes.py`](scripts/extract-release-notes.py): the library packs a plain-text summary as `PackageReleaseNotes` (shown on nuget.org: a link to the section, new feature titles, breaking changes), and the GitHub release gets the whole section ([docs/Releasing.md](docs/Releasing.md#changelog)).
 
