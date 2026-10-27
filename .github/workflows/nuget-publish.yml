@@ -29,7 +29,7 @@ on:
     inputs:
       bump:
         description: >-
-          Pick the branch above first (it defaults to master). Prerelease: devel + auto. Stable release: devel +
+          Pick the branch above first (devel, the default, or master for a hotfix). Prerelease: devel + auto. Stable release: devel +
           release (master moves to the release; refused while master has a hotfix devel lacks). Next prerelease
           line: devel + auto (minor) or patch. Hotfix: master + auto (patch). Others: prerelease (-PrereleaseNN+1),
           minor / major, none (publish the current version again after a failed publish). docs/Releasing.md

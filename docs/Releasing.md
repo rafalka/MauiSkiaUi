@@ -11,6 +11,8 @@ Every release publishes all of the repository's packages with one version: **Ski
 | `master` | The latest stable release, and hotfixes on top of it | `1.1.0`, `1.2.0`, `1.2.1`, … |
 | `devel` | Active development; pull requests target it. Prereleases and stable releases are published from it | `1.2.0-Prerelease01`, …, `1.2.0`, `1.3.0-Prerelease01`, … |
 
+`devel` is the repository's default branch: pull requests, Dependabot and the publish workflow's branch picker start on it.
+
 Changes flow one way: feature branches → `devel` (squash-merged pull requests) → `master`. `devel` never goes to `master` through a pull request: a squash merge would put a commit on `master` that `devel` does not have, and every release would then need `master` merged back. Instead, `master` is moved forward to each stable release commit made on `devel`:
 
 1. Prereleases: run the publish workflow from `devel` with bump `auto` (`1.2.0-Prerelease01` → `1.2.0-Prerelease02`).
@@ -91,7 +93,7 @@ Without it, git merges these files by lines, as before.
 
 See [Development.md](../Development.md#continuous-integration-github-actions) for the `nuget.org` environment and Trusted Publishing.
 
-The `master` ruleset requires pull requests and the `Build & test (Ubuntu)` check; only repository admins and deploy keys bypass it. The workflow therefore pushes its release commit and tag with a deploy key, not the workflow token. One-time setup:
+The `master` ruleset (it names `refs/heads/master`, not the default branch) requires pull requests and the `Build & test (Ubuntu)` check; only repository admins and deploy keys bypass it. The workflow therefore pushes its release commit and tag with a deploy key, not the workflow token. One-time setup:
 
 ```bash
 ssh-keygen -t ed25519 -N "" -C "SkiaUi release" -f skiaui-release-key
