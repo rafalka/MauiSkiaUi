@@ -13,6 +13,15 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **`RunsTappedCommand`** (protected virtual on `SkUiView`, default `true`): a host that hands its `TappedCommand` and `TappedCommandParameter` to the node it draws (a Core node with `ShowsPressEffect`) returns `false`. That node is then the one tap target, screen reader element and keyboard focus stop, and the host no longer runs the command as well. Before, such a wrapper was two nested buttons with the same `AutomationId`, read twice and stopped on twice by Tab (#63).
+
+### Fixes
+
+- **Centered text in fonts with a line gap:** the font's line gap (hhea / typo line gap) is split above and below each line's glyphs, as CSS and Skia's paragraph place it, instead of all of it going under them. A single line centered in a button, chip or badge, or with `VerticalTextAlignment="Center"`, no longer sits high by half the gap (about 3 pt in a 16 pt button in a font whose gap is a quarter of its size). Line heights and measured sizes do not change; top-aligned text in such fonts starts half the gap lower. Fonts without a line gap (Roboto, SF, Segoe UI, Open Sans) draw as before. Both label layers, spans, HTML and text input (#61).
+- **The dim press on light buttons:** `DefaultSkUiLook`'s `Dim` press (iOS, Mac Catalyst, Windows and the default look) darkened nothing on a white, light or transparent button: a white fill faded to 75 % over a white page stays white. A light or mostly see-through fill now darkens under the tint pressed content gets with `ShowsPressEffect`, clipped to the button's corners; dark and colored fills still fade by a quarter (#62).
+
 ## 1.2.0
 
 ### New features

@@ -8,7 +8,8 @@ What the next releases bring, and the work after them. What has shipped is in th
 | --- | --- | --- | --- | --- | --- |
 | **1.0.0** | 10.0.110 | 26 | 10.0.400 | iOS 15, Mac Catalyst 15, Android 5.0 (API 21), Windows 10 1809 | `master`, released 22 October 2026 |
 | **1.1.0** | 10.0.120 | 27 | 10.0.402 | iOS 15, **Mac Catalyst 17**, Android 5.0 (API 21), Windows 10 1809 | `master`, released 26 October 2026 |
-| **1.2.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | `devel` (in progress) |
+| **1.2.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 27 October 2026 |
+| **1.3.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | `devel` (in progress) |
 
 SkiaUi stays on MAUI 10.x. Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -27,9 +28,18 @@ From [#49](https://github.com/rafalka/MauiSkiaUi/pull/49):
 
 Work merged into `devel` after 1.0.0 shipped with 1.1.0 too.
 
-### 1.2.0: MAUI parity (next, on `devel`)
+### 1.2.0: MAUI parity (shipped)
 
 More MAUI pages port by changing the XAML prefix: MAUI's pan, swipe, pinch and pointer recognizers on drawn views; the collection view's and carousel's `ItemsLayout`, `ScrollTo`, snap points, `ItemsUpdatingScrollMode` and text headers; `IndicatorTemplate`; MAUI 10's new members (`SafeAreaEdges` on the surface root, `Switch.OffColor`, `CheckBox.Command`); and a test that compares the drawn controls' API with MAUI's. `TemplateBinding`, data headers and platform-specifics become conversions in the migration checker. Collection view reordering follows in 1.3. Steps, order and decisions: [ImplementationPlan-1.2.md](ImplementationPlan-1.2.md).
+
+### 1.3.0: reordering and drawn form controls (next, on `devel`)
+
+Collection view reordering ([plan](ImplementationPlan-1.2.md#moved-to-13)), and what building drawn form controls on 1.x asked for ([milestone](https://github.com/rafalka/MauiSkiaUi/milestone/1)):
+
+- **Fixed on `devel`:** centered single lines in fonts with a line gap ([#61](https://github.com/rafalka/MauiSkiaUi/issues/61)), the dim press on light and transparent buttons ([#62](https://github.com/rafalka/MauiSkiaUi/issues/62)), and `RunsTappedCommand`, so a host that hands its `TappedCommand` to the node it draws is one element and focus stop ([#63](https://github.com/rafalka/MauiSkiaUi/issues/63)).
+- **A fade for `ShowsPressEffect`** ([#64](https://github.com/rafalka/MauiSkiaUi/issues/64)): a per-node press visual next to the dark tint, which hardly shows on dark content (an icon glyph): the node's opacity drops while pressed, a composite-time prop the press animation drives without re-recording. Both layers; the look keeps the tint as the default.
+- **`DefaultMinimumHeight`** ([#65](https://github.com/rafalka/MauiSkiaUi/issues/65)): a protected virtual on `SkUiButton` (and the Core button's equivalent), used while `MinimumHeightRequest` is unset, as `DefaultCornerRadius` and `DefaultPadding` are. Today the look's `DefaultButtonMinimumHeight` is the only default.
+- **A public display-binding helper** ([#66](https://github.com/rafalka/MauiSkiaUi/issues/66)): reads an item's text through a `BindingBase` (`ToString()` without one) and lets go of the last item. `SkUiPicker` and `SkUiPickerColumn` share it instead of their private probes; a leak scenario covers it.
 
 ## Backlog (1.x)
 

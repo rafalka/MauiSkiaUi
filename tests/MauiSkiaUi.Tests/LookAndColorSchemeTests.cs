@@ -258,6 +258,28 @@ public class LookAndColorSchemeTests
     }
 
     [Fact]
+    public void DimPressShowsOnLightAndSeeThroughButtonsToo()
+    {
+        // A dark or colored fill fades (lighter over the white page); a white, light gray or transparent one, which fading
+        // leaves the page's color, darkens.
+        var look = new DefaultSkUiLook();
+        Assert.True(Center(SKColors.Black, pressed: true).Red > 40);
+        Assert.True(Center(new SKColor(0x51, 0x2B, 0xD4), pressed: true).Red > Center(new SKColor(0x51, 0x2B, 0xD4), pressed: false).Red);
+        foreach (var fill in new[] { SKColors.White, new SKColor(0xF2, 0xF3, 0xF6), SKColors.Transparent })
+            Assert.True(Center(fill, pressed: false).Red - Center(fill, pressed: true).Red > 30, $"{fill} shows no press");
+
+        SKColor Center(SKColor fill, bool pressed)
+        {
+            using var bitmap = new SKBitmap(100, 44);
+            using var canvas = new SKCanvas(bitmap);
+            canvas.Clear(SKColors.White);
+            look.DrawButton(canvas, new SkUiButtonPaint(new SKRect(0, 0, 100, 44), new CornerRadius(8), fill, SKColors.LightGray, 1,
+                SkUiPressVisual.Settled(pressed), IsEnabled: true));
+            return bitmap.GetPixel(50, 22);
+        }
+    }
+
+    [Fact]
     public void ForCurrentPlatformPicksTheRunningPlatformsLook()
     {
         // The headless suite runs on net10.0 (macOS, Linux or Windows hosts): Windows' look there, the default look elsewhere.

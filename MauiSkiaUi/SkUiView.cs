@@ -1465,7 +1465,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     private bool WantsSingleTap => HasOwnSingleTap || HasMauiTaps(1);
 
-    private bool HasOwnSingleTap => Tapped is not null || HandlesTap || (_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false);
+    private bool HasOwnSingleTap => Tapped is not null || HandlesTap || (RunsTappedCommand && (_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false));
 
     /// <summary>Taps of SkiaUi's own events and commands, which every button makes.</summary>
     private bool HasOwnTaps => HasOwnSingleTap || _gestures?.WantsDoubleTap == true;
@@ -1571,6 +1571,14 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <summary>Allows a control to participate in taps without an event subscriber.</summary>
     protected virtual bool HandlesTap => false;
 
+    /// <summary>
+    /// Whether <see cref="TappedCommand"/> runs on this view's taps and makes it a tap target, a screen reader element with
+    /// an activate action and a keyboard focus stop (default <c>true</c>). A host that hands its <see cref="TappedCommand"/>
+    /// and <see cref="TappedCommandParameter"/> to the node it draws (a Core node with <c>ShowsPressEffect</c>) returns
+    /// <c>false</c>, so that node is the one button, element and focus stop.
+    /// </summary>
+    protected virtual bool RunsTappedCommand => true;
+
     /// <summary>Raises a classified single tap: the shared <see cref="Tapped"/> event, then <see cref="TappedCommand"/> if eligible.</summary>
     protected virtual void OnTapped(SkUiTappedEventArgs args)
     {
@@ -1595,7 +1603,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// </summary>
     protected void ExecuteTappedCommand()
     {
-        if (_tappedCommand?.CanExecute(_tappedCommandParameter) == true)
+        if (RunsTappedCommand && _tappedCommand?.CanExecute(_tappedCommandParameter) == true)
             _tappedCommand.Execute(_tappedCommandParameter);
     }
 }

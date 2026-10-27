@@ -239,9 +239,16 @@ public class DefaultSkUiLook : SkUiLook
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// The <see cref="SkUiPressEffect.Dim"/> press fades a dark or colored fill by a quarter. A light or see-through fill would
+    /// barely change that way (white fades to the white page under it), so it darkens instead, under the tint
+    /// <see cref="DrawPressOverlayCore"/> gives pressed content.
+    /// </remarks>
     protected override void DrawButtonCore(SKCanvas canvas, SkUiButtonPaint button)
     {
-        var dim = EffectivePressEffect == SkUiPressEffect.Dim ? 1 - 0.25f * button.Press.Pressed : 1;
+        var pressed = EffectivePressEffect == SkUiPressEffect.Dim ? button.Press.Pressed : 0;
+        var darkens = pressed > 0 && FadesUnseen(button.Fill);
+        var dim = pressed > 0 && !darkens ? 1 - 0.25f * pressed : 1;
         if (button.FillPaint is { } gradient)
         {
             DrawRoundedBox(canvas, button.Bounds, button.CornerRadii, SkUiShapePainter.WithOpacity(gradient, dim), button.Border, button.BorderWidth);
@@ -266,8 +273,29 @@ public class DefaultSkUiLook : SkUiLook
                 button.Border.WithAlpha((byte)Math.Round(255 * extra)), button.BorderWidth);
             canvas.Restore();
         }
+        if (darkens)
+            DrawPressTint(canvas, button.Bounds, button.CornerRadii, (byte)(PressTintAlpha * pressed));
         if (EffectivePressEffect == SkUiPressEffect.Ripple && button.IsEnabled)
             DrawRipple(canvas, button.Bounds, button.CornerRadii, button.Press, RippleColor(button.Fill));
+    }
+
+    /// <summary>The opacity of the dark tint over pressed content and light buttons (of 255).</summary>
+    private const int PressTintAlpha = 48;
+
+    /// <summary>Whether fading <paramref name="fill"/> would hardly show: a light color, or one mostly see-through.</summary>
+    private static bool FadesUnseen(SKColor fill) =>
+        fill.Alpha < 128 || 0.299f * fill.Red + 0.587f * fill.Green + 0.114f * fill.Blue > 160;
+
+    private void DrawPressTint(SKCanvas canvas, SKRect bounds, CornerRadius radii, byte alpha)
+    {
+        var paint = Paint(new SKColor(0, 0, 0, alpha));
+        if (IsUniformCornerRadius(radii) && radii.TopLeft <= 0)
+        {
+            canvas.DrawRect(bounds, paint);
+            return;
+        }
+        using var path = CreateRoundRectPath(bounds, radii);
+        canvas.DrawPath(path, paint);
     }
 
     /// <summary>How much more opaque the bottom edge of an elevation border is (Fluent: #29 against #0F).</summary>
@@ -937,20 +965,9 @@ public class DefaultSkUiLook : SkUiLook
     protected override void DrawPressOverlayCore(SKCanvas canvas, SkUiPressOverlayPaint overlay)
     {
         // Over arbitrary content (images, cards): a dark tint or a dark ripple shows on light and mid-tone content alike.
-        var alpha = !overlay.IsEnabled ? 96 : EffectivePressEffect == SkUiPressEffect.Dim ? 48 * overlay.Press.Pressed : 0;
+        var alpha = !overlay.IsEnabled ? 96 : EffectivePressEffect == SkUiPressEffect.Dim ? PressTintAlpha * overlay.Press.Pressed : 0;
         if (alpha > 0)
-        {
-            var paint = Paint(new SKColor(0, 0, 0, (byte)alpha));
-            if (IsUniformCornerRadius(overlay.CornerRadii) && overlay.CornerRadii.TopLeft <= 0)
-            {
-                canvas.DrawRect(overlay.Bounds, paint);
-            }
-            else
-            {
-                using var path = CreateRoundRectPath(overlay.Bounds, overlay.CornerRadii);
-                canvas.DrawPath(path, paint);
-            }
-        }
+            DrawPressTint(canvas, overlay.Bounds, overlay.CornerRadii, (byte)alpha);
         if (EffectivePressEffect == SkUiPressEffect.Ripple && overlay.IsEnabled)
             DrawRipple(canvas, overlay.Bounds, overlay.CornerRadii, overlay.Press, new SKColor(0, 0, 0, 56));
     }

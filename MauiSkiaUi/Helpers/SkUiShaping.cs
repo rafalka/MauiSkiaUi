@@ -289,6 +289,13 @@ internal static partial class SkUiShaping
     /// </summary>
     internal static float FallbackSpacing(SKFont font) => font.Metrics.Descent - font.Metrics.Ascent;
 
+    /// <summary>
+    /// Half the line gap (leading) of a primary font, the room it leaves above its ascent. A line is the font's spacing high
+    /// and the gap is split above and below the glyphs, as CSS and Skia's paragraph place it: all of it under the text
+    /// would put a single line centered in a button or chip high by half the gap.
+    /// </summary>
+    internal static float HalfLineGap(SKFont font) => Math.Max(0, font.Spacing - FallbackSpacing(font)) / 2;
+
     /// <summary>Typeface for a code point: primary when it has a glyph, else a cached system fallback.</summary>
     private static SKTypeface FaceFor(int cp, SKTypeface primary, SKTypeface? current)
     {
@@ -425,7 +432,7 @@ internal static partial class SkUiShaping
     {
         var line = new Line { BaseLevel = paragraph.BaseLevel };
         var metrics = primary.Metrics;
-        line.Ascent = -metrics.Ascent;
+        line.Ascent = -metrics.Ascent + HalfLineGap(primary);
         line.Height = primary.Spacing;
         var fontTop = -metrics.Top; // the tallest font's top above the baseline
         line.FontPaddingTop = Math.Max(0, fontTop - line.Ascent);
