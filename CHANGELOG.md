@@ -52,6 +52,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### Other
 
 - The demo's (?) help bubbles show their text again: the bubble is shown before it measures its text.
+- The demo's component galleries and pages title each page by its control and what it is for ("SkUiCollectionView: main features vs MAUI", "SkUiCollectionView: groups, grid, horizontal"), so controls with several pages no longer show a column of identical names.
 - `SkUiImage` raises `PropertyChanged` for `IsLoading` only when it changes (it was raised with every load state update).
 
 ## 1.1.0

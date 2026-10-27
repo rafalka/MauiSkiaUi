@@ -7,7 +7,10 @@ namespace MauiSkiaUiDemo;
 /// <param name="Category">Gallery section.</param>
 /// <param name="Create">Factory that builds a fresh page instance.</param>
 /// <param name="Key">Optional name for a second scenario page of the same control (route, automation id).</param>
-/// <param name="Scenario">What the page shows when it is not simply the control on its own (a second scenario page, the control in a list).</param>
+/// <param name="Scenario">
+/// The page's purpose, shown after the control's name in its title, when the name alone does not say it: every page of a
+/// control with several pages (its main page too), and pages that show the control in a list or another setting.
+/// </param>
 public sealed record ComponentDemo(Type ComponentType, Type PageType, string Counterpart, ComponentCategory Category, Func<ComponentDemoPage> Create, string? Key = null,
     string? Scenario = null)
 {
@@ -26,7 +29,10 @@ public sealed record ComponentDemo(Type ComponentType, Type PageType, string Cou
     /// <summary>The control's type as written in C# (<c>SkUiStepper&lt;decimal&gt;</c>), shown in the gallery.</summary>
     public string DisplayName => TypeName(ComponentType);
 
-    /// <summary>Gallery caption: the <see cref="Scenario"/> and the MAUI control the drawn one replaces.</summary>
+    /// <summary>Gallery and page title: the control's <see cref="DisplayName"/>, then the <see cref="Scenario"/> (what the page is for).</summary>
+    public string Title => Scenario is null ? DisplayName : DisplayName + ": " + Scenario;
+
+    /// <summary>Gallery caption: the MAUI control the drawn one replaces.</summary>
     public string Description
     {
         get
@@ -35,7 +41,7 @@ public sealed record ComponentDemo(Type ComponentType, Type PageType, string Cou
             var counterpart = Counterpart == SkUiOnlyCounterpart
                 ? Category == ComponentCategory.Core ? null : "No MAUI counterpart"
                 : "Replaces " + Counterpart;
-            return string.Join(" · ", new[] { Scenario, counterpart }.OfType<string>());
+            return counterpart ?? "";
         }
     }
 

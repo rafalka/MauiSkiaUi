@@ -61,22 +61,31 @@ public class ComponentDemoTests
             var buttons = Descendants(catalog).OfType<SkUiButton>().ToList();
             var demos = ComponentDemos.All.Where(demo => demo.Category == category).ToList();
             Assert.Equal(demos.Select(demo => "Open" + demo.Name), buttons.Select(button => button.AutomationId));
-            // Buttons name the real control type (never a route key), then the scenario / counterpart.
-            Assert.Equal(demos.Select(demo => demo.DisplayName), buttons.Select(button => button.FormattedText!.Spans[0].Text));
+            // Buttons name the real control type (never a route key) and what the page is for, then the counterpart.
+            Assert.Equal(demos.Select(demo => demo.Title), buttons.Select(button => button.FormattedText!.Spans[0].Text));
+            Assert.Equal(demos.Count, demos.Select(demo => demo.Title).Distinct().Count());
         }
     }
 
     [Fact]
-    public void DemoDisplayNamesAreTheControlTypes()
+    public void DemoTitlesSayWhatThePageIsFor()
     {
         var stepper = ComponentDemos.All.Single(demo => demo.PageType == typeof(TypedStepperDemoPage));
         Assert.Equal("SkUiStepper<decimal>", stepper.DisplayName);
-        Assert.Equal("Typed values · Replaces Stepper", stepper.Description);
+        Assert.Equal("SkUiStepper<decimal>: typed values", stepper.Title);
+        Assert.Equal("Replaces Stepper", stepper.Description);
         var shimmer = ComponentDemos.All.Single(demo => demo.PageType == typeof(ShimmerContentDemoPage));
         Assert.Equal(nameof(SkUiShimmer), shimmer.DisplayName);
-        Assert.Equal("Skeleton built from the content (a feed loading) · No MAUI counterpart", shimmer.Description);
+        Assert.Equal("SkUiShimmer: skeleton built from the content", shimmer.Title);
+        Assert.Equal("No MAUI counterpart", shimmer.Description);
+        var label = ComponentDemos.All.Single(demo => demo.PageType == typeof(LabelDemoPage));
+        Assert.Equal(nameof(SkUiLabel), label.Title);
+        Assert.Equal("Replaces Label", label.Description);
         foreach (var demo in ComponentDemos.All.Where(demo => demo.Key is not null))
             Assert.False(string.IsNullOrEmpty(demo.Scenario), $"{demo.Name} is a scenario page and should describe its scenario.");
+        // A control with several pages titles each one, its main page too, by what it is for.
+        foreach (var demo in ComponentDemos.All.Where(demo => ComponentDemos.All.Count(other => other.ComponentType == demo.ComponentType && other.Category == demo.Category) > 1))
+            Assert.False(string.IsNullOrEmpty(demo.Scenario), $"{demo.PageType.Name} shares its control with another page and should say what it is for.");
     }
 
     [Fact]
@@ -87,6 +96,7 @@ public class ComponentDemoTests
         {
             var page = demo.Create();
             Assert.Equal(demo.PageType, page.GetType());
+            Assert.Equal(demo.Title, page.Title);
             Assert.True(ContainsComponent(page, demo.ComponentType),
                 $"{demo.PageType.Name}'s preview does not contain a {demo.ComponentType.Name}.");
             Assert.Empty(page.CheckProperties());

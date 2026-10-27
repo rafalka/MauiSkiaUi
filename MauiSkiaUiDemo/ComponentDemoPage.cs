@@ -51,7 +51,8 @@ public abstract class ComponentDemoPage : ContentPage
 
     protected ComponentDemoPage(string name, SkUiView skia, View? native = null, (double Min, double Max, double Initial)? widthRange = null, (double Min, double Max, double Initial)? heightRange = null)
     {
-        Title = name;
+        // The gallery's title for the page (control and purpose), so the two never disagree.
+        Title = ComponentDemos.All.FirstOrDefault(demo => demo.PageType == GetType())?.Title ?? name;
         Background = DemoColors.PageBackground;
         SkiaControl = skia;
         NativeControl = native;

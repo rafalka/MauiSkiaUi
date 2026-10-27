@@ -30,8 +30,8 @@ public sealed class ComponentGalleryPage : ContentPage
             });
         foreach (var demo in ComponentDemos.All.Where(demo => demo.Category == category))
         {
-            // The control's type, then what the page shows and which MAUI control it replaces.
-            var text = new FormattedString { Spans = { new Span { Text = demo.DisplayName, FontFamily = DemoFonts.OpenSansSemibold, FontSize = 15 } } };
+            // The control's type and what the page is for, then which MAUI control it replaces.
+            var text = new FormattedString { Spans = { new Span { Text = demo.Title, FontFamily = DemoFonts.OpenSansSemibold, FontSize = 15 } } };
             if (demo.Description is { Length: > 0 } description)
                 text.Spans.Add(new Span
                 {
