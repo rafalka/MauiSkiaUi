@@ -145,67 +145,41 @@ public class LabelTextPropertiesTests
         Assert.Equal(LineSpacing() / 2, InkTop(2) - InkTop(1), 1.5);
     }
 
-    /// <summary>The bundled Roboto Mono with a line gap (hhea and OS/2) of half its em: Roboto Mono has none.</summary>
-    private static byte[] FontWithLineGap()
-    {
-        var bytes = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Assets", "RobotoMono-Regular.ttf"));
-        int Read16(int at) => bytes[at] << 8 | bytes[at + 1];
-        void Write16(int at, int value) => (bytes[at], bytes[at + 1]) = ((byte)(value >> 8), (byte)value);
-        int Table(string tag)
-        {
-            for (var record = 12; record < 12 + 16 * Read16(4); record += 16)
-                if (System.Text.Encoding.ASCII.GetString(bytes, record, 4) == tag)
-                    return bytes[record + 8] << 24 | bytes[record + 9] << 16 | bytes[record + 10] << 8 | bytes[record + 11];
-            throw new InvalidDataException(tag);
-        }
-        var gap = Read16(Table("head") + 18) / 2;
-        Write16(Table("hhea") + 8, gap);
-        Write16(Table("OS/2") + 72, gap);
-        return bytes;
-    }
-
     [Fact]
     public void TheFontsLineGapIsSplitAboveAndBelowTheGlyphs()
     {
         // A centered single line (a button's, a chip's) sits where it would in the same font without a line gap: half the
         // gap goes above the glyphs, half below.
-        const string gapFamily = "Test-RobotoMonoGap";
-        var gapFont = FontWithLineGap();
+        const string gapFamily = SkUiTestHelpers.LineGapFontFamily;
+        var gapFont = SkUiTestHelpers.BundledFontWithLineGap();
         using var _ = SkUiTestHelpers.UseBundledFont();
-        SkUiFonts.Register(gapFamily, () => new MemoryStream(gapFont));
-        try
-        {
-            using (var font = new SKFont(SKTypeface.FromData(SKData.CreateCopy(gapFont)), 16))
-                Assert.True(font.Spacing - (font.Metrics.Descent - font.Metrics.Ascent) > 7, "the patched font has no line gap");
+        using var __ = SkUiTestHelpers.UseBundledFontWithLineGap();
+        using (var font = new SKFont(SKTypeface.FromData(SKData.CreateCopy(gapFont)), 16))
+            Assert.True(font.Spacing - (font.Metrics.Descent - font.Metrics.Ascent) > 7, "the patched font has no line gap");
 
-            int[] Rows(string family, bool spans)
-            {
-                var label = new SkUiLabel { FontFamily = family, TextColor = Colors.Black, VerticalTextAlignment = TextAlignment.Center };
-                if (spans)
-                    label.FormattedText = new FormattedString { Spans = { new Span { Text = "H" }, new Span { Text = "x", FontSize = 12 } } };
-                else
-                    label.Text = "Hx";
-                using var bitmap = Render(label, 100, 80);
-                var rows = InkRows(bitmap);
-                return [Array.FindIndex(rows, count => count > 0), Array.FindLastIndex(rows, count => count > 0)];
-            }
-            foreach (var spans in new[] { false, true })
-            {
-                var (plain, gapped) = (Rows(SkUiTestHelpers.BundledFontFamily, spans), Rows(gapFamily, spans));
-                Assert.InRange(gapped[0] - plain[0], -1, 1);
-                Assert.InRange(gapped[1] - plain[1], -1, 1);
-            }
-
-            // The line stays as tall as the font's spacing, gap included; a top-aligned line starts half the gap lower.
-            var top = Label("Hx");
-            top.FontFamily = gapFamily;
-            using (var font = new SKFont(SKTypeface.FromData(SKData.CreateCopy(gapFont)), 16))
-                Assert.Equal(font.Spacing, Measure(top, 500).Height, 0.5);
-        }
-        finally
+        int[] Rows(string family, bool spans)
         {
-            SkUiFonts.Unregister(gapFamily);
+            var label = new SkUiLabel { FontFamily = family, TextColor = Colors.Black, VerticalTextAlignment = TextAlignment.Center };
+            if (spans)
+                label.FormattedText = new FormattedString { Spans = { new Span { Text = "H" }, new Span { Text = "x", FontSize = 12 } } };
+            else
+                label.Text = "Hx";
+            using var bitmap = Render(label, 100, 80);
+            var rows = InkRows(bitmap);
+            return [Array.FindIndex(rows, count => count > 0), Array.FindLastIndex(rows, count => count > 0)];
         }
+        foreach (var spans in new[] { false, true })
+        {
+            var (plain, gapped) = (Rows(SkUiTestHelpers.BundledFontFamily, spans), Rows(gapFamily, spans));
+            Assert.InRange(gapped[0] - plain[0], -1, 1);
+            Assert.InRange(gapped[1] - plain[1], -1, 1);
+        }
+
+        // The line stays as tall as the font's spacing, gap included; a top-aligned line starts half the gap lower.
+        var top = Label("Hx");
+        top.FontFamily = gapFamily;
+        using (var font = new SKFont(SKTypeface.FromData(SKData.CreateCopy(gapFont)), 16))
+            Assert.Equal(font.Spacing, Measure(top, 500).Height, 0.5);
     }
 
     [Fact]
