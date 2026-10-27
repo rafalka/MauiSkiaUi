@@ -223,7 +223,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #endif
         AttachHover(surfaceNative);
 #if ANDROID
-        _container = new SkUiOverlayContainer(MauiContext!.Context!);
+        _container = new SkUiOverlayContainer(MauiContext!.Context!) { LaidOut = OnContainerLaidOut };
         _container.AddView(surfaceNative);
 #elif IOS || MACCATALYST
         _container = new SkUiOverlayContainer();
@@ -435,6 +435,52 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             if (ReferenceEquals(_container, container) && !container.Children.Contains(panel))
                 container.Children.Insert(0, panel);
         });
+    }
+#endif
+
+#if ANDROID
+    /// <summary>The size MAUI last arranged the root to (DIPs); negative before its first arrange.</summary>
+    private Size _mauiArrangedSize = new(-1, -1);
+
+    /// <summary>The root is being laid out for its container (<see cref="OnContainerLaidOut"/>): the native view keeps its place.</summary>
+    private bool _arrangingForContainer;
+
+    /// <summary>DIPs by which the container's size may differ from MAUI's arrange (pixel rounding) before the root is laid out for it.</summary>
+    private const double ContainerSizeTolerance = 1;
+
+    /// <inheritdoc />
+    public override void PlatformArrange(Rect rect)
+    {
+        if (_arrangingForContainer)
+            return;
+        _mauiArrangedSize = rect.Size;
+        base.PlatformArrange(rect);
+    }
+
+    /// <summary>
+    /// The container was laid out at a size MAUI did not arrange the root to: a native parent that is no MAUI layout (Shell's
+    /// flyout content sits directly in a CoordinatorLayout) sizes it without measuring or arranging the drawn root. Lay the
+    /// root out at that size, as MAUI's own layout views do in OnLayout; otherwise its tree is never laid out and draws nothing.
+    /// </summary>
+    private void OnContainerLaidOut(int left, int top, int right, int bottom)
+    {
+        if (_arrangingForContainer || _container?.Context is not { } context)
+            return;
+        var size = new Size(context.FromPixels(right - left), context.FromPixels(bottom - top));
+        if (size.Width <= 0 || size.Height <= 0
+            || (Math.Abs(size.Width - _mauiArrangedSize.Width) < ContainerSizeTolerance && Math.Abs(size.Height - _mauiArrangedSize.Height) < ContainerSizeTolerance))
+            return;
+        _arrangingForContainer = true;
+        try
+        {
+            IView view = VirtualView;
+            view.Measure(size.Width, size.Height);
+            view.Arrange(new Rect(context.FromPixels(left), context.FromPixels(top), size.Width, size.Height));
+        }
+        finally
+        {
+            _arrangingForContainer = false;
+        }
     }
 #endif
 
@@ -814,6 +860,10 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         // The GC releases it once Java no longer references the view.
 #if ANDROID || IOS || MACCATALYST
         _gpu = null;
+#endif
+#if ANDROID
+        if (_container is not null)
+            _container.LaidOut = null;
 #endif
         _container = null;
         base.DisconnectHandler(platformView);
@@ -1586,6 +1636,9 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
             clip.Visibility == Android.Views.ViewStates.Visible && child.Visibility == Android.Views.ViewStates.Visible && clip.Width > 0 && clip.Height > 0);
     }
 
+    /// <summary>After each layout pass, with the container's bounds in its parent (pixels): the handler lays out a drawn root no MAUI parent arranged.</summary>
+    internal Action<int, int, int, int>? LaidOut { get; set; }
+
     protected override void OnLayout(bool changed, int left, int top, int right, int bottom)
     {
         for (var index = 0; index < ChildCount; index++)
@@ -1600,6 +1653,7 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
                 child.Layout(0, 0, right - left, bottom - top);
             }
         }
+        LaidOut?.Invoke(left, top, right, bottom);
     }
 }
 

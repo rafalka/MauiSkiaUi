@@ -567,6 +567,22 @@ public class PipelineTests
     }
 
     [Fact]
+    public void ContainerMeasuredWhileHiddenMeasuresItsChildrenOnceShown()
+    {
+        // Measured while an ancestor hid it, a layout leaves out its (collapsed) children; shown, it takes them again.
+        var child = new SkUiBox { Color = Colors.Red, HeightRequest = 20 };
+        var stack = new SkUiVerticalStackLayout { Children = { child } };
+        var container = new SkUiContentView { Content = stack, IsVisible = false };
+        var host = new SkUiGrid { Children = { container } };
+        SkUiTestHelpers.Arrange(host, 100, 100);
+        Assert.Equal(0, ((IView)stack).Measure(100, double.PositiveInfinity).Height);
+
+        container.IsVisible = true;
+
+        Assert.Equal(20, ((IView)stack).Measure(100, double.PositiveInfinity).Height);
+    }
+
+    [Fact]
     public void TransformAnimationDoesNotRemeasureOrRearrange()
     {
         var child = new LayoutProbe();

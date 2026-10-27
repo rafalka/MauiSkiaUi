@@ -615,11 +615,15 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     protected override void InvalidateMeasureOverride()
     {
         // MAUI invalidates every descendant whose effective visibility changes when an ancestor is shown or hidden. Its
-        // size and drawing stay valid (the ancestor lays itself out again); its own IsVisible change was handled before.
+        // drawing stays valid (the ancestor lays itself out again); its own IsVisible change was handled before. Its
+        // measure does not: one taken while it was hidden left out its collapsed children (layout managers skip them), so
+        // it is measured again, without re-recording unless its size changed.
         var visibility = ((IView)this).Visibility;
         if (visibility != _effectiveVisibility)
         {
             _effectiveVisibility = visibility;
+            _measureDirty = true;
+            _arrangeDirty = true;
             return;
         }
         _measureDirty = true;

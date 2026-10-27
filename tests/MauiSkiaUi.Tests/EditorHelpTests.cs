@@ -91,6 +91,10 @@ public class EditorHelpTests
         SkUiTestHelpers.Arrange(root, 400, 900); // the surface's next layout
         var bubble = Descendants(root).OfType<SkUiBorder>().Single(view => view.AutomationId == "EditorHelp");
         Assert.True(bubble.Margin.Top >= bounds.Bottom, "The bubble opens below its button.");
+        // Sized to its text, which shows (measured while the bubble was hidden, the text took no room).
+        var text = Descendants(bubble).OfType<SkUiLabel>().Single(label => label.AutomationId == "EditorHelpText");
+        Assert.True(bubble.HeightRequest > 60, $"Bubble height {bubble.HeightRequest}");
+        Assert.True(text.Height > 0, $"Text height {text.Height}");
 
         // A tap elsewhere closes it (the layer over the editors takes it, not the editor there), as does a tap on the button again.
         var elsewhere = new Point(200, 850);

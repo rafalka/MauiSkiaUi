@@ -121,8 +121,9 @@ internal sealed class EditorHelpBubble
         _body.Text = help.Html;
         _scroll.ScrollToAsync(0, 0, false);
         _dismiss.IsVisible = pinned;
-        Place(anchor);
+        // Shown before it is measured: a hidden bubble's text is collapsed and measures nothing.
         _bubble.IsVisible = true;
+        Place(anchor);
     }
 
     /// <summary>Closes the bubble.</summary>

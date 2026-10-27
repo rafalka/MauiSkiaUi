@@ -44,8 +44,14 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 - **`SafeAreaEdges` (MAUI 10) on drawn containers:** layouts, content views (borders, scroll views, swipe item views), swipe and refresh views take MAUI's property. It is opt-in: every drawn container defaults to `None` and goes edge to edge, as before (MAUI's layouts default to `Container`; set `SafeAreaEdges="Container"` for its behavior). A drawn layout or content view that is a surface root pads its content by how far the window's bars, notch and home indicator reach into it on each edge it keeps clear, and by the soft keyboard with `SoftInput` (iOS and Mac Catalyst). Drawn views inside a surface accept it and ignore it; swipe and refresh views do not apply it.
 - **The migration checker converts:** `check_xaml.py --fix` rewrites, in place, `{TemplateBinding X}` and `RelativeSource TemplatedParent` in templates of drawn controls to `RelativeSource AncestorType`, data headers (`Header="{Binding Info}"` with an inline template) to a template bound through the list's context, and the platform-specifics that have a drawn member (iOS `Entry.CursorColor`, Android `Entry.ImeOptions`, iOS picker `UpdateMode`) to that member inside `OnPlatform` (`--all-platforms` for the plain value). It reports other platform-specifics on drawn views as ignored, and no longer reports `ItemsUpdatingScrollMode`, `IndicatorTemplate` or snap points.
 
+### Fixes
+
+- **Android: a drawn view as Shell's flyout content draws again.** Shell puts the flyout content's native view straight into a `CoordinatorLayout`, which never measures or arranges the drawn root, so the flyout stayed blank and let touches through to the page. A drawn surface whose native view gets laid out at a size MAUI did not arrange it to now lays its tree out at that size, as MAUI's own layout views do.
+- **A container measured while hidden measures its children once shown.** MAUI's layout managers skip collapsed children, so a layout measured while an ancestor was hidden had no room for them. Showing the ancestor kept that measure (only the recording stays valid). This showed as an empty popup when it was sized before it was shown.
+
 ### Other
 
+- The demo's (?) help bubbles show their text again: the bubble is shown before it measures its text.
 - `SkUiImage` raises `PropertyChanged` for `IsLoading` only when it changes (it was raised with every load state update).
 
 ## 1.1.0
