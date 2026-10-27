@@ -263,7 +263,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         }
         Panel.SetCount(count, position + within);
         UpdateOverscroll();
-        _indicator?.SetValue(SkUiIndicatorView.CountProperty, count);
+        _indicator?.CarouselItemsChanged(count);
         if (count > 0)
             ApplyPosition(_position, position, fromScroll: true);
         else if (previousCount > 0)
@@ -274,6 +274,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         if (count != previousCount)
             CheckThreshold();
     }
+
+    /// <summary>The items, as a list (<c>null</c> without <see cref="ItemsSource"/>).</summary>
+    internal IList? Items => _source;
 
     /// <summary>The item at <paramref name="index"/>, or <c>null</c> outside the items.</summary>
     private object? ItemAt(int index) => _source is { } source && index >= 0 && index < source.Count ? source[index] : null;
@@ -1020,7 +1023,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             return;
         value.Carousel?.UnlinkIndicator(value);
         value.Link(this);
-        value.Count = ItemCount;
+        value.CarouselItemsChanged(ItemCount);
         value.Orientation = _horizontal ? StackOrientation.Horizontal : StackOrientation.Vertical;
         value.Position = _position;
         FollowWithIndicator();

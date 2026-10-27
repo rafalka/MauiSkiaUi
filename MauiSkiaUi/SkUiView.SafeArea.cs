@@ -56,16 +56,22 @@ public partial class SkUiView
 
     /// <summary>
     /// The soft keyboard begins at <paramref name="surfaceY"/> (surface DIPs; positive infinity: none), reported by the focus
-    /// manager of the surface this view is the root of: a root that keeps its bottom clear of it lays out again.
+    /// manager of the surface this view is the root of: a root that keeps its bottom clear of it lays out again. Returns
+    /// whether its bottom padding changes, so the focused field is revealed after that layout (in the smaller viewports), not now.
     /// </summary>
-    internal void OnKeyboardTopChanged(double surfaceY, SkUiFocusManager focus)
+    internal bool OnKeyboardTopChanged(double surfaceY, SkUiFocusManager focus)
     {
-        if (!IsSoftInput(SafeAreaEdgesValue.Bottom))
-            return;
+        // Kept while the bottom ignores the keyboard too: SoftInput set later pads for where the keyboard is then.
+        if (_safeArea is null && double.IsPositiveInfinity(surfaceY))
+            return false;
         var state = _safeArea ??= new SafeAreaState();
         state.KeyboardTop = surfaceY;
         state.KeyboardFocus = focus;
+        if (!IsSoftInput(SafeAreaEdgesValue.Bottom))
+            return false;
         InvalidateMeasure();
+        // Exact, as UpdateSafeAreaInset: the arrange that applies a changed bottom reveals the field.
+        return SkiaParent is null && SafeAreaInsetFor(Frame).Bottom != SafeAreaInset.Bottom;
     }
 
     /// <summary>
@@ -90,6 +96,19 @@ public partial class SkUiView
     {
         if (SkiaParent is not null || _relayingOut)
             return false;
+        var inset = SafeAreaInsetFor(frame);
+        // Exact: an unchanged padding keeps the layout.
+        if (inset == SafeAreaInset)
+            return false;
+        var state = _safeArea ??= new SafeAreaState();
+        state.RevealAfterArrange |= state.KeyboardFocus is not null && inset.Bottom != state.Inset.Bottom;
+        state.Inset = inset;
+        return true;
+    }
+
+    /// <summary>The padding of a surface root arranged to <paramref name="frame"/> per its <c>SafeAreaEdges</c>.</summary>
+    private Thickness SafeAreaInsetFor(Rect frame)
+    {
         var edges = SafeAreaEdgesValue;
         var (left, top, right, bottom) = (edges.Left, edges.Top, edges.Right, edges.Bottom);
         var inset = default(Thickness);
@@ -102,13 +121,7 @@ public partial class SkUiView
             var placed = new Rect(origin.X - Frame.X + frame.X, origin.Y - Frame.Y + frame.Y, frame.Width, frame.Height);
             inset = SafeAreaPadding((left, top, right, bottom), placed, window, safeArea, _safeArea?.KeyboardTop ?? double.PositiveInfinity);
         }
-        // Exact: an unchanged padding keeps the layout.
-        if (inset == SafeAreaInset)
-            return false;
-        var state = _safeArea ??= new SafeAreaState();
-        state.RevealAfterArrange |= state.KeyboardFocus is not null && inset.Bottom != state.Inset.Bottom;
-        state.Inset = inset;
-        return true;
+        return inset;
     }
 
     // MAUI's own tests (SafeAreaEdges.IsContainer / IsSoftInput) are internal.

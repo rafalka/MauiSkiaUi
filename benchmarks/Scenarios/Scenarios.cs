@@ -920,8 +920,11 @@ public sealed class VirtualListFling : BenchScenario
 public sealed class CollectionSnapFling : BenchScenario
 {
     public override string Name => "collection-snap-fling";
-    public override string Description => "SkUiCollectionView over 10,000 rows of different heights with a LinearItemsLayout snapping to rows (none before 1.2); motion = animated scroll towards the end";
+    public override string Description => "SkUiCollectionView over 10,000 rows of different heights with a LinearItemsLayout snapping to rows (none before 1.2); motion = a fling that ends snapped to a row";
 
+    // Release builds trim: keep the reflected scroll controller and its fling.
+    [System.Diagnostics.CodeAnalysis.DynamicDependency(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicProperties, typeof(SkUiCollectionView))]
+    [System.Diagnostics.CodeAnalysis.DynamicDependency("StartFling", "MauiSkiaUi.SkUiScrollController", "MauiSkiaUi")]
     public override View Build()
     {
         var list = new SkUiCollectionView
@@ -942,7 +945,15 @@ public sealed class CollectionSnapFling : BenchScenario
 
     public override Func<View, IDisposable?>? Motion => root =>
     {
-        _ = ((SkUiCollectionView)root).ScrollToAsync(10_000 * 50, animated: true);
+        // A fling, as a finger's: snap points apply to flings, drags and wheel steps, never to an animated ScrollToAsync.
+        // The scroll controller is internal, so it is reached by reflection; a baseline without it scrolls instead.
+        var list = (SkUiCollectionView)root;
+        var controller = typeof(SkUiCollectionView).GetProperty("Controller", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(list);
+        var fling = controller?.GetType().GetMethod("StartFling", [typeof(Point)]);
+        if (fling is not null)
+            fling.Invoke(controller, [new Point(0, SkUiGestureSettings.FlingMaximumVelocity)]);
+        else
+            _ = list.ScrollToAsync(10_000 * 50, animated: true);
         return null;
     };
 

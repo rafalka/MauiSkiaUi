@@ -301,9 +301,10 @@ internal sealed class SkUiFocusManager(SkUiView root)
         if (surfaceY == _keyboardTop)
             return;
         _keyboardTop = surfaceY;
-        // A root whose SafeAreaEdges keep its bottom clear of the keyboard lays out again, then reveals the field once more.
-        root.OnKeyboardTopChanged(surfaceY, this);
-        RevealFocusedField();
+        // A root whose SafeAreaEdges keep its bottom clear of the keyboard lays out again and reveals the field after that,
+        // in the smaller viewports; revealing now would scroll by the old geometry first.
+        if (!root.OnKeyboardTopChanged(surfaceY, this))
+            RevealFocusedField();
     }
 
     /// <summary>Keeps the focused text field above the soft keyboard (see <see cref="SetKeyboardTop"/>).</summary>

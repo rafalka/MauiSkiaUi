@@ -21,7 +21,7 @@ namespace MauiSkiaUi;
 /// </para>
 /// <para>
 /// MAUI's <see cref="IndicatorTemplate"/> makes a drawn view per indicator instead, in a stack (<see cref="IndicatorLayout"/>),
-/// as MAUI's model: each view's binding context is its item (its index without <see cref="ItemsSource"/>), its background
+/// as MAUI's model: each view's binding context is its item (a linked carousel's item; its index without <see cref="ItemsSource"/>), its background
 /// the indicator color or, selected, the selected color, and the selected one is in the <c>Selected</c> visual state.
 /// Drawing the indicators through the look (<see cref="SkUiLook.IndicatorPainter"/>, or a look that overrides
 /// <c>DrawIndicatorsCore</c>) stays the cheaper path: no views, and the selection moves with the carousel's scrolling.
@@ -81,7 +81,16 @@ public class SkUiIndicatorView : SkUiView
         propertyChanged: (view, _, value) =>
         {
             var indicator = (SkUiIndicatorView)view;
-            indicator.Counter.Observe((IEnumerable?)value);
+            // The count follows the new items first; the template's views are then made and bound once.
+            indicator._countingItems = true;
+            try
+            {
+                indicator.Counter.Observe((IEnumerable?)value);
+            }
+            finally
+            {
+                indicator._countingItems = false;
+            }
             indicator.UpdateIndicatorViews(rebuild: true);
         });
 
@@ -310,6 +319,16 @@ public class SkUiIndicatorView : SkUiView
         if (changed)
             InvalidatePaint();
         Counter.Recount(); // the items of its own source again
+        UpdateIndicatorViews(); // the template's views bind to them, not to the carousel's
+    }
+
+    /// <summary>The linked carousel's items changed (or it just linked): the count follows and the template's views bind to its items.</summary>
+    internal void CarouselItemsChanged(int count)
+    {
+        if (Count != count)
+            Count = count; // binds the views too
+        else
+            UpdateIndicatorViews(); // items replaced at the same count
     }
 
     /// <summary>The linked carousel's scroll position (fractional, in items) and whether it loops.</summary>
@@ -362,6 +381,7 @@ public class SkUiIndicatorView : SkUiView
     /// <summary>The stack this view made for <see cref="IndicatorTemplate"/> (<c>null</c> while it shows the app's layout).</summary>
     private SkUiLayout? _templateStack;
     private bool _updatingLayout;
+    private bool _countingItems; // ItemsSource changed: the views wait for the new count
 
     private void OnIndicatorTemplateChanged(DataTemplate? template)
     {
@@ -426,18 +446,22 @@ public class SkUiIndicatorView : SkUiView
     /// </summary>
     private void UpdateIndicatorViews(bool rebuild = false)
     {
-        if (_templateStack is not { } stack || IndicatorTemplate is not { } template)
+        if (_countingItems || _templateStack is not { } stack || IndicatorTemplate is not { } template)
             return;
+        // First: reading the link of a collected carousel unlinks the view, which counts its own items again.
+        var carousel = Carousel;
         var count = Math.Min(Count, MaximumVisible);
         var children = stack.Children;
         if (rebuild)
             children.Clear();
-        var items = ItemsSource as IList;
+        // A linked carousel's items (MAUI binds the indicator's source to the carousel's), else its own; a source that is not
+        // a list is enumerated once.
+        var items = carousel is not null ? carousel.Items : ItemsSource as IList ?? ItemsSource?.Cast<object?>().Take(count).ToList();
         while (children.Count > count)
             children.RemoveAt(children.Count - 1);
         for (var index = 0; index < count; index++)
         {
-            object? item = items is not null && index < items.Count ? items[index] : ItemsSource is null ? index : ItemsSource.Cast<object?>().ElementAtOrDefault(index);
+            object? item = items is null ? index : index < items.Count ? items[index] : null;
             if (index >= children.Count)
             {
                 var selected = template is DataTemplateSelector selector ? selector.SelectTemplate(item, this) : template;

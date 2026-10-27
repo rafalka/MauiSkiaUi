@@ -95,6 +95,29 @@ public class IndicatorTemplateTests
     }
 
     [Fact]
+    public void ALinkedCarouselsItemsAreBound()
+    {
+        var indicator = new SkUiIndicatorView { IndicatorTemplate = new DataTemplate(() => new SkUiBox()) };
+        var carousel = new SkUiCarouselView { ItemsSource = Items(3), IndicatorView = indicator };
+        Assert.Equal(["Item 0", "Item 1", "Item 2"], Views(indicator).Select(view => ((BindableObject)view).BindingContext));
+        // Other items at the same count bind again.
+        carousel.ItemsSource = new[] { "A", "B", "C" };
+        Assert.Equal(["A", "B", "C"], Views(indicator).Select(view => ((BindableObject)view).BindingContext));
+        carousel.IndicatorView = null;
+        Assert.DoesNotContain(Views(indicator), view => ((BindableObject)view).BindingContext is string);
+    }
+
+    [Fact]
+    public void ItemsMakeTheViewsOnceAndASourceThatIsNotAListBindsItsItems()
+    {
+        var created = 0;
+        var indicator = new SkUiIndicatorView { IndicatorTemplate = new DataTemplate(() => { created++; return new SkUiBox(); }) };
+        indicator.ItemsSource = Items(3).Select(item => item);
+        Assert.Equal(3, created);
+        Assert.Equal(["Item 0", "Item 1", "Item 2"], Views(indicator).Select(view => ((BindableObject)view).BindingContext));
+    }
+
+    [Fact]
     public void ATapSelectsTheViewItHits()
     {
         var indicator = Indicator(3);

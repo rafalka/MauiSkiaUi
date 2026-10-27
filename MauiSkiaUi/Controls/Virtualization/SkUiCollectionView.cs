@@ -59,7 +59,6 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     private DataTemplate? _itemTemplate;
     private bool _horizontal;
     private double _spanSpacing;
-    private SnapPointsAlignment _snapPointsAlignment;
     private bool _isEmpty;
     private int _firstVisible = -1;
     private int _lastVisible = -1;
@@ -500,7 +499,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
             ApplyStructure();
         // Only an items layout the app set snaps; the list's own properties have no snap points.
         Scroller.SnapPointsType = _appItemsLayout?.SnapPointsType ?? SnapPointsType.None;
-        _snapPointsAlignment = _appItemsLayout?.SnapPointsAlignment ?? SnapPointsAlignment.Start;
+        Scroller.SnapPointsAlignment = _appItemsLayout?.SnapPointsAlignment ?? SnapPointsAlignment.Start;
         ItemsHost.SetValue(SkUiVirtualVerticalStackLayoutBase.ItemSpacingProperty, LayoutItemSpacing);
         var spanSpacing = LayoutSpanSpacing;
         // Exact: an unchanged value keeps the measured sizes.
@@ -515,7 +514,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     internal (bool Horizontal, int Span, double ItemSpacing, double SpanSpacing) LayoutInUse => (_horizontal, Model.Span, ItemsHost.ItemSpacing, _spanSpacing);
 
     /// <summary>The snap points in use (tests).</summary>
-    internal (SnapPointsType Type, SnapPointsAlignment Alignment) SnapPointsInUse => (Scroller.SnapPointsType, _snapPointsAlignment);
+    internal (SnapPointsType Type, SnapPointsAlignment Alignment) SnapPointsInUse => (Scroller.SnapPointsType, Scroller.SnapPointsAlignment);
 
     /// <summary>Items in a row: the grid layout's span, 1 for a linear layout, else <see cref="Span"/>.</summary>
     private int LayoutSpan => _appItemsLayout switch

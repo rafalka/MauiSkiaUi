@@ -124,6 +124,8 @@ TEMPLATED_PARENT_RE = re.compile(r"\{\s*TemplateBinding\b|RelativeSource\s+(?:Mo
 RELATIVE_TEMPLATED_PARENT_RE = re.compile(r"RelativeSource\s+(?:Mode\s*=\s*)?TemplatedParent\b")
 # Bindings whose source is not the binding context (left alone when a data header's template is rebound).
 OWN_SOURCE_RE = re.compile(r"\b(?:Source|RelativeSource|ElementName|x:Reference)\b")
+# A first argument that names the path (Path=...), not a positional path that starts with "Path".
+PATH_ARGUMENT_RE = re.compile(r"Path\s*=")
 PLATFORM_NS = {"iOSSpecific": "iOS", "AndroidSpecific": "Android", "WindowsSpecific": "Windows"}
 # (platform, attached property) -> (drawn member, value map or None for the same value); OnPlatform names per platform.
 PLATFORM_CONVERSIONS = {
@@ -289,9 +291,10 @@ def prefix_binding(value, path):
     arguments = split_arguments(stripped[match.end():-1])
     if any(OWN_SOURCE_RE.match(argument) for argument in arguments):
         return None
-    if not arguments or "=" in arguments[0] and not arguments[0].startswith("Path"):
+    named_path = bool(arguments) and PATH_ARGUMENT_RE.match(arguments[0]) is not None
+    if not arguments or "=" in arguments[0] and not named_path:
         arguments.insert(0, path)
-    elif arguments[0].startswith("Path"):
+    elif named_path:
         key, _, own = arguments[0].partition("=")
         own = own.strip()
         arguments[0] = f"{key.strip()}={path if own in ('', '.') else path + '.' + own}"
@@ -312,11 +315,15 @@ class Fixes:
 
     def apply(self):
         for path, edits in self.edits.items():
-            source = open(path, encoding="utf-8-sig").read()
+            # As written: the byte order mark and the line endings stay.
+            with open(path, "rb") as file:
+                bom = file.read(3) == b"\xef\xbb\xbf"
+            with open(path, encoding="utf-8-sig", newline="") as file:
+                source = file.read()
             # From the end: an edit never moves the lines of the ones still to do.
             for line, element, attribute, text in sorted(edits, key=lambda edit: -edit[0]):
                 source = self._apply(source, line, element, attribute, text)
-            with open(path, "w", encoding="utf-8") as file:
+            with open(path, "w", encoding="utf-8-sig" if bom else "utf-8", newline="") as file:
                 file.write(source)
 
     @staticmethod

@@ -111,6 +111,16 @@ public class SafeAreaEdgesTests
     }
 
     [Fact]
+    public void AScrollViewArrangesItsContentInsideThePadding()
+    {
+        using var _ = new WindowScope(Point.Zero);
+        var (root, child) = Root(new SkUiScrollView { SafeAreaEdges = SafeAreaEdges.All });
+        child.HeightRequest = 2000;
+        SkUiTestHelpers.Arrange(root, Window.Width, Window.Height);
+        Assert.Equal(new Rect(0, 47, 400, 2000), child.Frame);
+    }
+
+    [Fact]
     public void SettingItLaysTheRootOutAgain()
     {
         using var _ = new WindowScope(Point.Zero);
@@ -148,6 +158,26 @@ public class SafeAreaEdgesTests
         SkUiTestHelpers.Arrange(root, Window.Width, Window.Height);
         Assert.Equal(new Rect(0, 47, 400, 500 - 47), child.Frame);
         focus.SetKeyboardTop(double.PositiveInfinity);
+        SkUiTestHelpers.Arrange(root, Window.Width, Window.Height);
+        Assert.Equal(new Rect(0, 47, 400, 800 - 47 - 34), child.Frame);
+    }
+
+    [Fact]
+    public void TheKeyboardIsKnownWhileTheBottomIgnoresIt()
+    {
+        using var _ = new WindowScope(Point.Zero);
+        var softInput = new SafeAreaEdges(SafeAreaRegions.Container, SafeAreaRegions.Container, SafeAreaRegions.Container, SafeAreaRegions.All);
+        var (root, child) = Root(new SkUiGrid { SafeAreaEdges = new SafeAreaEdges(SafeAreaRegions.Container) });
+        SkUiTestHelpers.Arrange(root, Window.Width, Window.Height);
+        var focus = new SkUiFocusManager(root);
+        focus.SetKeyboardTop(500);
+        ((SkUiGrid)root).SafeAreaEdges = softInput;
+        SkUiTestHelpers.Arrange(root, Window.Width, Window.Height);
+        Assert.Equal(new Rect(0, 47, 400, 500 - 47), child.Frame);
+        // The keyboard closes while the bottom ignores it: turned on again, it pads for no keyboard.
+        ((SkUiGrid)root).SafeAreaEdges = new SafeAreaEdges(SafeAreaRegions.Container);
+        focus.SetKeyboardTop(double.PositiveInfinity);
+        ((SkUiGrid)root).SafeAreaEdges = softInput;
         SkUiTestHelpers.Arrange(root, Window.Width, Window.Height);
         Assert.Equal(new Rect(0, 47, 400, 800 - 47 - 34), child.Frame);
     }

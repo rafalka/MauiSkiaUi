@@ -468,7 +468,7 @@ public partial class SkUiCollectionView
             points.Add(0);
             points.Add(horizontal ? controller.MaxX : controller.MaxY);
             if (_owner.ItemsHost.IsVisible)
-                _owner.ItemsHost.AddSnapOffsets(_owner.Scroller, _owner._snapPointsAlignment, from, to, points);
+                _owner.ItemsHost.AddSnapOffsets(_owner.Scroller, controller.SnapPointsAlignment, from, to, points);
         }
 
         internal override IEnumerable<ISkUiView> SkiaChildren

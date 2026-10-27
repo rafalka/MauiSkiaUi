@@ -385,6 +385,44 @@ public class CheckXamlTests
     }
 
     [Fact]
+    public void FixKeepsTheFilesEncodingAndLineEndingsAndOnlyReadsPathEqualsAsANamedPath()
+    {
+        var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
+        try
+        {
+            var page = Path.Combine(project.FullName, "Page.xaml");
+            var xaml = """
+                <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
+                  <sk:SkUiCollectionView ItemsSource="{Binding Monkeys}" Header="{Binding Info}">
+                    <sk:SkUiCollectionView.HeaderTemplate>
+                      <DataTemplate>
+                        <sk:SkUiVerticalStackLayout>
+                          <sk:SkUiLabel Text="{Binding PathName}" />
+                          <sk:SkUiLabel Text="{Binding Path=Title}" />
+                        </sk:SkUiVerticalStackLayout>
+                      </DataTemplate>
+                    </sk:SkUiCollectionView.HeaderTemplate>
+                  </sk:SkUiCollectionView>
+                </ContentPage>
+                """.ReplaceLineEndings("\r\n");
+            File.WriteAllText(page, xaml, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+            Run(project.FullName, "--fix");
+            var bytes = File.ReadAllBytes(page);
+            Assert.Equal([0xEF, 0xBB, 0xBF], bytes[..3]);
+            var fixedXaml = System.Text.Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3);
+            Assert.Equal(xaml.Split("\r\n").Length, fixedXaml.Split("\r\n").Length);
+            Assert.DoesNotContain("\n", fixedXaml.Replace("\r\n", ""));
+            Assert.Contains("""<sk:SkUiLabel Text="{Binding Info.PathName}" />""", fixedXaml);
+            Assert.Contains("""<sk:SkUiLabel Text="{Binding Path=Info.Title}" />""", fixedXaml);
+        }
+        finally
+        {
+            project.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void FixConvertsPlatformSpecificsWithADrawnMemberAndReportsTheRest()
     {
         var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
