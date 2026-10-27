@@ -9,15 +9,15 @@ Every release publishes all of the repository's packages with one version: **Ski
 | Branch | Holds | Versions |
 | --- | --- | --- |
 | `master` | The latest stable release, and hotfixes on top of it | `1.1.0`, `1.2.0`, `1.2.1`, … |
-| `devel` | Active development; pull requests target it. Prereleases and stable releases are published from it | `1.2.0-Prerelease01`, …, `1.2.0`, `1.3.0-Prerelease01`, … |
+| `devel` | Active development; pull requests target it. Stable releases (and the occasional prerelease line) are published from it | `1.2.0`, `1.3.0`, `2.0.0-Prerelease01`, …, `2.0.0`, … |
 
 `devel` is the repository's default branch: pull requests, Dependabot and the publish workflow's branch picker start on it.
 
 Changes flow one way: feature branches → `devel` (squash-merged pull requests) → `master`. `devel` never goes to `master` through a pull request: a squash merge would put a commit on `master` that `devel` does not have, and every release would then need `master` merged back. Instead, `master` is moved forward to each stable release commit made on `devel`:
 
-1. Prereleases: run the publish workflow from `devel` with bump `auto` (`1.2.0-Prerelease01` → `1.2.0-Prerelease02`).
-2. Stable release: run it from `devel` with bump `release` (`1.2.0-Prerelease03` → `1.2.0`). The release commit `Release 1.2.0`, its tag `v1.2.0` and `master` are pushed together: `master` is fast-forwarded to the release commit, so `master` and `devel` are the same commit and nothing needs merging back.
-3. The next prerelease line: bump `auto` on `devel` at a stable version is `minor` (`1.2.0` → `1.3.0-Prerelease01`); use `patch` for a `1.2.1-Prerelease01` line.
+1. Stable release: run the publish workflow from `devel` with bump `release`. At a stable version it is the next minor, with no prerelease (`1.1.0` → `1.2.0`). The release commit `Release 1.2.0`, its tag `v1.2.0` and `master` are pushed together: `master` is fast-forwarded to the release commit, so `master` and `devel` are the same commit and nothing needs merging back.
+2. Prerelease line, for big or breaking changes: bump `auto` on `devel` at a stable version starts one with `minor` (`1.2.0` → `1.3.0-Prerelease01`); use `major` for `2.0.0-Prerelease01`, `patch` for `1.2.1-Prerelease01`. Bump `auto` again for each next prerelease (`1.3.0-Prerelease01` → `1.3.0-Prerelease02`).
+3. Bump `release` ends the line (`1.3.0-Prerelease03` → `1.3.0`), moving `master` as in 1.
 
 A stable release from `devel` is refused while `master` has commits `devel` does not (a hotfix not merged back yet, see [Hotfixes](#hotfixes)).
 
@@ -38,13 +38,13 @@ Write entries under `## Unreleased` at the top of [CHANGELOG.md](../CHANGELOG.md
 
 ## Publishing
 
-Run the **NuGet publish** workflow ([nuget-publish.yml](../.github/workflows/nuget-publish.yml)) from GitHub Actions. Choose the branch (`master` or `devel`) in "Use workflow from", and pick a **bump** (`auto` fits the usual case):
+Run the **NuGet publish** workflow ([nuget-publish.yml](../.github/workflows/nuget-publish.yml)) from GitHub Actions. Choose the branch (`master` or `devel`) in "Use workflow from", and pick a **bump** (`release` from `devel` for the usual stable release):
 
 | Bump | Effect | Allowed on |
 | --- | --- | --- |
 | `auto` (default) | On `devel`: `prerelease`, or `minor` at a stable version. On `master`: `patch` (a hotfix release) | Both |
 | `prerelease` | `-PrereleaseNN` → `-Prerelease(NN+1)` | `devel` (from a prerelease version) |
-| `release` | Drops the suffix: `1.2.0-Prerelease03` → `1.2.0`. From `devel`, also moves `master` to the release | `devel` |
+| `release` | Drops the suffix: `1.2.0-Prerelease03` → `1.2.0`. On `devel` at a stable version, the next minor: `1.1.0` → `1.2.0`. From `devel`, also moves `master` to the release | `devel` |
 | `patch` / `minor` / `major` | Next `X.Y.Z`; on `devel`, its `-Prerelease01` | Both |
 | `none` | Publishes the current, already tagged version again from its tag (e.g. after a failed publish) | Both |
 

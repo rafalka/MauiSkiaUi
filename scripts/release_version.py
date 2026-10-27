@@ -8,7 +8,7 @@ Versions are ``X.Y.Z`` (stable) or ``X.Y.Z-PrereleaseNN`` (two-digit NN). Bumps:
 
   auto        devel: prerelease, or minor from a stable version; master: patch (release from a prerelease)
   prerelease  X.Y.Z-PrereleaseNN -> X.Y.Z-Prerelease(NN+1)
-  release     X.Y.Z-PrereleaseNN -> X.Y.Z
+  release     X.Y.Z-PrereleaseNN -> X.Y.Z; on devel at a stable X.Y.Z, the next minor X.(Y+1).0 (no prerelease)
   patch/minor/major               -> next X.Y.Z; on devel, its -Prerelease01
   none        publish the current version again (e.g. retry a failed publish)
 
@@ -74,7 +74,9 @@ def next_version(current: str, bump: str, branch: str) -> str:
         new = fmt(major, minor, patch, pre + 1)
     elif bump == "release":
         if pre is None:
-            fail(f"{current} is already stable: use patch / minor / major")
+            if branch != "devel":
+                fail(f"{current} is already stable: use patch / minor / major")
+            minor, patch = minor + 1, 0  # devel at a stable version: straight to the next minor, no prerelease line
         new = fmt(major, minor, patch, None)
     elif bump in ("patch", "minor", "major"):
         if bump == "major":

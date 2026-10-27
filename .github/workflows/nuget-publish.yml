@@ -11,12 +11,13 @@ name: NuGet publish
 # A stable release from devel (bump release) also fast-forwards master to the release commit, in the same push.
 #
 # Which run to start:
-# - Prerelease: from devel, bump auto (1.2.0-Prerelease01 -> 1.2.0-Prerelease02).
-# - Stable release: from devel, bump release (1.2.0-Prerelease03 -> 1.2.0). The release commit, its tag and master go
-#   out in one atomic push: master moves forward to the release commit, so master and devel end up on the same commit
-#   and nothing needs merging back.
-# - Next prerelease line: from devel at a stable version, bump auto starts it with minor (1.2.0 -> 1.3.0-Prerelease01);
-#   bump patch for a 1.2.1 line.
+# - Stable release: from devel, bump release. At a stable version it is the next minor (1.1.0 -> 1.2.0, no
+#   prerelease); in a prerelease line it ends the line (1.2.0-Prerelease03 -> 1.2.0). The release commit, its tag and
+#   master go out in one atomic push: master moves forward to the release commit, so master and devel end up on the
+#   same commit and nothing needs merging back.
+# - Prerelease line (big or breaking changes): from devel at a stable version, bump auto starts it with minor
+#   (1.2.0 -> 1.3.0-Prerelease01; bump major for 2.0.0-Prerelease01, patch for 1.2.1-Prerelease01). Then bump auto
+#   for each next prerelease (1.3.0-Prerelease01 -> 1.3.0-Prerelease02), and bump release to end it.
 # - Hotfix: open a pull request into master, then run from master with bump auto (patch: 1.2.0 -> 1.2.1). The
 #   back-merge workflow merges master into devel afterwards.
 # - Safety check: a stable release from devel is refused, before anything is built, while master has commits devel
@@ -29,10 +30,11 @@ on:
     inputs:
       bump:
         description: >-
-          Pick the branch above first (devel, the default, or master for a hotfix). Prerelease: devel + auto. Stable release: devel +
-          release (master moves to the release; refused while master has a hotfix devel lacks). Next prerelease
-          line: devel + auto (minor) or patch. Hotfix: master + auto (patch). Others: prerelease (-PrereleaseNN+1),
-          minor / major, none (publish the current version again after a failed publish). docs/Releasing.md
+          Pick the branch above first (devel, the default, or master for a hotfix). Stable release: devel +
+          release (1.1.0 -> 1.2.0, or ends a prerelease line; master moves to the release; refused while master has
+          a hotfix devel lacks). Prerelease line (big or breaking changes): devel + auto (1.2.0 -> 1.3.0-Prerelease01,
+          then -Prerelease02, ...), or major / patch to start it. Hotfix: master + auto (patch). Others: prerelease
+          (-PrereleaseNN+1), minor, none (publish the current version again after a failed publish). docs/Releasing.md
         required: true
         type: choice
         options: [auto, prerelease, release, patch, minor, major, none]
