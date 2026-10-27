@@ -95,7 +95,6 @@ public class SkUiPickerColumn : BindableObject
             if (ReferenceEquals(_itemDisplay?.Binding, value))
                 return;
             OnPropertyChanging();
-            _itemDisplay?.Detach();
             _itemDisplay = value is null ? null : new SkUiDisplayBinding(value);
             OnItemsChanged(keepSelectedItem: false);
             OnPropertyChanged();
@@ -117,7 +116,6 @@ public class SkUiPickerColumn : BindableObject
                 return;
             OnPropertyChanging();
             _itemEnabledBinding = value;
-            _enabledProbe?.Detach();
             _enabledProbe = null;
             RefreshItemStates();
             OnPropertyChanged();
@@ -274,10 +272,21 @@ public class SkUiPickerColumn : BindableObject
             return null;
         var states = new bool[source.Count];
         _enabledProbe ??= new SkUiItemBindingProbe(_itemEnabledBinding, SkUiItemBindingProbe.FlagProperty);
-        for (var index = 0; index < states.Length; index++)
-            states[index] = _enabledProbe.IsSet(source[index]);
-        // The probe must not keep the last item alive.
-        _enabledProbe.Release();
+        try
+        {
+            for (var index = 0; index < states.Length; index++)
+                states[index] = _enabledProbe.IsSet(source[index]);
+        }
+        catch
+        {
+            SkUiItemBindingProbe.Discard(ref _enabledProbe);
+            throw;
+        }
+        finally
+        {
+            // The probe must not keep the last item alive.
+            _enabledProbe?.Release();
+        }
         return states;
     }
 

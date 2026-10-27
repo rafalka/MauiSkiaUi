@@ -209,7 +209,7 @@ internal static class SkUiImmediatePainter
             return props.Pinned;
         if (!applyOffset)
             props.X = props.Y = 0;
-        if (props.IsSkipped)
+        if (props.IsSkippedWhenDrawn)
             return false;
         var save = canvas.Save();
         try

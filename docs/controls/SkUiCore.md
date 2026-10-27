@@ -291,7 +291,7 @@ public static class Units
 
 ## Item texts through a binding (own controls)
 
-A control that shows items as text (chips, tags, a custom list) and takes MAUI's `ItemDisplayBinding`-style binding reads each item's text with **`SkUiDisplayBinding`** (namespace `MauiSkiaUi`, both layers), as `SkUiPicker` and `SkUiPickerColumn` do: `new SkUiDisplayBinding(binding)` (`null`: each item's `ToString()`), `GetText(item)`, `GetTexts(items)` (a list or any sequence, in order). The binding is applied to a private bindable object whose context is each item in turn, then cleared, so neither the reader nor a binding from app resources keeps the last item alive. Texts are read when asked for: read them again when the items change. One reader per binding, on the UI thread.
+A control that shows items as text (chips, tags, a custom list) and takes MAUI's `ItemDisplayBinding`-style binding reads each item's text with **`SkUiDisplayBinding`** (namespace `MauiSkiaUi`, both layers), as `SkUiPicker` and `SkUiPickerColumn` do: `new SkUiDisplayBinding(binding)` (`null`: each item's `ToString()`), `GetText(item)`, `GetTexts(items)` (a list or any sequence, in order). The binding is applied to a private bindable object whose context is each item in turn, only while the texts are read (as MAUI's `Picker` does), then removed and the context cleared: neither the reader nor a binding from app resources keeps the last item alive, and readers and pickers can share one binding instance (not one also applied to a view). Texts are read when asked for: read them again when the items change. On the UI thread.
 
 ```csharp
 public sealed class TagsNode : SkUiCoreWrapLayout

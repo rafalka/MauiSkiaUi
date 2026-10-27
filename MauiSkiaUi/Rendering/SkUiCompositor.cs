@@ -583,7 +583,7 @@ internal sealed class SkUiCompositor : IDisposable
     private void DrawNode(SKCanvas canvas, SkUiRenderNode node, bool isRoot)
     {
         ref readonly var props = ref node.Props;
-        if (props.IsSkipped)
+        if (props.IsSkippedWhenDrawn)
             return;
         SKMatrix matrix;
         var opacity = props.DrawnOpacity;

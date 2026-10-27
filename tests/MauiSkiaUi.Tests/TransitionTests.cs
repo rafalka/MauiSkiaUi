@@ -424,6 +424,16 @@ public class TransitionTests
     }
 
     [Fact]
+    public void ANodeFadedOutByThePressIsNotDrawnButStaysRecorded()
+    {
+        var faded = MauiSkiaUi.Rendering.SkUiRenderProps.Default with { Width = 10, Height = 10, PressOpacity = 0 };
+        Assert.False(faded.IsSkipped); // its pictures are kept for the release
+        Assert.True(faded.IsSkippedWhenDrawn);
+        Assert.False((faded with { PressOpacity = 0.4f }).IsSkippedWhenDrawn);
+        Assert.True((faded with { PressOpacity = 1, Opacity = 0 }).IsSkippedWhenDrawn);
+    }
+
+    [Fact]
     public void ChangingPressFeedbackMidPressStopsTheOldAnimation()
     {
         WithLook(new DefaultSkUiLook(), () =>

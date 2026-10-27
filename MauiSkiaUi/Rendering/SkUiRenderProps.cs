@@ -159,6 +159,12 @@ internal record struct SkUiRenderProps
     /// <summary>True when the node paints nothing and its subtree can be skipped.</summary>
     public readonly bool IsSkipped => !IsVisible || Opacity <= 0 || Width <= 0 || Height <= 0;
 
+    /// <summary>
+    /// True when drawing the node shows nothing: <see cref="IsSkipped"/>, or faded out by the press (<see cref="PressOpacity"/>
+    /// 0). Recording follows <see cref="IsSkipped"/> alone, so a press never drops the node's recorded pictures.
+    /// </summary>
+    public readonly bool IsSkippedWhenDrawn => IsSkipped || PressOpacity <= 0;
+
     /// <summary>Parent-space matrix: layout offset, then render transform about the anchor.</summary>
     public readonly SKMatrix Matrix => GetMatrix(TranslationX, TranslationY);
 

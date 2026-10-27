@@ -104,7 +104,6 @@ public partial class SkUiPicker : SkUiPickerBase
             if (ReferenceEquals(_itemDisplay.Binding, value))
                 return;
             OnPropertyChanging();
-            _itemDisplay.Detach();
             _itemDisplay = value is null ? SkUiDisplayBinding.ItemText : new SkUiDisplayBinding(value);
             ResetItems();
             OnPropertyChanged();
@@ -127,7 +126,6 @@ public partial class SkUiPicker : SkUiPickerBase
                 return;
             OnPropertyChanging();
             _itemEnabledBinding = value;
-            _enabledProbe?.Detach();
             _enabledProbe = null;
             RefreshItemStates();
             OnPropertyChanged();
@@ -145,10 +143,21 @@ public partial class SkUiPicker : SkUiPickerBase
         }
         var states = new bool[_items.Count];
         _enabledProbe ??= new SkUiItemBindingProbe(_itemEnabledBinding, SkUiItemBindingProbe.FlagProperty);
-        for (var index = 0; index < states.Length; index++)
-            states[index] = _enabledProbe.IsSet(ItemAt(index));
-        // The probe must not keep the last item alive.
-        _enabledProbe.Release();
+        try
+        {
+            for (var index = 0; index < states.Length; index++)
+                states[index] = _enabledProbe.IsSet(ItemAtIndex(index));
+        }
+        catch
+        {
+            SkUiItemBindingProbe.Discard(ref _enabledProbe);
+            throw;
+        }
+        finally
+        {
+            // The probe must not keep the last item alive.
+            _enabledProbe?.Release();
+        }
         Model.ItemEnabled = states;
         // Tokens: an item that can no longer be chosen keeps its token, without its ×.
         UpdateMultipleState();
@@ -168,7 +177,6 @@ public partial class SkUiPicker : SkUiPickerBase
             if (ReferenceEquals(_fieldDisplay?.Binding, value))
                 return;
             OnPropertyChanging();
-            _fieldDisplay?.Detach();
             _fieldDisplay = value is null ? null : new SkUiDisplayBinding(value);
             UpdateFieldText();
             UpdateMultipleState();
@@ -184,11 +192,8 @@ public partial class SkUiPicker : SkUiPickerBase
     {
         if (index < 0 || index >= _items.Count)
             return string.Empty;
-        return _fieldDisplay is null ? _items[index] : _fieldDisplay.GetText(ItemAt(index));
+        return _fieldDisplay is null ? _items[index] : _fieldDisplay.GetText(ItemAtIndex(index));
     }
-
-    /// <summary>The item at <paramref name="index"/> of <see cref="ItemsSource"/>, else the text of <see cref="Items"/>.</summary>
-    private object? ItemAt(int index) => _itemsSource is { } source ? (index < source.Count ? source[index] : null) : _items[index];
 
     /// <summary>The field's text for the selected item (one choice).</summary>
     private void UpdateFieldText()
