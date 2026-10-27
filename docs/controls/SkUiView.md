@@ -45,6 +45,7 @@ node.Tapped += (_, _) => { /* opt-in tap */ };
 | `Gestures` | Custom recognizers (`SkUiPointerGestureRecognizer`, `SkUiPanGestureRecognizer`, …) |
 | `IsPressed` | Shared press state for intrinsic controls |
 | `ShowsPressEffect` | Draws the look's press feedback (dim or ripple) over the view and its children while pressed, clipped to its rounded shape; for cards and composite buttons with a `Tapped` / `TappedCommand` handler ([transitions](../design/ControlLook.md#state-change-transitions-fr-26)) |
+| `PressFeedback` | How `ShowsPressEffect` shows the press: `Overlay` (default, the look's dim or ripple) or `Fade`: the view and its children fade to the look's `PressedContentOpacity` (0.4), as iOS icon buttons do, which shows on dark content (a dark glyph) where the dark tint hardly does. Composited: the fade's frames re-record nothing, and it multiplies `Opacity`. SkiaUi extension |
 | `StartUpdating` / `EndUpdating` | Coalesce invalidation |
 | `InvalidatePaint` | Re-record this node's content (not its children) without remeasure. Transform / opacity / offset changes need no call: they are composite-time |
 | `ClipToBounds` | Clip content, children and overlay to the arranged rect. Defaults: `true` for leaves, `false` for `SkUiLayout` / `SkUiContentView` / `SkUiCoreHost`. Containers also have it under MAUI's name, `IsClippedToBounds` |

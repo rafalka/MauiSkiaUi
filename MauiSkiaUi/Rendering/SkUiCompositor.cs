@@ -583,10 +583,10 @@ internal sealed class SkUiCompositor : IDisposable
     private void DrawNode(SKCanvas canvas, SkUiRenderNode node, bool isRoot)
     {
         ref readonly var props = ref node.Props;
-        if (props.IsSkipped)
+        if (props.IsSkippedWhenDrawn)
             return;
         SKMatrix matrix;
-        var opacity = props.Opacity;
+        var opacity = props.DrawnOpacity;
         if (props.ItemEffect is { Source.Disposed: false } effect)
         {
             // A carousel item: placed (and faded) by its effect at the scroller's current offset.

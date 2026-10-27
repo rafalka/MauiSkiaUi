@@ -215,6 +215,21 @@ public enum SkUiTextFieldStyle
     TextBox
 }
 
+/// <summary>
+/// How a view or node with <c>ShowsPressEffect</c> shows that it is pressed (<see cref="SkUiView.PressFeedback"/>,
+/// <see cref="Core.SkUiCoreNode.PressFeedback"/>).
+/// </summary>
+public enum SkUiPressFeedback
+{
+    /// <summary>The look's press overlay over the content (<see cref="SkUiLook.DrawPressOverlay"/>): a dark tint, a ripple in <see cref="AndroidSkUiLook"/>.</summary>
+    Overlay,
+    /// <summary>
+    /// The view and its children fade to <see cref="SkUiLook.PressedContentOpacity"/> while pressed, as iOS icon buttons do: it
+    /// shows on dark content (a dark glyph), where a dark tint hardly does. No overlay is drawn.
+    /// </summary>
+    Fade
+}
+
 /// <summary>Press feedback style of <see cref="DefaultSkUiLook"/> buttons.</summary>
 public enum SkUiPressEffect
 {

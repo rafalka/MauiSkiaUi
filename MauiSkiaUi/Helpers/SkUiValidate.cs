@@ -81,6 +81,9 @@ internal static class SkUiValidate
     /// <summary>A defined <see cref="StackOrientation"/> (horizontal or vertical).</summary>
     public static bool Orientation(BindableObject bindable, object? value) => value is StackOrientation orientation && Enum.IsDefined(orientation);
 
+    /// <summary>A defined <see cref="SkUiPressFeedback"/>.</summary>
+    public static bool PressFeedback(BindableObject bindable, object? value) => value is SkUiPressFeedback feedback && Enum.IsDefined(feedback);
+
     /// <summary>A defined <see cref="SkUiCenterStrategy"/>.</summary>
     public static bool CenterStrategy(BindableObject bindable, object? value) => value is SkUiCenterStrategy strategy && Enum.IsDefined(strategy);
 

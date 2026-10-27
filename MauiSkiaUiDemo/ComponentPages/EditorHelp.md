@@ -405,6 +405,12 @@ decides which is on top.
 Whether the Details button's command can execute. When it cannot, the button is disabled, and the card around it is not
 pressed by taps on it either.
 
+## CorePressEffectDemoPage.Fade on press
+
+Sets `PressFeedback` of every card, chip and tile to `Fade`: instead of the look's dim or ripple, a pressed control and its
+children fade to the look's `PressedContentOpacity` (0.4), composited without re-recording. The dark remove disc always
+fades: a dark tint would hardly show on it.
+
 ## OverlayScrollingDemoPage.Check native placement
 
 Compares every native view with where the drawn tree places it, also with the soft keyboard up, and reports the views

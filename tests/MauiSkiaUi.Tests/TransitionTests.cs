@@ -339,6 +339,135 @@ public class TransitionTests
         });
     }
 
+    /// <summary>Presses at (50, 20), checks the faded pixel there, releases; the fade's frames re-record nothing.</summary>
+    private static void AssertFadesOnPress(SkUiView root, SkUiTestSurface surface, int pressedGray)
+    {
+        Assert.Equal(SKColors.Black, surface.Frame().GetPixel(50, 20));
+        var id = ++_pointer;
+        root.Touch(new(id, SkUiTouchAction.Pressed, new Point(50, 20), TimeSpan.FromSeconds(1)));
+        surface.Frame(0); // the press itself re-records once (IsPressed, visual states)
+        var recorded = surface.RecordedPictures;
+        At(surface, 30);
+        var midway = surface.Bitmap.GetPixel(50, 20).Red;
+        Assert.InRange(midway, 1, pressedGray - 1);
+        At(surface, 100);
+        Assert.InRange(surface.Bitmap.GetPixel(50, 20).Red, pressedGray - 2, pressedGray + 2);
+        Assert.Equal(recorded, surface.RecordedPictures);
+
+        root.Touch(new(id, SkUiTouchAction.Released, new Point(50, 20), TimeSpan.FromSeconds(1.1)));
+        surface.Frame(100);
+        recorded = surface.RecordedPictures;
+        At(surface, 400);
+        Assert.Equal(SKColors.Black, surface.Bitmap.GetPixel(50, 20));
+        Assert.Equal(recorded, surface.RecordedPictures);
+    }
+
+    [Fact]
+    public void FadePressFeedbackFadesTheViewInsteadOfTintingIt()
+    {
+        var overlays = 0;
+        WithLook(new DefaultSkUiLook { PressOverlayPainter = (_, _) => overlays++ }, () =>
+        {
+            // A black card on white: a dark tint would not show; at the look's 0.4 the card is 60 % white.
+            var card = new SkUiBorder
+            {
+                CornerRadius = 0, StrokeThickness = 0, BackgroundColor = Colors.Black, ShowsPressEffect = true, PressFeedback = SkUiPressFeedback.Fade
+            };
+            card.Tapped += (_, _) => { };
+            var root = new SkUiContentView { BackgroundColor = Colors.White, Content = card };
+            using var surface = new SkUiTestSurface(root, 100, 40);
+            AssertFadesOnPress(root, surface, pressedGray: 153);
+
+            // It multiplies the view's own opacity: 0.5 × 0.4 = 0.2, 80 % white.
+            card.Opacity = 0.5;
+            root.Touch(new(++_pointer, SkUiTouchAction.Pressed, new Point(50, 20), TimeSpan.FromSeconds(2)));
+            At(surface, 600);
+            Assert.InRange(surface.Bitmap.GetPixel(50, 20).Red, 202, 206);
+        });
+        Assert.Equal(0, overlays);
+    }
+
+    [Fact]
+    public void FadePressFeedbackFadesACoreNodeAndFollowsTheLook()
+    {
+        var overlays = 0;
+        WithLook(new FadeToHalfLook { PressOverlayPainter = (_, _) => overlays++ }, () =>
+        {
+            var glyph = new SkUiCoreBox().SetColor(Colors.Black);
+            glyph.SetShowsPressEffect(true).SetPressFeedback(SkUiPressFeedback.Fade);
+            glyph.Tapped += (_, _) => { };
+            var host = new SkUiCoreHost { BackgroundColor = Colors.White };
+            host.SetContent(glyph);
+            using var surface = new SkUiTestSurface(host, 100, 40);
+            AssertFadesOnPress(host, surface, pressedGray: 128);
+            Assert.Throws<ArgumentOutOfRangeException>(() => glyph.SetPressFeedback((SkUiPressFeedback)7));
+
+            // Back to the look's overlay: drawn again, and the node no longer fades.
+            glyph.SetPressFeedback(SkUiPressFeedback.Overlay);
+            host.Touch(new(++_pointer, SkUiTouchAction.Pressed, new Point(50, 20), TimeSpan.FromSeconds(2)));
+            At(surface, 600);
+            Assert.True(overlays > 0);
+            Assert.Equal(SKColors.Black, surface.Bitmap.GetPixel(50, 20));
+        });
+    }
+
+    [Fact]
+    public void PressFeedbackIgnoresUndefinedValuesAndKeepsTheOverlayByDefault()
+    {
+        var view = new SkUiBorder();
+        Assert.Equal(SkUiPressFeedback.Overlay, view.PressFeedback);
+        Assert.Equal(SkUiPressFeedback.Overlay, new SkUiCoreBox().PressFeedback);
+        view.PressFeedback = (SkUiPressFeedback)7;
+        Assert.Equal(SkUiPressFeedback.Overlay, view.PressFeedback);
+        Assert.Throws<ArgumentOutOfRangeException>(() => view.SetPressFeedback((SkUiPressFeedback)7));
+        Assert.Equal(0.4, new DefaultSkUiLook().PressedContentOpacity);
+    }
+
+    [Fact]
+    public void ANodeFadedOutByThePressIsNotDrawnButStaysRecorded()
+    {
+        var faded = MauiSkiaUi.Rendering.SkUiRenderProps.Default with { Width = 10, Height = 10, PressOpacity = 0 };
+        Assert.False(faded.IsSkipped); // its pictures are kept for the release
+        Assert.True(faded.IsSkippedWhenDrawn);
+        Assert.False((faded with { PressOpacity = 0.4f }).IsSkippedWhenDrawn);
+        Assert.True((faded with { PressOpacity = 1, Opacity = 0 }).IsSkippedWhenDrawn);
+    }
+
+    [Fact]
+    public void ChangingPressFeedbackMidPressStopsTheOldAnimation()
+    {
+        WithLook(new DefaultSkUiLook(), () =>
+        {
+            var card = new SkUiBorder { ShowsPressEffect = true, PressFeedback = SkUiPressFeedback.Fade };
+            card.Tapped += (_, _) => { };
+            var root = new SkUiContentView { Content = card };
+            using var surface = new SkUiTestSurface(root, 100, 40);
+            surface.Frame();
+            root.Touch(new(++_pointer, SkUiTouchAction.Pressed, new Point(50, 20), TimeSpan.FromSeconds(1)));
+            At(surface, 30);
+            Assert.True(root.AnimationClock.IsRunning);
+            card.PressFeedback = SkUiPressFeedback.Overlay;
+            Assert.False(root.AnimationClock.IsRunning); // the dropped animator's frames end with it
+
+            var glyph = new SkUiCoreBox();
+            glyph.SetShowsPressEffect(true);
+            glyph.Tapped += (_, _) => { };
+            var host = new SkUiCoreHost().SetContent(glyph);
+            using var coreSurface = new SkUiTestSurface(host, 100, 40);
+            coreSurface.Frame();
+            host.Touch(new(++_pointer, SkUiTouchAction.Pressed, new Point(50, 20), TimeSpan.FromSeconds(1)));
+            At(coreSurface, 30);
+            Assert.True(host.AnimationClock.IsRunning);
+            glyph.SetPressFeedback(SkUiPressFeedback.Fade);
+            Assert.False(host.AnimationClock.IsRunning);
+        });
+    }
+
+    private sealed class FadeToHalfLook : DefaultSkUiLook
+    {
+        public override double PressedContentOpacity => 0.5;
+    }
+
     [Fact]
     public void DetachingMidTransitionStopsItsFrames()
     {

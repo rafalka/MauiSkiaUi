@@ -826,6 +826,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         props.Rotation = (float)_rotation;
         props.ScaleX = props.ScaleY = (float)_scale;
         props.Opacity = (float)_opacity;
+        props.PressOpacity = PressOpacity;
         props.IsVisible = _isVisible;
         props.ClipToBounds = _clipToBounds;
         props.Pinned = IsPinned;
@@ -945,7 +946,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         OnPaintContent(canvas);
     }
 
-    bool ISkUiRenderable.HasOverlay => (_paintOverlay is not null || _showsPressEffect || _focusRingVisible)
+    bool ISkUiRenderable.HasOverlay => (_paintOverlay is not null || DrawsPressOverlay || _focusRingVisible)
         && !DrawsSkeletonInstead;
 
     void ISkUiRenderable.RecordOverlay(SKCanvas canvas)
@@ -953,7 +954,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         if (DrawsSkeletonInstead)
             return;
         _paintOverlay?.Invoke(canvas);
-        if (_showsPressEffect)
+        if (DrawsPressOverlay)
             SkUiLook.Current.DrawPressOverlay(canvas, new SkUiPressOverlayPaint(new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height),
                 PressEffectCornerRadii, _pressEffect?.Visual ?? SkUiPressVisual.None, IsEnabled: true));
         if (_focusRingVisible)
@@ -1272,6 +1273,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     internal Point PressPosition { get; private set; }
 
     private bool _showsPressEffect;
+    private SkUiPressFeedback _pressFeedback;
     private SkUiPressAnimator? _pressEffect;
 
     /// <summary>
@@ -1279,6 +1281,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// over this node and its children while it is pressed, clipped to its rounded shape (a label's or border's corner
     /// radii). For composite buttons built from several nodes (e.g. a <see cref="SkUiCoreBorder"/> holding an icon and
     /// labels): the node needs a <see cref="Tapped"/> handler to be pressed. Buttons draw their own feedback.
+    /// <see cref="PressFeedback"/> fades the node instead.
     /// </summary>
     public bool ShowsPressEffect
     {
@@ -1291,8 +1294,41 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     {
         if (!SetProperty(ref _showsPressEffect, value, nameof(ShowsPressEffect))) return this;
         InvalidatePaint();
+        InvalidateRender(SkUiRenderDirty.Props); // a fade in progress
         return this;
     }
+
+    /// <summary>
+    /// How <see cref="ShowsPressEffect"/> shows the press: the look's overlay (<see cref="SkUiPressFeedback.Overlay"/>, default),
+    /// or <see cref="SkUiPressFeedback.Fade"/>: the node and its children fade to <see cref="SkUiLook.PressedContentOpacity"/>,
+    /// which shows on dark content (an icon glyph) where the dark tint hardly does. The fade is composited: its frames
+    /// re-record nothing, and it multiplies <see cref="Opacity"/> (an opacity animation and the fade do not affect each other).
+    /// </summary>
+    public SkUiPressFeedback PressFeedback
+    {
+        get => _pressFeedback;
+        set => SetPressFeedback(value);
+    }
+
+    /// <summary>Sets <see cref="PressFeedback"/>.</summary>
+    public SkUiCoreNode SetPressFeedback(SkUiPressFeedback value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value), value, null);
+        if (!SetProperty(ref _pressFeedback, value, nameof(PressFeedback))) return this;
+        _pressEffect?.Stop(); // its frames end with it
+        _pressEffect = null; // the next press animates the new feedback
+        InvalidatePaint();
+        InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
+    /// <summary>Whether the look's press overlay is drawn over the node (<see cref="ShowsPressEffect"/> without the fade).</summary>
+    private bool DrawsPressOverlay => _showsPressEffect && _pressFeedback == SkUiPressFeedback.Overlay;
+
+    /// <summary>The press fade's factor on the node's opacity (1 unless it fades on press and is pressed or releasing).</summary>
+    private float PressOpacity => _showsPressEffect && _pressFeedback == SkUiPressFeedback.Fade && _pressEffect is { Pressed: > 0 } press
+        ? SkUiPressAnimator.FadedOpacity(press.Pressed, SkUiLookScope.Resolve(this))
+        : 1;
 
     /// <summary>Corner radii the press effect is clipped to (default square; labels and borders use their own).</summary>
     internal virtual CornerRadius PressEffectCornerRadii => default;
@@ -1311,7 +1347,9 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     private void UpdatePressEffect(bool pressed)
     {
         if (_showsPressEffect || _pressEffect is not null)
-            (_pressEffect ??= new SkUiPressAnimator(this)).SetPressed(pressed, PressPosition);
+            (_pressEffect ??= _pressFeedback == SkUiPressFeedback.Fade
+                ? SkUiPressAnimator.Fade(this, () => InvalidateRender(SkUiRenderDirty.Props))
+                : new SkUiPressAnimator(this)).SetPressed(pressed, PressPosition);
     }
 
     SkUiAnimationClock? ISkUiTransitionHost.TransitionClock => _renderState is { HasCommitted: true } ? AnimationClock : null;

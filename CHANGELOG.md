@@ -16,6 +16,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### New features
 
 - **`RunsTappedCommand`** (protected virtual on `SkUiView`, default `true`): a host that hands its `TappedCommand` and `TappedCommandParameter` to the node it draws (a Core node with `ShowsPressEffect`) returns `false`. That node is then the one tap target, screen reader element and keyboard focus stop, and the host no longer runs the command as well. Before, such a wrapper was two nested buttons with the same `AutomationId`, read twice and stopped on twice by Tab (#63).
+- **`PressFeedback`** (`SkUiView` and `SkUiCoreNode`, with `SkUiPressFeedback`): how `ShowsPressEffect` shows the press. `Overlay` (default) is the look's dim or ripple, as before. `Fade` draws no overlay and fades the view and its children to the look's new `PressedContentOpacity` (0.4) with the press and release transitions, as iOS icon buttons do: a dark glyph button the dark tint hardly changed now shows its press (#64).
+  - The fade is composited: its frames re-record nothing, and it multiplies `Opacity`, so an opacity animation and the fade do not affect each other.
+- **`DefaultMinimumHeight`** (protected virtual on `SkUiButton` and `SkUiCoreButton`): the minimum height used while none is set, the look's `DefaultButtonMinimumHeight` by default. A subclass gives its own size of button, as with `DefaultCornerRadius` and `DefaultPadding`, without a `MinimumHeightRequest` that every call-site style would have to repeat; a set minimum still wins (#65).
+- **`SkUiDisplayBinding`**: reads items' texts through an `ItemDisplayBinding`-style binding (`ToString()` without one), `GetText(item)` and `GetTexts(items)`, applying the binding only while reading, so neither it nor the binding keeps the last item alive and readers and pickers can share one binding instance (also after a read that threw). For own controls that show items as text (chips, tags, lists); `SkUiPicker` and `SkUiPickerColumn` now use it (#66).
 
 ### Fixes
 

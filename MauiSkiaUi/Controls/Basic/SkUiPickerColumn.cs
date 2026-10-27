@@ -22,9 +22,6 @@ namespace MauiSkiaUi;
 /// </remarks>
 public class SkUiPickerColumn : BindableObject
 {
-    private static readonly BindableProperty DisplayProperty = BindableProperty.Create("Display", typeof(string), typeof(SkUiPickerColumn), null);
-    private static readonly BindableProperty EnabledProperty = BindableProperty.Create("Enabled", typeof(bool), typeof(SkUiPickerColumn), true);
-
     /// <summary>
     /// The name this column raises <see cref="BindableObject.PropertyChanged"/> with once its selection changed and
     /// <see cref="SelectedIndex"/> and <see cref="SelectedItem"/> agree again (MAUI raises a property's change before its own callback
@@ -40,10 +37,9 @@ public class SkUiPickerColumn : BindableObject
 
     private readonly SkUiWeakListener<SkUiPickerColumn> _sourceListener;
     private string[]? _texts;
-    private BindingBase? _itemDisplayBinding;
-    private BindableObject? _displayProbe;
+    private SkUiDisplayBinding? _itemDisplay;
     private BindingBase? _itemEnabledBinding;
-    private BindableObject? _enabledProbe;
+    private SkUiItemBindingProbe? _enabledProbe;
     private bool[]? _itemStates;
     private bool _itemStatesValid;
     private object? _pendingItem;
@@ -93,18 +89,13 @@ public class SkUiPickerColumn : BindableObject
     /// <summary>The binding that picks the text shown for each item (MAUI's <c>Picker</c> rule; <c>null</c>: <c>ToString()</c>).</summary>
     public BindingBase? ItemDisplayBinding
     {
-        get => _itemDisplayBinding;
+        get => _itemDisplay?.Binding;
         set
         {
-            if (ReferenceEquals(_itemDisplayBinding, value))
+            if (ReferenceEquals(_itemDisplay?.Binding, value))
                 return;
             OnPropertyChanging();
-            _itemDisplayBinding = value;
-            if (_displayProbe is not null)
-            {
-                _displayProbe.RemoveBinding(DisplayProperty);
-                _displayProbe = null;
-            }
+            _itemDisplay = value is null ? null : new SkUiDisplayBinding(value);
             OnItemsChanged(keepSelectedItem: false);
             OnPropertyChanged();
         }
@@ -125,11 +116,7 @@ public class SkUiPickerColumn : BindableObject
                 return;
             OnPropertyChanging();
             _itemEnabledBinding = value;
-            if (_enabledProbe is not null)
-            {
-                _enabledProbe.RemoveBinding(EnabledProperty);
-                _enabledProbe = null;
-            }
+            _enabledProbe = null;
             RefreshItemStates();
             OnPropertyChanged();
         }
@@ -284,22 +271,23 @@ public class SkUiPickerColumn : BindableObject
         if (_itemEnabledBinding is null || ItemsSource is not { } source)
             return null;
         var states = new bool[source.Count];
-        _enabledProbe ??= CreateEnabledProbe(_itemEnabledBinding);
-        for (var index = 0; index < states.Length; index++)
+        _enabledProbe ??= new SkUiItemBindingProbe(_itemEnabledBinding, SkUiItemBindingProbe.FlagProperty);
+        try
         {
-            _enabledProbe.BindingContext = source[index];
-            states[index] = _enabledProbe.GetValue(EnabledProperty) is not false;
+            for (var index = 0; index < states.Length; index++)
+                states[index] = _enabledProbe.IsSet(source[index]);
         }
-        // The probe must not keep the last item alive.
-        _enabledProbe.BindingContext = null;
+        catch
+        {
+            SkUiItemBindingProbe.Discard(ref _enabledProbe);
+            throw;
+        }
+        finally
+        {
+            // The probe must not keep the last item alive.
+            _enabledProbe?.Release();
+        }
         return states;
-    }
-
-    private static BindableObject CreateEnabledProbe(BindingBase binding)
-    {
-        var probe = new DisplayProbe();
-        probe.SetBinding(EnabledProperty, binding);
-        return probe;
     }
 
     /// <summary>The item at <paramref name="index"/>, or <c>null</c> outside the items.</summary>
@@ -387,28 +375,11 @@ public class SkUiPickerColumn : BindableObject
     {
         if (ItemsSource is not { } source)
             return [];
+        if (_itemDisplay is not null || ItemDisplay is not { } display)
+            return (_itemDisplay ?? SkUiDisplayBinding.ItemText).GetTexts(source);
         var texts = new string[source.Count];
         for (var index = 0; index < texts.Length; index++)
-        {
-            if (_itemDisplayBinding is null)
-            {
-                texts[index] = ItemDisplay is { } display ? display(source[index]) ?? string.Empty : source[index]?.ToString() ?? string.Empty;
-                continue;
-            }
-            if (_displayProbe is null)
-            {
-                _displayProbe = new DisplayProbe();
-                _displayProbe.SetBinding(DisplayProperty, _itemDisplayBinding);
-            }
-            _displayProbe.BindingContext = source[index];
-            texts[index] = (string?)_displayProbe.GetValue(DisplayProperty) ?? string.Empty;
-        }
-        // The probe must not keep the last item alive.
-        if (_displayProbe is not null)
-            _displayProbe.BindingContext = null;
+            texts[index] = display(source[index]) ?? string.Empty;
         return texts;
     }
-
-    /// <summary>A bindable object that evaluates <see cref="ItemDisplayBinding"/> for one item at a time.</summary>
-    private sealed class DisplayProbe : BindableObject;
 }

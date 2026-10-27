@@ -288,13 +288,35 @@ public static class Units
 
 **Threads:** callbacks run on the thread that raised the change: a view model set from a background task, a command raising `CanExecuteChanged` from any thread. Nodes and views must be changed on the UI thread, so marshal first when the source may change elsewhere: `MainThread.BeginInvokeOnMainThread(() => node.InvalidateMeasure())`.
 
+
+## Item texts through a binding (own controls)
+
+A control that shows items as text (chips, tags, a custom list) and takes MAUI's `ItemDisplayBinding`-style binding reads each item's text with **`SkUiDisplayBinding`** (namespace `MauiSkiaUi`, both layers), as `SkUiPicker` and `SkUiPickerColumn` do: `new SkUiDisplayBinding(binding)` (`null`: each item's `ToString()`), `GetText(item)`, `GetTexts(items)` (a list or any sequence, in order). The binding is applied to a private bindable object whose context is each item in turn, only while the texts are read (as MAUI's `Picker` does), then removed and the context cleared: neither the reader nor a binding from app resources keeps the last item alive, and readers and pickers can share one binding instance (not one also applied to a view). Texts are read when asked for: read them again when the items change. On the UI thread.
+
+```csharp
+public sealed class TagsNode : SkUiCoreWrapLayout
+{
+    private SkUiDisplayBinding _display = new(null);
+
+    public TagsNode SetTags(IEnumerable items, BindingBase? displayBinding)
+    {
+        if (!ReferenceEquals(_display.Binding, displayBinding))
+            _display = new SkUiDisplayBinding(displayBinding);
+        Clear();
+        foreach (var text in _display.GetTexts(items))
+            Add(new SkUiCoreLabel().SetText(text));
+        return this;
+    }
+}
+```
+
 ## Gestures
 
 Core nodes take part in the same gesture arena as SkUi* views:
 - **Events:** `Tapped`, `DoubleTapped`, `LongPressed`, `Swiped` (`SetSwipeDirections`), `PanUpdated` (`SetPanAxis`), `PinchUpdated`.
 - **Tap command:** `TappedCommand` / `TappedCommandParameter` (`SetTappedCommand`, `SetTappedCommandParameter`), the twin of `SkUiView.TappedCommand`: while it can execute, the node takes taps, keyboard activation and a screen reader's double tap (after its `Tapped` handlers); while it cannot, a node with only the command lets taps through, as a passive node. `CanExecuteChanged` is followed weakly and `CanExecute` is read when it is raised (or the command or parameter changes), not per press. Core buttons run their own `Command` instead.
 - **Enabled state:** `IsEnabled` / `SetIsEnabled` as MAUI's: the effective value, `false` while the node, a Core ancestor or the hosting `SkUiCoreHost` (MAUI's effective `IsEnabled`, so also the host's ancestors) is disabled; `SetIsEnabled` sets the node's own value, and `PropertyChanged` reports changes of the effective one (also those an ancestor causes). A disabled node takes the taps on it without acting (what is underneath gets none) while scrollers around it still scroll, is not focusable (a focused one loses focus), is reported disabled to screen readers, and controls draw their disabled look (the same look parameters as their SkUi\* twins). A Core button whose command cannot execute is disabled the same way. The effective value is cached on each node and pushed down when it changes; own controls react in `OnIsEnabledChanged`.
-- **Pressed state:** `IsPressed` as `SkUiView.IsPressed`: `true` while an eligible pointer is pressed inside a node with a tap action (`Tapped`, `TappedCommand`, a button or toggle) that is enabled, `false` on release and when its gestures are cancelled (a scroller claims the drag); `PropertyChanged` reports it. An own control draws its pressed look by overriding `protected virtual void OnPressedChanged()` (invalidate paint, start a transition); `ShowsPressEffect` draws the look's overlay without one. The Core buttons, toggles and pickers keep their pressed look on it.
+- **Pressed state:** `IsPressed` as `SkUiView.IsPressed`: `true` while an eligible pointer is pressed inside a node with a tap action (`Tapped`, `TappedCommand`, a button or toggle) that is enabled, `false` on release and when its gestures are cancelled (a scroller claims the drag); `PropertyChanged` reports it. An own control draws its pressed look by overriding `protected virtual void OnPressedChanged()` (invalidate paint, start a transition); `ShowsPressEffect` draws the look's overlay without one, or fades the node with `SetPressFeedback(SkUiPressFeedback.Fade)` (to the look's `PressedContentOpacity`; for dark content such as an icon glyph, composited without re-recording). The Core buttons, toggles and pickers keep their pressed look on it.
 - **Input transparency:** `InputTransparent` / `SetInputTransparent`: pointers pass through the node and its subtree to what is underneath (MAUI's cascading default); keyboard focus skips the subtree. On containers (panels, content views, the scroll and indicator views), `CascadeInputTransparent` / `SetCascadeInputTransparent(false)` limits it to the container: its children still take pointers and focus. `IsClippedToBounds` is MAUI's name for `ClipToBounds` there.
 - **Tooltips:** `ToolTip` / `SetToolTip`, the twin of MAUI's `ToolTipProperties.Text` on SkUi\* views: shown while a mouse or trackpad pointer rests on the node (Mac Catalyst, iPad with a pointer, Windows); a node without one shows its nearest ancestor's. Kept in the attached-value store, so nodes without one pay nothing.
 - **Custom recognizers:** `AddGestureRecognizer` (e.g. `SkUiPointerGestureRecognizer` for raw pointer handling).

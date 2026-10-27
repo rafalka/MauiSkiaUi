@@ -14,6 +14,12 @@ internal record struct SkUiRenderProps
     public float Opacity;
 
     /// <summary>
+    /// A factor on <see cref="Opacity"/> from the press fade (<see cref="SkUiPressFeedback.Fade"/>), 1 = none. Apart from
+    /// <see cref="Opacity"/>, so the fade neither cancels nor is overwritten by an opacity animation.
+    /// </summary>
+    public float PressOpacity;
+
+    /// <summary>
     /// Turns the node about its vertical axis through the anchor, in perspective, in degrees (positive: its right edge goes
     /// away); 0 = none. Applied before <see cref="ScaleX"/> / <see cref="ScaleY"/> and <see cref="Rotation"/>.
     /// </summary>
@@ -128,7 +134,7 @@ internal record struct SkUiRenderProps
 
     public static SkUiRenderProps Default => new()
     {
-        ScaleX = 1, ScaleY = 1, AnchorX = 0.5f, AnchorY = 0.5f, Opacity = 1, IsVisible = true, ClipToBounds = true,
+        ScaleX = 1, ScaleY = 1, AnchorX = 0.5f, AnchorY = 0.5f, Opacity = 1, PressOpacity = 1, IsVisible = true, ClipToBounds = true,
         ChildrenScaleX = 1, ChildrenScaleY = 1
     };
 
@@ -147,8 +153,17 @@ internal record struct SkUiRenderProps
     /// </summary>
     public readonly SKRect LayerBounds => ClipToBounds && Shadow is null ? Bounds : InkBounds;
 
+    /// <summary>The opacity the node is drawn with: <see cref="Opacity"/> times <see cref="PressOpacity"/>.</summary>
+    public readonly float DrawnOpacity => Opacity * PressOpacity;
+
     /// <summary>True when the node paints nothing and its subtree can be skipped.</summary>
     public readonly bool IsSkipped => !IsVisible || Opacity <= 0 || Width <= 0 || Height <= 0;
+
+    /// <summary>
+    /// True when drawing the node shows nothing: <see cref="IsSkipped"/>, or faded out by the press (<see cref="PressOpacity"/>
+    /// 0). Recording follows <see cref="IsSkipped"/> alone, so a press never drops the node's recorded pictures.
+    /// </summary>
+    public readonly bool IsSkippedWhenDrawn => IsSkipped || PressOpacity <= 0;
 
     /// <summary>Parent-space matrix: layout offset, then render transform about the anchor.</summary>
     public readonly SKMatrix Matrix => GetMatrix(TranslationX, TranslationY);
