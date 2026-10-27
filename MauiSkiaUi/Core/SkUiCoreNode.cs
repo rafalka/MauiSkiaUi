@@ -1315,6 +1315,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     {
         if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value), value, null);
         if (!SetProperty(ref _pressFeedback, value, nameof(PressFeedback))) return this;
+        _pressEffect?.Stop(); // its frames end with it
         _pressEffect = null; // the next press animates the new feedback
         InvalidatePaint();
         InvalidateRender(SkUiRenderDirty.Props);

@@ -423,6 +423,36 @@ public class TransitionTests
         Assert.Equal(0.4, new DefaultSkUiLook().PressedContentOpacity);
     }
 
+    [Fact]
+    public void ChangingPressFeedbackMidPressStopsTheOldAnimation()
+    {
+        WithLook(new DefaultSkUiLook(), () =>
+        {
+            var card = new SkUiBorder { ShowsPressEffect = true, PressFeedback = SkUiPressFeedback.Fade };
+            card.Tapped += (_, _) => { };
+            var root = new SkUiContentView { Content = card };
+            using var surface = new SkUiTestSurface(root, 100, 40);
+            surface.Frame();
+            root.Touch(new(++_pointer, SkUiTouchAction.Pressed, new Point(50, 20), TimeSpan.FromSeconds(1)));
+            At(surface, 30);
+            Assert.True(root.AnimationClock.IsRunning);
+            card.PressFeedback = SkUiPressFeedback.Overlay;
+            Assert.False(root.AnimationClock.IsRunning); // the dropped animator's frames end with it
+
+            var glyph = new SkUiCoreBox();
+            glyph.SetShowsPressEffect(true);
+            glyph.Tapped += (_, _) => { };
+            var host = new SkUiCoreHost().SetContent(glyph);
+            using var coreSurface = new SkUiTestSurface(host, 100, 40);
+            coreSurface.Frame();
+            host.Touch(new(++_pointer, SkUiTouchAction.Pressed, new Point(50, 20), TimeSpan.FromSeconds(1)));
+            At(coreSurface, 30);
+            Assert.True(host.AnimationClock.IsRunning);
+            glyph.SetPressFeedback(SkUiPressFeedback.Fade);
+            Assert.False(host.AnimationClock.IsRunning);
+        });
+    }
+
     private sealed class FadeToHalfLook : DefaultSkUiLook
     {
         public override double PressedContentOpacity => 0.5;

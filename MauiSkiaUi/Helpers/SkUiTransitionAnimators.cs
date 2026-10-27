@@ -254,6 +254,15 @@ internal sealed class SkUiPressAnimator
         }
     }
 
+    /// <summary>Stops every transition and shows no press, when the owner drops this animator (its frames stop with it).</summary>
+    public void Stop()
+    {
+        _isPressed = _releasePending = false;
+        _pressed.Jump(0);
+        _ripple?.Jump(0);
+        _fade?.Jump(1);
+    }
+
     private void Release(bool animate)
     {
         if (_isPressed)

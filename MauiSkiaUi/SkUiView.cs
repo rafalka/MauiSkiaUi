@@ -160,6 +160,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     {
         if (_pressFeedback == value) return;
         _pressFeedback = value;
+        _pressEffect?.Stop(); // its frames end with it
         _pressEffect = null; // the next press animates the new feedback
         InvalidatePaint();
         InvalidateRender(SkUiRenderDirty.Props);
