@@ -9,15 +9,30 @@ name: NuGet publish
 # renames CHANGELOG.md's "## Unreleased" section to it, packs the result, then (after the nuget.org environment
 # gate) commits "Release <version>" with tag v<version> atomically, pushes the package and creates a GitHub release.
 # A stable release from devel (bump release) also fast-forwards master to the release commit, in the same push.
+#
+# Which run to start:
+# - Prerelease: from devel, bump auto (1.2.0-Prerelease01 -> 1.2.0-Prerelease02).
+# - Stable release: from devel, bump release (1.2.0-Prerelease03 -> 1.2.0). The release commit, its tag and master go
+#   out in one atomic push: master moves forward to the release commit, so master and devel end up on the same commit
+#   and nothing needs merging back.
+# - Next prerelease line: from devel at a stable version, bump auto starts it with minor (1.2.0 -> 1.3.0-Prerelease01);
+#   bump patch for a 1.2.1 line.
+# - Hotfix: open a pull request into master, then run from master with bump auto (patch: 1.2.0 -> 1.2.1). The
+#   back-merge workflow merges master into devel afterwards.
+# - Safety check: a stable release from devel is refused, before anything is built, while master has commits devel
+#   does not (a hotfix not merged back yet). It is checked again just before the push.
+
+run-name: NuGet publish ${{ inputs.bump }} from ${{ github.ref_name }}${{ inputs.dry_run && ' (dry run)' || '' }}
 
 on:
   workflow_dispatch:
     inputs:
       bump:
         description: >-
-          Version bump (docs/Releasing.md): auto (devel: prerelease, or minor after a stable release; master: patch),
-          prerelease (-PrereleaseNN+1), release (drop the prerelease suffix; from devel it also moves master to the
-          release), patch / minor / major, or none (publish the current version again, e.g. after a failed publish)
+          Pick the branch above first (it defaults to master). Prerelease: devel + auto. Stable release: devel +
+          release (master moves to the release; refused while master has a hotfix devel lacks). Next prerelease
+          line: devel + auto (minor) or patch. Hotfix: master + auto (patch). Others: prerelease (-PrereleaseNN+1),
+          minor / major, none (publish the current version again after a failed publish). docs/Releasing.md
         required: true
         type: choice
         options: [auto, prerelease, release, patch, minor, major, none]
@@ -97,6 +112,19 @@ jobs:
           echo "push=$PUSH" >> "$GITHUB_OUTPUT"
           echo "promote=$PROMOTE" >> "$GITHUB_OUTPUT"
           echo "Releasing $VERSION from $BRANCH (bump=$BUMP, push=$PUSH, master moves to it: $PROMOTE)"
+          {
+            echo "## SkiaUi.Maui $VERSION from \`$BRANCH\`"
+            echo
+            [[ "$PUSH" == true ]] || echo "- **Dry run:** packs only; what follows is skipped (no commit, tag, nuget.org push or GitHub release)."
+            if [[ "$BUMP" == none ]]; then
+              echo "- Publishes the tagged release \`v$VERSION\` again; no new commit or tag."
+            else
+              echo "- Commits \`Release $VERSION\` on \`$BRANCH\` with tag \`v$VERSION\`."
+            fi
+            [[ "$PROMOTE" == true ]] && echo "- Fast-forwards \`master\` to the release commit in the same push."
+            [[ "$BRANCH" == master && "$BUMP" != none ]] && echo "- Hotfix release: the back-merge workflow merges \`master\` into \`devel\` after the push."
+            true
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check out the release tag (bump=none)
         if: inputs.bump == 'none'
