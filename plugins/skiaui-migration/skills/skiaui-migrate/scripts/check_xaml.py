@@ -658,9 +658,15 @@ class Checker:
         """Header="{Binding Info}" with an inline HeaderTemplate: the template binds through the list's context instead."""
         warning = f"{local}=\"{value}\" on {node.name}: data is not shown through {local}Template here (unless the binding yields a drawn view); drop it and bind the template through the list's context ({{Binding Info.Title}} instead of {{Binding Title}})"
         arguments = split_arguments(value.strip()[len("{Binding"):-1].strip()) if value.strip().endswith("}") else []
-        path_argument = arguments[0] if len(arguments) == 1 else None
-        if path_argument and path_argument.startswith("Path="):
-            path_argument = path_argument[len("Path="):].strip()
+        # The path: the first argument, positional or Path=; the others may only say how it binds (Mode). A converter, a
+        # format or fallback values change the data itself, which the template would no longer get.
+        path_argument = None
+        if arguments and (PATH_ARGUMENT_RE.match(arguments[0]) or "=" not in arguments[0]):
+            path_argument = arguments[0].partition("=")[2].strip() if PATH_ARGUMENT_RE.match(arguments[0]) else arguments[0]
+        changing = [argument.split("=", 1)[0].strip() for argument in arguments[1:] if not re.match(r"Mode\s*=", argument)]
+        if path_argument and changing:
+            self.report(path, node, "warning", f"{local}=\"{value}\" on {node.name}: data is not shown through {local}Template here; drop it and bind the template through the list's context ({{Binding {path_argument}.Title}} instead of {{Binding Title}}), moving {', '.join(changing)} to the template's bindings (not rewritten: they change the data)")
+            return
         template = next((child for child in node.children if child.is_property_element and child.name == f"{node.name}.{local}Template"), None)
         roots = [child for child in template.children if not child.is_property_element] if template is not None else []
         rebind = []

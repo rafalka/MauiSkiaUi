@@ -19,31 +19,9 @@ public class MemoryLeakTests
     private const int SurfaceWidth = 360;
 
     /// <summary>A desktop window's width in DIPs.</summary>
-    private const int WideSurfaceWidth = 1000;
+    internal const int WideSurfaceWidth = 1000;
 
     public static TheoryData<string> Scenarios() => new(LeakScenarios.All.Select(scenario => scenario.Name));
-
-    /// <summary>
-    /// The scenarios' interactions on a surface as wide as a desktop window, with iOS / Mac Catalyst's inline pull-to-refresh
-    /// (the device tests' Mac Catalyst run): what depends on the width (execute swipes) or on the platform's refresh style
-    /// still takes effect.
-    /// </summary>
-    [Theory]
-    [MemberData(nameof(Scenarios))]
-    public void ScenarioWorksOnAWideSurfaceWithInlineRefresh(string name)
-    {
-        var look = (DefaultSkUiLook)SkUiLook.Current;
-        var style = look.RefreshStyle;
-        look.RefreshStyle = SkUiRefreshStyle.Inline;
-        try
-        {
-            Run(LeakScenarios.Find(name), WideSurfaceWidth);
-        }
-        finally
-        {
-            look.RefreshStyle = style;
-        }
-    }
 
     [Theory]
     [MemberData(nameof(Scenarios))]
@@ -92,7 +70,7 @@ public class MemoryLeakTests
     /// this frame keeps the UI alive for the caller's collection.
     /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static (List<TrackedObject> Tracked, IReadOnlyList<string> DetachedSurvivors) Run(LeakScenario scenario, int surfaceWidth = SurfaceWidth)
+    internal static (List<TrackedObject> Tracked, IReadOnlyList<string> DetachedSurvivors) Run(LeakScenario scenario, int surfaceWidth = SurfaceWidth)
     {
         using var clock = new ManualGestureClock();
         // Continuations of animated changes run here, between frames, as on the app's UI thread.
@@ -158,4 +136,32 @@ public class MemoryLeakTests
         view is SkUiView root
             ? [root]
             : view.GetVisualTreeDescendants().OfType<SkUiView>().Where(candidate => candidate.SkiaParent is null).ToList();
+}
+
+/// <summary>
+/// The leak scenarios' interactions on a surface as wide as a desktop window, with iOS / Mac Catalyst's inline
+/// pull-to-refresh (the device tests' Mac Catalyst run): what depends on the width (execute swipes) or on the platform's
+/// refresh style still takes effect.
+/// </summary>
+// The inline style is set on the shared look: in the global-state collection, which runs alone, so lists pulled by tests
+// running in parallel keep the default overlay style.
+[Collection(GlobalStateCollection.Name)]
+public class MemoryLeakInlineRefreshTests
+{
+    [Theory]
+    [MemberData(nameof(MemoryLeakTests.Scenarios), MemberType = typeof(MemoryLeakTests))]
+    public void ScenarioWorksOnAWideSurfaceWithInlineRefresh(string name)
+    {
+        var look = (DefaultSkUiLook)SkUiLook.Current;
+        var style = look.RefreshStyle;
+        look.RefreshStyle = SkUiRefreshStyle.Inline;
+        try
+        {
+            MemoryLeakTests.Run(LeakScenarios.Find(name), MemoryLeakTests.WideSurfaceWidth);
+        }
+        finally
+        {
+            look.RefreshStyle = style;
+        }
+    }
 }

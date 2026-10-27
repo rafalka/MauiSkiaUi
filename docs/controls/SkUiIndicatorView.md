@@ -45,7 +45,7 @@ public sealed class BarsLook : DefaultSkUiLook
 
 MAUI's `IndicatorTemplate` makes a view per indicator, as in MAUI: set, the indicator view shows the template's views in a stack of its own (`IndicatorLayout`) instead of drawing the row.
 
-- **Views.** One per visible indicator (`Count`, or the items of `ItemsSource`, up to `MaximumVisible`), created from the template (a `DataTemplateSelector` chooses by item). The template must create drawn (SkUi\*) views. Each view's binding context is its item, or its index when there is no `ItemsSource` (a carousel link sets only `Count`).
+- **Views.** One per visible indicator (`Count`, or the items of `ItemsSource`, up to `MaximumVisible`), created from the template (a `DataTemplateSelector` chooses by item, again when the item at an index changes; a view whose template stays is kept and rebound). The template must create drawn (SkUi\*) views. Each view's binding context is its item, or its index when there is no `ItemsSource` (a carousel link sets only `Count`).
 - **Selection.** As MAUI marks it: each view's `BackgroundColor` is `IndicatorColor`, the current one's `SelectedIndicatorColor` (set both to `Transparent` when the template colors itself), and the current one is in the `Selected` visual state. A tap on a view selects it.
 - **Layout.** A horizontal stack (vertical with `Orientation="Vertical"`), 4 DIPs apart as MAUI's, centered in the view inside `Padding`; hidden with a single indicator while `HideSingle`. `IndicatorSize`, `IndicatorsShape` and `IndicatorSpacing` are the drawn row's and do not apply.
 - **`IndicatorLayout`.** The stack, set with the template; a drawn layout of the app's set instead is shown as it is (MAUI's content form), and clearing the template draws the row again.

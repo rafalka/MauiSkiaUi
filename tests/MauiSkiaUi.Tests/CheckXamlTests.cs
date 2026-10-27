@@ -423,6 +423,45 @@ public class CheckXamlTests
     }
 
     [Fact]
+    public void FixTakesADataHeadersPathWithAModeAndLeavesConvertersToTheApp()
+    {
+        var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
+        try
+        {
+            var page = Path.Combine(project.FullName, "Page.xaml");
+            File.WriteAllText(page, """
+                <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
+                  <sk:SkUiVerticalStackLayout>
+                    <sk:SkUiCollectionView Header="{Binding Path=Info, Mode=OneWay}">
+                      <sk:SkUiCollectionView.HeaderTemplate>
+                        <DataTemplate><sk:SkUiLabel Text="{Binding Title}" /></DataTemplate>
+                      </sk:SkUiCollectionView.HeaderTemplate>
+                    </sk:SkUiCollectionView>
+                    <sk:SkUiCollectionView Footer="{Binding Info, Converter={StaticResource Summary}}">
+                      <sk:SkUiCollectionView.FooterTemplate>
+                        <DataTemplate><sk:SkUiLabel Text="{Binding Title}" /></DataTemplate>
+                      </sk:SkUiCollectionView.FooterTemplate>
+                    </sk:SkUiCollectionView>
+                  </sk:SkUiVerticalStackLayout>
+                </ContentPage>
+                """);
+            var (_, output) = Run(project.FullName, "--fix");
+            var lines = output.Split('\n');
+            Assert.Contains(lines, line => line.Contains("fixed:") && line.Contains("Header="));
+            Assert.Contains(lines, line => line.Contains("warning:") && line.Contains("Footer=") && line.Contains("moving Converter"));
+            var fixedXaml = File.ReadAllText(page);
+            Assert.DoesNotContain("Header=", fixedXaml);
+            Assert.Contains("<sk:SkUiLabel Text=\"{Binding Info.Title}\" />", fixedXaml);
+            Assert.Contains("Footer=\"{Binding Info, Converter={StaticResource Summary}}\"", fixedXaml); // left to the app
+        }
+        finally
+        {
+            project.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void FixConvertsPlatformSpecificsWithADrawnMemberAndReportsTheRest()
     {
         var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");

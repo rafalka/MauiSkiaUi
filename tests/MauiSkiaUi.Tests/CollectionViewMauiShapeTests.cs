@@ -247,13 +247,16 @@ public class CollectionViewMauiShapeTests
     [Fact]
     public void SnapPointsKeepTheHeaderReachableAndWorkInHorizontalGrids()
     {
-        var list = Load<SkUiCollectionView>($"""<sk:SkUiCollectionView Header="{ContactsTitle}" />""");
-        list.ItemsLayout = new GridItemsLayout(2, ItemsLayoutOrientation.Horizontal) { SnapPointsType = SnapPointsType.Mandatory };
-        list.ItemsSource = Rows(20);
-        list.ItemTemplate = new DataTemplate(() => new SkUiBox { WidthRequest = 100 });
+        // A sized header: a text one measures nothing where no font is installed (Linux CI).
+        const double header = 60;
+        var list = new SkUiCollectionView
+        {
+            Header = new SkUiBox { WidthRequest = header },
+            ItemsLayout = new GridItemsLayout(2, ItemsLayoutOrientation.Horizontal) { SnapPointsType = SnapPointsType.Mandatory },
+            ItemsSource = Rows(20),
+            ItemTemplate = new DataTemplate(() => new SkUiBox { WidthRequest = 100 })
+        };
         SkUiTestHelpers.Arrange(list, 250, 300);
-        var header = ((IView)list.Header!).DesiredSize.Width;
-        Assert.True(header > 0);
         var points = Controller(list).SnapOffsets(horizontal: true);
         // The start of the list (the header), then each column of two items after it.
         Assert.Equal([0d, header, header + 100, header + 200], points.Take(4));

@@ -87,6 +87,29 @@ public class IndicatorTemplateTests
         Assert.False(((SkUiLayout)indicator.IndicatorLayout!).IsVisible);
     }
 
+    private sealed class BySuffix : DataTemplateSelector
+    {
+        public readonly DataTemplate Even = new(() => new SkUiBox());
+        public readonly DataTemplate Odd = new(() => new SkUiEllipse());
+
+        protected override DataTemplate OnSelectTemplate(object item, BindableObject container) =>
+            item is string text && text.EndsWith('1') ? Odd : Even;
+    }
+
+    [Fact]
+    public void ASelectorChoosesAgainWhenTheItemAtAnIndexChanges()
+    {
+        var items = Items(3);
+        var indicator = new SkUiIndicatorView { ItemsSource = items, IndicatorTemplate = new BySuffix() };
+        Assert.IsType<SkUiEllipse>(Views(indicator)[1]);
+        var unchanged = Views(indicator)[2];
+
+        items[1] = "Item 4"; // same count: the view at index 1 is made again from the other template
+        Assert.IsType<SkUiBox>(Views(indicator)[1]);
+        Assert.Equal("Item 4", ((BindableObject)Views(indicator)[1]).BindingContext);
+        Assert.Same(unchanged, Views(indicator)[2]); // the same template: kept and rebound
+    }
+
     [Fact]
     public void ACountWithoutItemsBindsTheIndices()
     {
