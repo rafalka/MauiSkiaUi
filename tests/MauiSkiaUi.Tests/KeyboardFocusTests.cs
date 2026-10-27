@@ -49,6 +49,57 @@ public class KeyboardFocusTests
         Assert.Equal("Core", Order(root)[0]);
     }
 
+    /// <summary>A bindable wrapper whose Core row runs its <see cref="SkUiView.TappedCommand"/> and shows the press.</summary>
+    private sealed class RowView : SkUiCoreHost
+    {
+        public RowView(bool passesCommand)
+        {
+            PassesCommand = passesCommand;
+            Row.SetShowsPressEffect(true);
+            SetContent(Row);
+        }
+
+        public SkUiCoreLabel Row { get; } = new SkUiCoreLabel().SetText("Priority").SetFontFamily(SkUiTestHelpers.BundledFontFamily);
+
+        private bool PassesCommand { get; }
+
+        protected override bool RunsTappedCommand => !PassesCommand;
+
+        protected override void OnPropertyChanged(string? propertyName = null)
+        {
+            base.OnPropertyChanged(propertyName);
+            if (propertyName == nameof(TappedCommand))
+                Row.SetTappedCommand(TappedCommand);
+            else if (propertyName == nameof(AutomationId))
+                Row.SetAutomationId(AutomationId);
+        }
+    }
+
+    [Fact]
+    public void AHostThatPassesItsTappedCommandOnIsOneButtonWithItsContent()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont(); // the row's text gives it its size: Linux CI has no system fonts
+        var runs = 0;
+        foreach (var passes in new[] { false, true })
+        {
+            var row = new RowView(passes) { AutomationId = "PriorityRow", TappedCommand = new Command(() => runs++) };
+            var root = Stack(row);
+            var activatable = SkUiSemanticsTree.Build(root).Flatten().Count(node => node.Actions.HasFlag(SkUiSemanticsActions.Activate));
+            // Without the opt-out, the host and its row are two nested buttons and two tab stops.
+            Assert.Equal(passes ? 1 : 2, activatable);
+            Assert.Equal(passes ? ["Priority"] : ["RowView", "Priority"], Order(root));
+        }
+
+        // The row runs the command once per tap; the host no longer runs it too.
+        var passing = new RowView(passesCommand: true) { TappedCommand = new Command(() => runs++) };
+        runs = 0;
+        var tapped = Stack(passing);
+        tapped.Touch(new(1, SkUiTouchAction.Pressed, new Point(20, 10), TimeSpan.Zero));
+        Assert.True(passing.Row.IsPressed);
+        tapped.Touch(new(1, SkUiTouchAction.Released, new Point(20, 10), TimeSpan.FromMilliseconds(50)));
+        Assert.Equal(1, runs);
+    }
+
     [Fact]
     public void MauiFocusAndUnfocusWorkOnDrawnViews()
     {

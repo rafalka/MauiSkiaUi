@@ -118,7 +118,7 @@ internal static partial class SkUiShaping
         if (end <= start)
         {
             var font = fonts.Font(emptySpan, fonts.Typeface(emptySpan));
-            var ascent = -font.Metrics.Ascent;
+            var ascent = -font.Metrics.Ascent + HalfLineGap(font);
             var extra = LineBoxExtra(font.Spacing, fonts.LineHeight(emptySpan));
             line.Ascent = ascent + extra;
             line.Height = font.Spacing + 2 * extra;
@@ -181,10 +181,12 @@ internal static partial class SkUiShaping
             }
             var metrics = font.Metrics;
             var ascent = -metrics.Ascent;
-            var spacing = ReferenceEquals(piece.Typeface, fonts.Typeface(piece.Span)) ? font.Spacing : FallbackSpacing(font);
+            var primary = ReferenceEquals(piece.Typeface, fonts.Typeface(piece.Span));
+            var spacing = primary ? font.Spacing : FallbackSpacing(font);
             var extra = LineBoxExtra(spacing, fonts.LineHeight(piece.Span));
-            lineAscent = Math.Max(lineAscent, ascent + extra);
-            lineDescent = Math.Max(lineDescent, spacing - ascent + extra);
+            var gap = primary ? HalfLineGap(font) : 0; // the line gap's upper half: the spacing holds both halves
+            lineAscent = Math.Max(lineAscent, ascent + gap + extra);
+            lineDescent = Math.Max(lineDescent, spacing - ascent - gap + extra);
             result[slot] = new StyledPiece(blob, pen, piece.Width + shift, piece.Span, ascent, metrics.Descent, font.Size, metrics);
             pen += piece.Width + shift;
         }

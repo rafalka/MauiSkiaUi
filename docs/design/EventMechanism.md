@@ -54,7 +54,7 @@ SkUiGestureArena (one per pointer)
 Recognizers raise events / commands on their owner (UI thread)
 ```
 
-- **Built-in recognizers exist only while used.** A node's tap recognizer exists while it has `Tapped` handlers, an executable `TappedCommand`, an intrinsic tap (buttons, toggles) or double-tap handlers. Long press, swipe, pan and pinch recognizers exist while their events or commands are set.
+- **Built-in recognizers exist only while used.** A node's tap recognizer exists while it has `Tapped` handlers, an executable `TappedCommand`, an intrinsic tap (buttons, toggles) or double-tap handlers. A view whose `RunsTappedCommand` is `false` (a host that hands its command to the node it draws) leaves `TappedCommand` to that node: it takes no tap, activation or focus for it. Long press, swipe, pan and pinch recognizers exist while their events or commands are set.
   - Recognizers live in a per-node gesture set that is allocated on first use. Passive Core nodes carry one null field.
 - **Validation per event:** members whose element was detached, hidden, made input-transparent or disabled are rejected. Detaching a subtree cancels its gestures, so press states never stick.
 - **Coordinates:** recognizers receive surface-root DIPs (`SkUiPointer.Position`). `GetPosition(element)` maps through the current transforms and scroll offsets.

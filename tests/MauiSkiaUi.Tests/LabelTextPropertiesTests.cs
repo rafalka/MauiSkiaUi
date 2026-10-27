@@ -146,6 +146,43 @@ public class LabelTextPropertiesTests
     }
 
     [Fact]
+    public void TheFontsLineGapIsSplitAboveAndBelowTheGlyphs()
+    {
+        // A centered single line (a button's, a chip's) sits where it would in the same font without a line gap: half the
+        // gap goes above the glyphs, half below.
+        const string gapFamily = SkUiTestHelpers.LineGapFontFamily;
+        var gapFont = SkUiTestHelpers.BundledFontWithLineGap();
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        using var __ = SkUiTestHelpers.UseBundledFontWithLineGap();
+        using (var font = new SKFont(SKTypeface.FromData(SKData.CreateCopy(gapFont)), 16))
+            Assert.True(font.Spacing - (font.Metrics.Descent - font.Metrics.Ascent) > 7, "the patched font has no line gap");
+
+        int[] Rows(string family, bool spans)
+        {
+            var label = new SkUiLabel { FontFamily = family, TextColor = Colors.Black, VerticalTextAlignment = TextAlignment.Center };
+            if (spans)
+                label.FormattedText = new FormattedString { Spans = { new Span { Text = "H" }, new Span { Text = "x", FontSize = 12 } } };
+            else
+                label.Text = "Hx";
+            using var bitmap = Render(label, 100, 80);
+            var rows = InkRows(bitmap);
+            return [Array.FindIndex(rows, count => count > 0), Array.FindLastIndex(rows, count => count > 0)];
+        }
+        foreach (var spans in new[] { false, true })
+        {
+            var (plain, gapped) = (Rows(SkUiTestHelpers.BundledFontFamily, spans), Rows(gapFamily, spans));
+            Assert.InRange(gapped[0] - plain[0], -1, 1);
+            Assert.InRange(gapped[1] - plain[1], -1, 1);
+        }
+
+        // The line stays as tall as the font's spacing, gap included; a top-aligned line starts half the gap lower.
+        var top = Label("Hx");
+        top.FontFamily = gapFamily;
+        using (var font = new SKFont(SKTypeface.FromData(SKData.CreateCopy(gapFont)), 16))
+            Assert.Equal(font.Spacing, Measure(top, 500).Height, 0.5);
+    }
+
+    [Fact]
     public void CharacterSpacingWidensEveryCharacterAndKeepsTheFastPath()
     {
         const string text = "Item 0001";
