@@ -50,14 +50,59 @@ internal static class SkUiTestHelpers
     /// </summary>
     public static IDisposable UseBundledFont(string familyName = BundledFontFamily)
     {
+        var fontPath = BundledFontPath();
+        return UseFont(familyName, () => File.OpenRead(fontPath));
+    }
+
+    public const string LineGapFontFamily = "Test-RobotoMonoGap";
+
+    /// <summary>
+    /// Registers <see cref="LineGapFontFamily"/>: the bundled Roboto Mono with a line gap (hhea and OS/2) of half its em and a
+    /// font box whose top is a quarter em higher (Android's font padding), neither of which Roboto Mono itself has.
+    /// Reference-counted as <see cref="UseBundledFont"/>.
+    /// </summary>
+    public static IDisposable UseBundledFontWithLineGap()
+    {
+        var bytes = BundledFontWithLineGap();
+        return UseFont(LineGapFontFamily, () => new MemoryStream(bytes));
+    }
+
+    /// <summary>The bytes of the font <see cref="UseBundledFontWithLineGap"/> registers.</summary>
+    public static byte[] BundledFontWithLineGap()
+    {
+        var bytes = File.ReadAllBytes(BundledFontPath());
+        int Read16(int at) => bytes[at] << 8 | bytes[at + 1];
+        void Write16(int at, int value) => (bytes[at], bytes[at + 1]) = ((byte)(value >> 8), (byte)value);
+        int Table(string tag)
+        {
+            for (var record = 12; record < 12 + 16 * Read16(4); record += 16)
+                if (System.Text.Encoding.ASCII.GetString(bytes, record, 4) == tag)
+                    return bytes[record + 8] << 24 | bytes[record + 9] << 16 | bytes[record + 10] << 8 | bytes[record + 11];
+            throw new InvalidDataException(tag);
+        }
+        var head = Table("head");
+        var em = Read16(head + 18);
+        Write16(Table("hhea") + 8, em / 2);
+        Write16(Table("OS/2") + 72, em / 2);
+        Write16(head + 42, (short)Read16(head + 42) + em / 4); // yMax
+        return bytes;
+    }
+
+    private static string BundledFontPath()
+    {
         var fontPath = Path.Combine(AppContext.BaseDirectory, "Assets", "RobotoMono-Regular.ttf");
         if (!File.Exists(fontPath))
             throw new FileNotFoundException($"Bundled test font missing at '{fontPath}'.");
+        return fontPath;
+    }
+
+    private static IDisposable UseFont(string familyName, Func<Stream> open)
+    {
         lock (FontUsers)
         {
             var users = FontUsers.GetValueOrDefault(familyName);
             if (users == 0)
-                SkUiFonts.Register(familyName, () => File.OpenRead(fontPath));
+                SkUiFonts.Register(familyName, open);
             FontUsers[familyName] = users + 1;
         }
         return new FontRegistration(familyName);
