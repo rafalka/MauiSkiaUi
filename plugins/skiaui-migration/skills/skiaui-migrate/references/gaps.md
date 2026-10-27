@@ -4,7 +4,7 @@ Check the region for these before converting. If one is central to the page (the
 
 | MAUI | Status | Do instead |
 | --- | --- | --- |
-| `CollectionView` with `CanReorderItems` or snap points on its items layout | Not available | Keep the native `CollectionView` (outside the drawn region; its item templates stay native). Every other list (grouped, grid, horizontal, multiple selection) ports to `sk:SkUiCollectionView` member by member ([collection-view.md](collection-view.md)) |
+| `CollectionView` with `CanReorderItems` | Planned for 1.3 | Keep the native `CollectionView` (outside the drawn region; its item templates stay native). Every other list (grouped, grid, horizontal, multiple selection) ports to `sk:SkUiCollectionView` member by member ([collection-view.md](collection-view.md)) |
 | `ListView`, `TableView`, cells, compatibility layouts | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists); `SkUiBorder` for `Frame` |
 | `ImageBrush` | Internal in MAUI 10 (only an `ImageSourcePaint` converts to one) | Draw an `SkUiImage` behind the content |
 | Drag and drop, context flyouts | Not planned | Keep native |

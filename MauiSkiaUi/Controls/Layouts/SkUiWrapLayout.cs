@@ -36,13 +36,13 @@ public class SkUiWrapLayout : SkUiLayout
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         var children = new SkUiViewChildren(Children);
-        return SkUiWrapEngine.Measure(ref children, ref _state, widthConstraint, Padding, _spacing, _rowSpacing);
+        return SkUiWrapEngine.Measure(ref children, ref _state, widthConstraint, EffectivePadding, _spacing, _rowSpacing);
     }
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
         var children = new SkUiViewChildren(Children);
-        SkUiWrapEngine.Arrange(ref children, ref _state, size, Padding, _spacing, _rowSpacing);
+        SkUiWrapEngine.Arrange(ref children, ref _state, size, EffectivePadding, _spacing, _rowSpacing);
     }
 }

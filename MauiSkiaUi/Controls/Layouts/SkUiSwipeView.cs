@@ -46,6 +46,18 @@ public partial class SkUiSwipeView : SkUiView
     /// <summary>MAUI's name for <see cref="SkUiView.ClipToBounds"/>: the same property.</summary>
     public bool IsClippedToBounds { get => ClipToBounds; set => ClipToBounds = value; }
 
+    /// <summary>Bindable property for <see cref="SafeAreaEdges"/>.</summary>
+    public static readonly BindableProperty SafeAreaEdgesProperty = SafeAreaEdgesShared;
+
+    /// <summary>
+    /// MAUI 10's safe area edges (default <see cref="SafeAreaRegions.None"/>): accepted for MAUI markup, not applied. Put a
+    /// drawn layout or content view that keeps the edges clear around it as the surface instead.
+    /// </summary>
+    public SafeAreaEdges SafeAreaEdges { get => (SafeAreaEdges)GetValue(SafeAreaEdgesProperty); set => SetValue(SafeAreaEdgesProperty, value); }
+
+    /// <summary>Sets <see cref="SafeAreaEdges"/> (same as the property setter).</summary>
+    public SkUiSwipeView SetSafeAreaEdges(SafeAreaEdges value) { SafeAreaEdges = value; return this; }
+
     /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
     internal override bool IsSkeletonContainer => true;
 

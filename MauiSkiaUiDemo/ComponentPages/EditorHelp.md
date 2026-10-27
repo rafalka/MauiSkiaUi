@@ -354,6 +354,21 @@ Appends a page of orders when the list nears its end (`RemainingItemsThresholdRe
 
 The `ItemsLayout`: a vertical list, a vertical grid of two or three columns (`GridItemsLayout.Span`), or a horizontal list.
 
+## ItemsLayoutDemoPage.ItemsLayout
+
+The one `ItemsLayout` object both lists get, as MAUI's XAML strings name them: a vertical or horizontal
+`LinearItemsLayout`, or a `GridItemsLayout` of two columns (rows, horizontally). The snap point editors below set its
+`SnapPointsType` and `SnapPointsAlignment`.
+
+## ItemsLayoutDemoPage.Insert 3 at the start
+
+Inserts three cards before the first: with `KeepItemsInView` what shows stays in place, with `KeepScrollOffset` it moves
+down by three cards, with `KeepLastItemInView` both lists scroll to their end.
+
+## ItemsLayoutDemoPage.Add one at the end
+
+Appends a card: with `KeepLastItemInView` both lists scroll to it.
+
 ## CarouselViewDemoPage.Cover flow RotationAngle
 
 How far the side items turn with the *Cover flow* `ItemEffect` (`SkUiCoverFlowEffect.RotationAngle`, degrees).

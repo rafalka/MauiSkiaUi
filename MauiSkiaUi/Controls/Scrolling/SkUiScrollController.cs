@@ -519,9 +519,16 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// Scrolls to the offset <paramref name="resolve"/> computes from the laid-out tree; before the scroller's first
     /// arrange the request waits for it (as MAUI's). A newer request, a content change or unloading cancels the task.
     /// </summary>
-    public Task ScrollToTargetAsync(Func<Point> resolve, bool animated)
+    public Task ScrollToTargetAsync(Func<Point> resolve, bool animated) => ScrollToTargetAsync(resolve, animated, afterLayout: false);
+
+    /// <summary>
+    /// <see cref="ScrollToTargetAsync(Func{Point}, bool)"/>; with <paramref name="afterLayout"/>, the request waits for the
+    /// owner's next arrange also when it has been arranged before: content that just changed (a list's new last item) has
+    /// its size only then.
+    /// </summary>
+    public Task ScrollToTargetAsync(Func<Point> resolve, bool animated, bool afterLayout)
     {
-        if (_arranged)
+        if (_arranged && !afterLayout)
         {
             var target = resolve();
             return ScrollToAsync(target.X, target.Y, animated, resolve);

@@ -81,6 +81,8 @@ public static class ComponentDemos
         new(typeof(SkUiCollectionView), typeof(CollectionViewDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections, () => new CollectionViewDemoPage()),
         new(typeof(SkUiCollectionView), typeof(CollectionViewLayoutsDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,
             () => new CollectionViewLayoutsDemoPage(), Key: "SkUiCollectionViewLayouts", Scenario: "Groups, grid, horizontal"),
+        new(typeof(SkUiCollectionView), typeof(ItemsLayoutDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,
+            () => new ItemsLayoutDemoPage(), Key: "SkUiCollectionViewItemsLayout", Scenario: "Items layouts and snap points"),
         new(typeof(SkUiCollectionView), typeof(SwipeViewListDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,
             () => new SwipeViewListDemoPage(), Key: "SkUiCollectionViewSwipeRows", Scenario: "SwipeView rows"),
         new(typeof(SkUiCollectionView), typeof(PickerRowsDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,

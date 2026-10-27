@@ -51,13 +51,13 @@ public class SkUiHorizontalAlignStackLayout : SkUiLayout
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         var children = new SkUiViewChildren(Children);
-        return SkUiAlignStackEngine.Measure(ref children, ref _state, _centerStrategy, widthConstraint, heightConstraint, Padding, _spacing);
+        return SkUiAlignStackEngine.Measure(ref children, ref _state, _centerStrategy, widthConstraint, heightConstraint, EffectivePadding, _spacing);
     }
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
         var children = new SkUiViewChildren(Children);
-        SkUiAlignStackEngine.Arrange(ref children, ref _state, _centerStrategy, size, Padding, _spacing);
+        SkUiAlignStackEngine.Arrange(ref children, ref _state, _centerStrategy, size, EffectivePadding, _spacing);
     }
 }

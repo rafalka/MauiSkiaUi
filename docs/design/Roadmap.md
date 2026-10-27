@@ -45,8 +45,8 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 ### MAUI parity
 
-- **CollectionView:** reordering (next, in 1.3: [plan](ImplementationPlan-1.2.md#moved-to-13)), snap points on the items layout, a selected-item template, extended selection, keyboard item navigation, animated insert and remove.
-- **CarouselView / IndicatorView:** `ItemsUpdatingScrollMode`, `VisibleViews`, `IndicatorTemplate`; autoplay, several items per snap point, a Core carousel.
+- **CollectionView:** reordering (next, in 1.3: [plan](ImplementationPlan-1.2.md#moved-to-13)), a selected-item template, extended selection, keyboard item navigation, animated insert and remove.
+- **CarouselView / IndicatorView:** `VisibleViews`; autoplay, several items per snap point, a Core carousel.
 - **Images:** fade-in, download progress, a per-view cache key, downsampling to the view's size, Android vector drawables.
 - **Labels:** span press feedback, HTML images, `sub` / `sup`, block indents; one fitted size for a group of labels.
 - **Templates:** button image tint.
@@ -97,6 +97,8 @@ Device runs that are still open. How to run them: [Testing.md](Testing.md#device
 - **Controls:** feel and frame time on devices for the collection view (fling at 10k items, memory), virtual stack, swipe view, refresh view, carousel, expander, avatar view, shimmer (a scrolling list of shimmering rows), scroll bars and overscroll; the pickers' presenters on Windows, in landscape, on rotation and window resize, with screen readers; tooltips on Windows and iPad.
 - **Demo gallery:** a full pass on Android and an Apple device.
 - **MAUI gesture recognizers on drawn views (1.2):** swipe, pan, pinch, pointer, secondary-button and triple taps on Android, iOS, Mac Catalyst and Windows, against the native view on the gallery's "MAUI gesture recognizers" page.
+- **Snap points on lists (1.2):** flings and drags ending on rows on a phone (Android and iOS), with the gallery's "Items layouts and snap points" page.
+- **`SafeAreaEdges` on the surface root (1.2):** a drawn layout root on a notched iPhone (portrait and landscape, with the keyboard for `SoftInput`) and on an Android phone with edge-to-edge.
 
 ## Held for 2.0
 

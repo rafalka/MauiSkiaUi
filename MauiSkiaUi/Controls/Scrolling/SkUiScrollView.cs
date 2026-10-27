@@ -290,6 +290,9 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         InvalidateMeasureOverride();
     }
 
+    /// <summary>MAUI's scroll view reads <see cref="SafeAreaRegions.Default"/> (on iOS, the platform's content insets); drawn, it is edge to edge.</summary>
+    private protected override SafeAreaEdges DefaultSafeAreaEdges => SafeAreaEdges.Default;
+
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
@@ -300,7 +303,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         // Across the scroll axis an explicitly sized content keeps its size (clipped), as in MAUI.
         if (LayoutChild is { } content)
         {
-            var inset = ContentInset;
+            var inset = ContentInset + SafeAreaInset;
             width = SkUiScrollController.CrossConstraint(width, content.Width, content.MaximumWidth, content.Margin.HorizontalThickness + inset.HorizontalThickness);
             height = SkUiScrollController.CrossConstraint(height, content.Height, content.MaximumHeight, content.Margin.VerticalThickness + inset.VerticalThickness);
         }
@@ -324,10 +327,12 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost
         // composite-time children translation.
         var (start, end) = Scroller.EffectiveInsets;
         var (top, bottom, left, right) = Scroller.InsetsVertical ? (start, end, 0d, 0d) : (0d, 0d, start, end);
+        // The same inset the measure reserved: the padding plus, on a surface root, the safe area.
+        var inset = ContentInset + SafeAreaInset;
         LayoutChild?.Arrange(new Rect(
-            Padding.Left + left, Padding.Top + top,
-            Math.Max(0, Math.Max(extent.Width, viewport.Width) - Padding.HorizontalThickness - left - right),
-            Math.Max(0, Math.Max(extent.Height, viewport.Height) - Padding.VerticalThickness - top - bottom)));
+            inset.Left + left, inset.Top + top,
+            Math.Max(0, Math.Max(extent.Width, viewport.Width) - inset.HorizontalThickness - left - right),
+            Math.Max(0, Math.Max(extent.Height, viewport.Height) - inset.VerticalThickness - top - bottom)));
         InvalidateRender(SkUiRenderDirty.Props);
         if (!_rtlStartApplied && IsRightToLeft && Scroller.Horizontal && Scroller.MaxX > 0)
         {

@@ -4,9 +4,10 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// The collection view's and carousel's MAUI shape (steps V1–V3 and V6 in docs/design/ImplementationPlan-1.2.md):
-/// <c>ItemsLayout</c>, <c>ItemSizingStrategy</c>, MAUI's <c>ScrollTo</c> with <c>ScrollToRequested</c>, and text in
-/// <c>Header</c> / <c>Footer</c> / <c>EmptyView</c>, in MAUI's XAML with only the prefix changed.
+/// The collection view's and carousel's MAUI shape (steps V1–V7 in docs/design/ImplementationPlan-1.2.md):
+/// <c>ItemsLayout</c> with its snap points, <c>ItemSizingStrategy</c>, MAUI's <c>ScrollTo</c> with <c>ScrollToRequested</c>,
+/// <c>ItemsUpdatingScrollMode</c>, text in <c>Header</c> / <c>Footer</c> / <c>EmptyView</c> and the carousel's scroll bars,
+/// in MAUI's XAML with only the prefix changed.
 /// </summary>
 [Collection(RuntimeXamlCollection.Name)]
 public class CollectionViewMauiShapeTests
@@ -211,5 +212,159 @@ public class CollectionViewMauiShapeTests
         Assert.Null(list.Header);
         list.SetValue(SkUiCollectionView.HeaderProperty, new Label());
         Assert.Null(list.Header);
+    }
+
+    private static SkUiScrollController Controller(SkUiCollectionView list) => ((ISkUiScrollHost)list.ScrollView).Scroller;
+
+    [Fact]
+    public void ItemsLayoutSnapPointsLineRowsUpWithTheViewport()
+    {
+        var list = Load<SkUiCollectionView>("""
+            <sk:SkUiCollectionView>
+              <sk:SkUiCollectionView.ItemsLayout>
+                <LinearItemsLayout Orientation="Vertical" SnapPointsType="MandatorySingle" SnapPointsAlignment="Start" />
+              </sk:SkUiCollectionView.ItemsLayout>
+            </sk:SkUiCollectionView>
+            """);
+        list.ItemsSource = Rows(20);
+        list.ItemTemplate = new DataTemplate(() => new RowView());
+        SkUiTestHelpers.Arrange(list, 300, 400);
+        Assert.Equal((SnapPointsType.MandatorySingle, SnapPointsAlignment.Start), list.SnapPointsInUse);
+        Assert.Equal(SnapPointsType.MandatorySingle, list.ScrollView.SnapPointsType);
+        // Each row's start, up to the end of the list (20 rows of 50 in 400: 600 to scroll).
+        Assert.Equal(Enumerable.Range(0, 13).Select(row => row * 50d), Controller(list).SnapOffsets(horizontal: false));
+
+        ((LinearItemsLayout)list.ItemsLayout).SnapPointsAlignment = SnapPointsAlignment.Center;
+        // Centered: row 4 (200..250) is centered at 25; the first rows clamp to the start.
+        var centered = Controller(list).SnapOffsets(horizontal: false);
+        Assert.Equal([0d, 25, 75, 125], centered.Take(4));
+        Assert.Equal(600, centered[^1]);
+
+        list.ClearValue(SkUiCollectionView.ItemsLayoutProperty);
+        Assert.Equal(SnapPointsType.None, list.ScrollView.SnapPointsType); // the list's own properties have no snap points
+    }
+
+    [Fact]
+    public void SnapPointsKeepTheHeaderReachableAndWorkInHorizontalGrids()
+    {
+        // A sized header: a text one measures nothing where no font is installed (Linux CI).
+        const double header = 60;
+        var list = new SkUiCollectionView
+        {
+            Header = new SkUiBox { WidthRequest = header },
+            ItemsLayout = new GridItemsLayout(2, ItemsLayoutOrientation.Horizontal) { SnapPointsType = SnapPointsType.Mandatory },
+            ItemsSource = Rows(20),
+            ItemTemplate = new DataTemplate(() => new SkUiBox { WidthRequest = 100 })
+        };
+        SkUiTestHelpers.Arrange(list, 250, 300);
+        var points = Controller(list).SnapOffsets(horizontal: true);
+        // The start of the list (the header), then each column of two items after it.
+        Assert.Equal([0d, header, header + 100, header + 200], points.Take(4));
+        Assert.Empty(Controller(list).SnapOffsets(horizontal: false));
+    }
+
+    [Fact]
+    public void ADragEndsOnARowWithSnapPoints()
+    {
+        var list = List(Rows(40));
+        list.ItemsLayout = new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { SnapPointsType = SnapPointsType.Mandatory };
+        using var surface = new SkUiTestSurface(list, 300, 400);
+        surface.Frame(0);
+        Controller(list).SetOffset(0, 130);
+        Assert.True(Controller(list).Snap(Point.Zero));
+        for (var ms = 16; ms < 2000; ms += 16)
+            surface.Frame(ms);
+        Assert.False(list.IsScrolling);
+        Assert.Equal(150, list.ScrollY, 1); // the nearest row's start
+
+        // A fling ends on a row too.
+        Assert.True(Controller(list).StartFling(new Point(0, 1500)));
+        for (var ms = 2000; ms < 6000; ms += 16)
+            surface.Frame(ms);
+        Assert.Equal(0, list.ScrollY % 50, 1);
+    }
+
+    [Fact]
+    public void ItemsUpdatingScrollModeDecidesWhatStaysInView()
+    {
+        foreach (var (mode, expected) in new[]
+                 {
+                     (ItemsUpdatingScrollMode.KeepItemsInView, 25 * 50d),
+                     (ItemsUpdatingScrollMode.KeepScrollOffset, 20 * 50d)
+                 })
+        {
+            var rows = Rows(60);
+            var list = List(rows);
+            list.ItemsUpdatingScrollMode = mode;
+            SkUiTestHelpers.Arrange(list, 300, 400);
+            list.ScrollTo(20, position: ScrollToPosition.Start, animate: false);
+            SkUiTestHelpers.Arrange(list, 300, 400);
+            Assert.Equal(20 * 50, list.ScrollY, 1);
+
+            for (var index = 0; index < 5; index++)
+                rows.Insert(0, new Row(100 + index));
+            SkUiTestHelpers.Arrange(list, 300, 400);
+            Assert.Equal(expected, list.ScrollY, 1);
+        }
+    }
+
+    [Fact]
+    public void KeepLastItemInViewScrollsToTheEndAfterEachChange()
+    {
+        var rows = Rows(30);
+        var list = List(rows);
+        list.ItemsUpdatingScrollMode = ItemsUpdatingScrollMode.KeepLastItemInView;
+        SkUiTestHelpers.Arrange(list, 300, 400);
+        list.ItemsSource = rows; // already set: no change
+        rows.Add(new Row(30));
+        SkUiTestHelpers.Arrange(list, 300, 400);
+        Assert.Equal(31 * 50 - 400, list.ScrollY, 1);
+        rows.Add(new Row(31));
+        SkUiTestHelpers.Arrange(list, 300, 400);
+        Assert.Equal(32 * 50 - 400, list.ScrollY, 1);
+    }
+
+    [Fact]
+    public void TheCarouselsItemsUpdatingScrollModeChoosesTheCurrentItem()
+    {
+        ObservableCollection<string> Items() => [.. Enumerable.Range(0, 5).Select(index => $"Item {index}")];
+        SkUiCarouselView Carousel(ObservableCollection<string> items, ItemsUpdatingScrollMode mode) => new()
+        {
+            ItemsSource = items,
+            ItemTemplate = new DataTemplate(() => new SkUiLabel()),
+            Loop = false,
+            ItemsUpdatingScrollMode = mode,
+            Position = 2
+        };
+
+        var kept = Items();
+        var keepItems = Carousel(kept, ItemsUpdatingScrollMode.KeepItemsInView);
+        kept.Insert(0, "New");
+        Assert.Equal((3, "Item 2"), (keepItems.Position, keepItems.CurrentItem));
+
+        var offset = Items();
+        var keepOffset = Carousel(offset, ItemsUpdatingScrollMode.KeepScrollOffset);
+        offset.Insert(0, "New");
+        Assert.Equal((2, "Item 1"), (keepOffset.Position, keepOffset.CurrentItem));
+
+        var last = Items();
+        var keepLast = Carousel(last, ItemsUpdatingScrollMode.KeepLastItemInView);
+        last.Add("New");
+        Assert.Equal((5, "New"), (keepLast.Position, keepLast.CurrentItem));
+    }
+
+    [Fact]
+    public void TheCarouselShowsScrollBarsOnlyWhenAskedAndNotWhileLooping()
+    {
+        var carousel = Load<SkUiCarouselView>("""<sk:SkUiCarouselView HorizontalScrollBarVisibility="Always" Loop="False" />""");
+        carousel.ItemsSource = new[] { "A", "B", "C" };
+        Assert.Equal((ScrollBarVisibility.Always, ScrollBarVisibility.Never),
+            (carousel.ScrollView.HorizontalScrollBarVisibility, carousel.ScrollView.VerticalScrollBarVisibility));
+
+        carousel.Loop = true;
+        Assert.Equal(ScrollBarVisibility.Never, carousel.ScrollView.HorizontalScrollBarVisibility);
+        carousel.Loop = false;
+        carousel.HorizontalScrollBarVisibility = ScrollBarVisibility.Default; // a carousel shows none by default
+        Assert.Equal(ScrollBarVisibility.Never, carousel.ScrollView.HorizontalScrollBarVisibility);
     }
 }

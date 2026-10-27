@@ -73,12 +73,6 @@ public class MauiApiParityTests
 
     private static readonly string[] CoreLayouts = ["SkUiCoreAbsoluteLayout", "SkUiCoreGrid", "SkUiCoreHorizontalStackLayout", "SkUiCoreVerticalStackLayout"];
 
-    private static readonly string[] SafeAreaViews =
-    [
-        "SkUiAbsoluteLayout", "SkUiBorder", "SkUiContentView", "SkUiFlexLayout", "SkUiGrid", "SkUiHorizontalStackLayout", "SkUiRefreshView",
-        "SkUiScrollView", "SkUiSwipeItemView", "SkUiSwipeView", "SkUiVerticalStackLayout",
-    ];
-
     /// <summary>Handler and bindable-property plumbing that MAUI does not hide, compared by member name on every type.</summary>
     private static readonly Dictionary<string, string> PlumbingEverywhere = new(StringComparer.Ordinal)
     {
@@ -139,11 +133,6 @@ public class MauiApiParityTests
 
     /// <summary>Gaps a planned step closes, keyed like <see cref="Excluded"/>, with the step (ImplementationPlan-1.2.md).</summary>
     private static readonly Dictionary<string, string> Planned = Entries(
-        ("S1", SafeAreaViews, ["SafeAreaEdges", "SafeAreaEdgesProperty"]),
-        ("T3", ["SkUiIndicatorView"], ["IndicatorTemplate", "IndicatorTemplateProperty", "IndicatorLayout"]),
-        ("V5", ["SkUiCollectionView", "SkUiCarouselView"], ["ItemsUpdatingScrollMode", "ItemsUpdatingScrollModeProperty"]),
-        ("V7", ["SkUiCarouselView"],
-            ["HorizontalScrollBarVisibility", "HorizontalScrollBarVisibilityProperty", "VerticalScrollBarVisibility", "VerticalScrollBarVisibilityProperty"]),
         ("V8, in 1.3", ["SkUiCollectionView"], ["CanReorderItems", "CanReorderItemsProperty", "CanMixGroups", "CanMixGroupsProperty", "ReorderCompleted"]));
 
     private static readonly Lazy<List<(string Key, string Problem)>> DrawnDifferences =

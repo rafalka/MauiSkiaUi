@@ -551,6 +551,14 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         // and Mac Catalyst is only arranged): measure it at the arranged size first, as MAUI's own layout views do in
         // LayoutSubviews. Otherwise the tree keeps a measure made for another width (or none: labels wrapped at width 0,
         // one character per line), and RelayoutIfNeeded reuses that constraint.
+        // A surface root keeps the window's insets clear per SafeAreaEdges: padding that changed measures it again, and
+        // tells its native parent, which may size it by its content.
+        if (SkiaParent is null && UpdateSafeAreaInset(this.ComputeFrame(bounds)))
+        {
+            _measureDirty = true;
+            _arrangeDirty = true;
+            InvalidateMeasure();
+        }
         if (SkiaParent is null && !IsMeasureValidFor(bounds.Size))
             ((IView)this).Measure(bounds.Width, bounds.Height);
         if (!_arrangeDirty && bounds == _lastArrangeBounds)
@@ -584,6 +592,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         // Offset-only changes are composite-time; the recorder re-records content only when the size changed.
         if (frameChanged)
             InvalidateRender(SkUiRenderDirty.Props);
+        RevealFocusedFieldIfPadded();
         return Frame.Size;
     }
 
@@ -648,15 +657,24 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         // A layout can change measure again (a virtual list realizing the items its new viewport shows): laid out until
         // stable, within a few passes. Deliberately capped, so a layout that keeps changing cannot stall a frame: what is
         // still pending then (RelayoutPending) is laid out before the next frame, which the frame renderer requests.
-        for (var pass = 0; _relayoutPending && pass < MaxRelayoutPasses; pass++)
+        // Laid out in place, as last arranged: the window and the safe area are the native layout's (UpdateSafeAreaInset).
+        _relayingOut = true;
+        try
         {
-            _relayoutPending = false;
-            IView view = this;
-            var previous = view.DesiredSize;
-            var size = view.Measure(_lastConstraint.Width, _lastConstraint.Height);
-            if (size != previous)
-                base.InvalidateMeasureOverride();
-            view.Arrange(_lastArrangeBounds);
+            for (var pass = 0; _relayoutPending && pass < MaxRelayoutPasses; pass++)
+            {
+                _relayoutPending = false;
+                IView view = this;
+                var previous = view.DesiredSize;
+                var size = view.Measure(_lastConstraint.Width, _lastConstraint.Height);
+                if (size != previous)
+                    base.InvalidateMeasureOverride();
+                view.Arrange(_lastArrangeBounds);
+            }
+        }
+        finally
+        {
+            _relayingOut = false;
         }
         if (_relayoutPending && SkUiDiagnostics.TraceOn)
             SkUiDiagnostics.Write($"relayout of {GetType().Name} {AutomationId} still changing after {MaxRelayoutPasses} passes: continued next frame");

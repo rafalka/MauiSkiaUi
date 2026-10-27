@@ -2,7 +2,7 @@
 
 A drawn row of indicators, one per item, with the current one selected: the dots under a carousel or a paged onboarding flow.
 
-**MAUI counterpart:** `IndicatorView`. Its XAML ports by changing the prefix, except `IndicatorTemplate` (see below). Beyond MAUI: `IndicatorSpacing`, `Orientation` (vertical rows for vertical carousels), a selection that slides with a linked carousel's scrolling, and drawing by the look. Core twin: `SkUiCoreIndicatorView` (fluent setters, the same drawing and taps).
+**MAUI counterpart:** `IndicatorView`. Its XAML ports by changing the prefix, `IndicatorTemplate` included when the template creates drawn views ([below](#indicator-templates)). Beyond MAUI: `IndicatorSpacing`, `Orientation` (vertical rows for vertical carousels), a selection that slides with a linked carousel's scrolling, and drawing by the look. Core twin: `SkUiCoreIndicatorView` (fluent setters, the same drawing and taps).
 
 ## How it works
 
@@ -13,7 +13,6 @@ A drawn row of indicators, one per item, with the current one selected: the dots
 - **Look.** `IndicatorColor` (default: the color scheme's `TrackOff`) and `SelectedIndicatorColor` (default: the accent), `IndicatorsShape` (`Circle` or `Square`). Drawing is the look's (below).
 - **Keyboard and screen readers.** An adjustable element (a slider role with the position among the items): arrow keys, Home and End, and screen readers' increment and decrement move the selection.
 
-Not available: MAUI's `IndicatorTemplate` and `IndicatorLayout` (one template view per indicator). Draw other indicators through the look instead: one painter draws the whole row, cheaply, also while the selection slides.
 
 ## Custom indicators
 
@@ -41,6 +40,39 @@ public sealed class BarsLook : DefaultSkUiLook
     }
 }
 ```
+
+## Indicator templates
+
+MAUI's `IndicatorTemplate` makes a view per indicator, as in MAUI: set, the indicator view shows the template's views in a stack of its own (`IndicatorLayout`) instead of drawing the row.
+
+- **Views.** One per visible indicator (`Count`, or the items of `ItemsSource`, up to `MaximumVisible`), created from the template (a `DataTemplateSelector` chooses by item, again when the item at an index changes; a view whose template stays is kept and rebound). The template must create drawn (SkUi\*) views. Each view's binding context is its item, or its index when there is no `ItemsSource` (a carousel link sets only `Count`).
+- **Selection.** As MAUI marks it: each view's `BackgroundColor` is `IndicatorColor`, the current one's `SelectedIndicatorColor` (set both to `Transparent` when the template colors itself), and the current one is in the `Selected` visual state. A tap on a view selects it.
+- **Layout.** A horizontal stack (vertical with `Orientation="Vertical"`), 4 DIPs apart as MAUI's, centered in the view inside `Padding`; hidden with a single indicator while `HideSingle`. `IndicatorSize`, `IndicatorsShape` and `IndicatorSpacing` are the drawn row's and do not apply.
+- **`IndicatorLayout`.** The stack, set with the template; a drawn layout of the app's set instead is shown as it is (MAUI's content form), and clearing the template draws the row again.
+- **Cost.** A view per indicator, and the selection jumps from one to the next (it does not slide with a carousel's scrolling). A look painter (above) draws the whole row with no views: prefer it for dots, bars and pills.
+
+```xml
+<sk:SkUiIndicatorView ItemsSource="{Binding Monkeys}" IndicatorColor="Transparent" SelectedIndicatorColor="Transparent">
+    <sk:SkUiIndicatorView.IndicatorTemplate>
+        <DataTemplate>
+            <sk:SkUiLabel Text="★" FontSize="12">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroup x:Name="CommonStates">
+                        <VisualState x:Name="Normal">
+                            <VisualState.Setters><Setter Property="TextColor" Value="LightGray" /></VisualState.Setters>
+                        </VisualState>
+                        <VisualState x:Name="Selected">
+                            <VisualState.Setters><Setter Property="TextColor" Value="Black" /></VisualState.Setters>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+            </sk:SkUiLabel>
+        </DataTemplate>
+    </sk:SkUiIndicatorView.IndicatorTemplate>
+</sk:SkUiIndicatorView>
+```
+
+The Core twin has no templates (Core nodes are not templated).
 
 ## Shared conventions
 
@@ -78,3 +110,5 @@ On its own, bound to a pager of your own:
 | `IndicatorSpacing` | `-1` | Gap; negative: the look's (8) (SkiaUi) |
 | `Orientation` | `Horizontal` | `StackOrientation` (SkiaUi) |
 | `Padding` | `0` | As MAUI's: space around the row, added to the measured size; the row is centered inside it |
+| `IndicatorTemplate` | `null` | A drawn view per indicator ([Indicator templates](#indicator-templates)); SkUi* only |
+| `IndicatorLayout` | `null` | The template's stack, or a drawn layout of the app's shown instead of the row |

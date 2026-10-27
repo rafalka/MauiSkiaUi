@@ -50,6 +50,7 @@ public static class Scenarios
         new SkeletonTax(active: false, skui: true),
         new ScrollFling(),
         new VirtualListFling(),
+        new CollectionSnapFling(),
         new Spinners(),
         new ToggleTransitions(),
         new ToggleTransitions(busy: true),
@@ -900,6 +901,60 @@ public sealed class VirtualListFling : BenchScenario
     {
         var scroll = (SkUiScrollView)root;
         return scroll.AnimateScrollTo(0, scroll.ContentSize.Height, MotionDuration + TimeSpan.FromSeconds(0.5));
+    };
+
+    private sealed class Row : SkUiButton
+    {
+        protected override void OnBindingContextChanged()
+        {
+            base.OnBindingContextChanged();
+            if (BindingContext is not int index)
+                return;
+            Text = $"Row {index:00000}";
+            HeightRequest = 40 + index % 3 * 12;
+        }
+    }
+}
+
+/// <summary>A long collection view with MAUI's items layout and snap points (1.2: V1, V4); snapping must cost nothing while it scrolls.</summary>
+public sealed class CollectionSnapFling : BenchScenario
+{
+    public override string Name => "collection-snap-fling";
+    public override string Description => "SkUiCollectionView over 10,000 rows of different heights with a LinearItemsLayout snapping to rows (none before 1.2); motion = a fling that ends snapped to a row";
+
+    // Release builds trim: keep the reflected scroll controller and its fling.
+    [System.Diagnostics.CodeAnalysis.DynamicDependency(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicProperties, typeof(SkUiCollectionView))]
+    [System.Diagnostics.CodeAnalysis.DynamicDependency("StartFling", "MauiSkiaUi.SkUiScrollController", "MauiSkiaUi")]
+    public override View Build()
+    {
+        var list = new SkUiCollectionView
+        {
+            Background = Colors.White,
+            ItemsSource = Enumerable.Range(0, 10_000).ToList(),
+            ItemTemplate = new DataTemplate(() => new Row())
+        };
+        // Baselines without ItemsLayout (before 1.2) scroll the same list without snap points.
+        TrySet(list, "ItemsLayout", new LinearItemsLayout(ItemsLayoutOrientation.Vertical)
+        {
+            ItemSpacing = 4,
+            SnapPointsType = SnapPointsType.Mandatory,
+            SnapPointsAlignment = SnapPointsAlignment.Start
+        });
+        return list;
+    }
+
+    public override Func<View, IDisposable?>? Motion => root =>
+    {
+        // A fling, as a finger's: snap points apply to flings, drags and wheel steps, never to an animated ScrollToAsync.
+        // The scroll controller is internal, so it is reached by reflection; a baseline without it scrolls instead.
+        var list = (SkUiCollectionView)root;
+        var controller = typeof(SkUiCollectionView).GetProperty("Controller", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(list);
+        var fling = controller?.GetType().GetMethod("StartFling", [typeof(Point)]);
+        if (fling is not null)
+            fling.Invoke(controller, [new Point(0, SkUiGestureSettings.FlingMaximumVelocity)]);
+        else
+            _ = list.ScrollToAsync(10_000 * 50, animated: true);
+        return null;
     };
 
     private sealed class Row : SkUiButton

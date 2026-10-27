@@ -14,12 +14,20 @@ namespace MauiSkiaUi;
 /// <see cref="SkUiTransitionKind.IndicatorPosition"/> transition.
 /// </summary>
 /// <remarks>
-/// MAUI's <c>IndicatorTemplate</c> (an indicator per template view) is not supported: draw other indicators through the look
-/// (<see cref="SkUiLook.IndicatorPainter"/>, or a look that overrides <c>DrawIndicatorsCore</c>). The row is centered in the
-/// view and laid out by the control, so taps hit what is drawn; a tap anywhere in the view selects the nearest indicator
-/// (give the view a height or padding for a larger touch target). Screen readers and the keyboard (arrow keys, Home, End)
-/// adjust the position.
+/// <para>
+/// The row is centered in the view and laid out by the control, so taps hit what is drawn; a tap anywhere in the view selects
+/// the nearest indicator (give the view a height or padding for a larger touch target). Screen readers and the keyboard
+/// (arrow keys, Home, End) adjust the position.
+/// </para>
+/// <para>
+/// MAUI's <see cref="IndicatorTemplate"/> makes a drawn view per indicator instead, in a stack (<see cref="IndicatorLayout"/>),
+/// as MAUI's model: each view's binding context is its item (a linked carousel's item; its index without <see cref="ItemsSource"/>), its background
+/// the indicator color or, selected, the selected color, and the selected one is in the <c>Selected</c> visual state.
+/// Drawing the indicators through the look (<see cref="SkUiLook.IndicatorPainter"/>, or a look that overrides
+/// <c>DrawIndicatorsCore</c>) stays the cheaper path: no views, and the selection moves with the carousel's scrolling.
+/// </para>
 /// </remarks>
+[ContentProperty(nameof(IndicatorLayout))]
 public class SkUiIndicatorView : SkUiView
 {
     /// <summary>Bindable property for <see cref="CascadeInputTransparent"/>.</summary>
@@ -70,7 +78,21 @@ public class SkUiIndicatorView : SkUiView
 
     /// <summary>Bindable property for <see cref="ItemsSource"/>.</summary>
     public static readonly BindableProperty ItemsSourceProperty = BindableProperty.Create(nameof(ItemsSource), typeof(IEnumerable), typeof(SkUiIndicatorView), null,
-        propertyChanged: (view, _, value) => ((SkUiIndicatorView)view).Counter.Observe((IEnumerable?)value));
+        propertyChanged: (view, _, value) =>
+        {
+            var indicator = (SkUiIndicatorView)view;
+            // The count follows the new items first; the template's views are then made and bound once.
+            indicator._countingItems = true;
+            try
+            {
+                indicator.Counter.Observe((IEnumerable?)value);
+            }
+            finally
+            {
+                indicator._countingItems = false;
+            }
+            indicator.UpdateIndicatorViews(rebuild: true);
+        });
 
     /// <summary>Bindable property for <see cref="IndicatorColor"/>.</summary>
     public static readonly BindableProperty IndicatorColorProperty = BindableProperty.Create(nameof(IndicatorColor), typeof(Color), typeof(SkUiIndicatorView), null,
@@ -214,6 +236,7 @@ public class SkUiIndicatorView : SkUiView
         _ = Carousel; // a collected carousel no longer drives the drawn position
         Model.Position = value;
         Model.PositionChanged(previous);
+        UpdateIndicatorStyles();
         InvalidatePaint();
         InvalidateSemantics();
     }
@@ -227,6 +250,7 @@ public class SkUiIndicatorView : SkUiView
         // Set, not CoerceValue: MAUI's CoerceValue runs the coercion without applying its result.
         if (value > 0 && Position >= value)
             Position = value - 1;
+        UpdateIndicatorViews();
         InvalidateMeasureOverride();
         InvalidateSemantics();
     }
@@ -234,12 +258,21 @@ public class SkUiIndicatorView : SkUiView
     private void OnLookChanged(Action<SkUiIndicatorModel> apply)
     {
         apply(Model);
+        UpdateIndicatorStyles();
         InvalidatePaint();
     }
 
     private void OnSizeChanged(Action<SkUiIndicatorModel> apply)
     {
         apply(Model);
+        // The template's stack runs along the orientation.
+        if (_templateStack is { } stack && stack is SkUiVerticalStackLayout != (Orientation == StackOrientation.Vertical))
+        {
+            SetIndicatorLayout(CreateTemplateStack());
+            stack.Children.Clear();
+        }
+        else
+            UpdateIndicatorViews();
         InvalidateMeasureOverride();
     }
 
@@ -286,6 +319,16 @@ public class SkUiIndicatorView : SkUiView
         if (changed)
             InvalidatePaint();
         Counter.Recount(); // the items of its own source again
+        UpdateIndicatorViews(); // the template's views bind to them, not to the carousel's
+    }
+
+    /// <summary>The linked carousel's items changed (or it just linked): the count follows and the template's views bind to its items.</summary>
+    internal void CarouselItemsChanged(int count)
+    {
+        if (Count != count)
+            Count = count; // binds the views too
+        else
+            UpdateIndicatorViews(); // items replaced at the same count
     }
 
     /// <summary>The linked carousel's scroll position (fractional, in items) and whether it loops.</summary>
@@ -302,21 +345,226 @@ public class SkUiIndicatorView : SkUiView
 
     #endregion
 
-    /// <inheritdoc />
-    protected override Size MeasureContent(double widthConstraint, double heightConstraint) => Model.Measure(widthConstraint, heightConstraint);
+    #region Indicator template
+
+    /// <summary>MAUI's spacing between template views.</summary>
+    private const double TemplateSpacing = 4;
+
+    /// <summary>Bindable property for <see cref="IndicatorTemplate"/>.</summary>
+    public static readonly BindableProperty IndicatorTemplateProperty = BindableProperty.Create(nameof(IndicatorTemplate), typeof(DataTemplate), typeof(SkUiIndicatorView), null,
+        propertyChanged: (view, _, value) => ((SkUiIndicatorView)view).OnIndicatorTemplateChanged((DataTemplate?)value));
+
+    private static readonly BindableProperty IndicatorLayoutProperty = BindableProperty.Create(nameof(IndicatorLayout), typeof(IBindableLayout), typeof(SkUiIndicatorView), null,
+        validateValue: (_, value) => value is null or SkUiLayout, // drawn layouts only (MAUI ignores others with a warning)
+        propertyChanged: (view, old, value) => ((SkUiIndicatorView)view).OnIndicatorLayoutChanged((SkUiLayout?)old, (SkUiLayout?)value));
+
+    /// <summary>
+    /// A drawn view per indicator (MAUI's <c>IndicatorTemplate</c>; a <see cref="DataTemplateSelector"/> chooses by item): set,
+    /// the view shows them in a stack of its own (<see cref="IndicatorLayout"/>, centered, 4 DIPs apart, along
+    /// <see cref="Orientation"/>) instead of drawing the indicators; <see cref="MaximumVisible"/>, <see cref="HideSingle"/>,
+    /// <see cref="IndicatorColor"/> and <see cref="SelectedIndicatorColor"/> (the views' backgrounds) apply, and a tap on a
+    /// view selects it. The templates must create drawn (SkUi*) views.
+    /// </summary>
+    public DataTemplate? IndicatorTemplate { get => (DataTemplate?)GetValue(IndicatorTemplateProperty); set => SetValue(IndicatorTemplateProperty, value); }
+
+    /// <summary>
+    /// The layout shown instead of the drawn indicators (MAUI's <c>IndicatorLayout</c>, the XAML content): the stack of
+    /// <see cref="IndicatorTemplate"/>'s views, set with the template, or a drawn layout of the app's (shown as it is).
+    /// </summary>
+    public IBindableLayout? IndicatorLayout { get => (IBindableLayout?)GetValue(IndicatorLayoutProperty); set => SetValue(IndicatorLayoutProperty, value); }
+
+    /// <summary>Sets <see cref="IndicatorTemplate"/> (same as the property setter).</summary>
+    public SkUiIndicatorView SetIndicatorTemplate(DataTemplate? value) { IndicatorTemplate = value; return this; }
+
+    /// <summary>The layout in use, the template's stack or the app's (<c>null</c>: the indicators are drawn).</summary>
+    private SkUiLayout? _layout;
+    /// <summary>The stack this view made for <see cref="IndicatorTemplate"/> (<c>null</c> while it shows the app's layout).</summary>
+    private SkUiLayout? _templateStack;
+    private bool _updatingLayout;
+    private bool _countingItems; // ItemsSource changed: the views wait for the new count
+
+    private void OnIndicatorTemplateChanged(DataTemplate? template)
+    {
+        if (template is null)
+        {
+            if (_templateStack is not null && ReferenceEquals(_layout, _templateStack))
+                ClearValue(IndicatorLayoutProperty);
+            return;
+        }
+        if (_templateStack is null)
+            SetIndicatorLayout(CreateTemplateStack());
+        else
+            UpdateIndicatorViews(rebuild: true);
+    }
+
+    private SkUiLayout CreateTemplateStack()
+    {
+        SkUiLayout stack = Orientation == StackOrientation.Vertical
+            ? new SkUiVerticalStackLayout { Spacing = TemplateSpacing }
+            : new SkUiHorizontalStackLayout { Spacing = TemplateSpacing };
+        stack.HorizontalOptions = LayoutOptions.Center;
+        stack.VerticalOptions = LayoutOptions.Center;
+        _templateStack = stack;
+        return stack;
+    }
+
+    private void SetIndicatorLayout(SkUiLayout layout)
+    {
+        _updatingLayout = true;
+        try { IndicatorLayout = layout; }
+        finally { _updatingLayout = false; }
+    }
+
+    private void OnIndicatorLayoutChanged(SkUiLayout? previous, SkUiLayout? value)
+    {
+        if (previous is not null)
+        {
+            DetachChild(previous);
+            if (ReferenceEquals(previous, _templateStack))
+            {
+                previous.Children.Clear();
+                _templateStack = null;
+            }
+        }
+        // The app's own layout replaces the template's stack (MAUI shows whichever is the content).
+        if (!_updatingLayout && !ReferenceEquals(value, _templateStack))
+            _templateStack = null;
+        _layout = value;
+        if (value is not null)
+        {
+            ValidateChild(value);
+            AttachChild(value);
+        }
+        UpdateIndicatorViews(rebuild: true);
+        InvalidatePaint();
+        InvalidateSemantics();
+    }
+
+    /// <summary>
+    /// The template's views follow the indicators: one per visible indicator, bound to its item, colored and marked selected.
+    /// <paramref name="rebuild"/>: the template or the items changed, so the views are created again.
+    /// </summary>
+    private void UpdateIndicatorViews(bool rebuild = false)
+    {
+        if (_countingItems || _templateStack is not { } stack || IndicatorTemplate is not { } template)
+            return;
+        // First: reading the link of a collected carousel unlinks the view, which counts its own items again.
+        var carousel = Carousel;
+        var count = Math.Min(Count, MaximumVisible);
+        var children = stack.Children;
+        if (rebuild)
+            children.Clear();
+        // A linked carousel's items (MAUI binds the indicator's source to the carousel's), else its own; a source that is not
+        // a list is enumerated once.
+        var items = carousel is not null ? carousel.Items : ItemsSource as IList ?? ItemsSource?.Cast<object?>().Take(count).ToList();
+        while (children.Count > count)
+            children.RemoveAt(children.Count - 1);
+        // The template each view was made from: a selector may pick another one for the item now at its index.
+        var selector = template as DataTemplateSelector;
+        if (selector is null || _viewTemplates.Count > children.Count)
+            _viewTemplates.Clear();
+        for (var index = 0; index < count; index++)
+        {
+            object? item = items is null ? index : index < items.Count ? items[index] : null;
+            var selected = selector is not null ? selector.SelectTemplate(item, this) : template;
+            if (index >= children.Count)
+                children.Add(CreateIndicatorView(selected));
+            else if (selector is not null && (index >= _viewTemplates.Count || !ReferenceEquals(_viewTemplates[index], selected)))
+                children[index] = CreateIndicatorView(selected);
+            if (selector is not null)
+            {
+                if (index < _viewTemplates.Count)
+                    _viewTemplates[index] = selected;
+                else
+                    _viewTemplates.Add(selected);
+            }
+            ((BindableObject)children[index]).BindingContext = item;
+        }
+        UpdateIndicatorStyles();
+    }
+
+    /// <summary>For a <see cref="DataTemplateSelector"/>: the template each of the stack's views was made from, by index.</summary>
+    private readonly List<DataTemplate?> _viewTemplates = [];
+
+    private static ISkUiView CreateIndicatorView(DataTemplate? template) =>
+        template?.CreateContent() as ISkUiView
+        ?? throw new InvalidOperationException($"{nameof(IndicatorTemplate)} of {nameof(SkUiIndicatorView)} must create drawn (SkUi*) views; put native views inside an SkUiMauiContentView.");
+
+    /// <summary>The views' backgrounds and the <c>Selected</c> visual state, as MAUI marks them; hidden with a single indicator per <see cref="HideSingle"/>.</summary>
+    private void UpdateIndicatorStyles()
+    {
+        if (_templateStack is not { } stack)
+            return;
+        var selectedIndex = Math.Min(Position, MaximumVisible - 1);
+        for (var index = 0; index < stack.Children.Count; index++)
+            if (stack.Children[index] is SkUiView view)
+            {
+                var selected = index == selectedIndex;
+                view.BackgroundColor = selected ? SelectedIndicatorColor : IndicatorColor;
+                view.IsSelectedItem = selected;
+            }
+        stack.IsVisible = Count > 1 || !HideSingle;
+    }
+
+    /// <summary>The template view a tap at <paramref name="position"/> hit, or -1.</summary>
+    private int TemplateViewAt(Point position)
+    {
+        if (_templateStack is not { } stack)
+            return -1;
+        var inStack = new Point(position.X - stack.Frame.X, position.Y - stack.Frame.Y);
+        for (var index = 0; index < stack.Children.Count; index++)
+            if (stack.Children[index] is View { Frame: var frame } && frame.Contains(inStack))
+                return index;
+        return -1;
+    }
 
     /// <inheritdoc />
-    protected override void OnPaintContent(SKCanvas canvas) => Model.Draw(canvas, (float)Width, (float)Height, IsRightToLeft, IsEnabled);
+    internal override IEnumerable<ISkUiView> SkiaChildren
+    {
+        get
+        {
+            if (_layout is not null)
+                yield return _layout;
+        }
+    }
+
+    #endregion
 
     /// <inheritdoc />
-    protected override bool HandlesTap => !Model.IsHidden && Model.Count > 1;
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint)
+    {
+        if (_layout is not IView layout)
+            return Model.Measure(widthConstraint, heightConstraint);
+        var padding = Padding;
+        var size = layout.Measure(Math.Max(0, widthConstraint - padding.HorizontalThickness), Math.Max(0, heightConstraint - padding.VerticalThickness));
+        return new Size(size.Width + padding.HorizontalThickness, size.Height + padding.VerticalThickness);
+    }
+
+    /// <inheritdoc />
+    protected override void ArrangeContent(Size size)
+    {
+        if (_layout is not IView layout)
+            return;
+        var padding = Padding;
+        layout.Arrange(new Rect(padding.Left, padding.Top, Math.Max(0, size.Width - padding.HorizontalThickness), Math.Max(0, size.Height - padding.VerticalThickness)));
+    }
+
+    /// <inheritdoc />
+    protected override void OnPaintContent(SKCanvas canvas)
+    {
+        if (_layout is null)
+            Model.Draw(canvas, (float)Width, (float)Height, IsRightToLeft, IsEnabled);
+    }
+
+    /// <inheritdoc />
+    protected override bool HandlesTap => _layout is null ? !Model.IsHidden && Model.Count > 1 : _templateStack is not null && Count > 1;
 
     /// <inheritdoc />
     protected override void OnTapped(SkUiTappedEventArgs args)
     {
         RaiseTapped(args);
         ExecuteTappedCommand();
-        var index = Model.HitTest(args.Position, (float)Width, (float)Height, IsRightToLeft);
+        var index = _layout is null ? Model.HitTest(args.Position, (float)Width, (float)Height, IsRightToLeft) : TemplateViewAt(args.Position);
         if (index >= 0)
             Position = index;
     }
@@ -405,6 +653,7 @@ public class SkUiIndicatorView : SkUiView
                 ICollection collection => collection.Count,
                 _ => _source.Cast<object?>().Count()
             };
+            owner.UpdateIndicatorViews(); // items replaced at the same count bind again
         }
     }
 }

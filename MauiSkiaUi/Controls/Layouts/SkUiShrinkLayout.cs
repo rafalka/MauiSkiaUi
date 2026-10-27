@@ -52,7 +52,7 @@ public abstract class SkUiShrinkLayout : SkUiLayout
     {
         var children = new SkUiViewChildren(Children);
         var factors = new AttachedShrinkFactors(Children);
-        return SkUiShrinkEngine.Measure(ref children, ref factors, ref _state, _vertical, widthConstraint, heightConstraint, Padding, _spacing);
+        return SkUiShrinkEngine.Measure(ref children, ref factors, ref _state, _vertical, widthConstraint, heightConstraint, EffectivePadding, _spacing);
     }
 
     /// <inheritdoc />
@@ -60,7 +60,7 @@ public abstract class SkUiShrinkLayout : SkUiLayout
     {
         var children = new SkUiViewChildren(Children);
         var factors = new AttachedShrinkFactors(Children);
-        SkUiShrinkEngine.Arrange(ref children, ref factors, ref _state, _vertical, size, Padding, _spacing);
+        SkUiShrinkEngine.Arrange(ref children, ref factors, ref _state, _vertical, size, EffectivePadding, _spacing);
     }
 
     /// <summary>Reads each child's attached <see cref="ShrinkProperty"/>.</summary>

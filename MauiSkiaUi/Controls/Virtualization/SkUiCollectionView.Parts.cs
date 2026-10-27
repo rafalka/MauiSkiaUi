@@ -407,7 +407,7 @@ public partial class SkUiCollectionView
     }
 
     /// <summary>The content of the scroller along the list's axis: the header, the load-more row at the start, the items (or the empty view), the load-more row at the end, the footer.</summary>
-    private sealed class BodyPart : SkUiView
+    private sealed class BodyPart : SkUiView, ISkUiSnapPointSource
     {
         private readonly SkUiCollectionView _owner;
         private bool _loadMoreAtStart;
@@ -455,6 +455,21 @@ public partial class SkUiCollectionView
         }
 
         public void InvalidateBody() => InvalidateMeasure();
+
+        /// <summary>
+        /// The items layout's snap points: each row lined up by its alignment, and the two ends of the list, so a header or
+        /// footer can still be scrolled into view.
+        /// </summary>
+        void ISkUiSnapPointSource.GetSnapOffsets(bool horizontal, double from, double to, List<double> points)
+        {
+            if (horizontal != _owner._horizontal)
+                return;
+            var controller = _owner.Controller;
+            points.Add(0);
+            points.Add(horizontal ? controller.MaxX : controller.MaxY);
+            if (_owner.ItemsHost.IsVisible)
+                _owner.ItemsHost.AddSnapOffsets(_owner.Scroller, controller.SnapPointsAlignment, from, to, points);
+        }
 
         internal override IEnumerable<ISkUiView> SkiaChildren
         {

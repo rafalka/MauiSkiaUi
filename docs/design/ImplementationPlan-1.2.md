@@ -67,33 +67,33 @@ Open since 1.0 as P11b ([EventMechanism.md](EventMechanism.md#maui-gesture-recog
 
 Tests: each recognizer through the arena with synthetic pointers, also inside drawn scroll views and collection items; the samples in MAUI's gesture docs (a pan container, a pinch-to-zoom container), with only the prefix changed. Demo: a gesture page with native and drawn views side by side.
 
-## Phase V — Collection and carousel API by prefix
+## Phase V — Collection and carousel API by prefix (done)
 
 The collection view's API is SkiaUi's own today ([Migration.md](../Migration.md#lists-collectionview)). Each step adds MAUI's member over the existing engine; the SkiaUi properties stay. Size: M.
 
 - **V1 `ItemsLayout`** (done) on the collection view and the carousel. It takes MAUI's `LinearItemsLayout` / `GridItemsLayout` and the converter strings (`"VerticalList"`, `"HorizontalGrid, 3"`, through MAUI's `ItemsLayoutTypeConverter`). It is a source the view reads, not a writer of other properties ([D4](#decisions)): once the app sets it, it decides the orientation, span and spacings (the carousel: orientation, spacing, `SnapPointsType`, `SnapPointsAlignment`), and the snap points of lists once V4 draws them. `Orientation`, `Span`, `ItemSpacing` / `SpanSpacing` keep their own values and apply when it is not set or cleared; setting both is reported once. It follows the layout object's changes through a weak listener (layouts are often shared, `LinearItemsLayout.Vertical` is static). The carousel's property is MAUI's `LinearItemsLayout` with MAUI's `CarouselLayoutTypeConverter`.
 - **V2 `ItemSizingStrategy`** (done): `MeasureAllItems` (the default) or `MeasureFirstItem`, which uses the first row's measured size as the fixed extent in the virtual stack (`SizesFromFirstItem`), measured again whenever the sizes are forgotten (a new width, spacing, orientation). `ItemExtent` wins when set. Grouped lists measure every row, since their group headers are rows too.
 - **V3 MAUI's `ScrollTo`** (done): `ScrollTo(index, groupIndex = -1, position, animate)` and `ScrollTo(item, group = null, position, animate)` (void, as in MAUI), plus `ScrollToRequested` with `ScrollToRequestEventArgs`, on both views. The awaitable `ScrollToIndex` / `ScrollToItem` stay.
-- **V4 Snap points on the items layout:** `SnapPointsType` (`None`, `Mandatory`, `MandatorySingle`) and `SnapPointsAlignment` on lists and grids in both orientations. The virtual stack uses the scroll engine's snap points: the fling's end is chosen on the render thread, with no re-recording.
-- **V5 `ItemsUpdatingScrollMode`:** `KeepItemsInView` (the default), `KeepScrollOffset` and `KeepLastItemInView`, on both views, built on the existing scroll anchoring. The carousel always keeps the current item today; that becomes `KeepItemsInView`.
+- **V4 Snap points on the items layout** (done): `SnapPointsType` (`None`, `Mandatory`, `MandatorySingle`) and `SnapPointsAlignment` on lists and grids in both orientations. The list's body is the scroll engine's `ISkUiSnapPointSource`: the virtual stack lists the rows in reach lined up by the alignment (`AddSnapOffsets`, through the same offsets as `ScrollToIndex`, so sticky insets count), plus both ends of the list so a header or footer stays reachable. The fling's end is chosen as it starts and the render-thread spring runs to it, with no re-recording.
+- **V5 `ItemsUpdatingScrollMode`** (done): `KeepItemsInView` (the default), `KeepScrollOffset` and `KeepLastItemInView`, on both views, built on the existing scroll anchoring (`KeepScrollOffset` turns the anchoring of collection changes off; `KeepLastItemInView` scrolls to the last row once the scroller laid the change out). The carousel always kept the current item; that became `KeepItemsInView`. MAUI's carousel handlers go back to the first item for `KeepItemsInView`; the drawn carousel keeps 1.x's behavior, which the name describes, and the docs say so.
 - **V6 Text in `Header` / `Footer` / `EmptyView`** (done): `Header="Contacts"` and `EmptyView="No results"` show as in MAUI, through a type converter on the properties (`SkUiTextViewTypeConverter`; the empty view's label centered), on both views (the carousel's `EmptyView`). The properties keep their 1.0 type `ISkUiView` ([D5](#decisions)). Data headers (`Header="{Binding Info}"` with a `HeaderTemplate`) convert: the template binds through the list's binding context (`{Binding Info.Title}`), which the checker reports.
-- **V7 Carousel scroll bars:** `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility` on the strip. `VisibleViews` goes into the parity test's allowlist (rarely used; the backlog keeps it).
+- **V7 Carousel scroll bars** (done): `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility` on the strip. `Default` shows none, as 1.x did (MAUI's is the platform's: none on Android, the indicator on iOS); a looping strip never shows one, as in MAUI. `VisibleViews` is in the parity test's allowlist (rarely used; the backlog keeps it).
 
 Tests: the XAML samples in MAUI's CollectionView and CarouselView docs (layouts, scrolling, snap points, headers and footers, empty views) with only the prefix changed; scroll-anchoring tests for each `ItemsUpdatingScrollMode`. Bench: the existing list scenarios do not move, plus a new scenario with an `ItemsLayout` and snap points.
 
-## Phase T — Templates
+## Phase T — Templates (done)
 
 Size: S.
 
-- **T3 `IndicatorView.IndicatorTemplate` / `IndicatorLayout`:** one drawn template view per indicator, as MAUI's model, with the selected one marked as MAUI marks it. The look's painter stays the default and the cheaper path.
+- **T3 `IndicatorView.IndicatorTemplate` / `IndicatorLayout`** (done): one drawn template view per indicator in a stack of the indicator view's own, as MAUI's model (bound to its item, or its index without `ItemsSource`, since a linked carousel sets only `Count`), with the selected one marked as MAUI marks it (the indicator colors as backgrounds, the `Selected` visual state). An app's drawn layout as `IndicatorLayout` is shown as it is. The look's painter stays the default and the cheaper path. Not on the Core twin (Core nodes are not templated).
 - `TemplateBinding` and MAUI's default radio template are conversions, not steps ([scope review](#scope-review)): the checker rewrites `{TemplateBinding X}` and `RelativeSource TemplatedParent` to `RelativeSource AncestorType` ([Migration.md](../Migration.md#templated-controls)), and `RadioButton.DefaultTemplate` goes into the parity test's allowlist.
 
-## Phase S — Safe area and platform-specifics
+## Phase S — Safe area and platform-specifics (done)
 
 Size: S–M.
 
-- **S1 `SafeAreaEdges` on the surface root** (MAUI 10): an `SkUiLayout` or `SkUiContentView` that is a surface of its own takes MAUI's `SafeAreaEdges` and its default (`Container` on layouts, `None` on content views; today the root ignores the safe area). MAUI applies it through an internal interface (`ISafeAreaView2`), so the root pads itself by the window's insets per edge, from the metrics the picker already reads; `SoftInput` uses the keyboard inset that keyboard avoidance already tracks. Drawn views inside a surface accept the property and ignore it, as documented: padding them by their overlap with the insets would make layout depend on where the view is in the window, and every scroll or move would lay it out again.
-- **S2 Platform-specifics:** no runtime reading. The checker converts the ones with a SkiaUi member (iOS `Entry.CursorColor` → `CaretColor`, Android `Entry.ImeOptions` → `ReturnType`, iOS pickers' `UpdateMode` → `UpdateMode`, iOS `Entry.AdjustsFontSizeToFitWidth` → shrink to fit), inside `OnPlatform` when the app wants it on one platform only, and reports the rest as ignored. Drawn equivalents of the others (a tap that moves a slider's thumb, swipe transition modes, ripple color, search bar chrome, pull direction) are SkiaUi members on both layers when an app needs them, in the [backlog](Roadmap.md#backlog-1x), not attached properties.
+- **S1 `SafeAreaEdges` on the surface root** (MAUI 10; done): an `SkUiLayout` or `SkUiContentView` that is a surface of its own takes MAUI's `SafeAreaEdges` and its default (MAUI's: `Container` on layouts, `None` on content views; the root ignored the safe area in 1.x). MAUI applies it through an internal interface (`ISafeAreaView2`), so the root pads itself by the window's insets per edge, from the metrics the picker already reads; `SoftInput` uses the keyboard inset that keyboard avoidance already tracks. Drawn views inside a surface accept the property and ignore it, as documented: padding them by their overlap with the insets would make layout depend on where the view is in the window, and every scroll or move would lay it out again. Built as planned: the root refreshes the padding when its native parent arranges it (not in its own relayouts), asking the platform only when an edge keeps clear; the keyboard inset comes from the focus manager's keyboard top (iOS and Mac Catalyst), and the focused field is revealed again after the root made room. Swipe and refresh views accept the property and do not apply it. **Decided:** opt-in. MAUI's layouts default to `Container`, but taking that default would pad every drawn layout root that went edge to edge in 1.x (and double-pad the ones padded by hand), so every drawn container defaults to `None`; `SafeAreaEdges="Container"` gives MAUI's behavior, and the migration docs and skill say to set it where the replaced MAUI layout kept clear of the bars.
+- **S2 Platform-specifics** (done, in `check_xaml.py --fix`): no runtime reading. The checker converts the ones with a SkiaUi member (iOS `Entry.CursorColor` → `CaretColor`, Android `Entry.ImeOptions` → `ReturnType`, iOS pickers' `UpdateMode` → `UpdateMode`, iOS `Entry.AdjustsFontSizeToFitWidth` → shrink to fit: the drawn entry has no shrink to fit, so the checker reports it with advice instead), inside `OnPlatform` when the app wants it on one platform only, and reports the rest as ignored. Drawn equivalents of the others (a tap that moves a slider's thumb, swipe transition modes, ripple color, search bar chrome, pull direction) are SkiaUi members on both layers when an app needs them, in the [backlog](Roadmap.md#backlog-1x), not attached properties.
 
 ## Scope review
 
@@ -126,15 +126,13 @@ Done with each step, not at the end:
 
 | # | Steps | Size | Why here |
 | --- | --- | --- | --- |
-| # | Steps | Size | Why here |
-| --- | --- | --- | --- |
 | 1 | R1–R4 (done) | S–M | The parity test guards everything after it; the CascadeInputTransparent row in the docs was wrong |
 | 2 | G1–G6 (done) | M | Gesture recognizers are the most common conversion in ported pages |
 | 3 | V1–V3, V6 (done) | M | The collection view's MAUI shape, so list XAML ports by prefix |
-| 4 | The checker's conversions: `TemplateBinding`, data headers, platform-specifics; the `ImageBrush` docs | S | What the scope review turned into conversions |
-| 5 | V4, V5, V7 | M | On top of V1 |
-| 6 | S1 | S–M | Independent |
-| 7 | T3 | S | Lower demand |
+| 4 | The checker's conversions: `TemplateBinding`, data headers, platform-specifics; the `ImageBrush` docs (done) | S | What the scope review turned into conversions |
+| 5 | V4, V5, V7 (done) | M | On top of V1 |
+| 6 | S1 (done) | S–M | Independent |
+| 7 | T3 (done) | S | Lower demand |
 
 Independent tracks that can run in parallel: the conversions; V; S; T.
 

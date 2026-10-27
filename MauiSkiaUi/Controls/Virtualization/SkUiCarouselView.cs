@@ -204,9 +204,36 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         Panel.Refresh();
     }
 
+    /// <summary>Bindable property for <see cref="ItemsUpdatingScrollMode"/>.</summary>
+    public static readonly BindableProperty ItemsUpdatingScrollModeProperty = BindableProperty.Create(nameof(ItemsUpdatingScrollMode),
+        typeof(ItemsUpdatingScrollMode), typeof(SkUiCarouselView), ItemsUpdatingScrollMode.KeepItemsInView,
+        validateValue: (_, value) => Enum.IsDefined((ItemsUpdatingScrollMode)value));
+
+    /// <summary>
+    /// Which item is current after the items change (MAUI's values): <see cref="ItemsUpdatingScrollMode.KeepItemsInView"/>
+    /// (default) the current item, wherever it moved, as before 1.2; <see cref="ItemsUpdatingScrollMode.KeepScrollOffset"/> the
+    /// same <see cref="Position"/>, whichever item is there now; <see cref="ItemsUpdatingScrollMode.KeepLastItemInView"/> the
+    /// last item, also when the source is replaced. MAUI's handlers return to the first item for
+    /// <c>KeepItemsInView</c>; the drawn carousel keeps the item in view, as the name says.
+    /// </summary>
+    public ItemsUpdatingScrollMode ItemsUpdatingScrollMode
+    {
+        get => (ItemsUpdatingScrollMode)GetValue(ItemsUpdatingScrollModeProperty);
+        set => SetValue(ItemsUpdatingScrollModeProperty, value);
+    }
+
+    /// <summary>Sets <see cref="ItemsUpdatingScrollMode"/> (same as the property setter).</summary>
+    public SkUiCarouselView SetItemsUpdatingScrollMode(ItemsUpdatingScrollMode value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        ItemsUpdatingScrollMode = value;
+        return this;
+    }
+
     /// <summary>
     /// The items changed: read again; the current item stays current where it shows (<paramref name="keepCurrentItem"/>,
-    /// found by equality), else the position stays (within the items).
+    /// found by equality), else the position stays (within the items). <see cref="ItemsUpdatingScrollMode"/> can keep the
+    /// position or move to the last item instead.
     /// </summary>
     private void ItemsChanged(IEnumerable? value, bool keepCurrentItem)
     {
@@ -222,14 +249,21 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         };
         var count = ItemCount;
         var position = _position;
-        if (count > 0)
+        var mode = ItemsUpdatingScrollMode;
+        if (count > 0 && mode == ItemsUpdatingScrollMode.KeepLastItemInView)
         {
-            var index = keepCurrentItem && previousItem is not null ? _source!.IndexOf(previousItem) : -1;
+            position = count - 1;
+            within = 0;
+        }
+        else if (count > 0)
+        {
+            var keep = keepCurrentItem && mode == ItemsUpdatingScrollMode.KeepItemsInView;
+            var index = keep && previousItem is not null ? _source!.IndexOf(previousItem) : -1;
             position = index >= 0 ? index : Math.Clamp(Position, 0, count - 1);
         }
         Panel.SetCount(count, position + within);
         UpdateOverscroll();
-        _indicator?.SetValue(SkUiIndicatorView.CountProperty, count);
+        _indicator?.CarouselItemsChanged(count);
         if (count > 0)
             ApplyPosition(_position, position, fromScroll: true);
         else if (previousCount > 0)
@@ -240,6 +274,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         if (count != previousCount)
             CheckThreshold();
     }
+
+    /// <summary>The items, as a list (<c>null</c> without <see cref="ItemsSource"/>).</summary>
+    internal IList? Items => _source;
 
     /// <summary>The item at <paramref name="index"/>, or <c>null</c> outside the items.</summary>
     private object? ItemAt(int index) => _source is { } source && index >= 0 && index < source.Count ? source[index] : null;
@@ -538,6 +575,62 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     public static readonly BindableProperty IsBounceEnabledProperty = BindableProperty.Create(nameof(IsBounceEnabled), typeof(bool), typeof(SkUiCarouselView), true,
         propertyChanged: (view, _, _) => ((SkUiCarouselView)view).UpdateOverscroll());
 
+    /// <summary>Bindable property for <see cref="HorizontalScrollBarVisibility"/>.</summary>
+    public static readonly BindableProperty HorizontalScrollBarVisibilityProperty = BindableProperty.Create(nameof(HorizontalScrollBarVisibility),
+        typeof(ScrollBarVisibility), typeof(SkUiCarouselView), ScrollBarVisibility.Default,
+        validateValue: (_, value) => Enum.IsDefined((ScrollBarVisibility)value),
+        propertyChanged: (view, _, _) => ((SkUiCarouselView)view).UpdateScrollBars());
+
+    /// <summary>Bindable property for <see cref="VerticalScrollBarVisibility"/>.</summary>
+    public static readonly BindableProperty VerticalScrollBarVisibilityProperty = BindableProperty.Create(nameof(VerticalScrollBarVisibility),
+        typeof(ScrollBarVisibility), typeof(SkUiCarouselView), ScrollBarVisibility.Default,
+        validateValue: (_, value) => Enum.IsDefined((ScrollBarVisibility)value),
+        propertyChanged: (view, _, _) => ((SkUiCarouselView)view).UpdateScrollBars());
+
+    /// <summary>
+    /// The scroll bar of a horizontal carousel (MAUI's visibility values; see <see cref="SkUiScrollView.HorizontalScrollBarVisibility"/>).
+    /// <see cref="ScrollBarVisibility.Default"/> shows none, as before 1.2: a carousel's position shows in its
+    /// <see cref="IndicatorView"/>. A carousel that loops never shows one, as in MAUI.
+    /// </summary>
+    public ScrollBarVisibility HorizontalScrollBarVisibility
+    {
+        get => (ScrollBarVisibility)GetValue(HorizontalScrollBarVisibilityProperty);
+        set => SetValue(HorizontalScrollBarVisibilityProperty, value);
+    }
+
+    /// <summary>The scroll bar of a vertical carousel; see <see cref="HorizontalScrollBarVisibility"/>.</summary>
+    public ScrollBarVisibility VerticalScrollBarVisibility
+    {
+        get => (ScrollBarVisibility)GetValue(VerticalScrollBarVisibilityProperty);
+        set => SetValue(VerticalScrollBarVisibilityProperty, value);
+    }
+
+    /// <summary>Sets <see cref="HorizontalScrollBarVisibility"/> (same as the property setter).</summary>
+    public SkUiCarouselView SetHorizontalScrollBarVisibility(ScrollBarVisibility value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        HorizontalScrollBarVisibility = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="VerticalScrollBarVisibility"/> (same as the property setter).</summary>
+    public SkUiCarouselView SetVerticalScrollBarVisibility(ScrollBarVisibility value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        VerticalScrollBarVisibility = value;
+        return this;
+    }
+
+    /// <summary>The strip's scroll bars: none while it loops (a looping strip has no ends to show) or by default.</summary>
+    private void UpdateScrollBars()
+    {
+        Scroller.HorizontalScrollBarVisibility = ShownScrollBar(HorizontalScrollBarVisibility);
+        Scroller.VerticalScrollBarVisibility = ShownScrollBar(VerticalScrollBarVisibility);
+    }
+
+    private ScrollBarVisibility ShownScrollBar(ScrollBarVisibility value) =>
+        Panel.Loops || value == ScrollBarVisibility.Default ? ScrollBarVisibility.Never : value;
+
     /// <summary>Whether drags and the wheel scroll the carousel (default <c>true</c>); <see cref="Position"/>, the keyboard and screen readers always do.</summary>
     public bool IsSwipeEnabled { get => (bool)GetValue(IsSwipeEnabledProperty); set => SetValue(IsSwipeEnabledProperty, value); }
 
@@ -572,8 +665,12 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             Scroller.CancelGestures();
     }
 
-    private void UpdateOverscroll() =>
+    /// <summary>What depends on whether the strip loops: bouncing at the ends and the scroll bars.</summary>
+    private void UpdateOverscroll()
+    {
         Scroller.Overscroll = Panel.Loops || !IsBounceEnabled ? SkUiOverscrollMode.None : SkUiOverscrollMode.Default;
+        UpdateScrollBars();
+    }
 
     /// <summary>The scroller's offset changed (scrolling, flings, snaps, corrections).</summary>
     private void OnScrolled()
@@ -926,7 +1023,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             return;
         value.Carousel?.UnlinkIndicator(value);
         value.Link(this);
-        value.Count = ItemCount;
+        value.CarouselItemsChanged(ItemCount);
         value.Orientation = _horizontal ? StackOrientation.Horizontal : StackOrientation.Vertical;
         value.Position = _position;
         FollowWithIndicator();
