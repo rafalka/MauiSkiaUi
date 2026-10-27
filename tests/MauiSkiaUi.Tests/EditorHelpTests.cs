@@ -79,6 +79,9 @@ public class EditorHelpTests
     public void HelpButtonOpensTheBubbleUntilTheNextTap()
     {
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        // The bubble measures its text in the demo's fonts, which only the app registers (Linux CI has no system fallback).
+        using var regular = SkUiTestHelpers.UseBundledFont(DemoFonts.OpenSansRegular);
+        using var semibold = SkUiTestHelpers.UseBundledFont(DemoFonts.OpenSansSemibold);
         var page = new LabelDemoPage();
         var root = Root(page.Editors);
         SkUiTestHelpers.Arrange(root, 400, 900);
