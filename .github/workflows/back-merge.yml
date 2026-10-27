@@ -1,0 +1,91 @@
+name: Back-merge master into devel
+
+# Keeps master in devel's history (docs/Releasing.md#hotfixes). A stable release from devel moves master to the
+# release commit, so after it there is nothing to merge and this run ends at once. A hotfix merged into master, and
+# its patch release, are merged into devel here. The release files both sides change (CHANGELOG.md,
+# Directory.Build.props) go through scripts/merge_release_files.py; any other conflict fails the run, and the merge
+# is done by hand (the steps are in the run's summary).
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: back-merge
+  cancel-in-progress: false
+
+jobs:
+  back-merge:
+    name: Merge master into devel
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout devel
+        uses: actions/checkout@v7
+        with:
+          ref: devel
+          fetch-depth: 0
+
+      - name: Merge and push
+        id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config merge.skiaui-changelog.driver "python3 scripts/merge_release_files.py changelog %O %A %B"
+          git config merge.skiaui-version.driver "python3 scripts/merge_release_files.py version %O %A %B"
+          # devel may move while this runs: merge again on top of it when the push is rejected.
+          for attempt in 1 2 3; do
+            git fetch origin master devel
+            git checkout -q -B devel origin/devel
+            if git merge-base --is-ancestor origin/master HEAD; then
+              echo "devel already has everything on master."
+              echo "pushed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if ! git merge --no-ff --no-edit -m "Merge master into devel" origin/master; then
+              conflicts="$(git diff --name-only --diff-filter=U)"
+              git merge --abort
+              {
+                echo "## master could not be merged into devel"
+                echo
+                echo "Conflicts the release-file merge driver does not resolve:"
+                echo
+                echo "$conflicts" | sed 's/^/- `/; s/$/`/'
+                echo
+                echo "Merge it by hand and push devel (devel takes direct pushes; a squashed pull request would leave"
+                echo "master out of devel's history):"
+                echo
+                echo '```bash'
+                echo 'git config merge.skiaui-changelog.driver "python3 scripts/merge_release_files.py changelog %O %A %B"'
+                echo 'git config merge.skiaui-version.driver "python3 scripts/merge_release_files.py version %O %A %B"'
+                echo 'git fetch origin && git switch devel && git merge --ff-only origin/devel'
+                echo 'git merge origin/master   # resolve, commit'
+                echo 'git push origin devel'
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "::error::master could not be merged into devel: conflicts in $(echo $conflicts). See the run summary."
+              exit 1
+            fi
+            if git push origin HEAD:refs/heads/devel; then
+              echo "pushed=true" >> "$GITHUB_OUTPUT"
+              git log -1 --format='Merged master into devel: %h' | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "devel moved during the merge; trying again ($attempt)."
+          done
+          echo "::error::devel kept moving; run this workflow again."
+          exit 1
+
+      # A push with the workflow token starts no workflows, so CI is started on the merge explicitly.
+      - name: Run CI on devel
+        if: steps.merge.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref devel

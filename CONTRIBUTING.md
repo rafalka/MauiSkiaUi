@@ -47,7 +47,7 @@ Open a [feature request](https://github.com/rafalka/MauiSkiaUi/issues/new?templa
    The library build must have **0 warnings** (trim/AOT analyzer warnings fail it).
 5. Push to your fork and open a pull request against `devel`. Fill in the template.
 6. CI runs the headless tests and the platform builds. A first-time contributor's run starts after a maintainer approves it.
-7. A maintainer reviews the PR. When it is approved, it is squash-merged, and the PR title becomes the commit message.
+7. A maintainer reviews the PR. When it is approved, it is squash-merged into `devel`, and the PR title becomes the commit message. Stable releases are published from `devel`, and `master` moves to them; only hotfix PRs target `master`.
 
 ### What a good PR includes
 

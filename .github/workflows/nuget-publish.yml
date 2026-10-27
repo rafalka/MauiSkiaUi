@@ -8,15 +8,16 @@ name: NuGet publish
 # Versioning (docs/Releasing.md): run from master or devel and pick a bump. The workflow computes the version and
 # renames CHANGELOG.md's "## Unreleased" section to it, packs the result, then (after the nuget.org environment
 # gate) commits "Release <version>" with tag v<version> atomically, pushes the package and creates a GitHub release.
+# A stable release from devel (bump release) also fast-forwards master to the release commit, in the same push.
 
 on:
   workflow_dispatch:
     inputs:
       bump:
         description: >-
-          Version bump (docs/Releasing.md): auto (release on master, prerelease elsewhere), prerelease
-          (-PrereleaseNN+1), release (drop the prerelease suffix), patch / minor / major, or none (publish the
-          current version again, e.g. after a failed publish)
+          Version bump (docs/Releasing.md): auto (devel: prerelease, or minor after a stable release; master: patch),
+          prerelease (-PrereleaseNN+1), release (drop the prerelease suffix; from devel it also moves master to the
+          release), patch / minor / major, or none (publish the current version again, e.g. after a failed publish)
         required: true
         type: choice
         options: [auto, prerelease, release, patch, minor, major, none]
@@ -42,6 +43,7 @@ jobs:
       version: ${{ steps.ver.outputs.version }}
       ref: ${{ steps.ref.outputs.ref }}
       push: ${{ steps.ver.outputs.push }}
+      promote: ${{ steps.ver.outputs.promote }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -53,15 +55,23 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
           BRANCH: ${{ github.ref_name }}
           REF_TYPE: ${{ github.ref_type }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           [[ "$REF_TYPE" == branch ]] || { echo "Run this workflow from a branch (master or devel)." >&2; exit 1; }
-          # A choice input's default cannot depend on the branch, so "auto" picks it here.
-          if [[ "$BUMP" == auto ]]; then
-            if [[ "$BRANCH" == master ]]; then BUMP=release; else BUMP=prerelease; fi
-          fi
           VERSION="$(python3 scripts/release_version.py next --bump "$BUMP" --branch "$BRANCH")"
+          # A stable release from devel moves master to it: master must be in devel's history (a fast-forward).
+          # When it is not (a hotfix on master not merged back yet), refuse here, before anything is packed.
+          PROMOTE=false
+          if [[ "$BRANCH" == devel && "$VERSION" != *-* && "$BUMP" != none ]]; then
+            PROMOTE=true
+            status="$(gh api "repos/$GITHUB_REPOSITORY/compare/master...$GITHUB_SHA" --jq .status)"
+            if [[ "$status" != ahead && "$status" != identical ]]; then
+              echo "master has commits devel does not ($status): merge master into devel first (docs/Releasing.md#hotfixes)." >&2
+              exit 1
+            fi
+          fi
           PUSH=true
           [[ "$DRY_RUN" == true ]] && PUSH=false
           # A version is published once (nuget.org rejects re-pushes). Only a listing that names the version counts;
@@ -85,7 +95,8 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "push=$PUSH" >> "$GITHUB_OUTPUT"
-          echo "Releasing $VERSION from $BRANCH (bump=$BUMP, push=$PUSH)"
+          echo "promote=$PROMOTE" >> "$GITHUB_OUTPUT"
+          echo "Releasing $VERSION from $BRANCH (bump=$BUMP, push=$PUSH, master moves to it: $PROMOTE)"
 
       - name: Check out the release tag (bump=none)
         if: inputs.bump == 'none'
@@ -267,6 +278,8 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.ref }}
           ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          # Full history: pushing master as a fast-forward needs master's commit and the path to it.
+          fetch-depth: 0
 
       - name: Release files (version, changelog)
         uses: actions/download-artifact@v8
@@ -306,13 +319,15 @@ jobs:
             artifacts/nuget/*.snupkg
 
       # After the environment gate, before anything is published: the release commit (the dispatch commit plus the
-      # files the packages were built with) and its tag, pushed atomically. If the branch moved since the dispatch
-      # the push is rejected, and nothing is published or tagged.
+      # files the packages were built with) and its tag, pushed atomically. A stable release from devel moves master
+      # to the same commit in that push (a fast-forward, never forced), so master never needs merging back. If a
+      # branch moved since the dispatch the push is rejected, and nothing is published or tagged.
       - name: Commit and tag the release
         if: needs.prepare.outputs.push == 'true' && inputs.bump != 'none'
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
           BRANCH: ${{ github.ref_name }}
+          PROMOTE: ${{ needs.prepare.outputs.promote }}
         shell: bash
         run: |
           set -euo pipefail
@@ -320,7 +335,15 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "Release $VERSION"
           git tag -a "v$VERSION" -m "SkiaUi.Maui $VERSION"
-          git push --atomic origin "HEAD:refs/heads/$BRANCH" "refs/tags/v$VERSION"
+          refs=("HEAD:refs/heads/$BRANCH" "refs/tags/v$VERSION")
+          if [[ "$PROMOTE" == true ]]; then
+            if ! git merge-base --is-ancestor origin/master HEAD; then
+              echo "::error::master has commits devel does not: merge master into devel first (docs/Releasing.md#hotfixes)."
+              exit 1
+            fi
+            refs+=("HEAD:refs/heads/master")
+          fi
+          git push --atomic origin "${refs[@]}"
 
       - name: NuGet login (OIDC → temporary API key)
         if: needs.prepare.outputs.push == 'true'

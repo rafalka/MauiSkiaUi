@@ -1,0 +1,4 @@
+# Release files both master and devel change: merged by scripts/merge_release_files.py once the drivers are set up
+# (docs/Releasing.md#hotfixes); without them git merges these by lines as usual.
+CHANGELOG.md merge=skiaui-changelog
+Directory.Build.props merge=skiaui-version

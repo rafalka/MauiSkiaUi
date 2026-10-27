@@ -57,9 +57,10 @@ Workflows live under [`.github/workflows/`](.github/workflows/). Shared setup: [
 
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
-| [ci.yml](.github/workflows/ci.yml) | Push / PR to `master` or `devel` | Headless tests (Ubuntu `net10.0`); build iOS/Mac Catalyst TFMs and the iOS demo with Xcode 26 and 27 (macOS), and Windows TFMs; Mac Catalyst device tests (memory leaks) |
+| [ci.yml](.github/workflows/ci.yml) | Push / PR to `master` or `devel`; manual (started by the back-merge workflow) | Headless tests (Ubuntu `net10.0`); build iOS/Mac Catalyst TFMs and the iOS demo with Xcode 26 and 27 (macOS), and Windows TFMs; Mac Catalyst device tests (memory leaks) |
 | [nuget-pack.yml](.github/workflows/nuget-pack.yml) | Manual, or tag `v*` | `dotnet pack` on macOS + Windows; merge multi-TFM `.nupkg` / `.snupkg` artifacts |
-| [nuget-publish.yml](.github/workflows/nuget-publish.yml) | Manual: version bump (+ dry run), from `master` or `devel` | Bumps the version and changelog, commits and tags the release, packs it, pushes to [nuget.org](https://www.nuget.org/) via [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) (OIDC; Environment `nuget.org`), creates the GitHub release. See [docs/Releasing.md](docs/Releasing.md) |
+| [nuget-publish.yml](.github/workflows/nuget-publish.yml) | Manual: version bump (+ dry run), from `master` or `devel` | Bumps the version and changelog, commits and tags the release, packs it, pushes to [nuget.org](https://www.nuget.org/) via [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) (OIDC; Environment `nuget.org`), creates the GitHub release. A stable release from `devel` also fast-forwards `master` to it. See [docs/Releasing.md](docs/Releasing.md) |
+| [back-merge.yml](.github/workflows/back-merge.yml) | Push to `master`, or manual | Merges `master` into `devel` when `devel` lacks some of it (after a hotfix), resolving the changelog and version with [`scripts/merge_release_files.py`](scripts/merge_release_files.py); other conflicts fail the run. See [docs/Releasing.md](docs/Releasing.md#hotfixes) |
 | [demo-publish.yml](.github/workflows/demo-publish.yml) | Manual (app and platform choice, optional release tag), tag `demo-v*`, or called by `nuget-publish.yml` after a release | Publish the demo and/or samples app: Android APK (`android-arm64`) and/or an unsigned universal Mac Catalyst `.app` in a zip, as artifacts; with a release tag, built from it and attached to that GitHub release. A `demo-v*` tag publishes both Android APKs |
 
 ### Secrets and environments
@@ -67,7 +68,7 @@ Workflows live under [`.github/workflows/`](.github/workflows/). Shared setup: [
 | Name | Used by | Purpose |
 | --- | --- | --- |
 | `NUGET_USER` | nuget-publish | Your [nuget.org](https://www.nuget.org/) **profile username** (not email) for `NuGet/login` |
-| `RELEASE_DEPLOY_KEY` | nuget-publish (environment `nuget.org`) | Private half of a write deploy key; pushes the release commit and tag past the `master` ruleset ([docs/Releasing.md](docs/Releasing.md#setup)) |
+| `RELEASE_DEPLOY_KEY` | nuget-publish (environment `nuget.org`) | Private half of a write deploy key; pushes the release commit and tag (and `master`, for a stable release from `devel`) past the `master` ruleset ([docs/Releasing.md](docs/Releasing.md#setup)) |
 | `ANDROID_KEYSTORE_BASE64` | demo-publish (optional) | Base64-encoded `.jks` / `.keystore` for signed Release APKs |
 | `ANDROID_KEYSTORE_PASSWORD` | demo-publish (optional) | Keystore password |
 | `ANDROID_KEY_ALIAS` | demo-publish (optional) | Key alias |

@@ -5,6 +5,8 @@ on:
     branches: [master, devel]
   pull_request:
     branches: [master, devel]
+  # Started by the back-merge workflow, whose push to devel starts no workflows on its own.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

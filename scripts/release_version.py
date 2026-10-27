@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """Compute and apply the next SkiaUi.Maui version (docs/Releasing.md).
 
-  release_version.py next  --bump prerelease --branch master   # prints the next version
+  release_version.py next  --bump auto --branch devel         # prints the next version
   release_version.py apply --version 1.0.0-Prerelease06         # Directory.Build.props + CHANGELOG.md
 
 Versions are ``X.Y.Z`` (stable) or ``X.Y.Z-PrereleaseNN`` (two-digit NN). Bumps:
 
+  auto        devel: prerelease, or minor from a stable version; master: patch (release from a prerelease)
   prerelease  X.Y.Z-PrereleaseNN -> X.Y.Z-Prerelease(NN+1)
   release     X.Y.Z-PrereleaseNN -> X.Y.Z
   patch/minor/major               -> next X.Y.Z; on devel, its -Prerelease01
   none        publish the current version again (e.g. retry a failed publish)
 
-Branch rules: devel publishes prereleases only; master publishes stable versions only, except while no stable
-version exists yet (current version still a prerelease), when prereleases come from master too.
+Branch rules: devel publishes prereleases, and stable versions with ``release`` only (the publish workflow then moves
+master to that release); master publishes stable versions only (hotfixes), except while no stable version exists yet
+(current version still a prerelease), when prereleases come from master too.
 ``apply`` renames CHANGELOG.md's ``## Unreleased`` section to the version (refusing one without entries) and opens a new
 empty ``## Unreleased`` above it.
 """
@@ -59,6 +61,11 @@ def next_version(current: str, bump: str, branch: str) -> str:
     major, minor, patch, pre = parse(current)
     if branch not in ("master", "devel"):
         fail(f"releases are published from master or devel, not {branch!r}")
+    if bump == "auto":
+        if branch == "devel":
+            bump = "prerelease" if pre is not None else "minor"
+        else:
+            bump = "release" if pre is not None else "patch"
     if bump == "none":
         new = current
     elif bump == "prerelease":
@@ -81,8 +88,8 @@ def next_version(current: str, bump: str, branch: str) -> str:
         fail(f"unknown bump {bump!r}")
 
     new_pre = parse(new)[3]
-    if branch == "devel" and new_pre is None:
-        fail(f"devel publishes prereleases only ({new} is stable); merge to master to release it")
+    if branch == "devel" and new_pre is None and bump not in ("release", "none"):
+        fail(f"devel publishes stable versions with bump release only ({new} is stable)")
     if branch == "master" and new_pre is not None and pre is None:
         fail(f"master publishes stable versions only ({new} is a prerelease); publish prereleases from devel")
     return new
@@ -111,7 +118,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     nxt = sub.add_parser("next", help="print the next version")
-    nxt.add_argument("--bump", required=True, choices=["prerelease", "release", "patch", "minor", "major", "none"])
+    nxt.add_argument("--bump", required=True, choices=["auto", "prerelease", "release", "patch", "minor", "major", "none"])
     nxt.add_argument("--branch", required=True)
     nxt.add_argument("--current", help="current version (default: Directory.Build.props)")
     app = sub.add_parser("apply", help="write the version to Directory.Build.props and CHANGELOG.md")
