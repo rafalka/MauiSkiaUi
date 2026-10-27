@@ -435,9 +435,7 @@ internal static partial class SkUiShaping
         line.Ascent = -metrics.Ascent + HalfLineGap(primary);
         line.Height = primary.Spacing;
         var fontTop = -metrics.Top; // the tallest font's top above the baseline
-        // Font padding counts from the glyphs' ascent, not the line gap's half above it (as styled text and text fields).
-        var glyphAscent = -metrics.Ascent;
-        line.FontPaddingTop = Math.Max(0, fontTop - glyphAscent);
+        line.FontPaddingTop = Math.Max(0, fontTop - line.Ascent);
         line.FontPaddingBottom = Math.Max(0, metrics.Bottom - metrics.Descent);
         edges?.Reset(start, Math.Max(0, end - start));
         if (end <= start)
@@ -496,7 +494,6 @@ internal static partial class SkUiShaping
                 var below = Math.Max(line.Height - line.Ascent, FallbackSpacing(font) - ascent);
                 line.Ascent = Math.Max(line.Ascent, ascent);
                 line.Height = line.Ascent + below;
-                glyphAscent = Math.Max(glyphAscent, ascent);
                 fontTop = Math.Max(fontTop, -fallback.Top);
                 line.FontPaddingBottom = Math.Max(line.FontPaddingBottom, fallback.Bottom - fallback.Descent);
             }
@@ -528,7 +525,7 @@ internal static partial class SkUiShaping
                 edges.Levels[unit] = paragraph.Levels[start + unit];
             edges.FillClusters(text);
         }
-        line.FontPaddingTop = Math.Max(0, fontTop - glyphAscent); // from the tallest font's ascent
+        line.FontPaddingTop = Math.Max(0, fontTop - line.Ascent); // from the ascent the tallest font set
         return line;
     }
 
