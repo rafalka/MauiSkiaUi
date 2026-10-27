@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.2.0
+
 ### New features
 
 - **`CascadeInputTransparent` and `IsClippedToBounds` on drawn containers:** MAUI's names on the layouts, the content views, the scroll, swipe, refresh and indicator views, the radio button and the expander, and on the Core containers (`SetCascadeInputTransparent`).
