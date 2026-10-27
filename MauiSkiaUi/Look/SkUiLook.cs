@@ -373,6 +373,12 @@ public class SkUiLook
     /// </summary>
     public virtual double DisabledButtonContentOpacity => 0.38;
 
+    /// <summary>
+    /// The opacity a view or node with <c>ShowsPressEffect</c> and <see cref="SkUiPressFeedback.Fade"/> fades to while pressed,
+    /// 0–1 (default 0.4), with the look's press and release transitions.
+    /// </summary>
+    public virtual double PressedContentOpacity => 0.4;
+
     /// <summary>Optional Button painter (fill, border and press feedback behind the text); replaces <see cref="DrawButtonCore"/>.</summary>
     public Action<SKCanvas, SkUiButtonPaint>? ButtonPainter { get; set; }
 

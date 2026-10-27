@@ -31,7 +31,7 @@ Recognizers on native views *around* a surface root (a page's background `TapGes
 | `Command` / `CommandParameter` | `TappedCommand` / `TappedCommandParameter` |
 | `LongPressCommand` / `LongPressCommandParameter` | `LongPressedCommand` / `LongPressedCommandParameter` |
 | `TouchGestureCompleted` event | `Tapped` |
-| `PressedScale`, `PressedOpacity`, `PressedBackgroundColor`, `DefaultAnimationDuration` | `ShowsPressEffect="True"` (the look's dim or ripple), or a `Pressed` visual state with `Scale` / `Opacity` / `BackgroundColor` setters |
+| `PressedScale`, `PressedOpacity`, `PressedBackgroundColor`, `DefaultAnimationDuration` | `ShowsPressEffect="True"` (the look's dim or ripple; add `PressFeedback="Fade"` for `PressedOpacity`: the view fades to the look's `PressedContentOpacity`, 0.4), or a `Pressed` visual state with `Scale` / `Opacity` / `BackgroundColor` setters |
 | `IsEnabled` | `IsEnabled` on the view, or bind the command's `CanExecute` |
 | `ShouldMakeChildrenInputTransparent` | Usually unnecessary (children without gesture handlers let touches through); otherwise `InputTransparent` on the children |
 

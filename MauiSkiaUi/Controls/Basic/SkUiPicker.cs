@@ -36,19 +36,13 @@ namespace MauiSkiaUi;
 /// </remarks>
 public partial class SkUiPicker : SkUiPickerBase
 {
-    private static readonly BindableProperty DisplayProperty = BindableProperty.Create("Display", typeof(string), typeof(SkUiPicker), null);
-    private static readonly BindableProperty EnabledProperty = BindableProperty.Create("Enabled", typeof(bool), typeof(SkUiPicker), true);
-    private static readonly BindableProperty FieldDisplayProperty = BindableProperty.Create("FieldDisplay", typeof(string), typeof(SkUiPicker), null);
-
     private readonly SkUiPickerItems _items = new();
     private SkUiWeakListener<SkUiPicker>? _itemsSourceListener;
     private IList? _itemsSource;
-    private BindingBase? _itemDisplayBinding;
-    private BindableObject? _displayProbe;
+    private SkUiDisplayBinding _itemDisplay = SkUiDisplayBinding.ItemText;
     private BindingBase? _itemEnabledBinding;
-    private BindableObject? _enabledProbe;
-    private BindingBase? _selectedItemDisplayBinding;
-    private BindableObject? _fieldProbe;
+    private SkUiItemBindingProbe? _enabledProbe;
+    private SkUiDisplayBinding? _fieldDisplay;
     private bool _hasPendingSelectedIndex;
     private int _pendingSelectedIndex = -1;
     private bool _settingSelectedIndexInternally;
@@ -104,18 +98,14 @@ public partial class SkUiPicker : SkUiPickerBase
     /// <summary>The binding that picks the text shown for each item of <see cref="ItemsSource"/> (MAUI's; <c>null</c>: <c>ToString()</c>).</summary>
     public BindingBase? ItemDisplayBinding
     {
-        get => _itemDisplayBinding;
+        get => _itemDisplay.Binding;
         set
         {
-            if (ReferenceEquals(_itemDisplayBinding, value))
+            if (ReferenceEquals(_itemDisplay.Binding, value))
                 return;
             OnPropertyChanging();
-            _itemDisplayBinding = value;
-            if (_displayProbe is not null)
-            {
-                _displayProbe.RemoveBinding(DisplayProperty);
-                _displayProbe = null;
-            }
+            _itemDisplay.Detach();
+            _itemDisplay = value is null ? SkUiDisplayBinding.ItemText : new SkUiDisplayBinding(value);
             ResetItems();
             OnPropertyChanged();
         }
@@ -137,11 +127,8 @@ public partial class SkUiPicker : SkUiPickerBase
                 return;
             OnPropertyChanging();
             _itemEnabledBinding = value;
-            if (_enabledProbe is not null)
-            {
-                _enabledProbe.RemoveBinding(EnabledProperty);
-                _enabledProbe = null;
-            }
+            _enabledProbe?.Detach();
+            _enabledProbe = null;
             RefreshItemStates();
             OnPropertyChanged();
         }
@@ -157,18 +144,11 @@ public partial class SkUiPicker : SkUiPickerBase
             return;
         }
         var states = new bool[_items.Count];
-        if (_enabledProbe is null)
-        {
-            _enabledProbe = new DisplayProbe();
-            _enabledProbe.SetBinding(EnabledProperty, _itemEnabledBinding);
-        }
+        _enabledProbe ??= new SkUiItemBindingProbe(_itemEnabledBinding, SkUiItemBindingProbe.FlagProperty);
         for (var index = 0; index < states.Length; index++)
-        {
-            _enabledProbe.BindingContext = _itemsSource is { } source ? (index < source.Count ? source[index] : null) : _items[index];
-            states[index] = _enabledProbe.GetValue(EnabledProperty) is not false;
-        }
+            states[index] = _enabledProbe.IsSet(ItemAt(index));
         // The probe must not keep the last item alive.
-        _enabledProbe.BindingContext = null;
+        _enabledProbe.Release();
         Model.ItemEnabled = states;
         // Tokens: an item that can no longer be chosen keeps its token, without its ×.
         UpdateMultipleState();
@@ -182,18 +162,14 @@ public partial class SkUiPicker : SkUiPickerBase
     /// </summary>
     public BindingBase? SelectedItemDisplayBinding
     {
-        get => _selectedItemDisplayBinding;
+        get => _fieldDisplay?.Binding;
         set
         {
-            if (ReferenceEquals(_selectedItemDisplayBinding, value))
+            if (ReferenceEquals(_fieldDisplay?.Binding, value))
                 return;
             OnPropertyChanging();
-            _selectedItemDisplayBinding = value;
-            if (_fieldProbe is not null)
-            {
-                _fieldProbe.RemoveBinding(FieldDisplayProperty);
-                _fieldProbe = null;
-            }
+            _fieldDisplay?.Detach();
+            _fieldDisplay = value is null ? null : new SkUiDisplayBinding(value);
             UpdateFieldText();
             UpdateMultipleState();
             OnPropertyChanged();
@@ -206,24 +182,18 @@ public partial class SkUiPicker : SkUiPickerBase
     /// <summary>The field's text for the item at <paramref name="index"/>: <see cref="SelectedItemDisplayBinding"/>'s, else the item's text.</summary>
     private string FieldTextOf(int index)
     {
-        if (_selectedItemDisplayBinding is null || index < 0 || index >= _items.Count)
-            return index >= 0 && index < _items.Count ? _items[index] : string.Empty;
-        if (_fieldProbe is null)
-        {
-            _fieldProbe = new DisplayProbe();
-            _fieldProbe.SetBinding(FieldDisplayProperty, _selectedItemDisplayBinding);
-        }
-        _fieldProbe.BindingContext = _itemsSource is { } source ? (index < source.Count ? source[index] : null) : _items[index];
-        var text = (string?)_fieldProbe.GetValue(FieldDisplayProperty) ?? string.Empty;
-        // The probe must not keep the item alive.
-        _fieldProbe.BindingContext = null;
-        return text;
+        if (index < 0 || index >= _items.Count)
+            return string.Empty;
+        return _fieldDisplay is null ? _items[index] : _fieldDisplay.GetText(ItemAt(index));
     }
+
+    /// <summary>The item at <paramref name="index"/> of <see cref="ItemsSource"/>, else the text of <see cref="Items"/>.</summary>
+    private object? ItemAt(int index) => _itemsSource is { } source ? (index < source.Count ? source[index] : null) : _items[index];
 
     /// <summary>The field's text for the selected item (one choice).</summary>
     private void UpdateFieldText()
     {
-        Model.SelectedFieldText = _selectedItemDisplayBinding is null || _multiple || SelectedIndex < 0 ? null : FieldTextOf(SelectedIndex);
+        Model.SelectedFieldText = _fieldDisplay is null || _multiple || SelectedIndex < 0 ? null : FieldTextOf(SelectedIndex);
         Model.TextChanged();
     }
 
@@ -421,7 +391,7 @@ public partial class SkUiPicker : SkUiPickerBase
         Model.Items = _items;
         if (_itemEnabledBinding is not null)
             RefreshItemStates();
-        if (_selectedItemDisplayBinding is not null)
+        if (_fieldDisplay is not null)
             UpdateFieldText();
         // Changes made by the picker from its source reconcile the selection themselves.
         if (_items.IsReadOnly)
@@ -435,36 +405,12 @@ public partial class SkUiPicker : SkUiPickerBase
             ClampSelectedIndex(GetSelectedIndex());
     }
 
-    private string GetDisplayMember(object? item)
-    {
-        if (_itemDisplayBinding is null)
-            return item?.ToString() ?? string.Empty;
-        if (_displayProbe is null)
-        {
-            _displayProbe = new DisplayProbe();
-            _displayProbe.SetBinding(DisplayProperty, _itemDisplayBinding);
-        }
-        _displayProbe.BindingContext = item;
-        return (string?)_displayProbe.GetValue(DisplayProperty) ?? string.Empty;
-    }
-
-    private string[] DisplayTexts(IList source)
-    {
-        var texts = new string[source.Count];
-        for (var index = 0; index < texts.Length; index++)
-            texts[index] = GetDisplayMember(source[index]);
-        // The probe must not keep the last item alive.
-        if (_displayProbe is not null)
-            _displayProbe.BindingContext = null;
-        return texts;
-    }
-
     private void ResetItems()
     {
         if (_itemsSource is not { } source)
             return;
         var wasEmpty = _items.Count == 0;
-        _items.Reset(DisplayTexts(source));
+        _items.Reset(_itemDisplay.GetTexts(source));
         if (_multiple)
         {
             ReconcileMultiple(keepUnknown: wasEmpty);
@@ -479,7 +425,7 @@ public partial class SkUiPicker : SkUiPickerBase
         if (_itemsSource is not { } source)
             return;
         var wasEmpty = _items.Count == 0;
-        _items.Reset(DisplayTexts(source));
+        _items.Reset(_itemDisplay.GetTexts(source));
         if (_multiple)
         {
             ReconcileMultiple(keepUnknown: wasEmpty);
@@ -515,7 +461,7 @@ public partial class SkUiPicker : SkUiPickerBase
     {
         Model.SelectedIndex = SelectedIndex;
         UpdateSelectedItem(SelectedIndex);
-        if (_selectedItemDisplayBinding is not null)
+        if (_fieldDisplay is not null)
             UpdateFieldText();
         Model.SelectionChanged();
         if (_suppressSelectedIndexChanged)
@@ -620,9 +566,6 @@ public partial class SkUiPicker : SkUiPickerBase
             _settingSelectedIndexInternally = setting;
         }
     }
-
-    /// <summary>A bindable object that evaluates <see cref="ItemDisplayBinding"/> for one item at a time.</summary>
-    private sealed class DisplayProbe : BindableObject;
 
     #endregion
 

@@ -103,6 +103,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     internal Point PressPosition { get; private set; }
 
     private bool _showsPressEffect;
+    private SkUiPressFeedback _pressFeedback;
     private SkUiPressAnimator? _pressEffect;
 
     /// <summary>Bindable <see cref="ShowsPressEffect"/>.</summary>
@@ -114,6 +115,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// over this view and its children while it is pressed, clipped to its rounded shape (a label's or border's corner
     /// radii). For containers that act as one button (a card, an icon with text): the view needs a tap handler
     /// (<see cref="Tapped"/> or <see cref="TappedCommand"/>) to be pressed. Buttons draw their own feedback.
+    /// <see cref="PressFeedback"/> fades the view instead.
     /// </summary>
     public bool ShowsPressEffect { get => (bool)GetValue(ShowsPressEffectProperty); set => SetValue(ShowsPressEffectProperty, value); }
 
@@ -129,7 +131,47 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         if (_showsPressEffect == value) return;
         _showsPressEffect = value;
         InvalidatePaint();
+        InvalidateRender(SkUiRenderDirty.Props); // a fade in progress
     }
+
+    /// <summary>Bindable <see cref="PressFeedback"/>.</summary>
+    public static readonly BindableProperty PressFeedbackProperty = BindableProperty.Create(nameof(PressFeedback), typeof(SkUiPressFeedback), typeof(SkUiView),
+        SkUiPressFeedback.Overlay, validateValue: SkUiValidate.PressFeedback,
+        propertyChanged: (view, _, value) => ((SkUiView)view).OnPressFeedbackChanged((SkUiPressFeedback)value));
+
+    /// <summary>
+    /// How <see cref="ShowsPressEffect"/> shows the press: the look's overlay (<see cref="SkUiPressFeedback.Overlay"/>, default),
+    /// or <see cref="SkUiPressFeedback.Fade"/>: the view and its children fade to <see cref="SkUiLook.PressedContentOpacity"/>,
+    /// which shows on dark content (an icon glyph) where the dark tint hardly does. The fade is composited: its frames
+    /// re-record nothing, and it multiplies <see cref="VisualElement.Opacity"/> (an opacity animation and the fade do not
+    /// affect each other).
+    /// </summary>
+    public SkUiPressFeedback PressFeedback { get => (SkUiPressFeedback)GetValue(PressFeedbackProperty); set => SetValue(PressFeedbackProperty, value); }
+
+    /// <summary>Sets <see cref="PressFeedback"/> (same as the property setter, but throws on an undefined value).</summary>
+    public SkUiView SetPressFeedback(SkUiPressFeedback value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value), value, null);
+        PressFeedback = value;
+        return this;
+    }
+
+    private void OnPressFeedbackChanged(SkUiPressFeedback value)
+    {
+        if (_pressFeedback == value) return;
+        _pressFeedback = value;
+        _pressEffect = null; // the next press animates the new feedback
+        InvalidatePaint();
+        InvalidateRender(SkUiRenderDirty.Props);
+    }
+
+    /// <summary>Whether the look's press overlay is drawn over the view (<see cref="ShowsPressEffect"/> without the fade).</summary>
+    private bool DrawsPressOverlay => _showsPressEffect && _pressFeedback == SkUiPressFeedback.Overlay;
+
+    /// <summary>The press fade's factor on the view's opacity (1 unless it fades on press and is pressed or releasing).</summary>
+    private float PressOpacity => _showsPressEffect && _pressFeedback == SkUiPressFeedback.Fade && _pressEffect is { Pressed: > 0 } press
+        ? SkUiPressAnimator.FadedOpacity(press.Pressed, SkUiLookScope.Resolve(this))
+        : 1;
 
     /// <summary>Corner radii the press effect is clipped to (default square; labels and borders use their own).</summary>
     internal virtual CornerRadius PressEffectCornerRadii => default;
@@ -156,7 +198,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         if (IsPressed == value) return;
         IsPressed = value;
         if (_showsPressEffect || _pressEffect is not null)
-            (_pressEffect ??= new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
+            (_pressEffect ??= _pressFeedback == SkUiPressFeedback.Fade
+                ? SkUiPressAnimator.Fade(this, () => InvalidateRender(SkUiRenderDirty.Props))
+                : new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
         RaiseIsPressedChanged();
         OnPressedChanged();
         ChangeVisualState();
@@ -900,6 +944,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         props.AnchorX = (float)AnchorX;
         props.AnchorY = (float)AnchorY;
         props.Opacity = (float)Opacity;
+        props.PressOpacity = PressOpacity;
         props.IsVisible = IsVisible;
         props.ClipToBounds = ClipToBounds;
         OnGetRenderProps(ref props);
@@ -1068,7 +1113,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         OnPaintContent(canvas);
     }
 
-    bool ISkUiRenderable.HasOverlay => (_paintOverlay is not null || _showsPressEffect || _focusRingVisible)
+    bool ISkUiRenderable.HasOverlay => (_paintOverlay is not null || DrawsPressOverlay || _focusRingVisible)
         && !DrawsSkeletonInstead;
 
     void ISkUiRenderable.RecordOverlay(SKCanvas canvas)
@@ -1076,7 +1121,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         if (DrawsSkeletonInstead)
             return;
         _paintOverlay?.Invoke(canvas);
-        if (_showsPressEffect)
+        if (DrawsPressOverlay)
             SkUiLook.Current.DrawPressOverlay(canvas, new SkUiPressOverlayPaint(new SKRect(0, 0, (float)Width, (float)Height),
                 PressEffectCornerRadii, _pressEffect?.Visual ?? SkUiPressVisual.None, IsEnabled: true)); // a disabled view is not pressed; no veil
         if (_focusRingVisible)

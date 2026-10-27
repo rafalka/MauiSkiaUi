@@ -165,6 +165,19 @@ internal sealed class SkUiToggleAnimator(ISkUiTransitionHost host, SkUiTransitio
 }
 
 /// <summary>
+/// The host of a transition whose frames change only composite-time props (the press fade,
+/// <see cref="SkUiPressFeedback.Fade"/>): each frame marks the node's props dirty instead of re-recording its content.
+/// </summary>
+internal sealed class SkUiPropsTransitionHost(ISkUiTransitionHost host, Action invalidateProps) : ISkUiTransitionHost
+{
+    public SkUiAnimationClock? TransitionClock => host.TransitionClock;
+
+    public void InvalidateTransition() => invalidateProps();
+
+    public SkUiLook TransitionLook => host.TransitionLook;
+}
+
+/// <summary>
 /// Press feedback: <see cref="SkUiPressVisual.Pressed"/> with the look's press / release transitions and, for buttons,
 /// a ripple from the press point. A quick tap shows its press fully before it releases.
 /// </summary>
@@ -188,6 +201,17 @@ internal sealed class SkUiPressAnimator
         _fade = new SkUiTween(host);
         _fade.Jump(1);
     }
+
+    /// <summary>
+    /// A press animator for <see cref="SkUiPressFeedback.Fade"/>: no ripple, and its frames call
+    /// <paramref name="invalidateProps"/> (the fade is a composite-time prop) instead of re-recording.
+    /// </summary>
+    public static SkUiPressAnimator Fade(ISkUiTransitionHost host, Action invalidateProps) =>
+        new(new SkUiPropsTransitionHost(host, invalidateProps), ripple: false);
+
+    /// <summary>The opacity factor of a press fade at press amount <paramref name="pressed"/> (0–1), toward the look's <see cref="SkUiLook.PressedContentOpacity"/>.</summary>
+    public static float FadedOpacity(float pressed, SkUiLook look) =>
+        1 - pressed * (1 - (float)Math.Clamp(look.PressedContentOpacity, 0, 1));
 
     /// <summary>The press feedback to draw.</summary>
     public SkUiPressVisual Visual => new(_pressed.Value, _origin, _ripple?.Value ?? 0, _fade?.Value ?? 1);

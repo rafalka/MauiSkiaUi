@@ -8,11 +8,14 @@ namespace MauiSkiaUiDemo;
 /// show the look's press feedback as one control: <see cref="SkUiCoreNode.ShowsPressEffect"/> plus a
 /// <see cref="SkUiCoreNode.Tapped"/> handler. A Core button inside a card takes its own presses, also while its command
 /// cannot execute (then it is disabled and the card is not pressed either). <see cref="SkUiCoreNode.IsEnabled"/> on the
-/// content disables every card, chip and tile under it; the list still scrolls from them. The press effect (dim or ripple)
-/// and the transition speed are set on the Look &amp; colors page.
+/// content disables every card, chip and tile under it; the list still scrolls from them. The dark remove disc fades
+/// (<see cref="SkUiPressFeedback.Fade"/>), where the dark tint would hardly show; a toggle fades every control. The press
+/// effect (dim or ripple) and the transition speed are set on the Look &amp; colors page.
 /// </summary>
 public sealed class CorePressEffectDemoPage : ComponentDemoPage
 {
+    private const string RemoveDisc = "Remove disc";
+
     public CorePressEffectDemoPage()
         : base("Composite buttons", CreateHost(out var pressables, out var inner, out var content), native: null,
             widthRange: (220, 420, 340), heightRange: (260, 520, 420))
@@ -43,6 +46,12 @@ public sealed class CorePressEffectDemoPage : ComponentDemoPage
             foreach (var (_, node) in pressables)
                 node.SetShowsPressEffect(value);
         }, () => pressables[0].Node.ShowsPressEffect);
+        Toggle("Fade on press", false, value =>
+        {
+            foreach (var (name, node) in pressables)
+                if (name != RemoveDisc)
+                    node.SetPressFeedback(value ? SkUiPressFeedback.Fade : SkUiPressFeedback.Overlay);
+        }, () => pressables[0].Node.PressFeedback == SkUiPressFeedback.Fade);
         OnReset(taps.Clear);
     }
 
@@ -76,6 +85,14 @@ public sealed class CorePressEffectDemoPage : ComponentDemoPage
             pressables.Add(($"Chip {text}", chip));
             chips.Add(chip);
         }
+        // A dark remove disc: the dark tint would hardly show on it, so it fades.
+        var remove = new SkUiCoreLabel().SetText("×").SetFontSize(18).SetTextColor(Colors.White)
+            .SetFillColor(Color.FromArgb("#3A3B3F")).SetCornerRadius(100)
+            .SetHorizontalTextAlignment(TextAlignment.Center).SetVerticalTextAlignment(TextAlignment.Center);
+        remove.SetWidth(30).SetHeight(30).SetVerticalAlignment(LayoutAlignment.Center);
+        remove.SetShowsPressEffect(true).SetPressFeedback(SkUiPressFeedback.Fade);
+        pressables.Add((RemoveDisc, remove));
+        chips.Add(remove);
         stack.Add(chips);
 
         // Tiles: a border holding an icon over a caption.

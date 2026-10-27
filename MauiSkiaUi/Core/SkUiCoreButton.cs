@@ -223,12 +223,16 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
             ? SkUiButtonImageLayout.Measure(this, image, _contentLayout, Padding, widthConstraint, heightConstraint)
             : base.MeasureContent(widthConstraint, heightConstraint);
         if (!_minimumHeightExplicit)
-        {
-            var min = SkUiLook.Current.DefaultButtonMinimumHeight;
-            size = new Size(size.Width, Math.Max(size.Height, min));
-        }
+            size = new Size(size.Width, Math.Max(size.Height, DefaultMinimumHeight));
         return size;
     }
+
+    /// <summary>
+    /// The minimum height used until a minimum height is set: the look's <see cref="SkUiLook.DefaultButtonMinimumHeight"/>.
+    /// A subclass overrides it for its own size of button, as it does <see cref="DefaultCornerRadius"/> and
+    /// <see cref="DefaultPadding"/>.
+    /// </summary>
+    protected virtual double DefaultMinimumHeight => SkUiLook.Current.DefaultButtonMinimumHeight;
 
     /// <summary>
     /// Draws the rounded fill, border and press feedback (<see cref="SkUiLook.DrawButton"/>) registered as

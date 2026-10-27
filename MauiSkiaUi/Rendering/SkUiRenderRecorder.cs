@@ -218,10 +218,10 @@ internal static class SkUiImmediatePainter
             canvas.Concat(in matrix);
             if (canvas.QuickReject(props.InkBounds))
                 return false;
-            if (props.Opacity < 1)
+            if (props.DrawnOpacity < 1)
             {
                 var paint = _layerPaint ??= new SKPaint();
-                paint.Color = SKColors.White.WithAlpha((byte)(255 * props.Opacity));
+                paint.Color = SKColors.White.WithAlpha((byte)(255 * props.DrawnOpacity));
                 canvas.SaveLayer(props.LayerBounds, paint);
             }
             if (props.Shadow is { } shadow)

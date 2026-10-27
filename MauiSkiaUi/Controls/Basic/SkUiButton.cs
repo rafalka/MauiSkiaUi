@@ -66,14 +66,19 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
         var size = ImageSize is { Width: > 0 } image
             ? SkUiButtonImageLayout.Measure(this, image, _contentLayout, AppliedPadding, widthConstraint, heightConstraint)
             : base.MeasureContent(widthConstraint, heightConstraint);
-        // MinimumHeightRequest default is -1; only then resolve the active look's button minimum.
+        // MinimumHeightRequest default is -1; only then resolve the default minimum.
         if (MinimumHeightRequest < 0)
-        {
-            var min = SkUiLook.Current.DefaultButtonMinimumHeight;
-            size = new Size(size.Width, Math.Max(size.Height, min));
-        }
+            size = new Size(size.Width, Math.Max(size.Height, DefaultMinimumHeight));
         return size;
     }
+
+    /// <summary>
+    /// The minimum height used while <see cref="VisualElement.MinimumHeightRequest"/> is unset: the look's
+    /// <see cref="SkUiLook.DefaultButtonMinimumHeight"/>. A subclass overrides it for its own size of button, as it does
+    /// <see cref="DefaultCornerRadius"/> and <see cref="DefaultPadding"/>; a set <c>MinimumHeightRequest</c>, local or
+    /// from a style, still wins.
+    /// </summary>
+    protected virtual double DefaultMinimumHeight => SkUiLook.Current.DefaultButtonMinimumHeight;
 
     /// <inheritdoc />
     protected override Color DefaultTextColor => SkUiColors.ButtonForeground;

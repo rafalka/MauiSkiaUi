@@ -16,6 +16,7 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiCoreLabel` / `Button` / toggles / `Slider` / `ProgressBar` / Image / shapes / … | [SkUiCore.md](SkUiCore.md) | Core primitives & basic controls |
 | `SkUiCoreHost` | [SkUiCore.md](SkUiCore.md) | `SkUiView` bridge for Core roots |
 | `SkUiWeakListener<T>` / `SkUiWeakEvent` | [SkUiCore.md](SkUiCore.md#listening-to-shared-sources-own-controls) | Weak listening to shared sources and weak app-wide events, for your own controls (both layers) |
+| `SkUiDisplayBinding` | [SkUiCore.md](SkUiCore.md#item-texts-through-a-binding-own-controls) | Item texts through an `ItemDisplayBinding`-style binding, without keeping the last item alive, for your own controls (both layers) |
 
 ## Basic controls
 

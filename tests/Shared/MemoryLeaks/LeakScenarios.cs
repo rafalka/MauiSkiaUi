@@ -49,6 +49,7 @@ public static class LeakScenarios
         new("RefreshPulled", Scrolling, "SkUiRefreshView (inline style, automatic completion) with a long-lived command around a header and a drawn scroller: pulled through the scroller and by the header (content held down while refreshing), each refresh ended by a deferral taken in Refreshing, a short pull released before the trigger (the indicator going back), the scroller replaced while still linked and the old one detached; closed mid-pull.", () => new RefreshRun()),
         new("CarouselSwiped", Scrolling, "SkUiCarouselView over a long-lived collection with a long-lived shared cover flow effect, a long-lived position command and a linked indicator view: swiped and flung forward past the middle of its looping strip (moved back by corrections), an indicator tapped, the position set by code, items added and removed, the effect switched, looping turned off and the end reached (load-more command); closed mid-fling.", () => new CarouselRun()),
         new("PickerOpened", Controls, "SkUiPicker and SkUiCorePicker over a long-lived collection (a display binding, an item template), opened on a long-lived presenter that keeps the last request (as a popup stack does): tapped open and an item chosen in the drawn list, dismissed, closed by IsOpen = false and by hiding the picker, opened by the keyboard, the Core picker chosen; closed with a popup open.", () => new PickerRun()),
+        new("DisplayBindingChips", Controls, "Chips an app control builds from view-model items through a long-lived SkUiDisplayBinding over a long-lived binding (as one in app resources), fading on press: texts read from a list, from a sequence and one item alone, chips tapped, the items replaced and read again.", () => new DisplayBindingRun()),
         new("PickerWheelsOpened", Controls, "SkUiPicker with several choices and SkUiMultiColumnPicker, and their Core twins, over long-lived collections (columns' items, a long-lived presenter that keeps the last request): tapped open, rows toggled and wheels set through the request, completed with a selection, a draft accepted (UpdateMode WhenFinished), dismissed, closed by IsOpen = false and by hiding, columns removed while open; closed with a popup open.", () => new PickerWheelsRun()),
         new("DateTimePickersOpened", Controls, "SkUiDatePicker, SkUiTimePicker and SkUiDateTimePicker, and the Core date and time pickers, with long-lived blackout dates and a long-lived day rule, on a long-lived presenter that keeps the last request: tapped open, wheels turned (a month without the chosen day, a time before the minimum), a date and a time set and completed through the typed requests, a draft accepted (UpdateMode WhenFinished), cleared, dismissed, the range changed while open; closed with a popup open.", () => new DateTimePickersRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
@@ -1958,6 +1959,48 @@ public static class LeakScenarios
             : null;
     }
 
+    private sealed class DisplayBindingRun : LeakScenarioRun
+    {
+        private SkUiHorizontalStackLayout? _chips;
+        private int _taps;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _chips = new SkUiHorizontalStackLayout { Spacing = 8, Padding = new Thickness(12) };
+            Show(LeakDisplayBindings.Names.GetTexts(Items(context, "Red", "Green", "Blue")));
+            return Root(_chips);
+        }
+
+        private static List<LeakDisplayItem> Items(LeakScenarioContext context, params string[] names) =>
+            [.. names.Select(name => context.Track(new LeakDisplayItem(name), "item " + name))];
+
+        private void Show(IEnumerable<string> texts)
+        {
+            _chips!.Children.Clear();
+            foreach (var text in texts)
+            {
+                var chip = new SkUiLabel
+                {
+                    Text = text, Padding = new Thickness(10, 6), TextColor = LeakColors.Ink, ShowsPressEffect = true, PressFeedback = SkUiPressFeedback.Fade
+                };
+                chip.Tapped += (_, _) => _taps++;
+                _chips.Children.Add(chip);
+            }
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.TapAsync(_chips!.Children[0]);
+            var replaced = Items(context, "Cyan", "Magenta");
+            Show(LeakDisplayBindings.Names.GetTexts(replaced.Select(item => item)));
+            Show([.. _chips.Children.Cast<SkUiLabel>().Select(chip => chip.Text), LeakDisplayBindings.Names.GetText(context.Track(new LeakDisplayItem("Yellow"), "item Yellow"))]);
+            await context.SettleAsync();
+            await context.TapAsync(_chips.Children[^1]);
+        }
+
+        public override string? CheckInteraction() => _taps >= 2 ? null : $"{_taps} chip taps, expected 2.";
+    }
+
     private sealed class PickerWheelsRun : LeakScenarioRun
     {
         private SkUiPicker? _multiple;
@@ -2930,6 +2973,20 @@ public static class LeakConverters
 public static class LeakItems
 {
     public static ObservableCollection<string> Shared { get; } = [];
+}
+
+/// <summary>A display binding and its binding that outlive every scenario, like ones in app resources: items must not stay reachable from them.</summary>
+public static class LeakDisplayBindings
+{
+    public static Binding Name { get; } = new(nameof(LeakDisplayItem.Name));
+
+    public static SkUiDisplayBinding Names { get; } = new(Name);
+}
+
+/// <summary>A view-model item read through <see cref="LeakDisplayBindings"/>.</summary>
+public sealed class LeakDisplayItem(string name)
+{
+    public string Name { get; } = name;
 }
 
 /// <summary>Carousel effects that outlive every scenario, like ones in app resources: carousels must not stay reachable from them.</summary>
