@@ -59,7 +59,7 @@ public class KeyboardFocusTests
             SetContent(Row);
         }
 
-        public SkUiCoreLabel Row { get; } = new SkUiCoreLabel().SetText("Priority");
+        public SkUiCoreLabel Row { get; } = new SkUiCoreLabel().SetText("Priority").SetFontFamily(SkUiTestHelpers.BundledFontFamily);
 
         private bool PassesCommand { get; }
 
@@ -78,6 +78,7 @@ public class KeyboardFocusTests
     [Fact]
     public void AHostThatPassesItsTappedCommandOnIsOneButtonWithItsContent()
     {
+        using var _ = SkUiTestHelpers.UseBundledFont(); // the row's text gives it its size: Linux CI has no system fonts
         var runs = 0;
         foreach (var passes in new[] { false, true })
         {
