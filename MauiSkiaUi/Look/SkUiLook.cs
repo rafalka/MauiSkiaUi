@@ -802,6 +802,25 @@ public class SkUiLook
 
     #endregion
 
+    #region Item reordering
+
+    /// <summary>How much a collection view item lifted to be reordered is scaled (<see cref="SkUiTransitionKind.ReorderLift"/>); 1: not at all.</summary>
+    public virtual double ReorderLiftScale => 1;
+
+    /// <summary>The shadow of a collection view item lifted to be reordered, or <c>null</c> (default: none).</summary>
+    public virtual Shadow? GetReorderLiftShadow() => null;
+
+    /// <summary>
+    /// How close to an end of a reorderable list the pointer brings a lifted item for the list to scroll that way, in DIPs
+    /// (at most 15 % of the list's length).
+    /// </summary>
+    public virtual double ReorderAutoScrollZone => 48;
+
+    /// <summary>How fast a reorderable list scrolls with the pointer at its very end, in DIPs per second (slower further in).</summary>
+    public virtual double ReorderAutoScrollSpeed => 1200;
+
+    #endregion
+
     #region Pull to refresh
 
     /// <summary>Size of the refresh indicator's square, in DIPs (<see cref="Core.SkUiCoreRefreshIndicator"/>).</summary>

@@ -139,9 +139,30 @@ public partial class SkUiCollectionView
 
         protected override ISkUiView? CreateItemView(int index, object? recycleKey) => owner.CreateRowView(index, recycleKey);
 
-        protected override void BindItemView(int index, ISkUiView view, object? recycleKey) => owner.BindRow(index, view, recycleKey);
+        protected override void BindItemView(int index, ISkUiView view, object? recycleKey)
+        {
+            owner.BindRow(index, view, recycleKey);
+            owner.OnRowBound(index, view);
+        }
+
+        protected override void UnbindItemView(int index, ISkUiView view) => owner.OnRowUnbound(view);
 
         protected override object? GetItem(int index) => owner.RowItem(index);
+
+        // The reorder gesture is the rows' own, not an item's: the item's container may be released (scrolled out) while it
+        // is dragged, and a detached element's gestures are cancelled.
+        internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
+        {
+            base.CollectGestureRecognizers(recognizers);
+            if (owner._canReorderItems)
+                recognizers.Add(owner._reorderGesture ??= new ReorderGesture(owner));
+        }
+
+        internal override void CancelGestures()
+        {
+            base.CancelGestures();
+            owner._reorderGesture?.Cancel();
+        }
     }
 
     /// <summary>
@@ -169,7 +190,10 @@ public partial class SkUiCollectionView
         }
     }
 
-    /// <summary>Hosts an item's view: takes its taps, draws the selection background, and puts its root in the <c>Selected</c> state.</summary>
+    /// <summary>
+    /// Hosts an item's view: takes its taps, draws the selection background, puts its root in the <c>Selected</c> state, and
+    /// offers its moves to screen readers (<see cref="CanReorderItems"/>).
+    /// </summary>
     private sealed class ItemHost(SkUiCollectionView owner, object templateKey) : SkUiContentView
     {
         private bool _selected;
@@ -193,6 +217,11 @@ public partial class SkUiCollectionView
         }
 
         protected override bool HandlesTap => owner.WantsItemTaps;
+
+        internal override bool OnSemanticsCustomAction(int index) => owner.PerformReorderAction(this, index);
+
+        /// <summary>What screen readers read for the item changed (its moves).</summary>
+        public void RefreshSemantics() => InvalidateSemantics();
 
         protected override void OnTapped(SkUiTappedEventArgs args)
         {
@@ -219,6 +248,7 @@ public partial class SkUiCollectionView
             info.AutomationIdRoot = Content as ISkUiRenderable;
             if (_selected)
                 info.Value = SkUiStrings.Current.SelectedStateText;
+            owner.AddReorderActions(this, info);
         }
     }
 

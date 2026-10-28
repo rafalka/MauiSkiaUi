@@ -21,6 +21,9 @@ internal interface ISkUiAccessibleNode : ISkUiRenderable
     /// <summary>Sets a range value (a slider moved by TalkBack or Narrator); returns whether it was done.</summary>
     bool SetSemanticsValue(double value);
 
+    /// <summary>Performs the named action at <paramref name="index"/> of <see cref="SkUiSemanticsInfo.CustomActions"/>; returns whether it was done.</summary>
+    bool PerformSemanticsCustomAction(int index) => false;
+
     /// <summary>Whether the node takes keyboard focus now (visible, enabled, a tab stop, interactive).</summary>
     bool IsKeyboardFocusable { get; }
 
@@ -59,6 +62,8 @@ internal sealed class SkUiSemanticsNode
     public bool IsHorizontal;
     /// <summary>Whether a combo box's list is open; <c>null</c> when the element does not expand.</summary>
     public bool? IsExpanded;
+    /// <summary>The element's named actions (<see cref="SkUiSemanticsInfo.CustomActions"/>), or <c>null</c>.</summary>
+    public string[]? CustomActions;
     /// <summary>A part drawn inside <see cref="Source"/> (<see cref="SkUiSemanticsPart.Index"/>, a clear button); -1 for the source itself.</summary>
     public int PartIndex = -1;
     /// <summary>An editable text field's selection and flags; <c>null</c> for other elements.</summary>
@@ -81,6 +86,9 @@ internal sealed class SkUiSemanticsNode
     /// <summary>Actions that do something now (none while disabled).</summary>
     public SkUiSemanticsActions EnabledActions => IsEnabled ? Actions : SkUiSemanticsActions.None;
 
+    /// <summary>Named actions that do something now (none while disabled).</summary>
+    public string[]? EnabledCustomActions => IsEnabled ? CustomActions : null;
+
     /// <summary>Whether everything but the children equals <paramref name="other"/>'s.</summary>
     public bool ContentEquals(SkUiSemanticsNode other) =>
         Id == other.Id && ReferenceEquals(Source, other.Source) && Bounds == other.Bounds && Role == other.Role && Label == other.Label
@@ -88,7 +96,9 @@ internal sealed class SkUiSemanticsNode
         && Actions == other.Actions && IsHorizontal == other.IsHorizontal && IsExpanded == other.IsExpanded && TextField == other.TextField
         && HeadingLevel == other.HeadingLevel
         && AutomationId == other.AutomationId && IsFocusable == other.IsFocusable && IsFocused == other.IsFocused && IsNative == other.IsNative
-        && IsIdOnly == other.IsIdOnly && PartIndex == other.PartIndex;
+        && IsIdOnly == other.IsIdOnly && PartIndex == other.PartIndex
+        && (ReferenceEquals(CustomActions, other.CustomActions)
+            || (CustomActions is not null && other.CustomActions is not null && CustomActions.AsSpan().SequenceEqual(other.CustomActions)));
 
     /// <summary>The value read for a range element without an explicit one: a percentage (as native sliders).</summary>
     public string? DisplayValue => Value ?? (Range is { } range ? range.Fraction.ToString("P0", System.Globalization.CultureInfo.CurrentCulture) : null);
@@ -330,7 +340,7 @@ internal sealed class SkUiSemanticsTree
                 var text = Clean(_info.Description) ?? Clean(_info.Text);
                 if (IsElement(_info, text))
                 {
-                    var actionable = (_info.Actions & (SkUiSemanticsActions.Activate | SkUiSemanticsActions.LongPress)) != 0
+                    var actionable = (_info.Actions & (SkUiSemanticsActions.Activate | SkUiSemanticsActions.LongPress)) != 0 || _info.HasCustomActions
                         || _info.Role is SkUiSemanticsRole.Button or SkUiSemanticsRole.CheckBox or SkUiSemanticsRole.Switch
                             or SkUiSemanticsRole.RadioButton or SkUiSemanticsRole.Slider or SkUiSemanticsRole.ComboBox;
                     if (absorber is not null && !actionable && _info.Role != SkUiSemanticsRole.ScrollView)
@@ -438,7 +448,7 @@ internal sealed class SkUiSemanticsTree
                 return true;
             return info.Role switch
             {
-                SkUiSemanticsRole.None => info.Actions != SkUiSemanticsActions.None,
+                SkUiSemanticsRole.None => info.Actions != SkUiSemanticsActions.None || info.HasCustomActions,
                 SkUiSemanticsRole.Text => text is not null || info.Actions != SkUiSemanticsActions.None,
                 // Decorative unless described: by semantic properties, or by its own text (an avatar's name).
                 SkUiSemanticsRole.Image => text is not null || info.Actions != SkUiSemanticsActions.None,
@@ -474,6 +484,7 @@ internal sealed class SkUiSemanticsTree
                 Actions = info.Actions,
                 IsHorizontal = info.IsHorizontal,
                 IsExpanded = info.IsExpanded,
+                CustomActions = info.HasCustomActions ? info.CustomActions!.ToArray() : null,
                 TextField = info.TextField,
                 HeadingLevel = info.HeadingLevel,
                 AutomationId = info.AutomationId,

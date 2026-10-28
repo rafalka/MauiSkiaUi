@@ -20,6 +20,12 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - The fade is composited: its frames re-record nothing, and it multiplies `Opacity`, so an opacity animation and the fade do not affect each other.
 - **`DefaultMinimumHeight`** (protected virtual on `SkUiButton` and `SkUiCoreButton`): the minimum height used while none is set, the look's `DefaultButtonMinimumHeight` by default. A subclass gives its own size of button, as with `DefaultCornerRadius` and `DefaultPadding`, without a `MinimumHeightRequest` that every call-site style would have to repeat; a set minimum still wins (#65).
 - **`SkUiDisplayBinding`**: reads items' texts through an `ItemDisplayBinding`-style binding (`ToString()` without one), `GetText(item)` and `GetTexts(items)`, applying the binding only while reading, so neither it nor the binding keeps the last item alive and readers and pickers can share one binding instance (also after a read that threw). For own controls that show items as text (chips, tags, lists); `SkUiPicker` and `SkUiPickerColumn` now use it (#66).
+- **Reordering items in `SkUiCollectionView`:** MAUI's `CanReorderItems`, `CanMixGroups` and `ReorderCompleted`, in lists and grids, vertical and horizontal, grouped or not.
+  - A touch or pen lifts an item with a long press, the mouse with a press and drag. A copy of the item follows the pointer, scaled and shadowed by the look, and the items it passes move aside on the render thread. Held near either end, the list scrolls.
+  - On release, the item leaves its list (`RemoveAt`) and goes to its new place (`Insert`), as MAUI's handlers move it, then `ReorderCompleted` is raised. The item stays selected and the list keeps its scroll offset. Lists that do not notify are moved too and shown in their new order. The source (or the group) must be an `IList` that is neither read-only nor fixed-size.
+  - In grouped lists, items stay in their own group unless `CanMixGroups` is set. Collapsed groups take no items, and group headers and footers stay where they are.
+  - Screen readers offer "Move up" and "Move down" on each item that can move ("Move left" / "Move right" where one place is sideways), on TalkBack and VoiceOver. The texts are `SkUiStrings.MoveUpText`, `MoveDownText`, `MoveLeftText` and `MoveRightText`.
+  - The look sets the lift (`ReorderLiftScale`, `GetReorderLiftShadow()`, the `ReorderLift` and `ReorderMove` transitions) and the auto-scroll (`ReorderAutoScrollZone`, `ReorderAutoScrollSpeed`).
 
 ### Fixes
 

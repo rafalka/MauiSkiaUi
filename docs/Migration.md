@@ -50,7 +50,7 @@ Checked against .NET MAUI 10.0.120 (`MauiApiParityTests` compares every drawn co
 | Every view: `Shadow`, gradient `Background`, `Clip` | SkUi* + Core | Done (MAUI's `ImageBrush` is internal: an `SkUiImage` behind the content) |
 | Every view: `SemanticProperties`, focus, font scaling | SkUi* + Core | Done: TalkBack, VoiceOver, Narrator; keyboard focus and ring; `FontAutoScalingEnabled`; plus `IsTabStop` / `TabIndex` (gone from MAUI) |
 | Every view: `GestureRecognizers` | Arena gestures (`Tapped`, …) | Done: tap (any count, primary or secondary button), swipe, pan (one pointer), pinch and pointer recognizers run on drawn views; drag and drop is reported, not run |
-| CollectionView | `SkUiCollectionView`; `SkUiVirtualScrollView` for plain lists | Done but reordering: MAUI's `ItemsLayout` (snap points included), `ItemSizingStrategy`, `ScrollTo`, `ItemsUpdatingScrollMode`, templates and selectors, variable sizes, single and multiple selection, `Selected` state, item taps, header / footer (also sticky), empty view, groups (also collapsible, sticky headers), grids, horizontal, load more, `RemainingItemsThreshold`, scroll to index / item / group, pull-to-refresh |
+| CollectionView | `SkUiCollectionView`; `SkUiVirtualScrollView` for plain lists | Done: MAUI's `ItemsLayout` (snap points included), `ItemSizingStrategy`, `ScrollTo`, `ItemsUpdatingScrollMode`, reordering (`CanReorderItems`, `CanMixGroups`, `ReorderCompleted`), templates and selectors, variable sizes, single and multiple selection, `Selected` state, item taps, header / footer (also sticky), empty view, groups (also collapsible, sticky headers), grids, horizontal, load more, `RemainingItemsThreshold`, scroll to index / item / group, pull-to-refresh |
 | SwipeView | `SkUiSwipeView`, MAUI's `SwipeItems` / `SwipeItem`; `SkUiSwipeItemView` for `SwipeItemView` | Done; custom accessibility actions open |
 | RefreshView | `SkUiRefreshView`; pull-to-refresh also built into `SkUiCollectionView` | Done; screen-reader refresh action open |
 | CarouselView, IndicatorView | `SkUiCarouselView`; `SkUiIndicatorView` + Core | Done: `ItemsLayout` (or the items layout as carousel properties), `ItemsUpdatingScrollMode`, scroll bars, `IndicatorTemplate` (SkUi* only); plus several items in view and item effects; `VisibleViews` open |
@@ -71,7 +71,7 @@ Good first candidates:
 - screens that are slow to open, or where adding views to the page shows up in traces;
 - repeated rows inside a `ScrollView`, and `CollectionView` lists (also grouped, grids, horizontal, with multiple selection): `SkUiCollectionView`, or `SkUiVirtualScrollView` for plain lists (see [Lists](#lists-collectionview)).
 
-Leave for later: screens built around a reorderable `CollectionView`, or third-party controls (charts, calendars, data grids) that would have to sit on top of the drawn surface.
+Leave for later: screens built around third-party controls (charts, calendars, data grids) that would have to sit on top of the drawn surface.
 
 ## Setup
 
@@ -405,7 +405,9 @@ Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and 
 - `SwipeView` rows → `SkUiSwipeView` in the item template ([SkUiSwipeView.md](controls/SkUiSwipeView.md)): rows swipe horizontally while the list scrolls vertically, a scroll closes an open row, and a recycled row shows closed.
 - The list needs a bounded size along its axis: in a stack layout or a `ScrollView` of the same axis it would create every item (as a native `CollectionView` there would).
 
-Not available: reordering (`CanReorderItems`, planned for 1.3); keep those lists native. Plain lists can also use the lighter `SkUiVirtualScrollView` ([SkUiVirtualVerticalStackLayout.md](controls/SkUiVirtualVerticalStackLayout.md)).
+- `CanReorderItems`, `CanMixGroups` and `ReorderCompleted`: same, from 1.3. As on MAUI, the item leaves its list (`RemoveAt`) and goes to its new place (`Insert`), so the source (or the group) must be an `IList` that can change; `ReorderCompleted` follows. A touch lifts the item with a long press, the mouse with a press and drag, and screen readers (TalkBack, VoiceOver) offer "Move up" / "Move down" on each item. A long press handled inside the item template fires first and keeps the touch.
+
+Plain lists can also use the lighter `SkUiVirtualScrollView` ([SkUiVirtualVerticalStackLayout.md](controls/SkUiVirtualVerticalStackLayout.md)).
 
 ## Carousels (`CarouselView`, `IndicatorView`)
 
@@ -501,7 +503,6 @@ Styles now apply to everything the toolkit's constructor set (padding, stroke, s
 
 | MAUI | Status | Meanwhile |
 | --- | --- | --- |
-| `CollectionView`: reordering (`CanReorderItems`) | Planned for 1.3 | Keep the MAUI `CollectionView` with native item templates (outside the drawn region); everything else ports ([Lists](#lists-collectionview)) |
 | Drag and drop, context flyouts | Not planned | Keep native |
 | `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists), `SkUiBorder` |
 | Shell, pages, navigation | Out of scope | Stay MAUI |

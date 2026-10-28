@@ -88,6 +88,8 @@ public static class ComponentDemos
             () => new CollectionViewLayoutsDemoPage(), Key: "SkUiCollectionViewLayouts", Scenario: "groups, grid, horizontal"),
         new(typeof(SkUiCollectionView), typeof(ItemsLayoutDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,
             () => new ItemsLayoutDemoPage(), Key: "SkUiCollectionViewItemsLayout", Scenario: "items layouts and snap points"),
+        new(typeof(SkUiCollectionView), typeof(ReorderDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,
+            () => new ReorderDemoPage(), Key: "SkUiCollectionViewReorder", Scenario: "reordering"),
         new(typeof(SkUiCollectionView), typeof(SwipeViewListDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,
             () => new SwipeViewListDemoPage(), Key: "SkUiCollectionViewSwipeRows", Scenario: "swipeable rows"),
         new(typeof(SkUiCollectionView), typeof(PickerRowsDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,

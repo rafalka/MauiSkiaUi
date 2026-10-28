@@ -156,6 +156,17 @@ public sealed class SkUiSemanticsInfo
     /// <summary>Reports a drawn part as an element of its own, a child of the control's.</summary>
     internal void AddPart(in SkUiSemanticsPart part) => (Parts ??= []).Add(part);
 
+    /// <summary>
+    /// Named actions besides <see cref="Actions"/> (a reorderable item's "Move up"), in the order screen readers offer them;
+    /// performed by their index (<see cref="ISkUiAccessibleNode.PerformSemanticsCustomAction"/>).
+    /// </summary>
+    internal List<string>? CustomActions;
+
+    /// <summary>Offers a named action (<see cref="CustomActions"/>).</summary>
+    internal void AddCustomAction(string label) => (CustomActions ??= []).Add(label);
+
+    internal bool HasCustomActions => CustomActions is { Count: > 0 };
+
     internal void Reset()
     {
         Role = SkUiSemanticsRole.None;
@@ -174,5 +185,6 @@ public sealed class SkUiSemanticsInfo
         ChildrenHidden = false;
         IsNative = false;
         Parts?.Clear();
+        CustomActions?.Clear();
     }
 }

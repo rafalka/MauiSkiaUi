@@ -150,7 +150,8 @@ MAUI's `Semantics` mapping of the root view is replaced (`SkUiViewHandler` mappe
 
 ## Left open
 
-- Links inside HTML / span text as their own elements (they are read as part of the label), custom actions (`UIAccessibilityCustomAction`, Android custom actions), live regions / announcements of drawn content.
+- Links inside HTML / span text as their own elements (they are read as part of the label), live regions / announcements of drawn content.
+- Custom actions exist internally (`SkUiSemanticsInfo.CustomActions`: Android's custom `AccessibilityActionCompat`s, UIKit's `UIAccessibilityCustomAction`; none on Windows, where UI Automation has no custom actions) and are used by reorderable collection view items ("Move up" / "Move down"). Not yet public, and not yet on swipe view items or refresh views.
 - Arrow-key navigation between radio buttons of a group, and XY (spatial) focus navigation.
 - A picker's popup takes keyboard focus when shown and gives it back to the field when it closes (as a native combo box); not yet checked with hardware keyboards on devices. Android has no expanded state on its nodes before API 36 (the expand / collapse actions stand for it).
 - iPad keyboard navigation (implemented through the same focus-system path as Mac Catalyst) is not verified yet.

@@ -146,6 +146,15 @@ public class DefaultSkUiLook : SkUiLook
         }
     }
 
+    private static readonly Shadow ReorderShadow = new() { Brush = Colors.Black, Opacity = 0.3f, Radius = 12, Offset = new Point(0, 4) };
+
+    /// <inheritdoc />
+    public override double ReorderLiftScale => 1.03;
+
+    /// <inheritdoc />
+    /// <remarks>A soft shadow below the item, as lifted rows cast on iOS and Android.</remarks>
+    public override Shadow? GetReorderLiftShadow() => ReorderShadow;
+
     private static readonly Shadow OverlayRefreshShadow = new() { Brush = Colors.Black, Opacity = 0.25f, Radius = 4, Offset = new Point(0, 1) };
 
     /// <inheritdoc />
@@ -166,6 +175,8 @@ public class DefaultSkUiLook : SkUiLook
         SkUiTransitionKind.IndicatorPosition => SkUiTransition.FromMilliseconds(250, Easing.CubicOut),
         SkUiTransitionKind.FieldFocus => SkUiTransition.FromMilliseconds(150, Easing.CubicOut),
         SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(200, Easing.CubicInOut),
+        SkUiTransitionKind.ReorderLift => SkUiTransition.FromMilliseconds(150, Easing.CubicOut),
+        SkUiTransitionKind.ReorderMove => SkUiTransition.FromMilliseconds(200, Easing.CubicOut),
         // Determinate progress follows Progress at once, as MAUI's ProgressBar (ProgressTo animates).
         _ => SkUiTransition.None
     };

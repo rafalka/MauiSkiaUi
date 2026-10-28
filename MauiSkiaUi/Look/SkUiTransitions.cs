@@ -29,7 +29,16 @@ public enum SkUiTransitionKind
     /// <summary>A field (a picker) gains or loses keyboard focus or its popup: its focus highlight goes towards 1 or 0.</summary>
     FieldFocus,
     /// <summary>A picker's popup opens or closes: its chevron turns (<see cref="SkUiPickerFieldPaint.Open"/> goes towards 1 or 0).</summary>
-    PickerOpen
+    PickerOpen,
+    /// <summary>
+    /// A collection view item is lifted to be reordered, or put down: it scales to or from
+    /// <see cref="SkUiLook.ReorderLiftScale"/>.
+    /// </summary>
+    ReorderLift,
+    /// <summary>
+    /// While a collection view item is reordered, the items it passes move aside, and on the drop it moves to its new place.
+    /// </summary>
+    ReorderMove
 }
 
 /// <summary>

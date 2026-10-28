@@ -88,7 +88,7 @@ Status: **Shipped** (in the current release line), **Partly** (shipped, with ope
 | FR-19 | Color scheme: default palette, light / dark and platform schemes | Partly (per-tree schemes) | [ColorScheme](ColorScheme.md) |
 | FR-20 | Shadows on every view | Shipped | [RenderingPipeline](RenderingPipeline.md#shadows-and-clips-fr-20-fr-11) |
 | FR-21 | Virtual scroll layout (items realized near the viewport, recycled) | Partly (scroll modes, horizontal layout) | [SkUiVirtualVerticalStackLayout](../controls/SkUiVirtualVerticalStackLayout.md) |
-| FR-22 | `SkUiCollectionView` | Partly (reordering) | [SkUiCollectionView](../controls/SkUiCollectionView.md) |
+| FR-22 | `SkUiCollectionView` | Done (reordering in 1.3) | [SkUiCollectionView](../controls/SkUiCollectionView.md) |
 | FR-23 | Three-state toggles | Shipped | [SkUiToggleControl](../controls/SkUiToggleControl.md) |
 | FR-24 | Slider (also vertical) | Shipped | [SkUiSlider](../controls/SkUiSlider.md) |
 | FR-25 | Progress bar (also indeterminate) | Shipped | [SkUiProgressBar](../controls/SkUiProgressBar.md) |

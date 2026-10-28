@@ -36,9 +36,7 @@ DRAWN = {
 # Community Toolkit controls with a drawn equivalent, counted as "Toolkit <name>".
 TOOLKIT_DRAWN = {"Expander", "AvatarView"}
 NATIVE_ISLAND = {"WebView", "HybridWebView", "BlazorWebView", "Map"}
-# CollectionViews SkUiCollectionView cannot take, counted apart from the ones that port.
-BLOCKED_COLLECTION_VIEW = "CollectionView (reorderable or with snap points)"
-NOT_YET = {BLOCKED_COLLECTION_VIEW, "ListView", "TableView"}
+NOT_YET = {"ListView", "TableView"}
 PAGES = {"ContentPage", "TabbedPage", "FlyoutPage", "NavigationPage", "Shell"}
 GESTURES = {"TapGestureRecognizer", "SwipeGestureRecognizer", "PanGestureRecognizer", "PinchGestureRecognizer",
             "PointerGestureRecognizer", "DragGestureRecognizer", "DropGestureRecognizer"}
@@ -58,24 +56,6 @@ CS_PATTERNS = {
 }
 
 
-
-def collection_view_blocked(node):
-    """Whether a CollectionView uses what SkUiCollectionView does not have: reordering, snap points.
-
-    Conservative: a bound or resource value may be true, so anything but a literal "false" (or no value) blocks."""
-    if node.attrs.get((None, "CanReorderItems"), "false").strip().lower() != "false":
-        return True
-    if any(child.name.endswith(".CanReorderItems") for child in node.children):
-        return True
-    pending = [child for child in node.children if child.name.endswith(".ItemsLayout")]
-    while pending:
-        child = pending.pop()
-        if child.attrs.get((None, "SnapPointsType"), "None").strip() != "None":
-            return True
-        if child.name.endswith(".SnapPointsType"):  # a property element: its value is not kept, so assume snap points
-            return True
-        pending.extend(child.children)
-    return False
 
 class Node:
     __slots__ = ("uri", "name", "attrs", "children", "parent")
@@ -302,10 +282,6 @@ def main():
                     control_templates += 1
                 elif name == "DataTemplate":
                     data_templates += 1
-                elif name == "CollectionView" and collection_view_blocked(node):
-                    totals[BLOCKED_COLLECTION_VIEW] += 1
-                    info.views += 1
-                    info.not_yet[BLOCKED_COLLECTION_VIEW] += 1
                 elif name in DRAWN or name in NATIVE_ISLAND or name in NOT_YET:
                     totals[name] += 1
                     info.views += 1

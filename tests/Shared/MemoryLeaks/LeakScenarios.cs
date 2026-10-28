@@ -45,6 +45,7 @@ public static class LeakScenarios
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("VirtualListScrolled", Scrolling, "SkUiVirtualScrollView bound to a long-lived collection (items of different heights, recycled template views): dragged, flung, scrolled to an index, items inserted and removed and the item template replaced while shown; closed mid-fling.", () => new VirtualListRun()),
         new("CollectionViewUsed", Scrolling, "SkUiCollectionView bound to a long-lived collection, with long-lived selection, item-tap and refresh commands, a sticky header and an empty view: items tapped to select and deselect, flung, scrolled to an item, pulled to refresh, the selected item removed, the collection emptied and refilled; closed mid-fling.", () => new CollectionViewRun()),
+        new("CollectionViewReordered", Scrolling, "SkUiCollectionView over a long-lived collection with CanReorderItems, as a list and as a grid of two columns: items held and dragged to new places (rows and cells moving aside, the lifted copy scaled and shadowed), the selected item moved, an item held near the list's end so it scrolls, a drag cancelled by a change of the collection, an item moved by a screen-reader action; closed with an item lifted.", () => new CollectionViewReorderRun()),
         new("CollectionViewGrouped", Scrolling, "SkUiCollectionView over long-lived groups (a grid of two columns, sticky collapsible group headers), with a long-lived selected-items list and load-more command: headers tapped to collapse and expand, items selected, flung, scrolled to a group, groups and items added and removed, the template replaced; closed mid-fling.", () => new CollectionViewGroupedRun()),
         new("RefreshPulled", Scrolling, "SkUiRefreshView (inline style, automatic completion) with a long-lived command around a header and a drawn scroller: pulled through the scroller and by the header (content held down while refreshing), each refresh ended by a deferral taken in Refreshing, a short pull released before the trigger (the indicator going back), the scroller replaced while still linked and the old one detached; closed mid-pull.", () => new RefreshRun()),
         new("CarouselSwiped", Scrolling, "SkUiCarouselView over a long-lived collection with a long-lived shared cover flow effect, a long-lived position command and a linked indicator view: swiped and flung forward past the middle of its looping strip (moved back by corrections), an indicator tapped, the position set by code, items added and removed, the effect switched, looping turned off and the end reached (load-more command); closed mid-fling.", () => new CarouselRun()),
@@ -1802,6 +1803,73 @@ public static class LeakScenarios
         public override string? CheckInteraction() =>
             _taps >= 3 && _selections >= 4 && _refreshes == 1 && _list!.SelectedItem is null ? null
                 : $"Tapped {_taps} times, selection changed {_selections} times, refreshed {_refreshes} times; selected {_list!.SelectedItem ?? "none"}.";
+    }
+
+    private sealed class CollectionViewReorderRun : LeakScenarioRun
+    {
+        private SkUiCollectionView? _list;
+        private SkUiCollectionView? _grid;
+        private int _reorders;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 200; index++)
+                LeakItems.Shared.Add($"Task {index}");
+            _list = context.Track(List(context, span: 1), "reorderable list");
+            _grid = context.Track(List(context, span: 2), "reorderable grid");
+            _list.ReorderCompleted += (_, _) => _reorders++;
+            _grid.ReorderCompleted += (_, _) => _reorders++;
+            var layout = new SkUiGrid { RowDefinitions = [new RowDefinition(GridLength.Star), new RowDefinition(GridLength.Star)] };
+            Grid.SetRow(_grid, 1);
+            layout.Children.Add(_list);
+            layout.Children.Add(_grid);
+            return Root(layout);
+        }
+
+        private static SkUiCollectionView List(LeakScenarioContext context, int span) => new()
+        {
+            ItemsSource = LeakItems.Shared,
+            CanReorderItems = true,
+            Span = span,
+            SelectionMode = SkUiSelectionMode.Single,
+            ItemTemplate = new DataTemplate(() =>
+            {
+                var row = context.Track(Text("", 13), "reorderable item view");
+                row.HeightRequest = 44;
+                row.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+                return row;
+            })
+        };
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var list = _list!;
+            var grid = _grid!;
+            await context.SettleAsync();
+            list.SelectedItem = LeakItems.Shared[1];
+            // Each drop settles before the next drag: the two lists share the collection, and a change cancels a drag.
+            await context.HoldAndDragAsync(list.GetRealizedView(1)!, 0, 100); // the selected item, two rows down
+            await context.WaitAsync(400);
+            await context.HoldAndDragAsync(grid.GetRealizedView(0)!, grid.Width / 2, 44); // to the next row's second cell
+            await context.WaitAsync(400);
+            await context.HoldAndDragAsync(list.GetRealizedView(0)!, 0, list.Height - 40, holdAtEndMs: 400); // scrolls while held
+            await context.WaitAsync(400);
+            await context.HoldAndDragAsync(list.GetRealizedView(list.FirstVisibleIndex)!, 0, 90,
+                beforeRelease: () => LeakItems.Shared.Insert(0, "Inserted")); // cancelled
+            if (SkUiSemantics.RootOf(list) is { } root && ((Element)list.GetRealizedView(list.FirstVisibleIndex)!).Parent is ISkUiAccessibleNode host)
+            {
+                var owner = root.SemanticsOwner ?? new SkUiSemanticsOwner(root);
+                if (owner.Tree.Find(host) is { } element)
+                    owner.PerformCustom(element.Id, 0);
+            }
+            await context.SettleAsync();
+            await context.HoldAndDragAsync(grid.GetRealizedView(1)!, 0, 60, release: false); // closes with an item lifted
+        }
+
+        public override string? CheckInteraction() =>
+            _reorders >= 4 && _list!.SelectedItem is "Task 1" ? null
+                : $"Reordered {_reorders} times; selected {_list!.SelectedItem ?? "none"}.";
     }
 
     private sealed class RefreshRun : LeakScenarioRun

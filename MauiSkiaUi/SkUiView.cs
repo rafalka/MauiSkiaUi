@@ -1237,6 +1237,52 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         }
     }
 
+    /// <summary>
+    /// Stops the render-thread animations of <paramref name="property"/>: the node shows the property's value again, also when
+    /// it equals the value the animation started from (setting such a value changes nothing, so it would not stop them).
+    /// </summary>
+    internal void StopAnimations(SkUiAnimatableProperty property)
+    {
+        var state = RenderState;
+        if (state.PendingAnimations is not { Count: > 0 } && state.ActiveAnimations is not { Count: > 0 })
+            return;
+        ReadOnlySpan<SkUiRenderProperty> renderProperties = property switch
+        {
+            SkUiAnimatableProperty.Opacity => [SkUiRenderProperty.Opacity],
+            SkUiAnimatableProperty.TranslationX => [SkUiRenderProperty.TranslationX],
+            SkUiAnimatableProperty.TranslationY => [SkUiRenderProperty.TranslationY],
+            SkUiAnimatableProperty.Rotation => [SkUiRenderProperty.Rotation],
+            SkUiAnimatableProperty.ScaleX => [SkUiRenderProperty.ScaleX],
+            SkUiAnimatableProperty.ScaleY => [SkUiRenderProperty.ScaleY],
+            _ => [SkUiRenderProperty.ScaleX, SkUiRenderProperty.ScaleY]
+        };
+        var stopped = false;
+        foreach (var renderProperty in renderProperties)
+        {
+            var mask = 1 << (int)renderProperty;
+            stopped |= Supersede(state.PendingAnimations, mask) | Supersede(state.ActiveAnimations, mask);
+            // A committed value no current value equals: the next frame sends the UI's value as an explicit change, which
+            // the compositor shows instead of where the animation stopped.
+            if (state.HasCommitted)
+                state.Committed.Set(renderProperty, float.NaN);
+        }
+        if (stopped)
+            InvalidateRender(SkUiRenderDirty.Props);
+
+        static bool Supersede(List<SkUiRenderAnimation>? animations, int mask)
+        {
+            var any = false;
+            if (animations is not null)
+                foreach (var animation in animations)
+                    if ((animation.PropertyMask & mask) != 0)
+                    {
+                        animation.Supersede();
+                        any = true;
+                    }
+            return any;
+        }
+    }
+
     private Action<SKCanvas>? _paintBackground;
     private Action<SKCanvas>? _paintOverlay;
 

@@ -371,12 +371,15 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// <summary>The items or groups changed (after the rows did): the empty view, the selection, what shows.</summary>
     private void OnItemsChanged(IList? removed, bool reset)
     {
+        OnItemsChangedWhileDragging();
         UpdateEmpty();
-        OnSelectionSourceChanged(removed, reset);
+        // A reorder takes the item out and puts it back: it stays selected.
+        if (!_committingReorder)
+            OnSelectionSourceChanged(removed, reset);
         OnVisibleRowsChanged();
         UpdateStickyGroupHeader();
         CheckLoadMore();
-        if (ItemsUpdatingScrollMode == ItemsUpdatingScrollMode.KeepLastItemInView && Model.RowCount > 0)
+        if (ItemsUpdatingScrollMode == ItemsUpdatingScrollMode.KeepLastItemInView && Model.RowCount > 0 && !_committingReorder)
             _ = ItemsHost.ScrollToIndexAfterLayout(Model.RowCount - 1, ScrollToPosition.End, animated: !reset && IsShown);
     }
 
@@ -907,6 +910,8 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     protected override void OnParentSet()
     {
         base.OnParentSet();
+        if (Parent is null)
+            CancelReorder();
         EnsureTemplateContent();
     }
 
@@ -1060,12 +1065,17 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
             yield return Scroller;
             if (_stickyFooterHost is not null)
                 yield return _stickyFooterHost;
+            if (_dragHost is not null)
+                yield return _dragHost;
             yield return Refresh.Layer;
         }
     }
 
     /// <inheritdoc />
-    /// <remarks>Drawn (and hit-tested) above the list: the sticky group header, the sticky header and footer, then the refresh indicator.</remarks>
+    /// <remarks>
+    /// Drawn (and hit-tested) above the list: the sticky group header, the sticky header and footer, an item being reordered,
+    /// then the refresh indicator.
+    /// </remarks>
     internal override void AddRenderChildren(List<ISkUiRenderable> children)
     {
         children.Add(Scroller);
@@ -1075,6 +1085,8 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
             children.Add(_stickyHeaderHost);
         if (_stickyFooterHost is not null)
             children.Add(_stickyFooterHost);
+        if (_dragHost is not null)
+            children.Add(_dragHost);
         children.Add(Refresh.Layer);
     }
 
@@ -1096,6 +1108,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         var list = ((IView)Scroller).Measure(widthConstraint, heightConstraint);
         MeasurePart(_stickyGroupHost, widthConstraint, heightConstraint);
         ((IView)Refresh.Layer).Measure(widthConstraint, double.PositiveInfinity);
+        ((IView?)_dragHost)?.Measure(widthConstraint, heightConstraint);
         var across = Math.Max(Across(list), Math.Max(Across(header), Across(footer)));
         var along = Math.Max(Along(list), Along(header) + Along(footer));
         return _horizontal ? new Size(along, across) : new Size(across, along);
@@ -1114,6 +1127,8 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         ((IView?)_stickyGroupHost)?.Arrange(Slot(header, AlongOf(_stickyGroupHost), size));
         // Between the sticky parts: the indicator comes down from below the header, clipped there.
         ((IView)Refresh.Layer).Arrange(Slot(header, Math.Max(0, length - header - footer), size));
+        // Over the whole list: the proxy of a dragged item is placed by its translation.
+        ((IView?)_dragHost)?.Arrange(new Rect(0, 0, size.Width, size.Height));
         UpdateStickyGroupHeader();
         RecheckLoadMore();
         KeepSelectionVisibleAfterArrange(size);

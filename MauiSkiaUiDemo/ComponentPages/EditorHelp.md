@@ -369,6 +369,29 @@ down by three cards, with `KeepLastItemInView` both lists scroll to their end.
 
 Appends a card: with `KeepLastItemInView` both lists scroll to it.
 
+## ReorderDemoPage.CanReorderItems
+
+Lets the user move tasks: on a phone a long press lifts one, with a mouse a press and drag. The other tasks move aside as it
+passes them, and the list scrolls when it is held near an end. Both lists show the same tasks, so a move in one shows in
+the other. Screen readers offer "Move up" and "Move down" on each task.
+
+## ReorderDemoPage.ItemsLayout
+
+A list, a grid of two columns, or a horizontal list: in a grid a lifted task moves freely and the others take their
+neighbours' cells.
+
+## ReorderDemoPage.IsGrouped
+
+The same tasks in two groups, "Today" and "Later". Group headers do not move.
+
+## ReorderDemoPage.CanMixGroups
+
+In grouped lists, whether a task can move to the other group (off: it stays in its own).
+
+## ReorderDemoPage.Reset the order
+
+Puts the tasks back in their first order.
+
 ## CarouselViewDemoPage.Cover flow RotationAngle
 
 How far the side items turn with the *Cover flow* `ItemEffect` (`SkUiCoverFlowEffect.RotationAngle`, degrees).

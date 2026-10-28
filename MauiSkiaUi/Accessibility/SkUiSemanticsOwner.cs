@@ -139,6 +139,11 @@ internal sealed class SkUiSemanticsOwner
         Tree.Find(id) is { Source: { } source } node && (node.EnabledActions & action) != 0 && IsInputLive(source)
         && (node.PartIndex < 0 ? source.PerformSemanticsAction(action) : source.PerformSemanticsPartAction(node.PartIndex, action));
 
+    /// <summary>Performs the named action at <paramref name="index"/> of element <paramref name="id"/>; returns whether it was done.</summary>
+    public bool PerformCustom(int id, int index) =>
+        Tree.Find(id) is { Source: { } source, PartIndex: < 0, EnabledCustomActions: { } actions } && (uint)index < (uint)actions.Length
+        && IsInputLive(source) && source.PerformSemanticsCustomAction(index);
+
     /// <summary>Sets the range value of element <paramref name="id"/>; returns whether it was done.</summary>
     public bool SetValue(int id, double value) =>
         Tree.Find(id) is { Source: { } source, IsEnabled: true, Range: not null } && IsInputLive(source) && source.SetSemanticsValue(value);
