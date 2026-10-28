@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.3.0
+
 ### New features
 
 - **`RunsTappedCommand`** (protected virtual on `SkUiView`, default `true`): a host that hands its `TappedCommand` and `TappedCommandParameter` to the node it draws (a Core node with `ShowsPressEffect`) returns `false`. That node is then the one tap target, screen reader element and keyboard focus stop, and the host no longer runs the command as well. Before, such a wrapper was two nested buttons with the same `AutomationId`, read twice and stopped on twice by Tab (#63).
