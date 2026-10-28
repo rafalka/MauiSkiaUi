@@ -1522,6 +1522,11 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <inheritdoc cref="ISkUiInputNode.HitTestsChildren" />
     internal virtual bool HitTestsChildren => true;
 
+    bool ISkUiInputNode.HitsOutsideBounds(Point local) => HitsOutsideBounds(local);
+
+    /// <inheritdoc cref="ISkUiInputNode.HitsOutsideBounds" />
+    internal virtual bool HitsOutsideBounds(Point local) => false;
+
     void ISkUiInputNode.CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers) => CollectGestureRecognizers(recognizers);
 
     /// <summary>Appends this view's recognizers: built-in tap, long press, swipe, pan, pinch, custom, MAUI's bridged ones, then intrinsic ones.</summary>

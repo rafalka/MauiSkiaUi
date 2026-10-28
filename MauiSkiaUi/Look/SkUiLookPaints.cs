@@ -41,6 +41,29 @@ public readonly record struct SkUiProgressBarPaint(
     SKRect Bounds, float Progress, bool IsIndeterminate, SKColor Track, SKColor Fill, float SegmentFraction, bool IsEnabled);
 
 /// <summary>
+/// What a look draws for a dragger (<see cref="SkUiLook.DrawDragger"/>, also a grid splitter): a line through the middle of
+/// <see cref="Bounds"/> and a grip on it, both along the dragger. The control's background is drawn behind them. Left-to-right
+/// coordinates (the control swaps a horizontal line's grip start and end in right-to-left layouts); colors already reflect
+/// the enabled state.
+/// </summary>
+/// <param name="Bounds">The dragger's rectangle.</param>
+/// <param name="TouchBounds">
+/// Its touch area: <see cref="Bounds"/>, or wider across a thinner dragger (<see cref="SkUiLook.DraggerTouchThickness"/>).
+/// A painter may draw anywhere in it (the node does not clip a thin dragger), e.g. a pill over a 1 DIP divider.
+/// </param>
+/// <param name="LineRunsVertically">The line and grip run top to bottom (a horizontal drag); otherwise left to right.</param>
+/// <param name="ShowsGrip">Draw the grip.</param>
+/// <param name="Grip">Grip color.</param>
+/// <param name="GripAlignment">Where the grip sits along the dragger: start, center, end, or along all of it (<see cref="LayoutAlignment.Fill"/>).</param>
+/// <param name="GripLength">The grip's length in DIPs (the control's, or <see cref="SkUiLook.DraggerGripLength"/>).</param>
+/// <param name="ShowsLine">Draw the line, along the whole dragger.</param>
+/// <param name="Line">Line color.</param>
+/// <param name="IsDragging">The dragger is being dragged.</param>
+/// <param name="IsEnabled">The control is enabled.</param>
+public readonly record struct SkUiDraggerPaint(SKRect Bounds, SKRect TouchBounds, bool LineRunsVertically, bool ShowsGrip, SKColor Grip, LayoutAlignment GripAlignment,
+    float GripLength, bool ShowsLine, SKColor Line, bool IsDragging, bool IsEnabled);
+
+/// <summary>
 /// What a look draws for a Switch (<see cref="SkUiLook.DrawSwitch"/>), in left-to-right coordinates (the control mirrors
 /// right-to-left layouts). Colors already reflect the enabled state; the look picks and blends them by
 /// <see cref="Visual"/>.

@@ -46,6 +46,7 @@ public class SkUiLook
     // vertical sliders and mirror RTL.
     public void DrawSlider(SKCanvas canvas, SkUiSliderPaint slider) { … }            // → SliderPainter ?? DrawSliderCore
     public void DrawProgressBar(SKCanvas canvas, SkUiProgressBarPaint bar) { … }     // → ProgressBarPainter ?? DrawProgressBarCore
+    public void DrawDragger(SKCanvas canvas, SkUiDraggerPaint dragger) { … }         // → DraggerPainter ?? DrawDraggerCore (also grid splitters; may draw in TouchBounds, past a thin dragger)
     public void DrawActivityIndicator(…) { … }                                      // → ActivityIndicatorPainter ?? DrawActivityIndicatorCore
     // Scroll bar thumbs: drawn once per length and color into a Core node; the compositor moves and fades it.
     public void DrawScrollBar(SKCanvas canvas, SkUiScrollBarPaint bar) { … }         // → ScrollBarPainter ?? DrawScrollBarCore

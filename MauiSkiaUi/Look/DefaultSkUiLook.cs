@@ -956,6 +956,45 @@ public class DefaultSkUiLook : SkUiLook
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A line through the middle, then a rounded grip, twice as thick while dragged, <see cref="SkUiLook.DraggerGripInset"/>
+    /// from the edge it is aligned to; centered on a dragger thinner than it.
+    /// </remarks>
+    protected override void DrawDraggerCore(SKCanvas canvas, SkUiDraggerPaint dragger)
+    {
+        var bounds = dragger.Bounds;
+        var vertical = dragger.LineRunsVertically;
+        var along = vertical ? bounds.Height : bounds.Width;
+        var across = vertical ? bounds.Width : bounds.Height;
+        if (dragger.ShowsLine)
+        {
+            var line = Math.Min((float)DraggerLineThickness, across);
+            canvas.DrawRect(Strip(bounds, vertical, 0, along, line), Paint(dragger.Line));
+        }
+        if (!dragger.ShowsGrip)
+            return;
+        var inset = (float)DraggerGripInset;
+        var room = along - 2 * inset;
+        var length = dragger.GripAlignment == LayoutAlignment.Fill ? room : Math.Min(dragger.GripLength, room);
+        // Not clamped to the dragger: on a thin one (a 1 DIP divider) the grip draws over its neighbors.
+        var thickness = (float)DraggerGripThickness * (dragger.IsDragging ? 2 : 1);
+        if (length <= 0 || thickness <= 0)
+            return;
+        var start = dragger.GripAlignment switch
+        {
+            LayoutAlignment.Start or LayoutAlignment.Fill => inset,
+            LayoutAlignment.End => along - inset - length,
+            _ => (along - length) / 2
+        };
+        canvas.DrawRoundRect(Strip(bounds, vertical, start, length, thickness), thickness / 2, thickness / 2, Paint(dragger.Grip));
+
+        // A strip of `thickness` centered across the dragger, from `start` along it.
+        static SKRect Strip(SKRect bounds, bool vertical, float start, float length, float thickness) => vertical
+            ? SKRect.Create(bounds.MidX - thickness / 2, bounds.Top + start, thickness, length)
+            : SKRect.Create(bounds.Left + start, bounds.MidY - thickness / 2, length, thickness);
+    }
+
+    /// <inheritdoc />
     /// <remarks>A rounded bar, fully rounded across its thickness; darker while dragged.</remarks>
     protected override void DrawScrollBarCore(SKCanvas canvas, SkUiScrollBarPaint bar)
     {

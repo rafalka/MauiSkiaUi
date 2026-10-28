@@ -21,7 +21,6 @@ public sealed class ExpanderDemoPage : ComponentDemoPage
         : base(nameof(SkUiExpander), CreatePreview(out var expander), widthRange: (160, 360, 280), heightRange: (120, 400, 280))
     {
         _expander = expander;
-        SinglePanelHeight = 320;
         expander.Header = new SkUiBorder
         {
             Background = Accent, CornerRadius = 8, StrokeThickness = 0,

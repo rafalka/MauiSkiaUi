@@ -37,7 +37,6 @@ public sealed class ShimmerContentDemoPage : ComponentDemoPage
     public ShimmerContentDemoPage()
         : base("Skeleton from the content", Create(out var shimmer, out var feed), widthRange: (220, 420, 340), heightRange: (200, 700, 460))
     {
-        SinglePanelHeight = 480;
         foreach (var card in feed.Children.OfType<SkUiBorder>())
             if (card.Content is SkUiGrid grid)
             {

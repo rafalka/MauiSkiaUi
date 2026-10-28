@@ -1191,6 +1191,11 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// <inheritdoc cref="ISkUiInputNode.HitTestsChildren" />
     internal virtual bool HitTestsChildren => true;
 
+    bool ISkUiInputNode.HitsOutsideBounds(Point local) => HitsOutsideBounds(local);
+
+    /// <inheritdoc cref="ISkUiInputNode.HitsOutsideBounds" />
+    internal virtual bool HitsOutsideBounds(Point local) => false;
+
     void ISkUiInputNode.SetPointerOver(bool isOver) => OnPointerOverChanged(isOver);
 
     /// <summary>A hovering pointer entered (<c>true</c>) or left this node or one of its descendants.</summary>

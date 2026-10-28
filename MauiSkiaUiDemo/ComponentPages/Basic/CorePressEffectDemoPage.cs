@@ -20,7 +20,6 @@ public sealed class CorePressEffectDemoPage : ComponentDemoPage
         : base("Composite buttons", CreateHost(out var pressables, out var inner, out var content), native: null,
             widthRange: (220, 420, 340), heightRange: (260, 520, 420))
     {
-        SinglePanelHeight = 440;
         var taps = new Dictionary<string, int>();
         foreach (var (name, node) in pressables)
             node.Tapped += (_, _) =>

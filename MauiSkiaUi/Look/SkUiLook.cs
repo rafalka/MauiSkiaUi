@@ -721,6 +721,59 @@ public class SkUiLook
 
     #endregion
 
+    #region Dragger
+
+    /// <summary>
+    /// Default size across a dragger (the height of a row splitter), in DIPs: the room it takes in a layout. A thinner one (a
+    /// 1 DIP divider) still has a <see cref="DraggerTouchThickness"/> touch area.
+    /// </summary>
+    public virtual double DefaultDraggerThickness => 16;
+
+    /// <summary>
+    /// Least thickness of a dragger's touch area, in DIPs (<c>TouchThickness</c> on the control overrides it): a thinner
+    /// dragger takes pointers this far across, centered on it, over its neighbors, and its grip draws over them.
+    /// </summary>
+    public virtual double DraggerTouchThickness => 24;
+
+    /// <summary>Default length of the grip a look draws along a dragger, in DIPs (<c>GripLength</c> on the control overrides it).</summary>
+    public virtual double DraggerGripLength => 36;
+
+    /// <summary>Thickness of the grip, in DIPs (twice as much while dragged).</summary>
+    public virtual double DraggerGripThickness => 4;
+
+    /// <summary>Distance between a grip at the start or end of a dragger and its edge, in DIPs.</summary>
+    public virtual double DraggerGripInset => 4;
+
+    /// <summary>Thickness of a dragger's line (<c>ShowsLine</c>), in DIPs.</summary>
+    public virtual double DraggerLineThickness => 1;
+
+    /// <summary>Optional dragger painter.</summary>
+    public Action<SKCanvas, SkUiDraggerPaint>? DraggerPainter { get; set; }
+
+    /// <summary>
+    /// Intrinsic dragger size: <see cref="DraggerGripLength"/> along its line, <see cref="DefaultDraggerThickness"/> across
+    /// (a dragger in a grid stretches along its row or column).
+    /// </summary>
+    public Size MeasureDragger(bool lineRunsVertically) => lineRunsVertically
+        ? new Size(DefaultDraggerThickness, DraggerGripLength)
+        : new Size(DraggerGripLength, DefaultDraggerThickness);
+
+    /// <summary>Draws a dragger (delegate or <see cref="DrawDraggerCore"/>): its line, then its grip.</summary>
+    public void DrawDragger(SKCanvas canvas, SkUiDraggerPaint dragger)
+    {
+        if (DraggerPainter is { } painter)
+        {
+            painter(canvas, dragger);
+            return;
+        }
+        DrawDraggerCore(canvas, dragger);
+    }
+
+    /// <summary>Default dragger geometry.</summary>
+    protected virtual void DrawDraggerCore(SKCanvas canvas, SkUiDraggerPaint dragger) { }
+
+    #endregion
+
     #region ScrollView
 
     /// <summary>Scroll bar thickness in DIPs.</summary>

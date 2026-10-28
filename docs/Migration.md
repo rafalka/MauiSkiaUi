@@ -204,7 +204,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | MAUI | SkiaUi | Notes |
 | --- | --- | --- |
 | `ContentView` | `SkUiContentView` | Also the base class for drawn custom controls; `ControlTemplate` of drawn views ([templated controls](#templated-controls)) |
-| `Grid` | `SkUiGrid` | Prefix swap, also in code: `grid.Add(view, column, row)`, `AddWithSpan`, `SetRow` / `SetColumn` / spans for a view and `AddRowDefinition` / `AddColumnDefinition` work as on MAUI's `Grid`; children must be drawn views |
+| `Grid` | `SkUiGrid` | Prefix swap, also in code: `grid.Add(view, column, row)`, `AddWithSpan`, `SetRow` / `SetColumn` / spans for a view and `AddRowDefinition` / `AddColumnDefinition` work as on MAUI's `Grid`; children must be drawn views. `SkUiGridSplitter` lets users resize its rows or columns (also in a MAUI `Grid`) |
 | `VerticalStackLayout` / `HorizontalStackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | Prefix swap, also in code: every drawn layout has MAUI `Layout`'s `Add` / `Insert` / `Remove` / `Clear` and collection initializers; `AddRange` adds many children with one re-measure |
 | `StackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | Pick by `Orientation`; keep `Spacing` |
 | `AbsoluteLayout` | `SkUiAbsoluteLayout` | |

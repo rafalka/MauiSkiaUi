@@ -12,6 +12,8 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | --- | --- | --- |
 | `SkUiCoreNode` / `ISkUiCoreNode` | [SkUiCore.md](SkUiCore.md) | Public Core tree; fluent + INPC |
 | `SkUiCorePanel` / stacks / absolute / overlay / **grid** / **table** / **scroll view** | [SkUiCore.md](SkUiCore.md), [SkUiCoreGrid.md](SkUiCoreGrid.md), [SkUiCoreTable.md](SkUiCoreTable.md) | Core-only layouts; `SkUiCoreScrollView` shares the `SkUiScrollView` engine; `SkUiCoreScrollBar` is the scroll bar of both scroll views |
+| `SkUiCoreDragger` | [SkUiDragger.md](SkUiDragger.md) | A handle that reports drags for your own handling; same engine as `SkUiDragger` |
+| `SkUiCoreGridSplitter` | [SkUiGridSplitter.md](SkUiGridSplitter.md) | Resizes the rows or columns of a Core grid or table (column grips in a table header); same engine as `SkUiGridSplitter` |
 | `SkUiCoreWrapLayout` / `SkUiCoreHorizontalShrinkLayout` / `SkUiCoreVerticalShrinkLayout` / `SkUiCoreHorizontalAlignStackLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md), [SkUiShrinkLayout.md](SkUiShrinkLayout.md), [SkUiHorizontalAlignStackLayout.md](SkUiHorizontalAlignStackLayout.md) | Same engines as the SkUi* twins (no Core flex layout) |
 | `SkUiCoreLabel` / `Button` / toggles / `Slider` / `ProgressBar` / Image / shapes / … | [SkUiCore.md](SkUiCore.md) | Core primitives & basic controls |
 | `SkUiCoreHost` | [SkUiCore.md](SkUiCore.md) | `SkUiView` bridge for Core roots |
@@ -59,6 +61,8 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiBorder` | [SkUiBorder.md](SkUiBorder.md) | Border |
 | `SkUiLayout` | [SkUiLayout.md](SkUiLayout.md) | — (overlay) |
 | `SkUiGrid` | [SkUiGrid.md](SkUiGrid.md) | Grid |
+| `SkUiDragger` | [SkUiDragger.md](SkUiDragger.md) | — (a handle that reports drags in its parent's coordinates: resize or move anything from its events) |
+| `SkUiGridSplitter` | [SkUiGridSplitter.md](SkUiGridSplitter.md) | — (drag or arrow keys to resize a `SkUiGrid`'s or MAUI `Grid`'s rows or columns) |
 | `SkUiVerticalStackLayout` | [SkUiVerticalStackLayout.md](SkUiVerticalStackLayout.md) | VerticalStackLayout |
 | `SkUiHorizontalStackLayout` | [SkUiHorizontalStackLayout.md](SkUiHorizontalStackLayout.md) | HorizontalStackLayout |
 | `SkUiAbsoluteLayout` | [SkUiAbsoluteLayout.md](SkUiAbsoluteLayout.md) | AbsoluteLayout |

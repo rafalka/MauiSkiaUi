@@ -381,7 +381,7 @@ public class SkUiCoreTable : SkUiCoreGrid
         var covered = new bool[ColumnCount];
         foreach (var child in Children)
         {
-            if (!child.IsVisible) continue;
+            if (!child.IsVisible || child is SkUiCoreDragger) continue; // a dragger merges no cells
             var p = GetPlacement(child);
             if (p.RowSpan <= 1) continue;
             if (p.Row <= boundaryAfterRow && p.Row + p.RowSpan - 1 > boundaryAfterRow)
@@ -419,7 +419,7 @@ public class SkUiCoreTable : SkUiCoreGrid
         var covered = new bool[RowCount];
         foreach (var child in Children)
         {
-            if (!child.IsVisible) continue;
+            if (!child.IsVisible || child is SkUiCoreDragger) continue; // a dragger merges no cells
             var p = GetPlacement(child);
             if (p.ColumnSpan <= 1) continue;
             if (p.Column <= boundaryAfterColumn && p.Column + p.ColumnSpan - 1 > boundaryAfterColumn)

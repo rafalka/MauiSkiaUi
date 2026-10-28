@@ -64,4 +64,4 @@ var host = new SkUiCoreHost().SetContent(grid);
 
 ## Related
 
-Gallery: `CoreGridDemoPage` (layout / min-max editors) · Tests: `CoreGridLayoutTests` · Chrome: [`SkUiCoreTable`](SkUiCoreTable.md)
+Gallery: `CoreGridDemoPage` (layout / min-max editors) · Tests: `CoreGridLayoutTests` · Chrome: [`SkUiCoreTable`](SkUiCoreTable.md) · Resizable rows or columns: [`SkUiCoreGridSplitter`](SkUiGridSplitter.md)

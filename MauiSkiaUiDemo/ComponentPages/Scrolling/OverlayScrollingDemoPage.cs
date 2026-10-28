@@ -25,7 +25,6 @@ public sealed class OverlayScrollingDemoPage : ComponentDemoPage
         : base("Native overlays in ScrollView", new SkUiGrid { RowDefinitions = [new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto)] },
             widthRange: (220, 640, 340), heightRange: (300, 640, 480))
     {
-        SinglePanelHeight = 520;
         var grid = (SkUiGrid)SkiaControl;
         grid.Children.Add(Bar("Drawn header — scrolled native controls must never cover it", "#0F766E"));
         var footer = Bar("Drawn footer", "#0F766E");

@@ -93,7 +93,7 @@ Status: **Shipped** (in the current release line), **Partly** (shipped, with ope
 | FR-24 | Slider (also vertical) | Shipped | [SkUiSlider](../controls/SkUiSlider.md) |
 | FR-25 | Progress bar (also indeterminate) | Shipped | [SkUiProgressBar](../controls/SkUiProgressBar.md) |
 | FR-26 | State-change animations drawn by the look | Shipped | [ControlLook](ControlLook.md#state-change-transitions-fr-26) |
-| FR-27 | Composition layouts: flex, wrap, shrink, align stack | Shipped | [SkUiFlexLayout](../controls/SkUiFlexLayout.md), [SkUiWrapLayout](../controls/SkUiWrapLayout.md), [SkUiShrinkLayout](../controls/SkUiShrinkLayout.md) |
+| FR-27 | Composition layouts: flex, wrap, shrink, align stack; draggers and grid splitters (1.3) | Shipped | [SkUiFlexLayout](../controls/SkUiFlexLayout.md), [SkUiWrapLayout](../controls/SkUiWrapLayout.md), [SkUiDragger](../controls/SkUiDragger.md), [SkUiGridSplitter](../controls/SkUiGridSplitter.md), [SkUiShrinkLayout](../controls/SkUiShrinkLayout.md) |
 | FR-28 | Accessibility, keyboard focus, font scaling | Shipped | [Accessibility](Accessibility.md) |
 | FR-29 | Pickers on the app's popup system | Shipped | [SkUiPicker](../controls/SkUiPicker.md), [Popups](Popups.md) |
 | FR-30 | Avatar view | Shipped | [SkUiAvatarView](../controls/SkUiAvatarView.md) |

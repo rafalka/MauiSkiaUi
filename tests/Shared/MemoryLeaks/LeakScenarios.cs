@@ -35,6 +35,7 @@ public static class LeakScenarios
         new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image; a long-lived icon source shared by images that are never disposed, edited while shown.", () => new ImagesRun()),
         new("AvatarsShown", Controls, "SkUiAvatarView rows in a SkUiCollectionView over a long-lived collection (initials from bound names, colors by name, badges), avatars with a cached photo and the long-lived shared icon, a Core avatar: the list flung so rows recycle, a name replaced, an avatar enlarged (decoded again while the smaller image stays), photos swapped and cleared; closed mid-fling.", () => new AvatarsRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
+        new("GridSplittersDragged", Layouts, "SkUiGridSplitter between star rows and between columns of a nested grid (track limits on the definitions), a 1 DIP SkUiCoreGridSplitter at the end of a Core table's header cell (line shown, touch area and grip over the cells), a SkUiDragger resizing a box through its events: dragged both ways, moved by the keyboard; closed mid-drag.", () => new GridSplittersRun()),
         new("BindableLayoutItems", Layouts, "MAUI BindableLayout on a wrap layout bound to a long-lived collection and on a stack with a template selector and an empty view: items added, inserted, replaced, moved and removed, the collection cleared to the empty view and refilled, the items source swapped.", () => new BindableLayoutRun()),
         new("ShimmersShown", Layouts, "Skeleton loading: a SkUiShimmer of Core bones (wave in the surface region) switched to its content and back with a long-lived shared fade, its effect changed while shown (pulse, color shift, none); a SkUiShimmer of bones (SkUi and Core bones in a bordered card) switched between bones and silhouette and to its content; a SkUiCoreShimmer switched with a fade; a SkUiShimmer and a SkUiCoreShimmer whose content is the skeleton (labels with and without text, a button with a long-lived command, a kept title, a card, an empty collection view over a long-lived collection showing placeholder rows of its template) switched between bones and silhouette, a view's skeleton value changed, loaded and loading again; SkUiShimmer rows (IsLoading bound to a long-lived source) in a SkUiCollectionView over a long-lived collection, flung so rows recycle; closed while shimmering.", () => new ShimmersRun()),
         new("StatesSwitched", Layouts, "SkUiStateContainer on a grid and a stack: loading (spinner running), error (retry button with a long-lived command) and empty states switched directly and with the fade, a change rejected while one runs; hidden state views removed; automatic state change animations (one shared long-lived animation) retargeted while running; closed while one runs.", () => new StatesRun()),
@@ -873,6 +874,78 @@ public static class LeakScenarios
     }
 
     // ---- Layouts ----------------------------------------------------------------------------------------------
+
+    private sealed class GridSplittersRun : LeakScenarioRun
+    {
+        private SkUiGrid? _grid;
+        private SkUiGridSplitter? _rows;
+        private SkUiGridSplitter? _columns;
+        private SkUiCoreGrid? _coreGrid;
+        private SkUiCoreGridSplitter? _core;
+        private SkUiDragger? _dragger;
+        private SkUiBox? _box;
+        private int _drags;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _rows = new SkUiGridSplitter();
+            _rows.DragCompleted += (_, _) => _drags++;
+            _columns = new SkUiGridSplitter();
+            _columns.DragCompleted += (_, _) => _drags++;
+            var columns = new SkUiGrid { ColumnDefinitions = [new(new GridLength(80)), new(GridLength.Auto), new(GridLength.Star)] };
+            columns.Add(Text("Left", 12));
+            columns.Add(_columns, 1);
+            columns.Add(Text("Right", 12), 2);
+            SkUiGridSplitter.SetMinimumLength(columns.ColumnDefinitions[0], 40);
+            _core = new SkUiCoreGridSplitter();
+            // 1 DIP wide: its touch area and grip reach over the header cells, drawn unclipped.
+            _core.SetShowsLine(true).SetWidth(1).SetHorizontalAlignment(LayoutAlignment.End);
+            _core.DragCompleted += (_, _) => _drags++;
+            _coreGrid = new SkUiCoreTable()
+                .SetRowDefinitions([new(new SkUiCoreGridLength(32)), new(SkUiCoreGridLength.Star)])
+                .SetColumnDefinitions([new(new SkUiCoreGridLength(120)) { MinWidth = 40 }, new(SkUiCoreGridLength.Star)])
+                .SetColumnSeparatorColor(Colors.Gray)
+                .Add(new SkUiCoreLabel().SetText("Name"), 0, 0)
+                .Add(_core, 0, 0);
+            var host = new SkUiCoreHost();
+            host.SetContent(_coreGrid);
+            _box = new SkUiBox { HeightRequest = 40, Color = LeakColors.Surface };
+            _dragger = new SkUiDragger { DragAxis = SkUiPanAxis.Vertical };
+            double start = 0;
+            _dragger.DragStarted += (_, _) => start = _box.HeightRequest;
+            _dragger.DragDelta += (_, args) => _box.HeightRequest = Math.Max(10, start + args.TotalY);
+            _dragger.DragCompleted += (_, _) => _drags++;
+            _grid = new SkUiGrid
+            {
+                RowDefinitions = [new(GridLength.Star), new(GridLength.Auto), new(GridLength.Star), new(new GridLength(140)), new(GridLength.Auto), new(GridLength.Auto)]
+            };
+            _grid.Add(columns);
+            _grid.Add(_rows, 0, 1);
+            _grid.Add(Text("Below", 12), 0, 2);
+            _grid.Add(host, 0, 3);
+            _grid.Add(_box, 0, 4);
+            _grid.Add(_dragger, 0, 5);
+            return Root(_grid);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.DragAsync(_rows!, 0, 40, durationMs: 200);
+            await context.DragAsync(_rows!, 0, -60, durationMs: 200);
+            await context.DragAsync(_columns!, 50, 0, durationMs: 200);
+            await context.DragAsync(_core!, 30, 0, durationMs: 200);
+            await context.DragAsync(_dragger!, 0, 20, durationMs: 200);
+            ((ISkUiKeyHandler)_rows!).OnKeyDown(new SkUiKeyEvent(SkUiKey.Down, SkUiKeyModifiers.None, false));
+            await context.WaitAsync(50);
+            // A drag still in progress when the page closes.
+            await context.DragAsync(_rows!, 0, 30, release: false);
+        }
+
+        public override string? CheckInteraction() =>
+            _drags < 5 ? $"{_drags} splitter and dragger drags completed, expected 5."
+            : _grid!.RowDefinitions[0].Height.IsStar && _grid.RowDefinitions[2].Height.IsStar ? null
+            : "The row splitter changed the kind of its star rows.";
+    }
 
     private sealed class LayoutsRun : LeakScenarioRun
     {
