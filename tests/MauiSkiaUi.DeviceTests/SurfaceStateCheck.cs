@@ -52,7 +52,11 @@ internal static class SurfaceStateCheck
 
             Check("first layout", shownLabel, rootShown: true);
             Check("first layout", disabledButton, rootShown: true);
-            if (hiddenLabel.Handler is not null)
+            // The case of #69: the label's handler and surface are created while its container is hidden. Without them
+            // here, "container shown" would check a surface created while visible, and pass without testing anything.
+            if (hiddenLabel.Handler is null)
+                problems.Add("first layout: the hidden container's SkUiLabel has no handler, so no surface was created under a hidden ancestor");
+            else
                 Check("first layout", hiddenLabel, rootShown: false);
 
             hidden.IsVisible = true;
