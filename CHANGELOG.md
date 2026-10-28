@@ -45,6 +45,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Other
 
+- **Demo: search page.** "Search demos", the top row of the flyout (with a magnifier icon), finds any component demo or page as you type (every word must match the control type, title, category or the MAUI control it replaces); Enter opens the first result.
 - **Demo: resizable preview area.** Every component page has a `SkUiGridSplitter` under its previews; the area starts as tall as the control plus a margin (short for a check box, tall for a scroller) and at most 60% of the page, so the editors stay in view on phones.
 - **Dependencies:** SkiaSharp 4.154.0 (was 4.153.1), HarfBuzzSharp 14.2.1.400.
 
