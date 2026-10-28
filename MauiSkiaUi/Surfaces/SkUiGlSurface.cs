@@ -126,9 +126,22 @@ internal sealed class SkUiGlTextureView : GLTextureView
                 | (e.ButtonState.HasFlag(MotionEventButtonState.Tertiary) ? SkUiPointerButtons.Middle : 0)
         };
 
-    private sealed class Renderer(SkUiGlTextureView owner) : SKGLTextureViewRenderer
+    private sealed class Renderer(SkUiGlTextureView owner) : SKGLTextureViewRenderer, GLTextureView.IRenderer
     {
         internal volatile SkUiFrameRenderer? FrameRenderer;
+
+        /// <summary>
+        /// The surface was resized (a rotation): the next frame rebuilds the render target on whatever framebuffer is bound.
+        /// Skia leaves its own offscreen framebuffers bound after drawing into them (the GPU warm-up, layers, filters), so
+        /// every frame after the resize would draw offscreen and the view would stay empty. The window surface is always
+        /// framebuffer 0; Skia is told its cached GL state changed.
+        /// </summary>
+        void GLTextureView.IRenderer.OnSurfaceChanged(Javax.Microedition.Khronos.Opengles.IGL10 gl, int width, int height)
+        {
+            global::Android.Opengl.GLES20.GlBindFramebuffer(global::Android.Opengl.GLES20.GlFramebuffer, 0);
+            GRContext?.ResetContext();
+            OnSurfaceChanged(gl, width, height);
+        }
 
         protected override void OnPaintSurface(SKPaintGLSurfaceEventArgs e)
         {
