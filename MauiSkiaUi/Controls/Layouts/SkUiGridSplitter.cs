@@ -119,7 +119,7 @@ public class SkUiGridSplitter : SkUiDragger, ISkUiGridSplitterOwner
     protected override SkUiPanAxis EffectiveDragAxis => ResizesColumns ? SkUiPanAxis.Horizontal : SkUiPanAxis.Vertical;
 
     /// <inheritdoc />
-    protected override bool CanDrag => ((ISkUiGridSplitterOwner)this).GetTracks() is not null;
+    protected override bool CanDrag => TrackIndices(out _) is not null;
 
     /// <inheritdoc />
     protected override void OnDragStarted(SkUiDragEventArgs args)
@@ -155,16 +155,24 @@ public class SkUiGridSplitter : SkUiDragger, ISkUiGridSplitterOwner
     /// <inheritdoc />
     protected override bool OnSemanticsSetValue(double value) => Engine.SetSemanticsValue(value);
 
-    SkUiGridSplitterTracks? ISkUiGridSplitterOwner.GetTracks()
+    // The indices of the tracks the splitter resizes, or null when there are none; no track sizes, as the router's hit test asks (CanDrag).
+    private (int First, int Second)? TrackIndices(out bool columns)
     {
+        columns = false;
         if (Container is not { } container)
             return null;
-        var columns = ResizesColumns;
+        columns = ResizesColumns;
         var grid = container.Grid;
         var indices = SkUiGridSplitterMath.Indices(_resizeBehavior, columns ? HorizontalOptions.Alignment : VerticalOptions.Alignment,
             columns ? grid.GetColumn(this) : grid.GetRow(this), columns ? grid.GetColumnSpan(this) : grid.GetRowSpan(this));
-        if (!SkUiGridSplitterMath.AreTracks(indices, columns ? container.Columns.Count : container.Rows.Count))
+        return SkUiGridSplitterMath.AreTracks(indices, columns ? container.Columns.Count : container.Rows.Count) ? indices : null;
+    }
+
+    SkUiGridSplitterTracks? ISkUiGridSplitterOwner.GetTracks()
+    {
+        if (TrackIndices(out var columns) is not { } indices || Container is not { } container)
             return null;
+        var grid = container.Grid;
         var sizes = SkUiGridSplitterMath.TrackSizes(grid, columns);
         return new SkUiGridSplitterTracks(columns, indices.First, Track(indices.First), indices.Second,
             indices.Second < 0 ? null : Track(indices.Second));

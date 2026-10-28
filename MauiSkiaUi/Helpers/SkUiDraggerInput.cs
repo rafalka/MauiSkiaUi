@@ -227,23 +227,22 @@ internal static class SkUiDraggerMath
 
     /// <summary>
     /// The touch area in dragger coordinates: the dragger, widened across its line to at least <paramref name="touchThickness"/>
-    /// (below 0: the look's <see cref="SkUiLook.DraggerTouchThickness"/>) and centered on it; both ways for a two-axis
-    /// dragger. A dragger at least that thick is its own touch area.
+    /// (below 0: <paramref name="look"/>'s <see cref="SkUiLook.DraggerTouchThickness"/>) and centered on it; both ways for a
+    /// two-axis dragger. A dragger at least that thick is its own touch area.
     /// </summary>
-    public static SKRect TouchBounds(Size size, SkUiPanAxis axis, double touchThickness) =>
-        Widen(size, axis, touchThickness >= 0 ? touchThickness : SkUiLook.Current.DraggerTouchThickness);
+    public static SKRect TouchBounds(Size size, SkUiPanAxis axis, double touchThickness, SkUiLook look) =>
+        Widen(size, axis, touchThickness >= 0 ? touchThickness : look.DraggerTouchThickness);
 
     /// <summary>Whether <paramref name="local"/> (outside the dragger) is in its touch area; only while it can be dragged.</summary>
-    public static bool HitsTouchArea(Size size, SkUiPanAxis axis, double touchThickness, Point local) =>
-        TouchBounds(size, axis, touchThickness).Contains((float)local.X, (float)local.Y);
+    public static bool HitsTouchArea(Size size, SkUiPanAxis axis, double touchThickness, SkUiLook look, Point local) =>
+        TouchBounds(size, axis, touchThickness, look).Contains((float)local.X, (float)local.Y);
 
     /// <summary>
     /// What a dragger draws past its bounds: its touch area, and room for the grip at its dragged thickness centered on a
     /// thinner dragger. The node then draws unclipped, over its neighbors.
     /// </summary>
-    public static void ApplyOverflow(ref SkUiRenderProps props, SkUiPanAxis axis, double touchThickness)
+    public static void ApplyOverflow(ref SkUiRenderProps props, SkUiPanAxis axis, double touchThickness, SkUiLook look)
     {
-        var look = SkUiLook.Current;
         var size = new Size(props.Width, props.Height);
         var ink = Widen(size, axis, Math.Max(touchThickness >= 0 ? touchThickness : look.DraggerTouchThickness, 2 * look.DraggerGripThickness));
         var overflow = new SKRect(-ink.Left, -ink.Top, ink.Right - props.Width, ink.Bottom - props.Height);
@@ -282,7 +281,7 @@ internal static class SkUiDraggerMath
                 _ => gripAlignment
             };
         var length = gripLength >= 0 ? gripLength : SkUiLook.Current.DraggerGripLength;
-        return new SkUiDraggerPaint(new SKRect(0, 0, (float)size.Width, (float)size.Height), TouchBounds(size, axis, touchThickness), vertical,
+        return new SkUiDraggerPaint(new SKRect(0, 0, (float)size.Width, (float)size.Height), TouchBounds(size, axis, touchThickness, SkUiLook.Current), vertical,
             showsGrip, grip, gripAlignment, (float)length, showsLine, line, dragging, enabled);
     }
 }

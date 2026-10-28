@@ -170,12 +170,13 @@ public class SkUiCoreDragger : SkUiCoreNode, ISkUiDraggerOwner, ISkUiKeyHandler
     internal override void OnGetRenderProps(ref SkUiRenderProps props)
     {
         base.OnGetRenderProps(ref props);
-        SkUiDraggerMath.ApplyOverflow(ref props, EffectiveDragAxis, _touchThickness);
+        // Outside the paint's look scope: the subtree's look, as painting uses.
+        SkUiDraggerMath.ApplyOverflow(ref props, EffectiveDragAxis, _touchThickness, SkUiLookScope.Resolve(this));
     }
 
     // The touch area past a thin dragger, while it can be dragged (a disabled one would block what is under it).
     internal override bool HitsOutsideBounds(Point local) =>
-        IsEnabled && CanDrag && SkUiDraggerMath.HitsTouchArea(Frame.Size, EffectiveDragAxis, _touchThickness, local);
+        IsEnabled && SkUiDraggerMath.HitsTouchArea(Frame.Size, EffectiveDragAxis, _touchThickness, SkUiLookScope.Resolve(this), local) && CanDrag;
 
     /// <inheritdoc />
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)

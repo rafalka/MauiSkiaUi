@@ -14,7 +14,6 @@ public class SkUiCoreGridSplitter : SkUiCoreDragger, ISkUiGridSplitterOwner
 {
     private SkUiGridResizeDirection _resizeDirection;
     private SkUiGridResizeBehavior _resizeBehavior;
-    private SkUiGridSplitterEngine? _engine;
 
     /// <summary>Rows, columns, or (default) chosen from the splitter's alignment and place in the grid.</summary>
     public SkUiGridResizeDirection ResizeDirection { get => _resizeDirection; set => SetResizeDirection(value); }
@@ -39,7 +38,7 @@ public class SkUiCoreGridSplitter : SkUiCoreDragger, ISkUiGridSplitterOwner
         return this;
     }
 
-    private SkUiGridSplitterEngine Engine => _engine ??= new SkUiGridSplitterEngine(this);
+    private SkUiGridSplitterEngine Engine => field ??= new SkUiGridSplitterEngine(this);
 
     internal bool ResizesColumns
     {
@@ -57,7 +56,7 @@ public class SkUiCoreGridSplitter : SkUiCoreDragger, ISkUiGridSplitterOwner
     protected override SkUiPanAxis EffectiveDragAxis => ResizesColumns ? SkUiPanAxis.Horizontal : SkUiPanAxis.Vertical;
 
     /// <inheritdoc />
-    protected override bool CanDrag => ((ISkUiGridSplitterOwner)this).GetTracks() is not null;
+    protected override bool CanDrag => TrackIndices(out _) is not null;
 
     /// <inheritdoc />
     protected override void OnDragStarted(SkUiDragEventArgs args)
@@ -93,15 +92,22 @@ public class SkUiCoreGridSplitter : SkUiCoreDragger, ISkUiGridSplitterOwner
     /// <inheritdoc />
     protected override bool OnSemanticsSetValue(double value) => Engine.SetSemanticsValue(value);
 
-    SkUiGridSplitterTracks? ISkUiGridSplitterOwner.GetTracks()
+    // The indices of the tracks the splitter resizes, or null when there are none; cheap, as the router's hit test asks (CanDrag).
+    private (int First, int Second)? TrackIndices(out bool columns)
     {
+        columns = false;
         if (Parent is not SkUiCoreGrid grid)
             return null;
-        var columns = ResizesColumns;
+        columns = ResizesColumns;
         var placement = grid.GetPlacement(this);
         var indices = SkUiGridSplitterMath.Indices(_resizeBehavior, columns ? HorizontalAlignment : VerticalAlignment,
             columns ? placement.Column : placement.Row, columns ? placement.ColumnSpan : placement.RowSpan);
-        if (!SkUiGridSplitterMath.AreTracks(indices, columns ? grid.ColumnDefinitions.Count : grid.RowDefinitions.Count))
+        return SkUiGridSplitterMath.AreTracks(indices, columns ? grid.ColumnDefinitions.Count : grid.RowDefinitions.Count) ? indices : null;
+    }
+
+    SkUiGridSplitterTracks? ISkUiGridSplitterOwner.GetTracks()
+    {
+        if (TrackIndices(out var columns) is not { } indices || Parent is not SkUiCoreGrid grid)
             return null;
         return new SkUiGridSplitterTracks(columns, indices.First, Track(indices.First), indices.Second, indices.Second < 0 ? null : Track(indices.Second));
 

@@ -389,11 +389,16 @@ internal class SkUiAccessibilityElement : UIAccessibilityElement
             AccessibilityCustomActions = null;
             return;
         }
+        // The handlers must not capture this: a block keeps its delegate alive until the block goes, so
+        // element → actions → block → delegate → element would never be collected.
+        var weakBridge = _bridge;
+        var id = Id;
         var actions = new UIAccessibilityCustomAction[names.Length];
         for (var index = 0; index < names.Length; index++)
         {
             var at = index;
-            actions[index] = new UIAccessibilityCustomAction(names[index], (Func<UIAccessibilityCustomAction, bool>)(_ => Bridge?.PerformCustom(Id, at) == true));
+            actions[index] = new UIAccessibilityCustomAction(names[index],
+                (Func<UIAccessibilityCustomAction, bool>)(_ => weakBridge.TryGetTarget(out var bridge) && bridge.PerformCustom(id, at)));
         }
         AccessibilityCustomActions = actions;
     }
