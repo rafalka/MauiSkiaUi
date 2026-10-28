@@ -6,7 +6,7 @@ namespace MauiSkiaUi.Tests;
 
 /// <summary>
 /// MAUI's <c>CascadeInputTransparent</c> and <c>IsClippedToBounds</c> on drawn containers (step R2 in
-/// docs/design/ImplementationPlan-1.2.md), on both layers: with the default, an input-transparent container lets pointers
+/// docs/archive/ImplementationPlan-1.2.md), on both layers: with the default, an input-transparent container lets pointers
 /// through its whole subtree; without cascading, only the container itself lets them through, and its children still take
 /// them.
 /// </summary>

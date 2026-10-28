@@ -4,7 +4,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// MAUI's gesture recognizers on drawn views (phase G in docs/design/ImplementationPlan-1.2.md): a recognizer in a drawn
+/// MAUI's gesture recognizers on drawn views (phase G in docs/archive/ImplementationPlan-1.2.md): a recognizer in a drawn
 /// view's <c>GestureRecognizers</c> runs in the gesture arena and raises its MAUI events and commands, with MAUI's
 /// argument types and the view as the sender.
 /// </summary>
