@@ -597,9 +597,12 @@ public partial class SkUiCollectionView
         _ = Settle();
 
         // Moved (or stopped: the proxy was detached), the item moves unless the drag ended meanwhile.
+        // Awaited in turn, not with Task.WhenAll: the animations complete their tasks asynchronously, so WhenAll would
+        // finish on a pool thread and reach the UI thread a hop later (late when the pool is busy).
         async Task Settle()
         {
-            await Task.WhenAll(x, y);
+            await x;
+            await y;
             FinishReorder(drag, commit: true);
         }
     }
