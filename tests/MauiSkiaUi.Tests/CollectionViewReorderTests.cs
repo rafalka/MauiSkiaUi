@@ -352,6 +352,48 @@ public class CollectionViewReorderTests
     }
 
     [Fact]
+    public void AReleasedItemSettlingIntoItsPlaceStillMovesWhenTheSourceChanges()
+    {
+        // The drop's continuation runs here, when pumped, as on the app's UI thread.
+        using var ui = TestUiContext.Install();
+        var rows = Rows(10);
+        var list = List(rows);
+        var completed = 0;
+        list.ReorderCompleted += (_, _) => completed++;
+        using var surface = new SkUiTestSurface(list, 300, 500);
+        surface.Frame(0);
+
+        // Released, the proxy settles for the look's 200 ms; an append (a load-more finishing) does not undo the drop.
+        MouseDrag(list, new Point(150, 25), new Point(150, 145));
+        Assert.NotNull(list.ReorderState);
+        rows.Add(new Row(10));
+        Assert.NotNull(list.ReorderState);
+        Settle(surface, ui);
+        Assert.Null(list.ReorderState);
+        Assert.Equal([1, 2, 0, 3], Order(rows).Take(4));
+        Assert.Equal(1, completed);
+
+        // Its place gone meanwhile (dragged to the last row shown, then the last two items removed): nothing moves, nothing is lost.
+        MouseDrag(list, new Point(150, 25), new Point(150, 495));
+        Assert.Equal((-1, 0, -1, 9), list.ReorderState);
+        rows.RemoveAt(10);
+        rows.RemoveAt(9);
+        Settle(surface, ui);
+        Assert.Null(list.ReorderState);
+        Assert.Equal([1, 2, 0, 3, 4, 5, 6, 7, 8], Order(rows));
+        Assert.Equal(1, completed);
+    }
+
+    /// <summary>Runs the drop's settle on the render thread to its end, then the UI work it completes.</summary>
+    private static void Settle(SkUiTestSurface surface, TestUiContext ui)
+    {
+        for (var time = 16; time <= 400; time += 16)
+            surface.Frame(time);
+        surface.PumpUi();
+        ui.RunPending();
+    }
+
+    [Fact]
     public void ScreenReadersMoveItemsOnePlace()
     {
         var rows = Rows(5);

@@ -78,7 +78,7 @@ public partial class SkUiCollectionView
 
     /// <summary>A list that can change: <see cref="ItemsSource"/> (<paramref name="group"/> -1) or a group's items; else <c>null</c>.</summary>
     private IList? WritableList(int group) =>
-        Model.ListOf(group) is { IsReadOnly: false, IsFixedSize: false } list ? list : null;
+        group < Model.Groups.Count && Model.ListOf(group) is { IsReadOnly: false, IsFixedSize: false } list ? list : null;
 
     /// <summary>Whether the item <paramref name="host"/> shows can be lifted now.</summary>
     private bool CanLift(ItemHost host) =>
@@ -682,11 +682,13 @@ public partial class SkUiCollectionView
     /// Moves the item at <paramref name="index"/> of <paramref name="group"/> to <paramref name="toIndex"/> of
     /// <paramref name="toGroup"/> (its index once moved), as MAUI's handlers do: <c>RemoveAt</c>, then <c>Insert</c>
     /// (another group's list first gets the item, so it never leaves the selection). The list keeps its scroll offset;
-    /// lists that do not notify are read as if they had. <c>false</c> when the item is no longer there.
+    /// lists that do not notify are read as if they had. <c>false</c> when the item is no longer there, or its place is not (the
+    /// source changed while a released item settled).
     /// </summary>
     private bool MoveItem(int group, int index, int toGroup, int toIndex, object? item)
     {
-        if (WritableList(group) is not { } from || WritableList(toGroup) is not { } to || index >= from.Count || !Equals(from[index], item))
+        if (WritableList(group) is not { } from || WritableList(toGroup) is not { } to || index >= from.Count || !Equals(from[index], item)
+            || toIndex > (ReferenceEquals(from, to) ? from.Count - 1 : to.Count))
             return false;
         var keepsOffset = ItemsHost.KeepsScrollOffset;
         _committingReorder = true;
@@ -718,10 +720,14 @@ public partial class SkUiCollectionView
         return true;
     }
 
-    /// <summary>The source changed while an item is dragged (not by the drop itself): the drag ends without moving anything.</summary>
+    /// <summary>
+    /// The source changed while an item is held (not by the drop itself): the drag ends without moving anything. A released
+    /// item settling into its place still moves when it lands (an append from a load-more meanwhile changes nothing), unless
+    /// it is no longer where it was (<see cref="MoveItem"/>).
+    /// </summary>
     private void OnItemsChangedWhileDragging()
     {
-        if (_drag is not null && !_committingReorder)
+        if (_drag is { Dropping: false } && !_committingReorder)
             CancelReorder();
     }
 
