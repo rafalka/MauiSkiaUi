@@ -35,6 +35,7 @@ public static class LeakScenarios
         new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image; a long-lived icon source shared by images that are never disposed, edited while shown.", () => new ImagesRun()),
         new("AvatarsShown", Controls, "SkUiAvatarView rows in a SkUiCollectionView over a long-lived collection (initials from bound names, colors by name, badges), avatars with a cached photo and the long-lived shared icon, a Core avatar: the list flung so rows recycle, a name replaced, an avatar enlarged (decoded again while the smaller image stays), photos swapped and cleared; closed mid-fling.", () => new AvatarsRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
+        new("GridSplittersDragged", Layouts, "SkUiGridSplitter between star rows and between columns of a nested grid (track limits on the definitions), a 1 DIP SkUiCoreGridSplitter at the end of a Core table's header cell (line shown, touch area and grip over the cells), a SkUiDragger resizing a box through its events: dragged both ways, moved by the keyboard; closed mid-drag.", () => new GridSplittersRun()),
         new("BindableLayoutItems", Layouts, "MAUI BindableLayout on a wrap layout bound to a long-lived collection and on a stack with a template selector and an empty view: items added, inserted, replaced, moved and removed, the collection cleared to the empty view and refilled, the items source swapped.", () => new BindableLayoutRun()),
         new("ShimmersShown", Layouts, "Skeleton loading: a SkUiShimmer of Core bones (wave in the surface region) switched to its content and back with a long-lived shared fade, its effect changed while shown (pulse, color shift, none); a SkUiShimmer of bones (SkUi and Core bones in a bordered card) switched between bones and silhouette and to its content; a SkUiCoreShimmer switched with a fade; a SkUiShimmer and a SkUiCoreShimmer whose content is the skeleton (labels with and without text, a button with a long-lived command, a kept title, a card, an empty collection view over a long-lived collection showing placeholder rows of its template) switched between bones and silhouette, a view's skeleton value changed, loaded and loading again; SkUiShimmer rows (IsLoading bound to a long-lived source) in a SkUiCollectionView over a long-lived collection, flung so rows recycle; closed while shimmering.", () => new ShimmersRun()),
         new("StatesSwitched", Layouts, "SkUiStateContainer on a grid and a stack: loading (spinner running), error (retry button with a long-lived command) and empty states switched directly and with the fade, a change rejected while one runs; hidden state views removed; automatic state change animations (one shared long-lived animation) retargeted while running; closed while one runs.", () => new StatesRun()),
@@ -45,6 +46,7 @@ public static class LeakScenarios
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
         new("VirtualListScrolled", Scrolling, "SkUiVirtualScrollView bound to a long-lived collection (items of different heights, recycled template views): dragged, flung, scrolled to an index, items inserted and removed and the item template replaced while shown; closed mid-fling.", () => new VirtualListRun()),
         new("CollectionViewUsed", Scrolling, "SkUiCollectionView bound to a long-lived collection, with long-lived selection, item-tap and refresh commands, a sticky header and an empty view: items tapped to select and deselect, flung, scrolled to an item, pulled to refresh, the selected item removed, the collection emptied and refilled; closed mid-fling.", () => new CollectionViewRun()),
+        new("CollectionViewReordered", Scrolling, "SkUiCollectionView over a long-lived collection with CanReorderItems, as a list and as a grid of two columns: items held and dragged to new places (rows and cells moving aside, the lifted copy scaled and shadowed), the selected item moved, an item held near the list's end so it scrolls, a drag cancelled by a change of the collection, an item moved by a screen-reader action; closed with an item lifted.", () => new CollectionViewReorderRun()),
         new("CollectionViewGrouped", Scrolling, "SkUiCollectionView over long-lived groups (a grid of two columns, sticky collapsible group headers), with a long-lived selected-items list and load-more command: headers tapped to collapse and expand, items selected, flung, scrolled to a group, groups and items added and removed, the template replaced; closed mid-fling.", () => new CollectionViewGroupedRun()),
         new("RefreshPulled", Scrolling, "SkUiRefreshView (inline style, automatic completion) with a long-lived command around a header and a drawn scroller: pulled through the scroller and by the header (content held down while refreshing), each refresh ended by a deferral taken in Refreshing, a short pull released before the trigger (the indicator going back), the scroller replaced while still linked and the old one detached; closed mid-pull.", () => new RefreshRun()),
         new("CarouselSwiped", Scrolling, "SkUiCarouselView over a long-lived collection with a long-lived shared cover flow effect, a long-lived position command and a linked indicator view: swiped and flung forward past the middle of its looping strip (moved back by corrections), an indicator tapped, the position set by code, items added and removed, the effect switched, looping turned off and the end reached (load-more command); closed mid-fling.", () => new CarouselRun()),
@@ -872,6 +874,78 @@ public static class LeakScenarios
     }
 
     // ---- Layouts ----------------------------------------------------------------------------------------------
+
+    private sealed class GridSplittersRun : LeakScenarioRun
+    {
+        private SkUiGrid? _grid;
+        private SkUiGridSplitter? _rows;
+        private SkUiGridSplitter? _columns;
+        private SkUiCoreGrid? _coreGrid;
+        private SkUiCoreGridSplitter? _core;
+        private SkUiDragger? _dragger;
+        private SkUiBox? _box;
+        private int _drags;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _rows = new SkUiGridSplitter();
+            _rows.DragCompleted += (_, _) => _drags++;
+            _columns = new SkUiGridSplitter();
+            _columns.DragCompleted += (_, _) => _drags++;
+            var columns = new SkUiGrid { ColumnDefinitions = [new(new GridLength(80)), new(GridLength.Auto), new(GridLength.Star)] };
+            columns.Add(Text("Left", 12));
+            columns.Add(_columns, 1);
+            columns.Add(Text("Right", 12), 2);
+            SkUiGridSplitter.SetMinimumLength(columns.ColumnDefinitions[0], 40);
+            _core = new SkUiCoreGridSplitter();
+            // 1 DIP wide: its touch area and grip reach over the header cells, drawn unclipped.
+            _core.SetShowsLine(true).SetWidth(1).SetHorizontalAlignment(LayoutAlignment.End);
+            _core.DragCompleted += (_, _) => _drags++;
+            _coreGrid = new SkUiCoreTable()
+                .SetRowDefinitions([new(new SkUiCoreGridLength(32)), new(SkUiCoreGridLength.Star)])
+                .SetColumnDefinitions([new(new SkUiCoreGridLength(120)) { MinWidth = 40 }, new(SkUiCoreGridLength.Star)])
+                .SetColumnSeparatorColor(Colors.Gray)
+                .Add(new SkUiCoreLabel().SetText("Name"), 0, 0)
+                .Add(_core, 0, 0);
+            var host = new SkUiCoreHost();
+            host.SetContent(_coreGrid);
+            _box = new SkUiBox { HeightRequest = 40, Color = LeakColors.Surface };
+            _dragger = new SkUiDragger { DragAxis = SkUiPanAxis.Vertical };
+            double start = 0;
+            _dragger.DragStarted += (_, _) => start = _box.HeightRequest;
+            _dragger.DragDelta += (_, args) => _box.HeightRequest = Math.Max(10, start + args.TotalY);
+            _dragger.DragCompleted += (_, _) => _drags++;
+            _grid = new SkUiGrid
+            {
+                RowDefinitions = [new(GridLength.Star), new(GridLength.Auto), new(GridLength.Star), new(new GridLength(140)), new(GridLength.Auto), new(GridLength.Auto)]
+            };
+            _grid.Add(columns);
+            _grid.Add(_rows, 0, 1);
+            _grid.Add(Text("Below", 12), 0, 2);
+            _grid.Add(host, 0, 3);
+            _grid.Add(_box, 0, 4);
+            _grid.Add(_dragger, 0, 5);
+            return Root(_grid);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.DragAsync(_rows!, 0, 40, durationMs: 200);
+            await context.DragAsync(_rows!, 0, -60, durationMs: 200);
+            await context.DragAsync(_columns!, 50, 0, durationMs: 200);
+            await context.DragAsync(_core!, 30, 0, durationMs: 200);
+            await context.DragAsync(_dragger!, 0, 20, durationMs: 200);
+            ((ISkUiKeyHandler)_rows!).OnKeyDown(new SkUiKeyEvent(SkUiKey.Down, SkUiKeyModifiers.None, false));
+            await context.WaitAsync(50);
+            // A drag still in progress when the page closes.
+            await context.DragAsync(_rows!, 0, 30, release: false);
+        }
+
+        public override string? CheckInteraction() =>
+            _drags < 5 ? $"{_drags} splitter and dragger drags completed, expected 5."
+            : _grid!.RowDefinitions[0].Height.IsStar && _grid.RowDefinitions[2].Height.IsStar ? null
+            : "The row splitter changed the kind of its star rows.";
+    }
 
     private sealed class LayoutsRun : LeakScenarioRun
     {
@@ -1802,6 +1876,73 @@ public static class LeakScenarios
         public override string? CheckInteraction() =>
             _taps >= 3 && _selections >= 4 && _refreshes == 1 && _list!.SelectedItem is null ? null
                 : $"Tapped {_taps} times, selection changed {_selections} times, refreshed {_refreshes} times; selected {_list!.SelectedItem ?? "none"}.";
+    }
+
+    private sealed class CollectionViewReorderRun : LeakScenarioRun
+    {
+        private SkUiCollectionView? _list;
+        private SkUiCollectionView? _grid;
+        private int _reorders;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 200; index++)
+                LeakItems.Shared.Add($"Task {index}");
+            _list = context.Track(List(context, span: 1), "reorderable list");
+            _grid = context.Track(List(context, span: 2), "reorderable grid");
+            _list.ReorderCompleted += (_, _) => _reorders++;
+            _grid.ReorderCompleted += (_, _) => _reorders++;
+            var layout = new SkUiGrid { RowDefinitions = [new RowDefinition(GridLength.Star), new RowDefinition(GridLength.Star)] };
+            Grid.SetRow(_grid, 1);
+            layout.Children.Add(_list);
+            layout.Children.Add(_grid);
+            return Root(layout);
+        }
+
+        private static SkUiCollectionView List(LeakScenarioContext context, int span) => new()
+        {
+            ItemsSource = LeakItems.Shared,
+            CanReorderItems = true,
+            Span = span,
+            SelectionMode = SkUiSelectionMode.Single,
+            ItemTemplate = new DataTemplate(() =>
+            {
+                var row = context.Track(Text("", 13), "reorderable item view");
+                row.HeightRequest = 44;
+                row.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+                return row;
+            })
+        };
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var list = _list!;
+            var grid = _grid!;
+            await context.SettleAsync();
+            list.SelectedItem = LeakItems.Shared[1];
+            // Each drop settles before the next drag: the two lists share the collection, and a change cancels a drag.
+            await context.HoldAndDragAsync(list.GetRealizedView(1)!, 0, 100); // the selected item, two rows down
+            await context.WaitAsync(400);
+            await context.HoldAndDragAsync(grid.GetRealizedView(0)!, grid.Width / 2, 44); // to the next row's second cell
+            await context.WaitAsync(400);
+            await context.HoldAndDragAsync(list.GetRealizedView(0)!, 0, list.Height - 40, holdAtEndMs: 400); // scrolls while held
+            await context.WaitAsync(400);
+            await context.HoldAndDragAsync(list.GetRealizedView(list.FirstVisibleIndex)!, 0, 90,
+                beforeRelease: () => LeakItems.Shared.Insert(0, "Inserted")); // cancelled
+            if (SkUiSemantics.RootOf(list) is { } root && ((Element)list.GetRealizedView(list.FirstVisibleIndex)!).Parent is ISkUiAccessibleNode host)
+            {
+                var owner = root.SemanticsOwner ?? new SkUiSemanticsOwner(root);
+                if (owner.Tree.Find(host) is { } element)
+                    owner.PerformCustom(element.Id, 0);
+            }
+            await context.SettleAsync();
+            await context.HoldAndDragAsync(grid.GetRealizedView(1)!, 0, 60, release: false); // closes with an item lifted
+        }
+
+        public override string? CheckInteraction() =>
+            _reorders >= 4 && _list!.SelectedItem is "Task 1" ? null
+                : $"Reordered {_reorders} times; selected {_list!.SelectedItem ?? "none"}.";
     }
 
     private sealed class RefreshRun : LeakScenarioRun

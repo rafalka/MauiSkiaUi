@@ -30,14 +30,19 @@ Work merged into `devel` after 1.0.0 shipped with 1.1.0 too.
 
 ### 1.2.0: MAUI parity (shipped)
 
-More MAUI pages port by changing the XAML prefix: MAUI's pan, swipe, pinch and pointer recognizers on drawn views; the collection view's and carousel's `ItemsLayout`, `ScrollTo`, snap points, `ItemsUpdatingScrollMode` and text headers; `IndicatorTemplate`; MAUI 10's new members (`SafeAreaEdges` on the surface root, `Switch.OffColor`, `CheckBox.Command`); and a test that compares the drawn controls' API with MAUI's. `TemplateBinding`, data headers and platform-specifics become conversions in the migration checker. Collection view reordering follows in 1.3. Steps, order and decisions: [ImplementationPlan-1.2.md](ImplementationPlan-1.2.md).
+More MAUI pages port by changing the XAML prefix: MAUI's pan, swipe, pinch and pointer recognizers on drawn views; the collection view's and carousel's `ItemsLayout`, `ScrollTo`, snap points, `ItemsUpdatingScrollMode` and text headers; `IndicatorTemplate`; MAUI 10's new members (`SafeAreaEdges` on the surface root, `Switch.OffColor`, `CheckBox.Command`); and a test that compares the drawn controls' API with MAUI's. `TemplateBinding`, data headers and platform-specifics become conversions in the migration checker. Collection view reordering follows in 1.3. Steps, order and decisions: [the archived plan](../archive/ImplementationPlan-1.2.md); what it left open is below ([1.3.0](#130-reordering-and-drawn-form-controls-next-on-devel), [backlog](#backlog-1x), [verification backlog](#verification-backlog), [held for 2.0](#held-for-20), [not planned](#not-planned)).
 
 ### 1.3.0: reordering and drawn form controls (next, on `devel`)
 
-Collection view reordering ([plan](ImplementationPlan-1.2.md#moved-to-13)), and what building drawn form controls on 1.x asked for ([milestone](https://github.com/rafalka/MauiSkiaUi/milestone/1)):
+Collection view reordering, moved from 1.2 (a new feature rather than a port by prefix, and the only L-sized step), and what building drawn form controls on 1.x asked for ([milestone](https://github.com/rafalka/MauiSkiaUi/milestone/1)):
 
+- **Reordering (on `devel`):** MAUI's `CanReorderItems`, `CanMixGroups` and `ReorderCompleted` on the collection view, in lists and grids of both orientations, grouped or not ([design](ScrollingAndCollectionViews.md#reordering)).
+  - Lifting: a long press (touch, pen) or a press and drag (mouse). A copy of the item follows the pointer at composite time, scaled and shadowed by the look; the items it passes move aside with render-thread animations; the list auto-scrolls near its ends.
+  - Dropping: the copy moves to its place, then the item moves in its `IList` as MAUI's handlers move it (`RemoveAt`, `Insert`); between groups only with `CanMixGroups`. The item stays selected and the list keeps its offset.
+  - Accessibility: "Move up" / "Move down" custom actions on TalkBack and VoiceOver (none in UI Automation on Windows).
+  - Leak scenario `CollectionViewReordered`; device runs in the [verification backlog](#verification-backlog).
 - **Fixed on `devel`:** centered single lines in fonts with a line gap ([#61](https://github.com/rafalka/MauiSkiaUi/issues/61)), the dim press on light and transparent buttons ([#62](https://github.com/rafalka/MauiSkiaUi/issues/62)), and `RunsTappedCommand`, so a host that hands its `TappedCommand` to the node it draws is one element and focus stop ([#63](https://github.com/rafalka/MauiSkiaUi/issues/63)).
-- **Added:** `PressFeedback = Fade` for `ShowsPressEffect`, a composited fade to the look's `PressedContentOpacity` for dark content the tint hardly changes ([#64](https://github.com/rafalka/MauiSkiaUi/issues/64)); `DefaultMinimumHeight`, a protected virtual on both button layers used while no minimum height is set ([#65](https://github.com/rafalka/MauiSkiaUi/issues/65)); and `SkUiDisplayBinding`, the public item-text reader the pickers now share, which lets go of the last item ([#66](https://github.com/rafalka/MauiSkiaUi/issues/66)).
+- **Added:** `PressFeedback = Fade` for `ShowsPressEffect`, a composited fade to the look's `PressedContentOpacity` for dark content the tint hardly changes ([#64](https://github.com/rafalka/MauiSkiaUi/issues/64)); `DefaultMinimumHeight`, a protected virtual on both button layers used while no minimum height is set ([#65](https://github.com/rafalka/MauiSkiaUi/issues/65)); and `SkUiDisplayBinding`, the public item-text reader the pickers now share, which lets go of the last item ([#66](https://github.com/rafalka/MauiSkiaUi/issues/66)); `SkUiDragger` / `SkUiCoreDragger`, a handle that reports drags in its parent's coordinates for an app's own resizing ([doc](../controls/SkUiDragger.md)), and the grid splitters built on it, which resize grid rows or columns in drawn grids, MAUI's `Grid` and Core tables (column grips in the header) ([doc](../controls/SkUiGridSplitter.md)); the demo's component pages resize their preview area with one.
 
 ## Backlog (1.x)
 
@@ -53,8 +58,9 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 ### MAUI parity
 
-- **CollectionView:** reordering (next, in 1.3: [plan](ImplementationPlan-1.2.md#moved-to-13)), a selected-item template, extended selection, keyboard item navigation, animated insert and remove.
+- **CollectionView:** a selected-item template, extended selection, keyboard item navigation, animated insert and remove.
 - **CarouselView / IndicatorView:** `VisibleViews`; autoplay, several items per snap point, a Core carousel.
+- **Gesture recognizers on drawn views:** `PanGestureRecognizer` with `TouchPoints` other than 1 (reported and not run since 1.2).
 - **Images:** fade-in, download progress, a per-view cache key, downsampling to the view's size, Android vector drawables.
 - **Labels:** span press feedback, HTML images, `sub` / `sup`, block indents; one fitted size for a group of labels.
 - **Templates:** button image tint.
@@ -66,6 +72,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 - Autofill groups smaller than a surface; keyboard inline suggestions and the autofilled highlight on Android.
 - A searchable picker list (an editable field that filters the list) and a token template.
 - A split caret at bidi boundaries, visual Left / Right through mixed-direction lines, allocation-free re-shaping per keystroke.
+- Shrink to fit on the drawn entry (the migration checker reports iOS `Entry.AdjustsFontSizeToFitWidth` with advice until then).
 - Number entries: repeat acceleration. More ideas: [TextInput.md](TextInput.md#possible-future-extensions).
 
 ### Lists and scrolling
@@ -82,7 +89,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 ### Accessibility
 
-- Links inside text as elements, custom actions (swipe view items, refresh), live regions, arrow keys within radio groups, a platform expanded / collapsed state for the expander.
+- Links inside text as elements, custom actions on swipe view items and refresh (reorderable items have theirs), public custom actions for own controls, live regions, arrow keys within radio groups, a platform expanded / collapsed state for the expander.
 - iPad keyboard navigation, Windows' non-linear text scale, font images following a later text size change.
 
 ### Architecture and performance
@@ -106,6 +113,7 @@ Device runs that are still open. How to run them: [Testing.md](Testing.md#device
 - **Demo gallery:** a full pass on Android and an Apple device.
 - **MAUI gesture recognizers on drawn views (1.2):** swipe, pan, pinch, pointer, secondary-button and triple taps on Android, iOS, Mac Catalyst and Windows, against the native view on the gallery's "MAUI gesture recognizers" page.
 - **Snap points on lists (1.2):** flings and drags ending on rows on a phone (Android and iOS), with the gallery's "Items layouts and snap points" page.
+- **Reordering collection view items (1.3):** a long press and drag on Android and iOS, a mouse drag on Mac Catalyst and Windows, auto-scroll near the ends, grids and grouped lists, the lift's look; the "Move up" / "Move down" actions with TalkBack and VoiceOver; on the gallery's reordering page.
 - **`SafeAreaEdges` on the surface root (1.2):** a drawn layout root on a notched iPhone (portrait and landscape, with the keyboard for `SoftInput`) and on an Android phone with edge-to-edge.
 
 ## Held for 2.0
@@ -118,4 +126,4 @@ Breaking changes for MAUI parity, kept out of 1.x so the 1.0 API stays as it is.
 
 ## Not planned
 
-By design: drawn WebView, media and maps (host them in `SkUiMauiContentView`); Shell, navigation, pages and popup windows of SkiaUi's own (drawn controls open popups through the app's popup system); controls MAUI made obsolete (Frame, ListView, TableView, cells, compatibility layouts); context flyouts and drag and drop; `ImageBrush` (internal in MAUI 10, so no MAUI page can use one: an `SkUiImage` behind the content does it); clones of other vendors' controls; a Core flex layout (Core uses the wrap and shrink layouts and the grid).
+By design: drawn WebView, media and maps (host them in `SkUiMauiContentView`); Shell, navigation, pages and popup windows of SkiaUi's own (drawn controls open popups through the app's popup system); controls MAUI made obsolete (Frame, ListView, TableView, cells, compatibility layouts); context flyouts and drag and drop; `ImageBrush` (internal in MAUI 10, so no MAUI page can use one: an `SkUiImage` behind the content does it); clones of other vendors' controls; `{TemplateBinding}` and `RelativeSource TemplatedParent` in drawn templates (MAUI resolves them through an internal interface; the migration checker rewrites them to `RelativeSource AncestorType`); reading platform-specific attached properties at runtime (the checker converts the ones with a SkiaUi member, and their other drawn meanings are SkiaUi members in the backlog); `SafeAreaEdges` on drawn views inside a surface (only the surface root applies it, so layout does not depend on where a view is in the window); a Core flex layout (Core uses the wrap and shrink layouts and the grid).

@@ -284,6 +284,10 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
             node.Scrollable = (actions & (SkUiSemanticsActions.ScrollForward | SkUiSemanticsActions.ScrollBackward)) != 0;
         if (element.Range is not null && (actions & SkUiSemanticsActions.Increment) != 0 && OperatingSystem.IsAndroidVersionAtLeast(24))
             node.AddAction(AccessibilityNodeInfoCompat.AccessibilityActionCompat.ActionSetProgress);
+        // Named actions (TalkBack's actions menu), with ids of their own past the standard ones.
+        if (element.EnabledCustomActions is { } custom)
+            for (var index = 0; index < custom.Length; index++)
+                node.AddAction(new AccessibilityNodeInfoCompat.AccessibilityActionCompat(FirstCustomActionId + index, custom[index]));
 
         // The tree: elements inside scrollers or tappable groups are children of those (TalkBack scrolls the scrollable
         // ancestor of the focused node when reading past the visible ones).
@@ -316,6 +320,14 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         if (element is { Source: { } source } && e.EventType == EventTypes.ViewAccessibilityFocused)
             SkUiSemantics.BringIntoView(source); // focused while partly scrolled out: show it, as native lists do
     }
+
+    /// <summary>
+    /// The id of an element's first named action (<see cref="SkUiSemanticsNode.CustomActions"/>): outside the standard
+    /// actions' bits and the framework's resource ids, as other drawn UI toolkits number theirs.
+    /// </summary>
+    private const int FirstCustomActionId = 0x0FF00001;
+
+    private const int MaxCustomActions = 64;
 
     /// <inheritdoc />
     protected override bool OnPerformActionForVirtualView(int virtualViewId, int action, Bundle? arguments)
@@ -351,6 +363,9 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
                 var start = arguments?.GetInt(AccessibilityNodeInfoCompat.ActionArgumentSelectionStartInt, -1) ?? -1;
                 var end = arguments?.GetInt(AccessibilityNodeInfoCompat.ActionArgumentSelectionEndInt, start) ?? start;
                 done = start >= 0 && owner.SetSelection(virtualViewId, start, Math.Max(start, end));
+                break;
+            case >= FirstCustomActionId and < FirstCustomActionId + MaxCustomActions:
+                done = owner.PerformCustom(virtualViewId, action - FirstCustomActionId);
                 break;
             default:
                 if (OperatingSystem.IsAndroidVersionAtLeast(24) && action == Android.Resource.Id.AccessibilityActionSetProgress

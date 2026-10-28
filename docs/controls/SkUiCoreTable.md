@@ -44,6 +44,10 @@ table.Add(new SkUiCoreLabel().SetText("B"), 1, 1);
 var host = new SkUiCoreHost().SetContent(table);
 ```
 
+## Resizable columns
+
+The table is a Core grid, so a [`SkUiCoreGridSplitter`](SkUiGridSplitter.md#resizable-table-columns) resizes its columns. Put one in each header cell but the last, after the cell's content, 1 DIP wide (`SetWidth(1)`: on the column separator, with its touch area and grip over the cells) and aligned to the cell's end (`SetHorizontalAlignment(LayoutAlignment.End)`): a drag on it resizes its column and the next one (`ResizeBehavior` `CurrentOnly`: its column alone), within the columns' `MinWidth` / `MaxWidth`. A splitter spanning every row (a line down the table, `ShowsLine`, grip in the header with `GripAlignment` `Start`) merges no cells: the row separators still cross it. Gallery: `CoreGridSplitterDemoPage`.
+
 ## Key properties / APIs
 
 | API | Role |

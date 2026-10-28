@@ -6,7 +6,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// MAUI 10's new members on drawn controls (step R3 in docs/design/ImplementationPlan-1.2.md), on both layers:
+/// MAUI 10's new members on drawn controls (step R3 in docs/archive/ImplementationPlan-1.2.md), on both layers:
 /// <c>Switch.OffColor</c> and <c>CheckBox.Command</c> / <c>CommandParameter</c>.
 /// </summary>
 [Collection(RuntimeXamlCollection.Name)]

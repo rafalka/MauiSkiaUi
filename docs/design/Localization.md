@@ -17,6 +17,7 @@ SkiaUi shows or reads out only a few texts of its own; everything else (labels, 
 | `LoadMoreText` | "Load more" | The default load-more button of `SkUiCollectionView` (`LoadMoreMode="Manual"`) |
 | `SelectedStateText` | "Selected" | What screen readers read as the value of a selected collection view item (also a chosen row of a picker with several choices) |
 | `ExpandedStateText` / `CollapsedStateText` | "Expanded" / "Collapsed" | What screen readers read after the header of an `SkUiExpander` or a collapsible collection view group |
+| `MoveUpText`, `MoveDownText`, `MoveLeftText`, `MoveRightText` | "Move up", "Move down", "Move left", "Move right" | The screen-reader actions that move an item of a reorderable collection view (`CanReorderItems`) one place, named by the way one place goes on screen |
 
 The date and time pickers' month names, AM / PM, the order of their wheels and their fields' texts come from `CultureInfo.CurrentCulture` (read when the field's value changes and at each opening), not from `SkUiStrings`.
 

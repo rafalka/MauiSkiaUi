@@ -88,12 +88,12 @@ Status: **Shipped** (in the current release line), **Partly** (shipped, with ope
 | FR-19 | Color scheme: default palette, light / dark and platform schemes | Partly (per-tree schemes) | [ColorScheme](ColorScheme.md) |
 | FR-20 | Shadows on every view | Shipped | [RenderingPipeline](RenderingPipeline.md#shadows-and-clips-fr-20-fr-11) |
 | FR-21 | Virtual scroll layout (items realized near the viewport, recycled) | Partly (scroll modes, horizontal layout) | [SkUiVirtualVerticalStackLayout](../controls/SkUiVirtualVerticalStackLayout.md) |
-| FR-22 | `SkUiCollectionView` | Partly (reordering) | [SkUiCollectionView](../controls/SkUiCollectionView.md) |
+| FR-22 | `SkUiCollectionView` | Done (reordering in 1.3) | [SkUiCollectionView](../controls/SkUiCollectionView.md) |
 | FR-23 | Three-state toggles | Shipped | [SkUiToggleControl](../controls/SkUiToggleControl.md) |
 | FR-24 | Slider (also vertical) | Shipped | [SkUiSlider](../controls/SkUiSlider.md) |
 | FR-25 | Progress bar (also indeterminate) | Shipped | [SkUiProgressBar](../controls/SkUiProgressBar.md) |
 | FR-26 | State-change animations drawn by the look | Shipped | [ControlLook](ControlLook.md#state-change-transitions-fr-26) |
-| FR-27 | Composition layouts: flex, wrap, shrink, align stack | Shipped | [SkUiFlexLayout](../controls/SkUiFlexLayout.md), [SkUiWrapLayout](../controls/SkUiWrapLayout.md), [SkUiShrinkLayout](../controls/SkUiShrinkLayout.md) |
+| FR-27 | Composition layouts: flex, wrap, shrink, align stack; draggers and grid splitters (1.3) | Shipped | [SkUiFlexLayout](../controls/SkUiFlexLayout.md), [SkUiWrapLayout](../controls/SkUiWrapLayout.md), [SkUiDragger](../controls/SkUiDragger.md), [SkUiGridSplitter](../controls/SkUiGridSplitter.md), [SkUiShrinkLayout](../controls/SkUiShrinkLayout.md) |
 | FR-28 | Accessibility, keyboard focus, font scaling | Shipped | [Accessibility](Accessibility.md) |
 | FR-29 | Pickers on the app's popup system | Shipped | [SkUiPicker](../controls/SkUiPicker.md), [Popups](Popups.md) |
 | FR-30 | Avatar view | Shipped | [SkUiAvatarView](../controls/SkUiAvatarView.md) |

@@ -84,6 +84,8 @@ The immediate `ISkUiView.Paint(SKCanvas)` / `ISkUiCoreNode.Paint` path (`SkUiImm
 | **Software** (`SKCanvasView`) | `HwAccelerated = false` | record + commit + composite | — |
 | **Windows** (`SKGLView` / `SKCanvasView`) | either | record + commit + composite; continuous frames paced to `CompositionTarget.Rendering`, stopped while unloaded | — |
 
+On Android, SkiaSharp's `SKGLTextureViewRenderer` builds its render target on the framebuffer bound when the surface is created or resized. Skia leaves its own offscreen framebuffers bound after drawing into them (the GPU warm-up, layers, filters), so `SkUiGlTextureView` binds the window's framebuffer (0) and resets Skia's cached GL state before each resize; otherwise every frame after a rotation draws offscreen.
+
 Metal replaces SkiaSharp's MAUI `SKGLView` on Apple platforms. That view is backed by the deprecated GLKView/OpenGL ES, and it needed a full-frame offscreen blit to avoid ghost strokes. Rendering pauses in the background and resumes in the foreground, because iOS forbids GPU work in the background.
 
 ## Animation tiers

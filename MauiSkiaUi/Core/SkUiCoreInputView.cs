@@ -610,7 +610,9 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiFontElement, ISkUiF
 
     bool ISkUiTextInputNode.HitsTextHandle(Point local) => Model.HandleAt(local) != 0;
 
-    bool ISkUiTextInputNode.HitsOverflowMessage(Point local) => Model.HitsOverflowMessage(local);
+    // The message the field hangs below a fixed height: the press is the field's, which declines it as it declines a press on a
+    // message inside its bounds, so it reaches neither the field nor what lies under the message.
+    internal override bool HitsOutsideBounds(Point local) => Model.HitsOverflowMessage(local);
 
     #endregion
 

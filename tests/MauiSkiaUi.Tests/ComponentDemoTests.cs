@@ -183,6 +183,26 @@ public class ComponentDemoTests
     }
 
     [Fact]
+    public void SearchFiltersDemosAndPagesByEveryWordOfTheQuery()
+    {
+        DemoSearchItem[] pages = [new("Stress", "Performance · Page", "//stress")];
+        var search = new DemoSearchPage(pages);
+        Assert.Equal(ComponentDemos.All.Count + pages.Length, search.Results.Count());
+        Assert.Equal($"{ComponentDemos.All.Count + pages.Length} demos", search.Summary);
+        // The MAUI counterpart and the category match as well as the control's type.
+        search.SearchBar.Text = "searchbar";
+        Assert.Equal(["demo-SkUiSearchBar"], search.Results.Select(item => item.Route));
+        Assert.Equal("1 demo", search.Summary);
+        search.SearchBar.Text = "  core   SHIMMER ";
+        Assert.Equal(["demo-SkUiCoreShimmer", "demo-SkUiCoreShimmerBone"], search.Results.Select(item => item.Route));
+        search.SearchBar.Text = "stress";
+        Assert.Equal(["//stress"], search.Results.Select(item => item.Route));
+        search.SearchBar.Text = "nothing like this";
+        Assert.Empty(search.Results);
+        Assert.Equal("No demo matches \"nothing like this\".", search.Summary);
+    }
+
+    [Fact]
     public void ControlSpecificEditorsComeBeforeTheCommonOnes()
     {
         var page = new GridDemoPage();

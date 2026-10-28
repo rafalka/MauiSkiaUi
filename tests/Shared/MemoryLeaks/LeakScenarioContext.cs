@@ -148,6 +148,35 @@ public sealed class LeakScenarioContext(Func<TimeSpan, Task> wait, bool isDevice
         await SettleAsync();
     }
 
+    /// <summary>
+    /// Presses the element's center, holds past the long-press duration, then drags by (<paramref name="dx"/>,
+    /// <paramref name="dy"/>) over <paramref name="durationMs"/> and holds there <paramref name="holdAtEndMs"/> (an item
+    /// lifted and moved: a reorder). <paramref name="beforeRelease"/> runs while the pointer is still down; with
+    /// <paramref name="release"/> false it stays down (a page closed mid-drag).
+    /// </summary>
+    public async Task HoldAndDragAsync(object element, double dx, double dy, double durationMs = 240, int steps = 8, double holdAtEndMs = 0,
+        Action? beforeRelease = null, bool release = true)
+    {
+        var (root, center) = Locate(element);
+        var id = ++_nextPointer;
+        var start = Now();
+        Touch(root, id, SkUiTouchAction.Pressed, center, start);
+        var held = SkUiGestureSettings.LongPressDuration.TotalMilliseconds + 100;
+        await WaitAsync(held);
+        for (var step = 1; step <= steps; step++)
+        {
+            await WaitAsync(durationMs / steps);
+            var t = (double)step / steps;
+            Touch(root, id, SkUiTouchAction.Moved, new Point(center.X + dx * t, center.Y + dy * t), start + TimeSpan.FromMilliseconds(held + durationMs * t));
+        }
+        if (holdAtEndMs > 0)
+            await WaitAsync(holdAtEndMs);
+        beforeRelease?.Invoke();
+        if (release)
+            Touch(root, id, SkUiTouchAction.Released, new Point(center.X + dx, center.Y + dy), start + TimeSpan.FromMilliseconds(held + durationMs + holdAtEndMs + 8));
+        await SettleAsync();
+    }
+
     /// <summary>Two pointers around the element's center moving apart by <paramref name="spread"/> DIPs each.</summary>
     public async Task PinchAsync(object element, double spread = 60, int steps = 6)
     {

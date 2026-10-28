@@ -19,7 +19,6 @@ public sealed class CoreScrollViewDemoPage : ComponentDemoPage
             widthRange: (200, 400, 320), heightRange: (200, 560, 420))
     {
         _scroll = scroll;
-        SinglePanelHeight = 460;
         void Report(string message) =>
             Feedback($"{message} · page {_scroll.ScrollY:F0}/{Max(_scroll):F0}, panel {panel.ScrollY:F0}/{Max(panel):F0}, carousel {carousel.ScrollX:F0}");
         _scroll.Scrolled += (_, _) => Report("Page scrolled");

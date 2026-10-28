@@ -4,7 +4,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// The collection view's and carousel's MAUI shape (steps V1–V7 in docs/design/ImplementationPlan-1.2.md):
+/// The collection view's and carousel's MAUI shape (steps V1–V7 in docs/archive/ImplementationPlan-1.2.md):
 /// <c>ItemsLayout</c> with its snap points, <c>ItemSizingStrategy</c>, MAUI's <c>ScrollTo</c> with <c>ScrollToRequested</c>,
 /// <c>ItemsUpdatingScrollMode</c>, text in <c>Header</c> / <c>Footer</c> / <c>EmptyView</c> and the carousel's scroll bars,
 /// in MAUI's XAML with only the prefix changed.

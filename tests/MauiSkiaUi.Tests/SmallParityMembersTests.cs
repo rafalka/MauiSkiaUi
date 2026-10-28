@@ -4,7 +4,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// MAUI's small members on drawn controls (step R4 in docs/design/ImplementationPlan-1.2.md): <c>StrokeDashPattern</c>,
+/// MAUI's small members on drawn controls (step R4 in docs/archive/ImplementationPlan-1.2.md): <c>StrokeDashPattern</c>,
 /// <c>IsOpaque</c>, <c>Padding</c> on the indicator and refresh views, and the read-only <c>IsPressed</c> bindable property
 /// that MAUI triggers use. <c>IsLoading</c>, <c>IsDragging</c> and <c>UpdateSelectedItems</c> are checked with the image,
 /// carousel and collection view tests.

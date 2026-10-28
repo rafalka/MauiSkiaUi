@@ -3,7 +3,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// MAUI 10's <c>SafeAreaEdges</c> on drawn containers (step S1 in docs/design/ImplementationPlan-1.2.md): a surface root pads
+/// MAUI 10's <c>SafeAreaEdges</c> on drawn containers (step S1 in docs/archive/ImplementationPlan-1.2.md): a surface root pads
 /// itself by its overlap with the window's insets per edge it keeps clear. Opt-in: every drawn container defaults to
 /// <c>None</c> (MAUI's layouts default to <c>Container</c>); drawn views inside a surface accept the property and ignore it.
 /// </summary>

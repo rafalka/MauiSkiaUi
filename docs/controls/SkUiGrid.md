@@ -62,4 +62,4 @@ grid.SetRow(title, 0).SetColumnSpan(title, 1);
 
 ## Related
 
-Gallery: `GridDemoPage`
+Gallery: `GridDemoPage` · Let users resize rows or columns: [`SkUiGridSplitter`](SkUiGridSplitter.md)

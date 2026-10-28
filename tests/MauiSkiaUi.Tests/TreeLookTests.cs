@@ -1,5 +1,6 @@
 using SkiaSharp;
 using MauiSkiaUi.Core;
+using MauiSkiaUi.Rendering;
 using Xunit;
 
 namespace MauiSkiaUi.Tests;
@@ -237,5 +238,33 @@ public class TreeLookTests
         ((IView)android).Measure(500, 500);
 
         Assert.Equal(((IView)rich).DesiredSize.Height, ((IView)plain).DesiredSize.Height, 3);
+    }
+
+    [Fact]
+    public void AThinDraggerTakesPointersAndDrawsAcrossItsSubtreesTouchThickness()
+    {
+        // Hit tests and render props run outside the paint's look scope; they still use the subtree's 44 DIP touch area.
+        var look = new WideDraggerLook();
+        var skui = new SkUiGridSplitter { HeightRequest = 1, WidthRequest = 200, ResizeDirection = SkUiGridResizeDirection.Rows };
+        var grid = new SkUiGrid { Look = look, RowDefinitions = { new RowDefinition(GridLength.Star), new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Star) } };
+        grid.Add(skui, 0, 1);
+        SkUiTestHelpers.Arrange(grid, 200, 101);
+        var core = new SkUiCoreDragger().SetDragAxis(SkUiPanAxis.Vertical).SetLook(look);
+        core.Measure(200, 1);
+        core.Arrange(new Rect(0, 0, 200, 1));
+
+        foreach (var node in new ISkUiRenderable[] { skui, core })
+        {
+            var props = SkUiRenderProps.Default;
+            node.GetRenderProps(ref props);
+            Assert.Equal(new SKRect(0, 21.5f, 0, 21.5f), props.Overflow);
+            Assert.True(((ISkUiInputNode)node).HitsOutsideBounds(new Point(100, -20)));
+            Assert.False(((ISkUiInputNode)node).HitsOutsideBounds(new Point(100, -23)));
+        }
+    }
+
+    private sealed class WideDraggerLook : DefaultSkUiLook
+    {
+        public override double DraggerTouchThickness => 44;
     }
 }

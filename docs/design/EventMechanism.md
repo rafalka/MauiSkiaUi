@@ -44,6 +44,8 @@ SkUiPointerRouter (one per surface root)
         │  Press: hit-test once through the drawn tree (SkUi* + Core)
         │         → topmost node that participates (has recognizers) or blocks (disabled)
         │           (a node with HitTestsChildren = false, a shimmer's content skeleton, is tried without its subtree)
+        │           inside each node's arranged rectangle, or where it reaches past it (HitsOutsideBounds: a thin
+        │           dragger's touch area, a text field's message below a fixed height)
         │  Arena: recognizers of that node, then of each ancestor up to the root (innermost first)
         ▼
 SkUiGestureArena (one per pointer)

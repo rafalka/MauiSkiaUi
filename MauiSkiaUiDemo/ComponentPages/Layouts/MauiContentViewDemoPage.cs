@@ -29,8 +29,7 @@ public sealed class MauiContentViewDemoPage : ComponentDemoPage
     public MauiContentViewDemoPage() : base(nameof(SkUiMauiContentView), new SkUiGrid { RowSpacing = 8, ColumnSpacing = 12, Padding = 12 },
         widthRange: (220, 1600, 320), heightRange: (300, 560, 440))
     {
-        // Room for the 440 DIP default height; the width starts at the full page width once it is known.
-        SinglePanelHeight = 520;
+        // The width starts at the full page width once it is known.
         SizeChanged += OnFirstSize;
         _editor.Text = "<h3>Live HTML</h3>\n<p>Edit this HTML \u2014 the WebView below updates as you type.</p>";
         _grid = (SkUiGrid)SkiaControl;

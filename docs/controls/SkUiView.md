@@ -141,7 +141,7 @@ Drawn views are read by TalkBack, VoiceOver and Narrator, take keyboard focus, a
 - **Switching it off:** `IsAccessibilityEnabled="False"` hides a view's subtree from screen readers and keyboard focus; on a surface root, the surface is read as one native view (its own `SemanticProperties` apply to it, as to any MAUI view). For decorative or self-described surfaces (charts, game canvases). `SkUiAccessibility.IsEnabled = false` does it app-wide (kiosks, games). Unused, accessibility costs next to nothing; text scaling stays either way.
 - **Own controls** describe themselves by overriding `OnPopulateSemantics(SkUiSemanticsInfo)` (role, text, value, check state, range, actions; call the base first) and `OnSemanticsAction` / `OnSemanticsSetValue`; call `InvalidateSemantics()` when something they read changes without a redraw. Their keyboard focus follows their tap handler.
 - **Reaching a surface with Tab** follows each platform's rule for buttons: always on Windows and Android; on Mac Catalyst only with System Settings › Keyboard › Keyboard navigation on (otherwise macOS tabs between text fields only), on iPad with a hardware keyboard. A click focuses the drawn control on Windows only (as WinUI); on Apple and Android pointer input does not move keyboard focus. Once a drawn control has focus (`Focus()`), Tab, Space / Enter and arrows work everywhere.
-- Not yet: links inside HTML / span text as separate elements, custom actions, arrow-key moves within a radio group.
+- Not yet: links inside HTML / span text as separate elements, custom actions of your own (reorderable collection view items have "Move up" / "Move down"), arrow-key moves within a radio group.
 
 ## Related
 

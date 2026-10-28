@@ -5,7 +5,7 @@ namespace MauiSkiaUi.Tests;
 
 /// <summary>
 /// MAUI's <c>IndicatorView.IndicatorTemplate</c> / <c>IndicatorLayout</c> on <see cref="SkUiIndicatorView"/> (step T3 in
-/// docs/design/ImplementationPlan-1.2.md): a drawn view per indicator in a stack, bound to its item, colored and marked
+/// docs/archive/ImplementationPlan-1.2.md): a drawn view per indicator in a stack, bound to its item, colored and marked
 /// <c>Selected</c> as MAUI marks it, with taps selecting.
 /// </summary>
 [Collection(RuntimeXamlCollection.Name)]

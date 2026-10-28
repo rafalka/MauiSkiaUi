@@ -7,14 +7,14 @@ using Shapes = Microsoft.Maui.Controls.Shapes;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// MAUI API parity by reflection (step R1 in docs/design/ImplementationPlan-1.2.md). Every public property, event, method
+/// MAUI API parity by reflection (step R1 in docs/archive/ImplementationPlan-1.2.md). Every public property, event, method
 /// and bindable property field of a MAUI control exists on its drawn counterpart with types MAUI code can use: a property
 /// reads as MAUI's type and, when MAUI's can be set, takes MAUI's values; an event's arguments are MAUI's (or derive from
 /// them), so MAUI handlers attach; every MAUI overload of a method takes the same arguments. Core twins have MAUI's own
 /// properties (the ones declared below <see cref="View"/>) by name, settable where MAUI's are. Members MAUI hides with
 /// <see cref="EditorBrowsableState.Never"/> are handler plumbing and not compared; so are the visible plumbing members in
 /// <see cref="PlumbingEverywhere"/>. Every other difference is listed in <see cref="Excluded"/> with the reason or in
-/// <see cref="Planned"/> with the 1.2 step that closes it (a step removes its entries), and an entry that no longer
+/// <see cref="Planned"/> with the step that closes it (a step removes its entries), and an entry that no longer
 /// matches a difference fails too. On a new MAUI 10.0.x release, the failure lists what MAUI added.
 /// </summary>
 public class MauiApiParityTests
@@ -131,9 +131,8 @@ public class MauiApiParityTests
                 "FontAutoScalingEnabled", "FontFamily", "FontSize", "GroupName", "IsClippedToBounds", "Padding", "TextColor", "TextTransform", "Value",
             ]));
 
-    /// <summary>Gaps a planned step closes, keyed like <see cref="Excluded"/>, with the step (ImplementationPlan-1.2.md).</summary>
-    private static readonly Dictionary<string, string> Planned = Entries(
-        ("V8, in 1.3", ["SkUiCollectionView"], ["CanReorderItems", "CanReorderItemsProperty", "CanMixGroups", "CanMixGroupsProperty", "ReorderCompleted"]));
+    /// <summary>Gaps a planned step closes, keyed like <see cref="Excluded"/>, with the step (none planned now: reordering, the last, shipped in 1.3).</summary>
+    private static readonly Dictionary<string, string> Planned = Entries();
 
     private static readonly Lazy<List<(string Key, string Problem)>> DrawnDifferences =
         new(() => [.. Pairs.SelectMany(pair => Differences(pair.Maui, pair.Drawn))]);

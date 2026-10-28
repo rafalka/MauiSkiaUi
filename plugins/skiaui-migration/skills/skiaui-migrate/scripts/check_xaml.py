@@ -96,7 +96,7 @@ REPLACE = {
 }
 WRAP = {"WebView", "HybridWebView", "BlazorWebView", "Map"}
 NO_DRAWN = {
-    "CollectionView": "use sk:SkUiCollectionView (MAUI's ItemsLayout, ScrollTo and ItemsUpdatingScrollMode port; SelectionChanged / Scrolled / SelectionMode in C# convert, see references/collection-view.md); reorderable lists (CanReorderItems): keep the list outside the drawn tree",
+    "CollectionView": "use sk:SkUiCollectionView (MAUI's ItemsLayout, ScrollTo, ItemsUpdatingScrollMode and reordering port; SelectionChanged / Scrolled / SelectionMode in C# convert, see references/collection-view.md)",
     "ListView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",
     "TableView": "obsolete in MAUI, no drawn equivalent: keep it outside the drawn tree",
 }
@@ -106,7 +106,6 @@ GESTURE_ADVICE = {
 }
 # MAUI CollectionView members an SkUiCollectionView does not have, with what to do instead.
 COLLECTION_VIEW_MAUI_ONLY = {
-    "CanReorderItems": "reordering items is not available: keep a reorderable list native",
     "ItemTemplateSelector": "set the DataTemplateSelector as ItemTemplate",
     "Command": "on a RefreshView this is RefreshCommand",
 }

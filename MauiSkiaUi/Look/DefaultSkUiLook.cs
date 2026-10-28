@@ -146,6 +146,15 @@ public class DefaultSkUiLook : SkUiLook
         }
     }
 
+    private static readonly Shadow ReorderShadow = new() { Brush = Colors.Black, Opacity = 0.3f, Radius = 12, Offset = new Point(0, 4) };
+
+    /// <inheritdoc />
+    public override double ReorderLiftScale => 1.03;
+
+    /// <inheritdoc />
+    /// <remarks>A soft shadow below the item, as lifted rows cast on iOS and Android.</remarks>
+    public override Shadow? GetReorderLiftShadow() => ReorderShadow;
+
     private static readonly Shadow OverlayRefreshShadow = new() { Brush = Colors.Black, Opacity = 0.25f, Radius = 4, Offset = new Point(0, 1) };
 
     /// <inheritdoc />
@@ -166,6 +175,8 @@ public class DefaultSkUiLook : SkUiLook
         SkUiTransitionKind.IndicatorPosition => SkUiTransition.FromMilliseconds(250, Easing.CubicOut),
         SkUiTransitionKind.FieldFocus => SkUiTransition.FromMilliseconds(150, Easing.CubicOut),
         SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(200, Easing.CubicInOut),
+        SkUiTransitionKind.ReorderLift => SkUiTransition.FromMilliseconds(150, Easing.CubicOut),
+        SkUiTransitionKind.ReorderMove => SkUiTransition.FromMilliseconds(200, Easing.CubicOut),
         // Determinate progress follows Progress at once, as MAUI's ProgressBar (ProgressTo animates).
         _ => SkUiTransition.None
     };
@@ -942,6 +953,45 @@ public class DefaultSkUiLook : SkUiLook
     {
         var destination = ComputeImageDestination(viewWidth, viewHeight, image.Width, image.Height, aspect);
         canvas.DrawImage(image, destination, new SKSamplingOptions(SKFilterMode.Linear));
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A line through the middle, then a rounded grip, twice as thick while dragged, <see cref="SkUiLook.DraggerGripInset"/>
+    /// from the edge it is aligned to; centered on a dragger thinner than it.
+    /// </remarks>
+    protected override void DrawDraggerCore(SKCanvas canvas, SkUiDraggerPaint dragger)
+    {
+        var bounds = dragger.Bounds;
+        var vertical = dragger.LineRunsVertically;
+        var along = vertical ? bounds.Height : bounds.Width;
+        var across = vertical ? bounds.Width : bounds.Height;
+        if (dragger.ShowsLine)
+        {
+            var line = Math.Min((float)DraggerLineThickness, across);
+            canvas.DrawRect(Strip(bounds, vertical, 0, along, line), Paint(dragger.Line));
+        }
+        if (!dragger.ShowsGrip)
+            return;
+        var inset = (float)DraggerGripInset;
+        var room = along - 2 * inset;
+        var length = dragger.GripAlignment == LayoutAlignment.Fill ? room : Math.Min(dragger.GripLength, room);
+        // Not clamped to the dragger: on a thin one (a 1 DIP divider) the grip draws over its neighbors.
+        var thickness = (float)DraggerGripThickness * (dragger.IsDragging ? 2 : 1);
+        if (length <= 0 || thickness <= 0)
+            return;
+        var start = dragger.GripAlignment switch
+        {
+            LayoutAlignment.Start or LayoutAlignment.Fill => inset,
+            LayoutAlignment.End => along - inset - length,
+            _ => (along - length) / 2
+        };
+        canvas.DrawRoundRect(Strip(bounds, vertical, start, length, thickness), thickness / 2, thickness / 2, Paint(dragger.Grip));
+
+        // A strip of `thickness` centered across the dragger, from `start` along it.
+        static SKRect Strip(SKRect bounds, bool vertical, float start, float length, float thickness) => vertical
+            ? SKRect.Create(bounds.MidX - thickness / 2, bounds.Top + start, thickness, length)
+            : SKRect.Create(bounds.Left + start, bounds.MidY - thickness / 2, length, thickness);
     }
 
     /// <inheritdoc />

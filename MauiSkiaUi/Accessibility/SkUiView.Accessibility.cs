@@ -190,6 +190,11 @@ public partial class SkUiView : ISkUiAccessibleNode
 
     bool ISkUiAccessibleNode.SetSemanticsValue(double value) => IsVisualStateEnabled && OnSemanticsSetValue(value);
 
+    bool ISkUiAccessibleNode.PerformSemanticsCustomAction(int index) => IsVisualStateEnabled && OnSemanticsCustomAction(index);
+
+    /// <summary>A screen reader performs the named action at <paramref name="index"/> that <see cref="OnPopulateSemantics"/> offered (<see cref="SkUiSemanticsInfo.CustomActions"/>).</summary>
+    internal virtual bool OnSemanticsCustomAction(int index) => false;
+
     bool ISkUiAccessibleNode.PerformSemanticsPartAction(int part, SkUiSemanticsActions action) => IsVisualStateEnabled && OnSemanticsPartAction(part, action);
 
     bool ISkUiAccessibleNode.IsKeyboardFocusable => IsVisible && IsTabStop && IsVisualStateEnabled && TakesKeyboardFocus;

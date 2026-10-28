@@ -46,6 +46,7 @@ public class SkUiLook
     // vertical sliders and mirror RTL.
     public void DrawSlider(SKCanvas canvas, SkUiSliderPaint slider) { … }            // → SliderPainter ?? DrawSliderCore
     public void DrawProgressBar(SKCanvas canvas, SkUiProgressBarPaint bar) { … }     // → ProgressBarPainter ?? DrawProgressBarCore
+    public void DrawDragger(SKCanvas canvas, SkUiDraggerPaint dragger) { … }         // → DraggerPainter ?? DrawDraggerCore (also grid splitters; may draw in TouchBounds, past a thin dragger)
     public void DrawActivityIndicator(…) { … }                                      // → ActivityIndicatorPainter ?? DrawActivityIndicatorCore
     // Scroll bar thumbs: drawn once per length and color into a Core node; the compositor moves and fades it.
     public void DrawScrollBar(SKCanvas canvas, SkUiScrollBarPaint bar) { … }         // → ScrollBarPainter ?? DrawScrollBarCore
@@ -57,6 +58,9 @@ public class SkUiLook
     public virtual double RefreshIndicatorSize => 40;      // and RefreshTriggerDistance (64), RefreshRestDistance (64),
                                                            // RefreshIndicatorSpinPeriod (1 s), GetRefreshIndicatorShadow(style)
     public virtual SkUiRefreshStyle DefaultRefreshStyle => SkUiRefreshStyle.Overlay; // DefaultSkUiLook: BaseRefreshStyle (Overlay; Inline in the Apple looks)
+    // Reordering (collection views): the lifted item's scale and shadow, set on its copy (composite-time), and auto-scroll.
+    public virtual double ReorderLiftScale => 1;           // DefaultSkUiLook: 1.03; and GetReorderLiftShadow() (DefaultSkUiLook: a soft shadow)
+    public virtual double ReorderAutoScrollZone => 48;     // and ReorderAutoScrollSpeed (1200 DIPs/s at the very end)
     // Indicator views (C4): the whole row, laid out by the control (SkUiIndicatorPaint.GetIndicatorBounds / GetSelection /
     // GetColor, as hit-tested); drawn again while the selection moves. DefaultSkUiLook: dots or a pill (IndicatorStyle).
     public void DrawIndicators(SKCanvas canvas, SkUiIndicatorPaint paint) { … } // → IndicatorPainter ?? DrawIndicatorsCore
@@ -174,7 +178,7 @@ Looks draw every point of a transition, not only the resting states. Switches, c
 
 Drawing the blend makes interruptions free: a switch toggled back mid-way reverses from where it is. (A third state mid-way, only possible with three-state toggles, starts again from the nearer of the two states.)
 
-**How long, which curve.** `GetTransition(kind)` returns a `SkUiTransition(Duration, Easing)`; `None` (zero duration) turns a transition off. Kinds: `Switch`, `CheckBox`, `RadioButton`, `Press`, `Release`, `Ripple`, `SliderThumb`, `Progress`, `IndicatorPosition`, `FieldFocus`, `PickerOpen`.
+**How long, which curve.** `GetTransition(kind)` returns a `SkUiTransition(Duration, Easing)`; `None` (zero duration) turns a transition off. Kinds: `Switch`, `CheckBox`, `RadioButton`, `Press`, `Release`, `Ripple`, `SliderThumb`, `Progress`, `IndicatorPosition`, `FieldFocus`, `PickerOpen`, `ReorderLift`, `ReorderMove`.
 
 | Kind | `DefaultSkUiLook` |
 | --- | --- |
@@ -186,6 +190,8 @@ Drawing the blend makes interruptions free: a switch toggled back mid-way revers
 | IndicatorPosition | 250 ms, cubic out (an indicator view's selection; a linked carousel's scrolling drives it instead) |
 | FieldFocus | 150 ms, cubic out (a picker field's focus and open highlight, a text field's focus) |
 | PickerOpen | 200 ms, cubic in-out (a picker's chevron turns while its popup opens and closes) |
+| ReorderLift | 150 ms, cubic out (a collection view item lifted to be reordered scales to `ReorderLiftScale`, and back when put down) |
+| ReorderMove | 200 ms, cubic out (items move aside from a dragged item; the dropped item goes to its place) |
 | Progress | None, as MAUI's `ProgressBar` (`ProgressTo` animates on its own) |
 
 **Press feedback on any control.** `ShowsPressEffect` (every `SkUiView` and Core node) draws the look's press overlay (`DrawPressOverlay`) over the node and its children while it is pressed, clipped to its rounded shape (a label's `CornerRadii`, a border's `CornerRadius` or rounded-rectangle `StrokeShape`). This is for containers that act as one button: a card, or a composite button built from several Core nodes. The node needs a tap handler (`Tapped`, or `TappedCommand` on SkUi*) to be pressed. A button inside it still takes its own presses. `DefaultSkUiLook` dims the content or spreads a dark ripple. On dark content (a dark icon glyph) a dark tint hardly shows: `PressFeedback = Fade` draws no overlay and fades the node and its children to the look's `PressedContentOpacity` (0.4) with the press and release transitions instead. The fade is a composite-time factor (`SkUiRenderProps.PressOpacity`, apart from `Opacity`, so an opacity animation and the fade leave each other alone): its frames mark only the node's props dirty and re-record nothing.

@@ -154,6 +154,18 @@ public class SkUiStrings
     /// <summary>What screen readers read for a loading shimmer instead of its skeleton. Default "Loading".</summary>
     public virtual string LoadingText { get; set => Set(ref field, value); } = "Loading";
 
+    /// <summary>The screen-reader action that moves a reorderable collection view item one place up. Default "Move up".</summary>
+    public virtual string MoveUpText { get; set => Set(ref field, value); } = "Move up";
+
+    /// <summary>The screen-reader action that moves a reorderable collection view item one place down. Default "Move down".</summary>
+    public virtual string MoveDownText { get; set => Set(ref field, value); } = "Move down";
+
+    /// <summary>The screen-reader action that moves a reorderable collection view item one place left. Default "Move left".</summary>
+    public virtual string MoveLeftText { get; set => Set(ref field, value); } = "Move left";
+
+    /// <summary>The screen-reader action that moves a reorderable collection view item one place right. Default "Move right".</summary>
+    public virtual string MoveRightText { get; set => Set(ref field, value); } = "Move right";
+
     /// <summary>The expanded or collapsed state's text.</summary>
     internal string ExpansionStateText(bool expanded) => expanded ? ExpandedStateText : CollapsedStateText;
 

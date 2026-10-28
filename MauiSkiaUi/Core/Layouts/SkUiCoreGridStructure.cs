@@ -163,14 +163,15 @@ internal sealed class SkUiCoreGridStructure
     }
 
     /// <summary>
-    /// True when any visible cell with a span greater than 1 crosses the horizontal boundary
+    /// True when any visible cell with a span greater than 1 (not a dragger) crosses the horizontal boundary
     /// after row <paramref name="boundaryAfterRow"/> (between that row and the next).
     /// </summary>
     public bool RowBoundaryCrossedBySpan(int boundaryAfterRow)
     {
         foreach (var cell in _cells)
         {
-            if (cell.RowSpan <= 1) continue;
+            // A dragger (a column splitter down a table) lies over the cells: it merges none.
+            if (cell.RowSpan <= 1 || _children[cell.ViewIndex] is SkUiCoreDragger) continue;
             if (cell.Row <= boundaryAfterRow && cell.Row + cell.RowSpan - 1 > boundaryAfterRow)
                 return true;
         }
@@ -179,14 +180,15 @@ internal sealed class SkUiCoreGridStructure
     }
 
     /// <summary>
-    /// True when any visible cell with a span greater than 1 crosses the vertical boundary
+    /// True when any visible cell with a span greater than 1 (not a dragger) crosses the vertical boundary
     /// after column <paramref name="boundaryAfterColumn"/>.
     /// </summary>
     public bool ColumnBoundaryCrossedBySpan(int boundaryAfterColumn)
     {
         foreach (var cell in _cells)
         {
-            if (cell.ColumnSpan <= 1) continue;
+            // A dragger (a column splitter down a table) lies over the cells: it merges none.
+            if (cell.ColumnSpan <= 1 || _children[cell.ViewIndex] is SkUiCoreDragger) continue;
             if (cell.Column <= boundaryAfterColumn && cell.Column + cell.ColumnSpan - 1 > boundaryAfterColumn)
                 return true;
         }

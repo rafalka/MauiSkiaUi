@@ -234,6 +234,41 @@ The last cell's column span: across both columns, or one.
 
 The first cell's `IsVisible`: a hidden child takes no room, and `Auto` rows and columns shrink to the others.
 
+## GridSplitterDemoPage.Splitter background
+
+Both splitters' `Background`: the page's fill, or none (the panes show through around the grip).
+
+## GridSplitterDemoPage.Thin splitters (1 DIP)
+
+Both splitters 1 DIP thick (`WidthRequest` / `HeightRequest`): the panes meet with no gap. The touch area keeps the
+look's `DraggerTouchThickness` (or `TouchThickness`), centered on the splitter and over the panes, and the grip draws
+over them; the splitters are added after the panes so they are on top.
+
+## GridSplitterDemoPage.Left column
+
+The left column's `Width`. Between two star columns a drag changes their star weights, so they keep sharing a resized
+page; next to an `Auto` or fixed column it sets that column's width in DIPs and the star column takes the rest.
+
+## GridSplitterDemoPage.Left column MinimumLength
+
+`SkUiGridSplitter.MinimumLength` on the left column's definition: the narrowest a drag leaves it. MAUI's definitions
+have no minimum of their own, so it limits the splitter only, not the grid's layout.
+
+## GridSplitterDemoPage.Top row MaximumLength
+
+`SkUiGridSplitter.MaximumLength` on the top row's definition: the tallest a drag makes it (at the slider's end, no limit).
+
+## CoreGridSplitterDemoPage.Thin splitters (1 DIP)
+
+The splitters 1 DIP wide, on the column separators, or the look's 16 DIPs inside the end of each header cell. A thin
+splitter's touch area and grip reach over the cells on both sides.
+
+## CoreGridSplitterDemoPage.Splitters down the whole table
+
+Each column splitter spans every row (`RowSpan`), shows its line (`ShowsLine`) and keeps its grip in the header
+(`GripAlignment` `Start`); the table's column separators are hidden, as the splitters' lines take their place. A splitter
+merges no cells: the table still draws its row separators across it.
+
 ## StateContainerDemoPage.Animation
 
 How the container switches between its content and a state view: at once, fading, or sliding (the state change
@@ -368,6 +403,29 @@ down by three cards, with `KeepLastItemInView` both lists scroll to their end.
 ## ItemsLayoutDemoPage.Add one at the end
 
 Appends a card: with `KeepLastItemInView` both lists scroll to it.
+
+## ReorderDemoPage.CanReorderItems
+
+Lets the user move tasks: on a phone a long press lifts one, with a mouse a press and drag. The other tasks move aside as it
+passes them, and the list scrolls when it is held near an end. Both lists show the same tasks, so a move in one shows in
+the other. Screen readers offer "Move up" and "Move down" on each task.
+
+## ReorderDemoPage.ItemsLayout
+
+A list, a grid of two columns, or a horizontal list: in a grid a lifted task moves freely and the others take their
+neighbours' cells.
+
+## ReorderDemoPage.IsGrouped
+
+The same tasks in two groups, "Today" and "Later". Group headers do not move.
+
+## ReorderDemoPage.CanMixGroups
+
+In grouped lists, whether a task can move to the other group (off: it stays in its own).
+
+## ReorderDemoPage.Reset the order
+
+Puts the tasks back in their first order.
 
 ## CarouselViewDemoPage.Cover flow RotationAngle
 

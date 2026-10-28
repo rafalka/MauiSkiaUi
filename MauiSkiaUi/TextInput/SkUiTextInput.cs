@@ -285,13 +285,6 @@ internal interface ISkUiTextInputNode : ISkUiAccessibleNode
     /// field (the insertion handle under the caret), so a press is offered to the focused field before the hit test.
     /// </summary>
     bool HitsTextHandle(Point local) => false;
-
-    /// <summary>
-    /// Whether <paramref name="local"/> (node coordinates, outside the node) is on the message the field hangs below a fixed height:
-    /// the hit test takes the press as the field's, which declines it as it declines a press on a message inside its bounds, so it
-    /// reaches neither the field nor what lies under the message.
-    /// </summary>
-    bool HitsOverflowMessage(Point local) => false;
 }
 
 /// <summary>The clipboard drawn text fields cut, copy and paste with: MAUI's <c>Clipboard</c>; tests replace it.</summary>

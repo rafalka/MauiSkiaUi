@@ -18,8 +18,6 @@ public sealed class ExpanderNestingDemoPage : ComponentDemoPage
     public ExpanderNestingDemoPage()
         : base("SkUiExpander (nested, in a scroller)", new SkUiScrollView(), widthRange: (220, 420, 340), heightRange: (200, 900, 360))
     {
-        // Phones: the preview leaves room for the editors below it.
-        SinglePanelHeight = 420;
         var stack = new SkUiVerticalStackLayout { Spacing = 10, Padding = new Thickness(10) };
         for (var index = 0; index < Sections; index++)
             stack.Children.Add(Section($"Section {index + 1}", level: 1));

@@ -157,7 +157,8 @@ public class CheckXamlTests
                              xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
                   <sk:SkUiGrid>
                     <sk:SkUiCollectionView ItemsSource="{Binding Orders}" IsGrouped="True" Header="Orders" Footer="{Binding Summary}"
-                                           SelectionMode="Multiple" ItemsLayout="VerticalGrid, 2" CanReorderItems="True" />
+                                           SelectionMode="Multiple" ItemsLayout="VerticalGrid, 2" CanReorderItems="True" CanMixGroups="True"
+                                           ItemTemplateSelector="{StaticResource Rows}" />
                     <CollectionView />
                   </sk:SkUiGrid>
                 </ContentPage>
@@ -165,9 +166,10 @@ public class CheckXamlTests
             var (exitCode, output) = Run(project.FullName);
             Assert.Equal(1, exitCode);
             var errors = output.Split('\n').Where(line => line.Contains("error:")).ToArray();
-            Assert.Equal(2, errors.Length); // grouping, multiple selection, ItemsLayout and a string header port as is
-            Assert.Contains(errors, error => error.Contains("CanReorderItems"));
-            Assert.Contains(errors, error => error.Contains("Page.xaml:6:") && error.Contains("sk:SkUiCollectionView"));
+            Assert.Equal(2, errors.Length); // grouping, multiple selection, ItemsLayout, reordering and a string header port as is
+            Assert.Contains(errors, error => error.Contains("ItemTemplateSelector"));
+            Assert.DoesNotContain(errors, error => error.Contains("CanReorderItems") || error.Contains("CanMixGroups"));
+            Assert.Contains(errors, error => error.Contains("Page.xaml:7:") && error.Contains("sk:SkUiCollectionView"));
             // A data footer converts to a template bound through the list's context.
             Assert.Contains(output.Split('\n'), line => line.Contains("warning:") && line.Contains("Footer=\"{Binding Summary}\"") && line.Contains("{Binding Info.Title}"));
         }

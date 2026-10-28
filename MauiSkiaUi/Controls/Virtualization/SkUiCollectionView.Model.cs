@@ -147,6 +147,12 @@ public partial class SkUiCollectionView
             return -1;
         }
 
+        /// <summary>The list that holds the items of <paramref name="group"/> (-1: the flat list), or <c>null</c> (none, or a copy of a sequence).</summary>
+        public IList? ListOf(int group) => group < 0 ? _snapshot ? null : _source : _groups[group].Snapshot ? null : _groups[group].Items;
+
+        /// <summary>Takes a change of a list that does not report its changes, made by the list itself (a reorder), as if it had.</summary>
+        public void Notify(int group, NotifyCollectionChangedEventArgs args) => OnSourceChanged(group < 0 ? null : _groups[group], args);
+
         private int ItemRowBase(int group) => group < 0 ? 0 : _groups[group].FirstRow + (HasGroupHeaders ? 1 : 0);
 
         private static int RowsFor(int items, int span) => (items + span - 1) / span;

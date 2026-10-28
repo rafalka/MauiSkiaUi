@@ -9,17 +9,17 @@ public partial class AppShell : Shell
 	{
 		InitializeComponent();
 		var items = new Dictionary<DemoFlyoutEntry, ShellItem>();
-		foreach (var group in DemoFlyout.Groups)
-			foreach (var entry in group.Entries)
+		// The search page is the flyout's top row but the last item, so the first gallery stays the start page.
+		foreach (var entry in DemoFlyout.Entries)
+		{
+			var item = new FlyoutItem
 			{
-				var item = new FlyoutItem
-				{
-					Title = entry.Title,
-					Items = { new ShellContent { Title = entry.Title, Route = entry.Route, ContentTemplate = new DataTemplate(entry.Create) } }
-				};
-				Items.Add(item);
-				items.Add(entry, item);
-			}
+				Title = entry.Title,
+				Items = { new ShellContent { Title = entry.Title, Route = entry.Route, ContentTemplate = new DataTemplate(entry.Create) } }
+			};
+			Items.Add(item);
+			items.Add(entry, item);
+		}
 		// Shell's own flyout list has no group captions: draw the groups ourselves. The header is opaque: on iOS the list
 		// scrolls under it.
 		FlyoutBackgroundColor = Colors.White;
@@ -36,7 +36,7 @@ public partial class AppShell : Shell
 		// Scripted smoke run: SKUI_TOUR=1 opens every flyout page and component demo (scripts/page_tour.sh).
 		PageTour.StartIfRequested(this, () =>
 		[
-			.. DemoFlyout.Groups.SelectMany(group => group.Entries).Select(entry => new PageTour.Step(entry.Title, () => GoToAsync("//" + entry.Route))),
+			.. DemoFlyout.Entries.Select(entry => new PageTour.Step(entry.Title, () => GoToAsync("//" + entry.Route))),
 			.. ComponentDemos.All.Select(demo => new PageTour.Step(demo.Route,
 				async () =>
 				{

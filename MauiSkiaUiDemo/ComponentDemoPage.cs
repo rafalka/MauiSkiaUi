@@ -24,7 +24,6 @@ public abstract class ComponentDemoPage : ContentPage
     private readonly List<Action> _resets = [];
     private readonly List<(string Name, Func<bool> Check)> _checks = [];
     private readonly View? _nativePanel;
-    private readonly Grid? _nativeArea;
     private readonly Grid _skiaPanel;
     private readonly SkUiLabel _result;
     private readonly SkUiLabel _skiaStatus;
@@ -72,8 +71,8 @@ public abstract class ComponentDemoPage : ContentPage
         if (native is not null)
         {
             // Clipped like the drawn host, so a native control larger than its area cannot cover the other panel or the editors.
-            _nativeArea = new Grid { IsClippedToBounds = true, Children = { native } };
-            _nativePanel = MakePanel("MAUI", _nativeArea, out var status);
+            var nativeArea = new Grid { IsClippedToBounds = true, Children = { native } };
+            _nativePanel = MakePanel("MAUI", nativeArea, out var status);
             _nativeStatus = status;
             _comparisons.Add(_nativePanel);
         }
@@ -94,9 +93,16 @@ public abstract class ComponentDemoPage : ContentPage
             .Append(skia.GetType()).Distinct().ToList();
         if (native is not null)
             _documentedTypes.Add(native.GetType());
-        var root = new Grid { Padding = 12, RowSpacing = 8, RowDefinitions = [new(GridLength.Auto), new(GridLength.Star)] };
+        // The previews' row is as tall as their area (ApplyAreaHeight) until the splitter below it resizes it; the
+        // splitter's height is the spacing between the previews and the editors.
+        _previewRow = new RowDefinition(GridLength.Auto);
+        var editorsRow = new RowDefinition(GridLength.Star);
+        SkUiGridSplitter.SetMinimumLength(editorsRow, MinEditorsHeight);
+        _previewRow.SizeChanged += OnPreviewRowChanged;
+        var root = new Grid { Padding = 12, RowDefinitions = [_previewRow, new(GridLength.Auto), editorsRow] };
         root.Add(_comparisons);
-        root.Add(editorsArea, 0, 1);
+        root.Add(CreateSplitter(), 0, 1);
+        root.Add(editorsArea, 0, 2);
         Content = root;
         ToolbarItems.Add(new ToolbarItem("Reset", null, ResetProperties));
         ToolbarItems.Add(new ToolbarItem("Check properties", null, () => CheckProperties()));
@@ -105,7 +111,13 @@ public abstract class ComponentDemoPage : ContentPage
         // Primary order: iOS Shell turns Secondary items into UIMenu actions that require an icon
         // (a null IconImageSource crashes in UIImage.FromBundle).
         ToolbarItems.Add(new ToolbarItem("Stall 2s", null, () => Thread.Sleep(2000)) { AutomationId = "StallUi" });
-        SizeChanged += (_, _) => UpdateComparisonLayout(Width);
+        SizeChanged += (_, _) =>
+        {
+            UpdateComparisonLayout(Width);
+            // After this layout pass: a size changed inside it does not reach the drawn preview host.
+            if (!_areaFitted)
+                Dispatcher.Dispatch(FitAreaToPage);
+        };
         UpdateComparisonLayout(0);
         skia.SizeChanged += (_, _) => UpdateBounds();
         if (native is not null) native.SizeChanged += (_, _) => UpdateBounds();
@@ -119,10 +131,16 @@ public abstract class ComponentDemoPage : ContentPage
         _addingCommonEditors = true;
         Toggle("HwAccelerated", true, ApplyHwAcceleration, () => _hwAccelerated);
         // Without explicit ranges the sizes switch to the control's natural size (its SkUiLook default), measured once
-        // the page is loaded, and the preview area is twice the initial height.
+        // the page is loaded. The preview area starts at the control's initial height plus a margin (a check box gets a
+        // short area, a scroller a tall one) and grows with HeightRequest; the splitter below it changes it.
         _autoSize = widthRange is null && heightRange is null;
+        _areaKnown = !_autoSize;
         Number(nameof(View.WidthRequest), widthRange?.Min ?? 60, widthRange?.Max ?? 260, widthRange?.Initial ?? 220, value => SetBoth(View.WidthRequestProperty, value), () => skia.WidthRequest, native is null ? null : () => native.WidthRequest);
-        Number(nameof(View.HeightRequest), heightRange?.Min ?? 40, heightRange?.Max ?? 160, heightRange?.Initial ?? 120, value => SetBoth(View.HeightRequestProperty, value), () => skia.HeightRequest, native is null ? null : () => native.HeightRequest);
+        Number(nameof(View.HeightRequest), heightRange?.Min ?? 40, heightRange?.Max ?? 160, heightRange?.Initial ?? 120, value =>
+        {
+            SetBoth(View.HeightRequestProperty, value);
+            GrowAreaFor(value);
+        }, () => skia.HeightRequest, native is null ? null : () => native.HeightRequest);
         if (_autoSize)
             Loaded += OnLoadedAutoSize;
         Number(nameof(VisualElement.Opacity), 0, 1, 1, value => SetBoth(VisualElement.OpacityProperty, value), () => skia.Opacity, native is null ? null : () => native.Opacity);
@@ -149,7 +167,36 @@ public abstract class ComponentDemoPage : ContentPage
     }
 
     private readonly bool _autoSize;
+
+    /// <summary>Room above and below the control in the preview area.</summary>
+    private const double AreaMargin = 24;
+    /// <summary>Shortest preview area the splitter allows.</summary>
+    private const double MinAreaHeight = 40;
+    /// <summary>Shortest the splitter leaves the editors.</summary>
+    private const double MinEditorsHeight = 96;
+    /// <summary>Share of the page height the previews start with at most, so the editors stay in view on phones.</summary>
+    private const double MaxInitialAreaShare = 0.6;
+    /// <summary>Height of a panel's heading.</summary>
+    private const double HeadingHeight = 24;
+    /// <summary>Height of a panel's status line.</summary>
+    private const double StatusHeight = 32;
+    /// <summary>A panel's heading and status rows: a panel is this much taller than its preview area.</summary>
+    private const double PanelChrome = HeadingHeight + StatusHeight;
+    /// <summary>Height of the splitter below the previews (also their spacing to the editors).</summary>
+    private const double SplitterHeight = 24;
+
+    private readonly RowDefinition _previewRow;
+    // ApplyAreaHeight sets the previews' row: its change is not the splitter's.
+    private bool _applyingArea;
+
+    /// <summary>Height of the preview area, the same for the SkUi and MAUI panels.</summary>
     private double _areaHeight = -1;
+    /// <summary>The area Reset returns to.</summary>
+    private double _initialAreaHeight = -1;
+    // The control's initial height is known (at once with explicit size ranges, once loaded for natural sizes).
+    private bool _areaKnown;
+    // The initial area was fitted to the page height, or the user resized it: the page size no longer changes it.
+    private bool _areaFitted;
 
     private void OnLoadedAutoSize(object? sender, EventArgs args)
     {
@@ -164,19 +211,97 @@ public abstract class ComponentDemoPage : ContentPage
         var height = natural.Height >= 1 ? Math.Ceiling(natural.Height) : 120;
         SetNumberInitial(nameof(View.WidthRequest), width, Math.Max(8, Math.Floor(width / 4)), Math.Max(width * 2, 320));
         SetNumberInitial(nameof(View.HeightRequest), height, Math.Max(8, Math.Floor(height / 4)), height * 2);
-        _areaHeight = height * 2;
-        ApplyAreaHeight();
-        UpdateComparisonLayout(Width);
+        // Shrinks the fallback size's area to the natural size's.
+        SetAreaHeight(height + 2 * AreaMargin);
+        _initialAreaHeight = _areaHeight;
+        _areaKnown = true;
+        FitAreaToPage();
     }
 
-    /// <summary>Auto-sized pages: preview (and native comparison) area of <see cref="_areaHeight"/>.</summary>
+    /// <summary>Grows the preview area to fit a control of <paramref name="height"/> (it never shrinks it).</summary>
+    private void GrowAreaFor(double height)
+    {
+        if (height + 2 * AreaMargin <= _areaHeight)
+            return;
+        SetAreaHeight(height + 2 * AreaMargin);
+        if (_initialAreaHeight < 0)
+            _initialAreaHeight = _areaHeight;
+    }
+
+    /// <summary>
+    /// Once the page has a height: an initial area taller than <see cref="MaxInitialAreaShare"/> of it (a scroller on a
+    /// phone, where the panels stack) is shortened, with the control's height, so the editors stay in view.
+    /// </summary>
+    private void FitAreaToPage()
+    {
+        if (_areaFitted || !_areaKnown || Height <= 0)
+            return;
+        _areaFitted = true;
+        var panels = PanelRows;
+        var max = Math.Max(MinAreaHeight, (Height * MaxInitialAreaShare - _comparisons.RowSpacing * (panels - 1)) / panels - PanelChrome);
+        if (_areaHeight <= max)
+            return;
+        SetNumberInitial(nameof(View.HeightRequest), max - 2 * AreaMargin);
+        // The control's range may not go as low (it is then clipped); the area keeps the limit.
+        SetAreaHeight(max);
+        _initialAreaHeight = max;
+    }
+
+    /// <summary>Preview panels stacked in the comparison grid: two on narrow pages with a MAUI counterpart.</summary>
+    private int PanelRows => _nativePanel is not null && !IsWide ? 2 : 1;
+
+    private void SetAreaHeight(double height)
+    {
+        _areaHeight = height;
+        ApplyAreaHeight();
+    }
+
+    /// <summary>The previews' row for a preview (and native comparison) area of <see cref="_areaHeight"/>.</summary>
     private void ApplyAreaHeight()
     {
         if (_areaHeight <= 0)
             return;
-        _host.HeightRequest = _areaHeight;
-        if (_nativeArea is not null)
-            _nativeArea.HeightRequest = _areaHeight;
+        _applyingArea = true;
+        try
+        {
+            _previewRow.Height = new GridLength(RowHeight(_areaHeight));
+            SkUiGridSplitter.SetMinimumLength(_previewRow, RowHeight(MinAreaHeight));
+        }
+        finally
+        {
+            _applyingArea = false;
+        }
+    }
+
+    /// <summary>Height of the previews' row for panels with a preview area of <paramref name="area"/>.</summary>
+    private double RowHeight(double area) => PanelRows * (area + PanelChrome) + (PanelRows - 1) * _comparisons.RowSpacing;
+
+    /// <summary>The splitter resized the previews' row: the area follows it.</summary>
+    private void OnPreviewRowChanged(object? sender, EventArgs args)
+    {
+        if (_applyingArea || !_previewRow.Height.IsAbsolute)
+            return;
+        _areaHeight = AreaFor(_previewRow.Height.Value);
+    }
+
+    /// <summary>The preview area of each panel in a previews' row of <paramref name="rowHeight"/> (the inverse of <see cref="RowHeight"/>).</summary>
+    private double AreaFor(double rowHeight) => (rowHeight - (PanelRows - 1) * _comparisons.RowSpacing) / PanelRows - PanelChrome;
+
+    /// <summary>
+    /// A <see cref="SkUiGridSplitter"/> below the previews that resizes their row: drag it down to test a scroller in a
+    /// taller viewport, up to make room for the editors.
+    /// </summary>
+    private SkUiGridSplitter CreateSplitter()
+    {
+        var splitter = new SkUiGridSplitter
+        {
+            HeightRequest = SplitterHeight, Background = DemoColors.PageBackground, GripColor = DemoColors.Caption, AutomationId = "PreviewSplitter"
+        };
+        SemanticProperties.SetDescription(splitter, "Preview area height");
+        ToolTipProperties.SetText(splitter, "Drag to resize the preview area");
+        // The user's size from now on: the page size no longer fits the area.
+        splitter.DragStarted += (_, _) => _areaFitted = true;
+        return splitter;
     }
 
     private static SkUiContentView CreatePreviewHost(ISkUiView? content, bool hwAccelerated)
@@ -210,7 +335,6 @@ public abstract class ComponentDemoPage : ContentPage
         _host.AnimationClock.StopAll();
         _skiaPanel.Remove(_host);
         _host = CreatePreviewHost(content, enabled);
-        ApplyAreaHeight();
         _skiaPanel.Add(_host, 0, 1);
         UpdateBounds();
     }
@@ -220,9 +344,11 @@ public abstract class ComponentDemoPage : ContentPage
     private static Grid MakePanel(string title, View view, out SkUiLabel status)
     {
         status = Caption("", title + "Status");
-        status.HeightRequest = 32;
+        status.HeightRequest = StatusHeight;
+        var heading = Caption(title, title + "Heading");
+        heading.HeightRequest = HeadingHeight;
         var grid = new Grid { RowDefinitions = [new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto)], Background = Colors.White };
-        grid.Add(Caption(title, title + "Heading"));
+        grid.Add(heading);
         grid.Add(view, 0, 1);
         grid.Add(status, 0, 2);
         return grid;
@@ -230,31 +356,18 @@ public abstract class ComponentDemoPage : ContentPage
 
     internal void UpdateComparisonLayout(double width)
     {
+        var panels = PanelRows;
         IsWide = width >= SideBySideMinWidth && _nativePanel is not null;
+        // The area stays; the previews' row holds one or two panels of it.
+        if (panels != PanelRows)
+            ApplyAreaHeight();
         _comparisons.ColumnDefinitions = IsWide ? [new(GridLength.Star), new(GridLength.Star)] : [new(GridLength.Star)];
-        // Auto-sized pages: the panels take their content height (preview area = 2 x the control's initial height).
-        var row = _areaHeight > 0 ? GridLength.Auto : GridLength.Star;
-        _comparisons.RowDefinitions = _nativePanel is not null && !IsWide ? [new(row), new(row)] : [new(row)];
+        // The panels share the previews' row; narrow screens stack them.
+        _comparisons.RowDefinitions = PanelRows == 2 ? [new(GridLength.Star), new(GridLength.Star)] : [new(GridLength.Star)];
         if (_nativePanel is not null)
         {
             Grid.SetColumn(_nativePanel, IsWide ? 1 : 0);
             Grid.SetRow(_nativePanel, IsWide ? 0 : 1);
-        }
-        // Narrow screens stack the two panels, each as tall as a single one.
-        _comparisons.HeightRequest = _areaHeight > 0 ? -1
-            : _nativePanel is not null && !IsWide ? 2 * _singlePanelHeight + _comparisons.RowSpacing : _singlePanelHeight;
-    }
-
-    private double _singlePanelHeight = 206;
-
-    /// <summary>Height of the preview area on pages without a MAUI counterpart (default 206).</summary>
-    protected double SinglePanelHeight
-    {
-        get => _singlePanelHeight;
-        set
-        {
-            _singlePanelHeight = value;
-            UpdateComparisonLayout(Width);
         }
     }
 
@@ -565,6 +678,8 @@ public abstract class ComponentDemoPage : ContentPage
     internal void ResetProperties()
     {
         foreach (var reset in _resets) reset();
+        if (_initialAreaHeight > 0)
+            SetAreaHeight(_initialAreaHeight);
         _result.Text = string.Empty;
         UpdateBounds();
     }

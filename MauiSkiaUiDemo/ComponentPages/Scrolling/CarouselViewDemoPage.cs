@@ -47,8 +47,6 @@ public sealed class CarouselViewDemoPage : ComponentDemoPage
             widthRange: (200, 600, 340), heightRange: (140, 300, 240))
     {
         DocumentTypes(typeof(SkUiIndicatorView));
-        // Room for the tallest preview (the default panel is shorter than the carousel and its indicator).
-        SinglePanelHeight = 350;
         var skiaRoot = (SkUiGrid)SkiaControl;
         var nativeRoot = (Grid)NativeControl!;
         Fill(_skiaItems);

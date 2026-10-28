@@ -127,7 +127,7 @@ No second layout for the skeleton: while `IsLoading` is true, the still-empty li
 
 | Area | Types |
 | --- | --- |
-| Hosts & layout | `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiFlexLayout`, `SkUiBorder`; `SkUiWrapLayout`, shrink stacks, `SkUiHorizontalAlignStackLayout` |
+| Hosts & layout | `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiFlexLayout`, `SkUiBorder`; `SkUiDragger`, `SkUiGridSplitter`, `SkUiWrapLayout`, shrink stacks, `SkUiHorizontalAlignStackLayout` |
 | Scrolling & lists | `SkUiScrollView`, `SkUiRefreshView`, `SkUiCollectionView`, `SkUiCarouselView`, `SkUiIndicatorView`, `SkUiSwipeView`, virtual stacks |
 | Text & chrome | `SkUiLabel`, `SkUiButton`, `SkUiImage`, `SkUiImageButton`, `SkUiAvatarView`, `SkUiActivityIndicator`, `SkUiProgressBar` |
 | Toggles & values | `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton`, `SkUiSlider`, `SkUiStepper` |

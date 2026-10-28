@@ -2,9 +2,9 @@
 
 **Goal:** more MAUI pages port by changing the XAML prefix. The MAUI XAML that has to be converted member by member today (gesture recognizers, the collection view's items layout and scroll API, MAUI 10's new members) loads and behaves as on MAUI. Where MAUI's own mechanism is internal (`TemplateBinding`, platform-specifics), the migration checker converts the XAML instead; `ImageBrush` is not public in MAUI at all ([scope review](#scope-review)).
 
-**Baseline:** .NET MAUI 10.0.120, or the latest 10.0.x service release when 1.2 ships; SkiaUi stays on MAUI 10.x. What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
+**Baseline:** .NET MAUI 10.0.120, or the latest 10.0.x service release when 1.2 ships; SkiaUi stays on MAUI 10.x. What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](../design/Roadmap.md#backlog-1x).
 
-**Rules** (from [Requirements.md](Requirements.md#principles)):
+**Rules** (from [Requirements.md](../design/Requirements.md#principles)):
 
 - MAUI names and behavior win: a member MAUI has gets MAUI's name, type and defaults.
 - Parity never costs performance or architecture. Where MAUI's model works against them, SkiaUi keeps its own API and adds a conversion path in [Migration.md](../Migration.md) and the migration skills (`plugins/skiaui-migration`).
@@ -54,7 +54,7 @@ Tests: the parity test; hit tests for cascading; `ImplicitStyleTests` for each n
 
 ## Phase G — MAUI gesture recognizers on drawn views (done)
 
-Open since 1.0 as P11b ([EventMechanism.md](EventMechanism.md#maui-gesture-recognizers)). The tap bridge (`SkUiMauiTaps`) becomes a bridge for every recognizer type. A recognizer in a drawn view's `GestureRecognizers` becomes an arena member of that view while it is in the collection; changes to the collection apply from the next press, as for taps today. Views without recognizers allocate nothing. Size: M.
+Open since 1.0 as P11b ([EventMechanism.md](../design/EventMechanism.md#maui-gesture-recognizers)). The tap bridge (`SkUiMauiTaps`) becomes a bridge for every recognizer type. A recognizer in a drawn view's `GestureRecognizers` becomes an arena member of that view while it is in the collection; changes to the collection apply from the next press, as for taps today. Views without recognizers allocate nothing. Size: M.
 
 - **G1 `SwipeGestureRecognizer`:** `Direction` (flags; MAUI's default, none, never swipes), `Threshold` (MAUI's default of 100), `Command` / `CommandParameter`, and `Swiped` through MAUI's public `SendSwiped(view, direction)`. Runs on the drawn swipe recognizer, so a fast flick past the touch slop also swipes, as on iOS.
 - **G2 `PanGestureRecognizer`:** `PanUpdated` through the public `IPanGestureController` (`SendPanStarted` / `SendPan` / `SendPanCompleted` / `SendPanCanceled`, one gesture id per pan from `PanGestureRecognizer.CurrentId`, as MAUI's platform code). `TotalX` / `TotalY` in DIPs. Arena rules are those of the drawn `PanUpdated`: it claims past the touch slop and the innermost claimant wins, so a pan inside a drawn scroller takes the drags that start on it. `TouchPoints` other than 1 is not run (reported).
@@ -93,7 +93,7 @@ Size: S.
 Size: S–M.
 
 - **S1 `SafeAreaEdges` on the surface root** (MAUI 10; done): an `SkUiLayout` or `SkUiContentView` that is a surface of its own takes MAUI's `SafeAreaEdges` and its default (MAUI's: `Container` on layouts, `None` on content views; the root ignored the safe area in 1.x). MAUI applies it through an internal interface (`ISafeAreaView2`), so the root pads itself by the window's insets per edge, from the metrics the picker already reads; `SoftInput` uses the keyboard inset that keyboard avoidance already tracks. Drawn views inside a surface accept the property and ignore it, as documented: padding them by their overlap with the insets would make layout depend on where the view is in the window, and every scroll or move would lay it out again. Built as planned: the root refreshes the padding when its native parent arranges it (not in its own relayouts), asking the platform only when an edge keeps clear; the keyboard inset comes from the focus manager's keyboard top (iOS and Mac Catalyst), and the focused field is revealed again after the root made room. Swipe and refresh views accept the property and do not apply it. **Decided:** opt-in. MAUI's layouts default to `Container`, but taking that default would pad every drawn layout root that went edge to edge in 1.x (and double-pad the ones padded by hand), so every drawn container defaults to `None`; `SafeAreaEdges="Container"` gives MAUI's behavior, and the migration docs and skill say to set it where the replaced MAUI layout kept clear of the bars.
-- **S2 Platform-specifics** (done, in `check_xaml.py --fix`): no runtime reading. The checker converts the ones with a SkiaUi member (iOS `Entry.CursorColor` → `CaretColor`, Android `Entry.ImeOptions` → `ReturnType`, iOS pickers' `UpdateMode` → `UpdateMode`, iOS `Entry.AdjustsFontSizeToFitWidth` → shrink to fit: the drawn entry has no shrink to fit, so the checker reports it with advice instead), inside `OnPlatform` when the app wants it on one platform only, and reports the rest as ignored. Drawn equivalents of the others (a tap that moves a slider's thumb, swipe transition modes, ripple color, search bar chrome, pull direction) are SkiaUi members on both layers when an app needs them, in the [backlog](Roadmap.md#backlog-1x), not attached properties.
+- **S2 Platform-specifics** (done, in `check_xaml.py --fix`): no runtime reading. The checker converts the ones with a SkiaUi member (iOS `Entry.CursorColor` → `CaretColor`, Android `Entry.ImeOptions` → `ReturnType`, iOS pickers' `UpdateMode` → `UpdateMode`, iOS `Entry.AdjustsFontSizeToFitWidth` → shrink to fit: the drawn entry has no shrink to fit, so the checker reports it with advice instead), inside `OnPlatform` when the app wants it on one platform only, and reports the rest as ignored. Drawn equivalents of the others (a tap that moves a slider's thumb, swipe transition modes, ripple color, search bar chrome, pull direction) are SkiaUi members on both layers when an app needs them, in the [backlog](../design/Roadmap.md#backlog-1x), not attached properties.
 
 ## Scope review
 
@@ -111,16 +111,16 @@ The first plan also had these steps. They were dropped because MAUI does not exp
   - Lifting: a long press (touch) or a press and drag (mouse) lifts the item. Its render node follows the pointer at composite time, the other items move aside with render-thread animations, and the list auto-scrolls at its edges.
   - Dropping: the drop moves the item in an `IList` source (`ObservableCollection.Move`); between groups only when `CanMixGroups` is set.
   - Accessibility: screen-reader move up / move down actions.
-  - The design goes into [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md) before the code; a leak scenario for reordering.
+  - The design goes into [ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) before the code; a leak scenario for reordering.
 
 ## Docs, migration and demo
 
 Done with each step, not at the end:
 
 - [Migration.md](../Migration.md): the parity table checked against MAUI 10.0.120 (its header says 10.0.110), the gesture and collection view sections, `ImageBrush` (none public in MAUI), templated controls and platform-specifics (the checker's conversions), and "Not available yet". The migration skills' references: `gestures.md`, `collection-view.md`, `controls.md`, `gaps.md`; the checker's rewrites for `TemplateBinding`, data headers and platform-specifics.
-- The control pages' "Differences" tables; [EventMechanism.md](EventMechanism.md) (P11b), [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md) (items layout, snap points).
+- The control pages' "Differences" tables; [EventMechanism.md](../design/EventMechanism.md) (P11b), [ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) (items layout, snap points).
 - The demo's component gallery: MAUI gesture recognizers next to native views, a collection view page for items layouts and snap points.
-- [Roadmap.md](Roadmap.md): items leave the backlog as they ship. [Requirements.md](Requirements.md): status. [CHANGELOG.md](../../CHANGELOG.md): an entry under `## Unreleased` per feature.
+- [Roadmap.md](../design/Roadmap.md): items leave the backlog as they ship. [Requirements.md](../design/Requirements.md): status. [CHANGELOG.md](../../CHANGELOG.md): an entry under `## Unreleased` per feature.
 
 ## Order
 
@@ -143,7 +143,7 @@ Independent tracks that can run in parallel: the conversions; V; S; T.
   - `SelectionChanged`: `SkUiSelectionChangedEventArgs`. MAUI's `SelectionChangedEventArgs` has internal constructors, so it would have to be raised through an accessor, and `PreviousItem` / `CurrentItem` would move elsewhere.
   - `SelectionMode`: `SkUiSelectionMode`, which adds `SingleDeselect`. XAML already ports; C# that names `SelectionMode.Single` does not.
 
-  **Decided:** 1.2 stays non-breaking. The conversions are in [Migration.md](../Migration.md#lists-collectionview) and the migration skill's `collection-view.md`, and the three changes are collected for 2.0 in the [roadmap](Roadmap.md#held-for-20). V1–V7 add no member whose type would need one of them; a step that finds another such member adds it to that list instead of breaking 1.x.
+  **Decided:** 1.2 stays non-breaking. The conversions are in [Migration.md](../Migration.md#lists-collectionview) and the migration skill's `collection-view.md`, and the three changes are collected for 2.0 in the [roadmap](../design/Roadmap.md#held-for-20). V1–V7 add no member whose type would need one of them; a step that finds another such member adds it to that list instead of breaking 1.x.
 - **D2 The `TemplateBinding` mechanism. Decided:** a conversion, `RelativeSource AncestorType`, rewritten by the checker. MAUI's markup cannot resolve on drawn controls without its internal `IControlTemplated`, MAUI itself marks `TemplateBinding` obsolete, and a markup extension of SkiaUi's own would not spare the XAML edit ([scope review](#scope-review)).
 - **D3 `IsClippedToBounds` and `ClipToBounds`:** both names stay. Built in R2 as recommended: MAUI's name on the containers, as an alias of `ClipToBounds`, which stays the drawn name on every view (leaf controls, where MAUI has no member, included).
 - **D4 `ItemsLayout` is read, not written through.** Writing the layout object's values into `Orientation`, `Span` and the spacings made XAML attribute order matter (`ItemSpacing="8" ItemsLayout="VerticalList"` ended with spacing 0, the other order with 8) and replaced values the app set. Set, the layout decides; the view's own properties keep their values for when it is cleared.
@@ -155,4 +155,4 @@ Independent tracks that can run in parallel: the conversions; V; S; T.
 - The XAML samples in MAUI's docs for gestures, CollectionView, CarouselView and `ControlTemplate` load, bind and behave in headless tests with only the prefix changed, plus the documented conversions (D1, D2, D5). No 1.0 member changes type or goes away (D1).
 - 0 build warnings with the trim and AOT analyzers; the headless suite and the memory-leak scenarios pass.
 - `scripts/bench.sh --baseline 1.1.0` shows no regression in the existing scenarios.
-- Device runs: gesture recognizers on Android, iOS, Mac Catalyst and Windows; snap points on a phone; `SafeAreaEdges` on a notched iPhone and an Android phone with edge-to-edge (added to the [verification backlog](Roadmap.md#verification-backlog) if they are still open at release).
+- Device runs: gesture recognizers on Android, iOS, Mac Catalyst and Windows; snap points on a phone; `SafeAreaEdges` on a notched iPhone and an Android phone with edge-to-edge (added to the [verification backlog](../design/Roadmap.md#verification-backlog) if they are still open at release).

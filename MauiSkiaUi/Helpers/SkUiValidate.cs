@@ -84,6 +84,21 @@ internal static class SkUiValidate
     /// <summary>A defined <see cref="SkUiPressFeedback"/>.</summary>
     public static bool PressFeedback(BindableObject bindable, object? value) => value is SkUiPressFeedback feedback && Enum.IsDefined(feedback);
 
+    /// <summary>A defined <see cref="SkUiPanAxis"/>.</summary>
+    public static bool PanAxis(BindableObject bindable, object? value) => value is SkUiPanAxis axis && Enum.IsDefined(axis);
+
+    /// <summary>A defined <see cref="LayoutAlignment"/>.</summary>
+    public static bool Alignment(BindableObject bindable, object? value) => value is LayoutAlignment alignment && Enum.IsDefined(alignment);
+
+    /// <summary>A defined <see cref="SkUiGridResizeBehavior"/>.</summary>
+    public static bool ResizeBehavior(BindableObject bindable, object? value) => value is SkUiGridResizeBehavior behavior && Enum.IsDefined(behavior);
+
+    /// <summary>A defined <see cref="SkUiGridResizeDirection"/>.</summary>
+    public static bool ResizeDirection(BindableObject bindable, object? value) => value is SkUiGridResizeDirection direction && Enum.IsDefined(direction);
+
+    /// <summary>A size limit: not negative, possibly infinite (no limit).</summary>
+    public static bool SizeLimit(BindableObject bindable, object? value) => value is double number && !double.IsNaN(number) && number >= 0;
+
     /// <summary>A defined <see cref="SkUiCenterStrategy"/>.</summary>
     public static bool CenterStrategy(BindableObject bindable, object? value) => value is SkUiCenterStrategy strategy && Enum.IsDefined(strategy);
 

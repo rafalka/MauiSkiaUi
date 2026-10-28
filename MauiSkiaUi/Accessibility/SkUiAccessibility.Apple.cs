@@ -202,6 +202,7 @@ internal sealed class SkUiAccessibilityBridge
             traits |= UIAccessibilityTrait.NotEnabled;
         element.AccessibilityTraits = (ulong)traits;
         element.AccessibilityValue = value;
+        element.ApplyCustomActions(node.EnabledCustomActions);
     }
 
     /// <summary>
@@ -292,6 +293,9 @@ internal sealed class SkUiAccessibilityBridge
 
     public bool Perform(int id, SkUiSemanticsActions action) => _owner?.Perform(id, action) == true;
 
+    /// <summary>VoiceOver performs element <paramref name="id"/>'s named action at <paramref name="index"/> (its actions rotor).</summary>
+    public bool PerformCustom(int id, int index) => _owner?.PerformCustom(id, index) == true;
+
     /// <summary>VoiceOver's three-finger scroll on an element: pages its innermost scrollable ancestor.</summary>
     public bool Scroll(int id, UIAccessibilityScrollDirection direction)
     {
@@ -370,6 +374,34 @@ internal class SkUiAccessibilityElement : UIAccessibilityElement
     public override bool AccessibilityScroll(UIAccessibilityScrollDirection direction) => Bridge?.Scroll(Id, direction) == true;
 
     public override void AccessibilityElementDidBecomeFocused() => Bridge?.OnFocused(Id);
+
+    private string[]? _customActions;
+
+    /// <summary>Offers the element's named actions in VoiceOver's actions rotor (kept while their names are the same).</summary>
+    internal void ApplyCustomActions(string[]? names)
+    {
+        if (ReferenceEquals(names, _customActions)
+            || (names is not null && _customActions is not null && names.AsSpan().SequenceEqual(_customActions)))
+            return;
+        _customActions = names;
+        if (names is null)
+        {
+            AccessibilityCustomActions = null;
+            return;
+        }
+        // The handlers must not capture this: a block keeps its delegate alive until the block goes, so
+        // element → actions → block → delegate → element would never be collected.
+        var weakBridge = _bridge;
+        var id = Id;
+        var actions = new UIAccessibilityCustomAction[names.Length];
+        for (var index = 0; index < names.Length; index++)
+        {
+            var at = index;
+            actions[index] = new UIAccessibilityCustomAction(names[index],
+                (Func<UIAccessibilityCustomAction, bool>)(_ => weakBridge.TryGetTarget(out var bridge) && bridge.PerformCustom(id, at)));
+        }
+        AccessibilityCustomActions = actions;
+    }
 }
 
 /// <summary>Hardware keyboard presses of a focused surface container as <see cref="SkUiKey"/>s.</summary>
