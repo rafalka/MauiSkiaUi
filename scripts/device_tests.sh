@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Run the on-device tests (tests/MauiSkiaUi.DeviceTests: a render check, the hosted-control check and memory leak
+# Run the on-device tests (tests/MauiSkiaUi.DeviceTests: a render check, the hosted-control and surface-state checks and memory leak
 # scenarios with real handlers and platform views) and report the results. Builds the app (Release by default), installs it, launches it with --autorun --exit,
 # collects its "SKUILEAK" console lines and exits non-zero when anything failed.
 # Results: artifacts/device-tests/<timestamp>/{<target>.log,build.log}.
@@ -242,7 +242,7 @@ log "running on $TARGET${DEVICE:+ ($DEVICE)}"
 python3 - "$LOG" <<'PY'
 import json, sys
 lines = open(sys.argv[1]).read().splitlines()
-results, detector, render, hosted, done, errors = [], None, None, None, None, []
+results, detector, render, hosted, surface, done, errors = [], None, None, None, None, None, []
 for line in lines:
     tag, _, payload = line.partition(" ")
     if tag == "SKUILEAK":
@@ -253,13 +253,15 @@ for line in lines:
         render = json.loads(payload)
     elif tag == "SKUILEAK_HOSTED":
         hosted = json.loads(payload)
+    elif tag == "SKUILEAK_SURFACE":
+        surface = json.loads(payload)
     elif tag == "SKUILEAK_DONE":
         done = payload
     elif tag == "SKUILEAK_START":
         print(payload)
     elif tag == "SKUILEAK_ERROR":
         errors.append(payload)
-for check, name in ((render, "rendering"), (hosted, "hosted"), (detector, "detector")):
+for check, name in ((render, "rendering"), (hosted, "hosted"), (surface, "surface"), (detector, "detector")):
     if check:
         print(f"{name:9} {check['Status']:4}  {check['Details']}")
 for r in results:
@@ -270,7 +272,7 @@ for e in errors:
 if done is None:
     print("the run did not finish (crash or timeout); see the log")
 ok = (done is not None and not failed and not errors
-      and all(check is not None and check["Status"] == "Pass" for check in (detector, render, hosted)))
+      and all(check is not None and check["Status"] == "Pass" for check in (detector, render, hosted, surface)))
 print(f"\n{len(results) - len(failed)}/{len(results)} passed" + ("" if ok else " — FAILED"))
 sys.exit(0 if ok else 1)
 PY

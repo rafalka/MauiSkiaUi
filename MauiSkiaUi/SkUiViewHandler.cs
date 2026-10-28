@@ -150,6 +150,9 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         return mapper;
     }
 
+    /// <summary>Diagnostics (device tests): the MAUI SkiaSharp view drawing this root, or <c>null</c> with a GPU surface.</summary>
+    internal View? MauiSurface => _mauiSurface;
+
     /// <summary>Compositor statistics of this surface, with its UI-thread animation frames.</summary>
     internal SkUiRenderStatistics RenderStatistics
     {
@@ -264,7 +267,10 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             view.Touch += OnMauiTouch;
             _mauiSurface = view;
         }
-        _mauiSurface.Parent = VirtualView;
+        // No MAUI Parent: the surface would take the root's effective visibility (MAUI 10.0.120+) and IsEnabled once and
+        // keep them, since MAUI propagates them through visual children and the surface is not one (#69: blank when
+        // created under a hidden ancestor; no touches on Android under a disabled one). The root's native container shows
+        // and hides it (and blocks input for InputTransparent); the drawn tree handles IsEnabled, as on GPU surfaces.
         var platformSurface = _mauiSurface.ToPlatform(MauiContext!);
 #if IOS || MACCATALYST
         // Same native-ancestor coordination as the Metal view. SkiaSharp's own touch recognizer is disabled; our
@@ -849,8 +855,6 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         _mauiDeliverer = null;
 #endif
         _mauiSurface?.Handler?.DisconnectHandler();
-        if (_mauiSurface is not null)
-            _mauiSurface.Parent = null;
         _mauiSurface = null;
 #if IOS || MACCATALYST
         _gpu?.Dispose();
