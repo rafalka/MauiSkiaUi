@@ -845,6 +845,19 @@ public sealed class ImageLoadingTests : IDisposable
     }
 
     [Fact]
+    public void XmlDrawablesRenderAtTheirBoundsUpToTheDecodeLimitAndNotElsewhere()
+    {
+        var intrinsic = new SKSizeI(144, 72); // 48 × 24 dp at 3x
+        Assert.Equal(intrinsic, SkUiPackageImages.RenderSize(intrinsic, default, fill: false));
+        Assert.Equal(new SKSizeI(600, 300), SkUiPackageImages.RenderSize(intrinsic, new SKSizeI(600, 600), fill: false)); // a vector scales up
+        Assert.Equal(new SKSizeI(1200, 600), SkUiPackageImages.RenderSize(intrinsic, new SKSizeI(600, 600), fill: true));
+        Assert.Equal(new SKSizeI(72, 36), SkUiPackageImages.RenderSize(intrinsic, new SKSizeI(0, 36), fill: false));
+        var limit = SkUiImageDecoder.MaxDecodeDimension;
+        Assert.Equal(limit, SkUiPackageImages.RenderSize(intrinsic, new SKSizeI(limit * 4, 0), fill: false).Width);
+        Assert.Equal(0, SkUiPackageImages.FindXmlDrawable("skui_vector_star")); // only Android has drawables
+    }
+
+    [Fact]
     public void WithoutQueryParametersKeepsTheRestInOrder()
     {
         var uri = new Uri("https://cdn.test/a/b.png?w=40&Token=x%20y&h=20&sig=abc#frag");

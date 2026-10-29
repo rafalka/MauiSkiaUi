@@ -51,14 +51,20 @@ internal sealed class SkUiImageLoadContext(float displayScale, bool useDiskCache
     public Action<long, long?>? Progress { get; set; }
 
     /// <summary>Decodes off the UI thread, a few images at a time so a list of images does not flood the thread pool.</summary>
-    public async Task<SkUiDecodedImage> DecodeAsync(byte[] bytes, float sourceScale, CancellationToken token)
+    public Task<SkUiDecodedImage> DecodeAsync(byte[] bytes, float sourceScale, CancellationToken token)
+    {
+        var bounds = MaxPixels;
+        var fill = Fill;
+        return RenderAsync(() => SkUiImageDecoder.Decode(bytes, sourceScale, bounds, fill), token);
+    }
+
+    /// <summary>Runs <paramref name="render"/> (a decode, a platform drawable drawn) off the UI thread, as <see cref="DecodeAsync"/>.</summary>
+    public async Task<SkUiDecodedImage> RenderAsync(Func<SkUiDecodedImage> render, CancellationToken token)
     {
         await SkUiImageLoader.DecodeGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
-            var bounds = MaxPixels;
-            var fill = Fill;
-            return await Task.Run(() => SkUiImageDecoder.Decode(bytes, sourceScale, bounds, fill), token).ConfigureAwait(false);
+            return await Task.Run(render, token).ConfigureAwait(false);
         }
         finally
         {

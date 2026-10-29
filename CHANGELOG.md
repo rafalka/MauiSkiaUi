@@ -19,10 +19,12 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 - **Downsampling to the view's size:** `DownsampleToViewSize` on `SkUiImage` and `SkUiImageButton` (bindable, `SetDownsampleToViewSize`) and on `SkUiCoreImage` (FFImageLoading's). A new source loads at the view's next arrange and decodes no larger than the arranged size (fitting, or covering for `AspectFill` / `Fill`), in steps of 16 DIPs so rows of one size share cache entries; a larger arrange decodes again, a smaller one keeps the image. Dimensions the view takes from its image are not bounded, and explicit `DownsampleWidth` / `DownsampleHeight` win ([doc](docs/controls/SkUiImage.md#key-properties)).
 - **Image download progress:** `LoadingProgress` (read-only bindable on `SkUiImage` / `SkUiImageButton`, a property on `SkUiCoreImage`) and the `DownloadProgress` event (`SkUiImageDownloadProgressEventArgs`: bytes received, total, fraction; FFImageLoading's). The fraction of a URI download received, -1 without a `Content-Length`, 1 once shown; reports are coalesced per dispatcher turn and reach every view waiting for the same download ([doc](docs/controls/SkUiImage.md#download-progress)).
 - **Image fade-in:** `FadeAnimationEnabled`, `FadeAnimationDuration` and `FadeAnimationForCachedImages` on `SkUiImage` / `SkUiImageButton` (bindable, `SetFadeAnimation`, `SetFadeAnimationForCachedImages`) and `SkUiCoreImage` (FFImageLoading's; off by default). A loaded image fades in over its placeholder on the render thread, with the look's new `SkUiTransitionKind.ImageFadeIn` (200 ms in `DefaultSkUiLook`); memory-cache hits, images loaded before the view was drawn and images replacing a shown one show at once, and nothing fades under reduced motion ([doc](docs/controls/SkUiImage.md#fade-in)).
+- **Android XML drawables in images:** on Android a file source that names a drawable defined in XML (a vector, a shape, a layer list) is drawn by Android, at its intrinsic size or at the decode bounds (sharp in a larger view), as MAUI's `Image` shows it; before, it failed to decode ([doc](docs/controls/SkUiImage.md#android-xml-drawables)).
 
 ### Other
 
 - Benchmarks: `skui-images` and `core-images` (1,000 images of eight photos in a grid) and their `-viewsized` variants with `DownsampleToViewSize`.
+- Demo: an Android vector drawable on the image page (Android only), next to MAUI's `Image`.
 - Leak scenario `ImageFadingIn`: images and a Core image fading in, some removed mid-fade, the page closed while others fade.
 
 ## 1.3.0

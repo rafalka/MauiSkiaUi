@@ -146,6 +146,24 @@ over the placeholder it replaces:
 - Views that share one load (the same cache key, decode size and transformations, started while it runs) all hear it; a view whose source changed hears no
   more of the old one.
 
+## Android XML drawables
+
+On Android a file source names a drawable by its resource name, as MAUI's `Image` does, and drawables defined in XML
+(`Platforms/Android/Resources/drawable/*.xml`: vectors, shapes, layer lists, insets, with `android:tint`) are drawn by
+Android into the image:
+
+```xml
+<sk:SkUiImage Source="ic_star" />  <!-- Platforms/Android/Resources/drawable/ic_star.xml -->
+```
+
+- The intrinsic size is the drawable's (`android:width` / `android:height` in dp).
+- It is drawn at that size in pixels, or at the decode bounds (`DownsampleWidth` / `DownsampleHeight`,
+  `DownsampleToViewSize`), larger ones too: a vector stays sharp in a view larger than its intrinsic size.
+- A drawable without an intrinsic size (a `<shape>` without `<size>`) needs both bounds, or loading fails with a
+  `LoadError` that says so.
+- Animated vectors draw their first frame. Other platforms have no drawables: use a `MauiImage` (an SVG becomes a
+  PNG at build time) for images all platforms share.
+
 ## Caching
 
 `SkUiImageCache` configures the caches shared by every image, image button and slider thumb on both layers:
@@ -256,7 +274,7 @@ Animated GIF / WebP play on the view's UI clock while `IsAnimationPlaying` is tr
 | --- | --- |
 | Caching | Memory cache of decoded images shared by all views; download cache with MAUI's `CachingEnabled` / `CacheValidity`; plus `CacheType` per view |
 | Transformations, downsampling, placeholders, load events, download progress, fade-in | SkiaUi extensions (from FFImageLoading); MAUI has only `IsLoading` |
-| `MauiImage` lookup | The file Resizetizer generated for the display density; Android vector (XML) drawables are not decoded |
+| `MauiImage` lookup | The file Resizetizer generated for the display density. On Android, drawables defined in XML (vectors, shapes, layer lists) are drawn by Android, as MAUI's `Image` shows them ([below](#android-xml-drawables)) |
 | `FontImageSource.FontAutoScalingEnabled` | As MAUI's: the glyph follows the system text size (default `true`). The size is fixed when the source is set: after a change of the system text size or `SkUiLook.FontScale`, images already shown keep their size (labels re-measure); set the source again to draw the glyph at the new size |
 | Screen readers | An image is read only with `SemanticProperties.Description` (or `AutomationProperties.IsInAccessibleTree="True"`); an image button is a button named by its description |
 | `IsOpaque` | Accepted for MAUI markup; a hint for platform image views, so drawn images draw the same either way |

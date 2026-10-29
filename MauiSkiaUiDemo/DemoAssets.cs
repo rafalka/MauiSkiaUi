@@ -12,6 +12,9 @@ public static class DemoAssets
     /// <summary>MauiImage SVG under Resources/Images, referenced by the PNG Resizetizer generates.</summary>
     public const string BadgeImage = "skui_badge.png";
 
+    /// <summary>Android vector drawable under Platforms/Android/Resources/drawable (48 × 48 dp), by its resource name.</summary>
+    public const string AndroidVectorImage = "skui_vector_star";
+
     /// <summary>A web image (the one MAUI's Image docs use for <c>UriImageSource</c>).</summary>
     public const string WebImage = "https://aka.ms/campus.jpg";
 }
