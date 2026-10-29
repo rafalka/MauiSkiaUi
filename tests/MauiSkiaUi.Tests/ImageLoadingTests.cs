@@ -588,6 +588,132 @@ public sealed class ImageLoadingTests : IDisposable
         pending.Source = null;
     }
 
+    private static ImageSource WideStream() =>
+        new StreamImageSource { Stream = _ => Task.FromResult<Stream>(new MemoryStream(Png(SKColors.Red, 400, 200))) };
+
+    private static SkUiImage ViewSized(Aspect aspect = Aspect.AspectFit) =>
+        new() { WidthRequest = 100, HeightRequest = 100, Aspect = aspect, DownsampleToViewSize = true, CacheKey = Key() };
+
+    [Fact]
+    public async Task DownsampleToViewSizeWaitsForTheArrangeAndDecodesForIt()
+    {
+        var image = ViewSized();
+        image.Source = WideStream();
+        Assert.Null(image.CachedImage); // waits for the arrange
+        Assert.False(image.IsLoading);
+
+        SkUiTestHelpers.Arrange(image, 100, 100); // bounds 112 × 112 (steps of 16)
+        await image.LoadingTask;
+        var fitted = image.CachedImage!.Frames[0];
+        Assert.Equal((112, 56), (fitted.Width, fitted.Height)); // fits inside the bounds
+        Assert.Equal(new Size(400, 200), image.ImageSize); // the intrinsic size stays the source's
+
+        var covering = ViewSized(Aspect.AspectFill);
+        covering.Source = WideStream();
+        SkUiTestHelpers.Arrange(covering, 100, 100);
+        await covering.LoadingTask;
+        Assert.Equal((224, 112), (covering.CachedImage!.Frames[0].Width, covering.CachedImage.Frames[0].Height));
+    }
+
+    [Fact]
+    public async Task DownsampleToViewSizeDecodesAgainOnlyWhenTheViewGrows()
+    {
+        var image = ViewSized();
+        image.Source = WideStream();
+        SkUiTestHelpers.Arrange(image, 100, 100);
+        await image.LoadingTask;
+        var small = image.CachedImage!;
+
+        image.WidthRequest = image.HeightRequest = 200;
+        SkUiTestHelpers.Arrange(image, 200, 200);
+        Assert.Same(small, image.CachedImage); // the smaller image shows until the larger one has loaded
+        await image.LoadingTask;
+        Assert.Equal(208, image.CachedImage!.Frames[0].Width);
+
+        var loads = SkUiImageLoader.LoadCount;
+        image.WidthRequest = image.HeightRequest = 50;
+        SkUiTestHelpers.Arrange(image, 50, 50);
+        SkUiTestHelpers.Arrange(image, 201, 201); // within the step
+        Assert.Equal(loads, SkUiImageLoader.LoadCount);
+
+        // A row of the same size with the same source: a memory hit at its arrange.
+        var row = new SkUiImage { WidthRequest = 200, HeightRequest = 200, DownsampleToViewSize = true, CacheKey = image.CacheKey };
+        row.Source = WideStream();
+        SkUiTestHelpers.Arrange(row, 200, 200);
+        Assert.Same(image.CachedImage, row.CachedImage);
+        Assert.Equal(loads, SkUiImageLoader.LoadCount);
+    }
+
+    [Fact]
+    public async Task DownsampleToViewSizeLeavesSizesFromTheImageAndExplicitBoundsAlone()
+    {
+        // Sized by its image: arranged at 0 × 0 while empty, so not bounded; arranged at its image size afterwards.
+        var auto = new SkUiImage { DownsampleToViewSize = true, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Start, CacheKey = Key() };
+        auto.Source = WideStream();
+        SkUiTestHelpers.Arrange(auto, 1000, 1000);
+        await auto.LoadingTask;
+        Assert.Equal(400, auto.CachedImage!.Frames[0].Width);
+        var loads = SkUiImageLoader.LoadCount;
+        SkUiTestHelpers.Arrange(auto, 1000, 1000);
+        Assert.Equal(new Size(400, 200), auto.Frame.Size);
+        Assert.Equal(loads, SkUiImageLoader.LoadCount);
+
+        // Fixed width, height from the image: only the width is bounded.
+        var stack = new SkUiVerticalStackLayout();
+        var inStack = new SkUiImage { DownsampleToViewSize = true, CacheKey = Key() };
+        stack.Add(inStack);
+        inStack.Source = WideStream();
+        SkUiTestHelpers.Arrange(stack, 150, 1000);
+        await inStack.LoadingTask;
+        Assert.Equal((160, 80), (inStack.CachedImage!.Frames[0].Width, inStack.CachedImage.Frames[0].Height));
+
+        // Explicit bounds win: the load starts at once.
+        var explicitBounds = new SkUiImage { DownsampleToViewSize = true, DownsampleWidth = 50, CacheKey = Key() };
+        explicitBounds.Source = WideStream();
+        await explicitBounds.LoadingTask;
+        Assert.Equal(50, explicitBounds.CachedImage!.Frames[0].Width);
+
+        // Centered images are drawn unscaled: not downsampled to the view.
+        var centered = ViewSized(Aspect.Center);
+        centered.Source = WideStream();
+        await centered.LoadingTask;
+        Assert.Equal(400, centered.CachedImage!.Frames[0].Width);
+    }
+
+    [Fact]
+    public async Task DownsampleToViewSizeStartsAtTheSurfacesLayoutAndOnCoreNodes()
+    {
+        var root = new SkUiVerticalStackLayout();
+        var image = new SkUiImage { HeightRequest = 60, DownsampleToViewSize = true, CacheKey = Key() };
+        root.Add(image);
+        SkUiTestHelpers.Arrange(root, 120, 400);
+        var frames = new Queue<Action>();
+        using (var renderer = new SkUiFrameRenderer(root, frames.Enqueue, () => { }, () => { }))
+        {
+            renderer.RequestFrame();
+            while (frames.TryDequeue(out var frame))
+                frame();
+            image.Source = WideStream();
+            Assert.Null(image.CachedImage);
+            Assert.NotEmpty(frames); // emptying the image asked for a frame, which lays the surface out again
+            while (frames.TryDequeue(out var frame))
+                frame();
+            await image.LoadingTask;
+        }
+        Assert.Equal((128, 64), (image.CachedImage!.Frames[0].Width, image.CachedImage.Frames[0].Height));
+
+        var core = new SkUiCoreImage().SetDownsampleToViewSize(true).SetCacheKey(Key());
+        core.SetSourceStream(Open(Png(SKColors.Red, 400, 200)));
+        Assert.Null(core.CachedImage);
+        core.Measure(100, 100);
+        core.Arrange(new Rect(0, 0, 100, 100));
+        await core.LoadingTask;
+        Assert.Equal((112, 56), (core.CachedImage!.Frames[0].Width, core.CachedImage.Frames[0].Height));
+        core.SetAspect(Aspect.AspectFill); // covering needs other bounds: loads again at the same size
+        await core.LoadingTask;
+        Assert.Equal((224, 112), (core.CachedImage!.Frames[0].Width, core.CachedImage.Frames[0].Height));
+    }
+
     [Fact]
     public void WithoutQueryParametersKeepsTheRestInOrder()
     {

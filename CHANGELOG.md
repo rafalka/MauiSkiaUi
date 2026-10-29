@@ -16,6 +16,11 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### New features
 
 - **A cache key per image view:** `CacheKey` on `SkUiImage` and `SkUiImageButton` (bindable, `SetCacheKey`) and on `SkUiCoreImage` (FFImageLoading's). It is the cache identity of that view's source, in place of `SkUiImageCache.CacheKeyFactory` and the source's own key: views with one key share the decoded image and the download whatever their sources (signed URLs, stream sources, which are otherwise not cached). `SkUiImageCache.RemoveByKeyAsync(key)` forgets what is cached under a view's or the factory's key ([doc](docs/controls/SkUiImage.md#a-key-per-view)).
+- **Downsampling to the view's size:** `DownsampleToViewSize` on `SkUiImage` and `SkUiImageButton` (bindable, `SetDownsampleToViewSize`) and on `SkUiCoreImage` (FFImageLoading's). A new source loads at the view's next arrange and decodes no larger than the arranged size (fitting, or covering for `AspectFill` / `Fill`), in steps of 16 DIPs so rows of one size share cache entries; a larger arrange decodes again, a smaller one keeps the image. Dimensions the view takes from its image are not bounded, and explicit `DownsampleWidth` / `DownsampleHeight` win ([doc](docs/controls/SkUiImage.md#key-properties)).
+
+### Other
+
+- Benchmarks: `skui-images` and `core-images` (1,000 images of eight photos in a grid) and their `-viewsized` variants with `DownsampleToViewSize`.
 
 ## 1.3.0
 

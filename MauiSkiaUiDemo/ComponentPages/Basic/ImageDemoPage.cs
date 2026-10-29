@@ -65,6 +65,8 @@ public sealed class ImageDemoPage : ComponentDemoPage
             value => { _skia.IsAnimationPlaying = value; _native.IsAnimationPlaying = value; }, () => _skia.IsAnimationPlaying, () => _native.IsAnimationPlaying);
         Choice(nameof(SkUiImage.Transformations) + " (SkiaUi)", [.. TransformationChoices.Keys], TransformNone, SetTransformation, () => _transformation);
         Number(nameof(SkUiImage.DownsampleWidth) + " (SkiaUi)", 0, 300, 0, value => _skia.DownsampleWidth = value, () => _skia.DownsampleWidth, whole: true);
+        // Resize the preview area: a larger size decodes again, a smaller one keeps the image ("loaded from …" below).
+        Toggle(nameof(SkUiImage.DownsampleToViewSize) + " (SkiaUi)", false, value => _skia.DownsampleToViewSize = value, () => _skia.DownsampleToViewSize);
         Toggle("Placeholders (SkiaUi)", true, value => _skia.SetPlaceholders(
                 value ? ImageSource.FromStream(() => new MemoryStream(Spinner)) : null,
                 value ? new FontImageSource { Glyph = "\u26A0", FontFamily = DemoFonts.OpenSansRegular, Size = 64, Color = DemoColors.Fail } : null),

@@ -27,6 +27,10 @@ public static class Scenarios
         new SkUiLabelsFit(),
         new CoreLabelsGrow(),
         new SkUiAvatars(),
+        new ImageGrid(core: false, viewSized: false),
+        new ImageGrid(core: false, viewSized: true),
+        new ImageGrid(core: true, viewSized: false),
+        new ImageGrid(core: true, viewSized: true),
         new CoreEntries(),
         new CoreEntriesUpdate(),
         new SkUiEntries(),
@@ -95,6 +99,97 @@ public static class Scenarios
         host.SetContent(content);
         return host;
     }
+}
+
+/// <summary>
+/// 1,000 images of eight 512 × 512 photos (PNG files) filling the cells of a two-column grid, on either layer, optionally
+/// decoded to the view's size. The first iteration loads them into the memory cache; later ones are cache hits.
+/// </summary>
+public sealed class ImageGrid(bool core, bool viewSized) : BenchScenario
+{
+    private const int Photos = 8;
+    private static readonly Lazy<string[]> Files = new(WriteFiles);
+    private int _round;
+
+    public override string Name => (core ? "core-images" : "skui-images") + (viewSized ? "-viewsized" : "");
+    public override string Description =>
+        $"1,000 {(core ? "SkUiCoreImage" : "SkUiImage")} (8 photos, 512 px, AspectFill) in a 2-column grid{(viewSized ? ", DownsampleToViewSize" : "")}; update = the next photo each";
+
+    private static string[] WriteFiles()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "skiaui-bench-images");
+        Directory.CreateDirectory(folder);
+        var files = new string[Photos];
+        for (var i = 0; i < Photos; i++)
+        {
+            files[i] = Path.Combine(folder, $"photo{i}.png");
+            if (File.Exists(files[i]))
+                continue;
+            using var bitmap = new SkiaSharp.SKBitmap(512, 512);
+            using (var canvas = new SkiaSharp.SKCanvas(bitmap))
+            using (var paint = new SkiaSharp.SKPaint())
+            {
+                paint.Shader = SkiaSharp.SKShader.CreateLinearGradient(new SkiaSharp.SKPoint(0, 0), new SkiaSharp.SKPoint(512, 512),
+                    [SkiaSharp.SKColor.FromHsl(i * 45f, 70, 50), SkiaSharp.SKColors.White], SkiaSharp.SKShaderTileMode.Clamp);
+                canvas.DrawRect(0, 0, 512, 512, paint);
+            }
+            using var data = bitmap.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            File.WriteAllBytes(files[i], data.ToArray());
+        }
+        return files;
+    }
+
+    private string Photo(int index) => Files.Value[(index + _round) % Photos];
+
+    public override View Build()
+    {
+        if (core)
+        {
+            var coreGrid = Scenarios.CoreGrid(Scenarios.Count);
+            coreGrid.StartUpdating();
+            for (var i = 0; i < Scenarios.Count; i++)
+            {
+                var image = new SkUiCoreImage().SetAspect(Aspect.AspectFill);
+                if (viewSized)
+                    TrySet(image, "DownsampleToViewSize", true);
+                image.SetSourceFile(Photo(i));
+                coreGrid.Add(image, i / 2, i % 2);
+            }
+            coreGrid.EndUpdating();
+            return Scenarios.Scroll(Scenarios.Host(coreGrid));
+        }
+        var grid = Scenarios.SkUiGrid(Scenarios.Count);
+        grid.StartUpdating();
+        for (var i = 0; i < Scenarios.Count; i++)
+        {
+            var image = new SkUiImage { Aspect = Aspect.AspectFill };
+            if (viewSized)
+                TrySet(image, "DownsampleToViewSize", true);
+            image.Source = ImageSource.FromFile(Photo(i));
+            Grid.SetRow(image, i / 2);
+            Grid.SetColumn(image, i % 2);
+            grid.Children.Add(image);
+        }
+        grid.EndUpdating();
+        return Scenarios.Scroll(grid);
+    }
+
+    public override Action<View>? Update => root =>
+    {
+        _round++;
+        var index = 0;
+        if (core)
+        {
+            foreach (var child in ((SkUiCoreGrid)((SkUiCoreHost)((SkUiScrollView)root).Content!).Content!).Children)
+                ((SkUiCoreImage)child).SetSourceFile(Photo(index++));
+            return;
+        }
+        var grid = (SkUiGrid)((SkUiScrollView)root).Content!;
+        grid.StartUpdating();
+        foreach (var child in grid.Children)
+            ((SkUiImage)child).Source = ImageSource.FromFile(Photo(index++));
+        grid.EndUpdating();
+    };
 }
 
 /// <summary>1,000 plain Core labels in a two-column Core grid.</summary>

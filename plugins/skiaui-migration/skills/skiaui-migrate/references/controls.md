@@ -63,7 +63,7 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 | `Stepper` | `sk:SkUiStepper` | Prefix swap: same `Value` (two-way), `Minimum`, `Maximum`, `Increment`, `ValueChanged`, MAUI's coercion; buttons only, so a label showing the value stays. `Orientation="Vertical"` stacks the buttons (+ on top); `DecrementText` / `IncrementText` with `FontFamily` / `FontSize` replace − / + (words, icon-font symbols); `CornerRadius` / `BorderWidth` / `BorderColor` replace handler or effect styling of its outline. A `Value` bound to an `int` / `decimal` through a converter → `x:TypeArguments="x:Int32"` (`SkUiStepper<T>`), drop the converter; `ValueChanged` handlers then take `SkUiValueChangedEventArgs<T>` |
 | `GraphicsView`, `SKCanvasView` | A `SkUiView` subclass | See [custom-controls.md](custom-controls.md) |
 
-`FFImageLoading`'s `CachedImage` → `sk:SkUiImage` (its circle / rounded / blur transformations have drawn equivalents in `Transformations`; `CacheKey`, `CacheType`, `DownsampleWidth` / `DownsampleHeight`, `LoadingPlaceholder` / `ErrorPlaceholder` keep their names; a `CacheKeyFactory` per view → `CacheKey`, an app-wide one → `SkUiImageCache.CacheKeyFactory`).
+`FFImageLoading`'s `CachedImage` → `sk:SkUiImage` (its circle / rounded / blur transformations have drawn equivalents in `Transformations`; `CacheKey`, `CacheType`, `DownsampleWidth` / `DownsampleHeight`, `DownsampleToViewSize`, `LoadingPlaceholder` / `ErrorPlaceholder` keep their names; a `CacheKeyFactory` per view → `CacheKey`, an app-wide one → `SkUiImageCache.CacheKeyFactory`).
 
 ## Native islands
 

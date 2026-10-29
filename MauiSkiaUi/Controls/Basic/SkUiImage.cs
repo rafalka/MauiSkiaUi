@@ -15,6 +15,8 @@ public class SkUiImage : SkUiView
     private ImageSource? _source;
     private Aspect _aspect = Aspect.AspectFit;
     private SkUiImageOptions _options;
+    private bool _downsampleToViewSize;
+    private SkUiViewSizedDecode _viewSizedDecode;
     // Set on the thread pool by a load finished without a dispatcher, read on the view's thread (see PublishState).
     private volatile bool _isLoadingStoreStale;
     // Image sources and transformation lists are often shared resources: listened to weakly, so they never keep the view alive.
@@ -22,7 +24,7 @@ public class SkUiImage : SkUiView
     private SkUiWeakListener<SkUiImage> SourceListener => _sourceListener ??= new(this, static (image, change) =>
     {
         if (SkUiMauiImageSources.AffectsImage(change.PropertyName))
-            image.Reload();
+            image.LoadNewSource();
     });
     private SkUiWeakListener<SkUiImage>? _transformationsListener;
     private SkUiWeakListener<SkUiImage> TransformationsListener => _transformationsListener ??= new(this, static (image, _) => image.OnTransformationItemsChanged());
@@ -68,6 +70,9 @@ public class SkUiImage : SkUiView
     public static readonly BindableProperty DownsampleHeightProperty = BindableProperty.Create(nameof(DownsampleHeight), typeof(double), typeof(SkUiImage), 0d,
         validateValue: SkUiValidate.NonNegative,
         propertyChanged: (view, _, value) => ((SkUiImage)view).OnOptionsChanged(((SkUiImage)view)._options with { DownsampleHeight = (double)value }));
+    /// <summary>Bindable <see cref="DownsampleToViewSize"/>.</summary>
+    public static readonly BindableProperty DownsampleToViewSizeProperty = BindableProperty.Create(nameof(DownsampleToViewSize), typeof(bool), typeof(SkUiImage), false,
+        propertyChanged: (view, _, value) => ((SkUiImage)view).OnDownsampleToViewSizeChanged((bool)value));
     /// <summary>Bindable <see cref="CacheKey"/>.</summary>
     public static readonly BindableProperty CacheKeyProperty = BindableProperty.Create(nameof(CacheKey), typeof(string), typeof(SkUiImage), null,
         propertyChanged: (view, _, value) => ((SkUiImage)view).OnOptionsChanged(((SkUiImage)view)._options with { CacheKey = (string?)value }));
@@ -131,6 +136,15 @@ public class SkUiImage : SkUiView
     public double DownsampleWidth { get => (double)GetValue(DownsampleWidthProperty); set => SetValue(DownsampleWidthProperty, value); }
     /// <summary>Decode at most this high, in DIPs at the display density (0: no bound).</summary>
     public double DownsampleHeight { get => (double)GetValue(DownsampleHeightProperty); set => SetValue(DownsampleHeightProperty, value); }
+    /// <summary>
+    /// Decode no larger than the view is arranged (FFImageLoading's <c>DownsampleToViewSize</c>; default <c>false</c>):
+    /// fitting inside it, or covering it for <see cref="Aspect.AspectFill"/> and <see cref="Aspect.Fill"/>. A new source
+    /// starts loading at the view's next arrange; a larger arrange decodes again (the smaller image shows meanwhile), a
+    /// smaller one keeps the image. Bounds round up to steps of 16 DIPs, so rows of one size share cache entries. A
+    /// dimension whose size comes from the image is not bounded; <see cref="DownsampleWidth"/> /
+    /// <see cref="DownsampleHeight"/> win, and <see cref="Aspect.Center"/> (drawn unscaled) decodes as without it.
+    /// </summary>
+    public bool DownsampleToViewSize { get => (bool)GetValue(DownsampleToViewSizeProperty); set => SetValue(DownsampleToViewSizeProperty, value); }
     /// <summary>
     /// This view's cache identity for <see cref="Source"/> (FFImageLoading's <c>CacheKey</c>; <c>null</c> or empty: the
     /// app's <see cref="SkUiImageCache.CacheKeyFactory"/>, else the source's own key). Views with the same key share one
@@ -236,6 +250,8 @@ public class SkUiImage : SkUiView
     }
     /// <summary>Sets <see cref="CacheType"/> (same as the property setter).</summary>
     public SkUiImage SetCacheType(SkUiImageCacheType value) { CacheType = value; return this; }
+    /// <summary>Sets <see cref="DownsampleToViewSize"/> (same as the property setter).</summary>
+    public SkUiImage SetDownsampleToViewSize(bool value) { DownsampleToViewSize = value; return this; }
     /// <summary>Sets <see cref="CacheKey"/> (same as the property setter).</summary>
     public SkUiImage SetCacheKey(string? value) { CacheKey = value; return this; }
     /// <summary>Sets <see cref="DownsampleWidth"/> and <see cref="DownsampleHeight"/> in DIPs (0: no bound).</summary>
@@ -256,10 +272,24 @@ public class SkUiImage : SkUiView
         _source = value;
         AdoptImageSource(UsesSource(previous) ? null : previous, value);
         SourceListener.Listen(value);
-        Reload();
+        LoadNewSource();
     }
 
-    private void OnAspectChanged(Aspect value) { _aspect = value; InvalidatePaint(); }
+    private void OnAspectChanged(Aspect value)
+    {
+        var old = _aspect;
+        _aspect = value;
+        InvalidatePaint();
+        // Fitting and covering decode to different bounds; a centered image is not downsampled to the view.
+        if (_downsampleToViewSize && (SkUiViewSizedDecode.Fills(old) != SkUiViewSizedDecode.Fills(value) || (old == Aspect.Center) != (value == Aspect.Center)))
+            Reload();
+    }
+
+    private void OnDownsampleToViewSizeChanged(bool value)
+    {
+        _downsampleToViewSize = value;
+        Reload();
+    }
 
     private void OnTransformationsChanged(IList<ISkUiImageTransformation>? value)
     {
@@ -297,12 +327,41 @@ public class SkUiImage : SkUiView
         return true;
     }
 
-    private void Reload() => Slot.Load(SkUiImageSource.FromMaui(_source), _options);
+    // A new source waits for the next arrange (with DownsampleToViewSize); new settings reuse the bounds already decided.
+    private void LoadNewSource() => Load(restart: true);
 
-    /// <summary>Reloads the current source; errors are exposed through LoadError, cancellation is not an error.</summary>
-    public Task ReloadAsync()
+    private void Reload() => Load(restart: false);
+
+    /// <summary>
+    /// Reloads the current source; errors are exposed through LoadError, cancellation is not an error. With
+    /// <see cref="DownsampleToViewSize"/> before the view was arranged, the load starts at its arrange.
+    /// </summary>
+    public Task ReloadAsync() => Load(restart: false);
+
+    private Task Load(bool restart)
     {
-        return Slot.Load(SkUiImageSource.FromMaui(_source), _options);
+        var source = SkUiImageSource.FromMaui(_source);
+        if (source is null || !SkUiViewSizedDecode.AppliesTo(_downsampleToViewSize, _options, _aspect))
+        {
+            _viewSizedDecode.Stop();
+            return Slot.Load(source, _options);
+        }
+        if (restart || !_viewSizedDecode.HasBounds)
+        {
+            // Empty until then, so the arrange that starts the load is the layout's size, not the previous image's.
+            _viewSizedDecode.Wait();
+            Slot.Load(null, _options);
+            return Task.CompletedTask;
+        }
+        return Slot.Load(source, _viewSizedDecode.Apply(_options, _aspect));
+    }
+
+    /// <inheritdoc />
+    protected override void ArrangeContent(Size size)
+    {
+        base.ArrangeContent(size);
+        if (_viewSizedDecode.OnArranged(size, out var grew))
+            Slot.Load(SkUiImageSource.FromMaui(_source), _viewSizedDecode.Apply(_options, _aspect), keepShown: grew);
     }
 
     private void PublishState()

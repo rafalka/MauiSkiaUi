@@ -14,6 +14,8 @@ public class SkUiCoreImage : SkUiCoreNode
     private SkUiImageSource? _source;
     private SkUiImageOptions _options;
     private Aspect _aspect = Aspect.AspectFit;
+    private bool _downsampleToViewSize;
+    private SkUiViewSizedDecode _viewSizedDecode;
 
     /// <summary>Creates an image node.</summary>
     public SkUiCoreImage() => _slot = new SkUiImageSlot(this, PublishState)
@@ -108,6 +110,13 @@ public class SkUiCoreImage : SkUiCoreNode
     /// <summary>Decode at most this wide, in DIPs at the display density (0: no bound).</summary>
     public double DownsampleWidth => _options.DownsampleWidth;
 
+    /// <summary>Whether the image decodes no larger than the node is arranged (see <see cref="SetDownsampleToViewSize"/>).</summary>
+    public bool DownsampleToViewSize
+    {
+        get => _downsampleToViewSize;
+        set => SetDownsampleToViewSize(value);
+    }
+
     /// <summary>Decode at most this high, in DIPs at the display density (0: no bound).</summary>
     public double DownsampleHeight => _options.DownsampleHeight;
 
@@ -133,8 +142,13 @@ public class SkUiCoreImage : SkUiCoreNode
     /// <summary>Sets aspect mode.</summary>
     public SkUiCoreImage SetAspect(Aspect value)
     {
+        var old = _aspect;
         if (!SetProperty(ref _aspect, value, nameof(Aspect))) return this;
         InvalidatePaint();
+        // Fitting and covering decode to different bounds; a centered image is not downsampled to the node.
+        if (_downsampleToViewSize && _source is not null
+            && (SkUiViewSizedDecode.Fills(old) != SkUiViewSizedDecode.Fills(value) || (old == Aspect.Center) != (value == Aspect.Center)))
+            Load(restart: false);
         return this;
     }
 
@@ -153,6 +167,7 @@ public class SkUiCoreImage : SkUiCoreNode
     public SkUiCoreImage SetImage(SKImage? image, bool ownsImage = true)
     {
         _source = null;
+        _viewSizedDecode.Stop();
         _slot.SetImage(image, ownsImage);
         return this;
     }
@@ -160,10 +175,10 @@ public class SkUiCoreImage : SkUiCoreNode
     /// <summary>Loads <paramref name="source"/> (<c>null</c> clears); an equal source already shown does not reload.</summary>
     public SkUiCoreImage SetSource(SkUiImageSource? source)
     {
-        if (source is not null && Equals(_source, source) && (_slot.Entry is not null || _slot.IsLoading))
+        if (source is not null && Equals(_source, source) && (_slot.Entry is not null || _slot.IsLoading || _viewSizedDecode.IsWaiting))
             return this;
         _source = source;
-        _slot.Load(source, _options);
+        Load(restart: true);
         return this;
     }
 
@@ -209,6 +224,18 @@ public class SkUiCoreImage : SkUiCoreNode
     public SkUiCoreImage SetCacheKey(string? value) =>
         SetOptions(_options with { CacheKey = string.IsNullOrEmpty(value) ? null : value }, nameof(CacheKey));
 
+    /// <summary>
+    /// Sets whether the image decodes no larger than the node is arranged (see <c>SkUiImage.DownsampleToViewSize</c>):
+    /// a new source starts loading at the node's next arrange.
+    /// </summary>
+    public SkUiCoreImage SetDownsampleToViewSize(bool value)
+    {
+        if (!SetProperty(ref _downsampleToViewSize, value, nameof(DownsampleToViewSize))) return this;
+        if (_source is not null)
+            Load(restart: false);
+        return this;
+    }
+
     /// <summary>Sets the decode bounds in DIPs (0: no bound; reloads the source).</summary>
     public SkUiCoreImage SetDownsample(double width, double height)
     {
@@ -223,22 +250,49 @@ public class SkUiCoreImage : SkUiCoreNode
         _options = options;
         OnPropertyChanged(property);
         if (_source is not null)
-            _slot.Load(_source, _options);
+            Load(restart: false);
         return this;
     }
 
     /// <summary>Loads the current source again (for example after <see cref="SkUiImageCache.RemoveAsync(SkUiImageSource)"/>).</summary>
+    /// <remarks>With <see cref="DownsampleToViewSize"/> before the node was arranged, the load starts at its arrange.</remarks>
     public Task ReloadAsync()
     {
-        return _source is null ? Task.CompletedTask : _slot.Load(_source, _options);
+        return _source is null ? Task.CompletedTask : Load(restart: false);
     }
 
     /// <summary>Clears the current image and source.</summary>
     public SkUiCoreImage Clear()
     {
         _source = null;
-        _slot.Load(null, _options);
+        Load(restart: true);
         return this;
+    }
+
+    // A new source (restart) waits for the next arrange with DownsampleToViewSize; new settings reuse the bounds decided.
+    private Task Load(bool restart)
+    {
+        if (_source is null || !SkUiViewSizedDecode.AppliesTo(_downsampleToViewSize, _options, _aspect))
+        {
+            _viewSizedDecode.Stop();
+            return _slot.Load(_source, _options);
+        }
+        if (restart || !_viewSizedDecode.HasBounds)
+        {
+            // Empty until then, so the arrange that starts the load is the layout's size, not the previous image's.
+            _viewSizedDecode.Wait();
+            _slot.Load(null, _options);
+            return Task.CompletedTask;
+        }
+        return _slot.Load(_source, _viewSizedDecode.Apply(_options, _aspect));
+    }
+
+    /// <inheritdoc />
+    protected override void ArrangeContent(Size size)
+    {
+        base.ArrangeContent(size);
+        if (_viewSizedDecode.OnArranged(size, out var grew))
+            _slot.Load(_source, _viewSizedDecode.Apply(_options, _aspect), keepShown: grew);
     }
 
     private void PublishState()

@@ -11,7 +11,7 @@ Changing `Source` (or a property of the source object) starts a load through the
 1. **Memory cache.** If the same source with the same decode size and transformations was decoded before, the view shows it **synchronously**: no empty frame and no decode. Views of one source share one decoded image.
 2. **Shared load.** Views that ask for the same image at the same time share one download and one decode. The work is cancelled only when every one of them has let go (source changed or cleared).
 3. **Source.** The bytes come from the disk cache (downloads), the network, the app package, a file or a stream. Font glyphs are drawn through the text engine.
-4. **Decode** happens off the UI thread, a few images at a time. EXIF orientation is applied. Large images are decoded at reduced size (`SkUiImageDecoder.MaxDecodeDimension`, `DownsampleWidth` / `DownsampleHeight`). Animated GIF / WebP decode to all their frames.
+4. **Decode** happens off the UI thread, a few images at a time. EXIF orientation is applied. Large images are decoded at reduced size (`SkUiImageDecoder.MaxDecodeDimension`, `DownsampleWidth` / `DownsampleHeight`, `DownsampleToViewSize`). Animated GIF / WebP decode to all their frames.
 5. **Transformations** run off the UI thread. The result goes into the memory cache.
 
 Completion is applied on the dispatcher that started the load; a load started without one (headless tests, a tree built off the UI thread) completes on the thread pool, serialized with the image's other members (a new source, a placeholder, painting). Errors set `LoadError` and show the `ErrorPlaceholder` (else nothing). While loading, the previous image is cleared and the `LoadingPlaceholder` shows. Drawing goes through `SkUiLook.Current.DrawImage`, the same path as `SkUiCoreImage`. `Aspect.Center` draws the image unscaled (one intrinsic DIP per DIP) in the middle, clipped to the bounds, also when the decoder reduced it.
@@ -196,9 +196,17 @@ Transformations change the decoded pixels once. For clipping that follows the la
 
 ## Key properties
 
-`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `CacheKey`, `DownsampleWidth`, `DownsampleHeight`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `IsLoading`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`. Events: `LoadingStarted`, `LoadingFinished`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)`, `SetCacheType`, `SetCacheKey`, `SetDownsample(width, height)`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
+`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `CacheKey`, `DownsampleWidth`, `DownsampleHeight`, `DownsampleToViewSize`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `IsLoading`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`. Events: `LoadingStarted`, `LoadingFinished`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)`, `SetCacheType`, `SetCacheKey`, `SetDownsample(width, height)`, `SetDownsampleToViewSize`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
 
 `DownsampleWidth` / `DownsampleHeight` are DIPs at the display density (FFImageLoading's with `DownsampleUseDipUnits`). The image is decoded no larger than that, aspect kept, never upscaled. Use them for thumbnails of large photos.
+
+`DownsampleToViewSize` (FFImageLoading's) takes the bounds from the view instead, for photos in cells whose size the layout decides:
+
+- A new source starts loading at the view's next arrange (the view is empty until then, so that arrange is the layout's size, not the previous image's) and decodes to fit inside the arranged size, or to cover it for `AspectFill` and `Fill`. `ReloadAsync` and changes of other options reuse the bounds already decided.
+- Bounds round up to steps of 16 DIPs, so rows of one size share cache entries. A larger arrange decodes again, showing the smaller image meanwhile; a smaller one keeps the image.
+- A dimension the view takes from its image (arranged at 0 while empty: an image with `Start` alignment, the height in a vertical stack) is not bounded, so auto-sized images measure as without it.
+- `DownsampleWidth` / `DownsampleHeight` win, and `Aspect="Center"` (drawn unscaled) decodes as without it. Placeholders get the same bounds with `TransformPlaceholders`.
+- It saves memory, not time: a cache hit happens at the arrange instead of when the source is set, and a new source takes one more layout pass (`skui-images-viewsized` in the benchmarks).
 
 Animated GIF / WebP play on the view's UI clock while `IsAnimationPlaying` is true, re-recording only this image when its frame changes. Paused, the current frame stays. An animation whose frames would take more than `SkUiImageDecoder.MaxAnimationBytes` (64 MiB) decodes to its first frame and draws still.
 
