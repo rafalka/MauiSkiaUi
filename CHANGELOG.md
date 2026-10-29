@@ -18,6 +18,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.4.0
+
 ### New features
 
 - **A cache key per image view:** `CacheKey` on `SkUiImage` and `SkUiImageButton` (bindable, `SetCacheKey`) and on `SkUiCoreImage` (FFImageLoading's). It is the cache identity of that view's source, in place of `SkUiImageCache.CacheKeyFactory` and the source's own key: views with one key share the decoded image and the download whatever their sources (signed URLs, stream sources, which are otherwise not cached). `SkUiImageCache.RemoveByKeyAsync(key)` forgets what is cached under a view's or the factory's key ([doc](docs/controls/SkUiImage.md#a-key-per-view)).
