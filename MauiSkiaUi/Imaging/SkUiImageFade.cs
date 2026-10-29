@@ -125,6 +125,13 @@ internal sealed class SkUiImageFadeDrawable(SKPicture picture, TimeSpan start, T
         canvas.DrawPicture(picture, context.Paint);
     }
 
+    /// <summary>Whether it was disposed (tests: a committed drawable never is).</summary>
+    internal bool IsDisposed { get; private set; }
+
     /// <inheritdoc />
-    public override void Dispose() => picture.Dispose();
+    public override void Dispose()
+    {
+        IsDisposed = true;
+        picture.Dispose();
+    }
 }

@@ -400,8 +400,10 @@ internal static class SkUiImageLoader
         }
     }
 
-    /// <summary>Reads and disposes <paramref name="stream"/>; at most <see cref="MaxEncodedBytes"/>.</summary>
-    /// <summary>Reads <paramref name="stream"/> to the end, telling <paramref name="progress"/> after each chunk.</summary>
+    /// <summary>
+    /// Reads <paramref name="stream"/> to the end and disposes it, at most <see cref="MaxEncodedBytes"/>, telling
+    /// <paramref name="progress"/> the bytes read and <paramref name="total"/> after each chunk.
+    /// </summary>
     internal static async Task<byte[]> ReadAllAsync(Stream stream, CancellationToken token, long? total = null, Action<long, long?>? progress = null)
     {
         await using (stream.ConfigureAwait(false))

@@ -432,6 +432,10 @@ public class SkUiCoreImage : SkUiCoreNode
     }
 
     /// <inheritdoc />
+    /// <remarks>A skeleton's bones replaced the fade's drawable (the view disposes it): the next commit makes a new one.</remarks>
+    private protected override void ForgetOwnDrawable() => _fade?.ForgetDrawable();
+
+    /// <inheritdoc />
     /// <remarks>A fade in progress ends (the image shows): its clock no longer holds the view.</remarks>
     protected override void OnAnimationRootChanged(bool subtreeDetached = false)
     {

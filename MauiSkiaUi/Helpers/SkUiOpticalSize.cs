@@ -131,15 +131,32 @@ internal static class SkUiFontData
 
     private static Entry Load(SKTypeface typeface)
     {
-        using var stream = typeface.OpenStream(out var index);
+        var stream = typeface.OpenStream(out var index);
         if (stream is null)
             return Entry.None;
-        var data = SKData.Create(stream);
+        var key = (typeface.FamilyName, (long)stream.Length, index);
+        if (ByFile.TryGetValue(key, out var known))
+        {
+            stream.Dispose(); // the same file, read before through another typeface
+            return known;
+        }
+        // A memory-based stream (Android maps font files) is wrapped, not copied: its pages stay the file's. Others are read once.
+        var memory = stream.GetMemoryBase();
+        SKData? data;
+        if (memory != IntPtr.Zero)
+        {
+            data = SKData.Create(memory, stream.Length, (_, _) => stream.Dispose());
+        }
+        else
+        {
+            data = SKData.Create(stream);
+            stream.Dispose();
+        }
         if (data is null)
             return Entry.None;
-        var entry = ByFile.GetOrAdd((typeface.FamilyName, data.Size, index), static (_, loaded) => loaded, new Entry(data, index));
+        var entry = ByFile.GetOrAdd(key, static (_, loaded) => loaded, new Entry(data, index));
         if (!ReferenceEquals(entry.Data, data))
-            data.Dispose(); // the same file, read before through another typeface
+            data.Dispose(); // read meanwhile through another typeface
         return entry;
     }
 

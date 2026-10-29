@@ -1,4 +1,5 @@
 using MauiSkiaUi.Core;
+using MauiSkiaUi.Rendering;
 using SkiaSharp;
 using Xunit;
 
@@ -138,6 +139,31 @@ public sealed class ImageFadeTests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiImage().SetFadeAnimation(true, -1));
         var invalid = new SkUiImage { FadeAnimationDuration = -5 }; // ignored, as MAUI ignores invalid values
         Assert.Null(invalid.FadeAnimationDuration);
+    }
+
+    [Fact]
+    public async Task AFadeUnderASkeletonCommitsANewDrawableWhenTheSkeletonEnds()
+    {
+        var red = await CachedFile(SKColors.Red);
+        var image = new SkUiImage
+        {
+            WidthRequest = Width, HeightRequest = Height,
+            FadeAnimationEnabled = true, FadeAnimationForCachedImages = true, FadeAnimationDuration = LongFade
+        };
+        var shimmer = new SkUiShimmer { Content = new SkUiVerticalStackLayout { Children = { image } }, Effect = SkUiShimmerEffect.None };
+        var (renderer, frames) = Show(shimmer);
+        using (renderer)
+        {
+            image.Source = ImageSource.FromFile(red);
+            Assert.True(image.IsFadingIn);
+            Draw(renderer, frames); // a bone takes the fade's drawable, and the image view disposes the fade's
+            Assert.IsNotType<SkUiImageFadeDrawable>(((ISkUiRenderable)image).RenderState.Node.Props.Drawable);
+
+            shimmer.IsLoading = false; // the skeleton ends mid-fade
+            Draw(renderer, frames);
+            var drawable = Assert.IsType<SkUiImageFadeDrawable>(((ISkUiRenderable)image).RenderState.Node.Props.Drawable);
+            Assert.False(drawable.IsDisposed); // a new one, not the disposed one
+        }
     }
 
     [Fact]
