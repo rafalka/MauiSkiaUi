@@ -31,6 +31,9 @@ public class PlatformLookShapeTests
         Assert.Equal(new Size(32, 32), AndroidSkUiLook.Instance.DefaultCheckBoxSize);
         Assert.Equal(new Size(48, 32), AndroidMaterial3SkUiLook.Instance.DefaultCheckBoxSize);
         Assert.Equal(new Size(18, 18), IosSkUiLook.Instance.DefaultCheckBoxSize);
+        // MAUI's radio template: 41 around its text (7 on each side, the 21 circle, 6 to the text); Mac Catalyst inherits it.
+        Assert.Equal(new Thickness(7), IosSkUiLook.Instance.RadioButtonPadding);
+        Assert.Equal(new Thickness(7), MacSkUiLook.Instance.RadioButtonPadding);
         Assert.Equal(2, AndroidSkUiLook.Instance.GetCheckBoxCornerRadius(18));
         Assert.Equal(4, WindowsSkUiLook.Instance.GetCheckBoxCornerRadius(20));
         Assert.Equal(9, IosSkUiLook.Instance.GetCheckBoxCornerRadius(18));

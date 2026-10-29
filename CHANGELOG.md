@@ -23,6 +23,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Fixes
 
+- **Radio buttons are as wide as MAUI's on iOS and Mac Catalyst:** `IosSkUiLook.RadioButtonPadding` is 7 on every side (was 8 × 7), measured on iOS 26: MAUI's template lays out 41 pt around its text. A radio button with text was 2 DIPs wider than MAUI's.
 - **Android (Material 2) progress bars have square ends,** as MAUI's: `AndroidSkUiLook.GetProgressBarCornerRadius` returns 0 (the Material 3 look keeps its round ends). Measured against MAUI 10.0.120 on Android (Material 2 and 3), iOS 26 and Mac Catalyst, where the bars' heights already matched.
 
 ### Other

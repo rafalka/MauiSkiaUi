@@ -48,7 +48,7 @@ Override these in a `DefaultSkUiLook` subclass (or a stock platform look's). Siz
 | `RadioButtonStyle` | `Dot` (a dot of the ring's color) or `Filled` (Fluent: the ring fills around a white dot) |
 | `RadioRingFraction`, `RadioDotRadiusFraction` | Ring width and dot radius as fractions of the ring's size [Windows: 0.05, 0.3] |
 | `DefaultRadioButtonContentSpacing` (base) | Between circle and content [6 / 6 / 0 / 0 / 8] |
-| `RadioButtonPadding` (base) | Around circle and content, added to the control's Padding [8 × 7 / same / 0 / 0 / 0 × 6] |
+| `RadioButtonPadding` (base) | Around circle and content, added to the control's Padding [7 / same / 0 / 0 / 0 × 6] |
 | `DefaultRadioButtonMinimumWidth` (base) | WinUI's MinWidth; a `MinimumWidthRequest` replaces it, as natively [0 / 0 / 0 / 0 / 120] |
 
 ## Slider and ProgressBar
