@@ -20,7 +20,10 @@ public class PlatformLookTextTests
         Assert.False(DefaultSkUiLook.Instance.AppliesFontTracking);
         Assert.Equal(14, WindowsSkUiLook.Instance.DefaultFontSize);
         Assert.Null(DefaultSkUiLook.Instance.DefaultFontFamily);
-        Assert.Equal("Segoe UI Variable", WindowsSkUiLook.Instance.DefaultFontFamily);
+        Assert.Equal("Segoe UI Variable Text", WindowsSkUiLook.Instance.DefaultFontFamily);
+        Assert.True(WindowsSkUiLook.Instance.AppliesOpticalSize);
+        Assert.Equal(0.75, WindowsSkUiLook.Instance.OpticalSizeScale);
+        Assert.Equal(1, IosSkUiLook.Instance.OpticalSizeScale);
     }
 
     [Fact]

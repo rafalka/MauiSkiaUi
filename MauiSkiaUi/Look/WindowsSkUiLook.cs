@@ -184,8 +184,19 @@ public class WindowsSkUiLook : DefaultSkUiLook
     public override double DefaultFontSize => 14;
 
     /// <inheritdoc />
-    /// <remarks>Segoe UI Variable; Windows 10 and headless runs, without it, use the system font.</remarks>
-    public override string? DefaultFontFamily => "Segoe UI Variable";
+    /// <remarks>
+    /// Segoe UI Variable's text design, by the family name DirectWrite lists for Skia (the name "Segoe UI Variable" matches
+    /// the static Segoe UI); Windows 10 and headless runs, without it, use the system font.
+    /// </remarks>
+    public override string? DefaultFontFamily => "Segoe UI Variable Text";
+
+    /// <inheritdoc />
+    /// <remarks>DirectWrite draws Segoe UI Variable at the optical size of its size in points (its axis: 5 to 36).</remarks>
+    public override bool AppliesOpticalSize => true;
+
+    /// <inheritdoc />
+    /// <remarks>DirectWrite's optical size is in points: 0.75 of the size in epx (14 epx text is at 10.5).</remarks>
+    public override double OpticalSizeScale => 0.75;
 
     /// <inheritdoc />
     public override SkUiColorScheme GetColorScheme(bool isDark) => isDark ? WindowsSkUiColorScheme.Dark : WindowsSkUiColorScheme.Light;

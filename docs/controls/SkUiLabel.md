@@ -19,7 +19,7 @@ Line breaking works on the shaped widths and never splits a grapheme. It breaks 
 | `Shaped` | Always shaped in full: bidi and font fallback even for plain Latin | Testing the full path |
 | `Simple` | Never shapes: no kerning, bidi or font fallback (Skia's advances). Complex scripts render incorrectly and missing glyphs show as .notdef. Until 1.4 this was `Auto`'s path for plain Latin | Dense grids of plain text or numbers |
 
-On the Apple looks, fonts with an optical size axis (the system font: 17 to 96) are drawn at the optical size of their point size, as CoreText draws them (`SkUiLook.AppliesOpticalSize`): large text gets the display design, about 11 % tighter at 28 pt than the text design.
+On the Apple looks, fonts with an optical size axis (the system font: 17 to 96) are drawn at the optical size of their point size, as CoreText draws them (`SkUiLook.AppliesOpticalSize`): large text gets the display design, about 11 % tighter at 28 pt than the text design. The Windows look does the same with Segoe UI Variable, at the optical size of the size in points (`SkUiLook.OpticalSizeScale`: 0.75 of an epx), as DirectWrite does.
 
 A label measured at one width and drawn at a wider one reuses its lines when nothing had to wrap, so measure and draw cost one layout.
 

@@ -231,11 +231,12 @@ internal readonly record struct SkUiTextStyle(
     internal float FontTrackingScaledBelow { get; init; } = (float)SkUiLook.Current.FontTrackingScaledBelow;
 
     /// <summary>
-    /// Fonts with an optical size axis are drawn at the optical size of the font size times this (1: the point size, also
-    /// on Mac Catalyst, where CoreText sizes optically before the window's 77 %), or as the typeface is when 0
-    /// (<see cref="SkUiLook.AppliesOpticalSize"/>); read when the style is made.
+    /// Fonts with an optical size axis are drawn at the optical size of the font size times this (Apple: 1, the point size,
+    /// also on Mac Catalyst, where CoreText sizes optically before the window's 77 %; Windows: 0.75, points), or as the
+    /// typeface is when 0 (<see cref="SkUiLook.AppliesOpticalSize"/>, <see cref="SkUiLook.OpticalSizeScale"/>); read when
+    /// the style is made.
     /// </summary>
-    internal float OpticalSizeScale { get; init; } = SkUiLook.Current.AppliesOpticalSize ? 1 : 0;
+    internal float OpticalSizeScale { get; init; } = SkUiLook.Current.AppliesOpticalSize ? (float)SkUiLook.Current.OpticalSizeScale : 0;
 
     /// <summary>The font that draws <paramref name="typeface"/> (this style's or a span's, a fallback face) at <paramref name="size"/>.</summary>
     internal SKFont Font(SKTypeface typeface, float size, FontAttributes attributes) =>

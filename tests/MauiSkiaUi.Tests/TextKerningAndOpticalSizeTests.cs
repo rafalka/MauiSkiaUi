@@ -5,7 +5,8 @@ namespace MauiSkiaUi.Tests;
 
 /// <summary>
 /// K3: plain Latin text is shaped with HarfBuzz as one run (kerning, as the platforms' text engines), and Apple's looks draw
-/// fonts with an optical size axis at the optical size of their point size, as CoreText does.
+/// fonts with an optical size axis at the optical size of their point size, as CoreText does (Windows: Segoe UI Variable, as
+/// DirectWrite does).
 /// </summary>
 [Collection(GlobalStateCollection.Name)]
 public sealed class TextKerningAndOpticalSizeTests
@@ -81,10 +82,36 @@ public sealed class TextKerningAndOpticalSizeTests
     }
 
     [Fact]
-    public void OnlyTheAppleLooksApplyTheOpticalSizeAndCatalystTracksLargeTextAtItsPointSize()
+    public void WindowsLookDrawsSegoeUiVariableAtTheOpticalSizeOfItsSizeInPoints()
+    {
+        var previous = SkUiLook.Current;
+        try
+        {
+            SkUiLook.Current = WindowsSkUiLook.Instance;
+            var typeface = SkUiTypefaces.Resolve(null);
+            if (typeface.FamilyName != "Segoe UI Variable Text")
+                return; // no Segoe UI Variable on this host (Windows 10, Linux, macOS)
+            var opsz = SKFourByteTag.Parse("opsz");
+            var style = new SkUiTextStyle(typeface, 12, LineBreakMode.NoWrap);
+            Assert.Equal(0.75f, style.OpticalSizeScale);
+            // DirectWrite's 12 epx text is at 9 pt, wider than the text design's 10.5 (WinUI: 64 for 63.8).
+            var font = style.Font(typeface, 12, FontAttributes.None);
+            Assert.Equal(9, font.Typeface.VariationDesignPosition.First(p => p.Axis == opsz).Value, 0.01);
+            var width = new SkUiTextLayout().Measure("Sample text", style, default, double.PositiveInfinity).Width;
+            Assert.Equal(63.8, width, 0.2);
+        }
+        finally
+        {
+            SkUiLook.Current = previous;
+        }
+    }
+
+    [Fact]
+    public void TheAppleAndWindowsLooksApplyTheOpticalSizeAndCatalystTracksLargeTextAtItsPointSize()
     {
         Assert.True(IosSkUiLook.Instance.AppliesOpticalSize);
         Assert.True(MacSkUiLook.Instance.AppliesOpticalSize);
+        Assert.True(WindowsSkUiLook.Instance.AppliesOpticalSize);
         Assert.False(DefaultSkUiLook.Instance.AppliesOpticalSize);
         Assert.False(AndroidSkUiLook.Instance.AppliesOpticalSize);
         Assert.Equal(20, MacSkUiLook.Instance.FontTrackingScaledBelow);

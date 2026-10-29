@@ -151,6 +151,12 @@ public class SkUiLook
     /// </summary>
     public virtual bool AppliesOpticalSize => false;
 
+    /// <summary>
+    /// With <see cref="AppliesOpticalSize"/>, the optical size of text relative to its font size (default 1: CoreText's
+    /// point is a DIP; Windows: 0.75, since DirectWrite sizes Segoe UI Variable optically in points, 0.75 of an epx).
+    /// </summary>
+    public virtual double OpticalSizeScale => 1;
+
     /// <summary>A control's font size field: <paramref name="size"/>, or the look's <see cref="DefaultFontSize"/> when it is NaN (not set).</summary>
     internal static double FontSizeOrDefault(double size) => double.IsNaN(size) ? Current.DefaultFontSize : size;
 

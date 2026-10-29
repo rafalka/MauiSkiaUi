@@ -7,7 +7,9 @@ Add entries under `## Unreleased`, grouped under these subsections (only the one
 - `### New features`: one bullet per feature, led by a bold title (`- **Title:** details`); nested bullets for the details.
 - `### Breaking changes`: what callers must change, one bullet each.
 - `### Fixes`
-- `### Other`: behavior changes that are not breaking, performance, samples and demo.
+- `- **Windows text in Segoe UI Variable, at its optical size:** `WindowsSkUiLook.DefaultFontFamily` is "Segoe UI Variable Text" (the name "Segoe UI Variable" matched the static Segoe UI in Skia), and the look applies the optical size as DirectWrite does, in points: the new `SkUiLook.OpticalSizeScale` (default 1; Windows 0.75). Small text measured narrower than WinUI's (12 epx "Sample text": 62.3 against 64) and large kerned text wider (34 epx "AVATAR Wave To": 250.8 against 247); every row of 12–34 epx regular, bold and kerned text now matches WinUI's within its whole-pixel rounding.
+
+### Other`: behavior changes that are not breaking, performance, samples and demo.
 
 Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) renames `## Unreleased` to the new version. The package's `PackageReleaseNotes`, shown on nuget.org as plain text, gets a link to the version's section, the titles of its new features and its breaking changes; the GitHub release gets the whole section. Newest section first; headings are exactly `## <version>`. Sections up to 1.0.0-Prerelease07 predate the subsections.
 
